@@ -43,7 +43,7 @@ export const handler = async (argv: DemoOptions) => {
 
   if (answers.ready) {
     console.info(
-      '%s: %s',
+      '🎉 %s: %s',
       chalk.green('success'),
       chalk.dim(answers.message || argv.message || 'no message given')
     );
