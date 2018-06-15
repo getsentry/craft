@@ -6,6 +6,10 @@
   "repository": "https://github.com/getsentry/craft",
   "author": "Sentry",
   "license": "MIT",
+  "bin": {
+    "craft": "dist/index.js",
+    "sentry-craft": "dist/index.js"
+  },
   "dependencies": {
     "chalk": "^2.4.1",
     "inquirer": "^6.0.0",
