@@ -29,6 +29,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "precli": "run-s build",
+    "cli": "node dist",
     "clean": "rimraf dist coverage",
     "lint": "run-s lint:prettier lint:tslint",
     "lint:prettier": "prettier-check 'src/**/*.ts'",
