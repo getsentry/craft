@@ -1,0 +1,11 @@
+coverage/
+dist/
+node_modules/
+
+yarn-error.log
+npm-debug.log
+
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
