@@ -1,0 +1,14 @@
+{
+  "extends": "./node_modules/@sentry/typescript/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "**/__mocks__/**",
+    "**/__tests__/**"
+  ]
+}

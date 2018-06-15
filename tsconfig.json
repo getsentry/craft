@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.build.json",
+  "include": ["src/**/*.ts"],
+  "compilerOptions": {
+    "rootDir": ".",
+    "types": ["node", "jest"],
+    "plugins": [{ "name": "tslint-language-service" }]
+  }
+}

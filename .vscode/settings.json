@@ -7,5 +7,6 @@
   "editor.rulers": [80],
   "editor.tabSize": 2,
   "files.trimTrailingWhitespace": true,
-  "files.insertFinalNewline": true
+  "files.insertFinalNewline": true,
+  "typescript.tsdk": "node_modules/typescript/lib"
 }
