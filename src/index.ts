@@ -12,8 +12,8 @@ yargs
   .help()
   .alias('h', 'help')
   .strict()
-  .fail((message, _) => {
-    console.error('%s: %s', chalk.red('Error'), message);
-    console.error();
-    yargs.showHelp();
+  .fail((message, err) => {
+    const display = message || err.message;
+    console.error('❗ %s %s.', chalk.red('error'), display);
+    process.exit(1);
   }).argv;

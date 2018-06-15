@@ -41,13 +41,15 @@ export const handler = async (argv: DemoOptions) => {
   const answers = await prompt(questions);
   console.info();
 
-  if (answers.ready) {
-    console.info(
-      '🎉 %s: %s',
-      chalk.green('success'),
-      chalk.dim(answers.message || argv.message || 'no message given')
-    );
-  } else {
-    console.info(chalk.yellow('maybe next time'));
+  if (!answers.ready) {
+    console.info(chalk.yellow('👀 maybe next time...'));
+    return;
   }
+
+  const message = answers.message || argv.message;
+  if (!message) {
+    throw new Error('You need to enter a message');
+  }
+
+  console.info('🎉  %s! %s', chalk.green('woooho'), chalk.dim(message));
 };
