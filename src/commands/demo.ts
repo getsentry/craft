@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { prompt, Question } from 'inquirer';
+import * as ora from 'ora';
 import { Argv } from 'yargs';
 
 export const command = ['demo', 'd'];
@@ -50,6 +51,10 @@ export const handler = async (argv: DemoOptions) => {
   if (!message) {
     throw new Error('You need to enter a message');
   }
+
+  const spinner = ora('Performing important stuff, trust me').start();
+  await new Promise<void>(resolve => setTimeout(resolve, 2000));
+  spinner.stop();
 
   console.info('🎉  %s! %s', chalk.green('woooho'), chalk.dim(message));
 };
