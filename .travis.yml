@@ -1,0 +1,32 @@
+language: node_js
+cache: yarn
+
+git:
+  depth: 1
+
+branches:
+  only:
+    - master
+
+node_js:
+  - "8"
+  - "10"
+
+matrix:
+  include:
+    - script: yarn lint
+    - script: yarn build
+      after_success:
+        - npm pack
+        - npm install -g @zeus-ci/cli
+        - zeus upload -t "application/tar+npm" *.tgz
+
+notifications:
+  webhooks:
+    urls:
+      - https://zeus.ci/hooks/1db5cb28-7098-11e8-868d-0a580a280328/public/provider/travis/webhook
+    on_success: always
+    on_failure: always
+    on_start: always
+    on_cancel: always
+    on_error: always
