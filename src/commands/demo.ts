@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { prompt, Question } from 'inquirer';
 import * as ora from 'ora';
 import { Argv } from 'yargs';
+import { log } from '../logger';
 
 export const command = ['demo', 'd'];
 export const description = '🎬 Run a demo of craft';
@@ -40,10 +41,10 @@ export const handler = async (argv: DemoOptions) => {
   ];
 
   const answers = await prompt(questions);
-  console.info();
+  log();
 
   if (!answers.ready) {
-    console.info(chalk.yellow('👀 maybe next time...'));
+    log('👀  Maybe next time...');
     return;
   }
 
@@ -56,5 +57,5 @@ export const handler = async (argv: DemoOptions) => {
   await new Promise<void>(resolve => setTimeout(resolve, 2000));
   spinner.stop();
 
-  console.info('🎉  %s! %s', chalk.green('woooho'), chalk.dim(message));
+  log('🎉  %s! %s', chalk.green('Woooho'), chalk.dim(message));
 };

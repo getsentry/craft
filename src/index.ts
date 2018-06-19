@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import chalk from 'chalk';
 import * as yargs from 'yargs';
+import { error } from './logger';
 
 // tslint:disable-next-line:no-unused-expression
 yargs
@@ -13,7 +13,6 @@ yargs
   .alias('h', 'help')
   .strict()
   .fail((message, err) => {
-    const display = message || err.message;
-    console.error('❗ %s %s.', chalk.red('error'), display);
+    error(message || err.message);
     process.exit(1);
   }).argv;
