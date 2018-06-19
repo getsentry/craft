@@ -44,7 +44,7 @@ export const handler = async (argv: DemoOptions) => {
   log();
 
   if (!answers.ready) {
-    log('👀  Maybe next time...');
+    log(':eyes:  Maybe next time...');
     return;
   }
 
@@ -57,5 +57,5 @@ export const handler = async (argv: DemoOptions) => {
   await new Promise<void>(resolve => setTimeout(resolve, 2000));
   spinner.stop();
 
-  log('🎉  %s! %s', chalk.green('Woooho'), chalk.dim(message));
+  log(':tada:  %s! %s', chalk.green('Woooho'), chalk.dim(message));
 };

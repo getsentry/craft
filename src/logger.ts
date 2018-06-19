@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { emojify } from 'node-emoji';
 import { format } from 'util';
 
 /**
@@ -8,6 +9,9 @@ import { format } from 'util';
  * the message contains a format string, its placeholders will be replaced with
  * the supplied arguments. Additional arguments will be printed after that,
  * separated with spaces.
+ *
+ * In case the resulting formatted message contains emoji placeholders, they
+ * will be replaced with the actual emoji character.
  *
  * If the message is empty, then the prefix will be omitted an an empty line
  * will be rendered instead.
@@ -21,13 +25,16 @@ function formatMessage(prefix: string, message?: any, ...args: any[]): any {
     return '';
   }
 
+  let formatted: string;
   if (prefix === '') {
-    return format(message, ...args);
+    formatted = format(message, ...args);
   } else if (typeof message === 'string') {
-    return format(`${prefix} ${message}`, ...args);
+    formatted = format(`${prefix} ${message}`, ...args);
   } else {
-    return format(prefix, message, ...args);
+    formatted = format(prefix, message, ...args);
   }
+
+  return emojify(formatted);
 }
 
 /**
