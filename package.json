@@ -11,6 +11,7 @@
     "sentry-craft": "dist/index.js"
   },
   "dependencies": {
+    "@zeus-ci/sdk": "^0.1.1",
     "chalk": "^2.4.1",
     "inquirer": "^6.0.0",
     "node-emoji": "^1.8.1",
@@ -37,6 +38,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
     "precli": "run-s build",
     "cli": "node dist",
     "clean": "rimraf dist coverage",
