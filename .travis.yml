@@ -14,8 +14,10 @@ node_js:
 
 matrix:
   include:
-    - script: yarn lint
-    - script: yarn build
+    - env: NAME='yarn lint'
+      script: yarn lint
+    - env: NAME='yarn build'
+      script: yarn build
       after_success:
         - npm pack
         - npm install -g @zeus-ci/cli
