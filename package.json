@@ -11,11 +11,15 @@
     "sentry-craft": "dist/index.js"
   },
   "dependencies": {
-    "@zeus-ci/sdk": "^0.1.1",
+    "@octokit/rest": "^15.9.1",
+    "@types/js-yaml": "^3.11.1",
+    "@zeus-ci/sdk": "../zeus-sdk/",
     "chalk": "^2.4.1",
     "inquirer": "^6.0.0",
+    "js-yaml": "^3.12.0",
     "node-emoji": "^1.8.1",
     "ora": "^2.1.0",
+    "simple-git": "^1.96.0",
     "yargs": "^11.0.0"
   },
   "devDependencies": {
