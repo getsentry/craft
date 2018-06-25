@@ -40,11 +40,17 @@ export const handler = async (argv: PublishOptions) => {
   console.log(argv);
 
   try {
-    // Infer revision and repo info
-    const repo = git('.').silent(true);
-    const sha = (await repo.revparse(['HEAD'])).trim();
+    let sha;
+    if (argv.rev) {
+      sha = argv.rev;
+    } else {
+      // Infer revision
+      const repo = git('.').silent(true);
+      sha = (await repo.revparse(['HEAD'])).trim();
+    }
     console.log('The revision to pack: ', sha);
 
+    // Get repo configuration
     const config = getConfiguration();
     const githubConfig = config.github;
     const store = new ZeusStore(githubConfig.owner, githubConfig.repo);

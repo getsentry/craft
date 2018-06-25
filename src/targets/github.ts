@@ -2,12 +2,21 @@ import * as OctokitRest from '@octokit/rest';
 
 import { getConfiguration } from '../config';
 import { ZeusStore } from '../stores/zeus';
+import { findChangeset } from '../utils/changes';
+import { getFile } from '../utils/github';
 import { BaseTarget } from './base';
+
+/**
+ * Path to the changelog file in the target repository
+ * TODO: Make this configurable
+ */
+export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
 
 export interface GithubTargetOptions {
   owner: string;
   repo: string;
   token: string;
+  changelog?: string;
 }
 
 export class GithubTarget extends BaseTarget {
@@ -50,6 +59,7 @@ export class GithubTarget extends BaseTarget {
       );
     }
     return {
+      changelog: this.config.changelog,
       owner: repoGithubConfig.owner,
       repo: repoGithubConfig.repo,
       token: githubApiToken,
@@ -69,7 +79,8 @@ export class GithubTarget extends BaseTarget {
    * @async
    */
   public async getOrCreateRelease(
-    tag: string
+    tag: string,
+    revision: string
   ): Promise<OctokitRest.AnyResponse> {
     try {
       const response = await this.octokit.repos.getReleaseByTag({
@@ -84,14 +95,25 @@ export class GithubTarget extends BaseTarget {
       }
     }
     // Release hasn't been found, so create one
+    const changelog = await getFile(
+      this.octokit,
+      this.githubConfig.owner,
+      this.githubConfig.repo,
+      this.githubConfig.changelog || DEFAULT_CHANGELOG_PATH,
+      revision
+    );
+
+    const changes = (changelog && findChangeset(changelog, tag)) || {};
+
     const params = {
-      body: 'TODO changelog',
       draft: false,
       name: tag,
       owner: this.githubConfig.owner,
       prerelease: false,
       repo: this.githubConfig.repo,
       tag_name: tag,
+      target_commitish: revision,
+      ...changes,
     };
 
     const created = await this.octokit.repos.createRelease(params);
@@ -101,13 +123,14 @@ export class GithubTarget extends BaseTarget {
   /**
    * Create a new GitHub release and publish all available artifacts.
    *
+   * It also creates a tag if it doesn't exist
+   *
    * @param version TODO
-   * @param revision TODO
+   * @param revision Git revision to publish (must be a full SHA at the moment!)
    */
   public async publish(version: string, revision: string): Promise<any> {
     console.log(`Target "${this.name}": publishing version ${version}...`);
-    console.log(revision);
-    const response = await this.getOrCreateRelease(version);
+    const response = await this.getOrCreateRelease(version, revision);
     console.log(response);
   }
 }
