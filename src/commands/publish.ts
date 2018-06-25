@@ -5,6 +5,7 @@ import { getTargetByName } from '../targets';
 
 import { getConfiguration } from '../config';
 import { ZeusStore } from '../stores/zeus';
+import { withTempDir } from '../utils/files';
 
 export const command = ['publish', 'p'];
 export const description = '🛫 Publish artifacts';
@@ -36,26 +37,46 @@ interface PublishOptions {
   tag: string;
 }
 
+async function publishToTargets(
+  version: string,
+  revision: string,
+  owner: string,
+  repo: string,
+  targetConfigList: any[]
+): Promise<any> {
+  await withTempDir(async downloadDirectory => {
+    const store = new ZeusStore(owner, repo, downloadDirectory);
+    for (const targetConfig of targetConfigList) {
+      const targetClass = getTargetByName(targetConfig.name);
+      if (!targetClass) {
+        console.log(`WARNING: target "${targetConfig.name}" not found.`);
+        return;
+      }
+      const target = new targetClass(targetConfig, store);
+      await target.publish(version, revision);
+    }
+  });
+}
+
 export const handler = async (argv: PublishOptions) => {
   console.log(argv);
 
   try {
-    let sha;
+    let revision;
     if (argv.rev) {
-      sha = argv.rev;
+      revision = argv.rev;
     } else {
       // Infer revision
       const repo = git('.').silent(true);
-      sha = (await repo.revparse(['HEAD'])).trim();
+      revision = (await repo.revparse(['HEAD'])).trim();
     }
-    console.log('The revision to pack: ', sha);
+    console.log('The revision to pack: ', revision);
 
     // Get repo configuration
     const config = getConfiguration();
     const githubConfig = config.github;
-    const store = new ZeusStore(githubConfig.owner, githubConfig.repo);
 
-    // Iterate over targets
+    // Find targets
     let targetList: string[] =
       (typeof argv.target === 'string' ? [argv.target] : argv.target) || [];
     if (targetList.length > 1 && targetList.indexOf('all') > -1) {
@@ -75,18 +96,16 @@ export const handler = async (argv: PublishOptions) => {
     }
 
     if (!targetConfigList.length) {
-      console.log('WARNING: no targets detected!');
+      console.log('WARNING: no targets detected! Exiting.');
+      return;
     }
-
-    for (const targetConfig of targetConfigList) {
-      const targetClass = getTargetByName(targetConfig.name);
-      if (!targetClass) {
-        console.log(`WARNING: target "${targetConfig.name}" not found.`);
-        return;
-      }
-      const target = new targetClass(targetConfig, store);
-      await target.publish(argv.tag, sha);
-    }
+    await publishToTargets(
+      argv.tag,
+      revision,
+      githubConfig.owner,
+      githubConfig.repo,
+      targetConfigList
+    );
   } catch (e) {
     console.log(e);
   }

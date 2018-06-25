@@ -1,4 +1,6 @@
-import * as OctokitRest from '@octokit/rest';
+import * as Github from '@octokit/rest';
+import { createReadStream, statSync } from 'fs';
+import { basename } from 'path';
 
 import { getConfiguration } from '../config';
 import { ZeusStore } from '../stores/zeus';
@@ -12,6 +14,11 @@ import { BaseTarget } from './base';
  */
 export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
 
+/**
+ * Default content type for release assets
+ */
+export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
+
 export interface GithubTargetOptions {
   owner: string;
   repo: string;
@@ -22,13 +29,13 @@ export interface GithubTargetOptions {
 export class GithubTarget extends BaseTarget {
   public readonly name: string = 'github';
   public githubConfig: GithubTargetOptions;
-  public octokit: OctokitRest;
+  public github: Github;
 
   public constructor(config: any, store: ZeusStore) {
     super(config, store);
     this.githubConfig = this.getGithubConfig();
-    this.octokit = new OctokitRest();
-    this.octokit.authenticate({
+    this.github = new Github();
+    this.github.authenticate({
       token: this.githubConfig.token,
       type: 'token',
     });
@@ -76,14 +83,13 @@ export class GithubTarget extends BaseTarget {
    * @param context Github context
    * @param tag Tag name for this release
    * @returns The newly created release
-   * @async
    */
   public async getOrCreateRelease(
     tag: string,
     revision: string
-  ): Promise<OctokitRest.AnyResponse> {
+  ): Promise<Github.AnyResponse> {
     try {
-      const response = await this.octokit.repos.getReleaseByTag({
+      const response = await this.github.repos.getReleaseByTag({
         owner: this.githubConfig.owner,
         repo: this.githubConfig.repo,
         tag,
@@ -96,14 +102,17 @@ export class GithubTarget extends BaseTarget {
     }
     // Release hasn't been found, so create one
     const changelog = await getFile(
-      this.octokit,
+      this.github,
       this.githubConfig.owner,
       this.githubConfig.repo,
       this.githubConfig.changelog || DEFAULT_CHANGELOG_PATH,
       revision
     );
+    console.log(changelog);
 
     const changes = (changelog && findChangeset(changelog, tag)) || {};
+    console.log(findChangeset(changelog || '', tag));
+    console.log(changes);
 
     const params = {
       draft: false,
@@ -116,7 +125,7 @@ export class GithubTarget extends BaseTarget {
       ...changes,
     };
 
-    const created = await this.octokit.repos.createRelease(params);
+    const created = await this.github.repos.createRelease(params);
     return created.data;
   }
 
@@ -130,7 +139,33 @@ export class GithubTarget extends BaseTarget {
    */
   public async publish(version: string, revision: string): Promise<any> {
     console.log(`Target "${this.name}": publishing version ${version}...`);
-    const response = await this.getOrCreateRelease(version, revision);
-    console.log(response);
+    console.log(`Revision: ${revision}`);
+    const release = (await this.getOrCreateRelease(version, revision)) as any;
+    console.log(release);
+
+    const artifacts = await this.store.listArtifactsForRevision(revision);
+    await Promise.all(
+      artifacts.map(async artifact => {
+        const path = await this.store.downloadArtifact(artifact);
+        const stats = statSync(path);
+        const name = basename(path);
+
+        const params = {
+          contentLength: stats.size,
+          contentType: artifact.type || DEFAULT_CONTENT_TYPE,
+          file: createReadStream(path),
+          id: release.id,
+          name,
+          url: release.upload_url,
+        };
+
+        console.log(
+          `Uploading asset "${name}" to ${this.githubConfig.owner}/${
+            this.githubConfig.repo
+          }:${release.tag_name}`
+        );
+        return this.github.repos.uploadAsset(params);
+      })
+    );
   }
 }

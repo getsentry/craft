@@ -1,4 +1,4 @@
-import * as OctokitRest from '@octokit/rest';
+import * as Github from '@octokit/rest';
 
 /**
  * Loads a file from the context's repository
@@ -10,14 +10,14 @@ import * as OctokitRest from '@octokit/rest';
  * @async
  */
 export async function getFile(
-  octokit: OctokitRest,
+  github: Github,
   owner: string,
   repo: string,
   path: string,
   ref: string
 ): Promise<string | undefined> {
   try {
-    const response = await octokit.repos.getContent({
+    const response = await github.repos.getContent({
       owner,
       path,
       ref,

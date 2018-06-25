@@ -1,4 +1,4 @@
-import * as OctokitRest from '@octokit/rest';
+import * as Github from '@octokit/rest';
 
 import { getFile } from '../github';
 
@@ -12,11 +12,11 @@ jest.mock('@octokit/rest', () =>
 );
 
 describe('getFile', () => {
-  const octokit = new OctokitRest();
+  const github = new Github();
   const owner = 'owner';
   const repo = 'repo';
 
-  const getContent = octokit.repos.getContent as jest.Mock;
+  const getContent = github.repos.getContent as jest.Mock;
 
   test('loads and decodes the file', async () => {
     expect.assertions(2);
@@ -27,7 +27,7 @@ describe('getFile', () => {
     });
 
     const content = await getFile(
-      octokit,
+      github,
       owner,
       repo,
       '/path/to/file',
@@ -53,7 +53,7 @@ describe('getFile', () => {
     });
 
     const content = await getFile(
-      octokit,
+      github,
       owner,
       repo,
       '/path/to/missing',
@@ -73,7 +73,7 @@ describe('getFile', () => {
     });
 
     try {
-      await getFile(octokit, owner, repo, '/path/to/missing', 'v1.0.0');
+      await getFile(github, owner, repo, '/path/to/missing', 'v1.0.0');
     } catch (e) {
       expect(e.message).toMatch(errorText);
     }

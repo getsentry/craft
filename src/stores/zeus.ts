@@ -5,8 +5,12 @@ export class ZeusStore {
   public readonly repoOwner: string;
   public readonly repoName: string;
 
-  public constructor(repoOwner: string, repoName: string) {
-    this.client = new ZeusClient();
+  public constructor(
+    repoOwner: string,
+    repoName: string,
+    downloadDirectory?: string
+  ) {
+    this.client = new ZeusClient({ defaultDirectory: downloadDirectory });
     this.repoOwner = repoOwner;
     this.repoName = repoName;
   }
