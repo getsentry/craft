@@ -75,7 +75,7 @@ export const handler = async (argv: PublishOptions) => {
     console.log('The revision to pack: ', revision);
 
     // Get repo configuration
-    const config = getConfiguration();
+    const config = getConfiguration() || {};
     const githubConfig = config.github;
 
     // Find targets

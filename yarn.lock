@@ -189,8 +189,9 @@
   version "11.0.0"
   resolved "https://registry.yarnpkg.com/@types/yargs/-/yargs-11.0.0.tgz#124b9ed9c65b7091cc36da59ae12cbd47d8745ea"
 
-"@zeus-ci/sdk@../zeus-sdk/":
-  version "0.1.1"
+"@zeus-ci/sdk@^0.1.2":
+  version "0.1.2"
+  resolved "https://registry.yarnpkg.com/@zeus-ci/sdk/-/sdk-0.1.2.tgz#df5f26ef9e20c6b07d033b714d64723ee3226d21"
   dependencies:
     form-data "^2.3.2"
     node-fetch "^2.1.2"

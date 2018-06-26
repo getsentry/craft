@@ -14,7 +14,7 @@
     "@octokit/rest": "^15.9.1",
     "@types/js-yaml": "^3.11.1",
     "@types/rimraf": "^2.0.2",
-    "@zeus-ci/sdk": "../zeus-sdk/",
+    "@zeus-ci/sdk": "^0.1.2",
     "chalk": "^2.4.1",
     "inquirer": "^6.0.0",
     "js-yaml": "^3.12.0",

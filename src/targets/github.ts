@@ -15,7 +15,7 @@ import { BaseTarget } from './base';
 export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
 
 /**
- * Default content type for release assets
+ * Default content type for GitHub release assets
  */
 export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
 

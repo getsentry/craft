@@ -6,6 +6,12 @@ import { safeLoad } from 'js-yaml';
 // TODO support multiple configuration files (one per configuration)
 const CONFIG_FILE_NAME = '.craft.yml';
 
+interface ProjectConfig {
+  github: any;
+  targets: any[];
+  zeus: any;
+}
+
 /**
  * Return a full path to configuration file for the current project
  */
@@ -34,7 +40,7 @@ export function findConfigFile(): string | undefined {
 /**
  * Return the parsed configuration file contents
  */
-export function getConfiguration(): any {
+export function getConfiguration(): ProjectConfig {
   // TODO cache configuration for later multiple uses
 
   const configPath = findConfigFile();
@@ -42,5 +48,5 @@ export function getConfiguration(): any {
   if (!configPath) {
     throw new Error('Cannot find configuration file');
   }
-  return safeLoad(readFileSync(configPath, 'utf-8'));
+  return safeLoad(readFileSync(configPath, 'utf-8')) as ProjectConfig;
 }
