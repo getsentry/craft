@@ -5,7 +5,7 @@ import { basename } from 'path';
 import { getConfiguration } from '../config';
 import { ZeusStore } from '../stores/zeus';
 import { findChangeset } from '../utils/changes';
-import { getFile } from '../utils/github';
+import { getFile } from '../utils/github_api';
 import { BaseTarget } from './base';
 
 /**

@@ -49,8 +49,10 @@ async function publishToTargets(
     for (const targetConfig of targetConfigList) {
       const targetClass = getTargetByName(targetConfig.name);
       if (!targetClass) {
-        console.log(`WARNING: target "${targetConfig.name}" not found.`);
-        return;
+        console.log(
+          `WARNING: target implementation for "${targetConfig.name}" not found.`
+        );
+        continue;
       }
       const target = new targetClass(targetConfig, store);
       await target.publish(version, revision);

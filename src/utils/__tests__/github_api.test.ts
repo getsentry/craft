@@ -1,6 +1,6 @@
 import * as Github from '@octokit/rest';
 
-import { getFile } from '../github';
+import { getFile } from '../github_api';
 
 const mockRepos = {
   getContent: jest.fn(),
