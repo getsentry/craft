@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import consola = require('consola');
 import { emojify } from 'node-emoji';
 import { format } from 'util';
 
@@ -87,3 +88,27 @@ export function warn(message?: any, ...args: any[]): void {
 export function error(message?: any, ...args: any[]): void {
   console.error(formatMessage(chalk.red('error'), message, ...args));
 }
+
+// tslint:disable:object-literal-sort-keys
+const DEBUG_LEVELS: { [key: string]: number } = {
+  ERROR: 0,
+  WARN: 1,
+  INFO: 2,
+  SUCCESS: 3,
+  DEBUG: 4,
+  TRACE: 4,
+};
+
+/**
+ * Read logging level from the environment
+ */
+function getLogLevel(): number {
+  const logLevelName = process.env.CRAFT_LOG_LEVEL || '';
+  const logLevelNumber = DEBUG_LEVELS[logLevelName.toUpperCase()];
+  return logLevelNumber || consola.level;
+}
+
+consola.level = getLogLevel();
+
+// tslint:disable-next-line:no-default-export
+export default consola;

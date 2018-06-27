@@ -2,15 +2,15 @@ import * as Github from '@octokit/rest';
 import { createReadStream, statSync } from 'fs';
 import { basename } from 'path';
 
-import { getConfiguration } from '../config';
+import { getGithubConfig } from '../config';
+import logger from '../logger';
 import { ZeusStore } from '../stores/zeus';
 import { findChangeset } from '../utils/changes';
-import { getFile } from '../utils/github_api';
+import { getFile, getGithubClient } from '../utils/github_api';
 import { BaseTarget } from './base';
 
 /**
  * Path to the changelog file in the target repository
- * TODO: Make this configurable
  */
 export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
 
@@ -22,7 +22,6 @@ export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
 export interface GithubTargetOptions {
   owner: string;
   repo: string;
-  token: string;
   changelog?: string;
 }
 
@@ -33,44 +32,9 @@ export class GithubTarget extends BaseTarget {
 
   public constructor(config: any, store: ZeusStore) {
     super(config, store);
-    this.githubConfig = this.getGithubConfig();
-    this.github = new Github();
-    this.github.authenticate({
-      token: this.githubConfig.token,
-      type: 'token',
-    });
-  }
-
-  /** TODO */
-  public getGithubConfig(): GithubTargetOptions {
-    // We extract global Github configuration (owner/repo) from top-level
-    // configuration
-    const repoGithubConfig = getConfiguration().github || {};
-
-    if (!repoGithubConfig) {
-      throw new Error('GitHub configuration not found in the config file');
-    }
-
-    if (!repoGithubConfig.owner) {
-      throw new Error('GitHub target: owner not found');
-    }
-
-    if (!repoGithubConfig.repo) {
-      throw new Error('GitHub target: repo not found');
-    }
-
-    const githubApiToken = process.env.GITHUB_API_TOKEN || '';
-    if (!githubApiToken) {
-      throw new Error(
-        'GitHub target: GITHUB_API_TOKEN not found in the environment'
-      );
-    }
-    return {
-      changelog: this.config.changelog,
-      owner: repoGithubConfig.owner,
-      repo: repoGithubConfig.repo,
-      token: githubApiToken,
-    };
+    this.githubConfig = getGithubConfig();
+    this.githubConfig.changelog = this.config.changelog;
+    this.github = getGithubClient();
   }
 
   /**
@@ -108,11 +72,8 @@ export class GithubTarget extends BaseTarget {
       this.githubConfig.changelog || DEFAULT_CHANGELOG_PATH,
       revision
     );
-    console.log(changelog);
-
     const changes = (changelog && findChangeset(changelog, tag)) || {};
-    console.log(findChangeset(changelog || '', tag));
-    console.log(changes);
+    logger.debug('Changes extracted from changelog: ', JSON.stringify(changes));
 
     const params = {
       draft: false,
@@ -138,10 +99,9 @@ export class GithubTarget extends BaseTarget {
    * @param revision Git revision to publish (must be a full SHA at the moment!)
    */
   public async publish(version: string, revision: string): Promise<any> {
-    console.log(`Target "${this.name}": publishing version ${version}...`);
-    console.log(`Revision: ${revision}`);
+    logger.info(`Target "${this.name}": publishing version ${version}...`);
+    logger.debug(`Revision: ${revision}`);
     const release = (await this.getOrCreateRelease(version, revision)) as any;
-    console.log(release);
 
     const artifacts = await this.store.listArtifactsForRevision(revision);
     await Promise.all(
@@ -159,7 +119,7 @@ export class GithubTarget extends BaseTarget {
           url: release.upload_url,
         };
 
-        console.log(
+        logger.debug(
           `Uploading asset "${name}" to ${this.githubConfig.owner}/${
             this.githubConfig.repo
           }:${release.tag_name}`

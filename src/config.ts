@@ -1,11 +1,16 @@
 import { existsSync, lstatSync, readFileSync } from 'fs';
+import { safeLoad } from 'js-yaml';
 import { dirname, join } from 'path';
 
-import { safeLoad } from 'js-yaml';
+import logger from './logger';
+import { GithubTargetOptions } from './targets/github';
 
 // TODO support multiple configuration files (one per configuration)
 const CONFIG_FILE_NAME = '.craft.yml';
 
+/**
+ *  Project-specific configuration structure
+ */
 interface ProjectConfig {
   github: any;
   targets: any[];
@@ -33,7 +38,7 @@ export function findConfigFile(): string | undefined {
     currentDir = parentDir;
     depth += 1;
   }
-  console.log('WARNING: reached maximum allowed directory depth');
+  logger.warn('findConfigFile: Reached maximum allowed directory depth');
   return undefined;
 }
 
@@ -44,9 +49,35 @@ export function getConfiguration(): ProjectConfig {
   // TODO cache configuration for later multiple uses
 
   const configPath = findConfigFile();
-  console.log(configPath);
+  logger.debug('Configuration file found: ', configPath);
   if (!configPath) {
     throw new Error('Cannot find configuration file');
   }
   return safeLoad(readFileSync(configPath, 'utf-8')) as ProjectConfig;
+}
+
+/**
+ * Return the parsed Github configuration, such as repository owner and name
+ */
+export function getGithubConfig(): GithubTargetOptions {
+  // We extract global Github configuration (owner/repo) from top-level
+  // configuration
+  const repoGithubConfig = getConfiguration().github || {};
+
+  if (!repoGithubConfig) {
+    throw new Error('GitHub configuration not found in the config file');
+  }
+
+  if (!repoGithubConfig.owner) {
+    throw new Error('GitHub target: owner not found');
+  }
+
+  if (!repoGithubConfig.repo) {
+    throw new Error('GitHub target: repo not found');
+  }
+
+  return {
+    owner: repoGithubConfig.owner,
+    repo: repoGithubConfig.repo,
+  };
 }

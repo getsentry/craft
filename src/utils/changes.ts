@@ -47,7 +47,6 @@ export function findChangeset(
   markdown: string,
   tag: string
 ): Changeset | undefined {
-  console.log(`markdown: ${markdown}, tag: ${tag}`);
   const version = getVersion(tag);
   if (version === null) {
     return undefined;
