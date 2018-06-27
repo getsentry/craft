@@ -19,16 +19,25 @@ export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
  */
 export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
 
+/**
+ * Configuration options for the Github target
+ */
 export interface GithubTargetOptions {
   owner: string;
   repo: string;
   changelog?: string;
 }
 
+/**
+ * Target responsible for publishing releases on Github
+ */
 export class GithubTarget extends BaseTarget {
+  /** Target name */
   public readonly name: string = 'github';
-  public githubConfig: GithubTargetOptions;
-  public github: Github;
+  /** High-level non-target Github configuration */
+  public readonly githubConfig: GithubTargetOptions;
+  /** Github client */
+  public readonly github: Github;
 
   public constructor(config: any, store: ZeusStore) {
     super(config, store);
@@ -95,8 +104,8 @@ export class GithubTarget extends BaseTarget {
    *
    * It also creates a tag if it doesn't exist
    *
-   * @param version TODO
-   * @param revision Git revision to publish (must be a full SHA at the moment!)
+   * @param version New version to be released
+   * @param revision Git commit SHA to be published
    */
   public async publish(version: string, revision: string): Promise<any> {
     logger.info(`Target "${this.name}": publishing version ${version}...`);

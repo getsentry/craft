@@ -76,81 +76,91 @@ async function publishToTargets(
   });
 }
 
-export const handler = async (argv: PublishOptions) => {
+/**
+ * Entrypoint for 'publish' command
+ *
+ * @param argv Command-line arguments
+ */
+async function publishMain(argv: PublishOptions): Promise<any> {
   logger.debug('Argv:', JSON.stringify(argv));
-  try {
-    // Get repo configuration
-    const config = getConfiguration() || {};
-    const githubConfig = config.github;
-    const githubClient = getGithubClient();
 
-    let revision;
-    let version;
-    let branchName = '';
-    if (argv.rev) {
-      revision = argv.rev;
-    } else {
-      // Check that tag is a valid version string
-      version = getVersion(argv.tag);
-      if (!version || version !== argv.tag) {
-        logger.error(`Invalid version provided: "${argv.tag}"`);
-        return;
-      }
+  // Get repo configuration
+  const config = getConfiguration() || {};
+  const githubConfig = config.github;
+  const githubClient = getGithubClient();
 
-      // Find a remote branch
-      branchName = `release/${version}`;
-      logger.debug('Fetching branch information', branchName);
-      const response = await githubClient.repos.getBranch({
-        branch: branchName,
-        owner: githubConfig.owner,
-        repo: githubConfig.repo,
-      });
-      revision = response.data.commit.sha;
-    }
-    logger.debug('The revision to publish: ', revision);
-
-    // Find targets
-    let targetList: string[] =
-      (typeof argv.target === 'string' ? [argv.target] : argv.target) || [];
-    if (targetList.length > 1 && targetList.indexOf('all') > -1) {
-      logger.error('Target "all" specified together with other targets');
-      return;
-    }
-    // No targets specified => run all
-    if (!targetList.length) {
-      targetList = ['all'];
+  let revision;
+  let version;
+  let branchName = '';
+  if (argv.rev) {
+    revision = argv.rev;
+  } else {
+    // Check that tag is a valid version string
+    version = getVersion(argv.tag);
+    if (!version || version !== argv.tag) {
+      logger.error(`Invalid version provided: "${argv.tag}"`);
+      return undefined;
     }
 
-    let targetConfigList = config.targets;
-    if (targetList[0] !== 'all') {
-      targetConfigList = targetConfigList.filter(
-        (targetConf: { [key: string]: any }) =>
-          targetList.indexOf(targetConf.name) > -1
-      );
-    }
-    if (!targetConfigList.length) {
-      logger.warning('No targets detected! Exiting.');
-      return;
-    }
-    await publishToTargets(
+    // Find a remote branch
+    branchName = `release/${version}`;
+    logger.debug('Fetching branch information', branchName);
+    const response = await githubClient.repos.getBranch({
+      branch: branchName,
+      owner: githubConfig.owner,
+      repo: githubConfig.repo,
+    });
+    revision = response.data.commit.sha;
+  }
+  logger.debug('The revision to publish: ', revision);
+
+  // Find targets
+  let targetList: string[] =
+    (typeof argv.target === 'string' ? [argv.target] : argv.target) || [];
+  if (targetList.length > 1 && targetList.indexOf('all') > -1) {
+    logger.error('Target "all" specified together with other targets');
+    return undefined;
+  }
+  // No targets specified => run all
+  if (!targetList.length) {
+    targetList = ['all'];
+  }
+
+  let targetConfigList = config.targets;
+  if (targetList[0] !== 'all') {
+    targetConfigList = targetConfigList.filter(
+      (targetConf: { [key: string]: any }) =>
+        targetList.indexOf(targetConf.name) > -1
+    );
+  }
+  if (!targetConfigList.length) {
+    logger.warning('No targets detected! Exiting.');
+    return undefined;
+  }
+  await publishToTargets(
+    githubConfig.owner,
+    githubConfig.repo,
+    argv.tag,
+    revision,
+    targetConfigList
+  );
+
+  // Publishing done, MERGE DAT BRANCH!
+  if (branchName && argv.mergeReleaseBranch) {
+    await mergeReleaseBranch(
+      githubClient,
       githubConfig.owner,
       githubConfig.repo,
-      argv.tag,
-      revision,
-      targetConfigList
+      branchName
     );
+  } else {
+    logger.debug('Skipping the merge step');
+  }
+}
 
-    // Publishing done, MERGE DAT BRANCH!
-    if (branchName && argv.mergeReleaseBranch) {
-      await mergeReleaseBranch(
-        githubClient,
-        githubConfig.owner,
-        githubConfig.repo,
-        branchName
-      );
-    } else {
-      logger.debug('Skipping the merge step');
-    }
+export const handler = async (argv: PublishOptions) => {
+  try {
+    return await publishMain(argv);
   } catch (e) {
     logger.error(e);
   }
