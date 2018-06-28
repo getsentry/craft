@@ -45,7 +45,7 @@ interface PublishOptions {
 }
 
 /**
- * Publish artifacts to the provided targets
+ * Publishes artifacts to the provided targets
  *
  * @param owner Repository owner
  * @param repo Repository name
@@ -71,6 +71,7 @@ async function publishToTargets(
         continue;
       }
       const target = new targetClass(targetConfig, store);
+      logger.debug(`Publishing to the target: "${targetConfig.name}"`);
       await target.publish(version, revision);
     }
   });

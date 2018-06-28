@@ -1,0 +1,7 @@
+---
+github:
+  owner: getsentry
+  repo: craft
+targets: 
+  - name: github
+  - name: npm

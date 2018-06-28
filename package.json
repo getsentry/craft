@@ -23,6 +23,7 @@
     "ora": "^2.1.0",
     "rimraf": "^2.6.2",
     "simple-git": "^1.96.0",
+    "split": "^1.0.1",
     "yargs": "^11.0.0"
   },
   "devDependencies": {

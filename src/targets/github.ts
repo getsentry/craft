@@ -100,7 +100,7 @@ export class GithubTarget extends BaseTarget {
   }
 
   /**
-   * Create a new GitHub release and publish all available artifacts.
+   * Creates a new GitHub release and publish all available artifacts.
    *
    * It also creates a tag if it doesn't exist
    *

@@ -1,6 +1,7 @@
 {
   "extends": "@sentry/typescript/tslint",
   "rules": {
-    "no-unsafe-any": false
+    "no-unsafe-any": false,
+    "no-void-expression": false
   }
 }
