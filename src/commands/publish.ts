@@ -6,7 +6,7 @@ import { ZeusStore } from '../stores/zeus';
 import { getTargetByName } from '../targets';
 import { withTempDir } from '../utils/files';
 import { getGithubClient, mergeReleaseBranch } from '../utils/github_api';
-import { getVersion } from '../utils/version';
+import { isValidVersion } from '../utils/version';
 
 export const command = ['publish', 'p'];
 export const description = '🛫 Publish artifacts';
@@ -91,20 +91,18 @@ async function publishMain(argv: PublishOptions): Promise<any> {
   const githubClient = getGithubClient();
 
   let revision;
-  let version;
   let branchName = '';
   if (argv.rev) {
     revision = argv.rev;
   } else {
-    // Check that tag is a valid version string
-    version = getVersion(argv.tag);
-    if (!version || version !== argv.tag) {
+    // Check that the tag is a valid version string
+    if (!isValidVersion(argv.tag)) {
       logger.error(`Invalid version provided: "${argv.tag}"`);
       return undefined;
     }
 
     // Find a remote branch
-    branchName = `release/${version}`;
+    branchName = `release/${argv.tag}`;
     logger.debug('Fetching branch information', branchName);
     const response = await githubClient.repos.getBranch({
       branch: branchName,
