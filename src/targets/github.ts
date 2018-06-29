@@ -68,9 +68,9 @@ export class GithubTarget extends BaseTarget {
         tag,
       });
       return response.data;
-    } catch (err) {
-      if (err.code !== 404) {
-        throw err;
+    } catch (e) {
+      if (e.code !== 404) {
+        throw e;
       }
     }
     // Release hasn't been found, so create one

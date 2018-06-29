@@ -74,8 +74,8 @@ export async function spawnProcess(
       child.stderr
         .pipe(split())
         .on('data', (data: any) => logger.debug(`${command}: ${data}`));
-    } catch (error) {
-      reject(processError(error.code, command, args, options));
+    } catch (e) {
+      reject(processError(e.code, command, args, options));
     }
   });
 }

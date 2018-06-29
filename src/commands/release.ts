@@ -105,9 +105,9 @@ export const handler = async (argv: ReleaseOptions) => {
     let branchHead;
     try {
       branchHead = await git.revparse([branchName]);
-    } catch (err) {
-      if (!err.message.match(/unknown revision/)) {
-        throw err;
+    } catch (e) {
+      if (!e.message.match(/unknown revision/)) {
+        throw e;
       }
       branchHead = '';
     }

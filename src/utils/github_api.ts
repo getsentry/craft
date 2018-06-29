@@ -49,11 +49,11 @@ export async function getFile(
       repo,
     });
     return Buffer.from(response.data.content, 'base64').toString();
-  } catch (err) {
-    if (err.code === 404) {
+  } catch (e) {
+    if (e.code === 404) {
       return undefined;
     }
-    throw err;
+    throw e;
   }
 }
 
@@ -106,8 +106,8 @@ export async function mergeReleaseBranch(
     });
     logger.info(`Merging: done.`);
     return response.data.sha as string;
-  } catch (err) {
-    if (err.code === 409) {
+  } catch (e) {
+    if (e.code === 409) {
       // Conflicts found
       logger.error(
         `Cannot merge release branch "${branch}": conflicts detected`,
@@ -115,6 +115,6 @@ export async function mergeReleaseBranch(
         `    git checkout master && git merge ${branch}`
       );
     }
-    throw err;
+    throw e;
   }
 }

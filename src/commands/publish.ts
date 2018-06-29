@@ -24,8 +24,8 @@ export const builder = (yargs: Argv) =>
       description: 'Source revision to publish',
       type: 'string',
     })
-    .option('tag', {
-      alias: 'T',
+    .option('new-version', {
+      alias: 'n',
       description: 'Version to publish',
       type: 'string',
     })
@@ -34,13 +34,13 @@ export const builder = (yargs: Argv) =>
       description: 'Merge the release branch after publishing',
       type: 'boolean',
     })
-    .demandOption('tag', 'Please specify version (tag) to publish');
+    .demandOption('new-version', 'Please specify the version to publish');
 
 /** Command line options. */
 interface PublishOptions {
   rev?: string;
   target?: string | string[];
-  tag: string;
+  newVersion: string;
   mergeReleaseBranch: boolean;
 }
 
@@ -96,13 +96,13 @@ async function publishMain(argv: PublishOptions): Promise<any> {
     revision = argv.rev;
   } else {
     // Check that the tag is a valid version string
-    if (!isValidVersion(argv.tag)) {
-      logger.error(`Invalid version provided: "${argv.tag}"`);
+    if (!isValidVersion(argv.newVersion)) {
+      logger.error(`Invalid version provided: "${argv.newVersion}"`);
       return undefined;
     }
 
     // Find a remote branch
-    branchName = `release/${argv.tag}`;
+    branchName = `release/${argv.newVersion}`;
     logger.debug('Fetching branch information', branchName);
     const response = await githubClient.repos.getBranch({
       branch: branchName,
@@ -139,7 +139,7 @@ async function publishMain(argv: PublishOptions): Promise<any> {
   await publishToTargets(
     githubConfig.owner,
     githubConfig.repo,
-    argv.tag,
+    argv.newVersion,
     revision,
     targetConfigList
   );
