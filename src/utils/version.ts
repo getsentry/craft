@@ -27,6 +27,16 @@ export function getVersion(text: string): string | null {
 }
 
 /**
+ * Checks if the provided text is a valid version string
+ *
+ * @param text String to check
+ * @returns true if the string is a valid semantic version, false otherwise
+ */
+export function isValidVersion(text: string): boolean {
+  return !!text && text === getVersion(text);
+}
+
+/**
  * SemVer Parsed semantic version
  */
 export interface SemVer {

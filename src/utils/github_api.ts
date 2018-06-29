@@ -58,14 +58,31 @@ export async function getFile(
 }
 
 /**
- * Merge the given release branch into the base branch.
+ * Gets the default branch for the repository
+ *
+ * @param github Github client
+ * @param owner Repository owner
+ * @param repo Repository name
+ * @returns Default branch
+ */
+export async function getDefaultBranch(
+  github: Github,
+  owner: string,
+  repo: string
+): Promise<string> {
+  const repoInfo = await github.repos.get({ owner, repo });
+  return repoInfo.data.default_branch;
+}
+
+/**
+ * Merges the given release branch into the base branch.
  *
  * @param github Github client
  * @param owner Repository owner
  * @param repo Repository name
  * @param branch Branch to be merged
  * @param base Base branch; set to default repository branch, if not provided
- * @returns commit SHA of merge commit
+ * @returns SHA of merge commit
  */
 export async function mergeReleaseBranch(
   github: Github,
@@ -74,10 +91,9 @@ export async function mergeReleaseBranch(
   branch: string,
   base?: string
 ): Promise<string> {
-  let baseBranch = base || '';
+  const baseBranch = base || (await getDefaultBranch(github, owner, repo));
   if (!baseBranch) {
-    const repoInfo = await github.repos.get({ owner, repo });
-    baseBranch = repoInfo.data.default_branch;
+    throw new Error('Cannot determine base branch while merging');
   }
 
   try {
