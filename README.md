@@ -26,21 +26,40 @@ $ craft -h
 craft <command>
 
 Commands:
-  craft demo     🎬 Run a demo of craft                             [aliases: d]
-  craft publish  🛫 Publish artifacts                               [aliases: p]
+  craft demo            🎬 Run a demo of craft                       [aliases: d]
+  craft publish         🛫 Publish artifacts                         [aliases: p]
+  craft release [part]  🚢 Prepare a new release                     [aliases: r]
 
 Options:
   -v, --version  Show version number                                   [boolean]
   -h, --help     Show help                                             [boolean]
 ```
 
-### Publishing the release
+### `craft release`: Preparing a New Release
 
-The command will find a release branch for the provided version (tag) and
-publish the found artifacts to the configured targets.
+This command will create a new release branch, check the changelog entries
+(TODO), run a version-bumping script, and push the new branch to GitHub.
 
 ```
-$ craft publish -h
+craft release [part]
+
+🚢 Prepare a new release
+
+Positionals:
+  part, p  The part of the version to increase
+                [string] [choices: "major", "minor", "patch"] [default: "patch"]
+
+Options:
+  --new-version          The new version to release                     [string]
+  --push-release-branch  Push the release branch       [boolean] [default: true]
+```
+
+### `craft publish`: Publishing the Release
+
+The command will find a release branch for the provided version (tag) and
+publish the existing artifacts from Zeus to configured targets.
+
+```
 craft publish
 
 🛫 Publish artifacts
@@ -49,15 +68,34 @@ Options:
   --target, -t            Publish to this target
                               [string] [choices: "github", "npm", "pypi", "all"]
   --rev, -r               Source revision to publish                    [string]
-  --tag, -T               Version to publish                 [string] [required]
+  --new-version, -n       Version to publish                 [string] [required]
   --merge-release-branch  Merge the release branch after publishing
                                                        [boolean] [default: true]
 ```
 
+## Configuration File: `.craft.yml`
+
+Project configuration for `craft` is stored in `.craft.yml` configuration file,
+located in the project root.
+
+One of the required settings you need to specify is GitHub project parameters:
+
+```yaml
+github:
+  owner: getsentry
+  repo: craft
+```
+
+Additionally, `.craft.yml` is used for listing targets where you want to
+publish your new release.
+
 ## Target Configuration
 
 The configuration specifies which release targets to run for the repository. To
-run more targets, list the target identifiers under the `targets` key.
+run more targets, list the target identifiers under the `targets` key in
+`.craft.yml`.
+
+**Example:**
 
 ```yaml
 targets:
