@@ -91,9 +91,10 @@ async function publishMain(argv: PublishOptions): Promise<any> {
   const githubClient = getGithubClient();
 
   let revision;
-  let branchName = '';
+  let branchName;
   if (argv.rev) {
     revision = argv.rev;
+    branchName = '';
   } else {
     // Check that the tag is a valid version string
     if (!isValidVersion(argv.newVersion)) {
@@ -112,6 +113,16 @@ async function publishMain(argv: PublishOptions): Promise<any> {
     revision = response.data.commit.sha;
   }
   logger.debug('The revision to publish: ', revision);
+
+  // Check Zeus status for the revision
+  const zeus = new ZeusStore(githubConfig.owner, githubConfig.repo);
+  const revisionInfo = await zeus.getRevision(revision);
+  if (!zeus.isRevisionBuiltSuccessfully(revisionInfo)) {
+    logger.error(
+      `Builds for revision ${revision} has not completed successfully (yet).`
+    );
+    return undefined;
+  }
 
   // Find targets
   let targetList: string[] =

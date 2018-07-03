@@ -1,4 +1,10 @@
-import { Artifact, Client as ZeusClient } from '@zeus-ci/sdk';
+import {
+  Artifact,
+  Client as ZeusClient,
+  Result,
+  RevisionInfo,
+  Status,
+} from '@zeus-ci/sdk';
 
 /**
  * An artifact storage
@@ -27,7 +33,7 @@ export class ZeusStore {
   }
 
   /**
-   * Download the given artifact file.
+   * Downloads the given artifact file.
    *
    * Downloaded URL are cached during the instance's lifetime, so the same
    * files is downloaded only once.
@@ -45,7 +51,7 @@ export class ZeusStore {
   }
 
   /**
-   * Get a list of all available artifacts for the given revision
+   * Gets a list of all available artifacts for the given revision
    *
    * @param revision Git commit id
    */
@@ -56,4 +62,27 @@ export class ZeusStore {
       revision
     );
   }
+
+  /**
+   * Gets aggregated revision information
+   *
+   * @param revision Git commit id
+   */
+  public async getRevision(revision: string): Promise<RevisionInfo> {
+    return this.client.getRevision(this.repoOwner, this.repoName, revision);
+  }
+
+  /**
+   * Checks if the revision has been built successfully
+   *
+   * @param revisionInfo Revision information as returned from getRevision()
+   */
+  public isRevisionBuiltSuccessfully(revisionInfo: RevisionInfo): boolean {
+    return (
+      revisionInfo.status === Status.FINISHED &&
+      revisionInfo.result === Result.PASSED
+    );
+  }
 }
+
+export { RevisionInfo };
