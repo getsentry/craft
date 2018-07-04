@@ -1,4 +1,5 @@
 import * as Github from '@octokit/rest';
+import { isDryRun } from 'dryrun';
 
 import logger from '../logger';
 
@@ -98,6 +99,12 @@ export async function mergeReleaseBranch(
 
   try {
     logger.info(`Merging release branch: "${branch}" into "${baseBranch}"...`);
+
+    if (isDryRun()) {
+      logger.info('[dry-run] Skipping merge.');
+      return undefined;
+    }
+
     const response = await github.repos.merge({
       base: baseBranch,
       head: branch,

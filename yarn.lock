@@ -1038,6 +1038,10 @@ domexception@^1.0.0:
   dependencies:
     webidl-conversions "^4.0.2"
 
+dryrun@^1.0.2:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/dryrun/-/dryrun-1.0.2.tgz#bf59e1193efea0de5a140ee89f6a89af81cee305"
+
 duplexer@^0.1.1, duplexer@~0.1.1:
   version "0.1.1"
   resolved "https://registry.yarnpkg.com/duplexer/-/duplexer-0.1.1.tgz#ace6ff808c1ce66b57d1ebf97977acb02334cfc1"

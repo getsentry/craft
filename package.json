@@ -17,6 +17,7 @@
     "@zeus-ci/sdk": "^0.1.4",
     "chalk": "^2.4.1",
     "consola": "^1.4.1",
+    "dryrun": "^1.0.2",
     "inquirer": "^6.0.0",
     "js-yaml": "^3.12.0",
     "node-emoji": "^1.8.1",

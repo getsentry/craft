@@ -1,3 +1,4 @@
+import { isDryRun, shouldPerform } from 'dryrun';
 import { join } from 'path';
 // tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
@@ -41,10 +42,103 @@ interface ReleaseOptions {
 /** Default path to bump-version script, relative to project root */
 const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
 
-export const handler = async (argv: ReleaseOptions) => {
-  try {
-    logger.debug('Argv: ', JSON.stringify(argv));
+async function createReleaseBranch(
+  git: simpleGit.SimpleGit,
+  newVersion: string
+): Promise<string> {
+  // Create a new release branch. Throw an error if it already exists
+  const branchName = `release/${newVersion}`;
 
+  let branchHead;
+  try {
+    branchHead = await git.revparse([branchName]);
+  } catch (e) {
+    if (!e.message.match(/unknown revision/)) {
+      throw e;
+    }
+    branchHead = '';
+  }
+  if (branchHead) {
+    const errorMsg = `Branch already exists: ${branchName}`;
+    if (shouldPerform()) {
+      throw new Error(errorMsg);
+    } else {
+      logger.error(errorMsg);
+    }
+  }
+
+  if (shouldPerform()) {
+    await git.checkoutLocalBranch(branchName);
+    logger.info(`Created a new release branch: ${branchName}`);
+  } else {
+    logger.info('[dry-run] Not creating a new release branch');
+  }
+  return branchName;
+}
+
+async function pushReleaseBranch(
+  git: simpleGit.SimpleGit,
+  pushFlag: boolean,
+  branchName: string
+): Promise<any> {
+  if (pushFlag) {
+    logger.info(`Pushing the release branch "${branchName}"...`);
+    // TODO check remote somehow
+    if (shouldPerform()) {
+      await git.push('origin', branchName, { '--set-upstream': true });
+    } else {
+      logger.info('[dry-run] Not pushing the release branch.');
+    }
+  } else {
+    logger.info('Not pushing the release branch.');
+  }
+}
+
+async function checkGitState(
+  git: simpleGit.SimpleGit,
+  defaultBranch: string
+): Promise<any> {
+  logger.debug('Checking the local repository status...');
+  const isRepo = await git.checkIsRepo();
+  if (!isRepo) {
+    throw new Error('Not a git repository!');
+  }
+  const repoStatus = await git.status();
+  // Check that we are on master
+  // TODO check what's here when we are in a detached state
+  const currentBranch = repoStatus.current;
+  if (defaultBranch !== currentBranch) {
+    throw new Error(
+      `Please switch to your default branch (${defaultBranch}) first`
+    );
+  }
+  if (
+    repoStatus.conflicted.length ||
+    repoStatus.created.length ||
+    repoStatus.deleted.length ||
+    repoStatus.modified.length ||
+    repoStatus.renamed.length ||
+    repoStatus.staged.length
+  ) {
+    logger.debug(JSON.stringify(repoStatus));
+    const errorMsg =
+      'Your repository is in a dirty state. ' +
+      'Please stash or commit the pending changes.';
+    if (shouldPerform()) {
+      throw new Error(errorMsg);
+    } else {
+      logger.error(`[dry-run] ${errorMsg}`);
+    }
+  }
+}
+
+export const handler = async (argv: ReleaseOptions) => {
+  logger.debug('Argv: ', JSON.stringify(argv));
+  if (isDryRun()) {
+    logger.info('[dry-run] Dry-run mode is on!');
+  }
+
+  try {
     // Get repo configuration
     const config = getConfiguration() || {};
     const githubConfig = config.github;
@@ -57,39 +151,13 @@ export const handler = async (argv: ReleaseOptions) => {
     );
     logger.debug(`Default branch for the repo:`, defaultBranch);
 
-    // Check that we are on master
     const workingDir = process.cwd();
     const git = simpleGit(workingDir).silent(true);
     logger.debug(`Working directory:`, workingDir);
-    const isRepo = await git.checkIsRepo();
-    if (!isRepo) {
-      throw new Error('Not a git repository!');
-    }
-    const repoStatus = await git.status();
 
-    // TODO check what's here when we are in detached state
-    const currentBranch = repoStatus.current;
-    if (defaultBranch !== currentBranch) {
-      throw new Error(
-        `Please switch to your default branch (${defaultBranch}) first`
-      );
-    }
-    if (
-      repoStatus.conflicted.length ||
-      repoStatus.created.length ||
-      repoStatus.deleted.length ||
-      repoStatus.modified.length ||
-      repoStatus.renamed.length ||
-      repoStatus.staged.length
-    ) {
-      logger.debug(JSON.stringify(repoStatus));
-      throw new Error(
-        'Your repository is in a dirty state. ' +
-          'Please stash or commit the pending changes.'
-      );
-    }
+    // Check that we're in an acceptable state for preparing he release
+    await checkGitState(git, defaultBranch);
 
-    // TODO Bump the version
     const newVersion = argv.newVersion;
     if (!newVersion) {
       throw new Error('Not implemented: specify the new version');
@@ -100,36 +168,16 @@ export const handler = async (argv: ReleaseOptions) => {
     }
 
     // Create a new release branch. Throw an error if it already exists
-    const branchName = `release/${newVersion}`;
-
-    let branchHead;
-    try {
-      branchHead = await git.revparse([branchName]);
-    } catch (e) {
-      if (!e.message.match(/unknown revision/)) {
-        throw e;
-      }
-      branchHead = '';
-    }
-    if (branchHead) {
-      throw new Error(`Branch already exists: ${branchName}`);
-    }
-
-    await git.checkoutLocalBranch(branchName);
-    logger.info(`Created a new release branch: ${branchName}`);
+    const branchName = await createReleaseBranch(git, newVersion);
 
     // Run bump version script
     // TODO check that the script exists
     logger.info('Running a script for bumping versions...');
     await spawnProcess('bash', [DEFAULT_BUMP_VERSION_PATH]);
 
-    if (argv.pushReleaseBranch) {
-      logger.info('Pushing the release branch...');
-      // TODO check remote somehow
-      await git.push('origin', branchName, { '--set-upstream': true });
-    } else {
-      logger.info('Not pushing the release branch.');
-    }
+    // Push the release branch
+    await pushReleaseBranch(git, argv.pushReleaseBranch, branchName);
+
     logger.info('Done.');
   } catch (e) {
     logger.error(e);

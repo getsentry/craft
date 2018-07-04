@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { isDryRun } from 'dryrun';
 import * as split from 'split';
 
 import logger from '../logger';
@@ -53,9 +54,15 @@ export async function spawnProcess(
   args: string[] = [],
   options?: any
 ): Promise<any> {
+  const argsString = args.map(arg => `"${arg}"`).join(' ');
+
+  if (isDryRun()) {
+    logger.debug('[dry-run] Not spawning process:', `${command} ${argsString}`);
+    return undefined;
+  }
+
   return new Promise<any>((resolve, reject) => {
     try {
-      const argsString = args.map(arg => `"${arg}"`).join(' ');
       logger.debug('Spawning process:', `${command} ${argsString}`);
       const child = spawn(command, args, options);
       child.on(

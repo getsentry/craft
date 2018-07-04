@@ -1,3 +1,4 @@
+import { isDryRun } from 'dryrun';
 import { Argv } from 'yargs';
 
 import { getConfiguration } from '../config';
@@ -84,6 +85,9 @@ async function publishToTargets(
  */
 async function publishMain(argv: PublishOptions): Promise<any> {
   logger.debug('Argv:', JSON.stringify(argv));
+  if (isDryRun()) {
+    logger.info('[dry-run] Dry-run mode is on!');
+  }
 
   // Get repo configuration
   const config = getConfiguration() || {};
