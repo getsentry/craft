@@ -17,11 +17,15 @@ const TWINE_BIN = process.env.TWINE_BIN || 'twine';
  */
 const PYPI_EXTENSIONS = ['.whl', '.gz', '.zip'];
 
+/** Options for "pypi" target */
 export interface PypiTargetOptions {
   twineUsername: string;
   twinePassword: string;
 }
 
+/**
+ * Target responsible for publishing releases on PyPI (Python package index)
+ */
 export class PypiTarget extends BaseTarget {
   /** Target name */
   public readonly name: string = 'pypi';
@@ -33,6 +37,9 @@ export class PypiTarget extends BaseTarget {
     this.pypiConfig = this.getPypiConfig();
   }
 
+  /**
+   * Extracts NPM target options from the environment
+   */
   public getPypiConfig(): PypiTargetOptions {
     if (!process.env.TWINE_USERNAME || !process.env.TWINE_PASSWORD) {
       throw new Error(

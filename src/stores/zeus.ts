@@ -19,9 +19,10 @@ export class ZeusStore {
   /** Zeus project name */
   public readonly repoName: string;
 
-  /** URL cache for downloaded fies */
+  /** URL cache for downloaded files */
   private readonly downloadCache: { [key: string]: Promise<string> } = {};
 
+  /** Cache for storing mapping between revisions and a list of their artifacts */
   private readonly fileListCache: { [key: string]: Promise<Artifact[]> } = {};
 
   public constructor(

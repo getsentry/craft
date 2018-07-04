@@ -156,3 +156,30 @@ The `npm` utility must be installed on the system.
 targets:
   - name: npm
     access: restricted
+```
+
+### Python Package Index (`pypi`)
+
+Uploads source dists and wheels to the Python Package Index via [twine](https://pypi.org/project/twine/.
+The source code bundles and/or wheels must be in the release assets.
+
+**Environment**
+
+The `twine` package must be installed on the system.
+
+| Name             | Description                                           |
+| ---------------- | ----------------------------------------------------- |
+| `TWINE_USERNAME` | User name for PyPI with access rights for the package |
+| `TWINE_PASSWORD` | Password for the PyPI user                            |
+| `TWINE_BIN`      | **optional**. Path to twine. Defaults to `twine`      |
+
+**Configuration**
+
+_none_
+
+**Example**
+
+```yaml
+targets:
+  - name: pypi
+```
