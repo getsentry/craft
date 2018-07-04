@@ -22,6 +22,8 @@ export class ZeusStore {
   /** URL cache for downloaded fies */
   private readonly downloadCache: { [key: string]: Promise<string> } = {};
 
+  private readonly fileListCache: { [key: string]: Promise<Artifact[]> } = {};
+
   public constructor(
     repoOwner: string,
     repoName: string,
@@ -56,11 +58,17 @@ export class ZeusStore {
    * @param revision Git commit id
    */
   public async listArtifactsForRevision(revision: string): Promise<Artifact[]> {
-    return this.client.listArtifactsForRevision(
+    const cached = this.fileListCache[revision];
+    if (cached) {
+      return cached;
+    }
+    const promise = this.client.listArtifactsForRevision(
       this.repoOwner,
       this.repoName,
       revision
     );
+    this.fileListCache[revision] = promise;
+    return promise;
   }
 
   /**

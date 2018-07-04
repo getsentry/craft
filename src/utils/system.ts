@@ -50,12 +50,13 @@ function processError(
  */
 export async function spawnProcess(
   command: string,
-  args?: string[],
+  args: string[] = [],
   options?: any
 ): Promise<any> {
   return new Promise<any>((resolve, reject) => {
     try {
-      logger.debug('Spawning process:', `${command} ${args}`);
+      const argsString = args.map(arg => `"${arg}"`).join(' ');
+      logger.debug('Spawning process:', `${command} ${argsString}`);
       const child = spawn(command, args, options);
       child.on(
         'exit',

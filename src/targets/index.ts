@@ -1,10 +1,12 @@
 import { BaseTarget } from './base';
 import { GithubTarget } from './github';
 import { NpmTarget } from './npm';
+import { PypiTarget } from './pypi';
 
 export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   github: GithubTarget,
   npm: NpmTarget,
+  pypi: PypiTarget,
 };
 
 /**

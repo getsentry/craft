@@ -90,6 +90,8 @@ async function publishMain(argv: PublishOptions): Promise<any> {
   const githubConfig = config.github;
   const githubClient = getGithubClient();
 
+  const newVersion = argv.newVersion;
+
   let revision;
   let branchName;
   if (argv.rev) {
@@ -97,13 +99,13 @@ async function publishMain(argv: PublishOptions): Promise<any> {
     branchName = '';
   } else {
     // Check that the tag is a valid version string
-    if (!isValidVersion(argv.newVersion)) {
-      logger.error(`Invalid version provided: "${argv.newVersion}"`);
+    if (!isValidVersion(newVersion)) {
+      logger.error(`Invalid version provided: "${newVersion}"`);
       return undefined;
     }
 
     // Find a remote branch
-    branchName = `release/${argv.newVersion}`;
+    branchName = `release/${newVersion}`;
     logger.debug('Fetching branch information', branchName);
     const response = await githubClient.repos.getBranch({
       branch: branchName,
@@ -112,16 +114,26 @@ async function publishMain(argv: PublishOptions): Promise<any> {
     });
     revision = response.data.commit.sha;
   }
-  logger.debug('The revision to publish: ', revision);
+  logger.debug('Revision to publish: ', revision);
 
   // Check Zeus status for the revision
   const zeus = new ZeusStore(githubConfig.owner, githubConfig.repo);
-  const revisionInfo = await zeus.getRevision(revision);
-  if (!zeus.isRevisionBuiltSuccessfully(revisionInfo)) {
-    logger.error(
-      `Builds for revision ${revision} has not completed successfully (yet).`
-    );
-    return undefined;
+  try {
+    const revisionInfo = await zeus.getRevision(revision);
+
+    if (!zeus.isRevisionBuiltSuccessfully(revisionInfo)) {
+      logger.error(
+        `Builds for revision ${revision} has not completed successfully (yet).`
+      );
+      return undefined;
+    }
+    logger.info(`Revision ${revision} has been built successfully.`);
+  } catch (e) {
+    if (e.err === 404) {
+      logger.error(`Revision ${revision} not found in Zeus.`);
+      return undefined;
+    }
+    throw e;
   }
 
   // Find targets
@@ -150,7 +162,7 @@ async function publishMain(argv: PublishOptions): Promise<any> {
   await publishToTargets(
     githubConfig.owner,
     githubConfig.repo,
-    argv.newVersion,
+    newVersion,
     revision,
     targetConfigList
   );
@@ -164,8 +176,9 @@ async function publishMain(argv: PublishOptions): Promise<any> {
       branchName
     );
   } else {
-    logger.debug('Skipping the merge step');
+    logger.debug('Skipping the merge step.');
   }
+  logger.info(`Version ${newVersion} has been published!`);
 }
 
 export const handler = async (argv: PublishOptions) => {

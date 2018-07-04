@@ -82,7 +82,7 @@ export async function getDefaultBranch(
  * @param repo Repository name
  * @param branch Branch to be merged
  * @param base Base branch; set to default repository branch, if not provided
- * @returns SHA of merge commit
+ * @returns SHA of merge commit, or 'undefined' if there was nothing to merge
  */
 export async function mergeReleaseBranch(
   github: Github,
@@ -90,7 +90,7 @@ export async function mergeReleaseBranch(
   repo: string,
   branch: string,
   base?: string
-): Promise<string> {
+): Promise<string | undefined> {
   const baseBranch = base || (await getDefaultBranch(github, owner, repo));
   if (!baseBranch) {
     throw new Error('Cannot determine base branch while merging');
@@ -104,8 +104,15 @@ export async function mergeReleaseBranch(
       owner,
       repo,
     });
-    logger.info(`Merging: done.`);
-    return response.data.sha as string;
+    if (response.status === 201) {
+      logger.info(`Merging: done.`);
+      return response.data.sha as string;
+    } else if (response.status === 204) {
+      logger.warn('Base already contains the head, nothing to merge');
+      return undefined;
+    } else {
+      throw new Error(`Unexpected response: ${JSON.stringify(response)}`);
+    }
   } catch (e) {
     if (e.code === 409) {
       // Conflicts found
