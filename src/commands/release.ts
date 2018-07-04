@@ -42,11 +42,18 @@ interface ReleaseOptions {
 /** Default path to bump-version script, relative to project root */
 const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
 
+/**
+ * Creates a new local release branch
+ *
+ * Throws an error if the branch already exists.
+ *
+ * @param git Local git client
+ * @param newVersion Version we are releasing
+ */
 async function createReleaseBranch(
   git: simpleGit.SimpleGit,
   newVersion: string
 ): Promise<string> {
-  // Create a new release branch. Throw an error if it already exists
   const branchName = `release/${newVersion}`;
 
   let branchHead;
@@ -76,10 +83,17 @@ async function createReleaseBranch(
   return branchName;
 }
 
+/**
+ * Pushes the release branch to the remote
+ *
+ * @param git Local git client
+ * @param defaultBranch Default branch of the remote repository
+ * @param pushFlag A flag that indicates that the branch has to be pushed
+ */
 async function pushReleaseBranch(
   git: simpleGit.SimpleGit,
-  pushFlag: boolean,
-  branchName: string
+  branchName: string,
+  pushFlag: boolean = true
 ): Promise<any> {
   if (pushFlag) {
     logger.info(`Pushing the release branch "${branchName}"...`);
@@ -94,6 +108,12 @@ async function pushReleaseBranch(
   }
 }
 
+/**
+ * Checks that it is safe to perform the release right now
+ *
+ * @param git Local git client
+ * @param defaultBranch Default branch of the remote repository
+ */
 async function checkGitState(
   git: simpleGit.SimpleGit,
   defaultBranch: string
@@ -176,7 +196,7 @@ export const handler = async (argv: ReleaseOptions) => {
     await spawnProcess('bash', [DEFAULT_BUMP_VERSION_PATH]);
 
     // Push the release branch
-    await pushReleaseBranch(git, argv.pushReleaseBranch, branchName);
+    await pushReleaseBranch(git, branchName, argv.pushReleaseBranch);
 
     logger.info('Done.');
   } catch (e) {
