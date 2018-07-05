@@ -109,6 +109,26 @@ async function pushReleaseBranch(
 }
 
 /**
+ * Makes a release commit of all uncommitted changes
+ *
+ * @param git Local git client
+ * @param newVersion The version we are releasing
+ */
+async function commitNewVersion(
+  git: simpleGit.SimpleGit,
+  newVersion: string
+): Promise<any> {
+  const message = `release: ${newVersion}`;
+  logger.info('Committing the release changes...');
+  logger.debug(`Commit message: "${message}"`);
+  if (shouldPerform()) {
+    await git.commit(message, undefined, { '--all': true });
+  } else {
+    logger.info('[dry-run] Not committing the changes.');
+  }
+}
+
+/**
  * Checks that it is safe to perform the release right now
  *
  * @param git Local git client
@@ -192,8 +212,12 @@ export const handler = async (argv: ReleaseOptions) => {
 
     // Run bump version script
     // TODO check that the script exists
-    logger.info('Running a script for bumping versions...');
-    await spawnProcess('bash', [DEFAULT_BUMP_VERSION_PATH]);
+    logger.info(
+      `Running a version-bumping script (${DEFAULT_BUMP_VERSION_PATH})...`
+    );
+    await spawnProcess('bash', [DEFAULT_BUMP_VERSION_PATH, '', newVersion]);
+
+    await commitNewVersion(git, newVersion);
 
     // Push the release branch
     await pushReleaseBranch(git, branchName, argv.pushReleaseBranch);
