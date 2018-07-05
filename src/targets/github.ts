@@ -1,4 +1,5 @@
 import * as Github from '@octokit/rest';
+import { shouldPerform } from 'dryrun';
 import { createReadStream, statSync } from 'fs';
 import { basename } from 'path';
 
@@ -127,13 +128,19 @@ export class GithubTarget extends BaseTarget {
           name,
           url: release.upload_url,
         };
+        logger.debug('Upload parameters:', JSON.stringify(params));
 
-        logger.debug(
+        logger.info(
           `Uploading asset "${name}" to ${this.githubConfig.owner}/${
             this.githubConfig.repo
           }:${release.tag_name}`
         );
-        return this.github.repos.uploadAsset(params);
+        if (shouldPerform()) {
+          return this.github.repos.uploadAsset(params);
+        } else {
+          logger.info(`[dry-run] Not uploading asset "${name}"`);
+          return undefined;
+        }
       })
     );
   }

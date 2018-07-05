@@ -126,8 +126,9 @@ async function publishMain(argv: PublishOptions): Promise<any> {
     const revisionInfo = await zeus.getRevision(revision);
 
     if (!zeus.isRevisionBuiltSuccessfully(revisionInfo)) {
+      // TODO add a Zeus link to the revision page
       logger.error(
-        `Builds for revision ${revision} has not completed successfully (yet).`
+        `Build(s) for revision ${revision} have not completed successfully (yet).`
       );
       return undefined;
     }
