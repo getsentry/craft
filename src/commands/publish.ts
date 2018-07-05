@@ -35,6 +35,11 @@ export const builder = (yargs: Argv) =>
       description: 'Merge the release branch after publishing',
       type: 'boolean',
     })
+    .option('remove-downloads', {
+      default: true,
+      description: 'Remove all downloaded files after each invocation',
+      type: 'boolean',
+    })
     .demandOption('new-version', 'Please specify the version to publish');
 
 /** Command line options. */
@@ -43,6 +48,7 @@ interface PublishOptions {
   target?: string | string[];
   newVersion: string;
   mergeReleaseBranch: boolean;
+  removeDownloads: boolean;
 }
 
 /**
@@ -59,9 +65,12 @@ async function publishToTargets(
   repo: string,
   version: string,
   revision: string,
-  targetConfigList: any[]
+  targetConfigList: any[],
+  removeDownloads: boolean = true
 ): Promise<any> {
+  let downloadDirectoryPath;
   await withTempDir(async (downloadDirectory: string) => {
+    downloadDirectoryPath = downloadDirectory;
     const store = new ZeusStore(owner, repo, downloadDirectory);
     for (const targetConfig of targetConfigList) {
       const targetClass = getTargetByName(targetConfig.name);
@@ -75,7 +84,14 @@ async function publishToTargets(
       logger.debug(`Publishing to the target: "${targetConfig.name}"`);
       await target.publish(version, revision);
     }
-  });
+  }, removeDownloads);
+
+  if (!removeDownloads) {
+    logger.info(
+      'Difectory with the downloaded artifacts will not be removed',
+      `Path: ${downloadDirectoryPath}`
+    );
+  }
 }
 
 /**
@@ -169,7 +185,8 @@ async function publishMain(argv: PublishOptions): Promise<any> {
     githubConfig.repo,
     newVersion,
     revision,
-    targetConfigList
+    targetConfigList,
+    argv.removeDownloads
   );
 
   // Publishing done, MERGE DAT BRANCH!

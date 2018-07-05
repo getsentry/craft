@@ -148,9 +148,13 @@ async function checkGitState(
   // TODO check what's here when we are in a detached state
   const currentBranch = repoStatus.current;
   if (defaultBranch !== currentBranch) {
-    throw new Error(
-      `Please switch to your default branch (${defaultBranch}) first`
-    );
+    const errorMsg = `Please switch to your default branch (${defaultBranch}) first`;
+    // TODO extract this snippet to a helper
+    if (shouldPerform()) {
+      throw new Error(errorMsg);
+    } else {
+      logger.error(`[dry-run] ${errorMsg}`);
+    }
   }
   if (
     repoStatus.conflicted.length ||
@@ -192,8 +196,8 @@ export const handler = async (argv: ReleaseOptions) => {
     logger.debug(`Default branch for the repo:`, defaultBranch);
 
     const workingDir = process.cwd();
-    const git = simpleGit(workingDir).silent(true);
     logger.debug(`Working directory:`, workingDir);
+    const git = simpleGit(workingDir).silent(true);
 
     // Check that we're in an acceptable state for preparing he release
     await checkGitState(git, defaultBranch);
