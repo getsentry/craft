@@ -39,7 +39,7 @@ export class ZeusStore {
    * Downloads the given artifact file.
    *
    * Downloaded URL are cached during the instance's lifetime, so the same
-   * files is downloaded only once.
+   * file is downloaded only once.
    *
    * @param artifact An artifact object to download
    */
@@ -53,6 +53,14 @@ export class ZeusStore {
     return promise;
   }
 
+  /**
+   * Downloads the given list of artifacts.
+   *
+   * Downloaded URL are cached during the instance's lifetime, so the same
+   * file is downloaded only once.
+   *
+   * @param artifacts A list of artifact object to download
+   */
   public async downloadArtifacts(artifacts: Artifact[]): Promise<string[]> {
     return Promise.all(
       artifacts.map(async artifact => this.downloadArtifact(artifact))

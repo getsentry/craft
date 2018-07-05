@@ -183,3 +183,59 @@ _none_
 targets:
   - name: pypi
 ```
+
+### Homebrew (`brew`)
+
+Pushes a new or updated homebrew formula to a brew tap repository. The formula
+is committed directly to the master branch of the tap on GitHub, therefore the
+bot needs rights to commit to `master` on that repository. Therefore, formulas
+on `homebrew/core` are not supported, yet.
+
+The tap is configured with the mandatory `tap` parameter in the same format as
+the `brew` utility. A tap `<org>/<name>` will expand to the GitHub repository
+`github.com:<org>/homebrew-<name>`.
+
+The formula contents are given as configuration value and can be interpolated
+with `${ variable }`. The interpolation context contains the following
+variables:
+
+* `ref`: The tag's reference name. Usually the version number
+* `sha`: The tag's commit SHA
+* `checksums`: A map containing sha256 checksums for every release asset. Use
+  the full filename to access the sha, e.g. `checksums['MyProgram.exe']`
+
+**Environment**
+
+_none_
+
+**Configuration**
+
+| Option     | Description                                                        |
+| ---------- | ------------------------------------------------------------------ |
+| `tap`      | The name of the homebrew tap used to access the GitHub repo        |
+| `template` | The template for contents of the formula file (ruby code)          |
+| `formula`  | **optional**. Name of the formula. Defaults to the repository name |
+| `path`     | **optional**. Path to store the formula in. Defaults to `Formula`  |
+
+**Example**
+
+```yaml
+targets:
+  - name: brew
+    tap: octocat/tools     # Expands to github.com:octocat/homebrew-tools
+    formula: myproject     # Creates the file myproject.rb
+    path: HomebrewFormula  # Creates the file in HomebrewFormula/
+    template: >
+      class MyProject < Formula
+        desc "This is a test for homebrew formulae"
+        homepage "https://github.com/octocat/my-project"
+        url "https://github.com/octocat/my-project/releases/download/${ref}/binary-darwin"
+        version "${ref}"
+        sha256 "${checksums['binary-darwin']}"
+
+        def install
+          mv "binary-darwin", "myproject"
+          bin.install "myproject"
+        end
+      end
+```

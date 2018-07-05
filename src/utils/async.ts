@@ -30,7 +30,7 @@ export async function filterAsync<T>(
 export async function promiseProps(object: any): Promise<any> {
   const pairs = _.toPairs(object).map(async ([key, value]) => [
     key,
-    await value,
+    await Promise.resolve(value),
   ]);
 
   return _.fromPairs(await Promise.all(pairs));

@@ -17,11 +17,13 @@ import { GithubTargetOptions } from './github';
  */
 const TAP_REGEX = /^([a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38})\/([-_.\w\d]+)$/i;
 
+/** Homebrew tap parameters */
 export interface TapRepo {
   owner: string;
   repo: string;
 }
 
+/** Target options for "brew" */
 export interface BrewTargetOptions {
   tapRepo: TapRepo;
   template: string;
@@ -49,6 +51,9 @@ export class BrewTarget extends BaseTarget {
     this.githubRepo = getGithubConfig();
   }
 
+  /**
+   * Extracts Brew target options from the raw configuration
+   */
   public getBrewConfig(): BrewTargetOptions {
     const template = this.config.template;
     if (!template) {
@@ -126,15 +131,21 @@ export class BrewTarget extends BaseTarget {
 
     // Get default formula name and location from the config
     const formulaName = formula || repo;
-    const formulaPath = !!path
-      ? `Formula/${formulaName}.rb`
-      : `${path}/${formulaName}.rb`;
+    const formulaPath = path
+      ? `${path}/${formulaName}.rb`
+      : `Formula/${formulaName}.rb`;
 
     // Format checksums and the tag version into the formula file
     const filesList = await this.store.listArtifactsForRevision(revision);
+    logger.debug(
+      'Downloading artifacts for the revision:',
+      JSON.stringify(filesList.map(file => file.name))
+    );
     const files = await this.store.downloadArtifacts(filesList);
     const fileMap: { [key: string]: string } = _.keyBy(files, basename);
-    const promises = _.mapValues(fileMap, calculateChecksum);
+    const promises = _.mapValues(fileMap, async filePath =>
+      calculateChecksum(filePath)
+    );
     const checksums = await promiseProps(promises);
     const data = _.template(template)({
       checksums,
@@ -147,7 +158,7 @@ export class BrewTarget extends BaseTarget {
     if (tapRepo.owner !== owner) {
       // TODO: Create a PR if we have no push rights to this repo
       logger.warn('Skipping homebrew release: PRs not supported yet');
-      return;
+      return undefined;
     }
 
     const params = {
@@ -172,18 +183,18 @@ export class BrewTarget extends BaseTarget {
         })`
       );
       if (shouldPerform()) {
-        this.github.repos.updateFile(params);
+        await this.github.repos.updateFile(params);
       } else {
-        logger.info('[dry-run] Skipping the file updating');
+        logger.info('[dry-run] Skipping file update');
       }
     } else {
       logger.debug(
         `Creating new file ${params.owner}/${params.repo}:${params.path}`
       );
       if (shouldPerform()) {
-        this.github.repos.createFile(params);
+        await this.github.repos.createFile(params);
       } else {
-        logger.info('[dry-run] Skipping the file creation');
+        logger.info('[dry-run] Skipping file creation');
       }
     }
     logger.info('Homebrew release completed');

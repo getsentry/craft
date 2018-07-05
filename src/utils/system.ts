@@ -101,6 +101,7 @@ export async function calculateChecksum(
   path: string,
   algorithm: string = 'sha256'
 ): Promise<string> {
+  logger.debug(`Calculating "${algorithm}" hashsum for file: ${path}`);
   const stream = createReadStream(path);
   const hash = createHash(algorithm);
 
