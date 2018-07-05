@@ -239,3 +239,34 @@ targets:
         end
       end
 ```
+
+## Version-bumping Script: Conventions
+
+Among other actions, `craft release` runs an external project-specific script
+that is responsible for version bumping. By default, this script should be
+located at the following path: `scripts/bump-version.sh` (relative to the
+project root).
+
+The following requirements are on the script interface and functionality:
+
+* The script must accept two arguments: the first one is the old ("from")
+  version, and the second one is the new ("to") version.
+* The script must replace all relevant occurrences of the old version string
+  with the new one.
+* The script must not commit the changes made.
+* The script must not change the state of the git repository (e.g. changing branches)
+
+**Example**
+
+```bash
+#!/bin/bash
+### Example of a version-bumping script for an NPM project.
+### Located at: scripts/bump-version.sh
+set -eux
+OLD_VERSION="${1}"
+NEW_VERSION="${2}"
+
+# Do not tag and commit changes made by "npm version"
+export npm_config_git_tag_version=false
+npm version "${NEW_VERSION}"
+```
