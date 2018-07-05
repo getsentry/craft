@@ -105,6 +105,10 @@ async function pushReleaseBranch(
     }
   } else {
     logger.info('Not pushing the release branch.');
+    logger.info(
+      'You can push this branch later using the following command:',
+      `    $ git push -u origin "${branchName}"`
+    );
   }
 }
 

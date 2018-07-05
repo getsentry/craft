@@ -1,4 +1,4 @@
-import { isDryRun } from 'dryrun';
+import { isDryRun, shouldPerform } from 'dryrun';
 import { Argv } from 'yargs';
 
 import { getConfiguration } from '../config';
@@ -40,6 +40,11 @@ export const builder = (yargs: Argv) =>
       description: 'Remove all downloaded files after each invocation',
       type: 'boolean',
     })
+    .option('check-build-status', {
+      default: true,
+      description: 'Check that all builds successed before publishing',
+      type: 'boolean',
+    })
     .demandOption('new-version', 'Please specify the version to publish');
 
 /** Command line options. */
@@ -49,6 +54,7 @@ interface PublishOptions {
   newVersion: string;
   mergeReleaseBranch: boolean;
   removeDownloads: boolean;
+  checkBuildStatus: boolean;
 }
 
 /**
@@ -95,6 +101,48 @@ async function publishToTargets(
 }
 
 /**
+ * Checks statuses of all builds on Zeus for the provided revision
+ *
+ * @param owner Repository owner
+ * @param repo Repository name
+ * @param revision Git commit SHA to check
+ * @param checkBuildStatusFlag A command line flag to enable/disable this check
+ */
+async function checkRevisionStatus(
+  owner: string,
+  repo: string,
+  revision: string,
+  checkBuildStatusFlag: boolean = true
+): Promise<any> {
+  if (!checkBuildStatusFlag) {
+    logger.warn(`Skipping build status checks for revision ${revision}`);
+    return undefined;
+  }
+
+  try {
+    const zeus = new ZeusStore(owner, repo);
+    const revisionInfo = await zeus.getRevision(revision);
+
+    if (zeus.isRevisionBuiltSuccessfully(revisionInfo)) {
+      logger.info(`Revision ${revision} has been built successfully.`);
+    } else {
+      const errorMsg = `Build(s) for revision ${revision} have not completed successfully (yet).`;
+      // TODO add a Zeus link to the revision page
+      if (shouldPerform()) {
+        throw new Error(errorMsg);
+      } else {
+        logger.error(errorMsg);
+      }
+    }
+  } catch (e) {
+    if (e.err === 404) {
+      throw new Error(`Revision ${revision} not found in Zeus.`);
+    }
+    throw e;
+  }
+}
+
+/**
  * Entrypoint for 'publish' command
  *
  * @param argv Command-line arguments
@@ -136,26 +184,13 @@ async function publishMain(argv: PublishOptions): Promise<any> {
   }
   logger.debug('Revision to publish: ', revision);
 
-  // Check Zeus status for the revision
-  const zeus = new ZeusStore(githubConfig.owner, githubConfig.repo);
-  try {
-    const revisionInfo = await zeus.getRevision(revision);
-
-    if (!zeus.isRevisionBuiltSuccessfully(revisionInfo)) {
-      // TODO add a Zeus link to the revision page
-      logger.error(
-        `Build(s) for revision ${revision} have not completed successfully (yet).`
-      );
-      return undefined;
-    }
-    logger.info(`Revision ${revision} has been built successfully.`);
-  } catch (e) {
-    if (e.err === 404) {
-      logger.error(`Revision ${revision} not found in Zeus.`);
-      return undefined;
-    }
-    throw e;
-  }
+  // Check status of all CI builds linked to the revision
+  await checkRevisionStatus(
+    githubConfig.owner,
+    githubConfig.repo,
+    revision,
+    argv.checkBuildStatus
+  );
 
   // Find targets
   let targetList: string[] =
@@ -177,7 +212,7 @@ async function publishMain(argv: PublishOptions): Promise<any> {
     );
   }
   if (!targetConfigList.length) {
-    logger.warning('No targets detected! Exiting.');
+    logger.warn('No targets detected! Exiting.');
     return undefined;
   }
   await publishToTargets(
