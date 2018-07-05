@@ -1,3 +1,5 @@
+import * as _ from 'lodash';
+
 /**
  * Asynchronously calls the predicate on every element of the array and filters
  * for all elements where the predicate resolves to true.
@@ -10,9 +12,26 @@
  */
 export async function filterAsync<T>(
   array: T[],
-  predicate: (arg: T) => Promise<boolean>,
+  predicate: (arg: T) => boolean | Promise<boolean>,
   thisArg?: any
 ): Promise<T[]> {
   const verdicts = await Promise.all(array.map(predicate, thisArg));
-  return array.filter((_, index) => verdicts[index]);
+  return array.filter((_element, index) => verdicts[index]);
+}
+
+/**
+ * Returns a promise that resolves when each value of the given object resolves.
+ * Works just like `Promise.all`, just on objects.
+ *
+ * @param object An object with one or more
+ * @returns A promise that resolves with each value
+ * @async
+ */
+export async function promiseProps(object: any): Promise<any> {
+  const pairs = _.toPairs(object).map(async ([key, value]) => [
+    key,
+    await value,
+  ]);
+
+  return _.fromPairs(await Promise.all(pairs));
 }

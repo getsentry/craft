@@ -53,6 +53,12 @@ export class ZeusStore {
     return promise;
   }
 
+  public async downloadArtifacts(artifacts: Artifact[]): Promise<string[]> {
+    return Promise.all(
+      artifacts.map(async artifact => this.downloadArtifact(artifact))
+    );
+  }
+
   /**
    * Gets a list of all available artifacts for the given revision
    *

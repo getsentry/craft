@@ -1,5 +1,7 @@
 import { spawn } from 'child_process';
+import { createHash } from 'crypto';
 import { isDryRun } from 'dryrun';
+import { createReadStream } from 'fs';
 import * as split from 'split';
 
 import logger from '../logger';
@@ -85,5 +87,26 @@ export async function spawnProcess(
     } catch (e) {
       reject(processError(e.code, command, args, options));
     }
+  });
+}
+
+/**
+ * Calculates the checksum of a file's contents
+ *
+ * @param path The path to a file to process
+ * @param algorithm A hashing algorithm, defaults to "sha256"
+ * @returns The checksum as hex string
+ */
+export async function calculateChecksum(
+  path: string,
+  algorithm: string = 'sha256'
+): Promise<string> {
+  const stream = createReadStream(path);
+  const hash = createHash(algorithm);
+
+  return new Promise<string>((resolve, reject) => {
+    stream.on('data', data => hash.update(data, 'utf8'));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', reject);
   });
 }
