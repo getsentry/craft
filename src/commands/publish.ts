@@ -1,10 +1,11 @@
-import { isDryRun, shouldPerform } from 'dryrun';
+import { isDryRun } from 'dryrun';
 import { Argv } from 'yargs';
 
 import { getConfiguration } from '../config';
 import logger from '../logger';
 import { ZeusStore } from '../stores/zeus';
 import { getTargetByName } from '../targets';
+import { reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { getGithubClient, mergeReleaseBranch } from '../utils/github_api';
 import { isValidVersion } from '../utils/version';
@@ -126,13 +127,10 @@ async function checkRevisionStatus(
     if (zeus.isRevisionBuiltSuccessfully(revisionInfo)) {
       logger.info(`Revision ${revision} has been built successfully.`);
     } else {
-      const errorMsg = `Build(s) for revision ${revision} have not completed successfully (yet).`;
       // TODO add a Zeus link to the revision page
-      if (shouldPerform()) {
-        throw new Error(errorMsg);
-      } else {
-        logger.error(errorMsg);
-      }
+      reportError(
+        `Build(s) for revision ${revision} have not completed successfully (yet).`
+      );
     }
   } catch (e) {
     if (e.err === 404) {

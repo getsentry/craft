@@ -2,7 +2,8 @@ import chalk from 'chalk';
 import { prompt, Question } from 'inquirer';
 import * as ora from 'ora';
 import { Argv } from 'yargs';
-import { log } from '../logger';
+
+import { log } from '../../logger';
 
 export const command = ['demo', 'd'];
 export const description = '🎬 Run a demo of craft';

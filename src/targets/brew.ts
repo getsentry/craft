@@ -4,13 +4,15 @@ import * as _ from 'lodash';
 import { basename } from 'path';
 
 import { getGithubConfig } from '../config';
-import logger from '../logger';
+import loggerRaw from '../logger';
 import { ZeusStore } from '../stores/zeus';
 import { promiseProps } from '../utils/async';
 import { getGithubClient } from '../utils/github_api';
 import { calculateChecksum } from '../utils/system';
 import { BaseTarget } from './base';
 import { GithubTargetOptions } from './github';
+
+const logger = loggerRaw.withScope('[brew]');
 
 /**
  * Regex used to parse homebrew taps (github repositories)

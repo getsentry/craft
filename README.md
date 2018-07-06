@@ -12,11 +12,14 @@
 
 ## Installation
 
-The tool comes as NPM package and can be installed via npm or yarn:
+The tool comes as NPM package and can be installed via `npm` or `yarn`:
 
 ```bash
 npm install -g @sentry/craft
-yarn add -g @sentry/craft
+
+# Or
+
+yarn global add @sentry/craft
 ```
 
 ## Usage

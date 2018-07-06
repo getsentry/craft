@@ -4,11 +4,13 @@ import { createReadStream, statSync } from 'fs';
 import { basename } from 'path';
 
 import { getGithubConfig } from '../config';
-import logger from '../logger';
+import loggerRaw from '../logger';
 import { ZeusStore } from '../stores/zeus';
 import { findChangeset } from '../utils/changes';
 import { getFile, getGithubClient } from '../utils/github_api';
 import { BaseTarget } from './base';
+
+const logger = loggerRaw.withScope('[github]');
 
 /**
  * Path to the changelog file in the target repository

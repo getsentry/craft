@@ -6,12 +6,14 @@ import { Argv } from 'yargs';
 
 import { getConfiguration } from '../config';
 import logger from '../logger';
+import { reportError } from '../utils/errors';
 import { getDefaultBranch, getGithubClient } from '../utils/github_api';
 import { spawnProcess } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 
 export const command = ['release [part]', 'r'];
-export const description = '🚢 Prepare a new release';
+export const description =
+  '🚢 Prepare a new release: create a new release branch, bump version and push it to Github.';
 
 export const builder = (yargs: Argv) =>
   yargs
@@ -30,8 +32,12 @@ export const builder = (yargs: Argv) =>
       default: true,
       description: 'Push the release branch',
       type: 'boolean',
-    });
-
+    })
+    .demandOption(
+      'new-version',
+      'Specifying version part to bump is not yet implemented. ' +
+        'Please specify the version to publish.'
+    );
 /** Command line options. */
 interface ReleaseOptions {
   part: string;
@@ -66,12 +72,7 @@ async function createReleaseBranch(
     branchHead = '';
   }
   if (branchHead) {
-    const errorMsg = `Branch already exists: ${branchName}`;
-    if (shouldPerform()) {
-      throw new Error(errorMsg);
-    } else {
-      logger.error(errorMsg);
-    }
+    reportError(`Branch already exists: ${branchName}`, logger);
   }
 
   if (shouldPerform()) {
@@ -107,7 +108,7 @@ async function pushReleaseBranch(
     logger.info('Not pushing the release branch.');
     logger.info(
       'You can push this branch later using the following command:',
-      `    $ git push -u origin "${branchName}"`
+      `  $ git push -u origin "${branchName}"`
     );
   }
 }
@@ -142,7 +143,7 @@ async function checkGitState(
   git: simpleGit.SimpleGit,
   defaultBranch: string
 ): Promise<any> {
-  logger.debug('Checking the local repository status...');
+  logger.info('Checking the local repository status...');
   const isRepo = await git.checkIsRepo();
   if (!isRepo) {
     throw new Error('Not a git repository!');
@@ -152,13 +153,9 @@ async function checkGitState(
   // TODO check what's here when we are in a detached state
   const currentBranch = repoStatus.current;
   if (defaultBranch !== currentBranch) {
-    const errorMsg = `Please switch to your default branch (${defaultBranch}) first`;
-    // TODO extract this snippet to a helper
-    if (shouldPerform()) {
-      throw new Error(errorMsg);
-    } else {
-      logger.error(`[dry-run] ${errorMsg}`);
-    }
+    reportError(
+      `Please switch to your default branch (${defaultBranch}) first`
+    );
   }
   if (
     repoStatus.conflicted.length ||
@@ -168,15 +165,12 @@ async function checkGitState(
     repoStatus.renamed.length ||
     repoStatus.staged.length
   ) {
-    logger.debug(JSON.stringify(repoStatus));
-    const errorMsg =
+    logger.debug('Repository status:', JSON.stringify(repoStatus));
+    reportError(
       'Your repository is in a dirty state. ' +
-      'Please stash or commit the pending changes.';
-    if (shouldPerform()) {
-      throw new Error(errorMsg);
-    } else {
-      logger.error(`[dry-run] ${errorMsg}`);
-    }
+        'Please stash or commit the pending changes.',
+      logger
+    );
   }
 }
 
@@ -230,7 +224,10 @@ export const handler = async (argv: ReleaseOptions) => {
     // Push the release branch
     await pushReleaseBranch(git, branchName, argv.pushReleaseBranch);
 
-    logger.info('Done.');
+    logger.info(
+      'Done. Do not forget to run "craft publish" to publish the artifacts:',
+      `  $ craft publish --new-version ${newVersion}`
+    );
   } catch (e) {
     logger.error(e);
   }

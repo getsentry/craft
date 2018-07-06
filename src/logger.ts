@@ -89,6 +89,11 @@ export function error(message?: any, ...args: any[]): void {
   console.error(formatMessage(chalk.red('error'), message, ...args));
 }
 
+/***************************************************************/
+/**
+ * Below: we module-export "consola" instance by default.
+ */
+
 // tslint:disable:object-literal-sort-keys
 const DEBUG_LEVELS: { [key: string]: number } = {
   ERROR: 0,

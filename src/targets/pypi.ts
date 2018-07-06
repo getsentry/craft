@@ -2,10 +2,12 @@ import { extname } from 'path';
 
 import { Artifact } from '@zeus-ci/sdk';
 
-import logger from '../logger';
+import loggerRaw from '../logger';
 import { ZeusStore } from '../stores/zeus';
 import { spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
+
+const logger = loggerRaw.withScope('[pypi]');
 
 /**
  * Command to launch twine

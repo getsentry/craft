@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import * as yargs from 'yargs';
-import { error } from './logger';
 
 // tslint:disable-next-line:no-unused-expression
 yargs
@@ -12,7 +11,4 @@ yargs
   .help()
   .alias('h', 'help')
   .strict()
-  .fail((message, err) => {
-    error(message || err.message);
-    process.exit(1);
-  }).argv;
+  .showHelpOnFail(true).argv;

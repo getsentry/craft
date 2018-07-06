@@ -1,7 +1,9 @@
-import logger from '../logger';
+import loggerRaw from '../logger';
 import { ZeusStore } from '../stores/zeus';
 import { spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
+
+const logger = loggerRaw.withScope('[npm]');
 
 /** Command to launch npm */
 export const NPM_BIN = process.env.NPM_BIN || 'npm';
