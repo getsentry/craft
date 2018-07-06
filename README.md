@@ -29,14 +29,33 @@ $ craft -h
 craft <command>
 
 Commands:
-  craft demo            🎬 Run a demo of craft                       [aliases: d]
   craft publish         🛫 Publish artifacts                         [aliases: p]
-  craft release [part]  🚢 Prepare a new release                     [aliases: r]
+  craft release [part]  🚢 Prepare a new release branch              [aliases: r]
 
 Options:
   -v, --version  Show version number                                   [boolean]
   -h, --help     Show help                                             [boolean]
 ```
+
+## Global Configuration
+
+`craft` requires a few environment variables to be present in order to function
+properly.
+
+* `GITHUB_API_TOKEN`
+
+  Get your personal GitHub API token here: https://github.com/settings/tokens
+
+  The token only needs "repo" scope.
+
+* `ZEUS_TOKEN`
+
+  You can generate your personal Zeus token here: https://zeus.ci/settings/token
+
+  Required only for `craft publish`.
+
+Additional environment variables can be required when publishing to specific
+targets (e.g. `TWINE_USERNAME` and `TWINE_PASSWORD` for PyPI target).
 
 ### `craft release`: Preparing a New Release
 
@@ -46,14 +65,14 @@ This command will create a new release branch, check the changelog entries
 ```
 craft release [part]
 
-🚢 Prepare a new release
+🚢 Prepare a new release branch
 
 Positionals:
   part, p  The part of the version to increase
                 [string] [choices: "major", "minor", "patch"] [default: "patch"]
 
 Options:
-  --new-version          The new version to release                     [string]
+  --new-version          The new version to release          [string] [required]
   --push-release-branch  Push the release branch       [boolean] [default: true]
 ```
 
@@ -73,6 +92,10 @@ Options:
   --rev, -r               Source revision to publish                    [string]
   --new-version, -n       Version to publish                 [string] [required]
   --merge-release-branch  Merge the release branch after publishing
+                                                       [boolean] [default: true]
+  --remove-downloads      Remove all downloaded files after each invocation
+                                                       [boolean] [default: true]
+  --check-build-status    Check that all builds successed before publishing
                                                        [boolean] [default: true]
 ```
 
@@ -209,7 +232,9 @@ variables:
 
 **Environment**
 
-_none_
+| Name               | Description                                                        |
+| ------------------ | ------------------------------------------------------------------ |
+| `GITHUB_API_TOKEN` | Personal GitHub API token (seeh ttps://github.com/settings/tokens) |
 
 **Configuration**
 

@@ -12,8 +12,7 @@ import { spawnProcess } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 
 export const command = ['release [part]', 'r'];
-export const description =
-  '🚢 Prepare a new release: create a new release branch, bump version and push it to Github.';
+export const description = '🚢 Prepare a new release branch';
 
 export const builder = (yargs: Argv) =>
   yargs
