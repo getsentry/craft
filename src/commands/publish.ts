@@ -233,7 +233,7 @@ async function publishMain(argv: PublishOptions): Promise<any> {
   } else {
     logger.debug('Skipping the merge step.');
   }
-  logger.info(`Version ${newVersion} has been published!`);
+  logger.success(`Version ${newVersion} has been published!`);
 }
 
 export const handler = async (argv: PublishOptions) => {

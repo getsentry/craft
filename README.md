@@ -99,6 +99,31 @@ Options:
                                                        [boolean] [default: true]
 ```
 
+### Example
+
+Let's imagine we want to release a new version of our package, and the version
+in question is `1.2.3`.
+
+We run `release` command first:
+
+`$ craft release --new-version 1.2.3`
+
+After some basic sanity checks this command creates a new release branch
+`release/1.2.3`, runs the version-bumping script (`scripts/bump-version.sh`),
+commits the changes made by the script, and then pushes the new branch to
+GitHub. At this point CI systems kick in, and the results of those builds, as
+well as built artifacts (binaries, NPM archives, Python wheels) are gradually
+uploaded to Zeus.
+
+To publish the built artifacts we run `publish`:
+
+`$ craft publish --new-version 1.2.3`
+
+This command will find our release branch (`release/1.2.3`), check the build
+status of the respective git revision in Zeus, and then publish available
+artifacts to configured targets (for example, to GitHub and NPM in the case of
+Craft).
+
 ## Configuration File: `.craft.yml`
 
 Project configuration for `craft` is stored in `.craft.yml` configuration file,
@@ -298,3 +323,24 @@ NEW_VERSION="${2}"
 export npm_config_git_tag_version=false
 npm version "${NEW_VERSION}"
 ```
+
+## Development
+
+### Logging level
+
+Logging level for `craft` can be configured via setting `CRAFT_LOG_LEVEL`
+environment variable.
+
+Accepted values are: `debug`, `success` (default), `info`, `warn`, `error`.
+
+### Dry-run mode
+
+Dry-run mode can be enabled via setting `DRY_RUN` environment variable to any
+truthy value (any value other than `unset`, `""`, `0`, `false` and `no`).
+
+In dry-run mode no destructive actions will be performed (creating branches,
+pushing tags, committing files, etc.)
+
+### Releasing
+
+`craft` obviously uses `craft` for preparing and publishing new releases!

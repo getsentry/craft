@@ -223,7 +223,7 @@ export const handler = async (argv: ReleaseOptions) => {
     // Push the release branch
     await pushReleaseBranch(git, branchName, argv.pushReleaseBranch);
 
-    logger.info(
+    logger.success(
       'Done. Do not forget to run "craft publish" to publish the artifacts:',
       `  $ craft publish --new-version ${newVersion}`
     );
