@@ -117,7 +117,7 @@ async function checkRevisionStatus(
 ): Promise<void> {
   if (!checkBuildStatusFlag) {
     logger.warn(`Skipping build status checks for revision ${revision}`);
-    return undefined;
+    return;
   }
 
   try {
