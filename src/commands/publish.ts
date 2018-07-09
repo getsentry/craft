@@ -74,7 +74,7 @@ async function publishToTargets(
   revision: string,
   targetConfigList: any[],
   removeDownloads: boolean = true
-): Promise<any> {
+): Promise<void> {
   let downloadDirectoryPath;
   await withTempDir(async (downloadDirectory: string) => {
     downloadDirectoryPath = downloadDirectory;
@@ -114,7 +114,7 @@ async function checkRevisionStatus(
   repo: string,
   revision: string,
   checkBuildStatusFlag: boolean = true
-): Promise<any> {
+): Promise<void> {
   if (!checkBuildStatusFlag) {
     logger.warn(`Skipping build status checks for revision ${revision}`);
     return undefined;
@@ -161,7 +161,15 @@ async function publishMain(argv: PublishOptions): Promise<any> {
   let revision;
   let branchName;
   if (argv.rev) {
-    revision = argv.rev;
+    logger.debug(
+      `Fetching GitHub information for provided revision: ${argv.rev}`
+    );
+    const response = await githubClient.repos.getCommit({
+      owner: githubConfig.owner,
+      repo: githubConfig.repo,
+      sha: argv.rev,
+    });
+    revision = response.data.sha;
     branchName = '';
   } else {
     // Check that the tag is a valid version string
