@@ -141,6 +141,7 @@ async function checkRevisionStatus(
 
   try {
     const zeus = new ZeusStore(owner, repo);
+    logger.debug('Getting revision info from Zeus...');
     const revisionInfo = await zeus.getRevision(revision);
 
     if (zeus.isRevisionBuiltSuccessfully(revisionInfo)) {
@@ -152,7 +153,8 @@ async function checkRevisionStatus(
       );
     }
   } catch (e) {
-    if (e.err === 404) {
+    const errorMessage: string = e.message || '';
+    if (errorMessage.match(/404 not found/i)) {
       throw new Error(`Revision ${revision} not found in Zeus.`);
     }
     throw e;
