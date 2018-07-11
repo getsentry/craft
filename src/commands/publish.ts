@@ -1,4 +1,5 @@
-import { isDryRun } from 'dryrun';
+import * as Github from '@octokit/rest';
+import { isDryRun, shouldPerform } from 'dryrun';
 import { Argv } from 'yargs';
 
 import { getConfiguration } from '../config';
@@ -31,19 +32,24 @@ export const builder = (yargs: Argv) =>
       description: 'Version to publish',
       type: 'string',
     })
-    .option('merge-release-branch', {
-      default: true,
-      description: 'Merge the release branch after publishing',
+    .option('skip-merge', {
+      default: false,
+      description: 'Do not merge the release branch after publishing',
       type: 'boolean',
     })
-    .option('remove-downloads', {
-      default: true,
-      description: 'Remove all downloaded files after each invocation',
+    .option('keep-branch', {
+      default: false,
+      description: 'Do not remove release branch after merging it',
       type: 'boolean',
     })
-    .option('check-build-status', {
-      default: true,
-      description: 'Check that all builds successed before publishing',
+    .option('keep-downloads', {
+      default: false,
+      description: 'Keep all downloaded files',
+      type: 'boolean',
+    })
+    .option('skip-status-check', {
+      default: false,
+      description: 'Do not check for build status in Zeus',
       type: 'boolean',
     })
     .demandOption('new-version', 'Please specify the version to publish');
@@ -53,9 +59,10 @@ interface PublishOptions {
   rev?: string;
   target?: string | string[];
   newVersion: string;
-  mergeReleaseBranch: boolean;
-  removeDownloads: boolean;
-  checkBuildStatus: boolean;
+  skipMerge: boolean;
+  keepDownloads: boolean;
+  skipStatusCheck: boolean;
+  keepBranch: boolean;
 }
 
 /**
@@ -66,6 +73,7 @@ interface PublishOptions {
  * @param version New version to be released
  * @param revision Git commit SHA of the commit to be published
  * @param targetConfigList A list of parsed target configurations
+ * @param keepDownloads If "true", downloaded files will not be removed
  */
 async function publishToTargets(
   owner: string,
@@ -73,7 +81,7 @@ async function publishToTargets(
   version: string,
   revision: string,
   targetConfigList: any[],
-  removeDownloads: boolean = true
+  keepDownloads: boolean = false
 ): Promise<void> {
   let downloadDirectoryPath;
   await withTempDir(async (downloadDirectory: string) => {
@@ -91,9 +99,9 @@ async function publishToTargets(
       logger.debug(`Publishing to the target: "${targetConfig.name}"`);
       await target.publish(version, revision);
     }
-  }, removeDownloads);
+  }, !keepDownloads);
 
-  if (!removeDownloads) {
+  if (keepDownloads) {
     logger.info(
       'Difectory with the downloaded artifacts will not be removed',
       `Path: ${downloadDirectoryPath}`
@@ -107,15 +115,15 @@ async function publishToTargets(
  * @param owner Repository owner
  * @param repo Repository name
  * @param revision Git commit SHA to check
- * @param checkBuildStatusFlag A command line flag to enable/disable this check
+ * @param skipStatusCheckFlag A flag to enable/disable this check
  */
 async function checkRevisionStatus(
   owner: string,
   repo: string,
   revision: string,
-  checkBuildStatusFlag: boolean = true
+  skipStatusCheckFlag: boolean = false
 ): Promise<void> {
-  if (!checkBuildStatusFlag) {
+  if (skipStatusCheckFlag) {
     logger.warn(`Skipping build status checks for revision ${revision}`);
     return;
   }
@@ -137,6 +145,58 @@ async function checkRevisionStatus(
       throw new Error(`Revision ${revision} not found in Zeus.`);
     }
     throw e;
+  }
+}
+
+/**
+ * Deals with the release branch after publishing is done
+ *
+ * Leave the release branch unmerged, or merge it but not delete it if the
+ * corresponding flags are set.
+ *
+ * @param github Github client
+ * @param owner Repository owner
+ * @param repo Repository name
+ * @param branchName Release branch name
+ * @param skipMerge If set to "true", the branch will not be merged
+ * @param keepBranch If set to "true", the branch will not be deleted
+ */
+async function handleReleaseBranch(
+  github: Github,
+  owner: string,
+  repo: string,
+  branchName: string,
+  skipMerge: boolean = false,
+  keepBranch: boolean = false
+): Promise<void> {
+  if (!branchName || skipMerge) {
+    logger.info('Skipping the merge step.');
+    return;
+  }
+
+  logger.debug(`Merging the release branch: ${branchName}`);
+  if (shouldPerform()) {
+    await mergeReleaseBranch(github, owner, repo, branchName);
+  } else {
+    logger.info('[dry-run] Not merging the release branch');
+  }
+
+  if (keepBranch) {
+    logger.info('Not deleting the release branch.');
+  } else {
+    const ref = `heads/${branchName}`;
+    logger.debug(`Deleting the release branch, ref: ${ref}`);
+    if (shouldPerform()) {
+      const response = await github.gitdata.deleteReference({
+        owner,
+        ref,
+        repo,
+      });
+      logger.debug(`Deleted ref "${ref}", response:`, response.data);
+      logger.info(`Removed the remote branch: ${branchName}`);
+    } else {
+      logger.info('[dry-run] Not deleting the remote branch');
+    }
   }
 }
 
@@ -195,7 +255,7 @@ async function publishMain(argv: PublishOptions): Promise<any> {
     githubConfig.owner,
     githubConfig.repo,
     revision,
-    argv.checkBuildStatus
+    argv.skipStatusCheck
   );
 
   // Find targets
@@ -227,20 +287,19 @@ async function publishMain(argv: PublishOptions): Promise<any> {
     newVersion,
     revision,
     targetConfigList,
-    argv.removeDownloads
+    argv.keepDownloads
   );
 
   // Publishing done, MERGE DAT BRANCH!
-  if (branchName && argv.mergeReleaseBranch) {
-    await mergeReleaseBranch(
-      githubClient,
-      githubConfig.owner,
-      githubConfig.repo,
-      branchName
-    );
-  } else {
-    logger.debug('Skipping the merge step.');
-  }
+  await handleReleaseBranch(
+    githubClient,
+    githubConfig.owner,
+    githubConfig.repo,
+    branchName,
+    argv.skipMerge,
+    argv.keepBranch
+  );
+
   logger.success(`Version ${newVersion} has been published!`);
 }
 
