@@ -1,4 +1,4 @@
-import { spawnProcess } from '../system';
+import { sleepAsync, spawnProcess } from '../system';
 
 describe('spawn', () => {
   test('resolves on success', async () => {
@@ -51,5 +51,17 @@ describe('spawn', () => {
     } catch (e) {
       expect(e.options.env).toBeUndefined();
     }
+  });
+});
+
+describe('sleepAsync', () => {
+  test('sleeps for at least the given number of ms', async () => {
+    const sleepMs = 50;
+    const timeStart = new Date().getTime();
+    await sleepAsync(sleepMs);
+    const timeEnd = new Date().getTime();
+    const diff = timeEnd - timeStart;
+    expect(diff).toBeGreaterThanOrEqual(sleepMs);
+    expect(diff).toBeLessThan(sleepMs * 2);
   });
 });

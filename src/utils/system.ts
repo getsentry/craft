@@ -111,3 +111,12 @@ export async function calculateChecksum(
     stream.on('error', reject);
   });
 }
+
+/**
+ * Sleep for the provided number of milliseconds
+ *
+ * @param ms Milliseconds to sleep
+ */
+export async function sleepAsync(ms: number): Promise<void> {
+  return new Promise<void>(resolve => setTimeout(resolve, ms));
+}
