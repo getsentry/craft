@@ -106,6 +106,27 @@ export class ZeusStore {
       revisionInfo.result === Result.PASSED
     );
   }
+
+  /**
+   * Checks if the revision's builds have failed
+   *
+   * @param revisionInfo Revision information as returned from getRevision()
+   */
+  public isRevisionFailed(revisionInfo: RevisionInfo): boolean {
+    return (
+      revisionInfo.status === Status.FINISHED &&
+      revisionInfo.result !== Result.PASSED
+    );
+  }
+
+  /**
+   * Checks if the revision has some pending/unfinished builds
+   *
+   * @param revisionInfo Revision information as returned from getRevision()
+   */
+  public isRevisionPending(revisionInfo: RevisionInfo): boolean {
+    return revisionInfo.status !== Status.FINISHED;
+  }
 }
 
 export { RevisionInfo };

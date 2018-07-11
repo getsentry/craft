@@ -10,6 +10,7 @@ import { BaseTarget } from '../targets/base';
 import { reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { getGithubClient, mergeReleaseBranch } from '../utils/github_api';
+import { sleepAsync } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 
 export const command = ['publish', 'p'];
@@ -66,6 +67,9 @@ interface PublishOptions {
   keepBranch: boolean;
 }
 
+/** Interval in seconds while polling Zeus status */
+const ZEUS_POLLING_INTERVAL = 30;
+
 /**
  * Publishes artifacts to the provided targets
  *
@@ -120,6 +124,8 @@ async function publishToTargets(
   }
 }
 
+// TODO there is at least one case that is not covered: how to detect Zeus builds
+// that have unknown status (neither failed nor succeeded)
 /**
  * Checks statuses of all builds on Zeus for the provided revision
  *
@@ -132,7 +138,8 @@ async function checkRevisionStatus(
   owner: string,
   repo: string,
   revision: string,
-  skipStatusCheckFlag: boolean = false
+  skipStatusCheckFlag: boolean = false,
+  skipBuildPolling: boolean = false
 ): Promise<void> {
   if (skipStatusCheckFlag) {
     logger.warn(`Skipping build status checks for revision ${revision}`);
@@ -141,23 +148,49 @@ async function checkRevisionStatus(
 
   try {
     const zeus = new ZeusStore(owner, repo);
-    logger.debug('Getting revision info from Zeus...');
-    const revisionInfo = await zeus.getRevision(revision);
 
-    if (zeus.isRevisionBuiltSuccessfully(revisionInfo)) {
-      logger.info(`Revision ${revision} has been built successfully.`);
-    } else {
-      // TODO add a Zeus link to the revision page
-      reportError(
-        `Build(s) for revision ${revision} have not completed successfully (yet).`
+    while (true) {
+      logger.debug('Getting revision info from Zeus...');
+      const revisionInfo = await zeus.getRevision(revision);
+
+      const isSuccess = zeus.isRevisionBuiltSuccessfully(revisionInfo);
+      const isFailure = zeus.isRevisionFailed(revisionInfo);
+
+      if (isSuccess) {
+        logger.info(`Revision ${revision} has been built successfully.`);
+        return;
+      }
+
+      if (isFailure) {
+        const revisionUrl = zeus.client.getUrl(
+          `/gh/${owner}/${repo}/revisions/${revision}`
+        );
+        // TODO add a Zeus link to the revision page
+        reportError(
+          `Build(s) for revision ${revision} have failed.` +
+            `\nPlease check revision's status on Zeus: ${revisionUrl}`
+        );
+        return;
+      }
+
+      if (skipBuildPolling) {
+        reportError(
+          `Build(s) for revision ${revision} have not completed successfully (yet). Exiting.`
+        );
+        return;
+      }
+      logger.info(
+        `CI builds are still in progress, sleeping for ${ZEUS_POLLING_INTERVAL} seconds...`
       );
+      await sleepAsync(ZEUS_POLLING_INTERVAL * 1000);
     }
   } catch (e) {
     const errorMessage: string = e.message || '';
-    if (errorMessage.match(/404 not found/i)) {
-      throw new Error(`Revision ${revision} not found in Zeus.`);
+    if (errorMessage.match(/404 not found|resource not found/i)) {
+      reportError(`Revision ${revision} not found in Zeus.`);
+    } else {
+      throw e;
     }
-    throw e;
   }
 }
 
