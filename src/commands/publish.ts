@@ -6,6 +6,7 @@ import { getConfiguration } from '../config';
 import logger from '../logger';
 import { ZeusStore } from '../stores/zeus';
 import { getTargetByName } from '../targets';
+import { BaseTarget } from '../targets/base';
 import { reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { getGithubClient, mergeReleaseBranch } from '../utils/github_api';
@@ -84,9 +85,14 @@ async function publishToTargets(
   keepDownloads: boolean = false
 ): Promise<void> {
   let downloadDirectoryPath;
+
   await withTempDir(async (downloadDirectory: string) => {
     downloadDirectoryPath = downloadDirectory;
     const store = new ZeusStore(owner, repo, downloadDirectory);
+    const targetList: BaseTarget[] = [];
+
+    // Initialize all targets first
+    logger.debug('Initializing targets');
     for (const targetConfig of targetConfigList) {
       const targetClass = getTargetByName(targetConfig.name);
       if (!targetClass) {
@@ -96,7 +102,12 @@ async function publishToTargets(
         continue;
       }
       const target = new targetClass(targetConfig, store);
-      logger.debug(`Publishing to the target: "${targetConfig.name}"`);
+      targetList.push(target);
+    }
+
+    // Publish all the targets
+    for (const target of targetList) {
+      logger.debug(`Publishing to the target: "${target.name}"`);
       await target.publish(version, revision);
     }
   }, !keepDownloads);
