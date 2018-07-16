@@ -20,7 +20,8 @@ export const builder = (yargs: Argv) =>
   yargs
     .option('target', {
       alias: 't',
-      choices: ['github', 'npm', 'pypi', 'all'],
+      choices: ['github', 'npm', 'pypi', 'all', 'none'],
+      default: 'all',
       description: 'Publish to this target',
       type: 'string',
     })
@@ -238,7 +239,10 @@ async function handleReleaseBranch(
         ref,
         repo,
       });
-      logger.debug(`Deleted ref "${ref}", response:`, response.data);
+      logger.debug(
+        `Deleted ref "${ref}"`,
+        `Response status: ${response.status}`
+      );
       logger.info(`Removed the remote branch: ${branchName}`);
     } else {
       logger.info('[dry-run] Not deleting the remote branch');
@@ -305,15 +309,18 @@ async function publishMain(argv: PublishOptions): Promise<any> {
   );
 
   // Find targets
-  let targetList: string[] =
-    (typeof argv.target === 'string' ? [argv.target] : argv.target) || [];
-  if (targetList.length > 1 && targetList.indexOf('all') > -1) {
-    logger.error('Target "all" specified together with other targets');
-    return undefined;
-  }
-  // No targets specified => run all
-  if (!targetList.length) {
-    targetList = ['all'];
+  const targetList: string[] = (typeof argv.target === 'string'
+    ? [argv.target]
+    : argv.target) || ['all'];
+
+  // Treat "all"/"none" specially
+  for (const specialTarget of ['all', 'none']) {
+    if (targetList.length > 1 && targetList.indexOf(specialTarget) > -1) {
+      logger.error(
+        `Target "${specialTarget}" specified together with other targets. Exiting.`
+      );
+      return undefined;
+    }
   }
 
   let targetConfigList = config.targets;
@@ -323,18 +330,21 @@ async function publishMain(argv: PublishOptions): Promise<any> {
         targetList.indexOf(targetConf.name) > -1
     );
   }
-  if (!targetConfigList.length) {
-    logger.warn('No targets detected! Exiting.');
-    return undefined;
+
+  if (targetList[0] !== 'none') {
+    if (!targetConfigList.length) {
+      logger.warn('No valid targets detected! Exiting.');
+      return undefined;
+    }
+    await publishToTargets(
+      githubConfig.owner,
+      githubConfig.repo,
+      newVersion,
+      revision,
+      targetConfigList,
+      argv.keepDownloads
+    );
   }
-  await publishToTargets(
-    githubConfig.owner,
-    githubConfig.repo,
-    newVersion,
-    revision,
-    targetConfigList,
-    argv.keepDownloads
-  );
 
   // Publishing done, MERGE DAT BRANCH!
   await handleReleaseBranch(
