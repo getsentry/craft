@@ -3,8 +3,9 @@ import { shouldPerform } from 'dryrun';
 import { createReadStream, statSync } from 'fs';
 import { basename } from 'path';
 
-import { getGithubConfig } from '../config';
+import { getGlobalGithubConfig } from '../config';
 import loggerRaw from '../logger';
+import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { findChangeset } from '../utils/changes';
 import { getFile, getGithubClient } from '../utils/github_api';
@@ -25,7 +26,7 @@ export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
 /**
  * Configuration options for the Github target
  */
-export interface GithubTargetOptions {
+export interface GithubTargetOptions extends TargetConfig {
   owner: string;
   repo: string;
   changelog?: string;
@@ -44,7 +45,7 @@ export class GithubTarget extends BaseTarget {
 
   public constructor(config: any, store: ZeusStore) {
     super(config, store);
-    this.githubConfig = getGithubConfig();
+    this.githubConfig = getGlobalGithubConfig();
     this.githubConfig.changelog = this.config.changelog;
     this.github = getGithubClient();
   }

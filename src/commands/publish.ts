@@ -323,7 +323,7 @@ async function publishMain(argv: PublishOptions): Promise<any> {
     }
   }
 
-  let targetConfigList = config.targets;
+  let targetConfigList = config.targets || [];
   if (targetList[0] !== 'all') {
     targetConfigList = targetConfigList.filter(
       (targetConf: { [key: string]: any }) =>

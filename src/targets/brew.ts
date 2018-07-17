@@ -3,8 +3,9 @@ import { shouldPerform } from 'dryrun';
 import * as _ from 'lodash';
 import { basename } from 'path';
 
-import { getGithubConfig } from '../config';
+import { getGlobalGithubConfig } from '../config';
 import loggerRaw from '../logger';
+import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { promiseProps } from '../utils/async';
 import { getGithubClient } from '../utils/github_api';
@@ -26,7 +27,7 @@ export interface TapRepo {
 }
 
 /** Target options for "brew" */
-export interface BrewTargetOptions {
+export interface BrewTargetOptions extends TargetConfig {
   tapRepo: TapRepo;
   template: string;
   formula?: string;
@@ -50,7 +51,7 @@ export class BrewTarget extends BaseTarget {
     super(config, store);
     this.brewConfig = this.getBrewConfig();
     this.github = getGithubClient();
-    this.githubRepo = getGithubConfig();
+    this.githubRepo = getGlobalGithubConfig();
   }
 
   /**

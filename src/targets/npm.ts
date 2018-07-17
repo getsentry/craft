@@ -1,4 +1,5 @@
 import loggerRaw from '../logger';
+import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
@@ -27,7 +28,7 @@ export enum NpmPackageAccess {
 }
 
 /** NPM target configuration options */
-export interface NpmTargetOptions {
+export interface NpmTargetOptions extends TargetConfig {
   access?: NpmPackageAccess;
 }
 

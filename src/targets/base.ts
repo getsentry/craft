@@ -1,3 +1,4 @@
+import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 
 // TODO: make abstract?
@@ -10,7 +11,7 @@ export class BaseTarget {
   /** Artifact store */
   public readonly store: ZeusStore;
   /** Target configuration */
-  public readonly config: any;
+  public readonly config: TargetConfig;
 
   public constructor(config: any, store: ZeusStore) {
     this.store = store;

@@ -3,6 +3,7 @@ import { extname } from 'path';
 import { Artifact } from '@zeus-ci/sdk';
 
 import loggerRaw from '../logger';
+import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
@@ -20,7 +21,7 @@ const TWINE_BIN = process.env.TWINE_BIN || 'twine';
 const PYPI_EXTENSIONS = ['.whl', '.gz', '.zip'];
 
 /** Options for "pypi" target */
-export interface PypiTargetOptions {
+export interface PypiTargetOptions extends TargetConfig {
   twineUsername: string;
   twinePassword: string;
 }

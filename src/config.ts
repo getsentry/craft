@@ -3,19 +3,13 @@ import { safeLoad } from 'js-yaml';
 import { dirname, join } from 'path';
 
 import logger from './logger';
-import { GithubTargetOptions } from './targets/github';
+import {
+  CraftProjectConfig,
+  GithubGlobalConfig,
+} from './schemas/project_config';
 
 // TODO support multiple configuration files (one per configuration)
 const CONFIG_FILE_NAME = '.craft.yml';
-
-/**
- *  Project-specific configuration structure
- */
-interface ProjectConfig {
-  github: any;
-  targets: any[];
-  zeus: any;
-}
 
 /**
  * Return a full path to configuration file for the current project
@@ -45,7 +39,7 @@ export function findConfigFile(): string | undefined {
 /**
  * Return the parsed configuration file contents
  */
-export function getConfiguration(): ProjectConfig {
+export function getConfiguration(): CraftProjectConfig {
   // TODO cache configuration for later multiple uses
 
   const configPath = findConfigFile();
@@ -53,13 +47,13 @@ export function getConfiguration(): ProjectConfig {
   if (!configPath) {
     throw new Error('Cannot find configuration file');
   }
-  return safeLoad(readFileSync(configPath, 'utf-8')) as ProjectConfig;
+  return safeLoad(readFileSync(configPath, 'utf-8')) as CraftProjectConfig;
 }
 
 /**
  * Return the parsed Github configuration, such as repository owner and name
  */
-export function getGithubConfig(): GithubTargetOptions {
+export function getGlobalGithubConfig(): GithubGlobalConfig {
   // We extract global Github configuration (owner/repo) from top-level
   // configuration
   const repoGithubConfig = getConfiguration().github || {};

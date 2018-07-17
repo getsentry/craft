@@ -61,7 +61,7 @@ describe('sleepAsync', () => {
     await sleepAsync(sleepMs);
     const timeEnd = new Date().getTime();
     const diff = timeEnd - timeStart;
-    expect(diff).toBeGreaterThanOrEqual(sleepMs);
+    expect(diff).toBeGreaterThanOrEqual(sleepMs - 1);
     expect(diff).toBeLessThan(sleepMs * 2);
   });
 });
