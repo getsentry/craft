@@ -13,6 +13,7 @@
   "dependencies": {
     "@octokit/rest": "^15.9.1",
     "@zeus-ci/sdk": "^0.1.4",
+    "ajv": "^6.5.2",
     "chalk": "^2.4.1",
     "consola": "^1.4.1",
     "dryrun": "^1.0.2",
@@ -63,6 +64,6 @@
     "fix:tslint": "tslint --fix -t stylish -p .",
     "test": "jest",
     "test:watch": "jest --watch --notify",
-    "compile-config-schema": "cd ./src/schemas && json2ts -i project_config.json -o project_config.ts"
+    "compile-config-schema": "node ./scripts/config-json-schema-to-ts.js"
   }
 }

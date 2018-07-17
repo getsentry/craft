@@ -1,3 +1,4 @@
+import * as Ajv from 'ajv';
 import { existsSync, lstatSync, readFileSync } from 'fs';
 import { safeLoad } from 'js-yaml';
 import { dirname, join } from 'path';
@@ -9,7 +10,7 @@ import {
 } from './schemas/project_config';
 
 // TODO support multiple configuration files (one per configuration)
-const CONFIG_FILE_NAME = '.craft.yml';
+export const CONFIG_FILE_NAME = '.craft.yml';
 
 /**
  * Return a full path to configuration file for the current project
@@ -37,21 +38,53 @@ export function findConfigFile(): string | undefined {
 }
 
 /**
+ * Read JSON schema for project configuration
+ */
+export function getProjectConfigSchema(): any {
+  return require('./schemas/project_config.schema');
+}
+
+/**
+ * Parse and validate passed configuration object
+ *
+ * Throw an error is the object cannot be properly parsed as configuration.
+ *
+ * @param rawConfig Raw project configuration object
+ */
+export function validateConfiguration(rawConfig: any): CraftProjectConfig {
+  logger.debug('Parsing and validating the configuration file...');
+  const schemaName = 'projectConfig';
+  const projectConfigSchema = getProjectConfigSchema();
+  const ajvValidator = new Ajv().addSchema(projectConfigSchema, schemaName);
+  const valid = ajvValidator.validate(schemaName, rawConfig);
+  if (valid) {
+    return rawConfig as CraftProjectConfig;
+  } else {
+    throw new Error(
+      `Cannot parse configuration file:\n${ajvValidator.errorsText()}`
+    );
+  }
+}
+
+/**
  * Return the parsed configuration file contents
  */
 export function getConfiguration(): CraftProjectConfig {
   // TODO cache configuration for later multiple uses
 
   const configPath = findConfigFile();
-  logger.debug('Configuration file found: ', configPath);
   if (!configPath) {
-    throw new Error('Cannot find configuration file');
+    throw new Error(
+      `Cannot find Craft configuration file. Have you added "${CONFIG_FILE_NAME}" to your project?`
+    );
   }
-  return safeLoad(readFileSync(configPath, 'utf-8')) as CraftProjectConfig;
+  logger.debug('Configuration file found: ', configPath);
+  const rawConfig = safeLoad(readFileSync(configPath, 'utf-8'));
+  return validateConfiguration(rawConfig);
 }
 
 /**
- * Return the parsed Github configuration, such as repository owner and name
+ * Return the parsed global Github configuration
  */
 export function getGlobalGithubConfig(): GithubGlobalConfig {
   // We extract global Github configuration (owner/repo) from top-level
@@ -70,8 +103,5 @@ export function getGlobalGithubConfig(): GithubGlobalConfig {
     throw new Error('GitHub target: repo not found');
   }
 
-  return {
-    owner: repoGithubConfig.owner,
-    repo: repoGithubConfig.repo,
-  };
+  return repoGithubConfig;
 }
