@@ -10,7 +10,7 @@ export class BaseTarget {
   public readonly name: string = 'base';
   /** Artifact store */
   public readonly store: ZeusStore;
-  /** Target configuration */
+  /** Unparsed target configuration */
   public readonly config: TargetConfig;
 
   public constructor(config: any, store: ZeusStore) {

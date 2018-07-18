@@ -5,13 +5,12 @@ import { basename } from 'path';
 
 import { getGlobalGithubConfig } from '../config';
 import loggerRaw from '../logger';
-import { TargetConfig } from '../schemas/project_config';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { promiseProps } from '../utils/async';
 import { getGithubClient } from '../utils/github_api';
 import { calculateChecksum } from '../utils/system';
 import { BaseTarget } from './base';
-import { GithubTargetOptions } from './github';
 
 const logger = loggerRaw.withScope('[brew]');
 
@@ -45,7 +44,7 @@ export class BrewTarget extends BaseTarget {
   /** Github client */
   public readonly github: Github;
   /** Github repo configuration */
-  public readonly githubRepo: GithubTargetOptions;
+  public readonly githubRepo: GithubGlobalConfig;
 
   public constructor(config: any, store: ZeusStore) {
     super(config, store);

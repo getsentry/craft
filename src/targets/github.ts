@@ -5,7 +5,7 @@ import { basename } from 'path';
 
 import { getGlobalGithubConfig } from '../config';
 import loggerRaw from '../logger';
-import { TargetConfig } from '../schemas/project_config';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { findChangeset } from '../utils/changes';
 import { getFile, getGithubClient } from '../utils/github_api';
@@ -26,9 +26,7 @@ export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
 /**
  * Configuration options for the Github target
  */
-export interface GithubTargetOptions extends TargetConfig {
-  owner: string;
-  repo: string;
+export interface GithubTargetConfig extends TargetConfig, GithubGlobalConfig {
   changelog?: string;
 }
 
@@ -38,8 +36,8 @@ export interface GithubTargetOptions extends TargetConfig {
 export class GithubTarget extends BaseTarget {
   /** Target name */
   public readonly name: string = 'github';
-  /** High-level non-target Github configuration */
-  public readonly githubConfig: GithubTargetOptions;
+  /** Target options */
+  public readonly githubConfig: GithubTargetConfig;
   /** Github client */
   public readonly github: Github;
 
