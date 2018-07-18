@@ -2,7 +2,7 @@ import { isDryRun, shouldPerform } from 'dryrun';
 import { join } from 'path';
 // tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
-import { Argv } from 'yargs';
+import { Arguments, Argv } from 'yargs';
 
 import { getConfiguration } from '../config';
 import logger from '../logger';
@@ -11,20 +11,18 @@ import { getDefaultBranch, getGithubClient } from '../utils/github_api';
 import { spawnProcess } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 
-export const command = ['release [part]', 'r'];
+export const command = ['release <major|minor|patch|new-version>', 'r'];
 export const description = '🚢 Prepare a new release branch';
+
+/** Default path to bump-version script, relative to project root */
+const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
 
 export const builder = (yargs: Argv) =>
   yargs
     .positional('part', {
-      alias: 'p',
-      choices: ['major', 'minor', 'patch'],
-      default: 'patch',
-      description: 'The part of the version to increase',
-      type: 'string',
-    })
-    .option('new-version', {
-      description: 'The new version to release',
+      alias: 'new-version',
+      description:
+        'The version part (major, minor, patch) to increase, or the version itself',
       type: 'string',
     })
     .option('skip-push', {
@@ -32,20 +30,33 @@ export const builder = (yargs: Argv) =>
       description: 'Do not push the release branch',
       type: 'boolean',
     })
-    .demandOption(
-      'new-version',
-      'Specifying version part to bump is not yet implemented. ' +
-        'Please specify the version to publish.'
-    );
+    .check(checkVersionOrPart);
+
 /** Command line options. */
 interface ReleaseOptions {
-  part: string;
-  newVersion?: string;
+  newVersion: string;
   skipPush: boolean;
 }
 
-/** Default path to bump-version script, relative to project root */
-const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
+/**
+ * Checks the provided version argument for validity
+ *
+ * We check that the argument is either a valid version string, or a valid
+ * semantic version part.
+ *
+ * @param argv Parsed yargs arguments
+ * @param _opt A list of options and aliases
+ */
+function checkVersionOrPart(argv: Arguments, _opt: any): any {
+  const version = argv.newVersion;
+  if (['major', 'minor', 'patch'].indexOf(version) > -1) {
+    throw Error('Version part is not supported yet');
+  } else if (isValidVersion(version)) {
+    return true;
+  } else {
+    throw Error(`Invalid version or version part specified: "${version}"`);
+  }
+}
 
 /**
  * Creates a new local release branch
@@ -210,13 +221,7 @@ export const handler = async (argv: ReleaseOptions) => {
     await checkGitState(git, defaultBranch);
 
     const newVersion = argv.newVersion;
-    if (!newVersion) {
-      throw new Error('Not implemented: specify the new version');
-    }
-
-    if (!isValidVersion(newVersion)) {
-      throw new Error(`Invalid version specified: ${newVersion}`);
-    }
+    logger.info(`Preparing to release the version: ${newVersion}`);
 
     // Create a new release branch. Throw an error if it already exists
     const branchName = await createReleaseBranch(git, newVersion);

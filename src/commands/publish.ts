@@ -1,6 +1,6 @@
 import * as Github from '@octokit/rest';
 import { isDryRun, shouldPerform } from 'dryrun';
-import { Argv } from 'yargs';
+import { Arguments, Argv } from 'yargs';
 
 import { getConfiguration } from '../config';
 import logger from '../logger';
@@ -13,11 +13,15 @@ import { getGithubClient, mergeReleaseBranch } from '../utils/github_api';
 import { sleepAsync } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 
-export const command = ['publish', 'p'];
+export const command = ['publish <new-version>', 'p'];
 export const description = '🛫 Publish artifacts';
 
 export const builder = (yargs: Argv) =>
   yargs
+    .positional('new-version', {
+      description: 'Version to publish',
+      type: 'string',
+    })
     .option('target', {
       alias: 't',
       choices: ['github', 'npm', 'pypi', 'all', 'none'],
@@ -28,11 +32,6 @@ export const builder = (yargs: Argv) =>
     .option('rev', {
       alias: 'r',
       description: 'Source revision to publish',
-      type: 'string',
-    })
-    .option('new-version', {
-      alias: 'n',
-      description: 'Version to publish',
       type: 'string',
     })
     .option('skip-merge', {
@@ -55,7 +54,23 @@ export const builder = (yargs: Argv) =>
       description: 'Do not check for build status in Zeus',
       type: 'boolean',
     })
+    .check(checkVersion)
     .demandOption('new-version', 'Please specify the version to publish');
+
+/**
+ * Checks that the passed version is a valid version string
+ *
+ * @param argv Parsed yargs arguments
+ * @param _opt A list of options and aliases
+ */
+function checkVersion(argv: Arguments, _opt: any): any {
+  const version = argv.newVersion;
+  if (isValidVersion(version)) {
+    return true;
+  } else {
+    throw Error(`Invalid version provided: "${version}"`);
+  }
+}
 
 /** Command line options. */
 interface PublishOptions {
@@ -268,6 +283,8 @@ async function publishMain(argv: PublishOptions): Promise<any> {
 
   const newVersion = argv.newVersion;
 
+  logger.info(`Publishing the version: ${newVersion}`);
+
   let revision;
   let branchName;
   if (argv.rev) {
@@ -282,13 +299,7 @@ async function publishMain(argv: PublishOptions): Promise<any> {
     revision = response.data.sha;
     branchName = '';
   } else {
-    // Check that the tag is a valid version string
-    if (!isValidVersion(newVersion)) {
-      logger.error(`Invalid version provided: "${newVersion}"`);
-      return undefined;
-    }
-
-    // Find a remote branch
+    // Find the remote branch
     branchName = `release/${newVersion}`;
     logger.debug('Fetching branch information', branchName);
     const response = await githubClient.repos.getBranch({
