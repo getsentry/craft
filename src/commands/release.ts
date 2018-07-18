@@ -148,6 +148,8 @@ async function checkGitState(
     throw new Error('Not a git repository!');
   }
   const repoStatus = await git.status();
+  logger.debug('Repository status:', JSON.stringify(repoStatus));
+
   // Check that we are on master
   // TODO check what's here when we are in a detached state
   const currentBranch = repoStatus.current;
@@ -164,10 +166,18 @@ async function checkGitState(
     repoStatus.renamed.length ||
     repoStatus.staged.length
   ) {
-    logger.debug('Repository status:', JSON.stringify(repoStatus));
     reportError(
       'Your repository is in a dirty state. ' +
         'Please stash or commit the pending changes.',
+      logger
+    );
+  }
+
+  if (repoStatus.ahead > 0) {
+    reportError(
+      `Your repository has unpushed changes: the current branch is ${
+        repoStatus.ahead
+      } commits ahead.`,
       logger
     );
   }
