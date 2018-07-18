@@ -184,7 +184,7 @@ async function checkRevisionStatus(
       const isFailure = zeus.isRevisionFailed(revisionInfo);
 
       if (isSuccess) {
-        if (spinner) {
+        if (spinner.isSpinning) {
           spinner.succeed();
         }
         logger.info(`Revision ${revision} has been built successfully.`);
