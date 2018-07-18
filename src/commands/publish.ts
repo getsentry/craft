@@ -1,5 +1,6 @@
 import * as Github from '@octokit/rest';
 import { isDryRun, shouldPerform } from 'dryrun';
+import * as ora from 'ora';
 import { Arguments, Argv } from 'yargs';
 
 import { getConfiguration } from '../config';
@@ -127,7 +128,14 @@ async function publishToTargets(
 
     // Publish all the targets
     for (const target of targetList) {
-      logger.debug(`Publishing to the target: "${target.name}"`);
+      const publishMessage = `=== Publishing to the target: "${
+        target.name
+      }" ===`;
+      const delim = Array(publishMessage.length + 1).join('=');
+      logger.info(' ');
+      logger.info(delim);
+      logger.info(publishMessage);
+      logger.info(delim);
       await target.publish(version, revision);
     }
   }, !keepDownloads);
@@ -154,30 +162,37 @@ async function checkRevisionStatus(
   owner: string,
   repo: string,
   revision: string,
-  skipStatusCheckFlag: boolean = false,
-  skipBuildPolling: boolean = false
+  skipStatusCheckFlag: boolean = false
 ): Promise<void> {
   if (skipStatusCheckFlag) {
     logger.warn(`Skipping build status checks for revision ${revision}`);
     return;
   }
+  // Status spinner
+  const spinner = ora({ spinner: 'bouncingBar' }) as any;
 
   try {
     const zeus = new ZeusStore(owner, repo);
 
     while (true) {
-      logger.debug('Getting revision info from Zeus...');
+      if (!spinner.isSpinning) {
+        logger.debug('Getting revision info from Zeus...');
+      }
       const revisionInfo = await zeus.getRevision(revision);
 
       const isSuccess = zeus.isRevisionBuiltSuccessfully(revisionInfo);
       const isFailure = zeus.isRevisionFailed(revisionInfo);
 
       if (isSuccess) {
+        if (spinner) {
+          spinner.succeed();
+        }
         logger.info(`Revision ${revision} has been built successfully.`);
         return;
       }
 
       if (isFailure) {
+        spinner.fail();
         const revisionUrl = zeus.client.getUrl(
           `/gh/${owner}/${repo}/revisions/${revision}`
         );
@@ -189,15 +204,14 @@ async function checkRevisionStatus(
         return;
       }
 
-      if (skipBuildPolling) {
-        reportError(
-          `Build(s) for revision ${revision} have not completed successfully (yet). Exiting.`
-        );
-        return;
-      }
-      logger.info(
-        `CI builds are still in progress, sleeping for ${ZEUS_POLLING_INTERVAL} seconds...`
-      );
+      // Update the spinner
+      const timeString = new Date()
+        .toISOString()
+        .replace(/T/, ' ')
+        .replace(/\..+/, '');
+      const waitMessage = `[${timeString}] CI builds are still in progress, sleeping for ${ZEUS_POLLING_INTERVAL} seconds...`;
+      spinner.start();
+      spinner.text = waitMessage;
       await sleepAsync(ZEUS_POLLING_INTERVAL * 1000);
     }
   } catch (e) {
@@ -207,6 +221,8 @@ async function checkRevisionStatus(
     } else {
       throw e;
     }
+  } finally {
+    spinner.stop();
   }
 }
 

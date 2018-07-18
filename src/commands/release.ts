@@ -240,7 +240,7 @@ export const handler = async (argv: ReleaseOptions) => {
 
     logger.success(
       'Done. Do not forget to run "craft publish" to publish the artifacts:',
-      `  $ craft publish --new-version ${newVersion}`
+      `  $ craft publish ${newVersion}`
     );
   } catch (e) {
     logger.error(e);
