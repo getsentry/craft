@@ -27,9 +27,9 @@ export const builder = (yargs: Argv) =>
       description: 'The new version to release',
       type: 'string',
     })
-    .option('push-release-branch', {
-      default: true,
-      description: 'Push the release branch',
+    .option('skip-push', {
+      default: false,
+      description: 'Do not push the release branch',
       type: 'boolean',
     })
     .demandOption(
@@ -41,7 +41,7 @@ export const builder = (yargs: Argv) =>
 interface ReleaseOptions {
   part: string;
   newVersion?: string;
-  pushReleaseBranch: boolean;
+  skipPush: boolean;
 }
 
 /** Default path to bump-version script, relative to project root */
@@ -88,7 +88,7 @@ async function createReleaseBranch(
  *
  * @param git Local git client
  * @param defaultBranch Default branch of the remote repository
- * @param pushFlag A flag that indicates that the branch has to be pushed
+ * @param pushFlag If "true", push the release branch
  */
 async function pushReleaseBranch(
   git: simpleGit.SimpleGit,
@@ -221,7 +221,7 @@ export const handler = async (argv: ReleaseOptions) => {
     await commitNewVersion(git, newVersion);
 
     // Push the release branch
-    await pushReleaseBranch(git, branchName, argv.pushReleaseBranch);
+    await pushReleaseBranch(git, branchName, !argv.skipPush);
 
     logger.success(
       'Done. Do not forget to run "craft publish" to publish the artifacts:',
