@@ -10,6 +10,7 @@
 export interface CraftProjectConfig {
   github: GithubGlobalConfig;
   targets?: TargetConfig[];
+  preReleaseCommand?: string;
 }
 /**
  * Global (non-target!) GitHub configuration for the project

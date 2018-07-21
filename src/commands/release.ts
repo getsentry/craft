@@ -1,5 +1,6 @@
 import { isDryRun, shouldPerform } from 'dryrun';
 import { join } from 'path';
+import * as shellQuote from 'shell-quote';
 // tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
 import { Arguments, Argv } from 'yargs';
@@ -143,6 +144,29 @@ async function commitNewVersion(
   }
 }
 
+export async function runPreReleaseCommand(
+  newVersion: string,
+  preReleaseCommand?: string
+): Promise<void> {
+  let sysCommand: string;
+  let args: string[];
+  if (preReleaseCommand) {
+    [sysCommand, ...args] = shellQuote.parse(preReleaseCommand);
+  } else {
+    sysCommand = '/bin/bash';
+    args = [DEFAULT_BUMP_VERSION_PATH];
+  }
+  args = [...args, '', newVersion];
+  logger.info(`Running a pre-release command...`);
+  const env = {
+    CRAFT_NEW_VERSION: newVersion,
+    CRAFT_OLD_VERSION: '',
+  };
+  await spawnProcess(sysCommand, args, {
+    env,
+  });
+}
+
 /**
  * Checks that it is safe to perform the release right now
  *
@@ -226,13 +250,10 @@ export const handler = async (argv: ReleaseOptions) => {
     // Create a new release branch. Throw an error if it already exists
     const branchName = await createReleaseBranch(git, newVersion);
 
-    // Run bump version script
-    // TODO check that the script exists
-    logger.info(
-      `Running a version-bumping script (${DEFAULT_BUMP_VERSION_PATH})...`
-    );
-    await spawnProcess('bash', [DEFAULT_BUMP_VERSION_PATH, '', newVersion]);
+    // Run a pre-release script (e.g. for version bumping)
+    await runPreReleaseCommand(newVersion, config.preReleaseCommand);
 
+    // Commit the pending changes
     await commitNewVersion(git, newVersion);
 
     // Push the release branch

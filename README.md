@@ -211,7 +211,7 @@ targets:
 
 ### Python Package Index (`pypi`)
 
-Uploads source dists and wheels to the Python Package Index via [twine](https://pypi.org/project/twine/.
+Uploads source dists and wheels to the Python Package Index via [twine](https://pypi.org/project/twine/).
 The source code bundles and/or wheels must be in the release assets.
 
 **Environment**

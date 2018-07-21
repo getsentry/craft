@@ -28,6 +28,7 @@ const projectConfigJsonSchema = {
       type: 'array',
       items: { $ref: '#/definitions/targetConfig' },
     },
+    preReleaseCommand: { type: 'string' },
   },
   additionalProperties: false,
   required: ['github'],

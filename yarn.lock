@@ -227,6 +227,10 @@
     "@types/rx-lite-time" "*"
     "@types/rx-lite-virtualtime" "*"
 
+"@types/shell-quote@^1.6.0":
+  version "1.6.0"
+  resolved "https://registry.yarnpkg.com/@types/shell-quote/-/shell-quote-1.6.0.tgz#537b2949a2ebdcb0d353e448fee45b081021963f"
+
 "@types/through@*":
   version "0.0.29"
   resolved "https://registry.yarnpkg.com/@types/through/-/through-0.0.29.tgz#72943aac922e179339c651fa34a4428a4d722f93"
