@@ -9,8 +9,9 @@ import { getConfiguration } from '../config';
 import logger from '../logger';
 import { reportError } from '../utils/errors';
 import { getDefaultBranch, getGithubClient } from '../utils/github_api';
-import { spawnProcess } from '../utils/system';
+import { sleepAsync, spawnProcess } from '../utils/system';
 import { isValidVersion } from '../utils/version';
+import { publishMain, PublishOptions } from './publish';
 
 export const command = ['release <major|minor|patch|new-version>', 'r'];
 export const description = '🚢 Prepare a new release branch';
@@ -31,13 +32,25 @@ export const builder = (yargs: Argv) =>
       description: 'Do not push the release branch',
       type: 'boolean',
     })
+    .option('publish', {
+      default: false,
+      description: 'Run "publish" right after "release"',
+      type: 'boolean',
+    })
     .check(checkVersionOrPart);
 
 /** Command line options. */
 interface ReleaseOptions {
   newVersion: string;
   skipPush: boolean;
+  publish: boolean;
 }
+
+/**
+ * Wait for this number of seconds before publishing, if the corresponding
+ * flag was specified
+ */
+const SLEEP_BEFORE_PUBLISH_SECONDS = 30;
 
 /**
  * Checks the provided version argument for validity
@@ -144,6 +157,15 @@ async function commitNewVersion(
   }
 }
 
+/**
+ * Run an external pre-release command
+ *
+ * The command usually executes operations for version bumping and might
+ * include dependency updates.
+ *
+ * @param newVersion Version being released
+ * @param preReleaseCommand Custom pre-release command
+ */
 export async function runPreReleaseCommand(
   newVersion: string,
   preReleaseCommand?: string
@@ -218,6 +240,42 @@ async function checkGitState(
   }
 }
 
+/**
+ * Run the "publish" step and terminate the process.
+ *
+ * This function will never return: it terminates the process with the
+ * corresponding error code after publishing is done.
+ *
+ * @param newVersion Version to publish
+ */
+async function execPublish(newVersion: string): Promise<never> {
+  logger.info('Running the "publish" command...');
+  const publishOptions: PublishOptions = {
+    keepBranch: false,
+    keepDownloads: false,
+    newVersion,
+    skipMerge: false,
+    skipStatusCheck: false,
+  };
+  logger.info(
+    `Sleeping for ${SLEEP_BEFORE_PUBLISH_SECONDS} seconds before publishing...`
+  );
+  await sleepAsync(SLEEP_BEFORE_PUBLISH_SECONDS * 1000);
+
+  try {
+    await publishMain(publishOptions);
+    process.exit(0);
+  } catch (e) {
+    logger.error(e);
+    logger.error(
+      'There was an error running "publish". Fix the issue and run the command manually:',
+      `  $ craft publish ${newVersion}`
+    );
+    process.exit(1);
+  }
+  throw new Error('Unreachable');
+}
+
 export const handler = async (argv: ReleaseOptions) => {
   logger.debug('Argv: ', JSON.stringify(argv));
   if (isDryRun()) {
@@ -259,10 +317,14 @@ export const handler = async (argv: ReleaseOptions) => {
     // Push the release branch
     await pushReleaseBranch(git, branchName, !argv.skipPush);
 
-    logger.success(
-      'Done. Do not forget to run "craft publish" to publish the artifacts:',
-      `  $ craft publish ${newVersion}`
-    );
+    if (argv.publish) {
+      await execPublish(newVersion);
+    } else {
+      logger.success(
+        'Done. Do not forget to run "craft publish" to publish the artifacts:',
+        `  $ craft publish ${newVersion}`
+      );
+    }
   } catch (e) {
     logger.error(e);
   }

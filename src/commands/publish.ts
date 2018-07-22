@@ -74,7 +74,7 @@ function checkVersion(argv: Arguments, _opt: any): any {
 }
 
 /** Command line options. */
-interface PublishOptions {
+export interface PublishOptions {
   rev?: string;
   target?: string | string[];
   newVersion: string;
@@ -286,7 +286,7 @@ async function handleReleaseBranch(
  *
  * @param argv Command-line arguments
  */
-async function publishMain(argv: PublishOptions): Promise<any> {
+export async function publishMain(argv: PublishOptions): Promise<any> {
   logger.debug('Argv:', JSON.stringify(argv));
   if (isDryRun()) {
     logger.info('[dry-run] Dry-run mode is on!');

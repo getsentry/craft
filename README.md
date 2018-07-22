@@ -117,7 +117,7 @@ uploaded to Zeus.
 
 To publish the built artifacts we run `publish`:
 
-`$ craft publish --new-version 1.2.3`
+`$ craft publish 1.2.3`
 
 This command will find our release branch (`release/1.2.3`), check the build
 status of the respective git revision in Zeus, and then publish available
