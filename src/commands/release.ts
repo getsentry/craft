@@ -260,7 +260,11 @@ async function execPublish(newVersion: string): Promise<never> {
   logger.info(
     `Sleeping for ${SLEEP_BEFORE_PUBLISH_SECONDS} seconds before publishing...`
   );
-  await sleepAsync(SLEEP_BEFORE_PUBLISH_SECONDS * 1000);
+  if (shouldPerform()) {
+    await sleepAsync(SLEEP_BEFORE_PUBLISH_SECONDS * 1000);
+  } else {
+    logger.info('[dry-run] Not wasting time on sleep');
+  }
 
   try {
     await publishMain(publishOptions);

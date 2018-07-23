@@ -138,7 +138,7 @@ export class BrewTarget extends BaseTarget {
       : `Formula/${formulaName}.rb`;
 
     // Format checksums and the tag version into the formula file
-    const filesList = await this.store.listArtifactsForRevision(revision);
+    const filesList = await this.getArtifactsForRevision(revision);
     logger.debug(
       'Downloading artifacts for the revision:',
       JSON.stringify(filesList.map(file => file.name))

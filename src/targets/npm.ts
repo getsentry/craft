@@ -17,7 +17,7 @@ export const NPM_BIN = process.env.NPM_BIN || 'npm';
 export const NPM_REGISTRY = '--registry=https://registry.npmjs.org/';
 
 /** A regular expression used to find the package tarball */
-const PACKAGE_REGEX = /^.*\.tgz$/;
+const DEFAULT_PACKAGE_REGEX = /^.*\.tgz$/;
 
 /** Access specifiers for NPM packages. See npm-publish doc for more info */
 export enum NpmPackageAccess {
@@ -101,8 +101,10 @@ export class NpmTarget extends BaseTarget {
    */
   public async publish(_version: string, revision: string): Promise<any> {
     logger.debug('Fetching artifact list from Zeus...');
-    const files = await this.store.listArtifactsForRevision(revision);
-    const packageFile = files.find(file => PACKAGE_REGEX.test(file.name));
+    const packageFiles = await this.getArtifactsForRevision(revision, {
+      includeNames: DEFAULT_PACKAGE_REGEX,
+    });
+    const packageFile = packageFiles[0];
     if (!packageFile) {
       logger.info('Skipping NPM release since there is no package tarball');
       return undefined;

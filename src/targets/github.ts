@@ -114,7 +114,7 @@ export class GithubTarget extends BaseTarget {
     logger.debug(`Revision: ${revision}`);
     const release = (await this.getOrCreateRelease(version, revision)) as any;
 
-    const artifacts = await this.store.listArtifactsForRevision(revision);
+    const artifacts = await this.getArtifactsForRevision(revision);
     await Promise.all(
       artifacts.map(async artifact => {
         const path = await this.store.downloadArtifact(artifact);

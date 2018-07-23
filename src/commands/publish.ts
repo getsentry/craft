@@ -122,8 +122,13 @@ async function publishToTargets(
         );
         continue;
       }
-      const target = new targetClass(targetConfig, store);
-      targetList.push(target);
+      try {
+        const target = new targetClass(targetConfig, store);
+        targetList.push(target);
+      } catch (e) {
+        logger.error('Error creating target instance!');
+        throw e;
+      }
     }
 
     // Publish all the targets
@@ -307,12 +312,16 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     logger.debug(
       `Fetching GitHub information for provided revision: ${argv.rev}`
     );
-    const response = await githubClient.repos.getCommit({
-      owner: githubConfig.owner,
-      repo: githubConfig.repo,
-      sha: argv.rev,
-    });
-    revision = response.data.sha;
+    if (shouldPerform()) {
+      const response = await githubClient.repos.getCommit({
+        owner: githubConfig.owner,
+        repo: githubConfig.repo,
+        sha: argv.rev,
+      });
+      revision = response.data.sha;
+    } else {
+      revision = 'DRYRUN';
+    }
     branchName = '';
   } else {
     // Find the remote branch

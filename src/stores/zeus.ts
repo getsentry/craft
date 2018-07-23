@@ -7,6 +7,16 @@ import {
 } from '@zeus-ci/sdk';
 
 /**
+ * Fitlering options for artifacts
+ */
+export interface FilterOptions {
+  /** Include files that match this regexp */
+  includeNames?: RegExp;
+  /** Exclude files that match this regexp */
+  excludeNames?: RegExp;
+}
+
+/**
  * An artifact storage
  *
  * Essentialy, it's a caching wrapper around ZeusClient at the moment.
@@ -84,6 +94,34 @@ export class ZeusStore {
     );
     this.fileListCache[revision] = promise;
     return promise;
+  }
+
+  /**
+   * Gets a list of artifacts that match the provided filtering options
+   *
+   * @param revision Git commit id
+   * @param filterOptions Filtering options
+   */
+  public async filterArtifactsForRevision(
+    revision: string,
+    filterOptions?: FilterOptions
+  ): Promise<Artifact[]> {
+    let filteredArtifacts = await this.listArtifactsForRevision(revision);
+    if (!filterOptions) {
+      return filteredArtifacts;
+    }
+    const { includeNames, excludeNames } = filterOptions;
+    if (includeNames) {
+      filteredArtifacts = filteredArtifacts.filter(artifact =>
+        includeNames.test(artifact.name)
+      );
+    }
+    if (excludeNames) {
+      filteredArtifacts = filteredArtifacts.filter(
+        artifact => !excludeNames.test(artifact.name)
+      );
+    }
+    return filteredArtifacts;
   }
 
   /**

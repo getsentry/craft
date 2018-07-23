@@ -24,5 +24,7 @@ export interface GithubGlobalConfig {
  */
 export interface TargetConfig {
   name?: string;
+  includeFiles?: string;
+  excludeFiles?: string;
   [k: string]: any;
 }

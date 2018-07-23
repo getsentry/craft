@@ -1,5 +1,3 @@
-import { extname } from 'path';
-
 import { Artifact } from '@zeus-ci/sdk';
 
 import loggerRaw from '../logger';
@@ -16,9 +14,9 @@ const logger = loggerRaw.withScope('[pypi]');
 const TWINE_BIN = process.env.TWINE_BIN || 'twine';
 
 /**
- * White list for file extensions uploaded to PyPI
+ * RegExp for Python packages
  */
-const PYPI_EXTENSIONS = ['.whl', '.gz', '.zip'];
+const DEFAULT_PYPI_REGEX = /(\.whl|\.gz|\.zip)$/;
 
 /** Options for "pypi" target */
 export interface PypiTargetOptions extends TargetConfig {
@@ -78,10 +76,9 @@ export class PypiTarget extends BaseTarget {
    */
   public async publish(_version: string, revision: string): Promise<any> {
     logger.debug('Fetching artifact list from Zeus...');
-    const files = await this.store.listArtifactsForRevision(revision);
-    const packageFiles = files.filter(
-      file => PYPI_EXTENSIONS.indexOf(extname(file.name)) > -1
-    );
+    const packageFiles = await this.getArtifactsForRevision(revision, {
+      includeNames: DEFAULT_PYPI_REGEX,
+    });
 
     if (!packageFiles.length) {
       logger.warn('Skipping PyPI release: no packages found');

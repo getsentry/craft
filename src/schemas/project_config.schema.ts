@@ -42,6 +42,12 @@ const projectConfigJsonSchema = {
         name: {
           type: 'string',
         },
+        includeFiles: {
+          type: 'string',
+        },
+        excludeFiles: {
+          type: 'string',
+        },
       },
     },
 
