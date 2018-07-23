@@ -67,5 +67,8 @@
     "test": "jest",
     "test:watch": "jest --watch --notify",
     "compile-config-schema": "node ./scripts/config-json-schema-to-ts.js"
+  },
+  "yargs": {
+    "boolean-negation": false
   }
 }

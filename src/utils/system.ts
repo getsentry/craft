@@ -97,7 +97,7 @@ export async function spawnProcess(
       logger.debug('Spawning process:', `${command} ${argsString}`);
       // Do a shell-like replacement of arguments that look like environment variables
       const processedArgs = args.map(arg =>
-        replaceEnvVariable(arg, options.env)
+        replaceEnvVariable(arg, { ...process.env, ...options.env })
       );
       const child = spawn(command, processedArgs, options);
       child.on(

@@ -14,9 +14,19 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
 };
 
 /**
+ * Get a list of all available targets
+ *
+ * @returns List of targets
+ */
+export function getAllTargetNames(): string[] {
+  return Object.keys(TARGET_MAP);
+}
+
+/**
  * Convert target name to class object
  *
  * @param targetName Name of the target
+ * @returns Corresponding target class or undefined
  */
 export function getTargetByName(
   targetName: string

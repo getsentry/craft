@@ -29,12 +29,12 @@ $ craft -h
 craft <command>
 
 Commands:
-  craft publish         🛫 Publish artifacts                         [aliases: p]
-  craft release [part]  🚢 Prepare a new release branch              [aliases: r]
+  dist publish <new-version>                      🛫  Publish artifacts             [aliases: p]
+  dist release <major|minor|patch|new-version>    🚢  Prepare a new release branch  [aliases: r]
 
 Options:
-  -v, --version  Show version number                                   [boolean]
-  -h, --help     Show help                                             [boolean]
+  -v, --version  Show version number                                                [boolean]
+  -h, --help     Show help                                                          [boolean]
 ```
 
 ## Global Configuration
@@ -63,17 +63,17 @@ This command will create a new release branch, check the changelog entries
 (TODO), run a version-bumping script, and push the new branch to GitHub.
 
 ```
-craft release [part]
+craft release <major|minor|patch|new-version>
 
 🚢 Prepare a new release branch
 
 Positionals:
-  part, p  The part of the version to increase
-                [string] [choices: "major", "minor", "patch"] [default: "patch"]
+  part, new-version  The version part (major, minor, patch) to increase, or the
+                     version itself                                     [string]
 
 Options:
-  --new-version          The new version to release          [string] [required]
-  --push-release-branch  Push the release branch       [boolean] [default: true]
+  --no-push      Do not push the release branch       [boolean] [default: false]
+  --publish      Run "publish" right after "release"  [boolean] [default: false]
 ```
 
 ### `craft publish`: Publishing the Release
@@ -82,21 +82,25 @@ The command will find a release branch for the provided version (tag) and
 publish the existing artifacts from Zeus to configured targets.
 
 ```
-craft publish
+craft publish <new-version>
 
 🛫 Publish artifacts
 
+Positionals:
+  new-version  Version to publish                            [string] [required]
+
 Options:
-  --target, -t            Publish to this target
-                              [string] [choices: "github", "npm", "pypi", "all"]
-  --rev, -r               Source revision to publish                    [string]
-  --new-version, -n       Version to publish                 [string] [required]
-  --merge-release-branch  Merge the release branch after publishing
-                                                       [boolean] [default: true]
-  --remove-downloads      Remove all downloaded files after each invocation
-                                                       [boolean] [default: true]
-  --check-build-status    Check that all builds successed before publishing
-                                                       [boolean] [default: true]
+  --target, -t       Publish to this target
+     [string] [choices: "brew", "github", "npm", "nuget", "pypi", "all", "none"]
+                                                                [default: "all"]
+  --rev, -r          Source revision to publish                         [string]
+  --no-merge         Do not merge the release branch after publishing
+                                                      [boolean] [default: false]
+  --keep-branch      Do not remove release branch after merging it
+                                                      [boolean] [default: false]
+  --keep-downloads   Keep all downloaded files        [boolean] [default: false]
+  --no-status-check  Do not check for build status in Zeus
+                                                      [boolean] [default: false]
 ```
 
 ### Example
@@ -106,7 +110,7 @@ in question is `1.2.3`.
 
 We run `release` command first:
 
-`$ craft release --new-version 1.2.3`
+`$ craft release 1.2.3`
 
 After some basic sanity checks this command creates a new release branch
 `release/1.2.3`, runs the version-bumping script (`scripts/bump-version.sh`),
@@ -216,7 +220,7 @@ The source code bundles and/or wheels must be in the release assets.
 
 **Environment**
 
-The `twine` package must be installed on the system.
+The `twine` Python package must be installed on the system.
 
 | Name             | Description                                           |
 | ---------------- | ----------------------------------------------------- |
@@ -291,6 +295,31 @@ targets:
           bin.install "myproject"
         end
       end
+```
+
+### NuGet (`nuget`)
+
+Uploads packages to [NuGet](https://www.nuget.org/) via [.NET Core](https://github.com/dotnet/core).
+By default, `craft` publishes all packages with `.nupkg` extension.
+
+**Environment**
+
+The `dotnet` tool must be available on the system.
+
+| Name               | Description                                           |
+| ------------------ | ----------------------------------------------------- |
+| `NUGET_API_TOKEN`  | NuGet personal API token                              |
+| `NUGET_DOTNET_BIN` | **optional**. Path to .NET Core. Defaults to `dotnet` |
+
+**Configuration**
+
+_none_
+
+**Example**
+
+```yaml
+targets:
+  - name: nuget
 ```
 
 ## Version-bumping Script: Conventions

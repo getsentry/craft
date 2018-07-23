@@ -27,7 +27,7 @@ export const builder = (yargs: Argv) =>
         'The version part (major, minor, patch) to increase, or the version itself',
       type: 'string',
     })
-    .option('skip-push', {
+    .option('no-push', {
       default: false,
       description: 'Do not push the release branch',
       type: 'boolean',
@@ -42,7 +42,7 @@ export const builder = (yargs: Argv) =>
 /** Command line options. */
 interface ReleaseOptions {
   newVersion: string;
-  skipPush: boolean;
+  noPush: boolean;
   publish: boolean;
 }
 
@@ -254,8 +254,8 @@ async function execPublish(newVersion: string): Promise<never> {
     keepBranch: false,
     keepDownloads: false,
     newVersion,
-    skipMerge: false,
-    skipStatusCheck: false,
+    noMerge: false,
+    noStatusCheck: false,
   };
   logger.info(
     `Sleeping for ${SLEEP_BEFORE_PUBLISH_SECONDS} seconds before publishing...`
@@ -319,7 +319,7 @@ export const handler = async (argv: ReleaseOptions) => {
     await commitNewVersion(git, newVersion);
 
     // Push the release branch
-    await pushReleaseBranch(git, branchName, !argv.skipPush);
+    await pushReleaseBranch(git, branchName, !argv.noPush);
 
     if (argv.publish) {
       await execPublish(newVersion);

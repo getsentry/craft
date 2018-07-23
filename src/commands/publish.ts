@@ -6,7 +6,7 @@ import { Arguments, Argv } from 'yargs';
 import { getConfiguration } from '../config';
 import logger from '../logger';
 import { ZeusStore } from '../stores/zeus';
-import { getTargetByName } from '../targets';
+import { getAllTargetNames, getTargetByName } from '../targets';
 import { BaseTarget } from '../targets/base';
 import { reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
@@ -25,7 +25,7 @@ export const builder = (yargs: Argv) =>
     })
     .option('target', {
       alias: 't',
-      choices: ['github', 'npm', 'pypi', 'all', 'none'],
+      choices: getAllTargetNames().concat(['all', 'none']),
       default: 'all',
       description: 'Publish to this target',
       type: 'string',
@@ -35,7 +35,7 @@ export const builder = (yargs: Argv) =>
       description: 'Source revision to publish',
       type: 'string',
     })
-    .option('skip-merge', {
+    .option('no-merge', {
       default: false,
       description: 'Do not merge the release branch after publishing',
       type: 'boolean',
@@ -50,13 +50,24 @@ export const builder = (yargs: Argv) =>
       description: 'Keep all downloaded files',
       type: 'boolean',
     })
-    .option('skip-status-check', {
+    .option('no-status-check', {
       default: false,
       description: 'Do not check for build status in Zeus',
       type: 'boolean',
     })
     .check(checkVersion)
     .demandOption('new-version', 'Please specify the version to publish');
+
+/** Command line options. */
+export interface PublishOptions {
+  rev?: string;
+  target?: string | string[];
+  newVersion: string;
+  noMerge: boolean;
+  keepDownloads: boolean;
+  noStatusCheck: boolean;
+  keepBranch: boolean;
+}
 
 /**
  * Checks that the passed version is a valid version string
@@ -71,17 +82,6 @@ function checkVersion(argv: Arguments, _opt: any): any {
   } else {
     throw Error(`Invalid version provided: "${version}"`);
   }
-}
-
-/** Command line options. */
-export interface PublishOptions {
-  rev?: string;
-  target?: string | string[];
-  newVersion: string;
-  skipMerge: boolean;
-  keepDownloads: boolean;
-  skipStatusCheck: boolean;
-  keepBranch: boolean;
 }
 
 /** Interval in seconds while polling Zeus status */
@@ -312,16 +312,12 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     logger.debug(
       `Fetching GitHub information for provided revision: ${argv.rev}`
     );
-    if (shouldPerform()) {
-      const response = await githubClient.repos.getCommit({
-        owner: githubConfig.owner,
-        repo: githubConfig.repo,
-        sha: argv.rev,
-      });
-      revision = response.data.sha;
-    } else {
-      revision = 'DRYRUN';
-    }
+    const response = await githubClient.repos.getCommit({
+      owner: githubConfig.owner,
+      repo: githubConfig.repo,
+      sha: argv.rev,
+    });
+    revision = response.data.sha;
     branchName = '';
   } else {
     // Find the remote branch
@@ -341,7 +337,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     githubConfig.owner,
     githubConfig.repo,
     revision,
-    argv.skipStatusCheck
+    argv.noStatusCheck
   );
 
   // Find targets
@@ -388,7 +384,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     githubConfig.owner,
     githubConfig.repo,
     branchName,
-    argv.skipMerge,
+    argv.noMerge,
     argv.keepBranch
   );
 
