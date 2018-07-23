@@ -1,4 +1,4 @@
-import { sleepAsync, spawnProcess } from '../system';
+import { sleepAsync, spawnProcess, replaceEnvVariable } from '../system';
 
 describe('spawn', () => {
   test('resolves on success', async () => {
@@ -63,5 +63,21 @@ describe('sleepAsync', () => {
     const diff = timeEnd - timeStart;
     expect(diff).toBeGreaterThanOrEqual(sleepMs - 1);
     expect(diff).toBeLessThan(sleepMs * 2);
+  });
+});
+
+describe('replaceEnvVariable', () => {
+  test('replaces a variable', async () => {
+    // tslint:disable-next-line:no-invalid-template-strings
+    expect(replaceEnvVariable('${ENV_VAR}', { ENV_VAR: '123' })).toBe('123');
+  });
+
+  test('does not replace a variable if there is no curly braces', async () => {
+    expect(replaceEnvVariable('$ENV_VAR', { ENV_VAR: '123' })).toBe('$ENV_VAR');
+  });
+
+  test('replaces a non-existing environment variable with empty string', async () => {
+    // tslint:disable-next-line:no-invalid-template-strings
+    expect(replaceEnvVariable('${ENV_VAR}', {})).toBe('');
   });
 });

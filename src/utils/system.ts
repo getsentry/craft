@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, SpawnOptions } from 'child_process';
 import { createHash } from 'crypto';
 import { isDryRun } from 'dryrun';
 import { createReadStream } from 'fs';
@@ -42,7 +42,36 @@ function processError(
 }
 
 /**
+ * Performs an environment expansion for the provided string
+ *
+ * The expansion is performed only when the entire string has the form
+ * of "${...}", i.e. string "$ENV_VAR" will not be expanded.
+ *
+ * @param arg String to process
+ * @param env Environment-like key-value mapping
+ */
+export function replaceEnvVariable(arg: string, env: any): string {
+  if (!env || !arg || arg[0] !== '$') {
+    return arg;
+  }
+
+  const argLen = arg.length;
+  if (arg[1] === '{' && arg[argLen - 1] === '}') {
+    const envVarKey = arg.slice(2, argLen - 1);
+    return env[envVarKey] || '';
+  } else {
+    return arg;
+  }
+}
+
+/**
  * Asynchronously spawns a child process
+ *
+ * Process arguments that have the form ${...} will be replaced with the values
+ * of the corresponding environment variables.
+ *
+ * WARNING: secret values (passwords, tokens) passed via the environmnet
+ * variable on the command line may be visible in the process list.
  *
  * @param command The command to run
  * @param args Optional arguments to pass to the command
@@ -54,7 +83,7 @@ function processError(
 export async function spawnProcess(
   command: string,
   args: string[] = [],
-  options?: any
+  options: SpawnOptions = {}
 ): Promise<any> {
   const argsString = args.map(arg => `"${arg}"`).join(' ');
 
@@ -66,7 +95,11 @@ export async function spawnProcess(
   return new Promise<any>((resolve, reject) => {
     try {
       logger.debug('Spawning process:', `${command} ${argsString}`);
-      const child = spawn(command, args, options);
+      // Do a shell-like replacement of arguments that look like environment variables
+      const processedArgs = args.map(arg =>
+        replaceEnvVariable(arg, options.env)
+      );
+      const child = spawn(command, processedArgs, options);
       child.on(
         'exit',
         code =>

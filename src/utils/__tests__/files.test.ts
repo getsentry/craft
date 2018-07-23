@@ -1,4 +1,4 @@
-import { existsSync } from 'fs';
+import { existsSync, rmdirSync } from 'fs';
 import { join, resolve } from 'path';
 
 import { listFiles, withTempDir } from '../files';
@@ -16,7 +16,7 @@ describe('listFiles', () => {
 
 describe('withTempDir', () => {
   async function testDirectories(
-    callback: (args: any[]) => any,
+    callback: (arg: any) => any,
     cleanupEnabled: boolean = true
   ): Promise<any> {
     let directory;
@@ -53,7 +53,12 @@ describe('withTempDir', () => {
 
   test('creates and does not remove if cleanup flag is specified', async () => {
     expect.assertions(2);
-    await testDirectories(() => true, false);
+    let tempDir: string;
+    await testDirectories(arg => {
+      tempDir = arg;
+    }, false);
+    // Cleanup
+    rmdirSync(tempDir);
   });
 
   test('creates and removes on Promise resolution', async () => {
