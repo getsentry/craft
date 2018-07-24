@@ -19,7 +19,13 @@ describe('runPreReleaseCommand', () => {
     expect(mockedSpawnProcess).toBeCalledWith(
       '/bin/bash',
       ['scripts/bump-version.sh', '', newVersion],
-      { env: { CRAFT_NEW_VERSION: newVersion, CRAFT_OLD_VERSION: '' } }
+      {
+        env: {
+          ...process.env,
+          CRAFT_NEW_VERSION: newVersion,
+          CRAFT_OLD_VERSION: '',
+        },
+      }
     );
   });
 
@@ -34,7 +40,13 @@ describe('runPreReleaseCommand', () => {
     expect(mockedSpawnProcess).toBeCalledWith(
       'python',
       ['./increase_version.py', 'argument 1', '', newVersion],
-      { env: { CRAFT_NEW_VERSION: newVersion, CRAFT_OLD_VERSION: '' } }
+      {
+        env: {
+          ...process.env,
+          CRAFT_NEW_VERSION: newVersion,
+          CRAFT_OLD_VERSION: '',
+        },
+      }
     );
   });
 });
