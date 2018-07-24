@@ -175,6 +175,7 @@ changelog. Otherwise, defaults to the tag name and tag's commit message.
 | Option      | Description                                                          |
 | ----------- | -------------------------------------------------------------------- |
 | `changelog` | **optional**. Path to the changelog file. Defaults to `CHANGELOG.md` |
+| `tagPrefix` | **optional**. Prefix for new git tags (e.g. "v"). Empty by default.  |
 
 **Example:**
 
@@ -182,6 +183,7 @@ changelog. Otherwise, defaults to the tag name and tag's commit message.
 targets:
   - name: github
     changelog: CHANGES
+    tagPrefix: v
 ```
 
 ### NPM (`npm`)

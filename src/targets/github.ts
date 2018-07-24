@@ -28,6 +28,7 @@ export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
  */
 export interface GithubTargetConfig extends TargetConfig, GithubGlobalConfig {
   changelog?: string;
+  tagPrefix: string;
 }
 
 /**
@@ -43,8 +44,11 @@ export class GithubTarget extends BaseTarget {
 
   public constructor(config: any, store: ZeusStore) {
     super(config, store);
-    this.githubConfig = getGlobalGithubConfig();
-    this.githubConfig.changelog = this.config.changelog;
+    this.githubConfig = {
+      ...getGlobalGithubConfig(),
+      changelog: this.config.changelog,
+      tagPrefix: this.config.tagPrefix || '',
+    };
     this.github = getGithubClient();
   }
 
@@ -112,7 +116,9 @@ export class GithubTarget extends BaseTarget {
   public async publish(version: string, revision: string): Promise<any> {
     logger.info(`Target "${this.name}": publishing version ${version}...`);
     logger.debug(`Revision: ${revision}`);
-    const release = (await this.getOrCreateRelease(version, revision)) as any;
+    const tag = `${this.githubConfig.tagPrefix}${version}`;
+    logger.info(`Git tag: "${tag}"`);
+    const release = (await this.getOrCreateRelease(tag, revision)) as any;
 
     const artifacts = await this.getArtifactsForRevision(revision);
     await Promise.all(

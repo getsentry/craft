@@ -210,10 +210,7 @@ async function checkRevisionStatus(
       }
 
       // Update the spinner
-      const timeString = new Date()
-        .toISOString()
-        .replace(/T/, ' ')
-        .replace(/\..+/, '');
+      const timeString = new Date().toLocaleString();
       const waitMessage = `[${timeString}] CI builds are still in progress, sleeping for ${ZEUS_POLLING_INTERVAL} seconds...`;
       spinner.start();
       spinner.text = waitMessage;
