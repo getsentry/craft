@@ -180,12 +180,12 @@ export async function runPreReleaseCommand(
   }
   args = [...args, '', newVersion];
   logger.info(`Running a pre-release command...`);
-  const env = {
+  const additionalEnv = {
     CRAFT_NEW_VERSION: newVersion,
     CRAFT_OLD_VERSION: '',
   };
   await spawnProcess(sysCommand, args, {
-    env,
+    env: { ...process.env, ...additionalEnv },
   });
 }
 
