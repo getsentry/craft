@@ -19,8 +19,10 @@ describe('compile-json-schema-to-typescript', () => {
     const storedOutput = readFileSync(configGeneratedTypes, {
       encoding: 'utf8',
     });
-
-    const generatedOutput = await compile(projectConfig, '');
+    const compileOptions = {
+      style: { singleQuote: true, trailingComma: 'es5' } as any,
+    };
+    const generatedOutput = await compile(projectConfig, '', compileOptions);
 
     expect(generatedOutput).toBeTruthy();
     expect(generatedOutput).toBe(storedOutput);

@@ -3,20 +3,15 @@ import { shouldPerform } from 'dryrun';
 import { createReadStream, statSync } from 'fs';
 import { basename } from 'path';
 
-import { getGlobalGithubConfig } from '../config';
+import { getConfiguration, getGlobalGithubConfig } from '../config';
 import loggerRaw from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
-import { findChangeset } from '../utils/changes';
+import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
 import { getFile, getGithubClient } from '../utils/github_api';
 import { BaseTarget } from './base';
 
 const logger = loggerRaw.withScope('[github]');
-
-/**
- * Path to the changelog file in the target repository
- */
-export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
 
 /**
  * Default content type for GitHub release assets
@@ -29,6 +24,16 @@ export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
 export interface GithubTargetConfig extends TargetConfig, GithubGlobalConfig {
   changelog?: string;
   tagPrefix: string;
+}
+
+/**
+ * An interface that represents a minimal Github release as returned by
+ * Github API.
+ */
+interface GithubRelease {
+  id: number;
+  tag_name: string;
+  upload_url: string;
 }
 
 /**
@@ -46,7 +51,7 @@ export class GithubTarget extends BaseTarget {
     super(config, store);
     this.githubConfig = {
       ...getGlobalGithubConfig(),
-      changelog: this.config.changelog,
+      changelog: getConfiguration().changelog,
       tagPrefix: this.config.tagPrefix || '',
     };
     this.github = getGithubClient();
@@ -66,18 +71,20 @@ export class GithubTarget extends BaseTarget {
   public async getOrCreateRelease(
     tag: string,
     revision: string
-  ): Promise<Github.AnyResponse> {
+  ): Promise<GithubRelease> {
     try {
       const response = await this.github.repos.getReleaseByTag({
         owner: this.githubConfig.owner,
         repo: this.githubConfig.repo,
         tag,
       });
+      logger.debug(`Found the existing release for tag "${tag}"`);
       return response.data;
     } catch (e) {
       if (e.code !== 404) {
         throw e;
       }
+      logger.debug(`Release for tag "${tag}" not found.`);
     }
     // Release hasn't been found, so create one
     const changelog = await getFile(
@@ -101,8 +108,18 @@ export class GithubTarget extends BaseTarget {
       ...changes,
     };
 
-    const created = await this.github.repos.createRelease(params);
-    return created.data;
+    if (shouldPerform()) {
+      logger.debug(`Creating a new release for tag "${tag}"`);
+      const created = await this.github.repos.createRelease(params);
+      return created.data;
+    } else {
+      logger.debug(`[dry-run] Not creating a new release for tag "${tag}"`);
+      return {
+        id: 0,
+        tag_name: tag,
+        upload_url: '',
+      };
+    }
   }
 
   /**
@@ -118,7 +135,7 @@ export class GithubTarget extends BaseTarget {
     logger.debug(`Revision: ${revision}`);
     const tag = `${this.githubConfig.tagPrefix}${version}`;
     logger.info(`Git tag: "${tag}"`);
-    const release = (await this.getOrCreateRelease(tag, revision)) as any;
+    const release = await this.getOrCreateRelease(tag, revision);
 
     const artifacts = await this.getArtifactsForRevision(revision);
     await Promise.all(

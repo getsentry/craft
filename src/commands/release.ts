@@ -1,12 +1,15 @@
 import { isDryRun, shouldPerform } from 'dryrun';
-import { join } from 'path';
+import { existsSync, readFileSync } from 'fs';
+import { dirname, join, relative } from 'path';
 import * as shellQuote from 'shell-quote';
 // tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
 import { Arguments, Argv } from 'yargs';
 
-import { getConfiguration } from '../config';
+import { findConfigFile, getConfiguration } from '../config';
 import logger from '../logger';
+import { ChangelogPolicy } from '../schemas/project_config';
+import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
 import { reportError } from '../utils/errors';
 import { getDefaultBranch, getGithubClient } from '../utils/github_api';
 import { sleepAsync, spawnProcess } from '../utils/system';
@@ -37,6 +40,11 @@ export const builder = (yargs: Argv) =>
       description: 'Ignore local git changes and unsynchronized remotes',
       type: 'boolean',
     })
+    .option('no-changelog', {
+      default: false,
+      description: 'Do not check for changelog entries',
+      type: 'boolean',
+    })
     .option('publish', {
       default: false,
       description: 'Run "publish" right after "release"',
@@ -48,6 +56,7 @@ export const builder = (yargs: Argv) =>
 interface ReleaseOptions {
   newVersion: string;
   noGitChecks: boolean;
+  noChangelog: boolean;
   noPush: boolean;
   publish: boolean;
 }
@@ -297,6 +306,44 @@ async function execPublish(newVersion: string): Promise<never> {
   throw new Error('Unreachable');
 }
 
+/**
+ * Checks changelog entries in accordance with the provided changelog policy.
+ *
+ * @param newVersion The new version we are releasing
+ * @param changelogPolicy One of the changelog policies, such as "none", "simple", etc.
+ * @param changelogPath Path to the changelog file
+ */
+async function checkChangelog(
+  newVersion: string,
+  changelogPolicy: ChangelogPolicy = ChangelogPolicy.Simple,
+  changelogPath: string = DEFAULT_CHANGELOG_PATH
+): Promise<void> {
+  if (changelogPolicy === ChangelogPolicy.None) {
+    logger.info(
+      `Changelog policy is set to "${changelogPolicy}", nothing to do.`
+    );
+    return;
+  } else if (changelogPolicy === ChangelogPolicy.Simple) {
+    logger.debug(`Changelog policy: "${changelogPolicy}".`);
+    const relativePath = relative('', changelogPath);
+    if (relativePath.startsWith('.')) {
+      throw new Error(`Invalid changelog path: "${changelogPath}"`);
+    }
+    if (!existsSync(relativePath)) {
+      throw new Error(`Changelog does not exist: "${changelogPath}"`);
+    }
+    const changelogString = readFileSync(relativePath).toString();
+    const changeset = findChangeset(changelogString, newVersion);
+    if (!changeset || !changeset.body) {
+      throw new Error(`No changelog entry found for version "${newVersion}"`);
+    }
+    logger.debug(`Changelog entry found:\n"""\n${changeset.body}\n"""`);
+    return;
+  } else {
+    throw new Error(`Invalid changelog policy: "${changelogPolicy}"`);
+  }
+}
+
 export const handler = async (argv: ReleaseOptions) => {
   logger.debug('Argv: ', JSON.stringify(argv));
   if (isDryRun()) {
@@ -305,10 +352,25 @@ export const handler = async (argv: ReleaseOptions) => {
 
   try {
     // Get repo configuration
-    const config = getConfiguration() || {};
+    const config = getConfiguration();
     const githubConfig = config.github;
-    const githubClient = getGithubClient();
 
+    // Move to the directory where the config file is located
+    const configFileDir = dirname(findConfigFile() || '');
+    process.chdir(configFileDir);
+    logger.debug(`Working directory:`, configFileDir);
+
+    const newVersion = argv.newVersion;
+
+    // Check the changelog(s)
+    await checkChangelog(
+      newVersion,
+      argv.noChangelog ? ChangelogPolicy.None : config.changelogPolicy,
+      config.changelog
+    );
+
+    // Get some information about the Github project
+    const githubClient = getGithubClient();
     const defaultBranch = await getDefaultBranch(
       githubClient,
       githubConfig.owner,
@@ -316,14 +378,11 @@ export const handler = async (argv: ReleaseOptions) => {
     );
     logger.debug(`Default branch for the repo:`, defaultBranch);
 
-    const workingDir = process.cwd();
-    logger.debug(`Working directory:`, workingDir);
-    const git = simpleGit(workingDir).silent(true);
+    const git = simpleGit(configFileDir).silent(true);
 
-    // Check that we're in an acceptable state for preparing he release
+    // Check that we're in an acceptable state for the release
     await checkGitState(git, defaultBranch, !argv.noGitChecks);
 
-    const newVersion = argv.newVersion;
     logger.info(`Preparing to release the version: ${newVersion}`);
 
     // Create a new release branch. Throw an error if it already exists

@@ -1,6 +1,11 @@
 import { getVersion } from './version';
 
 /**
+ * Path to the changelog file in the target repository
+ */
+export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
+
+/**
  * A single changeset with name and description
  *
  * @prop {string} name The name of this changeset
@@ -16,7 +21,7 @@ export interface Changeset {
  *
  * The changes are bounded by a header preceding the changes and an optional
  * header at the end. If the latter is omitted, the markdown document will be
- * reat until its end. The title of the changes will be extracted from the
+ * read until its end. The title of the changes will be extracted from the
  * given header.
  *
  * @param markdown The full changelog markdown

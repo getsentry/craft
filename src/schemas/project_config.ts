@@ -11,6 +11,8 @@ export interface CraftProjectConfig {
   github: GithubGlobalConfig;
   targets?: TargetConfig[];
   preReleaseCommand?: string;
+  changelog?: string;
+  changelogPolicy?: ChangelogPolicy;
 }
 /**
  * Global (non-target!) GitHub configuration for the project
@@ -27,4 +29,12 @@ export interface TargetConfig {
   includeFiles?: string;
   excludeFiles?: string;
   [k: string]: any;
+}
+
+/**
+ * Different policies for changelog management
+ */
+export const enum ChangelogPolicy {
+  Simple = 'simple',
+  None = 'none',
 }

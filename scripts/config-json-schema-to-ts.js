@@ -8,7 +8,9 @@ process.chdir(__dirname);
 
 const jsonInputPath = '../src/schemas/project_config.schema.ts';
 const tsOutputPath = '../src/schemas/project_config.ts';
-const compileOptions = {};
+
+// FIXME Duplicates compilation options in config.test.ts
+const compileOptions = { style: { singleQuote: true, trailingComma: 'es5' } };
 
 const schema = require(jsonInputPath);
 json2ts
