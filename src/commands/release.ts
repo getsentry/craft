@@ -32,6 +32,11 @@ export const builder = (yargs: Argv) =>
       description: 'Do not push the release branch',
       type: 'boolean',
     })
+    .option('no-git-checks', {
+      default: false,
+      description: 'Ignore local git changes and unsynchronized remotes',
+      type: 'boolean',
+    })
     .option('publish', {
       default: false,
       description: 'Run "publish" right after "release"',
@@ -42,6 +47,7 @@ export const builder = (yargs: Argv) =>
 /** Command line options. */
 interface ReleaseOptions {
   newVersion: string;
+  noGitChecks: boolean;
   noPush: boolean;
   publish: boolean;
 }
@@ -172,7 +178,11 @@ export async function runPreReleaseCommand(
 ): Promise<void> {
   let sysCommand: string;
   let args: string[];
-  if (preReleaseCommand) {
+  if (preReleaseCommand === '') {
+    // Not running pre-release command
+    logger.warn('Not running the pre-release command: no command specified');
+    return;
+  } else if (preReleaseCommand) {
     [sysCommand, ...args] = shellQuote.parse(preReleaseCommand);
   } else {
     sysCommand = '/bin/bash';
@@ -194,11 +204,18 @@ export async function runPreReleaseCommand(
  *
  * @param git Local git client
  * @param defaultBranch Default branch of the remote repository
+ * @param checkGitStatus Set to true to enable the check
  */
 async function checkGitState(
   git: simpleGit.SimpleGit,
-  defaultBranch: string
+  defaultBranch: string,
+  checkGitStatus: boolean = true
 ): Promise<any> {
+  if (!checkGitStatus) {
+    logger.warn('Not checking the status of the local repository');
+    return undefined;
+  }
+
   logger.info('Checking the local repository status...');
   const isRepo = await git.checkIsRepo();
   if (!isRepo) {
@@ -304,7 +321,7 @@ export const handler = async (argv: ReleaseOptions) => {
     const git = simpleGit(workingDir).silent(true);
 
     // Check that we're in an acceptable state for preparing he release
-    await checkGitState(git, defaultBranch);
+    await checkGitState(git, defaultBranch, !argv.noGitChecks);
 
     const newVersion = argv.newVersion;
     logger.info(`Preparing to release the version: ${newVersion}`);

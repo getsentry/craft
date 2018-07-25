@@ -95,7 +95,7 @@ export function error(message?: any, ...args: any[]): void {
  */
 
 // tslint:disable:object-literal-sort-keys
-const DEBUG_LEVELS: { [key: string]: number } = {
+const LOG_LEVELS: { [key: string]: number } = {
   ERROR: 0,
   WARN: 1,
   INFO: 2,
@@ -109,7 +109,7 @@ const DEBUG_LEVELS: { [key: string]: number } = {
  */
 function getLogLevel(): number {
   const logLevelName = process.env.CRAFT_LOG_LEVEL || '';
-  const logLevelNumber = DEBUG_LEVELS[logLevelName.toUpperCase()];
+  const logLevelNumber = LOG_LEVELS[logLevelName.toUpperCase()];
   return logLevelNumber || consola.level;
 }
 

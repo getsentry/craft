@@ -133,12 +133,24 @@ Craft).
 Project configuration for `craft` is stored in `.craft.yml` configuration file,
 located in the project root.
 
+### GitHub project
+
 One of the required settings you need to specify is GitHub project parameters:
 
 ```yaml
 github:
   owner: getsentry
   repo: craft
+```
+
+### Pre-release Command
+
+This command will run on your newly created release branch as part of "release"
+command. By default, it is set to "bash scripts/bump-version.sh". Please refer
+to [this section](#pre-release-version-bumping-script-conventions) for more details.
+
+```yaml
+preReleaseCommand: bash scripts/bump-version.sh
 ```
 
 Additionally, `.craft.yml` is used for listing targets where you want to
@@ -324,16 +336,18 @@ targets:
   - name: nuget
 ```
 
-## Version-bumping Script: Conventions
+## Pre-release (Version-bumping) Script: Conventions
 
-Among other actions, `craft release` runs an external project-specific script
-that is responsible for version bumping. By default, this script should be
-located at the following path: `scripts/bump-version.sh` (relative to the
-project root).
+Among other actions, `craft release` runs an external project-specific command
+or script that is responsible for version bumping. By default, this script
+should be located at the following path: `scripts/bump-version.sh` (relative
+to the project root). The command can be configured by specifying
+`preReleaseCommand` configuration option in `craft.yml`.
 
 The following requirements are on the script interface and functionality:
 
-* The script must accept two arguments: the first one is the old ("from")
+* The script must accept at least two arguments. Craft will pass the following
+  values as the last two arguments (in the specified order): the old ("from")
   version, and the second one is the new ("to") version.
 * The script must replace all relevant occurrences of the old version string
   with the new one.

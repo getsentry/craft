@@ -24,16 +24,20 @@ function stripEnv(options: any = {}): any {
  * @param command The command to run
  * @param args Optional arguments to pass to the command
  * @param options Optional options to pass to child_process.spawn
+ * @param stdout Standard output of the command
+ * @param stderr Standard error of the command
  * @returns The error with code
  */
 function processError(
   code: number | string,
   command: string,
   args?: string[],
-  options?: any
+  options?: any,
+  stdout?: string,
+  stderr?: string
 ): Error {
   const error = new Error(
-    `Process "${command}" errored with code ${code}`
+    `Process "${command}" errored with code ${code}\n\nSTDOUT: ${stdout}\n\nSTDERR:${stderr}`
   ) as any;
   error.code = code;
   error.args = args;
@@ -93,6 +97,8 @@ export async function spawnProcess(
   }
 
   return new Promise<any>((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
     try {
       logger.debug('Spawning process:', `${command} ${argsString}`);
       // Do a shell-like replacement of arguments that look like environment variables
@@ -105,20 +111,24 @@ export async function spawnProcess(
         code =>
           code === 0
             ? resolve()
-            : reject(processError(code, command, args, options))
+            : reject(processError(code, command, args, options, stdout, stderr))
       );
       child.on('error', (error: any) =>
-        reject(processError(error.code, command, args, options))
+        reject(processError(error.code, command, args, options, stdout, stderr))
       );
 
-      child.stdout
-        .pipe(split())
-        .on('data', (data: any) => logger.debug(`${command}: ${data}`));
-      child.stderr
-        .pipe(split())
-        .on('data', (data: any) => logger.debug(`${command}: ${data}`));
+      child.stdout.pipe(split()).on('data', (data: any) => {
+        const output = `${command}: ${data}`;
+        logger.debug(output);
+        stdout += `${output}\n`;
+      });
+      child.stderr.pipe(split()).on('data', (data: any) => {
+        const output = `${command}: ${data}`;
+        logger.debug(output);
+        stderr += `${output}\n`;
+      });
     } catch (e) {
-      reject(processError(e.code, command, args, options));
+      reject(processError(e.code, command, args, options, stdout, stderr));
     }
   });
 }
