@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.3
+
+* Basic changelog management
+
 ## 0.1.2
 
 * Basic "release" functionality

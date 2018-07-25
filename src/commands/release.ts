@@ -324,6 +324,7 @@ async function checkChangelog(
     );
     return;
   } else if (changelogPolicy === ChangelogPolicy.Simple) {
+    logger.info('Checking the changelog...');
     logger.debug(`Changelog policy: "${changelogPolicy}".`);
     const relativePath = relative('', changelogPath);
     if (relativePath.startsWith('.')) {
@@ -333,6 +334,7 @@ async function checkChangelog(
       throw new Error(`Changelog does not exist: "${changelogPath}"`);
     }
     const changelogString = readFileSync(relativePath).toString();
+    logger.debug(`Changelog path: ${relativePath}`);
     const changeset = findChangeset(changelogString, newVersion);
     if (!changeset || !changeset.body) {
       throw new Error(`No changelog entry found for version "${newVersion}"`);
