@@ -44,6 +44,12 @@ export function extractChangeset(
 /**
  * Searches for a changeset within the given markdown
  *
+ * We support two formats at the moment:
+ *    ## 1.2.3
+ * and
+ *    1.2.3
+ *    -----
+ *
  * @param markdown The markdown containing the changeset
  * @param tag A git tag containing a version number
  * @returns The changeset if found; otherwise null

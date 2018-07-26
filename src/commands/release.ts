@@ -315,7 +315,7 @@ async function execPublish(newVersion: string): Promise<never> {
  */
 async function checkChangelog(
   newVersion: string,
-  changelogPolicy: ChangelogPolicy = ChangelogPolicy.Simple,
+  changelogPolicy: ChangelogPolicy = ChangelogPolicy.None,
   changelogPath: string = DEFAULT_CHANGELOG_PATH
 ): Promise<void> {
   if (changelogPolicy === ChangelogPolicy.None) {

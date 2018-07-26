@@ -59,8 +59,8 @@ targets (e.g. `TWINE_USERNAME` and `TWINE_PASSWORD` for PyPI target).
 
 ### `craft release`: Preparing a New Release
 
-This command will create a new release branch, check the changelog entries
-(TODO), run a version-bumping script, and push the new branch to GitHub.
+This command will create a new release branch, check the changelog entries,
+run a version-bumping script, and push the new branch to GitHub.
 
 ```
 craft release <major|minor|patch|new-version>
@@ -153,6 +153,39 @@ to [this section](#pre-release-version-bumping-script-conventions) for more deta
 preReleaseCommand: bash scripts/bump-version.sh
 ```
 
+### Changelog Policies
+
+`craft` can help you to maintain change logs for your projects. At the moment,
+`craft` supports only one approach (`"simple"`) to changelog management.
+In this mode, `craft release` will remind you to add a changelog entry to the
+changelog file (`CHANGELOG.md` by default).
+
+**Configuration**
+
+| Option            | Description                                                          |
+| ----------------- | -------------------------------------------------------------------- |
+| `changelog`       | **optional**. Path to the changelog file. Defaults to `CHANGELOG.md` |
+| `changelogPolicy` | **optional**. Changelog management mode. Defaults to `none`.         |
+
+**Example:**
+
+```yaml
+changelog: CHANGES
+changelogPolicy: simple
+```
+
+**Valid changelog example:**
+
+```text
+## 1.3.5
+
+* Removed something
+
+## 1.3.4
+
+* Added something
+```
+
 Additionally, `.craft.yml` is used for listing targets where you want to
 publish your new release.
 
@@ -184,17 +217,15 @@ changelog. Otherwise, defaults to the tag name and tag's commit message.
 
 **Configuration**
 
-| Option      | Description                                                          |
-| ----------- | -------------------------------------------------------------------- |
-| `changelog` | **optional**. Path to the changelog file. Defaults to `CHANGELOG.md` |
-| `tagPrefix` | **optional**. Prefix for new git tags (e.g. "v"). Empty by default.  |
+| Option      | Description                                                         |
+| ----------- | ------------------------------------------------------------------- |
+| `tagPrefix` | **optional**. Prefix for new git tags (e.g. "v"). Empty by default. |
 
 **Example:**
 
 ```yaml
 targets:
   - name: github
-    changelog: CHANGES
     tagPrefix: v
 ```
 
