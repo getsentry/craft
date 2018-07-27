@@ -163,6 +163,11 @@ async function commitNewVersion(
   newVersion: string
 ): Promise<any> {
   const message = `release: ${newVersion}`;
+  const repoStatus = await git.status();
+  if (!(repoStatus.created.length || repoStatus.modified.length)) {
+    reportError('Nothing to commit: has the pre-release command done its job?');
+  }
+
   logger.info('Committing the release changes...');
   logger.debug(`Commit message: "${message}"`);
   if (shouldPerform()) {
