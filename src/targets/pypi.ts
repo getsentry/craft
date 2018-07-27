@@ -3,6 +3,7 @@ import { Artifact } from '@zeus-ci/sdk';
 import loggerRaw from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
+import { reportError } from '../utils/errors';
 import { spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 
@@ -81,7 +82,7 @@ export class PypiTarget extends BaseTarget {
     });
 
     if (!packageFiles.length) {
-      logger.warn('Skipping PyPI release: no packages found');
+      reportError('Skipping PyPI release: no packages found');
       return undefined;
     }
 

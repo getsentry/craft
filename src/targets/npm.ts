@@ -1,6 +1,9 @@
+import { Artifact } from '@zeus-ci/sdk';
+
 import loggerRaw from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
+import { reportError } from '../utils/errors';
 import { spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 
@@ -104,15 +107,19 @@ export class NpmTarget extends BaseTarget {
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_PACKAGE_REGEX,
     });
-    const packageFile = packageFiles[0];
-    if (!packageFile) {
-      logger.info('Skipping NPM release since there is no package tarball');
-      return undefined;
+
+    if (!packageFiles.length) {
+      reportError('Cannot release to NPM: no packages found!');
     }
 
-    const packagePath = await this.store.downloadArtifact(packageFile);
-    logger.info(`Releasing ${packageFile.name} to NPM`);
-    await this.publishPackage(packagePath);
+    await Promise.all(
+      packageFiles.map(async (file: Artifact) => {
+        const path = await this.store.downloadArtifact(file);
+        logger.info(`Releasing ${file.name} to NPM`);
+        return this.publishPackage(path);
+      })
+    );
+
     logger.info('NPM release completed');
   }
 }

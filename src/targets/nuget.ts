@@ -3,6 +3,7 @@ import { Artifact } from '@zeus-ci/sdk';
 import loggerRaw from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
+import { reportError } from '../utils/errors';
 import { spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 
@@ -84,8 +85,9 @@ export class NugetTarget extends BaseTarget {
     });
 
     if (!packageFiles.length) {
-      logger.info('Skipping Nuget release since there are no Nuget packages');
-      return undefined;
+      reportError(
+        'Cannot release to Nuget: there are no Nuget packages found!'
+      );
     }
 
     await Promise.all(
