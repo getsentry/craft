@@ -1,6 +1,6 @@
 /* eslint-env jest */
 
-import { getVersion, parseVersion, isValidVersion } from '../version';
+import { getVersion, isValidVersion, parseVersion } from '../version';
 
 describe('getVersion', () => {
   test('extracts a basic SemVer versions', () => {
@@ -23,6 +23,10 @@ describe('isValidVersion', () => {
 
   test('accepts valid pre-release version', () => {
     expect(isValidVersion('1.2.3-beta')).toBe(true);
+  });
+
+  test('accepts valid Python-style version', () => {
+    expect(isValidVersion('1.2.3rc1')).toBe(true);
   });
 
   test('does not accept leading "v"', () => {
@@ -82,5 +86,18 @@ describe('parseVersion', () => {
       patch: 3,
       pre: 'beta',
     });
+  });
+
+  test('parses a Python-style version', () => {
+    expect(parseVersion('v11.22.33rc1')).toEqual({
+      major: 11,
+      minor: 22,
+      patch: 33,
+      pre: 'rc1',
+    });
+  });
+
+  test('does not parse an invalid version', () => {
+    expect(parseVersion('v1.2')).toBeNull();
   });
 });
