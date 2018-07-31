@@ -74,7 +74,7 @@ export function parseVersion(text: string): SemVer | null {
 /**
  * A regular expression to detect that the version is a pre-release
  */
-export const PREVIEW_RELEASE_REGEX = /(?:[^a-z])(preview|rc|dev|alpha|beta|unstable|a|b)(?:[^a-z]|$)/i;
+export const PREVIEW_RELEASE_REGEX = /(?:[^a-z])(preview|pre|rc|dev|alpha|beta|unstable|a|b)(?:[^a-z]|$)/i;
 
 /**
  * Check that the provided string is a pre-release version.
