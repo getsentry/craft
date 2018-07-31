@@ -92,7 +92,7 @@ export async function spawnProcess(
   const argsString = args.map(arg => `"${arg}"`).join(' ');
 
   if (isDryRun()) {
-    logger.debug('[dry-run] Not spawning process:', `${command} ${argsString}`);
+    logger.info('[dry-run] Not spawning process:', `${command} ${argsString}`);
     return undefined;
   }
 

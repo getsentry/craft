@@ -9,6 +9,7 @@ import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
 import { getFile, getGithubClient } from '../utils/github_api';
+import { isPreviewRelease } from '../utils/version';
 import { BaseTarget } from './base';
 
 const logger = loggerRaw.withScope('[github]');
@@ -23,7 +24,8 @@ export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
  */
 export interface GithubTargetConfig extends TargetConfig, GithubGlobalConfig {
   changelog?: string;
-  tagPrefix: string;
+  tagPrefix?: string;
+  previewReleases?: boolean;
 }
 
 /**
@@ -52,6 +54,10 @@ export class GithubTarget extends BaseTarget {
     this.githubConfig = {
       ...getGlobalGithubConfig(),
       changelog: getConfiguration().changelog,
+      previewReleases:
+        this.config.previewReleases === undefined
+          ? true
+          : this.config.previewReleases,
       tagPrefix: this.config.tagPrefix || '',
     };
     this.github = getGithubClient();
@@ -70,7 +76,8 @@ export class GithubTarget extends BaseTarget {
    */
   public async getOrCreateRelease(
     tag: string,
-    revision: string
+    revision: string,
+    isPreview: boolean = false
   ): Promise<GithubRelease> {
     try {
       const response = await this.github.repos.getReleaseByTag({
@@ -101,7 +108,7 @@ export class GithubTarget extends BaseTarget {
       draft: false,
       name: tag,
       owner: this.githubConfig.owner,
-      prerelease: false,
+      prerelease: isPreview,
       repo: this.githubConfig.repo,
       tag_name: tag,
       target_commitish: revision,
@@ -109,11 +116,19 @@ export class GithubTarget extends BaseTarget {
     };
 
     if (shouldPerform()) {
-      logger.debug(`Creating a new release for tag "${tag}"`);
+      logger.info(
+        `Creating a new ${
+          isPreview ? '*preview* ' : ''
+        }release for tag "${tag}"`
+      );
       const created = await this.github.repos.createRelease(params);
       return created.data;
     } else {
-      logger.debug(`[dry-run] Not creating a new release for tag "${tag}"`);
+      logger.info(
+        `[dry-run] Not creating a new ${
+          isPreview ? '*preview* ' : ''
+        }release for tag "${tag}"`
+      );
       return {
         id: 0,
         tag_name: tag,
@@ -131,11 +146,13 @@ export class GithubTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(version: string, revision: string): Promise<any> {
-    logger.info(`Target "${this.name}": publishing version ${version}...`);
+    logger.info(`Target "${this.name}": publishing version "${version}"...`);
     logger.debug(`Revision: ${revision}`);
     const tag = `${this.githubConfig.tagPrefix}${version}`;
     logger.info(`Git tag: "${tag}"`);
-    const release = await this.getOrCreateRelease(tag, revision);
+    const isPreview =
+      this.githubConfig.previewReleases && isPreviewRelease(version);
+    const release = await this.getOrCreateRelease(tag, revision, isPreview);
 
     const artifacts = await this.getArtifactsForRevision(revision);
     await Promise.all(

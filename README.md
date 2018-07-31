@@ -217,9 +217,10 @@ changelog. Otherwise, defaults to the tag name and tag's commit message.
 
 **Configuration**
 
-| Option      | Description                                                         |
-| ----------- | ------------------------------------------------------------------- |
-| `tagPrefix` | **optional**. Prefix for new git tags (e.g. "v"). Empty by default. |
+| Option            | Description                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------- |
+| `tagPrefix`       | **optional**. Prefix for new git tags (e.g. "v"). Empty by default.                |
+| `previewReleases` | **optional**. Automatically detect and create preview releases. `true` by default. |
 
 **Example:**
 
@@ -227,6 +228,7 @@ changelog. Otherwise, defaults to the tag name and tag's commit message.
 targets:
   - name: github
     tagPrefix: v
+    previewReleases: false
 ```
 
 ### NPM (`npm`)

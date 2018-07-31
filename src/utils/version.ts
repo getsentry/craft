@@ -70,3 +70,18 @@ export function parseVersion(text: string): SemVer | null {
     }
   );
 }
+
+/**
+ * A regular expression to detect that the version is a pre-release
+ */
+export const PREVIEW_RELEASE_REGEX = /(?:[^a-z])(preview|rc|dev|alpha|beta|unstable|a|b)(?:[^a-z]|$)/i;
+
+/**
+ * Check that the provided string is a pre-release version.
+ *
+ * @param text Version string to check
+ * @returns True if the string looks like a pre-release version
+ */
+export function isPreviewRelease(text: string): boolean {
+  return isValidVersion(text) && !!text.match(PREVIEW_RELEASE_REGEX);
+}

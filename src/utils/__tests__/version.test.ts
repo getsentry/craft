@@ -1,6 +1,11 @@
 /* eslint-env jest */
 
-import { getVersion, isValidVersion, parseVersion } from '../version';
+import {
+  getVersion,
+  isValidVersion,
+  parseVersion,
+  isPreviewRelease,
+} from '../version';
 
 describe('getVersion', () => {
   test('extracts a basic SemVer versions', () => {
@@ -99,5 +104,23 @@ describe('parseVersion', () => {
 
   test('does not parse an invalid version', () => {
     expect(parseVersion('v1.2')).toBeNull();
+  });
+});
+
+describe('isPreviewRelease', () => {
+  test('accepts semver preview release', () => {
+    expect(isPreviewRelease('2.3.4-preview1')).toBe(true);
+  });
+
+  test('accepts Python-style preview release', () => {
+    expect(isPreviewRelease('2.3.4rc0')).toBe(true);
+  });
+
+  test('does not accept non-preview release', () => {
+    expect(isPreviewRelease('2.3.4')).toBe(false);
+  });
+
+  test('does not accept non-release strings', () => {
+    expect(isPreviewRelease('4-preview')).toBe(false);
   });
 });
