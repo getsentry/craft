@@ -3,16 +3,44 @@
     <br />
 </p>
 
-# Craft: Universal Release Tool (And More)
+# Craft: Universal Release Tool (And More)  <!-- omit in toc -->
 
 [![Travis](https://img.shields.io/travis/getsentry/craft.svg)](https://travis-ci.org/getsentry/craft)
 [![GitHub release](https://img.shields.io/github/release/getsentry/craft.svg)](https://github.com/getsentry/craft/releases/latest)
 [![npm version](https://img.shields.io/npm/v/@sentry/craft.svg)](https://www.npmjs.com/package/@sentry/craft)
 [![license](https://img.shields.io/github/license/getsentry/craft.svg)](https://github.com/getsentry/craft/blob/master/LICENSE)
 
+`craft` is a command line tool that helps to automate and pipeline package releases. It suggests, and
+then enforces a specific workflow for managing release branches, changelogs, artifact publishing, etc.
+
+## Table of Contents  <!-- omit in toc -->
+
+- [Installation](#installation)
+- [Usage](#usage)
+- [Global Configuration](#global-configuration)
+  - [`craft release`: Preparing a New Release](#craft-release-preparing-a-new-release)
+  - [`craft publish`: Publishing the Release](#craft-publish-publishing-the-release)
+  - [Example](#example)
+- [Configuration File: `.craft.yml`](#configuration-file-craftyml)
+  - [GitHub project](#github-project)
+  - [Pre-release Command](#pre-release-command)
+  - [Changelog Policies](#changelog-policies)
+- [Target Configuration](#target-configuration)
+  - [GitHub (`github`)](#github-github)
+  - [NPM (`npm`)](#npm-npm)
+  - [Python Package Index (`pypi`)](#python-package-index-pypi)
+  - [Homebrew (`brew`)](#homebrew-brew)
+  - [NuGet (`nuget`)](#nuget-nuget)
+- [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
+- [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
+- [Development](#development)
+  - [Logging level](#logging-level)
+  - [Dry-run mode](#dry-run-mode)
+  - [Releasing](#releasing)
+
 ## Installation
 
-The tool comes as NPM package and can be installed via `npm` or `yarn`:
+The tool is distributed as an NPM package and can be installed via `npm` or `yarn`:
 
 ```bash
 npm install -g @sentry/craft
@@ -162,10 +190,10 @@ changelog file (`CHANGELOG.md` by default).
 
 **Configuration**
 
-| Option            | Description                                                          |
-| ----------------- | -------------------------------------------------------------------- |
-| `changelog`       | **optional**. Path to the changelog file. Defaults to `CHANGELOG.md` |
-| `changelogPolicy` | **optional**. Changelog management mode. Defaults to `none`.         |
+| Option            | Description                                                                       |
+| ----------------- | --------------------------------------------------------------------------------- |
+| `changelog`       | **optional**. Path to the changelog file. Defaults to `CHANGELOG.md`              |
+| `changelogPolicy` | **optional**. Changelog management mode (`simple` or `none`). Defaults to `none`. |
 
 **Example:**
 
@@ -368,6 +396,20 @@ _none_
 targets:
   - name: nuget
 ```
+
+## Integrating Your Project with `craft`
+
+Here is how you can integrate your GitHub project with `craft`:
+
+* Set up integration with Zeus
+  * Enable your project in Zeus: https://zeus.ci/settings/github/repos
+  * Configure your CI systems (Travis, AppVeyor, etc.) to send build artifacts to Zeus
+* Add `.craft.yml` configuration file to your project
+  * List there all the targets you want to publish to
+  * Configure additional options (changelog management policy, tag prefix, etc.)
+* Add a [pre-release script](#pre-release-version-bumping-script-conventions) to your project.
+* Get various [configuration tokens](#global-configuration)
+* Start releasing!
 
 ## Pre-release (Version-bumping) Script: Conventions
 
