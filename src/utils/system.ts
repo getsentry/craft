@@ -80,14 +80,15 @@ export function replaceEnvVariable(arg: string, env: any): string {
  * @param command The command to run
  * @param args Optional arguments to pass to the command
  * @param options Optional options to pass to child_process.spawn
- * @param logger A logger to pipe stdout and stderr to
+ * @param showStdout Do not buffer stdandard output
  * @returns A promise that resolves when the child process exists
  * @async
  */
 export async function spawnProcess(
   command: string,
   args: string[] = [],
-  options: SpawnOptions = {}
+  options: SpawnOptions = {},
+  showStdout: boolean = false
 ): Promise<any> {
   const argsString = args.map(arg => `"${arg}"`).join(' ');
 
@@ -99,13 +100,16 @@ export async function spawnProcess(
   return new Promise<any>((resolve, reject) => {
     let stdout = '';
     let stderr = '';
+    let child;
     try {
       logger.debug('Spawning process:', `${command} ${argsString}`);
       // Do a shell-like replacement of arguments that look like environment variables
       const processedArgs = args.map(arg =>
         replaceEnvVariable(arg, { ...process.env, ...options.env })
       );
-      const child = spawn(command, processedArgs, options);
+      // Allow child to accept input
+      options.stdio = ['inherit', 'pipe', 'pipe'];
+      child = spawn(command, processedArgs, options);
       child.on(
         'exit',
         code =>
@@ -119,7 +123,11 @@ export async function spawnProcess(
 
       child.stdout.pipe(split()).on('data', (data: any) => {
         const output = `${command}: ${data}`;
-        logger.debug(output);
+        if (showStdout) {
+          logger.info(output);
+        } else {
+          logger.debug(output);
+        }
         stdout += `${output}\n`;
       });
       child.stderr.pipe(split()).on('data', (data: any) => {

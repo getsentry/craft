@@ -1,4 +1,16 @@
-import { sleepAsync, spawnProcess, replaceEnvVariable } from '../system';
+import * as fs from 'fs';
+import * as tmp from 'tmp';
+
+import logger from '../../logger';
+
+import {
+  calculateChecksum,
+  replaceEnvVariable,
+  sleepAsync,
+  spawnProcess,
+} from '../system';
+
+jest.mock('../../logger');
 
 describe('spawn', () => {
   test('resolves on success', async () => {
@@ -40,7 +52,7 @@ describe('spawn', () => {
       expect.assertions(1);
       await spawnProcess('test', [], { cwd: '/tmp/' });
     } catch (e) {
-      expect(e.options).toEqual({ cwd: '/tmp/' });
+      expect(e.options.cwd).toEqual('/tmp/');
     }
   });
 
@@ -51,6 +63,23 @@ describe('spawn', () => {
     } catch (e) {
       expect(e.options.env).toBeUndefined();
     }
+  });
+
+  test('does not write to output by default', async () => {
+    const mockedLogInfo = logger.info as jest.Mock;
+
+    await spawnProcess('echo', ['-n', 'test-string']);
+
+    expect(mockedLogInfo).toHaveBeenCalledTimes(0);
+  });
+
+  test('writes to output if told so', async () => {
+    const mockedLogInfo = logger.info as jest.Mock;
+
+    await spawnProcess('echo', ['-n', 'test-string'], {}, true);
+
+    expect(mockedLogInfo).toHaveBeenCalledTimes(1);
+    expect(mockedLogInfo.mock.calls[0][0]).toMatch(/test-string/);
   });
 });
 
@@ -79,5 +108,20 @@ describe('replaceEnvVariable', () => {
   test('replaces a non-existing environment variable with empty string', async () => {
     // tslint:disable-next-line:no-invalid-template-strings
     expect(replaceEnvVariable('${ENV_VAR}', {})).toBe('');
+  });
+});
+
+describe('calculateChecksum', () => {
+  test('replaces a variable', async () => {
+    tmp.setGracefulCleanup();
+    const tmpFile = tmp.fileSync({ prefix: 'craft-' });
+    fs.writeFileSync(tmpFile.name, '\n');
+
+    const checksum = await calculateChecksum(tmpFile.name);
+    expect(checksum).toBe(
+      '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b'
+    );
+
+    tmpFile.removeCallback();
   });
 });

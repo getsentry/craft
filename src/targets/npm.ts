@@ -93,7 +93,7 @@ export class NpmTarget extends BaseTarget {
       args.push(`--access=${packageAccess}`);
     }
 
-    return spawnProcess(NPM_BIN, args);
+    return spawnProcess(NPM_BIN, args, {}, true);
   }
 
   /**
