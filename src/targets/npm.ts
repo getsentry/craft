@@ -4,7 +4,7 @@ import loggerRaw from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { reportError } from '../utils/errors';
-import { spawnProcess } from '../utils/system';
+import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 
 const logger = loggerRaw.withScope('[npm]');
@@ -47,6 +47,7 @@ export class NpmTarget extends BaseTarget {
   public constructor(config: any, store: ZeusStore) {
     super(config, store);
     this.npmConfig = this.getNpmConfig();
+    checkExecutableIsPresent(NPM_BIN);
   }
 
   /**

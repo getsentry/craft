@@ -8,6 +8,7 @@ import {
   replaceEnvVariable,
   sleepAsync,
   spawnProcess,
+  hasExecutable,
 } from '../system';
 
 jest.mock('../../logger');
@@ -123,5 +124,31 @@ describe('calculateChecksum', () => {
     );
 
     tmpFile.removeCallback();
+  });
+});
+
+describe('isExecutableInPath', () => {
+  test('checks for existing executable', async () => {
+    expect(hasExecutable('npm')).toBe(true);
+  });
+
+  test('checks for non-existing executable', async () => {
+    expect(hasExecutable('not-existing-executable')).toBe(false);
+  });
+
+  test('checks for existing executable using absolute path', async () => {
+    expect(hasExecutable('/bin/bash')).toBe(true);
+  });
+
+  test('checks for non-existing executable using absolute path', async () => {
+    expect(hasExecutable('/bin/non-existing-binary')).toBe(false);
+  });
+
+  test('checks for existing executable using relative path', async () => {
+    expect(hasExecutable('../../../../../../../../../bin/ls')).toBe(true);
+  });
+
+  test('checks for non-existing executable using relative path', async () => {
+    expect(hasExecutable('./bin/non-existing-binary')).toBe(false);
   });
 });

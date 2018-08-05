@@ -1,10 +1,12 @@
 import { spawn, SpawnOptions } from 'child_process';
 import { createHash } from 'crypto';
 import { isDryRun } from 'dryrun';
-import { createReadStream } from 'fs';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as split from 'split';
 
 import logger from '../logger';
+import { reportError } from './errors';
 
 /**
  * Strips env values from the options object
@@ -144,16 +146,16 @@ export async function spawnProcess(
 /**
  * Calculates the checksum of a file's contents
  *
- * @param path The path to a file to process
+ * @param filePath The path to a file to process
  * @param algorithm A hashing algorithm, defaults to "sha256"
  * @returns The checksum as hex string
  */
 export async function calculateChecksum(
-  path: string,
+  filePath: string,
   algorithm: string = 'sha256'
 ): Promise<string> {
-  logger.debug(`Calculating "${algorithm}" hashsum for file: ${path}`);
-  const stream = createReadStream(path);
+  logger.debug(`Calculating "${algorithm}" hashsum for file: ${filePath}`);
+  const stream = fs.createReadStream(filePath);
   const hash = createHash(algorithm);
 
   return new Promise<string>((resolve, reject) => {
@@ -170,4 +172,66 @@ export async function calculateChecksum(
  */
 export async function sleepAsync(ms: number): Promise<void> {
   return new Promise<void>(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Get current PATH and concatenate every entry with the provided file path
+ *
+ * @param fileName Base name of the given file
+ */
+function getPotentialPaths(fileName: string): string[] {
+  const envPath = process.env.PATH || '';
+  const envExt = process.env.PATHEXT || '';
+  return envPath
+    .replace(/"/g, '')
+    .split(path.delimiter)
+    .map(chunk =>
+      envExt.split(path.delimiter).map(ext => path.join(chunk, fileName + ext))
+    )
+    .reduce((a, b) => a.concat(b));
+}
+
+/**
+ * Checks if the provided path contains an executable file
+ *
+ * @param filePath Path to the file
+ * @returns True if the file exists and is an executable
+ */
+function isExecutable(filePath: string): boolean {
+  try {
+    // tslint:disable-next-line:no-bitwise
+    fs.accessSync(filePath, fs.constants.F_OK | fs.constants.X_OK);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Checks if the provided executable is available
+ *
+ * The argument can be a path (the function checks if it's an executable
+ * or a binary name (the binary will be looked up in PATH)
+ *
+ * @param name Executable name
+ * @returns True if executable is found in PATH
+ */
+export function hasExecutable(name: string): boolean {
+  // Relative/absolute path
+  if (name.indexOf('/') > -1) {
+    return isExecutable(name);
+  }
+  const found = getPotentialPaths(name).find(isExecutable) || [];
+  return !!found.length;
+}
+
+/**
+ * Raises an error if the executable is not found
+ *
+ * @param name Executable name
+ */
+export function checkExecutableIsPresent(name: string): void {
+  if (!hasExecutable(name)) {
+    reportError(`Executable "${name}" not found. Is it installed?`);
+  }
 }

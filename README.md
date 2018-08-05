@@ -401,9 +401,10 @@ targets:
 
 Here is how you can integrate your GitHub project with `craft`:
 
-* Set up integration with Zeus
-  * Enable your project in Zeus: https://zeus.ci/settings/github/repos
-  * Configure your CI systems (Travis, AppVeyor, etc.) to send build artifacts to Zeus
+* Enable your project in Zeus: https://zeus.ci/settings/github/repos
+* Configure your CI systems (Travis, AppVeyor, etc.) to send build artifacts to Zeus
+  * Allow building release branches (their names follow pattern `release/VERSION`)
+  * Add ZEUS_HOOK_BASE as protected to CI environment
 * Add `.craft.yml` configuration file to your project
   * List there all the targets you want to publish to
   * Configure additional options (changelog management policy, tag prefix, etc.)

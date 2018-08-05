@@ -2,6 +2,6 @@
 github:
   owner: getsentry
   repo: craft
-targets: 
+targets:
   - name: github
   - name: npm
