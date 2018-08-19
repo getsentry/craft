@@ -2,6 +2,7 @@
 github:
   owner: getsentry
   repo: craft
+changelogPolicy: simple
 targets:
   - name: github
   - name: npm

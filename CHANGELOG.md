@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.7
+
+* Check for executables when doing "publish"
+* Improve support for interactive pre-release scripts
+
 ## 0.4.3
 
 * Basic changelog management
