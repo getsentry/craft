@@ -13,6 +13,11 @@ import {
 export const CONFIG_FILE_NAME = '.craft.yml';
 
 /**
+ * Cached configuration is stored here
+ */
+let _configCache: CraftProjectConfig;
+
+/**
  * Return a full path to configuration file for the current project
  */
 export function findConfigFile(): string | undefined {
@@ -70,7 +75,9 @@ export function validateConfiguration(rawConfig: any): CraftProjectConfig {
  * Return the parsed configuration file contents
  */
 export function getConfiguration(): CraftProjectConfig {
-  // TODO cache configuration for later multiple uses
+  if (_configCache) {
+    return _configCache;
+  }
 
   const configPath = findConfigFile();
   if (!configPath) {
@@ -80,7 +87,8 @@ export function getConfiguration(): CraftProjectConfig {
   }
   logger.debug('Configuration file found: ', configPath);
   const rawConfig = safeLoad(readFileSync(configPath, 'utf-8'));
-  return validateConfiguration(rawConfig);
+  _configCache = validateConfiguration(rawConfig);
+  return _configCache;
 }
 
 /**
