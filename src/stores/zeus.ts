@@ -1,3 +1,5 @@
+import * as _ from 'lodash';
+
 import {
   Artifact,
   Client as ZeusClient,
@@ -5,6 +7,7 @@ import {
   RevisionInfo,
   Status,
 } from '@zeus-ci/sdk';
+import { clearObjectProperties } from '../utils/objects';
 
 /**
  * Fitlering options for artifacts
@@ -33,7 +36,7 @@ export class ZeusStore {
   private readonly downloadCache: { [key: string]: Promise<string> } = {};
 
   /** Cache for storing mapping between revisions and a list of their artifacts */
-  private readonly fileListCache: { [key: string]: Promise<Artifact[]> } = {};
+  private readonly fileListCache: { [key: string]: Artifact[] } = {};
 
   public constructor(
     repoOwner: string,
@@ -43,6 +46,14 @@ export class ZeusStore {
     this.client = new ZeusClient({ defaultDirectory: downloadDirectory });
     this.repoOwner = repoOwner;
     this.repoName = repoName;
+  }
+
+  /**
+   * Clears download and file caches
+   */
+  public clearStoreCaches(): void {
+    clearObjectProperties(this.downloadCache);
+    clearObjectProperties(this.fileListCache);
   }
 
   /**
@@ -78,22 +89,39 @@ export class ZeusStore {
   }
 
   /**
-   * Gets a list of all available artifacts for the given revision
+   * Gets a list of all recent artifacts for the given revision
+   *
+   * If there are several artifacts with the same name, returns the most recent
+   * of them.
    *
    * @param revision Git commit id
+   * @returns Filtered list of artifacts
    */
   public async listArtifactsForRevision(revision: string): Promise<Artifact[]> {
     const cached = this.fileListCache[revision];
     if (cached) {
       return cached;
     }
-    const promise = this.client.listArtifactsForRevision(
+    const artifacts = await this.client.listArtifactsForRevision(
       this.repoOwner,
       this.repoName,
       revision
     );
-    this.fileListCache[revision] = promise;
-    return promise;
+
+    // For every filename, take the artifact with the most recent update time
+    const nameToArtifacts = _.groupBy(artifacts, artifact => artifact.name);
+    const filteredArtifacts = Object.keys(nameToArtifacts).map(artifactName => {
+      const artifactObjects = nameToArtifacts[artifactName];
+      // Sort by the update time
+      const sortedArtifacts = _.sortBy(
+        artifactObjects,
+        artifact => Date.parse(artifact.updated_at || '') || 0
+      );
+      return sortedArtifacts[sortedArtifacts.length - 1];
+    });
+
+    this.fileListCache[revision] = filteredArtifacts;
+    return filteredArtifacts;
   }
 
   /**
