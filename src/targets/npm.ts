@@ -1,3 +1,5 @@
+import { spawnSync } from 'child_process';
+
 import { Artifact } from '@zeus-ci/sdk';
 
 import loggerRaw from '../logger';
@@ -57,15 +59,11 @@ export class NpmTarget extends BaseTarget {
   /**
    * Check that NPM executable exists and is not too old
    */
-  protected async checkRequirements(): Promise<void> {
+  protected checkRequirements(): void {
     checkExecutableIsPresent(NPM_BIN);
 
     logger.debug('Checking that NPM has recent version...');
-    const npmVersion: string = (
-      (await spawnProcess(NPM_BIN, ['--version'])) || ''
-    )
-      .toString()
-      .trim();
+    const npmVersion = spawnSync(NPM_BIN, ['--version']).stdout.trim();
     const parsedVersion = parseVersion(npmVersion);
     if (!parsedVersion) {
       reportError(`Cannot parse NPM version: "${npmVersion}"`);
