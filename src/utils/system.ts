@@ -83,7 +83,7 @@ export function replaceEnvVariable(arg: string, env: any): string {
  * @param args Optional arguments to pass to the command
  * @param options Optional options to pass to child_process.spawn
  * @param showStdout Do not buffer stdandard output
- * @returns A promise that resolves when the child process exists
+ * @returns A promise that resolves with the standard output when the child process exists
  * @async
  */
 export async function spawnProcess(
@@ -116,7 +116,7 @@ export async function spawnProcess(
         'exit',
         code =>
           code === 0
-            ? resolve()
+            ? resolve(stdout)
             : reject(processError(code, command, args, options, stdout, stderr))
       );
       child.on('error', (error: any) =>

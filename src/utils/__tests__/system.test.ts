@@ -5,19 +5,19 @@ import logger from '../../logger';
 
 import {
   calculateChecksum,
+  hasExecutable,
   replaceEnvVariable,
   sleepAsync,
   spawnProcess,
-  hasExecutable,
 } from '../system';
 
 jest.mock('../../logger');
 
-describe('spawn', () => {
-  test('resolves on success', async () => {
+describe('spawnProcess', () => {
+  test('resolves on success with standard output', async () => {
     expect.assertions(1);
-    await spawnProcess('test', ['1']);
-    expect(true).toBe(true);
+    const output = await spawnProcess('/bin/echo', ['test']);
+    expect(output.trim()).toBe('/bin/echo: test\n/bin/echo:');
   });
 
   test('rejects on non-zero exit code', async () => {
@@ -57,7 +57,7 @@ describe('spawn', () => {
     }
   });
 
-  test('strip env from options on error', async () => {
+  test('strips env from options on error', async () => {
     try {
       expect.assertions(1);
       await spawnProcess('test', [], { env: { x: 123, password: 456 } });

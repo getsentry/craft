@@ -5,12 +5,16 @@ import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { reportError } from '../utils/errors';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
+import { parseVersion } from '../utils/version';
 import { BaseTarget } from './base';
 
 const logger = loggerRaw.withScope('[npm]');
 
 /** Command to launch npm */
 export const NPM_BIN = process.env.NPM_BIN || 'npm';
+
+const NPM_MIN_MAJOR = 5;
+const NPM_MIN_MINOR = 5;
 
 /**
  * Parameter used to reset NPM to its default registry.
@@ -46,8 +50,35 @@ export class NpmTarget extends BaseTarget {
 
   public constructor(config: any, store: ZeusStore) {
     super(config, store);
+    this.checkRequirements();
     this.npmConfig = this.getNpmConfig();
+  }
+
+  /**
+   * Check that NPM executable exists and is not too old
+   */
+  protected async checkRequirements(): Promise<void> {
     checkExecutableIsPresent(NPM_BIN);
+
+    logger.debug('Checking that NPM has recent version...');
+    const npmVersion: string = (
+      (await spawnProcess(NPM_BIN, ['--version'])) || ''
+    )
+      .toString()
+      .trim();
+    const parsedVersion = parseVersion(npmVersion);
+    if (!parsedVersion) {
+      reportError(`Cannot parse NPM version: "${npmVersion}"`);
+    }
+    const { major, minor } = parsedVersion || { major: 0, minor: 0 };
+    if (
+      major < NPM_MIN_MAJOR ||
+      (major === NPM_MIN_MAJOR && minor < NPM_MIN_MINOR)
+    ) {
+      reportError(
+        `NPM version is too old: ${npmVersion}. Please update your NodeJS`
+      );
+    }
   }
 
   /**
