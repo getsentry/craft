@@ -9,7 +9,7 @@ import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
 import { getFile, getGithubClient } from '../utils/github_api';
-import { isPreviewRelease } from '../utils/version';
+import { isPreviewRelease, versionToTag } from '../utils/version';
 import { BaseTarget } from './base';
 
 const logger = loggerRaw.withScope('[github]');
@@ -148,7 +148,7 @@ export class GithubTarget extends BaseTarget {
   public async publish(version: string, revision: string): Promise<any> {
     logger.info(`Target "${this.name}": publishing version "${version}"...`);
     logger.debug(`Revision: ${revision}`);
-    const tag = `${this.githubConfig.tagPrefix}${version}`;
+    const tag = versionToTag(version, this.githubConfig.tagPrefix);
     logger.info(`Git tag: "${tag}"`);
     const isPreview =
       this.githubConfig.previewReleases && isPreviewRelease(version);

@@ -13,7 +13,7 @@ import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
 import { reportError } from '../utils/errors';
 import { getDefaultBranch, getGithubClient } from '../utils/github_api';
 import { sleepAsync, spawnProcess } from '../utils/system';
-import { isValidVersion } from '../utils/version';
+import { isValidVersion, versionToTag } from '../utils/version';
 import { publishMain, PublishOptions } from './publish';
 
 export const command = ['release <major|minor|patch|new-version>', 'r'];
@@ -224,10 +224,10 @@ async function checkGitState(
   git: simpleGit.SimpleGit,
   defaultBranch: string,
   checkGitStatus: boolean = true
-): Promise<any> {
+): Promise<void> {
   if (!checkGitStatus) {
     logger.warn('Not checking the status of the local repository');
-    return undefined;
+    return;
   }
 
   logger.info('Checking the local repository status...');
@@ -312,6 +312,30 @@ async function execPublish(newVersion: string): Promise<never> {
 }
 
 /**
+ * Checks that there is no corresponding git tag for the given version
+ *
+ * @param git Local git client
+ * @param newVersion Version we're about to release
+ * @param checkGitStatus Set to true to enable the check
+ */
+async function checkForExistingTag(
+  git: simpleGit.SimpleGit,
+  newVersion: string,
+  checkGitStatus: boolean = true
+): Promise<void> {
+  if (!checkGitStatus) {
+    logger.warn('Not checking if the version (git tag) already exists');
+  }
+
+  const gitTag = versionToTag(newVersion);
+  const existingTags = await git.tags();
+  if (existingTags.all.indexOf(gitTag) > -1) {
+    reportError(`Git tag "${gitTag}" already exists!`);
+  }
+  logger.debug(`Git tag ${gitTag} does not exist yet.`);
+}
+
+/**
  * Checks changelog entries in accordance with the provided changelog policy.
  *
  * @param newVersion The new version we are releasing
@@ -369,12 +393,7 @@ export const handler = async (argv: ReleaseOptions) => {
 
     const newVersion = argv.newVersion;
 
-    // Check the changelog(s)
-    await checkChangelog(
-      newVersion,
-      argv.noChangelog ? ChangelogPolicy.None : config.changelogPolicy,
-      config.changelog
-    );
+    const git = simpleGit(configFileDir).silent(true);
 
     // Get some information about the Github project
     const githubClient = getGithubClient();
@@ -385,10 +404,18 @@ export const handler = async (argv: ReleaseOptions) => {
     );
     logger.debug(`Default branch for the repo:`, defaultBranch);
 
-    const git = simpleGit(configFileDir).silent(true);
-
     // Check that we're in an acceptable state for the release
     await checkGitState(git, defaultBranch, !argv.noGitChecks);
+
+    // Check whether the version/tag already exists
+    await checkForExistingTag(git, newVersion, !argv.noGitChecks);
+
+    // Check the changelog(s)
+    await checkChangelog(
+      newVersion,
+      argv.noChangelog ? ChangelogPolicy.None : config.changelogPolicy,
+      config.changelog
+    );
 
     logger.info(`Preparing to release the version: ${newVersion}`);
 

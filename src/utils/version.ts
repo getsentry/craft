@@ -1,3 +1,5 @@
+import { getGitTagPrefix } from '../config';
+
 /**
  * Regular expression for matching semver versions
  *
@@ -77,11 +79,25 @@ export function parseVersion(text: string): SemVer | null {
 export const PREVIEW_RELEASE_REGEX = /(?:[^a-z])(preview|pre|rc|dev|alpha|beta|unstable|a|b)(?:[^a-z]|$)/i;
 
 /**
- * Check that the provided string is a pre-release version.
+ * Checks that the provided string is a pre-release version.
  *
  * @param text Version string to check
  * @returns True if the string looks like a pre-release version
  */
 export function isPreviewRelease(text: string): boolean {
   return isValidVersion(text) && !!text.match(PREVIEW_RELEASE_REGEX);
+}
+
+/**
+ * Returns the git version based on the provided version
+ *
+ * If no tag prefix is provided, it is taken from the configuration.
+ *
+ * @param version Version we're releasing
+ * @param tagPrefix Git tag prefix
+ * @returns Git tag
+ */
+export function versionToTag(version: string, tagPrefix?: string): string {
+  const prefix = tagPrefix === undefined ? getGitTagPrefix() : tagPrefix;
+  return `${prefix}${version}`;
 }

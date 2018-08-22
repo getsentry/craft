@@ -113,3 +113,12 @@ export function getGlobalGithubConfig(): GithubGlobalConfig {
 
   return repoGithubConfig;
 }
+
+/**
+ * Gets git tag prefix from configuration
+ */
+export function getGitTagPrefix(): string {
+  const targets = getConfiguration().targets || [];
+  const githubTarget = targets.find(target => target.name === 'github') || {};
+  return githubTarget.tagPrefix || '';
+}
