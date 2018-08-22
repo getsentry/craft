@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.8
+
+* Fix encoding issue for NPM target
+
 ## 0.4.7
 
 * Check for executables when doing "publish"
