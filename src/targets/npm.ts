@@ -63,7 +63,9 @@ export class NpmTarget extends BaseTarget {
     checkExecutableIsPresent(NPM_BIN);
 
     logger.debug('Checking that NPM has recent version...');
-    const npmVersion = spawnSync(NPM_BIN, ['--version']).stdout.trim();
+    const npmVersion = spawnSync(NPM_BIN, ['--version'])
+      .stdout.toString()
+      .trim();
     const parsedVersion = parseVersion(npmVersion);
     if (!parsedVersion) {
       reportError(`Cannot parse NPM version: "${npmVersion}"`);
