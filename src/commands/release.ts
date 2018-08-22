@@ -114,7 +114,7 @@ async function createReleaseBranch(
     let errorMsg = `Branch already exists: ${branchName}. `;
     errorMsg +=
       'Run the following command to delete the branch, and then rerun "release":\n';
-    errorMsg += `    git branch -D ${branchName}`;
+    errorMsg += `    git branch -D ${branchName} && git push origin --delete ${branchName}`;
     reportError(errorMsg, logger);
   }
 
