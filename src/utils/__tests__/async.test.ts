@@ -1,4 +1,4 @@
-import { filterAsync, promiseProps } from '../async';
+import { filterAsync, forEachChained, promiseProps } from '../async';
 
 describe('filterAsync', () => {
   test('filters with sync predicate', async () => {
@@ -62,5 +62,52 @@ describe('promiseProps', () => {
       foo: Promise.resolve('foo'),
     });
     expect(result).toEqual({ foo: 'foo', bar: 42 });
+  });
+});
+
+describe('forEachChained', () => {
+  test('invokes synchronous actions', async () => {
+    expect.assertions(1);
+
+    const fun = jest.fn();
+    const arr = ['a', 'b', 'c'];
+    await forEachChained(arr, fun);
+
+    expect(fun.mock.calls).toEqual([
+      ['a', 0, arr],
+      ['b', 1, arr],
+      ['c', 2, arr],
+    ]);
+  });
+
+  test('invokes asynchronous actions sequentially', async () => {
+    expect.assertions(1);
+
+    const fun = jest.fn();
+    const arr = [500, 300, 100];
+
+    fun.mockImplementation(
+      timeout => new Promise(resolve => setTimeout(resolve, timeout))
+    );
+
+    await forEachChained(arr, fun);
+    expect(fun.mock.calls).toEqual([
+      [500, 0, arr],
+      [300, 1, arr],
+      [100, 2, arr],
+    ]);
+  });
+
+  test('passes this to the action', async () => {
+    expect.assertions(1);
+
+    const that = {};
+    await forEachChained(
+      [1],
+      function action(): void {
+        expect(this).toBe(that);
+      },
+      that
+    );
   });
 });

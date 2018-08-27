@@ -35,3 +35,30 @@ export async function promiseProps(object: any): Promise<any> {
 
   return _.fromPairs(await Promise.all(pairs));
 }
+
+/**
+ * Asynchronously calls the iteratee on each element of the array one element at
+ * a time. This results in a chain of asynchronous actions that resolves once
+ * the last item action has completed. In contrast, `Promise.all` exectues each
+ * promise simultaneously.
+ *
+ * The iteratee is invoked as with `Array.forEach`: It receives the current
+ * element, index and the array. This is bound to `thisArg` if present.
+ *
+ * @param array An array to iterate over
+ * @param iteratee An action function that receives the element
+ * @param thisArg  Optional argument passed as this to the action
+ * @returns Resolves when the last action has completed
+ * @async
+ */
+export async function forEachChained<T>(
+  array: T[],
+  iteratee: (x: T) => any,
+  thisArg?: any
+): Promise<void> {
+  return array.reduce(
+    async (prev, ...args: any[]) =>
+      prev.then(() => iteratee.apply(thisArg, args)),
+    Promise.resolve()
+  );
+}

@@ -16,8 +16,8 @@ jest.mock('../../logger');
 describe('spawnProcess', () => {
   test('resolves on success with standard output', async () => {
     expect.assertions(1);
-    await spawnProcess('/bin/echo', ['test']);
-    expect(true).toBe(true);
+    const stdout = await spawnProcess('/bin/echo', ['test']);
+    expect(stdout.toString()).toBe('test\n');
   });
 
   test('rejects on non-zero exit code', async () => {
@@ -77,7 +77,7 @@ describe('spawnProcess', () => {
   test('writes to output if told so', async () => {
     const mockedLogInfo = logger.info as jest.Mock;
 
-    await spawnProcess('echo', ['-n', 'test-string'], {}, true);
+    await spawnProcess('echo', ['-n', 'test-string'], {}, { showStdout: true });
 
     expect(mockedLogInfo).toHaveBeenCalledTimes(1);
     expect(mockedLogInfo.mock.calls[0][0]).toMatch(/test-string/);

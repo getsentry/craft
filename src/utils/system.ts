@@ -4,9 +4,12 @@ import { isDryRun } from 'dryrun';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as split from 'split';
+import { Readable } from 'stream';
+import * as tar from 'tar';
 
 import logger from '../logger';
 import { reportError } from './errors';
+import { downloadSources } from './github_api';
 
 /**
  * Strips env values from the options object
@@ -71,6 +74,16 @@ export function replaceEnvVariable(arg: string, env: any): string {
 }
 
 /**
+ * Additional options for spawnProcess() function
+ */
+export interface SpawnProcessOptions {
+  /** Do not buffer standard output */
+  showStdout?: boolean;
+  /** Force the process to run in dry-run mode */
+  enableInDryRunMode?: boolean;
+}
+
+/**
  * Asynchronously spawns a child process
  *
  * Process arguments that have the form ${...} will be replaced with the values
@@ -82,7 +95,7 @@ export function replaceEnvVariable(arg: string, env: any): string {
  * @param command The command to run
  * @param args Optional arguments to pass to the command
  * @param options Optional options to pass to child_process.spawn
- * @param showStdout Do not buffer stdandard output
+ * @param spawnProcessOptions Additional options to this function
  * @returns A promise that resolves with the standard output when the child process exists
  * @async
  */
@@ -90,42 +103,48 @@ export async function spawnProcess(
   command: string,
   args: string[] = [],
   options: SpawnOptions = {},
-  showStdout: boolean = false
-): Promise<any> {
+  spawnProcessOptions: SpawnProcessOptions = {}
+): Promise<Buffer | undefined> {
   const argsString = args.map(arg => `"${arg}"`).join(' ');
 
-  if (isDryRun()) {
+  if (isDryRun() && !spawnProcessOptions.enableInDryRunMode) {
     logger.info('[dry-run] Not spawning process:', `${command} ${argsString}`);
     return undefined;
   }
 
   return new Promise<any>((resolve, reject) => {
+    const stdoutChunks: Buffer[] = [];
     let stdout = '';
     let stderr = '';
     let child;
+
+    // NOTE: On Linux, stdout and stderr might flush immediately after the
+    // process exists. By adding a 0 timeout, we can make sure that the promise
+    // is not resolved before both pipes have finished.
+    const succeed = () =>
+      setTimeout(() => resolve(Buffer.concat(stdoutChunks)), 0);
+    const fail = (e: any) =>
+      reject(processError(e.code, command, args, options, stdout, stderr));
+
     try {
       logger.debug('Spawning process:', `${command} ${argsString}`);
+
       // Do a shell-like replacement of arguments that look like environment variables
       const processedArgs = args.map(arg =>
         replaceEnvVariable(arg, { ...process.env, ...options.env })
       );
+
       // Allow child to accept input
       options.stdio = ['inherit', 'pipe', 'pipe'];
       child = spawn(command, processedArgs, options);
-      child.on(
-        'exit',
-        code =>
-          code === 0
-            ? resolve(stdout)
-            : reject(processError(code, command, args, options, stdout, stderr))
-      );
-      child.on('error', (error: any) =>
-        reject(processError(error.code, command, args, options, stdout, stderr))
-      );
+      child.on('exit', code => (code === 0 ? succeed() : fail({ code })));
+      child.on('error', fail);
+
+      child.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
 
       child.stdout.pipe(split()).on('data', (data: any) => {
         const output = `${command}: ${data}`;
-        if (showStdout) {
+        if (spawnProcessOptions.showStdout) {
           logger.info(output);
         } else {
           logger.debug(output);
@@ -138,7 +157,7 @@ export async function spawnProcess(
         stderr += `${output}\n`;
       });
     } catch (e) {
-      reject(processError(e.code, command, args, options, stdout, stderr));
+      fail(e);
     }
   });
 }
@@ -234,4 +253,55 @@ export function checkExecutableIsPresent(name: string): void {
   if (!hasExecutable(name)) {
     reportError(`Executable "${name}" not found. Is it installed?`);
   }
+}
+
+/**
+ * Extracts a source code tarball in the specified directory
+ *
+ * The tarball should contain a top level directory that contains all source
+ * files. The contents of that directory are directly extracted into the `dir`
+ * location.
+ *
+ * @param stream A stream containing the source tarball
+ * @param dir Path to the directory to extract in
+ * @returns A promise that resolves when the tarball has been extracted
+ * @async
+ */
+export async function extractSources(
+  stream: Readable,
+  dir: string
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    try {
+      stream
+        .pipe(tar.extract({ strip: 1, cwd: dir }))
+        .on('error', reject)
+        .on('finish', () => {
+          setTimeout(resolve, 100);
+        });
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+/**
+ * Downloads source code of the Github repository and puts it in the specified
+ * directory
+ *
+ * @param owner Repository owner
+ * @param repo Repository name
+ * @param sha Revision SHA identifier
+ * @param directory A directory to extract to
+ * @returns A promise that resolves when the sources are ready
+ */
+export async function downloadAndExtract(
+  owner: string,
+  repo: string,
+  sha: string,
+  directory: string
+): Promise<void> {
+  const stream = await downloadSources(owner, repo, sha);
+  logger.info(`Extracting sources to ${directory}`);
+  return extractSources(stream, directory);
 }

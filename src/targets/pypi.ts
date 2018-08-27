@@ -43,7 +43,7 @@ export class PypiTarget extends BaseTarget {
   }
 
   /**
-   * Extracts NPM target options from the environment
+   * Extracts PyPI target options from the environment
    */
   public getPypiConfig(): PypiTargetOptions {
     if (!process.env.TWINE_USERNAME || !process.env.TWINE_PASSWORD) {

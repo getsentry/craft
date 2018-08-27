@@ -125,7 +125,8 @@ export class NpmTarget extends BaseTarget {
       args.push(`--access=${packageAccess}`);
     }
 
-    return spawnProcess(NPM_BIN, args, {}, true);
+    // Disable output buffering because NPM can ask us for one-time passwords
+    return spawnProcess(NPM_BIN, args, {}, { showStdout: true });
   }
 
   /**

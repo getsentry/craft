@@ -1,6 +1,9 @@
 import * as Github from '@octokit/rest';
 import { isDryRun } from 'dryrun';
 
+import * as request from 'request';
+import { Duplex, Readable } from 'stream';
+
 import logger from '../logger';
 
 /**
@@ -131,4 +134,38 @@ export async function mergeReleaseBranch(
     }
     throw e;
   }
+}
+
+/**
+ * Downloads the entire repository contents of the tag
+ *
+ * The contents are compressed into a tarball and returned in a buffer that can
+ * be streamed for extraction.
+ *
+ * @param owner Repository owner
+ * @param repo Repository name
+ * @param sha Revision SHA identifier
+ * @returns The tarball data as stream
+ */
+export async function downloadSources(
+  owner: string,
+  repo: string,
+  sha: string
+): Promise<Readable> {
+  logger.info(`Downloading sources for ${owner}/${repo}:${sha}`);
+  // TODO add api token to allow downloading from private repos
+  const url = `https://github.com/${owner}/${repo}/archive/${sha}.tar.gz`;
+
+  return new Promise<Readable>((resolve, reject) => {
+    // tslint:disable-next-line:no-null-keyword
+    request({ url, encoding: null }, (error, _response, body: Buffer) => {
+      if (error) {
+        reject(error);
+      }
+      const stream = new Duplex();
+      stream.push(body);
+      stream.push(null); // tslint:disable-line:no-null-keyword
+      resolve(stream);
+    });
+  });
 }
