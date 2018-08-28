@@ -1,6 +1,8 @@
 import { ZeusStore } from '../../stores/zeus';
 import { CrateDependency, CratePackage, CratesTarget } from '../crates';
 
+jest.mock('../../utils/system');
+
 function cratePackageFactory(name: string): CratePackage {
   return {
     dependencies: [],
