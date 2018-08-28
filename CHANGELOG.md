@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.9
+
+* Add "crates" target for publishing Rust packages
+
 ## 0.4.8
 
 * Fix encoding issue for NPM target

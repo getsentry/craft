@@ -31,6 +31,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Python Package Index (`pypi`)](#python-package-index-pypi)
   - [Homebrew (`brew`)](#homebrew-brew)
   - [NuGet (`nuget`)](#nuget-nuget)
+  - [Rust Crates (`crates`)](#rust-crates-crates)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Development](#development)
@@ -395,6 +396,32 @@ _none_
 ```yaml
 targets:
   - name: nuget
+```
+
+### Rust Crates (`crates`)
+
+Publishes a single Rust package or entire workspace on the public crate registry
+([crates.io](https://crates.io)). If the workspace contains multiple crates,
+they are published in an order depending on their dependencies.
+
+**Environment**
+
+"cargo" must be installed and configured on the system.
+
+| Name              | Description                                       |
+| ----------------- | ------------------------------------------------- |
+| `CRATES_IO_TOKEN` | The access token to the crates.io account         |
+| `CARGO_BIN`       | **optional**. Path to cargo. Defaults to `cargo`. |
+
+**Configuration**
+
+_none_
+
+**Example**
+
+```yaml
+targets:
+  - cargo
 ```
 
 ## Integrating Your Project with `craft`
