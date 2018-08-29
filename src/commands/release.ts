@@ -438,6 +438,12 @@ export const handler = async (argv: ReleaseOptions) => {
     if (argv.publish) {
       await execPublish(newVersion);
     } else {
+      logger.info(
+        `View diff at: https://github.com/${githubConfig.owner}/${
+          githubConfig.repo
+        }/compare/${branchName}`
+      );
+
       logger.success(
         'Done. Do not forget to run "craft publish" to publish the artifacts:',
         `  $ craft publish ${newVersion}`
