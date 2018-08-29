@@ -421,7 +421,7 @@ _none_
 
 ```yaml
 targets:
-  - cargo
+  - crates
 ```
 
 ## Integrating Your Project with `craft`

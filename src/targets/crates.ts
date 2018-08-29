@@ -189,7 +189,7 @@ export class CratesTarget extends BaseTarget {
       crate.manifest_path,
     ];
     return spawnProcess(CARGO_BIN, args, {
-      env: { CARGO_REGISTRY_TOKEN: this.cratesConfig.apiToken },
+      env: { ...process.env, CARGO_REGISTRY_TOKEN: this.cratesConfig.apiToken },
     });
   }
 
@@ -204,15 +204,19 @@ export class CratesTarget extends BaseTarget {
    */
   public async publish(_version: string, revision: string): Promise<any> {
     const githubConfig = getGlobalGithubConfig();
-    await withTempDir(async directory => {
-      await downloadAndExtract(
-        githubConfig.owner,
-        githubConfig.repo,
-        revision,
-        directory
-      );
-      await this.publishWorkspace(directory);
-    });
+    await withTempDir(
+      async directory => {
+        await downloadAndExtract(
+          githubConfig.owner,
+          githubConfig.repo,
+          revision,
+          directory
+        );
+        await this.publishWorkspace(directory);
+      },
+      true,
+      'craft-crates-'
+    );
 
     logger.info('Crates release completed');
   }
