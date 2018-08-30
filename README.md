@@ -77,7 +77,7 @@ properly.
 
   The token only needs "repo" scope.
 
-* `ZEUS_TOKEN`
+* `ZEUS_API_TOKEN`
 
   You can generate your personal Zeus token here: https://zeus.ci/settings/token
 

@@ -70,6 +70,26 @@ export interface PublishOptions {
 }
 
 /**
+ * Checks prerequisites for "publish" command
+ */
+function checkPrerequisites(): void {
+  if (!process.env.ZEUS_TOKEN && !process.env.ZEUS_API_TOKEN) {
+    throw new Error(
+      'ZEUS_API_TOKEN not found in the environment. See the documentation for more details.'
+    );
+  }
+  if (process.env.ZEUS_TOKEN) {
+    logger.warn(
+      'Usage of ZEUS_TOKEN is deprecated, and will be removed in later versions. ' +
+        'Please use ZEUS_API_TOKEN instead.'
+    );
+  } else {
+    // We currently need ZEUS_TOKEN set for zeus-sdk to work properly
+    process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
+  }
+}
+
+/**
  * Checks that the passed version is a valid version string
  *
  * @param argv Parsed yargs arguments
@@ -293,6 +313,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   if (isDryRun()) {
     logger.info('[dry-run] Dry-run mode is on!');
   }
+  checkPrerequisites();
 
   // Get repo configuration
   const config = getConfiguration() || {};
