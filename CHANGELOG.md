@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.10
+
+* Fix PATH issue with "crates" target
+* Add a missing check for `ZEUS_API_TOKEN`
+
 ## 0.4.9
 
 * Add "crates" target for publishing Rust packages
