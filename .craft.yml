@@ -4,5 +4,5 @@ github:
   repo: craft
 changelogPolicy: simple
 targets:
-  - name: github
   - name: npm
+  - name: github

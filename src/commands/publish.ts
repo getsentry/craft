@@ -296,7 +296,7 @@ async function handleReleaseBranch(
         `Deleted ref "${ref}"`,
         `Response status: ${response.status}`
       );
-      logger.info(`Removed the remote branch: ${branchName}`);
+      logger.info(`Removed the remote branch: "${branchName}"`);
     } else {
       logger.info('[dry-run] Not deleting the remote branch');
     }
@@ -322,7 +322,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   const newVersion = argv.newVersion;
 
-  logger.info(`Publishing the version: ${newVersion}`);
+  logger.info(`Publishing the version: "${newVersion}"`);
 
   let revision;
   let branchName;

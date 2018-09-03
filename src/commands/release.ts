@@ -120,7 +120,7 @@ async function createReleaseBranch(
 
   if (shouldPerform()) {
     await git.checkoutLocalBranch(branchName);
-    logger.info(`Created a new release branch: ${branchName}`);
+    logger.info(`Created a new release branch: "${branchName}"`);
   } else {
     logger.info('[dry-run] Not creating a new release branch');
   }
@@ -207,7 +207,7 @@ export async function runPreReleaseCommand(
     args = [DEFAULT_BUMP_VERSION_PATH];
   }
   args = [...args, '', newVersion];
-  logger.info(`Running a pre-release command...`);
+  logger.info(`Running the pre-release command...`);
   const additionalEnv = {
     CRAFT_NEW_VERSION: newVersion,
     CRAFT_OLD_VERSION: '',
