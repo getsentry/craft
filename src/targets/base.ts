@@ -1,5 +1,6 @@
 import { Artifact } from '@zeus-ci/sdk';
 
+import logger from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { FilterOptions, ZeusStore } from '../stores/zeus';
 import { stringToRegexp } from '../utils/filters';
@@ -15,7 +16,7 @@ export class BaseTarget {
   public readonly store: ZeusStore;
   /** Unparsed target configuration */
   public readonly config: TargetConfig;
-  /** Artifact filtering options for this target */
+  /** Artifact filtering options for the target */
   public readonly filterOptions: FilterOptions;
 
   public constructor(config: TargetConfig, store: ZeusStore) {
@@ -56,9 +57,15 @@ export class BaseTarget {
     revision: string,
     defaultFilterOptions: FilterOptions = {}
   ): Promise<Artifact[]> {
-    return this.store.filterArtifactsForRevision(revision, {
-      ...this.filterOptions,
+    const filterOptions = {
       ...defaultFilterOptions,
-    });
+      ...this.filterOptions,
+    };
+    logger.debug(
+      `Getting artifact list for revision "${revision}", filtering options: {includeNames: ${
+        filterOptions.includeNames
+      }, excludeNames:${filterOptions.excludeNames}}`
+    );
+    return this.store.filterArtifactsForRevision(revision, filterOptions);
   }
 }

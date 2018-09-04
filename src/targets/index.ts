@@ -1,6 +1,7 @@
 import { BaseTarget } from './base';
 import { BrewTarget } from './brew';
 import { CratesTarget } from './crates';
+import { GcsTarget } from './gcs';
 import { GithubTarget } from './github';
 import { NpmTarget } from './npm';
 import { NugetTarget } from './nuget';
@@ -9,6 +10,7 @@ import { PypiTarget } from './pypi';
 export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   brew: BrewTarget,
   crates: CratesTarget,
+  gcs: GcsTarget,
   github: GithubTarget,
   npm: NpmTarget,
   nuget: NugetTarget,
