@@ -32,6 +32,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Homebrew (`brew`)](#homebrew-brew)
   - [NuGet (`nuget`)](#nuget-nuget)
   - [Rust Crates (`crates`)](#rust-crates-crates)
+  - [Google Cloud Storage (`gcs`)](#google-cloud-storage-gcs)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Development](#development)
@@ -421,8 +422,50 @@ _none_
 
 ```yaml
 targets:
-  - crates
+  - name: crates
 ```
+
+### Google Cloud Storage (`gcs`)
+
+Uploads artifacts to a bucket in Google Cloud Storage.
+
+As with other targets, you can use `includeNames` and `excludeNames` parameters
+to limit the files that are uploaded by the target. By default, all files are
+uploaded.
+
+The bucket paths (`paths`) can be interpolated with `${ variable }`. The interpolation
+context contains the following variables:
+
+* `version`: The new project version
+* `ref`: The SHA revision of the new version
+
+**Environment**
+
+| Name                         | Description                                                              |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| `CRAFT_GCS_CREDENTIALS_PATH` | Local filesystem path to Google Cloud credentials (service account file) |
+
+**Configuration**
+
+| Option        | Description                                                |
+| ------------- | ---------------------------------------------------------- |
+| `bucket`      | The name of the GCS bucket where artifacts are uploaded    |
+| `paths`       | A string or a list of strings that represent bucket paths. |
+| `maxCacheAge` | Name of the formula. Defaults to the repository name       |
+
+**Example**
+
+```yaml
+targets:
+  - name: gcs
+    bucket: bucket-name
+    paths:
+      - release/${version}/download
+      - release/${ref}/platform/package
+    includeNames: /^*.js$/
+    maxCacheAge: 90
+```
+
 
 ## Integrating Your Project with `craft`
 

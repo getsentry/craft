@@ -26,8 +26,19 @@ export interface GcsTargetConfig extends TargetConfig {
   maxCacheAge: number;
 }
 
+/**
+ * Bucket object used in "@google-cloud/storage"
+ */
 interface BucketObject {
   upload(filePath: string, options: any): Promise<void>;
+}
+
+/**
+ * Upload options for "@google-cloud/storage"
+ */
+interface GcsUploadOptions {
+  gzip: boolean;
+  metadata: any;
 }
 
 /**
@@ -44,6 +55,9 @@ export class GcsTarget extends BaseTarget {
     this.gcsConfig = this.getGcsConfig();
   }
 
+  /**
+   * Parses and checks configuration for the "gcs" target
+   */
   protected getGcsConfig(): GcsTargetConfig {
     const gcsConfigPath = process.env.CRAFT_GCS_CREDENTIALS_PATH || '';
     if (!gcsConfigPath) {
@@ -101,9 +115,19 @@ export class GcsTarget extends BaseTarget {
     };
   }
 
+  /**
+   * Returns a list of interpolated bucket paths
+   *
+   * Before processing, the paths are stored as templates where variables such
+   * as "version" and "ref" can be replaced.
+   *
+   * @param version The new version
+   * @param revision The SHA revision of the new version
+   */
   private getRealBucketPaths(version: string, revision: string): string[] {
     return this.gcsConfig.bucketPaths.map(templatePath => {
       // FIXME: security issues, implement safeTemplate
+      // TODO: unify template variables with "brew" role
       let realPath = _.template(templatePath.trim())({
         ref: revision,
         version,
@@ -116,11 +140,19 @@ export class GcsTarget extends BaseTarget {
     });
   }
 
+  /**
+   * Uploads the provided artifact to the specified GCS bucket
+   *
+   * @param artifact Artifact to upload
+   * @param bucketPath Path to upload to
+   * @param bucketObj Object representing a GCS bucket
+   * @param uploadOptions GCS upload options
+   */
   private async uploadArtifact(
     artifact: Artifact,
     bucketPath: string,
     bucketObj: BucketObject,
-    uploadOptions: object
+    uploadOptions: GcsUploadOptions
   ): Promise<void> {
     const filePath = await this.store.downloadArtifact(artifact);
     const destination = path.join(bucketPath, path.basename(filePath));
@@ -157,7 +189,7 @@ export class GcsTarget extends BaseTarget {
     });
 
     const bucketObj: BucketObject = storage.bucket(bucket);
-    const uploadOptions = {
+    const uploadOptions: GcsUploadOptions = {
       gzip: true,
       metadata: {
         cacheControl: `public, max-age=${this.gcsConfig.maxCacheAge}`,
