@@ -6,6 +6,7 @@ import * as path from 'path';
 import * as split from 'split';
 import { Readable } from 'stream';
 import * as tar from 'tar';
+import * as unzipper from 'unzipper';
 
 import logger from '../logger';
 import { reportError } from './errors';
@@ -267,7 +268,7 @@ export function checkExecutableIsPresent(name: string): void {
  * @returns A promise that resolves when the tarball has been extracted
  * @async
  */
-export async function extractSources(
+export async function extractSourcesFromTarStream(
   stream: Readable,
   dir: string
 ): Promise<void> {
@@ -275,6 +276,32 @@ export async function extractSources(
     try {
       stream
         .pipe(tar.extract({ strip: 1, cwd: dir }))
+        .on('error', reject)
+        .on('finish', () => {
+          setTimeout(resolve, 100);
+        });
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+/**
+ * Extracts a ZIP archive in the specified directory
+ *
+ * @param filePath An archive path
+ * @param dir Path to the directory to extract in
+ * @returns A promise that resolves when the tarball has been extracted
+ * @async
+ */
+export async function extractZipArchive(
+  filePath: string,
+  dir: string
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    try {
+      fs.createReadStream(filePath)
+        .pipe(unzipper.Extract({ strip: 1, path: dir }))
         .on('error', reject)
         .on('finish', () => {
           setTimeout(resolve, 100);
@@ -303,5 +330,5 @@ export async function downloadAndExtract(
 ): Promise<void> {
   const stream = await downloadSources(owner, repo, sha);
   logger.info(`Extracting sources to ${directory}`);
-  return extractSources(stream, directory);
+  return extractSourcesFromTarStream(stream, directory);
 }

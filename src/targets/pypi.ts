@@ -19,7 +19,7 @@ const TWINE_BIN = process.env.TWINE_BIN || DEFAULT_TWINE_BIN;
 /**
  * RegExp for Python packages
  */
-const DEFAULT_PYPI_REGEX = /(\.whl|\.gz|\.zip)$/;
+const DEFAULT_PYPI_REGEX = /^(.*\.whl|.*\.gz|(?!(?:.+-)?gh-pages\.zip).*\.zip)$/;
 
 /** Options for "pypi" target */
 export interface PypiTargetOptions extends TargetConfig {
@@ -85,7 +85,7 @@ export class PypiTarget extends BaseTarget {
     });
 
     if (!packageFiles.length) {
-      reportError('Skipping PyPI release: no packages found');
+      reportError('Cannot release to PyPI: no packages found');
       return undefined;
     }
 
