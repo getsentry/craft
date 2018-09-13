@@ -33,6 +33,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [NuGet (`nuget`)](#nuget-nuget)
   - [Rust Crates (`crates`)](#rust-crates-crates)
   - [Google Cloud Storage (`gcs`)](#google-cloud-storage-gcs)
+  - [GitHub Pages (`gh-pages`)](#github-pages-gh-pages)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Development](#development)
@@ -464,6 +465,41 @@ targets:
       - release/${ref}/platform/package
     includeNames: /^*.js$/
     maxCacheAge: 90
+```
+
+### GitHub Pages (`gh-pages`)
+
+Extracts an archive with static assets and pushes them to the specified git
+branch (`gh-pages` by default). Thus, it can be used to publish documentation
+or any other assets to [GitHub Pages](https://pages.github.com/), so they will be later automatically rendered
+by GitHub.
+
+By default, this target will look for an artifact named `gh-pages.zip`, extract it,
+and commit its contents to `gh-pages` branch.
+
+_WARNING!_ The destination branch will be completely overwritten by the contents
+of the archive.
+
+**Environment**
+
+_none_
+
+**Configuration**
+
+| Option        | Description                                                                             |
+| ------------- | --------------------------------------------------------------------------------------- |
+| `branch`      | **optional** The name of the branch to push the changes to. `gh-pages` by default.      |
+| `githubOwner` | **optional** GitHub project owner, defaults to the value from the global configuration. |
+| `githubRepo`  | **optional** GitHub project name, defaults to the value from the global configuration.  |
+
+
+**Example**
+
+```yaml
+targets:
+  - name: gh-pages
+    branch: gh-pages
+
 ```
 
 
