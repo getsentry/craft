@@ -6,3 +6,4 @@ changelogPolicy: simple
 targets:
   - name: npm
   - name: github
+  - name: gh-pages

@@ -198,8 +198,8 @@ export class GhPagesTarget extends BaseTarget {
       includeNames: DEFAULT_DEPLOY_ARCHIVE_REGEX,
     });
     if (!packageFiles.length) {
-      // reportError('Cannot release to GH-pages: no artifacts found');
-      // return undefined;
+      reportError('Cannot release to GH-pages: no artifacts found');
+      return undefined;
     } else if (packageFiles.length > 1) {
       reportError(
         `Not implemented: more than one gh-pages archive found\nDetails: ${JSON.stringify(
@@ -208,8 +208,7 @@ export class GhPagesTarget extends BaseTarget {
       );
       return undefined;
     }
-    // const archivePath = await this.store.downloadArtifact(packageFiles[0]);
-    const archivePath = '/Users/anton/reps/craft/tmp/gh-pages.zip';
+    const archivePath = await this.store.downloadArtifact(packageFiles[0]);
 
     const userData = await this.github.users.get({});
     const username = (userData.data || {}).login;
@@ -227,7 +226,7 @@ export class GhPagesTarget extends BaseTarget {
     await withTempDir(
       async directory =>
         this.commitArchiveToBranch(directory, remote, branch, archivePath),
-      false,
+      true,
       'craft-gh-pages-'
     );
 

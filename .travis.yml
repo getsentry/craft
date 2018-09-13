@@ -23,6 +23,11 @@ matrix:
         - npm pack
         - npm install -g @zeus-ci/cli
         - zeus upload -t "application/tar+npm" *.tgz
+    - name: Bundle docs
+      script:
+        - cd docs && zip -r gh-pages _site/
+        - npm install -g @zeus-ci/cli
+        - zeus upload gh-pages.zip
 
 notifications:
   webhooks:
