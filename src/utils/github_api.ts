@@ -7,22 +7,87 @@ import { Duplex, Readable } from 'stream';
 import logger from '../logger';
 
 /**
- * Get an authenticated Github client object
+ * Abstraction for GitHub remotes
+ */
+export class GithubRemote {
+  /** GitHub owner */
+  public owner: string;
+  /** GitHub repository name */
+  public repo: string;
+  /** GitHub username */
+  public username?: string;
+  /** GitHub personal authentication token */
+  public apiToken?: string;
+  /** GitHub hostname */
+  private readonly GITHUB_HOSTNAME: string = 'github.com';
+  /** Protocol prefix */
+  private readonly PROTOCOL_PREFIX: string = 'https://';
+  /** Url in the form of /OWNER/REPO/ */
+  private readonly url: string;
+
+  public constructor(
+    owner: string,
+    repo: string,
+    username?: string,
+    apiToken?: string
+  ) {
+    this.owner = owner;
+    this.repo = repo;
+    if (username && apiToken) {
+      this.username = username;
+      this.apiToken = apiToken;
+    }
+    this.url = `/${this.owner}/${this.repo}/`;
+  }
+
+  /**
+   * Returns an HTTP-based git remote
+   *
+   * It is guaranteed not to contain any sensitive information (e.g. API tokens)
+   */
+  public getRemoteString(): string {
+    return this.PROTOCOL_PREFIX + this.GITHUB_HOSTNAME + this.url;
+  }
+
+  /**
+   * Returns an HTTP-based git remote with embedded HTTP basic auth
+   *
+   * It MAY contain sensitive information (e.g. API tokens)
+   */
+  public getRemoteStringWithAuth(): string {
+    const authData =
+      this.username && this.apiToken
+        ? `${this.username}:${this.apiToken}@`
+        : '';
+    return this.PROTOCOL_PREFIX + authData + this.GITHUB_HOSTNAME + this.url;
+  }
+}
+
+/**
+ * Gets GitHub API token from environment
+ *
+ * @returns Github authentication token if found
+ */
+export function getGithubApiToken(): string {
+  const githubApiToken = process.env.GITHUB_API_TOKEN;
+  if (!githubApiToken) {
+    throw new Error(
+      'GitHub target: GITHUB_API_TOKEN not found in the environment'
+    );
+  }
+  return githubApiToken;
+}
+
+/**
+ * Gets an authenticated Github client object
  *
  * The authentication token is taken from the environment, if not provided.
  *
  * @param token Github authentication token
+ * @returns Github object
  */
 export function getGithubClient(token: string = ''): Github {
-  let githubApiToken = token;
-  if (!githubApiToken) {
-    githubApiToken = process.env.GITHUB_API_TOKEN || '';
-    if (!githubApiToken) {
-      throw new Error(
-        'GitHub target: GITHUB_API_TOKEN not found in the environment'
-      );
-    }
-  }
+  const githubApiToken = token || getGithubApiToken();
   const github = new Github();
   github.authenticate({ token: githubApiToken, type: 'token' });
   return github;

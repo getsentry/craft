@@ -143,6 +143,7 @@ export class NpmTarget extends BaseTarget {
 
     if (!packageFiles.length) {
       reportError('Cannot release to NPM: no packages found!');
+      return undefined;
     }
 
     await Promise.all(

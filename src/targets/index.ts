@@ -2,6 +2,7 @@ import { BaseTarget } from './base';
 import { BrewTarget } from './brew';
 import { CratesTarget } from './crates';
 import { GcsTarget } from './gcs';
+import { GhPagesTarget } from './gh-pages';
 import { GithubTarget } from './github';
 import { NpmTarget } from './npm';
 import { NugetTarget } from './nuget';
@@ -11,6 +12,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   brew: BrewTarget,
   crates: CratesTarget,
   gcs: GcsTarget,
+  'gh-pages': GhPagesTarget,
   github: GithubTarget,
   npm: NpmTarget,
   nuget: NugetTarget,
