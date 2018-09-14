@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.11
+
+* Add GitHub Pages ("gh-pages") target
+* Add Google Cloud Storage ("gcs") target
+* Add update notifier
+
 ## 0.4.10
 
 * Fix PATH issue with "crates" target
