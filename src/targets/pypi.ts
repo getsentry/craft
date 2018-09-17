@@ -19,7 +19,7 @@ const TWINE_BIN = process.env.TWINE_BIN || DEFAULT_TWINE_BIN;
 /**
  * RegExp for Python packages
  */
-const DEFAULT_PYPI_REGEX = /^(.*\.whl|.*\.gz|(?!(?:.+-)?gh-pages\.zip).*\.zip)$/;
+const DEFAULT_PYPI_REGEX = /^.*\d\.\d.*(\.whl|\.gz|\.zip)$/;
 
 /** Options for "pypi" target */
 export interface PypiTargetOptions extends TargetConfig {

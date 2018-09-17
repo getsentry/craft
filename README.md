@@ -17,6 +17,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
 
 - [Installation](#installation)
 - [Usage](#usage)
+- [Caveats](#caveats)
 - [Global Configuration](#global-configuration)
   - [`craft release`: Preparing a New Release](#craft-release-preparing-a-new-release)
   - [`craft publish`: Publishing the Release](#craft-publish-publishing-the-release)
@@ -67,6 +68,11 @@ Options:
   -v, --version  Show version number                                                [boolean]
   -h, --help     Show help                                                          [boolean]
 ```
+
+## Caveats
+
+- When interacting with remote GitHub repositories, `craft` currently considers
+  only one `git` remote: "origin"
 
 ## Global Configuration
 
