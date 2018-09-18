@@ -11,19 +11,19 @@ import logger from '../logger';
  */
 export class GithubRemote {
   /** GitHub owner */
-  public owner: string;
+  public readonly owner: string;
   /** GitHub repository name */
-  public repo: string;
+  public readonly repo: string;
   /** GitHub username */
-  public username?: string;
+  protected username?: string;
   /** GitHub personal authentication token */
-  public apiToken?: string;
+  protected apiToken?: string;
   /** GitHub hostname */
-  private readonly GITHUB_HOSTNAME: string = 'github.com';
+  protected readonly GITHUB_HOSTNAME: string = 'github.com';
   /** Protocol prefix */
-  private readonly PROTOCOL_PREFIX: string = 'https://';
+  protected readonly PROTOCOL_PREFIX: string = 'https://';
   /** Url in the form of /OWNER/REPO/ */
-  private readonly url: string;
+  protected readonly url: string;
 
   public constructor(
     owner: string,
@@ -34,10 +34,14 @@ export class GithubRemote {
     this.owner = owner;
     this.repo = repo;
     if (username && apiToken) {
-      this.username = username;
-      this.apiToken = apiToken;
+      this.setAuth(username, apiToken);
     }
     this.url = `/${this.owner}/${this.repo}/`;
+  }
+
+  public setAuth(username: string, apiToken: string): void {
+    this.username = username;
+    this.apiToken = apiToken;
   }
 
   /**
@@ -91,6 +95,15 @@ export function getGithubClient(token: string = ''): Github {
   const github = new Github();
   github.authenticate({ token: githubApiToken, type: 'token' });
   return github;
+}
+
+export async function getAuthUsername(github: Github): Promise<string> {
+  const userData = await github.users.get({});
+  const username = (userData.data || {}).login;
+  if (!username) {
+    throw new Error('Cannot reliably detect Github username, aborting');
+  }
+  return username;
 }
 
 /**

@@ -16,6 +16,7 @@ import {
   getGithubApiToken,
   getGithubClient,
   GithubRemote,
+  getAuthUsername,
 } from '../utils/github_api';
 import { extractZipArchive } from '../utils/system';
 import { BaseTarget } from './base';
@@ -57,7 +58,7 @@ export class GhPagesTarget extends BaseTarget {
   }
 
   /**
-   * Extracts Brew target options from the raw configuration
+   * Extracts "gh-pages" target options from the raw configuration
    */
   public getGhPagesConfig(): GhPagesConfig {
     let githubOwner;
@@ -210,11 +211,7 @@ export class GhPagesTarget extends BaseTarget {
     }
     const archivePath = await this.store.downloadArtifact(packageFiles[0]);
 
-    const userData = await this.github.users.get({});
-    const username = (userData.data || {}).login;
-    if (!username) {
-      throw new Error('Cannot reliably detect Github username, aborting');
-    }
+    const username = await getAuthUsername(this.github);
 
     const remote = new GithubRemote(
       githubOwner,

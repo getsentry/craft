@@ -26,7 +26,7 @@ const NPM_MIN_MINOR = 5;
 export const NPM_REGISTRY = '--registry=https://registry.npmjs.org/';
 
 /** A regular expression used to find the package tarball */
-const DEFAULT_PACKAGE_REGEX = /^.*\.tgz$/;
+const DEFAULT_PACKAGE_REGEX = /^.*\d\.\d.*\.tgz$/;
 
 /** Access specifiers for NPM packages. See npm-publish doc for more info */
 export enum NpmPackageAccess {

@@ -16,7 +16,7 @@ export const NUGET_DOTNET_BIN = process.env.NUGET_DOTNET_BIN || 'dotnet';
 export const DEFAULT_NUGET_SERVER_URL = 'https://api.nuget.org/v3/index.json';
 
 /** A regular expression used to find the package tarball */
-const DEFAULT_NUGET_REGEX = /^.*\.nupkg$/;
+const DEFAULT_NUGET_REGEX = /^.*\d\.\d.*\.nupkg$/;
 
 /** Nuget target configuration options */
 export interface NugetTargetOptions extends TargetConfig {

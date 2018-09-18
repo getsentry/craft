@@ -7,6 +7,7 @@ import { GithubTarget } from './github';
 import { NpmTarget } from './npm';
 import { NugetTarget } from './nuget';
 import { PypiTarget } from './pypi';
+import { RegistryTarget } from './registry';
 
 export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   brew: BrewTarget,
@@ -17,6 +18,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   npm: NpmTarget,
   nuget: NugetTarget,
   pypi: PypiTarget,
+  registry: RegistryTarget,
 };
 
 /**
