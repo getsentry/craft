@@ -4,13 +4,13 @@ import * as path from 'path';
 import * as googleStorage from '@google-cloud/storage';
 import { Artifact } from '@zeus-ci/sdk';
 import { shouldPerform } from 'dryrun';
-import * as _ from 'lodash';
 
 import loggerRaw from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { forEachChained } from '../utils/async';
 import { reportError } from '../utils/errors';
+import { renderTemplateSafe } from '../utils/strings';
 import { BaseTarget } from './base';
 
 const logger = loggerRaw.withScope('[gcs]');
@@ -125,10 +125,9 @@ export class GcsTarget extends BaseTarget {
    * @param revision The SHA revision of the new version
    */
   private getRealBucketPaths(version: string, revision: string): string[] {
-    return this.gcsConfig.bucketPaths.map(templatePath => {
-      // FIXME: security issues, implement safeTemplate
+    return this.gcsConfig.bucketPaths.map(templatedPath => {
       // TODO: unify template variables with "brew" role
-      let realPath = _.template(templatePath.trim())({
+      let realPath = renderTemplateSafe(templatedPath.trim(), {
         ref: revision,
         version,
       });

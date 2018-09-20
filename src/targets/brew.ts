@@ -9,6 +9,7 @@ import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { promiseProps } from '../utils/async';
 import { getGithubClient } from '../utils/github_api';
+import { renderTemplateSafe } from '../utils/strings';
 import { calculateChecksum } from '../utils/system';
 import { BaseTarget } from './base';
 
@@ -149,7 +150,7 @@ export class BrewTarget extends BaseTarget {
       calculateChecksum(filePath)
     );
     const checksums = await promiseProps(promises);
-    const data = _.template(template)({
+    const data = renderTemplateSafe(template, {
       checksums,
       ref: version,
       sha: revision,
