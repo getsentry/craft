@@ -126,9 +126,17 @@ export class RegistryTarget extends BaseTarget {
     this.forceSymlink(baseVersionName, path.join(packageDir, minorVersionLink));
   }
 
-  public getPackagePath(repoDir: string, canonical: string): string {
+  public getSdkPackagePath(repoDir: string, canonical: string): string {
     const packageDirs = parseCanonical(canonical);
     return [repoDir, 'packages'].concat(packageDirs).join(path.sep);
+  }
+
+  public getAppPackagePath(repoDir: string, canonical: string): string {
+    const packageDirs = parseCanonical(canonical);
+    if (packageDirs[0] !== 'app') {
+      throw new Error(`Invalid canonical entry for an app: ${canonical}`);
+    }
+    return [repoDir, 'apps'].concat(packageDirs.slice(1)).join(path.sep);
   }
 
   public async addVersionToRegistry(
@@ -148,15 +156,40 @@ export class RegistryTarget extends BaseTarget {
       );
     }
 
-    const packagePath = this.getPackagePath(directory, canonical);
-    const packageManifestPath = path.join(packagePath, 'latest.json');
+    let packageDirPath;
+    if (this.registryConfig.type === RegistryPackageType.SDK) {
+      packageDirPath = this.getSdkPackagePath(directory, canonical);
+    } else if (this.registryConfig.type === RegistryPackageType.APP) {
+      packageDirPath = this.getAppPackagePath(directory, canonical);
+    } else {
+      throw new Error(
+        `Unknown registry package type: ${this.registryConfig.type}`
+      );
+    }
+
+    const packageManifestPath = path.join(packageDirPath, 'latest.json');
     logger.debug('Reading the current configuration from "latest.json"...');
     const packageManifest =
       JSON.parse(fs.readFileSync(packageManifestPath).toString()) || {};
 
-    const updatedManifest = { ...packageManifest, version };
-    const versionFilePath = path.join(packagePath, `${version}.json`);
+    // Additional check
+    if (canonical !== packageManifest.canonical) {
+      throw new Error(
+        'Inconsistent canonical names found: check craft configuration and/or the release registry'
+      );
+    }
 
+    // Update the manifest
+
+    let updatedManifest: object;
+    if (this.registryConfig.type === RegistryPackageType.SDK) {
+      updatedManifest = { ...packageManifest, version };
+    } else {
+      const fileUrls = {};
+      updatedManifest = { ...packageManifest, file_urls: fileUrls };
+    }
+
+    const versionFilePath = path.join(packageDirPath, `${version}.json`);
     if (fs.existsSync(versionFilePath)) {
       throw new Error(
         `Version file for "${version}" already exists. Aborting.`
