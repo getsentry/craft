@@ -126,9 +126,9 @@ export class GcsTarget extends BaseTarget {
    */
   private getRealBucketPaths(version: string, revision: string): string[] {
     return this.gcsConfig.bucketPaths.map(templatedPath => {
-      // TODO: unify template variables with "brew" role
+      // TODO unify with brew template arguments
       let realPath = renderTemplateSafe(templatedPath.trim(), {
-        ref: revision,
+        revision,
         version,
       });
       if (realPath[0] !== '/') {

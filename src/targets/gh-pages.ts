@@ -13,10 +13,10 @@ import { ZeusStore } from '../stores/zeus';
 import { reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
+  getAuthUsername,
   getGithubApiToken,
   getGithubClient,
   GithubRemote,
-  getAuthUsername,
 } from '../utils/github_api';
 import { extractZipArchive } from '../utils/system';
 import { BaseTarget } from './base';

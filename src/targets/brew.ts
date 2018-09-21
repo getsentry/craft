@@ -127,6 +127,9 @@ export class BrewTarget extends BaseTarget {
 
   /**
    * Pushes a new formula to a homebrew tap
+   *
+   * @param version The new version
+   * @param revision The SHA revision of the new version
    */
   public async publish(version: string, revision: string): Promise<any> {
     const { formula, path, template, tapRepo } = this.brewConfig;
@@ -152,8 +155,8 @@ export class BrewTarget extends BaseTarget {
     const checksums = await promiseProps(promises);
     const data = renderTemplateSafe(template, {
       checksums,
-      ref: version,
-      sha: revision,
+      revision,
+      version,
     });
     logger.debug(`Homebrew formula for ${formulaName}:\n${data}`);
 

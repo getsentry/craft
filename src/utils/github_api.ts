@@ -39,6 +39,12 @@ export class GithubRemote {
     this.url = `/${this.owner}/${this.repo}/`;
   }
 
+  /**
+   * Sets authentication arguments: username and personal API token
+   *
+   * @param username GitHub username
+   * @param apiToken GitHub API token
+   */
   public setAuth(username: string, apiToken: string): void {
     this.username = username;
     this.apiToken = apiToken;
@@ -88,7 +94,7 @@ export function getGithubApiToken(): string {
  * The authentication token is taken from the environment, if not provided.
  *
  * @param token Github authentication token
- * @returns Github object
+ * @returns Github client
  */
 export function getGithubClient(token: string = ''): Github {
   const githubApiToken = token || getGithubApiToken();
@@ -97,6 +103,12 @@ export function getGithubClient(token: string = ''): Github {
   return github;
 }
 
+/**
+ * Gets the currently authenticated GitHub user from the client
+ *
+ * @param github Github client
+ * @returns Github username
+ */
 export async function getAuthUsername(github: Github): Promise<string> {
   const userData = await github.users.get({});
   const username = (userData.data || {}).login;
