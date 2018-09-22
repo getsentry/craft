@@ -55,9 +55,8 @@ export class GithubTarget extends BaseTarget {
       ...getGlobalGithubConfig(),
       changelog: getConfiguration().changelog,
       previewReleases:
-        this.config.previewReleases === undefined
-          ? true
-          : this.config.previewReleases,
+        this.config.previewReleases === undefined ||
+        !!this.config.previewReleases,
       tagPrefix: this.config.tagPrefix || '',
     };
     this.github = getGithubClient();

@@ -35,6 +35,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Rust Crates (`crates`)](#rust-crates-crates)
   - [Google Cloud Storage (`gcs`)](#google-cloud-storage-gcs)
   - [GitHub Pages (`gh-pages`)](#github-pages-gh-pages)
+  - [Sentry Release Registry (`registry`)](#sentry-release-registry-registry)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Development](#development)
@@ -508,6 +509,48 @@ targets:
 
 ```
 
+### Sentry Release Registry (`registry`)
+
+The target will update the Sentry release registry repo(https://github.com/getsentry/sentry-release-registry/) with the latest version of the
+project `craft` is used with. The release registry repository will be checked out
+locally, and then the new version file will be created there, along with the necessary
+symbolic links.
+
+Two package types are supported: "sdk" and "app". Type "sdk" means that the package
+is uploaded to one of the public registries (PyPI, NPM, Nuget, etc.), and that
+the corresponding package directory can be found inside "packages" directory of the
+release regsitry. Type "app" indicates that the package's version files are located
+in "apps" directory of the registry.
+
+**Environment**
+
+_none_
+
+**Configuration**
+
+| Option             | Description                                                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `type`             | Type of the package: can be "sdk" or "app".                                                                   |
+| `config.canonical` | Canonical name of the package that includes package registry name (e.g. NPM, PyPI) and the full package name. |
+| `urlTemplate`      | **optional** URL template that will be used to generate download links for "app" package type.                |
+| `linkPrereleases`  | **optional** Update package versions even if the release is a preview release, "false" by default.            |
+
+
+**Example**
+
+```yaml
+targets:
+  - name: registry
+    type: sdk
+    config:
+      canonical: "npm:@sentry/browser"
+
+  - name: registry
+    type: app
+    urlTemplate: "https://example.com/{version}/{file}"
+    config:
+      canonical: "npm:@sentry/browser"
+```
 
 ## Integrating Your Project with `craft`
 
