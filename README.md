@@ -26,7 +26,8 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [GitHub project](#github-project)
   - [Pre-release Command](#pre-release-command)
   - [Changelog Policies](#changelog-policies)
-- [Target Configuration](#target-configuration)
+- [Target Configurations](#target-configurations)
+  - [Per-target options](#per-target-options)
   - [GitHub (`github`)](#github-github)
   - [NPM (`npm`)](#npm-npm)
   - [Python Package Index (`pypi`)](#python-package-index-pypi)
@@ -227,7 +228,7 @@ changelogPolicy: simple
 Additionally, `.craft.yml` is used for listing targets where you want to
 publish your new release.
 
-## Target Configuration
+## Target Configurations
 
 The configuration specifies which release targets to run for the repository. To
 run more targets, list the target identifiers under the `targets` key in
@@ -241,6 +242,24 @@ targets:
   - name: npm
 ```
 
+### Per-target options
+
+The following options can be applied to every target individually:
+
+| Name           | Description                                                                                                                                                |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `includeNames` | **optional**. Regular expression: only matched files will be processed by the target.                                                                      |
+| `excludeNames` | **optional**. Regular expression: the matched files will be skipped by the target. Matching is performed after testing for inclusion (via `includeNames`). |
+
+**Example:**
+
+```yaml
+targets:
+  - name: github
+    includeNames: /^.*\.exe$/
+    excludeNames: /^test.exe$/
+```
+
 ### GitHub (`github`)
 
 Create a release on Github. If a Markdown changelog is present in the
@@ -251,7 +270,7 @@ changelog. Otherwise, defaults to the tag name and tag's commit message.
 
 | Name               | Description                                                        |
 | ------------------ | ------------------------------------------------------------------ |
-| `GITHUB_API_TOKEN` | Personal GitHub API token (seeh ttps://github.com/settings/tokens) |
+| `GITHUB_API_TOKEN` | Personal GitHub API token (see https://github.com/settings/tokens) |
 
 **Configuration**
 
@@ -336,13 +355,13 @@ the `brew` utility. A tap `<org>/<name>` will expand to the GitHub repository
 `github.com:<org>/homebrew-<name>`.
 
 The formula contents are given as configuration value and can be interpolated
-with `${ variable }`. The interpolation context contains the following
-variables:
+with Mustache template syntax (`{{ variable }}`). The interpolation context
+contains the following variables:
 
-* `ref`: The tag's reference name. Usually the version number
-* `sha`: The tag's commit SHA
+* `version`: The new version
+* `revision`: The tag's commit SHA
 * `checksums`: A map containing sha256 checksums for every release asset. Use
-  the full filename to access the sha, e.g. `checksums['MyProgram.exe']`
+  the full filename to access the sha, e.g. `checksums.MyProgram-x86`
 
 **Environment**
 
@@ -371,9 +390,9 @@ targets:
       class MyProject < Formula
         desc "This is a test for homebrew formulae"
         homepage "https://github.com/octocat/my-project"
-        url "https://github.com/octocat/my-project/releases/download/${ref}/binary-darwin"
-        version "${ref}"
-        sha256 "${checksums['binary-darwin']}"
+        url "https://github.com/octocat/my-project/releases/download/{{version}}/binary-darwin"
+        version "{{version}}"
+        sha256 "{{checksums.binary-darwin}}"
 
         def install
           mv "binary-darwin", "myproject"
@@ -437,15 +456,10 @@ targets:
 
 Uploads artifacts to a bucket in Google Cloud Storage.
 
-As with other targets, you can use `includeNames` and `excludeNames` parameters
-to limit the files that are uploaded by the target. By default, all files are
-uploaded.
-
-The bucket paths (`paths`) can be interpolated with `${ variable }`. The interpolation
-context contains the following variables:
+The bucket paths (`paths`) can be interpolated using Mustache syntax (`{{ variable }}`). The interpolation context contains the following variables:
 
 * `version`: The new project version
-* `ref`: The SHA revision of the new version
+* `revision`: The SHA revision of the new version
 
 **Environment**
 
@@ -468,9 +482,8 @@ targets:
   - name: gcs
     bucket: bucket-name
     paths:
-      - release/${version}/download
-      - release/${ref}/platform/package
-    includeNames: /^*.js$/
+      - release/{{version}}/download
+      - release/{{ref}}/platform/package
     maxCacheAge: 90
 ```
 

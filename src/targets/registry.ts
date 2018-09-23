@@ -10,6 +10,7 @@ import { getGlobalGithubConfig } from '../config';
 import loggerRaw from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
+import { reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
   getAuthUsername,
@@ -78,7 +79,13 @@ export class RegistryTarget extends BaseTarget {
       throw new Error(`Invalid registry type specified: "${registryType}"`);
     }
 
-    const urlTemplate = this.config.urlTemplate;
+    let urlTemplate;
+    if (registryType === RegistryPackageType.APP) {
+      urlTemplate = this.config.urlTemplate;
+      if (!urlTemplate) {
+        throw new Error(`Invalid "urlTemplate" specified: ${urlTemplate}`);
+      }
+    }
 
     const releaseConfig = this.config.config;
     if (!releaseConfig) {
@@ -192,6 +199,47 @@ export class RegistryTarget extends BaseTarget {
   }
 
   /**
+   * Adds file URLs to the manifest
+   *
+   * URL template is taken from "urlTemplate" configuration argument
+   *
+   * @param manifest Package manifest
+   * @param version The new version
+   * @param revision Git commit SHA to be published
+   */
+  public async addFileLinks(
+    manifest: any,
+    version: string,
+    revision: string
+  ): Promise<void> {
+    if (!this.registryConfig.urlTemplate) {
+      throw new Error('No "urlTemplate" found in the config');
+    }
+
+    const artifacts = await this.getArtifactsForRevision(revision);
+    if (artifacts.length === 0) {
+      logger.warn('No artifacts found, not adding any links to the manifest');
+      return;
+    }
+
+    const fileUrls: { [_: string]: string } = {};
+    for (const artifact of artifacts) {
+      fileUrls[artifact.name] = renderTemplateSafe(
+        this.registryConfig.urlTemplate,
+        {
+          file: artifact.name,
+          revision,
+          version,
+        }
+      );
+    }
+    logger.debug(
+      `Writing file urls to the manifest, files found: ${artifacts.length}`
+    );
+    manifest.file_urls = fileUrls;
+  }
+
+  /**
    * Updates the local copy of the release registry
    *
    * @param packageManifest The package's manifest object
@@ -207,35 +255,17 @@ export class RegistryTarget extends BaseTarget {
   ): Promise<any> {
     // Additional check
     if (canonical !== packageManifest.canonical) {
-      throw new Error(
-        'Inconsistent canonical names found: check craft configuration and/or the release registry'
+      reportError(
+        `Canonical name in "craft" config ("${canonical}") is inconsistent with ` +
+          `the one in package manifest ("${packageManifest.canonical}")`
       );
     }
     // Update the manifest
     const updatedManifest = { ...packageManifest, version };
-    // Add the file links if it's a generic app
-    if (
-      this.registryConfig.type === RegistryPackageType.APP &&
-      this.registryConfig.urlTemplate
-    ) {
-      const artifacts = await this.getArtifactsForRevision(revision);
-      const fileUrls: { [_: string]: string } = {};
-      for (const artifact of artifacts) {
-        fileUrls[artifact.name] = renderTemplateSafe(
-          this.registryConfig.urlTemplate,
-          {
-            file: artifact.name,
-            revision,
-            version,
-          }
-        );
-      }
-      if (artifacts.length > 0) {
-        logger.debug(
-          `Writing file urls to the manifest, files found: ${artifacts.length}`
-        );
-        updatedManifest.file_urls = fileUrls;
-      }
+
+    // Add file links if it's a generic app
+    if (this.registryConfig.type === RegistryPackageType.APP) {
+      await this.addFileLinks(updatedManifest, version, revision);
     }
     return updatedManifest;
   }
