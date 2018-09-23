@@ -23,14 +23,14 @@ export class BaseTarget {
     this.store = store;
     this.config = config;
     this.filterOptions = {};
-    if (this.config.includeFiles) {
+    if (this.config.includeNames) {
       this.filterOptions.includeNames = stringToRegexp(
-        this.config.includeFiles
+        this.config.includeNames
       );
     }
-    if (this.config.excludeFiles) {
+    if (this.config.excludeNames) {
       this.filterOptions.excludeNames = stringToRegexp(
-        this.config.excludeFiles
+        this.config.excludeNames
       );
     }
   }

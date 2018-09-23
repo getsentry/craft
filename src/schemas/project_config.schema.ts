@@ -50,10 +50,10 @@ const projectConfigJsonSchema = {
         name: {
           type: 'string',
         },
-        includeFiles: {
+        includeNames: {
           type: 'string',
         },
-        excludeFiles: {
+        excludeNames: {
           type: 'string',
         },
       },

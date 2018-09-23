@@ -160,7 +160,7 @@ export class GcsTarget extends BaseTarget {
       await bucketObj.upload(filePath, { ...uploadOptions, destination });
       logger.info(`Uploaded "${destination}"`);
     } else {
-      logger.info(`[dry-run] Not uploading the file`);
+      logger.info(`[dry-run] Not uploading the file "${destination}"`);
     }
   }
 
@@ -187,6 +187,7 @@ export class GcsTarget extends BaseTarget {
       projectId,
     });
 
+    logger.info(`Uploading to GCS bucket: "${bucket}"`);
     const bucketObj: BucketObject = storage.bucket(bucket);
     const uploadOptions: GcsUploadOptions = {
       gzip: true,

@@ -153,9 +153,7 @@ async function publishToTargets(
 
     // Publish all the targets
     for (const target of targetList) {
-      const publishMessage = `=== Publishing to the target: "${
-        target.name
-      }" ===`;
+      const publishMessage = `=== Publishing to target: "${target.name}" ===`;
       const delim = Array(publishMessage.length + 1).join('=');
       logger.info(' ');
       logger.info(delim);
