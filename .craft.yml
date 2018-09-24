@@ -8,9 +8,10 @@ targets:
   - name: gh-pages
   - name: github
   - name: gcs
+    includeNames: /^.*craft.*$/
     bucket: sentry-sdk-assets
     paths:
-      - /craft/{{version}}/
-      - /craft/latest/
-    includeNames: /^.*craft.*$/
-    maxCacheAge: 300
+      - path: /craft/{{version}}/
+        maxCacheAge: 2592000
+      - path: /craft/latest/
+        maxCacheAge: 300
