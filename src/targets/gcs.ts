@@ -59,19 +59,28 @@ export class GcsTarget extends BaseTarget {
    * Parses and checks configuration for the "gcs" target
    */
   protected getGcsConfig(): GcsTargetConfig {
-    const gcsConfigPath = process.env.CRAFT_GCS_CREDENTIALS_PATH || '';
-    if (!gcsConfigPath) {
-      let errorMsg = 'Path to GCS service account is not provided!';
+    const gcsConfigPath = process.env.CRAFT_GCS_CREDENTIALS_PATH;
+    const gcsConfigJson = process.env.CRAFT_GCS_CREDENTIALS_JSON;
+    let configRaw = '';
+    if (gcsConfigJson) {
+      logger.debug('Using configuration from CRAFT_GCS_CREDENTIALS_JSON');
+      configRaw = gcsConfigJson;
+    } else if (gcsConfigPath) {
+      logger.debug('Using configuration located at CRAFT_GCS_CREDENTIALS_PATH');
+      if (!fs.existsSync(gcsConfigPath)) {
+        reportError(`File does not exist: ${gcsConfigPath}`);
+      }
+      configRaw = fs.readFileSync(gcsConfigPath).toString();
+    } else {
+      let errorMsg = 'GCS configuration not found!';
       errorMsg +=
-        'Please provide the path via environment variable CRAFT_GCS_CREDENTIALS_PATH';
+        'Please provide the path to the configuration via environment variable CRAFT_GCS_CREDENTIALS_PATH, ';
+      errorMsg +=
+        'or specify the entire configuration in CRAFT_GCS_CREDENTIALS_JSON.';
       reportError(errorMsg);
     }
-    if (!fs.existsSync(gcsConfigPath)) {
-      reportError(`File does not exist: ${gcsConfigPath}`);
-    }
-    const serviceAccountConfig = JSON.parse(
-      fs.readFileSync(gcsConfigPath).toString()
-    );
+
+    const serviceAccountConfig = JSON.parse(configRaw);
 
     const bucket = this.config.bucket;
     if (!bucket && typeof bucket !== 'string') {

@@ -466,6 +466,9 @@ The bucket paths (`paths`) can be interpolated using Mustache syntax (`{{ variab
 | Name                         | Description                                                              |
 | ---------------------------- | ------------------------------------------------------------------------ |
 | `CRAFT_GCS_CREDENTIALS_PATH` | Local filesystem path to Google Cloud credentials (service account file) |
+| `CRAFT_GCS_CREDENTIALS_JSON` | Full JSON-encoded service account file                                   |
+
+One of these two environment variables is required.
 
 **Configuration**
 
