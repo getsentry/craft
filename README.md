@@ -472,11 +472,12 @@ One of these two environment variables is required.
 
 **Configuration**
 
-| Option        | Description                                                |
-| ------------- | ---------------------------------------------------------- |
-| `bucket`      | The name of the GCS bucket where artifacts are uploaded    |
-| `paths`       | A string or a list of strings that represent bucket paths. |
-| `maxCacheAge` | Name of the formula. Defaults to the repository name       |
+| Option              | Description                                                           |
+| ------------------- | --------------------------------------------------------------------- |
+| `bucket`            | The name of the GCS bucket where artifacts are uploaded.              |
+| `paths`             | A list of path objects that represent bucket paths.                   |
+| `paths.path`        | Template-aware bucket path.                                           |
+| `paths.maxCacheAge` | **optional** Cache age for files (in seconds). Set to 300 by default. |
 
 **Example**
 
@@ -485,9 +486,9 @@ targets:
   - name: gcs
     bucket: bucket-name
     paths:
-      - release/{{version}}/download
-      - release/{{ref}}/platform/package
-    maxCacheAge: 90
+      - path: release/{{version}}/download
+        maxCacheAge: 3600
+      - path: release/{{ref}}/platform/package
 ```
 
 ### GitHub Pages (`gh-pages`)
@@ -563,7 +564,7 @@ targets:
 
   - name: registry
     type: app
-    urlTemplate: "https://example.com/{version}/{file}"
+    urlTemplate: "https://example.com/{{version}}/{{file}}"
     config:
       canonical: "npm:@sentry/browser"
 ```

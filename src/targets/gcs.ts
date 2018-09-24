@@ -15,15 +15,28 @@ import { BaseTarget } from './base';
 
 const logger = loggerRaw.withScope('[gcs]');
 
+const DEFAULT_MAX_CACHE_AGE = 300;
+
+/**
+ * Bucket path with associated parameters
+ */
+export interface BucketDest {
+  path: string;
+  maxCacheAge: number;
+}
+
 /**
  * Configuration options for the Github target
  */
 export interface GcsTargetConfig extends TargetConfig {
+  /** Bucket name */
   bucket: string;
-  bucketPaths: string[];
+  /** A list of paths with their parameters */
+  bucketPaths: BucketDest[];
+  /** GCS service account configuration */
   serviceAccountConfig: object;
+  /** Google Cloud project ID */
   projectId: string;
-  maxCacheAge: number;
 }
 
 /**
@@ -82,43 +95,54 @@ export class GcsTarget extends BaseTarget {
 
     const serviceAccountConfig = JSON.parse(configRaw);
 
-    const bucket = this.config.bucket;
-    if (!bucket && typeof bucket !== 'string') {
-      reportError('No GCS bucket provided!');
-    }
-
-    let bucketPaths: string[] = [];
-    const bucketPathsRaw = this.config.paths;
-    if (!bucketPathsRaw) {
-      reportError('No bucket paths provided!');
-    } else if (typeof bucketPathsRaw === 'string') {
-      bucketPaths = [bucketPathsRaw];
-    } else if (
-      Array.isArray(bucketPathsRaw) &&
-      bucketPathsRaw.length > 0 &&
-      bucketPathsRaw.every(p => typeof p === 'string')
-    ) {
-      bucketPaths = bucketPathsRaw;
-    } else {
-      reportError('Cannot validate bucketPaths!');
-    }
-
     const projectId = serviceAccountConfig.project_id;
     if (!projectId) {
       reportError('Cannot find project ID in the service account!');
     }
 
-    const maxCacheAge = this.config.maxCacheAge;
-    if (typeof maxCacheAge !== 'number') {
-      reportError(
-        `GCS target, invalid value for maxCacheAge: "${maxCacheAge}"`
-      );
+    const bucket = this.config.bucket;
+    if (!bucket && typeof bucket !== 'string') {
+      reportError('No GCS bucket provided!');
+    }
+
+    // Parse bucket paths
+    let bucketPaths: BucketDest[] = [];
+    const bucketPathsRaw = this.config.paths;
+    if (!bucketPathsRaw) {
+      reportError('No bucket paths provided!');
+    } else if (typeof bucketPathsRaw === 'string') {
+      bucketPaths = [
+        { path: bucketPathsRaw, maxCacheAge: DEFAULT_MAX_CACHE_AGE },
+      ];
+    } else if (Array.isArray(bucketPathsRaw) && bucketPathsRaw.length > 0) {
+      bucketPathsRaw.forEach((bucketPathRaw: any) => {
+        if (typeof bucketPathRaw !== 'object') {
+          reportError(
+            `Invalid bucket destination: ${JSON.stringify(
+              bucketPathRaw
+            )}. Use the object notation to specify bucket paths!`
+          );
+        }
+        const bucketPathName = bucketPathRaw.path;
+        const maxCacheAge = bucketPathRaw.maxCacheAge || DEFAULT_MAX_CACHE_AGE;
+        if (!bucketPathName) {
+          reportError(`Invalid bucket path: ${bucketPathName}`);
+        }
+        if (typeof maxCacheAge !== 'number') {
+          reportError(
+            `Invalid cache age for path "${bucketPathName}": "${maxCacheAge}"`
+          );
+        }
+
+        bucketPaths.push({ path: bucketPathName, maxCacheAge });
+      });
+    } else {
+      reportError('Cannot validate bucketPaths!');
     }
 
     return {
       bucket,
       bucketPaths,
-      maxCacheAge,
       projectId,
       serviceAccountConfig,
     };
@@ -130,22 +154,24 @@ export class GcsTarget extends BaseTarget {
    * Before processing, the paths are stored as templates where variables such
    * as "version" and "ref" can be replaced.
    *
+   * @param bucketPath The bucket path with the associated parameters
    * @param version The new version
    * @param revision The SHA revision of the new version
    */
-  private getRealBucketPaths(version: string, revision: string): string[] {
-    return this.gcsConfig.bucketPaths.map(templatedPath => {
-      // TODO unify with brew template arguments
-      let realPath = renderTemplateSafe(templatedPath.trim(), {
-        revision,
-        version,
-      });
-      if (realPath[0] !== '/') {
-        realPath = `/${realPath}`;
-      }
-      logger.debug(`Processed path prefix: ${realPath}`);
-      return realPath;
+  private getRealBucketPath(
+    bucketPath: BucketDest,
+    version: string,
+    revision: string
+  ): string {
+    let realPath = renderTemplateSafe(bucketPath.path.trim(), {
+      revision,
+      version,
     });
+    if (realPath[0] !== '/') {
+      realPath = `/${realPath}`;
+    }
+    logger.debug(`Processed path prefix: ${realPath}`);
+    return realPath;
   }
 
   /**
@@ -174,6 +200,40 @@ export class GcsTarget extends BaseTarget {
   }
 
   /**
+   * Returns a list of interpolated bucket paths
+   *
+   * Before processing, the paths are stored as templates where variables such
+   * as "version" and "ref" can be replaced.
+   *
+   * @param bucketPath The bucket path with the associated parameters
+   * @param bucketObj The bucket object
+   * @param artifacts The list of artifacts to upload
+   * @param version The new version
+   * @param revision The SHA revision of the new version
+   */
+  private async uploadToBucketPath(
+    bucketPath: BucketDest,
+    bucketObj: BucketObject,
+    artifacts: Artifact[],
+    version: string,
+    revision: string
+  ): Promise<void[]> {
+    const realPath = this.getRealBucketPath(bucketPath, version, revision);
+    const fileUploadUptions: GcsUploadOptions = {
+      gzip: true,
+      metadata: {
+        cacheControl: `public, max-age=${bucketPath.maxCacheAge}`,
+      },
+    };
+    logger.debug(`Upload options: ${JSON.stringify(fileUploadUptions)}`);
+    return Promise.all(
+      artifacts.map(async (artifact: Artifact) =>
+        this.uploadArtifact(artifact, realPath, bucketObj, fileUploadUptions)
+      )
+    );
+  }
+
+  /**
    * Uploads artifacts to Google Cloud Storage
    *
    * @param version New version to be released
@@ -187,8 +247,6 @@ export class GcsTarget extends BaseTarget {
       );
     }
 
-    const realBucketPaths = this.getRealBucketPaths(version, revision);
-
     const { projectId, serviceAccountConfig, bucket } = this.gcsConfig;
 
     const storage = new googleStorage({
@@ -198,22 +256,19 @@ export class GcsTarget extends BaseTarget {
 
     logger.info(`Uploading to GCS bucket: "${bucket}"`);
     const bucketObj: BucketObject = storage.bucket(bucket);
-    const uploadOptions: GcsUploadOptions = {
-      gzip: true,
-      metadata: {
-        cacheControl: `public, max-age=${this.gcsConfig.maxCacheAge}`,
-      },
-    };
-    logger.debug(`Upload options: ${JSON.stringify(uploadOptions)}`);
 
     // We intentionally do not make all requests concurrent here
-    await forEachChained(realBucketPaths, async (bucketPath: string) => {
-      await Promise.all(
-        artifacts.map(async (artifact: Artifact) =>
-          this.uploadArtifact(artifact, bucketPath, bucketObj, uploadOptions)
+    await forEachChained(
+      this.gcsConfig.bucketPaths,
+      async (bucketPath: BucketDest) =>
+        this.uploadToBucketPath(
+          bucketPath,
+          bucketObj,
+          artifacts,
+          version,
+          revision
         )
-      );
-    });
+    );
     logger.info('Upload complete.');
   }
 }
