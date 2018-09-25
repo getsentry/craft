@@ -3,6 +3,7 @@ import * as _ from 'lodash';
 import {
   Artifact,
   Client as ZeusClient,
+  RepositoryInfo,
   Result,
   RevisionInfo,
   Status,
@@ -192,6 +193,13 @@ export class ZeusStore {
    */
   public isRevisionPending(revisionInfo: RevisionInfo): boolean {
     return revisionInfo.status !== Status.FINISHED;
+  }
+
+  /**
+   * Gets repository information
+   */
+  public async getRepositoryInfo(): Promise<RepositoryInfo> {
+    return this.client.getRepositoryInfo(this.repoOwner, this.repoName);
   }
 }
 

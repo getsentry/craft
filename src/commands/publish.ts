@@ -5,7 +5,7 @@ import { Arguments, Argv } from 'yargs';
 
 import { getConfiguration } from '../config';
 import logger from '../logger';
-import { ZeusStore } from '../stores/zeus';
+import { RevisionInfo, ZeusStore } from '../stores/zeus';
 import { getAllTargetNames, getTargetByName } from '../targets';
 import { BaseTarget } from '../targets/base';
 import { reportError } from '../utils/errors';
@@ -16,6 +16,15 @@ import { isValidVersion } from '../utils/version';
 
 export const command = ['publish <new-version>', 'p'];
 export const description = '🛫 Publish artifacts';
+
+/** Max number of seconds to wait for revision to be available in Zeus */
+const ZEUS_REVISION_INFO_POLLING_MAX = 60 * 10;
+
+/** Max number of seconds to wait for the build to finish on Zeus */
+const ZEUS_BUILD_STATUS_POLLING_MAX = 60 * 60;
+
+/** Interval in seconds while polling Zeus status */
+const ZEUS_POLLING_INTERVAL = 30;
 
 export const builder = (yargs: Argv) =>
   yargs
@@ -104,9 +113,6 @@ function checkVersion(argv: Arguments, _opt: any): any {
   }
 }
 
-/** Interval in seconds while polling Zeus status */
-const ZEUS_POLLING_INTERVAL = 30;
-
 /**
  * Publishes artifacts to the provided targets
  *
@@ -171,6 +177,117 @@ async function publishToTargets(
   }
 }
 
+/**
+ * Fetches revision information from Zeus
+ *
+ * If the revision is not found in Zeus, the function polls for it regularly.
+ *
+ * @param zeus Zeus store object
+ * @param revision Git revision SHA
+ */
+async function getRevisionInformation(
+  zeus: ZeusStore,
+  revision: string
+): Promise<RevisionInfo> {
+  const spinner = ora({ spinner: 'bouncingBar' }) as any;
+
+  let secondsPassed = 0;
+
+  while (true) {
+    try {
+      const revisionInfo = await zeus.getRevision(revision);
+      if (spinner.isSpinning) {
+        spinner.succeed();
+      }
+      return revisionInfo;
+    } catch (e) {
+      const errorMessage: string = e.message || '';
+
+      if (errorMessage.match(/404 not found|resource not found/i)) {
+        if (secondsPassed > ZEUS_REVISION_INFO_POLLING_MAX) {
+          throw new Error(
+            `Waited for more than ${ZEUS_REVISION_INFO_POLLING_MAX} seconds, and the revision is still not available. Aborting.`
+          );
+        }
+
+        // Update the spinner
+        const timeString = new Date().toLocaleString();
+        const waitMessage = `[${timeString}] Revision ${revision} not yet found in Zeus, retrying in ${ZEUS_POLLING_INTERVAL} seconds.`;
+        spinner.text = waitMessage;
+        spinner.start();
+        await sleepAsync(ZEUS_POLLING_INTERVAL * 1000);
+        secondsPassed += ZEUS_POLLING_INTERVAL;
+      } else {
+        throw e;
+      }
+    } finally {
+      spinner.stop();
+    }
+  }
+}
+
+/**
+ * Waits for the builds to finish for the revision
+ *
+ * @param zeus Zeus store object
+ * @param revision Git revision SHA
+ */
+async function waitForTheBuildToSucceed(
+  zeus: ZeusStore,
+  revision: string
+): Promise<void> {
+  const revisionUrl = zeus.client.getUrl(
+    `/gh/${zeus.repoOwner}/${zeus.repoName}/revisions/${revision}`
+  );
+
+  // Status spinner
+  const spinner = ora({ spinner: 'bouncingBar' }) as any;
+  let secondsPassed = 0;
+
+  while (true) {
+    const revisionInfo: RevisionInfo = await getRevisionInformation(
+      zeus,
+      revision
+    );
+
+    const isSuccess = zeus.isRevisionBuiltSuccessfully(revisionInfo);
+    const isFailure = zeus.isRevisionFailed(revisionInfo);
+
+    if (isSuccess) {
+      if (spinner.isSpinning) {
+        spinner.succeed();
+      }
+      logger.info(`Revision ${revision} has been built successfully.`);
+      return;
+    }
+
+    if (isFailure) {
+      spinner.fail();
+
+      reportError(
+        `Build(s) for revision ${revision} have failed.` +
+          `\nPlease check revision's status on Zeus: ${revisionUrl}`
+      );
+      return;
+    }
+
+    if (secondsPassed > ZEUS_BUILD_STATUS_POLLING_MAX) {
+      throw new Error(
+        `Waited for more than ${ZEUS_BUILD_STATUS_POLLING_MAX} seconds for the build to finish. Aborting.`
+      );
+    }
+
+    // Update the spinner
+    const timeString = new Date().toLocaleString();
+    const waitMessage = `[${timeString}] CI builds are still in progress, sleeping for ${ZEUS_POLLING_INTERVAL} seconds...`;
+    spinner.text = waitMessage;
+    spinner.start();
+    await sleepAsync(ZEUS_POLLING_INTERVAL * 1000);
+    secondsPassed += ZEUS_POLLING_INTERVAL;
+  }
+  spinner.stop();
+}
+
 // TODO there is at least one case that is not covered: how to detect Zeus builds
 // that have unknown status (neither failed nor succeeded)
 /**
@@ -191,59 +308,26 @@ async function checkRevisionStatus(
     logger.warn(`Skipping build status checks for revision ${revision}`);
     return;
   }
-  // Status spinner
-  const spinner = ora({ spinner: 'bouncingBar' }) as any;
+
+  const zeus = new ZeusStore(owner, repo);
 
   try {
-    const zeus = new ZeusStore(owner, repo);
-
-    while (true) {
-      if (!spinner.isSpinning) {
-        logger.debug('Getting revision info from Zeus...');
-      }
-      const revisionInfo = await zeus.getRevision(revision);
-
-      const isSuccess = zeus.isRevisionBuiltSuccessfully(revisionInfo);
-      const isFailure = zeus.isRevisionFailed(revisionInfo);
-
-      if (isSuccess) {
-        if (spinner.isSpinning) {
-          spinner.succeed();
-        }
-        logger.info(`Revision ${revision} has been built successfully.`);
-        return;
-      }
-
-      if (isFailure) {
-        spinner.fail();
-        const revisionUrl = zeus.client.getUrl(
-          `/gh/${owner}/${repo}/revisions/${revision}`
-        );
-        // TODO add a Zeus link to the revision page
-        reportError(
-          `Build(s) for revision ${revision} have failed.` +
-            `\nPlease check revision's status on Zeus: ${revisionUrl}`
-        );
-        return;
-      }
-
-      // Update the spinner
-      const timeString = new Date().toLocaleString();
-      const waitMessage = `[${timeString}] CI builds are still in progress, sleeping for ${ZEUS_POLLING_INTERVAL} seconds...`;
-      spinner.start();
-      spinner.text = waitMessage;
-      await sleepAsync(ZEUS_POLLING_INTERVAL * 1000);
-    }
+    logger.debug('Fetching repository information from Zeus...');
+    // This will additionall check that the user has proper permissions
+    const repositoryInfo = await zeus.getRepositoryInfo();
+    logger.debug(
+      `Repository info received: "${repositoryInfo.owner_name}/${
+        repositoryInfo.name
+      }"`
+    );
   } catch (e) {
-    const errorMessage: string = e.message || '';
-    if (errorMessage.match(/404 not found|resource not found/i)) {
-      reportError(`Revision ${revision} not found in Zeus.`);
-    } else {
-      throw e;
-    }
-  } finally {
-    spinner.stop();
+    reportError(
+      'Cannot get repository information from Zeus. Check your configuration and credentials. ' +
+        `Error: ${e.message}`
+    );
   }
+
+  await waitForTheBuildToSucceed(zeus, revision);
 }
 
 /**
@@ -320,14 +404,15 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   const newVersion = argv.newVersion;
 
-  logger.info(`Publishing the version: "${newVersion}"`);
+  logger.info(`Publishing version: "${newVersion}"`);
 
   let revision;
   let branchName;
   if (argv.rev) {
+    branchName = '';
     // TODO: allow to specify arbitrary git refs?
     logger.debug(
-      `Fetching GitHub information for provided revision: ${argv.rev}`
+      `Fetching GitHub information for provided revision: "${argv.rev}"`
     );
     const response = await githubClient.repos.getCommit({
       owner: githubConfig.owner,
@@ -335,7 +420,6 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       sha: argv.rev,
     });
     revision = response.data.sha;
-    branchName = '';
   } else {
     // Find the remote branch
     branchName = `release/${newVersion}`;
