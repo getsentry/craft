@@ -6,7 +6,11 @@ import * as shellQuote from 'shell-quote';
 import * as simpleGit from 'simple-git/promise';
 import { Arguments, Argv } from 'yargs';
 
-import { findConfigFile, getConfiguration } from '../config';
+import {
+  checkMinimalConfigVersion,
+  findConfigFile,
+  getConfiguration,
+} from '../config';
 import logger from '../logger';
 import { ChangelogPolicy } from '../schemas/project_config';
 import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
@@ -379,77 +383,88 @@ async function checkChangelog(
   }
 }
 
-export const handler = async (argv: ReleaseOptions) => {
+/**
+ * Body of 'release' command
+ *
+ * @param argv Command-line arguments
+ */
+export async function releaseMain(argv: ReleaseOptions): Promise<any> {
   logger.debug('Argv: ', JSON.stringify(argv));
   if (isDryRun()) {
     logger.info('[dry-run] Dry-run mode is on!');
   }
+  checkMinimalConfigVersion();
 
+  // Get repo configuration
+  const config = getConfiguration();
+  const githubConfig = config.github;
+
+  // Move to the directory where the config file is located
+  const configFileDir = dirname(findConfigFile() || '');
+  process.chdir(configFileDir);
+  logger.debug(`Working directory:`, configFileDir);
+
+  const newVersion = argv.newVersion;
+
+  const git = simpleGit(configFileDir).silent(true);
+
+  // Get some information about the Github project
+  const githubClient = getGithubClient();
+  const defaultBranch = await getDefaultBranch(
+    githubClient,
+    githubConfig.owner,
+    githubConfig.repo
+  );
+  logger.debug(`Default branch for the repo:`, defaultBranch);
+
+  // Check that we're in an acceptable state for the release
+  await checkGitState(git, defaultBranch, !argv.noGitChecks);
+
+  // Check whether the version/tag already exists
+  await checkForExistingTag(git, newVersion, !argv.noGitChecks);
+
+  // Check the changelog(s)
+  await checkChangelog(
+    newVersion,
+    argv.noChangelog ? ChangelogPolicy.None : config.changelogPolicy,
+    config.changelog
+  );
+
+  logger.info(`Preparing to release the version: ${newVersion}`);
+
+  // Create a new release branch. Throw an error if it already exists
+  const branchName = await createReleaseBranch(git, newVersion);
+
+  // Run a pre-release script (e.g. for version bumping)
+  await runPreReleaseCommand(newVersion, config.preReleaseCommand);
+
+  // Commit the pending changes
+  await commitNewVersion(git, newVersion);
+
+  // Push the release branch
+  await pushReleaseBranch(git, branchName, !argv.noPush);
+
+  if (argv.publish) {
+    await execPublish(newVersion);
+  } else {
+    logger.info(
+      `View diff at: https://github.com/${githubConfig.owner}/${
+        githubConfig.repo
+      }/compare/${branchName}`
+    );
+
+    logger.success(
+      'Done. Do not forget to run "craft publish" to publish the artifacts:',
+      `  $ craft publish ${newVersion}`
+    );
+  }
+}
+
+export const handler = async (argv: ReleaseOptions) => {
   try {
-    // Get repo configuration
-    const config = getConfiguration();
-    const githubConfig = config.github;
-
-    // Move to the directory where the config file is located
-    const configFileDir = dirname(findConfigFile() || '');
-    process.chdir(configFileDir);
-    logger.debug(`Working directory:`, configFileDir);
-
-    const newVersion = argv.newVersion;
-
-    const git = simpleGit(configFileDir).silent(true);
-
-    // Get some information about the Github project
-    const githubClient = getGithubClient();
-    const defaultBranch = await getDefaultBranch(
-      githubClient,
-      githubConfig.owner,
-      githubConfig.repo
-    );
-    logger.debug(`Default branch for the repo:`, defaultBranch);
-
-    // Check that we're in an acceptable state for the release
-    await checkGitState(git, defaultBranch, !argv.noGitChecks);
-
-    // Check whether the version/tag already exists
-    await checkForExistingTag(git, newVersion, !argv.noGitChecks);
-
-    // Check the changelog(s)
-    await checkChangelog(
-      newVersion,
-      argv.noChangelog ? ChangelogPolicy.None : config.changelogPolicy,
-      config.changelog
-    );
-
-    logger.info(`Preparing to release the version: ${newVersion}`);
-
-    // Create a new release branch. Throw an error if it already exists
-    const branchName = await createReleaseBranch(git, newVersion);
-
-    // Run a pre-release script (e.g. for version bumping)
-    await runPreReleaseCommand(newVersion, config.preReleaseCommand);
-
-    // Commit the pending changes
-    await commitNewVersion(git, newVersion);
-
-    // Push the release branch
-    await pushReleaseBranch(git, branchName, !argv.noPush);
-
-    if (argv.publish) {
-      await execPublish(newVersion);
-    } else {
-      logger.info(
-        `View diff at: https://github.com/${githubConfig.owner}/${
-          githubConfig.repo
-        }/compare/${branchName}`
-      );
-
-      logger.success(
-        'Done. Do not forget to run "craft publish" to publish the artifacts:',
-        `  $ craft publish ${newVersion}`
-      );
-    }
+    return await releaseMain(argv);
   } catch (e) {
     logger.error(e);
+    process.exit(1);
   }
 };

@@ -5,6 +5,8 @@ import {
   isValidVersion,
   parseVersion,
   isPreviewRelease,
+  versionGreaterOrEqualThan,
+  SemVer,
 } from '../version';
 
 describe('getVersion', () => {
@@ -122,5 +124,58 @@ describe('isPreviewRelease', () => {
 
   test('does not accept non-release strings', () => {
     expect(isPreviewRelease('4-preview')).toBe(false);
+  });
+});
+
+describe('versionGreaterOrEqualThan', () => {
+  function semVerFactory(
+    major: number,
+    minor: number,
+    patch: number,
+    pre?: string,
+    build?: string
+  ): SemVer {
+    return { major, minor, patch, pre, build };
+  }
+
+  test('compares different patch versions', () => {
+    const v1 = semVerFactory(1, 2, 3);
+    const v2 = semVerFactory(1, 2, 2);
+    expect(versionGreaterOrEqualThan(v1, v2)).toBe(true);
+    expect(versionGreaterOrEqualThan(v2, v1)).toBe(false);
+  });
+
+  test('compares different major versions', () => {
+    const v1 = semVerFactory(2, 0, 0);
+    const v2 = semVerFactory(3, 0, 0);
+    expect(versionGreaterOrEqualThan(v1, v2)).toBe(false);
+    expect(versionGreaterOrEqualThan(v2, v1)).toBe(true);
+  });
+
+  test('compares different major versions', () => {
+    const v1 = semVerFactory(3, 1, 0);
+    const v2 = semVerFactory(3, 0, 1);
+    expect(versionGreaterOrEqualThan(v1, v2)).toBe(true);
+    expect(versionGreaterOrEqualThan(v2, v1)).toBe(false);
+  });
+
+  test('equals true for equal versions', () => {
+    const v1 = semVerFactory(0, 1, 2);
+    const v2 = semVerFactory(0, 1, 2);
+    expect(versionGreaterOrEqualThan(v1, v2)).toBe(true);
+  });
+
+  test('prefers versions with pre-release parts', () => {
+    const v1 = semVerFactory(0, 1, 2, 'rc0');
+    const v2 = semVerFactory(0, 1, 2);
+    expect(versionGreaterOrEqualThan(v1, v2)).toBe(false);
+    expect(versionGreaterOrEqualThan(v2, v1)).toBe(true);
+  });
+
+  test('throws an exception if there are build parts', () => {
+    const v1 = semVerFactory(0, 1, 2, undefined, 'build123');
+    const v2 = semVerFactory(0, 1, 2);
+    expect(() => versionGreaterOrEqualThan(v1, v2)).toThrowError();
+    expect(() => versionGreaterOrEqualThan(v2, v1)).toThrowError();
   });
 });

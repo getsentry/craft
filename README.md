@@ -26,6 +26,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [GitHub project](#github-project)
   - [Pre-release Command](#pre-release-command)
   - [Changelog Policies](#changelog-policies)
+  - [Minimal version](#minimal-version)
 - [Target Configurations](#target-configurations)
   - [Per-target options](#per-target-options)
   - [GitHub (`github`)](#github-github)
@@ -227,6 +228,17 @@ changelogPolicy: simple
 
 Additionally, `.craft.yml` is used for listing targets where you want to
 publish your new release.
+
+### Minimal version
+
+It is possible to specify minimal `craft` version that is required to work with
+your configuration.
+
+**Example:**
+
+```yaml
+minVersion: '0.5.0'
+```
 
 ## Target Configurations
 

@@ -13,6 +13,7 @@ export interface CraftProjectConfig {
   preReleaseCommand?: string;
   changelog?: string;
   changelogPolicy?: ChangelogPolicy;
+  minVersion?: string;
 }
 /**
  * Global (non-target!) GitHub configuration for the project

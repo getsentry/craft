@@ -3,7 +3,7 @@ import { isDryRun, shouldPerform } from 'dryrun';
 import * as ora from 'ora';
 import { Arguments, Argv } from 'yargs';
 
-import { getConfiguration } from '../config';
+import { checkMinimalConfigVersion, getConfiguration } from '../config';
 import logger from '../logger';
 import { GithubGlobalConfig } from '../schemas/project_config';
 import { RevisionInfo, ZeusStore } from '../stores/zeus';
@@ -398,7 +398,7 @@ async function handleReleaseBranch(
 }
 
 /**
- * Entrypoint for 'publish' command
+ * Body of 'publish' command
  *
  * @param argv Command-line arguments
  */
@@ -407,6 +407,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   if (isDryRun()) {
     logger.info('[dry-run] Dry-run mode is on!');
   }
+  checkMinimalConfigVersion();
   checkPrerequisites();
 
   // Get repo configuration
@@ -513,5 +514,6 @@ export const handler = async (argv: PublishOptions) => {
     return await publishMain(argv);
   } catch (e) {
     logger.error(e);
+    process.exit(1);
   }
 };

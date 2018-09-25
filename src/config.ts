@@ -8,6 +8,7 @@ import {
   CraftProjectConfig,
   GithubGlobalConfig,
 } from './schemas/project_config';
+import { parseVersion, versionGreaterOrEqualThan } from './utils/version';
 
 // TODO support multiple configuration files (one per configuration)
 export const CONFIG_FILE_NAME = '.craft.yml';
@@ -89,6 +90,47 @@ export function getConfiguration(): CraftProjectConfig {
   const rawConfig = safeLoad(readFileSync(configPath, 'utf-8'));
   _configCache = validateConfiguration(rawConfig);
   return _configCache;
+}
+
+/**
+ * Checks that the current "craft" version is compatible with the configuration
+ *
+ * "minVersion" configuration parameter specifies the minimal version of "craft"
+ * that can work with the given configuration.
+ */
+export function checkMinimalConfigVersion(): void {
+  const config = getConfiguration();
+  const minVersionRaw = config.minVersion;
+  if (!minVersionRaw) {
+    logger.debug(
+      'No minimal version specified in the configuration, skpipping the check'
+    );
+    return;
+  }
+
+  const currentVersionRaw = require('../package.json').version;
+  if (!currentVersionRaw) {
+    throw new Error('Cannot get the current craft version');
+  }
+
+  const minVersion = parseVersion(minVersionRaw);
+  if (!minVersion) {
+    throw new Error(`Cannot parse the minimal version: "${minVersionRaw}"`);
+  }
+  const currentVersion = parseVersion(currentVersionRaw);
+  if (!currentVersion) {
+    throw new Error(`Cannot parse the current version: "${currentVersionRaw}"`);
+  }
+
+  if (versionGreaterOrEqualThan(currentVersion, minVersion)) {
+    logger.info(
+      `"craft" version is compatible with the minimal version from the configuration file.`
+    );
+  } else {
+    throw new Error(
+      `Incompatible "craft" versions. Current version: ${currentVersionRaw},  minimal version: ${minVersionRaw} (taken from .craft.yml).`
+    );
+  }
 }
 
 /**

@@ -37,6 +37,10 @@ const projectConfigJsonSchema = {
       enum: ['simple', 'none'],
       tsEnumNames: ['Simple', 'None'],
     },
+    minVersion: {
+      type: 'string',
+      pattern: '^\\d+\\.\\d+\\.\\d+.*$',
+    },
   },
   additionalProperties: false,
   required: ['github'],
