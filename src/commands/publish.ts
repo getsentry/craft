@@ -7,7 +7,7 @@ import { getConfiguration } from '../config';
 import logger from '../logger';
 import { GithubGlobalConfig } from '../schemas/project_config';
 import { RevisionInfo, ZeusStore } from '../stores/zeus';
-import { getAllTargetNames, getTargetByName } from '../targets';
+import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
 import { reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
@@ -35,7 +35,10 @@ export const builder = (yargs: Argv) =>
     })
     .option('target', {
       alias: 't',
-      choices: getAllTargetNames().concat(['all', 'none']),
+      choices: getAllTargetNames().concat([
+        SpecialTarget.All,
+        SpecialTarget.None,
+      ]),
       default: 'all',
       description: 'Publish to this target',
       type: 'string',
@@ -448,10 +451,10 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   // Find targets
   const targetList: string[] = (typeof argv.target === 'string'
     ? [argv.target]
-    : argv.target) || ['all'];
+    : argv.target) || [SpecialTarget.All];
 
   // Treat "all"/"none" specially
-  for (const specialTarget of ['all', 'none']) {
+  for (const specialTarget of [SpecialTarget.All, SpecialTarget.None]) {
     if (targetList.length > 1 && targetList.indexOf(specialTarget) > -1) {
       logger.error(
         `Target "${specialTarget}" specified together with other targets. Exiting.`
@@ -468,7 +471,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     );
   }
 
-  if (targetList[0] !== 'none') {
+  if (targetList[0] !== SpecialTarget.None) {
     if (!targetConfigList.length) {
       logger.warn('No valid targets detected! Exiting.');
       return undefined;
@@ -483,15 +486,26 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   }
 
   // Publishing done, MERGE DAT BRANCH!
-  await handleReleaseBranch(
-    githubClient,
-    githubConfig,
-    branchName,
-    argv.noMerge,
-    argv.keepBranch
-  );
-
-  logger.success(`Version ${newVersion} has been published!`);
+  if (
+    targetList[0] === SpecialTarget.All ||
+    targetList[0] === SpecialTarget.None
+  ) {
+    await handleReleaseBranch(
+      githubClient,
+      githubConfig,
+      branchName,
+      argv.noMerge,
+      argv.keepBranch
+    );
+    logger.success(`Version ${newVersion} has been published!`);
+  } else {
+    const msg = [
+      'The release branch was not merged because you published only to specific targets.',
+      'After all the targets are published, run the following command to merge the release branch:',
+      `  $ craft publish ${newVersion} --target none\n`,
+    ];
+    logger.warn(msg.join('\n'));
+  }
 }
 
 export const handler = async (argv: PublishOptions) => {

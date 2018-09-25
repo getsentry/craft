@@ -284,6 +284,7 @@ export class RegistryTarget extends BaseTarget {
     version: string,
     revision: string
   ): Promise<void> {
+    logger.info('Adding the version file to the registry...');
     const packageDirPath = this.getPackageDirPath(directory, canonical);
 
     const versionFilePath = path.join(packageDirPath, `${version}.json`);
@@ -374,7 +375,7 @@ export class RegistryTarget extends BaseTarget {
     await withTempDir(
       async directory =>
         this.pushVersionToRegistry(directory, remote, version, revision),
-      false, // FIXME
+      true,
       'craft-release-registry-'
     );
 

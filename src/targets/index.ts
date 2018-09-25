@@ -21,6 +21,14 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   registry: RegistryTarget,
 };
 
+/** Targets that are treated specially */
+export enum SpecialTarget {
+  /** This targets does not do any publishing, only related workflow actions (e.g. merging the release branch) */
+  None = 'none',
+  /** This target is an alias for running all configured targets */
+  All = 'all',
+}
+
 /**
  * Get a list of all available targets
  *
