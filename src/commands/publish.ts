@@ -5,6 +5,7 @@ import { Arguments, Argv } from 'yargs';
 
 import { getConfiguration } from '../config';
 import logger from '../logger';
+import { GithubGlobalConfig } from '../schemas/project_config';
 import { RevisionInfo, ZeusStore } from '../stores/zeus';
 import { getAllTargetNames, getTargetByName } from '../targets';
 import { BaseTarget } from '../targets/base';
@@ -116,16 +117,14 @@ function checkVersion(argv: Arguments, _opt: any): any {
 /**
  * Publishes artifacts to the provided targets
  *
- * @param owner Repository owner
- * @param repo Repository name
+ * @param githubConfig Github repository configuration
  * @param version New version to be released
  * @param revision Git commit SHA of the commit to be published
  * @param targetConfigList A list of parsed target configurations
  * @param keepDownloads If "true", downloaded files will not be removed
  */
 async function publishToTargets(
-  owner: string,
-  repo: string,
+  githubConfig: GithubGlobalConfig,
   version: string,
   revision: string,
   targetConfigList: any[],
@@ -135,7 +134,11 @@ async function publishToTargets(
 
   await withTempDir(async (downloadDirectory: string) => {
     downloadDirectoryPath = downloadDirectory;
-    const store = new ZeusStore(owner, repo, downloadDirectory);
+    const store = new ZeusStore(
+      githubConfig.owner,
+      githubConfig.repo,
+      downloadDirectory
+    );
     const targetList: BaseTarget[] = [];
 
     // Initialize all targets first
@@ -212,7 +215,7 @@ async function getRevisionInformation(
 
         // Update the spinner
         const timeString = new Date().toLocaleString();
-        const waitMessage = `[${timeString}] Revision ${revision} not yet found in Zeus, retrying in ${ZEUS_POLLING_INTERVAL} seconds.`;
+        const waitMessage = `[${timeString}] Revision ${revision} is not yet found in Zeus, retrying in ${ZEUS_POLLING_INTERVAL} seconds...`;
         spinner.text = waitMessage;
         spinner.start();
         await sleepAsync(ZEUS_POLLING_INTERVAL * 1000);
@@ -262,8 +265,9 @@ async function waitForTheBuildToSucceed(
     }
 
     if (isFailure) {
-      spinner.fail();
-
+      if (spinner.isSpinning) {
+        spinner.fail();
+      }
       reportError(
         `Build(s) for revision ${revision} have failed.` +
           `\nPlease check revision's status on Zeus: ${revisionUrl}`
@@ -293,14 +297,12 @@ async function waitForTheBuildToSucceed(
 /**
  * Checks statuses of all builds on Zeus for the provided revision
  *
- * @param owner Repository owner
- * @param repo Repository name
+ * @param githubConfig Github repository configuration
  * @param revision Git commit SHA to check
  * @param skipStatusCheckFlag A flag to enable/disable this check
  */
 async function checkRevisionStatus(
-  owner: string,
-  repo: string,
+  githubConfig: GithubGlobalConfig,
   revision: string,
   skipStatusCheckFlag: boolean = false
 ): Promise<void> {
@@ -309,11 +311,11 @@ async function checkRevisionStatus(
     return;
   }
 
-  const zeus = new ZeusStore(owner, repo);
+  const zeus = new ZeusStore(githubConfig.owner, githubConfig.repo);
 
   try {
     logger.debug('Fetching repository information from Zeus...');
-    // This will additionall check that the user has proper permissions
+    // This will additionally check that the user has proper permissions
     const repositoryInfo = await zeus.getRepositoryInfo();
     logger.debug(
       `Repository info received: "${repositoryInfo.owner_name}/${
@@ -337,16 +339,14 @@ async function checkRevisionStatus(
  * corresponding flags are set.
  *
  * @param github Github client
- * @param owner Repository owner
- * @param repo Repository name
+ * @param githubConfig Github repository configuration
  * @param branchName Release branch name
  * @param skipMerge If set to "true", the branch will not be merged
  * @param keepBranch If set to "true", the branch will not be deleted
  */
 async function handleReleaseBranch(
   github: Github,
-  owner: string,
-  repo: string,
+  githubConfig: GithubGlobalConfig,
   branchName: string,
   skipMerge: boolean = false,
   keepBranch: boolean = false
@@ -358,7 +358,12 @@ async function handleReleaseBranch(
 
   logger.debug(`Merging the release branch: ${branchName}`);
   if (shouldPerform()) {
-    await mergeReleaseBranch(github, owner, repo, branchName);
+    await mergeReleaseBranch(
+      github,
+      githubConfig.owner,
+      githubConfig.repo,
+      branchName
+    );
   } else {
     logger.info('[dry-run] Not merging the release branch');
   }
@@ -370,9 +375,9 @@ async function handleReleaseBranch(
     logger.debug(`Deleting the release branch, ref: ${ref}`);
     if (shouldPerform()) {
       const response = await github.gitdata.deleteReference({
-        owner,
+        owner: githubConfig.owner,
         ref,
-        repo,
+        repo: githubConfig.repo,
       });
       logger.debug(
         `Deleted ref "${ref}"`,
@@ -434,12 +439,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   logger.debug('Revision to publish: ', revision);
 
   // Check status of all CI builds linked to the revision
-  await checkRevisionStatus(
-    githubConfig.owner,
-    githubConfig.repo,
-    revision,
-    argv.noStatusCheck
-  );
+  await checkRevisionStatus(githubConfig, revision, argv.noStatusCheck);
 
   // Find targets
   const targetList: string[] = (typeof argv.target === 'string'
@@ -470,8 +470,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       return undefined;
     }
     await publishToTargets(
-      githubConfig.owner,
-      githubConfig.repo,
+      githubConfig,
       newVersion,
       revision,
       targetConfigList,
@@ -482,8 +481,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   // Publishing done, MERGE DAT BRANCH!
   await handleReleaseBranch(
     githubClient,
-    githubConfig.owner,
-    githubConfig.repo,
+    githubConfig,
     branchName,
     argv.noMerge,
     argv.keepBranch
