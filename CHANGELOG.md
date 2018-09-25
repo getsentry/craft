@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0
+
+* Add Sentry Release Registry ("registry") target
+* Change template engine to Mustache
+* Add additional polling for unfinished and non-existing builds
+
 ## 0.4.11
 
 * Add GitHub Pages ("gh-pages") target
