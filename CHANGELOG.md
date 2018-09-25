@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+* Add minVersion attribute to the configuration file
+
 ## 0.5.0
 
 * Add Sentry Release Registry ("registry") target
