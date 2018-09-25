@@ -205,26 +205,26 @@ async function getRevisionInformation(
       return revisionInfo;
     } catch (e) {
       const errorMessage: string = e.message || '';
-
-      if (errorMessage.match(/404 not found|resource not found/i)) {
-        if (secondsPassed > ZEUS_REVISION_INFO_POLLING_MAX) {
-          throw new Error(
-            `Waited for more than ${ZEUS_REVISION_INFO_POLLING_MAX} seconds, and the revision is still not available. Aborting.`
-          );
+      if (!errorMessage.match(/404 not found|resource not found/i)) {
+        if (spinner.isSpinning) {
+          spinner.fail();
         }
-
-        // Update the spinner
-        const timeString = new Date().toLocaleString();
-        const waitMessage = `[${timeString}] Revision ${revision} is not yet found in Zeus, retrying in ${ZEUS_POLLING_INTERVAL} seconds...`;
-        spinner.text = waitMessage;
-        spinner.start();
-        await sleepAsync(ZEUS_POLLING_INTERVAL * 1000);
-        secondsPassed += ZEUS_POLLING_INTERVAL;
-      } else {
         throw e;
       }
-    } finally {
-      spinner.stop();
+
+      if (secondsPassed > ZEUS_REVISION_INFO_POLLING_MAX) {
+        throw new Error(
+          `Waited for more than ${ZEUS_REVISION_INFO_POLLING_MAX} seconds, and the revision is still not available. Aborting.`
+        );
+      }
+
+      // Update the spinner
+      const timeString = new Date().toLocaleString();
+      const waitMessage = `[${timeString}] Revision ${revision} is not yet found in Zeus, retrying in ${ZEUS_POLLING_INTERVAL} seconds...`;
+      spinner.text = waitMessage;
+      spinner.start();
+      await sleepAsync(ZEUS_POLLING_INTERVAL * 1000);
+      secondsPassed += ZEUS_POLLING_INTERVAL;
     }
   }
 }
@@ -246,12 +246,16 @@ async function waitForTheBuildToSucceed(
   // Status spinner
   const spinner = ora({ spinner: 'bouncingBar' }) as any;
   let secondsPassed = 0;
-
+  let firstIteration = true;
   while (true) {
     const revisionInfo: RevisionInfo = await getRevisionInformation(
       zeus,
       revision
     );
+    if (firstIteration) {
+      logger.info(`Revision ${revision} has been found in Zeus.`);
+      firstIteration = false;
+    }
 
     const isSuccess = zeus.isRevisionBuiltSuccessfully(revisionInfo);
     const isFailure = zeus.isRevisionFailed(revisionInfo);
