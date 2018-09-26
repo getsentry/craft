@@ -369,10 +369,6 @@ export class RegistryTarget extends BaseTarget {
       logger.info('Preview release detected, skipping the target');
       return undefined;
     }
-    const username = await getAuthUsername(this.github);
-
-    const remote = this.registryConfig.registryRemote;
-    remote.setAuth(username, getGithubApiToken());
 
     // If we have includeNames specified, check that we have any of matched files
     if (this.filterOptions.includeNames) {
@@ -386,6 +382,10 @@ export class RegistryTarget extends BaseTarget {
         return undefined;
       }
     }
+
+    const remote = this.registryConfig.registryRemote;
+    const username = await getAuthUsername(this.github);
+    remote.setAuth(username, getGithubApiToken());
 
     await withTempDir(
       async directory =>
