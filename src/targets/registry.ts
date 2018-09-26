@@ -284,7 +284,9 @@ export class RegistryTarget extends BaseTarget {
     version: string,
     revision: string
   ): Promise<void> {
-    logger.info('Adding the version file to the registry...');
+    logger.info(
+      `Adding the version file to the registry for canonical name "${canonical}"...`
+    );
     const packageDirPath = this.getPackageDirPath(directory, canonical);
 
     const versionFilePath = path.join(packageDirPath, `${version}.json`);

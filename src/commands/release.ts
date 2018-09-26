@@ -444,15 +444,16 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
   // Push the release branch
   await pushReleaseBranch(git, branchName, !argv.noPush);
 
+  logger.info(
+    `View diff at: https://github.com/${githubConfig.owner}/${
+      githubConfig.repo
+    }/compare/${branchName}`
+  );
+
   if (argv.publish) {
+    logger.success(`Release branch "${branchName}" has been pushed.`);
     await execPublish(newVersion);
   } else {
-    logger.info(
-      `View diff at: https://github.com/${githubConfig.owner}/${
-        githubConfig.repo
-      }/compare/${branchName}`
-    );
-
     logger.success(
       'Done. Do not forget to run "craft publish" to publish the artifacts:',
       `  $ craft publish ${newVersion}`

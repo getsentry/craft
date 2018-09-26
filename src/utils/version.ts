@@ -1,3 +1,5 @@
+import * as updateNotifier from 'update-notifier';
+
 import { getGitTagPrefix } from '../config';
 
 /**
@@ -131,4 +133,32 @@ export function isPreviewRelease(text: string): boolean {
 export function versionToTag(version: string, tagPrefix?: string): string {
   const prefix = tagPrefix === undefined ? getGitTagPrefix() : tagPrefix;
   return `${prefix}${version}`;
+}
+
+/**
+ * Checks for latest updates of the "craft" package
+ *
+ * This wrappers adds a custom update message that mentions "yarn".
+ */
+export function checkForUpdates(): void {
+  const chalk = require('chalk');
+  const pkg = require('../../package.json');
+
+  // Notify if the new version is available
+  const notifier = updateNotifier({
+    pkg,
+    updateCheckInterval: 0, // Check immediately
+  });
+
+  if (!notifier.update || pkg.version === notifier.update.latest) {
+    return;
+  }
+
+  const message = `Update available ${chalk.dim(
+    notifier.update.current
+  )}${chalk.reset(' → ')}${chalk.green(
+    notifier.update.latest
+  )}\nRun ${chalk.cyan('yarn global add ')}${chalk.cyan(pkg.name)} to update`;
+
+  notifier.notify({ defer: false, message });
 }

@@ -486,11 +486,13 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     );
   }
 
-  // Publishing done, MERGE DAT BRANCH!
-  if (
+  if (argv.rev) {
+    logger.info('Not merging any branches because revision was specified.');
+  } else if (
     targetList[0] === SpecialTarget.All ||
     targetList[0] === SpecialTarget.None
   ) {
+    // Publishing done, MERGE DAT BRANCH!
     await handleReleaseBranch(
       githubClient,
       githubConfig,
