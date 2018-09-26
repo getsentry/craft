@@ -374,13 +374,25 @@ export class RegistryTarget extends BaseTarget {
     const remote = this.registryConfig.registryRemote;
     remote.setAuth(username, getGithubApiToken());
 
+    // If we have includeNames specified, check that we have any of matched files
+    if (this.filterOptions.includeNames) {
+      const artifacts = await this.getArtifactsForRevision(revision);
+      if (artifacts.length === 0) {
+        logger.warn(
+          `No files found that match "${
+            this.filterOptions.includeNames
+          }", skipping the target.`
+        );
+        return undefined;
+      }
+    }
+
     await withTempDir(
       async directory =>
         this.pushVersionToRegistry(directory, remote, version, revision),
       true,
       'craft-release-registry-'
     );
-
     logger.info('Release registry updated');
   }
 }
