@@ -6,7 +6,6 @@ changelogPolicy: simple
 targets:
   - name: npm
   - name: gh-pages
-  - name: github
   - name: gcs
     includeNames: /^.*craft.*$/
     bucket: sentry-sdk-assets
@@ -17,3 +16,9 @@ targets:
       - path: /craft/latest/
         metadata:
           cacheControl: 'public, max-age=300'
+  - name: registry
+    type: app
+    urlTemplate: "https://downloads.sentry-cdn.com/craft/{{version}}/{{file}}"
+    config:
+      canonical: "app:craft"
+  - name: github
