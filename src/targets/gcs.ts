@@ -15,14 +15,14 @@ import { BaseTarget } from './base';
 
 const logger = loggerRaw.withScope('[gcs]');
 
-const DEFAULT_MAX_CACHE_AGE = 300;
+const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
 
 /**
  * Bucket path with associated parameters
  */
 export interface BucketDest {
   path: string;
-  maxCacheAge: number;
+  metadata: any;
 }
 
 /**
@@ -112,7 +112,7 @@ export class GcsTarget extends BaseTarget {
       reportError('No bucket paths provided!');
     } else if (typeof bucketPathsRaw === 'string') {
       bucketPaths = [
-        { path: bucketPathsRaw, maxCacheAge: DEFAULT_MAX_CACHE_AGE },
+        { path: bucketPathsRaw, metadata: DEFAULT_UPLOAD_METADATA },
       ];
     } else if (Array.isArray(bucketPathsRaw) && bucketPathsRaw.length > 0) {
       bucketPathsRaw.forEach((bucketPathRaw: any) => {
@@ -124,17 +124,19 @@ export class GcsTarget extends BaseTarget {
           );
         }
         const bucketPathName = bucketPathRaw.path;
-        const maxCacheAge = bucketPathRaw.maxCacheAge || DEFAULT_MAX_CACHE_AGE;
+        const metadata = bucketPathRaw.metadata || DEFAULT_UPLOAD_METADATA;
         if (!bucketPathName) {
           reportError(`Invalid bucket path: ${bucketPathName}`);
         }
-        if (typeof maxCacheAge !== 'number') {
+        if (typeof metadata !== 'object') {
           reportError(
-            `Invalid cache age for path "${bucketPathName}": "${maxCacheAge}"`
+            `Invalid metadata for path "${bucketPathName}": "${JSON.stringify(
+              metadata
+            )}"`
           );
         }
 
-        bucketPaths.push({ path: bucketPathName, maxCacheAge });
+        bucketPaths.push({ path: bucketPathName, metadata });
       });
     } else {
       reportError('Cannot validate bucketPaths!');
@@ -221,9 +223,7 @@ export class GcsTarget extends BaseTarget {
     const realPath = this.getRealBucketPath(bucketPath, version, revision);
     const fileUploadUptions: GcsUploadOptions = {
       gzip: true,
-      metadata: {
-        cacheControl: `public, max-age=${bucketPath.maxCacheAge}`,
-      },
+      metadata: bucketPath.metadata,
     };
     logger.debug(`Upload options: ${JSON.stringify(fileUploadUptions)}`);
     return Promise.all(

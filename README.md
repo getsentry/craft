@@ -468,6 +468,7 @@ targets:
 
 Uploads artifacts to a bucket in Google Cloud Storage.
 
+
 The bucket paths (`paths`) can be interpolated using Mustache syntax (`{{ variable }}`). The interpolation context contains the following variables:
 
 * `version`: The new project version
@@ -484,12 +485,12 @@ One of these two environment variables is required.
 
 **Configuration**
 
-| Option              | Description                                                           |
-| ------------------- | --------------------------------------------------------------------- |
-| `bucket`            | The name of the GCS bucket where artifacts are uploaded.              |
-| `paths`             | A list of path objects that represent bucket paths.                   |
-| `paths.path`        | Template-aware bucket path.                                           |
-| `paths.maxCacheAge` | **optional** Cache age for files (in seconds). Set to 300 by default. |
+| Option           | Description                                                                                                                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bucket`         | The name of the GCS bucket where artifacts are uploaded.                                                                                                                                          |
+| `paths`          | A list of path objects that represent bucket paths.                                                                                                                                               |
+| `paths.path`     | Template-aware bucket path.                                                                                                                                                                       |
+| `paths.metadata` | **optional** [Metadata](https://cloud.google.com/storage/docs/json_api/v1/objects/insert#request_properties_JSON) for uploaded files. By default, it sets Cache-Control to "public, max-age=300". |
 
 **Example**
 
@@ -499,7 +500,8 @@ targets:
     bucket: bucket-name
     paths:
       - path: release/{{version}}/download
-        maxCacheAge: 3600
+        metadata:
+          cacheControl: `public, max-age=3600`
       - path: release/{{ref}}/platform/package
 ```
 

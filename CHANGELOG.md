@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+* Replace "maxCacheAge" with more generic "metadata" attribute in "gcs" target
+
 ## 0.5.2
 
 * Conditional execution for "registry" targets
