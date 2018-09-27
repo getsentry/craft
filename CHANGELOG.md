@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2
+
+* Conditional execution for "registry" targets
+* Minor error message fixes
+
 ## 0.5.1
 
 * Add minVersion attribute to the configuration file
