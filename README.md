@@ -38,6 +38,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Google Cloud Storage (`gcs`)](#google-cloud-storage-gcs)
   - [GitHub Pages (`gh-pages`)](#github-pages-gh-pages)
   - [Sentry Release Registry (`registry`)](#sentry-release-registry-registry)
+  - [Cocoapods (`cocoapods`)](#cocoapods-cocoapods)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Development](#development)
@@ -566,7 +567,6 @@ _none_
 | `urlTemplate`      | **optional** URL template that will be used to generate download links for "app" package type.                |
 | `linkPrereleases`  | **optional** Update package versions even if the release is a preview release, "false" by default.            |
 
-
 **Example**
 
 ```yaml
@@ -581,6 +581,35 @@ targets:
     urlTemplate: "https://example.com/{{version}}/{{file}}"
     config:
       canonical: "npm:@sentry/browser"
+```
+
+### Cocoapods (`cocoapods`)
+
+Pushes a new podspec to the central cocoapods repository. The Podspec is fetched
+from the Github repository with the revision that is being released. No release
+assets are required for this target.
+
+**Environment**
+
+The `cocoapods` gem must be installed on the system.
+
+| Name                    | Description                               |
+| ----------------------- | ----------------------------------------- |
+| `COCOAPODS_TRUNK_TOKEN` | The access token to the cocoapods account |
+| `COCOAPODS_BIN`         | **optional**. Path to `pod` executable.   |
+
+**Configuration**
+
+| Option     | Description                                |
+| ---------- | ------------------------------------------ |
+| `specPath` | Path to the Podspec file in the repository |
+
+**Example**
+
+```yaml
+targets:
+  - name: cocoapods
+    specPath: MyProject.podspec
 ```
 
 ## Integrating Your Project with `craft`

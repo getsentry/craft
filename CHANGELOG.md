@@ -1,8 +1,9 @@
 # Changelog
 
-## [Unreleased]
+## 0.6.0
 
 * Replace "maxCacheAge" with more generic "metadata" attribute in "gcs" target
+* Add "cocoapods" target
 
 ## 0.5.2
 
