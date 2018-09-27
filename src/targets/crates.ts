@@ -218,6 +218,6 @@ export class CratesTarget extends BaseTarget {
       'craft-crates-'
     );
 
-    logger.info('Crates release completed');
+    logger.info('Crates release complete');
   }
 }

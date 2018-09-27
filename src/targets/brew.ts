@@ -203,6 +203,6 @@ export class BrewTarget extends BaseTarget {
         logger.info('[dry-run] Skipping file creation');
       }
     }
-    logger.info('Homebrew release completed');
+    logger.info('Homebrew release complete');
   }
 }

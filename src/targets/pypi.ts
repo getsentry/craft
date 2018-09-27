@@ -49,7 +49,10 @@ export class PypiTarget extends BaseTarget {
     if (!process.env.TWINE_USERNAME || !process.env.TWINE_PASSWORD) {
       throw new Error(
         `Cannot perform PyPI release: missing credentials.
-         Please use TWINE_USERNAME and TWINE_PASSWORD environment variables.`
+         Please use TWINE_USERNAME and TWINE_PASSWORD environment variables.`.replace(
+          /^\s+/gm,
+          ''
+        )
       );
     }
     return {
@@ -97,6 +100,6 @@ export class PypiTarget extends BaseTarget {
       })
     );
 
-    logger.info('PyPI release completed');
+    logger.info('PyPI release complete');
   }
 }

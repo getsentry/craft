@@ -154,6 +154,6 @@ export class NpmTarget extends BaseTarget {
       })
     );
 
-    logger.info('NPM release completed');
+    logger.info('NPM release complete');
   }
 }

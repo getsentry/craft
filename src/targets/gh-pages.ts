@@ -227,6 +227,6 @@ export class GhPagesTarget extends BaseTarget {
       'craft-gh-pages-'
     );
 
-    logger.info('Gh-pages release completed');
+    logger.info('Gh-pages release complete');
   }
 }

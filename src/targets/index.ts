@@ -1,5 +1,6 @@
 import { BaseTarget } from './base';
 import { BrewTarget } from './brew';
+import { CocoapodsTarget } from './cocoapods';
 import { CratesTarget } from './crates';
 import { GcsTarget } from './gcs';
 import { GhPagesTarget } from './gh-pages';
@@ -11,6 +12,7 @@ import { RegistryTarget } from './registry';
 
 export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   brew: BrewTarget,
+  cocoapods: CocoapodsTarget,
   crates: CratesTarget,
   gcs: GcsTarget,
   'gh-pages': GhPagesTarget,

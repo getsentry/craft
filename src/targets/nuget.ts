@@ -99,6 +99,6 @@ export class NugetTarget extends BaseTarget {
       })
     );
 
-    logger.info('Nuget release completed');
+    logger.info('Nuget release complete');
   }
 }
