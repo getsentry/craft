@@ -82,8 +82,8 @@ export class RegistryTarget extends BaseTarget {
     let urlTemplate;
     if (registryType === RegistryPackageType.APP) {
       urlTemplate = this.config.urlTemplate;
-      if (!urlTemplate) {
-        throw new Error(`Invalid "urlTemplate" specified: ${urlTemplate}`);
+      if (urlTemplate && typeof urlTemplate !== 'string') {
+        reportError(`Invalid "urlTemplate" specified: ${urlTemplate}`);
       }
     }
 
@@ -213,7 +213,7 @@ export class RegistryTarget extends BaseTarget {
     revision: string
   ): Promise<void> {
     if (!this.registryConfig.urlTemplate) {
-      throw new Error('No "urlTemplate" found in the config');
+      return;
     }
 
     const artifacts = await this.getArtifactsForRevision(revision);
@@ -291,9 +291,7 @@ export class RegistryTarget extends BaseTarget {
 
     const versionFilePath = path.join(packageDirPath, `${version}.json`);
     if (fs.existsSync(versionFilePath)) {
-      throw new Error(
-        `Version file for "${version}" already exists. Aborting.`
-      );
+      reportError(`Version file for "${version}" already exists. Aborting.`);
     }
 
     const packageManifestPath = path.join(packageDirPath, 'latest.json');
