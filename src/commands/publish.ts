@@ -12,7 +12,7 @@ import { BaseTarget } from '../targets/base';
 import { reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { getGithubClient, mergeReleaseBranch } from '../utils/github_api';
-import { sleepAsync } from '../utils/system';
+import { catchKeyboardInterrupt, sleepAsync } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 
 export const command = ['publish <new-version>', 'p'];
@@ -513,6 +513,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
 export const handler = async (argv: PublishOptions) => {
   try {
+    catchKeyboardInterrupt();
     return await publishMain(argv);
   } catch (e) {
     logger.error(e);

@@ -332,3 +332,41 @@ export async function downloadAndExtract(
   logger.info(`Extracting sources to ${directory}`);
   return extractSourcesFromTarStream(stream, directory);
 }
+
+/**
+ * Sets SIGINT handler to avoid accidental process termination via Ctrl-C
+ *
+ * After the handler is set, the user should press Ctrl-C with less than
+ * "maxTimeDiff" milliseconds apart.
+ *
+ * @param maxTimeDiff Maximum time interval in milliseconds between the signals
+ */
+export function catchKeyboardInterrupt(maxTimeDiff: number = 1000): void {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    logger.debug('stdin or stdout is not a TTY, not catching SIGINTs');
+    return;
+  }
+
+  // Dirty hack: SIGINT interception doesn't work well if we run "craft" as a
+  // yarn script (for example, in development via "yarn cli"). The problem is
+  // the external "yarn" process is killed, and no longer attached to stdout,
+  // while the craft process receives only one SIGINT.
+  // Hence, we're trying to detect if we run the script via yarn/npm.
+  if ((process.env.npm_package_scripts_cli || '').indexOf('node') > -1) {
+    logger.debug('NPM/Yarn script environment detected, not catching SIGINTs');
+    return;
+  }
+
+  logger.debug('Setting custom SIGINT handler');
+  let lastSignalTime = 0;
+  process.on('SIGINT', () => {
+    const now = Date.now();
+    if (lastSignalTime && now - lastSignalTime <= maxTimeDiff) {
+      logger.warn('Got ^C, exiting.');
+      process.exit(1);
+    } else {
+      logger.warn('Press ^C again (quickly!) to exit.');
+      lastSignalTime = now;
+    }
+  });
+}
