@@ -384,6 +384,28 @@ async function checkChangelog(
 }
 
 /**
+ * Switches to the default branch of the repo
+ *
+ * @param git Local git client
+ * @param defaultBranch Default branch of the remote repository
+ */
+async function switchToDefaultBranch(
+  git: simpleGit.SimpleGit,
+  defaultBranch: string
+): Promise<void> {
+  const repoStatus = await git.status();
+  if (repoStatus.current === defaultBranch) {
+    return;
+  }
+  logger.info(`Switching back to the default branch (${defaultBranch})...`);
+  if (shouldPerform()) {
+    await git.checkout(defaultBranch);
+  } else {
+    logger.info('[dry-run] Not switching branches.');
+  }
+}
+
+/**
  * Body of 'release' command
  *
  * @param argv Command-line arguments
@@ -459,6 +481,8 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
       `  $ craft publish ${newVersion}`
     );
   }
+
+  await switchToDefaultBranch(git, defaultBranch);
 }
 
 export const handler = async (argv: ReleaseOptions) => {
