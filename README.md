@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="https://sentry-brand.storage.googleapis.com/sentry-logo-black.png" width="280">
+    <img src="img/logo.svg" width="280">
     <br />
 </p>
 
