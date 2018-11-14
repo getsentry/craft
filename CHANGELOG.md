@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1
+
+* Require additional ctrl-c when running "publish"
+* Checkout master after successfull "craft release"
+* Fix "registry" issue with prereleases
+
 ## 0.6.0
 
 * Replace "maxCacheAge" with more generic "metadata" attribute in "gcs" target
