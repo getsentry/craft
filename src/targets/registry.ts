@@ -363,7 +363,7 @@ export class RegistryTarget extends BaseTarget {
    * Pushes an archive with static HTML web assets to the configured branch
    */
   public async publish(version: string, revision: string): Promise<any> {
-    if (this.registryConfig.linkPrereleases && isPreviewRelease(version)) {
+    if (!this.registryConfig.linkPrereleases && isPreviewRelease(version)) {
       logger.info('Preview release detected, skipping the target');
       return undefined;
     }

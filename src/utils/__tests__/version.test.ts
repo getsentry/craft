@@ -2,11 +2,11 @@
 
 import {
   getVersion,
+  isPreviewRelease,
   isValidVersion,
   parseVersion,
-  isPreviewRelease,
-  versionGreaterOrEqualThan,
   SemVer,
+  versionGreaterOrEqualThan,
 } from '../version';
 
 describe('getVersion', () => {
