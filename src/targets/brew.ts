@@ -115,7 +115,7 @@ export class BrewTarget extends BaseTarget {
     try {
       const tap = this.brewConfig.tapRepo;
       logger.debug(`Loading SHA for ${tap.owner}/${tap.repo}:${path}`);
-      const response = await this.github.repos.getContent({ ...tap, path });
+      const response = await this.github.repos.getContents({ ...tap, path });
       return response.data.sha;
     } catch (e) {
       if (e.code === 404) {

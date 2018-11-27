@@ -136,7 +136,7 @@ export async function getFile(
   ref: string
 ): Promise<string | undefined> {
   try {
-    const response = await github.repos.getContent({
+    const response = await github.repos.getContents({
       owner,
       path,
       ref,
