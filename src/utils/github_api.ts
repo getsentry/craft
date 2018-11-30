@@ -110,7 +110,7 @@ export function getGithubClient(token: string = ''): Github {
  * @returns Github username
  */
 export async function getAuthUsername(github: Github): Promise<string> {
-  const userData = await github.users.get({});
+  const userData = await github.users.getAuthenticated({});
   const username = (userData.data || {}).login;
   if (!username) {
     throw new Error('Cannot reliably detect Github username, aborting');
@@ -136,7 +136,7 @@ export async function getFile(
   ref: string
 ): Promise<string | undefined> {
   try {
-    const response = await github.repos.getContent({
+    const response = await github.repos.getContents({
       owner,
       path,
       ref,

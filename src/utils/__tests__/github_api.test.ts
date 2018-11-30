@@ -3,7 +3,7 @@ import * as Github from '@octokit/rest';
 import { getFile } from '../github_api';
 
 const mockRepos = {
-  getContent: jest.fn(),
+  getContents: jest.fn(),
 };
 
 // TODO rewrite with module mock, port github helpers from probot-release
@@ -16,13 +16,13 @@ describe('getFile', () => {
   const owner = 'owner';
   const repo = 'repo';
 
-  const getContent = github.repos.getContent as jest.Mock;
+  const getContents = github.repos.getContents as jest.Mock;
 
   test('loads and decodes the file', async () => {
     expect.assertions(2);
     const testContent = 'test content.';
 
-    getContent.mockReturnValue({
+    getContents.mockReturnValue({
       data: { content: Buffer.from(testContent).toString('base64') },
     });
 
@@ -33,7 +33,7 @@ describe('getFile', () => {
       '/path/to/file',
       'v1.0.0'
     );
-    expect(getContent).toHaveBeenCalledWith({
+    expect(getContents).toHaveBeenCalledWith({
       owner: 'owner',
       path: '/path/to/file',
       ref: 'v1.0.0',
@@ -46,7 +46,7 @@ describe('getFile', () => {
   test('returns null for missing files', async () => {
     expect.assertions(1);
 
-    getContent.mockImplementation(() => {
+    getContents.mockImplementation(() => {
       const e = new Error('file not found') as any;
       e.code = 404;
       throw e;
@@ -66,7 +66,7 @@ describe('getFile', () => {
     expect.assertions(1);
 
     const errorText = 'internal server error';
-    getContent.mockImplementation(() => {
+    getContents.mockImplementation(() => {
       const e = new Error(errorText) as any;
       e.code = 500;
       throw e;

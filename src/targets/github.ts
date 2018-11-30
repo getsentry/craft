@@ -161,8 +161,8 @@ export class GithubTarget extends BaseTarget {
         const name = basename(path);
 
         const params = {
-          contentLength: stats.size,
-          contentType: artifact.type || DEFAULT_CONTENT_TYPE,
+          'Content-Length': stats.size,
+          'Content-Type': artifact.type || DEFAULT_CONTENT_TYPE,
           file: createReadStream(path),
           id: release.id,
           name,
@@ -176,7 +176,7 @@ export class GithubTarget extends BaseTarget {
           }:${release.tag_name}`
         );
         if (shouldPerform()) {
-          return this.github.repos.uploadAsset(params);
+          return this.github.repos.uploadReleaseAsset(params);
         } else {
           logger.info(`[dry-run] Not uploading asset "${name}"`);
           return undefined;
