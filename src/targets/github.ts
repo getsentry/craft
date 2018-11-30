@@ -55,7 +55,7 @@ export class GithubTarget extends BaseTarget {
     this.githubConfig = {
       ...getGlobalGithubConfig(),
       annotatedTag:
-        this.config.annotatedTag === undefined || this.config.annotatedTag,
+        this.config.annotatedTag === undefined || !!this.config.annotatedTag,
       changelog: getConfiguration().changelog,
       previewReleases:
         this.config.previewReleases === undefined ||
@@ -72,8 +72,9 @@ export class GithubTarget extends BaseTarget {
    * respective tag, if present. Otherwise, the release name defaults to the
    * tag and the body to the commit it points to.
    *
-   * @param context Github context
    * @param tag Tag name for this release
+   * @param revision Git commit SHA to be published
+   * @param isPreview Boolean that indicates if the release is a preview release
    * @returns The newly created release
    */
   public async getOrCreateRelease(
@@ -133,7 +134,7 @@ export class GithubTarget extends BaseTarget {
           repo: params.repo,
           sha: revision,
         };
-        await this.github.gitdata.createReference(refParams);
+        await this.github.gitdata.createRef(refParams);
       }
 
       return created.data;

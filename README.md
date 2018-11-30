@@ -300,6 +300,7 @@ targets:
   - name: github
     tagPrefix: v
     previewReleases: false
+    annotatedTag: false
 ```
 
 ### NPM (`npm`)
