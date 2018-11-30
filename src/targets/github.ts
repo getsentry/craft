@@ -26,6 +26,7 @@ export interface GithubTargetConfig extends TargetConfig, GithubGlobalConfig {
   changelog?: string;
   tagPrefix?: string;
   previewReleases?: boolean;
+  annotatedTag?: boolean;
 }
 
 /**
@@ -53,6 +54,7 @@ export class GithubTarget extends BaseTarget {
     super(config, store);
     this.githubConfig = {
       ...getGlobalGithubConfig(),
+      annotatedTag: this.config.annotatedTag === undefined || this.config.annotatedTag,
       changelog: getConfiguration().changelog,
       previewReleases:
         this.config.previewReleases === undefined ||
@@ -120,7 +122,19 @@ export class GithubTarget extends BaseTarget {
           isPreview ? '*preview* ' : ''
         }release for tag "${tag}"`
       );
+
       const created = await this.github.repos.createRelease(params);
+
+      if (this.config.annotatedTag) {
+        const refParams = {
+          owner: params.owner,
+          ref: `refs/tags/${tag}`,
+          repo: params.repo,
+          sha: revision,
+        };
+        await this.github.gitdata.createReference(refParams);
+      }
+
       return created.data;
     } else {
       logger.info(
@@ -151,7 +165,7 @@ export class GithubTarget extends BaseTarget {
     logger.info(`Git tag: "${tag}"`);
     const isPreview =
       this.githubConfig.previewReleases && isPreviewRelease(version);
-    const release = await this.getOrCreateRelease(tag, revision, isPreview);
+    const release = await this.getOrCreateRelease(tag, revision, isPreview;
 
     const artifacts = await this.getArtifactsForRevision(revision);
     await Promise.all(
