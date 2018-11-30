@@ -54,7 +54,8 @@ export class GithubTarget extends BaseTarget {
     super(config, store);
     this.githubConfig = {
       ...getGlobalGithubConfig(),
-      annotatedTag: this.config.annotatedTag === undefined || this.config.annotatedTag,
+      annotatedTag:
+        this.config.annotatedTag === undefined || this.config.annotatedTag,
       changelog: getConfiguration().changelog,
       previewReleases:
         this.config.previewReleases === undefined ||
@@ -165,7 +166,7 @@ export class GithubTarget extends BaseTarget {
     logger.info(`Git tag: "${tag}"`);
     const isPreview =
       this.githubConfig.previewReleases && isPreviewRelease(version);
-    const release = await this.getOrCreateRelease(tag, revision, isPreview;
+    const release = await this.getOrCreateRelease(tag, revision, isPreview);
 
     const artifacts = await this.getArtifactsForRevision(revision);
     await Promise.all(
