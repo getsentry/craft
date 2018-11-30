@@ -161,8 +161,8 @@ export class GithubTarget extends BaseTarget {
         const name = basename(path);
 
         const params = {
-          'content-length': stats.size,
-          'content-type': artifact.type || DEFAULT_CONTENT_TYPE,
+          'Content-Length': stats.size,
+          'Content-Type': artifact.type || DEFAULT_CONTENT_TYPE,
           file: createReadStream(path),
           id: release.id,
           name,

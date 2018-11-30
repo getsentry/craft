@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@google-cloud/storage": "^1.7.0",
-    "@octokit/rest": "^15.9.1",
+    "@octokit/rest": "^15.18.0",
     "@zeus-ci/sdk": "^0.1.5",
     "ajv": "^6.5.2",
     "chalk": "^2.4.1",
