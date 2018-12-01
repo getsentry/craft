@@ -23,10 +23,10 @@ export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
  * Configuration options for the Github target
  */
 export interface GithubTargetConfig extends TargetConfig, GithubGlobalConfig {
-  changelog?: string;
-  tagPrefix?: string;
-  previewReleases?: boolean;
-  annotatedTag?: boolean;
+  changelog: string;
+  tagPrefix: string;
+  previewReleases: boolean;
+  annotatedTag: boolean;
 }
 
 /**
@@ -38,6 +38,11 @@ interface GithubRelease {
   tag_name: string;
   upload_url: string;
 }
+
+/**
+ * Tag type as used in GitdataCreateTagParams from Github API
+ */
+type GithubCreateTagType = 'commit' | 'tree' | 'blob';
 
 /**
  * Target responsible for publishing releases on Github
@@ -56,7 +61,7 @@ export class GithubTarget extends BaseTarget {
       ...getGlobalGithubConfig(),
       annotatedTag:
         this.config.annotatedTag === undefined || !!this.config.annotatedTag,
-      changelog: getConfiguration().changelog,
+      changelog: getConfiguration().changelog || '',
       previewReleases:
         this.config.previewReleases === undefined ||
         !!this.config.previewReleases,
@@ -66,29 +71,82 @@ export class GithubTarget extends BaseTarget {
   }
 
   /**
-   * Gets an existing or creates a new release for the given tag
+   * Creates an annotated tag for the given revision
+   *
+   * Unlike a lightweight tag (basically just a pointer to a commit), to
+   * create an annotateg tag we must create a tag object first, and then
+   * create a reference to it manually.
+   *
+   * @param version The version to release
+   * @param revision Git commit SHA to be published
+   * @param tag Tag to create
+   * @returns The newly created release
+   */
+  public async createAnnotatedTag(
+    version: string,
+    revision: string,
+    tag: string
+  ): Promise<void> {
+    logger.debug(`Creating a tag object: "${tag}"`);
+    const createTagParams = {
+      message: `Tag for release: ${version}`,
+      object: revision,
+      owner: this.githubConfig.owner,
+      repo: this.githubConfig.repo,
+      tag,
+      type: 'commit' as GithubCreateTagType,
+    };
+    const tagCreatedResponse = await this.github.gitdata.createTag(
+      createTagParams
+    );
+
+    const ref = `refs/tags/${tag}`;
+    const refSha = tagCreatedResponse.data.sha;
+    logger.debug(`Creating a reference "${ref}" for revision "${refSha}"`);
+    try {
+      await this.github.gitdata.createRef({
+        owner: this.githubConfig.owner,
+        ref,
+        repo: this.githubConfig.repo,
+        sha: refSha,
+      });
+    } catch (e) {
+      if (e.message && e.message.match(/reference already exists/i)) {
+        logger.error(
+          `Reference "${ref}" already exists. Does tag "${tag}" already exist?`
+        );
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Gets an existing or creates a new release for the given version
    *
    * The release name and description body is loaded from CHANGELOG.md in the
    * respective tag, if present. Otherwise, the release name defaults to the
    * tag and the body to the commit it points to.
    *
-   * @param tag Tag name for this release
+   * @param version The version to release
    * @param revision Git commit SHA to be published
-   * @param isPreview Boolean that indicates if the release is a preview release
    * @returns The newly created release
    */
   public async getOrCreateRelease(
-    tag: string,
-    revision: string,
-    isPreview: boolean = false
+    version: string,
+    revision: string
   ): Promise<GithubRelease> {
+    const tag = versionToTag(version, this.githubConfig.tagPrefix);
+    logger.info(`Git tag: "${tag}"`);
+    const isPreview =
+      this.githubConfig.previewReleases && isPreviewRelease(version);
+
     try {
       const response = await this.github.repos.getReleaseByTag({
         owner: this.githubConfig.owner,
         repo: this.githubConfig.repo,
         tag,
       });
-      logger.debug(`Found the existing release for tag "${tag}"`);
+      logger.warn(`Found the existing release for tag "${tag}"`);
       return response.data;
     } catch (e) {
       if (e.code !== 404) {
@@ -96,6 +154,7 @@ export class GithubTarget extends BaseTarget {
       }
       logger.debug(`Release for tag "${tag}" not found.`);
     }
+
     // Release hasn't been found, so create one
     const changelog = await getFile(
       this.github,
@@ -107,7 +166,7 @@ export class GithubTarget extends BaseTarget {
     const changes = (changelog && findChangeset(changelog, tag)) || {};
     logger.debug('Changes extracted from changelog: ', JSON.stringify(changes));
 
-    const params = {
+    const createReleaseParams = {
       draft: false,
       name: tag,
       owner: this.githubConfig.owner,
@@ -118,32 +177,25 @@ export class GithubTarget extends BaseTarget {
       ...changes,
     };
 
+    logger.debug(`Annotated tag: ${this.githubConfig.annotatedTag}`);
     if (shouldPerform()) {
+      if (this.githubConfig.annotatedTag) {
+        await this.createAnnotatedTag(version, revision, tag);
+        // We've just created the tag, so "target_commitish" will not be used.
+        createReleaseParams.target_commitish = '';
+      }
+
       logger.info(
         `Creating a new ${
           isPreview ? '*preview* ' : ''
         }release for tag "${tag}"`
       );
-
-      const created = await this.github.repos.createRelease(params);
-
-      if (this.config.annotatedTag) {
-        const refParams = {
-          owner: params.owner,
-          ref: `refs/tags/${tag}`,
-          repo: params.repo,
-          sha: revision,
-        };
-        await this.github.gitdata.createRef(refParams);
-      }
-
+      const created = await this.github.repos.createRelease(
+        createReleaseParams
+      );
       return created.data;
     } else {
-      logger.info(
-        `[dry-run] Not creating a new ${
-          isPreview ? '*preview* ' : ''
-        }release for tag "${tag}"`
-      );
+      logger.info(`[dry-run] Not creating the release`);
       return {
         id: 0,
         tag_name: tag,
@@ -163,11 +215,7 @@ export class GithubTarget extends BaseTarget {
   public async publish(version: string, revision: string): Promise<any> {
     logger.info(`Target "${this.name}": publishing version "${version}"...`);
     logger.debug(`Revision: ${revision}`);
-    const tag = versionToTag(version, this.githubConfig.tagPrefix);
-    logger.info(`Git tag: "${tag}"`);
-    const isPreview =
-      this.githubConfig.previewReleases && isPreviewRelease(version);
-    const release = await this.getOrCreateRelease(tag, revision, isPreview);
+    const release = await this.getOrCreateRelease(version, revision);
 
     const artifacts = await this.getArtifactsForRevision(revision);
     await Promise.all(
@@ -175,11 +223,16 @@ export class GithubTarget extends BaseTarget {
         const path = await this.store.downloadArtifact(artifact);
         const stats = statSync(path);
         const name = basename(path);
+        const contentType = artifact.type || DEFAULT_CONTENT_TYPE;
 
         const params = {
           'Content-Length': stats.size,
-          'Content-Type': artifact.type || DEFAULT_CONTENT_TYPE,
+          'Content-Type': contentType,
           file: createReadStream(path),
+          headers: {
+            'content-length': stats.size,
+            'content-type': contentType,
+          },
           id: release.id,
           name,
           url: release.upload_url,
