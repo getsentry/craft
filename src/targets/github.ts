@@ -102,7 +102,7 @@ export class GithubTarget extends BaseTarget {
 
     const ref = `refs/tags/${tag}`;
     const refSha = tagCreatedResponse.data.sha;
-    logger.debug(`Creating a reference "${ref}" for revision "${refSha}"`);
+    logger.debug(`Creating a reference "${ref}" for object "${refSha}"`);
     try {
       await this.github.gitdata.createRef({
         owner: this.githubConfig.owner,
