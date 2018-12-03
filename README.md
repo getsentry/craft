@@ -3,7 +3,7 @@
     <br />
 </p>
 
-# Craft: Universal Release Tool (And More)  <!-- omit in toc -->
+# Craft: Universal Release Tool (And More) <!-- omit in toc -->
 
 [![Travis](https://img.shields.io/travis/getsentry/craft.svg)](https://travis-ci.org/getsentry/craft)
 [![GitHub release](https://img.shields.io/github/release/getsentry/craft.svg)](https://github.com/getsentry/craft/releases/latest)
@@ -13,7 +13,7 @@
 `craft` is a command line tool that helps to automate and pipeline package releases. It suggests, and
 then enforces a specific workflow for managing release branches, changelogs, artifact publishing, etc.
 
-## Table of Contents  <!-- omit in toc -->
+## Table of Contents <!-- omit in toc -->
 
 - [Installation](#installation)
 - [Usage](#usage)
@@ -83,13 +83,13 @@ Options:
 `craft` requires a few environment variables to be present in order to function
 properly.
 
-* `GITHUB_API_TOKEN`
+- `GITHUB_API_TOKEN`
 
   Get your personal GitHub API token here: https://github.com/settings/tokens
 
   The token only needs "repo" scope.
 
-* `ZEUS_API_TOKEN`
+- `ZEUS_API_TOKEN`
 
   You can generate your personal Zeus token here: https://zeus.ci/settings/token
 
@@ -287,10 +287,11 @@ changelog. Otherwise, defaults to the tag name and tag's commit message.
 
 **Configuration**
 
-| Option            | Description                                                                        |
-| ----------------- | ---------------------------------------------------------------------------------- |
-| `tagPrefix`       | **optional**. Prefix for new git tags (e.g. "v"). Empty by default.                |
-| `previewReleases` | **optional**. Automatically detect and create preview releases. `true` by default. |
+| Option            | Description                                                                                  |
+| ----------------- | -------------------------------------------------------------------------------------------- |
+| `tagPrefix`       | **optional**. Prefix for new git tags (e.g. "v"). Empty by default.                          |
+| `previewReleases` | **optional**. Automatically detect and create preview releases. `true` by default.           |
+| `annotatedTag`    | **optional**. Creates an annotated tag, set to false for lightweight tag. `true` by default. |
 
 **Example:**
 
@@ -299,6 +300,7 @@ targets:
   - name: github
     tagPrefix: v
     previewReleases: false
+    annotatedTag: false
 ```
 
 ### NPM (`npm`)
@@ -371,9 +373,9 @@ The formula contents are given as configuration value and can be interpolated
 with Mustache template syntax (`{{ variable }}`). The interpolation context
 contains the following variables:
 
-* `version`: The new version
-* `revision`: The tag's commit SHA
-* `checksums`: A map containing sha256 checksums for every release asset. Use
+- `version`: The new version
+- `revision`: The tag's commit SHA
+- `checksums`: A map containing sha256 checksums for every release asset. Use
   the full filename to access the sha, e.g. `checksums.MyProgram-x86`
 
 **Environment**
@@ -469,11 +471,10 @@ targets:
 
 Uploads artifacts to a bucket in Google Cloud Storage.
 
-
 The bucket paths (`paths`) can be interpolated using Mustache syntax (`{{ variable }}`). The interpolation context contains the following variables:
 
-* `version`: The new project version
-* `revision`: The SHA revision of the new version
+- `version`: The new project version
+- `revision`: The SHA revision of the new version
 
 **Environment**
 
@@ -531,14 +532,12 @@ _none_
 | `githubOwner` | **optional** GitHub project owner, defaults to the value from the global configuration. |
 | `githubRepo`  | **optional** GitHub project name, defaults to the value from the global configuration.  |
 
-
 **Example**
 
 ```yaml
 targets:
   - name: gh-pages
     branch: gh-pages
-
 ```
 
 ### Sentry Release Registry (`registry`)
@@ -616,16 +615,16 @@ targets:
 
 Here is how you can integrate your GitHub project with `craft`:
 
-* Enable your project in Zeus: https://zeus.ci/settings/github/repos
-* Configure your CI systems (Travis, AppVeyor, etc.) to send build artifacts to Zeus
-  * Allow building release branches (their names follow pattern `release/VERSION`)
-  * Add ZEUS_HOOK_BASE as protected to CI environment
-* Add `.craft.yml` configuration file to your project
-  * List there all the targets you want to publish to
-  * Configure additional options (changelog management policy, tag prefix, etc.)
-* Add a [pre-release script](#pre-release-version-bumping-script-conventions) to your project.
-* Get various [configuration tokens](#global-configuration)
-* Start releasing!
+- Enable your project in Zeus: https://zeus.ci/settings/github/repos
+- Configure your CI systems (Travis, AppVeyor, etc.) to send build artifacts to Zeus
+  - Allow building release branches (their names follow pattern `release/VERSION`)
+  - Add ZEUS_HOOK_BASE as protected to CI environment
+- Add `.craft.yml` configuration file to your project
+  - List there all the targets you want to publish to
+  - Configure additional options (changelog management policy, tag prefix, etc.)
+- Add a [pre-release script](#pre-release-version-bumping-script-conventions) to your project.
+- Get various [configuration tokens](#global-configuration)
+- Start releasing!
 
 ## Pre-release (Version-bumping) Script: Conventions
 
@@ -637,13 +636,13 @@ to the project root). The command can be configured by specifying
 
 The following requirements are on the script interface and functionality:
 
-* The script must accept at least two arguments. Craft will pass the following
+- The script must accept at least two arguments. Craft will pass the following
   values as the last two arguments (in the specified order): the old ("from")
   version, and the second one is the new ("to") version.
-* The script must replace all relevant occurrences of the old version string
+- The script must replace all relevant occurrences of the old version string
   with the new one.
-* The script must not commit the changes made.
-* The script must not change the state of the git repository (e.g. changing branches)
+- The script must not commit the changes made.
+- The script must not change the state of the git repository (e.g. changing branches)
 
 **Example**
 
