@@ -19,7 +19,7 @@ describe('withTempDir', () => {
     callback: (arg: any) => any,
     cleanupEnabled: boolean = true
   ): Promise<any> {
-    let directory;
+    let directory = '';
     try {
       await withTempDir(dir => {
         directory = dir;
@@ -53,7 +53,7 @@ describe('withTempDir', () => {
 
   test('creates and does not remove if cleanup flag is specified', async () => {
     expect.assertions(2);
-    let tempDir: string;
+    let tempDir = '';
     await testDirectories(arg => {
       tempDir = arg;
     }, false);

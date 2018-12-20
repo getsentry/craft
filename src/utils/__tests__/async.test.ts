@@ -10,7 +10,7 @@ describe('filterAsync', () => {
   test('filters with async predicate', async () => {
     expect.assertions(1);
 
-    const predicate = i =>
+    const predicate = (i: number) =>
       new Promise<boolean>(resolve =>
         setTimeout(() => resolve(i > 2), i * 100)
       );

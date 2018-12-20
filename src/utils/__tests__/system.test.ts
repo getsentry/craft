@@ -16,7 +16,7 @@ jest.mock('../../logger');
 describe('spawnProcess', () => {
   test('resolves on success with standard output', async () => {
     expect.assertions(1);
-    const stdout = await spawnProcess('/bin/echo', ['test']);
+    const stdout = (await spawnProcess('/bin/echo', ['test'])) || '';
     expect(stdout.toString()).toBe('test\n');
   });
 

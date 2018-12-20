@@ -46,7 +46,7 @@ export async function listFiles(directory: string): Promise<string[]> {
  * @async
  */
 export async function withTempDir(
-  callback: (...args: any[]) => any,
+  callback: (arg: string) => any,
   cleanup: boolean = true,
   prefix: string = 'craft-'
 ): Promise<any> {

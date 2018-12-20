@@ -57,8 +57,8 @@ export async function forEachChained<T>(
   thisArg?: any
 ): Promise<void> {
   return array.reduce(
-    async (prev, ...args: any[]) =>
-      prev.then(() => iteratee.apply(thisArg, args)),
+    async (prev, current: T) =>
+      prev.then(() => iteratee.apply(thisArg, [current])),
     Promise.resolve()
   );
 }
