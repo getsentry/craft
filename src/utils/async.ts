@@ -39,7 +39,7 @@ export async function promiseProps(object: any): Promise<any> {
 /**
  * Asynchronously calls the iteratee on each element of the array one element at
  * a time. This results in a chain of asynchronous actions that resolves once
- * the last item action has completed. In contrast, `Promise.all` exectues each
+ * the last item action has completed. In contrast, `Promise.all` executes each
  * promise simultaneously.
  *
  * The iteratee is invoked as with `Array.forEach`: It receives the current
@@ -57,8 +57,8 @@ export async function forEachChained<T>(
   thisArg?: any
 ): Promise<void> {
   return array.reduce(
-    async (prev, current: T) =>
-      prev.then(() => iteratee.apply(thisArg, [current])),
+    async (prev, ...args: [T]) =>
+      prev.then(() => iteratee.apply(thisArg, args)),
     Promise.resolve()
   );
 }

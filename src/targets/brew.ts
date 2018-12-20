@@ -148,7 +148,7 @@ export class BrewTarget extends BaseTarget {
       JSON.stringify(filesList.map(file => file.name))
     );
     const files = await this.store.downloadArtifacts(filesList);
-    const fileMap: { [key: string]: string } = _.keyBy(files, basename);
+    const fileMap = _.keyBy(files, basename) as { [key: string]: string };
     const promises = _.mapValues(fileMap, async filePath =>
       calculateChecksum(filePath)
     );

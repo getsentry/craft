@@ -101,7 +101,7 @@ describe('forEachChained', () => {
   test('passes this to the action', async () => {
     expect.assertions(1);
 
-    const that = {};
+    const that = { '1': 2 };
     await forEachChained(
       [1],
       function action(): void {

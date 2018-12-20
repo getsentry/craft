@@ -5,7 +5,8 @@
     "baseUrl": ".",
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node"]
+    "types": ["node"],
+    "noImplicitThis": false
   },
   "include": ["src/**/*.ts"],
   "exclude": ["**/__mocks__/**", "**/__tests__/**"]
