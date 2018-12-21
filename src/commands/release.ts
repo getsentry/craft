@@ -58,10 +58,15 @@ export const builder = (yargs: Argv) =>
 
 /** Command line options. */
 interface ReleaseOptions {
+  /** The new version to release */
   newVersion: string;
+  /** Do not perform basic git checks */
   noGitChecks: boolean;
+  /** Do not check for changelog */
   noChangelog: boolean;
+  /** Do not push the newly created release branch */
   noPush: boolean;
+  /** Run publish right after */
   publish: boolean;
 }
 

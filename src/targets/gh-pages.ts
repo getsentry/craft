@@ -32,8 +32,11 @@ const DEFAULT_DEPLOY_BRANCH = 'gh-pages';
 
 /** Target options for "gh-pages" */
 export interface GhPagesConfig extends TargetConfig {
+  /** GitHub project owner */
   githubOwner: string;
+  /** GitHub project name */
   githubRepo: string;
+  /** Git branch to push assets to */
   branch: string;
 }
 

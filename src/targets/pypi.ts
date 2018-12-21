@@ -23,7 +23,9 @@ const DEFAULT_PYPI_REGEX = /^.*\d\.\d.*(\.whl|\.gz|\.zip)$/;
 
 /** Options for "pypi" target */
 export interface PypiTargetOptions extends TargetConfig {
+  /** Twine username */
   twineUsername: string;
+  /** Twine password */
   twinePassword: string;
 }
 

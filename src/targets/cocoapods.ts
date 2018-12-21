@@ -25,7 +25,9 @@ const COCOAPODS_BIN = process.env.COCOAPODS_BIN || DEFAULT_COCOAPODS_BIN;
 
 /** Options for "cocoapods" target */
 export interface CocoapodsTargetOptions extends TargetConfig {
+  /** Cocoapods trunk (API) token */
   trunkToken: string;
+  /** Path to the spec file inside the repo */
   specPath: string;
 }
 

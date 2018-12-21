@@ -20,7 +20,9 @@ const DEFAULT_NUGET_REGEX = /^.*\d\.\d.*\.nupkg$/;
 
 /** Nuget target configuration options */
 export interface NugetTargetOptions extends TargetConfig {
+  /** Nuget API token */
   apiToken: string;
+  /** Nuget server URL */
   serverUrl: string;
 }
 

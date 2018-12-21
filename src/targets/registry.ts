@@ -39,10 +39,15 @@ export enum RegistryPackageType {
 
 /** "registry" target options */
 export interface RegistryConfig extends TargetConfig {
+  /** Type of the registry package */
   type: RegistryPackageType;
+  /** Unique package cannonical name, including type and/or registry name */
   canonicalName?: string;
+  /** Git remote of the release registry */
   registryRemote: GithubRemote;
+  /** Should we create registry entries for pre-releases? */
   linkPrereleases: boolean;
+  /** URL template for file assets */
   urlTemplate?: string;
 }
 

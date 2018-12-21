@@ -44,15 +44,15 @@ export function isValidVersion(text: string): boolean {
  * SemVer Parsed semantic version
  */
 export interface SemVer {
-  /// The major version number
+  /** The major version number */
   major: number;
-  /// The minor version number
+  /** The minor version number */
   minor: number;
-  /// The patch version number
+  /** The patch version number */
   patch: number;
-  /// Optional pre-release specifier
+  /** Optional pre-release specifier */
   pre?: string;
-  /// Optional build metadata
+  /** Optional build metadata */
   build?: string;
 }
 

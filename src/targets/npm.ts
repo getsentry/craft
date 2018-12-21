@@ -38,6 +38,7 @@ export enum NpmPackageAccess {
 
 /** NPM target configuration options */
 export interface NpmTargetOptions extends TargetConfig {
+  /** Package access specifier */
   access?: NpmPackageAccess;
 }
 

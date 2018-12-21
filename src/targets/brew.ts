@@ -22,15 +22,21 @@ const TAP_REGEX = /^([a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38})\/([-_.\w\d]+)$/i;
 
 /** Homebrew tap parameters */
 export interface TapRepo {
+  /** Tap owner */
   owner: string;
+  /** Tap repo name */
   repo: string;
 }
 
 /** Target options for "brew" */
 export interface BrewTargetOptions extends TargetConfig {
+  /** Brew tap repository */
   tapRepo: TapRepo;
+  /** Template string that will be part of thew formula */
   template: string;
+  /** Formula name */
   formula?: string;
+  /** Formula path */
   path?: string;
 }
 

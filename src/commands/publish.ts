@@ -73,12 +73,19 @@ export const builder = (yargs: Argv) =>
 
 /** Command line options. */
 export interface PublishOptions {
+  /** Revision to publish (can be commit, tag, etc.) */
   rev?: string;
+  /** One or more targets we want to publish */
   target?: string | string[];
+  /** The new version to publish */
   newVersion: string;
+  /** Do not perform merge after publishing */
   noMerge: boolean;
+  /** Do not remove downloads after publishing */
   keepDownloads: boolean;
+  /** Do not perform build status check */
   noStatusCheck: boolean;
+  /** Do not remove release branch after publishing */
   keepBranch: boolean;
 }
 

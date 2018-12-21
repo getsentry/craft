@@ -24,6 +24,7 @@ const CARGO_BIN = process.env.CARGO_BIN || DEFAULT_CARGO_BIN;
 
 /** Options for "crates" target */
 export interface CratesTargetOptions extends TargetConfig {
+  /** Crates API token */
   apiToken: string;
 }
 

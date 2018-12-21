@@ -21,7 +21,9 @@ const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
  * Bucket path with associated parameters
  */
 export interface BucketDest {
+  /** Path inside the bucket */
   path: string;
+  /** Object with bucket metadata */
   metadata: any;
 }
 
@@ -43,6 +45,7 @@ export interface GcsTargetConfig extends TargetConfig {
  * Bucket object used in "@google-cloud/storage"
  */
 interface BucketObject {
+  /** Uploads a file to the bucket */
   upload(filePath: string, options: any): Promise<void>;
 }
 
@@ -50,7 +53,9 @@ interface BucketObject {
  * Upload options for "@google-cloud/storage"
  */
 interface GcsUploadOptions {
+  /** Is gzip enabled? */
   gzip: boolean;
+  /** Generic metadata */
   metadata: any;
 }
 

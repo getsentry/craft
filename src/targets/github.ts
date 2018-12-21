@@ -23,9 +23,13 @@ export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
  * Configuration options for the Github target
  */
 export interface GithubTargetConfig extends TargetConfig, GithubGlobalConfig {
+  /** Path to changelon inside the repository */
   changelog: string;
+  /** Prefix that will be used to generate tag name */
   tagPrefix: string;
+  /** Mark releases as preview, if the version looks like a non-public release */
   previewReleases: boolean;
+  /** Use annotated (not lightweight) tag */
   annotatedTag: boolean;
 }
 
@@ -34,8 +38,11 @@ export interface GithubTargetConfig extends TargetConfig, GithubGlobalConfig {
  * Github API.
  */
 interface GithubRelease {
+  /** Release id */
   id: number;
+  /** Tag name */
   tag_name: string;
+  /** Upload URL */
   upload_url: string;
 }
 
