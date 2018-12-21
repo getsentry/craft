@@ -17,7 +17,7 @@ import {
   getGithubApiToken,
   getGithubClient,
   GithubRemote,
-} from '../utils/github_api';
+} from '../utils/githubApi';
 import { extractZipArchive } from '../utils/system';
 import { BaseTarget } from './base';
 

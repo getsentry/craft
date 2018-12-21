@@ -3,7 +3,7 @@ import { BrewTarget } from './brew';
 import { CocoapodsTarget } from './cocoapods';
 import { CratesTarget } from './crates';
 import { GcsTarget } from './gcs';
-import { GhPagesTarget } from './gh-pages';
+import { GhPagesTarget } from './ghPages';
 import { GithubTarget } from './github';
 import { NpmTarget } from './npm';
 import { NugetTarget } from './nuget';

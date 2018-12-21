@@ -15,7 +15,7 @@ import logger from '../logger';
 import { ChangelogPolicy } from '../schemas/project_config';
 import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
 import { reportError } from '../utils/errors';
-import { getDefaultBranch, getGithubClient } from '../utils/github_api';
+import { getDefaultBranch, getGithubClient } from '../utils/githubApi';
 import { sleepAsync, spawnProcess } from '../utils/system';
 import { isValidVersion, versionToTag } from '../utils/version';
 import { publishMain, PublishOptions } from './publish';

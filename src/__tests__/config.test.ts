@@ -15,7 +15,7 @@ const configGeneratedTypes = join(configSchemaDir, 'project_config.ts');
  */
 describe('compile-json-schema-to-typescript', () => {
   test('does not make any changes to the compiled interface', async () => {
-    const projectConfig = require('../schemas/project_config.schema');
+    const projectConfig = require('../schemas/projectConfig.schema');
     const storedOutput = readFileSync(configGeneratedTypes, {
       encoding: 'utf8',
     });

@@ -9,7 +9,7 @@ import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
-import { getFile, getGithubClient } from '../utils/github_api';
+import { getFile, getGithubClient } from '../utils/githubApi';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 const writeFile = promisify(fs.writeFile);

@@ -8,7 +8,7 @@ import loggerRaw from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
-import { getFile, getGithubClient } from '../utils/github_api';
+import { getFile, getGithubClient } from '../utils/githubApi';
 import { isPreviewRelease, versionToTag } from '../utils/version';
 import { BaseTarget } from './base';
 

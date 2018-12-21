@@ -8,7 +8,7 @@ import loggerRaw from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { promiseProps } from '../utils/async';
-import { getGithubClient } from '../utils/github_api';
+import { getGithubClient } from '../utils/githubApi';
 import { renderTemplateSafe } from '../utils/strings';
 import { calculateChecksum } from '../utils/system';
 import { BaseTarget } from './base';

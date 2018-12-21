@@ -11,7 +11,7 @@ import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
 import { reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
-import { getGithubClient, mergeReleaseBranch } from '../utils/github_api';
+import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
 import { catchKeyboardInterrupt, sleepAsync } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 

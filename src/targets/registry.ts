@@ -17,7 +17,7 @@ import {
   getGithubApiToken,
   getGithubClient,
   GithubRemote,
-} from '../utils/github_api';
+} from '../utils/githubApi';
 import { renderTemplateSafe } from '../utils/strings';
 import { isPreviewRelease, parseVersion } from '../utils/version';
 import { BaseTarget } from './base';

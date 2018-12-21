@@ -47,7 +47,7 @@ export function findConfigFile(): string | undefined {
  * Read JSON schema for project configuration
  */
 export function getProjectConfigSchema(): any {
-  return require('./schemas/project_config.schema');
+  return require('./schemas/projectConfig.schema');
 }
 
 /**
