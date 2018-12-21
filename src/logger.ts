@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import consola = require('consola');
+import * as consola from 'consola';
 import { emojify } from 'node-emoji';
 import { format } from 'util';
 
