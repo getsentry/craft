@@ -4,12 +4,12 @@ import { basename, join } from 'path';
 import { promisify } from 'util';
 
 import { getGlobalGithubConfig } from '../config';
-import loggerRaw from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
-import { getFile, getGithubClient } from '../utils/github_api';
+import { getFile, getGithubClient } from '../utils/githubApi';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 const writeFile = promisify(fs.writeFile);
@@ -25,7 +25,9 @@ const COCOAPODS_BIN = process.env.COCOAPODS_BIN || DEFAULT_COCOAPODS_BIN;
 
 /** Options for "cocoapods" target */
 export interface CocoapodsTargetOptions extends TargetConfig {
+  /** Cocoapods trunk (API) token */
   trunkToken: string;
+  /** Path to the spec file inside the repo */
   specPath: string;
 }
 

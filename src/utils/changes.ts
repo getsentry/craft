@@ -7,12 +7,11 @@ export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
 
 /**
  * A single changeset with name and description
- *
- * @prop {string} name The name of this changeset
- * @prop {string} body The markdown body describing the changeset
  */
 export interface Changeset {
+  /** The name of this changeset */
   name: string;
+  /** The markdown body describing the changeset */
   body: string;
 }
 

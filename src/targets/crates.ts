@@ -1,7 +1,7 @@
 import * as _ from 'lodash';
 
 import { getGlobalGithubConfig } from '../config';
-import loggerRaw from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { forEachChained } from '../utils/async';
@@ -24,6 +24,7 @@ const CARGO_BIN = process.env.CARGO_BIN || DEFAULT_CARGO_BIN;
 
 /** Options for "crates" target */
 export interface CratesTargetOptions extends TargetConfig {
+  /** Crates API token */
   apiToken: string;
 }
 

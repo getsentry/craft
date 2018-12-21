@@ -1,6 +1,6 @@
 import { Artifact } from '@zeus-ci/sdk';
 
-import logger from '../logger';
+import { logger } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { FilterOptions, ZeusStore } from '../stores/zeus';
 import { stringToRegexp } from '../utils/filters';

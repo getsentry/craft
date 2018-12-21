@@ -1,6 +1,6 @@
 import { Artifact } from '@zeus-ci/sdk';
 
-import loggerRaw from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { reportError } from '../utils/errors';
@@ -20,7 +20,9 @@ const DEFAULT_NUGET_REGEX = /^.*\d\.\d.*\.nupkg$/;
 
 /** Nuget target configuration options */
 export interface NugetTargetOptions extends TargetConfig {
+  /** Nuget API token */
   apiToken: string;
+  /** Nuget server URL */
   serverUrl: string;
 }
 

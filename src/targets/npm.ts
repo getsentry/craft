@@ -2,7 +2,7 @@ import { spawnSync } from 'child_process';
 
 import { Artifact } from '@zeus-ci/sdk';
 
-import loggerRaw from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { reportError } from '../utils/errors';
@@ -38,6 +38,7 @@ export enum NpmPackageAccess {
 
 /** NPM target configuration options */
 export interface NpmTargetOptions extends TargetConfig {
+  /** Package access specifier */
   access?: NpmPackageAccess;
 }
 

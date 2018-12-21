@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import consola = require('consola');
+import * as consola from 'consola';
 import { emojify } from 'node-emoji';
 import { format } from 'util';
 
@@ -115,5 +115,8 @@ function getLogLevel(): number {
 
 consola.level = getLogLevel();
 
+export { consola as logger };
+
+// TODO legacy, remove
 // tslint:disable-next-line:no-default-export
 export default consola;

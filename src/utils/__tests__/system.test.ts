@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as tmp from 'tmp';
 
-import logger from '../../logger';
+import { logger } from '../../logger';
 
 import {
   calculateChecksum,
@@ -16,7 +16,7 @@ jest.mock('../../logger');
 describe('spawnProcess', () => {
   test('resolves on success with standard output', async () => {
     expect.assertions(1);
-    const stdout = await spawnProcess('/bin/echo', ['test']);
+    const stdout = (await spawnProcess('/bin/echo', ['test'])) || '';
     expect(stdout.toString()).toBe('test\n');
   });
 

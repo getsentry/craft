@@ -4,14 +4,14 @@ import * as ora from 'ora';
 import { Arguments, Argv } from 'yargs';
 
 import { checkMinimalConfigVersion, getConfiguration } from '../config';
-import logger from '../logger';
+import { logger } from '../logger';
 import { GithubGlobalConfig } from '../schemas/project_config';
 import { RevisionInfo, ZeusStore } from '../stores/zeus';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
 import { reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
-import { getGithubClient, mergeReleaseBranch } from '../utils/github_api';
+import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
 import { catchKeyboardInterrupt, sleepAsync } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 
@@ -73,12 +73,19 @@ export const builder = (yargs: Argv) =>
 
 /** Command line options. */
 export interface PublishOptions {
+  /** Revision to publish (can be commit, tag, etc.) */
   rev?: string;
+  /** One or more targets we want to publish */
   target?: string | string[];
+  /** The new version to publish */
   newVersion: string;
+  /** Do not perform merge after publishing */
   noMerge: boolean;
+  /** Do not remove downloads after publishing */
   keepDownloads: boolean;
+  /** Do not perform build status check */
   noStatusCheck: boolean;
+  /** Do not remove release branch after publishing */
   keepBranch: boolean;
 }
 

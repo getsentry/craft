@@ -3,7 +3,7 @@ import { existsSync, lstatSync, readFileSync } from 'fs';
 import { safeLoad } from 'js-yaml';
 import { dirname, join } from 'path';
 
-import logger from './logger';
+import { logger } from './logger';
 import {
   CraftProjectConfig,
   GithubGlobalConfig,
@@ -47,7 +47,7 @@ export function findConfigFile(): string | undefined {
  * Read JSON schema for project configuration
  */
 export function getProjectConfigSchema(): any {
-  return require('./schemas/project_config.schema');
+  return require('./schemas/projectConfig.schema');
 }
 
 /**

@@ -4,11 +4,11 @@ import * as _ from 'lodash';
 import { basename } from 'path';
 
 import { getGlobalGithubConfig } from '../config';
-import loggerRaw from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { promiseProps } from '../utils/async';
-import { getGithubClient } from '../utils/github_api';
+import { getGithubClient } from '../utils/githubApi';
 import { renderTemplateSafe } from '../utils/strings';
 import { calculateChecksum } from '../utils/system';
 import { BaseTarget } from './base';
@@ -22,15 +22,21 @@ const TAP_REGEX = /^([a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38})\/([-_.\w\d]+)$/i;
 
 /** Homebrew tap parameters */
 export interface TapRepo {
+  /** Tap owner */
   owner: string;
+  /** Tap repo name */
   repo: string;
 }
 
 /** Target options for "brew" */
 export interface BrewTargetOptions extends TargetConfig {
+  /** Brew tap repository */
   tapRepo: TapRepo;
+  /** Template string that will be part of thew formula */
   template: string;
+  /** Formula name */
   formula?: string;
+  /** Formula path */
   path?: string;
 }
 
@@ -148,7 +154,7 @@ export class BrewTarget extends BaseTarget {
       JSON.stringify(filesList.map(file => file.name))
     );
     const files = await this.store.downloadArtifacts(filesList);
-    const fileMap: { [key: string]: string } = _.keyBy(files, basename);
+    const fileMap = _.keyBy(files, basename) as { [key: string]: string };
     const promises = _.mapValues(fileMap, async filePath =>
       calculateChecksum(filePath)
     );

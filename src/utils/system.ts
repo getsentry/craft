@@ -8,9 +8,9 @@ import { Readable } from 'stream';
 import * as tar from 'tar';
 import * as unzipper from 'unzipper';
 
-import logger from '../logger';
+import { logger } from '../logger';
 import { reportError } from './errors';
-import { downloadSources } from './github_api';
+import { downloadSources } from './githubApi';
 
 /**
  * Strips env values from the options object

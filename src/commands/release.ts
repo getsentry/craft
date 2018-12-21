@@ -11,11 +11,11 @@ import {
   findConfigFile,
   getConfiguration,
 } from '../config';
-import logger from '../logger';
+import { logger } from '../logger';
 import { ChangelogPolicy } from '../schemas/project_config';
 import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
 import { reportError } from '../utils/errors';
-import { getDefaultBranch, getGithubClient } from '../utils/github_api';
+import { getDefaultBranch, getGithubClient } from '../utils/githubApi';
 import { sleepAsync, spawnProcess } from '../utils/system';
 import { isValidVersion, versionToTag } from '../utils/version';
 import { publishMain, PublishOptions } from './publish';
@@ -58,10 +58,15 @@ export const builder = (yargs: Argv) =>
 
 /** Command line options. */
 interface ReleaseOptions {
+  /** The new version to release */
   newVersion: string;
+  /** Do not perform basic git checks */
   noGitChecks: boolean;
+  /** Do not check for changelog */
   noChangelog: boolean;
+  /** Do not push the newly created release branch */
   noPush: boolean;
+  /** Run publish right after */
   publish: boolean;
 }
 

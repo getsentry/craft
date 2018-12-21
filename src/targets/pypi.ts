@@ -1,6 +1,6 @@
 import { Artifact } from '@zeus-ci/sdk';
 
-import loggerRaw from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { reportError } from '../utils/errors';
@@ -23,7 +23,9 @@ const DEFAULT_PYPI_REGEX = /^.*\d\.\d.*(\.whl|\.gz|\.zip)$/;
 
 /** Options for "pypi" target */
 export interface PypiTargetOptions extends TargetConfig {
+  /** Twine username */
   twineUsername: string;
+  /** Twine password */
   twinePassword: string;
 }
 

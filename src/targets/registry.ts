@@ -7,7 +7,7 @@ import { shouldPerform } from 'dryrun';
 import * as simpleGit from 'simple-git/promise';
 
 import { getGlobalGithubConfig } from '../config';
-import loggerRaw from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { reportError } from '../utils/errors';
@@ -17,7 +17,7 @@ import {
   getGithubApiToken,
   getGithubClient,
   GithubRemote,
-} from '../utils/github_api';
+} from '../utils/githubApi';
 import { renderTemplateSafe } from '../utils/strings';
 import { isPreviewRelease, parseVersion } from '../utils/version';
 import { BaseTarget } from './base';
@@ -39,10 +39,15 @@ export enum RegistryPackageType {
 
 /** "registry" target options */
 export interface RegistryConfig extends TargetConfig {
+  /** Type of the registry package */
   type: RegistryPackageType;
+  /** Unique package cannonical name, including type and/or registry name */
   canonicalName?: string;
+  /** Git remote of the release registry */
   registryRemote: GithubRemote;
+  /** Should we create registry entries for pre-releases? */
   linkPrereleases: boolean;
+  /** URL template for file assets */
   urlTemplate?: string;
 }
 

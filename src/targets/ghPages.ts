@@ -7,7 +7,7 @@ import { shouldPerform } from 'dryrun';
 import * as simpleGit from 'simple-git/promise';
 
 import { getGlobalGithubConfig } from '../config';
-import loggerRaw from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { reportError } from '../utils/errors';
@@ -17,7 +17,7 @@ import {
   getGithubApiToken,
   getGithubClient,
   GithubRemote,
-} from '../utils/github_api';
+} from '../utils/githubApi';
 import { extractZipArchive } from '../utils/system';
 import { BaseTarget } from './base';
 
@@ -32,8 +32,11 @@ const DEFAULT_DEPLOY_BRANCH = 'gh-pages';
 
 /** Target options for "gh-pages" */
 export interface GhPagesConfig extends TargetConfig {
+  /** GitHub project owner */
   githubOwner: string;
+  /** GitHub project name */
   githubRepo: string;
+  /** Git branch to push assets to */
   branch: string;
 }
 

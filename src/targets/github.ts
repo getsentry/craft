@@ -4,11 +4,11 @@ import { createReadStream, statSync } from 'fs';
 import { basename } from 'path';
 
 import { getConfiguration, getGlobalGithubConfig } from '../config';
-import loggerRaw from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
-import { getFile, getGithubClient } from '../utils/github_api';
+import { getFile, getGithubClient } from '../utils/githubApi';
 import { isPreviewRelease, versionToTag } from '../utils/version';
 import { BaseTarget } from './base';
 
@@ -23,9 +23,13 @@ export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
  * Configuration options for the Github target
  */
 export interface GithubTargetConfig extends TargetConfig, GithubGlobalConfig {
+  /** Path to changelon inside the repository */
   changelog: string;
+  /** Prefix that will be used to generate tag name */
   tagPrefix: string;
+  /** Mark releases as preview, if the version looks like a non-public release */
   previewReleases: boolean;
+  /** Use annotated (not lightweight) tag */
   annotatedTag: boolean;
 }
 
@@ -34,8 +38,11 @@ export interface GithubTargetConfig extends TargetConfig, GithubGlobalConfig {
  * Github API.
  */
 interface GithubRelease {
+  /** Release id */
   id: number;
+  /** Tag name */
   tag_name: string;
+  /** Upload URL */
   upload_url: string;
 }
 
