@@ -115,5 +115,8 @@ function getLogLevel(): number {
 
 consola.level = getLogLevel();
 
+export { consola as logger };
+
+// TODO legacy, remove
 // tslint:disable-next-line:no-default-export
 export default consola;

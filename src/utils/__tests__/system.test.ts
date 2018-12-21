@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as tmp from 'tmp';
 
-import logger from '../../logger';
+import { logger } from '../../logger';
 
 import {
   calculateChecksum,

@@ -1,5 +1,5 @@
 import { shouldPerform } from 'dryrun';
-import logger from '../logger';
+import { logger } from '../logger';
 
 /**
  * Writes a message to "error" log if in dry-mode, throws an error otherwise

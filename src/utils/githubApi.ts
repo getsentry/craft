@@ -4,7 +4,7 @@ import { isDryRun } from 'dryrun';
 import * as request from 'request';
 import { Duplex, Readable } from 'stream';
 
-import logger from '../logger';
+import { logger } from '../logger';
 
 /**
  * Abstraction for GitHub remotes

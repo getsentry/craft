@@ -4,7 +4,7 @@ import * as _ from 'lodash';
 import { basename } from 'path';
 
 import { getGlobalGithubConfig } from '../config';
-import loggerRaw from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { promiseProps } from '../utils/async';

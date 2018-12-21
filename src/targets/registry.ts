@@ -7,7 +7,7 @@ import { shouldPerform } from 'dryrun';
 import * as simpleGit from 'simple-git/promise';
 
 import { getGlobalGithubConfig } from '../config';
-import loggerRaw from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { reportError } from '../utils/errors';

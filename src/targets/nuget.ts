@@ -1,6 +1,6 @@
 import { Artifact } from '@zeus-ci/sdk';
 
-import loggerRaw from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { reportError } from '../utils/errors';

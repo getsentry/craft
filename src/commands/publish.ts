@@ -4,7 +4,7 @@ import * as ora from 'ora';
 import { Arguments, Argv } from 'yargs';
 
 import { checkMinimalConfigVersion, getConfiguration } from '../config';
-import logger from '../logger';
+import { logger } from '../logger';
 import { GithubGlobalConfig } from '../schemas/project_config';
 import { RevisionInfo, ZeusStore } from '../stores/zeus';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';

@@ -4,7 +4,7 @@ import { basename, join } from 'path';
 import { promisify } from 'util';
 
 import { getGlobalGithubConfig } from '../config';
-import loggerRaw from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { reportError } from '../utils/errors';

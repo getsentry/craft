@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import * as yargs from 'yargs';
 
-import logger from './logger';
+import { logger } from './logger';
 import { checkForUpdates } from './utils/version';
 
 checkForUpdates();

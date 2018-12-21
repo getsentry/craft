@@ -4,7 +4,7 @@ import { createReadStream, statSync } from 'fs';
 import { basename } from 'path';
 
 import { getConfiguration, getGlobalGithubConfig } from '../config';
-import loggerRaw from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';

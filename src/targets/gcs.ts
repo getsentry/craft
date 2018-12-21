@@ -5,7 +5,7 @@ import * as googleStorage from '@google-cloud/storage';
 import { Artifact } from '@zeus-ci/sdk';
 import { shouldPerform } from 'dryrun';
 
-import loggerRaw from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { forEachChained } from '../utils/async';

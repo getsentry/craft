@@ -11,7 +11,7 @@ import {
   findConfigFile,
   getConfiguration,
 } from '../config';
-import logger from '../logger';
+import { logger } from '../logger';
 import { ChangelogPolicy } from '../schemas/project_config';
 import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
 import { reportError } from '../utils/errors';

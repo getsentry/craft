@@ -3,7 +3,7 @@ import { existsSync, lstatSync, readFileSync } from 'fs';
 import { safeLoad } from 'js-yaml';
 import { dirname, join } from 'path';
 
-import logger from './logger';
+import { logger } from './logger';
 import {
   CraftProjectConfig,
   GithubGlobalConfig,
