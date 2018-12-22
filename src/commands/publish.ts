@@ -263,13 +263,13 @@ async function waitForTheBuildToSucceed(
       revision
     );
     if (firstIteration) {
-      logger.info(`Revision ${revision} has been found in Zeus.`);
+      logger.info(
+        `Revision ${revision} has been found in Zeus: ${revisionUrl}`
+      );
       firstIteration = false;
     }
 
     const isSuccess = zeus.isRevisionBuiltSuccessfully(revisionInfo);
-    const isFailure = zeus.isRevisionFailed(revisionInfo);
-
     if (isSuccess) {
       if (spinner.isSpinning) {
         spinner.succeed();
@@ -278,13 +278,13 @@ async function waitForTheBuildToSucceed(
       return;
     }
 
+    const isFailure = zeus.isRevisionFailed(revisionInfo);
     if (isFailure) {
       if (spinner.isSpinning) {
         spinner.fail();
       }
       reportError(
-        `Build(s) for revision ${revision} have failed.` +
-          `\nPlease check revision's status on Zeus: ${revisionUrl}`
+        `Build(s) for revision ${revision} have failed. Please check the revision's status in Zeus.`
       );
       return;
     }
