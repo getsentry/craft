@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import Table = require('cli-table');
 import * as consola from 'consola';
 import { emojify } from 'node-emoji';
 import { format } from 'util';
@@ -89,6 +90,12 @@ export function error(message?: any, ...args: any[]): void {
   console.error(formatMessage(chalk.red('error'), message, ...args));
 }
 
+export function formatTable(options: any, values: any[]): string {
+  const table = new Table(options);
+  table.push(...values);
+  return table.toString();
+}
+
 /***************************************************************/
 /**
  * Below: we module-export "consola" instance by default.
@@ -116,7 +123,3 @@ function getLogLevel(): number {
 consola.level = getLogLevel();
 
 export { consola as logger };
-
-// TODO legacy, remove
-// tslint:disable-next-line:no-default-export
-export default consola;

@@ -4,7 +4,7 @@ import * as ora from 'ora';
 import { Arguments, Argv } from 'yargs';
 
 import { checkMinimalConfigVersion, getConfiguration } from '../config';
-import { logger } from '../logger';
+import { formatTable, logger } from '../logger';
 import { GithubGlobalConfig } from '../schemas/project_config';
 import { RevisionInfo, ZeusStore } from '../stores/zeus';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
@@ -263,9 +263,8 @@ async function waitForTheBuildToSucceed(
       revision
     );
     if (firstIteration) {
-      logger.info(
-        `Revision ${revision} has been found in Zeus: ${revisionUrl}`
-      );
+      logger.info(`Revision ${revision} has been found in Zeus.`);
+      logger.info(`Build status: ${revisionUrl}`);
       firstIteration = false;
     }
 
@@ -303,7 +302,23 @@ async function waitForTheBuildToSucceed(
     await sleepAsync(ZEUS_POLLING_INTERVAL * 1000);
     secondsPassed += ZEUS_POLLING_INTERVAL;
   }
-  spinner.stop();
+}
+
+async function printRevisionSummary(
+  zeus: ZeusStore,
+  revision: string
+): Promise<void> {
+  const artifacts = await zeus.listArtifactsForRevision(revision);
+  const artifactData = artifacts.map(ar => [ar.name, ar.updated_at || '']);
+  artifactData.sort((a1, a2) => +(a1[0] > a2[0]));
+  const table = formatTable(
+    {
+      head: ['File Name', 'Updated'],
+      style: { head: ['cyan'] },
+    },
+    artifactData
+  );
+  logger.info('Available files:', table.toString());
 }
 
 // TODO there is at least one case that is not covered: how to detect Zeus builds
@@ -344,6 +359,8 @@ async function checkRevisionStatus(
   }
 
   await waitForTheBuildToSucceed(zeus, revision);
+
+  await printRevisionSummary(zeus, revision);
 }
 
 /**
