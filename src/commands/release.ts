@@ -1,4 +1,4 @@
-import { isDryRun, shouldPerform } from 'dryrun';
+import { shouldPerform } from 'dryrun';
 import { existsSync, readFileSync } from 'fs';
 import { dirname, join, relative } from 'path';
 import * as shellQuote from 'shell-quote';
@@ -417,9 +417,6 @@ async function switchToDefaultBranch(
  */
 export async function releaseMain(argv: ReleaseOptions): Promise<any> {
   logger.debug('Argv: ', JSON.stringify(argv));
-  if (isDryRun()) {
-    logger.info('[dry-run] Dry-run mode is on!');
-  }
   checkMinimalConfigVersion();
 
   // Get repo configuration

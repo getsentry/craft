@@ -90,6 +90,12 @@ export function error(message?: any, ...args: any[]): void {
   console.error(formatMessage(chalk.red('error'), message, ...args));
 }
 
+/**
+ * Format a list as a table
+ *
+ * @param options Options that are passed to cli-table constructor
+ * @param values A list (of lists) of values
+ */
 export function formatTable(options: any, values: any[]): string {
   const table = new Table(options);
   table.push(...values);

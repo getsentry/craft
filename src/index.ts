@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-import { setDryRun } from 'dryrun';
+import { isDryRun, setDryRun } from 'dryrun';
 import * as yargs from 'yargs';
 
 import { logger } from './logger';
+import { isNoInput, setNoInput } from './utils/noInput';
 import { checkForUpdates } from './utils/version';
 
 checkForUpdates();
@@ -17,16 +18,28 @@ if (
   logger.info(`craft ${pkg.version}`);
 }
 
-function processNoInput<T>(arg: T): T {
+/**
+ * Handler for '--dry-run' option
+ */
+function processDryRun<T>(arg: T): T {
   if (arg) {
-    process.env.CRAFT_NO_INPUT = '1';
+    setDryRun(true);
+  }
+  if (isDryRun()) {
+    logger.info('[dry-run] Dry-run mode is on!');
   }
   return arg;
 }
 
-function processDryRun<T>(arg: T): T {
+/**
+ * Handler for '--no-input' option
+ */
+function processNoInput<T>(arg: T): T {
   if (arg) {
-    setDryRun(true);
+    setNoInput(true);
+  }
+  if (isNoInput()) {
+    logger.info('The script will not accept any input!');
   }
   return arg;
 }
@@ -45,11 +58,13 @@ yargs
     default: false,
     describe: 'No input',
   })
+  .global('no-input')
   .option('dry-run', {
     boolean: true,
     coerce: processDryRun,
     default: false,
     describe: 'Dry run',
   })
+  .global('dry-run')
   .strict()
   .showHelpOnFail(true).argv;

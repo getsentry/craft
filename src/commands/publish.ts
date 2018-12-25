@@ -304,6 +304,12 @@ async function waitForTheBuildToSucceed(
   }
 }
 
+/**
+ * Prints summary for the revision, including available artifacts
+ *
+ * @param zeus Zeus store object
+ * @param revision Git revision SHA
+ */
 async function printRevisionSummary(
   zeus: ZeusStore,
   revision: string
