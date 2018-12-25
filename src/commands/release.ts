@@ -85,7 +85,7 @@ const SLEEP_BEFORE_PUBLISH_SECONDS = 30;
  * @param argv Parsed yargs arguments
  * @param _opt A list of options and aliases
  */
-function checkVersionOrPart(argv: Arguments, _opt: any): any {
+function checkVersionOrPart(argv: Arguments<any>, _opt: any): any {
   const version = argv.newVersion;
   if (['major', 'minor', 'patch'].indexOf(version) > -1) {
     throw Error('Version part is not supported yet');

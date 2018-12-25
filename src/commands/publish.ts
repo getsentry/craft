@@ -115,7 +115,7 @@ function checkPrerequisites(): void {
  * @param argv Parsed yargs arguments
  * @param _opt A list of options and aliases
  */
-function checkVersion(argv: Arguments, _opt: any): any {
+function checkVersion(argv: Arguments<any>, _opt: any): any {
   const version = argv.newVersion;
   if (isValidVersion(version)) {
     return true;

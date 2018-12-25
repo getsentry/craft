@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { setDryRun } from 'dryrun';
 import * as yargs from 'yargs';
 
 import { logger } from './logger';
@@ -16,6 +17,20 @@ if (
   logger.info(`craft ${pkg.version}`);
 }
 
+function processNoInput<T>(arg: T): T {
+  if (arg) {
+    process.env.CRAFT_NO_INPUT = '1';
+  }
+  return arg;
+}
+
+function processDryRun<T>(arg: T): T {
+  if (arg) {
+    setDryRun(true);
+  }
+  return arg;
+}
+
 // tslint:disable-next-line:no-unused-expression
 yargs
   .commandDir('commands')
@@ -24,5 +39,17 @@ yargs
   .alias('v', 'version')
   .help()
   .alias('h', 'help')
+  .option('no-input', {
+    boolean: true,
+    coerce: processNoInput,
+    default: false,
+    describe: 'No input',
+  })
+  .option('dry-run', {
+    boolean: true,
+    coerce: processDryRun,
+    default: false,
+    describe: 'Dry run',
+  })
   .strict()
   .showHelpOnFail(true).argv;
