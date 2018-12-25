@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { isDryRun, setDryRun } from 'dryrun';
+import * as once from 'once';
 import * as yargs from 'yargs';
 
 import { logger } from './logger';
@@ -39,7 +40,7 @@ function processNoInput<T>(arg: T): T {
     setNoInput(true);
   }
   if (isNoInput()) {
-    logger.info('The script will not accept any input!');
+    logger.info('[no-input] The script will not accept any input!');
   }
   return arg;
 }
@@ -54,14 +55,14 @@ yargs
   .alias('h', 'help')
   .option('no-input', {
     boolean: true,
-    coerce: processNoInput,
+    coerce: once(processNoInput),
     default: false,
     describe: 'No input',
   })
   .global('no-input')
   .option('dry-run', {
     boolean: true,
-    coerce: processDryRun,
+    coerce: once(processDryRun),
     default: false,
     describe: 'Dry run',
   })
