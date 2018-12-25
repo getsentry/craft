@@ -4,7 +4,7 @@ import * as once from 'once';
 import * as yargs from 'yargs';
 
 import { logger } from './logger';
-import { isNoInput, setNoInput } from './utils/noInput';
+import { hasNoInput, setNoInput } from './utils/noInput';
 import { checkForUpdates } from './utils/version';
 
 checkForUpdates();
@@ -39,7 +39,7 @@ function processNoInput<T>(arg: T): T {
   if (arg) {
     setNoInput(true);
   }
-  if (isNoInput()) {
+  if (hasNoInput()) {
     logger.info('[no-input] The script will not accept any input!');
   }
   return arg;
@@ -57,14 +57,14 @@ yargs
     boolean: true,
     coerce: once(processNoInput),
     default: false,
-    describe: 'No input',
+    describe: 'Suppresses all user prompts',
   })
   .global('no-input')
   .option('dry-run', {
     boolean: true,
     coerce: once(processDryRun),
     default: false,
-    describe: 'Dry run',
+    describe: 'Dry run mode: do not perform any real actions',
   })
   .global('dry-run')
   .strict()

@@ -1,13 +1,20 @@
 let noInput: boolean | undefined;
 
 /**
- * Checks if no-input mode is activated
+ * Returns true if no-input mode is activated
  */
-export function isNoInput(): boolean {
+export function hasNoInput(): boolean {
   if (noInput === undefined) {
     resetNoInput();
   }
   return !!noInput;
+}
+
+/**
+ * Returns true if user input is allowed
+ */
+export function hasInput(): boolean {
+  return !hasNoInput();
 }
 
 /**

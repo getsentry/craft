@@ -1,6 +1,6 @@
 /* eslint-env jest */
 
-import { isNoInput, resetNoInput, setNoInput } from '../noInput';
+import { hasInput, hasNoInput, resetNoInput, setNoInput } from '../noInput';
 
 describe('setNoInput', () => {
   afterEach(() => {
@@ -10,12 +10,14 @@ describe('setNoInput', () => {
 
   test('sets and returns true', () => {
     setNoInput(true);
-    expect(isNoInput()).toBe(true);
+    expect(hasNoInput()).toBe(true);
+    expect(hasInput()).toBe(false);
   });
 
   test('sets and returns false', () => {
     setNoInput(false);
-    expect(isNoInput()).toBe(false);
+    expect(hasNoInput()).toBe(false);
+    expect(hasInput()).toBe(true);
   });
 });
 
@@ -28,12 +30,12 @@ describe('resetNoInput', () => {
   test('sets noInput to false by default', () => {
     delete process.env.CRAFT_NO_INPUT;
     resetNoInput();
-    expect(isNoInput()).toBe(false);
+    expect(hasNoInput()).toBe(false);
   });
 
   test('sets noInput to true via env', () => {
     process.env.CRAFT_NO_INPUT = '1';
     resetNoInput();
-    expect(isNoInput()).toBe(true);
+    expect(hasNoInput()).toBe(true);
   });
 });
