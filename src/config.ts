@@ -180,7 +180,9 @@ export function getGitTagPrefix(): string {
   return githubTarget.tagPrefix || '';
 }
 
-export function readEnvironmentConfig(): void {
+export function readEnvironmentConfig(
+  overwriteExisting: boolean = false
+): void {
   let newEnv = {} as any;
 
   // Read from home dir
@@ -211,7 +213,7 @@ export function readEnvironmentConfig(): void {
 
   // Add non-existing values to env
   for (const key of Object.keys(newEnv)) {
-    if (process.env[key] === undefined) {
+    if (overwriteExisting || process.env[key] === undefined) {
       process.env[key] = newEnv[key];
     }
   }
