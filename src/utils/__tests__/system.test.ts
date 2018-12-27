@@ -60,7 +60,7 @@ describe('spawnProcess', () => {
   test('strips env from options on error', async () => {
     try {
       expect.assertions(1);
-      await spawnProcess('test', [], { env: { x: 123, password: 456 } });
+      await spawnProcess('test', [], { env: { x: '123', password: '456' } });
     } catch (e) {
       expect(e.options.env).toBeUndefined();
     }
