@@ -19,6 +19,8 @@ then enforces a specific workflow for managing release branches, changelogs, art
 - [Usage](#usage)
 - [Caveats](#caveats)
 - [Global Configuration](#global-configuration)
+  - [Environment Files](#environment-files)
+- [Workflow](#workflow)
   - [`craft release`: Preparing a New Release](#craft-release-preparing-a-new-release)
   - [`craft publish`: Publishing the Release](#craft-publish-publishing-the-release)
   - [Example](#example)
@@ -98,6 +100,28 @@ properly.
 Additional environment variables can be required when publishing to specific
 targets (e.g. `TWINE_USERNAME` and `TWINE_PASSWORD` for PyPI target).
 
+### Environment Files
+
+`craft` will try to read additional environment variables (keys, tokens, etc.) from
+the following files (in the specified order):
+
+- `$HOME/.craft.env`
+- `$PWD/.craft.env`
+
+Already defined environment variables will not be overwritten.
+
+The files must be written in shell (`sh`/`bash`) format. Leading `export` is allowed.
+
+Example:
+
+```sh
+# ~/.craft.env
+GITHUB_API_TOKEN=token123
+export NUGET_API_TOKEN=abcdefgh
+```
+
+## Workflow
+
 ### `craft release`: Preparing a New Release
 
 This command will create a new release branch, check the changelog entries,
@@ -113,8 +137,11 @@ Positionals:
                      version itself                                     [string]
 
 Options:
-  --no-push      Do not push the release branch       [boolean] [default: false]
-  --publish      Run "publish" right after "release"  [boolean] [default: false]
+  --no-push        Do not push the release branch     [boolean] [default: false]
+  --no-git-checks  Ignore local git changes and unsynchronized remotes
+                                                      [boolean] [default: false]
+  --no-changelog   Do not check for changelog entries [boolean] [default: false]
+  --publish        Run "publish" right after "release"[boolean] [default: false]
 ```
 
 ### `craft publish`: Publishing the Release
@@ -132,8 +159,8 @@ Positionals:
 
 Options:
   --target, -t       Publish to this target
-     [string] [choices: "brew", "github", "npm", "nuget", "pypi", "all", "none"]
-                                                                [default: "all"]
+  [string] [choices: "brew", "cocoapods", "crates", "gcs", "gh-pages", "github",
+             "npm", "nuget", "pypi", "registry", "all", "none"] [default: "all"]
   --rev, -r          Source revision to publish                         [string]
   --no-merge         Do not merge the release branch after publishing
                                                       [boolean] [default: false]

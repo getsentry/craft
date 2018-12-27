@@ -1,9 +1,18 @@
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
+import { homedir } from 'os';
 import { dirname, join } from 'path';
 
 import { compile } from 'json-schema-to-typescript';
 
-import { getProjectConfigSchema, validateConfiguration } from '../config';
+import {
+  ENV_FILE_NAME,
+  getProjectConfigSchema,
+  readEnvironmentConfig,
+  validateConfiguration,
+} from '../config';
+import { withTempDir } from '../utils/files';
+
+jest.mock('os', () => ({ ...require.requireActual('os'), homedir: jest.fn() }));
 
 const configSchemaDir = join(dirname(__dirname), 'schemas');
 const configGeneratedTypes = join(configSchemaDir, 'project_config.ts');
@@ -56,5 +65,111 @@ describe('getProjectConfigSchema', () => {
     expect(projectConfigSchema).toBeTruthy();
     expect(projectConfigSchema).toHaveProperty('title');
     expect(projectConfigSchema).toHaveProperty('properties');
+  });
+});
+
+describe('readEnvironmentConfig', () => {
+  const homedirMock = homedir as jest.Mock;
+  const cwdMock = (process.cwd = jest.fn());
+
+  const invalidDir = '/invalid/invalid';
+
+  beforeEach(() => {
+    delete process.env.TEST_BLA;
+    jest.clearAllMocks();
+  });
+  test('calls homedir/process.cwd', async () => {
+    process.env.TEST_BLA = '123';
+
+    homedirMock.mockReturnValue(invalidDir);
+    cwdMock.mockReturnValue(invalidDir);
+
+    readEnvironmentConfig();
+
+    expect(cwdMock).toHaveBeenCalledTimes(1);
+    expect(homedirMock).toHaveBeenCalledTimes(1);
+    expect(process.env.TEST_BLA).toBe('123');
+    expect(ENV_FILE_NAME.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('checks current directory', async () => {
+    homedirMock.mockReturnValue(invalidDir);
+    delete process.env.TEST_BLA;
+
+    await withTempDir(async directory => {
+      cwdMock.mockReturnValue(directory);
+      const outFile = join(directory, ENV_FILE_NAME);
+      writeFileSync(outFile, 'export TEST_BLA=234\nexport TEST_ANOTHER=345');
+
+      readEnvironmentConfig();
+
+      expect(process.env.TEST_BLA).toBe('234');
+    });
+  });
+  test('checks home directory', async () => {
+    cwdMock.mockReturnValue(invalidDir);
+    delete process.env.TEST_BLA;
+
+    await withTempDir(async directory => {
+      homedirMock.mockReturnValue(directory);
+      const outFile = join(directory, ENV_FILE_NAME);
+      writeFileSync(outFile, 'export TEST_BLA=234\n');
+
+      readEnvironmentConfig();
+
+      expect(process.env.TEST_BLA).toBe('234');
+    });
+  });
+
+  test('checks home directory first, and then current directory', async () => {
+    delete process.env.TEST_BLA;
+
+    await withTempDir(async dir1 => {
+      await withTempDir(async dir2 => {
+        homedirMock.mockReturnValue(dir1);
+        const outHome = join(dir1, ENV_FILE_NAME);
+        writeFileSync(outHome, 'export TEST_BLA=from_home');
+
+        cwdMock.mockReturnValue(dir2);
+        const outCwd = join(dir2, ENV_FILE_NAME);
+        writeFileSync(outCwd, 'export TEST_BLA=from_cwd');
+
+        readEnvironmentConfig();
+
+        expect(process.env.TEST_BLA).toBe('from_cwd');
+      });
+    });
+  });
+
+  test('does not overwrite existing variables by default', async () => {
+    homedirMock.mockReturnValue(invalidDir);
+
+    process.env.TEST_BLA = 'existing';
+
+    await withTempDir(async directory => {
+      cwdMock.mockReturnValue(directory);
+      const outFile = join(directory, ENV_FILE_NAME);
+      writeFileSync(outFile, 'export TEST_BLA=new_value');
+
+      readEnvironmentConfig();
+
+      expect(process.env.TEST_BLA).toBe('existing');
+    });
+  });
+
+  test('overwrites existing variables if explicitly stated', async () => {
+    homedirMock.mockReturnValue(invalidDir);
+
+    process.env.TEST_BLA = 'existing';
+
+    await withTempDir(async directory => {
+      cwdMock.mockReturnValue(directory);
+      const outFile = join(directory, ENV_FILE_NAME);
+      writeFileSync(outFile, 'export TEST_BLA=new_value');
+
+      readEnvironmentConfig(true);
+
+      expect(process.env.TEST_BLA).toBe('new_value');
+    });
   });
 });
