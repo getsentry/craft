@@ -198,7 +198,7 @@ export function readEnvironmentConfig(
   // Read from home dir
   const homedirEnvFile = join(homedir(), ENV_FILE_NAME);
   if (existsSync(homedirEnvFile)) {
-    logger.info(
+    logger.debug(
       `Found environment file in the home directory: ${homedirEnvFile}`
     );
     const homedirEnv = {};
@@ -218,7 +218,7 @@ export function readEnvironmentConfig(
   // Read from current dir
   const currentDirEnvFile = join(process.cwd(), ENV_FILE_NAME);
   if (existsSync(currentDirEnvFile)) {
-    logger.info(
+    logger.debug(
       `Found environment file in the current directory: ${currentDirEnvFile}`
     );
     const currentDirEnv = {};

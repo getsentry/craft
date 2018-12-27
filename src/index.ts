@@ -8,19 +8,6 @@ import { logger } from './logger';
 import { hasNoInput, setNoInput } from './utils/noInput';
 import { checkForUpdates } from './utils/version';
 
-checkForUpdates();
-readEnvironmentConfig();
-
-if (
-  process.argv.indexOf('-v') === -1 &&
-  process.argv.indexOf('--version') === -1
-) {
-  // tslint:disable-next-line:no-var-requires
-  const pkg = require('../package.json');
-  // Print the current version
-  logger.info(`craft ${pkg.version}`);
-}
-
 /**
  * Handler for '--dry-run' option
  */
@@ -47,27 +34,55 @@ function processNoInput<T>(arg: T): T {
   return arg;
 }
 
-// tslint:disable-next-line:no-unused-expression
-yargs
-  .commandDir('commands')
-  .demandCommand()
-  .version()
-  .alias('v', 'version')
-  .help()
-  .alias('h', 'help')
-  .option('no-input', {
-    boolean: true,
-    coerce: once(processNoInput),
-    default: false,
-    describe: 'Suppresses all user prompts',
-  })
-  .global('no-input')
-  .option('dry-run', {
-    boolean: true,
-    coerce: once(processDryRun),
-    default: false,
-    describe: 'Dry run mode: do not perform any real actions',
-  })
-  .global('dry-run')
-  .strict()
-  .showHelpOnFail(true).argv;
+/**
+ * Prints the current version
+ */
+function printVersion(): void {
+  if (
+    process.argv.indexOf('-v') === -1 &&
+    process.argv.indexOf('--version') === -1
+  ) {
+    // tslint:disable-next-line:no-var-requires
+    const pkg = require('../package.json');
+    // Print the current version
+    logger.info(`craft ${pkg.version}`);
+  }
+}
+
+/**
+ * Main entrypoint
+ */
+function main(): void {
+  checkForUpdates();
+
+  printVersion();
+
+  readEnvironmentConfig();
+
+  // tslint:disable-next-line:no-unused-expression
+  yargs
+    .commandDir('commands')
+    .demandCommand()
+    .version()
+    .alias('v', 'version')
+    .help()
+    .alias('h', 'help')
+    .option('no-input', {
+      boolean: true,
+      coerce: once(processNoInput),
+      default: false,
+      describe: 'Suppresses all user prompts',
+    })
+    .global('no-input')
+    .option('dry-run', {
+      boolean: true,
+      coerce: once(processDryRun),
+      default: false,
+      describe: 'Dry run mode: do not perform any real actions',
+    })
+    .global('dry-run')
+    .strict()
+    .showHelpOnFail(true).argv;
+}
+
+main();
