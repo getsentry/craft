@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.1
+
+- Read environment from .craft.env
+- Show summary of available artifacts before publishing
+- Always print Zeus links when publishing
+- Add "--no-input" and "--dry-run" as CLI arguments
+
 ## 0.7.0
 
 - Create annotated tags by default

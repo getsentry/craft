@@ -1,4 +1,4 @@
-<p align="center">
+****<p align="center">
     <img src="img/logo.svg" width="280">
     <br />
 </p>
@@ -19,9 +19,10 @@ then enforces a specific workflow for managing release branches, changelogs, art
 - [Usage](#usage)
 - [Caveats](#caveats)
 - [Global Configuration](#global-configuration)
-  - [`craft release`: Preparing a New Release](#craft-release-preparing-a-new-release)
-  - [`craft publish`: Publishing the Release](#craft-publish-publishing-the-release)
-  - [Example](#example)
+  - [Environment Files](#environment-files)
+- [`craft release`: Preparing a New Release](#craft-release-preparing-a-new-release)
+- [`craft publish`: Publishing the Release](#craft-publish-publishing-the-release)
+- [Example](#example)
 - [Configuration File: `.craft.yml`](#configuration-file-craftyml)
   - [GitHub project](#github-project)
   - [Pre-release Command](#pre-release-command)
@@ -98,7 +99,27 @@ properly.
 Additional environment variables can be required when publishing to specific
 targets (e.g. `TWINE_USERNAME` and `TWINE_PASSWORD` for PyPI target).
 
-### `craft release`: Preparing a New Release
+### Environment Files
+
+`craft` will try to read additional environment variables (keys, tokens, etc.) from
+the following files (in the specified order):
+
+- `$HOME/.craft.env`
+- `$PWD/.craft.env`
+
+Already defined environment variables will not be overwritten.
+
+The files must be written in shell (`sh`/`bash`) format. Leading `export` is allowed.
+
+Example:
+
+```sh
+# ~/.craft.env
+GITHUB_API_TOKEN=token123
+export NUGET_API_TOKEN=abcdefgh
+```
+
+## `craft release`: Preparing a New Release
 
 This command will create a new release branch, check the changelog entries,
 run a version-bumping script, and push the new branch to GitHub.
@@ -117,7 +138,7 @@ Options:
   --publish      Run "publish" right after "release"  [boolean] [default: false]
 ```
 
-### `craft publish`: Publishing the Release
+## `craft publish`: Publishing the Release
 
 The command will find a release branch for the provided version (tag) and
 publish the existing artifacts from Zeus to configured targets.
@@ -144,7 +165,7 @@ Options:
                                                       [boolean] [default: false]
 ```
 
-### Example
+## Example
 
 Let's imagine we want to release a new version of our package, and the version
 in question is `1.2.3`.
