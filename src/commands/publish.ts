@@ -329,7 +329,7 @@ async function printRevisionSummary(
     artifactData
   );
 
-  logger.info(`Available files: \n${table.toString()}\n`);
+  logger.info(`Available artifacts: \n${table.toString()}\n`);
 
   logger.info('Publishing to targets:');
   // TODO init all targets earlier
@@ -339,18 +339,15 @@ async function printRevisionSummary(
   if (hasInput()) {
     const questions = [
       {
-        default: false,
-        message: 'Is it OK to proceed?',
+        message: 'Is everything OK? Type "yes" to proceed:',
         name: 'readyToPublish',
-        type: 'confirm',
+        type: 'input',
+        validate: (input: string) => input.length > 2 || 'Please type "yes"',
       },
     ];
     const answers = (await inquirer.prompt(questions)) as any;
-    const readyToPublish = coerceType<boolean>(
-      answers.readyToPublish,
-      'boolean'
-    );
-    if (!readyToPublish) {
+    const readyToPublish = coerceType<string>(answers.readyToPublish, 'string');
+    if (readyToPublish.toLowerCase() !== 'yes') {
       reportError('Oh, okay. Aborting.');
     }
   } else {
