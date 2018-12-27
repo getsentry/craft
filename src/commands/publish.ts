@@ -1,5 +1,5 @@
 import * as Github from '@octokit/rest';
-import { isDryRun, shouldPerform } from 'dryrun';
+import { shouldPerform } from 'dryrun';
 import * as inquirer from 'inquirer';
 import * as ora from 'ora';
 import { Arguments, Argv } from 'yargs';
@@ -41,7 +41,7 @@ export const builder = (yargs: Argv) =>
         SpecialTarget.All,
         SpecialTarget.None,
       ]),
-      default: 'all',
+      default: SpecialTarget.All,
       description: 'Publish to this target',
       type: 'string',
     })
@@ -311,10 +311,12 @@ async function waitForTheBuildToSucceed(
  *
  * @param zeus Zeus store object
  * @param revision Git revision SHA
+ * @param targetNames A list of target names to publish
  */
 async function printRevisionSummary(
   zeus: ZeusStore,
-  revision: string
+  revision: string,
+  targetNames: string[]
 ): Promise<void> {
   const artifacts = await zeus.listArtifactsForRevision(revision);
   const artifactData = artifacts.map(ar => [ar.name, ar.updated_at || '']);
@@ -326,13 +328,19 @@ async function printRevisionSummary(
     },
     artifactData
   );
-  logger.info('Available files:', table.toString());
+
+  logger.info(`Available files: \n${table.toString()}\n`);
+
+  logger.info('Publishing to targets:');
+  // TODO init all targets earlier
+  targetNames.forEach(target => logger.info(`  - ${target}`));
+  logger.info(' ');
 
   if (hasInput()) {
     const questions = [
       {
         default: false,
-        message: 'Is it OK to proceed with publishing?',
+        message: 'Is it OK to proceed?',
         name: 'readyToPublish',
         type: 'confirm',
       },
@@ -453,9 +461,6 @@ async function handleReleaseBranch(
  */
 export async function publishMain(argv: PublishOptions): Promise<any> {
   logger.debug('Argv:', JSON.stringify(argv));
-  if (isDryRun()) {
-    logger.info('[dry-run] Dry-run mode is on!');
-  }
   checkMinimalConfigVersion();
   checkPrerequisites();
 
@@ -500,8 +505,6 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   // Check status of all CI builds linked to the revision
   await checkRevisionStatus(zeus, revision, argv.noStatusCheck);
 
-  await printRevisionSummary(zeus, revision);
-
   // Find targets
   const targetList: string[] = (typeof argv.target === 'string'
     ? [argv.target]
@@ -518,7 +521,8 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   }
 
   let targetConfigList = config.targets || [];
-  if (targetList[0] !== 'all') {
+
+  if (targetList[0] !== SpecialTarget.All) {
     targetConfigList = targetConfigList.filter(
       (targetConf: { [key: string]: any }) =>
         targetList.indexOf(targetConf.name) > -1
@@ -530,6 +534,13 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       logger.warn('No valid targets detected! Exiting.');
       return undefined;
     }
+
+    await printRevisionSummary(
+      zeus,
+      revision,
+      targetConfigList.map(t => t.name || '__undefined__')
+    );
+
     await publishToTargets(
       githubConfig,
       newVersion,
