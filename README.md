@@ -1,4 +1,4 @@
-****<p align="center">
+<p align="center">
     <img src="img/logo.svg" width="280">
     <br />
 </p>
@@ -134,8 +134,11 @@ Positionals:
                      version itself                                     [string]
 
 Options:
-  --no-push      Do not push the release branch       [boolean] [default: false]
-  --publish      Run "publish" right after "release"  [boolean] [default: false]
+  --no-push        Do not push the release branch     [boolean] [default: false]
+  --no-git-checks  Ignore local git changes and unsynchronized remotes
+                                                      [boolean] [default: false]
+  --no-changelog   Do not check for changelog entries [boolean] [default: false]
+  --publish        Run "publish" right after "release"[boolean] [default: false]
 ```
 
 ## `craft publish`: Publishing the Release
@@ -153,8 +156,8 @@ Positionals:
 
 Options:
   --target, -t       Publish to this target
-     [string] [choices: "brew", "github", "npm", "nuget", "pypi", "all", "none"]
-                                                                [default: "all"]
+  [string] [choices: "brew", "cocoapods", "crates", "gcs", "gh-pages", "github",
+             "npm", "nuget", "pypi", "registry", "all", "none"] [default: "all"]
   --rev, -r          Source revision to publish                         [string]
   --no-merge         Do not merge the release branch after publishing
                                                       [boolean] [default: false]
