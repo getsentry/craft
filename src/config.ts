@@ -16,6 +16,7 @@ import { parseVersion, versionGreaterOrEqualThan } from './utils/version';
 // TODO support multiple configuration files (one per configuration)
 export const CONFIG_FILE_NAME = '.craft.yml';
 
+/** File name where additional environment variables are stored */
 export const ENV_FILE_NAME = '.craft.env';
 
 /**
@@ -180,6 +181,15 @@ export function getGitTagPrefix(): string {
   return githubTarget.tagPrefix || '';
 }
 
+/**
+ * Loads environment variables from ".craft.env" files in certain locations
+ *
+ * The following two places are checked:
+ * - The user's home directory
+ * - The current working directory
+ *
+ * @param overwriteExisting If set to true, overwrite the existing environment variables
+ */
 export function readEnvironmentConfig(
   overwriteExisting: boolean = false
 ): void {
@@ -188,27 +198,41 @@ export function readEnvironmentConfig(
   // Read from home dir
   const homedirEnvFile = join(homedir(), ENV_FILE_NAME);
   if (existsSync(homedirEnvFile)) {
-    logger.debug(
+    logger.info(
       `Found environment file in the home directory: ${homedirEnvFile}`
     );
     const homedirEnv = {};
     nvar({ path: homedirEnvFile, target: homedirEnv });
     newEnv = { ...newEnv, ...homedirEnv };
+    logger.debug(
+      `Read the following variables from ${homedirEnvFile}: ${Object.keys(
+        homedirEnv
+      )}`
+    );
   } else {
-    logger.debug(`No environment file found: ${homedirEnvFile}`);
+    logger.debug(
+      `No environment file found in the home directory: ${homedirEnvFile}`
+    );
   }
 
   // Read from current dir
   const currentDirEnvFile = join(process.cwd(), ENV_FILE_NAME);
   if (existsSync(currentDirEnvFile)) {
-    logger.debug(
+    logger.info(
       `Found environment file in the current directory: ${currentDirEnvFile}`
     );
     const currentDirEnv = {};
     nvar({ path: currentDirEnvFile, target: currentDirEnv });
     newEnv = { ...newEnv, ...currentDirEnv };
+    logger.debug(
+      `Read the following variables from ${currentDirEnvFile}: ${Object.keys(
+        currentDirEnv
+      )}`
+    );
   } else {
-    logger.debug(`No environment file found: ${currentDirEnvFile}`);
+    logger.debug(
+      `No environment file found in the current directory: ${currentDirEnvFile}`
+    );
   }
 
   // Add non-existing values to env
