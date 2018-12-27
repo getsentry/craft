@@ -1,5 +1,6 @@
 import * as Github from '@octokit/rest';
 import { isDryRun, shouldPerform } from 'dryrun';
+import * as inquirer from 'inquirer';
 import * as ora from 'ora';
 import { Arguments, Argv } from 'yargs';
 
@@ -9,9 +10,10 @@ import { GithubGlobalConfig } from '../schemas/project_config';
 import { RevisionInfo, ZeusStore } from '../stores/zeus';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
-import { reportError } from '../utils/errors';
+import { coerceType, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
+import { hasInput } from '../utils/noInput';
 import { catchKeyboardInterrupt, sleepAsync } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 
@@ -325,6 +327,27 @@ async function printRevisionSummary(
     artifactData
   );
   logger.info('Available files:', table.toString());
+
+  if (hasInput()) {
+    const questions = [
+      {
+        default: false,
+        message: 'Is it OK to proceed with publishing?',
+        name: 'readyToPublish',
+        type: 'confirm',
+      },
+    ];
+    const answers = (await inquirer.prompt(questions)) as any;
+    const readyToPublish = coerceType<boolean>(
+      answers.readyToPublish,
+      'boolean'
+    );
+    if (!readyToPublish) {
+      reportError('Oh, okay. Aborting.');
+    }
+  } else {
+    logger.debug('Skipping the prompting.');
+  }
 }
 
 // TODO there is at least one case that is not covered: how to detect Zeus builds
@@ -332,12 +355,12 @@ async function printRevisionSummary(
 /**
  * Checks statuses of all builds on Zeus for the provided revision
  *
- * @param githubConfig Github repository configuration
+ * @param zeus Zeus store object
  * @param revision Git commit SHA to check
  * @param skipStatusCheckFlag A flag to enable/disable this check
  */
 async function checkRevisionStatus(
-  githubConfig: GithubGlobalConfig,
+  zeus: ZeusStore,
   revision: string,
   skipStatusCheckFlag: boolean = false
 ): Promise<void> {
@@ -345,8 +368,6 @@ async function checkRevisionStatus(
     logger.warn(`Skipping build status checks for revision ${revision}`);
     return;
   }
-
-  const zeus = new ZeusStore(githubConfig.owner, githubConfig.repo);
 
   try {
     logger.debug('Fetching repository information from Zeus...');
@@ -365,8 +386,6 @@ async function checkRevisionStatus(
   }
 
   await waitForTheBuildToSucceed(zeus, revision);
-
-  await printRevisionSummary(zeus, revision);
 }
 
 /**
@@ -476,8 +495,12 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   }
   logger.debug('Revision to publish: ', revision);
 
+  const zeus = new ZeusStore(githubConfig.owner, githubConfig.repo);
+
   // Check status of all CI builds linked to the revision
-  await checkRevisionStatus(githubConfig, revision, argv.noStatusCheck);
+  await checkRevisionStatus(zeus, revision, argv.noStatusCheck);
+
+  await printRevisionSummary(zeus, revision);
 
   // Find targets
   const targetList: string[] = (typeof argv.target === 'string'
