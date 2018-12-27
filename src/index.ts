@@ -3,11 +3,13 @@ import { isDryRun, setDryRun } from 'dryrun';
 import * as once from 'once';
 import * as yargs from 'yargs';
 
+import { readEnvironmentConfig } from './config';
 import { logger } from './logger';
 import { hasNoInput, setNoInput } from './utils/noInput';
 import { checkForUpdates } from './utils/version';
 
 checkForUpdates();
+readEnvironmentConfig();
 
 if (
   process.argv.indexOf('-v') === -1 &&

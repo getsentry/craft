@@ -1,9 +1,17 @@
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
+import { homedir } from 'os';
 import { dirname, join } from 'path';
 
 import { compile } from 'json-schema-to-typescript';
 
-import { getProjectConfigSchema, validateConfiguration } from '../config';
+import {
+  getProjectConfigSchema,
+  readEnvironmentConfig,
+  validateConfiguration,
+} from '../config';
+import { withTempDir } from '../utils/files';
+
+jest.mock('os');
 
 const configSchemaDir = join(dirname(__dirname), 'schemas');
 const configGeneratedTypes = join(configSchemaDir, 'project_config.ts');
@@ -56,5 +64,46 @@ describe('getProjectConfigSchema', () => {
     expect(projectConfigSchema).toBeTruthy();
     expect(projectConfigSchema).toHaveProperty('title');
     expect(projectConfigSchema).toHaveProperty('properties');
+  });
+});
+
+describe('readEnvironmentConfig', () => {
+  const homedirMock = (os.homedir = jest.fn());
+  const cwdMock = (process.cwd = jest.fn());
+
+  const invalidDir = '/invalid/invalid';
+
+  beforeEach(() => {
+    delete process.env.TEST_BLA;
+    jest.clearAllMocks();
+  });
+  test('calls homedir/process.cwd', async () => {
+    process.env.TEST_BLA = '123';
+
+    homedirMock.mockReturnValue(invalidDir);
+    cwdMock.mockReturnValue(invalidDir);
+
+    readEnvironmentConfig();
+
+    expect(cwdMock).toHaveBeenCalledTimes(1);
+    expect(homedirMock).toHaveBeenCalledTimes(1);
+    expect(process.env.TEST_BLA).toBe('123');
+  });
+
+  test('checks current directory', async () => {
+    homedirMock.mockReturnValue(invalidDir);
+    process.env.TEST_BLA = '123';
+
+    await withTempDir(async directory => {
+      cwdMock.mockReturnValue(directory);
+      const outFile = join(directory, '.craft.env');
+      writeFileSync(outFile, 'export TEST_BLA=234');
+
+      readEnvironmentConfig();
+
+      expect(cwdMock).toHaveBeenCalledTimes(1);
+      expect(homedirMock).toHaveBeenCalledTimes(1);
+      expect(process.env.TEST_BLA).toBe('234');
+    });
   });
 });

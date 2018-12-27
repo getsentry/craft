@@ -1,7 +1,10 @@
-import * as Ajv from 'ajv';
 import { existsSync, lstatSync, readFileSync } from 'fs';
-import { safeLoad } from 'js-yaml';
+import { homedir } from 'os';
 import { dirname, join } from 'path';
+
+import * as Ajv from 'ajv';
+import { safeLoad } from 'js-yaml';
+import * as nvar from 'nvar';
 
 import { logger } from './logger';
 import {
@@ -13,8 +16,15 @@ import { parseVersion, versionGreaterOrEqualThan } from './utils/version';
 // TODO support multiple configuration files (one per configuration)
 export const CONFIG_FILE_NAME = '.craft.yml';
 
+export const ENV_FILE_NAME = '.craft.env';
+
 /**
- * Cached configuration is stored here
+ * Cached path to the configuration file
+ */
+let _configPathCache: string;
+
+/**
+ * Cached configuration
  */
 let _configCache: CraftProjectConfig;
 
@@ -22,6 +32,10 @@ let _configCache: CraftProjectConfig;
  * Return a full path to configuration file for the current project
  */
 export function findConfigFile(): string | undefined {
+  if (_configPathCache) {
+    return _configPathCache;
+  }
+
   const cwd = process.cwd();
   const MAX_DEPTH = 1024;
   let depth = 0;
@@ -29,7 +43,8 @@ export function findConfigFile(): string | undefined {
   while (depth <= MAX_DEPTH) {
     const probePath = join(currentDir, CONFIG_FILE_NAME);
     if (existsSync(probePath) && lstatSync(probePath).isFile()) {
-      return probePath;
+      _configPathCache = probePath;
+      return _configPathCache;
     }
     const parentDir = dirname(currentDir);
     if (currentDir === parentDir) {
@@ -163,4 +178,41 @@ export function getGitTagPrefix(): string {
   const targets = getConfiguration().targets || [];
   const githubTarget = targets.find(target => target.name === 'github') || {};
   return githubTarget.tagPrefix || '';
+}
+
+export function readEnvironmentConfig(): void {
+  let newEnv = {} as any;
+
+  // Read from home dir
+  const homedirEnvFile = join(homedir(), ENV_FILE_NAME);
+  if (existsSync(homedirEnvFile)) {
+    logger.debug(
+      `Found environment file in the home directory: ${homedirEnvFile}`
+    );
+    const homedirEnv = {};
+    nvar({ path: homedirEnvFile, target: homedirEnv });
+    newEnv = { ...newEnv, ...homedirEnv };
+  } else {
+    logger.debug(`No environment file found: ${homedirEnvFile}`);
+  }
+
+  // Read from current dir
+  const currentDirEnvFile = join(process.cwd(), ENV_FILE_NAME);
+  if (existsSync(currentDirEnvFile)) {
+    logger.debug(
+      `Found environment file in the current directory: ${currentDirEnvFile}`
+    );
+    const currentDirEnv = {};
+    nvar({ path: currentDirEnvFile, target: currentDirEnv });
+    newEnv = { ...newEnv, ...currentDirEnv };
+  } else {
+    logger.debug(`No environment file found: ${currentDirEnvFile}`);
+  }
+
+  // Add non-existing values to env
+  for (const key of Object.keys(newEnv)) {
+    if (process.env[key] === undefined) {
+      process.env[key] = newEnv[key];
+    }
+  }
 }
