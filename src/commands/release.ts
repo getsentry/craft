@@ -8,7 +8,7 @@ import { Arguments, Argv } from 'yargs';
 
 import {
   checkMinimalConfigVersion,
-  findConfigFile,
+  getConfigFilePath,
   getConfiguration,
 } from '../config';
 import { logger } from '../logger';
@@ -430,7 +430,7 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
   const githubConfig = config.github;
 
   // Move to the directory where the config file is located
-  const configFileDir = dirname(findConfigFile() || '');
+  const configFileDir = dirname(getConfigFilePath());
   process.chdir(configFileDir);
   logger.debug(`Working directory:`, configFileDir);
 

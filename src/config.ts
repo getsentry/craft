@@ -30,7 +30,9 @@ let _configPathCache: string;
 let _configCache: CraftProjectConfig;
 
 /**
- * Return a full path to configuration file for the current project
+ * Searches the current and parent directories for the configuration file
+ *
+ * Returns "undefined" if no file was found.
  */
 export function findConfigFile(): string | undefined {
   if (_configPathCache) {
@@ -60,14 +62,42 @@ export function findConfigFile(): string | undefined {
 }
 
 /**
- * Read JSON schema for project configuration
+ * Returns project configuration (.craft.yml) file path
+ *
+ * Throws an error if the file cannot be found.
+ */
+export function getConfigFilePath(): string {
+  const configFilePath = findConfigFile();
+  if (!configFilePath) {
+    throw new Error(
+      `Cannot find Craft configuration file. Have you added "${CONFIG_FILE_NAME}" to your project?`
+    );
+  }
+  return configFilePath;
+}
+
+/**
+ * Returns the path to the directory that contains the configuration file
+ *
+ * Returns "undefined" if no configuration file can be found.
+ */
+export function getConfigFileDir(): string | undefined {
+  const configFilePath = findConfigFile();
+  if (!configFilePath) {
+    return undefined;
+  }
+  return dirname(configFilePath);
+}
+
+/**
+ * Reads JSON schema for project configuration
  */
 export function getProjectConfigSchema(): any {
   return require('./schemas/projectConfig.schema');
 }
 
 /**
- * Parse and validate passed configuration object
+ * Parses and validate passed configuration object
  *
  * Throw an error is the object cannot be properly parsed as configuration.
  *
@@ -89,19 +119,14 @@ export function validateConfiguration(rawConfig: any): CraftProjectConfig {
 }
 
 /**
- * Return the parsed configuration file contents
+ * Returns the parsed configuration file contents
  */
 export function getConfiguration(): CraftProjectConfig {
   if (_configCache) {
     return _configCache;
   }
 
-  const configPath = findConfigFile();
-  if (!configPath) {
-    throw new Error(
-      `Cannot find Craft configuration file. Have you added "${CONFIG_FILE_NAME}" to your project?`
-    );
-  }
+  const configPath = getConfigFilePath();
   logger.debug('Configuration file found: ', configPath);
   const rawConfig = safeLoad(readFileSync(configPath, 'utf-8'));
   _configCache = validateConfiguration(rawConfig);
@@ -186,7 +211,7 @@ export function getGitTagPrefix(): string {
  *
  * The following two places are checked:
  * - The user's home directory
- * - The current working directory
+ * - The configuration file directory
  *
  * @param overwriteExisting If set to true, overwrite the existing environment variables
  */
@@ -215,23 +240,29 @@ export function readEnvironmentConfig(
     );
   }
 
-  // Read from current dir
-  const currentDirEnvFile = join(process.cwd(), ENV_FILE_NAME);
-  if (existsSync(currentDirEnvFile)) {
+  // Read from the directory where the configuration file is located
+
+  // Apparently this is the best we can do to make getConfigFileDir mockable ;(
+  // See https://github.com/facebook/jest/issues/936 for more info
+  const configFileDir = exports.getConfigFileDir() as string | undefined;
+  const configDirEnvFile = configFileDir && join(configFileDir, ENV_FILE_NAME);
+  if (!configDirEnvFile) {
+    logger.debug(`No configuration file (${CONFIG_FILE_NAME}) found!`);
+  } else if (configDirEnvFile && existsSync(configDirEnvFile)) {
     logger.debug(
-      `Found environment file in the current directory: ${currentDirEnvFile}`
+      `Found environment file in the configuration directory: ${configDirEnvFile}`
     );
-    const currentDirEnv = {};
-    nvar({ path: currentDirEnvFile, target: currentDirEnv });
-    newEnv = { ...newEnv, ...currentDirEnv };
+    const configDirEnv = {};
+    nvar({ path: configDirEnvFile, target: configDirEnv });
+    newEnv = { ...newEnv, ...configDirEnv };
     logger.debug(
-      `Read the following variables from ${currentDirEnvFile}: ${Object.keys(
-        currentDirEnv
+      `Read the following variables from ${configDirEnvFile}: ${Object.keys(
+        configDirEnv
       )}`
     );
   } else {
     logger.debug(
-      `No environment file found in the current directory: ${currentDirEnvFile}`
+      `No environment file found in the configuration directory: ${configDirEnvFile}`
     );
   }
 

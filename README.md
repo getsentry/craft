@@ -106,7 +106,9 @@ targets (e.g. `TWINE_USERNAME` and `TWINE_PASSWORD` for PyPI target).
 the following files (in the specified order):
 
 - `$HOME/.craft.env`
-- `$PWD/.craft.env`
+- `$PROJECT_DIR/.craft.env`
+
+...where `$HOME` is the current user's home directory, and `$PROJECT_DIR` is the directory where `.craft.yml` is located.
 
 Already defined environment variables will not be overwritten.
 
