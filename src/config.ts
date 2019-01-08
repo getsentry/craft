@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, readFileSync } from 'fs';
+import { existsSync, lstatSync, readFileSync, statSync } from 'fs';
 import { homedir } from 'os';
 import { dirname, join } from 'path';
 
@@ -207,6 +207,29 @@ export function getGitTagPrefix(): string {
 }
 
 /**
+ * Checks that the file is only readable for the owner
+ *
+ * It is assumed that the file already exists
+ * @param path File path
+ */
+function checkFileIsPrivate(path: string): boolean {
+  const FULL_MODE_MASK = 0o777;
+  const GROUP_MODE_MASK = 0o070;
+  const OTHER_MODE_MASK = 0o007;
+  const mode = statSync(path).mode;
+  // tslint:disable-next-line:no-bitwise
+  if (mode & GROUP_MODE_MASK || mode & OTHER_MODE_MASK) {
+    // tslint:disable-next-line:no-bitwise
+    const perms = (mode & FULL_MODE_MASK).toString(8);
+    logger.warn(
+      `Permissions 0${perms} for file "${path}" are too open. Consider making it readable only for the user.\n`
+    );
+    return false;
+  }
+  return true;
+}
+
+/**
  * Loads environment variables from ".craft.env" files in certain locations
  *
  * The following two places are checked:
@@ -226,6 +249,7 @@ export function readEnvironmentConfig(
     logger.debug(
       `Found environment file in the home directory: ${homedirEnvFile}`
     );
+    checkFileIsPrivate(homedirEnvFile);
     const homedirEnv = {};
     nvar({ path: homedirEnvFile, target: homedirEnv });
     newEnv = { ...newEnv, ...homedirEnv };
@@ -252,6 +276,7 @@ export function readEnvironmentConfig(
     logger.debug(
       `Found environment file in the configuration directory: ${configDirEnvFile}`
     );
+    checkFileIsPrivate(configDirEnvFile);
     const configDirEnv = {};
     nvar({ path: configDirEnvFile, target: configDirEnv });
     newEnv = { ...newEnv, ...configDirEnv };
