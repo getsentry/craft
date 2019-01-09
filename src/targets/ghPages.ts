@@ -138,12 +138,14 @@ export class GhPagesTarget extends BaseTarget {
    * @param remote Object representing GitHub remote
    * @param branch Branch to push
    * @param archivePath Path to the archive
+   * @param version Version to deploy
    */
   public async commitArchiveToBranch(
     directory: string,
     remote: GithubRemote,
     branch: string,
-    archivePath: string
+    archivePath: string,
+    version: string
   ): Promise<void> {
     logger.info(`Cloning "${remote.getRemoteString()}" to "${directory}"...`);
     await simpleGit()
@@ -180,7 +182,7 @@ export class GhPagesTarget extends BaseTarget {
 
     // Commit
     await git.add(['.']);
-    await git.commit('gh-pages: update');
+    await git.commit(`craft(gh-pages): update, version "${version}"`);
 
     // Push!
     logger.info(`Pushing branch "${branch}"...`);
@@ -194,7 +196,7 @@ export class GhPagesTarget extends BaseTarget {
   /**
    * Pushes an archive with static HTML web assets to the configured branch
    */
-  public async publish(_version: string, revision: string): Promise<any> {
+  public async publish(version: string, revision: string): Promise<any> {
     const { githubOwner, githubRepo, branch } = this.ghPagesConfig;
 
     logger.debug('Fetching artifact list from Zeus...');
@@ -225,7 +227,13 @@ export class GhPagesTarget extends BaseTarget {
 
     await withTempDir(
       async directory =>
-        this.commitArchiveToBranch(directory, remote, branch, archivePath),
+        this.commitArchiveToBranch(
+          directory,
+          remote,
+          branch,
+          archivePath,
+          version
+        ),
       true,
       'craft-gh-pages-'
     );
