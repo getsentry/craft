@@ -16,7 +16,7 @@ const logger = loggerRaw.withScope('[npm]');
 export const NPM_BIN = process.env.NPM_BIN || 'npm';
 
 const NPM_MIN_MAJOR = 5;
-const NPM_MIN_MINOR = 5;
+const NPM_MIN_MINOR = 6;
 
 /**
  * Parameter used to reset NPM to its default registry.
