@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.2
+
+- Change prompt type when publishing
+- Read environment configuration from the project root, and not from the current directory
+- Warn about insecure environment files
+- gh-pages: Add version to commit message
+- Change minimal supported NPM version to 5.6.0
+- Fix artifact sorting
+
 ## 0.7.1
 
 - Read environment from .craft.env
