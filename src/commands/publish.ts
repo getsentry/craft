@@ -320,7 +320,7 @@ async function printRevisionSummary(
 ): Promise<void> {
   const artifacts = await zeus.listArtifactsForRevision(revision);
   const artifactData = artifacts.map(ar => [ar.name, ar.updated_at || '']);
-  artifactData.sort((a1, a2) => +(a1[0] > a2[0]));
+  artifactData.sort((a1, a2) => (a1[0] < a2[0] ? -1 : a1[0] > a2[0] ? 1 : 0));
   const table = formatTable(
     {
       head: ['File Name', 'Updated'],
