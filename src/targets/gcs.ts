@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import * as googleStorage from '@google-cloud/storage';
+import { Bucket, Storage, UploadOptions } from '@google-cloud/storage';
 import { Artifact } from '@zeus-ci/sdk';
 import { shouldPerform } from 'dryrun';
 
@@ -39,24 +39,6 @@ export interface GcsTargetConfig extends TargetConfig {
   serviceAccountConfig: object;
   /** Google Cloud project ID */
   projectId: string;
-}
-
-/**
- * Bucket object used in "@google-cloud/storage"
- */
-interface BucketObject {
-  /** Uploads a file to the bucket */
-  upload(filePath: string, options: any): Promise<void>;
-}
-
-/**
- * Upload options for "@google-cloud/storage"
- */
-interface GcsUploadOptions {
-  /** Is gzip enabled? */
-  gzip: boolean;
-  /** Generic metadata */
-  metadata: any;
 }
 
 /**
@@ -192,8 +174,8 @@ export class GcsTarget extends BaseTarget {
   private async uploadArtifact(
     artifact: Artifact,
     bucketPath: string,
-    bucketObj: BucketObject,
-    uploadOptions: GcsUploadOptions
+    bucketObj: Bucket,
+    uploadOptions: UploadOptions
   ): Promise<void> {
     const filePath = await this.store.downloadArtifact(artifact);
     const destination = path.join(bucketPath, path.basename(filePath));
@@ -220,13 +202,13 @@ export class GcsTarget extends BaseTarget {
    */
   private async uploadToBucketPath(
     bucketPath: BucketDest,
-    bucketObj: BucketObject,
+    bucketObj: Bucket,
     artifacts: Artifact[],
     version: string,
     revision: string
   ): Promise<void[]> {
     const realPath = this.getRealBucketPath(bucketPath, version, revision);
-    const fileUploadUptions: GcsUploadOptions = {
+    const fileUploadUptions: UploadOptions = {
       gzip: true,
       metadata: bucketPath.metadata,
     };
@@ -254,13 +236,13 @@ export class GcsTarget extends BaseTarget {
 
     const { projectId, serviceAccountConfig, bucket } = this.gcsConfig;
 
-    const storage = new googleStorage({
+    const storage = new Storage({
       credentials: serviceAccountConfig,
       projectId,
     });
 
     logger.info(`Uploading to GCS bucket: "${bucket}"`);
-    const bucketObj: BucketObject = storage.bucket(bucket);
+    const bucketObj = storage.bucket(bucket);
 
     // We intentionally do not make all requests concurrent here
     await forEachChained(
