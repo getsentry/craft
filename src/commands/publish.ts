@@ -319,17 +319,18 @@ async function printRevisionSummary(
   targetNames: string[]
 ): Promise<void> {
   const artifacts = await zeus.listArtifactsForRevision(revision);
-  const artifactData = artifacts.map(ar => [ar.name, ar.updated_at || '']);
-  artifactData.sort((a1, a2) => (a1[0] < a2[0] ? -1 : a1[0] > a2[0] ? 1 : 0));
-  const table = formatTable(
-    {
-      head: ['File Name', 'Updated'],
-      style: { head: ['cyan'] },
-    },
-    artifactData
-  );
-
-  logger.info(`Available artifacts: \n${table.toString()}\n`);
+  if (artifacts.length > 0) {
+    const artifactData = artifacts.map(ar => [ar.name, ar.updated_at || '']);
+    artifactData.sort((a1, a2) => (a1[0] < a2[0] ? -1 : a1[0] > a2[0] ? 1 : 0));
+    const table = formatTable(
+      {
+        head: ['File Name', 'Updated'],
+        style: { head: ['cyan'] },
+      },
+      artifactData
+    );
+    logger.info(`Available artifacts: \n${table.toString()}\n`);
+  }
 
   logger.info('Publishing to targets:');
   // TODO init all targets earlier

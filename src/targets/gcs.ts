@@ -17,6 +17,8 @@ const logger = loggerRaw.withScope('[gcs]');
 
 const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
 
+const GCS_MAX_RETRIES = 5;
+
 /**
  * Bucket path with associated parameters
  */
@@ -237,7 +239,9 @@ export class GcsTarget extends BaseTarget {
     const { projectId, serviceAccountConfig, bucket } = this.gcsConfig;
 
     const storage = new Storage({
+      autoRetry: true,
       credentials: serviceAccountConfig,
+      maxRetries: GCS_MAX_RETRIES,
       projectId,
     });
 
