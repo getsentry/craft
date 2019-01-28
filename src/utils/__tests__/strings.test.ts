@@ -1,4 +1,4 @@
-import { renderTemplateSafe, sanitizeObject } from '../strings';
+import { renderTemplateSafe, sanitizeObject, formatSize } from '../strings';
 
 describe('sanitizeObject', () => {
   test('processes empty object', () => {
@@ -66,5 +66,17 @@ describe('renderTemplateSafe', () => {
 
   test('does not render globals', () => {
     expect(renderTemplateSafe('{{ process }}', {})).toBe('');
+  });
+});
+
+describe('formatSize', () => {
+  test('formats byte sizes', () => {
+    expect(formatSize(123)).toBe('123 B');
+  });
+  test('formats kilobyte sizes', () => {
+    expect(formatSize(125952)).toBe('123.0 kB');
+  });
+  test('formats megabyte sizes', () => {
+    expect(formatSize(1289748)).toBe('1.23 MB');
   });
 });

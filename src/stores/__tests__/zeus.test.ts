@@ -5,6 +5,10 @@ import { ZeusStore } from '../zeus';
 function artifactFactory(name: string, options?: object): Artifact {
   return {
     download_url: 'http://invalid',
+    file: {
+      name: 'test',
+      size: 100,
+    },
     id: name,
     name,
     status: Status.FINISHED,

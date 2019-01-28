@@ -53,3 +53,21 @@ export function sanitizeObject(obj: any): any {
 export function renderTemplateSafe(template: string, context: any): string {
   return mustache.render(template, sanitizeObject(context));
 }
+
+/**
+ * Formats file size as kilobytes/megabytes
+ *
+ * @param size Size to format
+ */
+export function formatSize(size: number): string {
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  const kilobytes = size / 1024.0;
+  if (kilobytes < 1024) {
+    return `${kilobytes.toFixed(1)} kB`;
+  } else {
+    const megabytes = kilobytes / 1024.0;
+    return `${megabytes.toFixed(2)} MB`;
+  }
+}

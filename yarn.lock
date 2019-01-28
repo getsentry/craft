@@ -384,10 +384,10 @@
   resolved "https://registry.yarnpkg.com/@types/yargs/-/yargs-12.0.4.tgz#14a37542f01a1ed4d743d5f8bc3f40e63e5835d4"
   integrity sha512-hBYcOaYPnlAPj2OZbivFFzsW61mN0L3N0Aq4KwRt/ZXlw1c25Srj8413MBu5IhFGOyOdjLi2/qOqtStDTXGs9g==
 
-"@zeus-ci/sdk@^0.1.5":
-  version "0.1.5"
-  resolved "https://registry.yarnpkg.com/@zeus-ci/sdk/-/sdk-0.1.5.tgz#dcecdf58a01bd83a0c1c312eb63d6d659453943f"
-  integrity sha512-lX/mn2ZEWMgkHVUbuFEtw0UD/iQo2pJC8UIqBqGhnrSjEEb7rrU0Dpq1FwQ03avW3BAjoCq3Ncykb3eu4Md8Pg==
+"@zeus-ci/sdk@^0.1.6":
+  version "0.1.6"
+  resolved "https://registry.yarnpkg.com/@zeus-ci/sdk/-/sdk-0.1.6.tgz#3fd4ba32165a10d6ba3002e4cc5e1a9df9834600"
+  integrity sha512-LYIrwK3tqF042RHglaYwIl1IfMPRNLWqOL2mggO70uvnZFCcQcipbavCW2bk/vCyPpL+3h6iGAy4ltjrrvg0Gg==
   dependencies:
     form-data "^2.3.2"
     node-fetch "^2.1.2"

@@ -14,6 +14,7 @@ import { coerceType, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
 import { hasInput } from '../utils/noInput';
+import { formatSize } from '../utils/strings';
 import { catchKeyboardInterrupt, sleepAsync } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 
@@ -320,11 +321,15 @@ async function printRevisionSummary(
 ): Promise<void> {
   const artifacts = await zeus.listArtifactsForRevision(revision);
   if (artifacts.length > 0) {
-    const artifactData = artifacts.map(ar => [ar.name, ar.updated_at || '']);
+    const artifactData = artifacts.map(ar => [
+      ar.name,
+      formatSize(ar.file.size),
+      ar.updated_at || '',
+    ]);
     artifactData.sort((a1, a2) => (a1[0] < a2[0] ? -1 : a1[0] > a2[0] ? 1 : 0));
     const table = formatTable(
       {
-        head: ['File Name', 'Updated'],
+        head: ['File Name', 'Size', 'Updated'],
         style: { head: ['cyan'] },
       },
       artifactData
