@@ -26,6 +26,7 @@ export const aliases = [
   'prerelease',
   'pre-publish',
   'prepublish',
+  'prepare',
 ];
 export const description = '🚢 Prepare a new release branch';
 
