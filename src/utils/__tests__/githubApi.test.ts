@@ -16,7 +16,7 @@ describe('getFile', () => {
   const owner = 'owner';
   const repo = 'repo';
 
-  const getContents = github.repos.getContents as jest.Mock;
+  const getContents = (github.repos.getContents as unknown) as jest.Mock;
 
   test('loads and decodes the file', async () => {
     expect.assertions(2);

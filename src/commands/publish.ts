@@ -444,7 +444,7 @@ async function handleReleaseBranch(
     const ref = `heads/${branchName}`;
     logger.debug(`Deleting the release branch, ref: ${ref}`);
     if (shouldPerform()) {
-      const response = await github.gitdata.deleteRef({
+      const response = await github.git.deleteRef({
         owner: githubConfig.owner,
         ref,
         repo: githubConfig.repo,

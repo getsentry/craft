@@ -103,15 +103,13 @@ export class GithubTarget extends BaseTarget {
       tag,
       type: 'commit' as GithubCreateTagType,
     };
-    const tagCreatedResponse = await this.github.gitdata.createTag(
-      createTagParams
-    );
+    const tagCreatedResponse = await this.github.git.createTag(createTagParams);
 
     const ref = `refs/tags/${tag}`;
     const refSha = tagCreatedResponse.data.sha;
     logger.debug(`Creating a reference "${ref}" for object "${refSha}"`);
     try {
-      await this.github.gitdata.createRef({
+      await this.github.git.createRef({
         owner: this.githubConfig.owner,
         ref,
         repo: this.githubConfig.repo,
