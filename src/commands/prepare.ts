@@ -123,7 +123,7 @@ async function createReleaseBranch(
   if (branchHead) {
     let errorMsg = `Branch already exists: ${branchName}. `;
     errorMsg +=
-      'Run the following commands to delete the branch, and then rerun "release":\n';
+      'Run the following commands to delete the branch, and then rerun "prepare":\n';
     errorMsg += `    git branch -D ${branchName}; git push origin --delete ${branchName}\n`;
     reportError(errorMsg, logger);
   }
@@ -412,7 +412,7 @@ async function switchToDefaultBranch(
 }
 
 /**
- * Body of 'release' command
+ * Body of 'prepare' command
  *
  * @param argv Command-line arguments
  */

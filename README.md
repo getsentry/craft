@@ -149,7 +149,7 @@ Options:
   --no-git-checks  Ignore local git changes and unsynchronized remotes
                                                       [boolean] [default: false]
   --no-changelog   Do not check for changelog entries [boolean] [default: false]
-  --publish        Run "publish" right after "release"[boolean] [default: false]
+  --publish        Run "publish" right after "prepare"[boolean] [default: false]
 ```
 
 ### `craft publish`: Publishing the Release
