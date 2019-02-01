@@ -21,7 +21,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
 - [Global Configuration](#global-configuration)
   - [Environment Files](#environment-files)
 - [Workflow](#workflow)
-  - [`craft release`: Preparing a New Release](#craft-release-preparing-a-new-release)
+  - [`craft prepare`: Preparing a New Release](#craft-prepare-preparing-a-new-release)
   - [`craft publish`: Publishing the Release](#craft-publish-publishing-the-release)
   - [Example](#example)
 - [Configuration File: `.craft.yml`](#configuration-file-craftyml)
@@ -53,11 +53,11 @@ then enforces a specific workflow for managing release branches, changelogs, art
 The tool is distributed as an NPM package and can be installed via `npm` or `yarn`:
 
 ```bash
-npm install -g @sentry/craft
-
-# Or
-
 yarn global add @sentry/craft
+
+# Or (not preferred):
+
+npm install -g @sentry/craft
 ```
 
 ## Usage
@@ -67,12 +67,18 @@ $ craft -h
 craft <command>
 
 Commands:
-  dist publish <new-version>                      🛫  Publish artifacts             [aliases: p]
-  dist release <major|minor|patch|new-version>    🚢  Prepare a new release branch  [aliases: r]
+  craft prepare                              🚢 Prepare a new release branch
+  <major|minor|patch|new-version>
+                          [aliases: p, prerelease, prepublish, prepare, release]
+  craft publish <new-version>                🛫 Publish artifacts
+                                                          [aliases: pp, publish]
 
 Options:
-  -v, --version  Show version number                                                [boolean]
-  -h, --help     Show help                                                          [boolean]
+  --no-input     Suppresses all user prompts          [boolean] [default: false]
+  --dry-run      Dry run mode: do not perform any real actions
+                                                      [boolean] [default: false]
+  -v, --version  Show version number                                   [boolean]
+  -h, --help     Show help                                             [boolean]
 ```
 
 ## Caveats
@@ -124,13 +130,13 @@ export NUGET_API_TOKEN=abcdefgh
 
 ## Workflow
 
-### `craft release`: Preparing a New Release
+### `craft prepare`: Preparing a New Release
 
 This command will create a new release branch, check the changelog entries,
 run a version-bumping script, and push the new branch to GitHub.
 
 ```
-craft release <major|minor|patch|new-version>
+craft prepare <major|minor|patch|new-version>
 
 🚢 Prepare a new release branch
 
@@ -178,9 +184,9 @@ Options:
 Let's imagine we want to release a new version of our package, and the version
 in question is `1.2.3`.
 
-We run `release` command first:
+We run `prepare` command first:
 
-`$ craft release 1.2.3`
+`$ craft prepare 1.2.3`
 
 After some basic sanity checks this command creates a new release branch
 `release/1.2.3`, runs the version-bumping script (`scripts/bump-version.sh`),
@@ -215,7 +221,7 @@ github:
 
 ### Pre-release Command
 
-This command will run on your newly created release branch as part of "release"
+This command will run on your newly created release branch as part of `prepare`
 command. By default, it is set to "bash scripts/bump-version.sh". Please refer
 to [this section](#pre-release-version-bumping-script-conventions) for more details.
 
@@ -227,7 +233,7 @@ preReleaseCommand: bash scripts/bump-version.sh
 
 `craft` can help you to maintain change logs for your projects. At the moment,
 `craft` supports only one approach (`"simple"`) to changelog management.
-In this mode, `craft release` will remind you to add a changelog entry to the
+In this mode, `craft prepare` will remind you to add a changelog entry to the
 changelog file (`CHANGELOG.md` by default).
 
 **Configuration**
@@ -657,7 +663,7 @@ Here is how you can integrate your GitHub project with `craft`:
 
 ## Pre-release (Version-bumping) Script: Conventions
 
-Among other actions, `craft release` runs an external project-specific command
+Among other actions, `craft prepare` runs an external project-specific command
 or script that is responsible for version bumping. By default, this script
 should be located at the following path: `scripts/bump-version.sh` (relative
 to the project root). The command can be configured by specifying

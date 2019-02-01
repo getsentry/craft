@@ -20,14 +20,8 @@ import { sleepAsync, spawnProcess } from '../utils/system';
 import { isValidVersion, versionToTag } from '../utils/version';
 import { publishMain, PublishOptions } from './publish';
 
-export const command = ['release <major|minor|patch|new-version>', 'r'];
-export const aliases = [
-  'pre-release',
-  'prerelease',
-  'pre-publish',
-  'prepublish',
-  'prepare',
-];
+export const command = ['prepare <major|minor|patch|new-version>'];
+export const aliases = ['p', 'prerelease', 'prepublish', 'prepare', 'release'];
 export const description = '🚢 Prepare a new release branch';
 
 /** Default path to bump-version script, relative to project root */

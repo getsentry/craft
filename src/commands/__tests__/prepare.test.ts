@@ -1,5 +1,5 @@
 import { spawnProcess } from '../../utils/system';
-import { runPreReleaseCommand } from '../release';
+import { runPreReleaseCommand } from '../prepare';
 
 jest.mock('../../utils/system');
 

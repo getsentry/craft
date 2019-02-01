@@ -18,7 +18,8 @@ import { formatSize } from '../utils/strings';
 import { catchKeyboardInterrupt, sleepAsync } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 
-export const command = ['publish <new-version>', 'p'];
+export const command = ['publish <new-version>'];
+export const aliases = ['pp', 'publish'];
 export const description = '🛫 Publish artifacts';
 
 /** Max number of seconds to wait for revision to be available in Zeus */
@@ -335,6 +336,8 @@ async function printRevisionSummary(
       artifactData
     );
     logger.info(`Available artifacts: \n${table.toString()}\n`);
+  } else {
+    logger.warn('No artifacts found for the release.');
   }
 
   logger.info('Publishing to targets:');
