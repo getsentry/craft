@@ -3,6 +3,7 @@ layout: base
 ---
 <div class="wrapper">
   <header>
+
     {% if site.compass.logo %}
     <div class="logo-container">
       <a class="logo" href="{{ page.baseurl }}" style="background-image: url('{{ site.baseurl }}{{ site.compass.logo }}')"></a>
@@ -14,6 +15,7 @@ layout: base
       <h1>{{ site.compass.author }}</h1>
     </div>
     {% endif %}
+
   </header>
   <main>
     {% if site.compass.include_content %}
