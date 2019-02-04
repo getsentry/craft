@@ -4,7 +4,40 @@ import { isDryRun } from 'dryrun';
 import * as request from 'request';
 import { Duplex, Readable } from 'stream';
 
-import { logger } from '../logger';
+import { LOG_LEVELS, logger } from '../logger';
+import { sleepAsync } from './system';
+
+export const HTTP_UNPROCESSABLE_ENTITY = 422;
+export const HTTP_RESPONSE_1XX = /^1\d\d$/;
+export const HTTP_RESPONSE_2XX = /^2\d\d$/;
+export const HTTP_RESPONSE_3XX = /^3\d\d$/;
+export const HTTP_RESPONSE_4XX = /^4\d\d$/;
+export const HTTP_RESPONSE_5XX = /^5\d\d$/;
+
+export type RetryCodePattern = number | RegExp;
+
+/**
+ * Parameters for retryHttp function
+ */
+export interface RetryParams {
+  /** Number of retries (0 means no retries) */
+  retries: number;
+  /** Codes to retry */
+  retryCodes: RetryCodePattern[];
+  /** Timeout interval (ms) before every retry */
+  cooldown: number;
+  /** Is exponential backoff enabled? (NOT IMPLEMENTED) */
+  exponential: boolean;
+  /** Function to call before every retry */
+  cleanupFn?(): Promise<void>;
+}
+
+const defaultRetryParams: RetryParams = {
+  cooldown: 1000,
+  exponential: false,
+  retries: 3,
+  retryCodes: [HTTP_RESPONSE_5XX],
+};
 
 /**
  * Abstraction for GitHub remotes
@@ -98,8 +131,20 @@ export function getGithubApiToken(): string {
  */
 export function getGithubClient(token: string = ''): Github {
   const githubApiToken = token || getGithubApiToken();
-  const github = new Github();
-  github.authenticate({ token: githubApiToken, type: 'token' });
+
+  const attrs = {
+    auth: `token ${githubApiToken}`,
+  } as any;
+
+  if (logger.level >= LOG_LEVELS.DEBUG) {
+    attrs.log = {
+      info: (message: string, _: any) => {
+        logger.debug(message);
+      },
+    };
+  }
+
+  const github = new Github(attrs);
   return github;
 }
 
@@ -258,4 +303,81 @@ export async function downloadSources(
       resolve(stream);
     });
   });
+}
+
+/**
+ * Checks that the HTTP status code matches one of the patterns
+ *
+ * A pattern can be either a number or a regular expression.
+ *
+ * @param code HTTP code to check
+ * @param patterns A list of patterns to test
+ */
+export function codeMatches(
+  code: number,
+  patterns: RetryCodePattern | RetryCodePattern[]
+): boolean {
+  const patternList: RetryCodePattern[] = Array.isArray(patterns)
+    ? patterns
+    : [patterns];
+
+  const stringCode = code.toString();
+  if (stringCode.length !== 3) {
+    return false;
+  }
+
+  for (const pattern of patternList) {
+    if (typeof pattern === 'number') {
+      if (pattern === code) {
+        return true;
+      }
+    } else {
+      // pattern is RegEx
+      if (pattern.test(stringCode)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Runs the provided function in the retry loop
+ *
+ * Used for retrying API requests to GitHub
+ *
+ * @param fn Function to retry
+ * @param retryParams Retry parameters
+ */
+export async function retryHttp<T>(
+  fn: () => Promise<T>,
+  retryParams: Partial<RetryParams> = {}
+): Promise<T> {
+  const params = { ...defaultRetryParams, ...retryParams };
+  const maxRetries = params.retries;
+  let retryNum = 0;
+
+  while (true) {
+    logger.debug(`Retry number ${retryNum}, max retries: ${maxRetries}`);
+
+    try {
+      const result = await fn();
+      return result;
+    } catch (e) {
+      const code = e.code as number;
+      if (params.retryCodes.indexOf(code) > -1 && retryNum < maxRetries) {
+        if (params.cleanupFn) {
+          await params.cleanupFn();
+        }
+        await sleepAsync(params.cooldown);
+        retryNum += 1;
+        continue;
+      } else {
+        if (maxRetries > 0) {
+          logger.error(`Maximum retries reached (${maxRetries})`);
+        }
+        throw e;
+      }
+    }
+  }
 }

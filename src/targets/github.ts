@@ -8,7 +8,13 @@ import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
-import { getFile, getGithubClient } from '../utils/githubApi';
+import {
+  getFile,
+  getGithubClient,
+  HTTP_RESPONSE_5XX,
+  HTTP_UNPROCESSABLE_ENTITY,
+  retryHttp,
+} from '../utils/githubApi';
 import { isPreviewRelease, versionToTag } from '../utils/version';
 import { BaseTarget } from './base';
 
@@ -210,6 +216,129 @@ export class GithubTarget extends BaseTarget {
   }
 
   /**
+   * Deletes the provided asset from its respective release
+   *
+   * Can be also used to delete orphaned (unfinished) releases
+   *
+   * @param asset Asset to delete
+   */
+  public async deleteAsset(
+    asset: Github.ReposListAssetsForReleaseResponseItem
+  ): Promise<void> {
+    logger.debug(`Deleting asset: "${asset.name}"...`);
+    return retryHttp(async () =>
+      this.github.repos.deleteReleaseAsset({
+        asset_id: asset.id,
+        owner: this.githubConfig.owner,
+        repo: this.githubConfig.repo,
+      })
+    ) as any;
+  }
+
+  /**
+   * Delete all provided assets
+   *
+   * @param assets A list of assets to delete
+   */
+  public async deleteAssets(
+    assets: Github.ReposListAssetsForReleaseResponseItem[]
+  ): Promise<void> {
+    // Doing it serially, just in case
+    for (const asset of assets) {
+      await this.deleteAsset(asset);
+    }
+  }
+
+  /**
+   * Fetches a list of all assets for the given release
+   *
+   * The result includes unfinshed asset uploads.
+   *
+   * @param release Release to fetch assets from
+   */
+  public async getAssetsForRelease(
+    release: GithubRelease
+  ): Promise<Github.ReposListAssetsForReleaseResponseItem[]> {
+    const listAssets = async () =>
+      this.github.repos.listAssetsForRelease({
+        owner: this.githubConfig.owner,
+        per_page: 50,
+        release_id: release.id,
+        repo: this.githubConfig.repo,
+      });
+    const assetsResponse = await retryHttp(listAssets);
+    return assetsResponse.data;
+  }
+
+  /**
+   * Deletes assets with the given name from the specific release
+   *
+   * @param release Release object
+   * @param name Assets with this name will be deleted
+   */
+  public async deleteAssetsByFilename(
+    release: GithubRelease,
+    name: string
+  ): Promise<void> {
+    const assets = await this.getAssetsForRelease(release);
+    for (const asset of assets) {
+      if (asset.name === name) {
+        await this.deleteAsset(asset);
+      }
+    }
+  }
+
+  /**
+   * Uploads the file from the provided path to the specific release
+   *
+   * @param release Release object
+   * @param path Filesystem (local) path of the file to upload
+   * @param contentType Optional content-type for uploading
+   */
+  public async uploadAsset(
+    release: GithubRelease,
+    path: string,
+    contentType?: string
+  ): Promise<any> {
+    const contentTypeProcessed = contentType || DEFAULT_CONTENT_TYPE;
+    const stats = statSync(path);
+    const name = basename(path);
+    const params = {
+      'Content-Length': stats.size,
+      'Content-Type': contentTypeProcessed,
+      file: createReadStream(path),
+      headers: {
+        'content-length': stats.size,
+        'content-type': contentTypeProcessed,
+      },
+      id: release.id,
+      name,
+      url: release.upload_url,
+    };
+    logger.debug('Upload parameters:', JSON.stringify(params));
+    logger.info(
+      `Uploading asset "${name}" to ${this.githubConfig.owner}/${
+        this.githubConfig.repo
+      }:${release.tag_name}`
+    );
+    if (shouldPerform()) {
+      await retryHttp(
+        async () => this.github.repos.uploadReleaseAsset(params),
+        {
+          cleanupFn: async () => {
+            logger.debug('Cleaning up before the next retry...');
+            return this.deleteAssetsByFilename(release, name);
+          },
+          retryCodes: [HTTP_RESPONSE_5XX, HTTP_UNPROCESSABLE_ENTITY],
+        }
+      );
+      logger.log(`Uploaded asset "${name}".`);
+    } else {
+      logger.info(`[dry-run] Not uploading asset "${name}"`);
+    }
+  }
+
+  /**
    * Creates a new GitHub release and publish all available artifacts.
    *
    * It also creates a tag if it doesn't exist
@@ -221,40 +350,18 @@ export class GithubTarget extends BaseTarget {
     logger.info(`Target "${this.name}": publishing version "${version}"...`);
     logger.debug(`Revision: ${revision}`);
     const release = await this.getOrCreateRelease(version, revision);
+    const assets = await this.getAssetsForRelease(release);
+    if (assets.length > 0) {
+      logger.warn('Existing assets found for the release, deleting them...');
+      await this.deleteAssets(assets);
+      logger.debug(`Deleted ${assets.length} assets`);
+    }
 
     const artifacts = await this.getArtifactsForRevision(revision);
     await Promise.all(
       artifacts.map(async artifact => {
         const path = await this.store.downloadArtifact(artifact);
-        const stats = statSync(path);
-        const name = basename(path);
-        const contentType = artifact.type || DEFAULT_CONTENT_TYPE;
-
-        const params = {
-          'Content-Length': stats.size,
-          'Content-Type': contentType,
-          file: createReadStream(path),
-          headers: {
-            'content-length': stats.size,
-            'content-type': contentType,
-          },
-          id: release.id,
-          name,
-          url: release.upload_url,
-        };
-        logger.debug('Upload parameters:', JSON.stringify(params));
-
-        logger.info(
-          `Uploading asset "${name}" to ${this.githubConfig.owner}/${
-            this.githubConfig.repo
-          }:${release.tag_name}`
-        );
-        if (shouldPerform()) {
-          return this.github.repos.uploadReleaseAsset(params);
-        } else {
-          logger.info(`[dry-run] Not uploading asset "${name}"`);
-          return undefined;
-        }
+        return this.uploadAsset(release, path, artifact.type);
       })
     );
   }

@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import Table = require('cli-table');
-import * as consola from 'consola';
+import consola = require('consola');
 import { emojify } from 'node-emoji';
 import { format } from 'util';
 
@@ -108,7 +108,7 @@ export function formatTable(options: any, values: any[]): string {
  */
 
 // tslint:disable:object-literal-sort-keys
-const LOG_LEVELS: { [key: string]: number } = {
+export const LOG_LEVELS: { [key: string]: number } = {
   ERROR: 0,
   WARN: 1,
   INFO: 2,
