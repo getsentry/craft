@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.3
+
+- gcs/github: add retries
+- Rename "release" step to "prepare"
+- Display artifact size before publishing
+- Upgrade GCS/GitHub dependencies
+
 ## 0.7.2
 
 - Change prompt type when publishing
