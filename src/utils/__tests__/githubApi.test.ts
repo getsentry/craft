@@ -108,7 +108,7 @@ describe('codeMatches', () => {
 describe('retryHttp', () => {
   const params: Partial<RetryParams> = { cooldown: 1 };
   const errorCode = (c: number) => ({
-    code: c,
+    status: c,
   });
   const funcReturns = async () => 'result';
   const funcThrows = async () => {

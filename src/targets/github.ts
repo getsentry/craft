@@ -322,16 +322,22 @@ export class GithubTarget extends BaseTarget {
       }:${release.tag_name}`
     );
     if (shouldPerform()) {
-      await retryHttp(
-        async () => this.github.repos.uploadReleaseAsset(params),
-        {
-          cleanupFn: async () => {
-            logger.debug('Cleaning up before the next retry...');
-            return this.deleteAssetsByFilename(release, name);
-          },
-          retryCodes: [HTTP_RESPONSE_5XX, HTTP_UNPROCESSABLE_ENTITY],
-        }
-      );
+      try {
+        await retryHttp(
+          async () => this.github.repos.uploadReleaseAsset(params),
+          {
+            cleanupFn: async () => {
+              logger.debug('Cleaning up before the next retry...');
+              return this.deleteAssetsByFilename(release, name);
+            },
+            retries: 5,
+            retryCodes: [HTTP_RESPONSE_5XX, HTTP_UNPROCESSABLE_ENTITY],
+          }
+        );
+      } catch (e) {
+        logger.error(`Cannot upload asset "${name}".`);
+        throw e;
+      }
       logger.log(`Uploaded asset "${name}".`);
     } else {
       logger.info(`[dry-run] Not uploading asset "${name}"`);

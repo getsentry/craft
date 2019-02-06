@@ -364,8 +364,8 @@ export async function retryHttp<T>(
       const result = await fn();
       return result;
     } catch (e) {
-      const code = e.code as number;
-      if (params.retryCodes.indexOf(code) > -1 && retryNum < maxRetries) {
+      const status = e.status as number;
+      if (params.retryCodes.indexOf(status) > -1 && retryNum < maxRetries) {
         if (params.cleanupFn) {
           await params.cleanupFn();
         }
@@ -373,9 +373,10 @@ export async function retryHttp<T>(
         retryNum += 1;
         continue;
       } else {
-        if (maxRetries > 0) {
+        if (maxRetries > 0 && retryNum >= maxRetries) {
           logger.error(`Maximum retries reached (${maxRetries})`);
         }
+        logger.error(`Error code: ${status}`);
         throw e;
       }
     }
