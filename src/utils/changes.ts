@@ -36,7 +36,7 @@ export function extractChangeset(
   const start = header.index + header[0].length;
   const end = nextHeader ? nextHeader.index : undefined;
   const body = markdown.substring(start, end).trim();
-  const name = (header[1] || header[2]).trim();
+  const name = (header[1] || header[2]).replace(/(\(.*\))$/, '').trim();
   return { name, body };
 }
 
