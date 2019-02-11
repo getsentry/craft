@@ -206,7 +206,7 @@ export async function runPreReleaseCommand(
 ): Promise<void> {
   let sysCommand: string;
   let args: string[];
-  if (preReleaseCommand === '') {
+  if (preReleaseCommand && preReleaseCommand.length === 0) {
     // Not running pre-release command
     logger.warn('Not running the pre-release command: no command specified');
     return;
@@ -461,6 +461,8 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
   const branchName = await createReleaseBranch(git, newVersion);
 
   // Run a pre-release script (e.g. for version bumping)
+  console.log('ahahahaha');
+  console.log(config.preReleaseCommand);
   await runPreReleaseCommand(newVersion, config.preReleaseCommand);
 
   // Commit the pending changes
