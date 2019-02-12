@@ -55,7 +55,7 @@ describe('getFile', () => {
 
     getContents.mockImplementation(() => {
       const e = new Error('file not found') as any;
-      e.code = 404;
+      e.status = 404;
       throw e;
     });
 
