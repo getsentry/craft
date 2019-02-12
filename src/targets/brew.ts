@@ -124,7 +124,7 @@ export class BrewTarget extends BaseTarget {
       const response = await this.github.repos.getContents({ ...tap, path });
       return response.data.sha;
     } catch (e) {
-      if (e.code === 404) {
+      if (e.status === 404) {
         return undefined;
       }
       throw e;

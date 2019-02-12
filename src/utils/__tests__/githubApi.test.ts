@@ -70,12 +70,12 @@ describe('getFile', () => {
   });
 
   test('rejects all other errors', async () => {
-    expect.assertions(1);
+    expect.assertions(3);
 
     const errorText = 'internal server error';
     getContents.mockImplementation(() => {
       const e = new Error(errorText) as any;
-      e.code = 500;
+      e.status = 500;
       throw e;
     });
 
@@ -83,6 +83,8 @@ describe('getFile', () => {
       await getFile(github, owner, repo, '/path/to/missing', 'v1.0.0');
     } catch (e) {
       expect(e.message).toMatch(errorText);
+      expect(e.status).toBe(500);
+      expect(e.code).toBe(undefined);
     }
   });
 });
