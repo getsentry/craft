@@ -160,7 +160,7 @@ export class GithubTarget extends BaseTarget {
       logger.warn(`Found the existing release for tag "${tag}"`);
       return response.data;
     } catch (e) {
-      if (e.code !== 404) {
+      if (e.status !== 404) {
         throw e;
       }
       logger.debug(`Release for tag "${tag}" not found.`);

@@ -189,7 +189,7 @@ export async function getFile(
     });
     return Buffer.from(response.data.content, 'base64').toString();
   } catch (e) {
-    if (e.code === 404) {
+    if (e.status === 404) {
       return undefined;
     }
     throw e;
@@ -259,7 +259,7 @@ export async function mergeReleaseBranch(
       throw new Error(`Unexpected response: ${JSON.stringify(response)}`);
     }
   } catch (e) {
-    if (e.code === 409) {
+    if (e.status === 409) {
       // Conflicts found
       logger.error(
         `Cannot merge release branch "${branch}": conflicts detected`,
