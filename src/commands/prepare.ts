@@ -203,13 +203,13 @@ async function commitNewVersion(
 export async function runPreReleaseCommand(
   newVersion: string,
   preReleaseCommand?: string
-): Promise<void> {
+): Promise<boolean> {
   let sysCommand: string;
   let args: string[];
-  if (preReleaseCommand === '') {
+  if (preReleaseCommand !== undefined && preReleaseCommand.length === 0) {
     // Not running pre-release command
     logger.warn('Not running the pre-release command: no command specified');
-    return;
+    return false;
   } else if (preReleaseCommand) {
     [sysCommand, ...args] = shellQuote.parse(preReleaseCommand);
   } else {
@@ -225,6 +225,7 @@ export async function runPreReleaseCommand(
   await spawnProcess(sysCommand, args, {
     env: { ...process.env, ...additionalEnv },
   });
+  return true;
 }
 
 /**
@@ -461,10 +462,17 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
   const branchName = await createReleaseBranch(git, newVersion);
 
   // Run a pre-release script (e.g. for version bumping)
-  await runPreReleaseCommand(newVersion, config.preReleaseCommand);
+  const preReleaseCommandRan = await runPreReleaseCommand(
+    newVersion,
+    config.preReleaseCommand
+  );
 
-  // Commit the pending changes
-  await commitNewVersion(git, newVersion);
+  if (preReleaseCommandRan) {
+    // Commit the pending changes
+    await commitNewVersion(git, newVersion);
+  } else {
+    logger.info('Not commiting anything since preReleaseCommand is empty.');
+  }
 
   // Push the release branch
   await pushReleaseBranch(git, branchName, !argv.noPush);
