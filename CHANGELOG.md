@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.4
+
+- github: strip date from release title
+- pre-release command: empty string skips the run
+
 ## 0.7.3
 
 - gcs/github: add retries
