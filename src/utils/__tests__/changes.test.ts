@@ -10,6 +10,25 @@ test('extracts a single change', () => {
   expect(changes).toEqual({ name, body });
 });
 
+test('ignore date in parentheses', () => {
+  const name = 'Version 1.0.0';
+  const body = 'this is a test';
+
+  const markdown = `# Changelog
+  ## 1.0.1
+  newer
+
+  ## ${name} (2019-02-02)
+  ${body}
+
+  ## 0.9.0
+  older
+  `;
+
+  const changes = findChangeset(markdown, 'v1.0.0');
+  expect(changes).toEqual({ name, body });
+});
+
 test('extracts a change between headings', () => {
   const name = 'Version 1.0.0';
   const body = 'this is a test';
