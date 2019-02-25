@@ -10,7 +10,7 @@ import { GithubGlobalConfig } from '../schemas/project_config';
 import { RevisionInfo, ZeusStore } from '../stores/zeus';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
-import { coerceType, reportError } from '../utils/errors';
+import { coerceType, handleGlobalError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
 import { hasInput } from '../utils/noInput';
@@ -341,6 +341,9 @@ async function printRevisionSummary(
   }
 
   logger.info('Publishing to targets:');
+
+  throw new Error('daamn1');
+
   // TODO init all targets earlier
   targetNames.forEach(target => logger.info(`  - ${target}`));
   logger.info(' ');
@@ -357,7 +360,8 @@ async function printRevisionSummary(
     const answers = (await inquirer.prompt(questions)) as any;
     const readyToPublish = coerceType<string>(answers.readyToPublish, 'string');
     if (readyToPublish.toLowerCase() !== 'yes') {
-      reportError('Oh, okay. Aborting.');
+      logger.error('Oh, okay. Aborting.');
+      process.exit(1);
     }
   } else {
     logger.debug('Skipping the prompting.');
@@ -586,7 +590,6 @@ export const handler = async (argv: PublishOptions) => {
     catchKeyboardInterrupt();
     return await publishMain(argv);
   } catch (e) {
-    logger.error(e);
-    process.exit(1);
+    handleGlobalError(e);
   }
 };

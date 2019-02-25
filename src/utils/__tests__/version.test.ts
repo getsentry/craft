@@ -1,6 +1,7 @@
 /* eslint-env jest */
 
 import {
+  getPackage,
   getVersion,
   isPreviewRelease,
   isValidVersion,
@@ -177,5 +178,19 @@ describe('versionGreaterOrEqualThan', () => {
     const v2 = semVerFactory(0, 1, 2);
     expect(() => versionGreaterOrEqualThan(v1, v2)).toThrowError();
     expect(() => versionGreaterOrEqualThan(v2, v1)).toThrowError();
+  });
+});
+
+describe('getPackage', () => {
+  test('reads package.json', () => {
+    const pkg = getPackage();
+    expect(pkg.name).toBe('@sentry/craft');
+  });
+});
+
+describe('getPackageVersion', () => {
+  test('reads package.json', () => {
+    const version = getPackage().version;
+    expect(isValidVersion(version)).toBe(true);
   });
 });

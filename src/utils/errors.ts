@@ -1,5 +1,6 @@
 import { shouldPerform } from 'dryrun';
 import { logger } from '../logger';
+import { captureException } from './sentry';
 
 /**
  * Writes a message to "error" log if in dry-mode, throws an error otherwise
@@ -44,4 +45,10 @@ export function coerceType<T>(
     );
   }
   return obj;
+}
+
+export function handleGlobalError(e: any): void {
+  logger.error(e);
+  process.exitCode = 1;
+  captureException(e);
 }

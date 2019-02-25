@@ -142,7 +142,7 @@ export function versionToTag(version: string, tagPrefix?: string): string {
  */
 export function checkForUpdates(): void {
   const chalk = require('chalk');
-  const pkg = require('../../package.json');
+  const pkg = getPackage();
 
   // Notify if the new version is available
   const notifier = updateNotifier({
@@ -161,4 +161,17 @@ export function checkForUpdates(): void {
   )}\nRun ${chalk.cyan('yarn global add ')}${chalk.cyan(pkg.name)} to update`;
 
   notifier.notify({ defer: false, message });
+}
+
+export function getPackage(): any {
+  const pkg = require('../../package.json');
+  // Sanity check
+  if (Object.keys(pkg).length === 0) {
+    throw new Error('Invalid package.json: the file is empty!');
+  }
+  return pkg;
+}
+
+export function getPackageVersion(): string {
+  return getPackage().version;
 }

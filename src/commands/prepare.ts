@@ -14,11 +14,11 @@ import {
 import { logger } from '../logger';
 import { ChangelogPolicy } from '../schemas/project_config';
 import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
-import { reportError } from '../utils/errors';
+import { handleGlobalError, reportError } from '../utils/errors';
 import { getDefaultBranch, getGithubClient } from '../utils/githubApi';
 import { sleepAsync, spawnProcess } from '../utils/system';
 import { isValidVersion, versionToTag } from '../utils/version';
-import { publishMain, PublishOptions } from './publish';
+import { handler as publishMainHandler, PublishOptions } from './publish';
 
 export const command = ['prepare <major|minor|patch|new-version>'];
 export const aliases = ['p', 'prerelease', 'prepublish', 'prepare', 'release'];
@@ -313,7 +313,7 @@ async function execPublish(newVersion: string): Promise<never> {
   }
 
   try {
-    await publishMain(publishOptions);
+    await publishMainHandler(publishOptions);
     process.exit(0);
   } catch (e) {
     logger.error(e);
@@ -321,7 +321,7 @@ async function execPublish(newVersion: string): Promise<never> {
       'There was an error running "publish". Fix the issue and run the command manually:',
       `  $ craft publish ${newVersion}`
     );
-    process.exit(1);
+    throw e;
   }
   throw new Error('Unreachable');
 }
@@ -500,7 +500,6 @@ export const handler = async (argv: ReleaseOptions) => {
   try {
     return await releaseMain(argv);
   } catch (e) {
-    logger.error(e);
-    process.exit(1);
+    handleGlobalError(e);
   }
 };

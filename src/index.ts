@@ -6,7 +6,12 @@ import * as yargs from 'yargs';
 import { readEnvironmentConfig } from './config';
 import { logger } from './logger';
 import { hasNoInput, setNoInput } from './utils/noInput';
-import { checkForUpdates } from './utils/version';
+import { initSentrySdk } from './utils/sentry';
+import {
+  checkForUpdates,
+  getPackageVersion,
+  getPackage,
+} from './utils/version';
 
 /**
  * Handler for '--dry-run' option
@@ -42,10 +47,8 @@ function printVersion(): void {
     process.argv.indexOf('-v') === -1 &&
     process.argv.indexOf('--version') === -1
   ) {
-    // tslint:disable-next-line:no-var-requires
-    const pkg = require('../package.json');
     // Print the current version
-    logger.info(`craft ${pkg.version}`);
+    logger.info(`craft ${getPackageVersion()}`);
   }
 }
 
@@ -58,6 +61,8 @@ function main(): void {
   printVersion();
 
   readEnvironmentConfig();
+
+  initSentrySdk();
 
   // tslint:disable-next-line:no-unused-expression
   yargs
@@ -82,7 +87,8 @@ function main(): void {
     })
     .global('dry-run')
     .strict()
-    .showHelpOnFail(true).argv;
+    .showHelpOnFail(true)
+    .parse();
 }
 
 main();

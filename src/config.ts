@@ -11,7 +11,11 @@ import {
   CraftProjectConfig,
   GithubGlobalConfig,
 } from './schemas/project_config';
-import { parseVersion, versionGreaterOrEqualThan } from './utils/version';
+import {
+  parseVersion,
+  versionGreaterOrEqualThan,
+  getPackageVersion,
+} from './utils/version';
 
 // TODO support multiple configuration files (one per configuration)
 export const CONFIG_FILE_NAME = '.craft.yml';
@@ -149,7 +153,7 @@ export function checkMinimalConfigVersion(): void {
     return;
   }
 
-  const currentVersionRaw = require('../package.json').version;
+  const currentVersionRaw = getPackageVersion();
   if (!currentVersionRaw) {
     throw new Error('Cannot get the current craft version');
   }
