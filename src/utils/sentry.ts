@@ -1,4 +1,4 @@
-import { hostname, userInfo } from 'os';
+import { arch, hostname, platform, release, userInfo } from 'os';
 
 import * as Sentry from '@sentry/node';
 
@@ -7,7 +7,10 @@ import { getPackageVersion } from './version';
 
 let sentryInitialized = false;
 
-export async function initSentrySdk(): Promise<void> {
+/**
+ * Initializes Sentry SDK if CRAFT_SENTRY_SDN is set
+ */
+export function initSentrySdk(): void {
   if (sentryInitialized) {
     return;
   }
@@ -22,19 +25,32 @@ export async function initSentrySdk(): Promise<void> {
   Sentry.init({ dsn: sentryDsn });
 
   Sentry.configureScope(scope => {
+    scope.setTag('os-username', userInfo().username);
+    scope.setTag('os-hostname', hostname());
+    scope.setTag('os-platform', platform());
+    scope.setTag('os-arch', arch());
+    scope.setTag('os-release', release());
+
     scope.setExtra('argv', process.argv);
-    scope.setTag('username', userInfo().username);
-    scope.setTag('hostname', hostname());
-    scope.setTag('craft-version', getPackageVersion());
+    scope.setExtra('craft-version', getPackageVersion());
+    scope.setExtra('working-directory', process.cwd());
   });
 
   sentryInitialized = true;
 }
 
+/**
+ * Returns "true" if Sentry SDK is initialized
+ */
 export function isSentryInitialized(): boolean {
   return sentryInitialized;
 }
 
+/**
+ * Sends an exception to Sentry
+ *
+ * @param e Error (exception) object
+ */
 export function captureException(e: any): string | undefined {
   return sentryInitialized ? Sentry.captureException(e) : undefined;
 }

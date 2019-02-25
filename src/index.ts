@@ -7,11 +7,7 @@ import { readEnvironmentConfig } from './config';
 import { logger } from './logger';
 import { hasNoInput, setNoInput } from './utils/noInput';
 import { initSentrySdk } from './utils/sentry';
-import {
-  checkForUpdates,
-  getPackageVersion,
-  getPackage,
-} from './utils/version';
+import { checkForUpdates, getPackageVersion } from './utils/version';
 
 /**
  * Handler for '--dry-run' option

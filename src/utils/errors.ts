@@ -47,6 +47,15 @@ export function coerceType<T>(
   return obj;
 }
 
+/**
+ * Processes an uncaught exception on the global level
+ *
+ * Sends the error to Sentry if Sentry SDK is configured.
+ * It is expected that the program is terminated soon after
+ * this function is called.
+ *
+ * @param e Error (exception) object to handle
+ */
 export function handleGlobalError(e: any): void {
   logger.error(e);
   process.exitCode = 1;

@@ -342,8 +342,6 @@ async function printRevisionSummary(
 
   logger.info('Publishing to targets:');
 
-  throw new Error('daamn1');
-
   // TODO init all targets earlier
   targetNames.forEach(target => logger.info(`  - ${target}`));
   logger.info(' ');

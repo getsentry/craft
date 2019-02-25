@@ -12,9 +12,9 @@ import {
   GithubGlobalConfig,
 } from './schemas/project_config';
 import {
+  getPackageVersion,
   parseVersion,
   versionGreaterOrEqualThan,
-  getPackageVersion,
 } from './utils/version';
 
 // TODO support multiple configuration files (one per configuration)

@@ -163,6 +163,9 @@ export function checkForUpdates(): void {
   notifier.notify({ defer: false, message });
 }
 
+/**
+ * Reads "package.json" from project root and returns its contents
+ */
 export function getPackage(): any {
   const pkg = require('../../package.json');
   // Sanity check
@@ -172,6 +175,9 @@ export function getPackage(): any {
   return pkg;
 }
 
+/**
+ * Reads the package's version from "package.json"
+ */
 export function getPackageVersion(): string {
   return getPackage().version;
 }
