@@ -57,7 +57,7 @@ export function coerceType<T>(
  * @param e Error (exception) object to handle
  */
 export function handleGlobalError(e: any): void {
+  captureException(e);
   logger.error(e);
   process.exitCode = 1;
-  captureException(e);
 }
