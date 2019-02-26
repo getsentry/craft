@@ -57,7 +57,23 @@ export function coerceType<T>(
  * @param e Error (exception) object to handle
  */
 export function handleGlobalError(e: any): void {
-  captureException(e);
+  if (!(e instanceof ConfigurationError)) {
+    captureException(e);
+  }
   logger.error(e);
   process.exitCode = 1;
+}
+
+export class ConfigurationError extends Error {
+  // We have to do the following because of: https://github.com/Microsoft/TypeScript/issues/13965
+  // Otherwise we cannot use instanceof later to catch a given type
+  // tslint:disable-next-line:variable-name
+  public __proto__: Error;
+
+  public constructor(message?: string) {
+    const trueProto = new.target.prototype;
+    super(message);
+
+    this.__proto__ = trueProto;
+  }
 }

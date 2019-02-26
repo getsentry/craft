@@ -11,6 +11,7 @@ import {
   CraftProjectConfig,
   GithubGlobalConfig,
 } from './schemas/project_config';
+import { ConfigurationError } from './utils/errors';
 import {
   getPackageVersion,
   parseVersion,
@@ -73,7 +74,7 @@ export function findConfigFile(): string | undefined {
 export function getConfigFilePath(): string {
   const configFilePath = findConfigFile();
   if (!configFilePath) {
-    throw new Error(
+    throw new ConfigurationError(
       `Cannot find Craft configuration file. Have you added "${CONFIG_FILE_NAME}" to your project?`
     );
   }
@@ -116,7 +117,7 @@ export function validateConfiguration(rawConfig: any): CraftProjectConfig {
   if (valid) {
     return rawConfig as CraftProjectConfig;
   } else {
-    throw new Error(
+    throw new ConfigurationError(
       `Cannot parse configuration file:\n${ajvValidator.errorsText()}`
     );
   }
@@ -172,7 +173,7 @@ export function checkMinimalConfigVersion(): void {
       `"craft" version is compatible with the minimal version from the configuration file.`
     );
   } else {
-    throw new Error(
+    throw new ConfigurationError(
       `Incompatible "craft" versions. Current version: ${currentVersionRaw},  minimal version: ${minVersionRaw} (taken from .craft.yml).`
     );
   }
@@ -187,15 +188,17 @@ export function getGlobalGithubConfig(): GithubGlobalConfig {
   const repoGithubConfig = getConfiguration().github || {};
 
   if (!repoGithubConfig) {
-    throw new Error('GitHub configuration not found in the config file');
+    throw new ConfigurationError(
+      'GitHub configuration not found in the config file'
+    );
   }
 
   if (!repoGithubConfig.owner) {
-    throw new Error('GitHub target: owner not found');
+    throw new ConfigurationError('GitHub target: owner not found');
   }
 
   if (!repoGithubConfig.repo) {
-    throw new Error('GitHub target: repo not found');
+    throw new ConfigurationError('GitHub target: repo not found');
   }
 
   return repoGithubConfig;

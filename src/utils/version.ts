@@ -167,7 +167,7 @@ export function checkForUpdates(): void {
  * Reads "package.json" from project root and returns its contents
  */
 export function getPackage(): any {
-  const pkg = require('../../package.json');
+  const pkg = require('../../package.json') || {};
   // Sanity check
   if (Object.keys(pkg).length === 0) {
     throw new Error('Invalid package.json: the file is empty!');

@@ -10,7 +10,12 @@ import { GithubGlobalConfig } from '../schemas/project_config';
 import { RevisionInfo, ZeusStore } from '../stores/zeus';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
-import { coerceType, handleGlobalError, reportError } from '../utils/errors';
+import {
+  coerceType,
+  ConfigurationError,
+  handleGlobalError,
+  reportError,
+} from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
 import { hasInput } from '../utils/noInput';
@@ -98,7 +103,7 @@ export interface PublishOptions {
  */
 function checkPrerequisites(): void {
   if (!process.env.ZEUS_TOKEN && !process.env.ZEUS_API_TOKEN) {
-    throw new Error(
+    throw new ConfigurationError(
       'ZEUS_API_TOKEN not found in the environment. See the documentation for more details.'
     );
   }

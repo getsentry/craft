@@ -18,7 +18,7 @@ export function stringToRegexp(str: string): RegExp {
   const firstSlash = str.indexOf('/');
   const lastSlash = str.lastIndexOf('/');
   if (firstSlash !== 0 || lastSlash < 2) {
-    throw new Error(`Invalid RegExp string specified: ${str}`);
+    throw new TypeError(`Invalid RegExp string specified: ${str}`);
   }
   const regexpString = str.slice(1, lastSlash);
   const regexpModifiers = str.slice(lastSlash + 1);

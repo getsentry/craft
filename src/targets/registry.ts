@@ -10,7 +10,7 @@ import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
-import { reportError } from '../utils/errors';
+import { reportError, ConfigurationError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
   getAuthUsername,
@@ -72,7 +72,7 @@ export class RegistryTarget extends BaseTarget {
   }
 
   /**
-   * Extracts Brew target options from the raw configuration
+   * Extracts Registry target options from the raw configuration
    */
   public getRegistryConfig(): RegistryConfig {
     const registryType = this.config.type;
@@ -81,7 +81,9 @@ export class RegistryTarget extends BaseTarget {
         registryType
       ) === -1
     ) {
-      throw new Error(`Invalid registry type specified: "${registryType}"`);
+      throw new ConfigurationError(
+        `Invalid registry type specified: "${registryType}"`
+      );
     }
 
     let urlTemplate;
@@ -94,18 +96,20 @@ export class RegistryTarget extends BaseTarget {
 
     const releaseConfig = this.config.config;
     if (!releaseConfig) {
-      throw new Error(
+      throw new ConfigurationError(
         'Cannot find configuration dictionary for release registry'
       );
     }
     const canonicalName = releaseConfig.canonical;
     if (!canonicalName) {
-      throw new Error('Canonical name not found in the configuration');
+      throw new ConfigurationError(
+        'Canonical name not found in the configuration'
+      );
     }
 
     const linkPrereleases = this.config.linkPrereleases || false;
     if (typeof linkPrereleases !== 'boolean') {
-      throw new Error('Invlaid type of "linkPrereleases"');
+      throw new ConfigurationError('Invlaid type of "linkPrereleases"');
     }
 
     return {
@@ -139,7 +143,7 @@ export class RegistryTarget extends BaseTarget {
   public createSymlinks(versionFilePath: string, version: string): void {
     const parsedVersion = parseVersion(version);
     if (!parsedVersion) {
-      throw new Error(`Cannot parse version: "${parsedVersion}"`);
+      throw new ConfigurationError(`Cannot parse version: "${parsedVersion}"`);
     }
     const baseVersionName = path.basename(versionFilePath);
     const packageDir = path.dirname(versionFilePath);
@@ -180,7 +184,9 @@ export class RegistryTarget extends BaseTarget {
   public getAppPackagePath(registryDir: string, canonical: string): string {
     const packageDirs = parseCanonical(canonical);
     if (packageDirs[0] !== 'app') {
-      throw new Error(`Invalid canonical entry for an app: ${canonical}`);
+      throw new ConfigurationError(
+        `Invalid canonical entry for an app: ${canonical}`
+      );
     }
     return [registryDir, 'apps'].concat(packageDirs.slice(1)).join(path.sep);
   }
@@ -197,7 +203,7 @@ export class RegistryTarget extends BaseTarget {
     } else if (this.registryConfig.type === RegistryPackageType.APP) {
       return this.getAppPackagePath(registryDir, canonical);
     } else {
-      throw new Error(
+      throw new ConfigurationError(
         `Unknown registry package type: ${this.registryConfig.type}`
       );
     }
@@ -341,7 +347,7 @@ export class RegistryTarget extends BaseTarget {
 
     const canonical = this.registryConfig.canonicalName;
     if (!canonical) {
-      throw new Error(
+      throw new ConfigurationError(
         '"canonical" value not found in the registry configuration'
       );
     }
@@ -411,13 +417,13 @@ export class RegistryTarget extends BaseTarget {
 export function parseCanonical(canonicalName: string): string[] {
   const [registry, packageName] = canonicalName.split(':');
   if (!registry || !packageName) {
-    throw new Error(
+    throw new ConfigurationError(
       `Cannot parse canonical name for the package: ${canonicalName}`
     );
   }
   const packageDirs = packageName.split('/');
   if (packageDirs.some(x => !x)) {
-    throw new Error(
+    throw new ConfigurationError(
       `Cannot parse canonical name for the package: ${canonicalName}`
     );
   }

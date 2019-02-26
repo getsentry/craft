@@ -10,7 +10,7 @@ import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
-import { reportError } from '../utils/errors';
+import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
   getAuthUsername,
@@ -73,7 +73,7 @@ export class GhPagesTarget extends BaseTarget {
       githubOwner = this.githubRepo.owner;
       githubRepo = this.githubRepo.repo;
     } else {
-      throw new Error(
+      throw new ConfigurationError(
         '[gh-pages] Invalid repository configuration: check repo owner and name'
       );
     }

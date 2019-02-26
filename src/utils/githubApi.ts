@@ -6,6 +6,7 @@ import { Duplex, Readable } from 'stream';
 
 import { LOG_LEVELS, logger } from '../logger';
 import { sleepAsync } from './system';
+import { ConfigurationError } from './errors';
 
 export const HTTP_UNPROCESSABLE_ENTITY = 422;
 export const HTTP_RESPONSE_1XX = /^1\d\d$/;
@@ -114,7 +115,7 @@ export class GithubRemote {
 export function getGithubApiToken(): string {
   const githubApiToken = process.env.GITHUB_API_TOKEN;
   if (!githubApiToken) {
-    throw new Error(
+    throw new ConfigurationError(
       'GitHub target: GITHUB_API_TOKEN not found in the environment'
     );
   }

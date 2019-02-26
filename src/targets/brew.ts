@@ -8,6 +8,7 @@ import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { promiseProps } from '../utils/async';
+import { ConfigurationError } from '../utils/errors';
 import { getGithubClient } from '../utils/githubApi';
 import { renderTemplateSafe } from '../utils/strings';
 import { calculateChecksum } from '../utils/system';
@@ -66,7 +67,7 @@ export class BrewTarget extends BaseTarget {
   public getBrewConfig(): BrewTargetOptions {
     const template = this.config.template;
     if (!template) {
-      throw new Error(
+      throw new ConfigurationError(
         'Please specify Formula template in the "brew" target configuration.'
       );
     }
@@ -99,7 +100,7 @@ export class BrewTarget extends BaseTarget {
 
     const match = TAP_REGEX.exec(tap);
     if (!match) {
-      throw new Error(`Invalid tap name: ${tap}`);
+      throw new ConfigurationError(`Invalid tap name: ${tap}`);
     }
 
     return {

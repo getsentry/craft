@@ -5,6 +5,7 @@ import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { forEachChained } from '../utils/async';
+import { ConfigurationError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
   checkExecutableIsPresent,
@@ -78,7 +79,7 @@ export class CratesTarget extends BaseTarget {
    */
   public getCratesConfig(): CratesTargetOptions {
     if (!process.env.CRATES_IO_TOKEN) {
-      throw new Error(
+      throw new ConfigurationError(
         `Cannot publish to Crates.io: missing credentials.
          Please use CRATES_IO_TOKEN environment variable to pass the API token.`
       );
@@ -116,7 +117,7 @@ export class CratesTarget extends BaseTarget {
       { enableInDryRunMode: true }
     );
     if (!metadata) {
-      throw new Error('Empty Cargo metadata!');
+      throw new ConfigurationError('Empty Cargo metadata!');
     }
     return JSON.parse(metadata.toString());
   }

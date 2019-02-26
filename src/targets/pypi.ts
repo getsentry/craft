@@ -3,7 +3,7 @@ import { Artifact } from '@zeus-ci/sdk';
 import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
-import { reportError } from '../utils/errors';
+import { ConfigurationError, reportError } from '../utils/errors';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 
@@ -49,7 +49,7 @@ export class PypiTarget extends BaseTarget {
    */
   public getPypiConfig(): PypiTargetOptions {
     if (!process.env.TWINE_USERNAME || !process.env.TWINE_PASSWORD) {
-      throw new Error(
+      throw new ConfigurationError(
         `Cannot perform PyPI release: missing credentials.
          Please use TWINE_USERNAME and TWINE_PASSWORD environment variables.`.replace(
           /^\s+/gm,

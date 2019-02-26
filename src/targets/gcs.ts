@@ -9,7 +9,7 @@ import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { forEachChained } from '../utils/async';
-import { reportError } from '../utils/errors';
+import { ConfigurationError, reportError } from '../utils/errors';
 import { renderTemplateSafe } from '../utils/strings';
 import { BaseTarget } from './base';
 
@@ -231,7 +231,7 @@ export class GcsTarget extends BaseTarget {
   public async publish(version: string, revision: string): Promise<any> {
     const artifacts = await this.getArtifactsForRevision(revision);
     if (!artifacts.length) {
-      throw new Error(
+      throw new ConfigurationError(
         'No artifacts to publish: please check your configuration!'
       );
     }

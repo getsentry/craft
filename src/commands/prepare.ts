@@ -14,7 +14,11 @@ import {
 import { logger } from '../logger';
 import { ChangelogPolicy } from '../schemas/project_config';
 import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
-import { handleGlobalError, reportError } from '../utils/errors';
+import {
+  handleGlobalError,
+  reportError,
+  ConfigurationError,
+} from '../utils/errors';
 import { getDefaultBranch, getGithubClient } from '../utils/githubApi';
 import { sleepAsync, spawnProcess } from '../utils/system';
 import { isValidVersion, versionToTag } from '../utils/version';
@@ -248,7 +252,7 @@ async function checkGitState(
   logger.info('Checking the local repository status...');
   const isRepo = await git.checkIsRepo();
   if (!isRepo) {
-    throw new Error('Not a git repository!');
+    throw new ConfigurationError('Not a git repository!');
   }
   const repoStatus = await git.status();
   logger.debug('Repository status:', JSON.stringify(repoStatus));
@@ -372,21 +376,29 @@ async function checkChangelog(
     logger.debug(`Changelog policy: "${changelogPolicy}".`);
     const relativePath = relative('', changelogPath);
     if (relativePath.startsWith('.')) {
-      throw new Error(`Invalid changelog path: "${changelogPath}"`);
+      throw new ConfigurationError(
+        `Invalid changelog path: "${changelogPath}"`
+      );
     }
     if (!existsSync(relativePath)) {
-      throw new Error(`Changelog does not exist: "${changelogPath}"`);
+      throw new ConfigurationError(
+        `Changelog does not exist: "${changelogPath}"`
+      );
     }
     const changelogString = readFileSync(relativePath).toString();
     logger.debug(`Changelog path: ${relativePath}`);
     const changeset = findChangeset(changelogString, newVersion);
     if (!changeset || !changeset.body) {
-      throw new Error(`No changelog entry found for version "${newVersion}"`);
+      throw new ConfigurationError(
+        `No changelog entry found for version "${newVersion}"`
+      );
     }
     logger.debug(`Changelog entry found:\n"""\n${changeset.body}\n"""`);
     return;
   } else {
-    throw new Error(`Invalid changelog policy: "${changelogPolicy}"`);
+    throw new ConfigurationError(
+      `Invalid changelog policy: "${changelogPolicy}"`
+    );
   }
 }
 

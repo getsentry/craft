@@ -3,7 +3,7 @@ import { Artifact } from '@zeus-ci/sdk';
 import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
-import { reportError } from '../utils/errors';
+import { ConfigurationError, reportError } from '../utils/errors';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 
@@ -46,7 +46,7 @@ export class NugetTarget extends BaseTarget {
    */
   protected getNugetConfig(): NugetTargetOptions {
     if (!process.env.NUGET_API_TOKEN) {
-      throw new Error(
+      throw new ConfigurationError(
         `Cannot perform Nuget release: missing credentials.
          Please use NUGET_API_TOKEN environment variable.`
       );

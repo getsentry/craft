@@ -7,7 +7,7 @@ import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
-import { reportError } from '../utils/errors';
+import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { getFile, getGithubClient } from '../utils/githubApi';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
@@ -57,7 +57,7 @@ export class CocoapodsTarget extends BaseTarget {
    */
   public getCocoapodsConfig(): CocoapodsTargetOptions {
     if (!process.env.COCOAPODS_TRUNK_TOKEN) {
-      throw new Error(
+      throw new ConfigurationError(
         `Cannot perform Cocoapod release: missing credentials.
          Please fill COCOAPODS_TRUNK_TOKEN environment variable.`.replace(
           /^\s+/gm,
@@ -68,7 +68,7 @@ export class CocoapodsTarget extends BaseTarget {
 
     const specPath = this.config.specPath;
     if (!specPath) {
-      throw new Error('No podspec path provided!');
+      throw new ConfigurationError('No podspec path provided!');
     }
 
     return {

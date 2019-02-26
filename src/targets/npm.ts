@@ -5,7 +5,7 @@ import { Artifact } from '@zeus-ci/sdk';
 import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
-import { reportError } from '../utils/errors';
+import { ConfigurationError, reportError } from '../utils/errors';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { parseVersion } from '../utils/version';
 import { BaseTarget } from './base';
@@ -99,7 +99,7 @@ export class NpmTarget extends BaseTarget {
       if (this.config.access in NpmPackageAccess) {
         npmConfig.access = this.config.access;
       } else {
-        throw new Error(
+        throw new ConfigurationError(
           `Invalid value for "npm.access" option: ${this.config.access}`
         );
       }
