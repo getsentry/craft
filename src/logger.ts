@@ -1,8 +1,11 @@
+import { Severity } from '@sentry/node';
 import chalk from 'chalk';
 import Table = require('cli-table');
 import consola = require('consola');
 import { emojify } from 'node-emoji';
 import { format } from 'util';
+
+import { addBreadcrumb } from './utils/sentry';
 
 /**
  * Prepends the message with a prefix and formats its arguments.
@@ -117,6 +120,30 @@ export const LOG_LEVELS: { [key: string]: number } = {
   TRACE: 4,
 };
 
+/** Log entry as passed to consola reporters */
+interface LogEntry {
+  /** Entry type */
+  type: string;
+  /** Creation date */
+  date: string;
+  /** Message */
+  message: string;
+  /** Additional message (e.g. if more than one line) */
+  additional: string;
+}
+
+/** Reporter that sends logs to Sentry */
+class SentryBreadcrumbReporter {
+  /** Hook point for handling log entries */
+  public log(logEntry: LogEntry): void {
+    const breadcrumb = {
+      message: `${logEntry.message}\n${logEntry.additional}`,
+      level: logEntry.type as Severity,
+    };
+    addBreadcrumb(breadcrumb);
+  }
+}
+
 /**
  * Read logging level from the environment
  */
@@ -127,5 +154,6 @@ function getLogLevel(): number {
 }
 
 consola.level = getLogLevel();
+consola.reporters.push(new SentryBreadcrumbReporter());
 
 export { consola as logger };

@@ -12,6 +12,7 @@ declare module 'consola' {
     withTag(tag: string): Consola;
     withScope(tag: string): Consola;
     level: number;
+    reporters: any[];
   }
 
   var c: Consola;

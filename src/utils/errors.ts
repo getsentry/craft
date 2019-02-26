@@ -3,6 +3,24 @@ import { logger } from '../logger';
 import { captureException } from './sentry';
 
 /**
+ * Custom error class that describes client configuration errors
+ */
+export class ConfigurationError extends Error {
+  // We have to do the following because of: https://github.com/Microsoft/TypeScript/issues/13965
+  // Otherwise we cannot use instanceof later to catch a given type
+  /** Error prototype */
+  // tslint:disable-next-line:variable-name
+  public __proto__: Error;
+
+  public constructor(message?: string) {
+    const trueProto = new.target.prototype;
+    super(message);
+
+    this.__proto__ = trueProto;
+  }
+}
+
+/**
  * Writes a message to "error" log if in dry-mode, throws an error otherwise
  *
  * @param message Error message
@@ -62,18 +80,4 @@ export function handleGlobalError(e: any): void {
   }
   logger.error(e);
   process.exitCode = 1;
-}
-
-export class ConfigurationError extends Error {
-  // We have to do the following because of: https://github.com/Microsoft/TypeScript/issues/13965
-  // Otherwise we cannot use instanceof later to catch a given type
-  // tslint:disable-next-line:variable-name
-  public __proto__: Error;
-
-  public constructor(message?: string) {
-    const trueProto = new.target.prototype;
-    super(message);
-
-    this.__proto__ = trueProto;
-  }
 }

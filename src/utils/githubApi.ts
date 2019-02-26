@@ -5,8 +5,8 @@ import * as request from 'request';
 import { Duplex, Readable } from 'stream';
 
 import { LOG_LEVELS, logger } from '../logger';
-import { sleepAsync } from './system';
 import { ConfigurationError } from './errors';
+import { sleepAsync } from './system';
 
 export const HTTP_UNPROCESSABLE_ENTITY = 422;
 export const HTTP_RESPONSE_1XX = /^1\d\d$/;

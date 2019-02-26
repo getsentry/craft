@@ -54,3 +54,14 @@ export function isSentryInitialized(): boolean {
 export function captureException(e: any): string | undefined {
   return sentryInitialized ? Sentry.captureException(e) : undefined;
 }
+
+/**
+ * Records a breadcrumb to Sentry
+ *
+ * @param e Error (exception) object
+ */
+export function addBreadcrumb(breadcrumb: Sentry.Breadcrumb): void {
+  if (sentryInitialized) {
+    Sentry.addBreadcrumb(breadcrumb);
+  }
+}
