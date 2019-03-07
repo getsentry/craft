@@ -1,6 +1,8 @@
-import { spawnSync } from 'child_process';
+import { SpawnOptions, spawnSync } from 'child_process';
 
 import { Artifact } from '@zeus-ci/sdk';
+import { shouldPerform } from 'dryrun';
+import * as inquirer from 'inquirer';
 
 import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
@@ -40,6 +42,14 @@ export enum NpmPackageAccess {
 export interface NpmTargetOptions extends TargetConfig {
   /** Package access specifier */
   access?: NpmPackageAccess;
+  /** Do we use 2FA (via OTPs) for publishing? */
+  useOtp?: boolean;
+}
+
+/** Options for running the NPM publish command */
+interface NpmPublishOptions {
+  /** OTP value to use */
+  otp?: string;
 }
 
 /**
@@ -83,6 +93,23 @@ export class NpmTarget extends BaseTarget {
   }
 
   /**
+   * Ask the user for the OTP value
+   */
+  protected async requestOtp(): Promise<string> {
+    const questions = [
+      {
+        message: 'Looks like your NPM account uses 2FA. Enter OTP:',
+        name: 'otp',
+        type: 'input',
+        validate: (input: string) =>
+          (input.length > 3 && input.length < 10) || 'Valid OTP, please',
+      },
+    ];
+    const answers = (await inquirer.prompt(questions)) as any;
+    return answers.otp;
+  }
+
+  /**
    * Extracts NPM target options from the raw configuration
    */
   protected getNpmConfig(): NpmTargetOptions {
@@ -104,6 +131,11 @@ export class NpmTarget extends BaseTarget {
         );
       }
     }
+
+    const useOtp = (process.env.CRAFT_NPM_USE_OTP || '').toLowerCase();
+    if (['1', 'true', 'yes'].indexOf(useOtp) > -1) {
+      npmConfig.useOtp = true;
+    }
     return npmConfig;
   }
 
@@ -115,19 +147,24 @@ export class NpmTarget extends BaseTarget {
    */
   protected async publishPackage(
     path: string,
-    access: NpmPackageAccess = NpmPackageAccess.PUBLIC
+    options: NpmPublishOptions = {}
   ): Promise<any> {
     const args = ['publish', NPM_REGISTRY, path];
 
-    const packageAccess = this.npmConfig.access || access;
-    if (packageAccess) {
+    if (this.npmConfig.access) {
       // This parameter is only necessary for scoped packages, otherwise
       // it can be left blank
-      args.push(`--access=${packageAccess}`);
+      args.push(`--access=${this.npmConfig.access}`);
+    }
+
+    // Pass OTP if configured
+    const spawnOptions: SpawnOptions = {};
+    if (options.otp) {
+      spawnOptions.env = { ...process.env, NPM_CONFIG_OTP: options.otp };
     }
 
     // Disable output buffering because NPM can ask us for one-time passwords
-    return spawnProcess(NPM_BIN, args, {}, { showStdout: true });
+    return spawnProcess(NPM_BIN, args, spawnOptions, { showStdout: true });
   }
 
   /**
@@ -147,11 +184,16 @@ export class NpmTarget extends BaseTarget {
       return undefined;
     }
 
+    const publishOptions: NpmPublishOptions = {};
+    if (shouldPerform() && this.npmConfig.useOtp) {
+      publishOptions.otp = await this.requestOtp();
+    }
+
     await Promise.all(
       packageFiles.map(async (file: Artifact) => {
         const path = await this.store.downloadArtifact(file);
         logger.info(`Releasing ${file.name} to NPM`);
-        return this.publishPackage(path);
+        return this.publishPackage(path, publishOptions);
       })
     );
 

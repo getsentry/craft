@@ -349,9 +349,10 @@ sufficient permissions to publish the package.
 
 The `npm` utility must be installed on the system.
 
-| Name      | Description                                                 |
-| --------- | ----------------------------------------------------------- |
-| `NPM_BIN` | **optional**. Path to the npm executable. Defaults to `npm` |
+| Name                | Description                                                         |
+| ------------------- | ------------------------------------------------------------------- |
+| `NPM_BIN`           | **optional**. Path to the npm executable. Defaults to `npm`         |
+| `CRAFT_NPM_USE_OTP` | **optional**. If set to "1", you will be asked for an OTP (for 2FA) |
 
 **Configuration**
 
