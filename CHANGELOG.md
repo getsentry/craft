@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.5
+
+- npm: allow using "yarn"
+- npm: allow to specify OTP for publishing
+- Log errors to Sentry
+
 ## 0.7.4
 
 - github: strip date from release title
