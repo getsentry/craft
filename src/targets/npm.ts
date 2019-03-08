@@ -55,6 +55,8 @@ export interface NpmTargetOptions extends TargetConfig {
 interface NpmPublishOptions {
   /** OTP value to use */
   otp?: string;
+  /** New version to publish */
+  version: string;
 }
 
 /**
@@ -162,13 +164,14 @@ export class NpmTarget extends BaseTarget {
    */
   protected async publishPackage(
     path: string,
-    options: NpmPublishOptions = {}
+    options: NpmPublishOptions
   ): Promise<any> {
     const args = ['publish', NPM_REGISTRY, path];
     let bin: string;
 
     if (this.npmConfig.useYarn) {
       bin = YARN_BIN;
+      args.push(`--new-version=${options.version}`);
       args.push('--non-interactive');
     } else {
       bin = NPM_BIN;
@@ -195,7 +198,7 @@ export class NpmTarget extends BaseTarget {
    * @param version New version to be released
    * @param revision Git commit SHA to be published
    */
-  public async publish(_version: string, revision: string): Promise<any> {
+  public async publish(version: string, revision: string): Promise<any> {
     logger.debug('Fetching artifact list from Zeus...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_PACKAGE_REGEX,
@@ -206,7 +209,7 @@ export class NpmTarget extends BaseTarget {
       return undefined;
     }
 
-    const publishOptions: NpmPublishOptions = {};
+    const publishOptions: NpmPublishOptions = { version };
     if (shouldPerform() && this.npmConfig.useOtp) {
       publishOptions.otp = await this.requestOtp();
     }
