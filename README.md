@@ -44,8 +44,9 @@ then enforces a specific workflow for managing release branches, changelogs, art
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Development](#development)
-  - [Logging level](#logging-level)
-  - [Dry-run mode](#dry-run-mode)
+  - [Logging Level](#logging-level)
+  - [Dry-run Mode](#dry-run-mode)
+  - [Sentry Support](#sentry-support)
   - [Releasing](#releasing)
 
 ## Installation
@@ -698,20 +699,32 @@ npm version "${NEW_VERSION}"
 
 ## Development
 
-### Logging level
+### Logging Level
 
 Logging level for `craft` can be configured via setting `CRAFT_LOG_LEVEL`
 environment variable.
 
 Accepted values are: `debug`, `success` (default), `info`, `warn`, `error`.
 
-### Dry-run mode
+### Dry-run Mode
 
 Dry-run mode can be enabled via setting `DRY_RUN` environment variable to any
 truthy value (any value other than `unset`, `""`, `0`, `false` and `no`).
 
 In dry-run mode no destructive actions will be performed (creating branches,
 pushing tags, committing files, etc.)
+
+### Sentry Support
+
+Errors you encounter while using Craft can be sent to Sentry. To use this feature,
+add `CRAFT_SENTRY_DSN` variable to your environment (or "craft" configuration file) that
+contains a Sentry project's DSN.
+
+For example:
+
+```bash
+export CRAFT_SENTRY_DSN='https://1234@sentry.io/2345'
+```
 
 ### Releasing
 
