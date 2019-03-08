@@ -129,7 +129,7 @@ describe('calculateChecksum', () => {
 
 describe('isExecutableInPath', () => {
   test('checks for existing executable', async () => {
-    expect(hasExecutable('npm')).toBe(true);
+    expect(hasExecutable('ls')).toBe(true);
   });
 
   test('checks for non-existing executable', async () => {
