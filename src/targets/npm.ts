@@ -8,14 +8,17 @@ import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { ConfigurationError, reportError } from '../utils/errors';
-import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
+import { hasExecutable, spawnProcess } from '../utils/system';
 import { parseVersion } from '../utils/version';
 import { BaseTarget } from './base';
 
 const logger = loggerRaw.withScope('[npm]');
 
-/** Command to launch npm */
+/** Command to launch "npm" */
 export const NPM_BIN = process.env.NPM_BIN || 'npm';
+
+/** Command to launch "yarn" */
+export const YARN_BIN = process.env.YARN_BIN || 'yarn';
 
 const NPM_MIN_MAJOR = 5;
 const NPM_MIN_MINOR = 6;
@@ -44,6 +47,8 @@ export interface NpmTargetOptions extends TargetConfig {
   access?: NpmPackageAccess;
   /** Do we use 2FA (via OTPs) for publishing? */
   useOtp?: boolean;
+  /** Do we use Yarn instead of NPM? */
+  useYarn: boolean;
 }
 
 /** Options for running the NPM publish command */
@@ -71,24 +76,32 @@ export class NpmTarget extends BaseTarget {
    * Check that NPM executable exists and is not too old
    */
   protected checkRequirements(): void {
-    checkExecutableIsPresent(NPM_BIN);
-
-    logger.debug('Checking that NPM has recent version...');
-    const npmVersion = spawnSync(NPM_BIN, ['--version'])
-      .stdout.toString()
-      .trim();
-    const parsedVersion = parseVersion(npmVersion);
-    if (!parsedVersion) {
-      reportError(`Cannot parse NPM version: "${npmVersion}"`);
-    }
-    const { major, minor } = parsedVersion || { major: 0, minor: 0 };
-    if (
-      major < NPM_MIN_MAJOR ||
-      (major === NPM_MIN_MAJOR && minor < NPM_MIN_MINOR)
-    ) {
-      reportError(
-        `NPM version is too old: ${npmVersion}. Please update your NodeJS`
-      );
+    if (hasExecutable(NPM_BIN)) {
+      logger.debug('Checking that NPM has recent version...');
+      const npmVersion = spawnSync(NPM_BIN, ['--version'])
+        .stdout.toString()
+        .trim();
+      const parsedVersion = parseVersion(npmVersion);
+      if (!parsedVersion) {
+        reportError(`Cannot parse NPM version: "${npmVersion}"`);
+      }
+      const { major, minor } = parsedVersion || { major: 0, minor: 0 };
+      if (
+        major < NPM_MIN_MAJOR ||
+        (major === NPM_MIN_MAJOR && minor < NPM_MIN_MINOR)
+      ) {
+        reportError(
+          `NPM version is too old: ${npmVersion}. Please update your NodeJS`
+        );
+      }
+      logger.debug(`Found NPM version ${npmVersion}`);
+    } else if (hasExecutable(YARN_BIN)) {
+      const yarnVersion = spawnSync(YARN_BIN, ['--version'])
+        .stdout.toString()
+        .trim();
+      logger.debug(`Found Yarn version ${yarnVersion}`);
+    } else {
+      reportError('No "npm" or "yarn" found!');
     }
   }
 
@@ -121,7 +134,9 @@ export class NpmTarget extends BaseTarget {
     //   throw new Error('NPM target: NPM_TOKEN not found in the environment');
     // }
 
-    const npmConfig: NpmTargetOptions = {};
+    const npmConfig: NpmTargetOptions = {
+      useYarn: !hasExecutable(NPM_BIN),
+    };
     if (this.config.access) {
       if (this.config.access in NpmPackageAccess) {
         npmConfig.access = this.config.access;
@@ -150,11 +165,18 @@ export class NpmTarget extends BaseTarget {
     options: NpmPublishOptions = {}
   ): Promise<any> {
     const args = ['publish', NPM_REGISTRY, path];
+    let bin: string;
 
-    if (this.npmConfig.access) {
-      // This parameter is only necessary for scoped packages, otherwise
-      // it can be left blank
-      args.push(`--access=${this.npmConfig.access}`);
+    if (this.npmConfig.useYarn) {
+      bin = YARN_BIN;
+      args.push('--non-interactive');
+    } else {
+      bin = NPM_BIN;
+      if (this.npmConfig.access) {
+        // This parameter is only necessary for scoped packages, otherwise
+        // it can be left blank
+        args.push(`--access=${this.npmConfig.access}`);
+      }
     }
 
     // Pass OTP if configured
@@ -163,8 +185,8 @@ export class NpmTarget extends BaseTarget {
       spawnOptions.env = { ...process.env, NPM_CONFIG_OTP: options.otp };
     }
 
-    // Disable output buffering because NPM can ask us for one-time passwords
-    return spawnProcess(NPM_BIN, args, spawnOptions, { showStdout: true });
+    // Disable output buffering because NPM/Yarn can ask us for one-time passwords
+    return spawnProcess(bin, args, spawnOptions, { showStdout: true });
   }
 
   /**
