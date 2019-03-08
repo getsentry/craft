@@ -86,5 +86,9 @@
   },
   "yargs": {
     "boolean-negation": false
+  },
+  "toolchain": {
+    "node": "8.15.1",
+    "yarn": "1.14.0"
   }
 }
