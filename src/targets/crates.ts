@@ -1,17 +1,15 @@
 import * as _ from 'lodash';
+// tslint:disable-next-line:no-submodule-imports
+import * as simpleGit from 'simple-git/promise';
 
 import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
-import { TargetConfig } from '../schemas/project_config';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { forEachChained } from '../utils/async';
 import { ConfigurationError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
-import {
-  checkExecutableIsPresent,
-  downloadAndExtract,
-  spawnProcess,
-} from '../utils/system';
+import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 
 const logger = loggerRaw.withScope('[crates]');
@@ -196,6 +194,24 @@ export class CratesTarget extends BaseTarget {
   }
 
   /**
+   * Clones a repository and its submodules.
+   *
+   * @param config Git configuration specifying the repository to clone.
+   * @param version The version specifying the release branch to clone.
+   * @param directory The directory to clone into.
+   */
+  public async cloneWithSubmodules(
+    config: GithubGlobalConfig,
+    version: string,
+    directory: string
+  ): Promise<any> {
+    const git = simpleGit(directory).silent(true);
+    const url = `https://github.com/${config.owner}/${config.repo}.git`;
+    const opts = [`-b`, `release/${version}`, '--depth=1', '--recurse'];
+    return git.clone(url, directory, opts);
+  }
+
+  /**
    * Uploads all files to Crates.io using Cargo
    *
    * Requires twine to be configured in the environment (either beforehand or
@@ -204,16 +220,11 @@ export class CratesTarget extends BaseTarget {
    * @param version New version to be released
    * @param revision Git commit SHA to be published
    */
-  public async publish(_version: string, revision: string): Promise<any> {
+  public async publish(version: string, _revision: string): Promise<any> {
     const githubConfig = getGlobalGithubConfig();
     await withTempDir(
       async directory => {
-        await downloadAndExtract(
-          githubConfig.owner,
-          githubConfig.repo,
-          revision,
-          directory
-        );
+        await this.cloneWithSubmodules(githubConfig, version, directory);
         await this.publishWorkspace(directory);
       },
       true,
