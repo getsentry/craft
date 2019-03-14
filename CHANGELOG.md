@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.6
+
+- crates: support submodules when publishing (#18)
+
 ## 0.7.5
 
 - npm: allow using "yarn"
