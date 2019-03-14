@@ -1,3 +1,6 @@
+import * as fs from 'fs';
+import * as path from 'path';
+
 import * as _ from 'lodash';
 // tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
@@ -215,6 +218,12 @@ export class CratesTarget extends BaseTarget {
 
     logger.info(`Checking out submodules`);
     await git.submoduleUpdate(['--init']);
+
+    // Cargo seems to run into problems if the crate resides within a git
+    // checkout located in a memory file system on Mac (e.g. /tmp). This can be
+    // avoided by signaling to cargo that this is not a git checkout.
+    const gitdir = path.join(directory, '.git');
+    fs.renameSync(gitdir, `${gitdir}.bak`);
   }
 
   /**
