@@ -205,9 +205,13 @@ export class CratesTarget extends BaseTarget {
     version: string,
     directory: string
   ): Promise<any> {
+    const { owner, repo } = config;
     const git = simpleGit(directory).silent(true);
-    const url = `https://github.com/${config.owner}/${config.repo}.git`;
-    const opts = [`-b`, `release/${version}`, '--depth=1', '--recurse'];
+    const url = `https://github.com/${owner}/${repo}.git`;
+    const branch = `release/${version}`;
+    const opts = [`-b`, branch, '--depth=1', '--recurse'];
+
+    logger.info(`Downloading sources for ${owner}/${repo}:${branch}`);
     return git.clone(url, directory, opts);
   }
 
