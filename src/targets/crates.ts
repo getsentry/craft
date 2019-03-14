@@ -197,22 +197,24 @@ export class CratesTarget extends BaseTarget {
    * Clones a repository and its submodules.
    *
    * @param config Git configuration specifying the repository to clone.
-   * @param version The version specifying the release branch to clone.
+   * @param revision The commit SHA that should be checked out after the clone.
    * @param directory The directory to clone into.
    */
   public async cloneWithSubmodules(
     config: GithubGlobalConfig,
-    version: string,
+    revision: string,
     directory: string
   ): Promise<any> {
     const { owner, repo } = config;
     const git = simpleGit(directory).silent(true);
     const url = `https://github.com/${owner}/${repo}.git`;
-    const branch = `release/${version}`;
-    const opts = [`-b`, branch, '--depth=1', '--recurse'];
 
-    logger.info(`Downloading sources for ${owner}/${repo}:${branch}`);
-    return git.clone(url, directory, opts);
+    logger.info(`Cloning ${owner}/${repo} into ${directory}`);
+    await git.clone(url, directory);
+    await git.checkout(revision);
+
+    logger.info(`Checking out submodules`);
+    await git.submoduleUpdate(['--init']);
   }
 
   /**
@@ -224,11 +226,11 @@ export class CratesTarget extends BaseTarget {
    * @param version New version to be released
    * @param revision Git commit SHA to be published
    */
-  public async publish(version: string, _revision: string): Promise<any> {
+  public async publish(_version: string, revision: string): Promise<any> {
     const githubConfig = getGlobalGithubConfig();
     await withTempDir(
       async directory => {
-        await this.cloneWithSubmodules(githubConfig, version, directory);
+        await this.cloneWithSubmodules(githubConfig, revision, directory);
         await this.publishWorkspace(directory);
       },
       true,
