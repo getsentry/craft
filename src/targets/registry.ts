@@ -19,7 +19,11 @@ import {
   GithubRemote,
 } from '../utils/githubApi';
 import { renderTemplateSafe } from '../utils/strings';
-import { isPreviewRelease, parseVersion } from '../utils/version';
+import {
+  isPreviewRelease,
+  parseVersion,
+  versionGreaterOrEqualThan,
+} from '../utils/version';
 import { BaseTarget } from './base';
 
 const logger = loggerRaw.withScope('[registry]');
@@ -135,29 +139,53 @@ export class RegistryTarget extends BaseTarget {
   }
 
   /**
-   * Create symbolic links to the created
+   * Create symbolic links to the new version file
+   *
+   * "latest.json" link is not updated if the new version is "older" (e.g., it's
+   * a patch release for an older major version).
    *
    * @param versionFilePath Path to the new version file
-   * @param version The new version
+   * @param newVersion The new version
+   * @param oldVersion The previous latest version
    */
-  public createSymlinks(versionFilePath: string, version: string): void {
-    const parsedVersion = parseVersion(version);
-    if (!parsedVersion) {
-      throw new ConfigurationError(`Cannot parse version: "${parsedVersion}"`);
+  public createSymlinks(
+    versionFilePath: string,
+    newVersion: string,
+    oldVersion?: string
+  ): void {
+    const parsedNewVersion = parseVersion(newVersion) || undefined;
+    if (!parsedNewVersion) {
+      throw new ConfigurationError(
+        `Cannot parse version: "${parsedNewVersion}"`
+      );
     }
+    const parsedOldVersion =
+      (oldVersion ? parseVersion(oldVersion) : undefined) || undefined;
     const baseVersionName = path.basename(versionFilePath);
     const packageDir = path.dirname(versionFilePath);
 
-    // link latest
-    this.forceSymlink(baseVersionName, path.join(packageDir, 'latest.json'));
+    // link latest, but only if the new version is "newer"
+    if (
+      parsedOldVersion &&
+      !versionGreaterOrEqualThan(parsedNewVersion, parsedOldVersion)
+    ) {
+      logger.warn(
+        `Not updating the latest version file: current version is "${oldVersion}", new version is "${newVersion}"`
+      );
+    } else {
+      logger.debug(
+        `Changing symlink for "latest.json" from version "${oldVersion}" to "${newVersion}"`
+      );
+      this.forceSymlink(baseVersionName, path.join(packageDir, 'latest.json'));
+    }
 
     // link major
-    const majorVersionLink = `${parsedVersion.major}.json`;
+    const majorVersionLink = `${parsedNewVersion.major}.json`;
     this.forceSymlink(baseVersionName, path.join(packageDir, majorVersionLink));
 
     // link minor
-    const minorVersionLink = `${parsedVersion.major}.${
-      parsedVersion.minor
+    const minorVersionLink = `${parsedNewVersion.major}.${
+      parsedNewVersion.minor
     }.json`;
     this.forceSymlink(baseVersionName, path.join(packageDir, minorVersionLink));
   }
@@ -309,6 +337,7 @@ export class RegistryTarget extends BaseTarget {
     logger.debug('Reading the current configuration from "latest.json"...');
     const packageManifest =
       JSON.parse(fs.readFileSync(packageManifestPath).toString()) || {};
+    const previousVersion = packageManifest.version || undefined;
 
     const updatedManifest = await this.getUpdatedManifest(
       packageManifest,
@@ -323,7 +352,7 @@ export class RegistryTarget extends BaseTarget {
       JSON.stringify(updatedManifest, undefined, '  ') + '\n' // tslint:disable-line:prefer-template
     );
 
-    this.createSymlinks(versionFilePath, version);
+    this.createSymlinks(versionFilePath, version, previousVersion);
   }
 
   /**
