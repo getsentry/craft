@@ -9,7 +9,7 @@ import { TargetConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { hasExecutable, spawnProcess } from '../utils/system';
-import { parseVersion } from '../utils/version';
+import { isPreviewRelease, parseVersion } from '../utils/version';
 import { BaseTarget } from './base';
 
 const logger = loggerRaw.withScope('[npm]');
@@ -180,6 +180,14 @@ export class NpmTarget extends BaseTarget {
         // it can be left blank
         args.push(`--access=${this.npmConfig.access}`);
       }
+    }
+
+    // In case we have a prerelease, there should never be a reason to publish
+    // it with the latest tag in npm.
+    if (isPreviewRelease(options.version)) {
+      logger.warn('Detected pre-release version for npm package!');
+      logger.warn('Adding tag "next" to not make it "latest" default install.');
+      args.push(`--tag=next`);
     }
 
     // Pass OTP if configured
