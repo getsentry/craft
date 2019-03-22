@@ -186,8 +186,8 @@ export class NpmTarget extends BaseTarget {
     // it with the latest tag in npm.
     if (isPreviewRelease(options.version)) {
       logger.warn('Detected pre-release version for npm package!');
-      logger.warn('Adding tag "next" to not make it "latest" default install.');
-      args.push(`--tag=next`);
+      logger.warn('Adding tag "next" to not make it "latest" in registry.');
+      args.push('--tag=next');
     }
 
     // Pass OTP if configured
