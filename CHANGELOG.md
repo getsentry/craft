@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.8
+
+- npm: use "next" tag when publishing pre-releases (#20)
+
 ## 0.7.7
 
 - registry: do not update the "latest" symlink if the new version is older
