@@ -23,8 +23,8 @@ const GCS_MAX_RETRIES = 5;
  * Mapping between file name regexps and the corresponding content type that will be set.
  */
 const CONTENT_TYPES_EXT: Array<[RegExp, string]> = [
-  [/.js$/, 'application/javascript'],
-  [/.js.map$/, 'application/json'],
+  [/\.js$/, 'application/javascript; charset=utf-8'],
+  [/\.js\.map$/, 'application/json; charset=utf-8'],
 ];
 
 /**
