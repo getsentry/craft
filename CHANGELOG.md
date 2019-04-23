@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.9
+
+- gcs: use explicit content-type for specific file types
+
 ## 0.7.8
 
 - npm: use "next" tag when publishing pre-releases (#20)

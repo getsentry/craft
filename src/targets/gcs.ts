@@ -20,6 +20,14 @@ const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
 const GCS_MAX_RETRIES = 5;
 
 /**
+ * Mapping between file name regexps and the corresponding content type that will be set.
+ */
+const CONTENT_TYPES_EXT: Array<[RegExp, string]> = [
+  [/.js$/, 'application/javascript'],
+  [/.js.map$/, 'application/json'],
+];
+
+/**
  * Bucket path with associated parameters
  */
 export interface BucketDest {
@@ -166,6 +174,25 @@ export class GcsTarget extends BaseTarget {
   }
 
   /**
+   * Detect the content-type based on regular expressions defined in CONTENT_TYPES_EXT.
+   *
+   * The underlying GCS package usually detects content-type itself, but it's
+   * not always correct.
+   *
+   * @param artifact Artifact to check
+   */
+  private detectContentType(artifact: Artifact): string | undefined {
+    const name = artifact.name;
+    for (const entry of CONTENT_TYPES_EXT) {
+      const [regex, contentType] = entry;
+      if (name.match(regex)) {
+        return contentType;
+      }
+    }
+    return undefined;
+  }
+
+  /**
    * Uploads the provided artifact to the specified GCS bucket
    *
    * @param artifact Artifact to upload
@@ -181,9 +208,15 @@ export class GcsTarget extends BaseTarget {
   ): Promise<void> {
     const filePath = await this.store.downloadArtifact(artifact);
     const destination = path.join(bucketPath, path.basename(filePath));
+    const uploadOptionsFinal = { ...uploadOptions };
+    const contentType = this.detectContentType(artifact);
+    if (contentType) {
+      uploadOptionsFinal.contentType = contentType;
+    }
     logger.debug(`Uploading ${path.basename(filePath)} to ${destination}...`);
+    logger.debug(`Upload options: ${JSON.stringify(uploadOptionsFinal)}`);
     if (shouldPerform()) {
-      await bucketObj.upload(filePath, { ...uploadOptions, destination });
+      await bucketObj.upload(filePath, { ...uploadOptionsFinal, destination });
       logger.info(`Uploaded "${destination}"`);
     } else {
       logger.info(`[dry-run] Not uploading the file "${destination}"`);
