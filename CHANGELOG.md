@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.10
+
+- gcs: add charsets to content-type
+
 ## 0.7.9
 
 - gcs: use explicit content-type for specific file types
