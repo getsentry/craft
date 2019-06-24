@@ -338,10 +338,18 @@ export async function downloadAndExtract(
  *
  * After the handler is set, the user should press Ctrl-C with less than
  * "maxTimeDiff" milliseconds apart.
+ * The behavior is currently disabled by default.
  *
  * @param maxTimeDiff Maximum time interval in milliseconds between the signals
  */
 export function catchKeyboardInterrupt(maxTimeDiff: number = 1000): void {
+  if (process.env.CRAFT_CATCH_KEYBOARD_INTERRUPT !== '1') {
+    logger.debug(
+      'Catching Ctrl-C is disabled by default. See https://github.com/getsentry/craft/issues/21'
+    );
+    return;
+  }
+
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     logger.debug('stdin or stdout is not a TTY, not catching SIGINTs');
     return;
