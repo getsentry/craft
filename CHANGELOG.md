@@ -3,6 +3,7 @@
 ## 0.7.10
 
 - gcs: add charsets to content-type
+- Disable advanced ctrl-c behavior by default
 
 ## 0.7.9
 
