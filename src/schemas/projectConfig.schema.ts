@@ -41,6 +41,10 @@ const projectConfigJsonSchema = {
       type: 'string',
       pattern: '^\\d+\\.\\d+\\.\\d+.*$',
     },
+    requireNames: {
+      type: 'array',
+      items: { type: 'string' },
+    },
   },
   additionalProperties: false,
   required: ['github'],

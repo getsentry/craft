@@ -17,6 +17,7 @@ import {
   reportError,
 } from '../utils/errors';
 import { withTempDir } from '../utils/files';
+import { stringToRegexp } from '../utils/filters';
 import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
 import { hasInput } from '../utils/noInput';
 import { formatSize } from '../utils/strings';
@@ -350,7 +351,12 @@ async function printRevisionSummary(
   // TODO init all targets earlier
   targetNames.forEach(target => logger.info(`  - ${target}`));
   logger.info(' ');
+}
 
+/**
+ * Prompt the user that everything is OK and we should proceed with publishing
+ */
+async function promptConfirmation(): Promise<void> {
   if (hasInput()) {
     const questions = [
       {
@@ -369,6 +375,49 @@ async function printRevisionSummary(
   } else {
     logger.debug('Skipping the prompting.');
   }
+}
+
+/**
+ * Check that for every provided pattern there's an artifact for the revision
+ *
+ * This helps to catch cases when there are several independent providers (e.g. Travis,
+ * Appveyor), and there's no clear indication when ALL of those providers have
+ * finished their builds.
+ * Using the "requiredNames", we can introduce artifact patterns/names that *have* to
+ * be present before starting the publishing process.
+ *
+ * @param zeus Zeus store object
+ * @param revision Git revision SHA
+ * @param requiredNames A list of patterns that all have to match
+ */
+async function checkRequiredArtifacts(
+  zeus: ZeusStore,
+  revision: string,
+  requiredNames?: string[]
+): Promise<void> {
+  if (!requiredNames || requiredNames.length === 0) {
+    return;
+  }
+  logger.debug('Checking that the required artifact names are present...');
+  const artifacts = await zeus.listArtifactsForRevision(revision);
+  for (const nameRegexString of requiredNames) {
+    const nameRegex = stringToRegexp(nameRegexString);
+    const matchedArtifacts = artifacts.filter(artifact =>
+      nameRegex.test(artifact.name)
+    );
+    if (matchedArtifacts.length === 0) {
+      reportError(
+        `No matching artifact found for the required pattern: ${nameRegexString}`
+      );
+    } else {
+      logger.debug(
+        `Artifact "${
+          matchedArtifacts[0].name
+        }" matches pattern ${nameRegexString}`
+      );
+    }
+  }
+  logger.debug('Check for "requiredNames" passed.');
 }
 
 // TODO there is at least one case that is not covered: how to detect Zeus builds
@@ -553,6 +602,10 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       revision,
       targetConfigList.map(t => t.name || '__undefined__')
     );
+
+    await checkRequiredArtifacts(zeus, revision, config.requireNames);
+
+    await promptConfirmation();
 
     await publishToTargets(
       githubConfig,

@@ -14,6 +14,7 @@ export interface CraftProjectConfig {
   changelog?: string;
   changelogPolicy?: ChangelogPolicy;
   minVersion?: string;
+  requireNames?: string[];
 }
 /**
  * Global (non-target!) GitHub configuration for the project
