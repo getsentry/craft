@@ -24,7 +24,7 @@ import { sleepAsync, spawnProcess } from '../utils/system';
 import { isValidVersion, versionToTag } from '../utils/version';
 import { handler as publishMainHandler, PublishOptions } from './publish';
 
-export const command = ['prepare <major|minor|patch|new-version>'];
+export const command = ['prepare NEW-VERSION'];
 export const aliases = ['p', 'prerelease', 'prepublish', 'prepare', 'release'];
 export const description = '🚢 Prepare a new release branch';
 
@@ -33,10 +33,8 @@ const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
 
 export const builder = (yargs: Argv) =>
   yargs
-    .positional('part', {
-      alias: 'new-version',
-      description:
-        'The version part (major, minor, patch) to increase, or the version itself',
+    .positional('NEW-VERSION', {
+      description: 'The new version you want to release',
       type: 'string',
     })
     .option('no-push', {

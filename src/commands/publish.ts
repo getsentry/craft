@@ -23,7 +23,7 @@ import { formatSize } from '../utils/strings';
 import { catchKeyboardInterrupt, sleepAsync } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 
-export const command = ['publish <new-version>'];
+export const command = ['publish NEW-VERSION'];
 export const aliases = ['pp', 'publish'];
 export const description = '🛫 Publish artifacts';
 
@@ -38,7 +38,7 @@ const ZEUS_POLLING_INTERVAL = 30;
 
 export const builder = (yargs: Argv) =>
   yargs
-    .positional('new-version', {
+    .positional('NEW-VERSION', {
       description: 'Version to publish',
       type: 'string',
     })
