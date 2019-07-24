@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as rimrafCallback from 'rimraf';
+import * as tmp from 'tmp';
 import * as util from 'util';
 
 import { filterAsync } from './async';
@@ -22,7 +23,6 @@ const rimraf = util.promisify(rimrafCallback);
  *
  * @param directory The path to the directory
  * @returns A list of paths to files within the directory
- * @async
  */
 export async function listFiles(directory: string): Promise<string[]> {
   const files = await readdir(directory);
@@ -43,19 +43,45 @@ export async function listFiles(directory: string): Promise<string[]> {
  * @param prefix A prefix to put in front of the new directory
  * @param cleanup A flag that configures clean-up behavior
  * @returns The return value of the callback
- * @async
  */
-export async function withTempDir(
-  callback: (arg: string) => any,
+export async function withTempDir<T>(
+  callback: (arg: string) => T | Promise<T>,
   cleanup: boolean = true,
   prefix: string = 'craft-'
-): Promise<any> {
+): Promise<T> {
   const directory = await mkdtemp(path.join(os.tmpdir(), prefix));
   try {
     return await callback(directory);
   } finally {
     if (cleanup) {
       await rimraf(directory);
+    }
+  }
+}
+
+/**
+ * Execute an asynchronous callback with a temporary file
+ *
+ * If "cleanup" flag is set to true, automatically removes the file when the
+ * callback finishes or throws.
+ *
+ * @param callback A callback that receives the file path
+ * @param prefix A prefix to put in front of the new file
+ * @param cleanup A flag that configures clean-up behavior
+ * @returns The return value of the callback
+ */
+export async function withTempFile<T>(
+  callback: (arg: string) => T | Promise<T>,
+  cleanup: boolean = true,
+  prefix: string = 'craft-'
+): Promise<T> {
+  tmp.setGracefulCleanup();
+  const tmpFile = tmp.fileSync({ prefix });
+  try {
+    return await callback(tmpFile.name);
+  } finally {
+    if (cleanup) {
+      tmpFile.removeCallback();
     }
   }
 }

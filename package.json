@@ -35,7 +35,7 @@
     "simple-git": "^1.96.0",
     "split": "^1.0.1",
     "tar": "^4.4.6",
-    "tmp": "^0.0.33",
+    "tmp": "^0.1.0",
     "unzipper": "^0.9.3",
     "update-notifier": "^2.5.0",
     "yargs": "12.0.5"

@@ -1,5 +1,5 @@
 import { spawn, SpawnOptions } from 'child_process';
-import { createHash } from 'crypto';
+import { createHash, Hash } from 'crypto';
 import { isDryRun } from 'dryrun';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -11,6 +11,28 @@ import * as unzipper from 'unzipper';
 import { logger } from '../logger';
 import { reportError } from './errors';
 import { downloadSources } from './githubApi';
+
+/**
+ * Types of supported hashing algorithms
+ */
+export enum HashAlgorithm {
+  /** SHA256 */
+  SHA256 = 'sha256',
+  /** SHA384 */
+  SHA384 = 'sha384',
+  /** SHA512 */
+  SHA512 = 'sha512',
+}
+
+/**
+ * Types of supported digest formats
+ */
+export enum HashOutputFormat {
+  /** Hex digest, consists of [0-9a-f] characters */
+  Hex = 'hex',
+  /** The digest is encoded as base64 string and prefixed with the algorithm name */
+  Base64 = 'base64',
+}
 
 /**
  * Strips env values from the options object
@@ -172,17 +194,50 @@ export async function spawnProcess(
  */
 export async function calculateChecksum(
   filePath: string,
-  algorithm: string = 'sha256'
+  options?: {
+    /** Hash algorithm */
+    algorithm?: HashAlgorithm;
+    /** Hash format */
+    format?: HashOutputFormat;
+  }
 ): Promise<string> {
+  const { algorithm = HashAlgorithm.SHA256, format = HashOutputFormat.Hex } =
+    options || {};
   logger.debug(`Calculating "${algorithm}" hashsum for file: ${filePath}`);
   const stream = fs.createReadStream(filePath);
   const hash = createHash(algorithm);
 
   return new Promise<string>((resolve, reject) => {
     stream.on('data', data => hash.update(data, 'utf8'));
-    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('end', () => resolve(formatDigest(hash, algorithm, format)));
     stream.on('error', reject);
   });
+}
+
+/**
+ * Format the digest of the given hash object
+ *
+ * @param hash Hash object
+ * @param algorithm Hash algorithm
+ * @param format Hash format
+ * @returns Formatted digest
+ */
+function formatDigest(
+  hash: Hash,
+  algorithm: HashAlgorithm,
+  format: HashOutputFormat
+): string {
+  switch (format) {
+    case HashOutputFormat.Base64: {
+      return `${algorithm}-${hash.digest('base64')}`;
+    }
+    case HashOutputFormat.Hex: {
+      return hash.digest('hex');
+    }
+    default: {
+      throw new Error(`Invalid hash format: ${format}`);
+    }
+  }
 }
 
 /**

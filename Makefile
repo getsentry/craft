@@ -2,6 +2,9 @@ test:
 	yarn test
 .PHONY: test
 
-check: test
+lint:
 	yarn lint
+.PHONY: lint
+
+check: test lint
 .PHONY: check

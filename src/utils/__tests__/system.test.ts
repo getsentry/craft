@@ -1,11 +1,13 @@
 import * as fs from 'fs';
-import * as tmp from 'tmp';
 
 import { logger } from '../../logger';
+import { withTempFile } from '../files';
 
 import {
   calculateChecksum,
   hasExecutable,
+  HashAlgorithm,
+  HashOutputFormat,
   replaceEnvVariable,
   sleepAsync,
   spawnProcess,
@@ -113,17 +115,48 @@ describe('replaceEnvVariable', () => {
 });
 
 describe('calculateChecksum', () => {
-  test('replaces a variable', async () => {
-    tmp.setGracefulCleanup();
-    const tmpFile = tmp.fileSync({ prefix: 'craft-' });
-    fs.writeFileSync(tmpFile.name, '\n');
+  test('Default checksum on a basic file', async () => {
+    expect.assertions(1);
 
-    const checksum = await calculateChecksum(tmpFile.name);
-    expect(checksum).toBe(
-      '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b'
-    );
+    await withTempFile(async tmpFilePath => {
+      fs.writeFileSync(tmpFilePath, '\n');
 
-    tmpFile.removeCallback();
+      const checksum = await calculateChecksum(tmpFilePath);
+      expect(checksum).toBe(
+        '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b'
+      );
+    });
+  });
+
+  test('Base64-formatted checksum on a basic file', async () => {
+    expect.assertions(1);
+
+    await withTempFile(async tmpFilePath => {
+      fs.writeFileSync(tmpFilePath, '\n');
+
+      const checksum = await calculateChecksum(tmpFilePath, {
+        format: HashOutputFormat.Base64,
+      });
+      expect(checksum).toBe(
+        'sha256-AbpHGcgLb+kRsJGnwFEktk7uzpZOCcBY74+YBdrKVGs='
+      );
+    });
+  });
+
+  test('Base64-formatted checksum with custom algorithm on a basic file', async () => {
+    expect.assertions(1);
+
+    await withTempFile(async tmpFilePath => {
+      fs.writeFileSync(tmpFilePath, '\n');
+
+      const checksum = await calculateChecksum(tmpFilePath, {
+        algorithm: HashAlgorithm.SHA384,
+        format: HashOutputFormat.Base64,
+      });
+      expect(checksum).toBe(
+        'sha384-7GZOiJ7WwbJ2PKz3iZ2Vt/NHNz65guUjQZ/uo6o2LYkbO/Al8pImelhUBJCReJw+'
+      );
+    });
   });
 });
 
