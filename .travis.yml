@@ -22,12 +22,12 @@ matrix:
       after_success:
         - npm pack
         - npm install -g @zeus-ci/cli
-        - zeus upload -t "application/tar+npm" *.tgz
+        - zeus upload -t "application/tar+npm" *.tgz || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
     - name: Bundle docs
       script:
         - cd docs && zip -r gh-pages _site/
         - npm install -g @zeus-ci/cli
-        - zeus upload gh-pages.zip
+        - zeus upload gh-pages.zip || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
 notifications:
   webhooks:
