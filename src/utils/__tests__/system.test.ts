@@ -176,7 +176,9 @@ describe('isExecutableInPath', () => {
   });
 
   test('checks for existing executable using relative path', async () => {
-    expect(hasExecutable('../../../../../../../../../bin/ls')).toBe(true);
+    expect(hasExecutable('../../../../../../../../../../../../bin/ls')).toBe(
+      true
+    );
   });
 
   test('checks for non-existing executable using relative path', async () => {

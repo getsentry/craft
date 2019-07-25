@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import * as Github from '@octokit/rest';
+import { Artifact } from '@zeus-ci/sdk';
 import { shouldPerform } from 'dryrun';
 // tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
@@ -42,8 +43,11 @@ export enum RegistryPackageType {
   SDK = 'sdk',
 }
 
+/** Describes a checksum entry in the registry */
 interface ChecksumEntry {
+  /** Checksum (hash) algorithm */
   algorithm: HashAlgorithm;
+  /** Checksum format */
   format: HashOutputFormat;
 }
 
@@ -83,6 +87,14 @@ export class RegistryTarget extends BaseTarget {
     this.registryConfig = this.getRegistryConfig();
   }
 
+  /**
+   * Checks the provided checksums configuration
+   *
+   * Throws an error in case the configuration is incorrect
+   * FIXME(tonyo): rewrite this with JSON schemas
+   *
+   * @param checksums Raw configuration
+   */
   protected castChecksums(checksums: any): ChecksumEntry[] {
     if (!checksums) {
       return [];
@@ -284,6 +296,8 @@ export class RegistryTarget extends BaseTarget {
    *
    * URL template is taken from "urlTemplate" configuration argument
    *
+   * FIXME(tonyo): LEGACY function, left for compatibility, replaced by addFilesData
+   *
    * @param manifest Package manifest
    * @param version The new version
    * @param revision Git commit SHA to be published
@@ -320,20 +334,32 @@ export class RegistryTarget extends BaseTarget {
     manifest.file_urls = fileUrls;
   }
 
-  public async addChecksums(
-    packageManifest: { [key: string]: any },
+  /**
+   * Extends the artifact entry with additional information
+   *
+   * Information and checksums and download URLs are added here
+   *
+   * @param artifact Artifact
+   * @param version The new version
+   * @param revision Git commit SHA to be published
+   *
+   */
+  public async getArtifactData(
+    artifact: Artifact,
+    version: string,
     revision: string
-  ): Promise<void> {
-    const artifacts = await this.getArtifactsForRevision(revision);
-    if (artifacts.length === 0) {
-      logger.warn('No artifacts found, not adding any checksums');
-      return;
+  ): Promise<any> {
+    const artifactData: any = {};
+
+    if (this.registryConfig.urlTemplate) {
+      artifactData.url = renderTemplateSafe(this.registryConfig.urlTemplate, {
+        file: artifact.name,
+        revision,
+        version,
+      });
     }
 
-    logger.debug('Adding checksums for available artifacts');
-    const files: { [key: string]: any } = {};
-
-    for (const artifact of artifacts) {
+    if (this.registryConfig.checksums) {
       const fileChecksums: { [key: string]: string } = {};
       for (const checksumType of this.registryConfig.checksums) {
         const { algorithm, format } = checksumType;
@@ -344,13 +370,38 @@ export class RegistryTarget extends BaseTarget {
         );
         fileChecksums[`${algorithm}-${format}`] = checksum;
       }
+      artifactData.checksums = fileChecksums;
+    }
+    return artifactData;
+  }
 
-      if (Object.keys(fileChecksums).length !== 0) {
-        if (!files[artifact.name]) {
-          files[artifact.name] = {};
-        }
-        files[artifact.name].checksums = fileChecksums;
-      }
+  /**
+   * Extends the artifact entries with additional information
+   *
+   * @param packageManifest Package manifest
+   * @param version The new version
+   * @param revision Git commit SHA to be published
+   */
+  public async addFilesData(
+    packageManifest: { [key: string]: any },
+    version: string,
+    revision: string
+  ): Promise<void> {
+    const artifacts = await this.getArtifactsForRevision(revision);
+    if (artifacts.length === 0) {
+      logger.warn('No artifacts found, not adding any file data');
+      return;
+    }
+
+    logger.debug('Adding data for available artifacts');
+    const files: { [key: string]: any } = {};
+
+    for (const artifact of artifacts) {
+      files[artifact.name] = await this.getArtifactData(
+        artifact,
+        version,
+        revision
+      );
     }
 
     packageManifest.files = files;
@@ -386,7 +437,7 @@ export class RegistryTarget extends BaseTarget {
     }
 
     // Compute checksums for all includedFiles
-    await this.addChecksums(updatedManifest, revision);
+    await this.addFilesData(updatedManifest, version, revision);
 
     return updatedManifest;
   }
