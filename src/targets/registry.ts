@@ -428,13 +428,11 @@ export class RegistryTarget extends BaseTarget {
       revision
     );
 
-    logger.debug(JSON.stringify(updatedManifest));
-
+    // tslint:disable-next-line:prefer-template
+    const manifestString = JSON.stringify(updatedManifest, undefined, 2) + '\n';
+    logger.debug('Updated manifest', manifestString);
     logger.debug(`Writing updated manifest to "${versionFilePath}"...`);
-    fs.writeFileSync(
-      versionFilePath,
-      JSON.stringify(updatedManifest, undefined, '  ') + '\n' // tslint:disable-line:prefer-template
-    );
+    fs.writeFileSync(versionFilePath, manifestString);
 
     this.createSymlinks(versionFilePath, version, previousVersion);
   }
