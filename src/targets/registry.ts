@@ -6,6 +6,7 @@ import { Artifact } from '@zeus-ci/sdk';
 import { shouldPerform } from 'dryrun';
 // tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
+import * as _ from 'lodash';
 
 import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
@@ -359,7 +360,7 @@ export class RegistryTarget extends BaseTarget {
       });
     }
 
-    if (this.registryConfig.checksums) {
+    if (this.registryConfig.checksums.length > 0) {
       const fileChecksums: { [key: string]: string } = {};
       for (const checksumType of this.registryConfig.checksums) {
         const { algorithm, format } = checksumType;
@@ -397,14 +398,15 @@ export class RegistryTarget extends BaseTarget {
     const files: { [key: string]: any } = {};
 
     for (const artifact of artifacts) {
-      files[artifact.name] = await this.getArtifactData(
-        artifact,
-        version,
-        revision
-      );
+      const fileData = await this.getArtifactData(artifact, version, revision);
+      if (!_.isEmpty(fileData)) {
+        files[artifact.name] = fileData;
+      }
     }
 
-    packageManifest.files = files;
+    if (!_.isEmpty(files)) {
+      packageManifest.files = files;
+    }
   }
 
   /**
