@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0
+
+- registry: checksums can be added to registry entries
+- Add "requireNames" attribute
+
 ## 0.7.10
 
 - gcs: add charsets to content-type

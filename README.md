@@ -28,7 +28,8 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [GitHub project](#github-project)
   - [Pre-release Command](#pre-release-command)
   - [Changelog Policies](#changelog-policies)
-  - [Minimal version](#minimal-version)
+  - [Minimal Version](#minimal-version)
+  - [Required Files](#required-files)
 - [Target Configurations](#target-configurations)
   - [Per-target options](#per-target-options)
   - [GitHub (`github`)](#github-github)
@@ -63,16 +64,14 @@ npm install -g @sentry/craft
 
 ## Usage
 
-```
+```plain
 $ craft -h
 craft <command>
 
 Commands:
-  craft prepare                              🚢 Prepare a new release branch
-  <major|minor|patch|new-version>
+  craft prepare NEW-VERSION  🚢 Prepare a new release branch
                           [aliases: p, prerelease, prepublish, prepare, release]
-  craft publish <new-version>                🛫 Publish artifacts
-                                                          [aliases: pp, publish]
+  craft publish NEW-VERSION  🛫 Publish artifacts           [aliases: pp, publish]
 
 Options:
   --no-input     Suppresses all user prompts          [boolean] [default: false]
@@ -136,21 +135,23 @@ export NUGET_API_TOKEN=abcdefgh
 This command will create a new release branch, check the changelog entries,
 run a version-bumping script, and push the new branch to GitHub.
 
-```
-craft prepare <major|minor|patch|new-version>
+```plain
+craft prepare NEW-VERSION
 
 🚢 Prepare a new release branch
 
 Positionals:
-  part, new-version  The version part (major, minor, patch) to increase, or the
-                     version itself                                     [string]
+  NEW-VERSION  The new version you want to release           [string] [required]
 
 Options:
+  --no-input       Suppresses all user prompts        [boolean] [default: false]
+  --dry-run        Dry run mode: do not perform any real actions
+                                                      [boolean] [default: false]
   --no-push        Do not push the release branch     [boolean] [default: false]
   --no-git-checks  Ignore local git changes and unsynchronized remotes
                                                       [boolean] [default: false]
   --no-changelog   Do not check for changelog entries [boolean] [default: false]
-  --publish        Run "publish" right after "prepare"[boolean] [default: false]
+  --publish        Run "publish" right after "release"[boolean] [default: false]
 ```
 
 ### `craft publish`: Publishing the Release
@@ -158,15 +159,18 @@ Options:
 The command will find a release branch for the provided version (tag) and
 publish the existing artifacts from Zeus to configured targets.
 
-```
-craft publish <new-version>
+```plain
+craft publish NEW-VERSION
 
 🛫 Publish artifacts
 
 Positionals:
-  new-version  Version to publish                            [string] [required]
+  NEW-VERSION  Version to publish                            [string] [required]
 
 Options:
+  --no-input         Suppresses all user prompts      [boolean] [default: false]
+  --dry-run          Dry run mode: do not perform any real actions
+                                                      [boolean] [default: false]
   --target, -t       Publish to this target
   [string] [choices: "brew", "cocoapods", "crates", "gcs", "gh-pages", "github",
              "npm", "nuget", "pypi", "registry", "all", "none"] [default: "all"]
@@ -266,7 +270,7 @@ changelogPolicy: simple
 Additionally, `.craft.yml` is used for listing targets where you want to
 publish your new release.
 
-### Minimal version
+### Minimal Version
 
 It is possible to specify minimal `craft` version that is required to work with
 your configuration.
@@ -275,6 +279,21 @@ your configuration.
 
 ```yaml
 minVersion: '0.5.0'
+```
+
+### Required Files
+
+You can provide a list of patterns for files that _have to be_ available before
+proceeding with publishing. In other words, for every pattern in the given list
+there has to be a file present that matches that pattern. This might be helpful
+to ensure that we're not trying to do an incomplete release.
+
+**Example:**
+
+```yaml
+requireNames:
+  - /^sentry-craft.*\.tgz$/
+  - /^gh-pages.zip$/
 ```
 
 ## Target Configurations
@@ -597,12 +616,13 @@ _none_
 
 **Configuration**
 
-| Option             | Description                                                                                                   |
-| ------------------ | ------------------------------------------------------------------------------------------------------------- |
-| `type`             | Type of the package: can be "sdk" or "app".                                                                   |
-| `config.canonical` | Canonical name of the package that includes package registry name (e.g. NPM, PyPI) and the full package name. |
-| `urlTemplate`      | **optional** URL template that will be used to generate download links for "app" package type.                |
-| `linkPrereleases`  | **optional** Update package versions even if the release is a preview release, "false" by default.            |
+| Option             | Description                                                                                                                                                                                                                               |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`             | Type of the package: can be "sdk" or "app".                                                                                                                                                                                               |
+| `config.canonical` | Canonical name of the package that includes package registry name (e.g. NPM, PyPI) and the full package name.                                                                                                                             |
+| `urlTemplate`      | **optional** URL template that will be used to generate download links for "app" package type.                                                                                                                                            |
+| `linkPrereleases`  | **optional** Update package versions even if the release is a preview release, "false" by default.                                                                                                                                        |
+| `checksums`        | **optional** A list of checksums that will be computed for matched files (see `includeNames`). Every checksum entry is an object with two attributes: algorithm (one of "sha256", "sha384", and "sha512) and format ("base64" and "hex"). |
 
 **Example**
 
@@ -618,6 +638,9 @@ targets:
     urlTemplate: "https://example.com/{{version}}/{{file}}"
     config:
       canonical: "npm:@sentry/browser"
+    checksums:
+      - algorithm: sha256
+        format: hex
 ```
 
 ### Cocoapods (`cocoapods`)
