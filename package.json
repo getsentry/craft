@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@google-cloud/storage": "^2.3.4",
-    "@octokit/rest": "^16.14.0",
+    "@octokit/rest": "16.14.0",
     "@sentry/node": "4.6.3",
     "@zeus-ci/sdk": "^0.1.6",
     "ajv": "^6.5.2",

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.1
+- Pin octokit dependency
+
 ## 0.8.0
 
 - registry: checksums can be added to registry entries
