@@ -1,5 +1,3 @@
-import * as _ from 'lodash';
-
 import {
   Artifact,
   Client as ZeusClient,
@@ -8,6 +6,8 @@ import {
   RevisionInfo,
   Status,
 } from '@zeus-ci/sdk';
+import * as _ from 'lodash';
+
 import { clearObjectProperties } from '../utils/objects';
 import {
   calculateChecksum,

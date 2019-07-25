@@ -43,6 +43,7 @@ export class BaseTarget {
    */
   public async publish(_version: string, _revision: string): Promise<void> {
     throw new Error('Not implemented');
+    return;
   }
 
   /**

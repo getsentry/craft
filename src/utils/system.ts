@@ -9,6 +9,7 @@ import * as tar from 'tar';
 import * as unzipper from 'unzipper';
 
 import { logger } from '../logger';
+
 import { reportError } from './errors';
 import { downloadSources } from './githubApi';
 

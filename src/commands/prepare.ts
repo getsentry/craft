@@ -22,6 +22,7 @@ import {
 import { getDefaultBranch, getGithubClient } from '../utils/githubApi';
 import { sleepAsync, spawnProcess } from '../utils/system';
 import { isValidVersion, versionToTag } from '../utils/version';
+
 import { handler as publishMainHandler, PublishOptions } from './publish';
 
 export const command = ['prepare NEW-VERSION'];
