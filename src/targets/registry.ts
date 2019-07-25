@@ -19,6 +19,7 @@ import {
   GithubRemote,
 } from '../utils/githubApi';
 import { renderTemplateSafe } from '../utils/strings';
+import { HashAlgorithm, HashOutputFormat } from '../utils/system';
 import {
   isPreviewRelease,
   parseVersion,
@@ -41,6 +42,11 @@ export enum RegistryPackageType {
   SDK = 'sdk',
 }
 
+interface ChecksumEntry {
+  algorithm: HashAlgorithm;
+  format: HashOutputFormat;
+}
+
 /** "registry" target options */
 export interface RegistryConfig extends TargetConfig {
   /** Type of the registry package */
@@ -53,6 +59,8 @@ export interface RegistryConfig extends TargetConfig {
   linkPrereleases: boolean;
   /** URL template for file assets */
   urlTemplate?: string;
+  /** Types of checksums to compute for artifacts */
+  checksums: ChecksumEntry[];
 }
 
 /**
@@ -73,6 +81,37 @@ export class RegistryTarget extends BaseTarget {
     this.github = getGithubClient();
     this.githubRepo = getGlobalGithubConfig();
     this.registryConfig = this.getRegistryConfig();
+  }
+
+  protected castChecksums(checksums: any): ChecksumEntry[] {
+    if (!checksums) {
+      return [];
+    }
+    if (!(checksums instanceof Array)) {
+      throw new ConfigurationError(
+        'Invalid type of "checksums": should be an array'
+      );
+    }
+    const resultChecksums: ChecksumEntry[] = [];
+    checksums.forEach(item => {
+      if (typeof item !== 'object' || !item.algorithm || !item.format) {
+        throw new ConfigurationError(
+          `Invalid checksum type: ${JSON.stringify(item)}`
+        );
+      }
+      // FIXME(tonyo): this is ugly as hell :(
+      // This all has to be replaced with JSON schema
+      if (
+        !(Object as any).values(HashAlgorithm).includes(item.algorithm) ||
+        !(Object as any).values(HashOutputFormat).includes(item.format)
+      ) {
+        throw new ConfigurationError(
+          `Invalid checksum attributes: ${JSON.stringify(item)}`
+        );
+      }
+      resultChecksums.push({ algorithm: item.algorithm, format: item.format });
+    });
+    return resultChecksums;
   }
 
   /**
@@ -116,8 +155,11 @@ export class RegistryTarget extends BaseTarget {
       throw new ConfigurationError('Invlaid type of "linkPrereleases"');
     }
 
+    const checksums = this.castChecksums(this.config.checksums);
+
     return {
       canonicalName,
+      checksums,
       linkPrereleases,
       registryRemote: DEFAULT_REGISTRY_REMOTE,
       type: registryType,
@@ -247,7 +289,7 @@ export class RegistryTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async addFileLinks(
-    manifest: any,
+    manifest: { [key: string]: any },
     version: string,
     revision: string
   ): Promise<void> {
@@ -278,6 +320,42 @@ export class RegistryTarget extends BaseTarget {
     manifest.file_urls = fileUrls;
   }
 
+  public async addChecksums(
+    packageManifest: { [key: string]: any },
+    revision: string
+  ): Promise<void> {
+    const artifacts = await this.getArtifactsForRevision(revision);
+    if (artifacts.length === 0) {
+      logger.warn('No artifacts found, not adding any checksums');
+      return;
+    }
+
+    logger.debug('Adding checksums for available artifacts');
+    const files: { [key: string]: any } = {};
+
+    for (const artifact of artifacts) {
+      const fileChecksums: { [key: string]: string } = {};
+      for (const checksumType of this.registryConfig.checksums) {
+        const { algorithm, format } = checksumType;
+        const checksum = await this.store.getChecksum(
+          artifact,
+          algorithm,
+          format
+        );
+        fileChecksums[`${algorithm}-${format}`] = checksum;
+      }
+
+      if (Object.keys(fileChecksums).length !== 0) {
+        if (!files[artifact.name]) {
+          files[artifact.name] = {};
+        }
+        files[artifact.name].checksums = fileChecksums;
+      }
+    }
+
+    packageManifest.files = files;
+  }
+
   /**
    * Updates the local copy of the release registry
    *
@@ -287,7 +365,7 @@ export class RegistryTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async getUpdatedManifest(
-    packageManifest: any,
+    packageManifest: { [key: string]: any },
     canonical: string,
     version: string,
     revision: string
@@ -306,6 +384,10 @@ export class RegistryTarget extends BaseTarget {
     if (this.registryConfig.type === RegistryPackageType.APP) {
       await this.addFileLinks(updatedManifest, version, revision);
     }
+
+    // Compute checksums for all includedFiles
+    await this.addChecksums(updatedManifest, revision);
+
     return updatedManifest;
   }
 
@@ -345,6 +427,8 @@ export class RegistryTarget extends BaseTarget {
       version,
       revision
     );
+
+    logger.debug(JSON.stringify(updatedManifest));
 
     logger.debug(`Writing updated manifest to "${versionFilePath}"...`);
     fs.writeFileSync(

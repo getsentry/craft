@@ -137,9 +137,7 @@ describe('calculateChecksum', () => {
       const checksum = await calculateChecksum(tmpFilePath, {
         format: HashOutputFormat.Base64,
       });
-      expect(checksum).toBe(
-        'sha256-AbpHGcgLb+kRsJGnwFEktk7uzpZOCcBY74+YBdrKVGs='
-      );
+      expect(checksum).toBe('AbpHGcgLb+kRsJGnwFEktk7uzpZOCcBY74+YBdrKVGs=');
     });
   });
 
@@ -154,7 +152,7 @@ describe('calculateChecksum', () => {
         format: HashOutputFormat.Base64,
       });
       expect(checksum).toBe(
-        'sha384-7GZOiJ7WwbJ2PKz3iZ2Vt/NHNz65guUjQZ/uo6o2LYkbO/Al8pImelhUBJCReJw+'
+        '7GZOiJ7WwbJ2PKz3iZ2Vt/NHNz65guUjQZ/uo6o2LYkbO/Al8pImelhUBJCReJw+'
       );
     });
   });

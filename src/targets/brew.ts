@@ -156,6 +156,7 @@ export class BrewTarget extends BaseTarget {
     );
     const files = await this.store.downloadArtifacts(filesList);
     const fileMap = _.keyBy(files, basename) as { [key: string]: string };
+    // TODO(tonyo): rewrite using ZeusStore.getDigest
     const promises = _.mapValues(fileMap, async filePath =>
       calculateChecksum(filePath)
     );

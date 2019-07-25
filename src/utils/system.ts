@@ -30,7 +30,7 @@ export enum HashAlgorithm {
 export enum HashOutputFormat {
   /** Hex digest, consists of [0-9a-f] characters */
   Hex = 'hex',
-  /** The digest is encoded as base64 string and prefixed with the algorithm name */
+  /** The digest is encoded as base64 string. Used e.g. for Subresource Integrity (SRI) */
   Base64 = 'base64',
 }
 
@@ -189,7 +189,7 @@ export async function spawnProcess(
  * Calculates the checksum of a file's contents
  *
  * @param filePath The path to a file to process
- * @param algorithm A hashing algorithm, defaults to "sha256"
+ * @param options Digest options
  * @returns The checksum as hex string
  */
 export async function calculateChecksum(
@@ -209,7 +209,7 @@ export async function calculateChecksum(
 
   return new Promise<string>((resolve, reject) => {
     stream.on('data', data => hash.update(data, 'utf8'));
-    stream.on('end', () => resolve(formatDigest(hash, algorithm, format)));
+    stream.on('end', () => resolve(formatDigest(hash, format)));
     stream.on('error', reject);
   });
 }
@@ -218,18 +218,13 @@ export async function calculateChecksum(
  * Format the digest of the given hash object
  *
  * @param hash Hash object
- * @param algorithm Hash algorithm
  * @param format Hash format
  * @returns Formatted digest
  */
-function formatDigest(
-  hash: Hash,
-  algorithm: HashAlgorithm,
-  format: HashOutputFormat
-): string {
+function formatDigest(hash: Hash, format: HashOutputFormat): string {
   switch (format) {
     case HashOutputFormat.Base64: {
-      return `${algorithm}-${hash.digest('base64')}`;
+      return hash.digest('base64');
     }
     case HashOutputFormat.Hex: {
       return hash.digest('hex');

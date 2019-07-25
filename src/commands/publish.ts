@@ -162,6 +162,7 @@ async function publishToTargets(
     const targetList: BaseTarget[] = [];
 
     // Initialize all targets first
+    // TODO(tonyo): initialize them earlier!
     logger.debug('Initializing targets');
     for (const targetConfig of targetConfigList) {
       const targetClass = getTargetByName(targetConfig.name);

@@ -9,6 +9,11 @@ import {
   Status,
 } from '@zeus-ci/sdk';
 import { clearObjectProperties } from '../utils/objects';
+import {
+  calculateChecksum,
+  HashAlgorithm,
+  HashOutputFormat,
+} from '../utils/system';
 
 /**
  * Fitlering options for artifacts
@@ -39,6 +44,11 @@ export class ZeusStore {
   /** Cache for storing mapping between revisions and a list of their artifacts */
   private readonly fileListCache: { [key: string]: Artifact[] } = {};
 
+  /** Cache for checksums computed for the files stored on disk */
+  private readonly checksumCache: {
+    [path: string]: { [checksumType: string]: string };
+  } = {};
+
   public constructor(
     repoOwner: string,
     repoName: string,
@@ -64,6 +74,7 @@ export class ZeusStore {
    * file is downloaded only once.
    *
    * @param artifact An artifact object to download
+   * @returns Absolute path to the saved file
    */
   public async downloadArtifact(artifact: Artifact): Promise<string> {
     const cached = this.downloadCache[artifact.download_url];
@@ -78,8 +89,8 @@ export class ZeusStore {
   /**
    * Downloads the given list of artifacts.
    *
-   * Downloaded URL are cached during the instance's lifetime, so the same
-   * file is downloaded only once.
+   * Downloaded files and their URLs are cached during the instance lifetime,
+   * so the same file is downloaded only once.
    *
    * @param artifacts A list of artifact object to download
    */
@@ -200,6 +211,34 @@ export class ZeusStore {
    */
   public async getRepositoryInfo(): Promise<RepositoryInfo> {
     return this.client.getRepositoryInfo(this.repoOwner, this.repoName);
+  }
+
+  /**
+   * Returns the calculated hash digest for the given artifact
+   *
+   * The results are cached using the cache object attached to the ZeusStore instance.   *
+   *
+   * @param artifact Artifact we want to compute hash for
+   * @param algorithm Hash algorithm
+   * @param format Hash format
+   */
+  public async getChecksum(
+    artifact: Artifact,
+    algorithm: HashAlgorithm,
+    format: HashOutputFormat
+  ): Promise<string> {
+    const filePath = await this.downloadArtifact(artifact);
+    const checksumKey = `${algorithm}__${format}`;
+    if (!this.checksumCache[filePath]) {
+      this.checksumCache[filePath] = {};
+    }
+
+    if (!this.checksumCache[filePath][checksumKey]) {
+      const checksum = await calculateChecksum(filePath, { algorithm, format });
+      this.checksumCache[filePath][checksumKey] = checksum;
+    }
+
+    return this.checksumCache[filePath][checksumKey];
   }
 }
 
