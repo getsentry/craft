@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as Github from '@octokit/rest';
 import { Artifact } from '@zeus-ci/sdk';
 import { shouldPerform } from 'dryrun';
+import { mapLimit } from 'async';
 // tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
 import * as _ from 'lodash';
@@ -415,12 +416,12 @@ export class RegistryTarget extends BaseTarget {
     logger.debug('Adding data for available artifacts');
     const files: { [key: string]: any } = {};
 
-    for (const artifact of artifacts) {
+    await mapLimit(artifacts, 5, async artifact => {
       const fileData = await this.getArtifactData(artifact, version, revision);
       if (!_.isEmpty(fileData)) {
         files[artifact.name] = fileData;
       }
-    }
+    });
 
     if (!_.isEmpty(files)) {
       packageManifest.files = files;
@@ -456,7 +457,7 @@ export class RegistryTarget extends BaseTarget {
       await this.addFileLinks(updatedManifest, version, revision);
     }
 
-    // Compute checksums for all includedFiles
+    // Add various file-related data
     await this.addFilesData(updatedManifest, version, revision);
 
     return updatedManifest;
