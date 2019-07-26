@@ -1,6 +1,12 @@
 # Changelog
 
+## 0.8.2
+
+- registry: add onlyIfPresent attribute
+- Limit concurrent downloads for some targets
+
 ## 0.8.1
+
 - Pin octokit dependency
 
 ## 0.8.0
