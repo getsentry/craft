@@ -1,17 +1,16 @@
+import { mapLimit } from 'async';
 import * as Github from '@octokit/rest';
 import { shouldPerform } from 'dryrun';
 import * as _ from 'lodash';
-import { basename } from 'path';
 
 import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
-import { ZeusStore } from '../stores/zeus';
-import { promiseProps } from '../utils/async';
+import { ZeusStore, ZEUS_DOWNLOAD_CONCURRENCY } from '../stores/zeus';
 import { ConfigurationError } from '../utils/errors';
 import { getGithubClient } from '../utils/githubApi';
 import { renderTemplateSafe } from '../utils/strings';
-import { calculateChecksum } from '../utils/system';
+import { HashAlgorithm, HashOutputFormat } from '../utils/system';
 import { BaseTarget } from './base';
 
 const logger = loggerRaw.withScope('[brew]');
@@ -154,13 +153,18 @@ export class BrewTarget extends BaseTarget {
       'Downloading artifacts for the revision:',
       JSON.stringify(filesList.map(file => file.name))
     );
-    const files = await this.store.downloadArtifacts(filesList);
-    const fileMap = _.keyBy(files, basename) as { [key: string]: string };
-    // TODO(tonyo): rewrite using ZeusStore.getDigest
-    const promises = _.mapValues(fileMap, async filePath =>
-      calculateChecksum(filePath)
-    );
-    const checksums = await promiseProps(promises);
+
+    const checksums: any = {};
+
+    // tslint:disable-next-line:await-promise
+    await mapLimit(filesList, ZEUS_DOWNLOAD_CONCURRENCY, async file => {
+      checksums[file.name] = await this.store.getChecksum(
+        file,
+        HashAlgorithm.SHA256,
+        HashOutputFormat.Hex
+      );
+    });
+
     const data = renderTemplateSafe(template, {
       checksums,
       revision,

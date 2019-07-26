@@ -15,6 +15,9 @@ import {
   HashOutputFormat,
 } from '../utils/system';
 
+/** Maximum concurrency for Zeus downloads */
+export const ZEUS_DOWNLOAD_CONCURRENCY = 5;
+
 /**
  * Fitlering options for artifacts
  */

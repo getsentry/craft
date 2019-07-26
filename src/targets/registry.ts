@@ -1,10 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { mapLimit } from 'async';
 import * as Github from '@octokit/rest';
 import { Artifact } from '@zeus-ci/sdk';
 import { shouldPerform } from 'dryrun';
-import { mapLimit } from 'async';
 // tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
 import * as _ from 'lodash';
@@ -12,7 +12,7 @@ import * as _ from 'lodash';
 import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
-import { ZeusStore } from '../stores/zeus';
+import { ZeusStore, ZEUS_DOWNLOAD_CONCURRENCY } from '../stores/zeus';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
@@ -413,10 +413,13 @@ export class RegistryTarget extends BaseTarget {
       return;
     }
 
-    logger.debug('Adding data for available artifacts');
+    logger.info(
+      'Adding extra data (checksums, download links) for available artifacts...'
+    );
     const files: { [key: string]: any } = {};
 
-    await mapLimit(artifacts, 5, async artifact => {
+    // tslint:disable-next-line:await-promise
+    await mapLimit(artifacts, ZEUS_DOWNLOAD_CONCURRENCY, async artifact => {
       const fileData = await this.getArtifactData(artifact, version, revision);
       if (!_.isEmpty(fileData)) {
         files[artifact.name] = fileData;
