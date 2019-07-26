@@ -1,5 +1,5 @@
 import * as Github from '@octokit/rest';
-import { shouldPerform } from 'dryrun';
+import { shouldPerform, isDryRun } from 'dryrun';
 import { createReadStream, statSync } from 'fs';
 import { basename } from 'path';
 
@@ -225,6 +225,11 @@ export class GithubTarget extends BaseTarget {
   public async deleteAsset(
     asset: Github.ReposListAssetsForReleaseResponseItem
   ): Promise<void> {
+    if (isDryRun()) {
+      logger.debug(`[dry-run] Not deleting the asset: "${asset.name}"`);
+      return;
+    }
+
     logger.debug(`Deleting asset: "${asset.name}"...`);
     return retryHttp(async () =>
       this.github.repos.deleteReleaseAsset({
