@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.3
+
+- github: add missing dry-run check
+
 ## 0.8.2
 
 - registry: add onlyIfPresent attribute
