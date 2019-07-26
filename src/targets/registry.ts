@@ -27,6 +27,7 @@ import {
   parseVersion,
   versionGreaterOrEqualThan,
 } from '../utils/version';
+import { stringToRegexp } from '../utils/filters';
 import { BaseTarget } from './base';
 
 const logger = loggerRaw.withScope('[registry]');
@@ -66,6 +67,8 @@ export interface RegistryConfig extends TargetConfig {
   urlTemplate?: string;
   /** Types of checksums to compute for artifacts */
   checksums: ChecksumEntry[];
+  /** Pattern that allows to skip the target if there's no matching file */
+  onlyIfPresent?: RegExp;
 }
 
 /**
@@ -146,7 +149,9 @@ export class RegistryTarget extends BaseTarget {
     if (registryType === RegistryPackageType.APP) {
       urlTemplate = this.config.urlTemplate;
       if (urlTemplate && typeof urlTemplate !== 'string') {
-        reportError(`Invalid "urlTemplate" specified: ${urlTemplate}`);
+        throw new ConfigurationError(
+          `Invalid "urlTemplate" specified: ${urlTemplate}`
+        );
       }
     }
 
@@ -170,10 +175,20 @@ export class RegistryTarget extends BaseTarget {
 
     const checksums = this.castChecksums(this.config.checksums);
 
+    const onlyIfPresentStr = this.config.onlyIfPresent || undefined;
+    let onlyIfPresent;
+    if (onlyIfPresentStr) {
+      if (typeof onlyIfPresentStr !== 'string') {
+        throw new ConfigurationError('Invalid type of "onlyIfPresent"');
+      }
+      onlyIfPresent = stringToRegexp(onlyIfPresentStr);
+    }
+
     return {
       canonicalName,
       checksums,
       linkPrereleases,
+      onlyIfPresent,
       registryRemote: DEFAULT_REGISTRY_REMOTE,
       type: registryType,
       urlTemplate,
@@ -388,6 +403,9 @@ export class RegistryTarget extends BaseTarget {
     version: string,
     revision: string
   ): Promise<void> {
+    // Clear existing data
+    delete packageManifest.files;
+
     const artifacts = await this.getArtifactsForRevision(revision);
     if (artifacts.length === 0) {
       logger.warn('No artifacts found, not adding any file data');
@@ -433,7 +451,7 @@ export class RegistryTarget extends BaseTarget {
     // Update the manifest
     const updatedManifest = { ...packageManifest, version };
 
-    // Add file links if it's a generic app
+    // Add file links if it's a generic app (legacy)
     if (this.registryConfig.type === RegistryPackageType.APP) {
       await this.addFileLinks(updatedManifest, version, revision);
     }
@@ -543,14 +561,15 @@ export class RegistryTarget extends BaseTarget {
       return undefined;
     }
 
-    // If we have includeNames specified, check that we have any of matched files
-    if (this.filterOptions.includeNames) {
-      const artifacts = await this.getArtifactsForRevision(revision);
+    // If we have onlyIfPresent specified, check that we have any of matched files
+    const onlyIfPresentPattern = this.registryConfig.onlyIfPresent;
+    if (onlyIfPresentPattern) {
+      const artifacts = await this.store.filterArtifactsForRevision(revision, {
+        includeNames: onlyIfPresentPattern,
+      });
       if (artifacts.length === 0) {
         logger.warn(
-          `No files found that match "${
-            this.filterOptions.includeNames
-          }", skipping the target.`
+          `No files found that match "${onlyIfPresentPattern}", skipping the target.`
         );
         return undefined;
       }

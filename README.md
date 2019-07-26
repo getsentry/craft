@@ -623,6 +623,7 @@ _none_
 | `urlTemplate`      | **optional** URL template that will be used to generate download links for "app" package type.                                                                                                                                            |
 | `linkPrereleases`  | **optional** Update package versions even if the release is a preview release, "false" by default.                                                                                                                                        |
 | `checksums`        | **optional** A list of checksums that will be computed for matched files (see `includeNames`). Every checksum entry is an object with two attributes: algorithm (one of "sha256", "sha384", and "sha512) and format ("base64" and "hex"). |
+| `onlyIfPresent`    | **optional** A file pattern. The target will be executed _only_ when the matched file is found.                                                                                                                                           |
 
 **Example**
 
