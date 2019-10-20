@@ -42,10 +42,14 @@ export class ZeusStore {
   public readonly repoName: string;
 
   /** URL cache for downloaded files */
-  private readonly downloadCache: { [key: string]: Promise<string> } = {};
+  private readonly downloadCache: {
+    [key: string]: Promise<string> | undefined;
+  } = {};
 
   /** Cache for storing mapping between revisions and a list of their artifacts */
-  private readonly fileListCache: { [key: string]: Artifact[] } = {};
+  private readonly fileListCache: {
+    [key: string]: Artifact[] | undefined;
+  } = {};
 
   /** Cache for checksums computed for the files stored on disk */
   private readonly checksumCache: {

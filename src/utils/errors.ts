@@ -49,6 +49,7 @@ export function coerceType<T>(
   typeName:
     | 'string'
     | 'number'
+    | 'bigint'
     | 'boolean'
     | 'symbol'
     | 'undefined'
@@ -59,7 +60,8 @@ export function coerceType<T>(
   const objType = typeof obj;
   if (objType !== typeName) {
     throw new TypeError(
-      message || `${obj} is of type "${objType}" (expected: "${typeName}")`
+      message ||
+        `${String(obj)} is of type "${objType}" (expected: "${typeName}")`
     );
   }
   return obj;

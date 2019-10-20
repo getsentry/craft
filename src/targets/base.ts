@@ -63,9 +63,9 @@ export class BaseTarget {
       ...this.filterOptions,
     };
     logger.debug(
-      `Getting artifact list for revision "${revision}", filtering options: {includeNames: ${
+      `Getting artifact list for revision "${revision}", filtering options: {includeNames: ${String(
         filterOptions.includeNames
-      }, excludeNames:${filterOptions.excludeNames}}`
+      )}, excludeNames:${String(filterOptions.excludeNames)}}`
     );
     return this.store.filterArtifactsForRevision(revision, filterOptions);
   }

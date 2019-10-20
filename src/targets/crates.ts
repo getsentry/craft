@@ -173,7 +173,9 @@ export class CratesTarget extends BaseTarget {
 
     const crates = this.getPublishOrder(unorderedCrates);
     logger.debug(
-      `Publishing packages in the following order: [${crates.map(c => c.name)}]`
+      `Publishing packages in the following order: [${crates
+        .map(c => c.name)
+        .toString()}]`
     );
     return forEachChained(crates, async crate => this.publishPackage(crate));
   }

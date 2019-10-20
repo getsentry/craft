@@ -50,7 +50,7 @@
     "@types/jest": "^23.3.10",
     "@types/js-yaml": "^3.11.1",
     "@types/lodash": "^4.14.119",
-    "@types/node": "^10.3.3",
+    "@types/node": "^12.11.1",
     "@types/node-emoji": "^1.8.0",
     "@types/node-fetch": "^2.1.1",
     "@types/once": "^1.4.0",
@@ -67,8 +67,8 @@
     "prettier": "^1.13.5",
     "prettier-check": "^2.0.0",
     "ts-jest": "^24.0.2",
-    "tslint": "^5.18.0",
-    "typescript": "^3.5.3"
+    "tslint": "^5.20.0",
+    "typescript": "^3.6.4"
   },
   "scripts": {
     "build": "yarn run compile-config-schema && tsc -p tsconfig.build.json",

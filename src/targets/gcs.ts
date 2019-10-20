@@ -247,7 +247,7 @@ export class GcsTarget extends BaseTarget {
     artifacts: Artifact[],
     version: string,
     revision: string
-  ): Promise<void[]> {
+  ): Promise<{}> {
     const realPath = this.getRealBucketPath(bucketPath, version, revision);
     const fileUploadUptions: UploadOptions = {
       gzip: true,

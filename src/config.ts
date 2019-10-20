@@ -263,7 +263,7 @@ export function readEnvironmentConfig(
     logger.debug(
       `Read the following variables from ${homedirEnvFile}: ${Object.keys(
         homedirEnv
-      )}`
+      ).toString()}`
     );
   } else {
     logger.debug(
@@ -290,7 +290,7 @@ export function readEnvironmentConfig(
     logger.debug(
       `Read the following variables from ${configDirEnvFile}: ${Object.keys(
         configDirEnv
-      )}`
+      ).toString()}`
     );
   } else {
     logger.debug(

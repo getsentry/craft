@@ -161,6 +161,10 @@ export async function spawnProcess(
       // Allow child to accept input
       options.stdio = ['inherit', 'pipe', 'pipe'];
       child = spawn(command, processedArgs, options);
+
+      if (!child.stdout || !child.stderr) {
+        throw new Error('Invalid standard output or error for child process');
+      }
       child.on('exit', code => (code === 0 ? succeed() : fail({ code })));
       child.on('error', fail);
 

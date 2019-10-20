@@ -573,7 +573,7 @@ export class RegistryTarget extends BaseTarget {
       });
       if (artifacts.length === 0) {
         logger.warn(
-          `No files found that match "${onlyIfPresentPattern}", skipping the target.`
+          `No files found that match "${onlyIfPresentPattern.toString()}", skipping the target.`
         );
         return undefined;
       }
