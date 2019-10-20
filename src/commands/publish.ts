@@ -1,13 +1,12 @@
 import * as Github from '@octokit/rest';
 import { shouldPerform } from 'dryrun';
 import * as inquirer from 'inquirer';
-import * as ora from 'ora';
 import { Arguments, Argv } from 'yargs';
 
 import { checkMinimalConfigVersion, getConfiguration } from '../config';
 import { formatTable, logger } from '../logger';
 import { GithubGlobalConfig } from '../schemas/project_config';
-import { RevisionInfo, ZeusStore } from '../stores/zeus';
+import { ZeusStore } from '../stores/zeus';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
 import {
@@ -21,21 +20,14 @@ import { stringToRegexp } from '../utils/filters';
 import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
 import { hasInput } from '../utils/noInput';
 import { formatSize } from '../utils/strings';
-import { catchKeyboardInterrupt, sleepAsync } from '../utils/system';
+import { catchKeyboardInterrupt } from '../utils/system';
 import { isValidVersion } from '../utils/version';
+import { BaseStatusProvider } from '../status_providers/base';
+import { ZeusStatusProvider } from '../status_providers/zeus';
 
 export const command = ['publish NEW-VERSION'];
 export const aliases = ['pp', 'publish'];
 export const description = '🛫 Publish artifacts';
-
-/** Max number of seconds to wait for revision to be available in Zeus */
-const ZEUS_REVISION_INFO_POLLING_MAX = 60 * 10;
-
-/** Max number of seconds to wait for the build to finish on Zeus */
-const ZEUS_BUILD_STATUS_POLLING_MAX = 60 * 60;
-
-/** Interval in seconds while polling Zeus status */
-const ZEUS_POLLING_INTERVAL = 30;
 
 export const builder = (yargs: Argv) =>
   yargs
@@ -202,120 +194,6 @@ async function publishToTargets(
 }
 
 /**
- * Fetches revision information from Zeus
- *
- * If the revision is not found in Zeus, the function polls for it regularly.
- *
- * @param zeus Zeus store object
- * @param revision Git revision SHA
- */
-async function getRevisionInformation(
-  zeus: ZeusStore,
-  revision: string
-): Promise<RevisionInfo> {
-  const spinner = ora({ spinner: 'bouncingBar' }) as any;
-
-  let secondsPassed = 0;
-
-  while (true) {
-    try {
-      const revisionInfo = await zeus.getRevision(revision);
-      if (spinner.isSpinning) {
-        spinner.succeed();
-      }
-      return revisionInfo;
-    } catch (e) {
-      const errorMessage: string = e.message || '';
-      if (!errorMessage.match(/404 not found|resource not found/i)) {
-        if (spinner.isSpinning) {
-          spinner.fail();
-        }
-        throw e;
-      }
-
-      if (secondsPassed > ZEUS_REVISION_INFO_POLLING_MAX) {
-        throw new Error(
-          `Waited for more than ${ZEUS_REVISION_INFO_POLLING_MAX} seconds, and the revision is still not available. Aborting.`
-        );
-      }
-
-      // Update the spinner
-      const timeString = new Date().toLocaleString();
-      const waitMessage = `[${timeString}] Revision ${revision} is not yet found in Zeus, retrying in ${ZEUS_POLLING_INTERVAL} seconds...`;
-      spinner.text = waitMessage;
-      spinner.start();
-      await sleepAsync(ZEUS_POLLING_INTERVAL * 1000);
-      secondsPassed += ZEUS_POLLING_INTERVAL;
-    }
-  }
-}
-
-/**
- * Waits for the builds to finish for the revision
- *
- * @param zeus Zeus store object
- * @param revision Git revision SHA
- */
-async function waitForTheBuildToSucceed(
-  zeus: ZeusStore,
-  revision: string
-): Promise<void> {
-  const revisionUrl = zeus.client.getUrl(
-    `/gh/${zeus.repoOwner}/${zeus.repoName}/revisions/${revision}`
-  );
-
-  // Status spinner
-  const spinner = ora({ spinner: 'bouncingBar' }) as any;
-  let secondsPassed = 0;
-  let firstIteration = true;
-  while (true) {
-    const revisionInfo: RevisionInfo = await getRevisionInformation(
-      zeus,
-      revision
-    );
-    if (firstIteration) {
-      logger.info(`Revision ${revision} has been found in Zeus.`);
-      logger.info(`Build status: ${revisionUrl}`);
-      firstIteration = false;
-    }
-
-    const isSuccess = zeus.isRevisionBuiltSuccessfully(revisionInfo);
-    if (isSuccess) {
-      if (spinner.isSpinning) {
-        spinner.succeed();
-      }
-      logger.info(`Revision ${revision} has been built successfully.`);
-      return;
-    }
-
-    const isFailure = zeus.isRevisionFailed(revisionInfo);
-    if (isFailure) {
-      if (spinner.isSpinning) {
-        spinner.fail();
-      }
-      reportError(
-        `Build(s) for revision ${revision} have failed. Please check the revision's status in Zeus.`
-      );
-      return;
-    }
-
-    if (secondsPassed > ZEUS_BUILD_STATUS_POLLING_MAX) {
-      throw new Error(
-        `Waited for more than ${ZEUS_BUILD_STATUS_POLLING_MAX} seconds for the build to finish. Aborting.`
-      );
-    }
-
-    // Update the spinner
-    const timeString = new Date().toLocaleString();
-    const waitMessage = `[${timeString}] CI builds are still in progress, sleeping for ${ZEUS_POLLING_INTERVAL} seconds...`;
-    spinner.text = waitMessage;
-    spinner.start();
-    await sleepAsync(ZEUS_POLLING_INTERVAL * 1000);
-    secondsPassed += ZEUS_POLLING_INTERVAL;
-  }
-}
-
-/**
  * Prints summary for the revision, including available artifacts
  *
  * @param zeus Zeus store object
@@ -431,7 +309,7 @@ async function checkRequiredArtifacts(
  * @param skipStatusCheckFlag A flag to enable/disable this check
  */
 async function checkRevisionStatus(
-  zeus: ZeusStore,
+  statusProvider: BaseStatusProvider,
   revision: string,
   skipStatusCheckFlag: boolean = false
 ): Promise<void> {
@@ -441,9 +319,9 @@ async function checkRevisionStatus(
   }
 
   try {
-    logger.debug('Fetching repository information from Zeus...');
+    logger.debug('Fetching repository information...');
     // This will additionally check that the user has proper permissions
-    const repositoryInfo = await zeus.getRepositoryInfo();
+    const repositoryInfo = await statusProvider.getRepositoryInfo();
     logger.debug(
       `Repository info received: "${repositoryInfo.owner_name}/${
         repositoryInfo.name
@@ -456,7 +334,7 @@ async function checkRevisionStatus(
     );
   }
 
-  await waitForTheBuildToSucceed(zeus, revision);
+  await statusProvider.waitForTheBuildToSucceed(revision);
 }
 
 /**
@@ -564,9 +442,13 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   logger.debug('Revision to publish: ', revision);
 
   const zeus = new ZeusStore(githubConfig.owner, githubConfig.repo);
+  const statusProvider: BaseStatusProvider = new ZeusStatusProvider(
+    githubConfig.owner,
+    githubConfig.repo
+  );
 
   // Check status of all CI builds linked to the revision
-  await checkRevisionStatus(zeus, revision, argv.noStatusCheck);
+  await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);
 
   // Find targets
   const targetList: string[] = (typeof argv.target === 'string'
