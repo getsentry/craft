@@ -4,6 +4,7 @@ import * as path from 'path';
 import { Bucket, Storage, UploadOptions } from '@google-cloud/storage';
 import { Artifact } from '@zeus-ci/sdk';
 import { shouldPerform } from 'dryrun';
+import * as _ from 'lodash';
 
 import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
@@ -208,13 +209,18 @@ export class GcsTarget extends BaseTarget {
   ): Promise<void> {
     const filePath = await this.store.downloadArtifact(artifact);
     const destination = path.join(bucketPath, path.basename(filePath));
-    const uploadOptionsFinal = { ...uploadOptions };
+    const uploadOptionsFinal = _.cloneDeep(uploadOptions);
     const contentType = this.detectContentType(artifact);
     if (contentType) {
       uploadOptionsFinal.contentType = contentType;
     }
-    logger.debug(`Uploading ${path.basename(filePath)} to ${destination}...`);
-    logger.debug(`Upload options: ${JSON.stringify(uploadOptionsFinal)}`);
+    logger.debug(
+      `Uploading ${path.basename(
+        filePath
+      )} to "${destination}". Upload options: ${JSON.stringify(
+        uploadOptionsFinal
+      )}`
+    );
     if (shouldPerform()) {
       await bucketObj.upload(filePath, { ...uploadOptionsFinal, destination });
       logger.info(`Uploaded "${destination}"`);
@@ -247,10 +253,15 @@ export class GcsTarget extends BaseTarget {
       gzip: true,
       metadata: bucketPath.metadata,
     };
-    logger.debug(`Upload options: ${JSON.stringify(fileUploadUptions)}`);
+    logger.debug(`Global upload options: ${JSON.stringify(fileUploadUptions)}`);
     return Promise.all(
       artifacts.map(async (artifact: Artifact) =>
-        this.uploadArtifact(artifact, realPath, bucketObj, fileUploadUptions)
+        this.uploadArtifact(
+          artifact,
+          realPath,
+          bucketObj,
+          _.cloneDeep(fileUploadUptions)
+        )
       )
     );
   }
