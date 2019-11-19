@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.4
+
+- gcs: fix shallow copy issue with upload parameters
+
 ## 0.8.3
 
 - github: add missing dry-run check
