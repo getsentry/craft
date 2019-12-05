@@ -110,7 +110,7 @@ export class CocoapodsTarget extends BaseTarget {
 
         logger.info(`Pushing podspec "${fileName}" to cocoapods...`);
         await spawnProcess(COCOAPODS_BIN, ['setup']);
-        await spawnProcess(COCOAPODS_BIN, ['trunk', 'push', fileName], {
+        await spawnProcess(COCOAPODS_BIN, ['trunk', 'push', fileName, '--verbose', '--allow-warnings'], {
           cwd: directory,
           env: {
             ...process.env,
