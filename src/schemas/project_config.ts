@@ -15,6 +15,7 @@ export interface CraftProjectConfig {
   changelogPolicy?: ChangelogPolicy;
   minVersion?: string;
   requireNames?: string[];
+  statusChecks?: StatusChecks;
 }
 /**
  * Global (non-target!) GitHub configuration for the project
@@ -39,4 +40,11 @@ export interface TargetConfig {
 export const enum ChangelogPolicy {
   Simple = 'simple',
   None = 'none',
+}
+/**
+ * Which service should be used for status checks
+ */
+export const enum StatusChecks {
+  Zeus = 'zeus',
+  Github = 'github',
 }

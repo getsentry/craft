@@ -74,7 +74,7 @@
     "build": "yarn run compile-config-schema && tsc -p tsconfig.build.json",
     "build:watch": "yarn run compile-config-schema && tsc -p tsconfig.build.json --watch",
     "precli": "run-s build",
-    "cli": "node dist",
+    "cli": "DRY_RUN=true node dist",
     "clean": "rimraf dist coverage",
     "lint": "run-s lint:prettier lint:tslint",
     "lint:prettier": "prettier-check 'src/**/*.ts'",

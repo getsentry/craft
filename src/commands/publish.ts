@@ -5,7 +5,7 @@ import { Arguments, Argv } from 'yargs';
 
 import { checkMinimalConfigVersion, getConfiguration } from '../config';
 import { formatTable, logger } from '../logger';
-import { GithubGlobalConfig } from '../schemas/project_config';
+import { GithubGlobalConfig, StatusChecks } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
@@ -24,6 +24,7 @@ import { catchKeyboardInterrupt } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 import { BaseStatusProvider } from '../status_providers/base';
 import { ZeusStatusProvider } from '../status_providers/zeus';
+import { GithubStatusProvider } from '../status_providers/github';
 
 export const command = ['publish NEW-VERSION'];
 export const aliases = ['pp', 'publish'];
@@ -323,9 +324,7 @@ async function checkRevisionStatus(
     // This will additionally check that the user has proper permissions
     const repositoryInfo = await statusProvider.getRepositoryInfo();
     logger.debug(
-      `Repository info received: "${repositoryInfo.owner_name}/${
-        repositoryInfo.name
-      }"`
+      `Repository info received: "${JSON.stringify(repositoryInfo, null, 4)}"`
     );
   } catch (e) {
     reportError(
@@ -441,11 +440,24 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   }
   logger.debug('Revision to publish: ', revision);
 
+  // TODO: This needs to be optional
   const zeus = new ZeusStore(githubConfig.owner, githubConfig.repo);
-  const statusProvider: BaseStatusProvider = new ZeusStatusProvider(
+
+  let statusProvider: BaseStatusProvider = new GithubStatusProvider(
     githubConfig.owner,
     githubConfig.repo
   );
+  if (
+    config.statusChecks === undefined ||
+    config.statusChecks === StatusChecks.Zeus
+  ) {
+    statusProvider = new ZeusStatusProvider(
+      githubConfig.owner,
+      githubConfig.repo
+    );
+  } else {
+    logger.info(`Using: ${config.statusChecks} for status checks`);
+  }
 
   // Check status of all CI builds linked to the revision
   await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);

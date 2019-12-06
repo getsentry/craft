@@ -5,6 +5,7 @@ github:
 changelogPolicy: simple
 requireNames:
   - /^sentry-craft.*\.tgz$/
+statusChecks: github
 targets:
   - name: npm
   - name: gh-pages
@@ -20,10 +21,10 @@ targets:
           cacheControl: 'public, max-age=300'
   - name: registry
     type: app
-    urlTemplate: "https://downloads.sentry-cdn.com/craft/{{version}}/{{file}}"
+    urlTemplate: 'https://downloads.sentry-cdn.com/craft/{{version}}/{{file}}'
     checksums:
       - algorithm: sha256
         format: hex
     config:
-      canonical: "app:craft"
+      canonical: 'app:craft'
   - name: github

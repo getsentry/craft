@@ -45,6 +45,13 @@ const projectConfigJsonSchema = {
       type: 'array',
       items: { type: 'string' },
     },
+    statusChecks: {
+      title: 'StatusChecks',
+      description: 'Which service should be used for status checks',
+      type: 'string',
+      enum: ['zeus', 'github'],
+      tsEnumNames: ['Zeus', 'Github'],
+    },
   },
   additionalProperties: false,
   required: ['github'],
