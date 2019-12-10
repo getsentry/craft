@@ -1,11 +1,12 @@
-minVersion: '0.8.0'
+minVersion: "0.8.4"
 github:
   owner: getsentry
   repo: craft
 changelogPolicy: simple
 requireNames:
   - /^sentry-craft.*\.tgz$/
-statusChecks: github
+statusProvider:
+  name: github
 targets:
   - name: npm
   - name: gh-pages
@@ -15,16 +16,16 @@ targets:
     paths:
       - path: /craft/{{version}}/
         metadata:
-          cacheControl: 'public, max-age=2592000'
+          cacheControl: "public, max-age=2592000"
       - path: /craft/latest/
         metadata:
-          cacheControl: 'public, max-age=300'
+          cacheControl: "public, max-age=300"
   - name: registry
     type: app
-    urlTemplate: 'https://downloads.sentry-cdn.com/craft/{{version}}/{{file}}'
+    urlTemplate: "https://downloads.sentry-cdn.com/craft/{{version}}/{{file}}"
     checksums:
       - algorithm: sha256
         format: hex
     config:
-      canonical: 'app:craft'
+      canonical: "app:craft"
   - name: github

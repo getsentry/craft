@@ -45,12 +45,24 @@ const projectConfigJsonSchema = {
       type: 'array',
       items: { type: 'string' },
     },
-    statusChecks: {
-      title: 'StatusChecks',
+    statusProvider: {
+      title: 'BaseStatusProvider',
       description: 'Which service should be used for status checks',
-      type: 'string',
-      enum: ['zeus', 'github'],
-      tsEnumNames: ['Zeus', 'Github'],
+      type: 'object',
+      properties: {
+        name: {
+          title: 'StatusProviderName',
+          type: 'string',
+          enum: ['zeus', 'github'],
+          tsEnumNames: ['Zeus', 'Github'],
+        },
+        config: {
+          type: 'object',
+        },
+      },
+      additionalProperties: false,
+
+      required: ['name'],
     },
   },
   additionalProperties: false,

@@ -40,6 +40,8 @@ export enum CommitStatus {
  * Base class for commit status providers
  */
 export abstract class BaseStatusProvider {
+  public config: any;
+
   /** TODO */
   public abstract async getRevisionStatus(
     revision: string
@@ -145,13 +147,6 @@ export abstract class BaseStatusProvider {
     }
   }
 }
-
-// export class GithubStatusProvider extends BaseStatusProvider {
-//   getRevisionStatus(revision: string): CommitStatus {
-//     logger.info(revision);
-//     return CommitStatus.PENDING;
-//   }
-// }
 
 ////////////////////////////////////////////////////
 

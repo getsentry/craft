@@ -5,7 +5,10 @@ import { Arguments, Argv } from 'yargs';
 
 import { checkMinimalConfigVersion, getConfiguration } from '../config';
 import { formatTable, logger } from '../logger';
-import { GithubGlobalConfig, StatusChecks } from '../schemas/project_config';
+import {
+  GithubGlobalConfig,
+  StatusProviderName,
+} from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
@@ -440,24 +443,36 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   }
   logger.debug('Revision to publish: ', revision);
 
-  // TODO: This needs to be optional
+  // TODO: This needs to become optional
   const zeus = new ZeusStore(githubConfig.owner, githubConfig.repo);
 
-  let statusProvider: BaseStatusProvider = new GithubStatusProvider(
-    githubConfig.owner,
-    githubConfig.repo
-  );
+  let statusProvider: BaseStatusProvider;
+  const rawStatusProvider = config.statusProvider || {
+    config: undefined,
+    name: undefined,
+  };
+  const {
+    config: statusProviderConfig,
+    name: statusProviderName,
+  } = rawStatusProvider;
   if (
-    config.statusChecks === undefined ||
-    config.statusChecks === StatusChecks.Zeus
+    statusProviderName === undefined ||
+    statusProviderName === StatusProviderName.Zeus
   ) {
     statusProvider = new ZeusStatusProvider(
       githubConfig.owner,
-      githubConfig.repo
+      githubConfig.repo,
+      statusProviderConfig
     );
   } else {
-    logger.info(`Using: ${config.statusChecks} for status checks`);
+    statusProvider = new GithubStatusProvider(
+      githubConfig.owner,
+      githubConfig.repo,
+      statusProviderConfig
+    );
   }
+
+  logger.info(`Using: "${statusProvider.constructor.name}" for status checks`);
 
   // Check status of all CI builds linked to the revision
   await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);
