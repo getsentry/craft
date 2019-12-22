@@ -350,6 +350,8 @@ export function codeMatches(
  * Runs the provided function in the retry loop
  *
  * Used for retrying API requests to GitHub
+ * NOTE: Octokit now has the retry plugin: https://github.com/octokit/plugin-retry.js
+ * So we can probably remove this competely after some time.
  *
  * @param fn Function to retry
  * @param retryParams Retry parameters

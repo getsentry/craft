@@ -71,3 +71,12 @@ export function formatSize(size: number): string {
     return `${megabytes.toFixed(2)} MB`;
   }
 }
+
+/**
+ * Serializes the given object in a readable way
+ *
+ * @param obj Object to print out
+ */
+export function formatJson(obj: any): string {
+  return JSON.stringify(obj, null, 4);
+}

@@ -20,6 +20,7 @@ import {
   reportError,
 } from '../utils/errors';
 import { getDefaultBranch, getGithubClient } from '../utils/githubApi';
+import { formatJson } from '../utils/strings';
 import { sleepAsync, spawnProcess } from '../utils/system';
 import { isValidVersion, versionToTag } from '../utils/version';
 
@@ -254,7 +255,7 @@ async function checkGitState(
     throw new ConfigurationError('Not a git repository!');
   }
   const repoStatus = await git.status();
-  logger.debug('Repository status:', JSON.stringify(repoStatus));
+  logger.debug('Repository status:', formatJson(repoStatus));
 
   // Check that we are on master
   // TODO check what's here when we are in a detached state

@@ -22,7 +22,7 @@ import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
 import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
 import { hasInput } from '../utils/noInput';
-import { formatSize } from '../utils/strings';
+import { formatSize, formatJson } from '../utils/strings';
 import { catchKeyboardInterrupt } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 import { BaseStatusProvider } from '../status_providers/base';
@@ -326,9 +326,7 @@ async function checkRevisionStatus(
     logger.debug('Fetching repository information...');
     // This will additionally check that the user has proper permissions
     const repositoryInfo = await statusProvider.getRepositoryInfo();
-    logger.debug(
-      `Repository info received: "${JSON.stringify(repositoryInfo, null, 4)}"`
-    );
+    logger.debug(`Repository info received: "${formatJson(repositoryInfo)}"`);
   } catch (e) {
     reportError(
       'Cannot get repository information from Zeus. Check your configuration and credentials. ' +
@@ -426,8 +424,8 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     );
     const response = await githubClient.repos.getCommit({
       owner: githubConfig.owner,
+      ref: argv.rev,
       repo: githubConfig.repo,
-      sha: argv.rev,
     });
     revision = response.data.sha;
   } else {

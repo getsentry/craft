@@ -1,4 +1,9 @@
-import { renderTemplateSafe, sanitizeObject, formatSize } from '../strings';
+import {
+  renderTemplateSafe,
+  sanitizeObject,
+  formatSize,
+  formatJson,
+} from '../strings';
 
 describe('sanitizeObject', () => {
   test('processes empty object', () => {
@@ -78,5 +83,24 @@ describe('formatSize', () => {
   });
   test('formats megabyte sizes', () => {
     expect(formatSize(1289748)).toBe('1.23 MB');
+  });
+});
+
+describe('formatJson', () => {
+  test('formats an integer', () => {
+    expect(formatJson(123)).toBe('123');
+  });
+  test('formats an object', () => {
+    expect(formatJson({ int: 123, str: 'hello', array: [2, 3, 4] })).toBe(
+      `{
+    "int": 123,
+    "str": "hello",
+    "array": [
+        2,
+        3,
+        4
+    ]
+}`
+    );
   });
 });

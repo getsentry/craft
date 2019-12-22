@@ -4,6 +4,7 @@ import { logger } from '../logger';
 import { BaseStatusProvider, CommitStatus } from './base';
 import { getGithubClient } from '../utils/githubApi';
 import { reportError } from '../utils/errors';
+import { formatJson } from '../utils/strings';
 
 /**
  * TODO
@@ -44,11 +45,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
       repo: this.repoName,
     });
     logger.debug(
-      `Revision combined status received: "${JSON.stringify(
-        revisionStatus,
-        null,
-        4
-      )}"`
+      `Revision combined status received: "${formatJson(revisionStatus)}"`
     );
 
     // No config provided: just look at the combined status
@@ -79,11 +76,10 @@ export class GithubStatusProvider extends BaseStatusProvider {
       ref: revision,
       repo: this.repoName,
     });
-    logger.debug(
-      `Revision checks received: "${JSON.stringify(revisionChecks, null, 4)}"`
-    );
+    logger.debug(`Revision checks received: "${formatJson(revisionChecks)}"`);
 
     for (const context of contexts) {
+      // TODO enable regular expression
       const contextString = String(context);
       logger.debug(`Context found: ${contextString}`);
     }
