@@ -145,8 +145,8 @@ export function getGithubClient(token: string = ''): Github {
     };
   }
 
-  const github = new Github(attrs);
-  return github;
+  const octokitWithRetries = Github.plugin(require('@octokit/plugin-retry'));
+  return new octokitWithRetries(attrs);
 }
 
 /**

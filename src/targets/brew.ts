@@ -197,8 +197,7 @@ export class BrewTarget extends BaseTarget {
         `formula ${formulaName}`
     );
 
-    const action = params.sha ? 'updating' : 'creating';
-
+    const action = params.sha ? 'Updating' : 'Creating';
     logger.debug(
       `${action} file ${params.owner}/${params.repo}:${params.path} (${
         params.sha

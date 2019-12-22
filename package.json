@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@google-cloud/storage": "^2.3.4",
+    "@octokit/plugin-retry": "2.2.0",
     "@octokit/rest": "16.35.2",
     "@sentry/node": "4.6.3",
     "@zeus-ci/sdk": "^0.1.6",
