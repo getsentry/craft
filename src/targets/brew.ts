@@ -122,6 +122,9 @@ export class BrewTarget extends BaseTarget {
       const tap = this.brewConfig.tapRepo;
       logger.debug(`Loading SHA for ${tap.owner}/${tap.repo}:${path}`);
       const response = await this.github.repos.getContents({ ...tap, path });
+      if (response.data instanceof Array) {
+        return undefined;
+      }
       return response.data.sha;
     } catch (e) {
       if (e.status === 404) {
@@ -194,26 +197,18 @@ export class BrewTarget extends BaseTarget {
         `formula ${formulaName}`
     );
 
-    if (params.sha) {
-      logger.debug(
-        `Updating file ${params.owner}/${params.repo}:${params.path} (${
-          params.sha
-        })`
-      );
-      if (shouldPerform()) {
-        await this.github.repos.updateFile(params);
-      } else {
-        logger.info('[dry-run] Skipping file update');
-      }
+    const action = params.sha ? 'updating' : 'creating';
+
+    logger.debug(
+      `${action} file ${params.owner}/${params.repo}:${params.path} (${
+        params.sha
+      })`
+    );
+
+    if (shouldPerform()) {
+      await this.github.repos.createOrUpdateFile(params);
     } else {
-      logger.debug(
-        `Creating new file ${params.owner}/${params.repo}:${params.path}`
-      );
-      if (shouldPerform()) {
-        await this.github.repos.createFile(params);
-      } else {
-        logger.info('[dry-run] Skipping file creation');
-      }
+      logger.info(`[dry-run] Skipping file action: ${action}`);
     }
     logger.info('Homebrew release complete');
   }

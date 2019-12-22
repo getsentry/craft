@@ -188,6 +188,10 @@ export async function getFile(
       ref,
       repo,
     });
+    // Response theoretically could be a list of files
+    if (response.data instanceof Array || response.data.content === undefined) {
+      return undefined;
+    }
     return Buffer.from(response.data.content, 'base64').toString();
   } catch (e) {
     if (e.status === 404) {
@@ -252,7 +256,7 @@ export async function mergeReleaseBranch(
     });
     if (response.status === 201) {
       logger.info(`Merging: done.`);
-      return response.data.sha as string;
+      return response.data.sha;
     } else if (response.status === 204) {
       logger.warn('Base already contains the head, nothing to merge');
       return undefined;
