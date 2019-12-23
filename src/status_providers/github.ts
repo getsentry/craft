@@ -65,12 +65,12 @@ export class GithubStatusProvider extends BaseStatusProvider {
           revisionStatus,
           revisionChecks
         );
-        if (
-          contextResult === CommitStatus.FAILURE ||
-          contextResult === CommitStatus.PENDING
-        ) {
+        if (contextResult === CommitStatus.FAILURE) {
+          logger.error(`Context "${contextString}" failed, returning early.`);
+          return contextResult;
+        } else if (contextResult === CommitStatus.PENDING) {
           logger.debug(
-            `The context has state ${contextResult}, we can return early`
+            `Context "${contextString}" has state ${contextResult}, we can return early.`
           );
           return contextResult;
         }
@@ -129,7 +129,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
       logger.debug('The context was not found (yet), result: PENDING');
       return CommitStatus.PENDING;
     } else if (results.includes(CommitStatus.SUCCESS)) {
-      logger.debug('The context was build succesffully.');
+      logger.debug('The context was build succesffully!');
       return CommitStatus.SUCCESS;
     } else {
       throw new Error('Unreachable');
