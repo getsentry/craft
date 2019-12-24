@@ -470,7 +470,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     );
   }
 
-  logger.info(`Using: "${statusProvider.constructor.name}" for status checks`);
+  logger.info(`Using "${statusProvider.constructor.name}" for status checks`);
 
   // Check status of all CI builds linked to the revision
   await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);

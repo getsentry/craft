@@ -20,7 +20,17 @@ export class ZeusStatusProvider extends BaseStatusProvider {
    * @param revision revision
    */
   public async getRevisionStatus(revision: string): Promise<CommitStatus> {
-    const zeusRevision = await this.store.getRevision(revision);
+    let zeusRevision;
+    try {
+      zeusRevision = await this.store.getRevision(revision);
+    } catch (e) {
+      const errorMessage: string = e.message || '';
+      if (errorMessage.match(/404 not found|resource not found/i)) {
+        return CommitStatus.NOT_FOUND;
+      }
+      throw e;
+    }
+
     if (this.store.isRevisionBuiltSuccessfully(zeusRevision)) {
       return CommitStatus.SUCCESS;
     } else if (this.store.isRevisionPending(zeusRevision)) {

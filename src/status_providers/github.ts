@@ -3,7 +3,7 @@ import * as Github from '@octokit/rest';
 import { logger } from '../logger';
 import { BaseStatusProvider, CommitStatus } from './base';
 import { getGithubClient } from '../utils/githubApi';
-import { reportError } from '../utils/errors';
+import { ConfigurationError } from '../utils/errors';
 import { formatJson } from '../utils/strings';
 
 /**
@@ -40,7 +40,9 @@ export class GithubStatusProvider extends BaseStatusProvider {
     const contexts = (this.config || { contexts: [] }).contexts;
     // TODO move this validation earlier
     if (!Array.isArray(contexts) || contexts.length === 0) {
-      reportError(`Invalid configuration for GithubStatusProvider`);
+      throw new ConfigurationError(
+        `Invalid configuration for GithubStatusProvider`
+      );
     }
 
     // There are two commit status flavours we have to consider:
@@ -117,7 +119,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
     logger.debug(`Status check results: ${formatJson(results)}`);
 
     if (results.includes(CommitStatus.FAILURE)) {
-      logger.debug('At least one of the checks has failed, result: FAILURE');
+      logger.error('At least one of the checks has failed, result: FAILURE');
       return CommitStatus.FAILURE;
     } else if (results.includes(CommitStatus.PENDING)) {
       logger.debug('At least one of the checks is pending, result: PENDING');
@@ -126,10 +128,10 @@ export class GithubStatusProvider extends BaseStatusProvider {
       results[0] === RevisionAdditionalStatus.NotFound &&
       results.every(el => el === results[0])
     ) {
-      logger.debug('The context was not found (yet), result: PENDING');
-      return CommitStatus.PENDING;
+      logger.error(`Cntext "${context}" was not found, result: FAILURE`);
+      return CommitStatus.FAILURE;
     } else if (results.includes(CommitStatus.SUCCESS)) {
-      logger.debug('The context was build succesffully!');
+      logger.debug(`Context "${context}" was build succesffully!`);
       return CommitStatus.SUCCESS;
     } else {
       throw new Error('Unreachable');
