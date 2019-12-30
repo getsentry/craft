@@ -26,13 +26,6 @@ export enum CommitStatus {
   NOT_FOUND = 'not_found',
 }
 
-// /**
-//  * TODO
-//  */
-// interface CraftArtifact {
-//   yo: string;
-// }
-
 /**
  * Base class for commit status providers
  */
@@ -106,21 +99,3 @@ export abstract class BaseStatusProvider {
     }
   }
 }
-
-////////////////////////////////////////////////////
-
-// export abstract class BaseArtifactProvider {
-//   abstract async listArtifactsForRevision(
-//     revision: string
-//   ): Promise<CraftArtifact[]>;
-
-//   abstract async downloadArtifact(artifact: CraftArtifact): Promise<string>;
-
-//   public async downloadArtifacts(
-//     artifacts: CraftArtifact[]
-//   ): Promise<string[]> {
-//     return Promise.all(
-//       artifacts.map(async artifact => this.downloadArtifact(artifact))
-//     );
-//   }
-// }
