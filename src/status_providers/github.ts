@@ -37,12 +37,16 @@ export class GithubStatusProvider extends BaseStatusProvider {
    * @param revision revision
    */
   public async getRevisionStatus(revision: string): Promise<CommitStatus> {
-    const contexts = (this.config || { contexts: [] }).contexts;
     // TODO move this validation earlier
-    if (!Array.isArray(contexts) || contexts.length === 0) {
-      throw new ConfigurationError(
-        `Invalid configuration for GithubStatusProvider`
-      );
+    let contexts = [];
+    if (this.config) {
+      contexts = this.config.contexts;
+
+      if (!Array.isArray(contexts) || contexts.length === 0) {
+        throw new ConfigurationError(
+          `Invalid configuration for GithubStatusProvider`
+        );
+      }
     }
 
     // There are two commit status flavours we have to consider:
@@ -51,13 +55,13 @@ export class GithubStatusProvider extends BaseStatusProvider {
     // Examples: Appveyor
     // 2. Check runs API
     // https://developer.github.com/v3/checks/runs/#list-check-runs-for-a-specific-ref
-    // Examples: Travis CI
+    // Examples: Travis CI, Azure Pipelines
 
     const [revisionStatus, revisionChecks] = await this.getAllStatuses(
       revision
     );
 
-    if (contexts && contexts.length > 0) {
+    if (contexts.length > 0) {
       for (const context of contexts) {
         // TODO enable regular expression
         const contextString = String(context);
