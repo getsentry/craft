@@ -71,7 +71,7 @@ export const builder = (yargs: Argv) =>
     })
     .option('no-status-check', {
       default: false,
-      description: 'Do not check for build status in Zeus',
+      description: 'Do not check for build status',
       type: 'boolean',
     })
     .check(checkVersion)

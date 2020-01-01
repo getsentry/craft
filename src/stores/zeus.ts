@@ -8,7 +8,6 @@ import {
 } from '@zeus-ci/sdk';
 import * as _ from 'lodash';
 
-import { clearObjectProperties } from '../utils/objects';
 import {
   calculateChecksum,
   HashAlgorithm,
@@ -66,13 +65,13 @@ export class ZeusStore {
     this.repoName = repoName;
   }
 
-  /**
-   * Clears download and file caches
-   */
-  public clearStoreCaches(): void {
-    clearObjectProperties(this.downloadCache);
-    clearObjectProperties(this.fileListCache);
-  }
+  // /**
+  //  * Clears download and file caches
+  //  */
+  // public clearStoreCaches(): void {
+  //   clearObjectProperties(this.downloadCache);
+  //   clearObjectProperties(this.fileListCache);
+  // }
 
   /**
    * Downloads the given artifact file.
