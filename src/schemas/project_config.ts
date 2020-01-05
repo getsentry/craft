@@ -16,6 +16,7 @@ export interface CraftProjectConfig {
   minVersion?: string;
   requireNames?: string[];
   statusProvider?: BaseStatusProvider;
+  artifactProvider?: BaseArtifactProvider;
 }
 /**
  * Global (non-target!) GitHub configuration for the project
@@ -42,6 +43,15 @@ export interface BaseStatusProvider {
     [k: string]: any;
   };
 }
+/**
+ * Which service should be used for artifact storage
+ */
+export interface BaseArtifactProvider {
+  name: ArtifactProviderName;
+  config?: {
+    [k: string]: any;
+  };
+}
 
 /**
  * Different policies for changelog management
@@ -50,7 +60,17 @@ export const enum ChangelogPolicy {
   Simple = 'simple',
   None = 'none',
 }
+/**
+ * Name of the status provider
+ */
 export const enum StatusProviderName {
   Zeus = 'zeus',
   Github = 'github',
+}
+/**
+ * Name of the artifact provider
+ */
+export const enum ArtifactProviderName {
+  Zeus = 'zeus',
+  GCS = 'gcs',
 }

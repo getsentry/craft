@@ -13,6 +13,10 @@ export interface CraftArtifact {
   download_url: string;
   name: string;
   updated_at?: string;
+  file: {
+    name: string;
+    size: number;
+  };
 }
 
 /**

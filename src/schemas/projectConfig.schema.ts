@@ -52,6 +52,7 @@ const projectConfigJsonSchema = {
       properties: {
         name: {
           title: 'StatusProviderName',
+          description: 'Name of the status provider',
           type: 'string',
           enum: ['zeus', 'github'],
           tsEnumNames: ['Zeus', 'Github'],
@@ -61,7 +62,25 @@ const projectConfigJsonSchema = {
         },
       },
       additionalProperties: false,
-
+      required: ['name'],
+    },
+    artifactProvider: {
+      title: 'BaseArtifactProvider',
+      description: 'Which service should be used for artifact storage',
+      type: 'object',
+      properties: {
+        name: {
+          title: 'ArtifactProviderName',
+          description: 'Name of the artifact provider',
+          type: 'string',
+          enum: ['zeus', 'gcs'],
+          tsEnumNames: ['Zeus', 'GCS'],
+        },
+        config: {
+          type: 'object',
+        },
+      },
+      additionalProperties: false,
       required: ['name'],
     },
   },

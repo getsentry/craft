@@ -15,7 +15,7 @@
     "@octokit/plugin-retry": "2.2.0",
     "@octokit/rest": "16.35.2",
     "@sentry/node": "4.6.3",
-    "@zeus-ci/sdk": "^0.1.6",
+    "@zeus-ci/sdk": "0.1.8",
     "ajv": "^6.5.2",
     "async": "~3.1.0",
     "chalk": "^2.4.1",

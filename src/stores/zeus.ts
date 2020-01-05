@@ -13,6 +13,7 @@ import {
   HashAlgorithm,
   HashOutputFormat,
 } from '../utils/system';
+import { clearObjectProperties } from '../utils/objects';
 
 /** Maximum concurrency for Zeus downloads */
 export const ZEUS_DOWNLOAD_CONCURRENCY = 5;
@@ -65,13 +66,13 @@ export class ZeusStore {
     this.repoName = repoName;
   }
 
-  // /**
-  //  * Clears download and file caches
-  //  */
-  // public clearStoreCaches(): void {
-  //   clearObjectProperties(this.downloadCache);
-  //   clearObjectProperties(this.fileListCache);
-  // }
+  /**
+   * Clears download and file caches
+   */
+  public clearStoreCaches(): void {
+    clearObjectProperties(this.downloadCache);
+    clearObjectProperties(this.fileListCache);
+  }
 
   /**
    * Downloads the given artifact file.

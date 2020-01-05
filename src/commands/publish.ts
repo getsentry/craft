@@ -3,12 +3,13 @@ import { shouldPerform } from 'dryrun';
 import * as inquirer from 'inquirer';
 import { Arguments, Argv } from 'yargs';
 
-import { checkMinimalConfigVersion, getConfiguration } from '../config';
-import { formatTable, logger } from '../logger';
 import {
-  GithubGlobalConfig,
-  StatusProviderName,
-} from '../schemas/project_config';
+  checkMinimalConfigVersion,
+  getConfiguration,
+  getStatusProviderFromConfig,
+} from '../config';
+import { formatTable, logger } from '../logger';
+import { GithubGlobalConfig } from '../schemas/project_config';
 import { ZeusStore } from '../stores/zeus';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
@@ -26,8 +27,6 @@ import { formatSize, formatJson } from '../utils/strings';
 import { catchKeyboardInterrupt } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 import { BaseStatusProvider } from '../status_providers/base';
-import { ZeusStatusProvider } from '../status_providers/zeus';
-import { GithubStatusProvider } from '../status_providers/github';
 
 export const command = ['publish NEW-VERSION'];
 export const aliases = ['pp', 'publish'];
@@ -96,7 +95,7 @@ export interface PublishOptions {
 }
 
 /**
- * Checks prerequisites for "publish" command
+ * Checks Zeus prerequisites
  */
 function checkPrerequisites(): void {
   if (!process.env.ZEUS_TOKEN && !process.env.ZEUS_API_TOKEN) {
@@ -434,31 +433,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   // TODO: This needs to become optional
   const zeus = new ZeusStore(githubConfig.owner, githubConfig.repo);
 
-  let statusProvider: BaseStatusProvider;
-  const rawStatusProvider = config.statusProvider || {
-    config: undefined,
-    name: undefined,
-  };
-  const {
-    config: statusProviderConfig,
-    name: statusProviderName,
-  } = rawStatusProvider;
-  if (
-    statusProviderName === undefined ||
-    statusProviderName === StatusProviderName.Zeus
-  ) {
-    statusProvider = new ZeusStatusProvider(
-      githubConfig.owner,
-      githubConfig.repo,
-      statusProviderConfig
-    );
-  } else {
-    statusProvider = new GithubStatusProvider(
-      githubConfig.owner,
-      githubConfig.repo,
-      statusProviderConfig
-    );
-  }
+  const statusProvider = getStatusProviderFromConfig();
 
   logger.info(`Using "${statusProvider.constructor.name}" for status checks`);
 

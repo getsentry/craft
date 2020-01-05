@@ -4,6 +4,7 @@ import {
   BaseArtifactProvider,
   CraftArtifact,
 } from '../artifact_providers/base';
+import { logger } from '../logger';
 
 /**
  * TODO
@@ -51,6 +52,11 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
   protected async doListArtifactsForRevision(
     revision: string
   ): Promise<CraftArtifact[]> {
+    logger.debug(
+      `Fetching Zeus artifacts for ${this.repoOwner}/${
+        this.repoName
+      }, revision ${revision}`
+    );
     const artifacts = await this.client.listArtifactsForRevision(
       this.repoOwner,
       this.repoName,
