@@ -140,7 +140,7 @@ export class NpmTarget extends BaseTarget {
       useYarn: !hasExecutable(NPM_BIN),
     };
     if (this.config.access) {
-      if (this.config.access in NpmPackageAccess) {
+      if (Object.values(NpmPackageAccess).includes(this.config.access)) {
         npmConfig.access = this.config.access;
       } else {
         throw new ConfigurationError(
