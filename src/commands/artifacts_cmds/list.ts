@@ -2,7 +2,7 @@ import { logger, formatTable } from '../../logger';
 import { ArtifactsOptions } from '../artifacts';
 import { getArtifactProviderFromConfig } from '../../config';
 import { handleGlobalError } from '../../utils/errors';
-import { formatJson, formatSize } from '../../utils/strings';
+import { formatSize } from '../../utils/strings';
 
 export const command = ['list'];
 export const aliases = ['l'];
@@ -13,9 +13,18 @@ async function handlerMain(argv: ArtifactsOptions): Promise<any> {
   // FIXME move elsewhere
   process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
 
+  const revision = argv.rev;
+
   const artifactProvider = getArtifactProviderFromConfig();
-  logger.info(`Artifact provider: ${formatJson(artifactProvider)}`);
-  const artifacts = await artifactProvider.listArtifactsForRevision(argv.rev);
+  const artifacts = await artifactProvider.listArtifactsForRevision(revision);
+
+  if (!artifacts) {
+    logger.warn(`Revision ${revision} can not be found.`);
+    return undefined;
+  } else if (artifacts.length === 0) {
+    logger.info(`No artifacts found for revision ${revision}`);
+    return undefined;
+  }
 
   const artifactData = artifacts.map(ar => [
     ar.name,
@@ -30,7 +39,9 @@ async function handlerMain(argv: ArtifactsOptions): Promise<any> {
     },
     artifactData
   );
-  logger.info(`Available artifacts: \n${table.toString()}\n`);
+  logger.info(
+    `Available artifacts for revision ${revision}: \n${table.toString()}\n`
+  );
 
   return argv.rev;
 }

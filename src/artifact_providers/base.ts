@@ -98,24 +98,27 @@ export abstract class BaseArtifactProvider {
    * of them.
    *
    * @param revision Git commit id
-   * @returns Filtered list of artifacts
+   * @returns Filtered list of artifacts, or "undefined" if the revision can not be found
    */
   public async listArtifactsForRevision(
     revision: string
-  ): Promise<CraftArtifact[]> {
+  ): Promise<CraftArtifact[] | undefined> {
     const cached = this.fileListCache[revision];
     if (cached) {
       return cached;
     }
     const artifacts = await this.doListArtifactsForRevision(revision);
-    this.fileListCache[revision] = artifacts;
+    if (artifacts) {
+      // We're only doing positive caching
+      this.fileListCache[revision] = artifacts;
+    }
     return artifacts;
   }
 
   /** TODO */
   protected abstract async doListArtifactsForRevision(
     revision: string
-  ): Promise<CraftArtifact[]>;
+  ): Promise<CraftArtifact[] | undefined>;
 
   /**
    * Returns the calculated hash digest for the given artifact
@@ -156,6 +159,9 @@ export abstract class BaseArtifactProvider {
     filterOptions?: FilterOptions
   ): Promise<CraftArtifact[]> {
     let filteredArtifacts = await this.listArtifactsForRevision(revision);
+    if (!filteredArtifacts) {
+      return [];
+    }
     if (!filterOptions) {
       return filteredArtifacts;
     }

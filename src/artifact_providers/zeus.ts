@@ -51,17 +51,26 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
   /** TODO */
   protected async doListArtifactsForRevision(
     revision: string
-  ): Promise<CraftArtifact[]> {
+  ): Promise<CraftArtifact[] | undefined> {
     logger.debug(
       `Fetching Zeus artifacts for ${this.repoOwner}/${
         this.repoName
       }, revision ${revision}`
     );
-    const artifacts = await this.client.listArtifactsForRevision(
-      this.repoOwner,
-      this.repoName,
-      revision
-    );
+    let artifacts;
+    try {
+      artifacts = await this.client.listArtifactsForRevision(
+        this.repoOwner,
+        this.repoName,
+        revision
+      );
+    } catch (e) {
+      const errorMessage: string = e.message || '';
+      if (errorMessage.match(/404 not found|resource not found/i)) {
+        return undefined;
+      }
+      throw e;
+    }
 
     // For every filename, take the artifact with the most recent update time
     const nameToArtifacts = _.groupBy(artifacts, artifact => artifact.name);
