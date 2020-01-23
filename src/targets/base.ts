@@ -62,6 +62,12 @@ export class BaseTarget {
       ...defaultFilterOptions,
       ...this.filterOptions,
     };
+    if (!filterOptions.includeNames) {
+      logger.debug(
+        `target.includeNames is not defined, skipping trying to fetch artifacts.`
+      );
+      return [];
+    }
     logger.debug(
       `Getting artifact list for revision "${revision}", filtering options: {includeNames: ${String(
         filterOptions.includeNames

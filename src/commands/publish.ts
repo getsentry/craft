@@ -202,12 +202,10 @@ async function publishToTargets(
  *
  * @param zeus Zeus store object
  * @param revision Git revision SHA
- * @param targetNames A list of target names to publish
  */
 async function printRevisionSummary(
   zeus: ZeusStore,
-  revision: string,
-  targetNames: string[]
+  revision: string
 ): Promise<void> {
   const artifacts = await zeus.listArtifactsForRevision(revision);
   if (artifacts.length > 0) {
@@ -228,12 +226,6 @@ async function printRevisionSummary(
   } else {
     logger.warn('No artifacts found for the release.');
   }
-
-  logger.info('Publishing to targets:');
-
-  // TODO init all targets earlier
-  targetNames.forEach(target => logger.info(`  - ${target}`));
-  logger.info(' ');
 }
 
 /**
@@ -505,13 +497,20 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       return undefined;
     }
 
-    await printRevisionSummary(
-      zeus,
-      revision,
-      targetConfigList.map(t => t.name || '__undefined__')
-    );
+    // TODO: Handle new Artifacts stores
+    // We only ask Zeus now for artifacts
+    if (statusProviderName === StatusProviderName.Zeus) {
+      await printRevisionSummary(zeus, revision);
+      await checkRequiredArtifacts(zeus, revision, config.requireNames);
+    }
 
-    await checkRequiredArtifacts(zeus, revision, config.requireNames);
+    logger.info('Publishing to targets:');
+
+    // TODO init all targets earlier
+    targetConfigList
+      .map(t => t.name || '__undefined__')
+      .forEach(target => logger.info(`  - ${target}`));
+    logger.info(' ');
 
     await promptConfirmation();
 
