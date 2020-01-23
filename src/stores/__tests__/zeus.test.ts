@@ -22,9 +22,12 @@ const REPO_NAME = 'craft-test';
 
 describe('filterArtifactsForRevision', () => {
   const zeusStore = new ZeusStore(REPO_OWNER, REPO_NAME);
-  const artifactList = ['test1.zip', 'test2.exe', 'test3.tgz', 'smthelse'].map(
-    name => artifactFactory(name, undefined)
-  );
+  const artifactList = [
+    'test1.zip',
+    'test2.exe',
+    'test3.tgz',
+    'smthelse',
+  ].map(name => artifactFactory(name, undefined));
   zeusStore.listArtifactsForRevision = jest.fn(_revision => artifactList);
   const revision = '1234567';
 
@@ -66,9 +69,12 @@ describe('filterArtifactsForRevision', () => {
 
 describe('filterArtifactsForRevision', () => {
   const zeusStore = new ZeusStore(REPO_OWNER, REPO_NAME);
-  const artifactList = ['test1.zip', 'test2.exe', 'test3.tgz', 'smthelse'].map(
-    name => artifactFactory(name, undefined)
-  );
+  const artifactList = [
+    'test1.zip',
+    'test2.exe',
+    'test3.tgz',
+    'smthelse',
+  ].map(name => artifactFactory(name, undefined));
   zeusStore.client.listArtifactsForRevision = jest
     .fn()
     .mockReturnValue(artifactList);

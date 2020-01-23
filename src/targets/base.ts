@@ -62,6 +62,12 @@ export class BaseTarget {
       ...defaultFilterOptions,
       ...this.filterOptions,
     };
+    if (filterOptions.includeNames?.source === 'none') {
+      logger.debug(
+        `target.includeNames is 'none', skipping trying to fetch artifacts.`
+      );
+      return [];
+    }
     logger.debug(
       `Getting artifact list for revision "${revision}", filtering options: {includeNames: ${String(
         filterOptions.includeNames
