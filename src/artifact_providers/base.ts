@@ -67,27 +67,37 @@ export abstract class BaseArtifactProvider {
    * @param artifact An artifact object to download
    * @returns Absolute path to the saved file
    */
-  public async downloadArtifact(artifact: CraftArtifact): Promise<string> {
-    const cached = this.downloadCache[artifact.download_url];
+  public async downloadArtifact(
+    artifact: CraftArtifact,
+    downloadDirectory?: string
+  ): Promise<string> {
+    const cacheKey = `${downloadDirectory}/${artifact.name}/${
+      artifact.updated_at
+    }`;
+    const cached = this.downloadCache[cacheKey];
     if (cached) {
       return cached;
     }
-    const promise = this.doDownloadArtifact(artifact);
-    this.downloadCache[artifact.download_url] = promise;
+    const promise = this.doDownloadArtifact(artifact, downloadDirectory);
+    this.downloadCache[cacheKey] = promise;
     return promise;
   }
 
   /** TODO */
   protected abstract async doDownloadArtifact(
-    artifact: CraftArtifact
+    artifact: CraftArtifact,
+    downloadDirectory?: string
   ): Promise<string>;
 
   /** TODO */
   public async downloadArtifacts(
-    artifacts: CraftArtifact[]
+    artifacts: CraftArtifact[],
+    downloadDirectory?: string
   ): Promise<string[]> {
     return Promise.all(
-      artifacts.map(async artifact => this.downloadArtifact(artifact))
+      artifacts.map(async artifact =>
+        this.downloadArtifact(artifact, downloadDirectory)
+      )
     );
   }
 
@@ -108,11 +118,24 @@ export abstract class BaseArtifactProvider {
       return cached;
     }
     const artifacts = await this.doListArtifactsForRevision(revision);
-    if (artifacts) {
-      // We're only doing positive caching
-      this.fileListCache[revision] = artifacts;
+    if (!artifacts) {
+      // No negative caching
+      return undefined;
     }
-    return artifacts;
+
+    // For every filename, take the artifact with the most recent update time
+    const nameToArtifacts = _.groupBy(artifacts, artifact => artifact.name);
+    const dedupedArtifacts = Object.keys(nameToArtifacts).map(artifactName => {
+      const artifactObjects = nameToArtifacts[artifactName];
+      // Sort by the update time
+      const sortedArtifacts = _.sortBy(
+        artifactObjects,
+        artifact => Date.parse(artifact.updated_at || '') || 0
+      );
+      return sortedArtifacts[sortedArtifacts.length - 1];
+    });
+
+    return dedupedArtifacts;
   }
 
   /** TODO */

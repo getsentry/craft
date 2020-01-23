@@ -37,15 +37,21 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
    * @param artifact An artifact object to download
    * @returns Absolute path to the saved file
    */
-  public async doDownloadArtifact(artifact: CraftArtifact): Promise<string> {
+  public async doDownloadArtifact(
+    artifact: CraftArtifact,
+    downloadDirectory?: string
+  ): Promise<string> {
     // TODO fix some of these attributes
-    return this.client.downloadArtifact({
-      ...artifact,
-      file: { name: '', size: 0 },
-      id: '',
-      status: Status.UNKNOWN,
-      type: '',
-    });
+    return this.client.downloadArtifact(
+      {
+        ...artifact,
+        file: { name: '', size: 0 },
+        id: '',
+        status: Status.UNKNOWN,
+        type: '',
+      },
+      downloadDirectory
+    );
   }
 
   /** TODO */
@@ -72,17 +78,6 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
       throw e;
     }
 
-    // For every filename, take the artifact with the most recent update time
-    const nameToArtifacts = _.groupBy(artifacts, artifact => artifact.name);
-    const filteredArtifacts = Object.keys(nameToArtifacts).map(artifactName => {
-      const artifactObjects = nameToArtifacts[artifactName];
-      // Sort by the update time
-      const sortedArtifacts = _.sortBy(
-        artifactObjects,
-        artifact => Date.parse(artifact.updated_at || '') || 0
-      );
-      return sortedArtifacts[sortedArtifacts.length - 1];
-    });
-    return filteredArtifacts;
+    return artifacts;
   }
 }
