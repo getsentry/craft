@@ -23,9 +23,9 @@ export const ZEUS_DOWNLOAD_CONCURRENCY = 5;
  */
 export interface FilterOptions {
   /** Include files that match this regexp */
-  includeNames?: RegExp;
+  includeNames?: RegExp | string;
   /** Exclude files that match this regexp */
-  excludeNames?: RegExp;
+  excludeNames?: RegExp | string;
 }
 
 /**
@@ -159,14 +159,22 @@ export class ZeusStore {
     }
     const { includeNames, excludeNames } = filterOptions;
     if (includeNames) {
-      filteredArtifacts = filteredArtifacts.filter(artifact =>
-        includeNames.test(artifact.name)
-      );
+      filteredArtifacts = filteredArtifacts.filter(artifact => {
+        if (typeof includeNames === 'string') {
+          return includeNames.match(artifact.name);
+        } else {
+          return includeNames.test(artifact.name);
+        }
+      });
     }
     if (excludeNames) {
-      filteredArtifacts = filteredArtifacts.filter(
-        artifact => !excludeNames.test(artifact.name)
-      );
+      filteredArtifacts = filteredArtifacts.filter(artifact => {
+        if (typeof excludeNames === 'string') {
+          return !excludeNames.match(artifact.name);
+        } else {
+          return !excludeNames.test(artifact.name);
+        }
+      });
     }
     return filteredArtifacts;
   }
