@@ -286,9 +286,7 @@ async function checkRequiredArtifacts(
       );
     } else {
       logger.debug(
-        `Artifact "${
-          matchedArtifacts[0].name
-        }" matches pattern ${nameRegexString}`
+        `Artifact "${matchedArtifacts[0].name}" matches pattern ${nameRegexString}`
       );
     }
   }

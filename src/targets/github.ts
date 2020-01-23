@@ -322,9 +322,7 @@ export class GithubTarget extends BaseTarget {
     };
     logger.debug('Upload parameters:', JSON.stringify(params));
     logger.info(
-      `Uploading asset "${name}" to ${this.githubConfig.owner}/${
-        this.githubConfig.repo
-      }:${release.tag_name}`
+      `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}`
     );
     if (shouldPerform()) {
       try {

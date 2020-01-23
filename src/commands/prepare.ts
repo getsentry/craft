@@ -282,9 +282,7 @@ async function checkGitState(
 
   if (repoStatus.ahead > 0) {
     reportError(
-      `Your repository has unpushed changes: the current branch is ${
-        repoStatus.ahead
-      } commits ahead.`,
+      `Your repository has unpushed changes: the current branch is ${repoStatus.ahead} commits ahead.`,
       logger
     );
   }
@@ -490,9 +488,7 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
   await pushReleaseBranch(git, branchName, !argv.noPush);
 
   logger.info(
-    `View diff at: https://github.com/${githubConfig.owner}/${
-      githubConfig.repo
-    }/compare/${branchName}`
+    `View diff at: https://github.com/${githubConfig.owner}/${githubConfig.repo}/compare/${branchName}`
   );
 
   if (argv.publish) {

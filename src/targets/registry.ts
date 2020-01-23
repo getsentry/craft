@@ -255,9 +255,7 @@ export class RegistryTarget extends BaseTarget {
     this.forceSymlink(baseVersionName, path.join(packageDir, majorVersionLink));
 
     // link minor
-    const minorVersionLink = `${parsedNewVersion.major}.${
-      parsedNewVersion.minor
-    }.json`;
+    const minorVersionLink = `${parsedNewVersion.major}.${parsedNewVersion.minor}.json`;
     this.forceSymlink(baseVersionName, path.join(packageDir, minorVersionLink));
   }
 
