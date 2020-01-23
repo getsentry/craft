@@ -62,9 +62,9 @@ export class BaseTarget {
       ...defaultFilterOptions,
       ...this.filterOptions,
     };
-    if (!filterOptions.includeNames) {
+    if (filterOptions.includeNames?.source === 'none') {
       logger.debug(
-        `target.includeNames is not defined, skipping trying to fetch artifacts.`
+        `target.includeNames is 'none', skipping trying to fetch artifacts.`
       );
       return [];
     }
