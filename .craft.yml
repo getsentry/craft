@@ -5,8 +5,6 @@ github:
 changelogPolicy: simple
 requireNames:
   - /^sentry-craft.*\.tgz$/
-statusProvider:
-  name: github
 targets:
   - name: npm
   - name: gh-pages
