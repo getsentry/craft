@@ -314,10 +314,10 @@ targets:
 
 The following options can be applied to every target individually:
 
-| Name           | Description                                                                                                                                                |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `includeNames` | **optional**. Regular expression: only matched files will be processed by the target.                                                                      |
-| `excludeNames` | **optional**. Regular expression: the matched files will be skipped by the target. Matching is performed after testing for inclusion (via `includeNames`). |
+| Name           | Description                                                                                                                                                                                                                                                                           |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `includeNames` | **optional**. Regular expression: only matched files will be processed by the target. There is one special case that `includeNames` supports, if your build doesn't any artifacts you can write `includeNames: /none/`, this will skip the check for artifacts towards Zeus entirely. |
+| `excludeNames` | **optional**. Regular expression: the matched files will be skipped by the target. Matching is performed after testing for inclusion (via `includeNames`).                                                                                                                            |
 
 **Example:**
 
@@ -455,9 +455,9 @@ contains the following variables:
 ```yaml
 targets:
   - name: brew
-    tap: octocat/tools     # Expands to github.com:octocat/homebrew-tools
-    formula: myproject     # Creates the file myproject.rb
-    path: HomebrewFormula  # Creates the file in HomebrewFormula/
+    tap: octocat/tools # Expands to github.com:octocat/homebrew-tools
+    formula: myproject # Creates the file myproject.rb
+    path: HomebrewFormula # Creates the file in HomebrewFormula/
     template: >
       class MyProject < Formula
         desc "This is a test for homebrew formulae"
@@ -632,13 +632,13 @@ targets:
   - name: registry
     type: sdk
     config:
-      canonical: "npm:@sentry/browser"
+      canonical: 'npm:@sentry/browser'
 
   - name: registry
     type: app
-    urlTemplate: "https://example.com/{{version}}/{{file}}"
+    urlTemplate: 'https://example.com/{{version}}/{{file}}'
     config:
-      canonical: "npm:@sentry/browser"
+      canonical: 'npm:@sentry/browser'
     checksums:
       - algorithm: sha256
         format: hex
@@ -671,6 +671,25 @@ The `cocoapods` gem must be installed on the system.
 targets:
   - name: cocoapods
     specPath: MyProject.podspec
+```
+
+### Status Provider
+
+You can configure which status providers `craft` will to check for your build status.
+By default it will take Zeus but you can also use Github directly.
+This is helpful if you don't want to rely on Zeus for asking if you build is green or not.
+
+**Configuration**
+
+| Option | Description                                                      |
+| ------ | ---------------------------------------------------------------- |
+| `name` | Name of the `statusProvider` either `zeus` (default) or `github` |
+
+**Example:**
+
+```yaml
+statusProvider:
+  name: github
 ```
 
 ## Integrating Your Project with `craft`
