@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.0
+
+- feat: Add new `statusProvider` option
+- feat: Make artifact check optional (#36)
+
 ## 0.8.4
 
 - gcs: fix shallow copy issue with upload parameters
