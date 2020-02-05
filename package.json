@@ -34,7 +34,7 @@
     "request": "^2.88.0",
     "rimraf": "^2.6.2",
     "shell-quote": "^1.6.1",
-    "simple-git": "^1.96.0",
+    "simple-git": "^1.131.0",
     "split": "^1.0.1",
     "tar": "^4.4.6",
     "tmp": "^0.1.0",
