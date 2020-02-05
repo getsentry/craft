@@ -126,9 +126,10 @@ async function createReleaseBranch(
   }
   if (branchHead) {
     let errorMsg = `Branch already exists: ${branchName}. `;
+    const remoteName = getRemoteName();
     errorMsg +=
       'Run the following commands to delete the branch, and then rerun "prepare":\n';
-    errorMsg += `    git branch -D ${branchName}; git push origin --delete ${branchName}\n`;
+    errorMsg += `    git branch -D ${branchName}; git push ${remoteName} --delete ${branchName}\n`;
     reportError(errorMsg, logger);
   }
 
@@ -153,11 +154,12 @@ async function pushReleaseBranch(
   branchName: string,
   pushFlag: boolean = true
 ): Promise<any> {
+  const remoteName = getRemoteName();
   if (pushFlag) {
     logger.info(`Pushing the release branch "${branchName}"...`);
     // TODO check remote somehow
     if (shouldPerform()) {
-      await git.push('origin', branchName, { '--set-upstream': true });
+      await git.push(remoteName, branchName, { '--set-upstream': true });
     } else {
       logger.info('[dry-run] Not pushing the release branch.');
     }
@@ -165,7 +167,7 @@ async function pushReleaseBranch(
     logger.info('Not pushing the release branch.');
     logger.info(
       'You can push this branch later using the following command:',
-      `  $ git push -u origin "${branchName}"`
+      `  $ git push -u ${remoteName} "${branchName}"`
     );
   }
 }
@@ -502,6 +504,15 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
   }
 
   await switchToDefaultBranch(git, defaultBranch);
+}
+
+/**
+ * Gets Git remote name to use
+ *
+ * @returns Git remote name from environment or default
+ */
+function getRemoteName(): string {
+  return process.env.CRAFT_REMOTE || 'origin';
 }
 
 export const handler = async (argv: ReleaseOptions) => {
