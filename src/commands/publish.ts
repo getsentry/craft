@@ -497,7 +497,10 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
     // TODO: Handle new Artifacts stores
     // We only ask Zeus now for artifacts
-    if (statusProviderName === StatusProviderName.Zeus) {
+    if (
+      statusProviderName === undefined ||
+      statusProviderName === StatusProviderName.Zeus
+    ) {
       await printRevisionSummary(zeus, revision);
       await checkRequiredArtifacts(zeus, revision, config.requireNames);
     }
