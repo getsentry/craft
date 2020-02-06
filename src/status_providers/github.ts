@@ -132,7 +132,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
       results[0] === RevisionAdditionalStatus.NotFound &&
       results.every(el => el === results[0])
     ) {
-      logger.error(`Cntext "${context}" was not found, result: FAILURE`);
+      logger.error(`Context "${context}" was not found, result: FAILURE`);
       return CommitStatus.FAILURE;
     } else if (results.includes(CommitStatus.SUCCESS)) {
       logger.debug(`Context "${context}" was build succesffully!`);
