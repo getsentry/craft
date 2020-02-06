@@ -62,6 +62,9 @@ function main(): void {
 
   // tslint:disable-next-line:no-unused-expression
   yargs
+    .parserConfiguration({
+      'boolean-negation': false,
+    })
     .commandDir('commands')
     .demandCommand()
     .version()
