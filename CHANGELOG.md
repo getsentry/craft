@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.1
+
+- fix: Default status provider should still be Zeus
+- fix: Handling of undefined command line arguments (#40)
+
 ## 0.9.0
 
 - feat: Add new `statusProvider` option
