@@ -216,12 +216,12 @@ located in the project root.
 
 ### GitHub project
 
-One of the required settings you need to specify is GitHub project parameters:
+One of the required settings you need to specify is GitHub project parameters. For example:
 
 ```yaml
 github:
   owner: getsentry
-  repo: craft
+  repo: sentry-javascript
 ```
 
 ### Pre-release Command
