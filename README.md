@@ -83,8 +83,9 @@ Options:
 
 ## Caveats
 
-- When interacting with remote GitHub repositories, `craft` currently considers
-  only one `git` remote: "origin"
+- When interacting with remote GitHub repositories, `craft` uses by default the
+  "origin" remote. If you have a different setup, set the `CRAFT_REMOTE`
+  environment variable.
 
 ## Global Configuration
 
