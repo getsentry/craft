@@ -27,6 +27,7 @@ import { formatSize, formatJson } from '../utils/strings';
 import { catchKeyboardInterrupt } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 import { BaseStatusProvider } from '../status_providers/base';
+import { ZeusStatusProvider } from '../status_providers/zeus';
 
 export const command = ['publish NEW-VERSION'];
 export const aliases = ['pp', 'publish'];
@@ -472,10 +473,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
     // TODO: Handle new Artifacts stores
     // We only ask Zeus now for artifacts
-    if (
-      statusProviderName === undefined ||
-      statusProviderName === StatusProviderName.Zeus
-    ) {
+    if (statusProvider instanceof ZeusStatusProvider) {
       await printRevisionSummary(zeus, revision);
       await checkRequiredArtifacts(zeus, revision, config.requireNames);
     }
