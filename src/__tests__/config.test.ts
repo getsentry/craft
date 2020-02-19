@@ -1,3 +1,8 @@
+/**
+ * Tests of our ability to read craft config files and env vars (NOT general
+ * test configuration).
+ */
+
 import { readFileSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import { dirname, join } from 'path';
