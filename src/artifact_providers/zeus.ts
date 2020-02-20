@@ -23,7 +23,10 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
     downloadDirectory?: string
   ) {
     super();
-    this.client = new ZeusClient({ defaultDirectory: downloadDirectory });
+    this.client = new ZeusClient({
+      defaultDirectory: downloadDirectory,
+      logger,
+    });
     this.repoOwner = repoOwner;
     this.repoName = repoName;
   }
