@@ -1,31 +1,67 @@
+import * as _ from 'lodash';
 import { logger } from '../../logger';
 import { ArtifactsOptions } from '../artifacts';
 import { getArtifactProviderFromConfig } from '../../config';
-import { handleGlobalError } from '../../utils/errors';
+import { handleGlobalError, ConfigurationError } from '../../utils/errors';
 import { Argv } from 'yargs';
+import { resolve } from 'path';
+import { existsSync, lstatSync } from 'fs';
+import mkdirp = require('mkdirp');
 
-export const command = ['download NAME'];
+export const command = ['download [NAME..]'];
 export const aliases = ['d', 'get'];
 export const description = 'Download artifacts';
 export const builder = (yargs: Argv) =>
   yargs
     .positional('NAME', {
+      alias: 'names',
       description: 'Artifact name to download',
       type: 'string',
     })
+    .array('NAME')
     .option('all', {
+      alias: 'a',
       default: false,
       description: 'Download all artifacts',
       type: 'boolean',
     })
     .option('directory', {
+      alias: 'd',
       description: 'Target directory',
       type: 'string',
     });
 
-/** TODO */
+/** Options for "download" command */
 interface ArtifactsDownloadOptions extends ArtifactsOptions {
-  name: string;
+  names: string[];
+  directory?: string;
+  all?: boolean;
+}
+
+/**
+ * Read/process output directory from command line arguments
+ *
+ * @param argv Full path to the target directory
+ */
+async function prepareOutputDirectory(
+  argv: ArtifactsDownloadOptions
+): Promise<string> {
+  if (argv.directory) {
+    const fullPath = resolve(argv.directory);
+    if (existsSync(fullPath)) {
+      if (lstatSync(fullPath).isDirectory()) {
+        return fullPath;
+      } else {
+        throw new ConfigurationError(`Not a directory: ${fullPath}`);
+      }
+    } else {
+      logger.debug(`Creating directory: ${fullPath}`);
+      await mkdirp(fullPath);
+      return fullPath;
+    }
+  } else {
+    return resolve(process.cwd());
+  }
 }
 
 /** TODO */
@@ -33,13 +69,23 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
   // FIXME move elsewhere
   process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
 
+  if (!argv.all && argv.names.length === 0) {
+    throw new ConfigurationError('No names to download, exiting.');
+  }
+
   const revision = argv.rev;
-  const name = argv.name;
 
   const artifactProvider = getArtifactProviderFromConfig();
+  if (!artifactProvider) {
+    logger.warn(
+      `Artifact provider is disabled in the configuration, nothing to do.`
+    );
+    return undefined;
+  }
+
+  const outputDirectory = await prepareOutputDirectory(argv);
 
   const artifacts = await artifactProvider.listArtifactsForRevision(revision);
-
   if (!artifacts) {
     logger.warn(`Revision ${revision} can not be found.`);
     return undefined;
@@ -48,18 +94,24 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
     return undefined;
   }
 
-  const filteredArtifacts = artifacts.filter(a => a.name === name);
-  if (filteredArtifacts.length === 0) {
-    logger.warn(`Artifact "${name}" was not found for revision ${revision}`);
-    return undefined;
-  }
-  const filteredArtifact = filteredArtifacts[0];
+  const filesToDownload = argv.all ? artifacts.map(ar => ar.name) : argv.names;
+  const nameToArtifact = _.fromPairs(artifacts.map(ar => [ar.name, ar]));
 
-  const artifactPath = await artifactProvider.downloadArtifact(
-    filteredArtifact,
-    'tmpyo'
-  );
-  logger.debug(`Resulting artifact path: ${artifactPath}`);
+  logger.info(`Fetching artifacts for revision: ${revision}`);
+  for (const name of filesToDownload) {
+    logger.info(`Artifact to fetch: "${name}"`);
+    const filteredArtifact = nameToArtifact[name];
+    if (!filteredArtifact) {
+      logger.warn(`Artifact "${name}" was not found`);
+      continue;
+    }
+
+    const artifactPath = await artifactProvider.downloadArtifact(
+      filteredArtifact,
+      outputDirectory
+    );
+    logger.info(`Saved artifact to: ${artifactPath}`);
+  }
 }
 
 /** TODO */

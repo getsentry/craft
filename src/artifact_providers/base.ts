@@ -71,9 +71,7 @@ export abstract class BaseArtifactProvider {
     artifact: CraftArtifact,
     downloadDirectory?: string
   ): Promise<string> {
-    const cacheKey = `${downloadDirectory}/${artifact.name}/${
-      artifact.updated_at
-    }`;
+    const cacheKey = `${downloadDirectory}/${artifact.name}/${artifact.updated_at}`;
     const cached = this.downloadCache[cacheKey];
     if (cached) {
       return cached;

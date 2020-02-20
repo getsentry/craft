@@ -59,9 +59,7 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
     revision: string
   ): Promise<CraftArtifact[] | undefined> {
     logger.debug(
-      `Fetching Zeus artifacts for ${this.repoOwner}/${
-        this.repoName
-      }, revision ${revision}`
+      `Fetching Zeus artifacts for ${this.repoOwner}/${this.repoName}, revision ${revision}`
     );
     let artifacts;
     try {

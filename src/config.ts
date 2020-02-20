@@ -314,9 +314,14 @@ export function readEnvironmentConfig(
 }
 
 /**
- * TODO
+ * Create an artifact provider instance from the spec in the configuration file
+ *
+ * @returns An instance of artifact provider, or "undefined" if the artifact
+ * provider is disabled.
  */
-export function getArtifactProviderFromConfig(): BaseArtifactProvider {
+export function getArtifactProviderFromConfig():
+  | BaseArtifactProvider
+  | undefined {
   const config = getConfiguration() || {};
   const githubConfig = config.github;
 
@@ -327,7 +332,9 @@ export function getArtifactProviderFromConfig(): BaseArtifactProvider {
   const statusProviderName = rawStatusProvider.name;
 
   switch (statusProviderName) {
-    case undefined:
+    case ArtifactProviderName.None:
+      return undefined;
+    case undefined: // Zeus is default at the moment
     case ArtifactProviderName.Zeus:
       return new ZeusArtifactProvider(githubConfig.owner, githubConfig.repo);
     default: {
@@ -337,7 +344,9 @@ export function getArtifactProviderFromConfig(): BaseArtifactProvider {
 }
 
 /**
- * TODO
+ * Create a status provider instance from the spec in the configuration file
+ *
+ * @returns An instance of artifact provider
  */
 export function getStatusProviderFromConfig(): BaseStatusProvider {
   const config = getConfiguration() || {};

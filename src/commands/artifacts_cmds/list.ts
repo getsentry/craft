@@ -16,6 +16,13 @@ async function handlerMain(argv: ArtifactsOptions): Promise<any> {
   const revision = argv.rev;
 
   const artifactProvider = getArtifactProviderFromConfig();
+  if (!artifactProvider) {
+    logger.warn(
+      `Artifact provider is disabled in the configuration, nothing to do.`
+    );
+    return undefined;
+  }
+
   const artifacts = await artifactProvider.listArtifactsForRevision(revision);
 
   if (!artifacts) {

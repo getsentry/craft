@@ -73,4 +73,5 @@ export const enum StatusProviderName {
 export const enum ArtifactProviderName {
   Zeus = 'zeus',
   GCS = 'gcs',
+  None = 'none',
 }

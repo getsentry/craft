@@ -73,8 +73,8 @@ const projectConfigJsonSchema = {
           title: 'ArtifactProviderName',
           description: 'Name of the artifact provider',
           type: 'string',
-          enum: ['zeus', 'gcs'],
-          tsEnumNames: ['Zeus', 'GCS'],
+          enum: ['zeus', 'gcs', 'none'],
+          tsEnumNames: ['Zeus', 'GCS', 'None'],
         },
         config: {
           type: 'object',
