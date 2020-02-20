@@ -52,6 +52,9 @@ export abstract class BaseStatusProvider {
     let firstIteration = true;
     while (true) {
       const status = await this.getRevisionStatus(revision);
+      logger.debug(
+        `Got status "${status}" from status provider: ${this.constructor.name}`
+      );
 
       // tslint:disable-next-line:prefer-switch
       if (status === CommitStatus.SUCCESS) {
