@@ -10,6 +10,8 @@ import { logger } from './logger';
 import {
   CraftProjectConfig,
   GithubGlobalConfig,
+  ArtifactProviderName,
+  StatusProviderName,
 } from './schemas/project_config';
 import { ConfigurationError } from './utils/errors';
 import {
@@ -17,6 +19,11 @@ import {
   parseVersion,
   versionGreaterOrEqualThan,
 } from './utils/version';
+import { BaseArtifactProvider } from './artifact_providers/base';
+import { ZeusArtifactProvider } from './artifact_providers/zeus';
+import { ZeusStatusProvider } from './status_providers/zeus';
+import { GithubStatusProvider } from './status_providers/github';
+import { BaseStatusProvider } from './status_providers/base';
 
 // TODO support multiple configuration files (one per configuration)
 export const CONFIG_FILE_NAME = '.craft.yml';
@@ -302,6 +309,74 @@ export function readEnvironmentConfig(
   for (const key of Object.keys(newEnv)) {
     if (overwriteExisting || process.env[key] === undefined) {
       process.env[key] = newEnv[key];
+    }
+  }
+}
+
+/**
+ * Create an artifact provider instance from the spec in the configuration file
+ *
+ * @returns An instance of artifact provider, or "undefined" if the artifact
+ * provider is disabled.
+ */
+export function getArtifactProviderFromConfig():
+  | BaseArtifactProvider
+  | undefined {
+  const config = getConfiguration() || {};
+  const githubConfig = config.github;
+
+  const rawStatusProvider = config.artifactProvider || {
+    config: undefined,
+    name: undefined,
+  };
+  const statusProviderName = rawStatusProvider.name;
+
+  switch (statusProviderName) {
+    case ArtifactProviderName.None:
+      return undefined;
+    case undefined: // Zeus is default at the moment
+    case ArtifactProviderName.Zeus:
+      return new ZeusArtifactProvider(githubConfig.owner, githubConfig.repo);
+    default: {
+      throw new ConfigurationError('Invalid artifact provider');
+    }
+  }
+}
+
+/**
+ * Create a status provider instance from the spec in the configuration file
+ *
+ * @returns An instance of artifact provider
+ */
+export function getStatusProviderFromConfig(): BaseStatusProvider {
+  const config = getConfiguration() || {};
+  const githubConfig = config.github;
+
+  const rawStatusProvider = config.statusProvider || {
+    config: undefined,
+    name: undefined,
+  };
+  const {
+    config: statusProviderConfig,
+    name: statusProviderName,
+  } = rawStatusProvider;
+
+  switch (statusProviderName) {
+    case undefined:
+    case StatusProviderName.Zeus:
+      return new ZeusStatusProvider(
+        githubConfig.owner,
+        githubConfig.repo,
+        statusProviderConfig
+      );
+    case StatusProviderName.Github:
+      return new GithubStatusProvider(
+        githubConfig.owner,
+        githubConfig.repo,
+        statusProviderConfig
+      );
+    default: {
+      throw new ConfigurationError('Invalid status provider');
     }
   }
 }

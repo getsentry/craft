@@ -8,12 +8,13 @@ import {
 } from '@zeus-ci/sdk';
 import * as _ from 'lodash';
 
-import { clearObjectProperties } from '../utils/objects';
 import {
   calculateChecksum,
   HashAlgorithm,
   HashOutputFormat,
 } from '../utils/system';
+import { clearObjectProperties } from '../utils/objects';
+import { logger } from '../logger';
 
 /** Maximum concurrency for Zeus downloads */
 export const ZEUS_DOWNLOAD_CONCURRENCY = 5;
@@ -61,7 +62,10 @@ export class ZeusStore {
     repoName: string,
     downloadDirectory?: string
   ) {
-    this.client = new ZeusClient({ defaultDirectory: downloadDirectory });
+    this.client = new ZeusClient({
+      defaultDirectory: downloadDirectory,
+      logger,
+    });
     this.repoOwner = repoOwner;
     this.repoName = repoName;
   }
