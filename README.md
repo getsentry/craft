@@ -89,8 +89,11 @@ Options:
 
 ## Global Configuration
 
-`craft` requires a few environment variables to be present in order to function
-properly.
+Global configuration for `craft` can be done either by using environment variables
+or by adding values to a configuration file (see below).
+
+In either case, at least the following two values must be configured in order
+for craft to function properly:
 
 - `GITHUB_API_TOKEN`
 
@@ -104,20 +107,25 @@ properly.
 
   Required only for `craft publish`.
 
-Additional environment variables can be required when publishing to specific
+Additional configuration may be required when publishing to specific
 targets (e.g. `TWINE_USERNAME` and `TWINE_PASSWORD` for PyPI target).
 
 ### Environment Files
 
-`craft` will try to read additional environment variables (keys, tokens, etc.) from
-the following files (in the specified order):
+`craft` will read configuration variables (keys, tokens, etc.) from the
+following locations:
 
 - `$HOME/.craft.env`
 - `$PROJECT_DIR/.craft.env`
+- the shell's environment
 
 ...where `$HOME` is the current user's home directory, and `$PROJECT_DIR` is the directory where `.craft.yml` is located.
 
-Already defined environment variables will not be overwritten.
+The above locations will be checked in the order specified above, with values
+found in one location overwriting anything found in previous locations. In other
+words, environment variables will take precedence over either configuration
+file, and the project-specific file will take precedence over the file in
+`$HOME`.
 
 The files must be written in shell (`sh`/`bash`) format. Leading `export` is allowed.
 
@@ -334,6 +342,11 @@ targets:
 Create a release on Github. If a Markdown changelog is present in the
 repository, this target tries to read the release name and description from the
 changelog. Otherwise, defaults to the tag name and tag's commit message.
+
+If `previewReleases` is set to `true` (which is the default), the release
+created on GitHub will be marked as a pre-release version if the release name
+contains any one of `preview`, `pre`, `rc`, `dev`,`alpha`, `beta`, `unstable`,
+`a`, or `b`.
 
 **Environment**
 

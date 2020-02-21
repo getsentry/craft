@@ -33,7 +33,7 @@ export interface GithubTargetConfig extends TargetConfig, GithubGlobalConfig {
   changelog: string;
   /** Prefix that will be used to generate tag name */
   tagPrefix: string;
-  /** Mark releases as preview, if the version looks like a non-public release */
+  /** Mark releases as pre-release, if the version looks like a non-public release */
   previewReleases: boolean;
   /** Use annotated (not lightweight) tag */
   annotatedTag: boolean;
