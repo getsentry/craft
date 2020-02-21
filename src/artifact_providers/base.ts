@@ -7,8 +7,11 @@ import { clearObjectProperties } from '../utils/objects';
 import * as _ from 'lodash';
 import { ConfigurationError } from '../utils/errors';
 
+/** Maximum concurrency for downloads */
+export const MAX_DOWNLOAD_CONCURRENCY = 5;
+
 /**
- * TODO
+ * A generic artifact interface
  */
 export interface CraftArtifact {
   download_url: string;
@@ -31,7 +34,9 @@ export interface FilterOptions {
   excludeNames?: RegExp;
 }
 
-/** TODO */
+/**
+ * Base interface for artifact providers.
+ */
 export abstract class BaseArtifactProvider {
   /** URL cache for downloaded files */
   protected readonly downloadCache: {
@@ -174,7 +179,7 @@ export abstract class BaseArtifactProvider {
   /**
    * Returns the calculated hash digest for the given artifact
    *
-   * The results are cached using the cache object attached to the ZeusStore instance.   *
+   * The results are cached.
    *
    * @param artifact Artifact we want to compute hash for
    * @param algorithm Hash algorithm

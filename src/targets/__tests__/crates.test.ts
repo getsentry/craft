@@ -1,5 +1,5 @@
-import { ZeusStore } from '../../stores/zeus';
 import { CrateDependency, CratePackage, CratesTarget } from '../crates';
+import { NoneArtifactProvider } from '../../artifact_providers/none';
 
 jest.mock('../../utils/system');
 
@@ -22,8 +22,7 @@ function cratePackageToDependency(cratePackage: CratePackage): CrateDependency {
 
 describe('getPublishOrder', () => {
   process.env.CRATES_IO_TOKEN = 'xxx';
-  const store = new ZeusStore('craft-test', 'craft-test-repo');
-  const target = new CratesTarget({}, store);
+  const target = new CratesTarget({}, new NoneArtifactProvider());
 
   test('sorts crate packages properly', async () => {
     const packages = ['p1', 'p2', 'p3', 'p4'].map(cratePackageFactory);

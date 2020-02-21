@@ -67,9 +67,11 @@ export class BaseTarget {
       ...defaultFilterOptions,
       ...this.filterOptions,
     };
+    // This is a hacky legacy way of skipping artifact downloads.
+    // Can be removed when we fully migrate from ZeusStore to artifact providers.
     if (filterOptions.includeNames?.source === 'none') {
       logger.debug(
-        `target.includeNames is 'none', skipping trying to fetch artifacts.`
+        `target.includeNames is 'none', skipping artifacts downloads.`
       );
       return [];
     }

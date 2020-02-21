@@ -11,7 +11,6 @@ import * as _ from 'lodash';
 import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
-import { ZEUS_DOWNLOAD_CONCURRENCY } from '../stores/zeus';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
@@ -32,6 +31,7 @@ import { BaseTarget } from './base';
 import {
   CraftArtifact,
   BaseArtifactProvider,
+  MAX_DOWNLOAD_CONCURRENCY,
 } from '../artifact_providers/base';
 
 const logger = loggerRaw.withScope('[registry]');
@@ -420,7 +420,7 @@ export class RegistryTarget extends BaseTarget {
     const files: { [key: string]: any } = {};
 
     // tslint:disable-next-line:await-promise
-    await mapLimit(artifacts, ZEUS_DOWNLOAD_CONCURRENCY, async artifact => {
+    await mapLimit(artifacts, MAX_DOWNLOAD_CONCURRENCY, async artifact => {
       const fileData = await this.getArtifactData(artifact, version, revision);
       if (!_.isEmpty(fileData)) {
         files[artifact.name] = fileData;
