@@ -3,7 +3,6 @@ import * as path from 'path';
 
 import { mapLimit } from 'async';
 import * as Github from '@octokit/rest';
-import { Artifact } from '@zeus-ci/sdk';
 import { shouldPerform } from 'dryrun';
 // tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
@@ -12,7 +11,7 @@ import * as _ from 'lodash';
 import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
-import { ZeusStore, ZEUS_DOWNLOAD_CONCURRENCY } from '../stores/zeus';
+import { ZEUS_DOWNLOAD_CONCURRENCY } from '../stores/zeus';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
@@ -30,6 +29,10 @@ import {
 } from '../utils/version';
 import { stringToRegexp } from '../utils/filters';
 import { BaseTarget } from './base';
+import {
+  CraftArtifact,
+  BaseArtifactProvider,
+} from '../artifact_providers/base';
 
 const logger = loggerRaw.withScope('[registry]');
 
@@ -85,8 +88,8 @@ export class RegistryTarget extends BaseTarget {
   /** Github repo configuration */
   public readonly githubRepo: GithubGlobalConfig;
 
-  public constructor(config: any, store: ZeusStore) {
-    super(config, store);
+  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+    super(config, artifactProvider);
     this.github = getGithubClient();
     this.githubRepo = getGlobalGithubConfig();
     this.registryConfig = this.getRegistryConfig();
@@ -360,7 +363,7 @@ export class RegistryTarget extends BaseTarget {
    *
    */
   public async getArtifactData(
-    artifact: Artifact,
+    artifact: CraftArtifact,
     version: string,
     revision: string
   ): Promise<any> {
@@ -378,7 +381,7 @@ export class RegistryTarget extends BaseTarget {
       const fileChecksums: { [key: string]: string } = {};
       for (const checksumType of this.registryConfig.checksums) {
         const { algorithm, format } = checksumType;
-        const checksum = await this.store.getChecksum(
+        const checksum = await this.artifactProvider.getChecksum(
           artifact,
           algorithm,
           format
@@ -566,9 +569,12 @@ export class RegistryTarget extends BaseTarget {
     // If we have onlyIfPresent specified, check that we have any of matched files
     const onlyIfPresentPattern = this.registryConfig.onlyIfPresent;
     if (onlyIfPresentPattern) {
-      const artifacts = await this.store.filterArtifactsForRevision(revision, {
-        includeNames: onlyIfPresentPattern,
-      });
+      const artifacts = await this.artifactProvider.filterArtifactsForRevision(
+        revision,
+        {
+          includeNames: onlyIfPresentPattern,
+        }
+      );
       if (artifacts.length === 0) {
         logger.warn(
           `No files found that match "${onlyIfPresentPattern.toString()}", skipping the target.`

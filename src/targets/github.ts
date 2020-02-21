@@ -6,7 +6,6 @@ import { basename } from 'path';
 import { getConfiguration, getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
-import { ZeusStore } from '../stores/zeus';
 import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
 import {
   getFile,
@@ -17,6 +16,7 @@ import {
 } from '../utils/githubApi';
 import { isPreviewRelease, versionToTag } from '../utils/version';
 import { BaseTarget } from './base';
+import { BaseArtifactProvider } from '../artifact_providers/base';
 
 const logger = loggerRaw.withScope('[github]');
 
@@ -68,8 +68,8 @@ export class GithubTarget extends BaseTarget {
   /** Github client */
   public readonly github: Github;
 
-  public constructor(config: any, store: ZeusStore) {
-    super(config, store);
+  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+    super(config, artifactProvider);
     this.githubConfig = {
       ...getGlobalGithubConfig(),
       annotatedTag:
@@ -369,7 +369,7 @@ export class GithubTarget extends BaseTarget {
     const artifacts = await this.getArtifactsForRevision(revision);
     await Promise.all(
       artifacts.map(async artifact => {
-        const path = await this.store.downloadArtifact(artifact);
+        const path = await this.artifactProvider.downloadArtifact(artifact);
         return this.uploadAsset(release, path, artifact.type);
       })
     );

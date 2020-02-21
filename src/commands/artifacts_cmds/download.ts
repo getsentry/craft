@@ -7,6 +7,7 @@ import { Argv } from 'yargs';
 import { resolve } from 'path';
 import { existsSync, lstatSync } from 'fs';
 import mkdirp = require('mkdirp');
+import { NoneArtifactProvider } from '../../artifact_providers/none';
 
 export const command = ['download [NAME..]'];
 export const aliases = ['d', 'get'];
@@ -76,7 +77,7 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
   const revision = argv.rev;
 
   const artifactProvider = getArtifactProviderFromConfig();
-  if (!artifactProvider) {
+  if (artifactProvider instanceof NoneArtifactProvider) {
     logger.warn(
       `Artifact provider is disabled in the configuration, nothing to do.`
     );

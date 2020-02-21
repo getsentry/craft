@@ -1,11 +1,12 @@
-import { Artifact } from '@zeus-ci/sdk';
-
 import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
-import { ZeusStore } from '../stores/zeus';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
+import {
+  BaseArtifactProvider,
+  CraftArtifact,
+} from '../artifact_providers/base';
 
 const logger = loggerRaw.withScope('[nuget]');
 
@@ -35,8 +36,8 @@ export class NugetTarget extends BaseTarget {
   /** Target options */
   public readonly nugetConfig: NugetTargetOptions;
 
-  public constructor(config: any, store: ZeusStore) {
-    super(config, store);
+  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+    super(config, artifactProvider);
     this.nugetConfig = this.getNugetConfig();
     checkExecutableIsPresent(NUGET_DOTNET_BIN);
   }
@@ -94,8 +95,8 @@ export class NugetTarget extends BaseTarget {
     }
 
     await Promise.all(
-      packageFiles.map(async (file: Artifact) => {
-        const path = await this.store.downloadArtifact(file);
+      packageFiles.map(async (file: CraftArtifact) => {
+        const path = await this.artifactProvider.downloadArtifact(file);
         logger.info(`Uploading file "${file.name}" via "dotnet nuget"`);
         return this.uploadAsset(path);
       })

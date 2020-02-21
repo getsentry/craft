@@ -3,6 +3,7 @@ import { ArtifactsOptions } from '../artifacts';
 import { getArtifactProviderFromConfig } from '../../config';
 import { handleGlobalError } from '../../utils/errors';
 import { formatSize } from '../../utils/strings';
+import { NoneArtifactProvider } from '../../artifact_providers/none';
 
 export const command = ['list'];
 export const aliases = ['l'];
@@ -16,7 +17,7 @@ async function handlerMain(argv: ArtifactsOptions): Promise<any> {
   const revision = argv.rev;
 
   const artifactProvider = getArtifactProviderFromConfig();
-  if (!artifactProvider) {
+  if (artifactProvider instanceof NoneArtifactProvider) {
     logger.warn(
       `Artifact provider is disabled in the configuration, nothing to do.`
     );

@@ -8,12 +8,12 @@ import * as simpleGit from 'simple-git/promise';
 import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
-import { ZeusStore } from '../stores/zeus';
 import { forEachChained } from '../utils/async';
 import { ConfigurationError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
+import { BaseArtifactProvider } from '../artifact_providers/base';
 
 const logger = loggerRaw.withScope('[crates]');
 
@@ -69,8 +69,8 @@ export class CratesTarget extends BaseTarget {
   /** Target options */
   public readonly cratesConfig: CratesTargetOptions;
 
-  public constructor(config: any, store: ZeusStore) {
-    super(config, store);
+  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+    super(config, artifactProvider);
     this.cratesConfig = this.getCratesConfig();
     checkExecutableIsPresent(CARGO_BIN);
   }

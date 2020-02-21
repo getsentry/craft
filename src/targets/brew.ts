@@ -6,12 +6,13 @@ import * as _ from 'lodash';
 import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
-import { ZeusStore, ZEUS_DOWNLOAD_CONCURRENCY } from '../stores/zeus';
+import { ZEUS_DOWNLOAD_CONCURRENCY } from '../stores/zeus';
 import { ConfigurationError } from '../utils/errors';
 import { getGithubClient } from '../utils/githubApi';
 import { renderTemplateSafe } from '../utils/strings';
 import { HashAlgorithm, HashOutputFormat } from '../utils/system';
 import { BaseTarget } from './base';
+import { BaseArtifactProvider } from '../artifact_providers/base';
 
 const logger = loggerRaw.withScope('[brew]');
 
@@ -53,8 +54,8 @@ export class BrewTarget extends BaseTarget {
   /** Github repo configuration */
   public readonly githubRepo: GithubGlobalConfig;
 
-  public constructor(config: any, store: ZeusStore) {
-    super(config, store);
+  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+    super(config, artifactProvider);
     this.brewConfig = this.getBrewConfig();
     this.github = getGithubClient();
     this.githubRepo = getGlobalGithubConfig();
@@ -161,7 +162,7 @@ export class BrewTarget extends BaseTarget {
 
     // tslint:disable-next-line:await-promise
     await mapLimit(filesList, ZEUS_DOWNLOAD_CONCURRENCY, async file => {
-      checksums[file.name] = await this.store.getChecksum(
+      checksums[file.name] = await this.artifactProvider.getChecksum(
         file,
         HashAlgorithm.SHA256,
         HashOutputFormat.Hex

@@ -1,9 +1,11 @@
-import { Artifact } from '@zeus-ci/sdk';
-
 import { logger } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
-import { FilterOptions, ZeusStore } from '../stores/zeus';
+import { FilterOptions } from '../stores/zeus';
 import { stringToRegexp } from '../utils/filters';
+import {
+  BaseArtifactProvider,
+  CraftArtifact,
+} from '../artifact_providers/base';
 
 // TODO: make abstract?
 /**
@@ -12,15 +14,18 @@ import { stringToRegexp } from '../utils/filters';
 export class BaseTarget {
   /** Target name */
   public readonly name: string = 'base';
-  /** Artifact store */
-  public readonly store: ZeusStore;
+  /** Artifact provider */
+  public readonly artifactProvider: BaseArtifactProvider;
   /** Unparsed target configuration */
   public readonly config: TargetConfig;
   /** Artifact filtering options for the target */
   public readonly filterOptions: FilterOptions;
 
-  public constructor(config: TargetConfig, store: ZeusStore) {
-    this.store = store;
+  public constructor(
+    config: TargetConfig,
+    artifactProvider: BaseArtifactProvider
+  ) {
+    this.artifactProvider = artifactProvider;
     this.config = config;
     this.filterOptions = {};
     if (this.config.includeNames) {
@@ -57,7 +62,7 @@ export class BaseTarget {
   public async getArtifactsForRevision(
     revision: string,
     defaultFilterOptions: FilterOptions = {}
-  ): Promise<Artifact[]> {
+  ): Promise<CraftArtifact[]> {
     const filterOptions = {
       ...defaultFilterOptions,
       ...this.filterOptions,
@@ -73,6 +78,9 @@ export class BaseTarget {
         filterOptions.includeNames
       )}, excludeNames:${String(filterOptions.excludeNames)}}`
     );
-    return this.store.filterArtifactsForRevision(revision, filterOptions);
+    return this.artifactProvider.filterArtifactsForRevision(
+      revision,
+      filterOptions
+    );
   }
 }
