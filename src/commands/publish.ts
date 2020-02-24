@@ -2,6 +2,8 @@ import * as Github from '@octokit/rest';
 import { shouldPerform } from 'dryrun';
 import * as inquirer from 'inquirer';
 import { Arguments, Argv } from 'yargs';
+import chalk from 'chalk';
+import stringLength from 'string-length';
 
 import {
   checkMinimalConfigVersion,
@@ -175,8 +177,10 @@ async function publishToTargets(
 
     // Publish all the targets
     for (const target of targetList) {
-      const publishMessage = `=== Publishing to target: "${target.name}" ===`;
-      const delim = Array(publishMessage.length + 1).join('=');
+      const publishMessage = `=== Publishing to target: ${chalk.bold(
+        chalk.cyan(target.name)
+      )} ===`;
+      const delim = Array(stringLength(publishMessage) + 1).join('=');
       logger.info(' ');
       logger.info(delim);
       logger.info(publishMessage);
@@ -434,9 +438,9 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   logger.debug('Revision to publish: ', revision);
 
   const statusProvider = getStatusProviderFromConfig();
-  const artifactProvider = getArtifactProviderFromConfig();
-
   logger.info(`Using "${statusProvider.constructor.name}" for status checks`);
+  const artifactProvider = getArtifactProviderFromConfig();
+  logger.info(`Using "${artifactProvider.constructor.name}" for artifacts`);
 
   // Check status of all CI builds linked to the revision
   await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);
