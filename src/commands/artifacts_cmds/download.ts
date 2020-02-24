@@ -7,6 +7,7 @@ import { Argv } from 'yargs';
 import { resolve } from 'path';
 import { existsSync, lstatSync } from 'fs';
 import mkdirp = require('mkdirp');
+import { NoneArtifactProvider } from '../../artifact_providers/none';
 
 export const command = ['download [NAME..]'];
 export const aliases = ['d', 'get'];
@@ -64,7 +65,9 @@ async function prepareOutputDirectory(
   }
 }
 
-/** TODO */
+/**
+ * Body of 'artifacts download' command
+ */
 async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
   // FIXME move elsewhere
   process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
@@ -76,7 +79,7 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
   const revision = argv.rev;
 
   const artifactProvider = getArtifactProviderFromConfig();
-  if (!artifactProvider) {
+  if (artifactProvider instanceof NoneArtifactProvider) {
     logger.warn(
       `Artifact provider is disabled in the configuration, nothing to do.`
     );
@@ -114,7 +117,9 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
   }
 }
 
-/** TODO */
+/**
+ * Main command handler
+ */
 export async function handler(argv: ArtifactsDownloadOptions): Promise<any> {
   try {
     return await handlerMain(argv);

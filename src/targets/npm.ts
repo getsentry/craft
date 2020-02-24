@@ -1,16 +1,17 @@
 import { SpawnOptions, spawnSync } from 'child_process';
-
-import { Artifact } from '@zeus-ci/sdk';
 import { shouldPerform } from 'dryrun';
 import * as inquirer from 'inquirer';
 
 import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
-import { ZeusStore } from '../stores/zeus';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { hasExecutable, spawnProcess } from '../utils/system';
 import { isPreviewRelease, parseVersion } from '../utils/version';
 import { BaseTarget } from './base';
+import {
+  BaseArtifactProvider,
+  CraftArtifact,
+} from '../artifact_providers/base';
 
 const logger = loggerRaw.withScope('[npm]');
 
@@ -68,8 +69,8 @@ export class NpmTarget extends BaseTarget {
   /** Target options */
   public readonly npmConfig: NpmTargetOptions;
 
-  public constructor(config: any, store: ZeusStore) {
-    super(config, store);
+  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+    super(config, artifactProvider);
     this.checkRequirements();
     this.npmConfig = this.getNpmConfig();
   }
@@ -207,7 +208,7 @@ export class NpmTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(version: string, revision: string): Promise<any> {
-    logger.debug('Fetching artifact list from Zeus...');
+    logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_PACKAGE_REGEX,
     });
@@ -223,8 +224,8 @@ export class NpmTarget extends BaseTarget {
     }
 
     await Promise.all(
-      packageFiles.map(async (file: Artifact) => {
-        const path = await this.store.downloadArtifact(file);
+      packageFiles.map(async (file: CraftArtifact) => {
+        const path = await this.artifactProvider.downloadArtifact(file);
         logger.info(`Releasing ${file.name} to NPM`);
         return this.publishPackage(path, publishOptions);
       })

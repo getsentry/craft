@@ -1,18 +1,10 @@
 import * as Github from '@octokit/rest';
 
 import { logger } from '../logger';
-import { BaseStatusProvider, CommitStatus } from './base';
+import { BaseStatusProvider, CommitStatus, RepositoryInfo } from './base';
 import { getGithubClient } from '../utils/githubApi';
 import { ConfigurationError } from '../utils/errors';
 import { formatJson } from '../utils/strings';
-
-/**
- * TODO
- */
-enum RevisionAdditionalStatus {
-  /** TODO */
-  NotFound = 'NotFound',
-}
 
 /**
  * TODO
@@ -93,7 +85,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
       ];
       if (
         results.includes(CommitStatus.FAILURE) ||
-        results.includes(RevisionAdditionalStatus.NotFound)
+        results.includes(CommitStatus.NOT_FOUND)
       ) {
         return CommitStatus.FAILURE;
       } else if (results.includes(CommitStatus.PENDING)) {
@@ -129,7 +121,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
       logger.debug('At least one of the checks is pending, result: PENDING');
       return CommitStatus.PENDING;
     } else if (
-      results[0] === RevisionAdditionalStatus.NotFound &&
+      results[0] === CommitStatus.NOT_FOUND &&
       results.every(el => el === results[0])
     ) {
       logger.error(`Context "${context}" was not found, result: FAILURE`);
@@ -164,7 +156,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
   private getResultFromRevisionStatus(
     combinedStatus: Github.ReposGetCombinedStatusForRefResponse,
     context?: string
-  ): CommitStatus | RevisionAdditionalStatus {
+  ): CommitStatus {
     if (context) {
       const statuses = combinedStatus.statuses;
       for (const status of statuses) {
@@ -172,7 +164,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
           return this.stateToCommitStatus(status.state);
         }
       }
-      return RevisionAdditionalStatus.NotFound;
+      return CommitStatus.NOT_FOUND;
     } else {
       return this.stateToCommitStatus(combinedStatus.state);
     }
@@ -186,7 +178,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
   private getResultFromRevisionChecks(
     revisionChecks: Github.ChecksListForRefResponse,
     context?: string
-  ): CommitStatus | RevisionAdditionalStatus {
+  ): CommitStatus {
     // Check runs: we have an array of runs, and each of them has a status
     let isSomethingPending = false;
     let found = false;
@@ -207,7 +199,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
       }
     }
     if (context && !found) {
-      return RevisionAdditionalStatus.NotFound;
+      return CommitStatus.NOT_FOUND;
     } else {
       return isSomethingPending ? CommitStatus.PENDING : CommitStatus.SUCCESS;
     }
@@ -254,7 +246,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
   }
 
   /** TODO */
-  public async getRepositoryInfo(): Promise<any> {
+  public async getRepositoryInfo(): Promise<RepositoryInfo> {
     return this.github.repos.get({
       owner: this.repoOwner,
       repo: this.repoName,

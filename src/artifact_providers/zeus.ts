@@ -7,7 +7,9 @@ import {
 import { logger } from '../logger';
 
 /**
- * TODO
+ * Zeus artifact provider
+ *
+ * Artifacts have to be uploaded to Zeus via "zeus-cli" command line tool.
  */
 export class ZeusArtifactProvider extends BaseArtifactProvider {
   /** Zeus API client */
@@ -38,11 +40,12 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
    * file is downloaded only once.
    *
    * @param artifact An artifact object to download
+   * @param downloadDirectory Directory where downloaded artifact is stored
    * @returns Absolute path to the saved file
    */
   public async doDownloadArtifact(
     artifact: CraftArtifact,
-    downloadDirectory?: string
+    downloadDirectory: string
   ): Promise<string> {
     // TODO fix some of these attributes
     return this.client.downloadArtifact(
@@ -57,7 +60,11 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
     );
   }
 
-  /** TODO */
+  /**
+   * List artifacts for the given revision
+   *
+   * @param revision revision id (its SHA)
+   */
   protected async doListArtifactsForRevision(
     revision: string
   ): Promise<CraftArtifact[] | undefined> {

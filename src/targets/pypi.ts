@@ -1,8 +1,9 @@
-import { Artifact } from '@zeus-ci/sdk';
-
 import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
-import { ZeusStore } from '../stores/zeus';
+import {
+  BaseArtifactProvider,
+  CraftArtifact,
+} from '../artifact_providers/base';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
@@ -38,8 +39,8 @@ export class PypiTarget extends BaseTarget {
   /** Target options */
   public readonly pypiConfig: PypiTargetOptions;
 
-  public constructor(config: any, store: ZeusStore) {
-    super(config, store);
+  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+    super(config, artifactProvider);
     this.pypiConfig = this.getPypiConfig();
     checkExecutableIsPresent(TWINE_BIN);
   }
@@ -84,7 +85,7 @@ export class PypiTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(_version: string, revision: string): Promise<any> {
-    logger.debug('Fetching artifact list from Zeus...');
+    logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_PYPI_REGEX,
     });
@@ -95,8 +96,8 @@ export class PypiTarget extends BaseTarget {
     }
 
     await Promise.all(
-      packageFiles.map(async (file: Artifact) => {
-        const path = await this.store.downloadArtifact(file);
+      packageFiles.map(async (file: CraftArtifact) => {
+        const path = await this.artifactProvider.downloadArtifact(file);
         logger.info(`Uploading file "${file.name}" via twine`);
         return this.uploadAsset(path);
       })

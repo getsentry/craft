@@ -30,6 +30,8 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Changelog Policies](#changelog-policies)
   - [Minimal Version](#minimal-version)
   - [Required Files](#required-files)
+- [Status Provider](#status-provider)
+- [Artifact Provider](#artifact-provider)
 - [Target Configurations](#target-configurations)
   - [Per-target options](#per-target-options)
   - [GitHub (`github`)](#github-github)
@@ -166,7 +168,7 @@ Options:
 ### `craft publish`: Publishing the Release
 
 The command will find a release branch for the provided version (tag) and
-publish the existing artifacts from Zeus to configured targets.
+publish the existing artifacts from the configured artifact provider to selected targets.
 
 ```plain
 craft publish NEW-VERSION
@@ -303,6 +305,48 @@ to ensure that we're not trying to do an incomplete release.
 requireNames:
   - /^sentry-craft.*\.tgz$/
   - /^gh-pages.zip$/
+```
+
+## Status Provider
+
+You can configure which status providers `craft` will use to check for your build status.
+By default, it will take Zeus but you can also use GitHub directly.
+This is helpful if you don't want to rely on Zeus for asking if you build is green or not.
+
+**Configuration**
+
+| Option   | Description                                                                                        |
+| -------- | -------------------------------------------------------------------------------------------------- |
+| `name`   | Name of the status provider: either `zeus` (default) or `github`                                   |
+| `config` | In case of `github`: may include `contexts` key that contains a list of required contexts (checks) |
+
+**Example:**
+
+```yaml
+statusProvider:
+  name: github
+  config:
+    contexts:
+      - Travis CI - Branch
+```
+
+## Artifact Provider
+
+You can configure which artifact providers `craft` will use to fetch artifacts from.
+By default, Zeus is used, but in case you don't need use any artifacts in your
+project, you can set it to `none`.
+
+**Configuration**
+
+| Option | Description                                                      |
+| ------ | ---------------------------------------------------------------- |
+| `name` | Name of the artifact provider: can be `zeus` (default) or `none` |
+
+**Example:**
+
+```yaml
+statusProvider:
+  name: none
 ```
 
 ## Target Configurations
@@ -685,25 +729,6 @@ The `cocoapods` gem must be installed on the system.
 targets:
   - name: cocoapods
     specPath: MyProject.podspec
-```
-
-### Status Provider
-
-You can configure which status providers `craft` will to check for your build status.
-By default it will take Zeus but you can also use Github directly.
-This is helpful if you don't want to rely on Zeus for asking if you build is green or not.
-
-**Configuration**
-
-| Option | Description                                                      |
-| ------ | ---------------------------------------------------------------- |
-| `name` | Name of the `statusProvider` either `zeus` (default) or `github` |
-
-**Example:**
-
-```yaml
-statusProvider:
-  name: github
 ```
 
 ## Integrating Your Project with `craft`

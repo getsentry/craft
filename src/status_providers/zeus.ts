@@ -1,4 +1,4 @@
-import { BaseStatusProvider, CommitStatus } from './base';
+import { BaseStatusProvider, CommitStatus, RepositoryInfo } from './base';
 import { ZeusStore } from '../stores/zeus';
 
 /**
@@ -41,7 +41,7 @@ export class ZeusStatusProvider extends BaseStatusProvider {
   }
 
   /** TODO */
-  public async getRepositoryInfo(): Promise<any> {
+  public async getRepositoryInfo(): Promise<RepositoryInfo> {
     return this.store.getRepositoryInfo();
   }
 }

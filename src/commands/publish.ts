@@ -2,15 +2,17 @@ import * as Github from '@octokit/rest';
 import { shouldPerform } from 'dryrun';
 import * as inquirer from 'inquirer';
 import { Arguments, Argv } from 'yargs';
+import chalk from 'chalk';
+import * as stringLength from 'string-length';
 
 import {
   checkMinimalConfigVersion,
   getConfiguration,
   getStatusProviderFromConfig,
+  getArtifactProviderFromConfig,
 } from '../config';
 import { formatTable, logger } from '../logger';
 import { GithubGlobalConfig } from '../schemas/project_config';
-import { ZeusStore } from '../stores/zeus';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
 import {
@@ -27,7 +29,7 @@ import { formatSize, formatJson } from '../utils/strings';
 import { catchKeyboardInterrupt } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 import { BaseStatusProvider } from '../status_providers/base';
-import { ZeusStatusProvider } from '../status_providers/zeus';
+import { BaseArtifactProvider } from '../artifact_providers/base';
 
 export const command = ['publish NEW-VERSION'];
 export const aliases = ['pp', 'publish'];
@@ -140,21 +142,17 @@ function checkVersion(argv: Arguments<any>, _opt: any): any {
  * @param keepDownloads If "true", downloaded files will not be removed
  */
 async function publishToTargets(
-  githubConfig: GithubGlobalConfig,
   version: string,
   revision: string,
   targetConfigList: any[],
+  artifactProvider: BaseArtifactProvider,
   keepDownloads: boolean = false
 ): Promise<void> {
   let downloadDirectoryPath;
 
   await withTempDir(async (downloadDirectory: string) => {
     downloadDirectoryPath = downloadDirectory;
-    const store = new ZeusStore(
-      githubConfig.owner,
-      githubConfig.repo,
-      downloadDirectory
-    );
+    artifactProvider.setDownloadDirectory(downloadDirectoryPath);
     const targetList: BaseTarget[] = [];
 
     // Initialize all targets first
@@ -169,7 +167,7 @@ async function publishToTargets(
         continue;
       }
       try {
-        const target = new targetClass(targetConfig, store);
+        const target = new targetClass(targetConfig, artifactProvider);
         targetList.push(target);
       } catch (e) {
         logger.error('Error creating target instance!');
@@ -179,8 +177,10 @@ async function publishToTargets(
 
     // Publish all the targets
     for (const target of targetList) {
-      const publishMessage = `=== Publishing to target: "${target.name}" ===`;
-      const delim = Array(publishMessage.length + 1).join('=');
+      const publishMessage = `=== Publishing to target: ${chalk.bold(
+        chalk.cyan(target.name)
+      )} ===`;
+      const delim = Array(stringLength(publishMessage) + 1).join('=');
       logger.info(' ');
       logger.info(delim);
       logger.info(publishMessage);
@@ -200,15 +200,15 @@ async function publishToTargets(
 /**
  * Prints summary for the revision, including available artifacts
  *
- * @param zeus Zeus store object
+ * @param artifactProvider Artifact provider instance
  * @param revision Git revision SHA
  */
 async function printRevisionSummary(
-  zeus: ZeusStore,
+  artifactProvider: BaseArtifactProvider,
   revision: string
 ): Promise<void> {
-  const artifacts = await zeus.listArtifactsForRevision(revision);
-  if (artifacts.length > 0) {
+  const artifacts = await artifactProvider.listArtifactsForRevision(revision);
+  if (artifacts && artifacts.length > 0) {
     const artifactData = artifacts.map(ar => [
       ar.name,
       formatSize(ar.file.size),
@@ -223,8 +223,10 @@ async function printRevisionSummary(
       artifactData
     );
     logger.info(`Available artifacts: \n${table.toString()}\n`);
+  } else if (!artifacts) {
+    throw new Error(`Revision ${revision} not found!`);
   } else {
-    logger.warn('No artifacts found for the release.');
+    logger.warn('No artifacts found for the revision.');
   }
 }
 
@@ -266,7 +268,7 @@ async function promptConfirmation(): Promise<void> {
  * @param requiredNames A list of patterns that all have to match
  */
 async function checkRequiredArtifacts(
-  zeus: ZeusStore,
+  artifactProvider: BaseArtifactProvider,
   revision: string,
   requiredNames?: string[]
 ): Promise<void> {
@@ -274,7 +276,11 @@ async function checkRequiredArtifacts(
     return;
   }
   logger.debug('Checking that the required artifact names are present...');
-  const artifacts = await zeus.listArtifactsForRevision(revision);
+  const artifacts = await artifactProvider.listArtifactsForRevision(revision);
+  if (!artifacts) {
+    throw new Error(`Revision ${revision} not found!`);
+  }
+
   for (const nameRegexString of requiredNames) {
     const nameRegex = stringToRegexp(nameRegexString);
     const matchedArtifacts = artifacts.filter(artifact =>
@@ -431,12 +437,10 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   }
   logger.debug('Revision to publish: ', revision);
 
-  // TODO: This needs to become optional
-  const zeus = new ZeusStore(githubConfig.owner, githubConfig.repo);
-
   const statusProvider = getStatusProviderFromConfig();
-
   logger.info(`Using "${statusProvider.constructor.name}" for status checks`);
+  const artifactProvider = getArtifactProviderFromConfig();
+  logger.info(`Using "${artifactProvider.constructor.name}" for artifacts`);
 
   // Check status of all CI builds linked to the revision
   await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);
@@ -471,12 +475,12 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       return undefined;
     }
 
-    // TODO: Handle new Artifacts stores
-    // We only ask Zeus now for artifacts
-    if (statusProvider instanceof ZeusStatusProvider) {
-      await printRevisionSummary(zeus, revision);
-      await checkRequiredArtifacts(zeus, revision, config.requireNames);
-    }
+    await printRevisionSummary(artifactProvider, revision);
+    await checkRequiredArtifacts(
+      artifactProvider,
+      revision,
+      config.requireNames
+    );
 
     logger.info('Publishing to targets:');
 
@@ -489,10 +493,10 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     await promptConfirmation();
 
     await publishToTargets(
-      githubConfig,
       newVersion,
       revision,
       targetConfigList,
+      artifactProvider,
       argv.keepDownloads
     );
   }

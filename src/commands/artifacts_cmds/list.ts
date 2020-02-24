@@ -3,12 +3,15 @@ import { ArtifactsOptions } from '../artifacts';
 import { getArtifactProviderFromConfig } from '../../config';
 import { handleGlobalError } from '../../utils/errors';
 import { formatSize } from '../../utils/strings';
+import { NoneArtifactProvider } from '../../artifact_providers/none';
 
 export const command = ['list'];
 export const aliases = ['l'];
 export const description = 'List artifacts';
 
-/** TODO */
+/**
+ * Body of 'artifacts list' command
+ */
 async function handlerMain(argv: ArtifactsOptions): Promise<any> {
   // FIXME move elsewhere
   process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
@@ -16,7 +19,7 @@ async function handlerMain(argv: ArtifactsOptions): Promise<any> {
   const revision = argv.rev;
 
   const artifactProvider = getArtifactProviderFromConfig();
-  if (!artifactProvider) {
+  if (artifactProvider instanceof NoneArtifactProvider) {
     logger.warn(
       `Artifact provider is disabled in the configuration, nothing to do.`
     );
@@ -53,7 +56,7 @@ async function handlerMain(argv: ArtifactsOptions): Promise<any> {
   return argv.rev;
 }
 
-/** TODO */
+/** Main command handler */
 export async function handler(argv: ArtifactsOptions): Promise<any> {
   try {
     return await handlerMain(argv);

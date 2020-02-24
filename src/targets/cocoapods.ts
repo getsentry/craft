@@ -6,12 +6,12 @@ import { promisify } from 'util';
 import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
-import { ZeusStore } from '../stores/zeus';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { getFile, getGithubClient } from '../utils/githubApi';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
+import { BaseArtifactProvider } from '../artifact_providers/base';
 const writeFile = promisify(fs.writeFile);
 
 const logger = loggerRaw.withScope('[cocoapods]');
@@ -44,8 +44,8 @@ export class CocoapodsTarget extends BaseTarget {
   /** Github repo configuration */
   public readonly githubRepo: GithubGlobalConfig;
 
-  public constructor(config: any, store: ZeusStore) {
-    super(config, store);
+  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+    super(config, artifactProvider);
     this.cocoapodsConfig = this.getCocoapodsConfig();
     this.github = getGithubClient();
     this.githubRepo = getGlobalGithubConfig();

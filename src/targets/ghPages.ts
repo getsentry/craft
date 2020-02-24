@@ -9,7 +9,6 @@ import * as simpleGit from 'simple-git/promise';
 import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
-import { ZeusStore } from '../stores/zeus';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
@@ -20,6 +19,7 @@ import {
 } from '../utils/githubApi';
 import { extractZipArchive } from '../utils/system';
 import { BaseTarget } from './base';
+import { BaseArtifactProvider } from '../artifact_providers/base';
 
 const logger = loggerRaw.withScope('[gh-pages]');
 
@@ -53,8 +53,8 @@ export class GhPagesTarget extends BaseTarget {
   /** Github repo configuration */
   public readonly githubRepo: GithubGlobalConfig;
 
-  public constructor(config: any, store: ZeusStore) {
-    super(config, store);
+  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+    super(config, artifactProvider);
     this.github = getGithubClient();
     this.githubRepo = getGlobalGithubConfig();
     this.ghPagesConfig = this.getGhPagesConfig();
@@ -199,7 +199,7 @@ export class GhPagesTarget extends BaseTarget {
   public async publish(version: string, revision: string): Promise<any> {
     const { githubOwner, githubRepo, branch } = this.ghPagesConfig;
 
-    logger.debug('Fetching artifact list from Zeus...');
+    logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_DEPLOY_ARCHIVE_REGEX,
     });
@@ -214,7 +214,9 @@ export class GhPagesTarget extends BaseTarget {
       );
       return undefined;
     }
-    const archivePath = await this.store.downloadArtifact(packageFiles[0]);
+    const archivePath = await this.artifactProvider.downloadArtifact(
+      packageFiles[0]
+    );
 
     const username = await getAuthUsername(this.github);
 
@@ -238,6 +240,6 @@ export class GhPagesTarget extends BaseTarget {
       'craft-gh-pages-'
     );
 
-    logger.info('Gh-pages release complete');
+    logger.info('GitHub pages release complete');
   }
 }

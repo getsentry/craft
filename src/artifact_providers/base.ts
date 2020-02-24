@@ -5,14 +5,19 @@ import {
 } from '../utils/system';
 import { clearObjectProperties } from '../utils/objects';
 import * as _ from 'lodash';
+import { ConfigurationError } from '../utils/errors';
+
+/** Maximum concurrency for downloads */
+export const MAX_DOWNLOAD_CONCURRENCY = 5;
 
 /**
- * TODO
+ * A generic artifact interface
  */
 export interface CraftArtifact {
   download_url: string;
   name: string;
   updated_at?: string;
+  type?: string;
   file: {
     name: string;
     size: number;
@@ -29,7 +34,9 @@ export interface FilterOptions {
   excludeNames?: RegExp;
 }
 
-/** TODO */
+/**
+ * Base interface for artifact providers.
+ */
 export abstract class BaseArtifactProvider {
   /** URL cache for downloaded files */
   protected readonly downloadCache: {
@@ -46,8 +53,27 @@ export abstract class BaseArtifactProvider {
     [path: string]: { [checksumType: string]: string };
   } = {};
 
-  public constructor() {
+  /** Directory that will be used for downloading artifacts by default */
+  protected defaultDownloadDirectory: string | undefined;
+
+  public constructor(downloadDirectory?: string) {
     this.clearCaches();
+    if (downloadDirectory) {
+      this.setDownloadDirectory(downloadDirectory);
+    }
+  }
+
+  /**
+   * Set the default download directory for the artifact provider
+   *
+   * @param downloadDirectory Path to the download directory
+   */
+  public setDownloadDirectory(downloadDirectory: string): void {
+    if (downloadDirectory) {
+      this.defaultDownloadDirectory = downloadDirectory;
+    } else {
+      throw new ConfigurationError('Download directory cannot be empty!');
+    }
   }
 
   /**
@@ -58,6 +84,7 @@ export abstract class BaseArtifactProvider {
     clearObjectProperties(this.fileListCache);
     clearObjectProperties(this.checksumCache);
   }
+
   /**
    * Downloads the given artifact file.
    *
@@ -71,23 +98,36 @@ export abstract class BaseArtifactProvider {
     artifact: CraftArtifact,
     downloadDirectory?: string
   ): Promise<string> {
-    const cacheKey = `${downloadDirectory}/${artifact.name}/${artifact.updated_at}`;
+    let finalDownloadDirectory;
+    if (downloadDirectory) {
+      finalDownloadDirectory = downloadDirectory;
+    } else if (this.defaultDownloadDirectory) {
+      finalDownloadDirectory = this.defaultDownloadDirectory;
+    } else {
+      throw new Error('Download directory not configured!');
+    }
+
+    const cacheKey = `${finalDownloadDirectory}/${artifact.name}/${artifact.updated_at}`;
     const cached = this.downloadCache[cacheKey];
     if (cached) {
       return cached;
     }
-    const promise = this.doDownloadArtifact(artifact, downloadDirectory);
+    const promise = this.doDownloadArtifact(artifact, finalDownloadDirectory);
     this.downloadCache[cacheKey] = promise;
     return promise;
   }
 
-  /** TODO */
+  /**
+   * Downloads the given artifact file (without caching)
+   */
   protected abstract async doDownloadArtifact(
     artifact: CraftArtifact,
-    downloadDirectory?: string
+    downloadDirectory: string
   ): Promise<string>;
 
-  /** TODO */
+  /**
+   * Downloads multiple artifacts to the given directory
+   */
   public async downloadArtifacts(
     artifacts: CraftArtifact[],
     downloadDirectory?: string
@@ -104,6 +144,7 @@ export abstract class BaseArtifactProvider {
    *
    * If there are several artifacts with the same name, returns the most recent
    * of them.
+   * The results are cached.
    *
    * @param revision Git commit id
    * @returns Filtered list of artifacts, or "undefined" if the revision can not be found
@@ -136,7 +177,9 @@ export abstract class BaseArtifactProvider {
     return dedupedArtifacts;
   }
 
-  /** TODO */
+  /**
+   * List artifacts for the given revision (without caching)
+   */
   protected abstract async doListArtifactsForRevision(
     revision: string
   ): Promise<CraftArtifact[] | undefined>;
@@ -144,7 +187,7 @@ export abstract class BaseArtifactProvider {
   /**
    * Returns the calculated hash digest for the given artifact
    *
-   * The results are cached using the cache object attached to the ZeusStore instance.   *
+   * The results are cached.
    *
    * @param artifact Artifact we want to compute hash for
    * @param algorithm Hash algorithm

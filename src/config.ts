@@ -24,6 +24,7 @@ import { ZeusArtifactProvider } from './artifact_providers/zeus';
 import { ZeusStatusProvider } from './status_providers/zeus';
 import { GithubStatusProvider } from './status_providers/github';
 import { BaseStatusProvider } from './status_providers/base';
+import { NoneArtifactProvider } from './artifact_providers/none';
 
 // TODO support multiple configuration files (one per configuration)
 export const CONFIG_FILE_NAME = '.craft.yml';
@@ -319,9 +320,7 @@ export function readEnvironmentConfig(
  * @returns An instance of artifact provider, or "undefined" if the artifact
  * provider is disabled.
  */
-export function getArtifactProviderFromConfig():
-  | BaseArtifactProvider
-  | undefined {
+export function getArtifactProviderFromConfig(): BaseArtifactProvider {
   const config = getConfiguration() || {};
   const githubConfig = config.github;
 
@@ -332,11 +331,11 @@ export function getArtifactProviderFromConfig():
   const statusProviderName = rawStatusProvider.name;
 
   switch (statusProviderName) {
-    case ArtifactProviderName.None:
-      return undefined;
-    case undefined: // Zeus is default at the moment
+    case undefined: // Zeus is the default at the moment
     case ArtifactProviderName.Zeus:
       return new ZeusArtifactProvider(githubConfig.owner, githubConfig.repo);
+    case ArtifactProviderName.None:
+      return new NoneArtifactProvider();
     default: {
       throw new ConfigurationError('Invalid artifact provider');
     }

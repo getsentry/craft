@@ -37,6 +37,7 @@
     "shell-quote": "1.6.1",
     "simple-git": "1.131.0",
     "split": "1.0.1",
+    "string-length": "3.1.0",
     "tar": "4.4.8",
     "tmp": "0.1.0",
     "unzipper": "0.9.7",

@@ -2,17 +2,19 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { Bucket, Storage, UploadOptions } from '@google-cloud/storage';
-import { Artifact } from '@zeus-ci/sdk';
 import { shouldPerform } from 'dryrun';
 import * as _ from 'lodash';
 
 import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
-import { ZeusStore } from '../stores/zeus';
 import { forEachChained } from '../utils/async';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { renderTemplateSafe } from '../utils/strings';
 import { BaseTarget } from './base';
+import {
+  BaseArtifactProvider,
+  CraftArtifact,
+} from '../artifact_providers/base';
 
 const logger = loggerRaw.withScope('[gcs]');
 
@@ -61,8 +63,8 @@ export class GcsTarget extends BaseTarget {
   /** Target options */
   public readonly gcsConfig: GcsTargetConfig;
 
-  public constructor(config: any, store: ZeusStore) {
-    super(config, store);
+  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+    super(config, artifactProvider);
     this.gcsConfig = this.getGcsConfig();
   }
 
@@ -182,7 +184,7 @@ export class GcsTarget extends BaseTarget {
    *
    * @param artifact Artifact to check
    */
-  private detectContentType(artifact: Artifact): string | undefined {
+  private detectContentType(artifact: CraftArtifact): string | undefined {
     const name = artifact.name;
     for (const entry of CONTENT_TYPES_EXT) {
       const [regex, contentType] = entry;
@@ -202,12 +204,12 @@ export class GcsTarget extends BaseTarget {
    * @param uploadOptions GCS upload options
    */
   private async uploadArtifact(
-    artifact: Artifact,
+    artifact: CraftArtifact,
     bucketPath: string,
     bucketObj: Bucket,
     uploadOptions: UploadOptions
   ): Promise<void> {
-    const filePath = await this.store.downloadArtifact(artifact);
+    const filePath = await this.artifactProvider.downloadArtifact(artifact);
     const destination = path.join(bucketPath, path.basename(filePath));
     const uploadOptionsFinal = _.cloneDeep(uploadOptions);
     const contentType = this.detectContentType(artifact);
@@ -244,7 +246,7 @@ export class GcsTarget extends BaseTarget {
   private async uploadToBucketPath(
     bucketPath: BucketDest,
     bucketObj: Bucket,
-    artifacts: Artifact[],
+    artifacts: CraftArtifact[],
     version: string,
     revision: string
   ): Promise<{}> {
@@ -255,7 +257,7 @@ export class GcsTarget extends BaseTarget {
     };
     logger.debug(`Global upload options: ${JSON.stringify(fileUploadUptions)}`);
     return Promise.all(
-      artifacts.map(async (artifact: Artifact) =>
+      artifacts.map(async (artifact: CraftArtifact) =>
         this.uploadArtifact(
           artifact,
           realPath,

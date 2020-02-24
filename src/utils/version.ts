@@ -1,4 +1,5 @@
 import * as updateNotifier from 'update-notifier';
+import chalk from 'chalk';
 
 import { getGitTagPrefix } from '../config';
 
@@ -141,7 +142,6 @@ export function versionToTag(version: string, tagPrefix?: string): string {
  * This wrappers adds a custom update message that mentions "yarn".
  */
 export function checkForUpdates(): void {
-  const chalk = require('chalk');
   const pkg = getPackage();
 
   // Notify if the new version is available
