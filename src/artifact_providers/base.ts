@@ -84,6 +84,7 @@ export abstract class BaseArtifactProvider {
     clearObjectProperties(this.fileListCache);
     clearObjectProperties(this.checksumCache);
   }
+
   /**
    * Downloads the given artifact file.
    *
@@ -116,13 +117,17 @@ export abstract class BaseArtifactProvider {
     return promise;
   }
 
-  /** TODO */
+  /**
+   * Downloads the given artifact file (without caching)
+   */
   protected abstract async doDownloadArtifact(
     artifact: CraftArtifact,
     downloadDirectory: string
   ): Promise<string>;
 
-  /** TODO */
+  /**
+   * Downloads multiple artifacts to the given directory
+   */
   public async downloadArtifacts(
     artifacts: CraftArtifact[],
     downloadDirectory?: string
@@ -139,6 +144,7 @@ export abstract class BaseArtifactProvider {
    *
    * If there are several artifacts with the same name, returns the most recent
    * of them.
+   * The results are cached.
    *
    * @param revision Git commit id
    * @returns Filtered list of artifacts, or "undefined" if the revision can not be found
@@ -171,7 +177,9 @@ export abstract class BaseArtifactProvider {
     return dedupedArtifacts;
   }
 
-  /** TODO */
+  /**
+   * List artifacts for the given revision (without caching)
+   */
   protected abstract async doListArtifactsForRevision(
     revision: string
   ): Promise<CraftArtifact[] | undefined>;

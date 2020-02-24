@@ -9,7 +9,9 @@ export const command = ['list'];
 export const aliases = ['l'];
 export const description = 'List artifacts';
 
-/** TODO */
+/**
+ * Body of 'artifacts list' command
+ */
 async function handlerMain(argv: ArtifactsOptions): Promise<any> {
   // FIXME move elsewhere
   process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
@@ -54,7 +56,7 @@ async function handlerMain(argv: ArtifactsOptions): Promise<any> {
   return argv.rev;
 }
 
-/** TODO */
+/** Main command handler */
 export async function handler(argv: ArtifactsOptions): Promise<any> {
   try {
     return await handlerMain(argv);

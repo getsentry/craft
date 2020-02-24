@@ -13,18 +13,22 @@ const BUILD_STATUS_POLLING_MAX = 60 * 60;
 const BUILD_POLLING_INTERVAL = 30;
 
 /**
- * TODO
+ * Allowed commit statuses that status providers may report
  */
 export enum CommitStatus {
-  /** TODO */
+  /** Commit is still being tested/checked/etc. */
   PENDING = 'pending',
-  /** TODO */
+  /** All required commit checks have passed successfully */
   SUCCESS = 'success',
-  /** TODO */
+  /** One or more commit checks failed */
   FAILURE = 'failure',
-  /** TODO */
+  /** Commit could not be found */
   NOT_FOUND = 'not_found',
 }
+
+/** Repository information */
+// tslint:disable-next-line:no-empty-interface
+export interface RepositoryInfo {}
 
 /**
  * Base class for commit status providers
@@ -32,13 +36,17 @@ export enum CommitStatus {
 export abstract class BaseStatusProvider {
   public config: any;
 
-  /** TODO */
+  /**
+   * Gets a status for the given revision
+   *
+   * @param revision Revision SHA
+   */
   public abstract async getRevisionStatus(
     revision: string
   ): Promise<CommitStatus>;
 
   /** TODO */
-  public abstract async getRepositoryInfo(): Promise<any>;
+  public abstract async getRepositoryInfo(): Promise<RepositoryInfo>;
 
   /**
    * Waits for the builds to finish for the revision
@@ -80,7 +88,6 @@ export abstract class BaseStatusProvider {
       }
 
       if (firstIteration) {
-        firstIteration = false;
         if (status !== CommitStatus.NOT_FOUND) {
           logger.info(`Revision ${revision} has been found.`);
         }
@@ -91,6 +98,8 @@ export abstract class BaseStatusProvider {
           `Waited for more than ${BUILD_STATUS_POLLING_MAX} seconds for the build to finish. Aborting.`
         );
       }
+
+      firstIteration = false;
 
       // Update the spinner
       const timeString = new Date().toLocaleString();

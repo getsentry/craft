@@ -240,6 +240,6 @@ export class GhPagesTarget extends BaseTarget {
       'craft-gh-pages-'
     );
 
-    logger.info('Gh-pages release complete');
+    logger.info('GitHub pages release complete');
   }
 }

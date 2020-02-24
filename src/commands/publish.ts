@@ -3,7 +3,7 @@ import { shouldPerform } from 'dryrun';
 import * as inquirer from 'inquirer';
 import { Arguments, Argv } from 'yargs';
 import chalk from 'chalk';
-import stringLength from 'string-length';
+import * as stringLength from 'string-length';
 
 import {
   checkMinimalConfigVersion,

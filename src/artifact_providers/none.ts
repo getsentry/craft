@@ -12,7 +12,7 @@ export class NoneArtifactProvider extends BaseArtifactProvider {
    */
   public async doDownloadArtifact(
     _artifact: CraftArtifact,
-    _downloadDirectory?: string
+    _downloadDirectory: string
   ): Promise<string> {
     return Promise.reject('NoneProvider does not suuport file downloads!');
   }

@@ -65,7 +65,9 @@ async function prepareOutputDirectory(
   }
 }
 
-/** TODO */
+/**
+ * Body of 'artifacts download' command
+ */
 async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
   // FIXME move elsewhere
   process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
@@ -115,7 +117,9 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
   }
 }
 
-/** TODO */
+/**
+ * Main command handler
+ */
 export async function handler(argv: ArtifactsDownloadOptions): Promise<any> {
   try {
     return await handlerMain(argv);

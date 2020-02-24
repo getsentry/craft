@@ -1,10 +1,10 @@
 import {
   Artifact,
   Client as ZeusClient,
-  RepositoryInfo,
   Result,
   RevisionInfo,
   Status,
+  RepositoryInfo,
 } from '@zeus-ci/sdk';
 import * as _ from 'lodash';
 
@@ -219,6 +219,8 @@ export class ZeusStore {
 
   /**
    * Gets repository information
+   *
+   * TODO: this RepositoryInfo is from zeus-sdk.
    */
   public async getRepositoryInfo(): Promise<RepositoryInfo> {
     return this.client.getRepositoryInfo(this.repoOwner, this.repoName);

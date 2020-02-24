@@ -4,7 +4,9 @@ export const command = ['artifacts'];
 export const aliases = ['a', 'artifact'];
 export const description = '📦 Manage artifacts';
 
-/** TODO */
+/**
+ * Common options for `artifacts` commands
+ */
 export interface ArtifactsOptions {
   rev: string;
 }
