@@ -5021,13 +5021,13 @@ stream-shift@^1.0.0:
   resolved "https://registry.yarnpkg.com/stream-shift/-/stream-shift-1.0.0.tgz#d5c752825e5367e786f78e18e445ea223a155952"
   integrity sha1-1cdSgl5TZ+eG944Y5EXqIjoVWVI=
 
-string-length@3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/string-length/-/string-length-3.0.0.tgz#74ae8d207c716322d4a8fe79736170d3b5a4ed94"
-  integrity sha512-VeZa3u8MpEpDi7NMsZfp6ggk2x6ncBdE+sObPEVlczaUciCc+3ktm46P3HU2KdXArigN4XeEFNaj1Sg9TYAznw==
+string-length@3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/string-length/-/string-length-3.1.0.tgz#107ef8c23456e187a8abd4a61162ff4ac6e25837"
+  integrity sha512-Ttp5YvkGm5v9Ijagtaz1BnN+k9ObpvS0eIBblPMp2YWL8FBmi9qblQ9fexc2k/CXFgrTIteU3jAw3payCnwSTA==
   dependencies:
     astral-regex "^1.0.0"
-    strip-ansi "^5.1.0"
+    strip-ansi "^5.2.0"
 
 string-length@^2.0.0:
   version "2.0.0"
@@ -5107,7 +5107,7 @@ strip-ansi@^5.0.0:
   dependencies:
     ansi-regex "^4.0.0"
 
-strip-ansi@^5.1.0:
+strip-ansi@^5.2.0:
   version "5.2.0"
   resolved "https://registry.yarnpkg.com/strip-ansi/-/strip-ansi-5.2.0.tgz#8c9a536feb6afc962bdfa5b104a5091c1ad9c0ae"
   integrity sha512-DuRs1gKbBqsMKIZlrffwlug8MHkcnpjs5VPmL1PAh+mA30U0DTotfDZ0d2UUsXpPmPmMMJ6W773MaA3J+lbiWA==
