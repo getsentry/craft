@@ -199,7 +199,7 @@ export class GhPagesTarget extends BaseTarget {
   public async publish(version: string, revision: string): Promise<any> {
     const { githubOwner, githubRepo, branch } = this.ghPagesConfig;
 
-    logger.debug('Fetching artifact list from Zeus...');
+    logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_DEPLOY_ARCHIVE_REGEX,
     });

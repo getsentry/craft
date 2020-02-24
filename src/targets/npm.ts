@@ -208,7 +208,7 @@ export class NpmTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(version: string, revision: string): Promise<any> {
-    logger.debug('Fetching artifact list from Zeus...');
+    logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_PACKAGE_REGEX,
     });
