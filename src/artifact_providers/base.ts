@@ -136,7 +136,7 @@ export abstract class BaseArtifactProvider {
   ): Promise<string>;
 
   /**
-   * Given an arry of artifacts, returns an arry of local paths to the those
+   * Given an array of artifacts, returns an array of local paths to those
    * artifacts, downloading (and then caching) each file first if necessary.
    *
    * The cache persists for the lifetime of the ArtifactProvider instance, so
