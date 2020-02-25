@@ -34,14 +34,7 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
   }
 
   /**
-   * Downloads the given artifact file.
-   *
-   * Downloaded URL are cached during the instance's lifetime, so the same
-   * file is downloaded only once.
-   *
-   * @param artifact An artifact object to download
-   * @param downloadDirectory Directory where downloaded artifact is stored
-   * @returns Absolute path to the saved file
+   * @inheritDoc
    */
   public async doDownloadArtifact(
     artifact: CraftArtifact,
@@ -61,9 +54,7 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
   }
 
   /**
-   * List artifacts for the given revision
-   *
-   * @param revision revision id (its SHA)
+   * @inheritDoc
    */
   protected async doListArtifactsForRevision(
     revision: string

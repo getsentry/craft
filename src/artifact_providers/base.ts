@@ -38,7 +38,7 @@ export interface FilterOptions {
  * Base interface for artifact providers.
  */
 export abstract class BaseArtifactProvider {
-  /** URL cache for downloaded files */
+  /** Cache for local paths to downloaded files */
   protected readonly downloadCache: {
     [key: string]: Promise<string> | undefined;
   } = {};
@@ -64,7 +64,7 @@ export abstract class BaseArtifactProvider {
   }
 
   /**
-   * Set the default download directory for the artifact provider
+   * Sets the default download directory for the artifact provider
    *
    * @param downloadDirectory Path to the download directory
    */
@@ -86,12 +86,15 @@ export abstract class BaseArtifactProvider {
   }
 
   /**
-   * Downloads the given artifact file.
+   * Downloads the given artifact (if not already cached), and returns the
+   * file's local path.
    *
-   * Downloaded URL are cached during the instance's lifetime, so the same
-   * file is downloaded only once.
+   * The cache persists for the lifetime of the ArtifactProvider instance, so
+   * the same file is downloaded only once.
    *
    * @param artifact An artifact object to download
+   * @param downloadDirectory The local directory into which artifacts should be
+   * downloaded
    * @returns Absolute path to the saved file
    */
   public async downloadArtifact(
@@ -118,7 +121,14 @@ export abstract class BaseArtifactProvider {
   }
 
   /**
-   * Downloads the given artifact file (without caching)
+   * Downloads the given file from the artifact store.
+   *
+   * This method's caller caches downloaded files during the instance's
+   * lifetime, so this method should only be called once per artifact
+   *
+   * @param artifact An artifact object to download
+   * @param downloadDirectory Directory where downloaded artifact is stored
+   * @returns Absolute path to the saved file
    */
   protected abstract async doDownloadArtifact(
     artifact: CraftArtifact,
@@ -126,7 +136,16 @@ export abstract class BaseArtifactProvider {
   ): Promise<string>;
 
   /**
-   * Downloads multiple artifacts to the given directory
+   * Given an arry of artifacts, returns an arry of local paths to the those
+   * artifacts, downloading (and then caching) each file first if necessary.
+   *
+   * The cache persists for the lifetime of the ArtifactProvider instance, so
+   * each file is downloaded only once.
+   *
+   * @param artifacts An array of artifact objects to download
+   * @param downloadDirectory The local directory into which artifacts should be
+   * downloaded
+   * @returns Array of absolute paths to the saved files
    */
   public async downloadArtifacts(
     artifacts: CraftArtifact[],
@@ -140,14 +159,15 @@ export abstract class BaseArtifactProvider {
   }
 
   /**
-   * Gets a list of all recent artifacts for the given revision
+   * Gets a list of all recent artifacts for the given revision, either from the
+   * cache or from the provider's API.
    *
    * If there are several artifacts with the same name, returns the most recent
    * of them.
-   * The results are cached.
    *
    * @param revision Git commit id
-   * @returns Filtered list of artifacts, or "undefined" if the revision can not be found
+   * @returns Filtered list of artifacts, or "undefined" if the revision cannot
+   * be found
    */
   public async listArtifactsForRevision(
     revision: string
@@ -178,7 +198,15 @@ export abstract class BaseArtifactProvider {
   }
 
   /**
-   * List artifacts for the given revision (without caching)
+   * Retrieves a list of artifacts for the given revision from the provider's
+   * API.
+   *
+   * This method's caller caches artifact lists during the instance's lifetime,
+   * so this method should only be called once per revision.
+   *
+   * @param revision Git commit id
+   * @returns Filtered list of artifacts, or "undefined" if the revision cannot
+   * be found
    */
   protected abstract async doListArtifactsForRevision(
     revision: string
@@ -192,6 +220,7 @@ export abstract class BaseArtifactProvider {
    * @param artifact Artifact we want to compute hash for
    * @param algorithm Hash algorithm
    * @param format Hash format
+   * @returns Calculated hash value
    */
   public async getChecksum(
     artifact: CraftArtifact,
@@ -213,10 +242,12 @@ export abstract class BaseArtifactProvider {
   }
 
   /**
-   * Gets a list of artifacts that match the provided filtering options
+   * Gets a list of artifacts that match the provided `includeNames` and
+   * `excludeNames` filtering options
    *
    * @param revision Git commit id
    * @param filterOptions Filtering options
+   * @returns Filtered array of artifacts
    */
   public async filterArtifactsForRevision(
     revision: string,

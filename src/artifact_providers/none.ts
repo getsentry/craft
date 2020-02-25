@@ -8,9 +8,11 @@ import {
  */
 export class NoneArtifactProvider extends BaseArtifactProvider {
   /**
-   * This method should not be called by user code.
+   * Empty provider cannot download any files.
+   *
+   * @returns A promise rejection with an error message
    */
-  public async doDownloadArtifact(
+  protected async doDownloadArtifact(
     _artifact: CraftArtifact,
     _downloadDirectory: string
   ): Promise<string> {
@@ -19,6 +21,8 @@ export class NoneArtifactProvider extends BaseArtifactProvider {
 
   /**
    * Empty provider does not have any artifacts.
+   *
+   * @returns An empty array
    */
   protected async doListArtifactsForRevision(
     _revision: string
