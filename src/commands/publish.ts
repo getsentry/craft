@@ -400,7 +400,11 @@ async function handleReleaseBranch(
 export async function publishMain(argv: PublishOptions): Promise<any> {
   logger.debug('Argv:', JSON.stringify(argv));
   checkMinimalConfigVersion();
-  checkEnvForPrerequisites(['ZEUS_API_TOKEN', 'ZEUS_TOKEN']);
+  checkEnvForPrerequisites([['ZEUS_API_TOKEN', 'ZEUS_TOKEN']]);
+  // We currently need ZEUS_TOKEN set for zeus-sdk to work properly
+  if (!process.env.ZEUS_TOKEN) {
+    process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
+  }
 
   // Get repo configuration
   const config = getConfiguration() || {};

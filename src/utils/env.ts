@@ -28,8 +28,9 @@ export function checkEnvForPrerequisites(
     if (legacyVarName && process.env[legacyVarName]) {
       process.env[varName] = process.env[legacyVarName];
       logger.warn(
+        // tslint:disable-next-line: prefer-template
         `Usage of ${legacyVarName} is deprecated, and will be removed in later versions. ` +
-          `Please use ${varName} instead.`
+          `Please use ${varName} instead.\n`
       );
     }
   }
