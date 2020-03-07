@@ -12,11 +12,14 @@ export function checkEnvForPrerequisites(
 ): void {
   // ensure that every variable has a corresponding legacy name, even if it's
   // null, to make processing easier
-  const vars = varList.map(
-    item => (item instanceof String ? [item, null] : item) //
+  const vars = varList.map(item =>
+    typeof item === 'string' ? [item, null] : item
   ) as Array<[string, string]>;
 
   for (const [varName, legacyVarName] of vars) {
+    logger.debug(`Checking for environment variable ${varName}`);
+
+    // not found, under either the current or legacy names
     if (!process.env[varName] && !process.env[legacyVarName]) {
       throw new ConfigurationError(
         `${varName} not found in the environment. See the documentation for more details.`
@@ -26,12 +29,28 @@ export function checkEnvForPrerequisites(
     // if we used to use a different name for the env variable, move it to the
     // new name and warn the user
     if (legacyVarName && process.env[legacyVarName]) {
-      process.env[varName] = process.env[legacyVarName];
-      logger.warn(
-        // tslint:disable-next-line: prefer-template
-        `Usage of ${legacyVarName} is deprecated, and will be removed in later versions. ` +
-          `Please use ${varName} instead.\n`
-      );
+      // they're using the legacy name instead of the new name
+      if (!process.env[varName]) {
+        logger.warn(
+          `Usage of ${legacyVarName} is deprecated, and will be removed in ` +
+            `later versions. Please use ${varName} instead.`
+        );
+        logger.debug(
+          `Moving legacy environment variable ${legacyVarName} to ${varName}`
+        );
+        process.env[varName] = process.env[legacyVarName];
+      }
+
+      // they have both the legacy and the new name in the environment
+      else {
+        logger.warn(
+          `Found ${varName} in your environment but also found legacy ${legacyVarName}. ` +
+            `Do you mean to be using both?`
+        );
+      }
+      logger.info();
+    } else {
+      logger.debug(`Found ${varName}`);
     }
   }
 }
