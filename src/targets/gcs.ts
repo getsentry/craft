@@ -1,4 +1,3 @@
-import * as fs from 'fs';
 import * as path from 'path';
 
 import { Bucket, Storage, UploadOptions } from '@google-cloud/storage';
@@ -9,6 +8,7 @@ import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { forEachChained } from '../utils/async';
 import { ConfigurationError, reportError } from '../utils/errors';
+import { BucketRole, GCSBucket } from '../utils/gcsApi';
 import { renderTemplateSafe } from '../utils/strings';
 import { BaseTarget } from './base';
 import {
@@ -72,32 +72,14 @@ export class GcsTarget extends BaseTarget {
    * Parses and checks configuration for the "gcs" target
    */
   protected getGcsConfig(): GcsTargetConfig {
-    const gcsConfigPath = process.env.CRAFT_GCS_CREDENTIALS_PATH;
-    const gcsConfigJson = process.env.CRAFT_GCS_CREDENTIALS_JSON;
-    let configRaw = '';
-    if (gcsConfigJson) {
-      logger.debug('Using configuration from CRAFT_GCS_CREDENTIALS_JSON');
-      configRaw = gcsConfigJson;
-    } else if (gcsConfigPath) {
-      logger.debug('Using configuration located at CRAFT_GCS_CREDENTIALS_PATH');
-      if (!fs.existsSync(gcsConfigPath)) {
-        reportError(`File does not exist: ${gcsConfigPath}`);
-      }
-      configRaw = fs.readFileSync(gcsConfigPath).toString();
-    } else {
-      let errorMsg = 'GCS configuration not found!';
-      errorMsg +=
-        'Please provide the path to the configuration via environment variable CRAFT_GCS_CREDENTIALS_PATH, ';
-      errorMsg +=
-        'or specify the entire configuration in CRAFT_GCS_CREDENTIALS_JSON.';
-      reportError(errorMsg);
-    }
 
-    const serviceAccountConfig = JSON.parse(configRaw);
 
+    const serviceAccountConfig = GCSBucket.getGCSCredsFromEnv(
+      BucketRole.TARGET
+    );
     const projectId = serviceAccountConfig.project_id;
     if (!projectId) {
-      reportError('Cannot find project ID in the service account!');
+      reportError('GCS credentials missing project_id!');
     }
 
     const bucketName = this.config.bucket;
