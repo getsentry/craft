@@ -21,10 +21,10 @@ import {
 } from './utils/version';
 import { BaseArtifactProvider } from './artifact_providers/base';
 import { ZeusArtifactProvider } from './artifact_providers/zeus';
+import { NoneArtifactProvider } from './artifact_providers/none';
 import { ZeusStatusProvider } from './status_providers/zeus';
 import { GithubStatusProvider } from './status_providers/github';
 import { BaseStatusProvider } from './status_providers/base';
-import { NoneArtifactProvider } from './artifact_providers/none';
 
 // TODO support multiple configuration files (one per configuration)
 export const CONFIG_FILE_NAME = '.craft.yml';
@@ -317,20 +317,20 @@ export function readEnvironmentConfig(
 /**
  * Create an artifact provider instance from the spec in the configuration file
  *
- * @returns An instance of artifact provider, or "undefined" if the artifact
- * provider is disabled.
+ * @returns An instance of artifact provider (which may be the dummy
+ * NoneArtifactProvider if artifact storage is disabled).
  */
 export function getArtifactProviderFromConfig(): BaseArtifactProvider {
   const config = getConfiguration() || {};
   const githubConfig = config.github;
 
-  const rawStatusProvider = config.artifactProvider || {
+  const rawArtifactProvider = config.artifactProvider || {
     config: undefined,
     name: undefined,
   };
-  const statusProviderName = rawStatusProvider.name;
+  const artifactProviderName = rawArtifactProvider.name;
 
-  switch (statusProviderName) {
+  switch (artifactProviderName) {
     case undefined: // Zeus is the default at the moment
     case ArtifactProviderName.Zeus:
       return new ZeusArtifactProvider(githubConfig.owner, githubConfig.repo);
