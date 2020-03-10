@@ -372,6 +372,8 @@ The following options can be applied to every target individually:
 | `includeNames` | **optional**. Regular expression: only matched files will be processed by the target. There is one special case that `includeNames` supports, if your build doesn't any artifacts you can write `includeNames: /none/`, this will skip the check for artifacts towards Zeus entirely. |
 | `excludeNames` | **optional**. Regular expression: the matched files will be skipped by the target. Matching is performed after testing for inclusion (via `includeNames`).                                                                                                                            |
 
+If neither option is included, all artifacts for the release will be processed by the target.
+
 **Example:**
 
 ```yaml
@@ -593,21 +595,23 @@ The bucket paths (`paths`) can be interpolated using Mustache syntax (`{{ variab
 
 **Environment**
 
+Google Cloud credentials can be provided using either of the following two environment variables.
+
 | Name                         | Description                                                              |
 | ---------------------------- | ------------------------------------------------------------------------ |
 | `CRAFT_GCS_CREDENTIALS_PATH` | Local filesystem path to Google Cloud credentials (service account file) |
-| `CRAFT_GCS_CREDENTIALS_JSON` | Full JSON-encoded service account file                                   |
+| `CRAFT_GCS_CREDENTIALS_JSON` | Full service account file contents, as a JSON string                     |
 
-One of these two environment variables is required.
+If defined, `CRAFT_GCS_CREDENTIALS_JSON` will be preferred over `CRAFT_GCS_CREDENTIALS_PATH`.
 
 **Configuration**
 
-| Option           | Description                                                                                                                                                                                       |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bucket`         | The name of the GCS bucket where artifacts are uploaded.                                                                                                                                          |
-| `paths`          | A list of path objects that represent bucket paths.                                                                                                                                               |
-| `paths.path`     | Template-aware bucket path.                                                                                                                                                                       |
-| `paths.metadata` | **optional** [Metadata](https://cloud.google.com/storage/docs/json_api/v1/objects/insert#request_properties_JSON) for uploaded files. By default, it sets Cache-Control to "public, max-age=300". |
+| Option           | Description                                                                                                                                                                                           |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bucket`         | The name of the GCS bucket where artifacts are uploaded.                                                                                                                                              |
+| `paths`          | A list of path objects that represent bucket paths.                                                                                                                                                   |
+| `paths.path`     | Template-aware bucket path, which can contain `{{ version }}` and/or `{{ revision }}`.                                                                                                                |
+| `paths.metadata` | **optional** [Metadata](https://cloud.google.com/storage/docs/json_api/v1/objects/insert#request_properties_JSON) for uploaded files. By default, it sets `Cache-Control` to `"public, max-age=300"`. |
 
 **Example**
 
@@ -619,7 +623,7 @@ targets:
       - path: release/{{version}}/download
         metadata:
           cacheControl: `public, max-age=3600`
-      - path: release/{{ref}}/platform/package
+      - path: release/{{revision}}/platform/package
 ```
 
 ### GitHub Pages (`gh-pages`)
