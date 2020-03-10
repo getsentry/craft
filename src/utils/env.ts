@@ -2,62 +2,79 @@ import { ConfigurationError } from './errors';
 import { logger } from '../logger';
 
 /**
- * Checks the environment for the presence of the given variables.
- *
- * Variables can be specified either as strings or as tuples of [currentName,
- * legacyName], in which case a deprecation warning will be issued.
+ * A token, key, or other value which can be stored either in an env file or
+ * directly in the environment
  */
-export function checkEnvForPrerequisites(
-  varList: Array<string | [string, string]>
-): void {
-  // ensure that every variable has a corresponding legacy name, even if it's
-  // null, to make processing easier
-  const vars = varList.map(item =>
-    typeof item === 'string' ? [item, null] : item
-  ) as Array<[string, string]>;
+export interface RequiredConfigVar {
+  name: string;
+  legacyName?: string;
+}
+/**
+ * Checks the environment for a single variable, taking into account its legacy
+ * name, if app.
+ *
+ * Copies value over to live under current name if only found under legacy name.
+ *
+ * @param envVar a RequiredConfigVar object to check for
+ * @returns true if variable was found, under either current or legacy name,
+ * false otherwise
+ */
+const envHasVar = (envVar: RequiredConfigVar): boolean => {
+  const { name, legacyName } = envVar;
 
-  for (const [varName, legacyVarName] of vars) {
-    logger.debug(`Checking for environment variable ${varName}`);
+  logger.debug(`\tChecking for environment variable ${name}`);
 
-    // not found, under either the current or legacy names
-    if (!process.env[varName] && !process.env[legacyVarName]) {
-      // note: Technically this function only checks the environment, not any
-      // config files, but that's only because on app startup we move all config
-      // variables into the environment, so we can have one central place to
-      // look for them. So, when communicating with the user, we need to address
-      // all of the places they might have stuck these variables.
-      throw new ConfigurationError(
-        `Required value ${varName} not found in configuration files or the ` +
-          `environment. See the documentation for more details.`
-      );
-    }
+  // not found, under either the current name or legacy name (if app.)
+  if (!process.env[name] && !process.env[legacyName as string]) {
+    return false;
+  }
 
-    // if we used to use a different name for the env variable, move it to the
-    // new name and warn the user
-    if (legacyVarName && process.env[legacyVarName]) {
-      // they're using the legacy name instead of the new name
-      if (!process.env[varName]) {
-        logger.warn(
-          `Usage of ${legacyVarName} is deprecated, and will be removed in ` +
-            `later versions. Please use ${varName} instead.`
-        );
-        logger.debug(
-          `Moving legacy environment variable ${legacyVarName} to ${varName}`
-        );
-        process.env[varName] = process.env[legacyVarName];
-      }
+  // now we know it's there *somewhere*...
 
-      // they have both the legacy and the new name in the environment
-      else {
-        logger.warn(
-          `When searching configuration files and your environment, found ` +
-            `${varName} but also found legacy ${legacyVarName}. Do you mean ` +
-            `to be using both?`
-        );
-      }
-      logger.info();
-    } else {
-      logger.debug(`Found ${varName}`);
-    }
+  // the simple cases - either no legacy name or legacy name not in use
+  if (!legacyName || !process.env[legacyName]) {
+    logger.debug(`Found ${name}`);
+  }
+
+  // the less simple cases - only using legacy name or using both
+  else if (process.env[legacyName] && !process.env[name]) {
+    logger.warn(
+      `Usage of ${legacyName} is deprecated, and will be removed in ` +
+        `later versions. Please use ${name} instead.`
+    );
+    logger.debug(`Moving legacy environment variable ${legacyName} to ${name}`);
+    process.env[name] = process.env[legacyName];
+  } else if (process.env[legacyName] && process.env[name]) {
+    logger.warn(
+      `When searching configuration files and your environment, found ` +
+        `${name} but also found legacy ${legacyName}. Do you mean ` +
+        `to be using both?`
+    );
+  }
+
+  // regardless, we've found it
+  return true;
+};
+
+/**
+ * Checks the environment for the presence of the given variable(s).
+ *
+ * If multiple variables are given, they are assumed to be alternates, such that
+ * only one is required.
+ */
+export function checkEnvForPrerequisite(...varList: RequiredConfigVar[]): void {
+  const varNames = varList.map(v => v.name).join(' or ');
+  logger.debug(`Checking for environment variable(s) ${varNames}`);
+
+  if (!varList.some(envHasVar)) {
+    // note: Technically this function only checks the environment, not any
+    // config files, but that's only because on app startup we move all config
+    // variables into the environment, so we can have one central place to
+    // look for them. So, when communicating with the user, we need to address
+    // all of the places they might have stuck these variables.
+    throw new ConfigurationError(
+      `Required value(s) ${varNames} not found in configuration files or ` +
+        `the environment. See the documentation for more details.`
+    );
   }
 }
