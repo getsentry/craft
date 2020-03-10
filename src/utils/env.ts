@@ -19,7 +19,7 @@ export interface RequiredConfigVar {
  * @returns true if variable was found, under either current or legacy name,
  * false otherwise
  */
-const envHasVar = (envVar: RequiredConfigVar): boolean => {
+function envHasVar(envVar: RequiredConfigVar): boolean {
   const { name, legacyName } = envVar;
 
   logger.debug(`\tChecking for environment variable ${name}`);
@@ -54,7 +54,7 @@ const envHasVar = (envVar: RequiredConfigVar): boolean => {
 
   // regardless, we've found it
   return true;
-};
+}
 
 /**
  * Checks the environment for the presence of the given variable(s).
