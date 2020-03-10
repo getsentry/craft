@@ -35,7 +35,7 @@ describe('compile-json-schema-to-typescript', () => {
 });
 
 describe('validateConfiguration', () => {
-  test('parses minimal configuration', async () => {
+  test('parses minimal configuration', () => {
     const data = { github: { owner: 'getsentry', repo: 'craft' } };
 
     const projectConfig = validateConfiguration(data);
@@ -43,7 +43,8 @@ describe('validateConfiguration', () => {
     expect(projectConfig).toEqual(data);
   });
 
-  test('fails with empty configuration', async () => {
+  test('fails with empty configuration', () => {
+    // this ensures that we do actually run the expect line in the catch block
     expect.assertions(1);
 
     try {
@@ -55,10 +56,9 @@ describe('validateConfiguration', () => {
 });
 
 describe('getProjectConfigSchema', () => {
-  test('returns non-empty object', async () => {
+  test('returns non-empty object', () => {
     const projectConfigSchema = getProjectConfigSchema();
 
-    expect(projectConfigSchema).toBeTruthy();
     expect(projectConfigSchema).toHaveProperty('title');
     expect(projectConfigSchema).toHaveProperty('properties');
   });
