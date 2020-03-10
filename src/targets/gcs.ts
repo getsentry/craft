@@ -35,17 +35,17 @@ const CONTENT_TYPES_EXT: Array<[RegExp, string]> = [
  */
 export interface BucketDest {
   /** Path inside the bucket */
-  path: string;
+  pathTemplate: string;
   /** Object with bucket metadata */
   metadata: any;
 }
 
 /**
- * Configuration options for the Github target
+ * Configuration options for the GCS target
  */
 export interface GcsTargetConfig extends TargetConfig {
   /** Bucket name */
-  bucket: string;
+  bucketName: string;
   /** A list of paths with their parameters */
   bucketPaths: BucketDest[];
   /** GCS service account configuration */
@@ -55,7 +55,7 @@ export interface GcsTargetConfig extends TargetConfig {
 }
 
 /**
- * Target responsible for publishing releases on Github
+ * Target responsible for uploading files to GCS
  */
 export class GcsTarget extends BaseTarget {
   /** Target name */
@@ -100,8 +100,8 @@ export class GcsTarget extends BaseTarget {
       reportError('Cannot find project ID in the service account!');
     }
 
-    const bucket = this.config.bucket;
-    if (!bucket && typeof bucket !== 'string') {
+    const bucketName = this.config.bucket;
+    if (!bucketName && typeof bucketName !== 'string') {
       reportError('No GCS bucket provided!');
     }
 
@@ -112,7 +112,7 @@ export class GcsTarget extends BaseTarget {
       reportError('No bucket paths provided!');
     } else if (typeof bucketPathsRaw === 'string') {
       bucketPaths = [
-        { path: bucketPathsRaw, metadata: DEFAULT_UPLOAD_METADATA },
+        { pathTemplate: bucketPathsRaw, metadata: DEFAULT_UPLOAD_METADATA },
       ];
     } else if (Array.isArray(bucketPathsRaw) && bucketPathsRaw.length > 0) {
       bucketPathsRaw.forEach((bucketPathRaw: any) => {
@@ -136,14 +136,14 @@ export class GcsTarget extends BaseTarget {
           );
         }
 
-        bucketPaths.push({ path: bucketPathName, metadata });
+        bucketPaths.push({ pathTemplate: bucketPathName, metadata });
       });
     } else {
       reportError('Cannot validate bucketPaths!');
     }
 
     return {
-      bucket,
+      bucketName,
       bucketPaths,
       projectId,
       serviceAccountConfig,
@@ -151,12 +151,10 @@ export class GcsTarget extends BaseTarget {
   }
 
   /**
-   * Returns a list of interpolated bucket paths
+   * Returns an interpolated bucket path, with `version` and `revision` filled
+   * in as appropriate.
    *
-   * Before processing, the paths are stored as templates where variables such
-   * as "version" and "ref" can be replaced.
-   *
-   * @param bucketPath The bucket path with the associated parameters
+   * @param bucketPath A path template with associated metadata
    * @param version The new version
    * @param revision The SHA revision of the new version
    */
@@ -165,7 +163,7 @@ export class GcsTarget extends BaseTarget {
     version: string,
     revision: string
   ): string {
-    let realPath = renderTemplateSafe(bucketPath.path.trim(), {
+    let realPath = renderTemplateSafe(bucketPath.pathTemplate.trim(), {
       revision,
       version,
     });
@@ -232,10 +230,10 @@ export class GcsTarget extends BaseTarget {
   }
 
   /**
-   * Returns a list of interpolated bucket paths
+   * Uploads the given artifacts to the given path.
    *
-   * Before processing, the paths are stored as templates where variables such
-   * as "version" and "ref" can be replaced.
+   * Path is specified as a template into which `version` and
+   * `revision` get inserted as necessary.
    *
    * @param bucketPath The bucket path with the associated parameters
    * @param bucketObj The bucket object
@@ -271,6 +269,9 @@ export class GcsTarget extends BaseTarget {
   /**
    * Uploads artifacts to Google Cloud Storage
    *
+   * Artifacts are filtered by the `includeNames` and `excludeNames` settings
+   * for the target.
+   *
    * @param version New version to be released
    * @param revision Git commit SHA to be published
    */
@@ -282,7 +283,7 @@ export class GcsTarget extends BaseTarget {
       );
     }
 
-    const { projectId, serviceAccountConfig, bucket } = this.gcsConfig;
+    const { projectId, serviceAccountConfig, bucketName } = this.gcsConfig;
 
     const storage = new Storage({
       autoRetry: true,
@@ -291,8 +292,8 @@ export class GcsTarget extends BaseTarget {
       projectId,
     });
 
-    logger.info(`Uploading to GCS bucket: "${bucket}"`);
-    const bucketObj = storage.bucket(bucket);
+    logger.info(`Uploading to GCS bucket: "${bucketName}"`);
+    const bucketObj = storage.bucket(bucketName);
 
     // We intentionally do not make all requests concurrent here
     await forEachChained(
