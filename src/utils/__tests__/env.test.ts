@@ -33,13 +33,14 @@ describe('checkEnvForPrerequisites', () => {
     });
   }); // end describe('no legacy name')
 
-  describe('legacy name', () => {
+  describe('with legacy name', () => {
     it('handles both new and legacy variable being set', () => {
       process.env.DOGS = 'RULE';
       process.env.CATS = 'DROOL';
       checkEnvForPrerequisites([['DOGS', 'CATS']]);
       expect(logger.warn).toHaveBeenCalledWith(
-        `Found DOGS in your environment but also found legacy CATS. Do you mean to be using both?`
+        `When searching configuration files and your environment, found DOGS ` +
+          `but also found legacy CATS. Do you mean to be using both?`
       );
     });
 
@@ -64,7 +65,7 @@ describe('checkEnvForPrerequisites', () => {
         ConfigurationError
       );
     });
-  }); // end describe('legacy name')
+  }); // end describe('with legacy name')
 
   describe('multiple variables', () => {
     it('checks for multiple variables', () => {
@@ -77,7 +78,7 @@ describe('checkEnvForPrerequisites', () => {
       expect(logger.debug).toHaveBeenCalledWith(
         `Checking for environment variable CHARLIE`
       );
-    }); // end it('checks for multiple variables')
+    });
 
     it('handles a mix of variables with and without legacy names', () => {
       process.env.MAISEY = 'GOOD DOG';

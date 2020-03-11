@@ -21,8 +21,14 @@ export function checkEnvForPrerequisites(
 
     // not found, under either the current or legacy names
     if (!process.env[varName] && !process.env[legacyVarName]) {
+      // note: Technically this function only checks the environment, not any
+      // config files, but that's only because on app startup we move all config
+      // variables into the environment, so we can have one central place to
+      // look for them. So, when communicating with the user, we need to address
+      // all of the places they might have stuck these variables.
       throw new ConfigurationError(
-        `${varName} not found in the environment. See the documentation for more details.`
+        `Required value ${varName} not found in configuration files or the ` +
+          `environment. See the documentation for more details.`
       );
     }
 
@@ -44,8 +50,9 @@ export function checkEnvForPrerequisites(
       // they have both the legacy and the new name in the environment
       else {
         logger.warn(
-          `Found ${varName} in your environment but also found legacy ${legacyVarName}. ` +
-            `Do you mean to be using both?`
+          `When searching configuration files and your environment, found ` +
+            `${varName} but also found legacy ${legacyVarName}. Do you mean ` +
+            `to be using both?`
         );
       }
       logger.info();

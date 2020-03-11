@@ -16,12 +16,7 @@ import { GithubGlobalConfig } from '../schemas/project_config';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
 import { checkEnvForPrerequisites } from '../utils/env';
-import {
-  coerceType,
-  // ConfigurationError,
-  handleGlobalError,
-  reportError,
-} from '../utils/errors';
+import { coerceType, handleGlobalError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
 import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
@@ -97,26 +92,6 @@ export interface PublishOptions {
   /** Do not remove release branch after publishing */
   keepBranch: boolean;
 }
-
-/**
- * Checks Zeus prerequisites
- */
-// function checkPrerequisites(): void {
-//   if (!process.env.ZEUS_TOKEN && !process.env.ZEUS_API_TOKEN) {
-//     throw new ConfigurationError(
-//       'ZEUS_API_TOKEN not found in the environment. See the documentation for more details.'
-//     );
-//   }
-//   if (process.env.ZEUS_TOKEN) {
-//     logger.warn(
-//       'Usage of ZEUS_TOKEN is deprecated, and will be removed in later versions. ' +
-//         'Please use ZEUS_API_TOKEN instead.'
-//     );
-//   } else {
-//     // We currently need ZEUS_TOKEN set for zeus-sdk to work properly
-//     process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
-//   }
-// }
 
 /**
  * Checks that the passed version is a valid version string
@@ -400,13 +375,15 @@ async function handleReleaseBranch(
 export async function publishMain(argv: PublishOptions): Promise<any> {
   logger.debug('Argv:', JSON.stringify(argv));
   checkMinimalConfigVersion();
+  // TODO (kmclb): pull the names of the necessary env vars out of config once
+  // there are more options than just Zeus
   checkEnvForPrerequisites([['ZEUS_API_TOKEN', 'ZEUS_TOKEN']]);
   // We currently need ZEUS_TOKEN set for zeus-sdk to work properly
   if (!process.env.ZEUS_TOKEN) {
     process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
   }
 
-  // Get repo configuration
+  // Get publishing configuration
   const config = getConfiguration() || {};
   const githubConfig = config.github;
   const githubClient = getGithubClient();
