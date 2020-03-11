@@ -15,12 +15,8 @@ import { formatTable, logger } from '../logger';
 import { GithubGlobalConfig } from '../schemas/project_config';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
-import {
-  coerceType,
-  ConfigurationError,
-  handleGlobalError,
-  reportError,
-} from '../utils/errors';
+import { checkEnvForPrerequisite } from '../utils/env';
+import { coerceType, handleGlobalError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
 import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
@@ -98,26 +94,6 @@ export interface PublishOptions {
 }
 
 /**
- * Checks Zeus prerequisites
- */
-function checkPrerequisites(): void {
-  if (!process.env.ZEUS_TOKEN && !process.env.ZEUS_API_TOKEN) {
-    throw new ConfigurationError(
-      'ZEUS_API_TOKEN not found in the environment. See the documentation for more details.'
-    );
-  }
-  if (process.env.ZEUS_TOKEN) {
-    logger.warn(
-      'Usage of ZEUS_TOKEN is deprecated, and will be removed in later versions. ' +
-        'Please use ZEUS_API_TOKEN instead.'
-    );
-  } else {
-    // We currently need ZEUS_TOKEN set for zeus-sdk to work properly
-    process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
-  }
-}
-
-/**
  * Checks that the passed version is a valid version string
  *
  * @param argv Parsed yargs arguments
@@ -175,7 +151,7 @@ async function publishToTargets(
       }
     }
 
-    // Publish all the targets
+    // Publish to all targets
     for (const target of targetList) {
       const publishMessage = `=== Publishing to target: ${chalk.bold(
         chalk.cyan(target.name)
@@ -399,9 +375,15 @@ async function handleReleaseBranch(
 export async function publishMain(argv: PublishOptions): Promise<any> {
   logger.debug('Argv:', JSON.stringify(argv));
   checkMinimalConfigVersion();
-  checkPrerequisites();
+  // TODO (kmclb): pull the names of the necessary env vars out of config once
+  // there are more options than just Zeus
+  checkEnvForPrerequisite({ name: 'ZEUS_API_TOKEN', legacyName: 'ZEUS_TOKEN' });
+  // We currently need ZEUS_TOKEN set for zeus-sdk to work properly
+  if (!process.env.ZEUS_TOKEN) {
+    process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
+  }
 
-  // Get repo configuration
+  // Get publishing configuration
   const config = getConfiguration() || {};
   const githubConfig = config.github;
   const githubClient = getGithubClient();

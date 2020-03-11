@@ -1,10 +1,8 @@
-import { existsSync, lstatSync, readFileSync, statSync } from 'fs';
-import { homedir } from 'os';
+import { existsSync, lstatSync, readFileSync } from 'fs';
 import { dirname, join } from 'path';
 
 import * as Ajv from 'ajv';
 import { safeLoad } from 'js-yaml';
-import * as nvar from 'nvar';
 
 import { logger } from './logger';
 import {
@@ -28,9 +26,6 @@ import { BaseStatusProvider } from './status_providers/base';
 
 // TODO support multiple configuration files (one per configuration)
 export const CONFIG_FILE_NAME = '.craft.yml';
-
-/** File name where additional environment variables are stored */
-export const ENV_FILE_NAME = '.craft.env';
 
 /**
  * Cached path to the configuration file
@@ -219,99 +214,6 @@ export function getGitTagPrefix(): string {
   const targets = getConfiguration().targets || [];
   const githubTarget = targets.find(target => target.name === 'github') || {};
   return githubTarget.tagPrefix || '';
-}
-
-/**
- * Checks that the file is only readable for the owner
- *
- * It is assumed that the file already exists
- * @param path File path
- */
-function checkFileIsPrivate(path: string): boolean {
-  const FULL_MODE_MASK = 0o777;
-  const GROUP_MODE_MASK = 0o070;
-  const OTHER_MODE_MASK = 0o007;
-  const mode = statSync(path).mode;
-  // tslint:disable-next-line:no-bitwise
-  if (mode & GROUP_MODE_MASK || mode & OTHER_MODE_MASK) {
-    // tslint:disable-next-line:no-bitwise
-    const perms = (mode & FULL_MODE_MASK).toString(8);
-    logger.warn(
-      `Permissions 0${perms} for file "${path}" are too open. Consider making it readable only for the user.\n`
-    );
-    return false;
-  }
-  return true;
-}
-
-/**
- * Loads environment variables from ".craft.env" files in certain locations
- *
- * The following two places are checked:
- * - The user's home directory
- * - The configuration file directory
- *
- * @param overwriteExisting If set to true, overwrite the existing environment variables
- */
-export function readEnvironmentConfig(
-  overwriteExisting: boolean = false
-): void {
-  let newEnv = {} as any;
-
-  // Read from home dir
-  const homedirEnvFile = join(homedir(), ENV_FILE_NAME);
-  if (existsSync(homedirEnvFile)) {
-    logger.debug(
-      `Found environment file in the home directory: ${homedirEnvFile}`
-    );
-    checkFileIsPrivate(homedirEnvFile);
-    const homedirEnv = {};
-    nvar({ path: homedirEnvFile, target: homedirEnv });
-    newEnv = { ...newEnv, ...homedirEnv };
-    logger.debug(
-      `Read the following variables from ${homedirEnvFile}: ${Object.keys(
-        homedirEnv
-      ).toString()}`
-    );
-  } else {
-    logger.debug(
-      `No environment file found in the home directory: ${homedirEnvFile}`
-    );
-  }
-
-  // Read from the directory where the configuration file is located
-
-  // Apparently this is the best we can do to make getConfigFileDir mockable ;(
-  // See https://github.com/facebook/jest/issues/936 for more info
-  const configFileDir = exports.getConfigFileDir() as string | undefined;
-  const configDirEnvFile = configFileDir && join(configFileDir, ENV_FILE_NAME);
-  if (!configDirEnvFile) {
-    logger.debug(`No configuration file (${CONFIG_FILE_NAME}) found!`);
-  } else if (configDirEnvFile && existsSync(configDirEnvFile)) {
-    logger.debug(
-      `Found environment file in the configuration directory: ${configDirEnvFile}`
-    );
-    checkFileIsPrivate(configDirEnvFile);
-    const configDirEnv = {};
-    nvar({ path: configDirEnvFile, target: configDirEnv });
-    newEnv = { ...newEnv, ...configDirEnv };
-    logger.debug(
-      `Read the following variables from ${configDirEnvFile}: ${Object.keys(
-        configDirEnv
-      ).toString()}`
-    );
-  } else {
-    logger.debug(
-      `No environment file found in the configuration directory: ${configDirEnvFile}`
-    );
-  }
-
-  // Add non-existing values to env
-  for (const key of Object.keys(newEnv)) {
-    if (overwriteExisting || process.env[key] === undefined) {
-      process.env[key] = newEnv[key];
-    }
-  }
 }
 
 /**

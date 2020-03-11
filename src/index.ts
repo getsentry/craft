@@ -3,7 +3,7 @@ import { isDryRun, setDryRun } from 'dryrun';
 import * as once from 'once';
 import * as yargs from 'yargs';
 
-import { readEnvironmentConfig } from './config';
+import { readEnvironmentConfig } from './utils/env';
 import { logger } from './logger';
 import { hasNoInput, setNoInput } from './utils/noInput';
 import { initSentrySdk } from './utils/sentry';
