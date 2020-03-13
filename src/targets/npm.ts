@@ -226,7 +226,7 @@ export class NpmTarget extends BaseTarget {
     await Promise.all(
       packageFiles.map(async (file: CraftArtifact) => {
         const path = await this.artifactProvider.downloadArtifact(file);
-        logger.info(`Releasing ${file.name} to NPM`);
+        logger.info(`Releasing ${file.filename} to NPM`);
         return this.publishPackage(path, publishOptions);
       })
     );

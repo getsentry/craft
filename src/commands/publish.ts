@@ -186,9 +186,9 @@ async function printRevisionSummary(
   const artifacts = await artifactProvider.listArtifactsForRevision(revision);
   if (artifacts && artifacts.length > 0) {
     const artifactData = artifacts.map(ar => [
-      ar.name,
-      formatSize(ar.file.size),
-      ar.updated_at || '',
+      ar.filename,
+      formatSize(ar.storedFile.size),
+      ar.storedFile.lastUpdated || '',
     ]);
     artifactData.sort((a1, a2) => (a1[0] < a2[0] ? -1 : a1[0] > a2[0] ? 1 : 0));
     const table = formatTable(
@@ -260,7 +260,7 @@ async function checkRequiredArtifacts(
   for (const nameRegexString of requiredNames) {
     const nameRegex = stringToRegexp(nameRegexString);
     const matchedArtifacts = artifacts.filter(artifact =>
-      nameRegex.test(artifact.name)
+      nameRegex.test(artifact.filename)
     );
     if (matchedArtifacts.length === 0) {
       reportError(
@@ -268,7 +268,7 @@ async function checkRequiredArtifacts(
       );
     } else {
       logger.debug(
-        `Artifact "${matchedArtifacts[0].name}" matches pattern ${nameRegexString}`
+        `Artifact "${matchedArtifacts[0].filename}" matches pattern ${nameRegexString}`
       );
     }
   }
