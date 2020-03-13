@@ -96,8 +96,6 @@ export class GCSBucket {
     );
   }
 
-  // TODO (kmclb) in readme deprecate CRAFT_GCS_CREDENTIALS_JSON/_PATH in favor of CRAFT_GCS_TARGET_CREDS_JSON/_PATH
-
   /**
    * Pulls GCS redentials out of the environment, where they can be stored either
    * as a path to a JSON file or as a JSON string.
