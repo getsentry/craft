@@ -6,6 +6,7 @@ import {
 import { clearObjectProperties } from '../utils/objects';
 import * as _ from 'lodash';
 import { ConfigurationError } from '../utils/errors';
+import { logger } from '../logger';
 
 /** Maximum concurrency for downloads */
 export const MAX_DOWNLOAD_CONCURRENCY = 5;
@@ -126,7 +127,15 @@ export abstract class BaseArtifactProvider {
     if (cached) {
       return cached;
     }
-    const promise = this.doDownloadArtifact(artifact, finalDownloadDirectory);
+    const promise = this.doDownloadArtifact(
+      artifact,
+      finalDownloadDirectory
+    ).catch(err => {
+      logger.error(
+        `Unable to download ${artifact.filename} from artifact provider!`
+      );
+      throw err;
+    });
     this.downloadCache[cacheKey] = promise;
     return promise;
   }
@@ -183,11 +192,22 @@ export abstract class BaseArtifactProvider {
   public async listArtifactsForRevision(
     revision: string
   ): Promise<CraftArtifact[] | undefined> {
+    // check the cache first
     const cached = this.fileListCache[revision];
     if (cached) {
       return cached;
     }
-    const artifacts = await this.doListArtifactsForRevision(revision);
+
+    // the data wasn't in the cache, so now we have to go get it
+    let artifacts;
+    try {
+      artifacts = await this.doListArtifactsForRevision(revision);
+    } catch (err) {
+      logger.error(
+        `Unable to retrieve artifact list for revision ${revision}!`
+      );
+      throw err;
+    }
     if (!artifacts) {
       // No negative caching
       return undefined;

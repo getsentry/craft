@@ -103,18 +103,18 @@ export class GCSBucket {
    * @returns An object containing the credentials
    */
   public static getGCSCredsFromEnv = (
-    gcsRole: BucketRole
+    bucketRole: BucketRole
   ): { [key: string]: string } => {
     // tslint:disable: object-literal-sort-keys
     const jsonVar: RequiredConfigVar =
-      gcsRole === BucketRole.STORE
+      bucketRole === BucketRole.STORE
         ? { name: 'CRAFT_GCS_STORE_CREDENTIALS_JSON' }
         : {
             name: 'CRAFT_GCS_TARGET_CREDENTIALS_JSON',
             legacyName: 'CRAFT_GCS_CREDENTIALS_JSON',
           };
     const filepathVar: RequiredConfigVar =
-      gcsRole === BucketRole.STORE
+      bucketRole === BucketRole.STORE
         ? { name: 'CRAFT_GCS_STORE_CREDENTIALS_PATH' }
         : {
             name: 'CRAFT_GCS_TARGET_CREDENTIALS_PATH',
@@ -229,14 +229,11 @@ export class GCSBucket {
       try {
         await this.bucket.upload(localFilePath, fileUploadConfig);
       } catch (err) {
-        throw new Error(
-          `Unable to upload ${filename} to ${destinationFilePath}!
-           Original error was:
-           ${err.toString()}`
-        );
+        logger.error(`Unable to upload ${filename} to ${destinationFilePath}!`);
+        throw err;
       }
       logger.info(`Uploaded ${filename} to ${destinationFilePath}`);
-      // TODO (kmclb) replace this with a `craft upload` command once that's a thing
+      // TODO (kmclb) replace this with a `craft download` command once that's a thing
       logger.info(
         `It can be downloaded by running`,
         `\`gsutil cp gs://${this.bucketName}${destinationFilePath} <destination-path>\``
@@ -245,33 +242,6 @@ export class GCSBucket {
       logger.info(`[dry-run] Skipping upload for ${filename}`);
     }
   }
-
-  // TODO (kmclb) make it so all files get downloaded first, before any targets
-  // are called? may be combined with tonyo's "initialize them earlier" TODO
-
-  // TODO(kmclb) clean up this comment and figure out where to put it
-
-  // Right now, each target downloads files from the artifact provider individually, rather
-  // than us downloading all of the files first and then distributing the correct
-  // ones to each target (which means the same files possibly get downloaded multiple times)
-
-  // this means the target keeps track, for itself, where the local copies of
-  // the files are, so the caller doesn't know
-
-  // but for GCS, because it's serving double-duty, it will sometimes need to
-  // download files first (when it's a target) and sometimes not (when it's
-  // being an artifact store)
-
-  // therefore, its upload method can't depend on downloading to figure out
-  // where the files are - it has to be told, which means its caller needs to
-  // know
-
-  // in the case of the target role, the gcsTarget can do that - it'll just need
-  // to download all files first, collect the filepaths, and then pass them to
-  // this client
-
-  // in the case of the artifact store role, it'll need to come from command
-  // line arguments passed to the `upload` command
 
   /**
    * Uploads the artifacts at the given local paths to the given destination

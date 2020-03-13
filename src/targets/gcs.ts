@@ -34,8 +34,6 @@ interface PathTemplate extends Partial<DestinationPath> {
   template: string;
 }
 
-// TODO (kmclb) Figure out how includeNames and excludeNames (from TargetConfig) are handled
-
 /**
  * Configuration options for the GCS target
  */
@@ -55,7 +53,10 @@ export class GcsTarget extends BaseTarget {
   /** GCS API client */
   private readonly gcsClient: GCSBucket;
 
-  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+  public constructor(
+    config: TargetConfig,
+    artifactProvider: BaseArtifactProvider
+  ) {
     super(config, artifactProvider);
     this.targetConfig = this.getGCSTargetConfig();
     this.gcsClient = new GCSBucket(this.targetConfig);
@@ -66,7 +67,7 @@ export class GcsTarget extends BaseTarget {
    */
   protected getGCSTargetConfig(): GCSTargetConfig {
     const {
-      projectId,
+      project_id,
       client_email,
       private_key,
     } = GCSBucket.getGCSCredsFromEnv(TARGET_ROLE_STR);
@@ -86,7 +87,7 @@ export class GcsTarget extends BaseTarget {
       credentials: { client_email, private_key },
       name: 'GCS target',
       pathTemplates,
-      projectId,
+      projectId: project_id,
     };
   }
 
@@ -195,8 +196,6 @@ export class GcsTarget extends BaseTarget {
     pathTemplate.path = realPath;
   }
 
-  // TODO (kmclb) where else do I need try/catch blocks, if anywhere?
-
   /**
    * Uploads artifacts to Google Cloud Storage
    *
@@ -231,7 +230,7 @@ export class GcsTarget extends BaseTarget {
     await forEachChained(
       this.targetConfig.pathTemplates,
       async (pathTemplate: PathTemplate): Promise<void> => {
-        // this adds a `path` property to the PathTemplate object, will
+        // this adds a `path` property to the PathTemplate object, with
         // `version` and `revision` values filled in
         this.materializePathTemplate(pathTemplate, version, revision);
         await this.gcsClient.uploadArtifacts(
