@@ -1,14 +1,13 @@
-import * as path from 'path';
-
-import { Bucket, Storage, UploadOptions } from '@google-cloud/storage';
-import { shouldPerform } from 'dryrun';
-import * as _ from 'lodash';
-
 import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { forEachChained } from '../utils/async';
 import { ConfigurationError, reportError } from '../utils/errors';
-import { BucketRole, GCSBucket } from '../utils/gcsApi';
+import {
+  BucketRole,
+  DestinationPath,
+  GCSBucket,
+  GCSBucketConfig,
+} from '../utils/gcsApi';
 import { renderTemplateSafe } from '../utils/strings';
 import { BaseTarget } from './base';
 import {
@@ -16,42 +15,33 @@ import {
   CraftArtifact,
 } from '../artifact_providers/base';
 
-const logger = loggerRaw.withScope('[gcs]');
+const TARGET_ROLE_STR = BucketRole.TARGET;
+
+const logger = loggerRaw.withScope(`[gcs ${TARGET_ROLE_STR}]`);
 
 const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
 
-const GCS_MAX_RETRIES = 5;
-
 /**
- * Mapping between file name regexps and the corresponding content type that will be set.
+ * Adds templating to the DestinationPath interface. (Partial so that the
+ * required `path` property of that interface can be optional here, since we
+ * won't have values to fill into the template until later.)
  */
-const CONTENT_TYPES_EXT: Array<[RegExp, string]> = [
-  [/\.js$/, 'application/javascript; charset=utf-8'],
-  [/\.js\.map$/, 'application/json; charset=utf-8'],
-];
-
-/**
- * Bucket path with associated parameters
- */
-export interface BucketDest {
-  /** Path inside the bucket */
-  pathTemplate: string;
-  /** Object with bucket metadata */
-  metadata: any;
+interface PathTemplate extends Partial<DestinationPath> {
+  /**
+   * Template for the destination path, into which `version` and `revision` can
+   * be substituted
+   */
+  template: string;
 }
+
+// TODO (kmclb) Figure out how includeNames and excludeNames (from TargetConfig) are handled
 
 /**
  * Configuration options for the GCS target
  */
-export interface GcsTargetConfig extends TargetConfig {
-  /** Bucket name */
-  bucketName: string;
-  /** A list of paths with their parameters */
-  bucketPaths: BucketDest[];
-  /** GCS service account configuration */
-  serviceAccountConfig: object;
-  /** Google Cloud project ID */
-  projectId: string;
+export interface GCSTargetConfig extends GCSBucketConfig, TargetConfig {
+  /** A list of path templates with associated metadata */
+  pathTemplates: PathTemplate[];
 }
 
 /**
@@ -61,192 +51,151 @@ export class GcsTarget extends BaseTarget {
   /** Target name */
   public readonly name: string = 'gcs';
   /** Target options */
-  public readonly gcsConfig: GcsTargetConfig;
+  public readonly targetConfig: GCSTargetConfig;
+  /** GCS API client */
+  private readonly gcsClient: GCSBucket;
 
   public constructor(config: any, artifactProvider: BaseArtifactProvider) {
     super(config, artifactProvider);
-    this.gcsConfig = this.getGcsConfig();
+    this.targetConfig = this.getGCSTargetConfig();
+    this.gcsClient = new GCSBucket(this.targetConfig);
   }
 
   /**
-   * Parses and checks configuration for the "gcs" target
+   * Parses and checks configuration for the GCS target
    */
-  protected getGcsConfig(): GcsTargetConfig {
-
-
-    const serviceAccountConfig = GCSBucket.getGCSCredsFromEnv(
-      BucketRole.TARGET
-    );
-    const projectId = serviceAccountConfig.project_id;
-    if (!projectId) {
-      reportError('GCS credentials missing project_id!');
-    }
+  protected getGCSTargetConfig(): GCSTargetConfig {
+    const {
+      projectId,
+      client_email,
+      private_key,
+    } = GCSBucket.getGCSCredsFromEnv(TARGET_ROLE_STR);
 
     const bucketName = this.config.bucket;
     if (!bucketName && typeof bucketName !== 'string') {
       reportError('No GCS bucket provided!');
     }
 
-    // Parse bucket paths
-    let bucketPaths: BucketDest[] = [];
-    const bucketPathsRaw = this.config.paths;
-    if (!bucketPathsRaw) {
+    const pathTemplates: PathTemplate[] = this.parseRawPathConfig(
+      this.config.paths
+    );
+
+    return {
+      bucketName,
+      bucketRole: TARGET_ROLE_STR,
+      credentials: { client_email, private_key },
+      name: 'GCS target',
+      pathTemplates,
+      projectId,
+    };
+  }
+
+  /**
+   * Converts raw destination paths from the config file into the format we
+   * need.
+   *
+   * @param rawPathConfig The paths as they come from the config file
+   * @returns An array of PathTemplates, each consisting of a path template
+   * string and any metadata which should be associated with the files being
+   * uploaded to that path
+   */
+  private parseRawPathConfig(rawPathConfig: any): PathTemplate[] {
+    let parsedTemplates: PathTemplate[] = [];
+
+    if (
+      !rawPathConfig ||
+      // in JS empty arrays are truthy
+      (rawPathConfig.length && rawPathConfig.length === 0)
+    ) {
       reportError('No bucket paths provided!');
-    } else if (typeof bucketPathsRaw === 'string') {
-      bucketPaths = [
-        { pathTemplate: bucketPathsRaw, metadata: DEFAULT_UPLOAD_METADATA },
+    }
+
+    // if there's only one path, and no metadata specified, path config can be
+    // provided as a string rather than an array of objects
+    else if (typeof rawPathConfig === 'string') {
+      parsedTemplates = [
+        {
+          metadata: DEFAULT_UPLOAD_METADATA,
+          template: rawPathConfig,
+        },
       ];
-    } else if (Array.isArray(bucketPathsRaw) && bucketPathsRaw.length > 0) {
-      bucketPathsRaw.forEach((bucketPathRaw: any) => {
-        if (typeof bucketPathRaw !== 'object') {
+    }
+
+    // otherwise, path config should be a list of objects, each containing
+    // `path` (a template into which release-specific data can be interpolated)
+    // and `metadata`
+    else if (Array.isArray(rawPathConfig)) {
+      rawPathConfig.forEach((configEntry: any) => {
+        if (typeof configEntry !== 'object') {
           reportError(
             `Invalid bucket destination: ${JSON.stringify(
-              bucketPathRaw
+              configEntry
             )}. Use the object notation to specify bucket paths!`
           );
         }
-        const bucketPathName = bucketPathRaw.path;
-        const metadata = bucketPathRaw.metadata || DEFAULT_UPLOAD_METADATA;
-        if (!bucketPathName) {
-          reportError(`Invalid bucket path: ${bucketPathName}`);
+
+        const template = configEntry.path;
+        if (!template) {
+          reportError(`Invalid bucket path template: ${template}`);
         }
+
+        const metadata = configEntry.metadata || DEFAULT_UPLOAD_METADATA;
         if (typeof metadata !== 'object') {
           reportError(
-            `Invalid metadata for path "${bucketPathName}": "${JSON.stringify(
+            `Invalid metadata for path "${template}": "${JSON.stringify(
               metadata
             )}"`
           );
         }
 
-        bucketPaths.push({ pathTemplate: bucketPathName, metadata });
+        parsedTemplates.push({
+          metadata,
+          template,
+        });
       });
-    } else {
-      reportError('Cannot validate bucketPaths!');
+    }
+    // if rawConfig is neither a string nor an array of objects, we're out of
+    // luck
+    else {
+      reportError(`Cannot parse GCS target's path configuration!`);
     }
 
-    return {
-      bucketName,
-      bucketPaths,
-      projectId,
-      serviceAccountConfig,
-    };
+    return parsedTemplates;
   }
 
   /**
-   * Returns an interpolated bucket path, with `version` and `revision` filled
-   * in as appropriate.
+   * Adds an interpolated bucket path, with `version` and `revision` filled
+   * in as appropriate, to the given PathTemplate object.
    *
-   * @param bucketPath A path template with associated metadata
+   * @param pathTemplate A path template with associated metadata
    * @param version The new version
    * @param revision The SHA revision of the new version
    */
-  private getRealBucketPath(
-    bucketPath: BucketDest,
+  private materializePathTemplate(
+    pathTemplate: PathTemplate,
     version: string,
     revision: string
-  ): string {
-    let realPath = renderTemplateSafe(bucketPath.pathTemplate.trim(), {
+  ): void {
+    const template = pathTemplate.template;
+    if (!template) {
+      reportError(`Cannot insert data into path template ${template}`);
+      return;
+    }
+
+    let realPath = renderTemplateSafe(template.trim(), {
       revision,
       version,
     });
+
+    // enforce the constraint that all paths must start with a slash
     if (realPath[0] !== '/') {
       realPath = `/${realPath}`;
     }
-    logger.debug(`Processed path prefix: ${realPath}`);
-    return realPath;
+    logger.debug(`Processed path template: ${template} and got ${realPath}`);
+    pathTemplate.path = realPath;
   }
 
-  /**
-   * Detect the content-type based on regular expressions defined in CONTENT_TYPES_EXT.
-   *
-   * The underlying GCS package usually detects content-type itself, but it's
-   * not always correct.
-   *
-   * @param artifact Artifact to check
-   */
-  private detectContentType(artifact: CraftArtifact): string | undefined {
-    const name = artifact.filename;
-    for (const entry of CONTENT_TYPES_EXT) {
-      const [regex, contentType] = entry;
-      if (name.match(regex)) {
-        return contentType;
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * Uploads the provided artifact to the specified GCS bucket
-   *
-   * @param artifact Artifact to upload
-   * @param bucketPath Path to upload to
-   * @param bucketObj Object representing a GCS bucket
-   * @param uploadOptions GCS upload options
-   */
-  private async uploadArtifact(
-    artifact: CraftArtifact,
-    bucketPath: string,
-    bucketObj: Bucket,
-    uploadOptions: UploadOptions
-  ): Promise<void> {
-    const filePath = await this.artifactProvider.downloadArtifact(artifact);
-    const destination = path.join(bucketPath, path.basename(filePath));
-    const uploadOptionsFinal = _.cloneDeep(uploadOptions);
-    const contentType = this.detectContentType(artifact);
-    if (contentType) {
-      uploadOptionsFinal.contentType = contentType;
-    }
-    logger.debug(
-      `Uploading ${path.basename(
-        filePath
-      )} to "${destination}". Upload options: ${JSON.stringify(
-        uploadOptionsFinal
-      )}`
-    );
-    if (shouldPerform()) {
-      await bucketObj.upload(filePath, { ...uploadOptionsFinal, destination });
-      logger.info(`Uploaded "${destination}"`);
-    } else {
-      logger.info(`[dry-run] Not uploading the file "${destination}"`);
-    }
-  }
-
-  /**
-   * Uploads the given artifacts to the given path.
-   *
-   * Path is specified as a template into which `version` and
-   * `revision` get inserted as necessary.
-   *
-   * @param bucketPath The bucket path with the associated parameters
-   * @param bucketObj The bucket object
-   * @param artifacts The list of artifacts to upload
-   * @param version The new version
-   * @param revision The SHA revision of the new version
-   */
-  private async uploadToBucketPath(
-    bucketPath: BucketDest,
-    bucketObj: Bucket,
-    artifacts: CraftArtifact[],
-    version: string,
-    revision: string
-  ): Promise<{}> {
-    const realPath = this.getRealBucketPath(bucketPath, version, revision);
-    const fileUploadUptions: UploadOptions = {
-      gzip: true,
-      metadata: bucketPath.metadata,
-    };
-    logger.debug(`Global upload options: ${JSON.stringify(fileUploadUptions)}`);
-    return Promise.all(
-      artifacts.map(async (artifact: CraftArtifact) =>
-        this.uploadArtifact(
-          artifact,
-          realPath,
-          bucketObj,
-          _.cloneDeep(fileUploadUptions)
-        )
-      )
-    );
-  }
+  // TODO (kmclb) where else do I need try/catch blocks, if anywhere?
 
   /**
    * Uploads artifacts to Google Cloud Storage
@@ -265,30 +214,32 @@ export class GcsTarget extends BaseTarget {
       );
     }
 
-    const { projectId, serviceAccountConfig, bucketName } = this.gcsConfig;
-
-    const storage = new Storage({
-      autoRetry: true,
-      credentials: serviceAccountConfig,
-      maxRetries: GCS_MAX_RETRIES,
-      projectId,
-    });
+    const { bucketName } = this.targetConfig;
 
     logger.info(`Uploading to GCS bucket: "${bucketName}"`);
-    const bucketObj = storage.bucket(bucketName);
+
+    // before we can upload the artifacts to our target, we first need to
+    // download them from the artifact provider
+    const localFilePaths = await Promise.all(
+      artifacts.map(
+        async (artifact: CraftArtifact): Promise<string> =>
+          this.artifactProvider.downloadArtifact(artifact)
+      )
+    );
 
     // We intentionally do not make all requests concurrent here
     await forEachChained(
-      this.gcsConfig.bucketPaths,
-      async (bucketPath: BucketDest) =>
-        this.uploadToBucketPath(
-          bucketPath,
-          bucketObj,
-          artifacts,
-          version,
-          revision
-        )
+      this.targetConfig.pathTemplates,
+      async (pathTemplate: PathTemplate): Promise<void> => {
+        // this adds a `path` property to the PathTemplate object, will
+        // `version` and `revision` values filled in
+        this.materializePathTemplate(pathTemplate, version, revision);
+        await this.gcsClient.uploadArtifacts(
+          localFilePaths,
+          pathTemplate as DestinationPath
+        );
+      }
     );
-    logger.info('Upload complete.');
+    logger.info('Upload to GCS complete.');
   }
 }

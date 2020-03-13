@@ -1,21 +1,40 @@
 import * as fs from 'fs';
+import * as path from 'path';
 
-import { Bucket, Storage } from '@google-cloud/storage';
+import {
+  Bucket,
+  Storage,
+  UploadOptions as GCSUploadOptions,
+} from '@google-cloud/storage';
+import * as ConsolaRaw from 'consola';
+import { isDryRun } from 'dryrun';
 
 import { logger as loggerRaw } from '../logger';
 import { reportError } from './errors';
 import { checkEnvForPrerequisite, RequiredConfigVar } from './env';
 
-const logger = loggerRaw.withScope('[gcs]');
+let logger: typeof ConsolaRaw;
 
-const DEFAULT_GCS_MAX_RETRIES = 5;
+const DEFAULT_MAX_RETRIES = 5;
+const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
+
+const IS_DRY_RUN = isDryRun();
+
+/**
+ * Mapping between file extension regexps and the corresponding content type
+ * that will be set.
+ */
+const CONTENT_TYPES_EXT: Array<[RegExp, string]> = [
+  [/\.js$/, 'application/javascript; charset=utf-8'],
+  [/\.js\.map$/, 'application/json; charset=utf-8'],
+];
 
 /**
  * Is this bucket being used as an artifact store or a target?
  */
 export const enum BucketRole {
   /** Artifact storage (used in both `prepare` and `publish`) */
-  STORE = 'store',
+  STORE = 'artifact store',
   /** Destination for `publish` */
   TARGET = 'target',
 }
@@ -23,7 +42,7 @@ export const enum BucketRole {
 /**
  * Configuration options for the GCS bucket
  */
-export interface GCSConfig {
+export interface GCSBucketConfig {
   /** Bucket name */
   bucketName: string;
   /** ID of the project containing the bucket   */
@@ -31,9 +50,19 @@ export interface GCSConfig {
   /** CGS credentials */
   credentials: { client_email: string; private_key: string };
   /** Role (is this being used as an artifact store or a target?) */
-  role: BucketRole;
+  bucketRole: BucketRole;
   /** Maximum number of retries after unsuccessful request */
   maxRetries?: number;
+}
+
+/**
+ * Bucket path with associated parameters
+ */
+export interface DestinationPath {
+  /** Path inside the bucket to which files will be uploaded */
+  path: string;
+  /** Metadata to be associated with the files uploaded the path */
+  metadata: any;
 }
 
 /**
@@ -42,32 +71,32 @@ export interface GCSConfig {
 export class GCSBucket {
   /** Bucket name */
   public readonly bucketName: string;
-  /** Role (is this being used as an artifact store or a target?) */
-  public readonly role: BucketRole; // TODO kmclb do I need this?
-  /** Bucket configuration */
-  private readonly config: GCSConfig;
   /** CGS Client */
   private readonly bucket: Bucket;
-  public constructor(config: GCSConfig) {
+
+  public constructor(config: GCSBucketConfig) {
     const {
       bucketName,
       projectId,
       credentials,
-      role,
-      maxRetries = DEFAULT_GCS_MAX_RETRIES,
+      bucketRole,
+      maxRetries = DEFAULT_MAX_RETRIES,
     } = config;
 
-    this.config = config;
-    this.bucketName = bucketName;
-    this.role = role;
+    logger = loggerRaw.withScope(`[gcs ${bucketRole}]`);
 
-    const storage = new Storage({
-      credentials,
-      maxRetries,
-      projectId,
-    });
-    this.bucket = new Bucket(storage, bucketName);
+    this.bucketName = bucketName;
+    this.bucket = new Bucket(
+      new Storage({
+        credentials,
+        maxRetries,
+        projectId,
+      }),
+      bucketName
+    );
   }
+
+  // TODO (kmclb) in readme deprecate CRAFT_GCS_CREDENTIALS_JSON/_PATH in favor of CRAFT_GCS_TARGET_CREDS_JSON/_PATH
 
   /**
    * Pulls GCS redentials out of the environment, where they can be stored either
@@ -121,13 +150,172 @@ export class GCSBucket {
       reportError(errorMsg);
     }
 
-    let creds = {};
+    let creds: { [key: string]: string } = {};
     try {
       creds = JSON.parse(configRaw);
     } catch (err) {
       reportError('Error parsing JSON credentials');
     }
 
+    for (const field of ['project_id', 'client_email', 'private_key']) {
+      if (!creds[field]) {
+        reportError(`GCS credentials missing ${field}!`);
+      }
+    }
     return creds;
   };
+
+  /**
+   * Detect the content-type based on regular expressions defined in
+   * CONTENT_TYPES_EXT.
+   *
+   * The underlying GCS package usually detects content-type itself, but it's
+   * not always correct.
+   *
+   * @param artifactName Name of the artifact to check
+   * @returns A content-type string, or undefined if the artifact name doesn't
+   * have a known extension
+   */
+  private detectContentType(artifactName: string): string | undefined {
+    for (const entry of CONTENT_TYPES_EXT) {
+      const [regex, contentType] = entry;
+      if (artifactName.match(regex)) {
+        return contentType;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Uploads the artifact at the given local path to the path specified in the
+   * given config object
+   *
+   * @param localFilePath Location of the file to be uploaded
+   * @param uploadConfig Configuration for the upload including destination path
+   * and metadata
+   */
+  private async uploadArtifactFromPath(
+    localFilePath: string,
+    uploadConfig: Pick<
+      Required<GCSUploadOptions>,
+      'destination' | 'metadata' | 'gzip'
+    >
+  ): Promise<void> {
+    const destinationFilePath = uploadConfig.destination as string;
+    if (!destinationFilePath) {
+      return Promise.reject(
+        new Error(
+          `Can't upload file at ${localFilePath} - no destination path specified!`
+        )
+      );
+    }
+
+    const destinationPath = path.dirname(destinationFilePath);
+    const filename = path.basename(localFilePath);
+    // const fileUploadConfig: GCSUploadOptions = { ...uploadConfig };
+    // const contentType = this.detectContentType(filename);
+    // if (contentType) {
+    //   fileUploadConfig.contentType = contentType;
+    // }
+    const fileUploadConfig: GCSUploadOptions = {
+      ...uploadConfig,
+      contentType: this.detectContentType(filename),
+    };
+
+    logger.debug(
+      `Uploading ${filename} to ${destinationPath}. Upload options: ${JSON.stringify(
+        fileUploadConfig
+      )}`
+    );
+    if (!IS_DRY_RUN) {
+      try {
+        await this.bucket.upload(localFilePath, fileUploadConfig);
+      } catch (err) {
+        throw new Error(
+          `Unable to upload ${filename} to ${destinationFilePath}!
+           Original error was:
+           ${err.toString()}`
+        );
+      }
+      logger.info(`Uploaded ${filename} to ${destinationFilePath}`);
+      // TODO (kmclb) replace this with a `craft upload` command once that's a thing
+      logger.info(
+        `It can be downloaded by running`,
+        `\`gsutil cp gs://${this.bucketName}${destinationFilePath} <destination-path>\``
+      );
+    } else {
+      logger.info(`[dry-run] Skipping upload for ${filename}`);
+    }
+  }
+
+  // TODO (kmclb) make it so all files get downloaded first, before any targets
+  // are called? may be combined with tonyo's "initialize them earlier" TODO
+
+  // TODO(kmclb) clean up this comment and figure out where to put it
+
+  // Right now, each target downloads files from the artifact provider individually, rather
+  // than us downloading all of the files first and then distributing the correct
+  // ones to each target (which means the same files possibly get downloaded multiple times)
+
+  // this means the target keeps track, for itself, where the local copies of
+  // the files are, so the caller doesn't know
+
+  // but for GCS, because it's serving double-duty, it will sometimes need to
+  // download files first (when it's a target) and sometimes not (when it's
+  // being an artifact store)
+
+  // therefore, its upload method can't depend on downloading to figure out
+  // where the files are - it has to be told, which means its caller needs to
+  // know
+
+  // in the case of the target role, the gcsTarget can do that - it'll just need
+  // to download all files first, collect the filepaths, and then pass them to
+  // this client
+
+  // in the case of the artifact store role, it'll need to come from command
+  // line arguments passed to the `upload` command
+
+  /**
+   * Uploads the artifacts at the given local paths to the given destination
+   * path on the bucket
+   *
+   * @param artifactLocalPaths A list of local paths corresponding to the
+   * @param destinationPath The bucket path with associated metadata
+   * artifacts to be uploaded
+   */
+  public async uploadArtifacts(
+    artifactLocalPaths: string[],
+    destinationPath: DestinationPath
+  ): Promise<{}> {
+    const uploadConfig = {
+      gzip: true,
+      metadata: destinationPath.metadata || DEFAULT_UPLOAD_METADATA,
+
+      // Including `destination` here (and giving it the value we're giving it)
+      // is a little misleading, because this isn't actually the full path we'll
+      // pass to the `uploadArtifactFromPath` method (that one will contain the
+      // filename as well). Putting the filename-agnostic version here so that
+      // it gets printed out in the debug statement below; it will get replaced
+      // by the correct (filename-included) value as we call the upload method
+      // on each individual file.
+      destination: destinationPath.path,
+    };
+    logger.debug(`Global upload options: ${JSON.stringify(uploadConfig)}`);
+
+    return Promise.all(
+      artifactLocalPaths.map(async (localFilePath: string) => {
+        // this is the full/correct `destination` value, to replace the
+        // incomplete one included above
+        const destination = path.join(
+          destinationPath.path,
+          path.basename(localFilePath)
+        );
+
+        await this.uploadArtifactFromPath(localFilePath, {
+          ...uploadConfig,
+          destination,
+        });
+      })
+    );
+  }
 }
