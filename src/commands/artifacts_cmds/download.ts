@@ -97,8 +97,10 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
     return undefined;
   }
 
-  const filesToDownload = argv.all ? artifacts.map(ar => ar.name) : argv.names;
-  const nameToArtifact = _.fromPairs(artifacts.map(ar => [ar.name, ar]));
+  const filesToDownload = argv.all
+    ? artifacts.map(ar => ar.filename)
+    : argv.names;
+  const nameToArtifact = _.fromPairs(artifacts.map(ar => [ar.filename, ar]));
 
   logger.info(`Fetching artifacts for revision: ${revision}`);
   for (const name of filesToDownload) {

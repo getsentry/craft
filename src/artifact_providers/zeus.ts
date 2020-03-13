@@ -1,4 +1,8 @@
-import { Client as ZeusClient, Status } from '@zeus-ci/sdk';
+import {
+  Artifact as ZeusArtifact,
+  Client as ZeusClient,
+  Status,
+} from '@zeus-ci/sdk';
 import * as _ from 'lodash';
 import {
   BaseArtifactProvider,
@@ -34,21 +38,76 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
   }
 
   /**
+   * Rearranges and renames data to convert from one interface to another.
+   *
+   * @param zeusArtifact A zeus-style Artifact to convert
+   * @returns The data transformed into a CraftArtifact
+   */
+  private convertToCraftArtifact(zeusArtifact: ZeusArtifact): CraftArtifact {
+    // unpacking...
+    const {
+      name: filename,
+      download_url: downloadFilepath,
+      file: zeusFile,
+      updated_at: lastUpdated,
+      type: mimeType,
+    } = zeusArtifact;
+    const { name: storedFilename, size } = zeusFile;
+
+    // ...and repacking
+    return {
+      filename,
+      mimeType,
+      storedFile: {
+        downloadFilepath,
+        filename: storedFilename,
+        lastUpdated,
+        size,
+      },
+    };
+  }
+
+  /**
+   * Rearranges and renames data to convert from one interface to another.
+   *
+   * @param craftArtifact A CraftArtifact to convert
+   * @returns  The data transformed into a Zeus-style Artifact
+   */
+  private convertToZeusArtifact(craftArtifact: CraftArtifact): ZeusArtifact {
+    // unpacking...
+    const { filename: name, storedFile, mimeType: type } = craftArtifact;
+    const {
+      // tslint:disable: variable-name
+      lastUpdated: updated_at,
+      downloadFilepath: download_url,
+      filename: storedFilename,
+      size,
+    } = storedFile;
+
+    // ...and repacking
+    return {
+      download_url,
+      file: {
+        name: storedFilename,
+        size,
+      },
+      id: '',
+      name,
+      status: Status.UNKNOWN,
+      type: type || '',
+      updated_at,
+    };
+  }
+
+  /**
    * @inheritDoc
    */
   public async doDownloadArtifact(
     artifact: CraftArtifact,
     downloadDirectory: string
   ): Promise<string> {
-    // TODO fix some of these attributes
     return this.client.downloadArtifact(
-      {
-        ...artifact,
-        file: { name: '', size: 0 },
-        id: '',
-        status: Status.UNKNOWN,
-        type: '',
-      },
+      this.convertToZeusArtifact(artifact),
       downloadDirectory
     );
   }
@@ -77,6 +136,8 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
       throw e;
     }
 
-    return artifacts;
+    return artifacts.map(zeusArtifact =>
+      this.convertToCraftArtifact(zeusArtifact)
+    );
   }
 }

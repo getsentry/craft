@@ -98,7 +98,7 @@ export class PypiTarget extends BaseTarget {
     await Promise.all(
       packageFiles.map(async (file: CraftArtifact) => {
         const path = await this.artifactProvider.downloadArtifact(file);
-        logger.info(`Uploading file "${file.name}" via twine`);
+        logger.info(`Uploading file "${file.filename}" via twine`);
         return this.uploadAsset(path);
       })
     );

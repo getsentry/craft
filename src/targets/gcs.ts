@@ -183,7 +183,7 @@ export class GcsTarget extends BaseTarget {
    * @param artifact Artifact to check
    */
   private detectContentType(artifact: CraftArtifact): string | undefined {
-    const name = artifact.name;
+    const name = artifact.filename;
     for (const entry of CONTENT_TYPES_EXT) {
       const [regex, contentType] = entry;
       if (name.match(regex)) {

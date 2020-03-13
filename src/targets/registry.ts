@@ -337,10 +337,10 @@ export class RegistryTarget extends BaseTarget {
 
     const fileUrls: { [_: string]: string } = {};
     for (const artifact of artifacts) {
-      fileUrls[artifact.name] = renderTemplateSafe(
+      fileUrls[artifact.filename] = renderTemplateSafe(
         this.registryConfig.urlTemplate,
         {
-          file: artifact.name,
+          file: artifact.filename,
           revision,
           version,
         }
@@ -371,7 +371,7 @@ export class RegistryTarget extends BaseTarget {
 
     if (this.registryConfig.urlTemplate) {
       artifactData.url = renderTemplateSafe(this.registryConfig.urlTemplate, {
-        file: artifact.name,
+        file: artifact.filename,
         revision,
         version,
       });
@@ -423,7 +423,7 @@ export class RegistryTarget extends BaseTarget {
     await mapLimit(artifacts, MAX_DOWNLOAD_CONCURRENCY, async artifact => {
       const fileData = await this.getArtifactData(artifact, version, revision);
       if (!_.isEmpty(fileData)) {
-        files[artifact.name] = fileData;
+        files[artifact.filename] = fileData;
       }
     });
 

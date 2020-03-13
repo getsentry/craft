@@ -14,12 +14,23 @@ export const MAX_DOWNLOAD_CONCURRENCY = 5;
  * A generic artifact interface
  */
 export interface CraftArtifact {
-  download_url: string;
-  name: string;
-  updated_at?: string;
-  type?: string;
-  file: {
-    name: string;
+  /**
+   * The name of the file which was uploaded, which will be given to the file
+   * which is downloaded (these distinctions only bear mentioning because the
+   * copy of the file held by the artifact store might have a different name)
+   */
+  filename: string;
+  /** File MIME type. Not guaranteed to be a valid IETF RFC 6838 type. */
+  mimeType?: string;
+  /** Information about the file stored on the artifact provider */
+  storedFile: {
+    /** The path on the artifact store from which the artifact can be downloaded */
+    downloadFilepath: string;
+    /** Name of the file on the artifact provider */
+    filename: string;
+    /** Last modified time (in ISO format) of the file on the artifact store */
+    lastUpdated?: string;
+    /** Size of the file in bytes */
     size: number;
   };
 }
@@ -110,7 +121,7 @@ export abstract class BaseArtifactProvider {
       throw new Error('Download directory not configured!');
     }
 
-    const cacheKey = `${finalDownloadDirectory}/${artifact.name}/${artifact.updated_at}`;
+    const cacheKey = `${finalDownloadDirectory}/${artifact.filename}/${artifact.storedFile.lastUpdated}`;
     const cached = this.downloadCache[cacheKey];
     if (cached) {
       return cached;
@@ -183,13 +194,13 @@ export abstract class BaseArtifactProvider {
     }
 
     // For every filename, take the artifact with the most recent update time
-    const nameToArtifacts = _.groupBy(artifacts, artifact => artifact.name);
+    const nameToArtifacts = _.groupBy(artifacts, artifact => artifact.filename);
     const dedupedArtifacts = Object.keys(nameToArtifacts).map(artifactName => {
       const artifactObjects = nameToArtifacts[artifactName];
       // Sort by the update time
       const sortedArtifacts = _.sortBy(
         artifactObjects,
-        artifact => Date.parse(artifact.updated_at || '') || 0
+        artifact => Date.parse(artifact.storedFile.lastUpdated || '') || 0
       );
       return sortedArtifacts[sortedArtifacts.length - 1];
     });
@@ -263,12 +274,12 @@ export abstract class BaseArtifactProvider {
     const { includeNames, excludeNames } = filterOptions;
     if (includeNames) {
       filteredArtifacts = filteredArtifacts.filter(artifact =>
-        includeNames.test(artifact.name)
+        includeNames.test(artifact.filename)
       );
     }
     if (excludeNames) {
       filteredArtifacts = filteredArtifacts.filter(
-        artifact => !excludeNames.test(artifact.name)
+        artifact => !excludeNames.test(artifact.filename)
       );
     }
     return filteredArtifacts;

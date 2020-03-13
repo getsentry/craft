@@ -37,9 +37,9 @@ async function handlerMain(argv: ArtifactsOptions): Promise<any> {
   }
 
   const artifactData = artifacts.map(ar => [
-    ar.name,
-    formatSize(ar.file.size),
-    ar.updated_at || '',
+    ar.filename,
+    formatSize(ar.storedFile.size),
+    ar.storedFile.lastUpdated || '',
   ]);
 
   const table = formatTable(
