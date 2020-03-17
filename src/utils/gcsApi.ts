@@ -6,19 +6,18 @@ import {
   Storage,
   UploadOptions as GCSUploadOptions,
 } from '@google-cloud/storage';
-import * as ConsolaRaw from 'consola';
 import { isDryRun } from 'dryrun';
 
 import { logger as loggerRaw } from '../logger';
 import { reportError } from './errors';
 import { checkEnvForPrerequisite, RequiredConfigVar } from './env';
 
-let logger: typeof ConsolaRaw;
-
 const DEFAULT_MAX_RETRIES = 5;
 const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
 
 const IS_DRY_RUN = isDryRun();
+
+const logger = loggerRaw.withScope(`[gcs api]`);
 
 /**
  * Mapping between file extension regexps and the corresponding content type
@@ -30,16 +29,6 @@ const CONTENT_TYPES_EXT: Array<[RegExp, string]> = [
 ];
 
 /**
- * Is this bucket being used as an artifact store or a target?
- */
-export const enum BucketRole {
-  /** Artifact storage (used in both `prepare` and `publish`) */
-  STORE = 'artifact store',
-  /** Destination for `publish` */
-  TARGET = 'target',
-}
-
-/**
  * Configuration options for the GCS bucket
  */
 export interface GCSBucketConfig {
@@ -49,8 +38,6 @@ export interface GCSBucketConfig {
   projectId: string;
   /** CGS credentials */
   credentials: { client_email: string; private_key: string };
-  /** Role (is this being used as an artifact store or a target?) */
-  bucketRole: BucketRole;
   /** Maximum number of retries after unsuccessful request */
   maxRetries?: number;
 }
@@ -81,23 +68,10 @@ interface GCSCreds {
  *
  * @returns An object containing the credentials
  */
-export function getGCSCredsFromEnv(bucketRole: BucketRole): GCSCreds {
-  // tslint:disable: object-literal-sort-keys
-  const jsonVar: RequiredConfigVar =
-    bucketRole === BucketRole.STORE
-      ? { name: 'CRAFT_GCS_STORE_CREDENTIALS_JSON' }
-      : {
-          name: 'CRAFT_GCS_TARGET_CREDENTIALS_JSON',
-          legacyName: 'CRAFT_GCS_CREDENTIALS_JSON',
-        };
-  const filepathVar: RequiredConfigVar =
-    bucketRole === BucketRole.STORE
-      ? { name: 'CRAFT_GCS_STORE_CREDENTIALS_PATH' }
-      : {
-          name: 'CRAFT_GCS_TARGET_CREDENTIALS_PATH',
-          legacyName: 'CRAFT_GCS_CREDENTIALS_PATH',
-        };
-
+export function getGCSCredsFromEnv(
+  jsonVar: RequiredConfigVar,
+  filepathVar: RequiredConfigVar
+): GCSCreds {
   // make sure we have at least one of the necessary variables
   checkEnvForPrerequisite(jsonVar, filepathVar);
 
@@ -157,11 +131,8 @@ export class GCSBucket {
       bucketName,
       projectId,
       credentials,
-      bucketRole,
       maxRetries = DEFAULT_MAX_RETRIES,
     } = config;
-
-    logger = loggerRaw.withScope(`[gcs ${bucketRole}]`);
 
     this.bucketName = bucketName;
     this.bucket = new Bucket(

@@ -3,7 +3,6 @@ import { TargetConfig } from '../schemas/project_config';
 import { forEachChained } from '../utils/async';
 import { ConfigurationError, reportError } from '../utils/errors';
 import {
-  BucketRole,
   DestinationPath,
   GCSBucket,
   GCSBucketConfig,
@@ -16,9 +15,7 @@ import {
   CraftArtifact,
 } from '../artifact_providers/base';
 
-const TARGET_ROLE_STR = BucketRole.TARGET;
-
-const logger = loggerRaw.withScope(`[gcs ${TARGET_ROLE_STR}]`);
+const logger = loggerRaw.withScope(`[gcs target]`);
 
 const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
 
@@ -67,8 +64,16 @@ export class GcsTarget extends BaseTarget {
    * Parses and checks configuration for the GCS target
    */
   protected getGCSTargetConfig(): GCSTargetConfig {
+    // tslint:disable: object-literal-sort-keys
     const { project_id, client_email, private_key } = getGCSCredsFromEnv(
-      TARGET_ROLE_STR
+      {
+        name: 'CRAFT_GCS_TARGET_CREDENTIALS_JSON',
+        legacyName: 'CRAFT_GCS_CREDENTIALS_JSON',
+      },
+      {
+        name: 'CRAFT_GCS_TARGET_CREDENTIALS_PATH',
+        legacyName: 'CRAFT_GCS_CREDENTIALS_PATH',
+      }
     );
 
     const bucketName = this.config.bucket;
@@ -82,7 +87,6 @@ export class GcsTarget extends BaseTarget {
 
     return {
       bucketName,
-      bucketRole: TARGET_ROLE_STR,
       credentials: { client_email, private_key },
       name: 'GCS target',
       pathTemplates,
