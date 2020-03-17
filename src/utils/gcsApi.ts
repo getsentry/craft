@@ -2,8 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import {
-  Bucket,
-  Storage,
+  Bucket as GCSBucket,
+  Storage as GCSStorage,
   UploadOptions as GCSUploadOptions,
 } from '@google-cloud/storage';
 import { isDryRun } from 'dryrun';
@@ -125,11 +125,11 @@ export function getGCSCredsFromEnv(
 /**
  * Abstraction for a GCS bucket
  */
-export class GCSBucket {
+export class CraftGCSClient {
   /** Bucket name */
   public readonly bucketName: string;
   /** CGS Client */
-  private readonly bucket: Bucket;
+  private readonly bucket: GCSBucket;
 
   public constructor(config: GCSBucketConfig) {
     const {
@@ -140,8 +140,8 @@ export class GCSBucket {
     } = config;
 
     this.bucketName = bucketName;
-    this.bucket = new Bucket(
-      new Storage({
+    this.bucket = new GCSBucket(
+      new GCSStorage({
         credentials,
         maxRetries,
         projectId,

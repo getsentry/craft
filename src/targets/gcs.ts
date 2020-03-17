@@ -4,7 +4,7 @@ import { forEachChained } from '../utils/async';
 import { ConfigurationError, reportError } from '../utils/errors';
 import {
   DestinationPath,
-  GCSBucket,
+  CraftGCSClient,
   GCSBucketConfig,
   getGCSCredsFromEnv,
 } from '../utils/gcsApi';
@@ -49,7 +49,7 @@ export class GcsTarget extends BaseTarget {
   /** Target options */
   public readonly targetConfig: GCSTargetConfig;
   /** GCS API client */
-  private readonly gcsClient: GCSBucket;
+  private readonly gcsClient: CraftGCSClient;
 
   public constructor(
     config: TargetConfig,
@@ -57,7 +57,7 @@ export class GcsTarget extends BaseTarget {
   ) {
     super(config, artifactProvider);
     this.targetConfig = this.getGCSTargetConfig();
-    this.gcsClient = new GCSBucket(this.targetConfig);
+    this.gcsClient = new CraftGCSClient(this.targetConfig);
   }
 
   /**
