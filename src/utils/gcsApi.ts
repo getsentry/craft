@@ -65,6 +65,16 @@ export interface DestinationPath {
   metadata: any;
 }
 
+/** Authentication credentials for GCS (pulled from env) */
+interface GCSCreds {
+  /** ID of the GCS project containing the bucket */
+  project_id: string;
+  /** Email address used to identify the service account accessing the bucket */
+  client_email: string;
+  /** API key for service account */
+  private_key: string;
+}
+
 /**
  * Abstraction for a GCS bucket
  */
@@ -102,9 +112,7 @@ export class GCSBucket {
    *
    * @returns An object containing the credentials
    */
-  public static getGCSCredsFromEnv = (
-    bucketRole: BucketRole
-  ): { [key: string]: string } => {
+  public static getGCSCredsFromEnv = (bucketRole: BucketRole): GCSCreds => {
     // tslint:disable: object-literal-sort-keys
     const jsonVar: RequiredConfigVar =
       bucketRole === BucketRole.STORE
@@ -148,19 +156,22 @@ export class GCSBucket {
       reportError(errorMsg);
     }
 
-    let creds: { [key: string]: string } = {};
+    let parsedCofig;
     try {
-      creds = JSON.parse(configRaw);
+      parsedCofig = JSON.parse(configRaw);
     } catch (err) {
       reportError('Error parsing JSON credentials');
     }
 
-    for (const field of ['project_id', 'client_email', 'private_key']) {
-      if (!creds[field]) {
+    const { project_id, client_email, private_key } = parsedCofig;
+
+    for (const field of [project_id, client_email, private_key]) {
+      if (!field) {
         reportError(`GCS credentials missing ${field}!`);
       }
     }
-    return creds;
+
+    return { project_id, client_email, private_key };
   };
 
   /**
@@ -194,6 +205,7 @@ export class GCSBucket {
    */
   private async uploadArtifactFromPath(
     localFilePath: string,
+    // require these three properties out of the GCSUploadOptions interface
     uploadConfig: Pick<
       Required<GCSUploadOptions>,
       'destination' | 'metadata' | 'gzip'
