@@ -49,7 +49,7 @@ export interface DestinationPath {
   /** Path inside the bucket to which files will be uploaded */
   path: string;
   /** Metadata to be associated with the files uploaded the path */
-  metadata: any;
+  metadata?: any;
 }
 
 /** Authentication credentials for GCS (pulled from env) */

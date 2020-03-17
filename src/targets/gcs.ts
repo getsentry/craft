@@ -17,8 +17,6 @@ import {
 
 const logger = loggerRaw.withScope(`[gcs target]`);
 
-const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
-
 /**
  * Adds templating to the DestinationPath interface. (Partial so that the
  * required `path` property of that interface can be optional here, since we
@@ -119,7 +117,6 @@ export class GcsTarget extends BaseTarget {
     else if (typeof rawPathConfig === 'string') {
       parsedTemplates = [
         {
-          metadata: DEFAULT_UPLOAD_METADATA,
           template: rawPathConfig,
         },
       ];
@@ -134,21 +131,20 @@ export class GcsTarget extends BaseTarget {
           reportError(
             `Invalid bucket destination: ${JSON.stringify(
               configEntry
-            )}. Use the object notation to specify bucket paths!`
+            )}. Use object notation to specify bucket paths!`
           );
         }
 
-        const template = configEntry.path;
+        const { path: template, metadata } = configEntry;
+
         if (!template) {
           reportError(`Invalid bucket path template: ${template}`);
         }
-
-        const metadata = configEntry.metadata || DEFAULT_UPLOAD_METADATA;
-        if (typeof metadata !== 'object') {
+        if (metadata && typeof metadata !== 'object') {
           reportError(
             `Invalid metadata for path "${template}": "${JSON.stringify(
               metadata
-            )}"`
+            )}. Use object notation to specify metadata!"`
           );
         }
 
