@@ -7,6 +7,7 @@ import {
   DestinationPath,
   GCSBucket,
   GCSBucketConfig,
+  getGCSCredsFromEnv,
 } from '../utils/gcsApi';
 import { renderTemplateSafe } from '../utils/strings';
 import { BaseTarget } from './base';
@@ -66,11 +67,9 @@ export class GcsTarget extends BaseTarget {
    * Parses and checks configuration for the GCS target
    */
   protected getGCSTargetConfig(): GCSTargetConfig {
-    const {
-      project_id,
-      client_email,
-      private_key,
-    } = GCSBucket.getGCSCredsFromEnv(TARGET_ROLE_STR);
+    const { project_id, client_email, private_key } = getGCSCredsFromEnv(
+      TARGET_ROLE_STR
+    );
 
     const bucketName = this.config.bucket;
     if (!bucketName && typeof bucketName !== 'string') {

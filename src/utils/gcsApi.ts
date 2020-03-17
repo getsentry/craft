@@ -76,6 +76,74 @@ interface GCSCreds {
 }
 
 /**
+ * Pulls GCS redentials out of the environment, where they can be stored either
+ * as a path to a JSON file or as a JSON string.
+ *
+ * @returns An object containing the credentials
+ */
+export function getGCSCredsFromEnv(bucketRole: BucketRole): GCSCreds {
+  // tslint:disable: object-literal-sort-keys
+  const jsonVar: RequiredConfigVar =
+    bucketRole === BucketRole.STORE
+      ? { name: 'CRAFT_GCS_STORE_CREDENTIALS_JSON' }
+      : {
+          name: 'CRAFT_GCS_TARGET_CREDENTIALS_JSON',
+          legacyName: 'CRAFT_GCS_CREDENTIALS_JSON',
+        };
+  const filepathVar: RequiredConfigVar =
+    bucketRole === BucketRole.STORE
+      ? { name: 'CRAFT_GCS_STORE_CREDENTIALS_PATH' }
+      : {
+          name: 'CRAFT_GCS_TARGET_CREDENTIALS_PATH',
+          legacyName: 'CRAFT_GCS_CREDENTIALS_PATH',
+        };
+
+  // make sure we have at least one of the necessary variables
+  checkEnvForPrerequisite(jsonVar, filepathVar);
+
+  const gcsCredsJson = process.env[jsonVar.name];
+  const gcsCredsPath = process.env[filepathVar.name];
+
+  // necessary in case we're doing a dry run, in which case missing
+  // credentials will log an error but not throw
+  let configRaw = '';
+
+  if (gcsCredsJson) {
+    logger.debug(`Using configuration from ${jsonVar.name}`);
+    configRaw = gcsCredsJson;
+  } else if (gcsCredsPath) {
+    logger.debug(`Using configuration located at ${filepathVar.name}`);
+    if (!fs.existsSync(gcsCredsPath)) {
+      reportError(`File does not exist: ${gcsCredsPath}`);
+    }
+    configRaw = fs.readFileSync(gcsCredsPath).toString();
+  } else {
+    const errorMsg =
+      `GCS credentials not found! Please provide the path to the ` +
+      `configuration via environment variable ${filepathVar.name}, or ` +
+      `specify the entire configuration in ${jsonVar.name}.`;
+    reportError(errorMsg);
+  }
+
+  let parsedCofig;
+  try {
+    parsedCofig = JSON.parse(configRaw);
+  } catch (err) {
+    reportError('Error parsing JSON credentials');
+  }
+
+  const { project_id, client_email, private_key } = parsedCofig;
+
+  for (const field of [project_id, client_email, private_key]) {
+    if (!field) {
+      reportError(`GCS credentials missing ${field}!`);
+    }
+  }
+
+  return { project_id, client_email, private_key };
+}
+
+/**
  * Abstraction for a GCS bucket
  */
 export class GCSBucket {
@@ -105,74 +173,6 @@ export class GCSBucket {
       bucketName
     );
   }
-
-  /**
-   * Pulls GCS redentials out of the environment, where they can be stored either
-   * as a path to a JSON file or as a JSON string.
-   *
-   * @returns An object containing the credentials
-   */
-  public static getGCSCredsFromEnv = (bucketRole: BucketRole): GCSCreds => {
-    // tslint:disable: object-literal-sort-keys
-    const jsonVar: RequiredConfigVar =
-      bucketRole === BucketRole.STORE
-        ? { name: 'CRAFT_GCS_STORE_CREDENTIALS_JSON' }
-        : {
-            name: 'CRAFT_GCS_TARGET_CREDENTIALS_JSON',
-            legacyName: 'CRAFT_GCS_CREDENTIALS_JSON',
-          };
-    const filepathVar: RequiredConfigVar =
-      bucketRole === BucketRole.STORE
-        ? { name: 'CRAFT_GCS_STORE_CREDENTIALS_PATH' }
-        : {
-            name: 'CRAFT_GCS_TARGET_CREDENTIALS_PATH',
-            legacyName: 'CRAFT_GCS_CREDENTIALS_PATH',
-          };
-
-    // make sure we have at least one of the necessary variables
-    checkEnvForPrerequisite(jsonVar, filepathVar);
-
-    const gcsCredsJson = process.env[jsonVar.name];
-    const gcsCredsPath = process.env[filepathVar.name];
-
-    // necessary in case we're doing a dry run, in which case missing
-    // credentials will log an error but not throw
-    let configRaw = '';
-
-    if (gcsCredsJson) {
-      logger.debug(`Using configuration from ${jsonVar.name}`);
-      configRaw = gcsCredsJson;
-    } else if (gcsCredsPath) {
-      logger.debug(`Using configuration located at ${filepathVar.name}`);
-      if (!fs.existsSync(gcsCredsPath)) {
-        reportError(`File does not exist: ${gcsCredsPath}`);
-      }
-      configRaw = fs.readFileSync(gcsCredsPath).toString();
-    } else {
-      const errorMsg =
-        `GCS credentials not found! Please provide the path to the ` +
-        `configuration via environment variable ${filepathVar.name}, or ` +
-        `specify the entire configuration in ${jsonVar.name}.`;
-      reportError(errorMsg);
-    }
-
-    let parsedCofig;
-    try {
-      parsedCofig = JSON.parse(configRaw);
-    } catch (err) {
-      reportError('Error parsing JSON credentials');
-    }
-
-    const { project_id, client_email, private_key } = parsedCofig;
-
-    for (const field of [project_id, client_email, private_key]) {
-      if (!field) {
-        reportError(`GCS credentials missing ${field}!`);
-      }
-    }
-
-    return { project_id, client_email, private_key };
-  };
 
   /**
    * Detect the content-type based on regular expressions defined in
