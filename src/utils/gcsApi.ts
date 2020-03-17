@@ -9,7 +9,7 @@ import {
 import { isDryRun } from 'dryrun';
 
 import { logger as loggerRaw } from '../logger';
-import { reportError } from './errors';
+import { reportError, ConfigurationError } from './errors';
 import { checkEnvForPrerequisite, RequiredConfigVar } from './env';
 
 const DEFAULT_MAX_RETRIES = 5;
@@ -73,47 +73,52 @@ export function getGCSCredsFromEnv(
   filepathVar: RequiredConfigVar
 ): GCSCreds {
   // make sure we have at least one of the necessary variables
-  checkEnvForPrerequisite(jsonVar, filepathVar);
+  try {
+    checkEnvForPrerequisite(jsonVar, filepathVar);
+  } catch (oO) {
+    const errorMsg =
+      `GCS credentials not found! Please provide the path to the credentials ` +
+      `file via environment variable ${filepathVar.name}, or specify the ` +
+      `credentials as a JSON string in ${jsonVar.name}.`;
+    throw new ConfigurationError(errorMsg);
+  }
 
   const gcsCredsJson = process.env[jsonVar.name];
   const gcsCredsPath = process.env[filepathVar.name];
 
-  // necessary in case we're doing a dry run, in which case missing
-  // credentials will log an error but not throw
-  let configRaw = '';
+  let configRaw;
 
   if (gcsCredsJson) {
     logger.debug(`Using configuration from ${jsonVar.name}`);
     configRaw = gcsCredsJson;
-  } else if (gcsCredsPath) {
+  }
+
+  // we know from the `checkEnvForPrerequisite` check earlier that one or the
+  // other of the necessary env variables is defined, so if the JSON one isn't,
+  // the filepath one must be (but we assert it anyway, to make the compiler
+  // happy)
+  else if (gcsCredsPath) {
     logger.debug(`Using configuration located at ${filepathVar.name}`);
     if (!fs.existsSync(gcsCredsPath)) {
       reportError(`File does not exist: ${gcsCredsPath}`);
     }
     configRaw = fs.readFileSync(gcsCredsPath).toString();
-  } else {
-    const errorMsg =
-      `GCS credentials not found! Please provide the path to the ` +
-      `configuration via environment variable ${filepathVar.name}, or ` +
-      `specify the entire configuration in ${jsonVar.name}.`;
-    reportError(errorMsg);
   }
 
   let parsedCofig;
   try {
-    parsedCofig = JSON.parse(configRaw);
+    parsedCofig = JSON.parse(configRaw as string);
   } catch (err) {
-    reportError('Error parsing JSON credentials');
+    reportError(`Error parsing JSON credentials: ${err}`);
   }
 
-  const { project_id, client_email, private_key } = parsedCofig;
-
-  for (const field of [project_id, client_email, private_key]) {
-    if (!field) {
-      reportError(`GCS credentials missing ${field}!`);
+  for (const field of ['project_id', 'client_email', 'private_key']) {
+    if (!parsedCofig[field]) {
+      reportError(`GCS credentials missing \`${field}\`!`);
     }
   }
 
+  const { project_id, client_email, private_key } = parsedCofig;
   return { project_id, client_email, private_key };
 }
 
