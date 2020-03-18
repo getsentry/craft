@@ -1,7 +1,13 @@
 import * as fs from 'fs';
 
-import { getGCSCredsFromEnv } from '../gcsApi';
+import { getGCSCredsFromEnv, CraftGCSClient } from '../gcsApi';
 import { withTempFile } from '../files';
+
+const mockGCSUpload = jest.fn();
+jest.mock('@google-cloud/storage', () => ({
+  Bucket: jest.fn(() => ({ upload: mockGCSUpload })),
+  Storage: jest.fn(() => ({})),
+}));
 
 describe('getGCSCredsFromEnv', () => {
   const cleanEnv = { ...process.env };
@@ -31,6 +37,10 @@ describe('getGCSCredsFromEnv', () => {
   });
 
   it('pulls filepath creds from env', async () => {
+    // ensure that the assertions below actually happen, since they in an async
+    // function
+    expect.assertions(3);
+
     await withTempFile(tempFilepath => {
       fs.writeFileSync(
         tempFilepath,
@@ -78,6 +88,17 @@ describe('getGCSCredsFromEnv', () => {
     }).toThrowError('Error parsing JSON credentials');
   });
 
+  it('errors if creds file missing from given path', () => {
+    process.env.DOG_CREDS_PATH = './iDontExist.json';
+
+    expect(() => {
+      getGCSCredsFromEnv(
+        { name: 'DOG_CREDS_JSON' },
+        { name: 'DOG_CREDS_PATH' }
+      );
+    }).toThrowError('File does not exist: `./iDontExist.json`!');
+  });
+
   it('errors if necessary field missing', () => {
     process.env.DOG_CREDS_JSON = `{
       "project_id": "squirrel-chasing",
@@ -92,3 +113,70 @@ describe('getGCSCredsFromEnv', () => {
     }).toThrowError('GCS credentials missing `client_email`!');
   });
 }); // end describe('getGCSCredsFromEnv')
+
+describe('CraftGCSClient class', () => {
+  const client = new CraftGCSClient({
+    bucketName: 'captured-squirrels',
+    credentials: {
+      client_email: 'might_huntress@dogs.com',
+      private_key: 'DoGsArEgReAtSoMeSeCrEtStUfFhErE',
+    },
+    projectId: 'squirrel-chasing',
+  });
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it('calls the GCS library upload method with the right parameters', async () => {
+    await client.uploadArtifacts(['./dist/someFile'], {
+      path: '/some/destination/spot/',
+    });
+
+    expect(mockGCSUpload).toHaveBeenCalledWith('./dist/someFile', {
+      // contentType: 'application/javascript; charset=utf-8',
+      destination: '/some/destination/spot/someFile',
+      gzip: true,
+      metadata: { cacheControl: `public, max-age=300` },
+    });
+  });
+
+  it('detects content type correctly', async () => {
+    await client.uploadArtifacts(['./dist/bundle.js'], {
+      path: '/some/destination/spot/',
+    });
+
+    expect(mockGCSUpload).toHaveBeenCalledWith(
+      './dist/bundle.js',
+      expect.objectContaining({
+        contentType: 'application/javascript; charset=utf-8',
+      })
+    );
+  });
+
+  it('errors if destination path not specified', async () => {
+    await expect(
+      client.uploadArtifacts(['./dogs'], undefined as any)
+    ).rejects.toThrowError('no destination path specified!');
+
+    await expect(
+      client.uploadArtifacts(['./dogs'], {
+        path: undefined,
+      } as any)
+    ).rejects.toThrowError('no destination path specified!');
+  });
+
+  it('errors if GCS upload goes sideways', async () => {
+    mockGCSUpload.mockImplementation(() => {
+      throw new Error('whoops');
+    });
+
+    await expect(
+      client.uploadArtifacts(['./dist/someFile'], {
+        path: '/some/destination/spot/',
+      })
+    ).rejects.toThrowError(
+      'Error uploading `someFile` to `/some/destination/spot/someFile`'
+    );
+  });
+}); // end describe('CraftGCSClient class')
