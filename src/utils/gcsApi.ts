@@ -100,7 +100,7 @@ export function getGCSCredsFromEnv(
   else if (gcsCredsPath) {
     logger.debug(`Using configuration located at ${filepathVar.name}`);
     if (!fs.existsSync(gcsCredsPath)) {
-      reportError(`File does not exist: ${gcsCredsPath}`);
+      reportError(`File does not exist: \`${gcsCredsPath}\`!`);
     }
     configRaw = fs.readFileSync(gcsCredsPath).toString();
   }
@@ -188,14 +188,6 @@ export class CraftGCSClient {
     >
   ): Promise<void> {
     const destinationFilePath = uploadConfig.destination as string;
-    if (!destinationFilePath) {
-      return Promise.reject(
-        new Error(
-          `Can't upload file at ${localFilePath} - no destination path specified!`
-        )
-      );
-    }
-
     const destinationPath = path.dirname(destinationFilePath);
     const filename = path.basename(localFilePath);
 
@@ -206,25 +198,25 @@ export class CraftGCSClient {
     };
 
     logger.debug(
-      `Uploading ${filename} to ${destinationPath}. Upload options: ${JSON.stringify(
-        fileUploadConfig
-      )}`
+      `Uploading \`${filename}\` to \`${destinationPath}\`. Upload options:
+        ${JSON.stringify(fileUploadConfig)}`
     );
     if (!IS_DRY_RUN) {
       try {
         await this.bucket.upload(localFilePath, fileUploadConfig);
       } catch (err) {
-        logger.error(`Unable to upload ${filename} to ${destinationFilePath}!`);
-        throw err;
+        reportError(
+          `Error uploading \`${filename}\` to \`${destinationFilePath}\`: ${err}`
+        );
       }
-      logger.info(`Uploaded ${filename} to ${destinationFilePath}`);
+      logger.info(`Uploaded \`${filename}\` to \`${destinationFilePath}\``);
       // TODO (kmclb) replace this with a `craft download` command once that's a thing
       logger.info(
         `It can be downloaded by running`,
         `\`gsutil cp gs://${this.bucketName}${destinationFilePath} <destination-path>\``
       );
     } else {
-      logger.info(`[dry-run] Skipping upload for ${filename}`);
+      logger.info(`[dry-run] Skipping upload for \`${filename}\``);
     }
   }
 
@@ -240,6 +232,13 @@ export class CraftGCSClient {
     artifactLocalPaths: string[],
     destinationPath: DestinationPath
   ): Promise<{}> {
+    if (!destinationPath || !destinationPath.path) {
+      return Promise.reject(
+        new Error(
+          `Can't upload file to GCS bucket ${this.bucketName} - no destination path specified!`
+        )
+      );
+    }
     const uploadConfig = {
       gzip: true,
       metadata: destinationPath.metadata || DEFAULT_UPLOAD_METADATA,
@@ -247,7 +246,7 @@ export class CraftGCSClient {
       // Including `destination` here (and giving it the value we're giving it)
       // is a little misleading, because this isn't actually the full path we'll
       // pass to the `uploadArtifactFromPath` method (that one will contain the
-      // filename as well). Putting the filename-agnostic version here so that
+      // filename as well). Putting the filename-missing version here so that
       // it gets printed out in the debug statement below; it will get replaced
       // by the correct (filename-included) value as we call the upload method
       // on each individual file.
