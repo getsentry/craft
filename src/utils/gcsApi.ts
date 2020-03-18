@@ -198,14 +198,11 @@ export class CraftGCSClient {
 
     const destinationPath = path.dirname(destinationFilePath);
     const filename = path.basename(localFilePath);
-    // const fileUploadConfig: GCSUploadOptions = { ...uploadConfig };
-    // const contentType = this.detectContentType(filename);
-    // if (contentType) {
-    //   fileUploadConfig.contentType = contentType;
-    // }
+
+    const contentType = this.detectContentType(filename);
     const fileUploadConfig: GCSUploadOptions = {
       ...uploadConfig,
-      contentType: this.detectContentType(filename),
+      ...(contentType && { contentType }),
     };
 
     logger.debug(
