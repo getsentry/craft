@@ -10,10 +10,13 @@ import {
 } from '../artifact_providers/base';
 import { logger } from '../logger';
 
+// TODO (kmclb) once `craft upload` is a thing, add an upload method here (and change the docstring below)
+
 /**
  * Zeus artifact provider
  *
- * Artifacts have to be uploaded to Zeus via "zeus-cli" command line tool.
+ * For the moment, artifacts have to be uploaded to Zeus via "zeus-cli" command
+ * line tool.
  */
 export class ZeusArtifactProvider extends BaseArtifactProvider {
   /** Zeus API client */

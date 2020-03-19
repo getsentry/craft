@@ -597,12 +597,14 @@ The bucket paths (`paths`) can be interpolated using Mustache syntax (`{{ variab
 
 Google Cloud credentials can be provided using either of the following two environment variables.
 
-| Name                         | Description                                                              |
-| ---------------------------- | ------------------------------------------------------------------------ |
-| `CRAFT_GCS_CREDENTIALS_PATH` | Local filesystem path to Google Cloud credentials (service account file) |
-| `CRAFT_GCS_CREDENTIALS_JSON` | Full service account file contents, as a JSON string                     |
+| Name                          | Description                                                              |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| `CRAFT_GCS_TARGET_CREDS_PATH` | Local filesystem path to Google Cloud credentials (service account file) |
+| `CRAFT_GCS_TARGET_CREDS_JSON` | Full service account file contents, as a JSON string                     |
 
-If defined, `CRAFT_GCS_CREDENTIALS_JSON` will be preferred over `CRAFT_GCS_CREDENTIALS_PATH`.
+If defined, `CRAFT_GCS_TARGET_CREDS_JSON` will be preferred over `CRAFT_GCS_TARGET_CREDS_PATH`.
+
+_Note:_ `CRAFT_GCS_TARGET_CREDS_JSON` and `CRAFT_GCS_TARGET_CREDS_PATH` were formerly called `CRAFT_GCS_CREDENTIALS_JSON` and `CRAFT_GCS_CREDENTIALS_PATH`, respectively. While those names will continue to work for the foreseeable future, you'll receive a warning encouraging you to switch to the new names.
 
 **Configuration**
 
