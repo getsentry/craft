@@ -1,4 +1,3 @@
-import { shouldPerform } from 'dryrun';
 import { existsSync, readFileSync } from 'fs';
 import { dirname, join, relative } from 'path';
 import * as shellQuote from 'shell-quote';
@@ -20,6 +19,7 @@ import {
   reportError,
 } from '../utils/errors';
 import { getDefaultBranch, getGithubClient } from '../utils/githubApi';
+import { isDryRun } from '../utils/helpers';
 import { formatJson } from '../utils/strings';
 import { sleepAsync, spawnProcess } from '../utils/system';
 import { isValidVersion, versionToTag } from '../utils/version';
@@ -133,7 +133,7 @@ async function createReleaseBranch(
     reportError(errorMsg, logger);
   }
 
-  if (shouldPerform()) {
+  if (!isDryRun()) {
     await git.checkoutLocalBranch(branchName);
     logger.info(`Created a new release branch: "${branchName}"`);
   } else {
@@ -158,7 +158,7 @@ async function pushReleaseBranch(
   if (pushFlag) {
     logger.info(`Pushing the release branch "${branchName}"...`);
     // TODO check remote somehow
-    if (shouldPerform()) {
+    if (!isDryRun()) {
       await git.push(remoteName, branchName, { '--set-upstream': true });
     } else {
       logger.info('[dry-run] Not pushing the release branch.');
@@ -190,7 +190,7 @@ async function commitNewVersion(
 
   logger.info('Committing the release changes...');
   logger.debug(`Commit message: "${message}"`);
-  if (shouldPerform()) {
+  if (!isDryRun()) {
     await git.commit(message, undefined, { '--all': true });
   } else {
     logger.info('[dry-run] Not committing the changes.');
@@ -310,7 +310,7 @@ async function execPublish(newVersion: string): Promise<never> {
   logger.info(
     `Sleeping for ${SLEEP_BEFORE_PUBLISH_SECONDS} seconds before publishing...`
   );
-  if (shouldPerform()) {
+  if (!isDryRun()) {
     await sleepAsync(SLEEP_BEFORE_PUBLISH_SECONDS * 1000);
   } else {
     logger.info('[dry-run] Not wasting time on sleep');
@@ -417,7 +417,7 @@ async function switchToDefaultBranch(
     return;
   }
   logger.info(`Switching back to the default branch (${defaultBranch})...`);
-  if (shouldPerform()) {
+  if (!isDryRun()) {
     await git.checkout(defaultBranch);
   } else {
     logger.info('[dry-run] Not switching branches.');

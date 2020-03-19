@@ -1,10 +1,10 @@
 import { SpawnOptions, spawnSync } from 'child_process';
-import { shouldPerform } from 'dryrun';
 import * as inquirer from 'inquirer';
 
 import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
+import { isDryRun } from '../utils/helpers';
 import { hasExecutable, spawnProcess } from '../utils/system';
 import { isPreviewRelease, parseVersion } from '../utils/version';
 import { BaseTarget } from './base';
@@ -219,7 +219,7 @@ export class NpmTarget extends BaseTarget {
     }
 
     const publishOptions: NpmPublishOptions = { version };
-    if (shouldPerform() && this.npmConfig.useOtp) {
+    if (!isDryRun() && this.npmConfig.useOtp) {
       publishOptions.otp = await this.requestOtp();
     }
 

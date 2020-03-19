@@ -179,4 +179,14 @@ describe('CraftGCSClient class', () => {
       'Error uploading `someFile` to `/some/destination/spot/someFile`'
     );
   });
+
+  it("doesn't upload anything in dry run mode", async () => {
+    process.env.DRY_RUN = 'true';
+
+    await client.uploadArtifacts(['./dist/someFile'], {
+      path: '/some/destination/spot/',
+    });
+
+    expect(mockGCSUpload).not.toHaveBeenCalled();
+  });
 }); // end describe('CraftGCSClient class')

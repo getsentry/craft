@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import { isDryRun, setDryRun } from 'dryrun';
 import * as once from 'once';
 import * as yargs from 'yargs';
 
 import { readEnvironmentConfig } from './utils/env';
 import { logger } from './logger';
+import { isDryRun } from './utils/helpers';
 import { hasNoInput, setNoInput } from './utils/noInput';
 import { initSentrySdk } from './utils/sentry';
 import { checkForUpdates, getPackageVersion } from './utils/version';
@@ -13,12 +13,16 @@ import { checkForUpdates, getPackageVersion } from './utils/version';
  * Handler for '--dry-run' option
  */
 function processDryRun<T>(arg: T): T {
-  if (arg) {
-    setDryRun(true);
+  // if the user explicitly set the flag on the command line, their choice
+  // should override any previously set env var
+  if (process.argv.indexOf('--dry-run') > -1) {
+    process.env.DRY_RUN = String(arg);
   }
+
   if (isDryRun()) {
     logger.info('[dry-run] Dry-run mode is on!');
   }
+
   return arg;
 }
 

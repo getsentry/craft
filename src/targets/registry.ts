@@ -3,7 +3,6 @@ import * as path from 'path';
 
 import { mapLimit } from 'async';
 import * as Github from '@octokit/rest';
-import { shouldPerform } from 'dryrun';
 // tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
 import * as _ from 'lodash';
@@ -19,6 +18,7 @@ import {
   getGithubClient,
   GithubRemote,
 } from '../utils/githubApi';
+import { isDryRun } from '../utils/helpers';
 import { renderTemplateSafe } from '../utils/strings';
 import { HashAlgorithm, HashOutputFormat } from '../utils/system';
 import {
@@ -550,7 +550,7 @@ export class RegistryTarget extends BaseTarget {
 
     // Push!
     logger.info(`Pushing the changes...`);
-    if (shouldPerform()) {
+    if (!isDryRun()) {
       await git.push('origin', 'master');
     } else {
       logger.info('[dry-run] Not pushing the branch.');

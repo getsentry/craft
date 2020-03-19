@@ -1,5 +1,5 @@
-import { shouldPerform } from 'dryrun';
 import { logger } from '../logger';
+import { isDryRun } from './helpers';
 import { captureException } from './sentry';
 
 /**
@@ -28,7 +28,7 @@ export class ConfigurationError extends Error {
  */
 export function reportError(message: string, customLogger?: any): void {
   const errorLogger = customLogger || logger;
-  if (shouldPerform()) {
+  if (!isDryRun()) {
     throw new Error(message);
   } else {
     errorLogger.error(`[dry-run] ${message}`);
