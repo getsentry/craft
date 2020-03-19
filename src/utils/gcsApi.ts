@@ -75,7 +75,9 @@ export function getGCSCredsFromEnv(
   // make sure we have at least one of the necessary variables
   try {
     checkEnvForPrerequisite(jsonVar, filepathVar);
-  } catch (oO) {
+  } catch (e) {
+    // ditch e and create a new error in order to override the default
+    // `checkEnvForPrerequisite` error message and type
     const errorMsg =
       `GCS credentials not found! Please provide the path to the credentials ` +
       `file via environment variable ${filepathVar.name}, or specify the ` +
