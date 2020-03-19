@@ -1,6 +1,5 @@
 import { spawn, SpawnOptions } from 'child_process';
 import { createHash, Hash } from 'crypto';
-import { isDryRun } from 'dryrun';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as split from 'split';
@@ -12,6 +11,7 @@ import { logger } from '../logger';
 
 import { reportError } from './errors';
 import { downloadSources } from './githubApi';
+import { isDryRun } from './helpers';
 
 /**
  * Types of supported hashing algorithms

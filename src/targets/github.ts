@@ -1,5 +1,4 @@
 import * as Github from '@octokit/rest';
-import { shouldPerform, isDryRun } from 'dryrun';
 import { createReadStream, statSync } from 'fs';
 import { basename } from 'path';
 
@@ -14,6 +13,7 @@ import {
   HTTP_UNPROCESSABLE_ENTITY,
   retryHttp,
 } from '../utils/githubApi';
+import { isDryRun } from '../utils/helpers';
 import { isPreviewRelease, versionToTag } from '../utils/version';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
@@ -189,7 +189,7 @@ export class GithubTarget extends BaseTarget {
     };
 
     logger.debug(`Annotated tag: ${this.githubConfig.annotatedTag}`);
-    if (shouldPerform()) {
+    if (!isDryRun()) {
       if (this.githubConfig.annotatedTag) {
         await this.createAnnotatedTag(version, revision, tag);
         // We've just created the tag, so "target_commitish" will not be used.
@@ -324,7 +324,7 @@ export class GithubTarget extends BaseTarget {
     logger.info(
       `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}`
     );
-    if (shouldPerform()) {
+    if (!isDryRun()) {
       try {
         await retryHttp(
           async () => this.github.repos.uploadReleaseAsset(params),

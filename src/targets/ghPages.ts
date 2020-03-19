@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import * as Github from '@octokit/rest';
-import { shouldPerform } from 'dryrun';
 // tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
 
@@ -17,6 +16,7 @@ import {
   getGithubClient,
   GithubRemote,
 } from '../utils/githubApi';
+import { isDryRun } from '../utils/helpers';
 import { extractZipArchive } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
@@ -186,7 +186,7 @@ export class GhPagesTarget extends BaseTarget {
 
     // Push!
     logger.info(`Pushing branch "${branch}"...`);
-    if (shouldPerform()) {
+    if (!isDryRun()) {
       await git.push('origin', branch, { '--set-upstream': true });
     } else {
       logger.info('[dry-run] Not pushing the branch.');

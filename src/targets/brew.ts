@@ -1,6 +1,5 @@
 import { mapLimit } from 'async';
 import * as Github from '@octokit/rest';
-import { shouldPerform } from 'dryrun';
 import * as _ from 'lodash';
 
 import { getGlobalGithubConfig } from '../config';
@@ -8,6 +7,7 @@ import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError } from '../utils/errors';
 import { getGithubClient } from '../utils/githubApi';
+import { isDryRun } from '../utils/helpers';
 import { renderTemplateSafe } from '../utils/strings';
 import { HashAlgorithm, HashOutputFormat } from '../utils/system';
 import { BaseTarget } from './base';
@@ -205,7 +205,7 @@ export class BrewTarget extends BaseTarget {
       `${action} file ${params.owner}/${params.repo}:${params.path} (${params.sha})`
     );
 
-    if (shouldPerform()) {
+    if (!isDryRun()) {
       await this.github.repos.createOrUpdateFile(params);
     } else {
       logger.info(`[dry-run] Skipping file action: ${action}`);

@@ -1,11 +1,11 @@
 import * as Github from '@octokit/rest';
-import { isDryRun } from 'dryrun';
 import * as request from 'request';
 import { Duplex, Readable } from 'stream';
 
 import { LOG_LEVELS, logger } from '../logger';
 
 import { ConfigurationError } from './errors';
+import { isDryRun } from './helpers';
 import { sleepAsync } from './system';
 
 export const HTTP_UNPROCESSABLE_ENTITY = 422;

@@ -1,5 +1,4 @@
 import * as Github from '@octokit/rest';
-import { shouldPerform } from 'dryrun';
 import * as inquirer from 'inquirer';
 import { Arguments, Argv } from 'yargs';
 import chalk from 'chalk';
@@ -20,6 +19,7 @@ import { coerceType, handleGlobalError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
 import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
+import { isDryRun } from '../utils/helpers';
 import { hasInput } from '../utils/noInput';
 import { formatSize, formatJson } from '../utils/strings';
 import { catchKeyboardInterrupt } from '../utils/system';
@@ -334,7 +334,7 @@ async function handleReleaseBranch(
   }
 
   logger.debug(`Merging the release branch: ${branchName}`);
-  if (shouldPerform()) {
+  if (!isDryRun()) {
     await mergeReleaseBranch(
       github,
       githubConfig.owner,
@@ -350,7 +350,7 @@ async function handleReleaseBranch(
   } else {
     const ref = `heads/${branchName}`;
     logger.debug(`Deleting the release branch, ref: ${ref}`);
-    if (shouldPerform()) {
+    if (!isDryRun()) {
       const response = await github.git.deleteRef({
         owner: githubConfig.owner,
         ref,

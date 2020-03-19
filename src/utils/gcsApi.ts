@@ -6,7 +6,7 @@ import {
   Storage as GCSStorage,
   UploadOptions as GCSUploadOptions,
 } from '@google-cloud/storage';
-import { isDryRun } from 'dryrun';
+import { isDryRun } from './helpers';
 
 import { logger as loggerRaw } from '../logger';
 import { reportError, ConfigurationError } from './errors';
@@ -14,8 +14,6 @@ import { checkEnvForPrerequisite, RequiredConfigVar } from './env';
 
 const DEFAULT_MAX_RETRIES = 5;
 const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
-
-const IS_DRY_RUN = isDryRun();
 
 const logger = loggerRaw.withScope(`[gcs api]`);
 
@@ -203,7 +201,8 @@ export class CraftGCSClient {
       `Uploading \`${filename}\` to \`${destinationPath}\`. Upload options:
         ${JSON.stringify(fileUploadConfig)}`
     );
-    if (!IS_DRY_RUN) {
+
+    if (!isDryRun()) {
       try {
         await this.bucket.upload(localFilePath, fileUploadConfig);
       } catch (err) {
