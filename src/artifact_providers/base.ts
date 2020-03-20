@@ -25,7 +25,10 @@ export interface CraftArtifact {
   mimeType?: string;
   /** Information about the file stored on the artifact provider */
   storedFile: {
-    /** The path on the artifact store from which the artifact can be downloaded */
+    /**
+     * The path on the artifact store from which the artifact can be downloaded
+     * (includes filename)
+     */
     downloadFilepath: string;
     /** Name of the file on the artifact provider */
     filename: string;
@@ -34,6 +37,8 @@ export interface CraftArtifact {
     /** Size of the file in bytes */
     size: number;
   };
+  /** Location of the downloaded copy of the file (includes filename) */
+  localFilepath?: string;
 }
 
 /**

@@ -2,6 +2,7 @@ import * as fs from 'fs';
 
 import { getGCSCredsFromEnv, CraftGCSClient } from '../gcsApi';
 import { withTempFile } from '../files';
+import { CraftArtifact } from '../../artifact_providers/base';
 
 const mockGCSUpload = jest.fn();
 jest.mock('@google-cloud/storage', () => ({
@@ -124,30 +125,54 @@ describe('CraftGCSClient class', () => {
     projectId: 'squirrel-chasing',
   });
 
+  const squirrelStatsArtifact: CraftArtifact = {
+    // tslint:disable: object-literal-sort-keys
+    filename: 'march-squirrel-stats.csv',
+    storedFile: {
+      downloadFilepath: 'squirrel-chasing/march-2020-squirrel-stats.csv',
+      filename: 'march-2020-squirrel-stats.csv',
+      size: 1231,
+    },
+    localFilepath: './temp/march-squirrel-stats.csv',
+  };
+
+  const squirrelSimulatorArtifact: CraftArtifact = {
+    // tslint:disable: object-literal-sort-keys
+    filename: 'bundle.js',
+    storedFile: {
+      downloadFilepath: 'squirrel-chasing/squirrel-simulator-bundle.js',
+      filename: 'squirrel-simulator-bundle.js',
+      size: 123112,
+    },
+    localFilepath: './temp/bundle.js',
+  };
+
   beforeEach(() => {
     jest.resetAllMocks();
   });
 
   it('calls the GCS library upload method with the right parameters', async () => {
-    await client.uploadArtifacts(['./dist/someFile'], {
-      path: '/some/destination/spot/',
-    });
-
-    expect(mockGCSUpload).toHaveBeenCalledWith('./dist/someFile', {
-      // contentType: 'application/javascript; charset=utf-8',
-      destination: '/some/destination/spot/someFile',
-      gzip: true,
-      metadata: { cacheControl: `public, max-age=300` },
-    });
-  });
-
-  it('detects content type correctly', async () => {
-    await client.uploadArtifacts(['./dist/bundle.js'], {
-      path: '/some/destination/spot/',
+    await client.uploadArtifacts([squirrelStatsArtifact], {
+      path: '/stats/2020/',
     });
 
     expect(mockGCSUpload).toHaveBeenCalledWith(
-      './dist/bundle.js',
+      './temp/march-squirrel-stats.csv',
+      {
+        destination: '/stats/2020/march-squirrel-stats.csv',
+        gzip: true,
+        metadata: { cacheControl: `public, max-age=300` },
+      }
+    );
+  });
+
+  it('detects content type correctly', async () => {
+    await client.uploadArtifacts([squirrelSimulatorArtifact], {
+      path: '/simulator/v1.12.1/dist/',
+    });
+
+    expect(mockGCSUpload).toHaveBeenCalledWith(
+      './temp/bundle.js',
       expect.objectContaining({
         contentType: 'application/javascript; charset=utf-8',
       })
@@ -156,14 +181,25 @@ describe('CraftGCSClient class', () => {
 
   it('errors if destination path not specified', async () => {
     await expect(
-      client.uploadArtifacts(['./dogs'], undefined as any)
+      client.uploadArtifacts([squirrelStatsArtifact], undefined as any)
     ).rejects.toThrowError('no destination path specified!');
 
     await expect(
-      client.uploadArtifacts(['./dogs'], {
+      client.uploadArtifacts([squirrelSimulatorArtifact], {
         path: undefined,
       } as any)
     ).rejects.toThrowError('no destination path specified!');
+  });
+
+  it('errors if local path not specified', async () => {
+    const missingLocalPathArtifact = { ...squirrelStatsArtifact };
+    delete missingLocalPathArtifact.localFilepath;
+
+    await expect(
+      client.uploadArtifacts([missingLocalPathArtifact], {
+        path: '/stats/2020/',
+      })
+    ).rejects.toThrowError('No local path to file specified!');
   });
 
   it('errors if GCS upload goes sideways', async () => {
@@ -172,19 +208,19 @@ describe('CraftGCSClient class', () => {
     });
 
     await expect(
-      client.uploadArtifacts(['./dist/someFile'], {
-        path: '/some/destination/spot/',
+      client.uploadArtifacts([squirrelStatsArtifact], {
+        path: '/stats/2020/',
       })
     ).rejects.toThrowError(
-      'Error uploading `someFile` to `/some/destination/spot/someFile`'
+      'Error uploading `march-squirrel-stats.csv` to `/stats/2020/march-squirrel-stats.csv`'
     );
   });
 
   it("doesn't upload anything in dry run mode", async () => {
     process.env.DRY_RUN = 'true';
 
-    await client.uploadArtifacts(['./dist/someFile'], {
-      path: '/some/destination/spot/',
+    await client.uploadArtifacts([squirrelSimulatorArtifact], {
+      path: '/simulator/v1.12.1/dist/',
     });
 
     expect(mockGCSUpload).not.toHaveBeenCalled();

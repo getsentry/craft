@@ -217,11 +217,15 @@ export class GcsTarget extends BaseTarget {
     logger.info(`Uploading to GCS bucket: "${bucketName}"`);
 
     // before we can upload the artifacts to our target, we first need to
-    // download them from the artifact provider
-    const localFilePaths = await Promise.all(
+    // download them from the artifact provider (we then annotate the
+    // CraftArtifact object with the location of the downloaded file)
+    await Promise.all(
       artifacts.map(
-        async (artifact: CraftArtifact): Promise<string> =>
-          this.artifactProvider.downloadArtifact(artifact)
+        async (artifact: CraftArtifact): Promise<void> => {
+          artifact.localFilepath = await this.artifactProvider.downloadArtifact(
+            artifact
+          );
+        }
       )
     );
 
@@ -233,7 +237,7 @@ export class GcsTarget extends BaseTarget {
         // `version` and `revision` values filled in
         this.materializePathTemplate(pathTemplate, version, revision);
         await this.gcsClient.uploadArtifacts(
-          localFilePaths,
+          artifacts,
           pathTemplate as DestinationPath
         );
       }

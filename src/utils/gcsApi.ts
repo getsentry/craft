@@ -11,6 +11,7 @@ import { isDryRun } from './helpers';
 import { logger as loggerRaw } from '../logger';
 import { reportError, ConfigurationError } from './errors';
 import { checkEnvForPrerequisite, RequiredConfigVar } from './env';
+import { CraftArtifact } from '../artifact_providers/base';
 
 const DEFAULT_MAX_RETRIES = 5;
 const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
@@ -172,24 +173,30 @@ export class CraftGCSClient {
   }
 
   /**
-   * Uploads the artifact at the given local path to the path specified in the
-   * given config object
+   * Uploads the given artifact to the path specified in the given config object.
    *
-   * @param localFilePath Location of the file to be uploaded
+   * @param artifact The artifact to be uploaded
    * @param uploadConfig Configuration for the upload including destination path
    * and metadata
    */
-  private async uploadArtifactFromPath(
-    localFilePath: string,
+  private async uploadArtifact(
+    artifact: CraftArtifact,
     // require these three properties out of the GCSUploadOptions interface
     uploadConfig: Pick<
       Required<GCSUploadOptions>,
       'destination' | 'metadata' | 'gzip'
     >
   ): Promise<void> {
+    const { filename, localFilepath } = artifact;
     const destinationFilePath = uploadConfig.destination as string;
     const destinationPath = path.dirname(destinationFilePath);
-    const filename = path.basename(localFilePath);
+
+    if (!localFilepath) {
+      reportError(
+        `Unable to upload file \`${filename}\`. ` +
+          `No local path to file specified!`
+      );
+    }
 
     const contentType = this.detectContentType(filename);
     const fileUploadConfig: GCSUploadOptions = {
@@ -204,7 +211,7 @@ export class CraftGCSClient {
 
     if (!isDryRun()) {
       try {
-        await this.bucket.upload(localFilePath, fileUploadConfig);
+        await this.bucket.upload(localFilepath as string, fileUploadConfig);
       } catch (err) {
         reportError(
           `Error uploading \`${filename}\` to \`${destinationFilePath}\`: ${err}`
@@ -222,15 +229,13 @@ export class CraftGCSClient {
   }
 
   /**
-   * Uploads the artifacts at the given local paths to the given destination
-   * path on the bucket
+   * Uploads the given artifacts to the given destination path on the bucket.
    *
-   * @param artifactLocalPaths A list of local paths corresponding to the
+   * @param artifacts A list of artifacts to be uploaded
    * @param destinationPath The bucket path with associated metadata
-   * artifacts to be uploaded
    */
   public async uploadArtifacts(
-    artifactLocalPaths: string[],
+    artifacts: CraftArtifact[],
     destinationPath: DestinationPath
   ): Promise<{}> {
     if (!destinationPath || !destinationPath.path) {
@@ -256,15 +261,12 @@ export class CraftGCSClient {
     logger.debug(`Global upload options: ${JSON.stringify(uploadConfig)}`);
 
     return Promise.all(
-      artifactLocalPaths.map(async (localFilePath: string) => {
+      artifacts.map(async artifact => {
         // this is the full/correct `destination` value, to replace the
         // incomplete one included above
-        const destination = path.join(
-          destinationPath.path,
-          path.basename(localFilePath)
-        );
+        const destination = path.join(destinationPath.path, artifact.filename);
 
-        await this.uploadArtifactFromPath(localFilePath, {
+        await this.uploadArtifact(artifact, {
           ...uploadConfig,
           destination,
         });
