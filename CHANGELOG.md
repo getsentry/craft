@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+Watch this space...
+
+## 0.9.2
+
+- feat: Artifact provider abstraction (#52, #54)
+- feat: Support for custom remote names (#43)
+- ref: Create GCS API module (#63)
+- ref: Create environment utils module (#60)
+- chore: Hard-pin runtime dependencies, remove node-emoji and node-dryrun (#53, #58, #65)
+
 ## 0.9.1
 
 - fix: Default status provider should still be Zeus
