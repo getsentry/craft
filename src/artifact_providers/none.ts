@@ -1,6 +1,6 @@
 import {
   BaseArtifactProvider,
-  CraftArtifact,
+  RemoteArtifact,
 } from '../artifact_providers/base';
 
 /**
@@ -13,7 +13,7 @@ export class NoneArtifactProvider extends BaseArtifactProvider {
    * @returns A promise rejection with an error message
    */
   protected async doDownloadArtifact(
-    _artifact: CraftArtifact,
+    _artifact: RemoteArtifact,
     _downloadDirectory: string
   ): Promise<string> {
     return Promise.reject('NoneProvider does not suuport file downloads!');
@@ -26,7 +26,7 @@ export class NoneArtifactProvider extends BaseArtifactProvider {
    */
   protected async doListArtifactsForRevision(
     _revision: string
-  ): Promise<CraftArtifact[] | undefined> {
+  ): Promise<RemoteArtifact[] | undefined> {
     return [];
   }
 }

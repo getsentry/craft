@@ -12,9 +12,13 @@ import { logger } from '../logger';
 export const MAX_DOWNLOAD_CONCURRENCY = 5;
 
 /**
- * A generic artifact interface
+ * A release artifact
+ *
+ * Serves as the base interface for RemoteArtifact and LocalArtifact (which are
+ * just artifacts at different points in their lifecycle, with different
+ * required properties to help typescript figure out what's what).
  */
-export interface CraftArtifact {
+export interface AbstractArtifact {
   /**
    * The name of the file which was uploaded, which will be given to the file
    * which is downloaded (these distinctions only bear mentioning because the
@@ -23,9 +27,18 @@ export interface CraftArtifact {
   filename: string;
   /** File MIME type. Not guaranteed to be a valid IETF RFC 6838 type. */
   mimeType?: string;
+}
+
+/**
+ * An artifact which has been uploaded to an artifact provider.
+ */
+export interface RemoteArtifact extends AbstractArtifact {
   /** Information about the file stored on the artifact provider */
   storedFile: {
-    /** The path on the artifact store from which the artifact can be downloaded */
+    /**
+     * The path on the artifact store from which the artifact can be downloaded
+     * (includes filename)
+     */
     downloadFilepath: string;
     /** Name of the file on the artifact provider */
     filename: string;
@@ -34,6 +47,18 @@ export interface CraftArtifact {
     /** Size of the file in bytes */
     size: number;
   };
+}
+
+/**
+ * An artifact before it's been uploaded to an artifact provider or after it's
+ * been downloaded from one.
+ *
+ * TODO (kmclb): Not currently in use, but would be used if we switch to passing
+ * artifacts around rather than just bare paths
+ */
+export interface LocalArtifact extends AbstractArtifact {
+  /** Location of the local copy of the file (includes filename) */
+  localFilepath: string;
 }
 
 /**
@@ -57,7 +82,7 @@ export abstract class BaseArtifactProvider {
 
   /** Cache for storing mapping between revisions and a list of their artifacts */
   protected readonly fileListCache: {
-    [key: string]: CraftArtifact[] | undefined;
+    [key: string]: RemoteArtifact[] | undefined;
   } = {};
 
   /** Cache for checksums computed for the files stored on disk */
@@ -110,7 +135,7 @@ export abstract class BaseArtifactProvider {
    * @returns Absolute path to the saved file
    */
   public async downloadArtifact(
-    artifact: CraftArtifact,
+    artifact: RemoteArtifact,
     downloadDirectory?: string
   ): Promise<string> {
     let finalDownloadDirectory;
@@ -151,7 +176,7 @@ export abstract class BaseArtifactProvider {
    * @returns Absolute path to the saved file
    */
   protected abstract async doDownloadArtifact(
-    artifact: CraftArtifact,
+    artifact: RemoteArtifact,
     downloadDirectory: string
   ): Promise<string>;
 
@@ -168,7 +193,7 @@ export abstract class BaseArtifactProvider {
    * @returns Array of absolute paths to the saved files
    */
   public async downloadArtifacts(
-    artifacts: CraftArtifact[],
+    artifacts: RemoteArtifact[],
     downloadDirectory?: string
   ): Promise<string[]> {
     return Promise.all(
@@ -191,7 +216,7 @@ export abstract class BaseArtifactProvider {
    */
   public async listArtifactsForRevision(
     revision: string
-  ): Promise<CraftArtifact[] | undefined> {
+  ): Promise<RemoteArtifact[] | undefined> {
     // check the cache first
     const cached = this.fileListCache[revision];
     if (cached) {
@@ -241,7 +266,7 @@ export abstract class BaseArtifactProvider {
    */
   protected abstract async doListArtifactsForRevision(
     revision: string
-  ): Promise<CraftArtifact[] | undefined>;
+  ): Promise<RemoteArtifact[] | undefined>;
 
   /**
    * Returns the calculated hash digest for the given artifact
@@ -254,7 +279,7 @@ export abstract class BaseArtifactProvider {
    * @returns Calculated hash value
    */
   public async getChecksum(
-    artifact: CraftArtifact,
+    artifact: RemoteArtifact,
     algorithm: HashAlgorithm,
     format: HashOutputFormat
   ): Promise<string> {
@@ -283,7 +308,7 @@ export abstract class BaseArtifactProvider {
   public async filterArtifactsForRevision(
     revision: string,
     filterOptions?: FilterOptions
-  ): Promise<CraftArtifact[]> {
+  ): Promise<RemoteArtifact[]> {
     let filteredArtifacts = await this.listArtifactsForRevision(revision);
     if (!filteredArtifacts) {
       return [];

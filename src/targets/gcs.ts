@@ -12,7 +12,7 @@ import { renderTemplateSafe } from '../utils/strings';
 import { BaseTarget } from './base';
 import {
   BaseArtifactProvider,
-  CraftArtifact,
+  RemoteArtifact,
 } from '../artifact_providers/base';
 
 const logger = loggerRaw.withScope(`[gcs target]`);
@@ -220,7 +220,7 @@ export class GcsTarget extends BaseTarget {
     // download them from the artifact provider
     const localFilePaths = await Promise.all(
       artifacts.map(
-        async (artifact: CraftArtifact): Promise<string> =>
+        async (artifact: RemoteArtifact): Promise<string> =>
           this.artifactProvider.downloadArtifact(artifact)
       )
     );

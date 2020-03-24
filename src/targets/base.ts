@@ -4,7 +4,7 @@ import { FilterOptions } from '../stores/zeus';
 import { stringToRegexp } from '../utils/filters';
 import {
   BaseArtifactProvider,
-  CraftArtifact,
+  RemoteArtifact,
 } from '../artifact_providers/base';
 
 // TODO: make abstract?
@@ -62,7 +62,7 @@ export class BaseTarget {
   public async getArtifactsForRevision(
     revision: string,
     defaultFilterOptions: FilterOptions = {}
-  ): Promise<CraftArtifact[]> {
+  ): Promise<RemoteArtifact[]> {
     const filterOptions = {
       ...defaultFilterOptions,
       ...this.filterOptions,

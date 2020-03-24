@@ -10,7 +10,7 @@ import { isPreviewRelease, parseVersion } from '../utils/version';
 import { BaseTarget } from './base';
 import {
   BaseArtifactProvider,
-  CraftArtifact,
+  RemoteArtifact,
 } from '../artifact_providers/base';
 
 const logger = loggerRaw.withScope('[npm]');
@@ -224,7 +224,7 @@ export class NpmTarget extends BaseTarget {
     }
 
     await Promise.all(
-      packageFiles.map(async (file: CraftArtifact) => {
+      packageFiles.map(async (file: RemoteArtifact) => {
         const path = await this.artifactProvider.downloadArtifact(file);
         logger.info(`Releasing ${file.filename} to NPM`);
         return this.publishPackage(path, publishOptions);

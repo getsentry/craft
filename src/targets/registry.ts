@@ -29,7 +29,7 @@ import {
 import { stringToRegexp } from '../utils/filters';
 import { BaseTarget } from './base';
 import {
-  CraftArtifact,
+  RemoteArtifact,
   BaseArtifactProvider,
   MAX_DOWNLOAD_CONCURRENCY,
 } from '../artifact_providers/base';
@@ -363,7 +363,7 @@ export class RegistryTarget extends BaseTarget {
    *
    */
   public async getArtifactData(
-    artifact: CraftArtifact,
+    artifact: RemoteArtifact,
     version: string,
     revision: string
   ): Promise<any> {

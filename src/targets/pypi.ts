@@ -2,7 +2,7 @@ import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import {
   BaseArtifactProvider,
-  CraftArtifact,
+  RemoteArtifact,
 } from '../artifact_providers/base';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
@@ -96,7 +96,7 @@ export class PypiTarget extends BaseTarget {
     }
 
     await Promise.all(
-      packageFiles.map(async (file: CraftArtifact) => {
+      packageFiles.map(async (file: RemoteArtifact) => {
         const path = await this.artifactProvider.downloadArtifact(file);
         logger.info(`Uploading file "${file.filename}" via twine`);
         return this.uploadAsset(path);

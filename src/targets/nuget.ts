@@ -5,7 +5,7 @@ import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 import {
   BaseArtifactProvider,
-  CraftArtifact,
+  RemoteArtifact,
 } from '../artifact_providers/base';
 
 const logger = loggerRaw.withScope('[nuget]');
@@ -95,7 +95,7 @@ export class NugetTarget extends BaseTarget {
     }
 
     await Promise.all(
-      packageFiles.map(async (file: CraftArtifact) => {
+      packageFiles.map(async (file: RemoteArtifact) => {
         const path = await this.artifactProvider.downloadArtifact(file);
         logger.info(`Uploading file "${file.filename}" via "dotnet nuget"`);
         return this.uploadAsset(path);
