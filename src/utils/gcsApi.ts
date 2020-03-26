@@ -13,7 +13,7 @@ import { reportError, ConfigurationError } from './errors';
 import { checkEnvForPrerequisite, RequiredConfigVar } from './env';
 
 const DEFAULT_MAX_RETRIES = 5;
-const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
+export const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
 
 const logger = loggerRaw.withScope(`[gcs api]`);
 
