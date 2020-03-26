@@ -3,7 +3,7 @@ import { TargetConfig } from '../schemas/project_config';
 import { forEachChained } from '../utils/async';
 import { ConfigurationError, reportError } from '../utils/errors';
 import {
-  DestinationPath,
+  BucketPath,
   CraftGCSClient,
   GCSBucketConfig,
   getGCSCredsFromEnv,
@@ -18,14 +18,14 @@ import {
 const logger = loggerRaw.withScope(`[gcs target]`);
 
 /**
- * Adds templating to the DestinationPath interface. (Partial so that the
- * required `path` property of that interface can be optional here, since we
- * won't have values to fill into the template until later.)
+ * Adds templating to the BucketPath interface.
+ *
+ * Omits required property `path` since that will be computed dynamically later.
  */
-interface PathTemplate extends Partial<DestinationPath> {
+interface PathTemplate extends Omit<BucketPath, 'path'> {
   /**
-   * Template for the destination path, into which `version` and `revision` can
-   * be substituted
+   * Template for the path, into which `version` and `revision` can be
+   * substituted
    */
   template: string;
 }
@@ -234,7 +234,7 @@ export class GcsTarget extends BaseTarget {
         this.materializePathTemplate(pathTemplate, version, revision);
         await this.gcsClient.uploadArtifacts(
           localFilePaths,
-          pathTemplate as DestinationPath
+          pathTemplate as BucketPath
         );
       }
     );

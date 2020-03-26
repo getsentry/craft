@@ -41,12 +41,16 @@ export interface GCSBucketConfig {
 }
 
 /**
- * Bucket path with associated parameters
+ * Path within a given bucket, to which files can be uploaded or from which
+ * files can be downloaded.
+ *
+ * When used for uploading, can include metadata to be associated with all of
+ * the files uploaded to this path.
  */
-export interface DestinationPath {
-  /** Path inside the bucket to which files will be uploaded */
+export interface BucketPath {
+  /** Path inside the bucket */
   path: string;
-  /** Metadata to be associated with the files uploaded the path */
+  /** If uploading, metadata to be associated with uploaded files */
   metadata?: any;
 }
 
@@ -222,18 +226,18 @@ export class CraftGCSClient {
   }
 
   /**
-   * Uploads the artifacts at the given local paths to the given destination
-   * path on the bucket
+   * Uploads the artifacts at the given local paths to the given path on the
+   * bucket
    *
    * @param artifactLocalPaths A list of local paths corresponding to the
-   * @param destinationPath The bucket path with associated metadata
    * artifacts to be uploaded
+   * @param pathWithMetadata The bucket path with associated metadata
    */
   public async uploadArtifacts(
     artifactLocalPaths: string[],
-    destinationPath: DestinationPath
+    pathWithMetadata: BucketPath
   ): Promise<{}> {
-    if (!destinationPath || !destinationPath.path) {
+    if (!pathWithMetadata || !pathWithMetadata.path) {
       return Promise.reject(
         new Error(
           `Can't upload file to GCS bucket ${this.bucketName} - no destination path specified!`
@@ -242,7 +246,7 @@ export class CraftGCSClient {
     }
     const uploadConfig = {
       gzip: true,
-      metadata: destinationPath.metadata || DEFAULT_UPLOAD_METADATA,
+      metadata: pathWithMetadata.metadata || DEFAULT_UPLOAD_METADATA,
 
       // Including `destination` here (and giving it the value we're giving it)
       // is a little misleading, because this isn't actually the full path we'll
@@ -251,7 +255,7 @@ export class CraftGCSClient {
       // it gets printed out in the debug statement below; it will get replaced
       // by the correct (filename-included) value as we call the upload method
       // on each individual file.
-      destination: destinationPath.path,
+      destination: pathWithMetadata.path,
     };
     logger.debug(`Global upload options: ${JSON.stringify(uploadConfig)}`);
 
@@ -260,7 +264,7 @@ export class CraftGCSClient {
         // this is the full/correct `destination` value, to replace the
         // incomplete one included above
         const destination = path.join(
-          destinationPath.path,
+          pathWithMetadata.path,
           path.basename(localFilePath)
         );
 
