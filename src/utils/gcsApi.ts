@@ -169,110 +169,69 @@ export class CraftGCSClient {
     for (const entry of CONTENT_TYPES_EXT) {
       const [regex, contentType] = entry;
       if (artifactName.match(regex)) {
+        logger.debug(
+          `Detected \`${artifactName}\` to be of type \`${contentType}\`.`
+        );
         return contentType;
       }
     }
+    logger.debug(`Unable to detect content type for \`${artifactName}\`.`);
     return undefined;
   }
 
   /**
-   * Uploads the artifact at the given local path to the path specified in the
-   * given config object
+   * Uploads the artifact at the given local path to the given path on the
+   * bucket
    *
-   * @param localFilePath Location of the file to be uploaded
-   * @param uploadConfig Configuration for the upload including destination path
-   * and metadata
+   * @param artifactLocalPath Local path to the artifact to be uploaded
+   * @param bucketPath Destination path with associated metadata
    */
-  private async uploadArtifactFromPath(
-    localFilePath: string,
-    // require these three properties out of the GCSUploadOptions interface
-    uploadConfig: Pick<
-      Required<GCSUploadOptions>,
-      'destination' | 'metadata' | 'gzip'
-    >
+  public async uploadArtifact(
+    artifactLocalPath: string,
+    bucketPath: BucketPath
   ): Promise<void> {
-    const destinationFilePath = uploadConfig.destination as string;
-    const destinationPath = path.dirname(destinationFilePath);
-    const filename = path.basename(localFilePath);
+    const filename = path.basename(artifactLocalPath);
+    const pathInBucket = bucketPath.path;
+
+    if (!artifactLocalPath) {
+      reportError(
+        `Unable to upload file \`${filename}\` - ` +
+          `no local path to file specified!`
+      );
+    }
 
     const contentType = this.detectContentType(filename);
-    const fileUploadConfig: GCSUploadOptions = {
-      ...uploadConfig,
+    const uploadConfig: GCSUploadOptions = {
+      destination: path.join(pathInBucket, filename),
+      gzip: true,
+      metadata: bucketPath.metadata || DEFAULT_UPLOAD_METADATA,
       ...(contentType && { contentType }),
     };
 
-    logger.debug(
-      `Uploading \`${filename}\` to \`${destinationPath}\`. Upload options:
-        ${JSON.stringify(fileUploadConfig)}`
-    );
-
     if (!isDryRun()) {
+      logger.debug(
+        `Attempting to upload \`${filename}\` to \`${pathInBucket}\`.`
+      );
+
       try {
-        await this.bucket.upload(localFilePath, fileUploadConfig);
+        await this.bucket.upload(artifactLocalPath, uploadConfig);
       } catch (err) {
-        reportError(
-          `Error uploading \`${filename}\` to \`${destinationFilePath}\`: ${err}`
-        );
+        reportError(`Encountered an error while uploading \`${filename}\`:
+        ${err}`);
       }
-      logger.info(`Uploaded \`${filename}\` to \`${destinationFilePath}\``);
+
       // TODO (kmclb) replace this with a `craft download` command once that's a thing
-      logger.info(
-        `It can be downloaded by running`,
-        `\`gsutil cp gs://${this.bucketName}${destinationFilePath} <destination-path>\``
+      logger.debug(
+        `Success! It can be downloaded by running`,
+        `\`gsutil cp ${path.join(
+          'gs://',
+          this.bucketName,
+          pathInBucket,
+          filename
+        )} <path-to-download-location>\``
       );
     } else {
       logger.info(`[dry-run] Skipping upload for \`${filename}\``);
     }
-  }
-
-  /**
-   * Uploads the artifacts at the given local paths to the given path on the
-   * bucket
-   *
-   * @param artifactLocalPaths A list of local paths corresponding to the
-   * artifacts to be uploaded
-   * @param pathWithMetadata The bucket path with associated metadata
-   */
-  public async uploadArtifacts(
-    artifactLocalPaths: string[],
-    pathWithMetadata: BucketPath
-  ): Promise<{}> {
-    if (!pathWithMetadata || !pathWithMetadata.path) {
-      return Promise.reject(
-        new Error(
-          `Can't upload file to GCS bucket ${this.bucketName} - no destination path specified!`
-        )
-      );
-    }
-    const uploadConfig = {
-      gzip: true,
-      metadata: pathWithMetadata.metadata || DEFAULT_UPLOAD_METADATA,
-
-      // Including `destination` here (and giving it the value we're giving it)
-      // is a little misleading, because this isn't actually the full path we'll
-      // pass to the `uploadArtifactFromPath` method (that one will contain the
-      // filename as well). Putting the filename-missing version here so that
-      // it gets printed out in the debug statement below; it will get replaced
-      // by the correct (filename-included) value as we call the upload method
-      // on each individual file.
-      destination: pathWithMetadata.path,
-    };
-    logger.debug(`Global upload options: ${JSON.stringify(uploadConfig)}`);
-
-    return Promise.all(
-      artifactLocalPaths.map(async (localFilePath: string) => {
-        // this is the full/correct `destination` value, to replace the
-        // incomplete one included above
-        const destination = path.join(
-          pathWithMetadata.path,
-          path.basename(localFilePath)
-        );
-
-        await this.uploadArtifactFromPath(localFilePath, {
-          ...uploadConfig,
-          destination,
-        });
-      })
-    );
   }
 }

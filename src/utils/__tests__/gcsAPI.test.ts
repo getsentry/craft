@@ -166,8 +166,8 @@ describe('CraftGCSClient class', () => {
   });
 
   it('calls the GCS library upload method with the right parameters', async () => {
-    await client.uploadArtifacts(
-      [squirrelStatsLocalPath],
+    await client.uploadArtifact(
+      squirrelStatsLocalPath,
       squirrelStatsBucketPath
     );
 
@@ -182,8 +182,8 @@ describe('CraftGCSClient class', () => {
   });
 
   it('detects content type correctly for JS and map files', async () => {
-    await client.uploadArtifacts(
-      [squirrelSimulatorLocalPath],
+    await client.uploadArtifact(
+      squirrelSimulatorLocalPath,
       squirrelSimulatorBucketPath
     );
 
@@ -196,8 +196,8 @@ describe('CraftGCSClient class', () => {
   });
 
   it('allows overriding of default metadata', async () => {
-    await client.uploadArtifacts(
-      [squirrelSimulatorLocalPath],
+    await client.uploadArtifact(
+      squirrelSimulatorLocalPath,
       squirrelSimulatorBucketPath
     );
 
@@ -211,41 +211,28 @@ describe('CraftGCSClient class', () => {
     );
   });
 
-  it('errors if destination path not specified', async () => {
-    await expect(
-      client.uploadArtifacts([squirrelSimulatorLocalPath], undefined as any)
-    ).rejects.toThrowError('no destination path specified!');
-
-    await expect(
-      client.uploadArtifacts([squirrelStatsLocalPath], {
-        path: undefined,
-      } as any)
-    ).rejects.toThrowError('no destination path specified!');
-  });
-
   it('errors if GCS upload goes sideways', async () => {
     mockGCSUpload.mockImplementation(() => {
       throw new Error('The squirrel got away!');
     });
 
     const { filename } = squirrelSimulatorArtifact;
-    const { path: destinationPath } = squirrelSimulatorBucketPath;
 
     await expect(
-      client.uploadArtifacts(
-        [squirrelSimulatorLocalPath],
+      client.uploadArtifact(
+        squirrelSimulatorLocalPath,
         squirrelSimulatorBucketPath
       )
     ).rejects.toThrowError(
-      `Error uploading \`${filename}\` to \`${destinationPath}${filename}\``
+      `Encountered an error while uploading \`${filename}\``
     );
   });
 
   it("doesn't upload anything in dry run mode", async () => {
     process.env.DRY_RUN = 'true';
 
-    await client.uploadArtifacts(
-      [squirrelStatsLocalPath],
+    await client.uploadArtifact(
+      squirrelStatsLocalPath,
       squirrelStatsBucketPath
     );
 

@@ -7,6 +7,7 @@ import {
   CraftGCSClient,
   GCSBucketConfig,
   getGCSCredsFromEnv,
+  DEFAULT_UPLOAD_METADATA,
 } from '../utils/gcsApi';
 import { renderTemplateSafe } from '../utils/strings';
 import { BaseTarget } from './base';
@@ -228,19 +229,34 @@ export class GcsTarget extends BaseTarget {
       )
     );
 
-    // We intentionally do not make all requests concurrent here
+    // We intentionally do not make all requests concurrent here, instead
+    // uploading files to each destination path in turn
     await forEachChained(
       this.targetConfig.pathTemplates,
-      async (pathTemplate: PathTemplate): Promise<void> => {
+      async (pathTemplate: PathTemplate): Promise<any> => {
         // fills `version` and `revision` values into the template
         const bucketPath = this.materializePathTemplate(
           pathTemplate,
           version,
           revision
         );
-        await this.gcsClient.uploadArtifacts(localFilePaths, bucketPath);
+
+        logger.info(`Uploading files to ${bucketPath.path}.`);
+        logger.debug(
+          `Upload options: ${JSON.stringify({
+            gzip: true,
+            metadata: bucketPath.metadata || DEFAULT_UPLOAD_METADATA,
+          })}`
+        );
+
+        return Promise.all(
+          localFilePaths.map(async localPath =>
+            this.gcsClient.uploadArtifact(localPath, bucketPath)
+          )
+        );
       }
     );
+
     logger.info('Upload to GCS complete.');
   }
 }
