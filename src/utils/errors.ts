@@ -21,17 +21,24 @@ export class ConfigurationError extends Error {
 }
 
 /**
- * Writes a message to "error" log if in dry-mode, throws an error otherwise
+ * Writes an error or message to "error" log if in dry-mode, throws an error
+ * otherwise
  *
- * @param message Error message
- * @param customLogger Optional logger to use
+ * @param error Error object or error message
+ * @param errorLogger Optional logger to use
  */
-export function reportError(message: string, customLogger?: any): void {
-  const errorLogger = customLogger || logger;
+export function reportError(
+  error: Error | string,
+  errorLogger: { error: Function; [key: string]: any } = logger
+): void {
   if (!isDryRun()) {
-    throw new Error(message);
+    // wrap the error in an Error object if it isn't already one
+    const errorObj = error instanceof Error ? error : new Error(error);
+    throw errorObj;
   } else {
-    errorLogger.error(`[dry-run] ${message}`);
+    // conversely, convert the error to a string if it isn't already one
+    const errorStr = typeof error === 'string' ? error : String(error);
+    errorLogger.error(`[dry-run] ${errorStr}`);
   }
 }
 

@@ -1,4 +1,7 @@
 import { filterAsync, forEachChained, promiseProps } from '../async';
+import { logger } from '../../logger';
+
+jest.mock('../../logger');
 
 describe('filterAsync', () => {
   test('filters with sync predicate', async () => {
@@ -110,4 +113,87 @@ describe('forEachChained', () => {
       that
     );
   });
-});
+
+  describe('sync and async iteratees in regular and dry-run mode', () => {
+    // tslint:disable: completed-docs
+
+    const arr = ['first', 'second', 'third', 'fourth'];
+
+    function syncIteratee(arrEntry: string): string {
+      logger.debug(`Processing array entry \`${arrEntry}\``);
+
+      if (arrEntry === 'second' || arrEntry === 'fourth') {
+        throw new Error('drat');
+      } else {
+        return 'yay!';
+      }
+    }
+
+    function asyncIteratee(arrEntry: string): Promise<string> {
+      logger.debug(`Processing array entry \`${arrEntry}\``);
+
+      if (arrEntry === 'second' || arrEntry === 'fourth') {
+        return Promise.reject(new Error('drat'));
+      } else {
+        return Promise.resolve('yay!');
+      }
+    }
+
+    async function regularModeExpectCheck(
+      iteratee: (entry: string) => string | Promise<string>
+    ): Promise<void> {
+      expect.assertions(3);
+
+      // check that the error does actually get thrown, the first time it hits a
+      // problematic entry
+      await expect(forEachChained(arr, iteratee)).rejects.toThrowError('drat');
+      expect(logger.debug).toHaveBeenCalledWith(
+        'Processing array entry `second`'
+      );
+
+      // we didn't get this far
+      expect(logger.debug).not.toHaveBeenCalledWith(
+        'Processing array entry `third`'
+      );
+    }
+
+    async function dryrunModeExpectCheck(
+      iteratee: (entry: string) => string | Promise<string>
+    ): Promise<void> {
+      expect.assertions(3);
+
+      // check that it logs the error rather than throws it
+      await expect(forEachChained(arr, iteratee)).resolves.not.toThrowError();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('drat')
+      );
+
+      // check that it's gotten all the way through the array
+      expect(logger.debug).toHaveBeenCalledWith(
+        'Processing array entry `fourth`'
+      );
+    }
+
+    beforeEach(() => {
+      delete process.env.DRY_RUN;
+    });
+
+    it('blows up the first time sync iteratee errors (non-dry-run mode)', async () => {
+      await regularModeExpectCheck(syncIteratee);
+    });
+
+    it('blows up the first time async iteratee errors (non-dry-run mode)', async () => {
+      await regularModeExpectCheck(asyncIteratee);
+    });
+
+    it('logs error but keeps going if in dry-run mode - sync iteratee', async () => {
+      process.env.DRY_RUN = 'true';
+      await dryrunModeExpectCheck(syncIteratee);
+    });
+
+    it('logs error but keeps going if in dry-run mode - async iteratee', async () => {
+      process.env.DRY_RUN = 'true';
+      await dryrunModeExpectCheck(asyncIteratee);
+    });
+  }); // end describe('sync and async iteratees in regular and dry-run mode')
+}); // end describe('forEachChained')
