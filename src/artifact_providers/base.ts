@@ -80,6 +80,8 @@ export interface ArtifactProviderConfig {
   repoOwner: string;
   /** Destination for any files the provider downloads */
   downloadDirectory?: string;
+  /** Other, provider-specific config options */
+  [key: string]: any;
 }
 
 /**
@@ -101,10 +103,8 @@ export abstract class BaseArtifactProvider {
     [path: string]: { [checksumType: string]: string };
   } = {};
 
-  /** Name of the repo containing the code getting released */
-  protected readonly repoName: string;
-  /** GitHub org to which the repo belongs */
-  protected readonly repoOwner: string;
+  /** The configuration object passed to the constructor */
+  protected readonly config: ArtifactProviderConfig;
 
   /** Directory that will be used for downloading artifacts by default */
   protected defaultDownloadDirectory: string | undefined;
@@ -112,10 +112,9 @@ export abstract class BaseArtifactProvider {
   public constructor(config: ArtifactProviderConfig) {
     this.clearCaches();
 
-    const { repoName, repoOwner, downloadDirectory } = config;
+    this.config = config;
 
-    this.repoName = repoName;
-    this.repoOwner = repoOwner;
+    const { downloadDirectory } = config;
     if (downloadDirectory) {
       this.setDownloadDirectory(downloadDirectory);
     }

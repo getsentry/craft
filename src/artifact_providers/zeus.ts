@@ -114,14 +114,15 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
   protected async doListArtifactsForRevision(
     revision: string
   ): Promise<RemoteArtifact[]> {
+    const { repoName, repoOwner } = this.config;
     logger.debug(
-      `Fetching Zeus artifacts for ${this.repoOwner}/${this.repoName}, revision ${revision}`
+      `Fetching Zeus artifacts for ${repoOwner}/${repoName}, revision ${revision}`
     );
     let artifacts;
     try {
       artifacts = await this.client.listArtifactsForRevision(
-        this.repoOwner,
-        this.repoName,
+        repoOwner,
+        repoName,
         revision
       );
     } catch (e) {
