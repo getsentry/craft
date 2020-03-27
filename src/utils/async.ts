@@ -1,4 +1,5 @@
 import * as _ from 'lodash';
+import { reportError } from './errors';
 
 /**
  * Asynchronously calls the predicate on every element of the array and filters
@@ -58,7 +59,9 @@ export async function forEachChained<T>(
 ): Promise<void> {
   return array.reduce(
     async (prev, ...args: [T]) =>
-      prev.then(() => iteratee.apply(thisArg, args)),
+      // catching errors after each .then() lets us report them and keep going
+      // if in dry-run mode (in regular mode, reportError() just re-throws)
+      prev.then(() => iteratee.apply(thisArg, args)).catch(reportError),
     Promise.resolve()
   );
 }
