@@ -6,7 +6,8 @@ import {
 import * as _ from 'lodash';
 import {
   BaseArtifactProvider,
-  CraftArtifact,
+  RemoteArtifact,
+  ArtifactProviderConfig,
 } from '../artifact_providers/base';
 import { logger } from '../logger';
 
@@ -21,32 +22,22 @@ import { logger } from '../logger';
 export class ZeusArtifactProvider extends BaseArtifactProvider {
   /** Zeus API client */
   public readonly client: ZeusClient;
-  /** Zeus project owner */
-  public readonly repoOwner: string;
-  /** Zeus project name */
-  public readonly repoName: string;
 
-  public constructor(
-    repoOwner: string,
-    repoName: string,
-    downloadDirectory?: string
-  ) {
-    super();
+  public constructor(config: ArtifactProviderConfig) {
+    super(config);
     this.client = new ZeusClient({
-      defaultDirectory: downloadDirectory,
+      defaultDirectory: config.downloadDirectory,
       logger,
     });
-    this.repoOwner = repoOwner;
-    this.repoName = repoName;
   }
 
   /**
    * Rearranges and renames data to convert from one interface to another.
    *
    * @param zeusArtifact A zeus-style Artifact to convert
-   * @returns The data transformed into a CraftArtifact
+   * @returns The data transformed into a RemoteArtifact
    */
-  private convertToCraftArtifact(zeusArtifact: ZeusArtifact): CraftArtifact {
+  private convertToRemoteArtifact(zeusArtifact: ZeusArtifact): RemoteArtifact {
     // unpacking...
     const {
       name: filename,
@@ -73,12 +64,12 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
   /**
    * Rearranges and renames data to convert from one interface to another.
    *
-   * @param craftArtifact A CraftArtifact to convert
+   * @param remoteArtifact A RemoteArtifact to convert
    * @returns  The data transformed into a Zeus-style Artifact
    */
-  private convertToZeusArtifact(craftArtifact: CraftArtifact): ZeusArtifact {
+  private convertToZeusArtifact(remoteArtifact: RemoteArtifact): ZeusArtifact {
     // unpacking...
-    const { filename: name, storedFile, mimeType: type } = craftArtifact;
+    const { filename: name, storedFile, mimeType: type } = remoteArtifact;
     const {
       // tslint:disable: variable-name
       lastUpdated: updated_at,
@@ -106,7 +97,7 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
    * @inheritDoc
    */
   public async doDownloadArtifact(
-    artifact: CraftArtifact,
+    artifact: RemoteArtifact,
     downloadDirectory: string
   ): Promise<string> {
     return this.client.downloadArtifact(
@@ -120,7 +111,7 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
    */
   protected async doListArtifactsForRevision(
     revision: string
-  ): Promise<CraftArtifact[] | undefined> {
+  ): Promise<RemoteArtifact[] | undefined> {
     logger.debug(
       `Fetching Zeus artifacts for ${this.repoOwner}/${this.repoName}, revision ${revision}`
     );
@@ -140,7 +131,7 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
     }
 
     return artifacts.map(zeusArtifact =>
-      this.convertToCraftArtifact(zeusArtifact)
+      this.convertToRemoteArtifact(zeusArtifact)
     );
   }
 }

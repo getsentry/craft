@@ -3,29 +3,30 @@ import { TargetConfig } from '../schemas/project_config';
 import { forEachChained } from '../utils/async';
 import { ConfigurationError, reportError } from '../utils/errors';
 import {
-  DestinationPath,
+  BucketPath,
   CraftGCSClient,
   GCSBucketConfig,
   getGCSCredsFromEnv,
+  DEFAULT_UPLOAD_METADATA,
 } from '../utils/gcsApi';
 import { renderTemplateSafe } from '../utils/strings';
 import { BaseTarget } from './base';
 import {
   BaseArtifactProvider,
-  CraftArtifact,
+  RemoteArtifact,
 } from '../artifact_providers/base';
 
 const logger = loggerRaw.withScope(`[gcs target]`);
 
 /**
- * Adds templating to the DestinationPath interface. (Partial so that the
- * required `path` property of that interface can be optional here, since we
- * won't have values to fill into the template until later.)
+ * Adds templating to the BucketPath interface.
+ *
+ * Omits required property `path` since that will be computed dynamically later.
  */
-interface PathTemplate extends Partial<DestinationPath> {
+interface PathTemplate extends Omit<BucketPath, 'path'> {
   /**
-   * Template for the destination path, into which `version` and `revision` can
-   * be substituted
+   * Template for the path, into which `version` and `revision` can be
+   * substituted
    */
   template: string;
 }
@@ -164,22 +165,23 @@ export class GcsTarget extends BaseTarget {
   }
 
   /**
-   * Adds an interpolated bucket path, with `version` and `revision` filled
-   * in as appropriate, to the given PathTemplate object.
+   * Converts a PathTemplate into a BucketPath by filling in `version` and
+   * `revision` as appropriate.
    *
    * @param pathTemplate A path template with associated metadata
    * @param version The new version
    * @param revision The SHA revision of the new version
+   * @returns The resulting BucketPath object
    */
   private materializePathTemplate(
     pathTemplate: PathTemplate,
     version: string,
     revision: string
-  ): void {
-    const template = pathTemplate.template;
+  ): BucketPath {
+    const { template, metadata } = pathTemplate;
+
     if (!template) {
-      reportError(`Cannot insert data into path template ${template}`);
-      return;
+      throw new Error(`Invalid path template \`${template}\`!`);
     }
 
     let realPath = renderTemplateSafe(template.trim(), {
@@ -191,8 +193,10 @@ export class GcsTarget extends BaseTarget {
     if (realPath[0] !== '/') {
       realPath = `/${realPath}`;
     }
-    logger.debug(`Processed path template: ${template} and got ${realPath}`);
-    pathTemplate.path = realPath;
+    logger.debug(
+      `Processed path template: \`${template}\` and got \`${realPath}\``
+    );
+    return { path: realPath, metadata };
   }
 
   /**
@@ -220,24 +224,39 @@ export class GcsTarget extends BaseTarget {
     // download them from the artifact provider
     const localFilePaths = await Promise.all(
       artifacts.map(
-        async (artifact: CraftArtifact): Promise<string> =>
+        async (artifact: RemoteArtifact): Promise<string> =>
           this.artifactProvider.downloadArtifact(artifact)
       )
     );
 
-    // We intentionally do not make all requests concurrent here
+    // We intentionally do not make all requests concurrent here, instead
+    // uploading files to each destination path in turn
     await forEachChained(
       this.targetConfig.pathTemplates,
-      async (pathTemplate: PathTemplate): Promise<void> => {
-        // this adds a `path` property to the PathTemplate object, with
-        // `version` and `revision` values filled in
-        this.materializePathTemplate(pathTemplate, version, revision);
-        await this.gcsClient.uploadArtifacts(
-          localFilePaths,
-          pathTemplate as DestinationPath
+      async (pathTemplate: PathTemplate): Promise<any> => {
+        // fills `version` and `revision` values into the template
+        const bucketPath = this.materializePathTemplate(
+          pathTemplate,
+          version,
+          revision
+        );
+
+        logger.info(`Uploading files to ${bucketPath.path}.`);
+        logger.debug(
+          `Upload options: ${JSON.stringify({
+            gzip: true,
+            metadata: bucketPath.metadata || DEFAULT_UPLOAD_METADATA,
+          })}`
+        );
+
+        return Promise.all(
+          localFilePaths.map(async localPath =>
+            this.gcsClient.uploadArtifact(localPath, bucketPath)
+          )
         );
       }
     );
+
     logger.info('Upload to GCS complete.');
   }
 }

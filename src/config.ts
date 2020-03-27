@@ -224,7 +224,10 @@ export function getGitTagPrefix(): string {
  */
 export function getArtifactProviderFromConfig(): BaseArtifactProvider {
   const config = getConfiguration() || {};
-  const githubConfig = config.github;
+  const artifactProviderConfig = {
+    repoName: config.github.repo,
+    repoOwner: config.github.owner,
+  };
 
   const rawArtifactProvider = config.artifactProvider || {
     config: undefined,
@@ -235,7 +238,7 @@ export function getArtifactProviderFromConfig(): BaseArtifactProvider {
   switch (artifactProviderName) {
     case undefined: // Zeus is the default at the moment
     case ArtifactProviderName.Zeus:
-      return new ZeusArtifactProvider(githubConfig.owner, githubConfig.repo);
+      return new ZeusArtifactProvider(artifactProviderConfig);
     case ArtifactProviderName.None:
       return new NoneArtifactProvider();
     default: {
