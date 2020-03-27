@@ -1,12 +1,18 @@
 import {
   BaseArtifactProvider,
   RemoteArtifact,
+  ArtifactProviderConfig,
 } from '../artifact_providers/base';
 
 /**
  * Empty artifact provider that does nothing.
  */
 export class NoneArtifactProvider extends BaseArtifactProvider {
+  public constructor(
+    config: ArtifactProviderConfig = { repoName: 'none', repoOwner: 'none' }
+  ) {
+    super(config);
+  }
   /**
    * Empty provider cannot download any files.
    *

@@ -70,6 +70,17 @@ export interface FilterOptions {
   /** Exclude files that match this regexp */
   excludeNames?: RegExp;
 }
+/**
+ * Configuration options needed for all artifact providers
+ */
+export interface ArtifactProviderConfig {
+  /** Name of the repo containing the code getting released */
+  repoName: string;
+  /** GitHub org to which the repo belongs */
+  repoOwner: string;
+  /** Destination for any files the provider downloads */
+  downloadDirectory?: string;
+}
 
 /**
  * Base interface for artifact providers.
@@ -90,11 +101,21 @@ export abstract class BaseArtifactProvider {
     [path: string]: { [checksumType: string]: string };
   } = {};
 
+  /** Name of the repo containing the code getting released */
+  protected readonly repoName: string;
+  /** GitHub org to which the repo belongs */
+  protected readonly repoOwner: string;
+
   /** Directory that will be used for downloading artifacts by default */
   protected defaultDownloadDirectory: string | undefined;
 
-  public constructor(downloadDirectory?: string) {
+  public constructor(config: ArtifactProviderConfig) {
     this.clearCaches();
+
+    const { repoName, repoOwner, downloadDirectory } = config;
+
+    this.repoName = repoName;
+    this.repoOwner = repoOwner;
     if (downloadDirectory) {
       this.setDownloadDirectory(downloadDirectory);
     }

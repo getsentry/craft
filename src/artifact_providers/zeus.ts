@@ -7,6 +7,7 @@ import * as _ from 'lodash';
 import {
   BaseArtifactProvider,
   RemoteArtifact,
+  ArtifactProviderConfig,
 } from '../artifact_providers/base';
 import { logger } from '../logger';
 
@@ -21,23 +22,13 @@ import { logger } from '../logger';
 export class ZeusArtifactProvider extends BaseArtifactProvider {
   /** Zeus API client */
   public readonly client: ZeusClient;
-  /** Zeus project owner */
-  public readonly repoOwner: string;
-  /** Zeus project name */
-  public readonly repoName: string;
 
-  public constructor(
-    repoOwner: string,
-    repoName: string,
-    downloadDirectory?: string
-  ) {
-    super();
+  public constructor(config: ArtifactProviderConfig) {
+    super(config);
     this.client = new ZeusClient({
-      defaultDirectory: downloadDirectory,
+      defaultDirectory: config.downloadDirectory,
       logger,
     });
-    this.repoOwner = repoOwner;
-    this.repoName = repoName;
   }
 
   /**
