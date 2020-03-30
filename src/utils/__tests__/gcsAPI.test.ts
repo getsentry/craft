@@ -7,14 +7,22 @@ import {
   DEFAULT_UPLOAD_METADATA,
 } from '../gcsApi';
 import { withTempFile } from '../files';
-import { RemoteArtifact } from '../../../dist/artifact_providers/base.d';
+
+import {
+  gcsCredsJSON,
+  squirrelBucket,
+  squirrelStatsLocalPath,
+  squirrelStatsBucketPath,
+  squirrelStatsArtifact,
+  squirrelSimulatorLocalPath,
+  squirrelSimulatorBucketPath,
+  squirrelSimulatorArtifact,
+  tempDownloadDirectory,
+} from '../__fixtures__/gcsApi';
 
 const cleanEnv = { ...process.env };
 
-/**
- * Mocks for parts of the gcs client package, and for controling whether or not
- * we can find given files
- */
+// Mocks and test client
 
 const mockGCSUpload = jest.fn();
 const mockGCSDownload = jest.fn();
@@ -31,56 +39,14 @@ const syncExistsSpy = jest.spyOn(fs, 'existsSync');
 // since we’re not actually going to attempt to do anything with them
 syncExistsSpy.mockReturnValue(true);
 
-/**
- * Client for testing, along with a few example artifacts
- */
-
 const client = new CraftGCSClient({
-  bucketName: 'captured-squirrels',
+  bucketName: squirrelBucket,
   credentials: {
     client_email: 'mighty_huntress@dogs.com',
     private_key: 'DoGsArEgReAtSoMeSeCrEtStUfFhErE',
   },
-  projectId: 'squirrel-chasing',
+  projectId: 'o-u-t-s-i-d-e',
 });
-
-const squirrelStatsArtifact: RemoteArtifact = {
-  // tslint:disable: object-literal-sort-keys
-  filename: 'march-squirrel-stats.csv',
-  storedFile: {
-    downloadFilepath: 'squirrel-chasing/march-2020-squirrel-stats.csv',
-    filename: 'march-2020-squirrel-stats.csv',
-    size: 1231,
-  },
-};
-
-const squirrelStatsLocalPath = './temp/march-squirrel-stats.csv';
-
-const squirrelStatsBucketPath = {
-  path: '/stats/2020/',
-};
-
-const tempDownloadDirectory = './temp/';
-
-const squirrelSimulatorArtifact: RemoteArtifact = {
-  filename: 'bundle.js',
-  storedFile: {
-    downloadFilepath: 'squirrel-chasing/squirrel-simulator-bundle.js',
-    filename: 'squirrel-simulator-bundle.js',
-    size: 123112,
-  },
-};
-
-const squirrelSimulatorLocalPath = './dist/bundle.js';
-
-const squirrelSimulatorBucketPath = {
-  path: '/simulator/v1.12.1/dist/',
-  metadata: { cacheControl: `public, max-age=3600` },
-};
-
-/**
- * Finally, the tests themselves
- */
 
 describe('gcsApi module', () => {
   afterEach(() => {
@@ -94,21 +60,14 @@ describe('gcsApi module', () => {
 
   describe('getGCSCredsFromEnv', () => {
     it('pulls JSON creds from env', () => {
-      process.env.DOG_CREDS_JSON = `{
-        "project_id": "squirrel-chasing",
-        "private_key": "DoGsArEgReAtSoMeSeCrEtStUfFhErE",
-        "client_email": "might_huntress@dogs.com",
-        "other_stuff": "can be anything",
-        "tail_wagging": "true",
-        "barking": "also VERY true"
-      }`;
+      process.env.DOG_CREDS_JSON = gcsCredsJSON;
 
       const { project_id, client_email, private_key } = getGCSCredsFromEnv(
         { name: 'DOG_CREDS_JSON' },
         { name: 'DOG_CREDS_PATH' }
       );
 
-      expect(project_id).toEqual('squirrel-chasing');
+      expect(project_id).toEqual('o-u-t-s-i-d-e');
       expect(client_email).toEqual('might_huntress@dogs.com');
       expect(private_key).toEqual('DoGsArEgReAtSoMeSeCrEtStUfFhErE');
     });
@@ -119,17 +78,7 @@ describe('gcsApi module', () => {
       expect.assertions(3);
 
       await withTempFile(tempFilepath => {
-        fs.writeFileSync(
-          tempFilepath,
-          `{
-            "project_id": "squirrel-chasing",
-            "private_key": "DoGsArEgReAtSoMeSeCrEtStUfFhErE",
-            "client_email": "might_huntress@dogs.com",
-            "other_stuff": "can be anything",
-            "tail_wagging": "true",
-            "barking": "also VERY true"
-          }`
-        );
+        fs.writeFileSync(tempFilepath, gcsCredsJSON);
         process.env.DOG_CREDS_PATH = tempFilepath;
 
         const { project_id, client_email, private_key } = getGCSCredsFromEnv(
@@ -137,7 +86,7 @@ describe('gcsApi module', () => {
           { name: 'DOG_CREDS_PATH' }
         );
 
-        expect(project_id).toEqual('squirrel-chasing');
+        expect(project_id).toEqual('o-u-t-s-i-d-e');
         expect(client_email).toEqual('might_huntress@dogs.com');
         expect(private_key).toEqual('DoGsArEgReAtSoMeSeCrEtStUfFhErE');
       });
@@ -181,7 +130,7 @@ describe('gcsApi module', () => {
 
     it('errors if necessary field missing', () => {
       process.env.DOG_CREDS_JSON = `{
-        "project_id": "squirrel-chasing",
+        "project_id": "o-u-t-s-i-d-e",
         "private_key": "DoGsArEgReAtSoMeSeCrEtStUfFhErE"
       }`;
 
