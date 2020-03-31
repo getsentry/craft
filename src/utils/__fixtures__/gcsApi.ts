@@ -1,6 +1,15 @@
 import { RemoteArtifact } from '../../artifact_providers/base';
 
+export const dogsGHOrg = 'dogs-rule';
+
+export const squirrelRepo = 'squirrel-operations';
+
 export const squirrelBucket = 'squirrel-chasing';
+
+export const squirrelSimulatorCommit =
+  '4d6169736579203c33203c3320436861726c6965';
+
+export const squirrelStatsCommit = '3c3320446f67732061726520677265617421203c33';
 
 export const gcsCredsJSON = JSON.stringify({
   // tslint:disable: object-literal-sort-keys

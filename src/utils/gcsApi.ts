@@ -3,6 +3,7 @@ import * as path from 'path';
 
 import {
   Bucket as GCSBucket,
+  File as GCSFile,
   Storage as GCSStorage,
   UploadOptions as GCSUploadOptions,
 } from '@google-cloud/storage';
@@ -279,5 +280,61 @@ export class CraftGCSClient {
     }
 
     return path.join(destinationDirectory, destinationFilename);
+  }
+
+  /**
+   * Converts a GCSFile object (as it comes back from the API) into a
+   * RemoteArtifact object
+   *
+   * @param gcsFile A GCSFile object to convert
+   * @returns The corresponding RemoteArtifact object
+   */
+  private convertToRemoteArtifact(gcsFile: GCSFile): RemoteArtifact {
+    const { name } = gcsFile;
+    const filename = path.basename(name);
+
+    const {
+      size,
+      updated: lastUpdated,
+      contentType: mimeType,
+      name: downloadFilepath,
+    } = gcsFile.metadata;
+
+    return {
+      filename,
+      mimeType,
+      storedFile: {
+        downloadFilepath,
+        filename,
+        lastUpdated,
+        size: Number(size),
+      },
+    };
+  }
+
+  /**
+   * Lists all artifacts associated with a given commit
+   *
+   * @param repoOwner The GH org containing the repo being released
+   * @param repoName The name of the repo being released
+   * @param revision The commit associated with the version being released
+   * @returns An array of RemoteArtifact objects
+   */
+  public async listArtifactsForRevision(
+    repoOwner: string,
+    repoName: string,
+    revision: string
+  ): Promise<RemoteArtifact[]> {
+    let filesResponse: GCSFile[][] = [[]];
+    try {
+      filesResponse = await this.bucket.getFiles({
+        prefix: path.join(repoOwner, repoName, revision),
+      });
+    } catch (err) {
+      reportError(`Error retrieving artifact list from GCS: ${String(err)}`);
+    }
+
+    const files = filesResponse[0];
+    return files.map(gcsFile => this.convertToRemoteArtifact(gcsFile));
   }
 }

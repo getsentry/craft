@@ -9,6 +9,7 @@ import {
 import { withTempFile } from '../files';
 
 import {
+  dogsGHOrg,
   gcsCredsJSON,
   squirrelBucket,
   squirrelStatsLocalPath,
@@ -18,17 +19,38 @@ import {
   squirrelSimulatorBucketPath,
   squirrelSimulatorArtifact,
   tempDownloadDirectory,
+  squirrelRepo,
+  squirrelSimulatorCommit,
+  squirrelStatsGCSFileObj,
+  squirrelStatsCommit,
+  squirrelSimulatorGCSFileObj,
 } from '../__fixtures__/gcsApi';
 
-const cleanEnv = { ...process.env };
+/*************** mocks and other setup ***************/
 
-// Mocks and test client
+jest.mock('../../logger', () => ({
+  logger: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+
+    // normally withScope returns a new logger instance, but then we lose the
+    // mocked one, so instead, have it just return the instance on which it was
+    // called. Written as an old-skool function because arrow functions don't
+    // bind `this` the same way.
+    withScope(): {} {
+      return this;
+    },
+  },
+}));
 
 const mockGCSUpload = jest.fn();
 const mockGCSDownload = jest.fn();
+const mockGCSGetFiles = jest.fn();
 jest.mock('@google-cloud/storage', () => ({
   Bucket: jest.fn(() => ({
     file: jest.fn(() => ({ download: mockGCSDownload })),
+    getFiles: mockGCSGetFiles,
     upload: mockGCSUpload,
   })),
   Storage: jest.fn(() => ({})),
@@ -39,6 +61,8 @@ const syncExistsSpy = jest.spyOn(fs, 'existsSync');
 // since we’re not actually going to attempt to do anything with them
 syncExistsSpy.mockReturnValue(true);
 
+const cleanEnv = { ...process.env };
+
 const client = new CraftGCSClient({
   bucketName: squirrelBucket,
   credentials: {
@@ -47,6 +71,8 @@ const client = new CraftGCSClient({
   },
   projectId: 'o-u-t-s-i-d-e',
 });
+
+/*************** the actual tests ***************/
 
 describe('gcsApi module', () => {
   afterEach(() => {
@@ -282,5 +308,69 @@ describe('gcsApi module', () => {
         expect(mockGCSDownload).not.toHaveBeenCalled();
       });
     }); // end describe('download')
+
+    describe('listArtifactsForRevision', () => {
+      it('calls the GCS library getFiles method with the right parameters', async () => {
+        expect.assertions(1);
+
+        mockGCSGetFiles.mockReturnValue([[]]);
+
+        await client.listArtifactsForRevision(
+          dogsGHOrg,
+          squirrelRepo,
+          squirrelSimulatorCommit
+        );
+
+        expect(mockGCSGetFiles).toHaveBeenCalledWith({
+          prefix: path.join(dogsGHOrg, squirrelRepo, squirrelSimulatorCommit),
+        });
+      });
+
+      it('converts GCSFile objects in response to RemoteArtifact objects', async () => {
+        expect.assertions(1);
+
+        mockGCSGetFiles.mockReturnValue([[squirrelStatsGCSFileObj]]);
+
+        const artifacts = await client.listArtifactsForRevision(
+          dogsGHOrg,
+          squirrelRepo,
+          squirrelStatsCommit
+        );
+
+        expect(artifacts[0]).toEqual(squirrelStatsArtifact);
+      });
+
+      it("returns all the results it's given by GCS", async () => {
+        expect.assertions(1);
+
+        mockGCSGetFiles.mockReturnValue([
+          [squirrelStatsGCSFileObj, squirrelSimulatorGCSFileObj],
+        ]);
+
+        const artifacts = await client.listArtifactsForRevision(
+          dogsGHOrg,
+          squirrelRepo,
+          squirrelStatsCommit
+        );
+
+        expect(artifacts.length).toEqual(2);
+      });
+
+      it('errors if GCS file listing goes sideways', async () => {
+        expect.assertions(1);
+
+        mockGCSGetFiles.mockImplementation(() => {
+          throw new Error('The squirrel got away!');
+        });
+
+        await expect(
+          client.listArtifactsForRevision(
+            dogsGHOrg,
+            squirrelRepo,
+            squirrelSimulatorCommit
+          )
+        ).rejects.toThrowError('Error retrieving artifact list from GCS');
+      });
+    }); // end describe('listArtifactsForRevision')
   }); // end describe('CraftGCSClient class')
 }); // end describe('gcsApi module')
