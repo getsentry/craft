@@ -32,7 +32,7 @@ export class NoneArtifactProvider extends BaseArtifactProvider {
    */
   protected async doListArtifactsForRevision(
     _revision: string
-  ): Promise<RemoteArtifact[] | undefined> {
+  ): Promise<RemoteArtifact[]> {
     return [];
   }
 }

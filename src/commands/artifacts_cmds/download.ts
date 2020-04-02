@@ -89,10 +89,7 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
   const outputDirectory = await prepareOutputDirectory(argv);
 
   const artifacts = await artifactProvider.listArtifactsForRevision(revision);
-  if (!artifacts) {
-    logger.warn(`Revision ${revision} can not be found.`);
-    return undefined;
-  } else if (artifacts.length === 0) {
+  if (artifacts.length === 0) {
     logger.info(`No artifacts found for revision ${revision}`);
     return undefined;
   }
