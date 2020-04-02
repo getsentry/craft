@@ -28,21 +28,7 @@ import {
 
 /*************** mocks and other setup ***************/
 
-jest.mock('../../logger', () => ({
-  logger: {
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-
-    // normally withScope returns a new logger instance, but then we lose the
-    // mocked one, so instead, have it just return the instance on which it was
-    // called. Written as an old-skool function because arrow functions don't
-    // bind `this` the same way.
-    withScope(): {} {
-      return this;
-    },
-  },
-}));
+jest.mock('../../logger');
 
 const mockGCSUpload = jest.fn();
 const mockGCSDownload = jest.fn();
