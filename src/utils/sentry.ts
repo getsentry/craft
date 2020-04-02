@@ -5,16 +5,10 @@ import * as Sentry from '@sentry/node';
 import { logger } from '../logger';
 import { getPackageVersion } from './version';
 
-let sentryInitialized = false;
-
 /**
  * Initializes Sentry SDK if CRAFT_SENTRY_SDN is set
  */
 export function initSentrySdk(): void {
-  if (sentryInitialized) {
-    return;
-  }
-
   const sentryDsn = (process.env.CRAFT_SENTRY_DSN || '').trim();
   if (!sentryDsn.startsWith('http')) {
     logger.debug('Not initializing Sentry SDK');
@@ -35,33 +29,4 @@ export function initSentrySdk(): void {
     scope.setExtra('craft-version', getPackageVersion());
     scope.setExtra('working-directory', process.cwd());
   });
-
-  sentryInitialized = true;
-}
-
-/**
- * Returns "true" if Sentry SDK is initialized
- */
-export function isSentryInitialized(): boolean {
-  return sentryInitialized;
-}
-
-/**
- * Sends an exception to Sentry
- *
- * @param e Error (exception) object
- */
-export function captureException(e: any): string | undefined {
-  return sentryInitialized ? Sentry.captureException(e) : undefined;
-}
-
-/**
- * Records a breadcrumb to Sentry
- *
- * @param e Error (exception) object
- */
-export function addBreadcrumb(breadcrumb: Sentry.Breadcrumb): void {
-  if (sentryInitialized) {
-    Sentry.addBreadcrumb(breadcrumb);
-  }
 }
