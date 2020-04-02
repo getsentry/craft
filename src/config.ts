@@ -20,6 +20,8 @@ import {
 import { BaseArtifactProvider } from './artifact_providers/base';
 import { ZeusArtifactProvider } from './artifact_providers/zeus';
 import { NoneArtifactProvider } from './artifact_providers/none';
+import { GCSArtifactProvider } from './artifact_providers/gcs';
+
 import { ZeusStatusProvider } from './status_providers/zeus';
 import { GithubStatusProvider } from './status_providers/github';
 import { BaseStatusProvider } from './status_providers/base';
@@ -239,6 +241,8 @@ export function getArtifactProviderFromConfig(): BaseArtifactProvider {
       return new ZeusArtifactProvider(artifactProviderConfig);
     case ArtifactProviderName.None:
       return new NoneArtifactProvider();
+    case ArtifactProviderName.GCS:
+      return new GCSArtifactProvider(artifactProviderConfig);
     default: {
       throw new ConfigurationError('Invalid artifact provider');
     }
