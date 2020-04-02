@@ -1,6 +1,6 @@
 import { logger } from '../logger';
 import { isDryRun } from './helpers';
-import { captureException } from './sentry';
+import { captureException } from '@sentry/node';
 
 /**
  * Custom error class that describes client configuration errors

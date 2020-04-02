@@ -1,8 +1,6 @@
-import { Severity } from '@sentry/node';
+import { addBreadcrumb, Severity } from '@sentry/node';
 import Table = require('cli-table');
 import consola = require('consola');
-
-import { addBreadcrumb } from './utils/sentry';
 
 /**
  * Format a list as a table
