@@ -257,12 +257,17 @@ async function checkRequiredArtifacts(
     throw new Error(`Revision ${revision} not found!`);
   }
 
+  // innocent until proven guilty...
+  let checkPassed = true;
+
   for (const nameRegexString of requiredNames) {
     const nameRegex = stringToRegexp(nameRegexString);
+
     const matchedArtifacts = artifacts.filter(artifact =>
       nameRegex.test(artifact.filename)
     );
     if (matchedArtifacts.length === 0) {
+      checkPassed = false;
       reportError(
         `No matching artifact found for the required pattern: ${nameRegexString}`
       );
@@ -272,7 +277,13 @@ async function checkRequiredArtifacts(
       );
     }
   }
-  logger.debug('Check for "requiredNames" passed.');
+
+  // only in dry-run mode might we fail the overall test but still get here
+  if (checkPassed) {
+    logger.debug('Check for "requiredNames" passed.');
+  } else {
+    logger.error('Check for "requiredNames" failed.');
+  }
 }
 
 // TODO there is at least one case that is not covered: how to detect Zeus builds
