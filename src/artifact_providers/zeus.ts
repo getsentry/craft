@@ -9,9 +9,11 @@ import {
   RemoteArtifact,
   ArtifactProviderConfig,
 } from '../artifact_providers/base';
-import { logger } from '../logger';
+import { logger as loggerRaw } from '../logger';
 
 // TODO (kmclb) once `craft upload` is a thing, add an upload method here (and change the docstring below)
+
+const logger = loggerRaw.withScope(`[zeus api]`);
 
 /**
  * Zeus artifact provider
@@ -111,7 +113,7 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
    */
   protected async doListArtifactsForRevision(
     revision: string
-  ): Promise<RemoteArtifact[] | undefined> {
+  ): Promise<RemoteArtifact[]> {
     logger.debug(
       `Fetching Zeus artifacts for ${this.repoOwner}/${this.repoName}, revision ${revision}`
     );
@@ -123,14 +125,43 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
         revision
       );
     } catch (e) {
+      // zeus is the only artifact provider which could know about a commit
+      // (from its role as a status provider) but not have any files associated
+      // with that commit. (For all other artifact providers, not knowing about
+      // the commit and having no files associated with the commit are one and
+      // the same.) In the former case (known commit, no files), zeus will
+      // return an empty list, whereas in the latter case (unknown commit), it
+      // will error. This error message check and the length check below are
+      // here to disambiguate those two situations.
       const errorMessage: string = e.message || '';
       if (errorMessage.match(/404 not found|resource not found/i)) {
-        return undefined;
+        logger.debug(`Revision \`${revision}\` not found!`);
       }
       throw e;
     }
 
-    return artifacts.map(zeusArtifact =>
+    // see comment above
+    if (artifacts.length === 0) {
+      logger.debug(`Revision \`${revision}\` found.`);
+    }
+
+    // similarly, zeus is the only artifact provider which will store multiple
+    // copies of the same file for a given revision, so to mimic the behavior of
+    // the other providers (which overwrite pre-existing, identically-named
+    // files within the same commit), for each filename, take the one with the
+    // most recent update time
+    const nameToArtifacts = _.groupBy(artifacts, artifact => artifact.name);
+    const dedupedArtifacts = Object.keys(nameToArtifacts).map(artifactName => {
+      const artifactObjects = nameToArtifacts[artifactName];
+      // Sort by the update time
+      const sortedArtifacts = _.sortBy(
+        artifactObjects,
+        artifact => Date.parse(artifact.updated_at || '') || 0
+      );
+      return sortedArtifacts[sortedArtifacts.length - 1];
+    });
+
+    return dedupedArtifacts.map(zeusArtifact =>
       this.convertToRemoteArtifact(zeusArtifact)
     );
   }

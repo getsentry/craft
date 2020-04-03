@@ -225,19 +225,15 @@ export abstract class BaseArtifactProvider {
   }
 
   /**
-   * Gets a list of all recent artifacts for the given revision, either from the
-   * cache or from the provider's API.
-   *
-   * If there are several artifacts with the same name, returns the most recent
-   * of them.
+   * Gets a list artifacts for the given revision, either from the cache or from
+   * the provider's API.
    *
    * @param revision Git commit id
-   * @returns Filtered list of artifacts, or "undefined" if the revision cannot
-   * be found
+   * @returns List of artifacts associated with that commit
    */
   public async listArtifactsForRevision(
     revision: string
-  ): Promise<RemoteArtifact[] | undefined> {
+  ): Promise<RemoteArtifact[]> {
     // check the cache first
     const cached = this.fileListCache[revision];
     if (cached) {
@@ -254,24 +250,18 @@ export abstract class BaseArtifactProvider {
       );
       throw err;
     }
-    if (!artifacts) {
-      // No negative caching
-      return undefined;
+
+    if (artifacts.length === 0) {
+      logger.info(`No artifacts found for revision ${revision}`);
+    } else {
+      logger.debug(
+        `Found the following artifacts:\n${artifacts
+          .map(artifact => `\t${artifact.filename}\n`)
+          .join()}`
+      );
     }
 
-    // For every filename, take the artifact with the most recent update time
-    const nameToArtifacts = _.groupBy(artifacts, artifact => artifact.filename);
-    const dedupedArtifacts = Object.keys(nameToArtifacts).map(artifactName => {
-      const artifactObjects = nameToArtifacts[artifactName];
-      // Sort by the update time
-      const sortedArtifacts = _.sortBy(
-        artifactObjects,
-        artifact => Date.parse(artifact.storedFile.lastUpdated || '') || 0
-      );
-      return sortedArtifacts[sortedArtifacts.length - 1];
-    });
-
-    return dedupedArtifacts;
+    return artifacts;
   }
 
   /**
@@ -287,7 +277,7 @@ export abstract class BaseArtifactProvider {
    */
   protected abstract async doListArtifactsForRevision(
     revision: string
-  ): Promise<RemoteArtifact[] | undefined>;
+  ): Promise<RemoteArtifact[]>;
 
   /**
    * Returns the calculated hash digest for the given artifact
@@ -331,10 +321,7 @@ export abstract class BaseArtifactProvider {
     filterOptions?: FilterOptions
   ): Promise<RemoteArtifact[]> {
     let filteredArtifacts = await this.listArtifactsForRevision(revision);
-    if (!filteredArtifacts) {
-      return [];
-    }
-    if (!filterOptions) {
+    if (!filterOptions || filteredArtifacts.length === 0) {
       return filteredArtifacts;
     }
     const { includeNames, excludeNames } = filterOptions;

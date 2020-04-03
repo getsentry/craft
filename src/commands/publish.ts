@@ -184,7 +184,7 @@ async function printRevisionSummary(
   revision: string
 ): Promise<void> {
   const artifacts = await artifactProvider.listArtifactsForRevision(revision);
-  if (artifacts && artifacts.length > 0) {
+  if (artifacts.length > 0) {
     const artifactData = artifacts.map(ar => [
       ar.filename,
       formatSize(ar.storedFile.size),
@@ -199,8 +199,6 @@ async function printRevisionSummary(
       artifactData
     );
     logger.info(`Available artifacts: \n${table.toString()}\n`);
-  } else if (!artifacts) {
-    throw new Error(`Revision ${revision} not found!`);
   } else {
     logger.warn('No artifacts found for the revision.');
   }
@@ -253,9 +251,6 @@ async function checkRequiredArtifacts(
   }
   logger.debug('Checking that the required artifact names are present...');
   const artifacts = await artifactProvider.listArtifactsForRevision(revision);
-  if (!artifacts) {
-    throw new Error(`Revision ${revision} not found!`);
-  }
 
   // innocent until proven guilty...
   let checkPassed = true;
