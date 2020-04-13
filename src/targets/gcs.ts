@@ -66,11 +66,11 @@ export class GcsTarget extends BaseTarget {
     // tslint:disable: object-literal-sort-keys
     const { project_id, client_email, private_key } = getGCSCredsFromEnv(
       {
-        name: 'CRAFT_GCS_TARGET_CREDENTIALS_JSON',
+        name: 'CRAFT_GCS_TARGET_CREDS_JSON',
         legacyName: 'CRAFT_GCS_CREDENTIALS_JSON',
       },
       {
-        name: 'CRAFT_GCS_TARGET_CREDENTIALS_PATH',
+        name: 'CRAFT_GCS_TARGET_CREDS_PATH',
         legacyName: 'CRAFT_GCS_CREDENTIALS_PATH',
       }
     );
