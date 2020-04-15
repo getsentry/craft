@@ -25,8 +25,6 @@ const COCOAPODS_BIN = process.env.COCOAPODS_BIN || DEFAULT_COCOAPODS_BIN;
 
 /** Options for "cocoapods" target */
 export interface CocoapodsTargetOptions extends TargetConfig {
-  /** Cocoapods trunk (API) token */
-  trunkToken: string;
   /** Path to the spec file inside the repo */
   specPath: string;
 }
@@ -56,16 +54,6 @@ export class CocoapodsTarget extends BaseTarget {
    * Extracts Cocoapods target options from the environment
    */
   public getCocoapodsConfig(): CocoapodsTargetOptions {
-    if (!process.env.COCOAPODS_TRUNK_TOKEN) {
-      throw new ConfigurationError(
-        `Cannot perform Cocoapod release: missing credentials.
-         Please fill COCOAPODS_TRUNK_TOKEN environment variable.`.replace(
-          /^\s+/gm,
-          ''
-        )
-      );
-    }
-
     const specPath = this.config.specPath;
     if (!specPath) {
       throw new ConfigurationError('No podspec path provided!');
@@ -73,7 +61,6 @@ export class CocoapodsTarget extends BaseTarget {
 
     return {
       specPath,
-      trunkToken: process.env.COCOAPODS_TRUNK_TOKEN,
     };
   }
 
@@ -114,7 +101,6 @@ export class CocoapodsTarget extends BaseTarget {
           cwd: directory,
           env: {
             ...process.env,
-            COCOAPODS_TRUNK_TOKEN: this.cocoapodsConfig.trunkToken,
           },
         });
       },
