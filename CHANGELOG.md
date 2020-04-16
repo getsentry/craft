@@ -4,6 +4,8 @@
 
 Watch this space...
 
+- ref: Remove the need for `COCOAPODS_TRUNK_TOKEN` to be in the environment (#72)
+
 ## 0.9.2
 
 - feat: Artifact provider abstraction (#52, #54)
