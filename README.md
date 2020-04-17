@@ -101,7 +101,7 @@ for craft to function properly:
 
   Get your personal GitHub API token here: https://github.com/settings/tokens
 
-  The token only needs "repo" scope.
+  The token only needs "repo" scope ("repo:status" and "public_repo" subscopes, to be even more precise).
 
 - `ZEUS_API_TOKEN`
 
