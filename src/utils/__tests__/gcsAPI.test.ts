@@ -178,7 +178,9 @@ describe('gcsApi module', () => {
         expect(mockGCSUpload).toHaveBeenCalledWith(
           squirrelSimulatorLocalPath,
           expect.objectContaining({
-            contentType: 'application/javascript; charset=utf-8',
+            metadata: expect.objectContaining({
+              contentType: 'application/javascript; charset=utf-8',
+            }),
           })
         );
       });
@@ -189,12 +191,12 @@ describe('gcsApi module', () => {
           squirrelSimulatorBucketPath
         );
 
-        const { metadata } = squirrelSimulatorBucketPath;
+        const squirrelSimulatorMetadata = squirrelSimulatorBucketPath.metadata;
 
         expect(mockGCSUpload).toHaveBeenCalledWith(
           squirrelSimulatorLocalPath,
           expect.objectContaining({
-            metadata,
+            metadata: expect.objectContaining({ ...squirrelSimulatorMetadata }),
           })
         );
       });
