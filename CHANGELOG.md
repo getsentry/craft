@@ -4,6 +4,8 @@
 
 Watch this space...
 
+## 0.9.3
+
 - ref: Remove the need for `COCOAPODS_TRUNK_TOKEN` to be in the environment (#72)
 
 ## 0.9.2
