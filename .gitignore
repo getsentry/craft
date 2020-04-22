@@ -9,3 +9,4 @@ npm-debug.log
 ._*
 .Spotlight-V100
 .Trashes
+*.env
