@@ -12,6 +12,7 @@ import { isDryRun } from './helpers';
 import { logger as loggerRaw } from '../logger';
 import { reportError, ConfigurationError } from './errors';
 import { checkEnvForPrerequisite, RequiredConfigVar } from './env';
+import { detectContentType } from './files';
 import { RemoteArtifact } from '../artifact_providers/base';
 import { formatJson } from './strings';
 
@@ -19,15 +20,6 @@ const DEFAULT_MAX_RETRIES = 5;
 export const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
 
 const logger = loggerRaw.withScope(`[gcs api]`);
-
-/**
- * Mapping between file extension regexps and the corresponding content type
- * that will be set.
- */
-const CONTENT_TYPES_EXT: Array<[RegExp, string]> = [
-  [/\.js$/, 'application/javascript; charset=utf-8'],
-  [/\.js\.map$/, 'application/json; charset=utf-8'],
-];
 
 /**
  * Configuration options for the GCS bucket
@@ -163,31 +155,6 @@ export class CraftGCSClient {
   }
 
   /**
-   * Detect the content-type based on regular expressions defined in
-   * CONTENT_TYPES_EXT.
-   *
-   * The underlying GCS package usually detects content-type itself, but it's
-   * not always correct.
-   *
-   * @param artifactName Name of the artifact to check
-   * @returns A content-type string, or undefined if the artifact name doesn't
-   * have a known extension
-   */
-  private detectContentType(artifactName: string): string | undefined {
-    for (const entry of CONTENT_TYPES_EXT) {
-      const [regex, contentType] = entry;
-      if (artifactName.match(regex)) {
-        logger.debug(
-          `Detected \`${artifactName}\` to be of type \`${contentType}\`.`
-        );
-        return contentType;
-      }
-    }
-    logger.debug(`Unable to detect content type for \`${artifactName}\`.`);
-    return undefined;
-  }
-
-  /**
    * Uploads the artifact at the given local path to the given path on the
    * bucket
    *
@@ -208,7 +175,14 @@ export class CraftGCSClient {
       );
     }
 
-    const contentType = this.detectContentType(filename);
+    // the underlying GCS package usually detects content-type itself, but it's
+    // not always correct.
+    const contentType = detectContentType(filename);
+    if (contentType) {
+      logger.debug(
+        `Detected \`${filename}\` to be of type \`${contentType}\`.`
+      );
+    }
     const metadata = {
       ...(bucketPath.metadata || DEFAULT_UPLOAD_METADATA),
       ...(contentType && { contentType }),
