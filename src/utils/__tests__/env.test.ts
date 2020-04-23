@@ -153,7 +153,7 @@ describe('env utils functions', () => {
     const invalidDir = '/invalid/invalid';
 
     // tslint:disable-next-line: completed-docs
-    function writeConfigFile(directory: string): void {
+    function writeConfigFileSync(directory: string): void {
       const outConfigFile = join(directory, config.CONFIG_FILE_NAME);
       writeFileSync(outConfigFile, '');
     }
@@ -178,7 +178,7 @@ describe('env utils functions', () => {
       await withTempDir(directory => {
         getConfigFileDirMock.mockReturnValue(directory);
 
-        writeConfigFile(directory);
+        writeConfigFileSync(directory);
 
         const outFile = join(directory, ENV_FILE_NAME);
         writeFileSync(outFile, 'export TEST_BLA=234\nexport TEST_ANOTHER=345');
@@ -211,7 +211,7 @@ describe('env utils functions', () => {
           writeFileSync(outHome, 'export TEST_BLA=from_home');
 
           getConfigFileDirMock.mockReturnValue(dir2);
-          writeConfigFile(dir2);
+          writeConfigFileSync(dir2);
           const configDirFile = join(dir2, ENV_FILE_NAME);
           writeFileSync(configDirFile, 'export TEST_BLA=from_config_dir');
 
@@ -246,7 +246,7 @@ describe('env utils functions', () => {
       await withTempDir(directory => {
         getConfigFileDirMock.mockReturnValue(directory);
 
-        writeConfigFile(directory);
+        writeConfigFileSync(directory);
 
         const outFile = join(directory, ENV_FILE_NAME);
         writeFileSync(outFile, 'export TEST_BLA=new_value');

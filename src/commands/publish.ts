@@ -255,20 +255,19 @@ async function checkRequiredArtifacts(
   // innocent until proven guilty...
   let checkPassed = true;
 
-  for (const nameRegexString of requiredNames) {
-    const nameRegex = stringToRegexp(nameRegexString);
-
+  for (const requiredNameRegexString of requiredNames) {
+    const requiredNameRegex = stringToRegexp(requiredNameRegexString);
     const matchedArtifacts = artifacts.filter(artifact =>
-      nameRegex.test(artifact.filename)
+      requiredNameRegex.test(artifact.filename)
     );
     if (matchedArtifacts.length === 0) {
       checkPassed = false;
       reportError(
-        `No matching artifact found for the required pattern: ${nameRegexString}`
+        `No matching artifact found for the required pattern: ${requiredNameRegexString}`
       );
     } else {
       logger.debug(
-        `Artifact "${matchedArtifacts[0].filename}" matches pattern ${nameRegexString}`
+        `Artifact "${matchedArtifacts[0].filename}" matches pattern ${requiredNameRegexString}`
       );
     }
   }

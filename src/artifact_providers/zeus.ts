@@ -119,9 +119,9 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
     logger.debug(
       `Fetching Zeus artifacts for ${repoOwner}/${repoName}, revision ${revision}`
     );
-    let artifacts;
+    let zeusArtifacts;
     try {
-      artifacts = await this.client.listArtifactsForRevision(
+      zeusArtifacts = await this.client.listArtifactsForRevision(
         repoOwner,
         repoName,
         revision
@@ -143,7 +143,7 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
     }
 
     // see comment above
-    if (artifacts.length === 0) {
+    if (zeusArtifacts.length === 0) {
       logger.debug(`Revision \`${revision}\` found.`);
     }
 
@@ -152,18 +152,24 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
     // the other providers (which overwrite pre-existing, identically-named
     // files within the same commit), for each filename, take the one with the
     // most recent update time
-    const nameToArtifacts = _.groupBy(artifacts, artifact => artifact.name);
-    const dedupedArtifacts = Object.keys(nameToArtifacts).map(artifactName => {
-      const artifactObjects = nameToArtifacts[artifactName];
-      // Sort by the update time
-      const sortedArtifacts = _.sortBy(
-        artifactObjects,
-        artifact => Date.parse(artifact.updated_at || '') || 0
-      );
-      return sortedArtifacts[sortedArtifacts.length - 1];
-    });
+    const nameToZeusArtifacts = _.groupBy(
+      zeusArtifacts,
+      zeusArtifact => zeusArtifact.name
+    );
+    const dedupedZeusArtifacts = Object.keys(nameToZeusArtifacts).map(
+      zeusArtifactName => {
+        const zeusArtifactObjects = nameToZeusArtifacts[zeusArtifactName];
+        // Sort by the update time
+        const sortedZeusArtifacts = _.sortBy(
+          zeusArtifactObjects,
+          zeusArtifactObject =>
+            Date.parse(zeusArtifactObject.updated_at || '') || 0
+        );
+        return sortedZeusArtifacts[sortedZeusArtifacts.length - 1];
+      }
+    );
 
-    return dedupedArtifacts.map(zeusArtifact =>
+    return dedupedZeusArtifacts.map(zeusArtifact =>
       this.convertToRemoteArtifact(zeusArtifact)
     );
   }
