@@ -13,6 +13,7 @@ import { logger as loggerRaw } from '../logger';
 import { reportError, ConfigurationError } from './errors';
 import { checkEnvForPrerequisite, RequiredConfigVar } from './env';
 import { RemoteArtifact } from '../artifact_providers/base';
+import { formatJson } from './strings';
 
 const DEFAULT_MAX_RETRIES = 5;
 export const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
@@ -203,12 +204,19 @@ export class CraftGCSClient {
     }
 
     const contentType = this.detectContentType(filename);
+    const metadata = {
+      ...(bucketPath.metadata || DEFAULT_UPLOAD_METADATA),
+      ...(contentType && { contentType }),
+    };
     const uploadConfig: GCSUploadOptions = {
       destination: path.join(pathInBucket, filename),
       gzip: true,
-      metadata: bucketPath.metadata || DEFAULT_UPLOAD_METADATA,
-      ...(contentType && { contentType }),
+      metadata,
     };
+
+    logger.debug(
+      `File \`${filename}\`, upload options: ${formatJson(uploadConfig)}`
+    );
 
     if (!isDryRun()) {
       logger.debug(
