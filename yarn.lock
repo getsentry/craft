@@ -1845,11 +1845,6 @@ dot-prop@^4.1.0:
   dependencies:
     is-obj "^1.0.0"
 
-dryrun@1.0.2:
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/dryrun/-/dryrun-1.0.2.tgz#bf59e1193efea0de5a140ee89f6a89af81cee305"
-  integrity sha1-v1nhGT7+oN5aFA7on2qJr4HO4wU=
-
 duplexer2@~0.1.4:
   version "0.1.4"
   resolved "https://registry.yarnpkg.com/duplexer2/-/duplexer2-0.1.4.tgz#8b12dab878c0d69e3e7891051662a32fc6bddcc1"
