@@ -11,7 +11,10 @@ import { getPackageVersion } from './version';
 export function initSentrySdk(): void {
   const sentryDsn = (process.env.CRAFT_SENTRY_DSN || '').trim();
   if (!sentryDsn.startsWith('http')) {
-    logger.debug('Not initializing Sentry SDK');
+    logger.debug(
+      'Not initializing Sentry SDK - no valid DSN found in environment or ' +
+        'config files'
+    );
     return;
   }
 

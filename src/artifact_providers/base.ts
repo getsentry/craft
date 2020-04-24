@@ -174,6 +174,9 @@ export abstract class BaseArtifactProvider {
     if (cached) {
       return cached;
     }
+    logger.debug(
+      `Downloading \`${artifact.filename}\` to \`${finalDownloadDirectory}\``
+    );
     const promise = this.doDownloadArtifact(
       artifact,
       finalDownloadDirectory
@@ -235,9 +238,11 @@ export abstract class BaseArtifactProvider {
   public async listArtifactsForRevision(
     revision: string
   ): Promise<RemoteArtifact[]> {
+    logger.debug(`Fetching artifact list for revision \`${revision}\`.`);
     // check the cache first
     const cached = this.fileListCache[revision];
     if (cached) {
+      logger.debug(`Found list in cache.`);
       return cached;
     }
 
@@ -255,11 +260,7 @@ export abstract class BaseArtifactProvider {
     if (artifacts.length === 0) {
       logger.info(`No artifacts found for revision ${revision}`);
     } else {
-      logger.debug(
-        `Found the following artifacts:\n${artifacts
-          .map(artifact => `\t${artifact.filename}\n`)
-          .join()}`
-      );
+      logger.debug(`Found ${artifacts.length} artifacts.`);
     }
 
     return artifacts;

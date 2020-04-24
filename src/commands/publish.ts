@@ -16,7 +16,7 @@ import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
 import { checkEnvForPrerequisite } from '../utils/env';
 import { coerceType, handleGlobalError, reportError } from '../utils/errors';
-import { withTempDir } from '../utils/files';
+import { withTempDir, detectContentType } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
 import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
@@ -185,19 +185,25 @@ async function printRevisionSummary(
 ): Promise<void> {
   const artifacts = await artifactProvider.listArtifactsForRevision(revision);
   if (artifacts.length > 0) {
-    const artifactData = artifacts.map(ar => [
-      ar.filename,
-      formatSize(ar.storedFile.size),
-      ar.storedFile.lastUpdated || '',
-    ]);
+    const artifactData = artifacts.map(ar => {
+      const contentType = detectContentType(ar.filename);
+      return [
+        ar.filename,
+        formatSize(ar.storedFile.size),
+        ar.storedFile.lastUpdated || '',
+        (contentType && contentType.split(';')[0]) || ar.mimeType || '',
+      ];
+    });
+    // sort alphabetically by filename
     artifactData.sort((a1, a2) => (a1[0] < a2[0] ? -1 : a1[0] > a2[0] ? 1 : 0));
     const table = formatTable(
       {
-        head: ['File Name', 'Size', 'Updated'],
+        head: ['File Name', 'Size', 'Updated', 'ContentType'],
         style: { head: ['cyan'] },
       },
       artifactData
     );
+    logger.info(' ');
     logger.info(`Available artifacts: \n${table.toString()}\n`);
   } else {
     logger.warn('No artifacts found for the revision.');
@@ -425,10 +431,8 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   const statusProvider = getStatusProviderFromConfig();
   const artifactProvider = getArtifactProviderFromConfig();
-  logger.info(' ');
   logger.info(`Using "${statusProvider.constructor.name}" for status checks`);
   logger.info(`Using "${artifactProvider.constructor.name}" for artifacts`);
-  logger.info(' ');
 
   // Check status of all CI builds linked to the revision
   await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);

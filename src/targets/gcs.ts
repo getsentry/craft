@@ -196,7 +196,7 @@ export class GcsTarget extends BaseTarget {
       realPath = `/${realPath}`;
     }
     logger.debug(
-      `Processed path template: \`${template}\` and got \`${realPath}\``
+      `Processed path template \`${template}\` and got \`${realPath}\``
     );
     return { path: realPath, metadata };
   }

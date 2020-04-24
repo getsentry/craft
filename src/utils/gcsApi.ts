@@ -208,7 +208,10 @@ export class CraftGCSClient {
 
     if (!isDryRun()) {
       this.logger.debug(
-        `Attempting to upload \`${filename}\` to \`${pathInBucket}\`.`
+        `Attempting to upload \`${filename}\` to \`${path.join(
+          this.bucketName,
+          pathInBucket
+        )}\`.`
       );
 
       try {
@@ -220,13 +223,13 @@ export class CraftGCSClient {
 
       // TODO (kmclb) replace this with a `craft download` command once that's a thing
       this.logger.debug(
-        `Success! It can be downloaded by running`,
-        `\`gsutil cp ${path.join(
-          'gs://',
-          this.bucketName,
-          pathInBucket,
-          filename
-        )} <path-to-download-location>\``
+        `Successfully uploaded \`${filename}\`. It can be downloaded by running ` +
+          `\`gsutil cp ${path.join(
+            'gs://',
+            this.bucketName,
+            pathInBucket,
+            filename
+          )} <path-to-download-location>\`.`
       );
     } else {
       this.logger.info(`[dry-run] Skipping upload for \`${filename}\``);
@@ -270,7 +273,7 @@ export class CraftGCSClient {
           ${err}`);
       }
 
-      this.logger.debug(`Success!`);
+      this.logger.debug(`Successfully downloaded \`${destinationFilename}\`.`);
     } else {
       this.logger.info(
         `[dry-run] Skipping download for \`${destinationFilename}\``

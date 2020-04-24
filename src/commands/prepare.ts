@@ -137,6 +137,7 @@ async function createReleaseBranch(
   if (!isDryRun()) {
     await git.checkoutLocalBranch(branchName);
     logger.info(`Created a new release branch: "${branchName}"`);
+    logger.info(`Switched to branch "${branchName}"`);
   } else {
     logger.info('[dry-run] Not creating a new release branch');
   }
