@@ -5,6 +5,9 @@ import {
 } from '../artifact_providers/base';
 import { CraftGCSClient, getGCSCredsFromEnv } from '../utils/gcsApi';
 import { ConfigurationError } from '../utils/errors';
+import { logger as loggerRaw } from '../logger';
+
+const logger = loggerRaw.withScope(`[artifact provider]`);
 
 /**
  * Google Cloud Storage artifact provider
@@ -21,7 +24,8 @@ export class GCSArtifactProvider extends BaseArtifactProvider {
       },
       {
         name: 'CRAFT_GCS_STORE_CREDS_PATH',
-      }
+      },
+      logger
     );
 
     // TODO (kmclb) get rid of this check once config validation is working
@@ -34,6 +38,7 @@ export class GCSArtifactProvider extends BaseArtifactProvider {
     this.gcsClient = new CraftGCSClient({
       bucketName: config.bucket,
       credentials: { client_email, private_key },
+      logger,
       projectId: project_id,
     });
   }

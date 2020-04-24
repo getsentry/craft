@@ -16,7 +16,7 @@ import {
   RemoteArtifact,
 } from '../artifact_providers/base';
 
-const logger = loggerRaw.withScope(`[gcs target]`);
+const logger = loggerRaw.withScope(`[target]`);
 
 /**
  * Adds templating to the BucketPath interface.
@@ -72,7 +72,8 @@ export class GcsTarget extends BaseTarget {
       {
         name: 'CRAFT_GCS_TARGET_CREDS_PATH',
         legacyName: 'CRAFT_GCS_CREDENTIALS_PATH',
-      }
+      },
+      logger
     );
 
     const bucketName = this.config.bucket;
@@ -90,6 +91,7 @@ export class GcsTarget extends BaseTarget {
       credentials: { client_email, private_key },
       pathTemplates,
       projectId: project_id,
+      logger,
     };
   }
 

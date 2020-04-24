@@ -65,4 +65,6 @@ function getLogLevel(): number {
 consola.level = getLogLevel();
 consola.reporters.push(new SentryBreadcrumbReporter());
 
+// tslint:disable-next-line: variable-name
+export type Logger = typeof consola;
 export { consola as logger };

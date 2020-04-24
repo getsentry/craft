@@ -6,7 +6,9 @@ import {
 import { clearObjectProperties } from '../utils/objects';
 import * as _ from 'lodash';
 import { ConfigurationError } from '../utils/errors';
-import { logger } from '../logger';
+import { logger as loggerRaw } from '../logger';
+
+const logger = loggerRaw.withScope(`[artifact provider]`);
 
 /** Maximum concurrency for downloads */
 export const MAX_DOWNLOAD_CONCURRENCY = 5;
