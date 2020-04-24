@@ -12,9 +12,9 @@ import {
 } from '../artifact_providers/base';
 import { logger as loggerRaw } from '../logger';
 
-// TODO (kmclb) once `craft upload` is a thing, add an upload method here (and change the docstring below)
-
 const logger = loggerRaw.withScope(`[zeus api]`);
+
+// TODO (kmclb) once `craft upload` is a thing, add an upload method here (and change the docstring below)
 
 /**
  * Zeus artifact provider

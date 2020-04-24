@@ -401,7 +401,6 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   let branchName;
   if (argv.rev) {
     branchName = '';
-    // TODO: allow to specify arbitrary git refs?
     logger.debug(
       `Fetching GitHub information for provided revision: "${argv.rev}"`
     );
