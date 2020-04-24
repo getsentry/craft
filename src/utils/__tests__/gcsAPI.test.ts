@@ -154,6 +154,8 @@ describe('gcsApi module', () => {
   describe('CraftGCSClient class', () => {
     describe('upload', () => {
       it('calls the GCS library upload method with the right parameters', async () => {
+        expect.assertions(1);
+
         await client.uploadArtifact(
           squirrelStatsLocalPath,
           squirrelStatsBucketPath
@@ -170,6 +172,8 @@ describe('gcsApi module', () => {
       });
 
       it('detects content type correctly for JS and map files', async () => {
+        expect.assertions(1);
+
         await client.uploadArtifact(
           squirrelSimulatorLocalPath,
           squirrelSimulatorBucketPath
@@ -186,6 +190,8 @@ describe('gcsApi module', () => {
       });
 
       it('allows overriding of default metadata', async () => {
+        expect.assertions(1);
+
         await client.uploadArtifact(
           squirrelSimulatorLocalPath,
           squirrelSimulatorBucketPath
@@ -202,6 +208,8 @@ describe('gcsApi module', () => {
       });
 
       it('errors if GCS upload goes sideways', async () => {
+        expect.assertions(1);
+
         mockGCSUpload.mockImplementation(() => {
           throw new Error('The squirrel got away!');
         });
@@ -219,6 +227,8 @@ describe('gcsApi module', () => {
       });
 
       it("doesn't upload anything in dry run mode", async () => {
+        expect.assertions(1);
+
         process.env.DRY_RUN = 'true';
 
         await client.uploadArtifact(

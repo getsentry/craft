@@ -158,7 +158,7 @@ describe('env utils functions', () => {
       writeFileSync(outConfigFile, '');
     }
 
-    test('calls homedir/findConfigFile', async () => {
+    test('calls homedir/findConfigFile', () => {
       process.env.TEST_BLA = '123';
 
       homedirMock.mockReturnValue(invalidDir);
@@ -175,7 +175,7 @@ describe('env utils functions', () => {
     test('checks the config directory', async () => {
       homedirMock.mockReturnValue(invalidDir);
 
-      await withTempDir(async directory => {
+      await withTempDir(directory => {
         getConfigFileDirMock.mockReturnValue(directory);
 
         writeConfigFile(directory);
@@ -191,7 +191,7 @@ describe('env utils functions', () => {
     test('checks home directory', async () => {
       getConfigFileDirMock.mockReturnValue(invalidDir);
 
-      await withTempDir(async directory => {
+      await withTempDir(directory => {
         homedirMock.mockReturnValue(directory);
         const outFile = join(directory, ENV_FILE_NAME);
         writeFileSync(outFile, 'export TEST_BLA=234\n');
@@ -204,7 +204,7 @@ describe('env utils functions', () => {
 
     test('checks home directory first, and then the config directory', async () => {
       await withTempDir(async dir1 => {
-        await withTempDir(async dir2 => {
+        await withTempDir(dir2 => {
           homedirMock.mockReturnValue(dir1);
 
           const outHome = join(dir1, ENV_FILE_NAME);
@@ -227,7 +227,7 @@ describe('env utils functions', () => {
 
       process.env.TEST_BLA = 'existing';
 
-      await withTempDir(async directory => {
+      await withTempDir(directory => {
         getConfigFileDirMock.mockReturnValue(directory);
         const outFile = join(directory, ENV_FILE_NAME);
         writeFileSync(outFile, 'export TEST_BLA=new_value');
@@ -243,7 +243,7 @@ describe('env utils functions', () => {
 
       process.env.TEST_BLA = 'existing';
 
-      await withTempDir(async directory => {
+      await withTempDir(directory => {
         getConfigFileDirMock.mockReturnValue(directory);
 
         writeConfigFile(directory);

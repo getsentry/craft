@@ -90,19 +90,19 @@ describe('getFile', () => {
 });
 
 describe('codeMatches', () => {
-  test('accepts numerical code', async () => {
+  test('accepts numerical code', () => {
     expect(codeMatches(100, [100])).toBe(true);
   });
 
-  test('accepts text code', async () => {
+  test('accepts text code', () => {
     expect(codeMatches(101, [HTTP_RESPONSE_1XX])).toBe(true);
   });
 
-  test('allows single value instead of a list', async () => {
+  test('allows single value instead of a list', () => {
     expect(codeMatches(102, HTTP_RESPONSE_1XX)).toBe(true);
   });
 
-  test('does not accept invalid code', async () => {
+  test('does not accept invalid code', () => {
     expect(codeMatches(100, [200, HTTP_RESPONSE_2XX])).toBe(false);
   });
 });
@@ -112,13 +112,14 @@ describe('retryHttp', () => {
   const errorCode = (c: number) => ({
     status: c,
   });
-  const funcReturns = async () => 'result';
-  const funcThrows = async () => {
-    throw errorCode(400);
-  };
+
+  // these are standing in for an async function (the type is () =>
+  // Promise<T>)
+  const funcReturns = async () => Promise.resolve('result');
+  const funcThrows = async () => Promise.reject(errorCode(400));
 
   test('resolves without an error', async () => {
-    expect(retryHttp(funcReturns, params)).resolves.toBe('result');
+    await expect(retryHttp(funcReturns, params)).resolves.toBe('result');
   });
 
   test('resolves after one retry', async () => {
@@ -161,6 +162,7 @@ describe('retryHttp', () => {
         ...params,
         cleanupFn: async () => {
           cleanupCalled += 1;
+          return Promise.resolve();
         },
         retries: 2,
         retryCodes: [400],
