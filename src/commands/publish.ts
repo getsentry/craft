@@ -49,7 +49,8 @@ export const builder = (yargs: Argv) =>
     })
     .option('rev', {
       alias: 'r',
-      description: 'Source revision to publish',
+      description:
+        'Source revision (git SHA or tag) to publish (if not release branch head)',
       type: 'string',
     })
     .option('no-merge', {
