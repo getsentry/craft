@@ -124,6 +124,7 @@ async function createReleaseBranch(
     }
     branchHead = '';
   }
+
   if (branchHead) {
     let errorMsg = `Branch already exists: ${branchName}. `;
     const remoteName = getRemoteName();

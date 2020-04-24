@@ -29,7 +29,7 @@ describe('env utils functions', () => {
       process.env.DOGS = 'RULE'; // just to prevent the function erroring
       checkEnvForPrerequisite({ name: 'DOGS' });
       expect(logger.debug).toHaveBeenCalledWith(
-        `\tChecking for environment variable DOGS`
+        expect.stringContaining('Checking for environment variable DOGS')
       );
     });
 
@@ -93,10 +93,10 @@ describe('env utils functions', () => {
           `Checking for environment variable(s) MAISEY or CHARLIE`
         );
         expect(logger.debug).toHaveBeenCalledWith(
-          `\tChecking for environment variable MAISEY`
+          expect.stringContaining('Checking for environment variable MAISEY')
         );
         expect(logger.debug).toHaveBeenCalledWith(
-          `\tChecking for environment variable CHARLIE`
+          expect.stringContaining('Checking for environment variable CHARLIE')
         );
       });
 
@@ -152,6 +152,7 @@ describe('env utils functions', () => {
   describe('readEnvironmentConfig', () => {
     const invalidDir = '/invalid/invalid';
 
+    // tslint:disable-next-line: completed-docs
     function writeConfigFile(directory: string): void {
       const outConfigFile = join(directory, config.CONFIG_FILE_NAME);
       writeFileSync(outConfigFile, '');

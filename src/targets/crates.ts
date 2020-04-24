@@ -183,7 +183,7 @@ export class CratesTarget extends BaseTarget {
   /**
    * Uploads an archive to Crates.io registry using "cargo"
    *
-   * @param path Absolute path to the archive to upload
+   * @param crate The CratePackage object to publish
    * @returns A promise that resolves when the upload has completed
    */
   public async publishPackage(crate: CratePackage): Promise<any> {

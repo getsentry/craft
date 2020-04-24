@@ -1,6 +1,6 @@
 import { Argv } from 'yargs';
 
-export const command = ['artifacts'];
+export const command = ['artifacts <command>'];
 export const aliases = ['a', 'artifact'];
 export const description = '📦 Manage artifacts';
 

@@ -22,7 +22,9 @@ export class NoneArtifactProvider extends BaseArtifactProvider {
     _artifact: RemoteArtifact,
     _downloadDirectory: string
   ): Promise<string> {
-    return Promise.reject('NoneProvider does not suuport file downloads!');
+    return Promise.reject(
+      new Error('NoneProvider does not suuport file downloads!')
+    );
   }
 
   /**

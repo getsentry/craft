@@ -224,8 +224,8 @@ export abstract class BaseArtifactProvider {
   }
 
   /**
-   * Gets a list artifacts for the given revision, either from the cache or from
-   * the provider's API.
+   * Gets a list of artifacts for the given revision, either from the cache or
+   * from the provider's API.
    *
    * @param revision Git commit id
    * @returns List of artifacts associated with that commit

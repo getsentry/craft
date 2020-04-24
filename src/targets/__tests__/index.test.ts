@@ -8,7 +8,7 @@ describe('getTargetByName', () => {
 });
 
 describe('getAllTargetNames', () => {
-  test('converts target name to class', async () => {
+  test('retrieves all target names', async () => {
     expect(getAllTargetNames()).toContain('github');
   });
 });

@@ -4,6 +4,7 @@ import {
   Status,
 } from '@zeus-ci/sdk';
 import * as _ from 'lodash';
+
 import {
   BaseArtifactProvider,
   RemoteArtifact,

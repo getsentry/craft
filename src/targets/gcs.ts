@@ -76,7 +76,8 @@ export class GcsTarget extends BaseTarget {
     );
 
     const bucketName = this.config.bucket;
-    if (!bucketName && typeof bucketName !== 'string') {
+    // TODO (kmclb) get rid of this check once config validation is working
+    if (!bucketName) {
       reportError('No GCS bucket provided!');
     }
 
@@ -87,7 +88,6 @@ export class GcsTarget extends BaseTarget {
     return {
       bucketName,
       credentials: { client_email, private_key },
-      name: 'GCS target',
       pathTemplates,
       projectId: project_id,
     };

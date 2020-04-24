@@ -71,6 +71,11 @@ interface GCSCreds {
  * Pulls GCS redentials out of the environment, where they can be stored either
  * as a path to a JSON file or as a JSON string.
  *
+ * @param jsonVar Current name (and legacy name, if app.) of env var pointing to
+ * a JSON string containing GCS credentials
+ * @param filepathVar Current name (and legacy name, if app.) of an env var
+ * pointing to a file containing GCS credientials as JSON
+ *
  * @returns An object containing the credentials
  */
 export function getGCSCredsFromEnv(
