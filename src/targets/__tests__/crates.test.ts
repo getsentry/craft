@@ -10,6 +10,7 @@ function cratePackageFactory(name: string): CratePackage {
     manifest_path: '',
     name,
     version: '1.0.0',
+    publish: null,
   };
 }
 
