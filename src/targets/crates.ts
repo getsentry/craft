@@ -50,6 +50,13 @@ export interface CratePackage {
   manifest_path: string;
   /** The full list of package dependencies */
   dependencies: CrateDependency[];
+  /**
+   * A list of registry names allowed for publishing.
+   *
+   * By default, this value is `null`. If this value is an empty array, then
+   * publishing for this crate is disabled (`publish = false` in TOML).
+   */
+  publish: string[] | null;
 }
 
 /** Metadata on a crate workspace */
@@ -167,9 +174,11 @@ export class CratesTarget extends BaseTarget {
    */
   public async publishWorkspace(directory: string): Promise<any> {
     const metadata = await this.getCrateMetadata(directory);
-    const unorderedCrates = metadata.packages.filter(
-      p => metadata.workspace_members.indexOf(p.id) > -1
-    );
+    const unorderedCrates = metadata.packages
+      // only publish workspace members
+      .filter(p => metadata.workspace_members.indexOf(p.id) > -1)
+      // skip crates with `"publish": []`
+      .filter(p => !p.publish || p.publish.length);
 
     const crates = this.getPublishOrder(unorderedCrates);
     logger.debug(
