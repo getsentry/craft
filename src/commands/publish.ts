@@ -16,7 +16,7 @@ import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
 import { checkEnvForPrerequisite } from '../utils/env';
 import { coerceType, handleGlobalError, reportError } from '../utils/errors';
-import { withTempDir, detectContentType } from '../utils/files';
+import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
 import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
@@ -186,15 +186,16 @@ async function printRevisionSummary(
 ): Promise<void> {
   const artifacts = await artifactProvider.listArtifactsForRevision(revision);
   if (artifacts.length > 0) {
-    const artifactData = artifacts.map(ar => {
-      const contentType = detectContentType(ar.filename);
-      return [
-        ar.filename,
-        formatSize(ar.storedFile.size),
-        ar.storedFile.lastUpdated || '',
-        (contentType && contentType.split(';')[0]) || ar.mimeType || '',
-      ];
-    });
+    const artifactData = artifacts.map(ar => [
+      ar.filename,
+      formatSize(ar.storedFile.size),
+      ar.storedFile.lastUpdated || '',
+
+      // sometimes mimeTypes are stored with the encoding included, e.g.
+      // `application/javascript; charset=utf-8`, but we only really care about
+      // the first part
+      (ar.mimeType && ar.mimeType.split(';')[0]) || '',
+    ]);
     // sort alphabetically by filename
     artifactData.sort((a1, a2) => (a1[0] < a2[0] ? -1 : a1[0] > a2[0] ? 1 : 0));
     const table = formatTable(

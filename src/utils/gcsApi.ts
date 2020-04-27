@@ -187,6 +187,15 @@ export class CraftGCSClient {
     // the underlying GCS package usually detects content-type itself, but it's
     // not always correct.
     const contentType = detectContentType(filename);
+
+    // TODO (kmclb) in order to log more actively the times when we're
+    // overriding the current content type with a different one, we need to know
+    // what the current one is (which we currently don't, since all this method
+    // is passed is the local filepath). In order to pass it more, we'd need to
+    // return not just the path but also the entire artifact from the download
+    // method called in gcsTarget.publish. In fact, when targeting GCS,  we
+    // currently don't preserve the content type of artifact provider files in
+    // any way, so setting it on upload is pointless. Action item: fix this.
     if (contentType) {
       this.logger.debug(
         `Detected \`${filename}\` to be of type \`${contentType}\`.`
