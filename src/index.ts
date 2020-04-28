@@ -2,8 +2,8 @@
 import * as once from 'once';
 import * as yargs from 'yargs';
 
-import { readEnvironmentConfig } from './utils/env';
 import { logger } from './logger';
+import { readEnvironmentConfig } from './utils/env';
 import { isDryRun } from './utils/helpers';
 import { hasNoInput, setNoInput } from './utils/noInput';
 import { initSentrySdk } from './utils/sentry';

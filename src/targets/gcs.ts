@@ -16,7 +16,7 @@ import {
   RemoteArtifact,
 } from '../artifact_providers/base';
 
-const logger = loggerRaw.withScope(`[gcs target]`);
+const logger = loggerRaw.withScope(`[target]`);
 
 /**
  * Adds templating to the BucketPath interface.
@@ -72,11 +72,13 @@ export class GcsTarget extends BaseTarget {
       {
         name: 'CRAFT_GCS_TARGET_CREDS_PATH',
         legacyName: 'CRAFT_GCS_CREDENTIALS_PATH',
-      }
+      },
+      logger
     );
 
     const bucketName = this.config.bucket;
-    if (!bucketName && typeof bucketName !== 'string') {
+    // TODO (kmclb) get rid of this check once config validation is working
+    if (!bucketName) {
       reportError('No GCS bucket provided!');
     }
 
@@ -87,9 +89,9 @@ export class GcsTarget extends BaseTarget {
     return {
       bucketName,
       credentials: { client_email, private_key },
-      name: 'GCS target',
       pathTemplates,
       projectId: project_id,
+      logger,
     };
   }
 
@@ -194,7 +196,7 @@ export class GcsTarget extends BaseTarget {
       realPath = `/${realPath}`;
     }
     logger.debug(
-      `Processed path template: \`${template}\` and got \`${realPath}\``
+      `Processed path template \`${template}\` and got \`${realPath}\``
     );
     return { path: realPath, metadata };
   }

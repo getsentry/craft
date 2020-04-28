@@ -6,7 +6,9 @@ import {
 import { clearObjectProperties } from '../utils/objects';
 import * as _ from 'lodash';
 import { ConfigurationError } from '../utils/errors';
-import { logger } from '../logger';
+import { logger as loggerRaw } from '../logger';
+
+const logger = loggerRaw.withScope(`[artifact provider]`);
 
 /** Maximum concurrency for downloads */
 export const MAX_DOWNLOAD_CONCURRENCY = 5;
@@ -172,6 +174,9 @@ export abstract class BaseArtifactProvider {
     if (cached) {
       return cached;
     }
+    logger.debug(
+      `Downloading \`${artifact.filename}\` to \`${finalDownloadDirectory}\``
+    );
     const promise = this.doDownloadArtifact(
       artifact,
       finalDownloadDirectory
@@ -224,8 +229,8 @@ export abstract class BaseArtifactProvider {
   }
 
   /**
-   * Gets a list artifacts for the given revision, either from the cache or from
-   * the provider's API.
+   * Gets a list of artifacts for the given revision, either from the cache or
+   * from the provider's API.
    *
    * @param revision Git commit id
    * @returns List of artifacts associated with that commit
@@ -233,9 +238,11 @@ export abstract class BaseArtifactProvider {
   public async listArtifactsForRevision(
     revision: string
   ): Promise<RemoteArtifact[]> {
+    logger.debug(`Fetching artifact list for revision \`${revision}\`.`);
     // check the cache first
     const cached = this.fileListCache[revision];
     if (cached) {
+      logger.debug(`Found list in cache.`);
       return cached;
     }
 
@@ -253,11 +260,7 @@ export abstract class BaseArtifactProvider {
     if (artifacts.length === 0) {
       logger.info(`No artifacts found for revision ${revision}`);
     } else {
-      logger.debug(
-        `Found the following artifacts:\n${artifacts
-          .map(artifact => `\t${artifact.filename}\n`)
-          .join()}`
-      );
+      logger.debug(`Found ${artifacts.length} artifacts.`);
     }
 
     return artifacts;

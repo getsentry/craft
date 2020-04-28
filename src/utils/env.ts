@@ -16,7 +16,12 @@ export const ENV_FILE_NAME = '.craft.env';
  * directly in the environment
  */
 export interface RequiredConfigVar {
+  /**
+   * The currently-preferred name of the variable, generally something in
+   * UPPER_SNAKE_CASE
+   */
   name: string;
+  /** A deprecated (but still allowed) name for the variable, if any */
   legacyName?: string;
 }
 
@@ -33,7 +38,7 @@ export interface RequiredConfigVar {
 function envHasVar(envVar: RequiredConfigVar): boolean {
   const { name, legacyName } = envVar;
 
-  logger.debug(`\tChecking for environment variable ${name}`);
+  logger.debug(`Checking for environment variable ${name}`);
 
   // not found, under either the current name or legacy name (if app.)
   if (!process.env[name] && !process.env[legacyName as string]) {
@@ -84,8 +89,8 @@ function checkFileIsPrivate(path: string): boolean {
     // tslint:disable-next-line:no-bitwise
     const perms = (mode & FULL_MODE_MASK).toString(8);
     logger.warn(
-      `Permissions 0${perms} for file "${path}" are too open.`,
-      `Consider making it readable only for the user.\n`
+      `Permissions 0${perms} for file "${path}" are too open. ` +
+        `Consider making it readable only for the user.`
     );
     return false;
   }
@@ -99,7 +104,8 @@ function checkFileIsPrivate(path: string): boolean {
  * - The user's home directory
  * - The configuration file directory
  *
- * @param overwriteExisting If set to true, overwrite the existing environment variables
+ * @param overwriteExisting If set to true, overwrite the existing environment
+ * variables
  */
 export function readEnvironmentConfig(
   overwriteExisting: boolean = false

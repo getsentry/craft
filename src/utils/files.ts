@@ -85,3 +85,24 @@ export async function withTempFile<T>(
     }
   }
 }
+
+/**
+ * Detect the content-type based on the file's extension.
+ *
+ * @param artifactName Name of the artifact to check
+ * @returns A content-type string, or undefined if the artifact name doesn't
+ * have a known extension
+ */
+export function detectContentType(artifactName: string): string | undefined {
+  const extensionToType: Array<[RegExp, string]> = [
+    [/\.js$/, 'application/javascript; charset=utf-8'],
+    [/\.js\.map$/, 'application/json; charset=utf-8'],
+  ];
+  for (const entry of extensionToType) {
+    const [regex, contentType] = entry;
+    if (artifactName.match(regex)) {
+      return contentType;
+    }
+  }
+  return undefined;
+}

@@ -117,13 +117,18 @@ async function createReleaseBranch(
 
   let branchHead;
   try {
+    // ideally this throws an error, because the branch shouldn't exist yet
     branchHead = await git.revparse([branchName]);
   } catch (e) {
+    // 'unkown revision' is the error we want, but if it's something different
+    // we're in trouble, so re-throw
     if (!e.message.match(/unknown revision/)) {
       throw e;
     }
+    // otherwise, just mark that there's no branch and keep going
     branchHead = '';
   }
+
   if (branchHead) {
     let errorMsg = `Branch already exists: ${branchName}. `;
     const remoteName = getRemoteName();
@@ -136,6 +141,7 @@ async function createReleaseBranch(
   if (!isDryRun()) {
     await git.checkoutLocalBranch(branchName);
     logger.info(`Created a new release branch: "${branchName}"`);
+    logger.info(`Switched to branch "${branchName}"`);
   } else {
     logger.info('[dry-run] Not creating a new release branch');
   }
@@ -470,7 +476,8 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
 
   logger.info(`Preparing to release the version: ${newVersion}`);
 
-  // Create a new release branch. Throw an error if it already exists
+  // Create a new release branch and check it out. Throw an error if it already
+  // exists.
   const branchName = await createReleaseBranch(git, newVersion);
 
   // Run a pre-release script (e.g. for version bumping)

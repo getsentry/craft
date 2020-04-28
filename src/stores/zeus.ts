@@ -16,6 +16,8 @@ import {
 import { clearObjectProperties } from '../utils/objects';
 import { logger } from '../logger';
 
+// TODO (kmclb) get rid of this file once artifact providers are done
+
 /** Maximum concurrency for Zeus downloads */
 export const ZEUS_DOWNLOAD_CONCURRENCY = 5;
 

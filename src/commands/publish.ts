@@ -49,7 +49,8 @@ export const builder = (yargs: Argv) =>
     })
     .option('rev', {
       alias: 'r',
-      description: 'Source revision to publish',
+      description:
+        'Source revision (git SHA or tag) to publish (if not release branch head)',
       type: 'string',
     })
     .option('no-merge', {
@@ -189,15 +190,22 @@ async function printRevisionSummary(
       ar.filename,
       formatSize(ar.storedFile.size),
       ar.storedFile.lastUpdated || '',
+
+      // sometimes mimeTypes are stored with the encoding included, e.g.
+      // `application/javascript; charset=utf-8`, but we only really care about
+      // the first part
+      (ar.mimeType && ar.mimeType.split(';')[0]) || '',
     ]);
+    // sort alphabetically by filename
     artifactData.sort((a1, a2) => (a1[0] < a2[0] ? -1 : a1[0] > a2[0] ? 1 : 0));
     const table = formatTable(
       {
-        head: ['File Name', 'Size', 'Updated'],
+        head: ['File Name', 'Size', 'Updated', 'ContentType'],
         style: { head: ['cyan'] },
       },
       artifactData
     );
+    logger.info(' ');
     logger.info(`Available artifacts: \n${table.toString()}\n`);
   } else {
     logger.warn('No artifacts found for the revision.');
@@ -255,20 +263,19 @@ async function checkRequiredArtifacts(
   // innocent until proven guilty...
   let checkPassed = true;
 
-  for (const nameRegexString of requiredNames) {
-    const nameRegex = stringToRegexp(nameRegexString);
-
+  for (const requiredNameRegexString of requiredNames) {
+    const requiredNameRegex = stringToRegexp(requiredNameRegexString);
     const matchedArtifacts = artifacts.filter(artifact =>
-      nameRegex.test(artifact.filename)
+      requiredNameRegex.test(artifact.filename)
     );
     if (matchedArtifacts.length === 0) {
       checkPassed = false;
       reportError(
-        `No matching artifact found for the required pattern: ${nameRegexString}`
+        `No matching artifact found for the required pattern: ${requiredNameRegexString}`
       );
     } else {
       logger.debug(
-        `Artifact "${matchedArtifacts[0].filename}" matches pattern ${nameRegexString}`
+        `Artifact "${matchedArtifacts[0].filename}" matches pattern ${requiredNameRegexString}`
       );
     }
   }
@@ -402,7 +409,6 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   let branchName;
   if (argv.rev) {
     branchName = '';
-    // TODO: allow to specify arbitrary git refs?
     logger.debug(
       `Fetching GitHub information for provided revision: "${argv.rev}"`
     );
@@ -427,10 +433,8 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   const statusProvider = getStatusProviderFromConfig();
   const artifactProvider = getArtifactProviderFromConfig();
-  logger.info(' ');
   logger.info(`Using "${statusProvider.constructor.name}" for status checks`);
   logger.info(`Using "${artifactProvider.constructor.name}" for artifacts`);
-  logger.info(' ');
 
   // Check status of all CI builds linked to the revision
   await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);

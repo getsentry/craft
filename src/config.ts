@@ -252,7 +252,7 @@ export function getArtifactProviderFromConfig(): BaseArtifactProvider {
 /**
  * Create a status provider instance from the spec in the configuration file
  *
- * @returns An instance of artifact provider
+ * @returns An instance of status provider
  */
 export function getStatusProviderFromConfig(): BaseStatusProvider {
   const config = getConfiguration() || {};

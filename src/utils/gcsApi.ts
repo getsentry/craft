@@ -9,25 +9,17 @@ import {
 } from '@google-cloud/storage';
 import { isDryRun } from './helpers';
 
-import { logger as loggerRaw } from '../logger';
+import { Logger, logger as loggerRaw } from '../logger';
 import { reportError, ConfigurationError } from './errors';
 import { checkEnvForPrerequisite, RequiredConfigVar } from './env';
+import { detectContentType } from './files';
 import { RemoteArtifact } from '../artifact_providers/base';
 import { formatJson } from './strings';
 
 const DEFAULT_MAX_RETRIES = 5;
 export const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
 
-const logger = loggerRaw.withScope(`[gcs api]`);
-
-/**
- * Mapping between file extension regexps and the corresponding content type
- * that will be set.
- */
-const CONTENT_TYPES_EXT: Array<[RegExp, string]> = [
-  [/\.js$/, 'application/javascript; charset=utf-8'],
-  [/\.js\.map$/, 'application/json; charset=utf-8'],
-];
+const defaultLogger = loggerRaw.withScope(`[gcs client]`);
 
 /**
  * Configuration options for the GCS bucket
@@ -41,6 +33,8 @@ export interface GCSBucketConfig {
   credentials: { client_email: string; private_key: string };
   /** Maximum number of retries after unsuccessful request */
   maxRetries?: number;
+  /** Optional custom logger to use when logging messages to the console */
+  logger?: Logger;
 }
 
 /**
@@ -71,11 +65,19 @@ interface GCSCreds {
  * Pulls GCS redentials out of the environment, where they can be stored either
  * as a path to a JSON file or as a JSON string.
  *
+ * @param jsonVar Current name (and legacy name, if app.) of env var pointing to
+ * a JSON string containing GCS credentials
+ * @param filepathVar Current name (and legacy name, if app.) of an env var
+ * pointing to a file containing GCS credientials as JSON
+ * @param logger Optional custom logger to use when logging messages to the
+ * console
+ *
  * @returns An object containing the credentials
  */
 export function getGCSCredsFromEnv(
   jsonVar: RequiredConfigVar,
-  filepathVar: RequiredConfigVar
+  filepathVar: RequiredConfigVar,
+  logger: Logger = defaultLogger
 ): GCSCreds {
   // make sure we have at least one of the necessary variables
   try {
@@ -137,6 +139,8 @@ export class CraftGCSClient {
   public readonly bucketName: string;
   /** CGS Client */
   private readonly bucket: GCSBucket;
+  /** Logger to use when logging messages to the console */
+  private readonly logger: Logger;
 
   public constructor(config: GCSBucketConfig) {
     const {
@@ -144,6 +148,7 @@ export class CraftGCSClient {
       projectId,
       credentials,
       maxRetries = DEFAULT_MAX_RETRIES,
+      logger = defaultLogger,
     } = config;
 
     this.bucketName = bucketName;
@@ -155,31 +160,7 @@ export class CraftGCSClient {
       }),
       bucketName
     );
-  }
-
-  /**
-   * Detect the content-type based on regular expressions defined in
-   * CONTENT_TYPES_EXT.
-   *
-   * The underlying GCS package usually detects content-type itself, but it's
-   * not always correct.
-   *
-   * @param artifactName Name of the artifact to check
-   * @returns A content-type string, or undefined if the artifact name doesn't
-   * have a known extension
-   */
-  private detectContentType(artifactName: string): string | undefined {
-    for (const entry of CONTENT_TYPES_EXT) {
-      const [regex, contentType] = entry;
-      if (artifactName.match(regex)) {
-        logger.debug(
-          `Detected \`${artifactName}\` to be of type \`${contentType}\`.`
-        );
-        return contentType;
-      }
-    }
-    logger.debug(`Unable to detect content type for \`${artifactName}\`.`);
-    return undefined;
+    this.logger = logger;
   }
 
   /**
@@ -203,7 +184,23 @@ export class CraftGCSClient {
       );
     }
 
-    const contentType = this.detectContentType(filename);
+    // the underlying GCS package usually detects content-type itself, but it's
+    // not always correct.
+    const contentType = detectContentType(filename);
+
+    // TODO (kmclb) in order to log more actively the times when we're
+    // overriding the current content type with a different one, we need to know
+    // what the current one is (which we currently don't, since all this method
+    // is passed is the local filepath). In order to pass it more, we'd need to
+    // return not just the path but also the entire artifact from the download
+    // method called in gcsTarget.publish. In fact, when targeting GCS,  we
+    // currently don't preserve the content type of artifact provider files in
+    // any way, so setting it on upload is pointless. Action item: fix this.
+    if (contentType) {
+      this.logger.debug(
+        `Detected \`${filename}\` to be of type \`${contentType}\`.`
+      );
+    }
     const metadata = {
       ...(bucketPath.metadata || DEFAULT_UPLOAD_METADATA),
       ...(contentType && { contentType }),
@@ -214,13 +211,16 @@ export class CraftGCSClient {
       metadata,
     };
 
-    logger.debug(
+    this.logger.debug(
       `File \`${filename}\`, upload options: ${formatJson(uploadConfig)}`
     );
 
     if (!isDryRun()) {
-      logger.debug(
-        `Attempting to upload \`${filename}\` to \`${pathInBucket}\`.`
+      this.logger.debug(
+        `Attempting to upload \`${filename}\` to \`${path.join(
+          this.bucketName,
+          pathInBucket
+        )}\`.`
       );
 
       try {
@@ -231,17 +231,17 @@ export class CraftGCSClient {
       }
 
       // TODO (kmclb) replace this with a `craft download` command once that's a thing
-      logger.debug(
-        `Success! It can be downloaded by running`,
-        `\`gsutil cp ${path.join(
-          'gs://',
-          this.bucketName,
-          pathInBucket,
-          filename
-        )} <path-to-download-location>\``
+      this.logger.debug(
+        `Successfully uploaded \`${filename}\`. It can be downloaded by running ` +
+          `\`gsutil cp ${path.join(
+            'gs://',
+            this.bucketName,
+            pathInBucket,
+            filename
+          )} <path-to-download-location>\`.`
       );
     } else {
-      logger.info(`[dry-run] Skipping upload for \`${filename}\``);
+      this.logger.info(`[dry-run] Skipping upload for \`${filename}\``);
     }
   }
 
@@ -269,7 +269,7 @@ export class CraftGCSClient {
     }
 
     if (!isDryRun()) {
-      logger.debug(
+      this.logger.debug(
         `Attempting to download \`${destinationFilename}\` to \`${destinationDirectory}\`.`
       );
 
@@ -282,9 +282,11 @@ export class CraftGCSClient {
           ${err}`);
       }
 
-      logger.debug(`Success!`);
+      this.logger.debug(`Successfully downloaded \`${destinationFilename}\`.`);
     } else {
-      logger.info(`[dry-run] Skipping download for \`${destinationFilename}\``);
+      this.logger.info(
+        `[dry-run] Skipping download for \`${destinationFilename}\``
+      );
     }
 
     return path.join(destinationDirectory, destinationFilename);

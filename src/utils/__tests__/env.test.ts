@@ -29,7 +29,7 @@ describe('env utils functions', () => {
       process.env.DOGS = 'RULE'; // just to prevent the function erroring
       checkEnvForPrerequisite({ name: 'DOGS' });
       expect(logger.debug).toHaveBeenCalledWith(
-        `\tChecking for environment variable DOGS`
+        expect.stringContaining('Checking for environment variable DOGS')
       );
     });
 
@@ -93,10 +93,10 @@ describe('env utils functions', () => {
           `Checking for environment variable(s) MAISEY or CHARLIE`
         );
         expect(logger.debug).toHaveBeenCalledWith(
-          `\tChecking for environment variable MAISEY`
+          expect.stringContaining('Checking for environment variable MAISEY')
         );
         expect(logger.debug).toHaveBeenCalledWith(
-          `\tChecking for environment variable CHARLIE`
+          expect.stringContaining('Checking for environment variable CHARLIE')
         );
       });
 
@@ -152,12 +152,13 @@ describe('env utils functions', () => {
   describe('readEnvironmentConfig', () => {
     const invalidDir = '/invalid/invalid';
 
-    function writeConfigFile(directory: string): void {
+    // tslint:disable-next-line: completed-docs
+    function writeConfigFileSync(directory: string): void {
       const outConfigFile = join(directory, config.CONFIG_FILE_NAME);
       writeFileSync(outConfigFile, '');
     }
 
-    test('calls homedir/findConfigFile', async () => {
+    test('calls homedir/findConfigFile', () => {
       process.env.TEST_BLA = '123';
 
       homedirMock.mockReturnValue(invalidDir);
@@ -174,10 +175,10 @@ describe('env utils functions', () => {
     test('checks the config directory', async () => {
       homedirMock.mockReturnValue(invalidDir);
 
-      await withTempDir(async directory => {
+      await withTempDir(directory => {
         getConfigFileDirMock.mockReturnValue(directory);
 
-        writeConfigFile(directory);
+        writeConfigFileSync(directory);
 
         const outFile = join(directory, ENV_FILE_NAME);
         writeFileSync(outFile, 'export TEST_BLA=234\nexport TEST_ANOTHER=345');
@@ -190,7 +191,7 @@ describe('env utils functions', () => {
     test('checks home directory', async () => {
       getConfigFileDirMock.mockReturnValue(invalidDir);
 
-      await withTempDir(async directory => {
+      await withTempDir(directory => {
         homedirMock.mockReturnValue(directory);
         const outFile = join(directory, ENV_FILE_NAME);
         writeFileSync(outFile, 'export TEST_BLA=234\n');
@@ -203,14 +204,14 @@ describe('env utils functions', () => {
 
     test('checks home directory first, and then the config directory', async () => {
       await withTempDir(async dir1 => {
-        await withTempDir(async dir2 => {
+        await withTempDir(dir2 => {
           homedirMock.mockReturnValue(dir1);
 
           const outHome = join(dir1, ENV_FILE_NAME);
           writeFileSync(outHome, 'export TEST_BLA=from_home');
 
           getConfigFileDirMock.mockReturnValue(dir2);
-          writeConfigFile(dir2);
+          writeConfigFileSync(dir2);
           const configDirFile = join(dir2, ENV_FILE_NAME);
           writeFileSync(configDirFile, 'export TEST_BLA=from_config_dir');
 
@@ -226,7 +227,7 @@ describe('env utils functions', () => {
 
       process.env.TEST_BLA = 'existing';
 
-      await withTempDir(async directory => {
+      await withTempDir(directory => {
         getConfigFileDirMock.mockReturnValue(directory);
         const outFile = join(directory, ENV_FILE_NAME);
         writeFileSync(outFile, 'export TEST_BLA=new_value');
@@ -242,10 +243,10 @@ describe('env utils functions', () => {
 
       process.env.TEST_BLA = 'existing';
 
-      await withTempDir(async directory => {
+      await withTempDir(directory => {
         getConfigFileDirMock.mockReturnValue(directory);
 
-        writeConfigFile(directory);
+        writeConfigFileSync(directory);
 
         const outFile = join(directory, ENV_FILE_NAME);
         writeFileSync(outFile, 'export TEST_BLA=new_value');
