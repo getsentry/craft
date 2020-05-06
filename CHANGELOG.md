@@ -4,7 +4,7 @@
 
 Watch this space...
 
-- fix: Localized git branch checks (#75)
+- fix: Localized git branch checks (#84)
 
 ## 0.9.4
 
