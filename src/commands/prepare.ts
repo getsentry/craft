@@ -117,19 +117,12 @@ async function createReleaseBranch(
 
   let branchHead;
   try {
-    // ideally this throws an error, because the branch shouldn't exist yet
-    branchHead = await git.revparse([branchName]);
+    branchHead = await git.raw(['show-ref', '--heads', branchName]);
   } catch (e) {
-    // 'unkown revision' is the error we want, but if it's something different
-    // we're in trouble, so re-throw
-    if (!e.message.match(/unknown revision/)) {
-      throw e;
-    }
-    // otherwise, just mark that there's no branch and keep going
-    branchHead = '';
+    throw e;
   }
 
-  if (branchHead) {
+  if (branchHead.length > 0) {
     let errorMsg = `Branch already exists: ${branchName}. `;
     const remoteName = getRemoteName();
     errorMsg +=
