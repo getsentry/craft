@@ -115,12 +115,7 @@ async function createReleaseBranch(
 ): Promise<string> {
   const branchName = `release/${newVersion}`;
 
-  let branchHead;
-  try {
-    branchHead = await git.raw(['show-ref', '--heads', branchName]);
-  } catch (e) {
-    throw e;
-  }
+  const branchHead = await git.raw(['show-ref', '--heads', branchName]);
 
   // in case `show-ref` can't find a branch it returns `null`
   if (branchHead) {
