@@ -4,6 +4,8 @@
 
 Watch this space...
 
+- feat: Cocoapods Target add `--allow-warnings` by default
+
 ## 0.9.4
 
 - fix(gcs): Fix content-types issues (#78)
