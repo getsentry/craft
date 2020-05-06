@@ -122,7 +122,8 @@ async function createReleaseBranch(
     throw e;
   }
 
-  if (branchHead.length > 0) {
+  // in case `show-ref` can't find a branch it returns `null`
+  if (branchHead) {
     let errorMsg = `Branch already exists: ${branchName}. `;
     const remoteName = getRemoteName();
     errorMsg +=
