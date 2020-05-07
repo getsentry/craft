@@ -4,6 +4,8 @@
 
 Watch this space...
 
+- fix: Localized git branch checks (#84)
+
 ## 0.9.4
 
 - fix(gcs): Fix content-types issues (#78)
