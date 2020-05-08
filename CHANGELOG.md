@@ -4,6 +4,8 @@
 
 Watch this space...
 
+## 0.9.5
+
 - feat: Cocoapods Target add `--allow-warnings` by default
 - fix: Localized git branch checks (#84)
 
