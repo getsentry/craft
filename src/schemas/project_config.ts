@@ -11,6 +11,7 @@ export interface CraftProjectConfig {
   github: GithubGlobalConfig;
   targets?: TargetConfig[];
   preReleaseCommand?: string;
+  releaseBranchPrefix?: string;
   changelog?: string;
   changelogPolicy?: ChangelogPolicy;
   minVersion?: string;

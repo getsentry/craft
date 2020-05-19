@@ -30,6 +30,11 @@ import { BaseStatusProvider } from './status_providers/base';
 export const CONFIG_FILE_NAME = '.craft.yml';
 
 /**
+ * The default prefix for the release branch.
+ */
+export const DEFAULT_RELEASE_BRANCH_NAME = 'release';
+
+/**
  * Cached path to the configuration file
  */
 let _configPathCache: string;

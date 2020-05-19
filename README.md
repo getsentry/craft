@@ -27,6 +27,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
 - [Configuration File: `.craft.yml`](#configuration-file-craftyml)
   - [GitHub project](#github-project)
   - [Pre-release Command](#pre-release-command)
+  - [Release Branch Name](#release-branch-name)
   - [Changelog Policies](#changelog-policies)
   - [Minimal Version](#minimal-version)
   - [Required Files](#required-files)
@@ -243,6 +244,16 @@ to [this section](#pre-release-version-bumping-script-conventions) for more deta
 
 ```yaml
 preReleaseCommand: bash scripts/bump-version.sh
+```
+
+### Release Branch Name
+
+This overrides the prefix for the release branch name. The full branch name used
+for a release is `{releaseBranchPrefix}/{version}`. The prefix defaults to
+`"release"`.
+
+```yaml
+releaseBranchPrefix: publish
 ```
 
 ### Changelog Policies
@@ -743,7 +754,8 @@ Here is how you can integrate your GitHub project with `craft`:
 
 - Enable your project in Zeus: https://zeus.ci/settings/github/repos
 - Configure your CI systems (Travis, AppVeyor, etc.) to send build artifacts to Zeus
-  - Allow building release branches (their names follow pattern `release/VERSION`)
+  - Allow building release branches (their names follow `release/{VERSION}` by
+    default, configurable through `releaseBranchPrefix`)
   - Add ZEUS_HOOK_BASE as protected to CI environment
 - Add `.craft.yml` configuration file to your project
   - List there all the targets you want to publish to

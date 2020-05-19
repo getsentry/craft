@@ -9,6 +9,7 @@ import {
   getConfiguration,
   getStatusProviderFromConfig,
   getArtifactProviderFromConfig,
+  DEFAULT_RELEASE_BRANCH_NAME,
 } from '../config';
 import { formatTable, logger } from '../logger';
 import { GithubGlobalConfig } from '../schemas/project_config';
@@ -420,7 +421,10 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     revision = response.data.sha;
   } else {
     // Find the remote branch
-    branchName = `release/${newVersion}`;
+    const branchPrefix =
+      config.releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
+    branchName = `${branchPrefix}/${newVersion}`;
+
     logger.debug('Fetching branch information', branchName);
     const response = await githubClient.repos.getBranch({
       branch: branchName,
