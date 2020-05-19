@@ -9,6 +9,7 @@ import {
   checkMinimalConfigVersion,
   getConfigFilePath,
   getConfiguration,
+  DEFAULT_RELEASE_BRANCH_NAME,
 } from '../config';
 import { logger } from '../logger';
 import { ChangelogPolicy } from '../schemas/project_config';
@@ -108,12 +109,15 @@ function checkVersionOrPart(argv: Arguments<any>, _opt: any): any {
  *
  * @param git Local git client
  * @param newVersion Version we are releasing
+ * @param releaseBranchPrefix Prefix of the release branch. Defaults to "release".
  */
 async function createReleaseBranch(
   git: simpleGit.SimpleGit,
-  newVersion: string
+  newVersion: string,
+  releaseBranchPrefix?: string
 ): Promise<string> {
-  const branchName = `release/${newVersion}`;
+  const branchPrefix = releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
+  const branchName = `${branchPrefix}/${newVersion}`;
 
   const branchHead = await git.raw(['show-ref', '--heads', branchName]);
 
@@ -467,7 +471,11 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
 
   // Create a new release branch and check it out. Throw an error if it already
   // exists.
-  const branchName = await createReleaseBranch(git, newVersion);
+  const branchName = await createReleaseBranch(
+    git,
+    newVersion,
+    config.releaseBranchPrefix
+  );
 
   // Run a pre-release script (e.g. for version bumping)
   const preReleaseCommandRan = await runPreReleaseCommand(

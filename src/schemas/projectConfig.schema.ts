@@ -29,6 +29,7 @@ const projectConfigJsonSchema = {
       items: { $ref: '#/definitions/targetConfig' },
     },
     preReleaseCommand: { type: 'string' },
+    releaseBranchPrefix: { type: 'string' },
     changelog: { type: 'string' },
     changelogPolicy: {
       title: 'ChangelogPolicy',
