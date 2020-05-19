@@ -4,6 +4,10 @@
 
 Watch this space...
 
+## 0.9.6
+
+- feat: Add a `releaseBranchPrefix` config attribute (#86)
+
 ## 0.9.5
 
 - feat: Cocoapods Target add `--allow-warnings` by default
