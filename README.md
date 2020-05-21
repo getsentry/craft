@@ -450,14 +450,14 @@ The `npm` utility must be installed on the system.
 
 | Option   | Description                                                                      |
 | -------- | -------------------------------------------------------------------------------- |
-| `access` | **optional**. Visibility for scoped packages: `public` (default) or `restricted` |
+| `access` | **optional**. Visibility for scoped packages: `restricted` (default) or `public` |
 
 **Example**
 
 ```yaml
 targets:
   - name: npm
-    access: restricted
+    access: public
 ```
 
 ### Python Package Index (`pypi`)
