@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, promises as fsPromises } from 'fs';
 import { dirname, join, relative } from 'path';
 import * as shellQuote from 'shell-quote';
 // tslint:disable-next-line:no-submodule-imports
@@ -13,7 +13,13 @@ import {
 } from '../config';
 import { logger } from '../logger';
 import { ChangelogPolicy } from '../schemas/project_config';
-import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
+import {
+  DEFAULT_CHANGELOG_PATH,
+  DEFAULT_UNRELEASED_TITLE,
+  findChangeset,
+  removeChangeset,
+  prependChangeset,
+} from '../utils/changes';
 import {
   ConfigurationError,
   handleGlobalError,
@@ -360,7 +366,7 @@ async function checkForExistingTag(
  * @param changelogPolicy One of the changelog policies, such as "none", "simple", etc.
  * @param changelogPath Path to the changelog file
  */
-async function checkChangelog(
+async function prepareChangelog(
   newVersion: string,
   changelogPolicy: ChangelogPolicy = ChangelogPolicy.None,
   changelogPath: string = DEFAULT_CHANGELOG_PATH
@@ -370,35 +376,79 @@ async function checkChangelog(
       `Changelog policy is set to "${changelogPolicy}", nothing to do.`
     );
     return;
-  } else if (changelogPolicy === ChangelogPolicy.Simple) {
-    logger.info('Checking the changelog...');
-    logger.debug(`Changelog policy: "${changelogPolicy}".`);
-    const relativePath = relative('', changelogPath);
-    if (relativePath.startsWith('.')) {
-      throw new ConfigurationError(
-        `Invalid changelog path: "${changelogPath}"`
-      );
-    }
-    if (!existsSync(relativePath)) {
-      throw new ConfigurationError(
-        `Changelog does not exist: "${changelogPath}"`
-      );
-    }
-    const changelogString = readFileSync(relativePath).toString();
-    logger.debug(`Changelog path: ${relativePath}`);
-    const changeset = findChangeset(changelogString, newVersion);
-    if (!changeset || !changeset.body) {
-      throw new ConfigurationError(
-        `No changelog entry found for version "${newVersion}"`
-      );
-    }
-    logger.debug(`Changelog entry found:\n"""\n${changeset.body}\n"""`);
-    return;
-  } else {
+  } else if (
+    changelogPolicy !== ChangelogPolicy.Auto &&
+    changelogPolicy !== ChangelogPolicy.Simple
+  ) {
     throw new ConfigurationError(
       `Invalid changelog policy: "${changelogPolicy}"`
     );
   }
+
+  logger.info('Checking the changelog...');
+  logger.debug(`Changelog policy: "${changelogPolicy}".`);
+
+  const relativePath = relative('', changelogPath);
+  if (relativePath.startsWith('.')) {
+    throw new ConfigurationError(`Invalid changelog path: "${changelogPath}"`);
+  }
+
+  if (!existsSync(relativePath)) {
+    throw new ConfigurationError(
+      `Changelog does not exist: "${changelogPath}"`
+    );
+  }
+
+  let changelogString = (await fsPromises.readFile(relativePath)).toString();
+  logger.debug(`Changelog path: ${relativePath}`);
+
+  let changeset = findChangeset(
+    changelogString,
+    newVersion,
+    changelogPolicy === ChangelogPolicy.Auto
+  );
+  switch (changelogPolicy) {
+    case ChangelogPolicy.Auto:
+      let replaceSection;
+      if (!changeset) {
+        changeset = { name: newVersion, body: '' };
+      }
+      if (!changeset.body) {
+        changeset.body = ` - No documented changes in this release.`;
+        replaceSection = changeset.name;
+      }
+      if (changeset.name === DEFAULT_UNRELEASED_TITLE) {
+        replaceSection = changeset.name;
+        changeset.name = newVersion;
+      }
+      logger.debug(`Updating the changelog file for the new version:`);
+
+      if (replaceSection) {
+        changelogString = removeChangeset(changelogString, replaceSection);
+        changelogString = prependChangeset(changelogString, changeset);
+      }
+
+      changelogString = prependChangeset(changelogString, {
+        body: '',
+        name: DEFAULT_UNRELEASED_TITLE,
+      });
+
+      if (!isDryRun()) {
+        await fsPromises.writeFile(relativePath, changelogString);
+      } else {
+        logger.info('[dry-run] Not updating changelog file.');
+      }
+
+      break;
+    default:
+      if (!changeset?.body) {
+        throw new ConfigurationError(
+          `No changelog entry found for version "${newVersion}"`
+        );
+      }
+  }
+
+  logger.debug(`Changelog entry found:\n"""\n${changeset.body}\n"""`);
 }
 
 /**
@@ -460,8 +510,8 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
   // Check whether the version/tag already exists
   await checkForExistingTag(git, newVersion, !argv.noGitChecks);
 
-  // Check the changelog(s)
-  await checkChangelog(
+  // Check & update the changelog
+  await prepareChangelog(
     newVersion,
     argv.noChangelog ? ChangelogPolicy.None : config.changelogPolicy,
     config.changelog

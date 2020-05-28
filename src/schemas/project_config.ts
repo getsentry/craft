@@ -58,6 +58,7 @@ export interface BaseArtifactProvider {
  * Different policies for changelog management
  */
 export const enum ChangelogPolicy {
+  Auto = 'auto',
   Simple = 'simple',
   None = 'none',
 }
