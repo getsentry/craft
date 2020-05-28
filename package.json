@@ -88,7 +88,7 @@
     "compile-config-schema": "node ./scripts/config-json-schema-to-ts.js"
   },
   "volta": {
-    "node": "8.15.1",
+    "node": "12.17.0",
     "yarn": "1.14.0"
   }
 }
