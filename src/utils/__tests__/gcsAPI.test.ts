@@ -162,7 +162,7 @@ describe('gcsApi module', () => {
         );
 
         const { filename } = squirrelStatsArtifact;
-        const { path: destinationPath } = squirrelStatsBucketPath;
+        const destinationPath = path.normalize(squirrelStatsBucketPath.path);
 
         expect(mockGCSUpload).toHaveBeenCalledWith(squirrelStatsLocalPath, {
           destination: `${destinationPath}${filename}`,

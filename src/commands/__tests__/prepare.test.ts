@@ -1,3 +1,4 @@
+import { join as pathJoin } from 'path';
 import { spawnProcess } from '../../utils/system';
 import { runPreReleaseCommand } from '../prepare';
 
@@ -18,7 +19,7 @@ describe('runPreReleaseCommand', () => {
 
     expect(mockedSpawnProcess).toBeCalledWith(
       '/bin/bash',
-      ['scripts/bump-version.sh', '', newVersion],
+      [pathJoin('scripts', 'bump-version.sh'), '', newVersion],
       {
         env: {
           ...process.env,
