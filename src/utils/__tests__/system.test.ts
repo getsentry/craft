@@ -166,7 +166,7 @@ describe('calculateChecksum', () => {
 
 describe('isExecutableInPath', () => {
   test('checks for existing executable', () => {
-    expect(hasExecutable('git')).toBe(true);
+    expect(hasExecutable('node')).toBe(true);
   });
 
   test('checks for non-existing executable', () => {
