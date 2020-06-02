@@ -18,7 +18,8 @@ jest.mock('../../logger');
 describe('spawnProcess', () => {
   test('resolves on success with standard output', async () => {
     expect.assertions(1);
-    const stdout = (await spawnProcess('/bin/echo', ['test'])) || '';
+    const stdout =
+      (await spawnProcess(process.execPath, ['-p', '"test"'])) || '';
     expect(stdout.toString()).toBe('test\n');
   });
 
@@ -71,7 +72,7 @@ describe('spawnProcess', () => {
   test('does not write to output by default', async () => {
     const mockedLogInfo = logger.info as jest.Mock;
 
-    await spawnProcess('echo', ['-n', 'test-string']);
+    await spawnProcess(process.execPath, ['-p', '"test-string"']);
 
     expect(mockedLogInfo).toHaveBeenCalledTimes(0);
   });
@@ -79,7 +80,12 @@ describe('spawnProcess', () => {
   test('writes to output if told so', async () => {
     const mockedLogInfo = logger.info as jest.Mock;
 
-    await spawnProcess('echo', ['-n', 'test-string'], {}, { showStdout: true });
+    await spawnProcess(
+      process.execPath,
+      ['-e', 'process.stdout.write("test-string")'],
+      {},
+      { showStdout: true }
+    );
 
     expect(mockedLogInfo).toHaveBeenCalledTimes(1);
     expect(mockedLogInfo.mock.calls[0][0]).toMatch(/test-string/);
@@ -159,29 +165,27 @@ describe('calculateChecksum', () => {
 });
 
 describe('isExecutableInPath', () => {
-  test('checks for existing executable', async () => {
-    expect(hasExecutable('ls')).toBe(true);
+  test('checks for existing executable', () => {
+    expect(hasExecutable('node')).toBe(true);
   });
 
-  test('checks for non-existing executable', async () => {
+  test('checks for non-existing executable', () => {
     expect(hasExecutable('not-existing-executable')).toBe(false);
   });
 
-  test('checks for existing executable using absolute path', async () => {
-    expect(hasExecutable('/bin/bash')).toBe(true);
+  test('checks for existing executable using absolute path', () => {
+    expect(hasExecutable(`${process.cwd()}/node_modules/.bin/jest`)).toBe(true);
   });
 
-  test('checks for non-existing executable using absolute path', async () => {
-    expect(hasExecutable('/bin/non-existing-binary')).toBe(false);
+  test('checks for non-existing executable using absolute path', () => {
+    expect(hasExecutable('/dev/null/non-existing-binary')).toBe(false);
   });
 
-  test('checks for existing executable using relative path', async () => {
-    expect(hasExecutable('../../../../../../../../../../../../bin/ls')).toBe(
-      true
-    );
+  test('checks for existing executable using relative path', () => {
+    expect(hasExecutable('./node_modules/.bin/jest')).toBe(true);
   });
 
-  test('checks for non-existing executable using relative path', async () => {
+  test('checks for non-existing executable using relative path', () => {
     expect(hasExecutable('./bin/non-existing-binary')).toBe(false);
   });
 });
