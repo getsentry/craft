@@ -51,9 +51,17 @@ export function extractChangeset(
 }
 
 /**
- * Does something
+ * Locates and returns a changeset section with the title passed in header.
+ * Supports an optional "predicate" callback used to compare the expected title
+ * and the title found in text. Useful for normalizing versions.
+ *
  * @param markdown The full changelog markdown
  * @param header The header of the section to extract
+ * @param predicate A callback that takes the found title and the expected title
+ *                  and returns true if they match, false otherwise
+ * @returns A ChangesetLoc object where "start" has the matche for the header,
+ *          and "end" has the match for the next header so the contents
+ *          inbetween can be extracted
  */
 export function locateChangeset(
   markdown: string,
@@ -88,7 +96,8 @@ export function locateChangeset(
  *
  * @param markdown The markdown containing the changeset
  * @param tag A git tag containing a version number
- * @param [fallbackToUnreleased=false] Whether to fallback to "unreleased" when tag is not found
+ * @param [fallbackToUnreleased=false] Whether to fallback to "unreleased" when
+ *        tag is not found
  * @returns The changeset if found; otherwise null
  */
 export function findChangeset(
@@ -117,6 +126,7 @@ export function findChangeset(
  * Removes a given changeset from the provided markdown and returns the modified markdown
  * @param markdown The markdown containing the changeset
  * @param header The header of the changeset to-be-removed
+ * @returns The markdown string without the changeset with the provided header
  */
 export function removeChangeset(markdown: string, header: string): string {
   const location = locateChangeset(markdown, header);
@@ -130,9 +140,15 @@ export function removeChangeset(markdown: string, header: string): string {
 }
 
 /**
- * Prepends a changeset to the provided markdown text and returns the result
+ * Prepends a changeset to the provided markdown text and returns the result.
+ * It tries to prepend before the first ever changeset header, to keep any
+ * higher-level content intact and in order. If none found, then the changeset
+ * is *appended* instead.
+ *
  * @param markdown The markdown that will be prepended
  * @param changeset The changeset data to prepend to
+ * @returns The markdown string with the changeset prepedend before the top-most
+ *          existing changeset.
  */
 export function prependChangeset(
   markdown: string,
@@ -140,7 +156,7 @@ export function prependChangeset(
 ): string {
   // Try to locate the top-most header, no matter what is inside
   const location = locateChangeset(markdown, '', () => true);
-  const start = location?.start.index ?? 0;
+  const start = location?.start.index ?? markdown.length;
 
   const newChangeset = `## ${changeset.name}\n\n${changeset.body || ''}\n\n`;
 
