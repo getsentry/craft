@@ -5,7 +5,8 @@ import { getVersion } from './version';
  */
 export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
 export const DEFAULT_UNRELEASED_TITLE = 'Unreleased';
-const HEADER_REGEX = /^ *## *([^\n]+?) *#* *(?:\n+|$)|^([^\n]+)\n *(?:-){2,} *(?:\n+|$)/gm;
+export const DEFAULT_CHANGESET_BODY = '- No documented changes.';
+const HEADER_REGEX = /^(?:( *)## *([^\n]+?) *#*|^([^\n]+)\n *(?:-){2,}) *(?:\n+|$)/gm;
 
 /**
  * A single changeset with name and description
@@ -44,7 +45,7 @@ export function extractChangeset(
   const start = location.start.index + location.start[0].length;
   const end = location.end ? location.end.index : undefined;
   const body = markdown.substring(start, end).trim();
-  const name = (location.start[1] || location.start[2])
+  const name = (location.start[2] || location.start[3])
     .replace(/\(.*\)$/, '')
     .trim();
   return { name, body };
@@ -74,7 +75,7 @@ export function locateChangeset(
     match !== null;
     match = HEADER_REGEX.exec(markdown)
   ) {
-    const matchedTitle = match[1] || match[2];
+    const matchedTitle = match[2] || match[3];
     if (predicate(matchedTitle, header)) {
       return {
         end: HEADER_REGEX.exec(markdown),
@@ -155,10 +156,21 @@ export function prependChangeset(
   changeset: Changeset
 ): string {
   // Try to locate the top-most header, no matter what is inside
-  const location = locateChangeset(markdown, '', () => true);
-  const start = location?.start.index ?? markdown.length;
+  const start = locateChangeset(markdown, '', () => true)?.start;
+  let body;
+  let newChangeset;
+  if (start?.[3]) {
+    body = changeset.body || DEFAULT_CHANGESET_BODY;
+    const underline = new Array(changeset.name.length + 1).join('-');
+    newChangeset = `${changeset.name}\n${underline}\n\n${body}\n\n`;
+  } else {
+    const padding = start?.[1]?.length || 0;
+    const padStr = new Array(padding + 1).join(' ');
 
-  const newChangeset = `## ${changeset.name}\n\n${changeset.body || ''}\n\n`;
+    body = changeset.body || `${padStr}${DEFAULT_CHANGESET_BODY}`;
+    newChangeset = `${padStr}## ${changeset.name}\n\n${body}\n\n`;
+  }
+  const startIdx = start?.index ?? markdown.length;
 
-  return markdown.slice(0, start) + newChangeset + markdown.slice(start);
+  return markdown.slice(0, startIdx) + newChangeset + markdown.slice(startIdx);
 }

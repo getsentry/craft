@@ -414,14 +414,15 @@ async function prepareChangelog(
         changeset = { name: newVersion, body: '' };
       }
       if (!changeset.body) {
-        changeset.body = ` - No documented changes in this release.`;
         replaceSection = changeset.name;
       }
       if (changeset.name === DEFAULT_UNRELEASED_TITLE) {
         replaceSection = changeset.name;
         changeset.name = newVersion;
       }
-      logger.debug(`Updating the changelog file for the new version:`);
+      logger.debug(
+        `Updating the changelog file for the new version: ${newVersion}`
+      );
 
       if (replaceSection) {
         changelogString = removeChangeset(changelogString, replaceSection);
@@ -437,6 +438,7 @@ async function prepareChangelog(
         await fsPromises.writeFile(relativePath, changelogString);
       } else {
         logger.info('[dry-run] Not updating changelog file.');
+        logger.debug(`New changelog:\n${changelogString}`);
       }
 
       break;
