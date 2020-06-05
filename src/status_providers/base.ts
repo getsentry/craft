@@ -45,7 +45,9 @@ export abstract class BaseStatusProvider {
     revision: string
   ): Promise<CommitStatus>;
 
-  /** TODO */
+  /**
+   * Gets repository information (as seen by the provider)
+   */
   public abstract async getRepositoryInfo(): Promise<RepositoryInfo>;
 
   /**
@@ -76,7 +78,7 @@ export abstract class BaseStatusProvider {
           spinner.fail();
         }
         reportError(
-          `Build(s) for revision ${revision} have failed. Please check the revision's status.`
+          `Build(s) for revision ${revision} have not succeeded. Please check the revision's status.`
         );
         return;
       } else if (status === CommitStatus.NOT_FOUND) {
@@ -101,8 +103,12 @@ export abstract class BaseStatusProvider {
 
       firstIteration = false;
 
+      // Format as "YYYY-MM-DD hh:mm:ss"
+      const timeString = new Date()
+        .toISOString()
+        .replace(/T/, ' ')
+        .replace(/\..+/, '');
       // Update the spinner
-      const timeString = new Date().toLocaleString();
       const waitMessage = `[${timeString}] CI builds are still in progress, sleeping for ${BUILD_POLLING_INTERVAL} seconds...`;
       spinner.text = waitMessage;
       spinner.start();

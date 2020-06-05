@@ -7,7 +7,7 @@ import { ConfigurationError } from '../utils/errors';
 import { formatJson } from '../utils/strings';
 
 /**
- * TODO
+ * Status provider that talks to GitHub to get commit checks (statuses)
  */
 export class GithubStatusProvider extends BaseStatusProvider {
   /** Github client */
@@ -24,9 +24,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
   }
 
   /**
-   * TODO
-   *
-   * @param revision revision
+   * @inheritDoc
    */
   public async getRevisionStatus(revision: string): Promise<CommitStatus> {
     // TODO move this validation earlier
@@ -43,15 +41,9 @@ export class GithubStatusProvider extends BaseStatusProvider {
 
     // There are two commit status flavours we have to consider:
     // 1. Commit status API
-    // https://developer.github.com/v3/repos/statuses/#get-the-combined-status-for-a-specific-ref
-    // Examples: Appveyor
+    const revisionStatus = await this.getCommitApiStatus(revision);
     // 2. Check runs API
-    // https://developer.github.com/v3/checks/runs/#list-check-runs-for-a-specific-ref
-    // Examples: Travis CI, Azure Pipelines
-
-    const [revisionStatus, revisionChecks] = await this.getAllStatuses(
-      revision
-    );
+    const revisionChecks = await this.getRevisionChecks(revision);
 
     if (contexts.length > 0) {
       for (const context of contexts) {
@@ -79,10 +71,30 @@ export class GithubStatusProvider extends BaseStatusProvider {
       logger.info(
         'No config provided for Github status provider, calculating the combined status...'
       );
-      const results = [
-        this.getResultFromRevisionStatus(revisionStatus),
-        this.getResultFromRevisionChecks(revisionChecks),
-      ];
+
+      let commitApiStatusResult;
+      if (
+        revisionStatus.total_count === 0 &&
+        revisionStatus.state === 'pending'
+      ) {
+        // Edge case, this is what GitHub returns when there are no registered legacy checks.
+        logger.debug('No legacy checks detected, checking runs...');
+        if (revisionChecks.total_count > 0) {
+          commitApiStatusResult = CommitStatus.SUCCESS;
+        } else {
+          logger.warn('No valid build contexts detected, did any checks run?');
+          return CommitStatus.FAILURE;
+        }
+      } else {
+        commitApiStatusResult = this.getResultFromCommitApiStatus(
+          revisionStatus
+        );
+      }
+
+      const revisionChecksResult = this.getResultFromRevisionChecks(
+        revisionChecks
+      );
+      const results = [commitApiStatusResult, revisionChecksResult];
       if (
         results.includes(CommitStatus.FAILURE) ||
         results.includes(CommitStatus.NOT_FOUND)
@@ -97,11 +109,11 @@ export class GithubStatusProvider extends BaseStatusProvider {
   }
 
   /**
-   * TODO
+   * Returns the aggregated status for the given context
    *
-   * @param context TODO
-   * @param revisionStatus TODO
-   * @param revisionChecks TODO
+   * @param context String that describes a commit check (e.g. a CI run)
+   * @param revisionStatus Legacy Commit API response
+   * @param revisionChecks Check Runs API response
    */
   private getStatusForContext(
     context: string,
@@ -109,7 +121,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
     revisionChecks: Github.ChecksListForRefResponse
   ): CommitStatus {
     const results = [
-      this.getResultFromRevisionStatus(revisionStatus, context),
+      this.getResultFromCommitApiStatus(revisionStatus, context),
       this.getResultFromRevisionChecks(revisionChecks, context),
     ];
     logger.debug(`Status check results: ${formatJson(results)}`);
@@ -135,8 +147,9 @@ export class GithubStatusProvider extends BaseStatusProvider {
   }
 
   /**
-   * TODO
-   * @param state  TODO
+   * Converts GitHub status strings to CommitStatus
+   *
+   * @param state Status string
    */
   private stateToCommitStatus(state: string): CommitStatus {
     if (state === 'success') {
@@ -149,11 +162,12 @@ export class GithubStatusProvider extends BaseStatusProvider {
   }
 
   /**
-   * TODO
-   * @param combinedStatus TODO
-   * @param context TODO
+   * Converts the commit API status response to commit status
+   *
+   * @param combinedStatus Combined status response returned from legacy API
+   * @param context If passed, only result of the corresponding context is considered
    */
-  private getResultFromRevisionStatus(
+  private getResultFromCommitApiStatus(
     combinedStatus: Github.ReposGetCombinedStatusForRefResponse,
     context?: string
   ): CommitStatus {
@@ -171,9 +185,10 @@ export class GithubStatusProvider extends BaseStatusProvider {
   }
 
   /**
-   * TODO
-   * @param combinedStatus TODO
-   * @param context TODO
+   * Returns aggregated commit status from the Check API response
+   *
+   * @param revisionChecks Response from GitHub Check API
+   * @param context If provided, only the corresponding run is considered
    */
   private getResultFromRevisionChecks(
     revisionChecks: Github.ChecksListForRefResponse,
@@ -206,19 +221,18 @@ export class GithubStatusProvider extends BaseStatusProvider {
   }
 
   /**
-   * TODO
+   * Gets status from GitHub's legacy commit status API
    *
-   * @param revision TODO
+   * API docs:
+   * https://developer.github.com/v3/repos/statuses/#get-the-combined-status-for-a-specific-ref
+   *
+   * Examples: Appveyor
+   *
+   * @param revision Git revision SHA
    */
-  public async getAllStatuses(
+  protected async getCommitApiStatus(
     revision: string
-  ): Promise<
-    [
-      Github.ReposGetCombinedStatusForRefResponse,
-      Github.ChecksListForRefResponse
-    ]
-  > {
-    // 1. Commit status API
+  ): Promise<Github.ReposGetCombinedStatusForRefResponse> {
     logger.debug(`Fetching combined revision status...`);
     const revisionStatusResponse = await this.github.repos.getCombinedStatusForRef(
       {
@@ -231,8 +245,22 @@ export class GithubStatusProvider extends BaseStatusProvider {
     logger.debug(
       `Revision combined status received: "${formatJson(revisionStatus)}"`
     );
+    return revisionStatus;
+  }
 
-    // 2. Checks
+  /**
+   * Gets revision checks from GitHub Check runs API
+   *
+   * API docs:
+   * https://developer.github.com/v3/checks/runs/#list-check-runs-for-a-specific-ref
+   *
+   * Examples: Travis CI, Azure Pipelines
+   *
+   * @param revision Git revision SHA
+   */
+  protected async getRevisionChecks(
+    revision: string
+  ): Promise<Github.ChecksListForRefResponse> {
     logger.debug(`Fetching Checks API status...`);
     const revisionChecksResponse = await this.github.checks.listForRef({
       owner: this.repoOwner,
@@ -242,10 +270,12 @@ export class GithubStatusProvider extends BaseStatusProvider {
     const revisionChecks = revisionChecksResponse.data;
     logger.debug(`Revision checks received: "${formatJson(revisionChecks)}"`);
 
-    return [revisionStatus, revisionChecks];
+    return revisionChecks;
   }
 
-  /** TODO */
+  /**
+   * @inheritDoc
+   */
   public async getRepositoryInfo(): Promise<RepositoryInfo> {
     return this.github.repos.get({
       owner: this.repoOwner,
