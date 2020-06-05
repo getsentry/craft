@@ -78,8 +78,9 @@ export class GithubStatusProvider extends BaseStatusProvider {
         revisionStatus.state === 'pending'
       ) {
         // Edge case, this is what GitHub returns when there are no registered legacy checks.
-        logger.debug('No legacy checks detected, checking runs...');
+        logger.debug('No legacy checks detected, checking for runs...');
         if (revisionChecks.total_count > 0) {
+          logger.debug('Check runs exist, continuing...');
           commitApiStatusResult = CommitStatus.SUCCESS;
         } else {
           logger.warn('No valid build contexts detected, did any checks run?');
@@ -90,10 +91,13 @@ export class GithubStatusProvider extends BaseStatusProvider {
           revisionStatus
         );
       }
+      logger.debug(`Commit API status result: ${commitApiStatusResult}`);
 
       const revisionChecksResult = this.getResultFromRevisionChecks(
         revisionChecks
       );
+      logger.debug(`Check runs API result: ${revisionChecksResult}`);
+
       const results = [commitApiStatusResult, revisionChecksResult];
       if (
         results.includes(CommitStatus.FAILURE) ||
