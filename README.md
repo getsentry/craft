@@ -268,7 +268,7 @@ In `auto` mode, `craft prepare` will use the following logic:
 
 1. If there's already an entry for the given version, use that
 2. Else if there is an entry named `Unreleased`, rename that to the given
-   version.
+   version
 3. Else, create a new section for the version and populate it with a default
    text: ` - No documented changes for this release.`
 
@@ -298,7 +298,7 @@ changelogPolicy: simple
 * Added something
 ```
 
-**Example (`simple`):**
+**Example (`auto`):**
 
 ```yaml
 changelog: CHANGES
