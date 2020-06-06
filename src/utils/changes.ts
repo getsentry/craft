@@ -5,8 +5,7 @@ import { getVersion } from './version';
  */
 export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
 export const DEFAULT_UNRELEASED_TITLE = 'Unreleased';
-export const DEFAULT_CHANGESET_BODY = '- No documented changes.';
-const HEADER_REGEX = /^(?:( *)## *([^\n]+?) *#*|^([^\n]+)\n *(?:-){2,}) *(?:\n+|$)/gm;
+const DEFAULT_CHANGESET_BODY = '- No documented changes.';
 
 /**
  * A single changeset with name and description
@@ -57,26 +56,25 @@ export function extractChangeset(
  * and the title found in text. Useful for normalizing versions.
  *
  * @param markdown The full changelog markdown
- * @param header The header of the section to extract
- * @param predicate A callback that takes the found title and the expected title
- *                  and returns true if they match, false otherwise
+ * @param predicate A callback that takes the found title and returns true if
+ *                  this is a match, false otherwise
  * @returns A ChangesetLoc object where "start" has the matche for the header,
  *          and "end" has the match for the next header so the contents
  *          inbetween can be extracted
  */
 export function locateChangeset(
   markdown: string,
-  header: string,
-  predicate: (match: string, expected: string) => boolean = (a, b) => a === b
+  predicate: (match: string) => boolean
 ): ChangesetLoc | undefined {
-  HEADER_REGEX.lastIndex = 0;
+  const HEADER_REGEX = /^(?:( *)## *([^\n]+?) *#*|^([^\n]+)\n *(?:-){2,}) *(?:\n+|$)/gm;
+
   for (
     let match = HEADER_REGEX.exec(markdown);
     match !== null;
     match = HEADER_REGEX.exec(markdown)
   ) {
     const matchedTitle = match[2] || match[3];
-    if (predicate(matchedTitle, header)) {
+    if (predicate(matchedTitle)) {
       return {
         end: HEADER_REGEX.exec(markdown),
         start: match,
@@ -113,11 +111,13 @@ export function findChangeset(
 
   let changesetLoc = locateChangeset(
     markdown,
-    version,
-    (match, header) => getVersion(match) === header
+    match => getVersion(match) === version
   );
   if (!changesetLoc && fallbackToUnreleased) {
-    changesetLoc = locateChangeset(markdown, DEFAULT_UNRELEASED_TITLE);
+    changesetLoc = locateChangeset(
+      markdown,
+      match => match === DEFAULT_UNRELEASED_TITLE
+    );
   }
 
   return changesetLoc ? extractChangeset(markdown, changesetLoc) : undefined;
@@ -130,7 +130,7 @@ export function findChangeset(
  * @returns The markdown string without the changeset with the provided header
  */
 export function removeChangeset(markdown: string, header: string): string {
-  const location = locateChangeset(markdown, header);
+  const location = locateChangeset(markdown, match => match === header);
   if (!location) {
     return markdown;
   }
@@ -155,8 +155,8 @@ export function prependChangeset(
   markdown: string,
   changeset: Changeset
 ): string {
-  // Try to locate the top-most header, no matter what is inside
-  const start = locateChangeset(markdown, '', () => true)?.start;
+  // Try to locate the top-most non-empty header, no matter what is inside
+  const start = locateChangeset(markdown, Boolean)?.start;
   let body;
   let newChangeset;
   if (start?.[3]) {
