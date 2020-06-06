@@ -37,10 +37,7 @@ export interface ChangesetLoc {
  * @param location The start & end location for the section
  * @returns The extracted changes
  */
-export function extractChangeset(
-  markdown: string,
-  location: ChangesetLoc
-): Changeset {
+function extractChangeset(markdown: string, location: ChangesetLoc): Changeset {
   const start = location.start.index + location.start[0].length;
   const end = location.end ? location.end.index : undefined;
   const body = markdown.substring(start, end).trim();
@@ -62,7 +59,7 @@ export function extractChangeset(
  *          and "end" has the match for the next header so the contents
  *          inbetween can be extracted
  */
-export function locateChangeset(
+function locateChangeset(
   markdown: string,
   predicate: (match: string) => boolean
 ): ChangesetLoc | undefined {
