@@ -1,7 +1,8 @@
 /* eslint-env jest */
 
 import {
-  findChangeset /*, removeChangeset, prependChangeset*/,
+  findChangeset,
+  removeChangeset /*, prependChangeset*/,
 } from '../changes';
 
 test.each([
@@ -71,4 +72,120 @@ test.each([
     older
     `;
   expect(findChangeset(markdown, version)).toEqual(null);
+});
+
+test.each([
+  [
+    'remove from the top',
+    '1.0.1',
+    `# Changelog
+    1.0.0
+    -------
+    this is a test
+
+    ## 0.9.1
+    slightly older
+
+    ## 0.9.0
+    older
+    `,
+  ],
+  [
+    'remove from the middle',
+    '0.9.1',
+    `# Changelog
+    ## 1.0.1
+    newer
+
+    1.0.0
+    -------
+    this is a test
+
+    ## 0.9.0
+    older
+    `,
+  ],
+  [
+    'remove from underlined',
+    '1.0.0',
+    `# Changelog
+    ## 1.0.1
+    newer
+
+    ## 0.9.1
+    slightly older
+
+    ## 0.9.0
+    older
+    `,
+  ],
+  [
+    'remove from the bottom',
+    '0.9.0',
+    `# Changelog
+    ## 1.0.1
+    newer
+
+    1.0.0
+    -------
+    this is a test
+
+    ## 0.9.1
+    slightly older
+
+`,
+  ],
+  [
+    'not remove missing',
+    'non-existent version',
+    `# Changelog
+    ## 1.0.1
+    newer
+
+    1.0.0
+    -------
+    this is a test
+
+    ## 0.9.1
+    slightly older
+
+    ## 0.9.0
+    older
+    `,
+  ],
+  [
+    'not remove empty',
+    '',
+    `# Changelog
+    ## 1.0.1
+    newer
+
+    1.0.0
+    -------
+    this is a test
+
+    ## 0.9.1
+    slightly older
+
+    ## 0.9.0
+    older
+    `,
+  ],
+])('remove changeset should %s', (_testName, header, expected) => {
+  const markdown = `# Changelog
+    ## 1.0.1
+    newer
+
+    1.0.0
+    -------
+    this is a test
+
+    ## 0.9.1
+    slightly older
+
+    ## 0.9.0
+    older
+    `;
+
+  expect(removeChangeset(markdown, header)).toEqual(expected);
 });

@@ -63,7 +63,7 @@ function locateChangeset(
   markdown: string,
   predicate: (match: string) => boolean
 ): ChangesetLoc | null {
-  const HEADER_REGEX = /^(?:( *)## *([^\n]+?) *#*|^([^\n]+)\n *(?:-){2,}) *(?:\n+|$)/gm;
+  const HEADER_REGEX = /^( *)(?:## *([^\n]+?) *#*|([^\n]+)\n *(?:-){2,}) *(?:\n+|$)/gm;
 
   for (
     let match = HEADER_REGEX.exec(markdown);
@@ -154,17 +154,14 @@ export function prependChangeset(
 ): string {
   // Try to locate the top-most non-empty header, no matter what is inside
   const start = locateChangeset(markdown, Boolean)?.start;
-  let body;
+  const padding = start?.[1]?.length || 0;
+  const padStr = new Array(padding + 1).join(' ');
+  const body = changeset.body || `${padStr}${DEFAULT_CHANGESET_BODY}`;
   let newChangeset;
   if (start?.[3]) {
-    body = changeset.body || DEFAULT_CHANGESET_BODY;
     const underline = new Array(changeset.name.length + 1).join('-');
     newChangeset = `${changeset.name}\n${underline}\n\n${body}\n\n`;
   } else {
-    const padding = start?.[1]?.length || 0;
-    const padStr = new Array(padding + 1).join(' ');
-
-    body = changeset.body || `${padStr}${DEFAULT_CHANGESET_BODY}`;
     newChangeset = `${padStr}## ${changeset.name}\n\n${body}\n\n`;
   }
   const startIdx = start?.index ?? markdown.length;
