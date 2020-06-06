@@ -2,73 +2,78 @@
 
 import { findChangeset, removeChangeset, prependChangeset } from '../changes';
 
-test.each([
-  [
-    'regular',
-    (name: string, body: string) => `# Changelog\n## ${name}\n${body}\n`,
-  ],
-  [
-    'ignore date in parentheses',
-    (name: string, body: string) => `# Changelog
+describe('findChangeset', () => {
+  const sampleChangeset = {
+    body: 'this is a test',
+    name: 'Version 1.0.0',
+  };
+
+  test.each([
+    [
+      'regular',
+      `# Changelog\n## ${sampleChangeset.name}\n${sampleChangeset.body}\n`,
+    ],
+    [
+      'ignore date in parentheses',
+      `# Changelog
     ## 1.0.1
     newer
 
-    ## ${name} (2019-02-02)
-    ${body}
+    ## ${sampleChangeset.name} (2019-02-02)
+    ${sampleChangeset.body}
 
     ## 0.9.0
     older
     `,
-  ],
-  [
-    'extracts a change between headings',
-    (name: string, body: string) => `# Changelog
+    ],
+    [
+      'extracts a change between headings',
+      `# Changelog
     ## 1.0.1
     newer
 
-    ## ${name}
-    ${body}
+    ## ${sampleChangeset.name}
+    ${sampleChangeset.body}
 
     ## 0.9.0
     older
     `,
-  ],
-  [
-    'extracts changes from underlined headings',
-    (name: string, body: string) => `Changelog\n====\n${name}\n----\n${body}\n`,
-  ],
-  [
-    'extracts changes from alternating headings',
-    (name: string, body: string) => `# Changelog
+    ],
+    [
+      'extracts changes from underlined headings',
+      `Changelog\n====\n${sampleChangeset.name}\n----\n${sampleChangeset.body}\n`,
+    ],
+    [
+      'extracts changes from alternating headings',
+      `# Changelog
     ## 1.0.1
     newer
 
-    ${name}
+    ${sampleChangeset.name}
     -------
-    ${body}
+    ${sampleChangeset.body}
 
     ## 0.9.0
     older
     `,
-  ],
-])('findChangeset should extract %s', (_testName, markdown) => {
-  const name = 'Version 1.0.0';
-  const body = 'this is a test';
-  expect(findChangeset(markdown(name, body), 'v1.0.0')).toEqual({ name, body });
-});
+    ],
+  ])('should extract %s', (_testName, markdown) => {
+    expect(findChangeset(markdown, 'v1.0.0')).toEqual(sampleChangeset);
+  });
 
-test.each([
-  ['changeset cannot be found', 'v1.0.0'],
-  ['invalid version', 'not a version'],
-])('findChangeset should return null on %s', (_testName, version) => {
-  const markdown = `# Changelog
+  test.each([
+    ['changeset cannot be found', 'v1.0.0'],
+    ['invalid version', 'not a version'],
+  ])('should return null on %s', (_testName, version) => {
+    const markdown = `# Changelog
     ## 1.0.1
     newer
 
     ## 0.9.0
     older
     `;
-  expect(findChangeset(markdown, version)).toEqual(null);
+    expect(findChangeset(markdown, version)).toEqual(null);
+  });
 });
 
 test.each([
