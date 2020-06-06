@@ -157,14 +157,15 @@ export function prependChangeset(
   const padding = start?.[1]?.length || 0;
   const padStr = new Array(padding + 1).join(' ');
   const body = changeset.body || `${padStr}${DEFAULT_CHANGESET_BODY}`;
-  let newChangeset;
+  let header;
   if (start?.[3]) {
     const underline = new Array(changeset.name.length + 1).join('-');
-    newChangeset = `${changeset.name}\n${underline}\n\n${body}\n\n`;
+    header = `${changeset.name}\n${underline}`;
   } else {
-    newChangeset = `${padStr}## ${changeset.name}\n\n${body}\n\n`;
+    header = `## ${changeset.name}`;
   }
+  const newSection = `${padStr}${header}\n\n${padStr}${body}\n\n`;
   const startIdx = start?.index ?? markdown.length;
 
-  return markdown.slice(0, startIdx) + newChangeset + markdown.slice(startIdx);
+  return markdown.slice(0, startIdx) + newSection + markdown.slice(startIdx);
 }

@@ -1,9 +1,6 @@
 /* eslint-env jest */
 
-import {
-  findChangeset,
-  removeChangeset /*, prependChangeset*/,
-} from '../changes';
+import { findChangeset, removeChangeset, prependChangeset } from '../changes';
 
 test.each([
   [
@@ -188,4 +185,49 @@ test.each([
     `;
 
   expect(removeChangeset(markdown, header)).toEqual(expected);
+});
+
+test.each([
+  [
+    'prepend to empty text',
+    '',
+    '## 2.0.0\n\nrewrote everything from scratch\n\n',
+  ],
+  [
+    'prepend without top-level header',
+    '## 1.0.0\n\nthis is a test\n',
+    '## 2.0.0\n\nrewrote everything from scratch\n\n## 1.0.0\n\nthis is a test\n',
+  ],
+  [
+    'prepend after top-level header (empty body)',
+    '# Changelog\n',
+    '# Changelog\n## 2.0.0\n\nrewrote everything from scratch\n\n',
+  ],
+  [
+    'prepend after top-level header',
+    '# Changelog\n\n## 1.0.0\n\nthis is a test\n',
+    '# Changelog\n\n## 2.0.0\n\nrewrote everything from scratch\n\n## 1.0.0\n\nthis is a test\n',
+  ],
+  [
+    'prepend with underlined when detected',
+    '# Changelog\n\n1.0.0\n-----\n\nthis is a test\n',
+    '# Changelog\n\n2.0.0\n-----\n\nrewrote everything from scratch\n\n1.0.0\n-----\n\nthis is a test\n',
+  ],
+  [
+    'prepend with consistent padding with the rest',
+    '# Changelog\n\n   ## 1.0.0\n\n   this is a test\n',
+    '# Changelog\n\n   ## 2.0.0\n\n   rewrote everything from scratch\n\n   ## 1.0.0\n\n   this is a test\n',
+  ],
+  [
+    'prepend with consistent padding with the rest (underlined)',
+    '# Changelog\n\n   1.0.0\n-----\n\n   this is a test\n',
+    '# Changelog\n\n   2.0.0\n-----\n\n   rewrote everything from scratch\n\n   1.0.0\n-----\n\n   this is a test\n',
+  ],
+])('prependChangeset should %s', (_testName, markdown, expected) => {
+  expect(
+    prependChangeset(markdown, {
+      body: 'rewrote everything from scratch',
+      name: '2.0.0',
+    })
+  ).toEqual(expected);
 });
