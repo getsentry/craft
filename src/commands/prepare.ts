@@ -429,11 +429,6 @@ async function prepareChangelog(
         changelogString = prependChangeset(changelogString, changeset);
       }
 
-      changelogString = prependChangeset(changelogString, {
-        body: '',
-        name: DEFAULT_UNRELEASED_TITLE,
-      });
-
       if (!isDryRun()) {
         await fsPromises.writeFile(relativePath, changelogString);
       } else {
