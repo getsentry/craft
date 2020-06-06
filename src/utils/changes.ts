@@ -62,7 +62,7 @@ function extractChangeset(markdown: string, location: ChangesetLoc): Changeset {
 function locateChangeset(
   markdown: string,
   predicate: (match: string) => boolean
-): ChangesetLoc | undefined {
+): ChangesetLoc | null {
   const HEADER_REGEX = /^(?:( *)## *([^\n]+?) *#*|^([^\n]+)\n *(?:-){2,}) *(?:\n+|$)/gm;
 
   for (
@@ -78,7 +78,7 @@ function locateChangeset(
       };
     }
   }
-  return undefined;
+  return null;
 }
 
 /**
@@ -100,10 +100,10 @@ export function findChangeset(
   markdown: string,
   tag: string,
   fallbackToUnreleased: boolean = false
-): Changeset | undefined {
+): Changeset | null {
   const version = getVersion(tag);
   if (version === null) {
-    return undefined;
+    return null;
   }
 
   let changesetLoc = locateChangeset(
@@ -117,7 +117,7 @@ export function findChangeset(
     );
   }
 
-  return changesetLoc ? extractChangeset(markdown, changesetLoc) : undefined;
+  return changesetLoc ? extractChangeset(markdown, changesetLoc) : null;
 }
 
 /**

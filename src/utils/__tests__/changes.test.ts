@@ -1,95 +1,74 @@
 /* eslint-env jest */
 
-import { findChangeset } from '../changes';
+import {
+  findChangeset /*, removeChangeset, prependChangeset*/,
+} from '../changes';
 
-test('extracts a single change', () => {
+test.each([
+  [
+    'regular',
+    (name: string, body: string) => `# Changelog\n## ${name}\n${body}\n`,
+  ],
+  [
+    'ignore date in parentheses',
+    (name: string, body: string) => `# Changelog
+    ## 1.0.1
+    newer
+
+    ## ${name} (2019-02-02)
+    ${body}
+
+    ## 0.9.0
+    older
+    `,
+  ],
+  [
+    'extracts a change between headings',
+    (name: string, body: string) => `# Changelog
+    ## 1.0.1
+    newer
+
+    ## ${name}
+    ${body}
+
+    ## 0.9.0
+    older
+    `,
+  ],
+  [
+    'extracts changes from underlined headings',
+    (name: string, body: string) => `Changelog\n====\n${name}\n----\n${body}\n`,
+  ],
+  [
+    'extracts changes from alternating headings',
+    (name: string, body: string) => `# Changelog
+    ## 1.0.1
+    newer
+
+    ${name}
+    -------
+    ${body}
+
+    ## 0.9.0
+    older
+    `,
+  ],
+])('findChangeset should extract %s', (_testName, markdown) => {
   const name = 'Version 1.0.0';
   const body = 'this is a test';
-  const markdown = `# Changelog\n## ${name}\n${body}\n`;
-  const changes = findChangeset(markdown, 'v1.0.0');
-  expect(changes).toEqual({ name, body });
+  expect(findChangeset(markdown(name, body), 'v1.0.0')).toEqual({ name, body });
 });
 
-test('ignore date in parentheses', () => {
-  const name = 'Version 1.0.0';
-  const body = 'this is a test';
-
+test.each([
+  ['changeset cannot be found', 'v1.0.0'],
+  ['invalid version', 'not a version'],
+])('findChangeset should return null on %s', (_testName, version) => {
   const markdown = `# Changelog
-  ## 1.0.1
-  newer
+    ## 1.0.1
+    newer
 
-  ## ${name} (2019-02-02)
-  ${body}
-
-  ## 0.9.0
-  older
-  `;
-
-  const changes = findChangeset(markdown, 'v1.0.0');
-  expect(changes).toEqual({ name, body });
-});
-
-test('extracts a change between headings', () => {
-  const name = 'Version 1.0.0';
-  const body = 'this is a test';
-
-  const markdown = `# Changelog
-  ## 1.0.1
-  newer
-
-  ## ${name}
-  ${body}
-
-  ## 0.9.0
-  older
-  `;
-
-  const changes = findChangeset(markdown, 'v1.0.0');
-  expect(changes).toEqual({ name, body });
-});
-
-test('extracts changes from underlined headings', () => {
-  const name = 'Version 1.0.0';
-  const body = 'this is a test';
-  const markdown = `Changelog\n====\n${name}\n----\n${body}\n`;
-  const changes = findChangeset(markdown, 'v1.0.0');
-  expect(changes).toEqual({ name, body });
-});
-
-test('extracts changes from alternating headings', () => {
-  const name = 'Version 1.0.0';
-  const body = 'this is a test';
-
-  const markdown = `# Changelog
-  ## 1.0.1
-  newer
-
-  ${name}
-  -------
-  ${body}
-
-  ## 0.9.0
-  older
-  `;
-
-  const changes = findChangeset(markdown, 'v1.0.0');
-  expect(changes).toEqual({ name, body });
-});
-
-test('returns undefined if the tag is no valid version', () => {
-  const changes = findChangeset('', 'not a version');
-  expect(changes).toBe(undefined);
-});
-
-test('returns undefined if no changeset is found', () => {
-  const markdown = `# Changelog
-  ## 1.0.1
-  newer
-
-  ## 0.9.0
-  older
-  `;
-
-  const changes = findChangeset(markdown, 'v1.0.0');
-  expect(changes).toBe(undefined);
+    ## 0.9.0
+    older
+    `;
+  expect(findChangeset(markdown, version)).toEqual(null);
 });
