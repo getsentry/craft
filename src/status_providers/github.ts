@@ -40,10 +40,12 @@ export class GithubStatusProvider extends BaseStatusProvider {
     }
 
     // There are two commit status flavours we have to consider:
-    // 1. Commit status API
-    const revisionStatus = await this.getCommitApiStatus(revision);
-    // 2. Check runs API
-    const revisionChecks = await this.getRevisionChecks(revision);
+    const [revisionStatus, revisionChecks] = await Promise.all([
+      // 1. Commit status API
+      this.getCommitApiStatus(revision),
+      // 2. Check runs API
+      this.getRevisionChecks(revision),
+    ]);
 
     if (contexts.length > 0) {
       for (const context of contexts) {
@@ -84,7 +86,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
           commitApiStatusResult = CommitStatus.SUCCESS;
         } else {
           logger.warn('No valid build contexts detected, did any checks run?');
-          return CommitStatus.FAILURE;
+          commitApiStatusResult = CommitStatus.NOT_FOUND;
         }
       } else {
         commitApiStatusResult = this.getResultFromCommitApiStatus(
