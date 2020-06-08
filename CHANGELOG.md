@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Watch this space...
+- feat(changelog): Add "auto" changeset policy
 
 ## 0.9.6
 

@@ -35,8 +35,8 @@ const projectConfigJsonSchema = {
       title: 'ChangelogPolicy',
       description: 'Different policies for changelog management',
       type: 'string',
-      enum: ['simple', 'none'],
-      tsEnumNames: ['Simple', 'None'],
+      enum: ['auto', 'simple', 'none'],
+      tsEnumNames: ['Auto', 'Simple', 'None'],
     },
     minVersion: {
       type: 'string',
