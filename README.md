@@ -259,9 +259,18 @@ releaseBranchPrefix: publish
 ### Changelog Policies
 
 `craft` can help you to maintain change logs for your projects. At the moment,
-`craft` supports only one approach (`"simple"`) to changelog management.
-In this mode, `craft prepare` will remind you to add a changelog entry to the
+`craft` supports two approaches: `simple`, and `auto` to changelog management.
+
+In `simple` mode, `craft prepare` will remind you to add a changelog entry to the
 changelog file (`CHANGELOG.md` by default).
+
+In `auto` mode, `craft prepare` will use the following logic:
+
+1. If there's already an entry for the given version, use that
+2. Else if there is an entry named `Unreleased`, rename that to the given
+   version
+3. Else, create a new section for the version and populate it with a default
+   text: ` - No documented changes for this release.`
 
 **Configuration**
 
@@ -270,7 +279,7 @@ changelog file (`CHANGELOG.md` by default).
 | `changelog`       | **optional**. Path to the changelog file. Defaults to `CHANGELOG.md`              |
 | `changelogPolicy` | **optional**. Changelog management mode (`simple` or `none`). Defaults to `none`. |
 
-**Example:**
+**Example (`simple`):**
 
 ```yaml
 changelog: CHANGES
@@ -281,6 +290,25 @@ changelogPolicy: simple
 
 ```text
 ## 1.3.5
+
+* Removed something
+
+## 1.3.4
+
+* Added something
+```
+
+**Example (`auto`):**
+
+```yaml
+changelog: CHANGES
+changelogPolicy: auto
+```
+
+**Changelog with staged changes example:**
+
+```text
+## Unreleased
 
 * Removed something
 
