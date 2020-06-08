@@ -20,14 +20,17 @@ export function formatTable(options: any, values: any[]): string {
  */
 
 // tslint:disable:object-literal-sort-keys
-export const LOG_LEVELS: { [key: string]: number } = {
-  ERROR: 0,
-  WARN: 1,
-  INFO: 2,
-  SUCCESS: 3,
-  DEBUG: 4,
-  TRACE: 4,
-};
+/**
+ * The available log levels
+ */
+export enum LOG_LEVEL {
+  ERROR = 0,
+  WARN = 1,
+  INFO = 2,
+  SUCCESS = 3,
+  DEBUG = 4,
+  TRACE = 4,
+}
 
 /** Log entry as passed to consola reporters */
 interface LogEntry {
@@ -56,15 +59,25 @@ class SentryBreadcrumbReporter {
 /**
  * Read logging level from the environment
  */
-function getLogLevel(): number {
-  const logLevelName = process.env.CRAFT_LOG_LEVEL || '';
-  const logLevelNumber = LOG_LEVELS[logLevelName.toUpperCase()];
-  return logLevelNumber || consola.level;
+function getLogLevel(): LOG_LEVEL {
+  const logLevelName = (process.env.CRAFT_LOG_LEVEL || '').toUpperCase();
+  return LOG_LEVEL[logLevelName as keyof typeof LOG_LEVEL] || consola.level;
 }
-
-consola.level = getLogLevel();
-consola.reporters.push(new SentryBreadcrumbReporter());
 
 // tslint:disable-next-line: variable-name
 export type Logger = typeof consola;
+
+/**
+ * Initialize and return the logger
+ * @param [logLevel] The desired loggin level
+ */
+export function init(logLevel?: keyof typeof LOG_LEVEL): Logger {
+  consola.level =
+    logLevel !== undefined && logLevel in LOG_LEVEL
+      ? LOG_LEVEL[logLevel]
+      : getLogLevel();
+  consola.reporters.push(new SentryBreadcrumbReporter());
+  return consola;
+}
+
 export { consola as logger };
