@@ -15,7 +15,6 @@ import { formatTable, logger } from '../logger';
 import { GithubGlobalConfig } from '../schemas/project_config';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
-import { checkEnvForPrerequisite } from '../utils/env';
 import { coerceType, handleGlobalError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
@@ -389,13 +388,6 @@ async function handleReleaseBranch(
 export async function publishMain(argv: PublishOptions): Promise<any> {
   logger.debug('Argv:', JSON.stringify(argv));
   checkMinimalConfigVersion();
-  // TODO (kmclb): pull the names of the necessary env vars out of config once
-  // there are more options than just Zeus
-  checkEnvForPrerequisite({ name: 'ZEUS_API_TOKEN', legacyName: 'ZEUS_TOKEN' });
-  // We currently need ZEUS_TOKEN set for zeus-sdk to work properly
-  if (!process.env.ZEUS_TOKEN) {
-    process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
-  }
 
   // Get publishing configuration
   const config = getConfiguration() || {};
