@@ -21,9 +21,6 @@ export function formatTable(options: any, values: any[]): string {
 
 // tslint:disable:object-literal-sort-keys
 // tslint:disable: completed-docs
-/**
- * The available log levels
- */
 export enum LOG_LEVEL {
   ERROR = 0,
   WARN = 1,
