@@ -67,7 +67,7 @@ function getLogLevelFromEnv(): LOG_LEVEL {
 }
 
 /**
- * Set log level to the given name
+ * Set log level to the given level
  * @param logLevel desired log level
  */
 export function setLogLevel(logLevel: LOG_LEVEL): void {
