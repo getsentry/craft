@@ -69,9 +69,6 @@ async function prepareOutputDirectory(
  * Body of 'artifacts download' command
  */
 async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
-  // FIXME move elsewhere
-  process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
-
   if (!argv.all && argv.names.length === 0) {
     throw new ConfigurationError('No names to download, exiting.');
   }

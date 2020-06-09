@@ -1,5 +1,7 @@
 import { Artifact, Status } from '@zeus-ci/sdk';
 
+jest.mock('../../utils/env');
+
 import { ZeusStore } from '../zeus';
 
 // TODO (kmclb) move these tests over to the artifact provider test folder

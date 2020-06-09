@@ -13,9 +13,6 @@ export const description = 'List artifacts';
  * Body of 'artifacts list' command
  */
 async function handlerMain(argv: ArtifactsOptions): Promise<any> {
-  // FIXME move elsewhere
-  process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
-
   const revision = argv.rev;
 
   const artifactProvider = getArtifactProviderFromConfig();

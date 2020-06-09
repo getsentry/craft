@@ -10,6 +10,7 @@ import {
   RemoteArtifact,
   ArtifactProviderConfig,
 } from '../artifact_providers/base';
+import { checkEnvForPrerequisite } from '../utils/env';
 import { logger as loggerRaw } from '../logger';
 
 const logger = loggerRaw.withScope(`[zeus api]`);
@@ -28,6 +29,14 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
 
   public constructor(config: ArtifactProviderConfig) {
     super(config);
+    checkEnvForPrerequisite({
+      legacyName: 'ZEUS_TOKEN',
+      name: 'ZEUS_API_TOKEN',
+    });
+    // We currently need ZEUS_TOKEN set for zeus-sdk to work properly
+    if (!process.env.ZEUS_TOKEN) {
+      process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
+    }
     this.client = new ZeusClient({
       defaultDirectory: config.downloadDirectory,
       logger,
