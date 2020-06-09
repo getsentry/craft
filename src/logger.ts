@@ -74,13 +74,20 @@ export function setLogLevel(logLevel: LOG_LEVEL): void {
   consola.level = logLevel;
 }
 
+let initialized = false;
+
 /**
  * Initialize and return the logger
  * @param [logLevel] The desired logging level
  */
 export function init(logLevel?: LOG_LEVEL): Logger {
+  if (initialized) {
+    consola.warn('Logger already initialized, ignoring duplicate init.');
+  }
+
   setLogLevel(logLevel !== undefined ? logLevel : getLogLevelFromEnv());
   consola.reporters.push(new SentryBreadcrumbReporter());
+  initialized = true;
   return consola;
 }
 
