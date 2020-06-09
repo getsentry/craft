@@ -11,7 +11,11 @@ import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { forEachChained } from '../utils/async';
 import { ConfigurationError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
-import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
+import {
+  checkExecutableIsPresent,
+  sleepAsync,
+  spawnProcess,
+} from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 
@@ -30,6 +34,9 @@ const CARGO_BIN = process.env.CARGO_BIN || DEFAULT_CARGO_BIN;
  * been updated.
  */
 const VERSION_ERROR = 'failed to select a version for the requirement';
+
+/** Delay to wait between publish retries in milliseconds. */
+const RETRY_DELAY_MS = 1000;
 
 /** Options for "crates" target */
 export interface CratesTargetOptions extends TargetConfig {
@@ -215,18 +222,15 @@ export class CratesTarget extends BaseTarget {
     };
 
     logger.info(`Publishing ${crate.name}`);
-    for (let i = 0; i <= 1; i++) {
-      try {
-        return await spawnProcess(CARGO_BIN, args, { env });
-      } catch (e) {
-        if (i === 0 && e.message.includes(VERSION_ERROR)) {
-          logger.warn(
-            `Potential stale cache detected while publishing ${crate.name}, trying again...`
-          );
-          continue;
-        } else {
-          throw e;
-        }
+    try {
+      return await spawnProcess(CARGO_BIN, args, { env });
+    } catch (e) {
+      if (e.message.includes(VERSION_ERROR)) {
+        logger.warn(`Potential stale cache detected, trying again...`);
+        await sleepAsync(RETRY_DELAY_MS);
+        return spawnProcess(CARGO_BIN, args, { env });
+      } else {
+        throw e;
       }
     }
   }
