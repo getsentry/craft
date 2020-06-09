@@ -2,7 +2,7 @@
 import * as once from 'once';
 import * as yargs from 'yargs';
 
-import { logger } from './logger';
+import { logger, init as initLogger } from './logger';
 import { readEnvironmentConfig } from './utils/env';
 import { isDryRun } from './utils/helpers';
 import { hasNoInput, setNoInput } from './utils/noInput';
@@ -61,6 +61,8 @@ function main(): void {
   printVersion();
 
   readEnvironmentConfig();
+
+  initLogger();
 
   initSentrySdk();
 
