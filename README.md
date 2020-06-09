@@ -781,7 +781,7 @@ targets:
 Pulls an existing source image tagged with the revision SHA, and then pushed it
 to a new target tagged with the released version. No release
 assets are required for this target except for the source image at the provided
-source image location so it would be a good idea to add a status chcek that
+source image location so it would be a good idea to add a status check that
 ensures the source image exists, otherwise `craft publish` will fail at the
 `docker pull` step, causing an interrupted publish. This is an issue for other,
 non-idempotent targets, not for the Docker target.
@@ -794,7 +794,7 @@ non-idempotent targets, not for the Docker target.
 | ----------------------- | ----------------------------------------- |
 | `DOCKER_USERNAME`       | The username for the Docker registry      |
 | `DOCKER_PASSWORD`       | The password for the Docker registry      |
-| `DOCKER_BIN`            | **optional**. Path to `pod` executable.   |
+| `DOCKER_BIN`            | **optional**. Path to `docker` executable.   |
 
 **Configuration**
 
@@ -807,7 +807,7 @@ non-idempotent targets, not for the Docker target.
 
 ```yaml
 targets:
-  - name: cocoapods
+  - name: docker
     source: us.gcr.io/sentryio/craft
     target: getsentry/craft
 # Optional but strongly recommended
