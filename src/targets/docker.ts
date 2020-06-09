@@ -111,10 +111,10 @@ export class DockerTarget extends BaseTarget {
    * @param version The new version
    * @param revision The SHA revision of the new version
    */
-  public async publish(_version: string, revision: string): Promise<any> {
+  public async publish(version: string, revision: string): Promise<any> {
     await this.login();
     await this.pull(revision);
-    await this.push(revision, _version);
+    await this.push(revision, version);
 
     logger.info('Docker release complete');
   }
