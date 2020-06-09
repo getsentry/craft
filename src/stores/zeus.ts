@@ -8,6 +8,7 @@ import {
 } from '@zeus-ci/sdk';
 import * as _ from 'lodash';
 
+import { checkEnvForPrerequisite } from '../utils/env';
 import {
   calculateChecksum,
   HashAlgorithm,
@@ -64,6 +65,14 @@ export class ZeusStore {
     repoName: string,
     downloadDirectory?: string
   ) {
+    checkEnvForPrerequisite({
+      legacyName: 'ZEUS_TOKEN',
+      name: 'ZEUS_API_TOKEN',
+    });
+    // We currently need ZEUS_TOKEN set for zeus-sdk to work properly
+    if (!process.env.ZEUS_TOKEN) {
+      process.env.ZEUS_TOKEN = process.env.ZEUS_API_TOKEN;
+    }
     this.client = new ZeusClient({
       defaultDirectory: downloadDirectory,
       logger,
