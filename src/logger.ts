@@ -42,6 +42,9 @@ interface LogEntry {
   additional: string;
 }
 
+// tslint:disable-next-line: variable-name
+export type Logger = typeof consola;
+
 /** Reporter that sends logs to Sentry */
 class SentryBreadcrumbReporter {
   /** Hook point for handling log entries */
@@ -54,28 +57,50 @@ class SentryBreadcrumbReporter {
   }
 }
 
+function getLogLevelFromName(logLevel: keyof typeof LOG_LEVEL): LOG_LEVEL {
+  if (logLevel in LOG_LEVEL) {
+    return LOG_LEVEL[logLevel];
+  } else {
+    throw new Error(`Invalid log level: ${logLevel}`);
+  }
+}
+
 /**
  * Read logging level from the environment
  */
-function getLogLevel(): LOG_LEVEL {
+function getLogLevelFromEnv(): LOG_LEVEL {
   const logLevelName = (process.env.CRAFT_LOG_LEVEL || '').toUpperCase();
-  return LOG_LEVEL[logLevelName as keyof typeof LOG_LEVEL] || consola.level;
+  let logLevel;
+  try {
+    logLevel = getLogLevelFromName(logLevelName as keyof typeof LOG_LEVEL);
+  } catch (err) {
+    logLevel = consola.level;
+  }
+  return logLevel;
 }
 
-// tslint:disable-next-line: variable-name
-export type Logger = typeof consola;
+/**
+ * Set log level to the given name
+ * @param logLevel desired log level
+ */
+export function setLogLevel(logLevel: LOG_LEVEL): void {
+  consola.level = logLevel;
+}
 
 /**
  * Initialize and return the logger
  * @param [logLevel] The desired logging level
  */
 export function init(logLevel?: keyof typeof LOG_LEVEL): Logger {
-  consola.level =
-    logLevel !== undefined && logLevel in LOG_LEVEL
-      ? LOG_LEVEL[logLevel]
-      : getLogLevel();
+  setLogLevel(
+    logLevel !== undefined
+      ? getLogLevelFromName(logLevel)
+      : getLogLevelFromEnv()
+  );
   consola.reporters.push(new SentryBreadcrumbReporter());
   return consola;
 }
+
+setLogLevel(getLogLevelFromEnv());
 
 export { consola as logger };
