@@ -57,26 +57,13 @@ class SentryBreadcrumbReporter {
   }
 }
 
-function getLogLevelFromName(logLevel: keyof typeof LOG_LEVEL): LOG_LEVEL {
-  if (logLevel in LOG_LEVEL) {
-    return LOG_LEVEL[logLevel];
-  } else {
-    throw new Error(`Invalid log level: ${logLevel}`);
-  }
-}
-
 /**
- * Read logging level from the environment
+ * Read logging level from the environment and return the appropriate enum value
  */
 function getLogLevelFromEnv(): LOG_LEVEL {
   const logLevelName = (process.env.CRAFT_LOG_LEVEL || '').toUpperCase();
-  let logLevel;
-  try {
-    logLevel = getLogLevelFromName(logLevelName as keyof typeof LOG_LEVEL);
-  } catch (err) {
-    logLevel = consola.level;
-  }
-  return logLevel;
+  const logLevelNumber = LOG_LEVEL[logLevelName as keyof typeof LOG_LEVEL];
+  return logLevelNumber ?? consola.level;
 }
 
 /**
@@ -91,12 +78,8 @@ export function setLogLevel(logLevel: LOG_LEVEL): void {
  * Initialize and return the logger
  * @param [logLevel] The desired logging level
  */
-export function init(logLevel?: keyof typeof LOG_LEVEL): Logger {
-  setLogLevel(
-    logLevel !== undefined
-      ? getLogLevelFromName(logLevel)
-      : getLogLevelFromEnv()
-  );
+export function init(logLevel?: LOG_LEVEL): Logger {
+  setLogLevel(logLevel !== undefined ? logLevel : getLogLevelFromEnv());
   consola.reporters.push(new SentryBreadcrumbReporter());
   return consola;
 }
