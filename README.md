@@ -776,6 +776,39 @@ targets:
     specPath: MyProject.podspec
 ```
 
+### Docker (`docker`)
+
+Pulls an existing source image tagged with the revision SHA, and then pushed it
+to a new target tagged with the released version. No release
+assets are required for this target except for the source image at the provided
+source image location.
+
+**Environment**
+
+`docker` executable (or something equivalent) must be installed on the system.
+
+| Name                    | Description                               |
+| ----------------------- | ----------------------------------------- |
+| `DOCKER_USERNAME`       | The username for the Docker registry      |
+| `DOCKER_PASSWORD`       | The password for the Docker registry      |
+| `DOCKER_BIN`            | **optional**. Path to `pod` executable.   |
+
+**Configuration**
+
+| Option     | Description                                  |
+| ---------- | -------------------------------------------- |
+| `source`   | Path to the source Docker image to be pulled |
+| `target`   | Path to the target Docker image to be pushed |
+
+**Example**
+
+```yaml
+targets:
+  - name: cocoapods
+    source: us.gcr.io/sentryio/craft
+    target: getsentry/craft
+```
+
 ## Integrating Your Project with `craft`
 
 Here is how you can integrate your GitHub project with `craft`:
