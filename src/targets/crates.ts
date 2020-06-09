@@ -24,6 +24,13 @@ const DEFAULT_CARGO_BIN = 'cargo';
  */
 const CARGO_BIN = process.env.CARGO_BIN || DEFAULT_CARGO_BIN;
 
+/**
+ * A message fragment emitted by cargo when publishing fails due to a missing
+ * dependency. This sometimes indicates a false positive if the cache has not
+ * been updated.
+ */
+const VERSION_ERROR = 'failed to select a version for the requirement';
+
 /** Options for "crates" target */
 export interface CratesTargetOptions extends TargetConfig {
   /** Crates API token */
@@ -202,9 +209,23 @@ export class CratesTarget extends BaseTarget {
       '--manifest-path',
       crate.manifest_path,
     ];
-    return spawnProcess(CARGO_BIN, args, {
-      env: { ...process.env, CARGO_REGISTRY_TOKEN: this.cratesConfig.apiToken },
-    });
+    const env = {
+      ...process.env,
+      CARGO_REGISTRY_TOKEN: this.cratesConfig.apiToken,
+    };
+
+    for (let i = 0; i <= 1; i++) {
+      try {
+        return await spawnProcess(CARGO_BIN, args, { env });
+      } catch (e) {
+        if (i == 0 && e.message.includes(VERSION_ERROR)) {
+          logger.debug('Potential stale cache detected, trying again...');
+          continue;
+        } else {
+          throw e;
+        }
+      }
+    }
   }
 
   /**
