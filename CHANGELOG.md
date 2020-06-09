@@ -5,6 +5,8 @@
 - feat(changelog): Add "auto" changeset policy (#93)
 - fix(github): Ignore pending response from legacy commit check API (#94)
 - fix(zeus): Don't force ZEUS_API_TOKEN when Zeus is not used (#97)
+- feat(target): Add "docker" target (#95)
+- fix(logger): Logger should respect log level from env file (#96)
 
 ## 0.9.6
 
