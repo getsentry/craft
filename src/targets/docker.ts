@@ -18,7 +18,7 @@ const DOCKER_BIN = process.env.DOCKER_BIN || DEFAULT_DOCKER_BIN;
 export interface DockerTargetOptions extends TargetConfig {
   username: string;
   password: string;
-  /** Source image path, like `us.gcr.io/sentryio/carft` */
+  /** Source image path, like `us.gcr.io/sentryio/craft` */
   source: string;
   /** Target image path, like `getsentry/craft` */
   target: string;
