@@ -67,7 +67,7 @@ export type Logger = typeof consola;
 
 /**
  * Initialize and return the logger
- * @param [logLevel] The desired loggin level
+ * @param [logLevel] The desired logging level
  */
 export function init(logLevel?: keyof typeof LOG_LEVEL): Logger {
   consola.level =
