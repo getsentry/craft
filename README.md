@@ -781,7 +781,10 @@ targets:
 Pulls an existing source image tagged with the revision SHA, and then pushed it
 to a new target tagged with the released version. No release
 assets are required for this target except for the source image at the provided
-source image location.
+source image location so it would be a good idea to add a status chcek that
+ensures the source image exists, otherwise `craft publish` will fail at the
+`docker pull` step, causing an interrupted publish. This is an issue for other,
+non-idempotent targets, not for the Docker target.
 
 **Environment**
 
@@ -807,6 +810,12 @@ targets:
   - name: cocoapods
     source: us.gcr.io/sentryio/craft
     target: getsentry/craft
+# Optional but strongly recommended
+statusProvider:
+  name: github
+  config:
+    contexts:
+      - Travis CI - Branch # or whatever builds and pushes your source image
 ```
 
 ## Integrating Your Project with `craft`
