@@ -218,7 +218,7 @@ export class CratesTarget extends BaseTarget {
       try {
         return await spawnProcess(CARGO_BIN, args, { env });
       } catch (e) {
-        if (i == 0 && e.message.includes(VERSION_ERROR)) {
+        if (i === 0 && e.message.includes(VERSION_ERROR)) {
           logger.debug('Potential stale cache detected, trying again...');
           continue;
         } else {
