@@ -189,9 +189,9 @@ export class CratesTarget extends BaseTarget {
 
     const crates = this.getPublishOrder(unorderedCrates);
     logger.debug(
-      `Publishing packages in the following order: [${crates
+      `Publishing packages in the following order: ${crates
         .map(c => c.name)
-        .toString()}]`
+        .join(', ')}`
     );
     return forEachChained(crates, async crate => this.publishPackage(crate));
   }
@@ -214,12 +214,15 @@ export class CratesTarget extends BaseTarget {
       CARGO_REGISTRY_TOKEN: this.cratesConfig.apiToken,
     };
 
+    logger.info(`Publishing ${crate.name}`);
     for (let i = 0; i <= 1; i++) {
       try {
         return await spawnProcess(CARGO_BIN, args, { env });
       } catch (e) {
         if (i === 0 && e.message.includes(VERSION_ERROR)) {
-          logger.debug('Potential stale cache detected, trying again...');
+          logger.warn(
+            `Potential stale cache detected while publishing ${crate.name}, trying again...`
+          );
           continue;
         } else {
           throw e;
