@@ -35,8 +35,14 @@ const CARGO_BIN = process.env.CARGO_BIN || DEFAULT_CARGO_BIN;
  */
 const VERSION_ERROR = 'failed to select a version for the requirement';
 
-/** Delay to wait between publish retries in milliseconds. */
-const RETRY_DELAY_MS = 1000;
+/**
+ * Maximum number of attempts including the initial one when publishing fails
+ * due to a stale cache. After this number of retries, publishing fails.
+ */
+const MAX_ATTEMPTS = 4;
+
+/** Delay to wait between publish retries in seconds. */
+const RETRY_DELAY_SECS = 3;
 
 /** Options for "crates" target */
 export interface CratesTargetOptions extends TargetConfig {
@@ -222,15 +228,18 @@ export class CratesTarget extends BaseTarget {
     };
 
     logger.info(`Publishing ${crate.name}`);
-    try {
-      return await spawnProcess(CARGO_BIN, args, { env });
-    } catch (e) {
-      if (e.message.includes(VERSION_ERROR)) {
-        logger.warn(`Potential stale cache detected, trying again...`);
-        await sleepAsync(RETRY_DELAY_MS);
-        return spawnProcess(CARGO_BIN, args, { env });
-      } else {
-        throw e;
+    for (let i = 0; i <= MAX_ATTEMPTS; i++) {
+      try {
+        return await spawnProcess(CARGO_BIN, args, { env });
+      } catch (e) {
+        if (i < MAX_ATTEMPTS && e.message.includes(VERSION_ERROR)) {
+          logger.warn(
+            `Potential stale cache detected, trying again in ${RETRY_DELAY_SECS}s...`
+          );
+          await sleepAsync(RETRY_DELAY_SECS * 1000);
+        } else {
+          throw e;
+        }
       }
     }
   }
