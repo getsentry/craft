@@ -1,6 +1,6 @@
 FROM node:12-buster as builder
 
-WORKDIR /workspace
+WORKDIR /app
 COPY package.json yarn.lock ./
 RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
   && yarn install --frozen-lockfile --quiet \
@@ -36,13 +36,12 @@ RUN apt-get -qq update \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /workspace
-COPY --from=builder /workspace/package.json /workspace/yarn.lock /craft/
+WORKDIR /craft
+COPY --from=builder /app/package.json /app/yarn.lock ./
 RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
-  && cd /craft \
   && yarn install --frozen-lockfile --production --quiet \
   && rm -r "$YARN_CACHE_FOLDER"
 
-COPY --from=builder /workspace/dist /craft/dist/
+COPY --from=builder /app/dist /craft/dist/
 
 ENTRYPOINT ["node", "/craft/dist"]
