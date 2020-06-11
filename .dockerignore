@@ -1,4 +1,12 @@
-Dockerfile
-dist/
-node_modules/
-coverage/
+# Ignore everything
+*
+
+!/LICENSE
+!/README.md
+!/package.json
+!/yarn.lock
+!/tsconfig.build.json
+!/tsconfig.json
+!/.npmignore
+!/src
+!/scripts
