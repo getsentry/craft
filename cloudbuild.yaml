@@ -10,7 +10,7 @@ steps:
 - name: 'us.gcr.io/$PROJECT_ID/craft:$COMMIT_SHA'
   args:
   - '--help'
-  timeout: 1s
+  timeout: 60s
 - name: 'gcr.io/cloud-builders/docker'
   secretEnv: ['DOCKER_PASSWORD']
   entrypoint: 'bash'
