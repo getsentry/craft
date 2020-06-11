@@ -29,7 +29,7 @@ steps:
     docker push getsentry/craft:$COMMIT_SHA
     docker tag us.gcr.io/$PROJECT_ID/craft:$COMMIT_SHA getsentry/craft:latest
     docker push getsentry/craft:latest
-timeout: 120s
+timeout: 540s
 secrets:
 - kmsKeyName: projects/sentryio/locations/global/keyRings/service-credentials/cryptoKeys/cloudbuild
   secretEnv:
