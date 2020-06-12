@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.0
 
 - feat(changelog): Add "auto" changeset policy (#93)
 - fix(github): Ignore pending response from legacy commit check API (#94)
