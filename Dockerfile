@@ -36,9 +36,9 @@ RUN apt-get -qq update \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /craft
-COPY --from=builder /app/package.json /app/yarn.lock ./
+COPY --from=builder /app/package.json /app/yarn.lock /craft/
 RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
+  && cd /craft \
   && yarn install --frozen-lockfile --production --quiet \
   && rm -r "$YARN_CACHE_FOLDER"
 
