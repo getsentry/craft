@@ -43,5 +43,7 @@ RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
   && rm -r "$YARN_CACHE_FOLDER"
 
 COPY --from=builder /app/dist /craft/dist/
+RUN chmod +x /craft/dist/index.js \
+  && ln -s /craft/dist/index.js /usr/local/bin/craft
 
-ENTRYPOINT ["node", "/craft/dist"]
+ENTRYPOINT ["craft"]

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- build(docker): Add a `craft` binary into the Docker image (#100)
+
 ## 0.10.0
 
 - feat(changelog): Add "auto" changeset policy (#93)
