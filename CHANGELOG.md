@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- docs: Fix `changelogPolicy` enum (#102)
+
 ## 0.10.0
 
 - feat(changelog): Add "auto" changeset policy (#93)

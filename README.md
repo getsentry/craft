@@ -277,7 +277,7 @@ In `auto` mode, `craft prepare` will use the following logic:
 | Option            | Description                                                                       |
 | ----------------- | --------------------------------------------------------------------------------- |
 | `changelog`       | **optional**. Path to the changelog file. Defaults to `CHANGELOG.md`              |
-| `changelogPolicy` | **optional**. Changelog management mode (`simple` or `none`). Defaults to `none`. |
+| `changelogPolicy` | **optional**. Changelog management mode (`none`, `simple`, or `auto`). Defaults to `none`. |
 
 **Example (`simple`):**
 
