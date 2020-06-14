@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- build(docker): Add a `craft` binary into the Docker image (#100)
+- build(docker): Add a `craft` binary into the Docker image (#101)
 
 ## 0.10.0
 
