@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- docs: Fix `artifactProvider` example (#99)
+- docs: Fix `artifactProvider` example (#100)
 
 ## 0.10.0
 
