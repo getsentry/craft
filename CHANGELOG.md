@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- docs: Fix `artifactProvider` example (#100)
+- docs: Fix `changelogPolicy` enum (#102)
 - build(docker): Add a `craft` binary into the Docker image (#101)
+- docs: Fix `artifactProvider` example (#100)
 
 ## 0.10.0
 
