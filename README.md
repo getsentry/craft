@@ -384,7 +384,7 @@ project, you can set it to `none`.
 **Example:**
 
 ```yaml
-statusProvider:
+artifactProvider:
   name: none
 ```
 
