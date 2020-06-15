@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- build(docker): Upgrade cargo to a recent version (#104)
 - feat(gha): Add GitHub Action for Craft (#103)
 - docs: Fix `changelogPolicy` enum (#102)
 - build(docker): Add a `craft` binary into the Docker image (#101)
