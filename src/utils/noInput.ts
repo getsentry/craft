@@ -33,7 +33,7 @@ export function setNoInput(val: boolean): void {
  * a true-ish value.
  */
 export function resetNoInput(): void {
-  const envVal = process.env.CRAFT_NO_INPUT || '';
+  const envVal = process.env.CRAFT_NO_INPUT || process.env.CI || '';
   noInput =
     envVal === '0' || envVal.toLowerCase() === 'false' ? false : !!envVal;
 }

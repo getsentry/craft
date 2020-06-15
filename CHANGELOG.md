@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- build(ci): Have better defaults for CI environments (#109)
 - build(docker): Upgrade cargo to a recent version (#104)
 - feat(gha): Add GitHub Action for Craft (#103)
 - docs: Fix `changelogPolicy` enum (#102)
