@@ -13,6 +13,8 @@ FROM node:12-buster
 
 ENV DEBIAN_FRONTEND=noninteractive \
   DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+  CARGO_HOME=/root/.cargo \
+  RUSTUP_HOME=/root/.rustup \
   PATH=${PATH}:/root/.cargo/bin
 
 RUN apt-get -qq update \
