@@ -14,64 +14,18 @@ inputs:
   keep_branch:
     description: 'Do not remove release branch after merging it'
     required: false
-  dry_run:
-    description: 'Whether to not perform any mutations or not'
-    required: false
-  log_level:
-    description: 'Accepted values are: debug, success (default), info, warn, error'
-    required: false
-  sentry_dsn:
-    description: 'Errors you encounter while using Craft can be sent to Sentry. Set your Sentry project DSN here to track them.'
-    required: false
-  remote:
-    description: 'When interacting with remote GitHub repositories, craft uses the "origin" remote by default. If you have a different setup, set this input accordingly.'
-    required: false
   github_api_token:
     description: 'API token for accessing github'
     required: true
     default: ${{ github.token }}
-  zeus_api_token:
-    description: 'You can generate your personal Zeus token here: zeus.ci/settings/token'
-    required: false
-  nuget_api_token:
-    description: 'NuGet personal API token (nuget.org/account/apikeys)'
-    required: false
-  crates_io_token:
-    description: 'The access token to the crates.io account'
-    required: false
-  gcs_target_creds:
-    description: 'Google Cloud credentials full service account file contents, as a JSON string'
-    required: false
-  twine_username:
-    description: 'Username for PyPI with access rights for the package'
-    required: false
-  twine_password:
-    description: 'Password for the PyPI user'
-    required: false
-  docker_username:
-    description: 'Your Docker Hub username for the Docker target'
-    required: false
-  docker_password:
-    description: 'Your Docker Hub password for the Docker target'
-    required: false
 runs:
   using: 'docker'
   image: 'docker://getsentry/craft'
   env:
-    DRY_RUN: ${{ inputs.dry_run }}
-    CRAFT_LOG_LEVEL: ${{ inputs.log_level }}
-    CRAFT_SENTRY_DSN: ${{ inputs.sentry_dsn }}
-    CRAFT_REMOTE: ${{ inputs.remote }}
     GITHUB_API_TOKEN: ${{ inputs.github_api_token }}
-    ZEUS_API_TOKEN: ${{ inputs.zeus_api_token }}
-    NUGET_API_TOKEN: ${{ inputs.nuget_api_token }}
-    CRATES_IO_TOKEN: ${{ inputs.crates_io_token }}
-    CRAFT_GCS_TARGET_CREDS_JSON: ${{ inputs.gcs_target_creds }}
-    TWINE_USERNAME: ${{ inputs.twine_username }}
-    TWINE_PASSWORD: ${{ inputs.twine_password }}
-    DOCKER_USERNAME: ${{ inputs.docker_username }}
-    DOCKER_PASSWORD: ${{ inputs.docker_password }}
   args:
     - '--no-input'
     - ${{ inputs.action }}
     - ${{ inputs.version }}
+    - ${{ inputs.action == "publish" && (inputs.no_merge || inputs.keep_branch) && inputs.no_merge || '--' }}
+    - ${{ inputs.action == "publish" && (inputs.no_merge || inputs.keep_branch) && inputs.keep_branch || '--' }}
