@@ -11,11 +11,9 @@ inputs:
   no_merge:
     description: 'Do not merge the release branch after publishing'
     required: false
-    default: false
   keep_branch:
     description: 'Do not remove release branch after merging it'
     required: false
-    default: false
   dry_run:
     description: 'Whether to not perform any mutations or not'
     required: false
