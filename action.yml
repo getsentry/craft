@@ -61,7 +61,7 @@ runs:
   image: 'docker://getsentry/craft'
   env:
     DRY_RUN: ${{ inputs.dry_run }}
-    CRAFT_LOG_LEVEL : ${{ inputs.log_level }}
+    CRAFT_LOG_LEVEL: ${{ inputs.log_level }}
     CRAFT_SENTRY_DSN: ${{ inputs.sentry_dsn }}
     CRAFT_REMOTE: ${{ inputs.remote }}
     GITHUB_API_TOKEN: ${{ inputs.github_api_token }}
@@ -77,5 +77,5 @@ runs:
     - '--no-input'
     - ${{ inputs.action }}
     - ${{ inputs.version }}
-    - ${{ inputs.no_merge && '--no-merge' || '' }}
-    - ${{ inputs.keep_branch && '--keep-branch' || '' }}
+    - ${{ inputs.action == 'publish' && inputs.no_merge && '--no-merge' || '' }}
+    - ${{ inputs.action == 'publish' && inputs.keep_branch && '--keep-branch' || '' }}
