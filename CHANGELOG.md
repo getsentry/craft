@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- docs: Fix `artifactProvider` example (#100)
+
 ## 0.10.0
 
 - feat(changelog): Add "auto" changeset policy (#93)
