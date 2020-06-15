@@ -8,6 +8,14 @@ inputs:
   version:
     description: 'The version number for the new release'
     required: true
+  no_merge:
+    description: 'Do not merge the release branch after publishing'
+    required: false
+    default: false
+  keep_branch:
+    description: 'Do not remove release branch after merging it'
+    required: false
+    default: false
   dry_run:
     description: 'Whether to not perform any mutations or not'
     required: false
@@ -66,5 +74,8 @@ runs:
     DOCKER_USERNAME: ${{ inputs.docker_username }}
     DOCKER_PASSWORD: ${{ inputs.docker_password }}
   args:
+    - '--no-input'
     - ${{ inputs.action }}
     - ${{ inputs.version }}
+    - ${{ inputs.no_merge && '--no-merge' || '' }}
+    - ${{ inputs.keep_branch && '--keep-branch' || '' }}
