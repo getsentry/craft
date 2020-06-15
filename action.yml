@@ -27,5 +27,5 @@ runs:
     - '--no-input'
     - ${{ inputs.action }}
     - ${{ inputs.version }}
-    - ${{ inputs.action == "publish" && (inputs.no_merge || inputs.keep_branch) && inputs.no_merge || '--' }}
-    - ${{ inputs.action == "publish" && (inputs.no_merge || inputs.keep_branch) && inputs.keep_branch || '--' }}
+    - ${{ inputs.action == 'publish' && (inputs.no_merge || inputs.keep_branch) && inputs.no_merge || '--' }}
+    - ${{ inputs.action == 'publish' && (inputs.no_merge || inputs.keep_branch) && inputs.keep_branch || '--' }}
