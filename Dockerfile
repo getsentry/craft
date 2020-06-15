@@ -18,7 +18,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt-get -qq update \
   && apt-get install -y --no-install-recommends \
   apt-transport-https \
-  cargo \
   curl \
   dirmngr \
   gnupg \
@@ -34,7 +33,9 @@ RUN apt-get -qq update \
   dotnet-sdk-3.1 \
   docker-ce-cli \
   && apt-get clean \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s --  --profile minimal -y \
+  && cargo --version
 
 COPY --from=builder /app/package.json /app/yarn.lock /craft/
 RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
