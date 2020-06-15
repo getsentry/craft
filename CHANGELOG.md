@@ -3,6 +3,7 @@
 ## Unreleased
 
 - docs: Fix `artifactProvider` example (#100)
+- build(docker): Add a `craft` binary into the Docker image (#101)
 
 ## 0.10.0
 
