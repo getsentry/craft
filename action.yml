@@ -24,7 +24,6 @@ runs:
   env:
     GITHUB_API_TOKEN: ${{ inputs.github_api_token }}
   args:
-    - '--no-input'
     - ${{ inputs.action }}
     - ${{ inputs.version }}
     - ${{ inputs.action == 'publish' && (inputs.no_merge || inputs.keep_branch) && inputs.no_merge || '--' }}

@@ -209,6 +209,7 @@ export class CraftGCSClient {
       destination: path.join(pathInBucket, filename),
       gzip: true,
       metadata,
+      resumable: Boolean(process.env.CI),
     };
 
     this.logger.debug(
