@@ -256,6 +256,7 @@ export abstract class BaseArtifactProvider {
       );
       throw err;
     }
+    this.fileListCache[revision] = artifacts;
 
     if (artifacts.length === 0) {
       logger.info(`No artifacts found for revision ${revision}`);
