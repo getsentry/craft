@@ -13,7 +13,7 @@ import {
 import { checkEnvForPrerequisite } from '../utils/env';
 import { logger as loggerRaw } from '../logger';
 
-const logger = loggerRaw.withScope(`[zeus api]`);
+const logger = loggerRaw.withScope(`[artifact-provider/zeus]`);
 
 // TODO (kmclb) once `craft upload` is a thing, add an upload method here (and change the docstring below)
 

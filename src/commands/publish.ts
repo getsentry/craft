@@ -489,6 +489,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       artifactProvider,
       argv.keepDownloads
     );
+    logger.info(' ');
   }
 
   if (argv.rev) {
