@@ -1,5 +1,7 @@
 # Changelog
 
+- build: Migrate from tslint to eslint (#113)
+
 ## 0.10.1
 
 - build(ci): Have better defaults for CI environments (#110)
