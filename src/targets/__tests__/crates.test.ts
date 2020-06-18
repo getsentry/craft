@@ -18,6 +18,7 @@ function cratePackageToDependency(cratePackage: CratePackage): CrateDependency {
   return {
     name: cratePackage.name,
     req: '1.0.0',
+    kind: null,
   };
 }
 
