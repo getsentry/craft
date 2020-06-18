@@ -5,7 +5,7 @@ steps:
     '--build-arg', 'SOURCE_COMMIT=$COMMIT_SHA',
     '--destination=us.gcr.io/$PROJECT_ID/craft:$COMMIT_SHA'
   ]
-  timeout: 360s
+  timeout: 900s
 # Smoke tests
 - name: 'us.gcr.io/$PROJECT_ID/craft:$COMMIT_SHA'
   args:
@@ -29,7 +29,7 @@ steps:
     docker push getsentry/craft:$COMMIT_SHA
     docker tag us.gcr.io/$PROJECT_ID/craft:$COMMIT_SHA getsentry/craft:latest
     docker push getsentry/craft:latest
-timeout: 540s
+timeout: 960s
 secrets:
 - kmsKeyName: projects/sentryio/locations/global/keyRings/service-credentials/cryptoKeys/cloudbuild
   secretEnv:
