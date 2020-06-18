@@ -20,14 +20,15 @@ export function formatTable(options: any, values: any[]): string {
  */
 
 // tslint:disable:object-literal-sort-keys
-export const LOG_LEVELS: { [key: string]: number } = {
-  ERROR: 0,
-  WARN: 1,
-  INFO: 2,
-  SUCCESS: 3,
-  DEBUG: 4,
-  TRACE: 4,
-};
+// tslint:disable: completed-docs
+export enum LOG_LEVEL {
+  ERROR = 0,
+  WARN = 1,
+  INFO = 2,
+  SUCCESS = 3,
+  DEBUG = 4,
+  TRACE = 4,
+}
 
 /** Log entry as passed to consola reporters */
 interface LogEntry {
@@ -40,6 +41,9 @@ interface LogEntry {
   /** Additional message (e.g. if more than one line) */
   additional: string;
 }
+
+// tslint:disable-next-line: variable-name
+export type Logger = typeof consola;
 
 /** Reporter that sends logs to Sentry */
 class SentryBreadcrumbReporter {
@@ -54,17 +58,39 @@ class SentryBreadcrumbReporter {
 }
 
 /**
- * Read logging level from the environment
+ * Read logging level from the environment and return the appropriate enum value
  */
-function getLogLevel(): number {
-  const logLevelName = process.env.CRAFT_LOG_LEVEL || '';
-  const logLevelNumber = LOG_LEVELS[logLevelName.toUpperCase()];
-  return logLevelNumber || consola.level;
+function getLogLevelFromEnv(): LOG_LEVEL {
+  const logLevelName = (process.env.CRAFT_LOG_LEVEL || '').toUpperCase();
+  const logLevelNumber = LOG_LEVEL[logLevelName as keyof typeof LOG_LEVEL];
+  return logLevelNumber ?? consola.level;
 }
 
-consola.level = getLogLevel();
-consola.reporters.push(new SentryBreadcrumbReporter());
+/**
+ * Set log level to the given level
+ * @param logLevel desired log level
+ */
+export function setLogLevel(logLevel: LOG_LEVEL): void {
+  consola.level = logLevel;
+}
 
-// tslint:disable-next-line: variable-name
-export type Logger = typeof consola;
+let initialized = false;
+
+/**
+ * Initialize and return the logger
+ * @param [logLevel] The desired logging level
+ */
+export function init(logLevel?: LOG_LEVEL): Logger {
+  if (initialized) {
+    consola.warn('Logger already initialized, ignoring duplicate init.');
+  }
+
+  setLogLevel(logLevel !== undefined ? logLevel : getLogLevelFromEnv());
+  consola.reporters.push(new SentryBreadcrumbReporter());
+  initialized = true;
+  return consola;
+}
+
+setLogLevel(getLogLevelFromEnv());
+
 export { consola as logger };

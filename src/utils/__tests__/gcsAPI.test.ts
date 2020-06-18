@@ -168,6 +168,7 @@ describe('gcsApi module', () => {
           destination: `${destinationPath}${filename}`,
           gzip: true,
           metadata: DEFAULT_UPLOAD_METADATA,
+          resumable: !process.env.CI,
         });
       });
 

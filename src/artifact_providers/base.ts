@@ -8,7 +8,7 @@ import * as _ from 'lodash';
 import { ConfigurationError } from '../utils/errors';
 import { logger as loggerRaw } from '../logger';
 
-const logger = loggerRaw.withScope(`[artifact provider]`);
+const logger = loggerRaw.withScope(`[artifact-provider]`);
 
 /** Maximum concurrency for downloads */
 export const MAX_DOWNLOAD_CONCURRENCY = 5;
@@ -256,6 +256,7 @@ export abstract class BaseArtifactProvider {
       );
       throw err;
     }
+    this.fileListCache[revision] = artifacts;
 
     if (artifacts.length === 0) {
       logger.info(`No artifacts found for revision ${revision}`);

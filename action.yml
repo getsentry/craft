@@ -1,0 +1,30 @@
+name: 'Craft'
+description: 'Use getsentry/craft to publish your project'
+inputs:
+  action:
+    description: 'The action to take. Can be either prepare or publish'
+    required: true
+    default: '--help'
+  version:
+    description: 'The version number for the new release'
+    required: true
+  no_merge:
+    description: 'Do not merge the release branch after publishing'
+    required: false
+  keep_branch:
+    description: 'Do not remove release branch after merging it'
+    required: false
+  github_api_token:
+    description: 'API token for accessing github'
+    required: true
+    default: ${{ github.token }}
+runs:
+  using: 'docker'
+  image: 'docker://getsentry/craft'
+  env:
+    GITHUB_API_TOKEN: ${{ inputs.github_api_token }}
+  args:
+    - ${{ inputs.action }}
+    - ${{ inputs.version }}
+    - ${{ inputs.action == 'publish' && (inputs.no_merge || inputs.keep_branch) && inputs.no_merge || '--' }}
+    - ${{ inputs.action == 'publish' && (inputs.no_merge || inputs.keep_branch) && inputs.keep_branch || '--' }}

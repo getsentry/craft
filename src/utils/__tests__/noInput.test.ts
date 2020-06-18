@@ -4,6 +4,7 @@ import { hasInput, hasNoInput, resetNoInput, setNoInput } from '../noInput';
 
 describe('setNoInput', () => {
   afterEach(() => {
+    delete process.env.CI;
     delete process.env.CRAFT_NO_INPUT;
     resetNoInput();
   });
@@ -23,6 +24,7 @@ describe('setNoInput', () => {
 
 describe('resetNoInput', () => {
   afterEach(() => {
+    delete process.env.CI;
     delete process.env.CRAFT_NO_INPUT;
     resetNoInput();
   });
@@ -33,8 +35,14 @@ describe('resetNoInput', () => {
     expect(hasNoInput()).toBe(false);
   });
 
-  test('sets noInput to true via env', () => {
+  test('sets noInput to true via craft env', () => {
     process.env.CRAFT_NO_INPUT = '1';
+    resetNoInput();
+    expect(hasNoInput()).toBe(true);
+  });
+
+  test('sets noInput to true via CI env', () => {
+    process.env.CI = '1';
     resetNoInput();
     expect(hasNoInput()).toBe(true);
   });

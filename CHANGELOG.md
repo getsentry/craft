@@ -2,8 +2,20 @@
 
 ## Unreleased
 
+- build(ci): Have better defaults for CI environments (#110)
+- build(docker): Upgrade cargo to a recent version (#104)
+- feat(gha): Add GitHub Action for Craft (#103)
+- docs: Fix `changelogPolicy` enum (#102)
+- build(docker): Add a `craft` binary into the Docker image (#101)
+- docs: Fix `artifactProvider` example (#100)
+
+## 0.10.0
+
 - feat(changelog): Add "auto" changeset policy (#93)
 - fix(github): Ignore pending response from legacy commit check API (#94)
+- fix(zeus): Don't force ZEUS_API_TOKEN when Zeus is not used (#97)
+- feat(target): Add "docker" target (#95)
+- fix(logger): Logger should respect log level from env file (#96)
 
 ## 0.9.6
 

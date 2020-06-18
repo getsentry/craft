@@ -16,7 +16,7 @@ import {
   RemoteArtifact,
 } from '../artifact_providers/base';
 
-const logger = loggerRaw.withScope(`[target]`);
+const logger = loggerRaw.withScope(`[gcs]`);
 
 /**
  * Adds templating to the BucketPath interface.

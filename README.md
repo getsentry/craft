@@ -45,6 +45,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [GitHub Pages (`gh-pages`)](#github-pages-gh-pages)
   - [Sentry Release Registry (`registry`)](#sentry-release-registry-registry)
   - [Cocoapods (`cocoapods`)](#cocoapods-cocoapods)
+  - [Docker (`docker`)](#docker-docker)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Development](#development)
@@ -274,10 +275,10 @@ In `auto` mode, `craft prepare` will use the following logic:
 
 **Configuration**
 
-| Option            | Description                                                                       |
-| ----------------- | --------------------------------------------------------------------------------- |
-| `changelog`       | **optional**. Path to the changelog file. Defaults to `CHANGELOG.md`              |
-| `changelogPolicy` | **optional**. Changelog management mode (`simple` or `none`). Defaults to `none`. |
+| Option            | Description                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| `changelog`       | **optional**. Path to the changelog file. Defaults to `CHANGELOG.md`                       |
+| `changelogPolicy` | **optional**. Changelog management mode (`none`, `simple`, or `auto`). Defaults to `none`. |
 
 **Example (`simple`):**
 
@@ -384,7 +385,7 @@ project, you can set it to `none`.
 **Example:**
 
 ```yaml
-statusProvider:
+artifactProvider:
   name: none
 ```
 
@@ -614,13 +615,18 @@ they are published in an order depending on their dependencies.
 
 **Configuration**
 
-_none_
+**Configuration**
+
+| Option      | Description                                                                                                                                                                                                                                          |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `noDevDeps` | **optional**. Strips `devDependencies` from crates before publishing. This is useful if a workspace crate uses circular dependencies for docs. Requires [`cargo-hack`](https://github.com/taiki-e/cargo-hack#readme) installed. Defaults to `false`. |
 
 **Example**
 
 ```yaml
 targets:
   - name: crates
+    noDevDeps: false
 ```
 
 ### Google Cloud Storage (`gcs`)
@@ -774,6 +780,48 @@ The `cocoapods` gem must be installed on the system.
 targets:
   - name: cocoapods
     specPath: MyProject.podspec
+```
+
+### Docker (`docker`)
+
+Pulls an existing source image tagged with the revision SHA, and then pushed it
+to a new target tagged with the released version. No release
+assets are required for this target except for the source image at the provided
+source image location so it would be a good idea to add a status check that
+ensures the source image exists, otherwise `craft publish` will fail at the
+`docker pull` step, causing an interrupted publish. This is an issue for other,
+non-idempotent targets, not for the Docker target.
+
+**Environment**
+
+`docker` executable (or something equivalent) must be installed on the system.
+
+| Name              | Description                                |
+| ----------------- | ------------------------------------------ |
+| `DOCKER_USERNAME` | The username for the Docker registry       |
+| `DOCKER_PASSWORD` | The password for the Docker registry       |
+| `DOCKER_BIN`      | **optional**. Path to `docker` executable. |
+
+**Configuration**
+
+| Option   | Description                                  |
+| -------- | -------------------------------------------- |
+| `source` | Path to the source Docker image to be pulled |
+| `target` | Path to the target Docker image to be pushed |
+
+**Example**
+
+```yaml
+targets:
+  - name: docker
+    source: us.gcr.io/sentryio/craft
+    target: getsentry/craft
+# Optional but strongly recommended
+statusProvider:
+  name: github
+  config:
+    contexts:
+      - Travis CI - Branch # or whatever builds and pushes your source image
 ```
 
 ## Integrating Your Project with `craft`
