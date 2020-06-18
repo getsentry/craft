@@ -1,7 +1,6 @@
 import { existsSync, promises as fsPromises } from 'fs';
 import { dirname, join, relative } from 'path';
 import * as shellQuote from 'shell-quote';
-// tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
 import { Arguments, Argv } from 'yargs';
 

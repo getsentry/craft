@@ -106,7 +106,6 @@ describe('sleepAsync', () => {
 
 describe('replaceEnvVariable', () => {
   test('replaces a variable', async () => {
-    // tslint:disable-next-line:no-invalid-template-strings
     expect(replaceEnvVariable('${ENV_VAR}', { ENV_VAR: '123' })).toBe('123');
   });
 
@@ -115,7 +114,6 @@ describe('replaceEnvVariable', () => {
   });
 
   test('replaces a non-existing environment variable with empty string', async () => {
-    // tslint:disable-next-line:no-invalid-template-strings
     expect(replaceEnvVariable('${ENV_VAR}', {})).toBe('');
   });
 });

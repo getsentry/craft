@@ -9,7 +9,6 @@ export class ConfigurationError extends Error {
   // We have to do the following because of: https://github.com/Microsoft/TypeScript/issues/13965
   // Otherwise we cannot use instanceof later to catch a given type
   /** Error prototype */
-  // tslint:disable-next-line:variable-name
   public __proto__: Error;
 
   public constructor(message?: string) {

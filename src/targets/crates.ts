@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import * as _ from 'lodash';
-// tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
 
 import { getGlobalGithubConfig } from '../config';
@@ -205,7 +204,7 @@ export class CratesTarget extends BaseTarget {
 
       leafDependencies.forEach(next => {
         ordered.push(next);
-        delete remaining[next.name]; // tslint:disable-line:no-dynamic-delete
+        delete remaining[next.name];
       });
     }
     return ordered;

@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import * as Github from '@octokit/rest';
-// tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
 
 import { getGlobalGithubConfig } from '../config';

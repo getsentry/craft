@@ -68,7 +68,6 @@ export abstract class BaseStatusProvider {
         `Got status "${status}" from status provider: ${this.constructor.name}`
       );
 
-      // tslint:disable-next-line:prefer-switch
       if (status === CommitStatus.SUCCESS) {
         if (spinner.isSpinning) {
           spinner.succeed();

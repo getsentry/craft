@@ -83,7 +83,6 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
     // unpacking...
     const { filename: name, storedFile, mimeType: type } = remoteArtifact;
     const {
-      // tslint:disable: variable-name
       lastUpdated: updated_at,
       downloadFilepath: download_url,
       filename: storedFilename,

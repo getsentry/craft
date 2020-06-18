@@ -84,9 +84,7 @@ function checkFileIsPrivate(path: string): boolean {
   const GROUP_MODE_MASK = 0o070;
   const OTHER_MODE_MASK = 0o007;
   const mode = statSync(path).mode;
-  // tslint:disable-next-line:no-bitwise
   if (mode & GROUP_MODE_MASK || mode & OTHER_MODE_MASK) {
-    // tslint:disable-next-line:no-bitwise
     const perms = (mode & FULL_MODE_MASK).toString(8);
     logger.warn(
       `Permissions 0${perms} for file "${path}" are too open. ` +

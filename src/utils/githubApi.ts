@@ -298,14 +298,13 @@ export async function downloadSources(
   const url = `https://github.com/${owner}/${repo}/archive/${sha}.tar.gz`;
 
   return new Promise<Readable>((resolve, reject) => {
-    // tslint:disable-next-line:no-null-keyword
     request({ url, encoding: null }, (error, _response, body: Buffer) => {
       if (error) {
         reject(error);
       }
       const stream = new Duplex();
       stream.push(body);
-      stream.push(null); // tslint:disable-line:no-null-keyword
+      stream.push(null);
       resolve(stream);
     });
   });

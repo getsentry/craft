@@ -21,7 +21,7 @@ describe('sanitizeObject', () => {
     }
     expectRaisesError(123);
     expectRaisesError('a');
-    expectRaisesError(null); // tslint:disable-line:no-null-keyword
+    expectRaisesError(null);
   });
 
   test('processes simple objects without changes', () => {
@@ -40,7 +40,6 @@ describe('sanitizeObject', () => {
   });
 
   test('replaces null with undefined', () => {
-    // tslint:disable-next-line:no-null-keyword
     expect(sanitizeObject({ 1: null })).toEqual({ 1: undefined });
   });
 

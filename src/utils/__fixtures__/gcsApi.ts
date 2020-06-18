@@ -12,7 +12,6 @@ export const squirrelSimulatorCommit =
 export const squirrelStatsCommit = '3c3320446f67732061726520677265617421203c33';
 
 export const gcsCredsJSON = JSON.stringify({
-  // tslint:disable: object-literal-sort-keys
   project_id: 'o-u-t-s-i-d-e',
   private_key: 'DoGsArEgReAtSoMeSeCrEtStUfFhErE',
   client_email: 'might_huntress@dogs.com',

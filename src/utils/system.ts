@@ -274,7 +274,6 @@ function getPotentialPaths(fileName: string): string[] {
  */
 function isExecutable(filePath: string): boolean {
   try {
-    // tslint:disable-next-line:no-bitwise
     fs.accessSync(filePath, fs.constants.F_OK | fs.constants.X_OK);
     return true;
   } catch (e) {

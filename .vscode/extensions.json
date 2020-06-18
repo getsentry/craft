@@ -3,7 +3,7 @@
   // for the documentation about the extensions.json format
   "recommendations": [
     "esbenp.prettier-vscode",
-    "ms-vscode.vscode-typescript-tslint-plugin",
-    "stkb.rewrap"
+    "stkb.rewrap",
+    "dbaeumer.vscode-eslint"
   ]
 }

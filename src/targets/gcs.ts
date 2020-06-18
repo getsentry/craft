@@ -63,7 +63,6 @@ export class GcsTarget extends BaseTarget {
    * Parses and checks configuration for the GCS target
    */
   protected getGCSTargetConfig(): GCSTargetConfig {
-    // tslint:disable: object-literal-sort-keys
     const { project_id, client_email, private_key } = getGCSCredsFromEnv(
       {
         name: 'CRAFT_GCS_TARGET_CREDS_JSON',

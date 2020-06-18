@@ -72,7 +72,6 @@
     "prettier": "^1.19.1",
     "prettier-check": "^2.0.0",
     "ts-jest": "^24.0.2",
-    "tslint": "^5.20.0",
     "typescript": "^3.9.3"
   },
   "scripts": {
@@ -81,13 +80,11 @@
     "precli": "run-s build",
     "cli": "node dist",
     "clean": "rimraf dist coverage",
-    "lint": "run-s lint:prettier lint:tslint",
+    "lint": "run-s lint:prettier lint:eslint",
     "lint:prettier": "prettier-check 'src/**/*.ts'",
-    "lint:tslint": "tslint -t stylish -p .",
     "lint:eslint": "eslint src  --ext .ts --format stylish",
     "fix": "run-s fix:tslint fix:prettier",
     "fix:prettier": "prettier --write 'src/**/*.ts'",
-    "fix:tslint": "tslint --fix -t stylish -p .",
     "fix:eslint": "eslint 'src/**/*.{ts}' --fix --format stylish",
     "test": "jest",
     "test:watch": "jest --watch --notify",
