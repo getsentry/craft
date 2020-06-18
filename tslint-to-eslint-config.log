@@ -1,0 +1,53 @@
+9 ESLint rules behave differently from their TSLint counterparts:
+  * prefer-arrow/prefer-arrow-functions:
+    - ESLint does not support allowing named functions defined with the function keyword.
+  * no-console:
+    - Custom console methods, if they exist, will no longer be allowed.
+  * no-redeclare:
+    - ESLint does not support check-parameters.
+  * @typescript-eslint/no-unused-expressions:
+    - The TSLint optional config "allow-new" is the default ESLint behavior and will no longer be ignored.
+  * no-plusplus:
+    - ++ and -- operators will now only be allowed in for loops.
+  * one-var:
+    - Variables declared in for loops will no longer be checked.
+  * camelcase:
+    - Leading undescores in variable names will now be ignored.
+  * no-underscore-dangle:
+    - Leading and trailing underscores (_) on identifiers will now be ignored.
+  * @typescript-eslint/no-unused-vars:
+    - Please read the following article as the rule behaviour may change on the short term: https://github.com/typescript-eslint/typescript-eslint/issues/1856
+
+25 rules are not known by tslint-to-eslint-config to have ESLint equivalents:
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "comment-type".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "completed-docs".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "encoding".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "invalid-void".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "match-default-export-name".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "no-default-import".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "no-dynamic-delete".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "no-inferred-empty-object-type".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "no-mergeable-namespace".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "no-null-undefined-union".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "no-promise-as-boolean".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "no-restricted-globals".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "no-tautology-expression".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "no-unnecessary-callback-wrapper".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "object-literal-sort-keys".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "prefer-conditional-expression".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "prefer-method-signature".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "prefer-switch".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "prefer-while".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "return-undefined".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "static-this".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "strict-string-expressions".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "strict-type-predicates".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "switch-final-break".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "typedef".
+
+4 editor settings are not known by tslint-to-eslint-config to have ESLint equivalents:
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "editor.formatOnType".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "editor.formatOnSave".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "editor.rulers".
+  * tslint-to-eslint-config does not know the ESLint equivalent for TSLint's "editor.tabSize".
+
