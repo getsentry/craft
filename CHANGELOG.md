@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.1
 
 - build(ci): Have better defaults for CI environments (#110)
 - build(docker): Upgrade cargo to a recent version (#104)
