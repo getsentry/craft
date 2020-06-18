@@ -28,6 +28,8 @@ const CARGO_BIN = process.env.CARGO_BIN || DEFAULT_CARGO_BIN;
 export interface CratesTargetOptions extends TargetConfig {
   /** Crates API token */
   apiToken: string;
+  /** Whether to use `cargo-hack` and remove dev dependencies */
+  noDevDeps: boolean;
 }
 
 /** A package dependency specification */
@@ -36,6 +38,8 @@ export interface CrateDependency {
   name: string;
   /** The required version range */
   req: string;
+  /** The dependency kind. "dev", "build", or null for a normal dependency. */
+  kind: string | null;
 }
 
 /** A crate (Rust) package */
@@ -94,6 +98,7 @@ export class CratesTarget extends BaseTarget {
     }
     return {
       apiToken: process.env.CRATES_IO_TOKEN,
+      noDevDeps: !!this.config.noDevDeps,
     };
   }
 
@@ -147,14 +152,30 @@ export class CratesTarget extends BaseTarget {
     const remaining = _.keyBy(packages, p => p.name);
     const ordered: CratePackage[] = [];
 
+    const isWorkspaceDependency = (dep: CrateDependency) => {
+      // Optionally exclude dev dependencies from dependency resolution. When
+      // this flag is provided, these usually lead to circular dependencies.
+      if (this.cratesConfig.noDevDeps && dep.kind === 'dev') {
+        return false;
+      }
+
+      return !!remaining[dep.name];
+    };
+
     // We iterate until there are no packages left. Note that cargo will already
     // check for cycles in the dependency graph and fail if its not a DAG.
     while (!_.isEmpty(remaining)) {
-      _.filter(
+      const leafDependencies = _.filter(
         remaining,
         // Find all packages with no remaining workspace dependencies
-        p => p.dependencies.filter(dep => remaining[dep.name]).length === 0
-      ).forEach(next => {
+        p => p.dependencies.filter(isWorkspaceDependency).length === 0
+      );
+
+      if (leafDependencies.length === 0) {
+        throw new Error('Circular dependency detected!');
+      }
+
+      leafDependencies.forEach(next => {
         ordered.push(next);
         delete remaining[next.name]; // tslint:disable-line:no-dynamic-delete
       });
@@ -196,12 +217,16 @@ export class CratesTarget extends BaseTarget {
    * @returns A promise that resolves when the upload has completed
    */
   public async publishPackage(crate: CratePackage): Promise<any> {
-    const args = [
-      'publish',
+    const args = this.cratesConfig.noDevDeps
+      ? ['hack', 'publish', '--allow-dirty', '--no-dev-deps']
+      : ['publish'];
+
+    args.push(
       '--no-verify', // Verification should be done on the CI stage
       '--manifest-path',
-      crate.manifest_path,
-    ];
+      crate.manifest_path
+    );
+
     return spawnProcess(CARGO_BIN, args, {
       env: { ...process.env, CARGO_REGISTRY_TOKEN: this.cratesConfig.apiToken },
     });

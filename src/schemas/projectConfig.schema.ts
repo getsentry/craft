@@ -151,6 +151,17 @@ const projectConfigJsonSchema = {
       },
       additionalProperties: false,
     },
+    cratesConfig: {
+      title: 'CratesTargetConfig',
+      description: 'Configuration options for the Crates target',
+      extends: { $ref: '#/definitions/targetConfig' },
+      properties: {
+        noDevDeps: {
+          type: 'boolean',
+        },
+      },
+      additionalProperties: false,
+    },
   },
 };
 

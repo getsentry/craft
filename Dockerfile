@@ -37,7 +37,8 @@ RUN apt-get -qq update \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* \
   && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s --  --profile minimal -y \
-  && cargo --version
+  && cargo --version \
+  && cargo install cargo-hack
 
 COPY --from=builder /app/package.json /app/yarn.lock /craft/
 RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \

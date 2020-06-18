@@ -45,6 +45,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [GitHub Pages (`gh-pages`)](#github-pages-gh-pages)
   - [Sentry Release Registry (`registry`)](#sentry-release-registry-registry)
   - [Cocoapods (`cocoapods`)](#cocoapods-cocoapods)
+  - [Docker (`docker`)](#docker-docker)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Development](#development)
@@ -274,9 +275,9 @@ In `auto` mode, `craft prepare` will use the following logic:
 
 **Configuration**
 
-| Option            | Description                                                                       |
-| ----------------- | --------------------------------------------------------------------------------- |
-| `changelog`       | **optional**. Path to the changelog file. Defaults to `CHANGELOG.md`              |
+| Option            | Description                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| `changelog`       | **optional**. Path to the changelog file. Defaults to `CHANGELOG.md`                       |
 | `changelogPolicy` | **optional**. Changelog management mode (`none`, `simple`, or `auto`). Defaults to `none`. |
 
 **Example (`simple`):**
@@ -614,13 +615,18 @@ they are published in an order depending on their dependencies.
 
 **Configuration**
 
-_none_
+**Configuration**
+
+| Option      | Description                                                                                                                                                                                                                                          |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `noDevDeps` | **optional**. Strips `devDependencies` from crates before publishing. This is useful if a workspace crate uses circular dependencies for docs. Requires [`cargo-hack`](https://github.com/taiki-e/cargo-hack#readme) installed. Defaults to `false`. |
 
 **Example**
 
 ```yaml
 targets:
   - name: crates
+    noDevDeps: false
 ```
 
 ### Google Cloud Storage (`gcs`)
@@ -790,18 +796,18 @@ non-idempotent targets, not for the Docker target.
 
 `docker` executable (or something equivalent) must be installed on the system.
 
-| Name                    | Description                               |
-| ----------------------- | ----------------------------------------- |
-| `DOCKER_USERNAME`       | The username for the Docker registry      |
-| `DOCKER_PASSWORD`       | The password for the Docker registry      |
-| `DOCKER_BIN`            | **optional**. Path to `docker` executable.   |
+| Name              | Description                                |
+| ----------------- | ------------------------------------------ |
+| `DOCKER_USERNAME` | The username for the Docker registry       |
+| `DOCKER_PASSWORD` | The password for the Docker registry       |
+| `DOCKER_BIN`      | **optional**. Path to `docker` executable. |
 
 **Configuration**
 
-| Option     | Description                                  |
-| ---------- | -------------------------------------------- |
-| `source`   | Path to the source Docker image to be pulled |
-| `target`   | Path to the target Docker image to be pushed |
+| Option   | Description                                  |
+| -------- | -------------------------------------------- |
+| `source` | Path to the source Docker image to be pulled |
+| `target` | Path to the target Docker image to be pushed |
 
 **Example**
 
