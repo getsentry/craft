@@ -130,7 +130,7 @@ export function getGithubApiToken(): string {
  * @param token Github authentication token
  * @returns Github client
  */
-export function getGithubClient(token: string = ''): Github {
+export function getGithubClient(token = ''): Github {
   const githubApiToken = token || getGithubApiToken();
 
   const attrs = {
@@ -145,6 +145,7 @@ export function getGithubClient(token: string = ''): Github {
     };
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const octokitWithRetries = Github.plugin(require('@octokit/plugin-retry'));
   return new octokitWithRetries(attrs);
 }
@@ -364,6 +365,7 @@ export async function retryHttp<T>(
   const maxRetries = params.retries;
   let retryNum = 0;
 
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     logger.debug(`Retry number ${retryNum}, max retries: ${maxRetries}`);
 

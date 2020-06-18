@@ -66,7 +66,6 @@ function main(): void {
 
   initSentrySdk();
 
-  // tslint:disable-next-line:no-unused-expression
   yargs
     .parserConfiguration({
       'boolean-negation': false,

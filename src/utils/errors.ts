@@ -29,7 +29,10 @@ export class ConfigurationError extends Error {
  */
 export function reportError(
   error: Error | string,
-  errorLogger: { error: Function; [key: string]: any } = logger
+  errorLogger: {
+    error: (...message: string[]) => void;
+    [key: string]: any;
+  } = logger
 ): void {
   if (!isDryRun()) {
     // wrap the error in an Error object if it isn't already one

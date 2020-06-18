@@ -123,7 +123,7 @@ async function publishToTargets(
   revision: string,
   targetConfigList: any[],
   artifactProvider: BaseArtifactProvider,
-  keepDownloads: boolean = false
+  keepDownloads = false
 ): Promise<void> {
   let downloadDirectoryPath;
 
@@ -300,7 +300,7 @@ async function checkRequiredArtifacts(
 async function checkRevisionStatus(
   statusProvider: BaseStatusProvider,
   revision: string,
-  skipStatusCheckFlag: boolean = false
+  skipStatusCheckFlag = false
 ): Promise<void> {
   if (skipStatusCheckFlag) {
     logger.warn(`Skipping build status checks for revision ${revision}`);
@@ -338,8 +338,8 @@ async function handleReleaseBranch(
   github: Github,
   githubConfig: GithubGlobalConfig,
   branchName: string,
-  skipMerge: boolean = false,
-  keepBranch: boolean = false
+  skipMerge = false,
+  keepBranch = false
 ): Promise<void> {
   if (!branchName || skipMerge) {
     logger.info('Skipping the merge step.');

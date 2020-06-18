@@ -46,8 +46,8 @@ export async function listFiles(directory: string): Promise<string[]> {
  */
 export async function withTempDir<T>(
   callback: (arg: string) => T | Promise<T>,
-  cleanup: boolean = true,
-  prefix: string = 'craft-'
+  cleanup = true,
+  prefix = 'craft-'
 ): Promise<T> {
   const directory = await mkdtemp(path.join(os.tmpdir(), prefix));
   try {
@@ -72,8 +72,8 @@ export async function withTempDir<T>(
  */
 export async function withTempFile<T>(
   callback: (arg: string) => T | Promise<T>,
-  cleanup: boolean = true,
-  prefix: string = 'craft-'
+  cleanup = true,
+  prefix = 'craft-'
 ): Promise<T> {
   tmp.setGracefulCleanup();
   const tmpFile = tmp.fileSync({ prefix });

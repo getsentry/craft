@@ -6,7 +6,10 @@ import { ZeusStore } from '../zeus';
 
 // TODO (kmclb) move these tests over to the artifact provider test folder
 
-function artifactFactory(name: string, options?: object): Artifact {
+function artifactFactory(
+  name: string,
+  options?: Record<string, unknown>
+): Artifact {
   return {
     download_url: 'http://invalid',
     file: {

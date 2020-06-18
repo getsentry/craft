@@ -99,7 +99,7 @@ function locateChangeset(
 export function findChangeset(
   markdown: string,
   tag: string,
-  fallbackToUnreleased: boolean = false
+  fallbackToUnreleased = false
 ): Changeset | null {
   const version = getVersion(tag);
   if (version === null) {

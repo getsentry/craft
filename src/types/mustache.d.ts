@@ -181,6 +181,6 @@ declare module 'mustache' {
     lookup(name: string): any;
   }
 
-  var Mustache: MustacheStatic;
+  let Mustache: MustacheStatic;
   export = Mustache;
 }

@@ -107,9 +107,7 @@ function checkFileIsPrivate(path: string): boolean {
  * @param overwriteExisting If set to true, overwrite the existing environment
  * variables
  */
-export function readEnvironmentConfig(
-  overwriteExisting: boolean = false
-): void {
+export function readEnvironmentConfig(overwriteExisting = false): void {
   let newEnv = {} as any;
 
   // Read from home dir
