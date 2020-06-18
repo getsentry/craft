@@ -85,7 +85,7 @@
     "lint:eslint": "eslint src  --ext .ts --format stylish",
     "fix": "run-s fix:tslint fix:prettier",
     "fix:prettier": "prettier --write 'src/**/*.ts'",
-    "fix:eslint": "eslint 'src/**/*.{ts}' --fix --format stylish",
+    "fix:eslint": "eslint src  --ext .ts --fix --format stylish",
     "test": "jest",
     "test:watch": "jest --watch --notify",
     "compile-config-schema": "node ./scripts/config-json-schema-to-ts.js"
