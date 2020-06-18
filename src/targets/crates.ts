@@ -28,6 +28,8 @@ const CARGO_BIN = process.env.CARGO_BIN || DEFAULT_CARGO_BIN;
 export interface CratesTargetOptions extends TargetConfig {
   /** Crates API token */
   apiToken: string;
+  /** Whether to use `cargo-hack` and remove dev dependencies */
+  noDevDeps: boolean;
 }
 
 /** A package dependency specification */
@@ -96,6 +98,7 @@ export class CratesTarget extends BaseTarget {
     }
     return {
       apiToken: process.env.CRATES_IO_TOKEN,
+      noDevDeps: !!this.config.noDevDeps,
     };
   }
 
@@ -152,7 +155,7 @@ export class CratesTarget extends BaseTarget {
     const isWorkspaceDependency = (dep: CrateDependency) => {
       // Optionally exclude dev dependencies from dependency resolution. When
       // this flag is provided, these usually lead to circular dependencies.
-      if (this.config.noDevDeps && dep.kind === 'dev') {
+      if (this.cratesConfig.noDevDeps && dep.kind === 'dev') {
         return false;
       }
 
@@ -214,7 +217,7 @@ export class CratesTarget extends BaseTarget {
    * @returns A promise that resolves when the upload has completed
    */
   public async publishPackage(crate: CratePackage): Promise<any> {
-    const args = this.config.noDevDeps
+    const args = this.cratesConfig.noDevDeps
       ? ['hack', 'publish', '--allow-dirty', '--no-dev-deps']
       : ['publish'];
 
