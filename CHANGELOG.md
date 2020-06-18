@@ -8,6 +8,8 @@
 - docs: Fix `changelogPolicy` enum (#102)
 - build(docker): Add a `craft` binary into the Docker image (#101)
 - docs: Fix `artifactProvider` example (#100)
+- feat(crates): Add a `noDevDeps` option (#112)
+- fix(crates): Detect stale upload caches and retry (#98)
 
 ## 0.10.0
 

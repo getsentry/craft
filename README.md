@@ -271,7 +271,7 @@ In `auto` mode, `craft prepare` will use the following logic:
 2. Else if there is an entry named `Unreleased`, rename that to the given
    version
 3. Else, create a new section for the version and populate it with a default
-   text: ` - No documented changes for this release.`
+   text: `- No documented changes for this release.`
 
 **Configuration**
 
@@ -612,8 +612,6 @@ they are published in an order depending on their dependencies.
 | ----------------- | ------------------------------------------------- |
 | `CRATES_IO_TOKEN` | The access token to the crates.io account         |
 | `CARGO_BIN`       | **optional**. Path to cargo. Defaults to `cargo`. |
-
-**Configuration**
 
 **Configuration**
 
