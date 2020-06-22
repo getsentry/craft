@@ -8,7 +8,11 @@ export class ZeusStatusProvider extends BaseStatusProvider {
   /** Zeus API client */
   public readonly store: ZeusStore;
 
-  public constructor(repoOwner: string, repoName: string, config?: any) {
+  public constructor(
+    repoOwner: string,
+    repoName: string,
+    config?: Record<string, any>
+  ) {
     super();
     this.store = new ZeusStore(repoOwner, repoName);
     this.config = config;

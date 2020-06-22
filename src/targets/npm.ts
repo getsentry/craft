@@ -69,7 +69,10 @@ export class NpmTarget extends BaseTarget {
   /** Target options */
   public readonly npmConfig: NpmTargetOptions;
 
-  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+  public constructor(
+    config: Record<string, any>,
+    artifactProvider: BaseArtifactProvider
+  ) {
     super(config, artifactProvider);
     this.checkRequirements();
     this.npmConfig = this.getNpmConfig();

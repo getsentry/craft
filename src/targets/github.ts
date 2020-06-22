@@ -68,7 +68,10 @@ export class GithubTarget extends BaseTarget {
   /** Github client */
   public readonly github: Github;
 
-  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+  public constructor(
+    config: Record<string, any>,
+    artifactProvider: BaseArtifactProvider
+  ) {
     super(config, artifactProvider);
     this.githubConfig = {
       ...getGlobalGithubConfig(),

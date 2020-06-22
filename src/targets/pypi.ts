@@ -39,7 +39,10 @@ export class PypiTarget extends BaseTarget {
   /** Target options */
   public readonly pypiConfig: PypiTargetOptions;
 
-  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+  public constructor(
+    config: Record<string, any>,
+    artifactProvider: BaseArtifactProvider
+  ) {
     super(config, artifactProvider);
     this.pypiConfig = this.getPypiConfig();
     checkExecutableIsPresent(TWINE_BIN);

@@ -14,6 +14,7 @@ import { reportError } from './errors';
 export async function filterAsync<T>(
   array: T[],
   predicate: (arg: T) => boolean | Promise<boolean>,
+  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
   thisArg?: any
 ): Promise<T[]> {
   const verdicts = await Promise.all(array.map(predicate, thisArg));
@@ -28,7 +29,7 @@ export async function filterAsync<T>(
  * @returns A promise that resolves with each value
  * @async
  */
-export async function promiseProps(object: any): Promise<any> {
+export async function promiseProps(object: Record<string, any>): Promise<any> {
   const pairs = _.toPairs(object).map(async ([key, value]) => [
     key,
     await Promise.resolve(value),
@@ -55,6 +56,7 @@ export async function promiseProps(object: any): Promise<any> {
 export async function forEachChained<T>(
   array: T[],
   iteratee: (x: T) => any,
+  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
   thisArg?: any
 ): Promise<void> {
   return array.reduce(

@@ -87,7 +87,10 @@ export class RegistryTarget extends BaseTarget {
   /** Github repo configuration */
   public readonly githubRepo: GithubGlobalConfig;
 
-  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+  public constructor(
+    config: Record<string, any>,
+    artifactProvider: BaseArtifactProvider
+  ) {
     super(config, artifactProvider);
     this.github = getGithubClient();
     this.githubRepo = getGlobalGithubConfig();
@@ -102,7 +105,7 @@ export class RegistryTarget extends BaseTarget {
    *
    * @param checksums Raw configuration
    */
-  protected castChecksums(checksums: any): ChecksumEntry[] {
+  protected castChecksums(checksums: any[]): ChecksumEntry[] {
     if (!checksums) {
       return [];
     }

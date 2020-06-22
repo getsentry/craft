@@ -83,7 +83,10 @@ function processError(
  * @param arg String to process
  * @param env Environment-like key-value mapping
  */
-export function replaceEnvVariable(arg: string, env: any): string {
+export function replaceEnvVariable(
+  arg: string,
+  env: Record<string, any>
+): string {
   if (!env || !arg || arg[0] !== '$') {
     return arg;
   }

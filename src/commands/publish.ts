@@ -1,6 +1,6 @@
 import * as Github from '@octokit/rest';
 import * as inquirer from 'inquirer';
-import { Arguments, Argv } from 'yargs';
+import { Arguments, Argv, CommandBuilder } from 'yargs';
 import chalk from 'chalk';
 import * as stringLength from 'string-length';
 
@@ -31,7 +31,7 @@ export const command = ['publish NEW-VERSION'];
 export const aliases = ['pp', 'publish'];
 export const description = '🛫 Publish artifacts';
 
-export const builder = (yargs: Argv) =>
+export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
     .positional('NEW-VERSION', {
       description: 'Version to publish',
@@ -517,7 +517,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   }
 }
 
-export const handler = async (argv: PublishOptions) => {
+export const handler = async (argv: PublishOptions): Promise<any> => {
   try {
     catchKeyboardInterrupt();
     return await publishMain(argv);
