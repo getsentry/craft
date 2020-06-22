@@ -3,7 +3,6 @@ import * as path from 'path';
 
 import { mapLimit } from 'async';
 import * as Github from '@octokit/rest';
-// tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
 import * as _ from 'lodash';
 
@@ -419,7 +418,6 @@ export class RegistryTarget extends BaseTarget {
     );
     const files: { [key: string]: any } = {};
 
-    // tslint:disable-next-line:await-promise
     await mapLimit(artifacts, MAX_DOWNLOAD_CONCURRENCY, async artifact => {
       const fileData = await this.getArtifactData(artifact, version, revision);
       if (!_.isEmpty(fileData)) {
@@ -504,7 +502,6 @@ export class RegistryTarget extends BaseTarget {
       revision
     );
 
-    // tslint:disable-next-line:prefer-template
     const manifestString = JSON.stringify(updatedManifest, undefined, 2) + '\n';
     logger.debug('Updated manifest', manifestString);
     logger.debug(`Writing updated manifest to "${versionFilePath}"...`);

@@ -115,8 +115,6 @@ describe('forEachChained', () => {
   });
 
   describe('sync and async iteratees in regular and dry-run mode', () => {
-    // tslint:disable: completed-docs
-
     const arr = ['first', 'second', 'third', 'fourth'];
 
     function syncIteratee(arrEntry: string): string {

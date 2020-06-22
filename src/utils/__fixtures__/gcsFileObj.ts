@@ -1,5 +1,3 @@
-// tslint:disable: object-literal-sort-keys
-
 // Note: All but the last two objects in this file (the ones which are exported)
 // exist purely because real-life GCS File objects are enormous, deeply nested,
 // and full of repetition, so breaking them up is the only way to have any idea

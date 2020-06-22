@@ -15,6 +15,6 @@ declare module 'consola' {
     reporters: any[];
   }
 
-  var c: Consola;
+  let c: Consola;
   export = c;
 }

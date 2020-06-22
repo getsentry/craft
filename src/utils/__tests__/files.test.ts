@@ -17,7 +17,7 @@ describe('listFiles', () => {
 describe('withTempDir', () => {
   async function testDirectories(
     callback: (arg: any) => any,
-    cleanupEnabled: boolean = true
+    cleanupEnabled = true
   ): Promise<any> {
     let directory = '';
     try {

@@ -20,6 +20,7 @@ const configGeneratedTypes = join(configSchemaDir, 'project_config.ts');
  */
 describe('compile-json-schema-to-typescript', () => {
   test('does not make any changes to the compiled interface', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const projectConfig = require('../schemas/projectConfig.schema');
     const storedOutput = readFileSync(configGeneratedTypes, {
       encoding: 'utf8',

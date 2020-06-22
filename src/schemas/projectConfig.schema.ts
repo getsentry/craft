@@ -3,7 +3,6 @@
  * properly seen and copied by TS-compiler.
  */
 
-// tslint:disable
 const projectConfigJsonSchema = {
   title: 'CraftProjectConfig',
   description: 'Craft project-specific configuration',

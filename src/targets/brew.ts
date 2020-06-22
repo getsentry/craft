@@ -162,7 +162,6 @@ export class BrewTarget extends BaseTarget {
 
     const checksums: any = {};
 
-    // tslint:disable-next-line:await-promise
     await mapLimit(filesList, MAX_DOWNLOAD_CONCURRENCY, async file => {
       checksums[file.filename] = await this.artifactProvider.getChecksum(
         file,

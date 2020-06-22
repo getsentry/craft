@@ -152,7 +152,6 @@ describe('env utils functions', () => {
   describe('readEnvironmentConfig', () => {
     const invalidDir = '/invalid/invalid';
 
-    // tslint:disable-next-line: completed-docs
     function writeConfigFileSync(directory: string): void {
       const outConfigFile = join(directory, config.CONFIG_FILE_NAME);
       writeFileSync(outConfigFile, '');

@@ -130,7 +130,7 @@ export function getGithubApiToken(): string {
  * @param token Github authentication token
  * @returns Github client
  */
-export function getGithubClient(token: string = ''): Github {
+export function getGithubClient(token = ''): Github {
   const githubApiToken = token || getGithubApiToken();
 
   const attrs = {
@@ -145,6 +145,7 @@ export function getGithubClient(token: string = ''): Github {
     };
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const octokitWithRetries = Github.plugin(require('@octokit/plugin-retry'));
   return new octokitWithRetries(attrs);
 }
@@ -297,14 +298,13 @@ export async function downloadSources(
   const url = `https://github.com/${owner}/${repo}/archive/${sha}.tar.gz`;
 
   return new Promise<Readable>((resolve, reject) => {
-    // tslint:disable-next-line:no-null-keyword
     request({ url, encoding: null }, (error, _response, body: Buffer) => {
       if (error) {
         reject(error);
       }
       const stream = new Duplex();
       stream.push(body);
-      stream.push(null); // tslint:disable-line:no-null-keyword
+      stream.push(null);
       resolve(stream);
     });
   });

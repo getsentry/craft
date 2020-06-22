@@ -1,7 +1,6 @@
 import { existsSync, promises as fsPromises } from 'fs';
 import { dirname, join, relative } from 'path';
 import * as shellQuote from 'shell-quote';
-// tslint:disable-next-line:no-submodule-imports
 import * as simpleGit from 'simple-git/promise';
 import { Arguments, Argv } from 'yargs';
 
@@ -157,7 +156,7 @@ async function createReleaseBranch(
 async function pushReleaseBranch(
   git: simpleGit.SimpleGit,
   branchName: string,
-  pushFlag: boolean = true
+  pushFlag = true
 ): Promise<any> {
   const remoteName = getRemoteName();
   if (pushFlag) {
@@ -249,7 +248,7 @@ export async function runPreReleaseCommand(
 async function checkGitState(
   git: simpleGit.SimpleGit,
   defaultBranch: string,
-  checkGitStatus: boolean = true
+  checkGitStatus = true
 ): Promise<void> {
   if (!checkGitStatus) {
     logger.warn('Not checking the status of the local repository');
@@ -345,7 +344,7 @@ async function execPublish(newVersion: string): Promise<never> {
 async function checkForExistingTag(
   git: simpleGit.SimpleGit,
   newVersion: string,
-  checkGitStatus: boolean = true
+  checkGitStatus = true
 ): Promise<void> {
   if (!checkGitStatus) {
     logger.warn('Not checking if the version (git tag) already exists');
@@ -409,6 +408,7 @@ async function prepareChangelog(
   );
   switch (changelogPolicy) {
     case ChangelogPolicy.Auto:
+      // eslint-disable-next-line no-case-declarations
       let replaceSection;
       if (!changeset) {
         changeset = { name: newVersion, body: '' };

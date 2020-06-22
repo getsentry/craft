@@ -70,7 +70,7 @@ export class NugetTarget extends BaseTarget {
       'push',
       path,
       '--api-key',
-      '${NUGET_API_TOKEN}', // tslint:disable-line:no-invalid-template-strings
+      '${NUGET_API_TOKEN}',
       '--source',
       this.nugetConfig.serverUrl,
     ]);

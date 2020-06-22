@@ -19,8 +19,6 @@ export function formatTable(options: any, values: any[]): string {
  * Below: we module-export "consola" instance by default.
  */
 
-// tslint:disable:object-literal-sort-keys
-// tslint:disable: completed-docs
 export enum LOG_LEVEL {
   ERROR = 0,
   WARN = 1,
@@ -42,7 +40,6 @@ interface LogEntry {
   additional: string;
 }
 
-// tslint:disable-next-line: variable-name
 export type Logger = typeof consola;
 
 /** Reporter that sends logs to Sentry */

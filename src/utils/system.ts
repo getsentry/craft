@@ -274,7 +274,6 @@ function getPotentialPaths(fileName: string): string[] {
  */
 function isExecutable(filePath: string): boolean {
   try {
-    // tslint:disable-next-line:no-bitwise
     fs.accessSync(filePath, fs.constants.F_OK | fs.constants.X_OK);
     return true;
   } catch (e) {
@@ -397,7 +396,7 @@ export async function downloadAndExtract(
  *
  * @param maxTimeDiff Maximum time interval in milliseconds between the signals
  */
-export function catchKeyboardInterrupt(maxTimeDiff: number = 1000): void {
+export function catchKeyboardInterrupt(maxTimeDiff = 1000): void {
   if (process.env.CRAFT_CATCH_KEYBOARD_INTERRUPT !== '1') {
     logger.debug(
       'Catching Ctrl-C is disabled by default. See https://github.com/getsentry/craft/issues/21'

@@ -27,7 +27,7 @@ export enum CommitStatus {
 }
 
 /** Repository information */
-// tslint:disable-next-line:no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface RepositoryInfo {}
 
 /**
@@ -60,13 +60,13 @@ export abstract class BaseStatusProvider {
     const spinner = ora({ spinner: 'bouncingBar' }) as any;
     let secondsPassed = 0;
     let firstIteration = true;
+
     while (true) {
       const status = await this.getRevisionStatus(revision);
       logger.debug(
         `Got status "${status}" from status provider: ${this.constructor.name}`
       );
 
-      // tslint:disable-next-line:prefer-switch
       if (status === CommitStatus.SUCCESS) {
         if (spinner.isSpinning) {
           spinner.succeed();
