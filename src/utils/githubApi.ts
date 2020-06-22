@@ -364,7 +364,6 @@ export async function retryHttp<T>(
   const maxRetries = params.retries;
   let retryNum = 0;
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     logger.debug(`Retry number ${retryNum}, max retries: ${maxRetries}`);
 

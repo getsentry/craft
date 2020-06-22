@@ -61,7 +61,6 @@ export abstract class BaseStatusProvider {
     let secondsPassed = 0;
     let firstIteration = true;
 
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       const status = await this.getRevisionStatus(revision);
       logger.debug(
