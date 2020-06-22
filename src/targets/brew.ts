@@ -1,6 +1,5 @@
 import { mapLimit } from 'async';
 import * as Github from '@octokit/rest';
-import * as _ from 'lodash';
 
 import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';

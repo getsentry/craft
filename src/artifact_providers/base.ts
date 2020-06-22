@@ -4,7 +4,6 @@ import {
   HashOutputFormat,
 } from '../utils/system';
 import { clearObjectProperties } from '../utils/objects';
-import * as _ from 'lodash';
 import { ConfigurationError } from '../utils/errors';
 import { logger as loggerRaw } from '../logger';
 
