@@ -1,6 +1,7 @@
 # Changelog
 
 - build: Migrate from tslint to eslint (#113)
+- fix: Add stronger types for module exports (#114)
 
 ## 0.10.1
 
