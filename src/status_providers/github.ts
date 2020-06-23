@@ -16,7 +16,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
   public constructor(
     private readonly repoOwner: string,
     private readonly repoName: string,
-    config?: any
+    config?: Record<string, any>
   ) {
     super();
     this.github = getGithubClient();

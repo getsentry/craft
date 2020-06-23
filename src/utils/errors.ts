@@ -85,6 +85,7 @@ export function coerceType<T>(
  *
  * @param e Error (exception) object to handle
  */
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function handleGlobalError(e: any): void {
   if (!(e instanceof ConfigurationError)) {
     captureException(e);

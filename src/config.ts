@@ -118,7 +118,9 @@ export function getProjectConfigSchema(): any {
  *
  * @param rawConfig Raw project configuration object
  */
-export function validateConfiguration(rawConfig: any): CraftProjectConfig {
+export function validateConfiguration(
+  rawConfig: Record<string, any>
+): CraftProjectConfig {
   logger.debug('Parsing and validating the configuration file...');
   const schemaName = 'projectConfig';
   const projectConfigSchema = getProjectConfigSchema();

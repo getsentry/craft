@@ -33,7 +33,10 @@ export class DockerTarget extends BaseTarget {
   /** Target options */
   public readonly dockerConfig: DockerTargetOptions;
 
-  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+  public constructor(
+    config: Record<string, any>,
+    artifactProvider: BaseArtifactProvider
+  ) {
     super(config, artifactProvider);
     this.dockerConfig = this.getDockerConfig();
     checkExecutableIsPresent(DOCKER_BIN);

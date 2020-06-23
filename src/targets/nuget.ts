@@ -36,7 +36,10 @@ export class NugetTarget extends BaseTarget {
   /** Target options */
   public readonly nugetConfig: NugetTargetOptions;
 
-  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+  public constructor(
+    config: Record<string, any>,
+    artifactProvider: BaseArtifactProvider
+  ) {
     super(config, artifactProvider);
     this.nugetConfig = this.getNugetConfig();
     checkExecutableIsPresent(NUGET_DOTNET_BIN);

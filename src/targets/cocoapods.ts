@@ -42,7 +42,10 @@ export class CocoapodsTarget extends BaseTarget {
   /** Github repo configuration */
   public readonly githubRepo: GithubGlobalConfig;
 
-  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+  public constructor(
+    config: Record<string, any>,
+    artifactProvider: BaseArtifactProvider
+  ) {
     super(config, artifactProvider);
     this.cocoapodsConfig = this.getCocoapodsConfig();
     this.github = getGithubClient();

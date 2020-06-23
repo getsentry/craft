@@ -1,4 +1,4 @@
-import { Argv } from 'yargs';
+import { Argv, CommandBuilder } from 'yargs';
 
 export const command = ['artifacts <command>'];
 export const aliases = ['a', 'artifact'];
@@ -11,7 +11,7 @@ export interface ArtifactsOptions {
   rev: string;
 }
 
-export const builder = (yargs: Argv) =>
+export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
     .option('rev', {
       alias: 'r',

@@ -8,7 +8,10 @@ import consola = require('consola');
  * @param options Options that are passed to cli-table constructor
  * @param values A list (of lists) of values
  */
-export function formatTable(options: any, values: any[]): string {
+export function formatTable(
+  options: Record<string, any>,
+  values: any[]
+): string {
   const table = new Table(options);
   table.push(...values);
   return table.toString();

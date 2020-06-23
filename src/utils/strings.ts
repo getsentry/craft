@@ -10,7 +10,7 @@ import * as mustache from 'mustache';
  * @param obj Object to normalize
  * @returns Normalized object
  */
-export function sanitizeObject(obj: any): any {
+export function sanitizeObject(obj: Record<string, any>): any {
   if (typeof obj !== 'object' || obj === null) {
     throw new Error(`Cannot normalize value: ${obj}`);
   }
@@ -50,7 +50,10 @@ export function sanitizeObject(obj: any): any {
  * @param context Template data
  * @returns Rendered template
  */
-export function renderTemplateSafe(template: string, context: any): string {
+export function renderTemplateSafe(
+  template: string,
+  context: Record<string, any>
+): string {
   return mustache.render(template, sanitizeObject(context));
 }
 
@@ -77,6 +80,9 @@ export function formatSize(size: number): string {
  *
  * @param obj Object to print out
  */
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function formatJson(obj: any): string {
+  // Must type `obj` as any as JSON.stringify is typed as
+  // `JSON.stringify(value: any, ...)`.
   return JSON.stringify(obj, null, 4);
 }

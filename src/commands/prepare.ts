@@ -2,7 +2,7 @@ import { existsSync, promises as fsPromises } from 'fs';
 import { dirname, join, relative } from 'path';
 import * as shellQuote from 'shell-quote';
 import * as simpleGit from 'simple-git/promise';
-import { Arguments, Argv } from 'yargs';
+import { Arguments, Argv, CommandBuilder } from 'yargs';
 
 import {
   checkMinimalConfigVersion,
@@ -39,7 +39,7 @@ export const description = '🚢 Prepare a new release branch';
 /** Default path to bump-version script, relative to project root */
 const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
 
-export const builder = (yargs: Argv) =>
+export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
     .positional('NEW-VERSION', {
       description: 'The new version you want to release',
@@ -566,7 +566,7 @@ function getRemoteName(): string {
   return process.env.CRAFT_REMOTE || 'origin';
 }
 
-export const handler = async (argv: ReleaseOptions) => {
+export const handler = async (argv: ReleaseOptions): Promise<any> => {
   try {
     return await releaseMain(argv);
   } catch (e) {

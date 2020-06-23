@@ -3,7 +3,7 @@ import { logger } from '../../logger';
 import { ArtifactsOptions } from '../artifacts';
 import { getArtifactProviderFromConfig } from '../../config';
 import { handleGlobalError, ConfigurationError } from '../../utils/errors';
-import { Argv } from 'yargs';
+import { Argv, CommandBuilder } from 'yargs';
 import { resolve } from 'path';
 import { existsSync, lstatSync } from 'fs';
 import mkdirp = require('mkdirp');
@@ -12,7 +12,7 @@ import { NoneArtifactProvider } from '../../artifact_providers/none';
 export const command = ['download [NAME..]'];
 export const aliases = ['d', 'get'];
 export const description = 'Download artifacts';
-export const builder = (yargs: Argv) =>
+export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
     .positional('NAME', {
       alias: 'names',

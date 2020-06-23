@@ -107,7 +107,10 @@ export class CratesTarget extends BaseTarget {
   /** Target options */
   public readonly cratesConfig: CratesTargetOptions;
 
-  public constructor(config: any, artifactProvider: BaseArtifactProvider) {
+  public constructor(
+    config: Record<string, any>,
+    artifactProvider: BaseArtifactProvider
+  ) {
     super(config, artifactProvider);
     this.cratesConfig = this.getCratesConfig();
     checkExecutableIsPresent(CARGO_BIN);
