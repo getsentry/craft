@@ -1,6 +1,6 @@
 # Changelog
 
-# Unreleased
+## Unreleased
 
 - build: Migrate from tslint to eslint (#113)
 - fix: Add stronger types for module exports (#114)
