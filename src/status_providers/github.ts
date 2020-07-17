@@ -40,10 +40,16 @@ export class GithubStatusProvider extends BaseStatusProvider {
     }
 
     // There are two commit status flavours we have to consider:
-    const [revisionStatus, revisionChecks] = await Promise.all([
+    const [
+      revisionStatus,
+      revisionCheckSuites,
+      revisionChecks,
+    ] = await Promise.all([
       // 1. Commit status API
       this.getCommitApiStatus(revision),
-      // 2. Check runs API
+      // 2. Check suites API
+      this.getRevisionCheckSuites(revision),
+      // 3. Check runs API
       this.getRevisionChecks(revision),
     ]);
 
@@ -55,6 +61,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
         const contextResult = this.getStatusForContext(
           contextString,
           revisionStatus,
+          revisionCheckSuites,
           revisionChecks
         );
         if (contextResult === CommitStatus.FAILURE) {
@@ -84,6 +91,13 @@ export class GithubStatusProvider extends BaseStatusProvider {
         if (revisionChecks.total_count > 0) {
           logger.debug('Check runs exist, continuing...');
           commitApiStatusResult = CommitStatus.SUCCESS;
+        } else if (
+          revisionCheckSuites.check_suites.some(
+            suite => suite.status === 'queued'
+          )
+        ) {
+          logger.debug('Pending check suites exist, continuing...');
+          commitApiStatusResult = CommitStatus.PENDING;
         } else {
           logger.warn('No valid build contexts detected, did any checks run?');
           commitApiStatusResult = CommitStatus.NOT_FOUND;
@@ -96,6 +110,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
       logger.debug(`Commit API status result: ${commitApiStatusResult}`);
 
       const revisionChecksResult = this.getResultFromRevisionChecks(
+        revisionCheckSuites,
         revisionChecks
       );
       logger.debug(`Check runs API result: ${revisionChecksResult}`);
@@ -119,16 +134,22 @@ export class GithubStatusProvider extends BaseStatusProvider {
    *
    * @param context String that describes a commit check (e.g. a CI run)
    * @param revisionStatus Legacy Commit API response
+   * @param revisionCheckSuites Check Suites API response
    * @param revisionChecks Check Runs API response
    */
   private getStatusForContext(
     context: string,
     revisionStatus: Github.ReposGetCombinedStatusForRefResponse,
+    revisionCheckSuites: Github.ChecksListSuitesForRefResponse,
     revisionChecks: Github.ChecksListForRefResponse
   ): CommitStatus {
     const results = [
       this.getResultFromCommitApiStatus(revisionStatus, context),
-      this.getResultFromRevisionChecks(revisionChecks, context),
+      this.getResultFromRevisionChecks(
+        revisionCheckSuites,
+        revisionChecks,
+        context
+      ),
     ];
     logger.debug(`Status check results: ${formatJson(results)}`);
 
@@ -193,15 +214,19 @@ export class GithubStatusProvider extends BaseStatusProvider {
   /**
    * Returns aggregated commit status from the Check API response
    *
+   * @param revisionCheckSuites Response from GitHub Check Suites API
    * @param revisionChecks Response from GitHub Check API
    * @param context If provided, only the corresponding run is considered
    */
   private getResultFromRevisionChecks(
+    revisionCheckSuites: Github.ChecksListSuitesForRefResponse,
     revisionChecks: Github.ChecksListForRefResponse,
     context?: string
   ): CommitStatus {
     // Check runs: we have an array of runs, and each of them has a status
-    let isSomethingPending = false;
+    let isSomethingPending = revisionCheckSuites.check_suites.some(
+      suite => suite.status === 'queued'
+    );
     let found = false;
     for (const run of revisionChecks.check_runs) {
       if (context && run.name !== context) {
@@ -252,6 +277,34 @@ export class GithubStatusProvider extends BaseStatusProvider {
       `Revision combined status received: "${formatJson(revisionStatus)}"`
     );
     return revisionStatus;
+  }
+
+  /**
+   * Gets revision checks from GitHub Check runs API
+   *
+   * API docs:
+   * https://developer.github.com/v3/checks/suites/#list-check-suites-for-a-git-reference
+   *
+   * Examples: Travis CI, Azure Pipelines
+   *
+   * @param revision Git revision SHA
+   */
+  protected async getRevisionCheckSuites(
+    revision: string
+  ): Promise<Github.ChecksListSuitesForRefResponse> {
+    logger.debug(`Fetching Checks API status...`);
+    const revisionCheckSuites = (
+      await this.github.checks.listSuitesForRef({
+        owner: this.repoOwner,
+        ref: revision,
+        repo: this.repoName,
+      })
+    ).data;
+    logger.debug(
+      `Revision check suites received: "${formatJson(revisionCheckSuites)}"`
+    );
+
+    return revisionCheckSuites;
   }
 
   /**
