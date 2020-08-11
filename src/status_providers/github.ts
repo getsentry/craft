@@ -284,7 +284,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
   }
 
   /**
-   * Gets revision checks from GitHub Check runs API
+   * Gets revision checks from GitHub Check suites API
    *
    * API docs:
    * https://developer.github.com/v3/checks/suites/#list-check-suites-for-a-git-reference
