@@ -823,9 +823,10 @@ statusProvider:
       - Travis CI - Branch # or whatever builds and pushes your source image
 ```
 
-### Ruby Gems Index (`pypi`)
+### Ruby Gems Index (`gem`)
 
 Pushes a gem [Ruby Gems](https://rubygems.org).
+It also requires you to be logged in `gem login`.
 
 **Environment**
 
