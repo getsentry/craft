@@ -4,6 +4,7 @@ import { CocoapodsTarget } from './cocoapods';
 import { CratesTarget } from './crates';
 import { DockerTarget } from './docker';
 import { GcsTarget } from './gcs';
+import { GemTarget } from './gem';
 import { GhPagesTarget } from './ghPages';
 import { GithubTarget } from './github';
 import { NpmTarget } from './npm';
@@ -17,6 +18,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   crates: CratesTarget,
   docker: DockerTarget,
   gcs: GcsTarget,
+  gem: GemTarget,
   'gh-pages': GhPagesTarget,
   github: GithubTarget,
   npm: NpmTarget,
