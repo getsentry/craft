@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- fix(gcs): Better error serialization (#120)
+
 ## 0.11.0
 
 - build: Migrate from tslint to eslint (#113)
