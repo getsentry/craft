@@ -228,7 +228,7 @@ export class CraftGCSClient {
         await this.bucket.upload(artifactLocalPath, uploadConfig);
       } catch (err) {
         reportError(`Encountered an error while uploading \`${filename}\`:
-        ${err}`);
+          ${formatJson(err)}`);
       }
 
       // TODO (kmclb) replace this with a `craft download` command once that's a thing
@@ -280,7 +280,7 @@ export class CraftGCSClient {
         });
       } catch (err) {
         reportError(`Encountered an error while downloading \`${destinationFilename}\`:
-          ${err}`);
+          ${formatJson(err)}`);
       }
 
       this.logger.debug(`Successfully downloaded \`${destinationFilename}\`.`);
@@ -342,7 +342,9 @@ export class CraftGCSClient {
         prefix: path.join(repoOwner, repoName, revision),
       });
     } catch (err) {
-      reportError(`Error retrieving artifact list from GCS: ${String(err)}`);
+      reportError(
+        `Error retrieving artifact list from GCS: ${formatJson(err)}`
+      );
     }
 
     const files = filesResponse[0];
