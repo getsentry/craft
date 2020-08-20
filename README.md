@@ -46,6 +46,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Sentry Release Registry (`registry`)](#sentry-release-registry-registry)
   - [Cocoapods (`cocoapods`)](#cocoapods-cocoapods)
   - [Docker (`docker`)](#docker-docker)
+  - [Ruby Gems (`gem`)](#ruby-gems-index-gem)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Development](#development)
@@ -820,6 +821,30 @@ statusProvider:
   config:
     contexts:
       - Travis CI - Branch # or whatever builds and pushes your source image
+```
+
+### Ruby Gems Index (`gem`)
+
+Pushes a gem [Ruby Gems](https://rubygems.org).
+It also requires you to be logged in with `gem login`.
+
+**Environment**
+
+`gem` must be installed on the system.
+
+| Name      | Description                                  |
+| --------- | -------------------------------------------- |
+| `GEM_BIN` | **optional**. Path to "gem" executable. Defaults to `gem` |
+
+**Configuration**
+
+_none_
+
+**Example**
+
+```yaml
+targets:
+  - name: gem
 ```
 
 ## Integrating Your Project with `craft`
