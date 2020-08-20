@@ -1,4 +1,5 @@
 import * as mustache from 'mustache';
+import * as util from 'util';
 
 /**
  * Sanitizes object attributes
@@ -82,7 +83,11 @@ export function formatSize(size: number): string {
  */
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function formatJson(obj: any): string {
-  // Must type `obj` as any as JSON.stringify is typed as
-  // `JSON.stringify(value: any, ...)`.
-  return JSON.stringify(obj, null, 4);
+  const result = JSON.stringify(obj, null, 4);
+  if (obj instanceof Error && result === '{}') {
+    // Error that doesn't implement toJSON()
+    return util.format(obj);
+  } else {
+    return result;
+  }
 }
