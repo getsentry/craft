@@ -826,7 +826,7 @@ statusProvider:
 ### Ruby Gems Index (`gem`)
 
 Pushes a gem [Ruby Gems](https://rubygems.org).
-It also requires you to be logged in `gem login`.
+It also requires you to be logged in with `gem login`.
 
 **Environment**
 
@@ -834,7 +834,7 @@ It also requires you to be logged in `gem login`.
 
 | Name      | Description                                  |
 | --------- | -------------------------------------------- |
-| `GEM_BIN` | **optional**. Path to gem. Defaults to `gem` |
+| `GEM_BIN` | **optional**. Path to "gem" executable. Defaults to `gem` |
 
 **Configuration**
 

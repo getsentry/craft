@@ -14,7 +14,7 @@ const DEFAULT_GEM_BIN = 'gem';
 /**
  * Command to launch gem
  */
-const GEM_BIN = process.env.TWINE_BIN || DEFAULT_GEM_BIN;
+const GEM_BIN = process.env.GEM_BIN || DEFAULT_GEM_BIN;
 
 /**
  * RegExp for gems
