@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.11.0
+
 - build: Migrate from tslint to eslint (#113)
 - fix: Add stronger types for module exports (#114)
 - fix(github): Don't fail when there are queued check suites (#117)
