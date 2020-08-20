@@ -1,5 +1,4 @@
 import { logger as loggerRaw } from '../logger';
-import { TargetConfig } from '../schemas/project_config';
 import {
   BaseArtifactProvider,
   RemoteArtifact,
