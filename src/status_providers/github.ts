@@ -237,7 +237,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
         continue;
       }
       if (run.status === 'completed') {
-        if (run.conclusion !== 'success') {
+        if (run.conclusion !== 'success' && run.conclusion !== 'skipped') {
           return CommitStatus.FAILURE;
         }
       } else {
