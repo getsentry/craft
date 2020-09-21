@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.1
 
 - fix(gcs): Better error serialization (#120)
 - fix(github): Detect skipped status checks and Github actions runs as successful (#124)
