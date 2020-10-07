@@ -803,10 +803,12 @@ non-idempotent targets, not for the Docker target.
 
 **Configuration**
 
-| Option   | Description                                  |
-| -------- | -------------------------------------------- |
-| `source` | Path to the source Docker image to be pulled |
-| `target` | Path to the target Docker image to be pushed |
+| Option         | Description                                                          |
+| -------------- | -------------------------------------------------------------------- |
+| `source`       | Path to the source Docker image to be pulled                         |
+| `sourceFormat` | Format for the source image name. Default: `{{source}}:{{revision}}` |
+| `target`       | Path to the target Docker image to be pushed                         |
+| `targetFormat` | Format for the target image name. Default: `{{target}}:{{release}}`  |
 
 **Example**
 
