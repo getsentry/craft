@@ -23,7 +23,7 @@ export interface DockerTargetOptions extends TargetConfig {
   source: string;
   /** Full name template for the source image path, defaults to `{{source}}:{{revision}}` */
   sourceTemplate: string;
-  /** Full name template for the target image path, defaults to `{{target}}:{{release}}` */
+  /** Full name template for the target image path, defaults to `{{target}}:{{version}}` */
   targetTemplate: string;
   /** Target image path, like `getsentry/craft` */
   target: string;
@@ -66,7 +66,7 @@ export class DockerTarget extends BaseTarget {
       source: this.config.source,
       target: this.config.target,
       sourceTemplate: this.config.sourceFormat || '{{source}}:{{revision}}',
-      targetTemplate: this.config.targetFormat || '{{target}}:{{release}}',
+      targetTemplate: this.config.targetFormat || '{{target}}:{{version}}',
       username: process.env.DOCKER_USERNAME,
     };
   }
@@ -106,16 +106,16 @@ export class DockerTarget extends BaseTarget {
   /**
    * Pushes the locally tagged source image to Docker Hub
    * @param sourceRevision The tag/revision for the source image
-   * @param targetTag The target tag (release version) for the target image
+   * @param version The release version for the target image
    */
-  public async push(sourceRevision: string, targetTag: string): Promise<any> {
+  public async push(sourceRevision: string, version: string): Promise<any> {
     const sourceImage = renderTemplateSafe(this.dockerConfig.sourceTemplate, {
       ...this.dockerConfig,
       revision: sourceRevision,
     });
     const targetImage = renderTemplateSafe(this.dockerConfig.targetTemplate, {
       ...this.dockerConfig,
-      release: targetTag,
+      version,
     });
     logger.debug('Tagging target image...');
     await spawnProcess(DOCKER_BIN, ['tag', sourceImage, targetImage]);
