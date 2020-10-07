@@ -2,6 +2,7 @@ import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { ConfigurationError } from '../utils/errors';
+import { renderTemplateSafe } from '../utils/strings';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 
@@ -20,6 +21,10 @@ export interface DockerTargetOptions extends TargetConfig {
   password: string;
   /** Source image path, like `us.gcr.io/sentryio/craft` */
   source: string;
+  /** Full name template for the source image path, defaults to `{{source}}:{{revision}}` */
+  sourceTemplate: string;
+  /** Full name template for the target image path, defaults to `{{target}}:{{release}}` */
+  targetTemplate: string;
   /** Target image path, like `getsentry/craft` */
   target: string;
 }
@@ -55,10 +60,13 @@ export class DockerTarget extends BaseTarget {
         )
       );
     }
+
     return {
       password: process.env.DOCKER_PASSWORD,
       source: this.config.source,
       target: this.config.target,
+      sourceTemplate: this.config.sourceFormat || '{{source}}:{{revision}}',
+      targetTemplate: this.config.targetFormat || '{{target}}:{{release}}',
       username: process.env.DOCKER_USERNAME,
     };
   }
@@ -83,9 +91,13 @@ export class DockerTarget extends BaseTarget {
    */
   public async pull(revision: string): Promise<any> {
     logger.debug('Pulling source image...');
+    const sourceImage = renderTemplateSafe(this.dockerConfig.sourceTemplate, {
+      ...this.dockerConfig,
+      revision,
+    });
     return spawnProcess(
       DOCKER_BIN,
-      ['pull', `${this.dockerConfig.source}:${revision}`],
+      ['pull', sourceImage],
       {},
       { enableInDryRunMode: true }
     );
@@ -97,15 +109,22 @@ export class DockerTarget extends BaseTarget {
    * @param targetTag The target tag (release version) for the target image
    */
   public async push(sourceRevision: string, targetTag: string): Promise<any> {
-    const { source, target } = this.dockerConfig;
-    const targetImageName = `${target}:${targetTag}`;
+    const sourceImage = renderTemplateSafe(this.dockerConfig.sourceTemplate, {
+      ...this.dockerConfig,
+      revision: sourceRevision,
+    });
+    const targetImage = renderTemplateSafe(this.dockerConfig.targetTemplate, {
+      ...this.dockerConfig,
+      release: targetTag,
+    });
     logger.debug('Tagging target image...');
-    await spawnProcess(DOCKER_BIN, [
-      'tag',
-      `${source}:${sourceRevision}`,
-      targetImageName,
-    ]);
-    return spawnProcess(DOCKER_BIN, ['push', target], {}, { showStdout: true });
+    await spawnProcess(DOCKER_BIN, ['tag', sourceImage, targetImage]);
+    return spawnProcess(
+      DOCKER_BIN,
+      ['push', targetImage],
+      {},
+      { showStdout: true }
+    );
   }
 
   /**

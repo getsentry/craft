@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.0
+
+- feat(docker): Add sourceFormat & targetFormat options (#125)
+
 ## 0.11.1
 
 - fix(gcs): Better error serialization (#120)
