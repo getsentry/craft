@@ -31,6 +31,7 @@ export interface GithubGlobalConfig {
  */
 export interface TargetConfig {
   name?: string;
+  id?: string;
   includeNames?: string;
   excludeNames?: string;
   [k: string]: any;

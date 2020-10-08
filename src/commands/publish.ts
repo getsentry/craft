@@ -482,7 +482,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
     // TODO init all targets earlier
     targetConfigList
-      .map(t => (t.id ? `${t.id}[${t.name}]` : t.name))
+      .map(t => (t.id ? `${t.id}[${t.name}]` : t.name || '__undefined__'))
       .forEach(target => logger.info(`  - ${target}`));
     logger.info(' ');
 
