@@ -3,6 +3,7 @@
 ## 0.12.0
 
 - feat(docker): Add sourceFormat & targetFormat options (#125)
+- feat(targets): Add optional `id` field to target config (#127)
 
 ## 0.11.1
 
