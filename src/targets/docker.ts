@@ -21,9 +21,9 @@ export interface DockerTargetOptions extends TargetConfig {
   password: string;
   /** Source image path, like `us.gcr.io/sentryio/craft` */
   source: string;
-  /** Full name template for the source image path, defaults to `{{source}}:{{revision}}` */
+  /** Full name template for the source image path, defaults to `{{{source}}}:{{{revision}}}` */
   sourceTemplate: string;
-  /** Full name template for the target image path, defaults to `{{target}}:{{version}}` */
+  /** Full name template for the target image path, defaults to `{{{target}}}:{{{version}}}` */
   targetTemplate: string;
   /** Target image path, like `getsentry/craft` */
   target: string;
@@ -65,8 +65,8 @@ export class DockerTarget extends BaseTarget {
       password: process.env.DOCKER_PASSWORD,
       source: this.config.source,
       target: this.config.target,
-      sourceTemplate: this.config.sourceFormat || '{{source}}:{{revision}}',
-      targetTemplate: this.config.targetFormat || '{{target}}:{{version}}',
+      sourceTemplate: this.config.sourceFormat || '{{{source}}}:{{{revision}}}',
+      targetTemplate: this.config.targetFormat || '{{{target}}}:{{{version}}}',
       username: process.env.DOCKER_USERNAME,
     };
   }
