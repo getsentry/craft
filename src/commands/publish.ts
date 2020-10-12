@@ -137,9 +137,12 @@ async function publishToTargets(
     logger.debug('Initializing targets');
     for (const targetConfig of targetConfigList) {
       const targetClass = getTargetByName(targetConfig.name);
+      const targetDescriptor = targetConfig.id
+        ? `${targetConfig.id}[${targetConfig.name}]`
+        : targetConfig.name;
       if (!targetClass) {
         logger.warn(
-          `Target implementation for "${targetConfig.name}" not found.`
+          `Target implementation for "${targetDescriptor}" not found.`
         );
         continue;
       }
@@ -154,8 +157,11 @@ async function publishToTargets(
 
     // Publish to all targets
     for (const target of targetList) {
+      const targetDescriptor = target.config.id
+        ? `${target.config.id}[${target.name}]`
+        : target.name;
       const publishMessage = `=== Publishing to target: ${chalk.bold(
-        chalk.cyan(target.name)
+        chalk.cyan(targetDescriptor)
       )} ===`;
       const delim = Array(stringLength(publishMessage) + 1).join('=');
       logger.info(' ');
@@ -455,7 +461,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   if (targetList[0] !== SpecialTarget.All) {
     targetConfigList = targetConfigList.filter(
       (targetConf: { [key: string]: any }) =>
-        targetList.indexOf(targetConf.name) > -1
+        targetList.indexOf(targetConf.id || targetConf.name) > -1
     );
   }
 
@@ -476,7 +482,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
     // TODO init all targets earlier
     targetConfigList
-      .map(t => t.name || '__undefined__')
+      .map(t => (t.id ? `${t.id}[${t.name}]` : t.name || '__undefined__'))
       .forEach(target => logger.info(`  - ${target}`));
     logger.info(' ');
 

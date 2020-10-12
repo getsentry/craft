@@ -96,6 +96,9 @@ const projectConfigJsonSchema = {
         name: {
           type: 'string',
         },
+        id: {
+          type: 'string',
+        },
         includeNames: {
           type: 'string',
         },
