@@ -4,6 +4,7 @@
 
 - feat(docker): Add sourceFormat & targetFormat options (#125)
 - feat(targets): Add optional `id` field to target config (#128)
+- fix(npm): Actually use NPM_TOKEN for publishing (#129)
 
 ## 0.11.1
 
