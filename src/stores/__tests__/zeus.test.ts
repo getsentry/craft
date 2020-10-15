@@ -35,7 +35,7 @@ describe('filterArtifactsForRevision', () => {
     'test3.tgz',
     'smthelse',
   ].map(name => artifactFactory(name, undefined));
-  zeusStore.listArtifactsForRevision = jest.fn(_revision => artifactList);
+  zeusStore.listArtifactsForRevision = jest.fn(async _revision => artifactList);
   const revision = '1234567';
 
   beforeEach(() => {
