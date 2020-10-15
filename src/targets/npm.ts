@@ -24,13 +24,6 @@ export const YARN_BIN = process.env.YARN_BIN || 'yarn';
 const NPM_MIN_MAJOR = 5;
 const NPM_MIN_MINOR = 6;
 
-/**
- * Parameter used to reset NPM to its default registry.
- * If launched from yarn, this parameter is overwritten.
- * @see https://github.com/lerna/lerna/issues/896#issuecomment-311894609
- */
-export const NPM_REGISTRY = '--registry=https://registry.npmjs.org/';
-
 /** A regular expression used to find the package tarball */
 const DEFAULT_PACKAGE_REGEX = /^.*\d\.\d.*\.tgz$/;
 
@@ -50,6 +43,8 @@ export interface NpmTargetOptions extends TargetConfig {
   useOtp?: boolean;
   /** Do we use Yarn instead of NPM? */
   useYarn: boolean;
+  /** Value of NPM_TOKEN so we can pass it to npm executable */
+  token: string;
 }
 
 /** Options for running the NPM publish command */
@@ -132,16 +127,14 @@ export class NpmTarget extends BaseTarget {
    * Extracts NPM target options from the raw configuration
    */
   protected getNpmConfig(): NpmTargetOptions {
-    // TODO figure out how to pass the token to NPM.
-    // There are no env vars we can pass, only .npmrc approach seems to work
-
-    // const npmToken = process.env.NPM_TOKEN;
-    // if (!npmToken) {
-    //   throw new Error('NPM target: NPM_TOKEN not found in the environment');
-    // }
+    const token = process.env.NPM_TOKEN;
+    if (!token) {
+      throw new Error('NPM target: NPM_TOKEN not found in the environment');
+    }
 
     const npmConfig: NpmTargetOptions = {
       useYarn: !hasExecutable(NPM_BIN),
+      token,
     };
     if (this.config.access) {
       if (Object.values(NpmPackageAccess).includes(this.config.access)) {
@@ -170,6 +163,12 @@ export class NpmTarget extends BaseTarget {
     path: string,
     options: NpmPublishOptions
   ): Promise<any> {
+    /**
+     * Parameter used to reset NPM to its default registry.
+     * If launched from yarn, this parameter is overwritten.
+     * @see https://github.com/lerna/lerna/issues/896#issuecomment-311894609
+     */
+    const NPM_REGISTRY = `--registry=https://registry.npmjs.org/:_authToken=${this.npmConfig.token}`;
     const args = ['publish', NPM_REGISTRY, path];
     let bin: string;
 
@@ -197,11 +196,16 @@ export class NpmTarget extends BaseTarget {
     // Pass OTP if configured
     const spawnOptions: SpawnOptions = {};
     if (options.otp) {
-      spawnOptions.env = { ...process.env, NPM_CONFIG_OTP: options.otp };
+      spawnOptions.env = {
+        ...process.env,
+        NPM_CONFIG_OTP: options.otp,
+      };
     }
 
     // Disable output buffering because NPM/Yarn can ask us for one-time passwords
-    return spawnProcess(bin, args, spawnOptions, { showStdout: true });
+    return spawnProcess(bin, args, spawnOptions, {
+      showStdout: true,
+    });
   }
 
   /**
