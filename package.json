@@ -10,6 +10,15 @@
     "craft": "dist/index.js",
     "sentry-craft": "dist/index.js"
   },
+  "resolutions": {
+    "**/set-value": ">=2.0.1",
+    "**/https-proxy-agent": ">=2.2.3",
+    "**/node-forge": ">=0.10.0",
+    "**/dot-prop": ">=4.2.1",
+    "**/kind-of": ">=6.0.3",
+    "**/node-fetch": ">=2.6.1",
+    "**/yargs-parser": ">=18.1.2"
+  },
   "dependencies": {
     "@google-cloud/storage": "2.3.4",
     "@octokit/plugin-retry": "2.2.0",
