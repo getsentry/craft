@@ -379,9 +379,9 @@ project, you can set it to `none`.
 
 **Configuration**
 
-| Option | Description                                                      |
-| ------ | ---------------------------------------------------------------- |
-| `name` | Name of the artifact provider: can be `zeus` (default) or `none` |
+| Option | Description                                                                |
+| ------ | -------------------------------------------------------------------------- |
+| `name` | Name of the artifact provider: can be `zeus` (default), `github` or `none` |
 
 **Example:**
 
@@ -834,8 +834,8 @@ It also requires you to be logged in with `gem login`.
 
 `gem` must be installed on the system.
 
-| Name      | Description                                  |
-| --------- | -------------------------------------------- |
+| Name      | Description                                               |
+| --------- | --------------------------------------------------------- |
 | `GEM_BIN` | **optional**. Path to "gem" executable. Defaults to `gem` |
 
 **Configuration**

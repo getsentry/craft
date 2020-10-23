@@ -58,12 +58,12 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
    * @inheritDoc
    */
   public async doDownloadArtifact(
-    _artifact: RemoteArtifact,
-    _downloadDirectory: string
+    artifact: RemoteArtifact,
+    downloadDirectory: string
   ): Promise<string> {
-    // TODO: Return list of paths
-
-    return '';
+    const destination = path.join(downloadDirectory, artifact.filename);
+    fs.renameSync(artifact.storedFile.downloadFilepath, destination);
+    return destination;
   }
 
   /**
@@ -120,10 +120,8 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       const file = fs.createWriteStream(tempFilepath);
 
       await new Promise((resolve, reject) => {
-        request({
-          /* Here you should specify the exact link to the file you are trying to download */
-          uri: (result as any).url,
-        })
+        // we need any here since our github api client doesn't have support for artifacts requests yet
+        request({ uri: (result as any).url })
           .pipe(file)
           .on('finish', () => {
             logger.info(`Finished downloading.`);
@@ -144,7 +142,6 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
             storedFile: {
               downloadFilepath: file,
               filename: path.basename(file),
-
               size: fs.lstatSync(file).size,
             },
           } as RemoteArtifact);
