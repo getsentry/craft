@@ -18,6 +18,7 @@ import {
   versionGreaterOrEqualThan,
 } from './utils/version';
 import { BaseArtifactProvider } from './artifact_providers/base';
+import { GithubArtifactProvider } from './artifact_providers/github';
 import { ZeusArtifactProvider } from './artifact_providers/zeus';
 import { NoneArtifactProvider } from './artifact_providers/none';
 import { GCSArtifactProvider } from './artifact_providers/gcs';
@@ -250,6 +251,8 @@ export function getArtifactProviderFromConfig(): BaseArtifactProvider {
       return new NoneArtifactProvider();
     case ArtifactProviderName.GCS:
       return new GCSArtifactProvider(artifactProviderConfig);
+    case ArtifactProviderName.Github:
+      return new GithubArtifactProvider(artifactProviderConfig);
     default: {
       throw new ConfigurationError('Invalid artifact provider');
     }

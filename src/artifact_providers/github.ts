@@ -1,5 +1,8 @@
 import * as Github from '@octokit/rest';
 import * as _ from 'lodash';
+import * as fs from 'fs';
+import * as request from 'request';
+import * as path from 'path';
 
 import {
   ArtifactProviderConfig,
@@ -10,6 +13,13 @@ import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig } from '../schemas/project_config';
 import { getGithubClient } from '../utils/githubApi';
+import {
+  detectContentType,
+  scan,
+  withTempFile,
+  withTempDir,
+} from '../utils/files';
+import { extractZipArchive } from '../utils/system';
 
 const logger = loggerRaw.withScope(`[artifact-provider/github]`);
 
@@ -31,7 +41,7 @@ interface ArtifactList {
 /**
  * Github artifact provider
  */
-export class HithubArtifactProvider extends BaseArtifactProvider {
+export class GithubArtifactProvider extends BaseArtifactProvider {
   /** Github client */
   public readonly github: Github;
 
@@ -48,19 +58,12 @@ export class HithubArtifactProvider extends BaseArtifactProvider {
    * @inheritDoc
    */
   public async doDownloadArtifact(
-    artifact: RemoteArtifact,
-    downloadDirectory: string
+    _artifact: RemoteArtifact,
+    _downloadDirectory: string
   ): Promise<string> {
     // TODO: Return list of paths
-    await this.github.request(
-      '/repos/{owner}/{repo}/actions/artifacts/{artifact_id}/{archive_format}',
-      {
-        owner: 'octocat',
-        repo: 'hello-world',
-        artifact_id: 42,
-        archive_format: 'archive_format',
-      }
-    );
+
+    return '';
   }
 
   /**
@@ -73,17 +76,15 @@ export class HithubArtifactProvider extends BaseArtifactProvider {
     logger.debug(
       `Fetching Github artifacts for ${repoOwner}/${repoName}, revision ${revision}`
     );
-    const artifactResponse = ((await this.github.request(
-      'GET /repos/{owner}/{repo}/actions/artifacts',
-      {
+    const artifactResponse = ((
+      await this.github.request('GET /repos/{owner}/{repo}/actions/artifacts', {
         owner: repoOwner,
         repo: repoName,
-      }
-    )) as unknown) as ArtifactList;
+      })
+    ).data as unknown) as ArtifactList;
 
-    // see comment above
     if (artifactResponse.total_count === 0) {
-      logger.debug(`Revision \`${revision}\` found.`);
+      throw new Error(`Failed to discover any artifacts`);
     }
 
     // We need to find the archive where name maches the revision
@@ -92,7 +93,65 @@ export class HithubArtifactProvider extends BaseArtifactProvider {
       artifact => artifact.name === revision
     );
 
-    // TODO: need to return RemoteArtifact here
-    return foundArtifacts as RemoteArtifact;
+    if (foundArtifacts.length !== 1) {
+      throw new Error(`Can't find artifacts for revision \`${revision}\``);
+    }
+
+    logger.info(`Requesting archive URL from Github...`);
+
+    const result = await this.github.request(
+      '/repos/{owner}/{repo}/actions/artifacts/{artifact_id}/{archive_format}',
+      {
+        owner: repoOwner,
+        repo: repoName,
+        artifact_id: foundArtifacts[0].id,
+        archive_format: 'zip',
+      }
+    );
+
+    if (result.status !== 200) {
+      throw new Error(`Failed to fetch archive ${JSON.stringify(result)}`);
+    }
+
+    const artifacts: RemoteArtifact[] = [];
+    logger.info(`Downloading ZIP from Github artifacts...`);
+
+    await withTempFile(async tempFilepath => {
+      const file = fs.createWriteStream(tempFilepath);
+
+      await new Promise((resolve, reject) => {
+        request({
+          /* Here you should specify the exact link to the file you are trying to download */
+          uri: (result as any).url,
+        })
+          .pipe(file)
+          .on('finish', () => {
+            logger.info(`Finished downloading.`);
+            resolve();
+          })
+          .on('error', error => {
+            reject(error);
+          });
+      });
+
+      await withTempDir(async tmpDir => {
+        logger.info(`Extracting "${tempFilepath}" to "${tmpDir}"...`);
+        await extractZipArchive(tempFilepath, tmpDir);
+        await (await scan(tmpDir)).map(file => {
+          artifacts.push({
+            filename: path.basename(file),
+            mimeType: detectContentType(file),
+            storedFile: {
+              downloadFilepath: file,
+              filename: path.basename(file),
+
+              size: fs.lstatSync(file).size,
+            },
+          } as RemoteArtifact);
+        });
+      });
+    });
+
+    return artifacts;
   }
 }
