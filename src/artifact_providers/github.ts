@@ -89,6 +89,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
         owner: repoOwner,
         repo: repoName,
         per_page,
+        page,
       })
     ).data as unknown) as ArtifactList;
 
@@ -103,7 +104,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     );
 
     if (foundArtifacts.length === 0) {
-      if (artifactResponse.total_count > per_page) {
+      if (artifactResponse.total_count > per_page * (page + 1)) {
         return this.listArtifact(revision, page + 1);
       }
       throw new Error(`Can't find artifacts for revision \`${revision}\``);
