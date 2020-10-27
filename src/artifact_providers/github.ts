@@ -38,6 +38,10 @@ interface ArtifactList {
   artifacts: Array<ArtifactItem>;
 }
 
+interface ArchiveResponse extends Github.AnyResponse {
+  url: string;
+}
+
 /**
  * Github artifact provider
  */
@@ -67,19 +71,24 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
   }
 
   /**
-   * @inheritDoc
+   * Tries to find the artifact with the given revision, paging through all results.
+   *
+   * @param revision
+   * @param page
    */
-  protected async doListArtifactsForRevision(
-    revision: string
-  ): Promise<RemoteArtifact[]> {
+  private async listArtifact(
+    revision: string,
+    page = 0
+  ): Promise<ArtifactItem> {
     const { repoName, repoOwner } = this.config;
-    logger.debug(
-      `Fetching Github artifacts for ${repoOwner}/${repoName}, revision ${revision}`
-    );
+    const per_page = 100;
+
+    // https://docs.github.com/en/free-pro-team@latest/rest/reference/actions#artifacts
     const artifactResponse = ((
       await this.github.request('GET /repos/{owner}/{repo}/actions/artifacts', {
         owner: repoOwner,
         repo: repoName,
+        per_page,
       })
     ).data as unknown) as ArtifactList;
 
@@ -93,35 +102,37 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       artifact => artifact.name === revision
     );
 
-    if (foundArtifacts.length !== 1) {
+    if (foundArtifacts.length === 0) {
+      if (artifactResponse.total_count > per_page) {
+        return this.listArtifact(revision, page + 1);
+      }
       throw new Error(`Can't find artifacts for revision \`${revision}\``);
     }
 
-    logger.info(`Requesting archive URL from Github...`);
-
-    const result = await this.github.request(
-      '/repos/{owner}/{repo}/actions/artifacts/{artifact_id}/{archive_format}',
-      {
-        owner: repoOwner,
-        repo: repoName,
-        artifact_id: foundArtifacts[0].id,
-        archive_format: 'zip',
-      }
-    );
-
-    if (result.status !== 200) {
-      throw new Error(`Failed to fetch archive ${JSON.stringify(result)}`);
+    if (foundArtifacts.length > 1) {
+      throw new Error(
+        `Found multiple artifacts with the same revision \`${revision}\`\n` +
+          `Please make sure you job only uploads on set of artifacts.`
+      );
     }
 
-    const artifacts: RemoteArtifact[] = [];
-    logger.info(`Downloading ZIP from Github artifacts...`);
+    return foundArtifacts[0];
+  }
 
+  /**
+   * Downloads and unpacks a Github artifact in a temp folder
+   * @param archiveResponse
+   */
+  private async downloadAndUnpackArtifacts(
+    archiveResponse: ArchiveResponse
+  ): Promise<RemoteArtifact[]> {
+    const artifacts: RemoteArtifact[] = [];
     await withTempFile(async tempFilepath => {
       const file = fs.createWriteStream(tempFilepath);
 
       await new Promise((resolve, reject) => {
         // we need any here since our github api client doesn't have support for artifacts requests yet
-        request({ uri: (result as any).url })
+        request({ uri: archiveResponse.url })
           .pipe(file)
           .on('finish', () => {
             logger.info(`Finished downloading.`);
@@ -150,5 +161,55 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     });
 
     return artifacts;
+  }
+
+  /**
+   * Returns {@link ArchiveResponse} for a giving {@link ArtifactItem}
+   * @param foundArtifact
+   */
+  private async getArchiveDownloadUrl(
+    foundArtifact: ArtifactItem
+  ): Promise<ArchiveResponse> {
+    const { repoName, repoOwner } = this.config;
+
+    const archiveResponse = (await this.github.request(
+      '/repos/{owner}/{repo}/actions/artifacts/{artifact_id}/{archive_format}',
+      {
+        owner: repoOwner,
+        repo: repoName,
+        artifact_id: foundArtifact.id,
+        archive_format: 'zip',
+      }
+    )) as ArchiveResponse;
+
+    if (archiveResponse.status !== 200) {
+      throw new Error(
+        `Failed to fetch archive ${JSON.stringify(archiveResponse)}`
+      );
+    }
+    return archiveResponse;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected async doListArtifactsForRevision(
+    revision: string
+  ): Promise<RemoteArtifact[]> {
+    const { repoName, repoOwner } = this.config;
+
+    logger.info(
+      `Fetching Github artifacts for ${repoOwner}/${repoName}, revision ${revision}`
+    );
+
+    const foundArtifact = await this.listArtifact(revision);
+
+    logger.info(`Requesting archive URL from Github...`);
+
+    const archiveResponse = await this.getArchiveDownloadUrl(foundArtifact);
+
+    logger.info(`Downloading ZIP from Github artifacts...`);
+
+    return await this.downloadAndUnpackArtifacts(archiveResponse);
   }
 }
