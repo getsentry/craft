@@ -1,4 +1,4 @@
-name: 'Build & Test'
+name: 'Build / Test / Artifacts'
 on:
   push:
     branches:
@@ -12,7 +12,7 @@ jobs:
     strategy:
       matrix:
         node: ['10', '12']
-    name: Node Test ${{ matrix.node }}
+    name: Node ${{ matrix.node }}
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
