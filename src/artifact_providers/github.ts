@@ -158,7 +158,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
             },
           } as RemoteArtifact);
         });
-      });
+      }, false);
     });
 
     return artifacts;
