@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.1
+
+- fix: npm token usage (#134) kinda reverting (#130)
+
 ## 0.13.0
 
 - feat: Github Artifact Provider (#121)
