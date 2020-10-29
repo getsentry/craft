@@ -7,6 +7,8 @@ requireNames:
   - /^sentry-craft.*\.tgz$/
 statusProvider:
   name: github
+artifactProvider:
+  name: github
 targets:
   - name: npm
   - name: gh-pages
