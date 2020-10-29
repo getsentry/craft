@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.0
+
+- feat: Github Artifact Provider (#121)
+
 ## 0.12.0
 
 - feat(docker): Add sourceFormat & targetFormat options (#125)
