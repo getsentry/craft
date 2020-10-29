@@ -174,7 +174,7 @@ async function publishToTargets(
 
   if (keepDownloads) {
     logger.info(
-      'Difectory with the downloaded artifacts will not be removed',
+      'Directory with the downloaded artifacts will not be removed',
       `Path: ${downloadDirectoryPath}`
     );
   }

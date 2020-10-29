@@ -66,6 +66,9 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     downloadDirectory: string
   ): Promise<string> {
     const destination = path.join(downloadDirectory, artifact.filename);
+    logger.debug(
+      `rename ${artifact.storedFile.downloadFilepath} to ${destination}`
+    );
     fs.renameSync(artifact.storedFile.downloadFilepath, destination);
     return destination;
   }
