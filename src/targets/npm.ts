@@ -43,8 +43,6 @@ export interface NpmTargetOptions extends TargetConfig {
   useOtp?: boolean;
   /** Do we use Yarn instead of NPM? */
   useYarn: boolean;
-  /** Value of NPM_TOKEN so we can pass it to npm executable */
-  token: string;
 }
 
 /** Options for running the NPM publish command */
@@ -127,14 +125,8 @@ export class NpmTarget extends BaseTarget {
    * Extracts NPM target options from the raw configuration
    */
   protected getNpmConfig(): NpmTargetOptions {
-    const token = process.env.NPM_TOKEN;
-    if (!token) {
-      throw new Error('NPM target: NPM_TOKEN not found in the environment');
-    }
-
     const npmConfig: NpmTargetOptions = {
       useYarn: !!process.env.USE_YARN || !hasExecutable(NPM_BIN),
-      token,
     };
     if (this.config.access) {
       if (Object.values(NpmPackageAccess).includes(this.config.access)) {
@@ -163,13 +155,7 @@ export class NpmTarget extends BaseTarget {
     path: string,
     options: NpmPublishOptions
   ): Promise<any> {
-    /**
-     * Parameter used to reset NPM to its default registry.
-     * If launched from yarn, this parameter is overwritten.
-     * @see https://github.com/lerna/lerna/issues/896#issuecomment-311894609
-     */
-    const NPM_REGISTRY = `--registry=https://registry.npmjs.org/:_authToken=${this.npmConfig.token}`;
-    const args = ['publish', NPM_REGISTRY];
+    const args = ['publish'];
     let bin: string;
 
     if (this.npmConfig.useYarn) {
