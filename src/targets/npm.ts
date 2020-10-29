@@ -133,7 +133,7 @@ export class NpmTarget extends BaseTarget {
     }
 
     const npmConfig: NpmTargetOptions = {
-      useYarn: !hasExecutable(NPM_BIN),
+      useYarn: !!process.env.USE_YARN || !hasExecutable(NPM_BIN),
       token,
     };
     if (this.config.access) {
@@ -169,7 +169,7 @@ export class NpmTarget extends BaseTarget {
      * @see https://github.com/lerna/lerna/issues/896#issuecomment-311894609
      */
     const NPM_REGISTRY = `--registry=https://registry.npmjs.org/:_authToken=${this.npmConfig.token}`;
-    const args = ['publish', NPM_REGISTRY, path];
+    const args = ['publish', NPM_REGISTRY];
     let bin: string;
 
     if (this.npmConfig.useYarn) {
@@ -178,11 +178,12 @@ export class NpmTarget extends BaseTarget {
       args.push('--non-interactive');
     } else {
       bin = NPM_BIN;
-      if (this.npmConfig.access) {
-        // This parameter is only necessary for scoped packages, otherwise
-        // it can be left blank
-        args.push(`--access=${this.npmConfig.access}`);
-      }
+    }
+
+    if (this.npmConfig.access) {
+      // This parameter is only necessary for scoped packages, otherwise
+      // it can be left blank
+      args.push(`--access=${this.npmConfig.access}`);
     }
 
     // In case we have a prerelease, there should never be a reason to publish
@@ -201,6 +202,9 @@ export class NpmTarget extends BaseTarget {
         NPM_CONFIG_OTP: options.otp,
       };
     }
+
+    // The path has to be pushed always as the last arg
+    args.push(path);
 
     // Disable output buffering because NPM/Yarn can ask us for one-time passwords
     return spawnProcess(bin, args, spawnOptions, {

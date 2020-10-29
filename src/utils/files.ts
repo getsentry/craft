@@ -8,9 +8,38 @@ import * as util from 'util';
 import { filterAsync } from './async';
 
 const lstat = util.promisify(fs.lstat);
+const readdirp = util.promisify(fs.readdir);
 const mkdtemp = util.promisify(fs.mkdtemp);
 const readdir = util.promisify(fs.readdir);
 const rimraf = util.promisify(rimrafCallback);
+
+/**
+ * Lists all files traversing through subfolders.
+ *
+ * The path should be given absolute. Relative paths are evaluated from the
+ * current working directory. Throws if the path is missing. The resulting
+ * file paths are joined with the path argument, and thus also absolute or
+ * relative depending on the input parameter.
+ *
+ * @param directory The path to the directory
+ * @returns A list of paths to files within the directory
+ */
+export async function scan(
+  directory: string,
+  results: string[] = []
+): Promise<string[]> {
+  const files = await readdirp(directory);
+  for (const f of files) {
+    const fullPath = path.join(directory, f);
+    const stat = await lstat(fullPath);
+    if (stat.isDirectory()) {
+      await scan(fullPath, results);
+    } else {
+      results.push(fullPath);
+    }
+  }
+  return results;
+}
 
 /**
  * Lists all direct files within the specified directory, skipping directories
