@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.2
+
+- fix: npm package
+
 ## 0.13.1
 
 - fix: npm token usage (#134) kinda reverting (#130)
