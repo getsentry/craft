@@ -390,6 +390,27 @@ artifactProvider:
   name: none
 ```
 
+### Using Github Actions with Github Artifact Provider
+
+When using Github Action you can use the Github Artifact Provider for managing your release artifacts.
+The way it works is simple, use the official GHA `actions/upload-artifact@v2` action to upload your assets.
+Craft can work with them and use it instead of Zeus.
+Here is an example config (step) of an archive job:
+
+```yaml
+- name: Archive Artifacts
+  uses: actions/upload-artifact@v2
+  with:
+    name: ${{ github.sha }}
+    path: |
+      ${{ github.workspace }}/*.tgz
+```
+
+A few important things to note:
+- The name of the artifacts is very important and needs to be `name: ${{ github.sha }}`. Craft uses this as a unique id to fetch the artifacts.
+- Keep in mind that this action maintains the folder structure and zips everything together. Craft will download the zip and recursively walk it to find all assets.
+
+
 ## Target Configurations
 
 The configuration specifies which release targets to run for the repository. To
