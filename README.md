@@ -404,6 +404,8 @@ Here is an example config (step) of an archive job:
     name: ${{ github.sha }}
     path: |
       ${{ github.workspace }}/*.tgz
+      ${{ github.workspace }}/packages/tracing/build/**
+      ${{ github.workspace }}/packages/**/*.tgz
 ```
 
 A few important things to note:
