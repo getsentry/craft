@@ -36,12 +36,9 @@ jobs:
         run: yarn build
       - name: NPM Pack
         run: npm pack
-      - name: Docs
-        run: cd docs && zip -r ../gh-pages _site/
       - name: Archive Artifacts
         uses: actions/upload-artifact@v2
         with:
           name: ${{ github.sha }}
           path: |
-            ${{ github.workspace }}/gh-pages.zip
             ${{ github.workspace }}/*.tgz
