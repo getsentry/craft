@@ -1,3 +1,4 @@
+import { TargetConfig } from 'src/schemas/project_config';
 import { BaseTarget } from './base';
 import { BrewTarget } from './brew';
 import { CocoapodsTarget } from './cocoapods';
@@ -54,4 +55,10 @@ export function getTargetByName(
   targetName: string
 ): typeof BaseTarget | undefined {
   return TARGET_MAP[targetName];
+}
+
+export function getTargetId(target: TargetConfig): string {
+  return target.id
+    ? `${target.id}[${target.name}]`
+    : target.name || '__undefined__';
 }
