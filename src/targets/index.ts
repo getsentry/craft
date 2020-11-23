@@ -59,6 +59,6 @@ export function getTargetByName(
 
 export function getTargetId(target: TargetConfig): string {
   return target.id
-    ? `${target.id}[${target.name}]`
+    ? `${target.name}[${target.id}]`
     : target.name || '__undefined__';
 }
