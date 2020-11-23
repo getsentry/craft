@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.3
+
+- fix(publish): Only allow valid target ids for -t (#137)
+
 ## 0.13.2
 
 - fix: npm package

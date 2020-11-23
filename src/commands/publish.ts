@@ -13,7 +13,12 @@ import {
 } from '../config';
 import { formatTable, logger } from '../logger';
 import { GithubGlobalConfig } from '../schemas/project_config';
-import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
+import {
+  getAllTargetNames,
+  getTargetByName,
+  getTargetId,
+  SpecialTarget,
+} from '../targets';
 import { BaseTarget } from '../targets/base';
 import { coerceType, handleGlobalError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
@@ -31,15 +36,21 @@ export const command = ['publish NEW-VERSION'];
 export const aliases = ['pp', 'publish'];
 export const description = '🛫 Publish artifacts';
 
-export const builder: CommandBuilder = (yargs: Argv) =>
-  yargs
+export const builder: CommandBuilder = (yargs: Argv) => {
+  const definedTargets = getConfiguration().targets || [];
+  const possibleTargetNames = new Set(getAllTargetNames());
+  const allowedTargetNames = definedTargets
+    .filter(target => target.name && possibleTargetNames.has(target.name))
+    .map(getTargetId);
+
+  return yargs
     .positional('NEW-VERSION', {
       description: 'Version to publish',
       type: 'string',
     })
     .option('target', {
       alias: 't',
-      choices: getAllTargetNames().concat([
+      choices: allowedTargetNames.concat([
         SpecialTarget.All,
         SpecialTarget.None,
       ]),
@@ -75,6 +86,7 @@ export const builder: CommandBuilder = (yargs: Argv) =>
     })
     .check(checkVersion)
     .demandOption('new-version', 'Please specify the version to publish');
+};
 
 /** Command line options. */
 export interface PublishOptions {
@@ -137,9 +149,7 @@ async function publishToTargets(
     logger.debug('Initializing targets');
     for (const targetConfig of targetConfigList) {
       const targetClass = getTargetByName(targetConfig.name);
-      const targetDescriptor = targetConfig.id
-        ? `${targetConfig.id}[${targetConfig.name}]`
-        : targetConfig.name;
+      const targetDescriptor = getTargetId(targetConfig);
       if (!targetClass) {
         logger.warn(
           `Target implementation for "${targetDescriptor}" not found.`
@@ -442,13 +452,15 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);
 
   // Find targets
-  const targetList: string[] = (typeof argv.target === 'string'
-    ? [argv.target]
-    : argv.target) || [SpecialTarget.All];
+  const targetList: Set<string> = new Set(
+    (typeof argv.target === 'string' ? [argv.target] : argv.target) || [
+      SpecialTarget.All,
+    ]
+  );
 
   // Treat "all"/"none" specially
   for (const specialTarget of [SpecialTarget.All, SpecialTarget.None]) {
-    if (targetList.length > 1 && targetList.indexOf(specialTarget) > -1) {
+    if (targetList.size > 1 && targetList.has(specialTarget)) {
       logger.error(
         `Target "${specialTarget}" specified together with other targets. Exiting.`
       );
@@ -458,14 +470,13 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   let targetConfigList = config.targets || [];
 
-  if (targetList[0] !== SpecialTarget.All) {
-    targetConfigList = targetConfigList.filter(
-      (targetConf: { [key: string]: any }) =>
-        targetList.indexOf(targetConf.id || targetConf.name) > -1
+  if (targetList.has(SpecialTarget.All)) {
+    targetConfigList = targetConfigList.filter(targetConf =>
+      targetList.has(getTargetId(targetConf))
     );
   }
 
-  if (targetList[0] !== SpecialTarget.None) {
+  if (!targetList.has(SpecialTarget.None)) {
     if (!targetConfigList.length) {
       logger.warn('No valid targets detected! Exiting.');
       return undefined;
@@ -482,7 +493,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
     // TODO init all targets earlier
     targetConfigList
-      .map(t => (t.id ? `${t.id}[${t.name}]` : t.name || '__undefined__'))
+      .map(getTargetId)
       .forEach(target => logger.info(`  - ${target}`));
     logger.info(' ');
 
@@ -501,8 +512,8 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   if (argv.rev) {
     logger.info('Not merging any branches because revision was specified.');
   } else if (
-    targetList[0] === SpecialTarget.All ||
-    targetList[0] === SpecialTarget.None
+    targetList.has(SpecialTarget.All) ||
+    targetList.has(SpecialTarget.None)
   ) {
     // Publishing done, MERGE DAT BRANCH!
     await handleReleaseBranch(
