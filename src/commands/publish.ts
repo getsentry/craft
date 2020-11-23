@@ -452,10 +452,11 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);
 
   // Find targets
-  const targetList: Set<string> =
-    (typeof argv.target === 'string'
-      ? new Set([argv.target])
-      : new Set(argv.target)) || new Set([SpecialTarget.All]);
+  const targetList: Set<string> = new Set(
+    (typeof argv.target === 'string' ? [argv.target] : argv.target) || [
+      SpecialTarget.All,
+    ]
+  );
 
   // Treat "all"/"none" specially
   for (const specialTarget of [SpecialTarget.All, SpecialTarget.None]) {
