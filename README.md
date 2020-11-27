@@ -33,6 +33,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Required Files](#required-files)
 - [Status Provider](#status-provider)
 - [Artifact Provider](#artifact-provider)
+  - [Using Github Actions with Github Artifact Provider](#using-github-actions-with-github-artifact-provider)
 - [Target Configurations](#target-configurations)
   - [Per-target options](#per-target-options)
   - [GitHub (`github`)](#github-github)
@@ -46,7 +47,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Sentry Release Registry (`registry`)](#sentry-release-registry-registry)
   - [Cocoapods (`cocoapods`)](#cocoapods-cocoapods)
   - [Docker (`docker`)](#docker-docker)
-  - [Ruby Gems (`gem`)](#ruby-gems-index-gem)
+  - [Ruby Gems Index (`gem`)](#ruby-gems-index-gem)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Development](#development)
@@ -820,8 +821,8 @@ non-idempotent targets, not for the Docker target.
 
 | Name              | Description                                |
 | ----------------- | ------------------------------------------ |
-| `DOCKER_USERNAME` | The username for the Docker registry       |
-| `DOCKER_PASSWORD` | The password for the Docker registry       |
+| `DOCKER_USERNAME` | The username for the Docker registry.      |
+| `DOCKER_PASSWORD` | The personal access token for the account. |
 | `DOCKER_BIN`      | **optional**. Path to `docker` executable. |
 
 **Configuration**
