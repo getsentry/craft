@@ -63,7 +63,7 @@ function locateChangeset(
   markdown: string,
   predicate: (match: string) => boolean
 ): ChangesetLoc | null {
-  const HEADER_REGEX = /^( *)(?:## *([^\n]+?) *#*|([^\n]+)\n *(?:-){2,}) *(?:\n+|$)/gm;
+  const HEADER_REGEX = /^( *)(?:## +([^\n]+?) *(?:##)?|([^\n]+)\n *(?:-){2,}) *(?:\n+|$)/gm;
 
   for (
     let match = HEADER_REGEX.exec(markdown);
