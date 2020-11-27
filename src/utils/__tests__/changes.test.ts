@@ -61,6 +61,20 @@ describe('findChangeset', () => {
     expect(findChangeset(markdown, 'v1.0.0')).toEqual(sampleChangeset);
   });
 
+  test('supports sub-headings', () => {
+    const changeset = {
+      body: '### Features\nthis is a test',
+      name: 'Version 1.0.0',
+    };
+
+    const markdown = `# Changelog
+        ## ${changeset.name}
+        ${changeset.body}
+      `;
+
+    expect(findChangeset(markdown, 'v1.0.0')).toEqual(changeset);
+  })
+
   test.each([
     ['changeset cannot be found', 'v1.0.0'],
     ['invalid version', 'not a version'],
