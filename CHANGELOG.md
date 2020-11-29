@@ -3,6 +3,8 @@
 ## 0.13.3
 
 - fix(publish): Only allow valid target ids for -t (#137)
+- fix(changelog): Support subheadings (#139)
+- doc(docker): Mention access token instead of password (#140)
 
 ## 0.13.2
 
