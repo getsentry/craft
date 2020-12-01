@@ -2,7 +2,7 @@
 
 ## 0.13.4
 
-- fix(publish): Fix error when special target 'all' is used
+- fix(publish): Fix error when special target 'all' is used (#142)
 
 ## 0.13.3
 
