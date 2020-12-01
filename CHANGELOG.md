@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.4
+
+- fix(publish): Fix error when special target 'all' is used (#142)
+
 ## 0.13.3
 
 - fix(publish): Only allow valid target ids for -t (#137)

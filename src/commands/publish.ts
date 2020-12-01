@@ -470,14 +470,14 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   let targetConfigList = config.targets || [];
 
-  if (targetList.has(SpecialTarget.All)) {
+  if (!targetList.has(SpecialTarget.All)) {
     targetConfigList = targetConfigList.filter(targetConf =>
       targetList.has(getTargetId(targetConf))
     );
   }
 
   if (!targetList.has(SpecialTarget.None)) {
-    if (!targetConfigList.length) {
+    if (targetConfigList.length === 0) {
       logger.warn('No valid targets detected! Exiting.');
       return undefined;
     }
