@@ -192,8 +192,7 @@ export class NpmTarget extends BaseTarget {
       args.push('--tag=next');
     }
 
-    let result;
-    await withTempFile(filePath => {
+    return withTempFile(filePath => {
       // Pass OTP if configured
       const spawnOptions: SpawnOptions = {};
       spawnOptions.env = { ...process.env };
@@ -212,12 +211,10 @@ export class NpmTarget extends BaseTarget {
       args.push(path);
 
       // Disable output buffering because NPM/Yarn can ask us for one-time passwords
-      result = spawnProcess(bin, args, spawnOptions, {
+      return spawnProcess(bin, args, spawnOptions, {
         showStdout: true,
       });
     });
-
-    return result;
   }
 
   /**
