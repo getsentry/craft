@@ -12,6 +12,8 @@ import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../artifact_providers/base';
+import { withTempFile } from 'src/utils/files';
+import { writeFileSync } from 'fs';
 
 const logger = loggerRaw.withScope('[npm]');
 
@@ -23,6 +25,8 @@ export const YARN_BIN = process.env.YARN_BIN || 'yarn';
 
 const NPM_MIN_MAJOR = 5;
 const NPM_MIN_MINOR = 6;
+
+const NPM_TOKEN_ENV_VAR = 'NPM_TOKEN';
 
 /** A regular expression used to find the package tarball */
 const DEFAULT_PACKAGE_REGEX = /^.*\d\.\d.*\.tgz$/;
@@ -43,6 +47,8 @@ export interface NpmTargetOptions extends TargetConfig {
   useOtp?: boolean;
   /** Do we use Yarn instead of NPM? */
   useYarn: boolean;
+  /** Value of NPM_TOKEN so we can pass it to npm executable */
+  token: string;
 }
 
 /** Options for running the NPM publish command */
@@ -125,8 +131,14 @@ export class NpmTarget extends BaseTarget {
    * Extracts NPM target options from the raw configuration
    */
   protected getNpmConfig(): NpmTargetOptions {
+    const token = process.env.NPM_TOKEN;
+    if (!token) {
+      throw new Error('NPM target: NPM_TOKEN not found in the environment');
+    }
+
     const npmConfig: NpmTargetOptions = {
       useYarn: !!process.env.USE_YARN || !hasExecutable(NPM_BIN),
+      token,
     };
     if (this.config.access) {
       if (Object.values(NpmPackageAccess).includes(this.config.access)) {
@@ -180,22 +192,32 @@ export class NpmTarget extends BaseTarget {
       args.push('--tag=next');
     }
 
-    // Pass OTP if configured
-    const spawnOptions: SpawnOptions = {};
-    if (options.otp) {
-      spawnOptions.env = {
-        ...process.env,
-        NPM_CONFIG_OTP: options.otp,
-      };
-    }
+    let result;
+    await withTempFile(filePath => {
+      // Pass OTP if configured
+      const spawnOptions: SpawnOptions = {};
+      spawnOptions.env = { ...process.env };
+      if (options.otp) {
+        spawnOptions.env.NPM_CONFIG_OTP = options.otp;
+      }
+      spawnOptions.env[NPM_TOKEN_ENV_VAR] = this.npmConfig.token;
+      // WARNING: This may fail for Yarn: https://github.com/yarnpkg/yarn/issues/4568
+      spawnOptions.env.npm_config_userconfig = filePath;
+      writeFileSync(
+        filePath,
+        `//registry.npmjs.org/:_authToken=\${${NPM_TOKEN_ENV_VAR}}`
+      );
 
-    // The path has to be pushed always as the last arg
-    args.push(path);
+      // The path has to be pushed always as the last arg
+      args.push(path);
 
-    // Disable output buffering because NPM/Yarn can ask us for one-time passwords
-    return spawnProcess(bin, args, spawnOptions, {
-      showStdout: true,
+      // Disable output buffering because NPM/Yarn can ask us for one-time passwords
+      result = spawnProcess(bin, args, spawnOptions, {
+        showStdout: true,
+      });
     });
+
+    return result;
   }
 
   /**
