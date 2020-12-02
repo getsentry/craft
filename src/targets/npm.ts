@@ -201,7 +201,7 @@ export class NpmTarget extends BaseTarget {
         spawnOptions.env.NPM_CONFIG_OTP = options.otp;
       }
       spawnOptions.env[NPM_TOKEN_ENV_VAR] = this.npmConfig.token;
-      // WARNING: This may fail for Yarn: https://github.com/yarnpkg/yarn/issues/4568
+      // NOTE(byk): Use npm_config_userconfig instead of --userconfig for yarn compat
       spawnOptions.env.npm_config_userconfig = filePath;
       writeFileSync(
         filePath,
