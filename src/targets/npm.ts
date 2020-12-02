@@ -12,7 +12,7 @@ import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../artifact_providers/base';
-import { withTempFile } from 'src/utils/files';
+import { withTempFile } from '../utils/files';
 import { writeFileSync } from 'fs';
 
 const logger = loggerRaw.withScope('[npm]');
