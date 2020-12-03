@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version to release
+        description: Version to release (optional)
         required: false
       skip_prepare:
         description: Skip preparation step (assume a release branch is ready)
@@ -13,33 +13,39 @@ on:
         description: Do not actually cut the release
         required: false
         default: false
+      force:
+        description: Force a release even when there are release-blockers (optional)
+        required: false
 jobs:
   release:
     runs-on: ubuntu-latest
-    name: "Release a new version"
+    name: 'Release a new version'
     steps:
+      - name: Prepare release
+        uses: getsentry/action-prepare-release@main
+        with:
+          version: ${{ github.event.inputs.version }}
+          force: ${{ github.event.inputs.force }}
       - uses: actions/checkout@v2
         with:
           token: ${{ secrets.GH_SENTRY_BOT_PAT }}
-      - id: set-git-user
-        run: |
-          git config user.name getsentry-bot
-          git config user.email bot@getsentry.com
+          fetch-depth: 20
       - uses: getsentry/craft@master
+        name: Craft Prepare
         if: ${{ !github.event.inputs.skip_prepare }}
         with:
           action: prepare
-          version: ${{ github.event.inputs.version }}
+          version: ${{ env.RELEASE_VERSION }}
         env:
-          DRY_RUN: ${{ github.event.inputs.dry_run }}
-          GIT_COMMITTER_NAME: getsentry-bot
-          GIT_AUTHOR_NAME: getsentry-bot
-          EMAIL: bot@getsentry.com
           ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
+      # Wait until the builds start. Craft should do this automatically
+      # but it is broken now.
+      - run: sleep 10
       - uses: getsentry/craft@master
+        name: Craft Publish
         with:
           action: publish
-          version: ${{ github.event.inputs.version }}
+          version: ${{ env.RELEASE_VERSION }}
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run }}
           GITHUB_API_TOKEN: ${{ secrets.GH_SENTRY_BOT_PAT }}
