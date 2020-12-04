@@ -1,7 +1,8 @@
 # Changelog
 
-## 0.13.4
+## 0.14.0
 
+- feat(publish): Add support for optional post-release script (#144)
 - fix(publish): Fix error when special target 'all' is used (#142)
 
 ## 0.13.3

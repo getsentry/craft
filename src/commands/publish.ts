@@ -2,6 +2,9 @@ import * as Github from '@octokit/rest';
 import * as inquirer from 'inquirer';
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 import chalk from 'chalk';
+import { existsSync } from 'fs';
+import { join } from 'path';
+import * as shellQuote from 'shell-quote';
 import * as stringLength from 'string-length';
 
 import {
@@ -27,10 +30,13 @@ import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
 import { hasInput } from '../utils/noInput';
 import { formatSize, formatJson } from '../utils/strings';
-import { catchKeyboardInterrupt } from '../utils/system';
+import { catchKeyboardInterrupt, spawnProcess } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 import { BaseStatusProvider } from '../status_providers/base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
+
+/** Default path to post-release script, relative to project root */
+const DEFAULT_POST_RELEASE_SCRIPT_PATH = join('scripts', 'post-release.sh');
 
 export const command = ['publish NEW-VERSION'];
 export const aliases = ['pp', 'publish'];
@@ -397,6 +403,49 @@ async function handleReleaseBranch(
 }
 
 /**
+ * Run an external post-release command
+ *
+ * The command is usually for bumping the development version on master or
+ * cleanup tasks.
+ *
+ * @param newVersion Version being released
+ * @param postReleaseCommand Custom post-release command
+ */
+export async function runPostReleaseCommand(
+  newVersion: string,
+  postReleaseCommand?: string
+): Promise<boolean> {
+  let sysCommand: string;
+  let args: string[];
+  if (postReleaseCommand !== undefined && postReleaseCommand.length === 0) {
+    // Not running post-release command
+    logger.warn('Not running the pre-release command: no command specified');
+    return false;
+  } else if (postReleaseCommand) {
+    [sysCommand, ...args] = shellQuote.parse(postReleaseCommand);
+  } else if (existsSync(DEFAULT_POST_RELEASE_SCRIPT_PATH)) {
+    sysCommand = '/bin/bash';
+    args = [DEFAULT_POST_RELEASE_SCRIPT_PATH];
+  } else {
+    // Not running post-release command
+    logger.warn(
+      `Not running the post-release command: '${DEFAULT_POST_RELEASE_SCRIPT_PATH}' not found`
+    );
+    return false;
+  }
+  args = [...args, '', newVersion];
+  logger.info(`Running the post-release command...`);
+  const additionalEnv = {
+    CRAFT_NEW_VERSION: newVersion,
+    CRAFT_OLD_VERSION: '',
+  };
+  await spawnProcess(sysCommand, args, {
+    env: { ...process.env, ...additionalEnv },
+  });
+  return true;
+}
+
+/**
  * Body of 'publish' command
  *
  * @param argv Command-line arguments
@@ -532,6 +581,9 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     ];
     logger.warn(msg.join('\n'));
   }
+
+  // Run the post-release script
+  await runPostReleaseCommand(newVersion, config.postReleaseCommand);
 }
 
 export const handler = async (argv: PublishOptions): Promise<any> => {
