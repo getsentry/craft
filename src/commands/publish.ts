@@ -419,7 +419,7 @@ export async function runPostReleaseCommand(
   let args: string[];
   if (postReleaseCommand !== undefined && postReleaseCommand.length === 0) {
     // Not running post-release command
-    logger.warn('Not running the pre-release command: no command specified');
+    logger.info('Not running the post-release command: no command specified');
     return false;
   } else if (postReleaseCommand) {
     [sysCommand, ...args] = shellQuote.parse(postReleaseCommand);
@@ -428,7 +428,7 @@ export async function runPostReleaseCommand(
     args = [DEFAULT_POST_RELEASE_SCRIPT_PATH];
   } else {
     // Not running post-release command
-    logger.warn(
+    logger.info(
       `Not running the post-release command: '${DEFAULT_POST_RELEASE_SCRIPT_PATH}' not found`
     );
     return false;
