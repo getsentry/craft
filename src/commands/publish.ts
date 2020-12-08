@@ -2,7 +2,6 @@ import * as Github from '@octokit/rest';
 import * as inquirer from 'inquirer';
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 import chalk from 'chalk';
-import { existsSync } from 'fs';
 import { join } from 'path';
 import * as shellQuote from 'shell-quote';
 import * as stringLength from 'string-length';
@@ -30,7 +29,11 @@ import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
 import { hasInput } from '../utils/noInput';
 import { formatSize, formatJson } from '../utils/strings';
-import { catchKeyboardInterrupt, spawnProcess } from '../utils/system';
+import {
+  catchKeyboardInterrupt,
+  hasExecutable,
+  spawnProcess,
+} from '../utils/system';
 import { isValidVersion } from '../utils/version';
 import { BaseStatusProvider } from '../status_providers/base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
@@ -423,7 +426,7 @@ export async function runPostReleaseCommand(
     return false;
   } else if (postReleaseCommand) {
     [sysCommand, ...args] = shellQuote.parse(postReleaseCommand);
-  } else if (existsSync(DEFAULT_POST_RELEASE_SCRIPT_PATH)) {
+  } else if (hasExecutable(DEFAULT_POST_RELEASE_SCRIPT_PATH)) {
     sysCommand = '/bin/bash';
     args = [DEFAULT_POST_RELEASE_SCRIPT_PATH];
   } else {
