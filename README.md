@@ -255,7 +255,7 @@ preReleaseCommand: bash scripts/bump-version.sh
 This command will run after a successful `publish`. By default, it is set to
 `bash scripts/post-release.sh`. It will *not* error if the default script is
 missing though, as this may not be needed by all projects. Please refer to the
-[Post-release scipt conventions section](#post-release-script-conventions)
+[Post-release script conventions section](#post-release-script-conventions)
 for more details.
 
 ```yaml
@@ -907,7 +907,7 @@ Here is how you can integrate your GitHub project with `craft`:
 Among other actions, `craft prepare` runs an external, project-specific command
 or script that is responsible for version bumping. By default, this script
 should be located at: `./scripts/bump-version.sh`. The command can be configured
-by specifying `preReleaseCommand` configuration option in `craft.yml`.
+by specifying the `preReleaseCommand` configuration option in `craft.yml`.
 
 The following requirements are on the script interface and functionality:
 
