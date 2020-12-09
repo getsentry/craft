@@ -31,3 +31,6 @@ targets:
     config:
       canonical: 'app:craft'
   - name: github
+  - name: docker
+    source: us.gcr.io/sentryio/craft
+    target: getsentry/craft
