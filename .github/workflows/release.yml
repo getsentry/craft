@@ -11,7 +11,7 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-    name: 'Release a new version'
+    name: 'Cut a new release'
     steps:
       - name: Prepare release
         uses: getsentry/action-prepare-release@main
@@ -19,9 +19,6 @@ jobs:
           version: ${{ github.event.inputs.version }}
           force: ${{ github.event.inputs.force }}
       - uses: actions/checkout@v2
-        with:
-          token: ${{ secrets.GH_SENTRY_BOT_PAT }}
-          fetch-depth: 20
       - uses: getsentry/craft@master
         name: Craft Prepare
         with:
