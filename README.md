@@ -259,7 +259,7 @@ missing though, as this may not be needed by all projects. Please refer to the
 for more details.
 
 ```yaml
-preReleaseCommand: bash scripts/post-release.sh
+postReleaseCommand: bash scripts/post-release.sh
 ```
 
 ### Release Branch Name
@@ -937,7 +937,7 @@ npm version "${NEW_VERSION}"
 
 Among other actions, `craft publish` runs an external, project-specific command
 or script that can do things like bumping the development version. By default,
-this script should be located at: `./scripts/bump-version.sh`. Unlike the
+this script should be located at: `./scripts/post-release.sh`. Unlike the
 pre-release command, this script is not mandatory so if the file does not exist,
 `craft` will report this fact and then move along as usual. This command can be
 configured by specifying `postReleaseCommand` configuration option in `craft.yml`.
