@@ -242,11 +242,24 @@ github:
 ### Pre-release Command
 
 This command will run on your newly created release branch as part of `prepare`
-command. By default, it is set to "bash scripts/bump-version.sh". Please refer
-to [this section](#pre-release-version-bumping-script-conventions) for more details.
+command. By default, it is set to `bash scripts/bump-version.sh`. Please refer
+to the [Pre-release version bumping script conventions section](#pre-release-version-bumping-script-conventions)
+for more details.
 
 ```yaml
 preReleaseCommand: bash scripts/bump-version.sh
+```
+
+### Post-release Command
+
+This command will run after a successful `publish`. By default, it is set to
+`bash scripts/post-release.sh`. It will *not* error if the default script is
+missing though, as this may not be needed by all projects. Please refer to the
+[Post-release script conventions section](#post-release-script-conventions)
+for more details.
+
+```yaml
+postReleaseCommand: bash scripts/post-release.sh
 ```
 
 ### Release Branch Name
@@ -891,17 +904,15 @@ Here is how you can integrate your GitHub project with `craft`:
 
 ## Pre-release (Version-bumping) Script: Conventions
 
-Among other actions, `craft prepare` runs an external project-specific command
+Among other actions, `craft prepare` runs an external, project-specific command
 or script that is responsible for version bumping. By default, this script
-should be located at the following path: `scripts/bump-version.sh` (relative
-to the project root). The command can be configured by specifying
-`preReleaseCommand` configuration option in `craft.yml`.
+should be located at: `./scripts/bump-version.sh`. The command can be configured
+by specifying the `preReleaseCommand` configuration option in `craft.yml`.
 
 The following requirements are on the script interface and functionality:
 
-- The script must accept at least two arguments. Craft will pass the following
-  values as the last two arguments (in the specified order): the old ("from")
-  version, and the second one is the new ("to") version.
+- The script should accept at least two arguments. Craft will pass the old ("from")
+  version and the new ("to") version as the last two arguments, respectively.
 - The script must replace all relevant occurrences of the old version string
   with the new one.
 - The script must not commit the changes made.
@@ -912,7 +923,7 @@ The following requirements are on the script interface and functionality:
 ```bash
 #!/bin/bash
 ### Example of a version-bumping script for an NPM project.
-### Located at: scripts/bump-version.sh
+### Located at: ./scripts/bump-version.sh
 set -eux
 OLD_VERSION="${1}"
 NEW_VERSION="${2}"
@@ -920,6 +931,41 @@ NEW_VERSION="${2}"
 # Do not tag and commit changes made by "npm version"
 export npm_config_git_tag_version=false
 npm version "${NEW_VERSION}"
+```
+
+## Post-release Script: Conventions
+
+Among other actions, `craft publish` runs an external, project-specific command
+or script that can do things like bumping the development version. By default,
+this script should be located at: `./scripts/post-release.sh`. Unlike the
+pre-release command, this script is not mandatory so if the file does not exist,
+`craft` will report this fact and then move along as usual. This command can be
+configured by specifying `postReleaseCommand` configuration option in `craft.yml`.
+
+The following requirements are on the script interface and functionality:
+
+- The script should accept at least two arguments. Craft will pass the old ("from")
+  version and the new ("to") version as the last two arguments, respectively.
+- The script is responsible for any and all `git` state management as `craft` will
+  simply exit after running this script as the final step. This means the script
+  is responsible for committing and pushing any changes that it may have made.
+
+**Example**
+
+```bash
+#!/bin/bash
+### Example of a dev-version-bumping script for a Python project
+### Located at: ./scripts/post-release.sh
+set -eux
+OLD_VERSION="${1}"
+NEW_VERSION="${2}"
+
+# Ensure master branch
+git checkout master
+# Advance the CalVer release by one-month and add the `.dev0` suffix
+./scripts/bump-version.sh '' $(date -d "$(echo $NEW_VERSION | sed -e 's/^\([0-9]\{2\}\)\.\([0-9]\{1,2\}\)\.[0-9]\+$/20\1-\2-1/') 1 month" +%y.%-m.0.dev0)
+# Only commit if there are changes, make sure to `pull --rebase` before pushing to avoid conflicts
+git diff --quiet || git commit -anm 'meta: Bump new development version' && git pull --rebase && git push
 ```
 
 ## Development
