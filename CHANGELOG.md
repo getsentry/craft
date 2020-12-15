@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+
+- fix(publish): Fix fail on dry-run w/ github target (#152)
 ## 0.14.0
 
 - feat(publish): Add support for optional post-release script (#144)
