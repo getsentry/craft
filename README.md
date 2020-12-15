@@ -509,10 +509,12 @@ The `npm` utility must be installed on the system.
 
 | Name                | Description                                                         |
 | ------------------- | ------------------------------------------------------------------- |
-| `NPM_TOKEN`         | An automation token allowed to publish. (See https://bit.ly/3gSrVyT)|
+| `NPM_TOKEN`         | An [automation token][npm-automation-token] allowed to publish.     |
 | `NPM_BIN`           | **optional**. Path to the npm executable. Defaults to `npm`         |
 | `YARN_BIN`          | **optional**. Path to the yarn executable. Defaults to `yarn`       |
 | `CRAFT_NPM_USE_OTP` | **optional**. If set to "1", you will be asked for an OTP (for 2FA) |
+
+[npm-automation-token]: https://docs.npmjs.com/creating-and-viewing-access-tokens
 
 **Configuration**
 
