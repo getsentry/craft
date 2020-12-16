@@ -362,11 +362,18 @@ export class GithubTarget extends BaseTarget {
     logger.info(`Target "${this.name}": publishing version "${version}"...`);
     logger.debug(`Revision: ${revision}`);
     const release = await this.getOrCreateRelease(version, revision);
-    const assets = await this.getAssetsForRelease(release);
-    if (assets.length > 0) {
-      logger.warn('Existing assets found for the release, deleting them...');
-      await this.deleteAssets(assets);
-      logger.debug(`Deleted ${assets.length} assets`);
+
+    if (isDryRun()) {
+      logger.info(
+        `[dry-run] Skipping check for existing assets for the release`
+      );
+    } else {
+      const assets = await this.getAssetsForRelease(release);
+      if (assets.length > 0) {
+        logger.warn('Existing assets found for the release, deleting them...');
+        await this.deleteAssets(assets);
+        logger.debug(`Deleted ${assets.length} assets`);
+      }
     }
 
     const artifacts = await this.getArtifactsForRevision(revision);
