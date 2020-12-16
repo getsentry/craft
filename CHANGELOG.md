@@ -3,6 +3,8 @@
 ## Unreleased
 
 - fix(publish): Fix fail on dry-run w/ github target (#152)
+- feat(docker): Support cocoapods in the docker container (#153)
+
 ## 0.14.0
 
 - feat(publish): Add support for optional post-release script (#144)
