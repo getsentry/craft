@@ -476,7 +476,7 @@ contains any one of `preview`, `pre`, `rc`, `dev`,`alpha`, `beta`, `unstable`,
 
 | Name               | Description                                                        |
 | ------------------ | ------------------------------------------------------------------ |
-| `GITHUB_TOKEN` | Personal GitHub API token (see https://github.com/settings/tokens) |
+| `GITHUB_TOKEN`     | Personal GitHub API token (see https://github.com/settings/tokens) |
 
 **Configuration**
 
@@ -580,7 +580,7 @@ contains the following variables:
 
 | Name               | Description                                                        |
 | ------------------ | ------------------------------------------------------------------ |
-| `GITHUB_TOKEN` | Personal GitHub API token (seeh ttps://github.com/settings/tokens) |
+| `GITHUB_TOKEN`     | Personal GitHub API token (seeh ttps://github.com/settings/tokens) |
 
 **Configuration**
 
