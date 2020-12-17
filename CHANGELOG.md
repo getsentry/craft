@@ -4,6 +4,7 @@
 
 - fix(publish): Fix fail on dry-run w/ github target (#152)
 - feat(docker): Support cocoapods in the docker container (#153)
+- ref(github): GitHub standardized on GITHUB_TOKEN so let's use that (#154)
 
 ## 0.14.0
 
