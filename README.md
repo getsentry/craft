@@ -101,7 +101,7 @@ or by adding values to a configuration file (see below).
 In either case, at least the following two values must be configured in order
 for craft to function properly:
 
-- `GITHUB_API_TOKEN`
+- `GITHUB_TOKEN`
 
   Get your personal GitHub API token here: https://github.com/settings/tokens
 
@@ -139,7 +139,7 @@ Example:
 
 ```sh
 # ~/.craft.env
-GITHUB_API_TOKEN=token123
+GITHUB_TOKEN=token123
 export NUGET_API_TOKEN=abcdefgh
 ```
 
@@ -476,7 +476,7 @@ contains any one of `preview`, `pre`, `rc`, `dev`,`alpha`, `beta`, `unstable`,
 
 | Name               | Description                                                        |
 | ------------------ | ------------------------------------------------------------------ |
-| `GITHUB_API_TOKEN` | Personal GitHub API token (see https://github.com/settings/tokens) |
+| `GITHUB_TOKEN`     | Personal GitHub API token (see https://github.com/settings/tokens) |
 
 **Configuration**
 
@@ -580,7 +580,7 @@ contains the following variables:
 
 | Name               | Description                                                        |
 | ------------------ | ------------------------------------------------------------------ |
-| `GITHUB_API_TOKEN` | Personal GitHub API token (seeh ttps://github.com/settings/tokens) |
+| `GITHUB_TOKEN`     | Personal GitHub API token (seeh ttps://github.com/settings/tokens) |
 
 **Configuration**
 

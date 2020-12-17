@@ -113,10 +113,11 @@ export class GithubRemote {
  * @returns Github authentication token if found
  */
 export function getGithubApiToken(): string {
-  const githubApiToken = process.env.GITHUB_API_TOKEN;
+  const githubApiToken =
+    process.env.GITHUB_TOKEN || process.env.GITHUB_API_TOKEN;
   if (!githubApiToken) {
     throw new ConfigurationError(
-      'GitHub target: GITHUB_API_TOKEN not found in the environment'
+      'GitHub target: GITHUB_TOKEN not found in the environment'
     );
   }
   return githubApiToken;

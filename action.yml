@@ -14,15 +14,9 @@ inputs:
   keep_branch:
     description: 'Do not remove release branch after merging it'
     required: false
-  github_api_token:
-    description: 'API token for accessing github'
-    required: true
-    default: ${{ github.token }}
 runs:
   using: 'docker'
   image: 'docker://getsentry/craft'
-  env:
-    GITHUB_API_TOKEN: ${{ inputs.github_api_token }}
   args:
     - ${{ inputs.action }}
     - ${{ inputs.version }}
