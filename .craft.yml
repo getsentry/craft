@@ -34,3 +34,4 @@ targets:
   - name: docker
     source: us.gcr.io/sentryio/craft
     target: getsentry/craft
+  - name: aws-lambda
