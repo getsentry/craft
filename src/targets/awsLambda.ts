@@ -4,6 +4,7 @@ import { BaseTarget } from './base';
 import {
   BaseArtifactProvider,
 } from '../artifact_providers/base';
+import { ConfigurationError } from '../utils/errors';
 
 const logger = loggerRaw.withScope(`[aws-lambda]`);
 
@@ -36,8 +37,16 @@ export class AwsLambdaTarget extends BaseTarget {
    * Extracts AWS Lambda target options from the environment.
    */
   protected getAwsLambdaConfig(): AwsLambdaTargetOptions {
-    // TODO: check for the environment variables on `AwsLambdaTargetOptions`
-    throw new Error('[aws-lambda] Method not implemented.');
+    if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+      throw new ConfigurationError(
+        `Cannot perform AWS Lambda release: missing credentials.
+        Please use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.`
+      )
+    }
+    return {
+      awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    }
   }
 
   /**
