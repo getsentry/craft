@@ -23,7 +23,7 @@ describe('getVersion', () => {
     expect(getVersion('1.0.0 (foobar)')).toBe('1.0.0');
   });
 
-  test('extracts a SemVer version after \'patch\'', () => {
+  test('extracts a SemVer, but ignores subpatch level', () => {
     expect(getVersion('1.0.0.1')).toBe('1.0.0');
   });
 });
