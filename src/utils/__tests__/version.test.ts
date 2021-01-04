@@ -22,6 +22,10 @@ describe('getVersion', () => {
   test('extracts a SemVer version from text', () => {
     expect(getVersion('1.0.0 (foobar)')).toBe('1.0.0');
   });
+
+  test('extracts a SemVer version after \'patch\'', () => {
+    expect(getVersion('1.0.0.1')).toBe('1.0.0');
+  });
 });
 
 describe('isValidVersion', () => {
@@ -107,6 +111,10 @@ describe('parseVersion', () => {
 
   test('does not parse an invalid version', () => {
     expect(parseVersion('v1.2')).toBeNull();
+  });
+
+  test('cannot parse empty value', () => {
+    expect(parseVersion('')).toBeNull();
   });
 });
 
