@@ -17,7 +17,7 @@ jobs:
         with:
           token: ${{ secrets.GH_RELEASE_PAT }}
       - name: Prepare release
-        uses: getsentry/action-prepare-release@3edf82d3af21d9955eb29ff8a7f00506c5caabd1
+        uses: getsentry/action-prepare-release@358a59a5de9387b70e4e890bf2f44eb0fc064a4b
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
