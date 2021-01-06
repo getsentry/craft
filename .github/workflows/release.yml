@@ -19,7 +19,7 @@ jobs:
       - name: Prepare release
         uses: getsentry/action-prepare-release@358a59a5de9387b70e4e890bf2f44eb0fc064a4b
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GH_RELEASE_PAT }}
         with:
           version: ${{ github.event.inputs.version }}
           force: ${{ github.event.inputs.force }}
