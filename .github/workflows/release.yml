@@ -17,7 +17,7 @@ jobs:
         with:
           token: ${{ secrets.GH_RELEASE_PAT }}
       - name: Prepare release
-        uses: getsentry/action-prepare-release@a5fd9725aee1bc34d15c5dadcacf359841e5c717
+        uses: getsentry/action-prepare-release@5f82c140af17e1307576c7aaae5adf0fa57af33c
         with:
           version: ${{ github.event.inputs.version }}
           force: ${{ github.event.inputs.force }}
