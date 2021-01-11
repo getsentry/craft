@@ -1,14 +1,15 @@
-// import * as fs from 'fs';
 import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../../artifact_providers/base';
 import { ConfigurationError } from '../../utils/errors';
-import { AwsLambdaTarget } from '../awsLambda';
-// import * as Lambda from 'aws-sdk/clients/lambda';
+import {
+  AwsLambdaTarget,
+  getAwsLayerName,
+  defaultLayerName,
+} from '../awsLambda';
 
 jest.mock('fs');
-// jest.mock('aws-sdk/clients/lambda');
 
 class TestArtifactProvider extends BaseArtifactProvider {
   protected doDownloadArtifact(
@@ -44,7 +45,22 @@ function setAwsEnvironmentVariables() {
   process.env.AWS_SECRET_ACCESS_KEY = 'test aws secret access key';
 }
 
-describe('get environment variables', () => {
+describe('get layer name environment variable', () => {
+  test('default environment variable', () => {
+    if ('AWS_LAYER_NAME' in process.env) {
+      delete process.env.AWS_LAYER_NAME;
+    }
+    expect(getAwsLayerName()).toBe(defaultLayerName);
+  });
+
+  test('custom environment variable', () => {
+    const customEnvName = 'test-env-layer-name';
+    process.env.AWS_LAYER_NAME = customEnvName;
+    expect(getAwsLayerName()).toBe(customEnvName);
+  });
+});
+
+describe('get aws config environment variables', () => {
   const oldEnvVariables = process.env;
 
   beforeEach(() => {

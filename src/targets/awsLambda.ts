@@ -35,7 +35,12 @@ const awsAllRegions = [
   'sa-east-1',
 ];
 
-const layerName = 'SentryNodeServerlessSDK';
+const layerName = getAwsLayerName();
+/**
+ * The default layer name is used when no `AWS_LAYER_NAME`
+ * environment variable is found.
+ */
+export const defaultLayerName = 'SentryNodeServerlessSDK';
 const compatibleRuntimes = ['nodejs10.x', 'nodejs12.x'];
 
 /** Config options for the "aws-lambda" target. */
@@ -44,6 +49,18 @@ interface AwsLambdaTargetOptions extends TargetConfig {
   awsAccessKeyId: string;
   /** AWS secret access key, set as `AWS_SECRET_ACCESS_KEY`. */
   awsSecretAccessKey: string;
+}
+
+/**
+ * Extracts the AWS Lambda layer name from the environment variables. If no
+ * environment variable is found, the default name is used.
+ */
+export function getAwsLayerName(): string {
+  if (!process.env.AWS_LAYER_NAME) {
+    return defaultLayerName;
+  } else {
+    return process.env.AWS_LAYER_NAME;
+  }
 }
 
 /**
