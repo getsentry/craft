@@ -76,7 +76,7 @@ export class AwsLambdaTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider,
+    artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);
     this.awsLambdaConfig = this.getAwsLambdaConfig();

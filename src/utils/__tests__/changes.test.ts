@@ -73,7 +73,7 @@ describe('findChangeset', () => {
       `;
 
     expect(findChangeset(markdown, 'v1.0.0')).toEqual(changeset);
-  })
+  });
 
   test.each([
     ['changeset cannot be found', 'v1.0.0'],
