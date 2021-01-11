@@ -1,12 +1,12 @@
+import * as fs from 'fs';
 import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { BaseTarget } from './base';
-import {
-  BaseArtifactProvider,
-} from '../artifact_providers/base';
+import { BaseArtifactProvider } from '../artifact_providers/base';
 import { ConfigurationError, reportError } from '../utils/errors';
-import Lambda = require('aws-sdk/clients/lambda');
-import fs = require('fs');
+import { AWSError } from 'aws-sdk';
+import * as Lambda from 'aws-sdk/clients/lambda';
+import { PromiseResult } from 'aws-sdk/lib/request';
 
 const logger = loggerRaw.withScope(`[aws-lambda]`);
 
@@ -15,7 +15,7 @@ const logger = loggerRaw.withScope(`[aws-lambda]`);
  * The pattern matches the following structure:
  * `sentry-node-serverless-{version}.zip`.
  */
-const DEFAULT_AWS_LAMBDA_DIST_REGEX = /sentry-node-serverless-\d+(\.\d+)*\.zip$/
+const DEFAULT_AWS_LAMBDA_DIST_REGEX = /sentry-node-serverless-\d+(\.\d+)*\.zip$/;
 
 const awsAllRegions = [
   'us-east-1',
@@ -35,14 +35,14 @@ const awsAllRegions = [
   'sa-east-1',
 ];
 
-const layerName = 'SentryNodeServerlessSdk';
+const layerName = 'SentryNodeServerlessSDK';
 const compatibleRuntimes = ['nodejs10.x', 'nodejs12.x'];
 
 /** Config options for the "aws-lambda" target. */
 interface AwsLambdaTargetOptions extends TargetConfig {
-  /** AWS access key ID */
+  /** AWS access key ID, set as AWS_ACCESS_KEY_ID. */
   awsAccessKeyId: string;
-  /** AWS secret access key */
+  /** AWS secret access key, set as `AWS_SECRET_ACCESS_KEY`. */
   awsSecretAccessKey: string;
 }
 
@@ -71,12 +71,12 @@ export class AwsLambdaTarget extends BaseTarget {
       throw new ConfigurationError(
         `Cannot perform AWS Lambda release: missing credentials.
         Please use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.`
-      )
+      );
     }
     return {
       awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID,
       awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    }
+    };
   }
 
   /**
@@ -88,14 +88,14 @@ export class AwsLambdaTarget extends BaseTarget {
     logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_AWS_LAMBDA_DIST_REGEX,
-    })
+    });
 
     if (packageFiles.length == 0) {
       reportError('Cannot release to AWS Lambda: no packages found');
       return undefined;
-    } else if(packageFiles.length > 1) {
+    } else if (packageFiles.length > 1) {
       reportError(`Cannot release to AWS Lambda:
-        multiple packages with matching patterns were found.`);
+      multiple packages with matching patterns were found.`);
       return undefined;
     }
 
@@ -106,34 +106,61 @@ export class AwsLambdaTarget extends BaseTarget {
     for (let i = 0; i < awsAllRegions.length; i++) {
       const currentRegion = awsAllRegions[i];
       const lambda = new Lambda({ region: currentRegion });
-      const publishedLayer = await lambda
-        .publishLayerVersion({
-          Content: {
-            ZipFile: artifactBuffer,
-          },
-          LayerName: layerName,
-          CompatibleRuntimes: compatibleRuntimes,
-          LicenseInfo: 'MIT',
-        })
-        .promise();
+
+      const publishedLayer = await this.publishAwsLayer(lambda, {
+        Content: {
+          ZipFile: artifactBuffer,
+        },
+        LayerName: layerName,
+        CompatibleRuntimes: compatibleRuntimes,
+        LicenseInfo: 'MIT',
+      });
 
       if (publishedLayer.Version === undefined) {
-        publishedLayer.Version = -1;
+        reportError(`Error while publishing AWS Layer to ${currentRegion}`);
+        return undefined;
       }
 
-      await lambda
-        .addLayerVersionPermission({
-          LayerName: layerName,
-          VersionNumber: publishedLayer.Version,
-          StatementId: 'public',
-          Action: 'lambda:GetLayerVersion',
-          Principal: '*',
-        })
-        .promise();
+      await this.addAwsLayerPermissions(lambda, {
+        LayerName: layerName,
+        VersionNumber: publishedLayer.Version,
+        StatementId: 'public',
+        Action: 'lambda:GetLayerVersion',
+        Principal: '*',
+      });
 
       logger.info(`Published layer in ${currentRegion}:
         ${publishedLayer.LayerVersionArn}`);
     }
   }
 
+  /**
+   * Publishes the layer to AWS Lambda with the given layer data.
+   * It must contain the buffer for the ZIP archive and the layer name.
+   * Each time you publish with the same layer name, a new version is created.
+   * @param lambda The lambda service object.
+   * @param layerData Details of the layer to be created.
+   */
+  public async publishAwsLayer(
+    lambda: Lambda,
+    layerData: Lambda.PublishLayerVersionRequest
+  ): Promise<PromiseResult<Lambda.PublishLayerVersionResponse, AWSError>> {
+    return await lambda.publishLayerVersion(layerData).promise();
+  }
+
+  /**
+   * Adds to a layer usage permissions to other accounts.
+   * @param lambda The lambda service object.
+   * @param layerPermissionData Details of the layer and permissions to be set.
+   */
+  public async addAwsLayerPermissions(
+    lambda: Lambda,
+    layerPermissionData: Lambda.AddLayerVersionPermissionRequest
+  ): Promise<
+    PromiseResult<Lambda.AddLayerVersionPermissionResponse, AWSError>
+  > {
+    return await lambda
+      .addLayerVersionPermission(layerPermissionData)
+      .promise();
+  }
 }
