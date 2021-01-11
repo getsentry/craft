@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.0
 
 - fix(publish): Fix fail on dry-run w/ github target (#152)
 - feat(docker): Support cocoapods in the docker container (#153)

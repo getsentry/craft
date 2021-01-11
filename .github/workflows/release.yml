@@ -1,4 +1,4 @@
-name: release
+name: Release
 on:
   workflow_dispatch:
     inputs:
@@ -13,16 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     name: 'Release a new version'
     steps:
-      - name: Prepare release
-        uses: getsentry/action-prepare-release@main
-        with:
-          version: ${{ github.event.inputs.version }}
-          force: ${{ github.event.inputs.force }}
       - uses: actions/checkout@v2
         with:
           token: ${{ secrets.GH_RELEASE_PAT }}
-      - uses: getsentry/craft@master
-        name: Craft Prepare
+      - name: Prepare release
+        uses: getsentry/action-prepare-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_RELEASE_PAT }}
         with:
-          action: prepare
-          version: ${{ env.RELEASE_VERSION }}
+          version: ${{ github.event.inputs.version }}
+          force: ${{ github.event.inputs.force }}
