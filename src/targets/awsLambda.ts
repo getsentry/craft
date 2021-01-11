@@ -35,12 +35,6 @@ const awsAllRegions = [
   'sa-east-1',
 ];
 
-const layerName = getAwsLayerName();
-/**
- * The default layer name is used when no `AWS_LAYER_NAME`
- * environment variable is found.
- */
-export const defaultLayerName = 'SentryNodeServerlessSDK';
 const compatibleRuntimes = ['nodejs10.x', 'nodejs12.x'];
 
 /** Config options for the "aws-lambda" target. */
@@ -50,6 +44,12 @@ interface AwsLambdaTargetOptions extends TargetConfig {
   /** AWS secret access key, set as `AWS_SECRET_ACCESS_KEY`. */
   awsSecretAccessKey: string;
 }
+
+/**
+ * The default layer name is used when no `AWS_LAYER_NAME`
+ * environment variable is found.
+ */
+export const defaultLayerName = 'SentryNodeServerlessSDK';
 
 /**
  * Extracts the AWS Lambda layer name from the environment variables. If no
@@ -71,13 +71,16 @@ export class AwsLambdaTarget extends BaseTarget {
   public readonly name: string = 'aws-lambda';
   /** Target options */
   public readonly awsLambdaConfig: AwsLambdaTargetOptions;
+  /** Name of the layer to be published */
+  static layerName: string;
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
     this.awsLambdaConfig = this.getAwsLambdaConfig();
+    AwsLambdaTarget.layerName = getAwsLayerName();
   }
 
   /**
@@ -120,26 +123,25 @@ export class AwsLambdaTarget extends BaseTarget {
       await this.artifactProvider.downloadArtifact(packageFiles[0])
     );
 
-    for (let i = 0; i < awsAllRegions.length; i++) {
-      const currentRegion = awsAllRegions[i];
+    const publishRegionToLambda = async (currentRegion: string) => {
       const lambda = new Lambda({ region: currentRegion });
 
       const publishedLayer = await this.publishAwsLayer(lambda, {
         Content: {
           ZipFile: artifactBuffer,
         },
-        LayerName: layerName,
+        LayerName: AwsLambdaTarget.layerName,
         CompatibleRuntimes: compatibleRuntimes,
         LicenseInfo: 'MIT',
       });
 
       if (publishedLayer.Version === undefined) {
         reportError(`Error while publishing AWS Layer to ${currentRegion}`);
-        return undefined;
+        return;
       }
 
       await this.addAwsLayerPermissions(lambda, {
-        LayerName: layerName,
+        LayerName: AwsLambdaTarget.layerName,
         VersionNumber: publishedLayer.Version,
         StatementId: 'public',
         Action: 'lambda:GetLayerVersion',
@@ -148,7 +150,9 @@ export class AwsLambdaTarget extends BaseTarget {
 
       logger.info(`Published layer in ${currentRegion}:
         ${publishedLayer.LayerVersionArn}`);
-    }
+    };
+
+    await Promise.all(awsAllRegions.map(publishRegionToLambda));
   }
 
   /**
