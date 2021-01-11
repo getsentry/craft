@@ -1,10 +1,14 @@
-import { any } from 'async';
+// import * as fs from 'fs';
 import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../../artifact_providers/base';
 import { ConfigurationError } from '../../utils/errors';
 import { AwsLambdaTarget } from '../awsLambda';
+// import * as Lambda from 'aws-sdk/clients/lambda';
+
+jest.mock('fs');
+// jest.mock('aws-sdk/clients/lambda');
 
 class TestArtifactProvider extends BaseArtifactProvider {
   protected doDownloadArtifact(
@@ -24,7 +28,9 @@ class TestArtifactProvider extends BaseArtifactProvider {
 /** Returns a new AwsLambdaTarget test instance. */
 function getAwsLambdaTarget(): AwsLambdaTarget {
   return new AwsLambdaTarget(
-    any,
+    {
+      ['testKey']: 'testValue',
+    },
     new TestArtifactProvider({
       repoName: 'testName',
       repoOwner: 'testRepo',
@@ -73,5 +79,122 @@ describe('get environment variables', () => {
     setAwsEnvironmentVariables();
     // AwsLambdaTarget needs the environment variables to initialize.
     getAwsLambdaTarget();
+  });
+});
+
+describe('publish', () => {
+  beforeAll(() => {
+    setAwsEnvironmentVariables();
+  });
+
+  const noArtifactsForRevision = jest.fn().mockImplementation(function() {
+    return [];
+  });
+
+  test('error on missing zip file', async () => {
+    const awsTarget = getAwsLambdaTarget();
+    awsTarget.getArtifactsForRevision = noArtifactsForRevision.bind(
+      AwsLambdaTarget
+    );
+    // `publish` should report an error. When it's not dry run, the error is
+    // thrown; when it's on dry run, the error is logged and `undefined` is
+    // returned. Thus, both alternatives have been considered.
+    try {
+      const noPackageFound = await awsTarget.publish('version', 'revision');
+      expect(noPackageFound).toBe(undefined);
+    } catch (error) {
+      expect(error instanceof Error).toBe(true);
+    }
+  });
+
+  const twoArtifactsForRevision = jest.fn().mockImplementation(function() {
+    return ['file1', 'file2'];
+  });
+
+  test('error on having too many files', async () => {
+    const awsTarget = getAwsLambdaTarget();
+    awsTarget.getArtifactsForRevision = twoArtifactsForRevision.bind(
+      AwsLambdaTarget
+    );
+    // `publish` should report an error. When it's not dry run, the error is
+    // thrown; when it's on dry run, the error is logged and `undefined` is
+    // returned. Thus, both alternatives have been considered.
+    try {
+      const tooManyPackagesFound = await awsTarget.publish(
+        'version',
+        'revision'
+      );
+      expect(tooManyPackagesFound).toBe(undefined);
+    } catch (error) {
+      expect(error instanceof Error).toBe(true);
+    }
+  });
+
+  const singleArtifactsForRevision = jest
+    .fn()
+    .mockImplementation(function(input: string) {
+      return [input];
+    });
+
+  const downloadArtifactMock = jest
+    .fn()
+    .mockImplementation(function(input: string) {
+      return input;
+    });
+
+  const publishAwsLayerMock = jest.fn().mockImplementation(function() {
+    return {
+      Version: 1,
+      LayerVersionArn: 'layer:version:arn:test',
+    };
+  });
+  const publishAwsLayerMockUndefinedVersion = jest
+    .fn()
+    .mockImplementation(function() {
+      return {
+        Version: undefined,
+        LayerVersionArn: 'layer:version:arn:test',
+      };
+    });
+
+  const addLayerPermissionsMock = jest.fn().mockImplementation(function() {
+    // Do nothing
+  });
+
+  test('success on publishing', async () => {
+    const awsTarget = getAwsLambdaTarget();
+    awsTarget.getArtifactsForRevision = singleArtifactsForRevision.bind(
+      AwsLambdaTarget
+    );
+    awsTarget.artifactProvider.downloadArtifact = downloadArtifactMock.bind(
+      awsTarget
+    );
+    awsTarget.publishAwsLayer = publishAwsLayerMock.bind(AwsLambdaTarget);
+    awsTarget.addAwsLayerPermissions = addLayerPermissionsMock.bind(
+      AwsLambdaTarget
+    );
+    awsTarget.publish('', '');
+  });
+
+  test('error on layer version', async () => {
+    try {
+      const awsTarget = getAwsLambdaTarget();
+      awsTarget.getArtifactsForRevision = singleArtifactsForRevision.bind(
+        AwsLambdaTarget
+      );
+      awsTarget.artifactProvider.downloadArtifact = downloadArtifactMock.bind(
+        awsTarget
+      );
+      awsTarget.publishAwsLayer = publishAwsLayerMockUndefinedVersion.bind(
+        AwsLambdaTarget
+      );
+      const publishedLayerVersion = awsTarget.publish('', '');
+      // `publish` should report an error. When it's not dry run, the error is
+      // thrown; when it's on dry run, the error is logged and `undefined` is
+      // returned. Thus, both alternatives have been considered.
+      expect(publishedLayerVersion).toBe(undefined);
+    } catch (error) {
+      expect(error instanceof Error).toBe(true);
+    }
   });
 });
