@@ -11,21 +11,21 @@ import { PromiseResult } from 'aws-sdk/lib/request';
 const logger = loggerRaw.withScope(`[aws-lambda-layer]`);
 
 const awsAllRegions = [
-  // 'us-east-1',
+  'us-east-1',
   'us-east-2',
-  // 'us-west-1',
-  // 'us-west-2',
-  // 'ap-south-1',
-  // 'ap-southeast-1',
-  // 'ap-southeast-2',
-  // 'ap-northeast-1',
-  // 'ap-northeast-2',
-  // 'ca-central-1',
-  // 'eu-central-1',
-  // 'eu-west-1',
-  // 'eu-west-2',
-  // 'eu-west-3',
-  // 'sa-east-1',
+  'us-west-1',
+  'us-west-2',
+  'ap-south-1',
+  'ap-southeast-1',
+  'ap-southeast-2',
+  'ap-northeast-1',
+  'ap-northeast-2',
+  'ca-central-1',
+  'eu-central-1',
+  'eu-west-1',
+  'eu-west-2',
+  'eu-west-3',
+  'sa-east-1',
 ];
 
 /** Config options for the "aws-lambda-layer" target. */
@@ -106,7 +106,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         },
         LayerName: this.config.layerName,
         CompatibleRuntimes: this.config.compatibleRuntimes,
-        LicenseInfo: 'MIT',
+        LicenseInfo: this.config.license,
       });
 
       if (publishedLayer.Version === undefined) {
@@ -117,9 +117,9 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       await this.addAwsLayerPermissions(lambda, {
         LayerName: this.config.layerName,
         VersionNumber: publishedLayer.Version,
-        StatementId: 'public',
-        Action: 'lambda:GetLayerVersion',
-        Principal: '*',
+        StatementId: this.config.layerPermissions['statementId'],
+        Action: this.config.layerPermissions['action'],
+        Principal: this.config.layerPermissions['principal'],
       });
 
       logger.info(`Published layer in ${currentRegion}:
