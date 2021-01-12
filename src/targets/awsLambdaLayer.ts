@@ -10,34 +10,25 @@ import { PromiseResult } from 'aws-sdk/lib/request';
 
 const logger = loggerRaw.withScope(`[aws-lambda-layer]`);
 
-/**
- * RegExp for the AWS Lambda package.
- * The pattern matches the following structure:
- * `sentry-node-serverless-{version}.zip`.
- */
-const DEFAULT_AWS_LAMBDA_DIST_REGEX = /^sentry-node-serverless-\d+(\.\d+)*\.zip$/;
-
 const awsAllRegions = [
-  'us-east-1',
+  // 'us-east-1',
   'us-east-2',
-  'us-west-1',
-  'us-west-2',
-  'ap-south-1',
-  'ap-southeast-1',
-  'ap-southeast-2',
-  'ap-northeast-1',
-  'ap-northeast-2',
-  'ca-central-1',
-  'eu-central-1',
-  'eu-west-1',
-  'eu-west-2',
-  'eu-west-3',
-  'sa-east-1',
+  // 'us-west-1',
+  // 'us-west-2',
+  // 'ap-south-1',
+  // 'ap-southeast-1',
+  // 'ap-southeast-2',
+  // 'ap-northeast-1',
+  // 'ap-northeast-2',
+  // 'ca-central-1',
+  // 'eu-central-1',
+  // 'eu-west-1',
+  // 'eu-west-2',
+  // 'eu-west-3',
+  // 'sa-east-1',
 ];
 
-const compatibleRuntimes = ['nodejs10.x', 'nodejs12.x'];
-
-/** Config options for the "aws-lambda" target. */
+/** Config options for the "aws-lambda-layer" target. */
 interface AwsLambdaTargetOptions extends TargetConfig {
   /** AWS access key ID, set as AWS_ACCESS_KEY_ID. */
   awsAccessKeyId: string;
@@ -46,29 +37,11 @@ interface AwsLambdaTargetOptions extends TargetConfig {
 }
 
 /**
- * The default layer name is used when no `AWS_LAYER_NAME`
- * environment variable is found.
- */
-export const defaultLayerName = 'SentryNodeServerlessSDK';
-
-/**
- * Extracts the AWS Lambda layer name from the environment variables. If no
- * environment variable is found, the default name is used.
- */
-export function getAwsLayerName(): string {
-  if (!process.env.AWS_LAYER_NAME) {
-    return defaultLayerName;
-  } else {
-    return process.env.AWS_LAYER_NAME;
-  }
-}
-
-/**
  * Target responsible for uploading files to AWS Lambda.
  */
-export class AwsLambdaTarget extends BaseTarget {
+export class AwsLambdaLayerTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = 'aws-lambda';
+  public readonly name: string = 'aws-lambda-layer';
   /** Target options */
   public readonly awsLambdaConfig: AwsLambdaTargetOptions;
   /** Name of the layer to be published */
@@ -80,7 +53,6 @@ export class AwsLambdaTarget extends BaseTarget {
   ) {
     super(config, artifactProvider);
     this.awsLambdaConfig = this.getAwsLambdaConfig();
-    AwsLambdaTarget.layerName = getAwsLayerName();
   }
 
   /**
@@ -107,7 +79,9 @@ export class AwsLambdaTarget extends BaseTarget {
   public async publish(_version: string, revision: string): Promise<any> {
     logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
-      includeNames: DEFAULT_AWS_LAMBDA_DIST_REGEX,
+      includeNames: this.config.includeNames === undefined ?
+        undefined :
+        new RegExp(this.config.includeNames),
     });
 
     if (packageFiles.length == 0) {
@@ -130,8 +104,8 @@ export class AwsLambdaTarget extends BaseTarget {
         Content: {
           ZipFile: artifactBuffer,
         },
-        LayerName: AwsLambdaTarget.layerName,
-        CompatibleRuntimes: compatibleRuntimes,
+        LayerName: this.config.layerName,
+        CompatibleRuntimes: this.config.compatibleRuntimes,
         LicenseInfo: 'MIT',
       });
 
@@ -141,7 +115,7 @@ export class AwsLambdaTarget extends BaseTarget {
       }
 
       await this.addAwsLayerPermissions(lambda, {
-        LayerName: AwsLambdaTarget.layerName,
+        LayerName: this.config.layerName,
         VersionNumber: publishedLayer.Version,
         StatementId: 'public',
         Action: 'lambda:GetLayerVersion',

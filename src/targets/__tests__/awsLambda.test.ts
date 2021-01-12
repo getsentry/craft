@@ -1,16 +1,12 @@
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { ConfigurationError } from '../../utils/errors';
-import {
-  AwsLambdaTarget,
-  getAwsLayerName,
-  defaultLayerName,
-} from '../awsLambda';
+import { AwsLambdaLayerTarget } from '../awsLambdaLayer';
 
 jest.mock('fs');
 
-/** Returns a new AwsLambdaTarget test instance. */
-function getAwsLambdaTarget(): AwsLambdaTarget {
-  return new AwsLambdaTarget(
+/** Returns a new AwsLambdaLayerTarget test instance. */
+function getAwsLambdaTarget(): AwsLambdaLayerTarget {
+  return new AwsLambdaLayerTarget(
     {
       ['testKey']: 'testValue',
     },
@@ -22,21 +18,6 @@ function setAwsEnvironmentVariables() {
   process.env.AWS_ACCESS_KEY_ID = 'test aws access key';
   process.env.AWS_SECRET_ACCESS_KEY = 'test aws secret access key';
 }
-
-describe('get layer name environment variable', () => {
-  test('default environment variable', () => {
-    if ('AWS_LAYER_NAME' in process.env) {
-      delete process.env.AWS_LAYER_NAME;
-    }
-    expect(getAwsLayerName()).toBe(defaultLayerName);
-  });
-
-  test('custom environment variable', () => {
-    const customEnvName = 'test-env-layer-name';
-    process.env.AWS_LAYER_NAME = customEnvName;
-    expect(getAwsLayerName()).toBe(customEnvName);
-  });
-});
 
 describe('get aws config environment variables', () => {
   const oldEnvVariables = process.env;
@@ -88,7 +69,7 @@ describe('publish', () => {
   test('error on missing zip file', async () => {
     const awsTarget = getAwsLambdaTarget();
     awsTarget.getArtifactsForRevision = noArtifactsForRevision.bind(
-      AwsLambdaTarget
+      AwsLambdaLayerTarget
     );
     // `publish` should report an error. When it's not dry run, the error is
     // thrown; when it's on dry run, the error is logged and `undefined` is
@@ -108,7 +89,7 @@ describe('publish', () => {
   test('error on having too many files', async () => {
     const awsTarget = getAwsLambdaTarget();
     awsTarget.getArtifactsForRevision = twoArtifactsForRevision.bind(
-      AwsLambdaTarget
+      AwsLambdaLayerTarget
     );
     // `publish` should report an error. When it's not dry run, the error is
     // thrown; when it's on dry run, the error is logged and `undefined` is
@@ -158,14 +139,14 @@ describe('publish', () => {
   test('success on publishing', async () => {
     const awsTarget = getAwsLambdaTarget();
     awsTarget.getArtifactsForRevision = singleArtifactsForRevision.bind(
-      AwsLambdaTarget
+      AwsLambdaLayerTarget
     );
     awsTarget.artifactProvider.downloadArtifact = downloadArtifactMock.bind(
       awsTarget
     );
-    awsTarget.publishAwsLayer = publishAwsLayerMock.bind(AwsLambdaTarget);
+    awsTarget.publishAwsLayer = publishAwsLayerMock.bind(AwsLambdaLayerTarget);
     awsTarget.addAwsLayerPermissions = addLayerPermissionsMock.bind(
-      AwsLambdaTarget
+      AwsLambdaLayerTarget
     );
     awsTarget.publish('', '');
   });
@@ -174,13 +155,13 @@ describe('publish', () => {
     try {
       const awsTarget = getAwsLambdaTarget();
       awsTarget.getArtifactsForRevision = singleArtifactsForRevision.bind(
-        AwsLambdaTarget
+        AwsLambdaLayerTarget
       );
       awsTarget.artifactProvider.downloadArtifact = downloadArtifactMock.bind(
         awsTarget
       );
       awsTarget.publishAwsLayer = publishAwsLayerMockUndefinedVersion.bind(
-        AwsLambdaTarget
+        AwsLambdaLayerTarget
       );
       const publishedLayerVersion = awsTarget.publish('', '');
       // `publish` should report an error. When it's not dry run, the error is
