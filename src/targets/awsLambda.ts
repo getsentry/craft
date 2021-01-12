@@ -15,7 +15,7 @@ const logger = loggerRaw.withScope(`[aws-lambda]`);
  * The pattern matches the following structure:
  * `sentry-node-serverless-{version}.zip`.
  */
-const DEFAULT_AWS_LAMBDA_DIST_REGEX = /sentry-node-serverless-\d+(\.\d+)*\.zip$/;
+const DEFAULT_AWS_LAMBDA_DIST_REGEX = /^sentry-node-serverless-\d+(\.\d+)*\.zip$/;
 
 const awsAllRegions = [
   'us-east-1',
@@ -162,11 +162,11 @@ export class AwsLambdaTarget extends BaseTarget {
    * @param lambda The lambda service object.
    * @param layerData Details of the layer to be created.
    */
-  public async publishAwsLayer(
+  public publishAwsLayer(
     lambda: Lambda,
     layerData: Lambda.PublishLayerVersionRequest
   ): Promise<PromiseResult<Lambda.PublishLayerVersionResponse, AWSError>> {
-    return await lambda.publishLayerVersion(layerData).promise();
+    return lambda.publishLayerVersion(layerData).promise();
   }
 
   /**
@@ -174,13 +174,13 @@ export class AwsLambdaTarget extends BaseTarget {
    * @param lambda The lambda service object.
    * @param layerPermissionData Details of the layer and permissions to be set.
    */
-  public async addAwsLayerPermissions(
+  public addAwsLayerPermissions(
     lambda: Lambda,
     layerPermissionData: Lambda.AddLayerVersionPermissionRequest
   ): Promise<
     PromiseResult<Lambda.AddLayerVersionPermissionResponse, AWSError>
   > {
-    return await lambda
+    return lambda
       .addLayerVersionPermission(layerPermissionData)
       .promise();
   }

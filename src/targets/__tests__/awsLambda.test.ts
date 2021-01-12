@@ -1,7 +1,4 @@
-import {
-  BaseArtifactProvider,
-  RemoteArtifact,
-} from '../../artifact_providers/base';
+import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { ConfigurationError } from '../../utils/errors';
 import {
   AwsLambdaTarget,
@@ -11,32 +8,13 @@ import {
 
 jest.mock('fs');
 
-class TestArtifactProvider extends BaseArtifactProvider {
-  protected doDownloadArtifact(
-    _artifact: RemoteArtifact,
-    _downloadDirectory: string
-  ): Promise<string> {
-    throw new Error('Method not implemented.');
-  }
-
-  protected doListArtifactsForRevision(
-    _revision: string
-  ): Promise<RemoteArtifact[]> {
-    throw new Error('Method not implemented.');
-  }
-}
-
 /** Returns a new AwsLambdaTarget test instance. */
 function getAwsLambdaTarget(): AwsLambdaTarget {
   return new AwsLambdaTarget(
     {
       ['testKey']: 'testValue',
     },
-    new TestArtifactProvider({
-      repoName: 'testName',
-      repoOwner: 'testRepo',
-      ['testKey']: 'testValue',
-    })
+    new NoneArtifactProvider()
   );
 }
 
