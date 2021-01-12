@@ -97,7 +97,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       await this.artifactProvider.downloadArtifact(packageFiles[0])
     );
 
-    const publishRegionToLambda = async (currentRegion: string) => {
+    const publishRegion = async (currentRegion: string) => {
       const lambda = new Lambda({ region: currentRegion });
 
       const publishedLayer = await this.publishAwsLayer(lambda, {
@@ -106,7 +106,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         },
         LayerName: this.config.layerName,
         CompatibleRuntimes: this.config.compatibleRuntimes,
-        LicenseInfo: this.config.license,
+        LicenseInfo: 'MIT',
       });
 
       if (publishedLayer.Version === undefined) {
@@ -117,16 +117,16 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       await this.addAwsLayerPermissions(lambda, {
         LayerName: this.config.layerName,
         VersionNumber: publishedLayer.Version,
-        StatementId: this.config.layerPermissions['statementId'],
-        Action: this.config.layerPermissions['action'],
-        Principal: this.config.layerPermissions['principal'],
+        StatementId: 'public',
+        Action: 'lambda:GetLayerVersion',
+        Principal: 'lambda:GetLayerVersion',
       });
 
       logger.info(`Published layer in ${currentRegion}:
         ${publishedLayer.LayerVersionArn}`);
     };
 
-    await Promise.all(awsAllRegions.map(publishRegionToLambda));
+    await Promise.all(awsAllRegions.map(publishRegion));
   }
 
   /**
