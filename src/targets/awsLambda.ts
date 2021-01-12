@@ -8,7 +8,7 @@ import { AWSError } from 'aws-sdk';
 import * as Lambda from 'aws-sdk/clients/lambda';
 import { PromiseResult } from 'aws-sdk/lib/request';
 
-const logger = loggerRaw.withScope(`[aws-lambda]`);
+const logger = loggerRaw.withScope(`[aws-lambda-layer]`);
 
 /**
  * RegExp for the AWS Lambda package.
@@ -89,7 +89,7 @@ export class AwsLambdaTarget extends BaseTarget {
   protected getAwsLambdaConfig(): AwsLambdaTargetOptions {
     if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
       throw new ConfigurationError(
-        `Cannot perform AWS Lambda release: missing credentials.
+        `Cannot publish AWS Lambda Layer: missing credentials.
         Please use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.`
       );
     }
@@ -111,10 +111,10 @@ export class AwsLambdaTarget extends BaseTarget {
     });
 
     if (packageFiles.length == 0) {
-      reportError('Cannot release to AWS Lambda: no packages found');
+      reportError('Cannot publish AWS Lambda Layer: no packages found');
       return undefined;
     } else if (packageFiles.length > 1) {
-      reportError(`Cannot release to AWS Lambda:
+      reportError(`Cannot publish AWS Lambda Layer:
       multiple packages with matching patterns were found.`);
       return undefined;
     }
@@ -180,8 +180,6 @@ export class AwsLambdaTarget extends BaseTarget {
   ): Promise<
     PromiseResult<Lambda.AddLayerVersionPermissionResponse, AWSError>
   > {
-    return lambda
-      .addLayerVersionPermission(layerPermissionData)
-      .promise();
+    return lambda.addLayerVersionPermission(layerPermissionData).promise();
   }
 }
