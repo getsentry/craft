@@ -79,6 +79,8 @@ describe('publish', () => {
       expect(noPackageFound).toBe(undefined);
     } catch (error) {
       expect(error instanceof Error).toBe(true);
+      const noPackagePattern = /no packages found/;
+      expect(noPackagePattern.test(error.message)).toBe(true);
     }
   });
 
@@ -95,13 +97,15 @@ describe('publish', () => {
     // thrown; when it's on dry run, the error is logged and `undefined` is
     // returned. Thus, both alternatives have been considered.
     try {
-      const tooManyPackagesFound = await awsTarget.publish(
+      const multiplePackagesFound = await awsTarget.publish(
         'version',
         'revision'
       );
-      expect(tooManyPackagesFound).toBe(undefined);
+      expect(multiplePackagesFound).toBe(undefined);
     } catch (error) {
       expect(error instanceof Error).toBe(true);
+      const multiplePackagesPattern = /multiple packages/;
+      expect(multiplePackagesPattern.test(error.message)).toBe(true);
     }
   });
 
@@ -148,7 +152,9 @@ describe('publish', () => {
     awsTarget.addAwsLayerPermissions = addLayerPermissionsMock.bind(
       AwsLambdaLayerTarget
     );
-    awsTarget.publish('', '');
+    await awsTarget.publish('', '');
+    expect(singleArtifactsForRevision).toBeCalledWith('', { includeNames: undefined });
+    expect(downloadArtifactMock).toBeCalledWith('');
   });
 
   test('error on layer version', async () => {
@@ -163,13 +169,16 @@ describe('publish', () => {
       awsTarget.publishAwsLayer = publishAwsLayerMockUndefinedVersion.bind(
         AwsLambdaLayerTarget
       );
-      const publishedLayerVersion = awsTarget.publish('', '');
+      const publishedLayerVersion = await awsTarget.publish('', '');
       // `publish` should report an error. When it's not dry run, the error is
       // thrown; when it's on dry run, the error is logged and `undefined` is
       // returned. Thus, both alternatives have been considered.
       expect(publishedLayerVersion).toBe(undefined);
     } catch (error) {
       expect(error instanceof Error).toBe(true);
+    } finally {
+      expect(singleArtifactsForRevision).toBeCalledWith('', { includeNames: undefined });
+      expect(downloadArtifactMock).toBeCalledWith('');
     }
   });
 });
