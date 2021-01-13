@@ -199,7 +199,7 @@ export abstract class BaseArtifactProvider {
    * @param downloadDirectory Directory where downloaded artifact is stored
    * @returns Absolute path to the saved file
    */
-  protected abstract async doDownloadArtifact(
+  protected abstract doDownloadArtifact(
     artifact: RemoteArtifact,
     downloadDirectory: string
   ): Promise<string>;
@@ -277,7 +277,7 @@ export abstract class BaseArtifactProvider {
    * @returns Filtered list of artifacts, or "undefined" if the revision cannot
    * be found
    */
-  protected abstract async doListArtifactsForRevision(
+  protected abstract doListArtifactsForRevision(
     revision: string
   ): Promise<RemoteArtifact[]>;
 
