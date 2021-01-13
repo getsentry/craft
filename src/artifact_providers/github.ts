@@ -134,7 +134,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     await withTempFile(async tempFilepath => {
       const file = fs.createWriteStream(tempFilepath);
 
-      await new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         // we need any here since our github api client doesn't have support for artifacts requests yet
         request({ uri: archiveResponse.url })
           .pipe(file)
