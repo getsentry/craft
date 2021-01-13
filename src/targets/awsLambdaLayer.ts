@@ -72,24 +72,50 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   }
 
   /**
+   * Checks if the required project configuration parameters are available.
+   * The required parameters are `layerName` and `compatibleRuntimes`.
+   * There is also an optional parameter `includeNames`.
+   */
+  private checkProjectConfig(): void {
+    const missingConfigOptions = [];
+    if (!('layerName' in this.config)) {
+      missingConfigOptions.push('layerName');
+    }
+    if (!('compatibleRuntimes' in this.config)) {
+      missingConfigOptions.push('compatibleRuntimes');
+    }
+    if (missingConfigOptions.length > 0) {
+      throw new ConfigurationError(
+        'Missing project configuration parameter(s): ' + missingConfigOptions
+      );
+    }
+  }
+
+  /**
    * Publishes current lambda layer zip bundle to AWS Lambda.
    * @param _version New version to be released.
    * @param revision Git commit SHA to be published.
    */
   public async publish(_version: string, revision: string): Promise<any> {
+    this.checkProjectConfig();
+
     logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
-      includeNames: this.config.includeNames === undefined ?
-        undefined :
-        new RegExp(this.config.includeNames),
+      includeNames:
+        this.config.includeNames === undefined
+          ? undefined
+          : new RegExp(this.config.includeNames),
     });
 
     if (packageFiles.length == 0) {
       reportError('Cannot publish AWS Lambda Layer: no packages found');
       return undefined;
     } else if (packageFiles.length > 1) {
-      reportError(`Cannot publish AWS Lambda Layer:
-      multiple packages with matching patterns were found.`);
+      reportError(
+        'Cannot publish AWS Lambda Layer: ' +
+          'multiple packages with matching patterns were found. You may want ' +
+          'to include or modify the includeNames parameter in the project config'
+      );
       return undefined;
     }
 

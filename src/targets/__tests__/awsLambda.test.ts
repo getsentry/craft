@@ -19,6 +19,11 @@ function setAwsEnvironmentVariables() {
   process.env.AWS_SECRET_ACCESS_KEY = 'test aws secret access key';
 }
 
+function setTestingProjectConfig(awsTarget: AwsLambdaLayerTarget) {
+  awsTarget.config.layerName = 'testLayerName';
+  awsTarget.config.compatibleRuntimes = ['runtime1', 'runtime2'];
+}
+
 describe('get aws config environment variables', () => {
   const oldEnvVariables = process.env;
 
@@ -57,6 +62,54 @@ describe('get aws config environment variables', () => {
   });
 });
 
+describe('project config parameters', () => {
+  beforeAll(() => {
+    setAwsEnvironmentVariables();
+  });
+
+  function clearConfig(awsTarget: AwsLambdaLayerTarget): void {
+    delete awsTarget.config.layerName;
+    delete awsTarget.config.compatibleRuntimes;
+  }
+
+  test('missing config parameters', async () => {
+    const awsTarget = getAwsLambdaTarget();
+    clearConfig(awsTarget);
+    try {
+      await awsTarget.publish('', '');
+    } catch (error) {
+      console.log(error.message);
+      expect(error instanceof ConfigurationError).toBe(true);
+      expect(
+        /Missing project configuration parameter/.test(error.message)
+      ).toBe(true);
+    }
+  });
+
+  test('correct config', async () => {
+    const awsTarget = getAwsLambdaTarget();
+    setTestingProjectConfig(awsTarget);
+    const failingTestErrorMsg = 'failing mock test';
+    const getArtifactsFailingMock = jest.fn().mockImplementation(() => {
+      throw new Error(failingTestErrorMsg);
+    });
+    try {
+      // In order to isolate and only test the project config options, the next
+      // function to be executed (`getArtifactsForRevision`) has been mocked to
+      // throw an error and avoid the whole `publish` to be executed. So, if
+      // the error in the mocked function is thrown, the project config test
+      // was successful; on the other hand, if it's not thrown, the test fails.
+      awsTarget.getArtifactsForRevision = getArtifactsFailingMock.bind(
+        AwsLambdaLayerTarget
+      );
+      await awsTarget.publish('', ''); // Should break the mocked function.
+      fail('Should not reach here');
+    } catch (error) {
+      expect(new RegExp(failingTestErrorMsg).test(error.message)).toBe(true);
+    }
+  });
+});
+
 describe('publish', () => {
   beforeAll(() => {
     setAwsEnvironmentVariables();
@@ -68,6 +121,7 @@ describe('publish', () => {
 
   test('error on missing zip file', async () => {
     const awsTarget = getAwsLambdaTarget();
+    setTestingProjectConfig(awsTarget);
     awsTarget.getArtifactsForRevision = noArtifactsForRevision.bind(
       AwsLambdaLayerTarget
     );
@@ -90,6 +144,7 @@ describe('publish', () => {
 
   test('error on having too many files', async () => {
     const awsTarget = getAwsLambdaTarget();
+    setTestingProjectConfig(awsTarget);
     awsTarget.getArtifactsForRevision = twoArtifactsForRevision.bind(
       AwsLambdaLayerTarget
     );
@@ -142,6 +197,7 @@ describe('publish', () => {
 
   test('success on publishing', async () => {
     const awsTarget = getAwsLambdaTarget();
+    setTestingProjectConfig(awsTarget);
     awsTarget.getArtifactsForRevision = singleArtifactsForRevision.bind(
       AwsLambdaLayerTarget
     );
@@ -153,13 +209,16 @@ describe('publish', () => {
       AwsLambdaLayerTarget
     );
     await awsTarget.publish('', '');
-    expect(singleArtifactsForRevision).toBeCalledWith('', { includeNames: undefined });
+    expect(singleArtifactsForRevision).toBeCalledWith('', {
+      includeNames: undefined,
+    });
     expect(downloadArtifactMock).toBeCalledWith('');
   });
 
   test('error on layer version', async () => {
     try {
       const awsTarget = getAwsLambdaTarget();
+      setTestingProjectConfig(awsTarget);
       awsTarget.getArtifactsForRevision = singleArtifactsForRevision.bind(
         AwsLambdaLayerTarget
       );
@@ -177,7 +236,9 @@ describe('publish', () => {
     } catch (error) {
       expect(error instanceof Error).toBe(true);
     } finally {
-      expect(singleArtifactsForRevision).toBeCalledWith('', { includeNames: undefined });
+      expect(singleArtifactsForRevision).toBeCalledWith('', {
+        includeNames: undefined,
+      });
       expect(downloadArtifactMock).toBeCalledWith('');
     }
   });
