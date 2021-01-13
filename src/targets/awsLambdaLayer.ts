@@ -145,7 +145,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         VersionNumber: publishedLayer.Version,
         StatementId: 'public',
         Action: 'lambda:GetLayerVersion',
-        Principal: 'lambda:GetLayerVersion',
+        Principal: '*',
       });
 
       logger.info(`Published layer in ${currentRegion}:
