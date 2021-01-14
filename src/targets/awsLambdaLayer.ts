@@ -30,10 +30,6 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   public readonly name: string = 'aws-lambda-layer';
   /** Target options */
   public readonly awsLambdaConfig: AwsLambdaTargetOptions;
-  /** Name of the layer to be published */
-  static layerName: string;
-  /** All AWS regions available for the current user */
-  public awsRegions: any;
 
   public constructor(
     config: TargetConfig,
@@ -121,7 +117,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     this.checkProjectConfig();
 
     logger.debug('Fetching AWS regions...');
-    this.awsRegions = this.extractAwsRegionName(await this.getAwsRegions());
+    const awsRegions = this.extractAwsRegionName(await this.getAwsRegions());
 
     logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
@@ -171,7 +167,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         ${publishedLayer.LayerVersionArn}`);
     };
 
-    await Promise.all(this.awsRegions.map(publishRegion));
+    await Promise.all(awsRegions.map(publishRegion));
   }
 
   /**
