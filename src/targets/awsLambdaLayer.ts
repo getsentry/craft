@@ -4,29 +4,15 @@ import { TargetConfig } from '../schemas/project_config';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { ConfigurationError, reportError } from '../utils/errors';
-import { AWSError } from 'aws-sdk';
-import * as Lambda from 'aws-sdk/clients/lambda';
-import { PromiseResult } from 'aws-sdk/lib/request';
+import {
+  AddLayerVersionPermissionRequest,
+  Lambda,
+  PublishLayerVersionCommandOutput,
+  PublishLayerVersionRequest,
+} from '@aws-sdk/client-lambda';
+import { DescribeRegionsCommandOutput, EC2 } from '@aws-sdk/client-ec2';
 
 const logger = loggerRaw.withScope(`[aws-lambda-layer]`);
-
-const awsAllRegions = [
-  'us-east-1',
-  'us-east-2',
-  'us-west-1',
-  'us-west-2',
-  'ap-south-1',
-  'ap-southeast-1',
-  'ap-southeast-2',
-  'ap-northeast-1',
-  'ap-northeast-2',
-  'ca-central-1',
-  'eu-central-1',
-  'eu-west-1',
-  'eu-west-2',
-  'eu-west-3',
-  'sa-east-1',
-];
 
 /** Config options for the "aws-lambda-layer" target. */
 interface AwsLambdaTargetOptions extends TargetConfig {
@@ -46,6 +32,8 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   public readonly awsLambdaConfig: AwsLambdaTargetOptions;
   /** Name of the layer to be published */
   static layerName: string;
+  /** All AWS regions available for the current user */
+  public awsRegions: any;
 
   public constructor(
     config: TargetConfig,
@@ -72,6 +60,36 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   }
 
   /**
+   * Requests all regions that are enabled for the current account (or all
+   * regions) to AWS. For more information, see
+   * https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html#describeRegions-property
+   */
+  public async getAwsRegions(): Promise<DescribeRegionsCommandOutput> {
+    const ec2 = new EC2({ region: 'us-east-2' });
+    try {
+      return await ec2.describeRegions({});
+    } catch (error) {
+      throw new Error('AWS error fetching regions.');
+    }
+  }
+
+  /**
+   * Extracts the region name from each region, when available.
+   * @param awsRegions data containing the regions returned by AWS.
+   */
+  public extractAwsRegionName(
+    awsRegions: DescribeRegionsCommandOutput
+  ): string[] {
+    const regionNames: string[] = [];
+    awsRegions.Regions?.map(currentRegion => {
+      if (currentRegion.RegionName !== undefined) {
+        regionNames.push(currentRegion.RegionName);
+      }
+    });
+    return regionNames;
+  }
+
+  /**
    * Checks if the required project configuration parameters are available.
    * The required parameters are `layerName` and `compatibleRuntimes`.
    * There is also an optional parameter `includeNames`.
@@ -83,6 +101,9 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     }
     if (!('compatibleRuntimes' in this.config)) {
       missingConfigOptions.push('compatibleRuntimes');
+    }
+    if (!('license' in this.config)) {
+      missingConfigOptions.push('license');
     }
     if (missingConfigOptions.length > 0) {
       throw new ConfigurationError(
@@ -98,6 +119,9 @@ export class AwsLambdaLayerTarget extends BaseTarget {
    */
   public async publish(_version: string, revision: string): Promise<any> {
     this.checkProjectConfig();
+
+    logger.debug('Fetching AWS regions...');
+    this.awsRegions = this.extractAwsRegionName(await this.getAwsRegions());
 
     logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
@@ -132,13 +156,8 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         },
         LayerName: this.config.layerName,
         CompatibleRuntimes: this.config.compatibleRuntimes,
-        LicenseInfo: 'MIT',
+        LicenseInfo: this.config.license,
       });
-
-      if (publishedLayer.Version === undefined) {
-        reportError(`Error while publishing AWS Layer to ${currentRegion}`);
-        return;
-      }
 
       await this.addAwsLayerPermissions(lambda, {
         LayerName: this.config.layerName,
@@ -152,7 +171,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         ${publishedLayer.LayerVersionArn}`);
     };
 
-    await Promise.all(awsAllRegions.map(publishRegion));
+    await Promise.all(this.awsRegions.map(publishRegion));
   }
 
   /**
@@ -164,9 +183,9 @@ export class AwsLambdaLayerTarget extends BaseTarget {
    */
   public publishAwsLayer(
     lambda: Lambda,
-    layerData: Lambda.PublishLayerVersionRequest
-  ): Promise<PromiseResult<Lambda.PublishLayerVersionResponse, AWSError>> {
-    return lambda.publishLayerVersion(layerData).promise();
+    layerData: PublishLayerVersionRequest
+  ): Promise<PublishLayerVersionCommandOutput> {
+    return lambda.publishLayerVersion(layerData);
   }
 
   /**
@@ -176,10 +195,8 @@ export class AwsLambdaLayerTarget extends BaseTarget {
    */
   public addAwsLayerPermissions(
     lambda: Lambda,
-    layerPermissionData: Lambda.AddLayerVersionPermissionRequest
-  ): Promise<
-    PromiseResult<Lambda.AddLayerVersionPermissionResponse, AWSError>
-  > {
-    return lambda.addLayerVersionPermission(layerPermissionData).promise();
+    layerPermissionData: AddLayerVersionPermissionRequest
+  ): Promise<any> {
+    return lambda.addLayerVersionPermission(layerPermissionData);
   }
 }

@@ -20,6 +20,9 @@
     "**/yargs-parser": ">=18.1.2"
   },
   "dependencies": {
+    "@aws-sdk/client-ec2": "^3.2.0",
+    "@aws-sdk/client-lambda": "^3.2.0",
+    "@aws-sdk/types": "^3.1.0",
     "@google-cloud/storage": "^5.7.0",
     "@octokit/plugin-retry": "2.2.0",
     "@octokit/rest": "16.35.2",
@@ -27,7 +30,6 @@
     "@zeus-ci/sdk": "0.1.8",
     "ajv": "6.6.2",
     "async": "3.1.0",
-    "aws-sdk": "^2.820.0",
     "chalk": "2.4.1",
     "cli-table": "0.3.1",
     "consola": "1.4.5",

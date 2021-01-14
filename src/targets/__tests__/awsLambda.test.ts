@@ -22,7 +22,18 @@ function setAwsEnvironmentVariables() {
 function setTestingProjectConfig(awsTarget: AwsLambdaLayerTarget) {
   awsTarget.config.layerName = 'testLayerName';
   awsTarget.config.compatibleRuntimes = ['runtime1', 'runtime2'];
+  awsTarget.config.license = 'MIT';
 }
+
+const getAwsRegionsMock = jest.fn().mockImplementation(() => {
+  return {
+    Regions: [
+      { RegionName: 'region-test-1' },
+      { RegionName: 'region-test-2' },
+      { RegionName: 'region-test-3' },
+    ],
+  };
+});
 
 describe('get aws config environment variables', () => {
   const oldEnvVariables = process.env;
@@ -70,6 +81,7 @@ describe('project config parameters', () => {
   function clearConfig(awsTarget: AwsLambdaLayerTarget): void {
     delete awsTarget.config.layerName;
     delete awsTarget.config.compatibleRuntimes;
+    delete awsTarget.config.license;
   }
 
   test('missing config parameters', async () => {
@@ -78,7 +90,6 @@ describe('project config parameters', () => {
     try {
       await awsTarget.publish('', '');
     } catch (error) {
-      console.log(error.message);
       expect(error instanceof ConfigurationError).toBe(true);
       expect(
         /Missing project configuration parameter/.test(error.message)
@@ -89,6 +100,7 @@ describe('project config parameters', () => {
   test('correct config', async () => {
     const awsTarget = getAwsLambdaTarget();
     setTestingProjectConfig(awsTarget);
+    awsTarget.getAwsRegions = getAwsRegionsMock.bind(AwsLambdaLayerTarget);
     const failingTestErrorMsg = 'failing mock test';
     const getArtifactsFailingMock = jest.fn().mockImplementation(() => {
       throw new Error(failingTestErrorMsg);
@@ -122,6 +134,7 @@ describe('publish', () => {
   test('error on missing zip file', async () => {
     const awsTarget = getAwsLambdaTarget();
     setTestingProjectConfig(awsTarget);
+    awsTarget.getAwsRegions = getAwsRegionsMock.bind(AwsLambdaLayerTarget);
     awsTarget.getArtifactsForRevision = noArtifactsForRevision.bind(
       AwsLambdaLayerTarget
     );
@@ -145,6 +158,7 @@ describe('publish', () => {
   test('error on having too many files', async () => {
     const awsTarget = getAwsLambdaTarget();
     setTestingProjectConfig(awsTarget);
+    awsTarget.getAwsRegions = getAwsRegionsMock.bind(AwsLambdaLayerTarget);
     awsTarget.getArtifactsForRevision = twoArtifactsForRevision.bind(
       AwsLambdaLayerTarget
     );
@@ -198,6 +212,7 @@ describe('publish', () => {
   test('success on publishing', async () => {
     const awsTarget = getAwsLambdaTarget();
     setTestingProjectConfig(awsTarget);
+    awsTarget.getAwsRegions = getAwsRegionsMock.bind(AwsLambdaLayerTarget);
     awsTarget.getArtifactsForRevision = singleArtifactsForRevision.bind(
       AwsLambdaLayerTarget
     );
@@ -219,6 +234,7 @@ describe('publish', () => {
     try {
       const awsTarget = getAwsLambdaTarget();
       setTestingProjectConfig(awsTarget);
+      awsTarget.getAwsRegions = getAwsRegionsMock.bind(AwsLambdaLayerTarget);
       awsTarget.getArtifactsForRevision = singleArtifactsForRevision.bind(
         AwsLambdaLayerTarget
       );
