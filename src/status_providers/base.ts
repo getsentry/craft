@@ -41,14 +41,12 @@ export abstract class BaseStatusProvider {
    *
    * @param revision Revision SHA
    */
-  public abstract async getRevisionStatus(
-    revision: string
-  ): Promise<CommitStatus>;
+  public abstract getRevisionStatus(revision: string): Promise<CommitStatus>;
 
   /**
    * Gets repository information (as seen by the provider)
    */
-  public abstract async getRepositoryInfo(): Promise<RepositoryInfo>;
+  public abstract getRepositoryInfo(): Promise<RepositoryInfo>;
 
   /**
    * Waits for the builds to finish for the revision
