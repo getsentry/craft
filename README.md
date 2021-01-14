@@ -253,7 +253,7 @@ preReleaseCommand: bash scripts/bump-version.sh
 ### Post-release Command
 
 This command will run after a successful `publish`. By default, it is set to
-`bash scripts/post-release.sh`. It will *not* error if the default script is
+`bash scripts/post-release.sh`. It will _not_ error if the default script is
 missing though, as this may not be needed by all projects. Please refer to the
 [Post-release script conventions section](#post-release-script-conventions)
 for more details.
@@ -423,9 +423,9 @@ Here is an example config (step) of an archive job:
 ```
 
 A few important things to note:
+
 - The name of the artifacts is very important and needs to be `name: ${{ github.sha }}`. Craft uses this as a unique id to fetch the artifacts.
 - Keep in mind that this action maintains the folder structure and zips everything together. Craft will download the zip and recursively walk it to find all assets.
-
 
 ## Target Configurations
 
@@ -474,9 +474,9 @@ contains any one of `preview`, `pre`, `rc`, `dev`,`alpha`, `beta`, `unstable`,
 
 **Environment**
 
-| Name               | Description                                                        |
-| ------------------ | ------------------------------------------------------------------ |
-| `GITHUB_TOKEN`     | Personal GitHub API token (see https://github.com/settings/tokens) |
+| Name           | Description                                                        |
+| -------------- | ------------------------------------------------------------------ |
+| `GITHUB_TOKEN` | Personal GitHub API token (see https://github.com/settings/tokens) |
 
 **Configuration**
 
@@ -578,9 +578,9 @@ contains the following variables:
 
 **Environment**
 
-| Name               | Description                                                        |
-| ------------------ | ------------------------------------------------------------------ |
-| `GITHUB_TOKEN`     | Personal GitHub API token (seeh ttps://github.com/settings/tokens) |
+| Name           | Description                                                        |
+| -------------- | ------------------------------------------------------------------ |
+| `GITHUB_TOKEN` | Personal GitHub API token (seeh ttps://github.com/settings/tokens) |
 
 **Configuration**
 
@@ -887,6 +887,40 @@ _none_
 ```yaml
 targets:
   - name: gem
+```
+
+### AWS Lambda Layer (`aws-lambda-layer`)
+
+The target will create a new public lambda layer in each available region with
+the extracted artifact from the artifact provider.
+
+**Environment**
+
+| Name                  | Description                                                                |
+| --------------------- | -------------------------------------------------------------------------- |
+| AWS_ACCESS_KEY        | The access key of the AWS account to create and publish the layers.        |
+| AWS_SECRET_ACCESS_KEY | The secret access key of the AWS account to create and publish the layers. |
+
+**Configuration**
+
+| Option             | Description                                                                                                 |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| includeNames       | **optional** Exists for all targets, [see here](##per-target-options). It must filter exactly one artifact. |
+| layerName          | The name of the layer to be published.                                                                      |
+| compatibleRuntimes | A list of compatible runtimes for the layer.                                                                |
+| license            | The license of the layer.                                                                                   |
+
+**Example**
+
+```yaml
+targets:
+  - name: aws-lambda-layer
+    includeNames: /^sentry-node-serverless-\d+(\.\d+)*\.zip$/
+    layerName: SentryNodeServerlessSDK
+    compatibleRuntimes:
+      - nodejs10.x
+      - nodejs12.x
+    license: MIT
 ```
 
 ## Integrating Your Project with `craft`

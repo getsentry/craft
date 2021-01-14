@@ -221,7 +221,7 @@ export async function runPreReleaseCommand(
     logger.warn('Not running the pre-release command: no command specified');
     return false;
   } else if (preReleaseCommand) {
-    [sysCommand, ...args] = shellQuote.parse(preReleaseCommand);
+    [sysCommand, ...args] = shellQuote.parse(preReleaseCommand) as string[];
   } else {
     sysCommand = '/bin/bash';
     args = [DEFAULT_BUMP_VERSION_PATH];

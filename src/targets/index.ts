@@ -12,6 +12,7 @@ import { NpmTarget } from './npm';
 import { NugetTarget } from './nuget';
 import { PypiTarget } from './pypi';
 import { RegistryTarget } from './registry';
+import { AwsLambdaLayerTarget } from './awsLambdaLayer';
 
 export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   brew: BrewTarget,
@@ -26,6 +27,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   nuget: NugetTarget,
   pypi: PypiTarget,
   registry: RegistryTarget,
+  'aws-lambda-layer': AwsLambdaLayerTarget,
 };
 
 /** Targets that are treated specially */
