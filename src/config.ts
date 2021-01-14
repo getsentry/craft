@@ -146,7 +146,10 @@ export function getConfiguration(): CraftProjectConfig {
 
   const configPath = getConfigFilePath();
   logger.debug('Configuration file found: ', configPath);
-  const rawConfig = safeLoad(readFileSync(configPath, 'utf-8'));
+  const rawConfig = safeLoad(readFileSync(configPath, 'utf-8')) as Record<
+    string,
+    any
+  >;
   _configCache = validateConfiguration(rawConfig);
   return _configCache;
 }

@@ -418,8 +418,8 @@ export async function runPostReleaseCommand(
   newVersion: string,
   postReleaseCommand?: string
 ): Promise<boolean> {
-  let sysCommand: string;
-  let args: string[];
+  let sysCommand: shellQuote.ParseEntry;
+  let args: shellQuote.ParseEntry[];
   if (postReleaseCommand !== undefined && postReleaseCommand.length === 0) {
     // Not running post-release command
     logger.info('Not running the post-release command: no command specified');
@@ -442,7 +442,7 @@ export async function runPostReleaseCommand(
     CRAFT_NEW_VERSION: newVersion,
     CRAFT_OLD_VERSION: '',
   };
-  await spawnProcess(sysCommand, args, {
+  await spawnProcess(sysCommand as string, args as string[], {
     env: { ...process.env, ...additionalEnv },
   });
   return true;
