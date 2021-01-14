@@ -889,24 +889,26 @@ targets:
   - name: gem
 ```
 
-### AWS Lambda Layer
+### AWS Lambda Layer (`aws-lambda-layer`)
 
 The target will create a new public lambda layer in each available region with
-the extracted artifact from GitHub actions.
+the extracted artifact from the artifact provider.
 
 **Environment**
-| Name | Description |
+
+| Name                  | Description                                                                |
 | --------------------- | -------------------------------------------------------------------------- |
-| AWS_ACCESS_KEY | The access key of the AWS account to create and publish the layers. |
+| AWS_ACCESS_KEY        | The access key of the AWS account to create and publish the layers.        |
 | AWS_SECRET_ACCESS_KEY | The secret access key of the AWS account to create and publish the layers. |
 
 **Configuration**
-| Option | Description |
-| -------------- | ------------------------------------------------------------------------ |
-| includeNames | **optional** Pattern (between `/`) of the ZIP artifact to be used as the content of the layer. If after filtering the artifacts with this option there's no exactly one artifact, it'll fail. |
-| layerName | The name of the layer to be published. |
-| compatibleRuntimes | A list of compatible runtimes for the layer. |
-| license | The license of the layer. |
+
+| Option             | Description                                                                                                 |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| includeNames       | **optional** Exists for all targets, [see here](##per-target-options). It must filter exactly one artifact. |
+| layerName          | The name of the layer to be published.                                                                      |
+| compatibleRuntimes | A list of compatible runtimes for the layer.                                                                |
+| license            | The license of the layer.                                                                                   |
 
 **Example**
 
