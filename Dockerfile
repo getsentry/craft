@@ -41,6 +41,8 @@ RUN apt-get -qq update \
   && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s --  --profile minimal -y \
   && cargo --version \
   && cargo install cargo-hack \
+  # Stick with 3.1.x as 3.2.x doesn't install on Debian Buster for some reason
+  && gem update --no-document --system 3.1.5 \
   && gem install cocoapods
 
 COPY --from=builder /app/package.json /app/yarn.lock /craft/
