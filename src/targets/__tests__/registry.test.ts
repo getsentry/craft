@@ -1,4 +1,4 @@
-import { parseCanonical } from '../registry';
+import { parseCanonical } from '../../utils/canonical';
 
 describe('parseCanonical', () => {
   test('parses valid cases properly', async () => {
