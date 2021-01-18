@@ -19,7 +19,6 @@ import {
 } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
 import { renderTemplateSafe } from '../utils/strings';
-import { HashAlgorithm, HashOutputFormat } from '../utils/system';
 import {
   isPreviewRelease,
   parseVersion,
@@ -32,7 +31,8 @@ import {
   BaseArtifactProvider,
   MAX_DOWNLOAD_CONCURRENCY,
 } from '../artifact_providers/base';
-import { parseCanonical } from 'src/utils/canonical';
+import { parseCanonical } from '../utils/canonical';
+import { castChecksums, ChecksumEntry } from '../utils/checksum';
 
 const logger = loggerRaw.withScope('[registry]');
 
@@ -47,14 +47,6 @@ export enum RegistryPackageType {
   APP = 'app',
   /** SDK is a package hosted in one of public registries (PyPI, NPM, etc.) */
   SDK = 'sdk',
-}
-
-/** Describes a checksum entry in the registry */
-interface ChecksumEntry {
-  /** Checksum (hash) algorithm */
-  algorithm: HashAlgorithm;
-  /** Checksum format */
-  format: HashOutputFormat;
 }
 
 /** "registry" target options */
@@ -96,45 +88,6 @@ export class RegistryTarget extends BaseTarget {
     this.github = getGithubClient();
     this.githubRepo = getGlobalGithubConfig();
     this.registryConfig = this.getRegistryConfig();
-  }
-
-  /**
-   * Checks the provided checksums configuration
-   *
-   * Throws an error in case the configuration is incorrect
-   * FIXME(tonyo): rewrite this with JSON schemas
-   *
-   * @param checksums Raw configuration
-   */
-  protected castChecksums(checksums: any[]): ChecksumEntry[] {
-    if (!checksums) {
-      return [];
-    }
-    if (!(checksums instanceof Array)) {
-      throw new ConfigurationError(
-        'Invalid type of "checksums": should be an array'
-      );
-    }
-    const resultChecksums: ChecksumEntry[] = [];
-    checksums.forEach(item => {
-      if (typeof item !== 'object' || !item.algorithm || !item.format) {
-        throw new ConfigurationError(
-          `Invalid checksum type: ${JSON.stringify(item)}`
-        );
-      }
-      // FIXME(tonyo): this is ugly as hell :(
-      // This all has to be replaced with JSON schema
-      if (
-        !(Object as any).values(HashAlgorithm).includes(item.algorithm) ||
-        !(Object as any).values(HashOutputFormat).includes(item.format)
-      ) {
-        throw new ConfigurationError(
-          `Invalid checksum attributes: ${JSON.stringify(item)}`
-        );
-      }
-      resultChecksums.push({ algorithm: item.algorithm, format: item.format });
-    });
-    return resultChecksums;
   }
 
   /**
@@ -180,7 +133,7 @@ export class RegistryTarget extends BaseTarget {
       throw new ConfigurationError('Invlaid type of "linkPrereleases"');
     }
 
-    const checksums = this.castChecksums(this.config.checksums);
+    const checksums = castChecksums(this.config.checksums);
 
     const onlyIfPresentStr = this.config.onlyIfPresent || undefined;
     let onlyIfPresent;

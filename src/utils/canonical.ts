@@ -1,4 +1,4 @@
-import { ConfigurationError } from "./errors";
+import { ConfigurationError } from './errors';
 
 /**
  * Parses registry canonical name to a list of registry directories
