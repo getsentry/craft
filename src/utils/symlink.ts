@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { logger } from 'src/logger';
+import { logger } from '../logger';
 import { ConfigurationError } from './errors';
 import { parseVersion, versionGreaterOrEqualThan } from './version';
 

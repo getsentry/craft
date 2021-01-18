@@ -27,9 +27,9 @@ import {
   BaseArtifactProvider,
   MAX_DOWNLOAD_CONCURRENCY,
 } from '../artifact_providers/base';
-import { parseCanonical } from '../utils/canonical';
 import { castChecksums, ChecksumEntry } from '../utils/checksum';
-import { createSymlinks } from 'src/utils/symlink';
+import { createSymlinks } from '../utils/symlink';
+import { getPackageDirPath } from '../utils/packagePath';
 
 const logger = loggerRaw.withScope('[registry]');
 
@@ -150,53 +150,6 @@ export class RegistryTarget extends BaseTarget {
       type: registryType,
       urlTemplate,
     };
-  }
-
-  /**
-   * Returns the path to the SDK, given its canonical name
-   *
-   * @param registryDir The path to the local registry
-   * @param canonical The SDK's canonical name
-   * @returns The SDK path
-   */
-  public getSdkPackagePath(registryDir: string, canonical: string): string {
-    const packageDirs = parseCanonical(canonical);
-    return [registryDir, 'packages'].concat(packageDirs).join(path.sep);
-  }
-
-  /**
-   * Returns the path to the app, given its canonical name
-   *
-   * @param registryDir The path to the local registry
-   * @param canonical The app's canonical name
-   * @returns The app path
-   */
-  public getAppPackagePath(registryDir: string, canonical: string): string {
-    const packageDirs = parseCanonical(canonical);
-    if (packageDirs[0] !== 'app') {
-      throw new ConfigurationError(
-        `Invalid canonical entry for an app: ${canonical}`
-      );
-    }
-    return [registryDir, 'apps'].concat(packageDirs.slice(1)).join(path.sep);
-  }
-
-  /**
-   * Returns the path to the package from its canonical name
-   *
-   * @param registryDir The path to the local registry
-   * @param canonical The app's canonical name
-   */
-  public getPackageDirPath(registryDir: string, canonical: string): string {
-    if (this.registryConfig.type === RegistryPackageType.SDK) {
-      return this.getSdkPackagePath(registryDir, canonical);
-    } else if (this.registryConfig.type === RegistryPackageType.APP) {
-      return this.getAppPackagePath(registryDir, canonical);
-    } else {
-      throw new ConfigurationError(
-        `Unknown registry package type: ${this.registryConfig.type}`
-      );
-    }
   }
 
   /**
@@ -373,7 +326,7 @@ export class RegistryTarget extends BaseTarget {
     logger.info(
       `Adding the version file to the registry for canonical name "${canonical}"...`
     );
-    const packageDirPath = this.getPackageDirPath(directory, canonical);
+    const packageDirPath = getPackageDirPath(directory, canonical);
 
     const versionFilePath = path.join(packageDirPath, `${version}.json`);
     if (fs.existsSync(versionFilePath)) {
