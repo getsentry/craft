@@ -82,7 +82,7 @@ export class RegistryTarget extends BaseTarget {
   }
 
   /**
-   * Extracts Registry target options from the raw configuration
+   * Extracts Registry target options from the raw configuration.
    */
   public getRegistryConfig(): RegistryConfig {
     const registryType = this.config.type;
@@ -190,14 +190,19 @@ export class RegistryTarget extends BaseTarget {
   }
 
   /**
-   * Extends the artifact entry with additional information
+   * Extends the artifact entry with additional URL and checksum information.
    *
-   * Information and checksums and download URLs are added here
+   * The URL information is a string with the artifact filename, revision and
+   * version, according to the template of the registry config. If no template
+   * has been provided, no URL data is extended.
+   *
+   * Checksum information maps from the algorithm and format (following the
+   * pattern `<algorithm>-<format>`) to the checksum of the provided artifact.
+   * There must be at least one checksum to extend this information.
    *
    * @param artifact Artifact
    * @param version The new version
    * @param revision Git commit SHA to be published
-   *
    */
   public async getArtifactData(
     artifact: RemoteArtifact,
@@ -231,7 +236,14 @@ export class RegistryTarget extends BaseTarget {
   }
 
   /**
-   * Extends the artifact entries with additional information
+   * Extends the artifact entries with additional information.
+   *
+   * Replaces the current file data on the package manifest with a new mapping
+   * from artifact filenames to the artifact data. Note that this information
+   * will be empty if no artifacts are found for the given revision.
+   *
+   * The artifact data contains URL and checksum information about the
+   * artifact, provided by `getArtifactData`.
    *
    * @param packageManifest Package manifest
    * @param version The new version
@@ -269,7 +281,10 @@ export class RegistryTarget extends BaseTarget {
   }
 
   /**
-   * Updates the local copy of the release registry
+   * Updates the local copy of the release registry by adding file data
+   * (see `addFilesData`).
+   *
+   * Also, if it's a generic app, adds file links (note: legacy).
    *
    * @param packageManifest The package's manifest object
    * @param canonical The package's canonical name
