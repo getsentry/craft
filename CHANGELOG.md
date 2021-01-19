@@ -2,7 +2,7 @@
 
 ## 0.16.0
 
-- feat(aws-lambda): AWS Lambda layer targetr (#160)
+- feat(aws-lambda): AWS Lambda layer target (#160)
 
 ## 0.15.0
 
