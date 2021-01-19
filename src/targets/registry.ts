@@ -1,9 +1,5 @@
-import * as fs from 'fs';
-import * as path from 'path';
-
 import { mapLimit } from 'async';
 import * as Github from '@octokit/rest';
-import * as simpleGit from 'simple-git/promise';
 import * as _ from 'lodash';
 
 import { getGlobalGithubConfig } from '../config';
@@ -17,7 +13,6 @@ import {
   getGithubClient,
   GithubRemote,
 } from '../utils/githubApi';
-import { isDryRun } from '../utils/helpers';
 import { renderTemplateSafe } from '../utils/strings';
 import { isPreviewRelease } from '../utils/version';
 import { stringToRegexp } from '../utils/filters';
@@ -28,8 +23,7 @@ import {
   MAX_DOWNLOAD_CONCURRENCY,
 } from '../artifact_providers/base';
 import { castChecksums, ChecksumEntry } from '../utils/checksum';
-import { createSymlinks } from '../utils/symlink';
-import { getPackageDirPath } from '../utils/packagePath';
+import { pushVersionToRegistry } from '../utils/gitTasks';
 
 const logger = loggerRaw.withScope('[registry]');
 
@@ -310,95 +304,6 @@ export class RegistryTarget extends BaseTarget {
   }
 
   /**
-   * Updates the local copy of the release registry
-   *
-   * @param directory The directory with the checkout out registry
-   * @param canonical The package's canonical name
-   * @param version The new version
-   * @param revision Git commit SHA to be published
-   */
-  public async addVersionToRegistry(
-    directory: string,
-    canonical: string,
-    version: string,
-    revision: string
-  ): Promise<void> {
-    logger.info(
-      `Adding the version file to the registry for canonical name "${canonical}"...`
-    );
-    const packageDirPath = getPackageDirPath(directory, canonical);
-
-    const versionFilePath = path.join(packageDirPath, `${version}.json`);
-    if (fs.existsSync(versionFilePath)) {
-      reportError(`Version file for "${version}" already exists. Aborting.`);
-    }
-
-    const packageManifestPath = path.join(packageDirPath, 'latest.json');
-    logger.debug('Reading the current configuration from "latest.json"...');
-    const packageManifest =
-      JSON.parse(fs.readFileSync(packageManifestPath).toString()) || {};
-    const previousVersion = packageManifest.version || undefined;
-
-    const updatedManifest = await this.getUpdatedManifest(
-      packageManifest,
-      canonical,
-      version,
-      revision
-    );
-
-    const manifestString = JSON.stringify(updatedManifest, undefined, 2) + '\n';
-    logger.debug('Updated manifest', manifestString);
-    logger.debug(`Writing updated manifest to "${versionFilePath}"...`);
-    fs.writeFileSync(versionFilePath, manifestString);
-
-    createSymlinks(versionFilePath, version, previousVersion);
-  }
-
-  /**
-   * Commits and pushes the new version of the package to the release registry
-   *
-   * @param directory The directory with the checkout out registry
-   * @param remote The GitHub remote object
-   * @param version The new version
-   * @param revision Git commit SHA to be published
-   */
-  public async pushVersionToRegistry(
-    directory: string,
-    remote: GithubRemote,
-    version: string,
-    revision: string
-  ): Promise<void> {
-    logger.info(`Cloning "${remote.getRemoteString()}" to "${directory}"...`);
-    await simpleGit()
-      .silent(true)
-      .clone(remote.getRemoteStringWithAuth(), directory);
-
-    const canonical = this.registryConfig.canonicalName;
-    if (!canonical) {
-      throw new ConfigurationError(
-        '"canonical" value not found in the registry configuration'
-      );
-    }
-
-    await this.addVersionToRegistry(directory, canonical, version, revision);
-
-    const git = simpleGit(directory).silent(true);
-    await git.checkout('master');
-
-    // Commit
-    await git.add(['.']);
-    await git.commit(`craft: release "${canonical}", version "${version}"`);
-
-    // Push!
-    logger.info(`Pushing the changes...`);
-    if (!isDryRun()) {
-      await git.push('origin', 'master');
-    } else {
-      logger.info('[dry-run] Not pushing the branch.');
-    }
-  }
-
-  /**
    * Pushes an archive with static HTML web assets to the configured branch
    */
   public async publish(version: string, revision: string): Promise<any> {
@@ -428,9 +333,23 @@ export class RegistryTarget extends BaseTarget {
     const username = await getAuthUsername(this.github);
     remote.setAuth(username, getGithubApiToken());
 
+    if (this.registryConfig.canonicalName === undefined) {
+      throw new ConfigurationError(
+        '"canonical" value not found in the registry configuration'
+      );
+    }
+    const canonicalName: string = this.registryConfig.canonicalName;
+
     await withTempDir(
       async directory =>
-        this.pushVersionToRegistry(directory, remote, version, revision),
+        pushVersionToRegistry(
+          this,
+          directory,
+          remote,
+          version,
+          revision,
+          canonicalName
+        ),
       true,
       'craft-release-registry-'
     );
