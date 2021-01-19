@@ -1,3 +1,7 @@
+import {
+  BaseArtifactProvider,
+  RemoteArtifact,
+} from '../artifact_providers/base';
 import { ConfigurationError } from './errors';
 import { HashAlgorithm, HashOutputFormat } from './system';
 
@@ -46,4 +50,31 @@ export function castChecksums(checksums: any[]): ChecksumEntry[] {
       };
     }
   );
+}
+
+/**
+ * Retrieves a mapping from the provided checksums to the computed checksum.
+ * @param checksums List of checksums to be calculated.
+ * @param artifact The artifact to calculate the checksums of.
+ * @param artifactProvider The artifact provider to get the checksum of.
+ */
+export async function getArtifactChecksums(
+  checksums: ChecksumEntry[],
+  artifact: RemoteArtifact,
+  artifactProvider: BaseArtifactProvider
+): Promise<any> {
+  if (checksums.length == 0) {
+    return undefined;
+  }
+  const fileChecksums: { [key: string]: string } = {};
+  for (const checksumType of checksums) {
+    const { algorithm, format } = checksumType;
+    const currentChecksum = await artifactProvider.getChecksum(
+      artifact,
+      algorithm,
+      format
+    );
+    fileChecksums[`${algorithm}-${format}`] = currentChecksum;
+  }
+  return fileChecksums;
 }

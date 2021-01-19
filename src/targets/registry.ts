@@ -22,7 +22,11 @@ import {
   BaseArtifactProvider,
   MAX_DOWNLOAD_CONCURRENCY,
 } from '../artifact_providers/base';
-import { castChecksums, ChecksumEntry } from '../utils/checksum';
+import {
+  castChecksums,
+  ChecksumEntry,
+  getArtifactChecksums,
+} from '../utils/checksum';
 import { pushVersionToRegistry } from '../utils/gitTasks';
 
 const logger = loggerRaw.withScope('[registry]');
@@ -219,19 +223,12 @@ export class RegistryTarget extends BaseTarget {
       });
     }
 
-    if (this.registryConfig.checksums.length > 0) {
-      const fileChecksums: { [key: string]: string } = {};
-      for (const checksumType of this.registryConfig.checksums) {
-        const { algorithm, format } = checksumType;
-        const checksum = await this.artifactProvider.getChecksum(
-          artifact,
-          algorithm,
-          format
-        );
-        fileChecksums[`${algorithm}-${format}`] = checksum;
-      }
-      artifactData.checksums = fileChecksums;
-    }
+    artifactData.checksums = await getArtifactChecksums(
+      this.registryConfig.checksums,
+      artifact,
+      this.artifactProvider
+    );
+
     return artifactData;
   }
 
