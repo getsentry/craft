@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.16.0
+
+- feat(aws-lambda): AWS Lambda layer targetr (#160)
+
 ## 0.15.0
 
 - fix(publish): Fix fail on dry-run w/ github target (#152)
