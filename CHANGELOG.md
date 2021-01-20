@@ -1,6 +1,6 @@
 # Changelog
 
-# 0.16.1
+## 0.16.1
 
 - fix(gcs-target): Fix incorrect upload path to GCS when it has a leading slash (#170)
 
