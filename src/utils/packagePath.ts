@@ -39,16 +39,17 @@ function getAppPackagePath(registryDir: string, canonical: string): string {
  * @param canonical The app's canonical name.
  */
 export function getPackageDirPath(
+  registryConfType: string,
   registryDir: string,
   canonical: string
 ): string {
-  if (this.registryConfig.type === RegistryPackageType.SDK) {
+  if (registryConfType === RegistryPackageType.SDK) {
     return getSdkPackagePath(registryDir, canonical);
-  } else if (this.registryConfig.type === RegistryPackageType.APP) {
+  } else if (registryConfType === RegistryPackageType.APP) {
     return getAppPackagePath(registryDir, canonical);
   } else {
     throw new ConfigurationError(
-      `Unknown registry package type: ${this.registryConfig.type}`
+      `Unknown registry package type: ${registryConfType}`
     );
   }
 }

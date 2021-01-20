@@ -28,7 +28,11 @@ async function addPackageVersionToRegistry(
   logger.info(
     `Adding the version file to the registry for canonical name "${canonical}"...`
   );
-  const packageDirPath = getPackageDirPath(directory, canonical);
+  const packageDirPath = getPackageDirPath(
+    registry.registryConfig.type,
+    directory,
+    canonical
+  );
 
   const versionFilePath = path.join(packageDirPath, `${version}.json`);
   if (fs.existsSync(versionFilePath)) {
@@ -75,7 +79,7 @@ export async function pushPackageVersionToRegistry(
   canonicalName: string
 ): Promise<void> {
   logger.info(`Cloning "${remote.getRemoteString()}" to "${directory}"...`);
-  gitTasks.gitClone(remote.getRemoteStringWithAuth(), directory);
+  await gitTasks.gitClone(remote.getRemoteStringWithAuth(), directory);
 
   await addPackageVersionToRegistry(
     registry,
