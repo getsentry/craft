@@ -27,7 +27,7 @@ import {
   ChecksumEntry,
   getArtifactChecksums,
 } from '../utils/checksum';
-import { pushVersionToRegistry } from '../utils/gitTasks';
+import { pushPackageVersionToRegistry } from '../utils/packagesToRegistry';
 
 const logger = loggerRaw.withScope('[registry]');
 
@@ -354,7 +354,7 @@ export class RegistryTarget extends BaseTarget {
 
     await withTempDir(
       async directory =>
-        pushVersionToRegistry(
+        pushPackageVersionToRegistry(
           this,
           directory,
           remote,
