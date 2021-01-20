@@ -1,5 +1,9 @@
 # Changelog
 
+# 0.16.1
+
+- fix(gcs-target): Fix incorrect upload path to GCS when it has a leading slash (#170)
+
 ## 0.16.0
 
 - feat(aws-lambda): AWS Lambda layer target (#160)
