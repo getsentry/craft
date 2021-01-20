@@ -172,6 +172,24 @@ describe('gcsApi module', () => {
         });
       });
 
+      it('removes leading slashes in upload destinations', async () => {
+        expect.assertions(1);
+
+        await client.uploadArtifact(squirrelStatsLocalPath, {
+          path: '/' + squirrelStatsBucketPath.path,
+        });
+
+        const { filename } = squirrelStatsArtifact;
+        const destinationPath = path.normalize(squirrelStatsBucketPath.path);
+
+        expect(mockGCSUpload).toHaveBeenCalledWith(squirrelStatsLocalPath, {
+          destination: `${destinationPath}${filename}`,
+          gzip: true,
+          metadata: DEFAULT_UPLOAD_METADATA,
+          resumable: !process.env.CI,
+        });
+      });
+
       it('detects content type correctly for JS and map files', async () => {
         expect.assertions(1);
 

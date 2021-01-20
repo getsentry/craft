@@ -34,7 +34,7 @@ export const squirrelStatsArtifact: RemoteArtifact = {
 export const squirrelStatsLocalPath = './temp/march-2020-stats.csv';
 
 export const squirrelStatsBucketPath = {
-  path: '/stats/2020/',
+  path: 'stats/2020/',
 };
 
 export const squirrelSimulatorArtifact: RemoteArtifact = {
