@@ -1,13 +1,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import * as gitTasks from './gitTasks';
 import { logger } from '../logger';
 import { createSymlinks } from './symlink';
 import { getPackageDirPath } from './packagePath';
 import { reportError } from './errors';
 import { GithubRemote } from './githubApi';
 import { RegistryTarget } from '../targets/registry';
+import * as simpleGit from 'simple-git/promise';
+import { isDryRun } from './helpers';
 
 /**
  * Updates the local copy of the release registry.
@@ -78,8 +79,9 @@ export async function pushPackageVersionToRegistry(
   revision: string,
   canonicalName: string
 ): Promise<void> {
+  const git = simpleGit(directory).silent(true);
   logger.info(`Cloning "${remote.getRemoteString()}" to "${directory}"...`);
-  await gitTasks.gitClone(remote.getRemoteStringWithAuth(), directory);
+  await git.clone(remote.getRemoteString(), directory);
 
   await addPackageVersionToRegistry(
     registry,
@@ -90,9 +92,16 @@ export async function pushPackageVersionToRegistry(
   );
 
   // Commit
-  await gitTasks.syncChangesToRemote(
-    await gitTasks.gitCheckout(directory),
-    ['.'],
-    `craft: release "${canonicalName}", version "${version}"`
-  );
+  await git.add(['.']);
+  await git.checkout('master');
+  await git.commit(`craft: release "${canonicalName}", version "${version}"`);
+
+  // Push!
+  if (!isDryRun()) {
+    logger.info(`Pushing the changes...`);
+    await git.push('origin', 'master');
+  } else {
+    logger.info('[dry-run] Not pushing the branch.');
+  }
+
 }
