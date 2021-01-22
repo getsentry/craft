@@ -62,7 +62,7 @@ export function getPackageDirPath(
  * @param canonicalName Registry canonical name
  * @returns A list of directories
  */
-function parseCanonical(canonicalName: string): string[] {
+export function parseCanonical(canonicalName: string): string[] {
   const [registry, packageName] = canonicalName.split(':');
   if (!registry || !packageName) {
     throw new ConfigurationError(
