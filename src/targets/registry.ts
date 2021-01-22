@@ -27,7 +27,7 @@ import {
   ChecksumEntry,
   getArtifactChecksums,
 } from '../utils/checksum';
-import { pushPackageVersionToRegistry } from '../utils/packagesToRegistry';
+import { pushPackageVersionToRegistry } from '../utils/registry';
 
 const logger = loggerRaw.withScope('[registry]');
 
