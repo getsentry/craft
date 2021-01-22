@@ -51,8 +51,8 @@ export async function gitCheckout(
 export async function gitClone(
   repoPath: string,
   directory: string
-): Promise<void> {
-  await simpleGit()
-    .silent(true)
-    .clone(repoPath, directory);
+): Promise<simpleGit.SimpleGit> {
+  const git = simpleGit().silent(true);
+  await git.clone(repoPath, directory);
+  return git;
 }
