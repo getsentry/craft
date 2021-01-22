@@ -39,7 +39,7 @@ export async function gitCheckout(
   what: string | string[] = 'master'
 ): Promise<simpleGit.SimpleGit> {
   const git = simpleGit(directory).silent(true);
-  git.checkout(what);
+  await git.checkout(what);
   return git;
 }
 
