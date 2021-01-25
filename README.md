@@ -49,6 +49,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Cocoapods (`cocoapods`)](#cocoapods-cocoapods)
   - [Docker (`docker`)](#docker-docker)
   - [Ruby Gems Index (`gem`)](#ruby-gems-index-gem)
+  - [AWS Lambda Layer (`aws-lambda-layer`)](#aws-lambda-layer-aws-lambda-layer)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Post-release Script: Conventions](#post-release-script-conventions)
