@@ -11,7 +11,7 @@ import { ConfigurationError } from './errors';
  */
 function getSdkPackagePath(registryDir: string, canonical: string): string {
   const packageDirs = parseCanonical(canonical);
-  return [registryDir, 'packages'].concat(packageDirs).join(path.sep);
+  return path.posix.join(registryDir, 'packages', ...packageDirs);
 }
 
 /**
@@ -28,7 +28,7 @@ function getAppPackagePath(registryDir: string, canonical: string): string {
       `Invalid canonical entry for an app: ${canonical}`
     );
   }
-  return [registryDir, 'apps'].concat(packageDirs.slice(1)).join(path.sep);
+  return path.posix.join(registryDir, 'apps', ...packageDirs.slice(1));
 }
 
 /**
