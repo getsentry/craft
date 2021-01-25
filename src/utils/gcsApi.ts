@@ -175,7 +175,15 @@ export class CraftGCSClient {
     bucketPath: BucketPath
   ): Promise<void> {
     const filename = path.basename(artifactLocalPath);
-    const pathInBucket = bucketPath.path;
+    let pathInBucket = bucketPath.path;
+
+    // Remove any potential leading forward slashes as google-cloud/storage
+    // stopped normalizing paths. If you keep this, you'll end up with a path
+    // like `//your/dir/and/file` instead of `/your/dir/and/file`
+    // See #169 for more information.
+    if (pathInBucket[0] === '/') {
+      pathInBucket = pathInBucket.substring(1);
+    }
 
     if (!artifactLocalPath) {
       reportError(
