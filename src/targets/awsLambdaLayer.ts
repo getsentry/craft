@@ -4,13 +4,7 @@ import { TargetConfig } from '../schemas/project_config';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { ConfigurationError, reportError } from '../utils/errors';
-import {
-  AddLayerVersionPermissionRequest,
-  Lambda,
-  PublishLayerVersionCommandOutput,
-  PublishLayerVersionRequest,
-} from '@aws-sdk/client-lambda';
-import { DescribeRegionsCommandOutput, EC2 } from '@aws-sdk/client-ec2';
+import { getRegionsFromAws, AwsLambdaLayerManager, extractRegionNames } from '../utils/awsLambdaLayerManager';
 
 const logger = loggerRaw.withScope(`[aws-lambda-layer]`);
 
@@ -56,36 +50,6 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   }
 
   /**
-   * Requests all regions that are enabled for the current account (or all
-   * regions) to AWS. For more information, see
-   * https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html#describeRegions-property
-   */
-  public async getAwsRegions(): Promise<DescribeRegionsCommandOutput> {
-    const ec2 = new EC2({ region: 'us-east-2' });
-    try {
-      return await ec2.describeRegions({});
-    } catch (error) {
-      throw new Error('AWS error fetching regions.');
-    }
-  }
-
-  /**
-   * Extracts the region name from each region, when available.
-   * @param awsRegions data containing the regions returned by AWS.
-   */
-  public extractAwsRegionName(
-    awsRegions: DescribeRegionsCommandOutput
-  ): string[] {
-    const regionNames: string[] = [];
-    awsRegions.Regions?.map(currentRegion => {
-      if (currentRegion.RegionName !== undefined) {
-        regionNames.push(currentRegion.RegionName);
-      }
-    });
-    return regionNames;
-  }
-
-  /**
    * Checks if the required project configuration parameters are available.
    * The required parameters are `layerName` and `compatibleRuntimes`.
    * There is also an optional parameter `includeNames`.
@@ -117,7 +81,9 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     this.checkProjectConfig();
 
     logger.debug('Fetching AWS regions...');
-    const awsRegions = this.extractAwsRegionName(await this.getAwsRegions());
+    const awsRegions = extractRegionNames(
+      await getRegionsFromAws()
+    );
 
     logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
@@ -143,56 +109,27 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       await this.artifactProvider.downloadArtifact(packageFiles[0])
     );
 
-    const publishRegion = async (currentRegion: string) => {
-      const lambda = new Lambda({ region: currentRegion });
+    await this.config.compatibleRuntimes.forEach(
+      async (runtime: { name: string; runtimeVersions: string[] }) => {
+        const layerManager = new AwsLambdaLayerManager(
+          runtime,
+          this.config.layerName,
+          this.config.license,
+          artifactBuffer,
+          awsRegions
+        );
 
-      const publishedLayer = await this.publishAwsLayer(lambda, {
-        Content: {
-          ZipFile: artifactBuffer,
-        },
-        LayerName: this.config.layerName,
-        CompatibleRuntimes: this.config.compatibleRuntimes,
-        LicenseInfo: this.config.license,
-      });
+        layerManager;
 
-      await this.addAwsLayerPermissions(lambda, {
-        LayerName: this.config.layerName,
-        VersionNumber: publishedLayer.Version,
-        StatementId: 'public',
-        Action: 'lambda:GetLayerVersion',
-        Principal: '*',
-      });
+        const publishedLayers = await layerManager.publishAllRegions();
+        publishedLayers.map(publishedLayer => console.log(publishedLayer));
 
-      logger.info(`Published layer in ${currentRegion}:
-        ${publishedLayer.LayerVersionArn}`);
-    };
+        // TODO: if the file structure exists: create files, add symlinks,
+        // etc. if necessary
+      }
+    );
 
-    await Promise.all(awsRegions.map(publishRegion));
-  }
+    // TODO: commit and push
 
-  /**
-   * Publishes the layer to AWS Lambda with the given layer data.
-   * It must contain the buffer for the ZIP archive and the layer name.
-   * Each time you publish with the same layer name, a new version is created.
-   * @param lambda The lambda service object.
-   * @param layerData Details of the layer to be created.
-   */
-  public publishAwsLayer(
-    lambda: Lambda,
-    layerData: PublishLayerVersionRequest
-  ): Promise<PublishLayerVersionCommandOutput> {
-    return lambda.publishLayerVersion(layerData);
-  }
-
-  /**
-   * Adds to a layer usage permissions to other accounts.
-   * @param lambda The lambda service object.
-   * @param layerPermissionData Details of the layer and permissions to be set.
-   */
-  public addAwsLayerPermissions(
-    lambda: Lambda,
-    layerPermissionData: AddLayerVersionPermissionRequest
-  ): Promise<any> {
-    return lambda.addLayerVersionPermission(layerPermissionData);
   }
 }
