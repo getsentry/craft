@@ -341,7 +341,7 @@ export class RegistryTarget extends BaseTarget {
 
     const git = simpleGit(directory).silent(true);
     logger.info(`Cloning "${remote.getRemoteString()}" to "${directory}"...`);
-    await git.clone(remote.getRemoteString(), directory);
+    await git.clone(remote.getRemoteStringWithAuth(), directory);
 
     const packageManifest = await registryUtils.getPackageManifest(
       getPackageDirPath(this.registryConfig.type, directory, canonicalName),
