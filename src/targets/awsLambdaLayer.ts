@@ -1,10 +1,19 @@
 import * as fs from 'fs';
+import * as path from 'path';
+
 import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { ConfigurationError, reportError } from '../utils/errors';
-import { getRegionsFromAws, AwsLambdaLayerManager, extractRegionNames } from '../utils/awsLambdaLayerManager';
+import {
+  getRegionsFromAws,
+  AwsLambdaLayerManager,
+  extractRegionNames,
+  getAccountFromArn,
+} from '../utils/awsLambdaLayerManager';
+import { createSymlinks } from '../utils/symlink';
+import { withTempDir } from '../utils/files';
 
 const logger = loggerRaw.withScope(`[aws-lambda-layer]`);
 
@@ -77,13 +86,11 @@ export class AwsLambdaLayerTarget extends BaseTarget {
    * @param _version New version to be released.
    * @param revision Git commit SHA to be published.
    */
-  public async publish(_version: string, revision: string): Promise<any> {
+  public async publish(version: string, revision: string): Promise<any> {
     this.checkProjectConfig();
 
     logger.debug('Fetching AWS regions...');
-    const awsRegions = extractRegionNames(
-      await getRegionsFromAws()
-    );
+    const awsRegions = extractRegionNames(await getRegionsFromAws());
 
     logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
@@ -109,27 +116,114 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       await this.artifactProvider.downloadArtifact(packageFiles[0])
     );
 
-    await this.config.compatibleRuntimes.forEach(
-      async (runtime: { name: string; runtimeVersions: string[] }) => {
-        const layerManager = new AwsLambdaLayerManager(
-          runtime,
-          this.config.layerName,
-          this.config.license,
-          artifactBuffer,
-          awsRegions
-        );
+    /**
+     * Base directory containing the runtime directories.
+     * Each runtime directory contains files regarding the created layers using
+     * that runtime.
+     */
+    const AWS_REGISTRY_DIRECTORY = 'aws-lambda-layers';
 
-        layerManager;
-
-        const publishedLayers = await layerManager.publishAllRegions();
-        publishedLayers.map(publishedLayer => console.log(publishedLayer));
-
-        // TODO: if the file structure exists: create files, add symlinks,
-        // etc. if necessary
+    // TODO: docs
+    const createVersionSymlinks = (
+      directory: string,
+      versionFilepath: string
+    ): void => {
+      const latestVersionPath = path.posix.join(directory, 'latest.json');
+      if (fs.existsSync(latestVersionPath)) {
+        const previousVersion = fs
+          .readlinkSync(latestVersionPath)
+          .split('.json')[0];
+        createSymlinks(versionFilepath, version, previousVersion);
+      } else {
+        // When no previous versions are found, just create symlinks.
+        createSymlinks(versionFilepath, version);
       }
+    };
+
+    // The base file contains info fields that all runtimes should override.
+    const BASE_FILENAME = 'base.json';
+
+    const publishRuntimes = async (directory: string): Promise<void> => {
+      await this.config.compatibleRuntimes.forEach(
+        async (runtime: { name: string; runtimeVersions: string[] }) => {
+          const layerManager = new AwsLambdaLayerManager(
+            runtime,
+            this.config.layerName,
+            this.config.license,
+            artifactBuffer,
+            awsRegions
+          );
+
+          const publishedLayers = await layerManager.publishAllRegions();
+
+          // If no layers have been created, there's no need to do extra work
+          // in updating the files
+          if (publishedLayers.length == 0) {
+            return;
+          }
+          const runtimeBaseDir = path.posix.join(
+            directory,
+            AWS_REGISTRY_DIRECTORY,
+            runtime.name
+          );
+          if (!fs.existsSync(runtimeBaseDir)) {
+            console.log(runtimeBaseDir);
+            logger.warn('TODO: file directory doesnt exist, skipping...');
+            return;
+          }
+
+          const regionsVersions = publishedLayers.map(layer => {
+            return {
+              region: layer.region,
+              version: layer.version.toString(),
+            };
+          });
+
+          // Common information specific to all the layers in the current runtime.
+          const runtimeData = {
+            canonical: layerManager.getCanonicalName(),
+            sdk_version: version,
+            account_number: getAccountFromArn(publishedLayers[0].arn),
+            layer_name: this.config.layerName,
+            regions: regionsVersions,
+          };
+
+          // The base file contains fields that must exist in all the
+          // version files, such as links to docs or repositories.
+          const baseFilepath = path.posix.join(runtimeBaseDir, BASE_FILENAME);
+          const newVersionFilepath = path.posix.join(
+            runtimeBaseDir,
+            `${version}.json`
+          );
+
+          if (!fs.existsSync(baseFilepath)) {
+            console.log(baseFilepath);
+            logger.warn('TODO: base file doesnt exist');
+            fs.writeFileSync(newVersionFilepath, JSON.stringify(runtimeData));
+          } else {
+            const baseData = JSON.parse(
+              fs.readFileSync(baseFilepath).toString()
+            );
+            fs.writeFileSync(
+              newVersionFilepath,
+              JSON.stringify({ ...baseData, ...runtimeData })
+            );
+          }
+
+          createVersionSymlinks(runtimeBaseDir, newVersionFilepath);
+        }
+      );
+    };
+
+    await withTempDir(
+      async directory => {
+        // TODO: git clone
+        await publishRuntimes(directory);
+        // TODO: git commit
+        // TODO: git push
+      },
+      true,
+      'craft-release-awslambdalayer-'
     );
-
-    // TODO: commit and push
-
   }
 }
