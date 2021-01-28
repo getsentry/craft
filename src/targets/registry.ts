@@ -341,7 +341,7 @@ export class RegistryTarget extends BaseTarget {
 
     const git = simpleGit(directory).silent(true);
     logger.info(`Cloning "${remote.getRemoteString()}" to "${directory}"...`);
-    await git.clone(remote.getRemoteString(), directory);
+    await git.clone(remote.getRemoteStringWithAuth(), directory);
 
     const packageManifest = await registryUtils.getPackageManifest(
       getPackageDirPath(this.registryConfig.type, directory, canonicalName),
@@ -360,8 +360,8 @@ export class RegistryTarget extends BaseTarget {
     );
 
     // Commit
-    await git.add(['.']);
     await git.checkout('master');
+    await git.add(['.']);
     await git.commit(`craft: release "${canonicalName}", version "${version}"`);
 
     // Push!
