@@ -44,6 +44,8 @@ export class AwsLambdaLayerManager {
   private license: string;
   /** Buffer of the ZIP file to use in the AWS Lambda layer. */
   private artifactBuffer: Buffer;
+  /** Controls if published layers are logged. */
+  public verboseInfo = true;
 
   public constructor(
     runtime: CompatibleRuntime,
@@ -62,14 +64,9 @@ export class AwsLambdaLayerManager {
   /**
    * Publishes an AWS Lambda layer to the given region.
    * @param region The AWS region to publish the layer to.
-   * @param verboseInfo if true, logs to info the published layer ARN.
-   *  Default is true.
    * @returns Information about the published layer: region, arn and version.
    */
-  public async publishLayerToRegion(
-    region: string,
-    verboseInfo = true
-  ): Promise<PublishedLayer> {
+  public async publishLayerToRegion(region: string): Promise<PublishedLayer> {
     const lambda = new Lambda({ region: region });
     const publishedLayer = await publishAwsLayer(lambda, {
       Content: {
@@ -88,7 +85,7 @@ export class AwsLambdaLayerManager {
       Principal: '*',
     });
 
-    if (verboseInfo) {
+    if (this.verboseInfo) {
       logger.info(`Published layer in ${region}:
         ${publishedLayer.LayerVersionArn}`);
     }
