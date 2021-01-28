@@ -360,8 +360,8 @@ export class RegistryTarget extends BaseTarget {
     );
 
     // Commit
-    await git.add(['.']);
     await git.checkout('master');
+    await git.add(['.']);
     await git.commit(`craft: release "${canonicalName}", version "${version}"`);
 
     // Push!
