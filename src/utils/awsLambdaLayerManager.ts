@@ -20,7 +20,7 @@ const RUNTIME_CANONICAL_PREFIX = 'aws-layer:';
  */
 interface CompatibleRuntime {
   name: string;
-  runtimeVersions: string[];
+  versions: string[];
 }
 
 /** Subset of data of a published layer in AWS Lambda. */
@@ -73,7 +73,7 @@ export class AwsLambdaLayerManager {
         ZipFile: this.artifactBuffer,
       },
       LayerName: this.layerName,
-      CompatibleRuntimes: this.runtime.runtimeVersions,
+      CompatibleRuntimes: this.runtime.versions,
       LicenseInfo: this.license,
     });
 
