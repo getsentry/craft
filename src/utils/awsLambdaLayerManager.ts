@@ -1,30 +1,48 @@
 import { DescribeRegionsCommandOutput, EC2 } from '@aws-sdk/client-ec2';
-import { AddLayerVersionPermissionRequest, Lambda, PublishLayerVersionCommandOutput, PublishLayerVersionRequest } from '@aws-sdk/client-lambda';
+import {
+  AddLayerVersionPermissionRequest,
+  Lambda,
+  PublishLayerVersionCommandOutput,
+  PublishLayerVersionRequest,
+} from '@aws-sdk/client-lambda';
 import { logger as loggerRaw } from '../logger';
-
 
 const logger = loggerRaw.withScope('[aws-lambda-layer]');
 
-const RUNTIME_CANONICAL_PREFIX = 'awslayer:';
-const ARN_SEPARATOR = ':';
-const ARN_ACCOUNT_INDEX = 4;
+/** Prefix of the canonical name. */
+const RUNTIME_CANONICAL_PREFIX = 'aws-layer:';
 
+/**
+ * Info for a runtime.
+ * Example:
+ *  name: 'node'
+ *  runtimeVersions: ['nodejs10.x', 'nodejs12.x']
+ */
 interface CompatibleRuntime {
   name: string;
   runtimeVersions: string[];
 }
 
+/** Subset of data of a published layer in AWS Lambda. */
 interface PublishedLayer {
   region: string;
   arn: string;
   version: number;
 }
 
+/**
+ * Responsible for publishing layers in AWS Lambda.
+ */
 export class AwsLambdaLayerManager {
+  /** Compatible runtimes with the new layer.  */
   private runtime: CompatibleRuntime;
+  /** Regions to publish the layer to. */
   private awsRegions: string[] = [];
+  /** Name of the layer to be published. */
   private layerName: string;
+  /** License of the layer. */
   private license: string;
+  /** Buffer of the ZIP file to use in the AWS Lambda layer. */
   private artifactBuffer: Buffer;
 
   public constructor(
@@ -32,7 +50,7 @@ export class AwsLambdaLayerManager {
     layerName: string,
     license: string,
     artifactBuffer: Buffer,
-    awsRegions: string[],
+    awsRegions: string[]
   ) {
     this.runtime = runtime;
     this.layerName = layerName;
@@ -41,7 +59,17 @@ export class AwsLambdaLayerManager {
     this.awsRegions = awsRegions;
   }
 
-  public async publishLayerToRegion(region: string, verboseInfo = false): Promise<PublishedLayer> {
+  /**
+   * Publishes an AWS Lambda layer to the given region.
+   * @param region The AWS region to publish the layer to.
+   * @param verboseInfo if true, logs to info the published layer ARN.
+   *  Default is true.
+   * @returns Information about the published layer: region, arn and version.
+   */
+  public async publishLayerToRegion(
+    region: string,
+    verboseInfo = true
+  ): Promise<PublishedLayer> {
     const lambda = new Lambda({ region: region });
     const publishedLayer = await publishAwsLayer(lambda, {
       Content: {
@@ -72,18 +100,27 @@ export class AwsLambdaLayerManager {
     };
   }
 
+  /**
+   * Publishes new AWS Lambda layers to all the regions.
+   *
+   * @returns Array of the published layers.
+   */
   public async publishAllRegions(): Promise<PublishedLayer[]> {
     return await Promise.all(
-      this.awsRegions.map((region) => {
+      this.awsRegions.map(region => {
         return this.publishLayerToRegion(region);
       })
     );
   }
 
+  /**
+   * Returns the canonical name of the current lambda layer.
+   * The canonical name is composed by the canonical prefix and the runtime
+   * name.
+   */
   public getCanonicalName(): string {
     return RUNTIME_CANONICAL_PREFIX + this.runtime.name;
   }
-
 }
 
 /**
@@ -91,7 +128,9 @@ export class AwsLambdaLayerManager {
  * regions) to AWS. For more information, see
  * https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html#describeRegions-property
  */
-export async function getRegionsFromAws(): Promise<DescribeRegionsCommandOutput> {
+export async function getRegionsFromAws(): Promise<
+  DescribeRegionsCommandOutput
+> {
   logger.debug('Fetching AWS regions...');
   const ec2 = new EC2({ region: 'us-east-2' });
   try {
@@ -105,7 +144,9 @@ export async function getRegionsFromAws(): Promise<DescribeRegionsCommandOutput>
  * Extracts the region name from each region, when available.
  * @param awsRegions data containing the regions returned by AWS.
  */
-export function extractRegionNames(awsRegions: DescribeRegionsCommandOutput): string[] {
+export function extractRegionNames(
+  awsRegions: DescribeRegionsCommandOutput
+): string[] {
   const regionNames: string[] = [];
   awsRegions.Regions?.map(currentRegion => {
     if (currentRegion.RegionName !== undefined) {
@@ -115,8 +156,18 @@ export function extractRegionNames(awsRegions: DescribeRegionsCommandOutput): st
   return regionNames;
 }
 
-export function getAccountNumberFromArn(arn: string): number {
-  return parseInt(arn.split(ARN_SEPARATOR)[ARN_ACCOUNT_INDEX]);
+/** Substring used to separate the different ARN parts. */
+const ARN_SEPARATOR = ':';
+/** Index (0-based) of the account number in the ARN. */
+const ARN_ACCOUNT_INDEX = 4;
+
+/**
+ * Extracts the AWS account number from the given ARN and returns it
+ * (as a string).
+ * @param arn The ARN of the account.
+ */
+export function getAccountFromArn(arn: string): string {
+  return arn.split(ARN_SEPARATOR)[ARN_ACCOUNT_INDEX];
 }
 
 /**
