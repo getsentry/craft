@@ -7,6 +7,7 @@ import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { ConfigurationError, reportError } from '../utils/errors';
 import {
+  CompatibleRuntime,
   getRegionsFromAws,
   AwsLambdaLayerManager,
   extractRegionNames,
@@ -33,6 +34,10 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   public readonly name: string = 'aws-lambda-layer';
   /** Target options */
   public readonly awsLambdaConfig: AwsLambdaTargetOptions;
+  /** The directory where the runtime-specific directories are. */
+  private readonly AWS_REGISTRY_DIR = 'aws-lambda-layers';
+  /** File containing data fields every new version file overrides  */
+  private readonly BASE_FILENAME = 'base.json';
 
   public constructor(
     config: TargetConfig,
@@ -83,14 +88,11 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
   /**
    * Publishes current lambda layer zip bundle to AWS Lambda.
-   * @param _version New version to be released.
+   * @param version New version to be released.
    * @param revision Git commit SHA to be published.
    */
   public async publish(version: string, revision: string): Promise<any> {
     this.checkProjectConfig();
-
-    logger.debug('Fetching AWS regions...');
-    const awsRegions = extractRegionNames(await getRegionsFromAws());
 
     logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
@@ -116,14 +118,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       await this.artifactProvider.downloadArtifact(packageFiles[0])
     );
 
-    /**
-     * Base directory containing the runtime directories.
-     * Each runtime directory contains files regarding the created layers using
-     * that runtime.
-     */
-    const AWS_REGISTRY_DIRECTORY = 'aws-lambda-layers';
-
-    // TODO: docs
+    /** Creates symlinks to the new version file, and updates previous ones if needed. */
     const createVersionSymlinks = (
       directory: string,
       versionFilepath: string
@@ -140,12 +135,13 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       }
     };
 
-    // The base file contains info fields that all runtimes should override.
-    const BASE_FILENAME = 'base.json';
+    logger.debug('Fetching AWS regions...');
+    const awsRegions = extractRegionNames(await getRegionsFromAws());
 
+    /** Publishes new AWS Lambda layers for every runtime. */
     const publishRuntimes = async (directory: string): Promise<void> => {
       await this.config.compatibleRuntimes.forEach(
-        async (runtime: { name: string; runtimeVersions: string[] }) => {
+        async (runtime: CompatibleRuntime) => {
           const layerManager = new AwsLambdaLayerManager(
             runtime,
             this.config.layerName,
@@ -154,21 +150,29 @@ export class AwsLambdaLayerTarget extends BaseTarget {
             awsRegions
           );
 
+          // TODO: handle when something in the AWS SDK breaks
           const publishedLayers = await layerManager.publishAllRegions();
 
-          // If no layers have been created, there's no need to do extra work
-          // in updating the files
+          // If no layers have been created, don't do extra work updating files.
           if (publishedLayers.length == 0) {
+            logger.info(`${runtime.name}: no layers published.`);
             return;
+          } else {
+            logger.info(
+              `${runtime.name}: ${publishedLayers.length} layers published.`
+            );
           }
-          const runtimeBaseDir = path.posix.join(
+
+          // Base directory for the layer files of the current runtime.
+          const RUNTIME_BASE_DIR = path.posix.join(
             directory,
-            AWS_REGISTRY_DIRECTORY,
+            this.AWS_REGISTRY_DIR,
             runtime.name
           );
-          if (!fs.existsSync(runtimeBaseDir)) {
-            console.log(runtimeBaseDir);
-            logger.warn('TODO: file directory doesnt exist, skipping...');
+          if (!fs.existsSync(RUNTIME_BASE_DIR)) {
+            logger.warn(
+              `Directory structure for ${runtime.name} is missing, skipping file creation.`
+            );
             return;
           }
 
@@ -179,7 +183,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
             };
           });
 
-          // Common information specific to all the layers in the current runtime.
+          // Common data specific to all the layers in the current runtime.
           const runtimeData = {
             canonical: layerManager.getCanonicalName(),
             sdk_version: version,
@@ -188,17 +192,17 @@ export class AwsLambdaLayerTarget extends BaseTarget {
             regions: regionsVersions,
           };
 
-          // The base file contains fields that must exist in all the
-          // version files, such as links to docs or repositories.
-          const baseFilepath = path.posix.join(runtimeBaseDir, BASE_FILENAME);
+          const baseFilepath = path.posix.join(
+            RUNTIME_BASE_DIR,
+            this.BASE_FILENAME
+          );
           const newVersionFilepath = path.posix.join(
-            runtimeBaseDir,
+            RUNTIME_BASE_DIR,
             `${version}.json`
           );
 
           if (!fs.existsSync(baseFilepath)) {
-            console.log(baseFilepath);
-            logger.warn('TODO: base file doesnt exist');
+            logger.warn(`The ${runtime.name} base file is missing.`);
             fs.writeFileSync(newVersionFilepath, JSON.stringify(runtimeData));
           } else {
             const baseData = JSON.parse(
@@ -210,7 +214,8 @@ export class AwsLambdaLayerTarget extends BaseTarget {
             );
           }
 
-          createVersionSymlinks(runtimeBaseDir, newVersionFilepath);
+          createVersionSymlinks(RUNTIME_BASE_DIR, newVersionFilepath);
+          logger.info(`${runtime.name}: created files and updated symlinks.`);
         }
       );
     };

@@ -18,7 +18,7 @@ const RUNTIME_CANONICAL_PREFIX = 'aws-layer:';
  *  name: 'node'
  *  runtimeVersions: ['nodejs10.x', 'nodejs12.x']
  */
-interface CompatibleRuntime {
+export interface CompatibleRuntime {
   name: string;
   versions: string[];
 }
@@ -86,7 +86,7 @@ export class AwsLambdaLayerManager {
     });
 
     if (this.verboseInfo) {
-      logger.info(`Published layer in ${region}:
+      logger.info(`Published layer in ${region} for ${this.runtime.name}:
         ${publishedLayer.LayerVersionArn}`);
     }
 
