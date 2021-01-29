@@ -102,7 +102,7 @@ export class AwsLambdaLayerManager {
    *
    * @returns Array of the published layers.
    */
-  public async publishAllRegions(): Promise<PublishedLayer[]> {
+  public async publishToAllRegions(): Promise<PublishedLayer[]> {
     return await Promise.all(
       this.awsRegions.map(region => {
         return this.publishLayerToRegion(region);
