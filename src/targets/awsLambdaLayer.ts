@@ -140,83 +140,85 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
     /** Publishes new AWS Lambda layers for every runtime. */
     const publishRuntimes = async (directory: string): Promise<void> => {
-      await this.config.compatibleRuntimes.forEach(
-        async (runtime: CompatibleRuntime) => {
-          const layerManager = new AwsLambdaLayerManager(
-            runtime,
-            this.config.layerName,
-            this.config.license,
-            artifactBuffer,
-            awsRegions
-          );
-
-          // TODO: handle when something in the AWS SDK breaks
-          const publishedLayers = await layerManager.publishAllRegions();
-
-          // If no layers have been created, don't do extra work updating files.
-          if (publishedLayers.length == 0) {
-            logger.info(`${runtime.name}: no layers published.`);
-            return;
-          } else {
-            logger.info(
-              `${runtime.name}: ${publishedLayers.length} layers published.`
+      await Promise.all(
+        this.config.compatibleRuntimes.map(
+          async (runtime: CompatibleRuntime) => {
+            const layerManager = new AwsLambdaLayerManager(
+              runtime,
+              this.config.layerName,
+              this.config.license,
+              artifactBuffer,
+              awsRegions
             );
-          }
 
-          // Base directory for the layer files of the current runtime.
-          const RUNTIME_BASE_DIR = path.posix.join(
-            directory,
-            this.AWS_REGISTRY_DIR,
-            runtime.name
-          );
-          if (!fs.existsSync(RUNTIME_BASE_DIR)) {
-            logger.warn(
-              `Directory structure for ${runtime.name} is missing, skipping file creation.`
+            // TODO: handle when something in the AWS SDK breaks
+            const publishedLayers = await layerManager.publishAllRegions();
+
+            // If no layers have been created, don't do extra work updating files.
+            if (publishedLayers.length == 0) {
+              logger.info(`${runtime.name}: no layers published.`);
+              return;
+            } else {
+              logger.info(
+                `${runtime.name}: ${publishedLayers.length} layers published.`
+              );
+            }
+
+            // Base directory for the layer files of the current runtime.
+            const RUNTIME_BASE_DIR = path.posix.join(
+              directory,
+              this.AWS_REGISTRY_DIR,
+              runtime.name
             );
-            return;
-          }
+            if (!fs.existsSync(RUNTIME_BASE_DIR)) {
+              logger.warn(
+                `Directory structure for ${runtime.name} is missing, skipping file creation.`
+              );
+              return;
+            }
 
-          const regionsVersions = publishedLayers.map(layer => {
-            return {
-              region: layer.region,
-              version: layer.version.toString(),
+            const regionsVersions = publishedLayers.map(layer => {
+              return {
+                region: layer.region,
+                version: layer.version.toString(),
+              };
+            });
+
+            // Common data specific to all the layers in the current runtime.
+            const runtimeData = {
+              canonical: layerManager.getCanonicalName(),
+              sdk_version: version,
+              account_number: getAccountFromArn(publishedLayers[0].arn),
+              layer_name: this.config.layerName,
+              regions: regionsVersions,
             };
-          });
 
-          // Common data specific to all the layers in the current runtime.
-          const runtimeData = {
-            canonical: layerManager.getCanonicalName(),
-            sdk_version: version,
-            account_number: getAccountFromArn(publishedLayers[0].arn),
-            layer_name: this.config.layerName,
-            regions: regionsVersions,
-          };
-
-          const baseFilepath = path.posix.join(
-            RUNTIME_BASE_DIR,
-            this.BASE_FILENAME
-          );
-          const newVersionFilepath = path.posix.join(
-            RUNTIME_BASE_DIR,
-            `${version}.json`
-          );
-
-          if (!fs.existsSync(baseFilepath)) {
-            logger.warn(`The ${runtime.name} base file is missing.`);
-            fs.writeFileSync(newVersionFilepath, JSON.stringify(runtimeData));
-          } else {
-            const baseData = JSON.parse(
-              fs.readFileSync(baseFilepath).toString()
+            const baseFilepath = path.posix.join(
+              RUNTIME_BASE_DIR,
+              this.BASE_FILENAME
             );
-            fs.writeFileSync(
-              newVersionFilepath,
-              JSON.stringify({ ...baseData, ...runtimeData })
+            const newVersionFilepath = path.posix.join(
+              RUNTIME_BASE_DIR,
+              `${version}.json`
             );
+
+            if (!fs.existsSync(baseFilepath)) {
+              logger.warn(`The ${runtime.name} base file is missing.`);
+              fs.writeFileSync(newVersionFilepath, JSON.stringify(runtimeData));
+            } else {
+              const baseData = JSON.parse(
+                fs.readFileSync(baseFilepath).toString()
+              );
+              fs.writeFileSync(
+                newVersionFilepath,
+                JSON.stringify({ ...baseData, ...runtimeData })
+              );
+            }
+
+            createVersionSymlinks(RUNTIME_BASE_DIR, newVersionFilepath);
+            logger.info(`${runtime.name}: created files and updated symlinks.`);
           }
-
-          createVersionSymlinks(RUNTIME_BASE_DIR, newVersionFilepath);
-          logger.info(`${runtime.name}: created files and updated symlinks.`);
-        }
+        )
       );
     };
 
