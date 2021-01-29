@@ -1,29 +1,47 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+import * as Github from '@octokit/rest';
+import * as simpleGit from 'simple-git/promise';
+import { getGlobalGithubConfig } from '../config';
+import {
+  getAuthUsername,
+  getGithubApiToken,
+  getGithubClient,
+  GithubRemote,
+} from '../utils/githubApi';
+
 import { logger as loggerRaw } from '../logger';
-import { TargetConfig } from '../schemas/project_config';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { ConfigurationError, reportError } from '../utils/errors';
 import {
-  CompatibleRuntime,
-  getRegionsFromAws,
   AwsLambdaLayerManager,
+  CompatibleRuntime,
   extractRegionNames,
   getAccountFromArn,
+  getRegionsFromAws,
 } from '../utils/awsLambdaLayerManager';
 import { createSymlinks } from '../utils/symlink';
 import { withTempDir } from '../utils/files';
+import { isDryRun } from '../utils/helpers';
 
 const logger = loggerRaw.withScope(`[aws-lambda-layer]`);
 
+const DEFAULT_REGISTRY_REMOTE: GithubRemote = new GithubRemote(
+  'getsentry',
+  'sentry-release-registry'
+);
+
 /** Config options for the "aws-lambda-layer" target. */
-interface AwsLambdaTargetOptions extends TargetConfig {
+interface AwsLambdaTargetConfig extends TargetConfig {
   /** AWS access key ID, set as AWS_ACCESS_KEY_ID. */
   awsAccessKeyId: string;
   /** AWS secret access key, set as `AWS_SECRET_ACCESS_KEY`. */
   awsSecretAccessKey: string;
+  /** Git remote of the release registry. */
+  registryRemote: GithubRemote;
 }
 
 /**
@@ -33,7 +51,11 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   /** Target name */
   public readonly name: string = 'aws-lambda-layer';
   /** Target options */
-  public readonly awsLambdaConfig: AwsLambdaTargetOptions;
+  public readonly awsLambdaConfig: AwsLambdaTargetConfig;
+  /** GitHub client. */
+  public readonly github: Github;
+  /** Github repo configuration. */
+  public readonly githubRepo: GithubGlobalConfig;
   /** The directory where the runtime-specific directories are. */
   private readonly AWS_REGISTRY_DIR = 'aws-lambda-layers';
   /** File containing data fields every new version file overrides  */
@@ -44,13 +66,15 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);
+    this.github = getGithubClient();
+    this.githubRepo = getGlobalGithubConfig();
     this.awsLambdaConfig = this.getAwsLambdaConfig();
   }
 
   /**
    * Extracts AWS Lambda target options from the environment.
    */
-  protected getAwsLambdaConfig(): AwsLambdaTargetOptions {
+  protected getAwsLambdaConfig(): AwsLambdaTargetConfig {
     if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
       throw new ConfigurationError(
         `Cannot publish AWS Lambda Layer: missing credentials.
@@ -60,6 +84,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     return {
       awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID,
       awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      registryRemote: DEFAULT_REGISTRY_REMOTE,
     };
   }
 
@@ -222,14 +247,32 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       );
     };
 
+    const remote = this.awsLambdaConfig.registryRemote;
+    const username = await getAuthUsername(this.github);
+    remote.setAuth(username, getGithubApiToken());
+
     await withTempDir(
       async directory => {
-        // TODO: git clone
+        const git = simpleGit(directory).silent(true);
+        logger.info(`Cloning ${remote.getRemoteString()} to ${directory}...`);
+        await git.clone(remote.getRemoteStringWithAuth(), directory);
+
         await publishRuntimes(directory);
-        // TODO: git commit
-        // TODO: git push
+
+        await git.add(['.']);
+        await git.checkout('master');
+        await git.commit(
+          `craft: AWS Lambda layers published, version ${version}`
+        );
+
+        if (!isDryRun()) {
+          logger.info('Pushing changes...');
+          await git.push();
+        } else {
+          logger.info('[dry-run] Not pushing the branch');
+        }
       },
-      true,
+      false, // TODO: set to true in production
       'craft-release-awslambdalayer-'
     );
   }
