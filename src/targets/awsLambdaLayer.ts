@@ -176,8 +176,16 @@ export class AwsLambdaLayerTarget extends BaseTarget {
               awsRegions
             );
 
-            // TODO: handle when something in the AWS SDK breaks
-            const publishedLayers = await layerManager.publishAllRegions();
+            let publishedLayers = [];
+            try {
+              publishedLayers = await layerManager.publishToAllRegions();
+            } catch (error) {
+              logger.error(
+                `Did not publish layers for ${runtime.name}. ` +
+                  `Something went wrong with AWS: ${error.message}`
+              );
+              return;
+            }
 
             // If no layers have been created, don't do extra work updating files.
             if (publishedLayers.length == 0) {
