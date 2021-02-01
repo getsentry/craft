@@ -280,7 +280,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           logger.info('[dry-run] Not pushing the branch');
         }
       },
-      false, // TODO: set to true in production
+      true,
       'craft-release-awslambdalayer-'
     );
   }
