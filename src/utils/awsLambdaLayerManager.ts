@@ -1,10 +1,5 @@
 import { DescribeRegionsCommandOutput, EC2 } from '@aws-sdk/client-ec2';
-import {
-  AddLayerVersionPermissionRequest,
-  Lambda,
-  PublishLayerVersionCommandOutput,
-  PublishLayerVersionRequest,
-} from '@aws-sdk/client-lambda';
+import { Lambda } from '@aws-sdk/client-lambda';
 import { logger as loggerRaw } from '../logger';
 
 const logger = loggerRaw.withScope('[aws-lambda-layer]');
@@ -68,7 +63,7 @@ export class AwsLambdaLayerManager {
    */
   public async publishLayerToRegion(region: string): Promise<PublishedLayer> {
     const lambda = new Lambda({ region: region });
-    const publishedLayer = await publishAwsLayer(lambda, {
+    const publishedLayer = await lambda.publishLayerVersion({
       Content: {
         ZipFile: this.artifactBuffer,
       },
@@ -76,8 +71,7 @@ export class AwsLambdaLayerManager {
       CompatibleRuntimes: this.runtime.versions,
       LicenseInfo: this.license,
     });
-
-    await addAwsLayerPermissions(lambda, {
+    await lambda.addLayerVersionPermission({
       LayerName: this.layerName,
       VersionNumber: publishedLayer.Version,
       StatementId: 'public',
@@ -165,30 +159,4 @@ const ARN_ACCOUNT_INDEX = 4;
  */
 export function getAccountFromArn(arn: string): string {
   return arn.split(ARN_SEPARATOR)[ARN_ACCOUNT_INDEX];
-}
-
-/**
- * Publishes the layer to AWS Lambda with the given layer data.
- * It must contain the buffer for the ZIP archive and the layer name.
- * Each time you publish with the same layer name, a new version is created.
- * @param lambda The lambda service object.
- * @param layerData Details of the layer to be created.
- */
-function publishAwsLayer(
-  lambda: Lambda,
-  layerData: PublishLayerVersionRequest
-): Promise<PublishLayerVersionCommandOutput> {
-  return lambda.publishLayerVersion(layerData);
-}
-
-/**
- * Adds to a layer usage permissions to other accounts.
- * @param lambda The lambda service object.
- * @param layerPermissionData Details of the layer and permissions to be set.
- */
-function addAwsLayerPermissions(
-  lambda: Lambda,
-  layerPermissionData: AddLayerVersionPermissionRequest
-): Promise<any> {
-  return lambda.addLayerVersionPermission(layerPermissionData);
 }
