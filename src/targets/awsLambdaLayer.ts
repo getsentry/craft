@@ -3,7 +3,6 @@ import * as path from 'path';
 
 import * as Github from '@octokit/rest';
 import * as simpleGit from 'simple-git/promise';
-import { getGlobalGithubConfig } from '../config';
 import {
   getAuthUsername,
   getGithubApiToken,
@@ -12,7 +11,7 @@ import {
 } from '../utils/githubApi';
 
 import { logger as loggerRaw } from '../logger';
-import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { TargetConfig } from '../schemas/project_config';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { ConfigurationError, reportError } from '../utils/errors';
@@ -54,8 +53,6 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   public readonly awsLambdaConfig: AwsLambdaTargetConfig;
   /** GitHub client. */
   public readonly github: Github;
-  /** Github repo configuration. */
-  public readonly githubRepo: GithubGlobalConfig;
   /** The directory where the runtime-specific directories are. */
   private readonly AWS_REGISTRY_DIR = 'aws-lambda-layers';
   /** File containing data fields every new version file overrides  */
@@ -67,7 +64,6 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   ) {
     super(config, artifactProvider);
     this.github = getGithubClient();
-    this.githubRepo = getGlobalGithubConfig();
     this.awsLambdaConfig = this.getAwsLambdaConfig();
   }
 

@@ -3,7 +3,6 @@ import { ConfigurationError } from '../../utils/errors';
 import { AwsLambdaLayerTarget } from '../awsLambdaLayer';
 
 jest.mock('fs');
-jest.mock('../../config');
 
 /** Returns a new AwsLambdaLayerTarget test instance. */
 function getAwsLambdaTarget(): AwsLambdaLayerTarget {
