@@ -198,12 +198,12 @@ export class AwsLambdaLayerTarget extends BaseTarget {
             }
 
             // Base directory for the layer files of the current runtime.
-            const RUNTIME_BASE_DIR = path.posix.join(
+            const runtimeBaseDir = path.posix.join(
               directory,
               this.AWS_REGISTRY_DIR,
               runtime.name
             );
-            if (!fs.existsSync(RUNTIME_BASE_DIR)) {
+            if (!fs.existsSync(runtimeBaseDir)) {
               logger.warn(
                 `Directory structure for ${runtime.name} is missing, skipping file creation.`
               );
@@ -227,11 +227,11 @@ export class AwsLambdaLayerTarget extends BaseTarget {
             };
 
             const baseFilepath = path.posix.join(
-              RUNTIME_BASE_DIR,
+              runtimeBaseDir,
               this.BASE_FILENAME
             );
             const newVersionFilepath = path.posix.join(
-              RUNTIME_BASE_DIR,
+              runtimeBaseDir,
               `${version}.json`
             );
 
@@ -248,7 +248,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
               );
             }
 
-            createVersionSymlinks(RUNTIME_BASE_DIR, newVersionFilepath);
+            createVersionSymlinks(runtimeBaseDir, newVersionFilepath);
             logger.info(`${runtime.name}: created files and updated symlinks.`);
           }
         )

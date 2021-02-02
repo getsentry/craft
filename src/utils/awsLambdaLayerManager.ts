@@ -6,6 +6,10 @@ const logger = loggerRaw.withScope('[aws-lambda-layer]');
 
 /** Prefix of the canonical name. */
 const RUNTIME_CANONICAL_PREFIX = 'aws-layer:';
+/** Substring used to separate the different ARN parts. */
+const ARN_SEPARATOR = ':';
+/** Index (0-based) of the account number in the ARN. */
+const ARN_ACCOUNT_INDEX = 4;
 
 /**
  * Info for a runtime.
@@ -146,11 +150,6 @@ export function extractRegionNames(
   });
   return regionNames;
 }
-
-/** Substring used to separate the different ARN parts. */
-const ARN_SEPARATOR = ':';
-/** Index (0-based) of the account number in the ARN. */
-const ARN_ACCOUNT_INDEX = 4;
 
 /**
  * Extracts the AWS account number from the given ARN and returns it
