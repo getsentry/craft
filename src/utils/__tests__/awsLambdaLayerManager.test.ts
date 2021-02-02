@@ -28,7 +28,7 @@ describe('canonical', () => {
     const canonicalSuffix = manager
       .getCanonicalName()
       .split(CANONICAL_SEPARATOR)[1];
-    expect(canonicalSuffix).toBe(COMPATIBLE_RUNTIME_DATA.name);
+    expect(canonicalSuffix).toBe('test runtime');
   });
 });
 
