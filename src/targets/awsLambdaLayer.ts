@@ -1,25 +1,47 @@
 import * as fs from 'fs';
+import * as path from 'path';
+
+import * as Github from '@octokit/rest';
+import * as simpleGit from 'simple-git/promise';
+import {
+  getAuthUsername,
+  getGithubApiToken,
+  getGithubClient,
+  GithubRemote,
+} from '../utils/githubApi';
+
 import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { ConfigurationError, reportError } from '../utils/errors';
 import {
-  AddLayerVersionPermissionRequest,
-  Lambda,
-  PublishLayerVersionCommandOutput,
-  PublishLayerVersionRequest,
-} from '@aws-sdk/client-lambda';
-import { DescribeRegionsCommandOutput, EC2 } from '@aws-sdk/client-ec2';
+  AwsLambdaLayerManager,
+  CompatibleRuntime,
+  extractRegionNames,
+  getAccountFromArn,
+  getRegionsFromAws,
+} from '../utils/awsLambdaLayerManager';
+import { createSymlinks } from '../utils/symlink';
+import { withTempDir } from '../utils/files';
+import { isDryRun } from '../utils/helpers';
+import { isPreviewRelease } from '../utils/version';
+import { getRegistryGithubRemote } from '../utils/registry';
 
 const logger = loggerRaw.withScope(`[aws-lambda-layer]`);
 
+const DEFAULT_REGISTRY_REMOTE: GithubRemote = getRegistryGithubRemote();
+
 /** Config options for the "aws-lambda-layer" target. */
-interface AwsLambdaTargetOptions extends TargetConfig {
+interface AwsLambdaTargetConfig extends TargetConfig {
   /** AWS access key ID, set as AWS_ACCESS_KEY_ID. */
   awsAccessKeyId: string;
   /** AWS secret access key, set as `AWS_SECRET_ACCESS_KEY`. */
   awsSecretAccessKey: string;
+  /** Git remote of the release registry. */
+  registryRemote: GithubRemote;
+  /** Should layer versions of prereleases be pushed to the registry? */
+  linkPrereleases: boolean;
 }
 
 /**
@@ -29,20 +51,27 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   /** Target name */
   public readonly name: string = 'aws-lambda-layer';
   /** Target options */
-  public readonly awsLambdaConfig: AwsLambdaTargetOptions;
+  public readonly awsLambdaConfig: AwsLambdaTargetConfig;
+  /** GitHub client. */
+  public readonly github: Github;
+  /** The directory where the runtime-specific directories are. */
+  private readonly AWS_REGISTRY_DIR = 'aws-lambda-layers';
+  /** File containing data fields every new version file overrides  */
+  private readonly BASE_FILENAME = 'base.json';
 
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);
+    this.github = getGithubClient();
     this.awsLambdaConfig = this.getAwsLambdaConfig();
   }
 
   /**
    * Extracts AWS Lambda target options from the environment.
    */
-  protected getAwsLambdaConfig(): AwsLambdaTargetOptions {
+  protected getAwsLambdaConfig(): AwsLambdaTargetConfig {
     if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
       throw new ConfigurationError(
         `Cannot publish AWS Lambda Layer: missing credentials.
@@ -52,37 +81,9 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     return {
       awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID,
       awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      registryRemote: DEFAULT_REGISTRY_REMOTE,
+      linkPrereleases: this.config.linkPrereleases || false,
     };
-  }
-
-  /**
-   * Requests all regions that are enabled for the current account (or all
-   * regions) to AWS. For more information, see
-   * https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html#describeRegions-property
-   */
-  public async getAwsRegions(): Promise<DescribeRegionsCommandOutput> {
-    const ec2 = new EC2({ region: 'us-east-2' });
-    try {
-      return await ec2.describeRegions({});
-    } catch (error) {
-      throw new Error('AWS error fetching regions.');
-    }
-  }
-
-  /**
-   * Extracts the region name from each region, when available.
-   * @param awsRegions data containing the regions returned by AWS.
-   */
-  public extractAwsRegionName(
-    awsRegions: DescribeRegionsCommandOutput
-  ): string[] {
-    const regionNames: string[] = [];
-    awsRegions.Regions?.map(currentRegion => {
-      if (currentRegion.RegionName !== undefined) {
-        regionNames.push(currentRegion.RegionName);
-      }
-    });
-    return regionNames;
   }
 
   /**
@@ -110,14 +111,11 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
   /**
    * Publishes current lambda layer zip bundle to AWS Lambda.
-   * @param _version New version to be released.
+   * @param version New version to be released.
    * @param revision Git commit SHA to be published.
    */
-  public async publish(_version: string, revision: string): Promise<any> {
+  public async publish(version: string, revision: string): Promise<any> {
     this.checkProjectConfig();
-
-    logger.debug('Fetching AWS regions...');
-    const awsRegions = this.extractAwsRegionName(await this.getAwsRegions());
 
     logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
@@ -143,56 +141,194 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       await this.artifactProvider.downloadArtifact(packageFiles[0])
     );
 
-    const publishRegion = async (currentRegion: string) => {
-      const lambda = new Lambda({ region: currentRegion });
+    logger.debug('Fetching AWS regions...');
+    const awsRegions = extractRegionNames(await getRegionsFromAws());
 
-      const publishedLayer = await this.publishAwsLayer(lambda, {
-        Content: {
-          ZipFile: artifactBuffer,
-        },
-        LayerName: this.config.layerName,
-        CompatibleRuntimes: this.config.compatibleRuntimes,
-        LicenseInfo: this.config.license,
-      });
+    const remote = this.awsLambdaConfig.registryRemote;
+    const username = await getAuthUsername(this.github);
+    remote.setAuth(username, getGithubApiToken());
 
-      await this.addAwsLayerPermissions(lambda, {
-        LayerName: this.config.layerName,
-        VersionNumber: publishedLayer.Version,
-        StatementId: 'public',
-        Action: 'lambda:GetLayerVersion',
-        Principal: '*',
-      });
+    await withTempDir(
+      async directory => {
+        const git = simpleGit(directory).silent(true);
+        logger.info(`Cloning ${remote.getRemoteString()} to ${directory}...`);
+        await git.clone(remote.getRemoteStringWithAuth(), directory);
 
-      logger.info(`Published layer in ${currentRegion}:
-        ${publishedLayer.LayerVersionArn}`);
-    };
+        if (!isDryRun()) {
+          await this.publishRuntimes(
+            version,
+            directory,
+            awsRegions,
+            artifactBuffer
+          );
+        } else {
+          logger.info('[dry-run] Not publishing new layers.');
+        }
 
-    await Promise.all(awsRegions.map(publishRegion));
+        await git.add(['.']);
+        await git.checkout('master');
+        await git.commit(
+          `craft: AWS Lambda layers published, version ${version}`
+        );
+
+        if (
+          isPushableToRegistry(version, this.awsLambdaConfig.linkPrereleases)
+        ) {
+          logger.info('Pushing changes...');
+          await git.push();
+        }
+      },
+      true,
+      'craft-release-awslambdalayer-'
+    );
   }
 
   /**
-   * Publishes the layer to AWS Lambda with the given layer data.
-   * It must contain the buffer for the ZIP archive and the layer name.
-   * Each time you publish with the same layer name, a new version is created.
-   * @param lambda The lambda service object.
-   * @param layerData Details of the layer to be created.
+   * Publishes new AWS Lambda layers for every runtime.
+   * @param version The version to be published.
+   * @param directory Directory to write the version files to.
+   * @param awsRegions List of AWS regions to create new layers in.
+   * @param artifactBuffer Buffer of the artifact to use in the AWS Lambda layers.
    */
-  public publishAwsLayer(
-    lambda: Lambda,
-    layerData: PublishLayerVersionRequest
-  ): Promise<PublishLayerVersionCommandOutput> {
-    return lambda.publishLayerVersion(layerData);
-  }
+  private async publishRuntimes(
+    version: string,
+    directory: string,
+    awsRegions: string[],
+    artifactBuffer: Buffer
+  ): Promise<void> {
+    await Promise.all(
+      this.config.compatibleRuntimes.map(async (runtime: CompatibleRuntime) => {
+        const layerManager = new AwsLambdaLayerManager(
+          runtime,
+          this.config.layerName,
+          this.config.license,
+          artifactBuffer,
+          awsRegions
+        );
 
-  /**
-   * Adds to a layer usage permissions to other accounts.
-   * @param lambda The lambda service object.
-   * @param layerPermissionData Details of the layer and permissions to be set.
-   */
-  public addAwsLayerPermissions(
-    lambda: Lambda,
-    layerPermissionData: AddLayerVersionPermissionRequest
-  ): Promise<any> {
-    return lambda.addLayerVersionPermission(layerPermissionData);
+        let publishedLayers = [];
+        try {
+          publishedLayers = await layerManager.publishToAllRegions();
+        } catch (error) {
+          logger.error(
+            `Did not publish layers for ${runtime.name}. ` +
+              `Something went wrong with AWS: ${error.message}`
+          );
+          return;
+        }
+
+        // If no layers have been created, don't do extra work updating files.
+        if (publishedLayers.length == 0) {
+          logger.info(`${runtime.name}: no layers published.`);
+          return;
+        } else {
+          logger.info(
+            `${runtime.name}: ${publishedLayers.length} layers published.`
+          );
+        }
+
+        // Base directory for the layer files of the current runtime.
+        const runtimeBaseDir = path.posix.join(
+          directory,
+          this.AWS_REGISTRY_DIR,
+          runtime.name
+        );
+        if (!fs.existsSync(runtimeBaseDir)) {
+          logger.warn(
+            `Directory structure for ${runtime.name} is missing, skipping file creation.`
+          );
+          return;
+        }
+
+        const regionsVersions = publishedLayers.map(layer => {
+          return {
+            region: layer.region,
+            version: layer.version.toString(),
+          };
+        });
+
+        // Common data specific to all the layers in the current runtime.
+        const runtimeData = {
+          canonical: layerManager.getCanonicalName(),
+          sdk_version: version,
+          account_number: getAccountFromArn(publishedLayers[0].arn),
+          layer_name: this.config.layerName,
+          regions: regionsVersions,
+        };
+
+        const baseFilepath = path.posix.join(
+          runtimeBaseDir,
+          this.BASE_FILENAME
+        );
+        const newVersionFilepath = path.posix.join(
+          runtimeBaseDir,
+          `${version}.json`
+        );
+
+        if (!fs.existsSync(baseFilepath)) {
+          logger.warn(`The ${runtime.name} base file is missing.`);
+          fs.writeFileSync(newVersionFilepath, JSON.stringify(runtimeData));
+        } else {
+          const baseData = JSON.parse(fs.readFileSync(baseFilepath).toString());
+          fs.writeFileSync(
+            newVersionFilepath,
+            JSON.stringify({ ...baseData, ...runtimeData })
+          );
+        }
+
+        createVersionSymlinks(runtimeBaseDir, version, newVersionFilepath);
+        logger.info(`${runtime.name}: created files and updated symlinks.`);
+      })
+    );
   }
+}
+
+/**
+ * Creates symlinks to the new version file, and updates previous ones if needed.
+ * @param directory The directory where symlinks will be created.
+ * @param version The new version to be released.
+ * @param versionFilepath Path to the new version file.
+ */
+function createVersionSymlinks(
+  directory: string,
+  version: string,
+  versionFilepath: string
+): void {
+  const latestVersionPath = path.posix.join(directory, 'latest.json');
+  if (fs.existsSync(latestVersionPath)) {
+    const previousVersion = fs
+      .readlinkSync(latestVersionPath)
+      .split('.json')[0];
+    createSymlinks(versionFilepath, version, previousVersion);
+  } else {
+    // When no previous versions are found, just create symlinks.
+    createSymlinks(versionFilepath, version);
+  }
+}
+
+/**
+ * Returns whether the current version release should be pushed to the registy.
+ *
+ * If the dry-run mode is enabled, the release is not pusheable.
+ * If the release is a preview release, unless otherwise stated in the
+ * configuration, the release is not pusheable.
+ * In any other case, the release is pusheable.
+ *
+ * @param version The new version to be released.
+ * @param linkPrereleases Whether the current release is a prerelease.
+ */
+function isPushableToRegistry(
+  version: string,
+  linkPrereleases: boolean
+): boolean {
+  if (isDryRun()) {
+    logger.info('[dry-run] Not pushing the branch.');
+    return false;
+  }
+  if (isPreviewRelease(version) && !linkPrereleases) {
+    // preview release
+    logger.info("Preview release detected, not updating the layer's data.");
+    return false;
+  }
+  return true;
 }

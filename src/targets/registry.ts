@@ -34,10 +34,7 @@ import { isDryRun } from '../utils/helpers';
 
 const logger = loggerRaw.withScope('[registry]');
 
-const DEFAULT_REGISTRY_REMOTE: GithubRemote = new GithubRemote(
-  'getsentry',
-  'sentry-release-registry'
-);
+const DEFAULT_REGISTRY_REMOTE: GithubRemote = registryUtils.getRegistryGithubRemote();
 
 /** Type of the registry package */
 export enum RegistryPackageType {

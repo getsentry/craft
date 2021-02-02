@@ -17,23 +17,20 @@ function getAwsLambdaTarget(): AwsLambdaLayerTarget {
 function setAwsEnvironmentVariables() {
   process.env.AWS_ACCESS_KEY_ID = 'test aws access key';
   process.env.AWS_SECRET_ACCESS_KEY = 'test aws secret access key';
+  process.env.GITHUB_TOKEN = 'test github token';
+  process.env.GITHUB_API_TOKEN = 'test github api token';
 }
 
 function setTestingProjectConfig(awsTarget: AwsLambdaLayerTarget) {
   awsTarget.config.layerName = 'testLayerName';
-  awsTarget.config.compatibleRuntimes = ['runtime1', 'runtime2'];
+  awsTarget.config.compatibleRuntimes = [
+    {
+      name: 'runtimeTestName',
+      versions: ['nodejs10.x', 'nodejs12.x'],
+    },
+  ];
   awsTarget.config.license = 'MIT';
 }
-
-const getAwsRegionsMock = jest.fn().mockImplementation(() => {
-  return {
-    Regions: [
-      { RegionName: 'region-test-1' },
-      { RegionName: 'region-test-2' },
-      { RegionName: 'region-test-3' },
-    ],
-  };
-});
 
 describe('get aws config environment variables', () => {
   const oldEnvVariables = process.env;
@@ -100,7 +97,6 @@ describe('project config parameters', () => {
   test('correct config', async () => {
     const awsTarget = getAwsLambdaTarget();
     setTestingProjectConfig(awsTarget);
-    awsTarget.getAwsRegions = getAwsRegionsMock.bind(AwsLambdaLayerTarget);
     const failingTestErrorMsg = 'failing mock test';
     const getArtifactsFailingMock = jest.fn().mockImplementation(() => {
       throw new Error(failingTestErrorMsg);
@@ -131,10 +127,9 @@ describe('publish', () => {
     return [];
   });
 
-  test('error on missing zip file', async () => {
+  test('error on missing artifact', async () => {
     const awsTarget = getAwsLambdaTarget();
     setTestingProjectConfig(awsTarget);
-    awsTarget.getAwsRegions = getAwsRegionsMock.bind(AwsLambdaLayerTarget);
     awsTarget.getArtifactsForRevision = noArtifactsForRevision.bind(
       AwsLambdaLayerTarget
     );
@@ -155,10 +150,9 @@ describe('publish', () => {
     return ['file1', 'file2'];
   });
 
-  test('error on having too many files', async () => {
+  test('error on having too many artifacts', async () => {
     const awsTarget = getAwsLambdaTarget();
     setTestingProjectConfig(awsTarget);
-    awsTarget.getAwsRegions = getAwsRegionsMock.bind(AwsLambdaLayerTarget);
     awsTarget.getArtifactsForRevision = twoArtifactsForRevision.bind(
       AwsLambdaLayerTarget
     );
@@ -175,87 +169,6 @@ describe('publish', () => {
       expect(error instanceof Error).toBe(true);
       const multiplePackagesPattern = /multiple packages/;
       expect(multiplePackagesPattern.test(error.message)).toBe(true);
-    }
-  });
-
-  const singleArtifactsForRevision = jest
-    .fn()
-    .mockImplementation(function(input: string) {
-      return [input];
-    });
-
-  const downloadArtifactMock = jest
-    .fn()
-    .mockImplementation(function(input: string) {
-      return input;
-    });
-
-  const publishAwsLayerMock = jest.fn().mockImplementation(function() {
-    return {
-      Version: 1,
-      LayerVersionArn: 'layer:version:arn:test',
-    };
-  });
-  const publishAwsLayerMockUndefinedVersion = jest
-    .fn()
-    .mockImplementation(function() {
-      return {
-        Version: undefined,
-        LayerVersionArn: 'layer:version:arn:test',
-      };
-    });
-
-  const addLayerPermissionsMock = jest.fn().mockImplementation(function() {
-    // Do nothing
-  });
-
-  test('success on publishing', async () => {
-    const awsTarget = getAwsLambdaTarget();
-    setTestingProjectConfig(awsTarget);
-    awsTarget.getAwsRegions = getAwsRegionsMock.bind(AwsLambdaLayerTarget);
-    awsTarget.getArtifactsForRevision = singleArtifactsForRevision.bind(
-      AwsLambdaLayerTarget
-    );
-    awsTarget.artifactProvider.downloadArtifact = downloadArtifactMock.bind(
-      awsTarget
-    );
-    awsTarget.publishAwsLayer = publishAwsLayerMock.bind(AwsLambdaLayerTarget);
-    awsTarget.addAwsLayerPermissions = addLayerPermissionsMock.bind(
-      AwsLambdaLayerTarget
-    );
-    await awsTarget.publish('', '');
-    expect(singleArtifactsForRevision).toBeCalledWith('', {
-      includeNames: undefined,
-    });
-    expect(downloadArtifactMock).toBeCalledWith('');
-  });
-
-  test('error on layer version', async () => {
-    try {
-      const awsTarget = getAwsLambdaTarget();
-      setTestingProjectConfig(awsTarget);
-      awsTarget.getAwsRegions = getAwsRegionsMock.bind(AwsLambdaLayerTarget);
-      awsTarget.getArtifactsForRevision = singleArtifactsForRevision.bind(
-        AwsLambdaLayerTarget
-      );
-      awsTarget.artifactProvider.downloadArtifact = downloadArtifactMock.bind(
-        awsTarget
-      );
-      awsTarget.publishAwsLayer = publishAwsLayerMockUndefinedVersion.bind(
-        AwsLambdaLayerTarget
-      );
-      const publishedLayerVersion = await awsTarget.publish('', '');
-      // `publish` should report an error. When it's not dry run, the error is
-      // thrown; when it's on dry run, the error is logged and `undefined` is
-      // returned. Thus, both alternatives have been considered.
-      expect(publishedLayerVersion).toBe(undefined);
-    } catch (error) {
-      expect(error instanceof Error).toBe(true);
-    } finally {
-      expect(singleArtifactsForRevision).toBeCalledWith('', {
-        includeNames: undefined,
-      });
-      expect(downloadArtifactMock).toBeCalledWith('');
     }
   });
 });

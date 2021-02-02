@@ -895,7 +895,8 @@ targets:
 ### AWS Lambda Layer (`aws-lambda-layer`)
 
 The target will create a new public lambda layer in each available region with
-the extracted artifact from the artifact provider.
+the extracted artifact from the artifact provider, and update the Sentry release
+registry with the new layer versions afterwards.
 
 **Environment**
 
@@ -906,12 +907,13 @@ the extracted artifact from the artifact provider.
 
 **Configuration**
 
-| Option             | Description                                                                                                 |
-| ------------------ | ----------------------------------------------------------------------------------------------------------- |
-| includeNames       | **optional** Exists for all targets, [see here](##per-target-options). It must filter exactly one artifact. |
-| layerName          | The name of the layer to be published.                                                                      |
-| compatibleRuntimes | A list of compatible runtimes for the layer.                                                                |
-| license            | The license of the layer.                                                                                   |
+| Option             | Description                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| linkPrereleases    | **optional** Updates layer versions even if the release is a preview release, `false` by default.                                           |
+| includeNames       | **optional** Exists for all targets, [see here](##per-target-options). It must filter exactly one artifact.                                 |
+| layerName          | The name of the layer to be published.                                                                                                      |
+| compatibleRuntimes | A list of compatible runtimes for the layer. Each compatible runtime consists on the name of the runtime and a list of compatible versions. |
+| license            | The license of the layer.                                                                                                                   |
 
 **Example**
 
@@ -921,8 +923,10 @@ targets:
     includeNames: /^sentry-node-serverless-\d+(\.\d+)*\.zip$/
     layerName: SentryNodeServerlessSDK
     compatibleRuntimes:
-      - nodejs10.x
-      - nodejs12.x
+      - name: node
+        versions:
+          - nodejs10.x
+          - nodejs12.x
     license: MIT
 ```
 
