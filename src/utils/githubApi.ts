@@ -108,13 +108,6 @@ export class GithubRemote {
 }
 
 /**
- * Returns a GithubRemote object to the sentry release registry.
- */
-export function getRegistryGithubRemote(): GithubRemote {
-  return new GithubRemote('getsentry', 'sentry-release-registry');
-}
-
-/**
  * Gets GitHub API token from environment
  *
  * @returns Github authentication token if found

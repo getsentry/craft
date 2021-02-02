@@ -12,7 +12,6 @@ import {
   getAuthUsername,
   getGithubApiToken,
   getGithubClient,
-  getRegistryGithubRemote,
   GithubRemote,
 } from '../utils/githubApi';
 import { renderTemplateSafe } from '../utils/strings';
@@ -32,6 +31,7 @@ import {
 import * as registryUtils from '../utils/registry';
 import { getPackageDirPath } from '../utils/packagePath';
 import { isDryRun } from '../utils/helpers';
+import { getRegistryGithubRemote } from '../utils/registry';
 
 const logger = loggerRaw.withScope('[registry]');
 

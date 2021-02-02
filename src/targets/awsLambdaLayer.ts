@@ -7,7 +7,6 @@ import {
   getAuthUsername,
   getGithubApiToken,
   getGithubClient,
-  getRegistryGithubRemote,
   GithubRemote,
 } from '../utils/githubApi';
 
@@ -27,6 +26,7 @@ import { createSymlinks } from '../utils/symlink';
 import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
 import { isPreviewRelease } from '../utils/version';
+import { getRegistryGithubRemote } from '../utils/registry';
 
 const logger = loggerRaw.withScope(`[aws-lambda-layer]`);
 

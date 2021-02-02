@@ -4,6 +4,7 @@ import * as path from 'path';
 import { logger } from '../logger';
 import { createSymlinks } from './symlink';
 import { reportError } from './errors';
+import { GithubRemote } from './githubApi';
 
 /**
  * Gets the package manifest version in the given directory.
@@ -44,4 +45,11 @@ export function updateManifestSymlinks(
   logger.debug(`Writing updated manifest to "${versionFilePath}"...`);
   fs.writeFileSync(versionFilePath, manifestString);
   createSymlinks(versionFilePath, version, previousVersion);
+}
+
+/**
+ * Returns a GithubRemote object to the sentry release registry.
+ */
+export function getRegistryGithubRemote(): GithubRemote {
+  return new GithubRemote('getsentry', 'sentry-release-registry');
 }
