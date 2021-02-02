@@ -172,7 +172,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         );
 
         if (
-          isPusheableToRegistry(version, this.awsLambdaConfig.linkPrereleases)
+          isPushableToRegistry(version, this.awsLambdaConfig.linkPrereleases)
         ) {
           logger.info('Pushing changes...');
           await git.push();
@@ -317,7 +317,7 @@ function createVersionSymlinks(
  * @param version The new version to be released.
  * @param linkPrereleases Whether the current release is a prerelease.
  */
-function isPusheableToRegistry(
+function isPushableToRegistry(
   version: string,
   linkPrereleases: boolean
 ): boolean {
