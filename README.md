@@ -909,6 +909,7 @@ registry with the new layer versions afterwards.
 
 | Option             | Description                                                                                                                                 |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| linkPrereleases    | **optional** Updates layer versions even if the release is a preview release, `false` by default.                                           |
 | includeNames       | **optional** Exists for all targets, [see here](##per-target-options). It must filter exactly one artifact.                                 |
 | layerName          | The name of the layer to be published.                                                                                                      |
 | compatibleRuntimes | A list of compatible runtimes for the layer. Each compatible runtime consists on the name of the runtime and a list of compatible versions. |
