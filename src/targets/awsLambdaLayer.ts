@@ -26,6 +26,7 @@ import {
 import { createSymlinks } from '../utils/symlink';
 import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
+import { isPreviewRelease } from '../utils/version';
 
 const logger = loggerRaw.withScope(`[aws-lambda-layer]`);
 
@@ -39,6 +40,8 @@ interface AwsLambdaTargetConfig extends TargetConfig {
   awsSecretAccessKey: string;
   /** Git remote of the release registry. */
   registryRemote: GithubRemote;
+  /** Should layer versions of prereleases be pushed to the registry? */
+  linkPrereleases: boolean;
 }
 
 /**
@@ -79,6 +82,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID,
       awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
       registryRemote: DEFAULT_REGISTRY_REMOTE,
+      linkPrereleases: this.config.linkPrereleases || false,
     };
   }
 
@@ -167,11 +171,11 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           `craft: AWS Lambda layers published, version ${version}`
         );
 
-        if (!isDryRun()) {
+        if (
+          isPusheableToRegistry(version, this.awsLambdaConfig.linkPrereleases)
+        ) {
           logger.info('Pushing changes...');
           await git.push();
-        } else {
-          logger.info('[dry-run] Not pushing the branch.');
         }
       },
       true,
@@ -300,4 +304,31 @@ function createVersionSymlinks(
     // When no previous versions are found, just create symlinks.
     createSymlinks(versionFilepath, version);
   }
+}
+
+/**
+ * Returns whether the current version release should be pushed to the registy.
+ *
+ * If the dry-run mode is enabled, the release is not pusheable.
+ * If the release is a preview release, unless otherwise stated in the
+ * configuration, the release is not pusheable.
+ * In any other case, the release is pusheable.
+ *
+ * @param version The new version to be released.
+ * @param linkPrereleases Whether the current release is a prerelease.
+ */
+function isPusheableToRegistry(
+  version: string,
+  linkPrereleases: boolean
+): boolean {
+  if (isDryRun()) {
+    logger.info('[dry-run] Not pushing the branch.');
+    return false;
+  }
+  if (isPreviewRelease(version) && !linkPrereleases) {
+    // preview release
+    logger.info("Preview release detected, not updating the layer's data.");
+    return false;
+  }
+  return true;
 }
