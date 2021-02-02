@@ -150,12 +150,16 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         logger.info(`Cloning ${remote.getRemoteString()} to ${directory}...`);
         await git.clone(remote.getRemoteStringWithAuth(), directory);
 
-        await this.publishRuntimes(
-          version,
-          directory,
-          awsRegions,
-          artifactBuffer
-        );
+        if (!isDryRun()) {
+          await this.publishRuntimes(
+            version,
+            directory,
+            awsRegions,
+            artifactBuffer
+          );
+        } else {
+          logger.info('[dry-run] Not publishing new layers.');
+        }
 
         await git.add(['.']);
         await git.checkout('master');
@@ -167,7 +171,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           logger.info('Pushing changes...');
           await git.push();
         } else {
-          logger.info('[dry-run] Not pushing the branch');
+          logger.info('[dry-run] Not pushing the branch.');
         }
       },
       true,
