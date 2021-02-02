@@ -31,11 +31,10 @@ import {
 import * as registryUtils from '../utils/registry';
 import { getPackageDirPath } from '../utils/packagePath';
 import { isDryRun } from '../utils/helpers';
-import { getRegistryGithubRemote } from '../utils/registry';
 
 const logger = loggerRaw.withScope('[registry]');
 
-const DEFAULT_REGISTRY_REMOTE: GithubRemote = getRegistryGithubRemote();
+const DEFAULT_REGISTRY_REMOTE: GithubRemote = registryUtils.getRegistryGithubRemote();
 
 /** Type of the registry package */
 export enum RegistryPackageType {
