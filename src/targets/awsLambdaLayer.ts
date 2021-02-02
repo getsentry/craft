@@ -7,6 +7,7 @@ import {
   getAuthUsername,
   getGithubApiToken,
   getGithubClient,
+  getRegistryGithubRemote,
   GithubRemote,
 } from '../utils/githubApi';
 
@@ -28,10 +29,7 @@ import { isDryRun } from '../utils/helpers';
 
 const logger = loggerRaw.withScope(`[aws-lambda-layer]`);
 
-const DEFAULT_REGISTRY_REMOTE: GithubRemote = new GithubRemote(
-  'getsentry',
-  'sentry-release-registry'
-);
+const DEFAULT_REGISTRY_REMOTE: GithubRemote = getRegistryGithubRemote();
 
 /** Config options for the "aws-lambda-layer" target. */
 interface AwsLambdaTargetConfig extends TargetConfig {
@@ -285,8 +283,8 @@ export class AwsLambdaLayerTarget extends BaseTarget {
  */
 function createVersionSymlinks(
   directory: string,
-  versionFilepath: string,
-  version: string
+  version: string,
+  versionFilepath: string
 ): void {
   const latestVersionPath = path.posix.join(directory, 'latest.json');
   if (fs.existsSync(latestVersionPath)) {

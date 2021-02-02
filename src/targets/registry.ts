@@ -12,6 +12,7 @@ import {
   getAuthUsername,
   getGithubApiToken,
   getGithubClient,
+  getRegistryGithubRemote,
   GithubRemote,
 } from '../utils/githubApi';
 import { renderTemplateSafe } from '../utils/strings';
@@ -34,10 +35,7 @@ import { isDryRun } from '../utils/helpers';
 
 const logger = loggerRaw.withScope('[registry]');
 
-const DEFAULT_REGISTRY_REMOTE: GithubRemote = new GithubRemote(
-  'getsentry',
-  'sentry-release-registry'
-);
+const DEFAULT_REGISTRY_REMOTE: GithubRemote = getRegistryGithubRemote();
 
 /** Type of the registry package */
 export enum RegistryPackageType {
