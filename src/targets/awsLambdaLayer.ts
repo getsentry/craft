@@ -139,117 +139,8 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       await this.artifactProvider.downloadArtifact(packageFiles[0])
     );
 
-    /** Creates symlinks to the new version file, and updates previous ones if needed. */
-    const createVersionSymlinks = (
-      directory: string,
-      versionFilepath: string
-    ): void => {
-      const latestVersionPath = path.posix.join(directory, 'latest.json');
-      if (fs.existsSync(latestVersionPath)) {
-        const previousVersion = fs
-          .readlinkSync(latestVersionPath)
-          .split('.json')[0];
-        createSymlinks(versionFilepath, version, previousVersion);
-      } else {
-        // When no previous versions are found, just create symlinks.
-        createSymlinks(versionFilepath, version);
-      }
-    };
-
     logger.debug('Fetching AWS regions...');
     const awsRegions = extractRegionNames(await getRegionsFromAws());
-
-    /** Publishes new AWS Lambda layers for every runtime. */
-    const publishRuntimes = async (directory: string): Promise<void> => {
-      await Promise.all(
-        this.config.compatibleRuntimes.map(
-          async (runtime: CompatibleRuntime) => {
-            const layerManager = new AwsLambdaLayerManager(
-              runtime,
-              this.config.layerName,
-              this.config.license,
-              artifactBuffer,
-              awsRegions
-            );
-
-            let publishedLayers = [];
-            try {
-              publishedLayers = await layerManager.publishToAllRegions();
-            } catch (error) {
-              logger.error(
-                `Did not publish layers for ${runtime.name}. ` +
-                  `Something went wrong with AWS: ${error.message}`
-              );
-              return;
-            }
-
-            // If no layers have been created, don't do extra work updating files.
-            if (publishedLayers.length == 0) {
-              logger.info(`${runtime.name}: no layers published.`);
-              return;
-            } else {
-              logger.info(
-                `${runtime.name}: ${publishedLayers.length} layers published.`
-              );
-            }
-
-            // Base directory for the layer files of the current runtime.
-            const runtimeBaseDir = path.posix.join(
-              directory,
-              this.AWS_REGISTRY_DIR,
-              runtime.name
-            );
-            if (!fs.existsSync(runtimeBaseDir)) {
-              logger.warn(
-                `Directory structure for ${runtime.name} is missing, skipping file creation.`
-              );
-              return;
-            }
-
-            const regionsVersions = publishedLayers.map(layer => {
-              return {
-                region: layer.region,
-                version: layer.version.toString(),
-              };
-            });
-
-            // Common data specific to all the layers in the current runtime.
-            const runtimeData = {
-              canonical: layerManager.getCanonicalName(),
-              sdk_version: version,
-              account_number: getAccountFromArn(publishedLayers[0].arn),
-              layer_name: this.config.layerName,
-              regions: regionsVersions,
-            };
-
-            const baseFilepath = path.posix.join(
-              runtimeBaseDir,
-              this.BASE_FILENAME
-            );
-            const newVersionFilepath = path.posix.join(
-              runtimeBaseDir,
-              `${version}.json`
-            );
-
-            if (!fs.existsSync(baseFilepath)) {
-              logger.warn(`The ${runtime.name} base file is missing.`);
-              fs.writeFileSync(newVersionFilepath, JSON.stringify(runtimeData));
-            } else {
-              const baseData = JSON.parse(
-                fs.readFileSync(baseFilepath).toString()
-              );
-              fs.writeFileSync(
-                newVersionFilepath,
-                JSON.stringify({ ...baseData, ...runtimeData })
-              );
-            }
-
-            createVersionSymlinks(runtimeBaseDir, newVersionFilepath);
-            logger.info(`${runtime.name}: created files and updated symlinks.`);
-          }
-        )
-      );
-    };
 
     const remote = this.awsLambdaConfig.registryRemote;
     const username = await getAuthUsername(this.github);
@@ -261,7 +152,12 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         logger.info(`Cloning ${remote.getRemoteString()} to ${directory}...`);
         await git.clone(remote.getRemoteStringWithAuth(), directory);
 
-        await publishRuntimes(directory);
+        await this.publishRuntimes(
+          version,
+          directory,
+          awsRegions,
+          artifactBuffer
+        );
 
         await git.add(['.']);
         await git.checkout('master');
@@ -279,5 +175,127 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       true,
       'craft-release-awslambdalayer-'
     );
+  }
+
+  /**
+   * Publishes new AWS Lambda layers for every runtime.
+   * @param version The version to be published.
+   * @param directory Directory to write the version files to.
+   * @param awsRegions List of AWS regions to create new layers in.
+   * @param artifactBuffer Buffer of the artifact to use in the AWS Lambda layers.
+   */
+  private async publishRuntimes(
+    version: string,
+    directory: string,
+    awsRegions: string[],
+    artifactBuffer: Buffer
+  ): Promise<void> {
+    await Promise.all(
+      this.config.compatibleRuntimes.map(async (runtime: CompatibleRuntime) => {
+        const layerManager = new AwsLambdaLayerManager(
+          runtime,
+          this.config.layerName,
+          this.config.license,
+          artifactBuffer,
+          awsRegions
+        );
+
+        let publishedLayers = [];
+        try {
+          publishedLayers = await layerManager.publishToAllRegions();
+        } catch (error) {
+          logger.error(
+            `Did not publish layers for ${runtime.name}. ` +
+              `Something went wrong with AWS: ${error.message}`
+          );
+          return;
+        }
+
+        // If no layers have been created, don't do extra work updating files.
+        if (publishedLayers.length == 0) {
+          logger.info(`${runtime.name}: no layers published.`);
+          return;
+        } else {
+          logger.info(
+            `${runtime.name}: ${publishedLayers.length} layers published.`
+          );
+        }
+
+        // Base directory for the layer files of the current runtime.
+        const runtimeBaseDir = path.posix.join(
+          directory,
+          this.AWS_REGISTRY_DIR,
+          runtime.name
+        );
+        if (!fs.existsSync(runtimeBaseDir)) {
+          logger.warn(
+            `Directory structure for ${runtime.name} is missing, skipping file creation.`
+          );
+          return;
+        }
+
+        const regionsVersions = publishedLayers.map(layer => {
+          return {
+            region: layer.region,
+            version: layer.version.toString(),
+          };
+        });
+
+        // Common data specific to all the layers in the current runtime.
+        const runtimeData = {
+          canonical: layerManager.getCanonicalName(),
+          sdk_version: version,
+          account_number: getAccountFromArn(publishedLayers[0].arn),
+          layer_name: this.config.layerName,
+          regions: regionsVersions,
+        };
+
+        const baseFilepath = path.posix.join(
+          runtimeBaseDir,
+          this.BASE_FILENAME
+        );
+        const newVersionFilepath = path.posix.join(
+          runtimeBaseDir,
+          `${version}.json`
+        );
+
+        if (!fs.existsSync(baseFilepath)) {
+          logger.warn(`The ${runtime.name} base file is missing.`);
+          fs.writeFileSync(newVersionFilepath, JSON.stringify(runtimeData));
+        } else {
+          const baseData = JSON.parse(fs.readFileSync(baseFilepath).toString());
+          fs.writeFileSync(
+            newVersionFilepath,
+            JSON.stringify({ ...baseData, ...runtimeData })
+          );
+        }
+
+        createVersionSymlinks(runtimeBaseDir, version, newVersionFilepath);
+        logger.info(`${runtime.name}: created files and updated symlinks.`);
+      })
+    );
+  }
+}
+
+/**
+ * Creates symlinks to the new version file, and updates previous ones if needed.
+ * @param directory The directory where symlinks will be created.
+ * @param version The new version to be released.
+ * @param versionFilepath Path to the new version file.
+ */
+function createVersionSymlinks(
+  directory: string,
+  versionFilepath: string,
+  version: string
+): void {
+  const latestVersionPath = path.posix.join(directory, 'latest.json');
+  if (fs.existsSync(latestVersionPath)) {
+    const previousVersion = fs
+      .readlinkSync(latestVersionPath)
+      .split('.json')[0];
+    createSymlinks(versionFilepath, version, previousVersion);
+  } else {
+    // When no previous versions are found, just create symlinks.
+    createSymlinks(versionFilepath, version);
   }
 }
