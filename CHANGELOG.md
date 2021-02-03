@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.17.1
 
 - fix(registry): Replace the actual versionFilePath (#174)
+
 ## 0.17.0
 
 - feat(aws-lambda): Update the sentry release registry with AWS Lambda layer versions (#172)
