@@ -2,6 +2,7 @@ import { mapLimit } from 'async';
 import * as Github from '@octokit/rest';
 import * as _ from 'lodash';
 import * as simpleGit from 'simple-git/promise';
+import * as path from 'path';
 
 import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
@@ -340,10 +341,17 @@ export class RegistryTarget extends BaseTarget {
     logger.info(`Cloning "${remote.getRemoteString()}" to "${directory}"...`);
     await git.clone(remote.getRemoteStringWithAuth(), directory);
 
+    const packageDirPath = getPackageDirPath(
+      this.registryConfig.type,
+      directory,
+      canonicalName
+    );
     const packageManifest = await registryUtils.getPackageManifest(
-      getPackageDirPath(this.registryConfig.type, directory, canonicalName),
+      packageDirPath,
       version
     );
+
+    const versionFilePath = path.join(packageDirPath, `${version}.json`);
     registryUtils.updateManifestSymlinks(
       await this.getUpdatedManifest(
         packageManifest,
@@ -352,7 +360,7 @@ export class RegistryTarget extends BaseTarget {
         revision
       ),
       version,
-      'versionFilePath',
+      versionFilePath,
       packageManifest.version || undefined
     );
 
