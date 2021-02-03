@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.2
 
 - feat(aws-lambda): Update the sentry release registry with AWS Lambda layer versions (#172)
 
