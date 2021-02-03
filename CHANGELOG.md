@@ -2,7 +2,7 @@
 
 ## 0.17.1
 
-- fix(registry): Replace actual versionFilePath (#174)
+- fix(registry): Replace actual the versionFilePath (#174)
 
 ## 0.17.0
 
