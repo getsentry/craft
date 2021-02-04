@@ -224,11 +224,13 @@ export class RegistryTarget extends BaseTarget {
       });
     }
 
-    artifactData.checksums = await getArtifactChecksums(
-      this.registryConfig.checksums,
-      artifact,
-      this.artifactProvider
-    );
+    if (this.registryConfig.checksums.length > 0) {
+      artifactData.checksums = await getArtifactChecksums(
+        this.registryConfig.checksums,
+        artifact,
+        this.artifactProvider
+      );
+    }
 
     return artifactData;
   }
