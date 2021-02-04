@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.17.2
+
+- fix(registry): `undefined` handling when there's no `checksums` in `.craft.yml` (#175)
+
 ## 0.17.1
 
 - fix(registry): Replace the actual versionFilePath (#174)
