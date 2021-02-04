@@ -23,7 +23,7 @@
     "@aws-sdk/client-ec2": "^3.2.0",
     "@aws-sdk/client-lambda": "^3.2.0",
     "@google-cloud/storage": "^5.7.0",
-    "@octokit/plugin-retry": "2.2.0",
+    "@octokit/plugin-retry": "^3.0.7",
     "@octokit/rest": "16.35.2",
     "@sentry/node": "4.6.3",
     "@zeus-ci/sdk": "0.1.8",
@@ -54,6 +54,7 @@
     "yargs": "15.1.0"
   },
   "devDependencies": {
+    "@aws-sdk/types": "^3.1.0",
     "@sentry/typescript": "^5.17.0",
     "@types/async": "^3.0.1",
     "@types/cli-table": "^0.3.0",
@@ -74,7 +75,6 @@
     "@types/tmp": "^0.0.33",
     "@types/update-notifier": "^2.2.0",
     "@types/yargs": "^15.0.3",
-    "@aws-sdk/types": "^3.1.0",
     "@typescript-eslint/eslint-plugin": "^3.3.0",
     "@typescript-eslint/parser": "^3.3.0",
     "eslint": "^7.2.0",

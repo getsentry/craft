@@ -147,7 +147,8 @@ export function getGithubClient(token = ''): Github {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const octokitWithRetries = Github.plugin(require('@octokit/plugin-retry'));
+  const { retry } = require('@octokit/plugin-retry');
+  const octokitWithRetries = Github.plugin(retry);
   return new octokitWithRetries(attrs);
 }
 
