@@ -62,10 +62,9 @@ export async function getArtifactChecksums(
   checksums: ChecksumEntry[],
   artifact: RemoteArtifact,
   artifactProvider: BaseArtifactProvider
-): Promise<any> {
-  if (checksums.length == 0) {
-    return undefined;
-  }
+): Promise<{
+  [key: string]: string;
+}> {
   const fileChecksums: { [key: string]: string } = {};
   for (const checksumType of checksums) {
     const { algorithm, format } = checksumType;
