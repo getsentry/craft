@@ -1,5 +1,9 @@
 # Changelog
 
+# Unreleased
+
+- feat(github): Retry on 404s (#177)
+
 ## 0.17.2
 
 - fix(registry): `undefined` handling when there's no `checksums` in `.craft.yml` (#175)
