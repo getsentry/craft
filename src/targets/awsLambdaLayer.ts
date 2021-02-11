@@ -141,8 +141,8 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       await this.artifactProvider.downloadArtifact(packageFiles[0])
     );
 
-    logger.debug('Fetching AWS regions...');
     const awsRegions = extractRegionNames(await getRegionsFromAws());
+    logger.debug('AWS regions: ' + awsRegions);
 
     const remote = this.awsLambdaConfig.registryRemote;
     const username = await getAuthUsername(this.github);
@@ -161,6 +161,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
             awsRegions,
             artifactBuffer
           );
+          logger.debug('Finished publishing runtimes.');
         } else {
           logger.info('[dry-run] Not publishing new layers.');
         }
@@ -198,6 +199,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   ): Promise<void> {
     await Promise.all(
       this.config.compatibleRuntimes.map(async (runtime: CompatibleRuntime) => {
+        logger.debug(`Publishing runtime ${runtime.name}...`);
         const layerManager = new AwsLambdaLayerManager(
           runtime,
           this.config.layerName,
@@ -209,6 +211,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         let publishedLayers = [];
         try {
           publishedLayers = await layerManager.publishToAllRegions();
+          logger.debug('Finished publishing to all regions.');
         } catch (error) {
           logger.error(
             `Did not publish layers for ${runtime.name}. ` +
@@ -294,6 +297,7 @@ function createVersionSymlinks(
   version: string,
   versionFilepath: string
 ): void {
+  logger.debug(`Creating symlinks...`);
   const latestVersionPath = path.posix.join(directory, 'latest.json');
   if (fs.existsSync(latestVersionPath)) {
     const previousVersion = fs

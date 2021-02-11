@@ -66,6 +66,7 @@ export class AwsLambdaLayerManager {
    * @returns Information about the published layer: region, arn and version.
    */
   public async publishLayerToRegion(region: string): Promise<PublishedLayer> {
+    logger.debug(`Publishing layer to ${region}...`);
     const lambda = new Lambda({ region: region });
     const publishedLayer = await lambda.publishLayerVersion({
       Content: {
@@ -101,11 +102,22 @@ export class AwsLambdaLayerManager {
    * @returns Array of the published layers.
    */
   public async publishToAllRegions(): Promise<PublishedLayer[]> {
-    return await Promise.all(
-      this.awsRegions.map(region => {
-        return this.publishLayerToRegion(region);
+    const publishedLayers = await Promise.all(
+      this.awsRegions.map(async region => {
+        try {
+          return await this.publishLayerToRegion(region);
+        } catch (error) {
+          logger.warn(
+            'Something went wrong with AWS trying to publish to region ' +
+              `${region}: ${error.message}`
+          );
+          return undefined;
+        }
       })
     );
+    return publishedLayers.filter(layer => {
+      return layer !== undefined;
+    }) as PublishedLayer[];
   }
 
   /**
