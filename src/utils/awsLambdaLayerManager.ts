@@ -108,7 +108,8 @@ export class AwsLambdaLayerManager {
           return await this.publishLayerToRegion(region);
         } catch (error) {
           logger.warn(
-            `Something went wrong with AWS trying to publish to region ${region}`
+            'Something went wrong with AWS trying to publish to region ' +
+              `${region}: ${error.message}`
           );
           return undefined;
         }
