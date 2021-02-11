@@ -3,6 +3,7 @@
 # Unreleased
 
 - feat(github): Retry on 404s (#177)
+- ref(aws-lambda): Catch potential exceptions when publishing AWS Lambda layers to new regions (#178)
 
 ## 0.17.2
 
