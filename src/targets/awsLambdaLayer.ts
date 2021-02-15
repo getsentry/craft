@@ -169,9 +169,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         await git.add(['.']);
         await git.checkout('master');
         const runtimeNames = this.config.compatibleRuntimes.map(
-          (runtime: CompatibleRuntime) => {
-            return runtime.name;
-          }
+          (runtime: CompatibleRuntime) => runtime.name
         );
         await git.commit(
           'craft(aws-lambda): AWS Lambda layers published\n\n' +
