@@ -2,6 +2,7 @@
 
 # Unreleased
 
+- feat(registry): Allow colons as separators in canonical names (#183)
 - feat(github): Retry on 404s (#177)
 - ref(aws-lambda): Catch potential exceptions when publishing AWS Lambda layers to new regions (#178)
 - feat(aws-lambda): Add runtime names on commit message (#181)
