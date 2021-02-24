@@ -16,6 +16,14 @@ describe('parseCanonical', () => {
     ]);
   });
 
+  test('allows colons as path separators', async () => {
+    expect(parseCanonical('maven:io.sentry:sentry')).toEqual([
+      'maven',
+      'io.sentry',
+      'sentry',
+    ]);
+  });
+
   test('throws an error for invalid canonical names', async () => {
     function expectRaisesError(name: string): void {
       try {

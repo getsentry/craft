@@ -57,13 +57,22 @@ export function getPackageDirPath(
 /**
  * Parses registry canonical name to a list of registry directories
  *
- * Example: "npm:@sentry/browser" -> ["npm", "@sentry", "browser"]
+ * Colons can be used as separators in addition to forward slashes.
+ *
+ * Examples:
+ *    "npm:@sentry/browser" -> ["npm", "@sentry", "browser"]
+ *    "maven:io.sentry:sentry" -> ["maven", "io.sentry", "sentry"]
  *
  * @param canonicalName Registry canonical name
  * @returns A list of directories
  */
 export function parseCanonical(canonicalName: string): string[] {
-  const [registry, packageName] = canonicalName.split(':');
+  const [registry, ...splitPackageName] = canonicalName.split(':');
+
+  // This essentially replaces colons with forward slashes for the package name
+  // of the initial canonical name
+  const packageName = splitPackageName.join('/');
+
   if (!registry || !packageName) {
     throw new ConfigurationError(
       `Cannot parse canonical name for the package: ${canonicalName}`
