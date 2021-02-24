@@ -84,5 +84,5 @@ export function parseCanonical(canonicalName: string): string[] {
       `Cannot parse canonical name for the package: ${canonicalName}`
     );
   }
-  return [registry].concat(packageName.split('/'));
+  return [registry].concat(packageDirs);
 }
