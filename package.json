@@ -1,6 +1,6 @@
 {
   "name": "@sentry/craft",
-  "version": "0.17.2",
+  "version": "0.18.0",
   "description": "The universal sentry workflow CLI",
   "main": "dist/index.js",
   "repository": "https://github.com/getsentry/craft",
