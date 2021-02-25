@@ -432,7 +432,7 @@ export async function runPostReleaseCommand(
   } else {
     // Not running post-release command
     logger.info(
-      `Not running the post-release command: no '${DEFAULT_POST_RELEASE_SCRIPT_PATH}' script file specified`
+      `Not running the optional post-release command: '${DEFAULT_POST_RELEASE_SCRIPT_PATH}' not found`
     );
     return false;
   }
