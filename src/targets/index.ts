@@ -6,6 +6,7 @@ import { CratesTarget } from './crates';
 import { DockerTarget } from './docker';
 import { GcsTarget } from './gcs';
 import { GemTarget } from './gem';
+import { FastlaneTarget } from './fastlane';
 import { GhPagesTarget } from './ghPages';
 import { GithubTarget } from './github';
 import { NpmTarget } from './npm';
@@ -21,6 +22,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   docker: DockerTarget,
   gcs: GcsTarget,
   gem: GemTarget,
+  fastlane: FastlaneTarget,
   'gh-pages': GhPagesTarget,
   github: GithubTarget,
   npm: NpmTarget,
