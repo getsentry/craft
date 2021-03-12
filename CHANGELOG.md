@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+
+- fix(registry): Ensure up-to-date remote before pushing (#186)
 ## 0.18.0
 
 - feat(github): Retry on 404s (#177)
