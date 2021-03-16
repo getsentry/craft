@@ -341,7 +341,10 @@ export class RegistryTarget extends BaseTarget {
 
     const git = simpleGit(directory).silent(true);
     logger.info(`Cloning "${remote.getRemoteString()}" to "${directory}"...`);
-    await git.clone(remote.getRemoteStringWithAuth(), directory);
+    await git.clone(remote.getRemoteStringWithAuth(), directory, [
+      '--filter=tree:0',
+      '--single-branch',
+    ]);
 
     const packageDirPath = getPackageDirPath(
       this.registryConfig.type,
@@ -367,16 +370,18 @@ export class RegistryTarget extends BaseTarget {
     );
 
     // Commit
-    await git.checkout('master');
     await git.add(['.']);
     await git.commit(`craft: release "${canonicalName}", version "${version}"`);
+
+    // Ensure we are still up to date with upstream
+    await git.pull('origin', 'master', { rebase: true });
 
     // Push!
     if (!isDryRun()) {
       logger.info(`Pushing the changes...`);
       await git.push('origin', 'master');
     } else {
-      logger.info('[dry-run] Not pushing the branch.');
+      logger.info('[dry-run] Not pushing the changes.');
     }
   }
 
@@ -411,9 +416,8 @@ export class RegistryTarget extends BaseTarget {
     remote.setAuth(username, getGithubApiToken());
 
     await withTempDir(
-      async directory => {
-        await this.pushVersionToRegistry(directory, remote, version, revision);
-      },
+      directory =>
+        this.pushVersionToRegistry(directory, remote, version, revision),
       true,
       'craft-release-registry-'
     );
