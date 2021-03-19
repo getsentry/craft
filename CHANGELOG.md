@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- fix(registry): Ensure up-to-date remote before pushing (#186)
+- fix(registry): Ensure up-to-date remote before pushing (#186, #188)
+
 ## 0.18.0
 
 - feat(github): Retry on 404s (#177)
