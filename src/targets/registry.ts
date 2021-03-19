@@ -374,7 +374,7 @@ export class RegistryTarget extends BaseTarget {
     await git.commit(`craft: release "${canonicalName}", version "${version}"`);
 
     // Ensure we are still up to date with upstream
-    await git.pull('origin', 'master', { rebase: true });
+    await git.pull('origin', 'master', ['--rebase']);
 
     // Push!
     if (!isDryRun()) {
