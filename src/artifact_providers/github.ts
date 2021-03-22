@@ -1,5 +1,4 @@
 import * as Github from '@octokit/rest';
-import * as _ from 'lodash';
 import * as fs from 'fs';
 import * as request from 'request';
 import * as path from 'path';
@@ -20,6 +19,8 @@ import {
   withTempDir,
 } from '../utils/files';
 import { extractZipArchive } from '../utils/system';
+
+const MAX_TRIES = 3;
 
 const logger = loggerRaw.withScope(`[artifact-provider/github]`);
 
@@ -81,46 +82,74 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
    */
   private async listArtifact(
     revision: string,
-    page = 0
+    revisionDate?: string,
+    page = 0,
+    tries = 0,
   ): Promise<ArtifactItem> {
-    const { repoName, repoOwner } = this.config;
+    const { repoName: repo, repoOwner: owner } = this.config;
     const per_page = 100;
 
     // https://docs.github.com/en/free-pro-team@latest/rest/reference/actions#artifacts
     const artifactResponse = ((
       await this.github.request('GET /repos/{owner}/{repo}/actions/artifacts', {
-        owner: repoOwner,
-        repo: repoName,
+        owner: owner,
+        repo: repo,
         per_page,
         page,
       })
     ).data as unknown) as ArtifactList;
 
-    if (artifactResponse.total_count === 0) {
-      throw new Error(`Failed to discover any artifacts`);
-    }
+    const allArtifacts = artifactResponse.artifacts;
 
     // We need to find the archive where name maches the revision
-    const foundArtifacts = _.filter(
-      artifactResponse.artifacts,
+    const foundArtifacts = allArtifacts.filter(
       artifact => artifact.name === revision
     );
 
-    if (foundArtifacts.length === 0) {
-      if (artifactResponse.total_count > per_page * (page + 1)) {
-        return this.listArtifact(revision, page + 1);
-      }
-      throw new Error(`Can't find artifacts for revision \`${revision}\``);
+    if (foundArtifacts.length === 1) {
+      return foundArtifacts[0];
     }
 
     if (foundArtifacts.length > 1) {
       throw new Error(
         `Found multiple artifacts with the same revision \`${revision}\`\n` +
-          `Please make sure you job only uploads on set of artifacts.`
+          `Please make sure your job only uploads one set of artifacts.`
       );
     }
 
-    return foundArtifacts[0];
+    let checkNextPage = false;
+    if (artifactResponse.total_count > per_page * (page + 1)) {
+
+      if (revisionDate === undefined) {
+        revisionDate = (await this.github.git.getCommit({
+          owner,
+          repo,
+          commit_sha: revision
+        })).data.committer.date;
+      }
+      const lastArtifact = allArtifacts[allArtifacts.length-1];
+      checkNextPage = lastArtifact.created_at >= revisionDate;
+    }
+
+    if (checkNextPage) {
+      page += 1;
+    } else {
+      // If we are retrying, reset page index and start over
+      page = 0;
+      tries += 1;
+    }
+
+    if (tries < MAX_TRIES) {
+        return this.listArtifact(revision, revisionDate, page, tries);
+    }
+
+    if (artifactResponse.total_count === 0) {
+      throw new Error(`Failed to discover any artifacts (tries ${tries})`);
+    } else {
+      throw new Error(`Can't find artifacts for revision \`${revision}\` (tries: ${tries})`);
+    }
+
+
   }
 
   /**
