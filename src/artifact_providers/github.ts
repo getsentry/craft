@@ -127,6 +127,12 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
           commit_sha: revision
         })).data.committer.date;
       }
+      // XXX(BYK): The assumption here is that the artifact created_at date
+      // should always be greater than or equal to the associated revision date
+      // ** AND **
+      // the artifacts are listed in descending date order on this endpoint.
+      // There is no public documentation on this but the observed data and
+      // common-sense logic suggests that this is a reasonably safe assumption.
       const lastArtifact = allArtifacts[allArtifacts.length-1];
       checkNextPage = lastArtifact.created_at >= revisionDate;
     }
