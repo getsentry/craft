@@ -32,7 +32,10 @@ function makeDev(dependency: CrateDependency): CrateDependency {
 describe('getPublishOrder', () => {
   process.env.CRATES_IO_TOKEN = 'xxx';
   const target = new CratesTarget(
-    { noDevDeps: true },
+    {
+      name: 'crates',
+      noDevDeps: true,
+    },
     new NoneArtifactProvider()
   );
 
