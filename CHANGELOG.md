@@ -3,6 +3,7 @@
 ## Unreleased
 
 - fix(registry): Ensure up-to-date remote before pushing (#186, #188)
+- feat(publish): Store and restore publish state (#192)
 
 ## 0.18.0
 
