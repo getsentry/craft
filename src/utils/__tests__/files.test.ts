@@ -28,6 +28,9 @@ describe('withTempDir', () => {
       }, cleanupEnabled);
     } finally {
       if (cleanupEnabled) {
+        // We intentionally do not block on the clean up operation
+        // so wait ~100ms before checking
+        await new Promise(resolve => setTimeout(resolve, 100));
         expect(existsSync(directory)).toBeFalsy();
       } else {
         expect(existsSync(directory)).toBeTruthy();
