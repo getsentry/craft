@@ -34,7 +34,7 @@ interface PathTemplate extends Omit<BucketPath, 'path'> {
 /**
  * Configuration options for the GCS target
  */
-export interface GCSTargetConfig extends GCSBucketConfig, TargetConfig {
+export interface GCSTargetConfig extends GCSBucketConfig {
   /** A list of path templates with associated metadata */
   pathTemplates: PathTemplate[];
 }

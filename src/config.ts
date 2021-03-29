@@ -225,8 +225,8 @@ export function getGlobalGithubConfig(): GithubGlobalConfig {
  */
 export function getGitTagPrefix(): string {
   const targets = getConfiguration().targets || [];
-  const githubTarget = targets.find(target => target.name === 'github') || {};
-  return githubTarget.tagPrefix || '';
+  const githubTarget = targets.find(target => target.name === 'github');
+  return githubTarget?.tagPrefix || '';
 }
 
 /**

@@ -83,7 +83,8 @@ export async function withTempDir<T>(
     return await callback(directory);
   } finally {
     if (cleanup) {
-      await rimraf(directory);
+      // Intentionally DO NOT await removal
+      rimraf(directory);
     }
   }
 }

@@ -20,7 +20,7 @@ export const DEFAULT_NUGET_SERVER_URL = 'https://api.nuget.org/v3/index.json';
 const DEFAULT_NUGET_REGEX = /^.*\d\.\d.*\.nupkg$/;
 
 /** Nuget target configuration options */
-export interface NugetTargetOptions extends TargetConfig {
+export interface NugetTargetOptions {
   /** Nuget API token */
   apiToken: string;
   /** Nuget server URL */
@@ -37,7 +37,7 @@ export class NugetTarget extends BaseTarget {
   public readonly nugetConfig: NugetTargetOptions;
 
   public constructor(
-    config: Record<string, any>,
+    config: TargetConfig,
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);

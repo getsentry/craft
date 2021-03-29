@@ -6,6 +6,7 @@ import {
 import { reportError } from '../utils/errors';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
+import { TargetConfig } from 'src/schemas/project_config';
 
 const logger = loggerRaw.withScope('[gem]');
 
@@ -29,7 +30,7 @@ export class GemTarget extends BaseTarget {
   public readonly name: string = 'gem';
 
   public constructor(
-    config: Record<string, any>,
+    config: TargetConfig,
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);

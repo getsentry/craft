@@ -33,7 +33,7 @@ const logger = loggerRaw.withScope(`[aws-lambda-layer]`);
 const DEFAULT_REGISTRY_REMOTE: GithubRemote = getRegistryGithubRemote();
 
 /** Config options for the "aws-lambda-layer" target. */
-interface AwsLambdaTargetConfig extends TargetConfig {
+interface AwsLambdaTargetConfig {
   /** AWS access key ID, set as AWS_ACCESS_KEY_ID. */
   awsAccessKeyId: string;
   /** AWS secret access key, set as `AWS_SECRET_ACCESS_KEY`. */

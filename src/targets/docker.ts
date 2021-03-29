@@ -16,7 +16,7 @@ const DEFAULT_DOCKER_BIN = 'docker';
 const DOCKER_BIN = process.env.DOCKER_BIN || DEFAULT_DOCKER_BIN;
 
 /** Options for "docker" target */
-export interface DockerTargetOptions extends TargetConfig {
+export interface DockerTargetOptions {
   username: string;
   password: string;
   /** Source image path, like `us.gcr.io/sentryio/craft` */
@@ -39,7 +39,7 @@ export class DockerTarget extends BaseTarget {
   public readonly dockerConfig: DockerTargetOptions;
 
   public constructor(
-    config: Record<string, any>,
+    config: TargetConfig,
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);
