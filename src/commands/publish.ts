@@ -590,7 +590,12 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
              argv.keepBranch
            );
            if (!isDryRun()) {
-             // intentionally DO NOT await unlinking
+             // XXX(BYK): intentionally DO NOT await unlinking as we do not want
+             // to block (both in terms of waiting for IO and the success of the
+             // operation) finishing the publish flow on the removal of a temporary
+             // file. If unlinking fails, we honestly don't care, at least to fail
+             // the final steps. And it doesn't make sense to wait until this op
+             // finishes then as nothing relies on the removal of this file.
              fsPromises.unlink(publishStateFile);
            }
            logger.success(`Version ${newVersion} has been published!`);
