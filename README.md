@@ -440,8 +440,24 @@ run more targets, list the target identifiers under the `targets` key in
 
 ```yaml
 targets:
-  - name: github
   - name: npm
+  - name: github
+  - name: registry
+    id: browser
+    type: sdk
+    onlyIfPresent: /^sentry-browser-.*\.tgz$/
+    includeNames: /\.js$/
+    checksums:
+      - algorithm: sha384
+        format: base64
+    config:
+      canonical: 'npm:@sentry/browser'
+  - name: registry
+    id: node
+    type: sdk
+    onlyIfPresent: /^sentry-node-.*\.tgz$/
+    config:
+      canonical: 'npm:@sentry/node'
 ```
 
 ### Per-target options
@@ -452,6 +468,7 @@ The following options can be applied to every target individually:
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `includeNames` | **optional**. Regular expression: only matched files will be processed by the target. There is one special case that `includeNames` supports, if your build doesn't any artifacts you can write `includeNames: /none/`, this will skip the check for artifacts towards Zeus entirely. |
 | `excludeNames` | **optional**. Regular expression: the matched files will be skipped by the target. Matching is performed after testing for inclusion (via `includeNames`).                                                                                                                            |
+| `id`           | **optional**. A unique id for the target type so one can refer to that target individually with the `-t` option with the `publish` command like `-t registry[browser]`. (see the example config above)                                                                                |
 
 If neither option is included, all artifacts for the release will be processed by the target.
 
