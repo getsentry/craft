@@ -154,11 +154,8 @@ async function publishToTarget(
   version: string,
   revision: string
 ): Promise<void> {
-  const targetDescriptor = target.config.id
-    ? `${target.config.id}[${target.name}]`
-    : target.name;
   const publishMessage = `=== Publishing to target: ${chalk.bold(
-    chalk.cyan(targetDescriptor)
+    chalk.cyan(getTargetId(target.config))
   )} ===`;
   const delim = Array(stringLength(publishMessage) + 1).join('=');
   logger.info(' ');
