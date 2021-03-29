@@ -473,7 +473,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   await checkRequiredArtifacts(artifactProvider, revision, config.requireNames);
 
   // Find targets
-  let targetList: Set<string> = new Set(
+  let targetsToPublish: Set<string> = new Set(
     (typeof argv.target === 'string' ? [argv.target] : argv.target) || [
       SpecialTarget.All,
     ]
@@ -481,7 +481,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   // Treat "all"/"none" specially
   for (const specialTarget of [SpecialTarget.All, SpecialTarget.None]) {
-    if (targetList.size > 1 && targetList.has(specialTarget)) {
+    if (targetsToPublish.size > 1 && targetsToPublish.has(specialTarget)) {
       logger.error(
         `Target "${specialTarget}" specified together with other targets. Exiting.`
       );
@@ -496,7 +496,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   if (earlierStateExists) {
     logger.info(`Found publish state file, resuming from there...`);
     publishState = JSON.parse(readFileSync(publishStateFile).toString());
-    targetList = new Set(getAllTargetNames());
+    targetsToPublish = new Set(getAllTargetNames());
   } else {
     publishState = { published: Object.create(null) };
   }
@@ -505,18 +505,18 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     logger.info(
       `Skipping target ${published} as it is marked as successful in state file.`
     );
-    targetList.delete(published);
+    targetsToPublish.delete(published);
   }
 
   let targetConfigList = config.targets || [];
 
-  if (!targetList.has(SpecialTarget.All)) {
+  if (!targetsToPublish.has(SpecialTarget.All)) {
     targetConfigList = targetConfigList.filter(targetConf =>
-      targetList.has(getTargetId(targetConf))
+      targetsToPublish.has(getTargetId(targetConf))
     );
   }
 
-  if (!targetList.has(SpecialTarget.None) && !earlierStateExists) {
+  if (!targetsToPublish.has(SpecialTarget.None) && !earlierStateExists) {
     if (targetConfigList.length === 0) {
       logger.warn('No valid targets detected! Exiting.');
       return undefined;
@@ -577,31 +577,31 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   if (argv.rev) {
     logger.info('Not merging any branches because revision was specified.');
   } else if (
-    targetList.has(SpecialTarget.All) ||
-    targetList.has(SpecialTarget.None) ||
-    earlierStateExists
-  ) {
-    // Publishing done, MERGE DAT BRANCH!
-    await handleReleaseBranch(
-      githubClient,
-      githubConfig,
-      branchName,
-      argv.noMerge,
-      argv.keepBranch
-    );
-    if (!isDryRun()) {
-      // intentionally DO NOT await unlinking
-      fsPromises.unlink(publishStateFile);
-    }
-    logger.success(`Version ${newVersion} has been published!`);
-  } else {
-    const msg = [
-      'The release branch was not merged because you published only to specific targets.',
-      'After all the targets are published, run the following command to merge the release branch:',
-      `  $ craft publish ${newVersion} --target none\n`,
-    ];
-    logger.warn(msg.join('\n'));
-  }
+           targetsToPublish.has(SpecialTarget.All) ||
+           targetsToPublish.has(SpecialTarget.None) ||
+           earlierStateExists
+         ) {
+           // Publishing done, MERGE DAT BRANCH!
+           await handleReleaseBranch(
+             githubClient,
+             githubConfig,
+             branchName,
+             argv.noMerge,
+             argv.keepBranch
+           );
+           if (!isDryRun()) {
+             // intentionally DO NOT await unlinking
+             fsPromises.unlink(publishStateFile);
+           }
+           logger.success(`Version ${newVersion} has been published!`);
+         } else {
+           const msg = [
+             'The release branch was not merged because you published only to specific targets.',
+             'After all the targets are published, run the following command to merge the release branch:',
+             `  $ craft publish ${newVersion} --target none\n`,
+           ];
+           logger.warn(msg.join('\n'));
+         }
 
   // Run the post-release script
   await runPostReleaseCommand(newVersion, config.postReleaseCommand);
