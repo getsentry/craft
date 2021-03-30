@@ -2,6 +2,12 @@ import * as Github from '@octokit/rest';
 import * as inquirer from 'inquirer';
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 import chalk from 'chalk';
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  promises as fsPromises,
+} from 'fs';
 import { join } from 'path';
 import * as shellQuote from 'shell-quote';
 import * as stringLength from 'string-length';
@@ -115,6 +121,12 @@ export interface PublishOptions {
   keepBranch: boolean;
 }
 
+export interface PublishState {
+  published: {
+    [targetId: string]: boolean;
+  };
+}
+
 /**
  * Checks that the passed version is a valid version string
  *
@@ -131,72 +143,26 @@ function checkVersion(argv: Arguments<any>, _opt: any): any {
 }
 
 /**
- * Publishes artifacts to the provided targets
+ * Publishes artifacts to the provided target
  *
- * @param githubConfig Github repository configuration
+ * @param target The target instance to publish
  * @param version New version to be released
  * @param revision Git commit SHA of the commit to be published
- * @param targetConfigList A list of parsed target configurations
- * @param keepDownloads If "true", downloaded files will not be removed
  */
-async function publishToTargets(
+async function publishToTarget(
+  target: BaseTarget,
   version: string,
-  revision: string,
-  targetConfigList: any[],
-  artifactProvider: BaseArtifactProvider,
-  keepDownloads = false
+  revision: string
 ): Promise<void> {
-  let downloadDirectoryPath;
-
-  await withTempDir(async (downloadDirectory: string) => {
-    downloadDirectoryPath = downloadDirectory;
-    artifactProvider.setDownloadDirectory(downloadDirectoryPath);
-    const targetList: BaseTarget[] = [];
-
-    // Initialize all targets first
-    // TODO(tonyo): initialize them earlier!
-    logger.debug('Initializing targets');
-    for (const targetConfig of targetConfigList) {
-      const targetClass = getTargetByName(targetConfig.name);
-      const targetDescriptor = getTargetId(targetConfig);
-      if (!targetClass) {
-        logger.warn(
-          `Target implementation for "${targetDescriptor}" not found.`
-        );
-        continue;
-      }
-      try {
-        const target = new targetClass(targetConfig, artifactProvider);
-        targetList.push(target);
-      } catch (e) {
-        logger.error('Error creating target instance!');
-        throw e;
-      }
-    }
-
-    // Publish to all targets
-    for (const target of targetList) {
-      const targetDescriptor = target.config.id
-        ? `${target.config.id}[${target.name}]`
-        : target.name;
-      const publishMessage = `=== Publishing to target: ${chalk.bold(
-        chalk.cyan(targetDescriptor)
-      )} ===`;
-      const delim = Array(stringLength(publishMessage) + 1).join('=');
-      logger.info(' ');
-      logger.info(delim);
-      logger.info(publishMessage);
-      logger.info(delim);
-      await target.publish(version, revision);
-    }
-  }, !keepDownloads);
-
-  if (keepDownloads) {
-    logger.info(
-      'Directory with the downloaded artifacts will not be removed',
-      `Path: ${downloadDirectoryPath}`
-    );
-  }
+  const publishMessage = `=== Publishing to target: ${chalk.bold(
+    chalk.cyan(getTargetId(target.config))
+  )} ===`;
+  const delim = Array(stringLength(publishMessage) + 1).join('=');
+  logger.info(' ');
+  logger.info(delim);
+  logger.info(publishMessage);
+  logger.info(delim);
+  await target.publish(version, revision);
 }
 
 /**
@@ -466,7 +432,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   logger.info(`Publishing version: "${newVersion}"`);
 
-  let revision;
+  let revision: string;
   let branchName;
   if (argv.rev) {
     branchName = '';
@@ -503,8 +469,11 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   // Check status of all CI builds linked to the revision
   await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);
 
+  await printRevisionSummary(artifactProvider, revision);
+  await checkRequiredArtifacts(artifactProvider, revision, config.requireNames);
+
   // Find targets
-  const targetList: Set<string> = new Set(
+  let targetsToPublish: Set<string> = new Set(
     (typeof argv.target === 'string' ? [argv.target] : argv.target) || [
       SpecialTarget.All,
     ]
@@ -512,7 +481,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   // Treat "all"/"none" specially
   for (const specialTarget of [SpecialTarget.All, SpecialTarget.None]) {
-    if (targetList.size > 1 && targetList.has(specialTarget)) {
+    if (targetsToPublish.size > 1 && targetsToPublish.has(specialTarget)) {
       logger.error(
         `Target "${specialTarget}" specified together with other targets. Exiting.`
       );
@@ -520,30 +489,61 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     }
   }
 
+  logger.info(`Looking for publish state file for ${newVersion}...`);
+  const publishStateFile = `.craft-publish-${newVersion}.json`;
+  const earlierStateExists = existsSync(publishStateFile);
+  let publishState: PublishState;
+  if (earlierStateExists) {
+    logger.info(`Found publish state file, resuming from there...`);
+    publishState = JSON.parse(readFileSync(publishStateFile).toString());
+    targetsToPublish = new Set(getAllTargetNames());
+  } else {
+    publishState = { published: Object.create(null) };
+  }
+
+  for (const published of Object.keys(publishState.published)) {
+    logger.info(
+      `Skipping target ${published} as it is marked as successful in state file.`
+    );
+    targetsToPublish.delete(published);
+  }
+
   let targetConfigList = config.targets || [];
 
-  if (!targetList.has(SpecialTarget.All)) {
+  if (!targetsToPublish.has(SpecialTarget.All)) {
     targetConfigList = targetConfigList.filter(targetConf =>
-      targetList.has(getTargetId(targetConf))
+      targetsToPublish.has(getTargetId(targetConf))
     );
   }
 
-  if (!targetList.has(SpecialTarget.None)) {
+  if (!targetsToPublish.has(SpecialTarget.None) && !earlierStateExists) {
     if (targetConfigList.length === 0) {
       logger.warn('No valid targets detected! Exiting.');
       return undefined;
     }
 
-    await printRevisionSummary(artifactProvider, revision);
-    await checkRequiredArtifacts(
-      artifactProvider,
-      revision,
-      config.requireNames
-    );
+    logger.debug('Initializing targets');
+    const targetList: BaseTarget[] = [];
+    for (const targetConfig of targetConfigList) {
+      const targetClass = getTargetByName(targetConfig.name);
+      const targetDescriptor = getTargetId(targetConfig);
+      if (!targetClass) {
+        logger.warn(
+          `Target implementation for "${targetDescriptor}" not found.`
+        );
+        continue;
+      }
+      try {
+        const target = new targetClass(targetConfig, artifactProvider);
+        targetList.push(target);
+      } catch (err) {
+        logger.error(`Error creating target instance for ${targetDescriptor}!`);
+        throw err;
+      }
+    }
 
     logger.info('Publishing to targets:');
 
-    // TODO init all targets earlier
     targetConfigList
       .map(getTargetId)
       .forEach(target => logger.info(`  - ${target}`));
@@ -551,39 +551,62 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
     await promptConfirmation();
 
-    await publishToTargets(
-      newVersion,
-      revision,
-      targetConfigList,
-      artifactProvider,
-      argv.keepDownloads
-    );
+    await withTempDir(async (downloadDirectory: string) => {
+      artifactProvider.setDownloadDirectory(downloadDirectory);
+
+      // Publish to all targets
+      for (const target of targetList) {
+        await publishToTarget(target, newVersion, revision);
+        publishState.published[getTargetId(target.config)] = true;
+        if (!isDryRun()) {
+          writeFileSync(publishStateFile, JSON.stringify(publishState));
+        }
+      }
+
+      if (argv.keepDownloads) {
+        logger.info(
+          'Directory with the downloaded artifacts will not be removed',
+          `Path: ${downloadDirectory}`
+        );
+      }
+    }, !argv.keepDownloads);
+
     logger.info(' ');
   }
 
   if (argv.rev) {
     logger.info('Not merging any branches because revision was specified.');
   } else if (
-    targetList.has(SpecialTarget.All) ||
-    targetList.has(SpecialTarget.None)
-  ) {
-    // Publishing done, MERGE DAT BRANCH!
-    await handleReleaseBranch(
-      githubClient,
-      githubConfig,
-      branchName,
-      argv.noMerge,
-      argv.keepBranch
-    );
-    logger.success(`Version ${newVersion} has been published!`);
-  } else {
-    const msg = [
-      'The release branch was not merged because you published only to specific targets.',
-      'After all the targets are published, run the following command to merge the release branch:',
-      `  $ craft publish ${newVersion} --target none\n`,
-    ];
-    logger.warn(msg.join('\n'));
-  }
+           targetsToPublish.has(SpecialTarget.All) ||
+           targetsToPublish.has(SpecialTarget.None) ||
+           earlierStateExists
+         ) {
+           // Publishing done, MERGE DAT BRANCH!
+           await handleReleaseBranch(
+             githubClient,
+             githubConfig,
+             branchName,
+             argv.noMerge,
+             argv.keepBranch
+           );
+           if (!isDryRun()) {
+             // XXX(BYK): intentionally DO NOT await unlinking as we do not want
+             // to block (both in terms of waiting for IO and the success of the
+             // operation) finishing the publish flow on the removal of a temporary
+             // file. If unlinking fails, we honestly don't care, at least to fail
+             // the final steps. And it doesn't make sense to wait until this op
+             // finishes then as nothing relies on the removal of this file.
+             fsPromises.unlink(publishStateFile);
+           }
+           logger.success(`Version ${newVersion} has been published!`);
+         } else {
+           const msg = [
+             'The release branch was not merged because you published only to specific targets.',
+             'After all the targets are published, run the following command to merge the release branch:',
+             `  $ craft publish ${newVersion} --target none\n`,
+           ];
+           logger.warn(msg.join('\n'));
+         }
 
   // Run the post-release script
   await runPostReleaseCommand(newVersion, config.postReleaseCommand);

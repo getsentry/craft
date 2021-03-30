@@ -46,7 +46,7 @@ export enum RegistryPackageType {
 }
 
 /** "registry" target options */
-export interface RegistryConfig extends TargetConfig {
+export interface RegistryConfig {
   /** Type of the registry package */
   type: RegistryPackageType;
   /** Unique package cannonical name, including type and/or registry name */
@@ -77,7 +77,7 @@ export class RegistryTarget extends BaseTarget {
   public readonly githubRepo: GithubGlobalConfig;
 
   public constructor(
-    config: Record<string, any>,
+    config: TargetConfig,
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);

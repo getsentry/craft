@@ -30,7 +30,7 @@ const DEFAULT_DEPLOY_ARCHIVE_REGEX = /^(?:.+-)?gh-pages\.zip$/;
 const DEFAULT_DEPLOY_BRANCH = 'gh-pages';
 
 /** Target options for "gh-pages" */
-export interface GhPagesConfig extends TargetConfig {
+export interface GhPagesConfig {
   /** GitHub project owner */
   githubOwner: string;
   /** GitHub project name */
@@ -53,7 +53,7 @@ export class GhPagesTarget extends BaseTarget {
   public readonly githubRepo: GithubGlobalConfig;
 
   public constructor(
-    config: Record<string, any>,
+    config: TargetConfig,
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);

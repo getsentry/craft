@@ -23,7 +23,7 @@ const TWINE_BIN = process.env.TWINE_BIN || DEFAULT_TWINE_BIN;
 const DEFAULT_PYPI_REGEX = /^.*\d\.\d.*(\.whl|\.gz|\.zip)$/;
 
 /** Options for "pypi" target */
-export interface PypiTargetOptions extends TargetConfig {
+export interface PypiTargetOptions {
   /** Twine username */
   twineUsername: string;
   /** Twine password */
@@ -40,7 +40,7 @@ export class PypiTarget extends BaseTarget {
   public readonly pypiConfig: PypiTargetOptions;
 
   public constructor(
-    config: Record<string, any>,
+    config: TargetConfig,
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);

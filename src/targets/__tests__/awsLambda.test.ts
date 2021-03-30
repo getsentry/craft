@@ -8,6 +8,7 @@ jest.mock('fs');
 function getAwsLambdaTarget(): AwsLambdaLayerTarget {
   return new AwsLambdaLayerTarget(
     {
+      name: 'aws-lambda-layer',
       ['testKey']: 'testValue',
     },
     new NoneArtifactProvider()

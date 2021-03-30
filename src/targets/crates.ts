@@ -52,7 +52,7 @@ const RETRY_DELAY_SECS = 2;
 const RETRY_EXP_FACTOR = 2;
 
 /** Options for "crates" target */
-export interface CratesTargetOptions extends TargetConfig {
+export interface CratesTargetOptions {
   /** Crates API token */
   apiToken: string;
   /** Whether to use `cargo-hack` and remove dev dependencies */
@@ -108,7 +108,7 @@ export class CratesTarget extends BaseTarget {
   public readonly cratesConfig: CratesTargetOptions;
 
   public constructor(
-    config: Record<string, any>,
+    config: TargetConfig,
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);

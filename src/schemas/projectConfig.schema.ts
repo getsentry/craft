@@ -107,6 +107,7 @@ const projectConfigJsonSchema = {
           type: 'string',
         },
       },
+      required: ['name'],
     },
 
     /**

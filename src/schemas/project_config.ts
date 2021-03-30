@@ -31,7 +31,7 @@ export interface GithubGlobalConfig {
  * Generic target configuration
  */
 export interface TargetConfig {
-  name?: string;
+  name: string;
   id?: string;
   includeNames?: string;
   excludeNames?: string;

@@ -40,7 +40,7 @@ export enum NpmPackageAccess {
 }
 
 /** NPM target configuration options */
-export interface NpmTargetOptions extends TargetConfig {
+export interface NpmTargetOptions {
   /** Package access specifier */
   access?: NpmPackageAccess;
   /** Do we use 2FA (via OTPs) for publishing? */
@@ -69,7 +69,7 @@ export class NpmTarget extends BaseTarget {
   public readonly npmConfig: NpmTargetOptions;
 
   public constructor(
-    config: Record<string, any>,
+    config: TargetConfig,
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);

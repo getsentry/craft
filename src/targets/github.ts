@@ -28,7 +28,7 @@ export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
 /**
  * Configuration options for the Github target
  */
-export interface GithubTargetConfig extends TargetConfig, GithubGlobalConfig {
+export interface GithubTargetConfig extends GithubGlobalConfig {
   /** Path to changelon inside the repository */
   changelog: string;
   /** Prefix that will be used to generate tag name */
@@ -69,7 +69,7 @@ export class GithubTarget extends BaseTarget {
   public readonly github: Github;
 
   public constructor(
-    config: Record<string, any>,
+    config: TargetConfig,
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);

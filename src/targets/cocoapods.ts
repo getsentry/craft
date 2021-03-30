@@ -24,7 +24,7 @@ const DEFAULT_COCOAPODS_BIN = 'pod';
 const COCOAPODS_BIN = process.env.COCOAPODS_BIN || DEFAULT_COCOAPODS_BIN;
 
 /** Options for "cocoapods" target */
-export interface CocoapodsTargetOptions extends TargetConfig {
+export interface CocoapodsTargetOptions {
   /** Path to the spec file inside the repo */
   specPath: string;
 }
@@ -43,7 +43,7 @@ export class CocoapodsTarget extends BaseTarget {
   public readonly githubRepo: GithubGlobalConfig;
 
   public constructor(
-    config: Record<string, any>,
+    config: TargetConfig,
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);

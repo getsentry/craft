@@ -31,7 +31,7 @@ export interface TapRepo {
 }
 
 /** Target options for "brew" */
-export interface BrewTargetOptions extends TargetConfig {
+export interface BrewTargetOptions {
   /** Brew tap repository */
   tapRepo: TapRepo;
   /** Template string that will be part of thew formula */
@@ -56,7 +56,7 @@ export class BrewTarget extends BaseTarget {
   public readonly githubRepo: GithubGlobalConfig;
 
   public constructor(
-    config: Record<string, any>,
+    config: TargetConfig,
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);
@@ -126,7 +126,10 @@ export class BrewTarget extends BaseTarget {
     try {
       const tap = this.brewConfig.tapRepo;
       logger.debug(`Loading SHA for ${tap.owner}/${tap.repo}:${path}`);
-      const response = await this.github.repos.getContents({ ...tap, path });
+      const response = await this.github.repos.getContents({
+        ...tap,
+        path,
+      });
       if (response.data instanceof Array) {
         return undefined;
       }
