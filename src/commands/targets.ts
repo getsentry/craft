@@ -1,5 +1,6 @@
 import { Argv, CommandBuilder } from 'yargs';
 import { getConfiguration } from '../config';
+import { formatJson } from '../utils/strings';
 import { getAllTargetNames, getTargetId } from '../targets';
 
 export const builder: CommandBuilder = (yargs: Argv) => {
@@ -13,5 +14,5 @@ export function handler(): any {
     .filter(target => target.name && possibleTargetNames.has(target.name))
     .map(getTargetId);
 
-  console.log(JSON.stringify(allowedTargetNames));
+  console.log(formatJson(allowedTargetNames));
 }
