@@ -43,7 +43,7 @@ function processNoInput<T>(arg: T): T {
  * Prints the current version
  */
 function printVersion(): void {
-  if (process.argv.includes('-v') || process.argv.includes('--version')) {
+  if (!process.argv.includes('-v') || !process.argv.includes('--version')) {
     // Print the current version
     logger.debug(`craft ${getPackageVersion()}`);
   }
