@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.19.0
 
 - fix(registry): Ensure up-to-date remote before pushing (#186, #188)
 - feat(publish): Store and restore publish state (#192)
