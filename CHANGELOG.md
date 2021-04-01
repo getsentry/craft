@@ -4,6 +4,7 @@
 
 - fix(registry): Ensure up-to-date remote before pushing (#186, #188)
 - feat(publish): Store and restore publish state (#192)
+- feat(cli): Add a new targets command (#193)
 
 ## 0.18.0
 
