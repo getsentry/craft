@@ -151,7 +151,10 @@ export NUGET_API_TOKEN=abcdefgh
 ### `craft prepare`: Preparing a New Release
 
 This command will create a new release branch, check the changelog entries,
-run a version-bumping script, and push the new branch to GitHub.
+run a version-bumping script, and push this branch to GitHub. We expect
+that CI triggered by pushing this branch will result in release artifacts
+being built and uploaded to the artifact provider you wish to use during the
+subsequent `publish` step.
 
 ```plain
 craft prepare NEW-VERSION
@@ -174,8 +177,12 @@ Options:
 
 ### `craft publish`: Publishing the Release
 
-The command will find a release branch for the provided version (tag) and
-publish the existing artifacts from the configured artifact provider to selected targets.
+The command will find a release branch for the provided version. The normal flow
+is for this release branch to be created automatically by `craft prepare`, but
+that's not strictly necessary. Then, it subscribes to the latest status checks on
+that branch. Once the checks pass, it downloads the release artifacts from the 
+artifact provider configured in `.craft.yml` and uploads them to the targets named
+on the command line (and pre-configured in `.craft.yml`).
 
 ```plain
 craft publish NEW-VERSION
