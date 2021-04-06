@@ -183,9 +183,9 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       });
 
       await withTempDir(async tmpDir => {
-        logger.info(`Extracting "${tempFilepath}" to "${tmpDir}"...`);
+        logger.debug(`Extracting "${tempFilepath}" to "${tmpDir}"...`);
         await extractZipArchive(tempFilepath, tmpDir);
-        await (await scan(tmpDir)).map(file => {
+        (await scan(tmpDir)).forEach(file => {
           artifacts.push({
             filename: path.basename(file),
             mimeType: detectContentType(file),
@@ -243,11 +243,11 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
 
     const foundArtifact = await this.listArtifact(revision);
 
-    logger.info(`Requesting archive URL from Github...`);
+    logger.debug(`Requesting archive URL from Github...`);
 
     const archiveResponse = await this.getArchiveDownloadUrl(foundArtifact);
 
-    logger.info(`Downloading ZIP from Github artifacts...`);
+    logger.debug(`Downloading ZIP from Github artifacts...`);
 
     return await this.downloadAndUnpackArtifacts(archiveResponse);
   }
