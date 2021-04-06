@@ -220,7 +220,10 @@ async function promptConfirmation(targetList: BaseTarget[]): Promise<void> {
         message: 'Is everything OK? Type "yes" to proceed:',
         name: 'readyToPublish',
         type: 'input',
-        validate: (input: string) => input.length >= 2 || 'Please type "yes"',
+        // Force the user to type something that is not empty or one letter such
+        // as y/n to make sure this is a concious choice.
+        validate: (input: string) =>
+          input.length >= 2 || 'Please type "yes" to proceed',
       },
     ];
     const answers = (await inquirer.prompt(questions)) as any;
