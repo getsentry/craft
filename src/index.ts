@@ -20,7 +20,7 @@ function processDryRun<T>(arg: T): T {
   }
 
   if (isDryRun()) {
-    logger.debug('[dry-run] Dry-run mode is on!');
+    logger.info('[dry-run] Dry-run mode is on!');
   }
 
   return arg;
