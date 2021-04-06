@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.20.0
 
 - fix(publish): Fix publishing when resuming from a state file (#197)
 - ref(logger): Move some extra info to debug level (#198)
