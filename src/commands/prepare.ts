@@ -534,7 +534,7 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
     // Commit the pending changes
     await commitNewVersion(git, newVersion);
   } else {
-    logger.debug('Not commiting anything since preReleaseCommand is empty.');
+    logger.debug('Not committing anything since preReleaseCommand is empty.');
   }
 
   // Push the release branch
