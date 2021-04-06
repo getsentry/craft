@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- fix(publish): Fix publishing when resuming from a state file (#197)
+
 ## 0.19.0
 
 - fix(registry): Ensure up-to-date remote before pushing (#186, #188)

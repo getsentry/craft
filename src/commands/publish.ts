@@ -20,7 +20,7 @@ import {
   DEFAULT_RELEASE_BRANCH_NAME,
 } from '../config';
 import { formatTable, logger } from '../logger';
-import { GithubGlobalConfig } from '../schemas/project_config';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import {
   getAllTargetNames,
   getTargetByName,
@@ -206,14 +206,24 @@ async function printRevisionSummary(
 /**
  * Prompt the user that everything is OK and we should proceed with publishing
  */
-async function promptConfirmation(): Promise<void> {
+async function promptConfirmation(targetList: BaseTarget[]): Promise<void> {
+  logger.info('Publishing to targets:');
+
+  logger.info(
+    targetList.map(target => `  - ${getTargetId(target.config)}`).join('\n')
+  );
+  logger.info(' ');
+
   if (hasInput()) {
     const questions = [
       {
         message: 'Is everything OK? Type "yes" to proceed:',
         name: 'readyToPublish',
         type: 'input',
-        validate: (input: string) => input.length > 2 || 'Please type "yes"',
+        // Force the user to type something that is not empty or one letter such
+        // as y/n to make sure this is a concious choice.
+        validate: (input: string) =>
+          input.length >= 2 || 'Please type "yes" to proceed',
       },
     ];
     const answers = (await inquirer.prompt(questions)) as any;
@@ -225,6 +235,31 @@ async function promptConfirmation(): Promise<void> {
   } else {
     logger.debug('Skipping the prompting.');
   }
+}
+
+async function getTargetList(
+  targetConfigList: TargetConfig[],
+  artifactProvider: BaseArtifactProvider
+): Promise<BaseTarget[]> {
+  logger.debug('Initializing targets');
+  const targetList: BaseTarget[] = [];
+  for (const targetConfig of targetConfigList) {
+    const targetClass = getTargetByName(targetConfig.name);
+    const targetDescriptor = getTargetId(targetConfig);
+    if (!targetClass) {
+      logger.warn(`Target implementation for "${targetDescriptor}" not found.`);
+      continue;
+    }
+    try {
+      const target = new targetClass(targetConfig, artifactProvider);
+      targetList.push(target);
+    } catch (err) {
+      logger.error(`Error creating target instance for ${targetDescriptor}!`);
+      throw err;
+    }
+  }
+
+  return targetList;
 }
 
 /**
@@ -489,6 +524,8 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     }
   }
 
+  let targetConfigList = config.targets || [];
+
   logger.info(`Looking for publish state file for ${newVersion}...`);
   const publishStateFile = `.craft-publish-${newVersion}.json`;
   const earlierStateExists = existsSync(publishStateFile);
@@ -496,7 +533,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   if (earlierStateExists) {
     logger.info(`Found publish state file, resuming from there...`);
     publishState = JSON.parse(readFileSync(publishStateFile).toString());
-    targetsToPublish = new Set(getAllTargetNames());
+    targetsToPublish = new Set(targetConfigList.map(getTargetId));
   } else {
     publishState = { published: Object.create(null) };
   }
@@ -508,48 +545,20 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     targetsToPublish.delete(published);
   }
 
-  let targetConfigList = config.targets || [];
-
   if (!targetsToPublish.has(SpecialTarget.All)) {
     targetConfigList = targetConfigList.filter(targetConf =>
       targetsToPublish.has(getTargetId(targetConf))
     );
   }
 
-  if (!targetsToPublish.has(SpecialTarget.None) && !earlierStateExists) {
-    if (targetConfigList.length === 0) {
-      logger.warn('No valid targets detected! Exiting.');
-      return undefined;
-    }
+  if (!targetsToPublish.has(SpecialTarget.None) && !earlierStateExists && targetConfigList.length === 0) {
+    logger.warn('No valid targets detected! Exiting.');
+    return undefined;
+  }
 
-    logger.debug('Initializing targets');
-    const targetList: BaseTarget[] = [];
-    for (const targetConfig of targetConfigList) {
-      const targetClass = getTargetByName(targetConfig.name);
-      const targetDescriptor = getTargetId(targetConfig);
-      if (!targetClass) {
-        logger.warn(
-          `Target implementation for "${targetDescriptor}" not found.`
-        );
-        continue;
-      }
-      try {
-        const target = new targetClass(targetConfig, artifactProvider);
-        targetList.push(target);
-      } catch (err) {
-        logger.error(`Error creating target instance for ${targetDescriptor}!`);
-        throw err;
-      }
-    }
-
-    logger.info('Publishing to targets:');
-
-    targetConfigList
-      .map(getTargetId)
-      .forEach(target => logger.info(`  - ${target}`));
-    logger.info(' ');
-
-    await promptConfirmation();
+  const targetList = await getTargetList(targetConfigList, artifactProvider);
+  if (targetList.length > 0) {
+    await promptConfirmation(targetList);
 
     await withTempDir(async (downloadDirectory: string) => {
       artifactProvider.setDownloadDirectory(downloadDirectory);
@@ -577,36 +586,36 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   if (argv.rev) {
     logger.info('Not merging any branches because revision was specified.');
   } else if (
-           targetsToPublish.has(SpecialTarget.All) ||
-           targetsToPublish.has(SpecialTarget.None) ||
-           earlierStateExists
-         ) {
-           // Publishing done, MERGE DAT BRANCH!
-           await handleReleaseBranch(
-             githubClient,
-             githubConfig,
-             branchName,
-             argv.noMerge,
-             argv.keepBranch
-           );
-           if (!isDryRun()) {
-             // XXX(BYK): intentionally DO NOT await unlinking as we do not want
-             // to block (both in terms of waiting for IO and the success of the
-             // operation) finishing the publish flow on the removal of a temporary
-             // file. If unlinking fails, we honestly don't care, at least to fail
-             // the final steps. And it doesn't make sense to wait until this op
-             // finishes then as nothing relies on the removal of this file.
-             fsPromises.unlink(publishStateFile);
-           }
-           logger.success(`Version ${newVersion} has been published!`);
-         } else {
-           const msg = [
-             'The release branch was not merged because you published only to specific targets.',
-             'After all the targets are published, run the following command to merge the release branch:',
-             `  $ craft publish ${newVersion} --target none\n`,
-           ];
-           logger.warn(msg.join('\n'));
-         }
+    targetsToPublish.has(SpecialTarget.All) ||
+    targetsToPublish.has(SpecialTarget.None) ||
+    earlierStateExists
+  ) {
+    // Publishing done, MERGE DAT BRANCH!
+    await handleReleaseBranch(
+      githubClient,
+      githubConfig,
+      branchName,
+      argv.noMerge,
+      argv.keepBranch
+    );
+    if (!isDryRun()) {
+      // XXX(BYK): intentionally DO NOT await unlinking as we do not want
+      // to block (both in terms of waiting for IO and the success of the
+      // operation) finishing the publish flow on the removal of a temporary
+      // file. If unlinking fails, we honestly don't care, at least to fail
+      // the final steps. And it doesn't make sense to wait until this op
+      // finishes then as nothing relies on the removal of this file.
+      fsPromises.unlink(publishStateFile);
+    }
+    logger.success(`Version ${newVersion} has been published!`);
+  } else {
+    const msg = [
+      'The release branch was not merged because you published only to specific targets.',
+      'After all the targets are published, run the following command to merge the release branch:',
+      `  $ craft publish ${newVersion} --target none\n`,
+    ];
+    logger.warn(msg.join('\n'));
+  }
 
   // Run the post-release script
   await runPostReleaseCommand(newVersion, config.postReleaseCommand);
