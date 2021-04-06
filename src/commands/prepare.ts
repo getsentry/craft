@@ -371,7 +371,7 @@ async function prepareChangelog(
   changelogPath: string = DEFAULT_CHANGELOG_PATH
 ): Promise<void> {
   if (changelogPolicy === ChangelogPolicy.None) {
-    logger.info(
+    logger.debug(
       `Changelog policy is set to "${changelogPolicy}", nothing to do.`
     );
     return;
@@ -534,7 +534,7 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
     // Commit the pending changes
     await commitNewVersion(git, newVersion);
   } else {
-    logger.info('Not commiting anything since preReleaseCommand is empty.');
+    logger.debug('Not commiting anything since preReleaseCommand is empty.');
   }
 
   // Push the release branch

@@ -20,7 +20,7 @@ function processDryRun<T>(arg: T): T {
   }
 
   if (isDryRun()) {
-    logger.info('[dry-run] Dry-run mode is on!');
+    logger.debug('[dry-run] Dry-run mode is on!');
   }
 
   return arg;
@@ -34,7 +34,7 @@ function processNoInput<T>(arg: T): T {
     setNoInput(true);
   }
   if (hasNoInput()) {
-    logger.info('[no-input] The script will not accept any input!');
+    logger.debug('[no-input] The script will not accept any input!');
   }
   return arg;
 }

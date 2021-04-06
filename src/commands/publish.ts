@@ -423,7 +423,7 @@ export async function runPostReleaseCommand(
   let args: shellQuote.ParseEntry[];
   if (postReleaseCommand !== undefined && postReleaseCommand.length === 0) {
     // Not running post-release command
-    logger.info('Not running the post-release command: no command specified');
+    logger.debug('Not running the post-release command: no command specified');
     return false;
   } else if (postReleaseCommand) {
     [sysCommand, ...args] = shellQuote.parse(postReleaseCommand);
@@ -498,8 +498,8 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   const statusProvider = getStatusProviderFromConfig();
   const artifactProvider = getArtifactProviderFromConfig();
-  logger.info(`Using "${statusProvider.constructor.name}" for status checks`);
-  logger.info(`Using "${artifactProvider.constructor.name}" for artifacts`);
+  logger.debug(`Using "${statusProvider.constructor.name}" for status checks`);
+  logger.debug(`Using "${artifactProvider.constructor.name}" for artifacts`);
 
   // Check status of all CI builds linked to the revision
   await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);

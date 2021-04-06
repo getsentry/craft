@@ -74,10 +74,10 @@ export class GithubStatusProvider extends BaseStatusProvider {
           return contextResult;
         }
       }
-      logger.debug('All contexts were build successfully!');
+      logger.debug('All contexts concluded successfully!');
       return CommitStatus.SUCCESS;
     } else {
-      logger.info(
+      logger.debug(
         'No config provided for Github status provider, calculating the combined status...'
       );
 
