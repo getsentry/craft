@@ -15,11 +15,14 @@ jobs:
     name: Node ${{ matrix.node }}
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-node@v1
-      - name: Install
-        run: yarn install
-      - name: Build
-        run: yarn build
+      - uses: actions/cache@v2
+        id: cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-${{ hashFiles('package.json', 'yarn.lock') }}
+      - name: Install Dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: yarn install --frozen-lockfile
       - name: Test
         run: yarn test
 
@@ -30,8 +33,14 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
-      - name: Install
-        run: yarn install
+     - uses: actions/cache@v2
+        id: cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-${{ hashFiles('package.json', 'yarn.lock') }}
+      - name: Install Dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: yarn install --frozen-lockfile
       - name: Build
         run: yarn build
       - name: NPM Pack
@@ -45,3 +54,4 @@ jobs:
           path: |
             ${{ github.workspace }}/gh-pages.zip
             ${{ github.workspace }}/*.tgz
+            ${{ github.workspace }}/dist/craft

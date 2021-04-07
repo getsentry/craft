@@ -2,7 +2,7 @@ import { existsSync, statSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
-import * as nvar from 'nvar';
+import nvar from 'nvar';
 
 import { CONFIG_FILE_NAME, getConfigFileDir } from '../config';
 import { ConfigurationError } from './errors';

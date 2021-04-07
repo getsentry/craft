@@ -9,8 +9,8 @@ import {
   promises as fsPromises,
 } from 'fs';
 import { join } from 'path';
-import * as shellQuote from 'shell-quote';
-import * as stringLength from 'string-length';
+import shellQuote from 'shell-quote';
+import stringLength from 'string-length';
 
 import {
   checkMinimalConfigVersion,
@@ -621,10 +621,12 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   await runPostReleaseCommand(newVersion, config.postReleaseCommand);
 }
 
-export const handler = async (argv: PublishOptions): Promise<any> => {
+export const handler = async (args: {
+  [argName: string]: any;
+}): Promise<any> => {
   try {
     catchKeyboardInterrupt();
-    return await publishMain(argv);
+    return await publishMain(args as PublishOptions);
   } catch (e) {
     handleGlobalError(e);
   }

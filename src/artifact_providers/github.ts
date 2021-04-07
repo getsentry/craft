@@ -1,6 +1,6 @@
-import * as Github from '@octokit/rest';
+import Github from '@octokit/rest';
 import * as fs from 'fs';
-import * as request from 'request';
+import request from 'request';
 import * as path from 'path';
 
 import {
@@ -84,7 +84,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     revision: string,
     revisionDate?: string,
     page = 0,
-    tries = 0,
+    tries = 0
   ): Promise<ArtifactItem> {
     const { repoName: repo, repoOwner: owner } = this.config;
     const per_page = 100;
@@ -119,13 +119,14 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
 
     let checkNextPage = false;
     if (artifactResponse.total_count > per_page * (page + 1)) {
-
       if (revisionDate === undefined) {
-        revisionDate = (await this.github.git.getCommit({
-          owner,
-          repo,
-          commit_sha: revision
-        })).data.committer.date;
+        revisionDate = (
+          await this.github.git.getCommit({
+            owner,
+            repo,
+            commit_sha: revision,
+          })
+        ).data.committer.date;
       }
       // XXX(BYK): The assumption here is that the artifact created_at date
       // should always be greater than or equal to the associated revision date
@@ -133,7 +134,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       // the artifacts are listed in descending date order on this endpoint.
       // There is no public documentation on this but the observed data and
       // common-sense logic suggests that this is a reasonably safe assumption.
-      const lastArtifact = allArtifacts[allArtifacts.length-1];
+      const lastArtifact = allArtifacts[allArtifacts.length - 1];
       checkNextPage = lastArtifact.created_at >= revisionDate;
     }
 
@@ -146,16 +147,16 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     }
 
     if (tries < MAX_TRIES) {
-        return this.listArtifact(revision, revisionDate, page, tries);
+      return this.listArtifact(revision, revisionDate, page, tries);
     }
 
     if (artifactResponse.total_count === 0) {
       throw new Error(`Failed to discover any artifacts (tries ${tries})`);
     } else {
-      throw new Error(`Can't find artifacts for revision \`${revision}\` (tries: ${tries})`);
+      throw new Error(
+        `Can't find artifacts for revision \`${revision}\` (tries: ${tries})`
+      );
     }
-
-
   }
 
   /**

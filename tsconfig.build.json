@@ -6,7 +6,9 @@
     "outDir": "dist",
     "rootDir": "src",
     "types": ["node"],
-    "noImplicitThis": false
+    "noImplicitThis": false,
+    "esModuleInterop": true,
+    "importHelpers": true
   },
   "include": ["src/**/*.ts"],
   "exclude": ["**/__mocks__/**", "**/__tests__/**"]

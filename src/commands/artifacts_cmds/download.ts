@@ -116,10 +116,12 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
 /**
  * Main command handler
  */
-export async function handler(argv: ArtifactsDownloadOptions): Promise<any> {
+export const handler = async (args: {
+  [argName: string]: any;
+}): Promise<any> => {
   try {
-    return await handlerMain(argv);
+    return await handlerMain(args as ArtifactsDownloadOptions);
   } catch (e) {
     handleGlobalError(e);
   }
-}
+};

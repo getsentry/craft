@@ -1,7 +1,7 @@
 import { existsSync, lstatSync, readFileSync } from 'fs';
 import { dirname, join } from 'path';
 
-import * as Ajv from 'ajv';
+import ajv from 'ajv';
 import { safeLoad } from 'js-yaml';
 
 import { logger } from './logger';
@@ -125,7 +125,7 @@ export function validateConfiguration(
   logger.debug('Parsing and validating the configuration file...');
   const schemaName = 'projectConfig';
   const projectConfigSchema = getProjectConfigSchema();
-  const ajvValidator = new Ajv().addSchema(projectConfigSchema, schemaName);
+  const ajvValidator = new ajv().addSchema(projectConfigSchema, schemaName);
   const valid = ajvValidator.validate(schemaName, rawConfig);
   if (valid) {
     return rawConfig as CraftProjectConfig;
