@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- fix(github): Revert retry on 404s (#199)
+
 ## 0.20.0
 
 - fix(publish): Fix publishing when resuming from a state file (#197)

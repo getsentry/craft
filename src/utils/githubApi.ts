@@ -146,12 +146,6 @@ export function getGithubClient(token = ''): Github {
     };
   }
 
-  attrs.retry = {
-    // Omit 404 as sometimes GitHub takes a while to make resources
-    // available on the API (such as artifacts or check runs)
-    doNotRetry: [400, 401, 403, 422],
-  };
-
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { retry } = require('@octokit/plugin-retry');
   const octokitWithRetries = Github.plugin(retry);
