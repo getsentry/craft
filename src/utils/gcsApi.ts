@@ -9,7 +9,7 @@ import {
 } from '@google-cloud/storage';
 import { isDryRun } from './helpers';
 
-import { Logger, logger as loggerRaw } from '../logger';
+import { logger, Logger, logger as loggerRaw } from '../logger';
 import { reportError, ConfigurationError } from './errors';
 import { checkEnvForPrerequisite, RequiredConfigVar } from './env';
 import { detectContentType } from './files';
@@ -345,10 +345,10 @@ export class CraftGCSClient {
     revision: string
   ): Promise<RemoteArtifact[]> {
     let filesResponse: GCSFile[][] = [[]];
+    const prefix = path.posix.join(repoOwner, repoName, revision);
+    logger.debug(`Looking for files starting with '${prefix}'`);
     try {
-      filesResponse = await this.bucket.getFiles({
-        prefix: path.join(repoOwner, repoName, revision),
-      });
+      filesResponse = await this.bucket.getFiles({ prefix });
     } catch (err) {
       reportError(
         `Error retrieving artifact list from GCS: ${formatJson(err)}`
