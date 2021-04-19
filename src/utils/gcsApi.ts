@@ -214,7 +214,7 @@ export class CraftGCSClient {
       ...(contentType && { contentType }),
     };
     const uploadConfig: GCSUploadOptions = {
-      destination: path.join(pathInBucket, filename),
+      destination: path.posix.join(pathInBucket, filename),
       gzip: true,
       metadata,
       resumable: !process.env.CI,
@@ -226,7 +226,7 @@ export class CraftGCSClient {
 
     if (!isDryRun()) {
       this.logger.debug(
-        `Attempting to upload \`${filename}\` to \`${path.join(
+        `Attempting to upload \`${filename}\` to \`${path.posix.join(
           this.bucketName,
           pathInBucket
         )}\`.`
@@ -242,7 +242,7 @@ export class CraftGCSClient {
       // TODO (kmclb) replace this with a `craft download` command once that's a thing
       this.logger.debug(
         `Successfully uploaded \`${filename}\`. It can be downloaded by running ` +
-          `\`gsutil cp ${path.join(
+          `\`gsutil cp ${path.posix.join(
             'gs://',
             this.bucketName,
             pathInBucket,
