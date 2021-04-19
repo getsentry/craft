@@ -9,7 +9,7 @@ import {
 } from '@google-cloud/storage';
 import { isDryRun } from './helpers';
 
-import { Logger, logger as loggerRaw } from '../logger';
+import { logger, Logger, logger as loggerRaw } from '../logger';
 import { reportError, ConfigurationError } from './errors';
 import { checkEnvForPrerequisite, RequiredConfigVar } from './env';
 import { detectContentType } from './files';
@@ -214,7 +214,7 @@ export class CraftGCSClient {
       ...(contentType && { contentType }),
     };
     const uploadConfig: GCSUploadOptions = {
-      destination: path.join(pathInBucket, filename),
+      destination: path.posix.join(pathInBucket, filename),
       gzip: true,
       metadata,
       resumable: !process.env.CI,
@@ -226,7 +226,7 @@ export class CraftGCSClient {
 
     if (!isDryRun()) {
       this.logger.debug(
-        `Attempting to upload \`${filename}\` to \`${path.join(
+        `Attempting to upload \`${filename}\` to \`${path.posix.join(
           this.bucketName,
           pathInBucket
         )}\`.`
@@ -242,7 +242,7 @@ export class CraftGCSClient {
       // TODO (kmclb) replace this with a `craft download` command once that's a thing
       this.logger.debug(
         `Successfully uploaded \`${filename}\`. It can be downloaded by running ` +
-          `\`gsutil cp ${path.join(
+          `\`gsutil cp ${path.posix.join(
             'gs://',
             this.bucketName,
             pathInBucket,
@@ -345,10 +345,10 @@ export class CraftGCSClient {
     revision: string
   ): Promise<RemoteArtifact[]> {
     let filesResponse: GCSFile[][] = [[]];
+    const prefix = path.posix.join(repoOwner, repoName, revision);
+    logger.debug(`Looking for files starting with '${prefix}'`);
     try {
-      filesResponse = await this.bucket.getFiles({
-        prefix: path.join(repoOwner, repoName, revision),
-      });
+      filesResponse = await this.bucket.getFiles({ prefix });
     } catch (err) {
       reportError(
         `Error retrieving artifact list from GCS: ${formatJson(err)}`

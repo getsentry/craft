@@ -3,6 +3,7 @@
 ## Unreleased
 
 - fix(github): Revert retry on 404s (#199)
+- fix(gcs): Fix GCS artifact provider on Windows (#200)
 
 ## 0.20.0
 
