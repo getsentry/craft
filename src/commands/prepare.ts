@@ -8,6 +8,7 @@ import {
   checkMinimalConfigVersion,
   getConfigFilePath,
   getConfiguration,
+  getChangelogPolicyFromConfig,
   DEFAULT_RELEASE_BRANCH_NAME,
 } from '../config';
 import { logger } from '../logger';
@@ -367,7 +368,7 @@ async function checkForExistingTag(
  */
 async function prepareChangelog(
   newVersion: string,
-  changelogPolicy: ChangelogPolicy = ChangelogPolicy.None,
+  changelogPolicy: ChangelogPolicy,
   changelogPath: string = DEFAULT_CHANGELOG_PATH
 ): Promise<void> {
   if (changelogPolicy === ChangelogPolicy.None) {
@@ -510,7 +511,7 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
   // Check & update the changelog
   await prepareChangelog(
     newVersion,
-    argv.noChangelog ? ChangelogPolicy.None : config.changelogPolicy,
+    argv.noChangelog ? ChangelogPolicy.None : getChangelogPolicyFromConfig(),
     config.changelog
   );
 
