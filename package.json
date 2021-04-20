@@ -50,7 +50,6 @@
     "tar": "4.4.8",
     "tmp": "0.1.0",
     "unzipper": "0.9.7",
-    "update-notifier": "^5.1.0",
     "yargs": "15.1.0"
   },
   "devDependencies": {
@@ -90,7 +89,7 @@
   "scripts": {
     "build:fat": "yarn run compile-config-schema && tsc -p tsconfig.build.json",
     "build:watch": "yarn run compile-config-schema && tsc -p tsconfig.build.json --watch",
-    "build": "yarn compile-config-schema && esbuild src/index.ts --bundle --platform=node --target=node10.8 --outfile=dist/craft --minify",
+    "build": "yarn compile-config-schema && esbuild src/index.ts --define:importLazy=require --bundle --platform=node --target=node10.8 --outfile=dist/craft",
     "precli": "run-s build",
     "cli": "node dist/craft",
     "clean": "rimraf dist coverage",
