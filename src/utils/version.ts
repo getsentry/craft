@@ -138,8 +138,6 @@ export function versionToTag(version: string, tagPrefix?: string): string {
 
 /**
  * Checks for latest updates of the "craft" package
- *
- * This wrappers adds a custom update message that mentions "yarn".
  */
 export function checkForUpdates(): void {
   const pkg = getPackage();
@@ -154,13 +152,10 @@ export function checkForUpdates(): void {
     return;
   }
 
-  const message = `Update available ${chalk.dim(
-    notifier.update.current
-  )}${chalk.reset(' → ')}${chalk.green(
-    notifier.update.latest
-  )}\nRun ${chalk.cyan('yarn global add ')}${chalk.cyan(pkg.name)} to update`;
-
-  notifier.notify({ defer: false, message });
+  notifier.notify({
+    defer: false,
+    message,
+  });
 }
 
 /**
