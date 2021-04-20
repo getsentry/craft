@@ -162,7 +162,9 @@ describe('gcsApi module', () => {
         );
 
         const { filename } = squirrelStatsArtifact;
-        const destinationPath = path.normalize(squirrelStatsBucketPath.path);
+        const destinationPath = path.posix.normalize(
+          squirrelStatsBucketPath.path
+        );
 
         expect(mockGCSUpload).toHaveBeenCalledWith(squirrelStatsLocalPath, {
           destination: `${destinationPath}${filename}`,
@@ -180,7 +182,9 @@ describe('gcsApi module', () => {
         });
 
         const { filename } = squirrelStatsArtifact;
-        const destinationPath = path.normalize(squirrelStatsBucketPath.path);
+        const destinationPath = path.posix.normalize(
+          squirrelStatsBucketPath.path
+        );
 
         expect(mockGCSUpload).toHaveBeenCalledWith(squirrelStatsLocalPath, {
           destination: `${destinationPath}${filename}`,
@@ -341,7 +345,11 @@ describe('gcsApi module', () => {
         );
 
         expect(mockGCSGetFiles).toHaveBeenCalledWith({
-          prefix: path.join(dogsGHOrg, squirrelRepo, squirrelSimulatorCommit),
+          prefix: path.posix.join(
+            dogsGHOrg,
+            squirrelRepo,
+            squirrelSimulatorCommit
+          ),
         });
       });
 
