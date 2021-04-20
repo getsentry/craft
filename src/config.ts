@@ -10,7 +10,6 @@ import {
   GithubGlobalConfig,
   ArtifactProviderName,
   StatusProviderName,
-  ChangelogPolicy,
 } from './schemas/project_config';
 import { ConfigurationError } from './utils/errors';
 import {
