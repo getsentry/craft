@@ -7,5 +7,7 @@ RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
   && yarn install --frozen-lockfile --quiet \
   && rm -r "$YARN_CACHE_FOLDER"
 
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+  NODE_PATH=/usr/local/lib/node_modules
+
 CMD ["yarn", "--modules-folder", "/usr/local/lib/node_modules", "build"]
