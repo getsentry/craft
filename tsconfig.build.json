@@ -1,5 +1,5 @@
 {
-  "extends": "./node_modules/@sentry/typescript/tsconfig.json",
+  "extends": "@sentry/typescript/tsconfig.json",
   "compilerOptions": {
     "target": "es2017",
     "baseUrl": ".",
