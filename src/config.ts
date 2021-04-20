@@ -300,7 +300,7 @@ export function getArtifactProviderFromConfig(): BaseArtifactProvider {
  * @returns An instance of status provider
  */
 export function getStatusProviderFromConfig(): BaseStatusProvider {
-  const config = getConfiguration() || {};
+  const config = getConfiguration();
   const githubConfig = config.github;
 
   const rawStatusProvider = config.statusProvider || {
@@ -336,7 +336,7 @@ export function getStatusProviderFromConfig(): BaseStatusProvider {
 }
 
 export function getChangelogPolicyFromConfig(): ChangelogPolicy {
-  const config = getConfiguration() || {};
+  const config = getConfiguration();
 
   return (
     config.changelogPolicy ??
