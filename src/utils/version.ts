@@ -153,7 +153,6 @@ export function checkForUpdates(): void {
 
   notifier.notify({
     defer: false,
-    message,
   });
 }
 
