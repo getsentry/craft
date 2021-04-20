@@ -1,6 +1,6 @@
 import { writeFileSync } from 'fs';
 import { join } from 'path';
-import * as os from 'os';
+const os = require('os');
 
 import * as config from '../../config';
 import {

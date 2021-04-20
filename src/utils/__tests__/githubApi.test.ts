@@ -1,4 +1,4 @@
-import * as Github from '@octokit/rest';
+import Github from '@octokit/rest';
 
 import {
   codeMatches,
