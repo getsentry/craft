@@ -1,5 +1,4 @@
 import updateNotifier from 'update-notifier';
-import chalk from 'chalk';
 
 import { getGitTagPrefix } from '../config';
 
