@@ -267,9 +267,17 @@ export function getArtifactProviderFromConfig(): BaseArtifactProvider {
 
   let artifactProviderName = projectConfig.artifactProvider?.name;
   if (artifactProviderName == null) {
-    artifactProviderName = isAfterEpoch()
-      ? ArtifactProviderName.Github
-      : ArtifactProviderName.Zeus;
+    if (isAfterEpoch()) {
+      artifactProviderName = ArtifactProviderName.Github;
+    } else {
+      logger.warn(
+        `You are relying on the default artifact provider, which has changed Craft v${DEFAULTS_EPOCH_VERSION}.`
+      );
+      logger.warn(
+        `This will affect you when you set your \`minVersion\` in your config to ${DEFAULTS_EPOCH_VERSION} or later.`
+      );
+      artifactProviderName = ArtifactProviderName.Zeus;
+    }
   }
 
   const artifactProviderConfig = {
@@ -310,9 +318,17 @@ export function getStatusProviderFromConfig(): BaseStatusProvider {
   let statusProviderName = rawStatusProvider.name;
 
   if (statusProviderName == null) {
-    statusProviderName = isAfterEpoch()
-      ? StatusProviderName.Github
-      : StatusProviderName.Zeus;
+    if (isAfterEpoch()) {
+      statusProviderName = StatusProviderName.Github;
+    } else {
+      logger.warn(
+        `You are relying on the default status provider, which has changed Craft v${DEFAULTS_EPOCH_VERSION}.`
+      );
+      logger.warn(
+        `This will affect you when you set your \`minVersion\` in your config to ${DEFAULTS_EPOCH_VERSION} or later.`
+      );
+      statusProviderName = StatusProviderName.Zeus;
+    }
   }
 
   switch (statusProviderName) {
