@@ -334,12 +334,3 @@ export function getStatusProviderFromConfig(): BaseStatusProvider {
     }
   }
 }
-
-export function getChangelogPolicyFromConfig(): ChangelogPolicy {
-  const config = getConfiguration();
-
-  return (
-    config.changelogPolicy ??
-    (isAfterEpoch() ? ChangelogPolicy.Auto : ChangelogPolicy.None)
-  );
-}
