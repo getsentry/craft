@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import isCI from 'is-ci';
 import once from 'once';
 import yargs from 'yargs';
 
@@ -85,7 +86,7 @@ function main(): void {
     .option('no-input', {
       boolean: true,
       coerce: once(processNoInput),
-      default: false,
+      default: isCI,
       describe: 'Suppresses all user prompts',
     })
     .global('no-input')
