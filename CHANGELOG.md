@@ -5,6 +5,19 @@
 - fix(github): Revert retry on 404s (#199)
 - fix(gcs): Fix GCS artifact provider on Windows (#200)
 - feat(config): Use GitHub as default provider (#202)
+  **Breaking Change:** This version changes the default configuration values for
+  `statusProvider` and `artifactProvider` to `github` if `minVersion` is greater
+  or equal to `0.21.0`. If your craft configuration file does not set these
+  providers explicitly, you can keep the old behavior by modifying your config:
+  ```yaml
+  minVersion: 0.21.0
+  artifactProvider:
+    name: zeus
+  statusProvider:
+    name: zeus
+  ```
+  Support for Zeus will be dropped in a future release and we highly recommend
+  updating your CI workflows to use GitHub.
 
 ## 0.20.0
 
