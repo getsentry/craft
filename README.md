@@ -940,21 +940,21 @@ Here is how you can integrate your GitHub project with `craft`:
 2. Use the official `actions/upload-artifact@v2` action to upload your assets.
    Here is an example config (step) of an archive job:
 
-    ```yaml
-    - name: Archive Artifacts
-      uses: actions/upload-artifact@v2
-      with:
-        name: ${{ github.sha }}
-        path: |
-          ${{ github.workspace }}/*.tgz
-          ${{ github.workspace }}/packages/tracing/build/**
-          ${{ github.workspace }}/packages/**/*.tgz
-    ```
+   ```yaml
+   - name: Archive Artifacts
+     uses: actions/upload-artifact@v2
+     with:
+       name: ${{ github.sha }}
+       path: |
+         ${{ github.workspace }}/*.tgz
+         ${{ github.workspace }}/packages/tracing/build/**
+         ${{ github.workspace }}/packages/**/*.tgz
+   ```
 
-    A few important things to note:
+   A few important things to note:
 
-    - The name of the artifacts is very important and needs to be `name: ${{ github.sha }}`. Craft uses this as a unique id to fetch the artifacts.
-    - Keep in mind that this action maintains the folder structure and zips everything together. Craft will download the zip and recursively walk it to find all assets.
+   - The name of the artifacts is very important and needs to be `name: ${{ github.sha }}`. Craft uses this as a unique id to fetch the artifacts.
+   - Keep in mind that this action maintains the folder structure and zips everything together. Craft will download the zip and recursively walk it to find all assets.
 3. Add `.craft.yml` configuration file to your project
   - List there all the targets you want to publish to
   - Configure additional options (changelog management policy, tag prefix, etc.)
