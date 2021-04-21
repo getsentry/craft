@@ -50,6 +50,7 @@
     "tar": "4.4.8",
     "tmp": "0.1.0",
     "unzipper": "0.9.7",
+    "update-notifier": "^5.1.0",
     "yargs": "15.1.0"
   },
   "devDependencies": {

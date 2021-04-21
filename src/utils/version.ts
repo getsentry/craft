@@ -1,3 +1,5 @@
+import updateNotifier from 'update-notifier';
+
 import { getGitTagPrefix } from '../config';
 
 /**
@@ -131,6 +133,27 @@ export function isPreviewRelease(text: string): boolean {
 export function versionToTag(version: string, tagPrefix?: string): string {
   const prefix = tagPrefix === undefined ? getGitTagPrefix() : tagPrefix;
   return `${prefix}${version}`;
+}
+
+/**
+ * Checks for latest updates of the "craft" package
+ */
+export function checkForUpdates(): void {
+  const pkg = getPackage();
+
+  // Notify if the new version is available
+  const notifier = updateNotifier({
+    pkg,
+    updateCheckInterval: 0, // Check immediately
+  });
+
+  if (!notifier.update || pkg.version === notifier.update.latest) {
+    return;
+  }
+
+  notifier.notify({
+    defer: false,
+  });
 }
 
 /**

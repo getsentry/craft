@@ -7,7 +7,7 @@ import { readEnvironmentConfig } from './utils/env';
 import { isDryRun } from './utils/helpers';
 import { hasNoInput, setNoInput } from './utils/noInput';
 import { initSentrySdk } from './utils/sentry';
-import { getPackageVersion } from './utils/version';
+import { checkForUpdates, getPackageVersion } from './utils/version';
 
 // Commands
 import * as prepare from './commands/prepare';
@@ -59,6 +59,8 @@ function printVersion(): void {
  * Main entrypoint
  */
 function main(): void {
+  checkForUpdates();
+
   printVersion();
 
   readEnvironmentConfig();
