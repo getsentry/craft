@@ -180,7 +180,7 @@ Options:
 The command will find a release branch for the provided version. The normal flow
 is for this release branch to be created automatically by `craft prepare`, but
 that's not strictly necessary. Then, it subscribes to the latest status checks on
-that branch. Once the checks pass, it downloads the release artifacts from the 
+that branch. Once the checks pass, it downloads the release artifacts from the
 artifact provider configured in `.craft.yml` and uploads them to the targets named
 on the command line (and pre-configured in `.craft.yml`).
 
@@ -375,14 +375,13 @@ requireNames:
 ## Status Provider
 
 You can configure which status providers `craft` will use to check for your build status.
-By default, it will take Zeus but you can also use GitHub directly.
-This is helpful if you don't want to rely on Zeus for asking if you build is green or not.
+By default, it will use GitHub but you can add more providers if needed.
 
 **Configuration**
 
 | Option   | Description                                                                                        |
 | -------- | -------------------------------------------------------------------------------------------------- |
-| `name`   | Name of the status provider: either `zeus` (default) or `github`                                   |
+| `name`   | Name of the status provider: either `github` (default) or `zeus` (deprecated)                                   |
 | `config` | In case of `github`: may include `contexts` key that contains a list of required contexts (checks) |
 
 **Example:**
@@ -398,14 +397,14 @@ statusProvider:
 ## Artifact Provider
 
 You can configure which artifact providers `craft` will use to fetch artifacts from.
-By default, Zeus is used, but in case you don't need use any artifacts in your
+By default, GitHub is used, but in case you don't need use any artifacts in your
 project, you can set it to `none`.
 
 **Configuration**
 
-| Option | Description                                                                |
-| ------ | -------------------------------------------------------------------------- |
-| `name` | Name of the artifact provider: can be `zeus` (default), `github` or `none` |
+| Option | Description                                                                              |
+| ------ | ---------------------------------------------------------------------------------------- |
+| `name` | Name of the artifact provider: `github` (default), `gcs`, `none`, or `zeus` (deprecated) |
 
 **Example:**
 
@@ -413,29 +412,6 @@ project, you can set it to `none`.
 artifactProvider:
   name: none
 ```
-
-### Using Github Actions with Github Artifact Provider
-
-When using Github Action you can use the Github Artifact Provider for managing your release artifacts.
-The way it works is simple, use the official GHA `actions/upload-artifact@v2` action to upload your assets.
-Craft can work with them and use it instead of Zeus.
-Here is an example config (step) of an archive job:
-
-```yaml
-- name: Archive Artifacts
-  uses: actions/upload-artifact@v2
-  with:
-    name: ${{ github.sha }}
-    path: |
-      ${{ github.workspace }}/*.tgz
-      ${{ github.workspace }}/packages/tracing/build/**
-      ${{ github.workspace }}/packages/**/*.tgz
-```
-
-A few important things to note:
-
-- The name of the artifacts is very important and needs to be `name: ${{ github.sha }}`. Craft uses this as a unique id to fetch the artifacts.
-- Keep in mind that this action maintains the folder structure and zips everything together. Craft will download the zip and recursively walk it to find all assets.
 
 ## Target Configurations
 
@@ -958,17 +934,33 @@ targets:
 
 Here is how you can integrate your GitHub project with `craft`:
 
-- Enable your project in Zeus: https://zeus.ci/settings/github/repos
-- Configure your CI systems (Travis, AppVeyor, etc.) to send build artifacts to Zeus
-  - Allow building release branches (their names follow `release/{VERSION}` by
-    default, configurable through `releaseBranchPrefix`)
-  - Add ZEUS_HOOK_BASE as protected to CI environment
-- Add `.craft.yml` configuration file to your project
+1. Set up a workflow that builds your assets and runs your tests. Allow building
+   release branches (their names follow `release/{VERSION}` by default,
+   configurable through `releaseBranchPrefix`).
+2. Use the official `actions/upload-artifact@v2` action to upload your assets.
+   Here is an example config (step) of an archive job:
+
+    ```yaml
+    - name: Archive Artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{ github.sha }}
+        path: |
+          ${{ github.workspace }}/*.tgz
+          ${{ github.workspace }}/packages/tracing/build/**
+          ${{ github.workspace }}/packages/**/*.tgz
+    ```
+
+    A few important things to note:
+
+    - The name of the artifacts is very important and needs to be `name: ${{ github.sha }}`. Craft uses this as a unique id to fetch the artifacts.
+    - Keep in mind that this action maintains the folder structure and zips everything together. Craft will download the zip and recursively walk it to find all assets.
+3. Add `.craft.yml` configuration file to your project
   - List there all the targets you want to publish to
   - Configure additional options (changelog management policy, tag prefix, etc.)
-- Add a [pre-release script](#pre-release-version-bumping-script-conventions) to your project.
-- Get various [configuration tokens](#global-configuration)
-- Start releasing!
+4. Add a [pre-release script](#pre-release-version-bumping-script-conventions) to your project.
+5. Get various [configuration tokens](#global-configuration)
+6. Run `craft prepare <version> --publish` and profit!
 
 ## Pre-release (Version-bumping) Script: Conventions
 
