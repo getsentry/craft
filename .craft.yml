@@ -5,6 +5,7 @@ github:
 changelogPolicy: auto
 requireNames:
   - /^sentry-craft.*\.tgz$/
+  - /^dist/craft$/
 statusProvider:
   name: github
 artifactProvider:
