@@ -2,10 +2,10 @@ import { spawn, SpawnOptions } from 'child_process';
 import { createHash, Hash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as split from 'split';
+import split from 'split';
 import { Readable } from 'stream';
-import * as tar from 'tar';
-import * as unzipper from 'unzipper';
+import tar from 'tar';
+import unzipper from 'unzipper';
 
 import { logger } from '../logger';
 

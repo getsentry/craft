@@ -1,13 +1,19 @@
 #!/usr/bin/env node
-import * as once from 'once';
-import * as yargs from 'yargs';
+import once from 'once';
+import yargs from 'yargs';
 
 import { logger, init as initLogger } from './logger';
 import { readEnvironmentConfig } from './utils/env';
 import { isDryRun } from './utils/helpers';
 import { hasNoInput, setNoInput } from './utils/noInput';
 import { initSentrySdk } from './utils/sentry';
-import { checkForUpdates, getPackageVersion } from './utils/version';
+import { getPackageVersion } from './utils/version';
+
+// Commands
+import * as prepare from './commands/prepare';
+import * as publish from './commands/publish';
+import * as targets from './commands/targets';
+import * as artifacts from './commands/artifacts';
 
 /**
  * Handler for '--dry-run' option
@@ -53,8 +59,6 @@ function printVersion(): void {
  * Main entrypoint
  */
 function main(): void {
-  checkForUpdates();
-
   printVersion();
 
   readEnvironmentConfig();
@@ -67,7 +71,10 @@ function main(): void {
     .parserConfiguration({
       'boolean-negation': false,
     })
-    .commandDir('commands')
+    .command(prepare)
+    .command(publish)
+    .command(targets)
+    .command(artifacts)
     .demandCommand()
     .version()
     .alias('v', 'version')

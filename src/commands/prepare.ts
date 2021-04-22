@@ -1,7 +1,7 @@
 import { existsSync, promises as fsPromises } from 'fs';
 import { dirname, join, relative } from 'path';
 import * as shellQuote from 'shell-quote';
-import * as simpleGit from 'simple-git/promise';
+import simpleGit from 'simple-git/promise';
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 
 import {
@@ -566,9 +566,11 @@ function getRemoteName(): string {
   return process.env.CRAFT_REMOTE || 'origin';
 }
 
-export const handler = async (argv: ReleaseOptions): Promise<any> => {
+export const handler = async (args: {
+  [argName: string]: any;
+}): Promise<void> => {
   try {
-    return await releaseMain(argv);
+    return await releaseMain(args as ReleaseOptions);
   } catch (e) {
     handleGlobalError(e);
   }

@@ -1,7 +1,7 @@
 import { mapLimit } from 'async';
 import * as Github from '@octokit/rest';
 import * as _ from 'lodash';
-import * as simpleGit from 'simple-git/promise';
+import simpleGit from 'simple-git/promise';
 import * as path from 'path';
 
 import { getGlobalGithubConfig } from '../config';

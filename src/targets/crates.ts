@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import * as _ from 'lodash';
-import * as simpleGit from 'simple-git/promise';
+import simpleGit from 'simple-git/promise';
 
 import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';

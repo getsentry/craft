@@ -1,5 +1,8 @@
 import { Argv, CommandBuilder } from 'yargs';
 
+import * as download from './artifacts_cmds/download';
+import * as list from './artifacts_cmds/list';
+
 export const command = ['artifacts <command>'];
 export const aliases = ['a', 'artifact'];
 export const description = '📦 Manage artifacts';
@@ -20,4 +23,10 @@ export const builder: CommandBuilder = (yargs: Argv) =>
     })
     .demandCommand()
     .demandOption('rev', 'Please specify the revision')
-    .commandDir('artifacts_cmds');
+    .command(list)
+    .command(download);
+
+// This dummy function is to please TypeScript
+export const handler = (): void => {
+  /* pass */
+};

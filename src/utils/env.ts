@@ -1,8 +1,8 @@
 import { existsSync, statSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
+const os = require('os');
 
-import * as nvar from 'nvar';
+import nvar from 'nvar';
 
 import { CONFIG_FILE_NAME, getConfigFileDir } from '../config';
 import { ConfigurationError } from './errors';
@@ -109,7 +109,7 @@ export function readEnvironmentConfig(overwriteExisting = false): void {
   let newEnv = {} as any;
 
   // Read from home dir
-  const homedirEnvFile = join(homedir(), ENV_FILE_NAME);
+  const homedirEnvFile = join(os.homedir(), ENV_FILE_NAME);
   if (existsSync(homedirEnvFile)) {
     logger.debug(
       `Found environment file in the home directory: ${homedirEnvFile}`

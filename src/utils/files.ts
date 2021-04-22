@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import * as rimrafCallback from 'rimraf';
+import rimraf from 'rimraf';
 import * as tmp from 'tmp';
 import * as util from 'util';
 
@@ -11,7 +11,6 @@ const lstat = util.promisify(fs.lstat);
 const readdirp = util.promisify(fs.readdir);
 const mkdtemp = util.promisify(fs.mkdtemp);
 const readdir = util.promisify(fs.readdir);
-const rimraf = util.promisify(rimrafCallback);
 
 /**
  * Lists all files traversing through subfolders.
@@ -83,13 +82,14 @@ export async function withTempDir<T>(
     return await callback(directory);
   } finally {
     if (cleanup) {
-      // XXX(BYK): intentionally DO NOT await unlinking as we do not want
-      // to block (both in terms of waiting for IO and the success of the
-      // operation) finishing the task at hand. If unlinking fails, we honestly
-      // don't care as this is already a temporary file and will be removed
-      // eventually by the OS. And it doesn't make sense to wait until this op
-      // finishes then as nothing relies on the removal of this file.
-      rimraf(directory);
+      rimraf(directory, () => {
+        // XXX(BYK): intentionally DO NOT await unlinking as we do not want
+        // to block (both in terms of waiting for IO and the success of the
+        // operation) finishing the task at hand. If unlinking fails, we honestly
+        // don't care as this is already a temporary file and will be removed
+        // eventually by the OS. And it doesn't make sense to wait until this op
+        // finishes then as nothing relies on the removal of this file.
+      });
     }
   }
 }

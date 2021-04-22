@@ -1,5 +1,5 @@
-import * as Github from '@octokit/rest';
-import * as request from 'request';
+import Github from '@octokit/rest';
+import request from 'request';
 import { Duplex, Readable } from 'stream';
 
 import { LOG_LEVEL, logger } from '../logger';

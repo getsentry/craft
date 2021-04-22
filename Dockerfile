@@ -1,14 +1,3 @@
-FROM node:12-buster as builder
-
-WORKDIR /app
-COPY package.json yarn.lock ./
-RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
-  && yarn install --frozen-lockfile --quiet \
-  && rm -r "$YARN_CACHE_FOLDER"
-
-COPY . .
-RUN yarn build
-
 FROM node:12-buster
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -45,14 +34,7 @@ RUN apt-get -qq update \
   && gem update --no-document --system 3.1.5 \
   && gem install cocoapods
 
-COPY --from=builder /app/package.json /app/yarn.lock /craft/
-RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
-  && cd /craft \
-  && yarn install --frozen-lockfile --production --quiet \
-  && rm -r "$YARN_CACHE_FOLDER"
-
-COPY --from=builder /app/dist /craft/dist/
-RUN chmod +x /craft/dist/index.js \
-  && ln -s /craft/dist/index.js /usr/local/bin/craft
+COPY dist/craft /usr/local/bin/craft
+RUN chmod +x /usr/local/bin/craft
 
 ENTRYPOINT ["craft"]
