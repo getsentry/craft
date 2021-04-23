@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.21.0
 
 - fix: No prod dependencies (#204)
 - build: Move to single-file builds for craft (#203)
