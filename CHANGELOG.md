@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- fix: No prod dependencies (#204)
+- build: Move to single-file builds for craft (#203)
 - fix(github): Revert retry on 404s (#199)
 - fix(gcs): Fix GCS artifact provider on Windows (#200)
 - feat(config): Use GitHub as default provider (#202)
