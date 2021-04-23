@@ -19,7 +19,7 @@
     "**/node-fetch": ">=2.6.1",
     "**/yargs-parser": ">=18.1.2"
   },
-  "dependencies": {
+  "devDependencies": {
     "@aws-sdk/client-ec2": "^3.2.0",
     "@aws-sdk/client-lambda": "^3.2.0",
     "@google-cloud/storage": "^5.7.0",
@@ -50,9 +50,7 @@
     "tar": "4.4.8",
     "tmp": "0.1.0",
     "unzipper": "0.9.7",
-    "yargs": "15.1.0"
-  },
-  "devDependencies": {
+    "yargs": "15.1.0",
     "@aws-sdk/types": "^3.1.0",
     "@sentry/typescript": "^5.17.0",
     "@types/async": "^3.0.1",
