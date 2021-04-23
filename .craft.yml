@@ -1,4 +1,4 @@
-minVersion: '0.13.2'
+minVersion: '0.21.0'
 github:
   owner: getsentry
   repo: craft
@@ -6,13 +6,8 @@ changelogPolicy: auto
 requireNames:
   - /^sentry-craft.*\.tgz$/
   - /^craft$/
-statusProvider:
-  name: github
-artifactProvider:
-  name: github
 targets:
   - name: npm
-  - name: gh-pages
   - name: gcs
     includeNames: /^.*craft.*$/
     bucket: sentry-sdk-assets
@@ -31,7 +26,8 @@ targets:
         format: hex
     config:
       canonical: 'app:craft'
-  - name: github
   - name: docker
     source: us.gcr.io/sentryio/craft
     target: getsentry/craft
+  - name: github
+  - name: gh-pages
