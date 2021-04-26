@@ -490,7 +490,7 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
 
   const newVersion = argv.newVersion;
 
-  const git = simpleGit(configFileDir).silent(true);
+  const git = simpleGit(configFileDir);
 
   // Get some information about the Github project
   const githubClient = getGithubClient();

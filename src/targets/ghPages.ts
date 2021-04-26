@@ -153,7 +153,7 @@ export class GhPagesTarget extends BaseTarget {
     await simpleGit()
       .silent(true)
       .clone(remote.getRemoteStringWithAuth(), directory);
-    const git = simpleGit(directory).silent(true);
+    const git = simpleGit(directory);
     logger.debug(`Checking out branch: "${branch}"`);
     try {
       await git.checkout([branch]);

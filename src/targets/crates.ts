@@ -292,7 +292,7 @@ export class CratesTarget extends BaseTarget {
     directory: string
   ): Promise<any> {
     const { owner, repo } = config;
-    const git = simpleGit(directory).silent(true);
+    const git = simpleGit(directory);
     const url = `https://github.com/${owner}/${repo}.git`;
 
     logger.info(`Cloning ${owner}/${repo} into ${directory}`);

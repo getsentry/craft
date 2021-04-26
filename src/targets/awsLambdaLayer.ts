@@ -150,7 +150,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
     await withTempDir(
       async directory => {
-        const git = simpleGit(directory).silent(true);
+        const git = simpleGit(directory);
         logger.info(`Cloning ${remote.getRemoteString()} to ${directory}...`);
         await git.clone(remote.getRemoteStringWithAuth(), directory);
 

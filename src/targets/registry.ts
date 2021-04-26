@@ -339,7 +339,7 @@ export class RegistryTarget extends BaseTarget {
     }
     const canonicalName: string = this.registryConfig.canonicalName;
 
-    const git = simpleGit(directory).silent(true);
+    const git = simpleGit(directory);
     logger.info(`Cloning "${remote.getRemoteString()}" to "${directory}"...`);
     await git.clone(remote.getRemoteStringWithAuth(), directory, [
       '--filter=tree:0',
