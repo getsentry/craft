@@ -150,9 +150,7 @@ export class GhPagesTarget extends BaseTarget {
     version: string
   ): Promise<void> {
     logger.info(`Cloning "${remote.getRemoteString()}" to "${directory}"...`);
-    await simpleGit()
-      .silent(true)
-      .clone(remote.getRemoteStringWithAuth(), directory);
+    await simpleGit().clone(remote.getRemoteStringWithAuth(), directory);
     const git = simpleGit(directory);
     logger.debug(`Checking out branch: "${branch}"`);
     try {
