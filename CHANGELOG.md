@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.21.1
+
+- fix: Upgrade simple-git to latest version (#207)
+
 ## 0.21.0
 
 - fix: No prod dependencies (#204)

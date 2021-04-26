@@ -1,7 +1,7 @@
 import { existsSync, promises as fsPromises } from 'fs';
 import { dirname, join, relative } from 'path';
 import * as shellQuote from 'shell-quote';
-import simpleGit from 'simple-git/promise';
+import simpleGit, { SimpleGit } from 'simple-git';
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 
 import {
@@ -117,7 +117,7 @@ function checkVersionOrPart(argv: Arguments<any>, _opt: any): any {
  * @param releaseBranchPrefix Prefix of the release branch. Defaults to "release".
  */
 async function createReleaseBranch(
-  git: simpleGit.SimpleGit,
+  git: SimpleGit,
   newVersion: string,
   releaseBranchPrefix?: string
 ): Promise<string> {
@@ -154,7 +154,7 @@ async function createReleaseBranch(
  * @param pushFlag If "true", push the release branch
  */
 async function pushReleaseBranch(
-  git: simpleGit.SimpleGit,
+  git: SimpleGit,
   branchName: string,
   pushFlag = true
 ): Promise<any> {
@@ -183,7 +183,7 @@ async function pushReleaseBranch(
  * @param newVersion The version we are releasing
  */
 async function commitNewVersion(
-  git: simpleGit.SimpleGit,
+  git: SimpleGit,
   newVersion: string
 ): Promise<any> {
   const message = `release: ${newVersion}`;
@@ -246,7 +246,7 @@ export async function runPreReleaseCommand(
  * @param checkGitStatus Set to true to enable the check
  */
 async function checkGitState(
-  git: simpleGit.SimpleGit,
+  git: SimpleGit,
   defaultBranch: string,
   checkGitStatus = true
 ): Promise<void> {
@@ -342,7 +342,7 @@ async function execPublish(newVersion: string): Promise<never> {
  * @param checkGitStatus Set to true to enable the check
  */
 async function checkForExistingTag(
-  git: simpleGit.SimpleGit,
+  git: SimpleGit,
   newVersion: string,
   checkGitStatus = true
 ): Promise<void> {
@@ -455,7 +455,7 @@ async function prepareChangelog(
  * @param defaultBranch Default branch of the remote repository
  */
 async function switchToDefaultBranch(
-  git: simpleGit.SimpleGit,
+  git: SimpleGit,
   defaultBranch: string
 ): Promise<void> {
   const repoStatus = await git.status();
