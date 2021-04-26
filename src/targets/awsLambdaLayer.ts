@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import * as Github from '@octokit/rest';
-import simpleGit, { SimpleGit } from 'simple-git';
+import simpleGit from 'simple-git';
 import {
   getAuthUsername,
   getGithubApiToken,

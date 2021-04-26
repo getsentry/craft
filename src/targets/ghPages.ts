@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import * as Github from '@octokit/rest';
-import simpleGit, { SimpleGit } from 'simple-git';
+import simpleGit from 'simple-git';
 
 import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
@@ -189,7 +189,7 @@ export class GhPagesTarget extends BaseTarget {
     // Push!
     logger.info(`Pushing branch "${branch}"...`);
     if (!isDryRun()) {
-      await git.push('origin', branch, { '--set-upstream': true });
+      await git.push('origin', branch, { '--set-upstream': 'true' });
     } else {
       logger.info('[dry-run] Not pushing the branch.');
     }

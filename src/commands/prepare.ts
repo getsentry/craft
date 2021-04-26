@@ -163,7 +163,7 @@ async function pushReleaseBranch(
     logger.info(`Pushing the release branch "${branchName}"...`);
     // TODO check remote somehow
     if (!isDryRun()) {
-      await git.push(remoteName, branchName, { '--set-upstream': true });
+      await git.push(remoteName, branchName, { '--set-upstream': 'true' });
     } else {
       logger.info('[dry-run] Not pushing the release branch.');
     }
@@ -195,7 +195,7 @@ async function commitNewVersion(
   logger.info('Committing the release changes...');
   logger.debug(`Commit message: "${message}"`);
   if (!isDryRun()) {
-    await git.commit(message, undefined, { '--all': true });
+    await git.commit(message, undefined, { '--all': 'true' });
   } else {
     logger.info('[dry-run] Not committing the changes.');
   }
