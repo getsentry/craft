@@ -189,7 +189,7 @@ export class GhPagesTarget extends BaseTarget {
     // Push!
     logger.info(`Pushing branch "${branch}"...`);
     if (!isDryRun()) {
-      await git.push('origin', branch, { '--set-upstream': 'true' });
+      await git.push('origin', branch, ['--set-upstream']);
     } else {
       logger.info('[dry-run] Not pushing the branch.');
     }
