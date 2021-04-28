@@ -1,5 +1,5 @@
 import { logger as loggerRaw } from '../logger';
-import { TargetConfig } from '../schemas/project_config';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
@@ -38,9 +38,10 @@ export class NugetTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
+    githubRepo: GithubGlobalConfig,
   ) {
-    super(config, artifactProvider);
+    super(config, artifactProvider, githubRepo);
     this.nugetConfig = this.getNugetConfig();
     checkExecutableIsPresent(NUGET_DOTNET_BIN);
   }

@@ -8,9 +8,7 @@ import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../artifact_providers/base';
-import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
-import { GithubGlobalConfig } from '../schemas/project_config';
 import { getGithubClient } from '../utils/githubApi';
 import {
   detectContentType,
@@ -50,13 +48,9 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
   /** Github client */
   public readonly github: Github;
 
-  /** Github repo configuration */
-  public readonly githubRepo: GithubGlobalConfig;
-
   public constructor(config: ArtifactProviderConfig) {
     super(config);
     this.github = getGithubClient();
-    this.githubRepo = getGlobalGithubConfig();
   }
 
   /**

@@ -36,7 +36,8 @@ describe('getPublishOrder', () => {
       name: 'crates',
       noDevDeps: true,
     },
-    new NoneArtifactProvider()
+    new NoneArtifactProvider(),
+    { owner: 'getsentry', repo: 'craft' }
   );
 
   test('sorts crate packages properly', () => {

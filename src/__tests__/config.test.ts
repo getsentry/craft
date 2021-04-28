@@ -3,12 +3,19 @@
  * configuration).
  */
 
-import { readFileSync } from 'fs';
+import simpleGit from 'simple-git';
+import fs from 'fs';
 import { dirname, join } from 'path';
 
 import { compile } from 'json-schema-to-typescript';
 
-import { getProjectConfigSchema, validateConfiguration } from '../config';
+jest.mock('simple-git');
+
+import {
+  getGlobalGithubConfig,
+  getProjectConfigSchema,
+  validateConfiguration,
+} from '../config';
 
 const configSchemaDir = join(dirname(__dirname), 'schemas');
 const configGeneratedTypes = join(configSchemaDir, 'project_config.ts');
@@ -22,7 +29,7 @@ describe('compile-json-schema-to-typescript', () => {
   test('does not make any changes to the compiled interface', async () => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const projectConfig = require('../schemas/projectConfig.schema');
-    const storedOutput = readFileSync(configGeneratedTypes, {
+    const storedOutput = fs.readFileSync(configGeneratedTypes, {
       encoding: 'utf8',
     });
     const compileOptions = {
@@ -39,20 +46,15 @@ describe('validateConfiguration', () => {
   test('parses minimal configuration', () => {
     const data = { github: { owner: 'getsentry', repo: 'craft' } };
 
-    const projectConfig = validateConfiguration(data);
-
-    expect(projectConfig).toEqual(data);
+    expect(validateConfiguration(data)).toEqual(data);
   });
 
-  test('fails with empty configuration', () => {
-    // this ensures that we do actually run the expect line in the catch block
-    expect.assertions(1);
-
-    try {
-      validateConfiguration({});
-    } catch (e) {
-      expect(e.message).toMatch(/should have required property/i);
-    }
+  test('fails with bad configuration', () => {
+    expect(() => validateConfiguration({ zoom: 1 }))
+      .toThrowErrorMatchingInlineSnapshot(`
+      "Cannot parse configuration file:
+      data should NOT have additional properties"
+    `);
   });
 });
 
@@ -62,5 +64,51 @@ describe('getProjectConfigSchema', () => {
 
     expect(projectConfigSchema).toHaveProperty('title');
     expect(projectConfigSchema).toHaveProperty('properties');
+  });
+});
+
+describe('getGlobalGithubConfig', () => {
+  const mockReadFileSync: jest.MockedFunction<typeof fs.readFileSync> = jest.fn();
+  const mockGetRemotes = jest.fn();
+  beforeAll(() => {
+    fs.readFileSync = mockReadFileSync;
+    // @ts-ignore: We know only getRemotes will be called, anything else should fail
+    (simpleGit as jest.MockedFunction<typeof simpleGit>).mockReturnValue({
+      getRemotes: mockGetRemotes,
+    });
+  });
+
+  beforeEach(() => {
+    mockReadFileSync.mockReset();
+    mockGetRemotes.mockReset();
+  });
+
+  test('returns configured values when set in configuration', async () => {
+    const githubRepo = { owner: 'getsentry', repo: 'yolo' };
+    mockReadFileSync.mockReturnValueOnce(
+      JSON.stringify({ github: githubRepo })
+    );
+    expect(await getGlobalGithubConfig(true)).toEqual(githubRepo);
+  });
+
+  test('automatically uses git origin URL when config is not set', async () => {
+    mockReadFileSync.mockReturnValueOnce('{}');
+    mockGetRemotes.mockReturnValueOnce([
+      { name: 'origin', refs: { push: 'git@github.com:getsentry/yolo.git' } },
+    ]);
+
+    expect(await getGlobalGithubConfig(true)).toEqual({
+      owner: 'getsentry',
+      repo: 'yolo',
+    });
+  });
+
+  test('throws error when no config and no git', async () => {
+    mockReadFileSync.mockReturnValueOnce('{}');
+    mockGetRemotes.mockReturnValueOnce([]);
+
+    await expect(getGlobalGithubConfig(true)).rejects.toThrow(
+      'GitHub configuration not found in the config file and cannot be determined from Git'
+    );
   });
 });

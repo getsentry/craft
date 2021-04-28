@@ -18,6 +18,7 @@ import {
   getStatusProviderFromConfig,
   getArtifactProviderFromConfig,
   DEFAULT_RELEASE_BRANCH_NAME,
+  getGlobalGithubConfig,
 } from '../config';
 import { formatTable, logger } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
@@ -242,6 +243,7 @@ async function getTargetList(
   artifactProvider: BaseArtifactProvider
 ): Promise<BaseTarget[]> {
   logger.debug('Initializing targets');
+  const githubRepo = await getGlobalGithubConfig();
   const targetList: BaseTarget[] = [];
   for (const targetConfig of targetConfigList) {
     const targetClass = getTargetByName(targetConfig.name);
@@ -251,7 +253,11 @@ async function getTargetList(
       continue;
     }
     try {
-      const target = new targetClass(targetConfig, artifactProvider);
+      const target = new targetClass(
+        targetConfig,
+        artifactProvider,
+        githubRepo
+      );
       targetList.push(target);
     } catch (err) {
       logger.error(`Error creating target instance for ${targetDescriptor}!`);
@@ -460,7 +466,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   // Get publishing configuration
   const config = getConfiguration() || {};
-  const githubConfig = config.github;
+  const githubConfig = await getGlobalGithubConfig();
   const githubClient = getGithubClient();
 
   const newVersion = argv.newVersion;
@@ -496,8 +502,8 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   }
   logger.debug('Revision to publish: ', revision);
 
-  const statusProvider = getStatusProviderFromConfig();
-  const artifactProvider = getArtifactProviderFromConfig();
+  const statusProvider = await getStatusProviderFromConfig();
+  const artifactProvider = await getArtifactProviderFromConfig();
   logger.debug(`Using "${statusProvider.constructor.name}" for status checks`);
   logger.debug(`Using "${artifactProvider.constructor.name}" for artifacts`);
 

@@ -3,7 +3,6 @@ import * as fs from 'fs';
 import { basename, join } from 'path';
 import { promisify } from 'util';
 
-import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
@@ -44,12 +43,13 @@ export class CocoapodsTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
+    githubRepo: GithubGlobalConfig
   ) {
-    super(config, artifactProvider);
+    super(config, artifactProvider, githubRepo);
     this.cocoapodsConfig = this.getCocoapodsConfig();
     this.github = getGithubClient();
-    this.githubRepo = getGlobalGithubConfig();
+    this.githubRepo = githubRepo;
     checkExecutableIsPresent(COCOAPODS_BIN);
   }
 

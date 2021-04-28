@@ -2,7 +2,7 @@ import * as Github from '@octokit/rest';
 import { createReadStream, statSync } from 'fs';
 import { basename } from 'path';
 
-import { getConfiguration, getGlobalGithubConfig } from '../config';
+import { getConfiguration } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
@@ -70,11 +70,12 @@ export class GithubTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
+    githubRepo: GithubGlobalConfig
   ) {
-    super(config, artifactProvider);
+    super(config, artifactProvider, githubRepo);
     this.githubConfig = {
-      ...getGlobalGithubConfig(),
+      ...githubRepo,
       annotatedTag:
         this.config.annotatedTag === undefined || !!this.config.annotatedTag,
       changelog: getConfiguration().changelog || '',

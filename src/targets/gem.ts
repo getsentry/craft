@@ -6,7 +6,7 @@ import {
 import { reportError } from '../utils/errors';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
-import { TargetConfig } from 'src/schemas/project_config';
+import { GithubGlobalConfig, TargetConfig } from 'src/schemas/project_config';
 
 const logger = loggerRaw.withScope('[gem]');
 
@@ -31,9 +31,10 @@ export class GemTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
+    githubRepo: GithubGlobalConfig,
   ) {
-    super(config, artifactProvider);
+    super(config, artifactProvider, githubRepo);
     checkExecutableIsPresent(GEM_BIN);
   }
 

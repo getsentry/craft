@@ -3,6 +3,8 @@ import { dirname, join } from 'path';
 
 import ajv from 'ajv';
 import { safeLoad } from 'js-yaml';
+import GitUrlParse from 'git-url-parse';
+import simpleGit from 'simple-git';
 
 import { logger } from './logger';
 import {
@@ -144,8 +146,8 @@ export function validateConfiguration(
 /**
  * Returns the parsed configuration file contents
  */
-export function getConfiguration(): CraftProjectConfig {
-  if (_configCache) {
+export function getConfiguration(clearCache=false): CraftProjectConfig {
+  if (!clearCache && _configCache) {
     return _configCache;
   }
 
@@ -225,26 +227,44 @@ export function isAfterEpoch(): boolean {
 /**
  * Return the parsed global Github configuration
  */
-export function getGlobalGithubConfig(): GithubGlobalConfig {
+let _globalGithubConfigCache: GithubGlobalConfig | null;
+export async function getGlobalGithubConfig(
+  clearCache = false
+): Promise<GithubGlobalConfig> {
+  if (!clearCache && _globalGithubConfigCache !== undefined) {
+    if (_globalGithubConfigCache === null) {
+      throw new ConfigurationError(
+        'GitHub configuration not found in the config file and cannot be determined from Git'
+      );
+    }
+
+    return _globalGithubConfigCache;
+  }
+
   // We extract global Github configuration (owner/repo) from top-level
   // configuration
-  const repoGithubConfig = getConfiguration().github || {};
+  let repoGithubConfig = getConfiguration(clearCache).github || null;
 
   if (!repoGithubConfig) {
-    throw new ConfigurationError(
-      'GitHub configuration not found in the config file'
-    );
+    const configDir = getConfigFileDir();
+    const remotes = await simpleGit(configDir).getRemotes(true);
+    const defaultRemote =
+      remotes.find(remote => remote.name === 'origin') || remotes[0];
+    const remoteUrl = defaultRemote
+      ? GitUrlParse(defaultRemote.refs.push || defaultRemote.refs.fetch)
+      : {source: null};
+
+    if (remoteUrl.source === 'github.com') {
+      repoGithubConfig = {
+        owner: remoteUrl.owner,
+        repo: remoteUrl.name,
+      };
+    }
   }
 
-  if (!repoGithubConfig.owner) {
-    throw new ConfigurationError('GitHub target: owner not found');
-  }
+  _globalGithubConfigCache = Object.freeze(repoGithubConfig);
 
-  if (!repoGithubConfig.repo) {
-    throw new ConfigurationError('GitHub target: repo not found');
-  }
-
-  return repoGithubConfig;
+  return getGlobalGithubConfig();
 }
 
 /**
@@ -262,7 +282,9 @@ export function getGitTagPrefix(): string {
  * @returns An instance of artifact provider (which may be the dummy
  * NoneArtifactProvider if artifact storage is disabled).
  */
-export function getArtifactProviderFromConfig(): BaseArtifactProvider {
+export async function getArtifactProviderFromConfig(): Promise<
+  BaseArtifactProvider
+> {
   const projectConfig = getConfiguration();
 
   let artifactProviderName = projectConfig.artifactProvider?.name;
@@ -280,10 +302,11 @@ export function getArtifactProviderFromConfig(): BaseArtifactProvider {
     }
   }
 
+  const githubRepo = await getGlobalGithubConfig();
   const artifactProviderConfig = {
     ...projectConfig.artifactProvider?.config,
-    repoName: projectConfig.github.repo,
-    repoOwner: projectConfig.github.owner,
+    repoName: githubRepo.repo,
+    repoOwner: githubRepo.owner,
   };
 
   switch (artifactProviderName) {
@@ -306,9 +329,11 @@ export function getArtifactProviderFromConfig(): BaseArtifactProvider {
  *
  * @returns An instance of status provider
  */
-export function getStatusProviderFromConfig(): BaseStatusProvider {
+export async function getStatusProviderFromConfig(): Promise<
+  BaseStatusProvider
+> {
   const config = getConfiguration();
-  const githubConfig = config.github;
+  const githubConfig = await getGlobalGithubConfig();
 
   const rawStatusProvider = config.statusProvider || {
     config: undefined,

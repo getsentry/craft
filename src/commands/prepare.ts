@@ -1,14 +1,15 @@
 import { existsSync, promises as fsPromises } from 'fs';
-import { dirname, join, relative } from 'path';
+import { join, relative } from 'path';
 import * as shellQuote from 'shell-quote';
 import simpleGit, { SimpleGit } from 'simple-git';
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 
 import {
   checkMinimalConfigVersion,
-  getConfigFilePath,
+  getConfigFileDir,
   getConfiguration,
   DEFAULT_RELEASE_BRANCH_NAME,
+  getGlobalGithubConfig,
 } from '../config';
 import { logger } from '../logger';
 import { ChangelogPolicy } from '../schemas/project_config';
@@ -481,12 +482,12 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
 
   // Get repo configuration
   const config = getConfiguration();
-  const githubConfig = config.github;
+  const githubConfig = await getGlobalGithubConfig();
 
   // Move to the directory where the config file is located
-  const configFileDir = dirname(getConfigFilePath());
+  const configFileDir = getConfigFileDir() || '.';
   process.chdir(configFileDir);
-  logger.debug(`Working directory:`, configFileDir);
+  logger.debug(`Working directory:`, process.cwd());
 
   const newVersion = argv.newVersion;
 
