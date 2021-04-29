@@ -5,7 +5,11 @@ import { basename } from 'path';
 import { getConfiguration } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
-import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
+import {
+  Changeset,
+  DEFAULT_CHANGELOG_PATH,
+  findChangeset,
+} from '../utils/changes';
 import {
   getFile,
   getGithubClient,
@@ -67,6 +71,8 @@ export class GithubTarget extends BaseTarget {
   public readonly githubConfig: GithubTargetConfig;
   /** Github client */
   public readonly github: Github;
+  /** Github repo configuration */
+  public readonly githubRepo: GithubGlobalConfig;
 
   public constructor(
     config: TargetConfig,
@@ -74,11 +80,16 @@ export class GithubTarget extends BaseTarget {
     githubRepo: GithubGlobalConfig
   ) {
     super(config, artifactProvider, githubRepo);
+    this.githubRepo = githubRepo;
+    const owner = config.owner || githubRepo.owner;
+    const repo = config.repo || githubRepo.repo;
+
     this.githubConfig = {
-      ...githubRepo,
+      owner,
+      repo,
       annotatedTag:
         this.config.annotatedTag === undefined || !!this.config.annotatedTag,
-      changelog: getConfiguration().changelog || '',
+      changelog: getConfiguration().changelog || DEFAULT_CHANGELOG_PATH,
       previewReleases:
         this.config.previewReleases === undefined ||
         !!this.config.previewReleases,
@@ -148,7 +159,8 @@ export class GithubTarget extends BaseTarget {
    */
   public async getOrCreateRelease(
     version: string,
-    revision: string
+    revision: string,
+    changes?: Changeset
   ): Promise<GithubRelease> {
     const tag = versionToTag(version, this.githubConfig.tagPrefix);
     logger.info(`Git tag: "${tag}"`);
@@ -170,23 +182,12 @@ export class GithubTarget extends BaseTarget {
       logger.debug(`Release for tag "${tag}" not found.`);
     }
 
-    // Release hasn't been found, so create one
-    const changelog = await getFile(
-      this.github,
-      this.githubConfig.owner,
-      this.githubConfig.repo,
-      this.githubConfig.changelog || DEFAULT_CHANGELOG_PATH,
-      revision
-    );
-    const changes = (changelog && findChangeset(changelog, tag)) || {};
-    logger.debug('Changes extracted from changelog: ', JSON.stringify(changes));
-
     const createReleaseParams = {
       draft: false,
       name: tag,
-      owner: this.githubConfig.owner,
+      owner: this.githubRepo.owner,
       prerelease: isPreview,
-      repo: this.githubConfig.repo,
+      repo: this.githubRepo.repo,
       tag_name: tag,
       target_commitish: revision,
       ...changes,
@@ -217,6 +218,25 @@ export class GithubTarget extends BaseTarget {
         upload_url: '',
       };
     }
+  }
+
+  public async getRevisionChanges(
+    version: string,
+    revision: string
+  ): Promise<Changeset> {
+    const changelog = await getFile(
+      this.github,
+      this.githubRepo.owner,
+      this.githubRepo.repo,
+      this.githubConfig.changelog,
+      revision
+    );
+    const changes = (changelog && findChangeset(changelog, version)) || {
+      name: version,
+      body: '',
+    };
+    logger.debug('Changes extracted from changelog: ', JSON.stringify(changes));
+    return changes;
   }
 
   /**
@@ -360,9 +380,8 @@ export class GithubTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(version: string, revision: string): Promise<any> {
-    logger.info(`Target "${this.name}": publishing version "${version}"...`);
-    logger.debug(`Revision: ${revision}`);
-    const release = await this.getOrCreateRelease(version, revision);
+    const changes = await this.getRevisionChanges(version, revision);
+    const release = await this.getOrCreateRelease(version, revision, changes);
 
     if (isDryRun()) {
       logger.info(

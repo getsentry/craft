@@ -50,6 +50,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Docker (`docker`)](#docker-docker)
   - [Ruby Gems Index (`gem`)](#ruby-gems-index-gem)
   - [AWS Lambda Layer (`aws-lambda-layer`)](#aws-lambda-layer-aws-lambda-layer)
+  - [Unity Package Manager (`upm`)](#unity-package-manager-upm)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Post-release Script: Conventions](#post-release-script-conventions)
@@ -928,6 +929,32 @@ targets:
           - nodejs10.x
           - nodejs12.x
     license: MIT
+```
+
+### Unity Package Manager (`upm`)
+
+Pulls the package as a zipped artefact and pushes the unzipped content to the target repository, tagging it with the provided version.
+
+_WARNING!_ The destination repository will be completely overwritten.
+
+**Environment**
+
+_none_
+
+**Configuration**
+
+| Option         | Description                             |
+| -------------- | --------------------------------------- |
+| `releaseOwner` | Name of the owner of the release target |
+| `releaseRepo`  | Name of the repo of the release target  |
+
+**Example**
+
+```yaml
+targets:
+  - name: upm
+    releaseOwner: 'getsentry'
+    releaseRepo: 'unity'
 ```
 
 ## Integrating Your Project with `craft`
