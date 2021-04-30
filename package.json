@@ -102,7 +102,7 @@
     "compile-config-schema": "node ./scripts/config-json-schema-to-ts.js"
   },
   "volta": {
-    "node": "12.17.0",
-    "yarn": "1.22.4"
+    "node": "12.22.1",
+    "yarn": "1.22.10"
   }
 }
