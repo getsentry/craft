@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- build: Fix and simplify jest and TS configs (#210)
+
 ## 0.21.1
 
 - fix: Upgrade simple-git to latest version (#207)
