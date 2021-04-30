@@ -1,9 +1,15 @@
 {
   "extends": "./tsconfig.build.json",
-  "include": ["src/**/*.ts"],
   "compilerOptions": {
-    "rootDir": ".",
     "types": ["node", "jest"],
     "plugins": []
-  }
+  },
+  "include": [
+    "src/**/*.ts",
+    "**/__mocks__/**/*.ts",
+    "**/__tests_/**/*.ts"
+  ],
+  "exclude": [
+    "dist/**/*"
+  ]
 }

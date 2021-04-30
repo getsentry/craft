@@ -14,7 +14,7 @@ describe('sanitizeObject', () => {
     function expectRaisesError(value: any): void {
       try {
         sanitizeObject(value);
-        throw new Error(`Should fail for canonical name: ${name}`);
+        throw new Error(`Should fail for canonical name: ${value}`);
       } catch (e) {
         expect(e.message).toMatch(/cannot normalize/i);
       }

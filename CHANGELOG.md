@@ -3,6 +3,7 @@
 ## Unreleased
 
 - ci: Fix our build matrix, add Node 14 & 16 (#211)
+- build: Fix and simplify jest and TS configs (#210)
 
 ## 0.21.1
 
