@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- ci: Fix our build matrix, add Node 14 & 16 (#211)
+
 ## 0.21.1
 
 - fix: Upgrade simple-git to latest version (#207)
