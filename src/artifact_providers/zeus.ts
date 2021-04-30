@@ -3,7 +3,6 @@ import {
   Client as ZeusClient,
   Status,
 } from '@zeus-ci/sdk';
-import * as _ from 'lodash';
 
 import {
   BaseArtifactProvider,
@@ -160,25 +159,26 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
     // the other providers (which overwrite pre-existing, identically-named
     // files within the same commit), for each filename, take the one with the
     // most recent update time
-    const nameToZeusArtifacts = _.groupBy(
-      zeusArtifacts,
-      zeusArtifact => zeusArtifact.name
-    );
-    const dedupedZeusArtifacts = Object.keys(nameToZeusArtifacts).map(
-      zeusArtifactName => {
-        const zeusArtifactObjects = nameToZeusArtifacts[zeusArtifactName];
-        // Sort by the update time
-        const sortedZeusArtifacts = _.sortBy(
-          zeusArtifactObjects,
-          zeusArtifactObject =>
-            Date.parse(zeusArtifactObject.updated_at || '') || 0
-        );
-        return sortedZeusArtifacts[sortedZeusArtifacts.length - 1];
+    zeusArtifacts.sort((a, b) => {
+      if (a.name < b.name) {
+        return -1;
+      } else if (a.name > b.name) {
+        return 1;
+      } else {
+        const aUpdatedAt = Date.parse(a.updated_at ?? '') || 0;
+        const bUpdatedAt = Date.parse(b.updated_at ?? '') || 0;
+        if (aUpdatedAt < bUpdatedAt) {
+          return -1;
+        } else if (aUpdatedAt > bUpdatedAt) {
+          return 1;
+        } else {
+          return 0;
+        }
       }
-    );
+    });
 
-    return dedupedZeusArtifacts.map(zeusArtifact =>
-      this.convertToRemoteArtifact(zeusArtifact)
-    );
+    return zeusArtifacts
+      .filter((artifact, idx, arr) => artifact.name !== arr[idx + 1]?.name)
+      .map(zeusArtifact => this.convertToRemoteArtifact(zeusArtifact));
   }
 }
