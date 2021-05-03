@@ -142,6 +142,16 @@ export class ZeusStore {
     );
 
     // For every filename, take the artifact with the most recent update time
+    // Sort by name first, for grouping, and then updated at for recency.
+    // This costs us O(N*logN) operations.
+    // After this, we'll do a filter sweep to only pick the _latest_ entry for
+    // the same name. We can do this without an explicit grouping pass thanks to
+    // our initial sort: if the next item doesn't have the same name, we are at
+    // the end of the group and that item is the last, most recent item.
+    // Alternative would be:
+    //   1. Group by name: O(N)
+    //   2. Sort for each name: O(M*N*log(N)) -- where M is the # of groups
+    //   3. Pick the most recent entry from each group: O(M)
     const filteredArtifacts = artifacts
       .sort((a, b) => {
         if (a.name < b.name) {
