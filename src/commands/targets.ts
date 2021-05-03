@@ -1,9 +1,9 @@
-import { getConfiguration } from "../config";
-import { formatJson } from "../utils/strings";
-import { getAllTargetNames, getTargetId } from "../targets";
+import { getConfiguration } from '../config';
+import { formatJson } from '../utils/strings';
+import { getAllTargetNames, getTargetId } from '../targets';
 
-export const command = ["targets"];
-export const description = "List defined targets as JSON array";
+export const command = ['targets'];
+export const description = 'List defined targets as JSON array';
 
 export function handler(): any {
   const definedTargets = getConfiguration().targets || [];

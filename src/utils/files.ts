@@ -1,11 +1,11 @@
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-import rimraf from "rimraf";
-import * as tmp from "tmp";
-import * as util from "util";
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import rimraf from 'rimraf';
+import * as tmp from 'tmp';
+import * as util from 'util';
 
-import { filterAsync } from "./async";
+import { filterAsync } from './async';
 
 const lstat = util.promisify(fs.lstat);
 const readdirp = util.promisify(fs.readdir);
@@ -75,7 +75,7 @@ export async function listFiles(directory: string): Promise<string[]> {
 export async function withTempDir<T>(
   callback: (arg: string) => T | Promise<T>,
   cleanup = true,
-  prefix = "craft-"
+  prefix = 'craft-'
 ): Promise<T> {
   const directory = await mkdtemp(path.join(os.tmpdir(), prefix));
   try {
@@ -108,7 +108,7 @@ export async function withTempDir<T>(
 export async function withTempFile<T>(
   callback: (arg: string) => T | Promise<T>,
   cleanup = true,
-  prefix = "craft-"
+  prefix = 'craft-'
 ): Promise<T> {
   tmp.setGracefulCleanup();
   const tmpFile = tmp.fileSync({ prefix });
@@ -130,8 +130,8 @@ export async function withTempFile<T>(
  */
 export function detectContentType(artifactName: string): string | undefined {
   const extensionToType: Array<[RegExp, string]> = [
-    [/\.js$/, "application/javascript; charset=utf-8"],
-    [/\.js\.map$/, "application/json; charset=utf-8"],
+    [/\.js$/, 'application/javascript; charset=utf-8'],
+    [/\.js\.map$/, 'application/json; charset=utf-8'],
   ];
   for (const entry of extensionToType) {
     const [regex, contentType] = entry;

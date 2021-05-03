@@ -1,6 +1,6 @@
-import { logger } from "../logger";
-import { isDryRun } from "./helpers";
-import { captureException } from "@sentry/node";
+import { logger } from '../logger';
+import { isDryRun } from './helpers';
+import { captureException } from '@sentry/node';
 
 /**
  * Custom error class that describes client configuration errors
@@ -39,7 +39,7 @@ export function reportError(
     throw errorObj;
   } else {
     // conversely, convert the error to a string if it isn't already one
-    const errorStr = typeof error === "string" ? error : String(error);
+    const errorStr = typeof error === 'string' ? error : String(error);
     errorLogger.error(`[dry-run] ${errorStr}`);
   }
 }
@@ -56,14 +56,14 @@ export function reportError(
 export function coerceType<T>(
   obj: T,
   typeName:
-    | "string"
-    | "number"
-    | "bigint"
-    | "boolean"
-    | "symbol"
-    | "undefined"
-    | "object"
-    | "function",
+    | 'string'
+    | 'number'
+    | 'bigint'
+    | 'boolean'
+    | 'symbol'
+    | 'undefined'
+    | 'object'
+    | 'function',
   message?: string
 ): T | never {
   const objType = typeof obj;

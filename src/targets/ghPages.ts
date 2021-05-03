@@ -1,33 +1,33 @@
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from 'fs';
+import * as path from 'path';
 
-import * as Github from "@octokit/rest";
-import simpleGit from "simple-git";
+import * as Github from '@octokit/rest';
+import simpleGit from 'simple-git';
 
-import { getGlobalGithubConfig } from "../config";
-import { logger as loggerRaw } from "../logger";
-import { GithubGlobalConfig, TargetConfig } from "../schemas/project_config";
-import { ConfigurationError, reportError } from "../utils/errors";
-import { withTempDir } from "../utils/files";
+import { getGlobalGithubConfig } from '../config';
+import { logger as loggerRaw } from '../logger';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { ConfigurationError, reportError } from '../utils/errors';
+import { withTempDir } from '../utils/files';
 import {
   getAuthUsername,
   getGithubApiToken,
   getGithubClient,
   GithubRemote,
-} from "../utils/githubApi";
-import { isDryRun } from "../utils/helpers";
-import { extractZipArchive } from "../utils/system";
-import { BaseTarget } from "./base";
-import { BaseArtifactProvider } from "../artifact_providers/base";
+} from '../utils/githubApi';
+import { isDryRun } from '../utils/helpers';
+import { extractZipArchive } from '../utils/system';
+import { BaseTarget } from './base';
+import { BaseArtifactProvider } from '../artifact_providers/base';
 
-const logger = loggerRaw.withScope("[gh-pages]");
+const logger = loggerRaw.withScope('[gh-pages]');
 
 /**
  * Regex for docs archives
  */
 const DEFAULT_DEPLOY_ARCHIVE_REGEX = /^(?:.+-)?gh-pages\.zip$/;
 
-const DEFAULT_DEPLOY_BRANCH = "gh-pages";
+const DEFAULT_DEPLOY_BRANCH = 'gh-pages';
 
 /** Target options for "gh-pages" */
 export interface GhPagesConfig {
@@ -44,7 +44,7 @@ export interface GhPagesConfig {
  */
 export class GhPagesTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = "gh-pages";
+  public readonly name: string = 'gh-pages';
   /** Target options */
   public readonly ghPagesConfig: GhPagesConfig;
   /** Github client */
@@ -76,7 +76,7 @@ export class GhPagesTarget extends BaseTarget {
       githubRepo = this.githubRepo.repo;
     } else {
       throw new ConfigurationError(
-        "[gh-pages] Invalid repository configuration: check repo owner and name"
+        '[gh-pages] Invalid repository configuration: check repo owner and name'
       );
     }
 
@@ -105,10 +105,10 @@ export class GhPagesTarget extends BaseTarget {
     directory: string
   ): Promise<void> {
     // Check that the directory is empty
-    const dirContents = fs.readdirSync(directory).filter((f) => f !== ".git");
+    const dirContents = fs.readdirSync(directory).filter((f) => f !== '.git');
     if (dirContents.length > 0) {
       throw new Error(
-        "Destination directory is not empty: cannot extract the acrhive!"
+        'Destination directory is not empty: cannot extract the acrhive!'
       );
     }
 
@@ -119,12 +119,12 @@ export class GhPagesTarget extends BaseTarget {
     // If there's a single top-level directory -- move its contents to the git root
     const newDirContents = fs
       .readdirSync(directory)
-      .filter((f) => f !== ".git");
+      .filter((f) => f !== '.git');
     if (
       newDirContents.length === 1 &&
       fs.statSync(path.join(directory, newDirContents[0])).isDirectory()
     ) {
-      logger.debug("Single top-level directory found, moving files from it...");
+      logger.debug('Single top-level directory found, moving files from it...');
       const innerDirPath = path.join(directory, newDirContents[0]);
       fs.readdirSync(innerDirPath).forEach((item) => {
         const srcPath = path.join(innerDirPath, item);
@@ -164,12 +164,12 @@ export class GhPagesTarget extends BaseTarget {
       logger.debug(
         `Branch ${branch} does not exist, creating a new orphaned branch...`
       );
-      await git.checkout(["--orphan", branch]);
+      await git.checkout(['--orphan', branch]);
     }
 
     // Additional check, just in case
     const repoStatus = await git.status();
-    if (repoStatus.current !== "No" && repoStatus.current !== branch) {
+    if (repoStatus.current !== 'No' && repoStatus.current !== branch) {
       throw new Error(
         `Something went very wrong: cannot switch to branch "${branch}"`
       );
@@ -177,21 +177,21 @@ export class GhPagesTarget extends BaseTarget {
 
     // Clean the previous state
     logger.debug(`Removing existing files from the working tree...`);
-    await git.rm(["-r", "-f", "."]);
+    await git.rm(['-r', '-f', '.']);
 
     // Extract the archive
     await this.extractAssets(archivePath, directory);
 
     // Commit
-    await git.add(["."]);
+    await git.add(['.']);
     await git.commit(`craft(gh-pages): update, version "${version}"`);
 
     // Push!
     logger.info(`Pushing branch "${branch}"...`);
     if (!isDryRun()) {
-      await git.push("origin", branch, ["--set-upstream"]);
+      await git.push('origin', branch, ['--set-upstream']);
     } else {
-      logger.info("[dry-run] Not pushing the branch.");
+      logger.info('[dry-run] Not pushing the branch.');
     }
   }
 
@@ -201,12 +201,12 @@ export class GhPagesTarget extends BaseTarget {
   public async publish(version: string, revision: string): Promise<any> {
     const { githubOwner, githubRepo, branch } = this.ghPagesConfig;
 
-    logger.debug("Fetching artifact list...");
+    logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_DEPLOY_ARCHIVE_REGEX,
     });
     if (!packageFiles.length) {
-      reportError("Cannot release to GH-pages: no artifacts found");
+      reportError('Cannot release to GH-pages: no artifacts found');
       return undefined;
     } else if (packageFiles.length > 1) {
       reportError(
@@ -239,9 +239,9 @@ export class GhPagesTarget extends BaseTarget {
           version
         ),
       true,
-      "craft-gh-pages-"
+      'craft-gh-pages-'
     );
 
-    logger.info("GitHub pages release complete");
+    logger.info('GitHub pages release complete');
   }
 }

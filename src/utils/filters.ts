@@ -15,8 +15,8 @@
  * @returns Regular expression object that was created from the string
  */
 export function stringToRegexp(str: string): RegExp {
-  const firstSlash = str.indexOf("/");
-  const lastSlash = str.lastIndexOf("/");
+  const firstSlash = str.indexOf('/');
+  const lastSlash = str.lastIndexOf('/');
   if (firstSlash !== 0 || lastSlash < 2) {
     throw new TypeError(`Invalid RegExp string specified: ${str}`);
   }

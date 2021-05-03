@@ -1,22 +1,22 @@
-import * as Github from "@octokit/rest";
-import * as fs from "fs";
-import { basename, join } from "path";
-import { promisify } from "util";
+import * as Github from '@octokit/rest';
+import * as fs from 'fs';
+import { basename, join } from 'path';
+import { promisify } from 'util';
 
-import { getGlobalGithubConfig } from "../config";
-import { logger as loggerRaw } from "../logger";
-import { GithubGlobalConfig, TargetConfig } from "../schemas/project_config";
-import { ConfigurationError, reportError } from "../utils/errors";
-import { withTempDir } from "../utils/files";
-import { getFile, getGithubClient } from "../utils/githubApi";
-import { checkExecutableIsPresent, spawnProcess } from "../utils/system";
-import { BaseTarget } from "./base";
-import { BaseArtifactProvider } from "../artifact_providers/base";
+import { getGlobalGithubConfig } from '../config';
+import { logger as loggerRaw } from '../logger';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { ConfigurationError, reportError } from '../utils/errors';
+import { withTempDir } from '../utils/files';
+import { getFile, getGithubClient } from '../utils/githubApi';
+import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
+import { BaseTarget } from './base';
+import { BaseArtifactProvider } from '../artifact_providers/base';
 const writeFile = promisify(fs.writeFile);
 
-const logger = loggerRaw.withScope("[cocoapods]");
+const logger = loggerRaw.withScope('[cocoapods]');
 
-const DEFAULT_COCOAPODS_BIN = "pod";
+const DEFAULT_COCOAPODS_BIN = 'pod';
 
 /**
  * Command to launch cocoapods
@@ -34,7 +34,7 @@ export interface CocoapodsTargetOptions {
  */
 export class CocoapodsTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = "cocoapods";
+  public readonly name: string = 'cocoapods';
   /** Target options */
   public readonly cocoapodsConfig: CocoapodsTargetOptions;
   /** Github client */
@@ -59,7 +59,7 @@ export class CocoapodsTarget extends BaseTarget {
   public getCocoapodsConfig(): CocoapodsTargetOptions {
     const specPath = this.config.specPath;
     if (!specPath) {
-      throw new ConfigurationError("No podspec path provided!");
+      throw new ConfigurationError('No podspec path provided!');
     }
 
     return {
@@ -96,13 +96,13 @@ export class CocoapodsTarget extends BaseTarget {
     await withTempDir(
       async (directory) => {
         const filePath = join(directory, fileName);
-        await writeFile(filePath, specContents, "utf8");
+        await writeFile(filePath, specContents, 'utf8');
 
         logger.info(`Pushing podspec "${fileName}" to cocoapods...`);
-        await spawnProcess(COCOAPODS_BIN, ["setup"]);
+        await spawnProcess(COCOAPODS_BIN, ['setup']);
         await spawnProcess(
           COCOAPODS_BIN,
-          ["trunk", "push", fileName, "--allow-warnings"],
+          ['trunk', 'push', fileName, '--allow-warnings'],
           {
             cwd: directory,
             env: {
@@ -112,9 +112,9 @@ export class CocoapodsTarget extends BaseTarget {
         );
       },
       true,
-      "craft-cocoapods-"
+      'craft-cocoapods-'
     );
 
-    logger.info("Cocoapods release complete");
+    logger.info('Cocoapods release complete');
   }
 }

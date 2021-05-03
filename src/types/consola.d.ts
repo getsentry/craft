@@ -1,4 +1,4 @@
-declare module "consola" {
+declare module 'consola' {
   interface Consola {
     fatal(...message: string[]): void;
     error(...message: string[]): void;

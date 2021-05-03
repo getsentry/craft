@@ -1,32 +1,32 @@
-import { SpawnOptions, spawnSync } from "child_process";
-import * as inquirer from "inquirer";
+import { SpawnOptions, spawnSync } from 'child_process';
+import * as inquirer from 'inquirer';
 
-import { logger as loggerRaw } from "../logger";
-import { TargetConfig } from "../schemas/project_config";
-import { ConfigurationError, reportError } from "../utils/errors";
-import { isDryRun } from "../utils/helpers";
-import { hasExecutable, spawnProcess } from "../utils/system";
-import { isPreviewRelease, parseVersion } from "../utils/version";
-import { BaseTarget } from "./base";
+import { logger as loggerRaw } from '../logger';
+import { TargetConfig } from '../schemas/project_config';
+import { ConfigurationError, reportError } from '../utils/errors';
+import { isDryRun } from '../utils/helpers';
+import { hasExecutable, spawnProcess } from '../utils/system';
+import { isPreviewRelease, parseVersion } from '../utils/version';
+import { BaseTarget } from './base';
 import {
   BaseArtifactProvider,
   RemoteArtifact,
-} from "../artifact_providers/base";
-import { withTempFile } from "../utils/files";
-import { writeFileSync } from "fs";
+} from '../artifact_providers/base';
+import { withTempFile } from '../utils/files';
+import { writeFileSync } from 'fs';
 
-const logger = loggerRaw.withScope("[npm]");
+const logger = loggerRaw.withScope('[npm]');
 
 /** Command to launch "npm" */
-export const NPM_BIN = process.env.NPM_BIN || "npm";
+export const NPM_BIN = process.env.NPM_BIN || 'npm';
 
 /** Command to launch "yarn" */
-export const YARN_BIN = process.env.YARN_BIN || "yarn";
+export const YARN_BIN = process.env.YARN_BIN || 'yarn';
 
 const NPM_MIN_MAJOR = 5;
 const NPM_MIN_MINOR = 6;
 
-const NPM_TOKEN_ENV_VAR = "NPM_TOKEN";
+const NPM_TOKEN_ENV_VAR = 'NPM_TOKEN';
 
 /** A regular expression used to find the package tarball */
 const DEFAULT_PACKAGE_REGEX = /^.*\d\.\d.*\.tgz$/;
@@ -34,9 +34,9 @@ const DEFAULT_PACKAGE_REGEX = /^.*\d\.\d.*\.tgz$/;
 /** Access specifiers for NPM packages. See npm-publish doc for more info */
 export enum NpmPackageAccess {
   /** Public access: anyone can see the package */
-  PUBLIC = "public",
+  PUBLIC = 'public',
   /** Restricted access: scoped packages are restricted by default, for example */
-  RESTRICTED = "restricted",
+  RESTRICTED = 'restricted',
 }
 
 /** NPM target configuration options */
@@ -64,7 +64,7 @@ interface NpmPublishOptions {
  */
 export class NpmTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = "npm";
+  public readonly name: string = 'npm';
   /** Target options */
   public readonly npmConfig: NpmTargetOptions;
 
@@ -82,8 +82,8 @@ export class NpmTarget extends BaseTarget {
    */
   protected checkRequirements(): void {
     if (hasExecutable(NPM_BIN)) {
-      logger.debug("Checking that NPM has recent version...");
-      const npmVersion = spawnSync(NPM_BIN, ["--version"])
+      logger.debug('Checking that NPM has recent version...');
+      const npmVersion = spawnSync(NPM_BIN, ['--version'])
         .stdout.toString()
         .trim();
       const parsedVersion = parseVersion(npmVersion);
@@ -101,7 +101,7 @@ export class NpmTarget extends BaseTarget {
       }
       logger.debug(`Found NPM version ${npmVersion}`);
     } else if (hasExecutable(YARN_BIN)) {
-      const yarnVersion = spawnSync(YARN_BIN, ["--version"])
+      const yarnVersion = spawnSync(YARN_BIN, ['--version'])
         .stdout.toString()
         .trim();
       logger.debug(`Found Yarn version ${yarnVersion}`);
@@ -116,11 +116,11 @@ export class NpmTarget extends BaseTarget {
   protected async requestOtp(): Promise<string> {
     const questions = [
       {
-        message: "Looks like your NPM account uses 2FA. Enter OTP:",
-        name: "otp",
-        type: "input",
+        message: 'Looks like your NPM account uses 2FA. Enter OTP:',
+        name: 'otp',
+        type: 'input',
         validate: (input: string) =>
-          (input.length > 3 && input.length < 10) || "Valid OTP, please",
+          (input.length > 3 && input.length < 10) || 'Valid OTP, please',
       },
     ];
     const answers = (await inquirer.prompt(questions)) as any;
@@ -133,7 +133,7 @@ export class NpmTarget extends BaseTarget {
   protected getNpmConfig(): NpmTargetOptions {
     const token = process.env.NPM_TOKEN;
     if (!token) {
-      throw new Error("NPM target: NPM_TOKEN not found in the environment");
+      throw new Error('NPM target: NPM_TOKEN not found in the environment');
     }
 
     const npmConfig: NpmTargetOptions = {
@@ -150,8 +150,8 @@ export class NpmTarget extends BaseTarget {
       }
     }
 
-    const useOtp = (process.env.CRAFT_NPM_USE_OTP || "").toLowerCase();
-    if (["1", "true", "yes"].indexOf(useOtp) > -1) {
+    const useOtp = (process.env.CRAFT_NPM_USE_OTP || '').toLowerCase();
+    if (['1', 'true', 'yes'].indexOf(useOtp) > -1) {
       npmConfig.useOtp = true;
     }
     return npmConfig;
@@ -167,13 +167,13 @@ export class NpmTarget extends BaseTarget {
     path: string,
     options: NpmPublishOptions
   ): Promise<any> {
-    const args = ["publish"];
+    const args = ['publish'];
     let bin: string;
 
     if (this.npmConfig.useYarn) {
       bin = YARN_BIN;
       args.push(`--new-version=${options.version}`);
-      args.push("--non-interactive");
+      args.push('--non-interactive');
     } else {
       bin = NPM_BIN;
     }
@@ -187,9 +187,9 @@ export class NpmTarget extends BaseTarget {
     // In case we have a prerelease, there should never be a reason to publish
     // it with the latest tag in npm.
     if (isPreviewRelease(options.version)) {
-      logger.warn("Detected pre-release version for npm package!");
+      logger.warn('Detected pre-release version for npm package!');
       logger.warn('Adding tag "next" to not make it "latest" in registry.');
-      args.push("--tag=next");
+      args.push('--tag=next');
     }
 
     return withTempFile((filePath) => {
@@ -224,13 +224,13 @@ export class NpmTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(version: string, revision: string): Promise<any> {
-    logger.debug("Fetching artifact list...");
+    logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_PACKAGE_REGEX,
     });
 
     if (!packageFiles.length) {
-      reportError("Cannot release to NPM: no packages found!");
+      reportError('Cannot release to NPM: no packages found!');
       return undefined;
     }
 
@@ -247,6 +247,6 @@ export class NpmTarget extends BaseTarget {
       })
     );
 
-    logger.info("NPM release complete");
+    logger.info('NPM release complete');
   }
 }

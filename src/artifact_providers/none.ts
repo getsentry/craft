@@ -2,14 +2,14 @@ import {
   BaseArtifactProvider,
   RemoteArtifact,
   ArtifactProviderConfig,
-} from "../artifact_providers/base";
+} from '../artifact_providers/base';
 
 /**
  * Empty artifact provider that does nothing.
  */
 export class NoneArtifactProvider extends BaseArtifactProvider {
   public constructor(
-    config: ArtifactProviderConfig = { repoName: "none", repoOwner: "none" }
+    config: ArtifactProviderConfig = { repoName: 'none', repoOwner: 'none' }
   ) {
     super(config);
   }
@@ -23,7 +23,7 @@ export class NoneArtifactProvider extends BaseArtifactProvider {
     _downloadDirectory: string
   ): Promise<string> {
     return Promise.reject(
-      new Error("NoneProvider does not suuport file downloads!")
+      new Error('NoneProvider does not suuport file downloads!')
     );
   }
 

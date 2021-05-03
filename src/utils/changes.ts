@@ -1,11 +1,11 @@
-import { getVersion } from "./version";
+import { getVersion } from './version';
 
 /**
  * Path to the changelog file in the target repository
  */
-export const DEFAULT_CHANGELOG_PATH = "CHANGELOG.md";
-export const DEFAULT_UNRELEASED_TITLE = "Unreleased";
-const DEFAULT_CHANGESET_BODY = "- No documented changes.";
+export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
+export const DEFAULT_UNRELEASED_TITLE = 'Unreleased';
+const DEFAULT_CHANGESET_BODY = '- No documented changes.';
 
 /**
  * A single changeset with name and description
@@ -42,7 +42,7 @@ function extractChangeset(markdown: string, location: ChangesetLoc): Changeset {
   const end = location.end ? location.end.index : undefined;
   const body = markdown.substring(start, end).trim();
   const name = (location.start[2] || location.start[3])
-    .replace(/\(.*\)$/, "")
+    .replace(/\(.*\)$/, '')
     .trim();
   return { name, body };
 }
@@ -155,11 +155,11 @@ export function prependChangeset(
   // Try to locate the top-most non-empty header, no matter what is inside
   const start = locateChangeset(markdown, Boolean)?.start;
   const padding = start?.[1]?.length || 0;
-  const padStr = new Array(padding + 1).join(" ");
+  const padStr = new Array(padding + 1).join(' ');
   const body = changeset.body || `${padStr}${DEFAULT_CHANGESET_BODY}`;
   let header;
   if (start?.[3]) {
-    const underline = new Array(changeset.name.length + 1).join("-");
+    const underline = new Array(changeset.name.length + 1).join('-');
     header = `${changeset.name}\n${underline}`;
   } else {
     header = `## ${changeset.name}`;

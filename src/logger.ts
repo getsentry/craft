@@ -1,6 +1,6 @@
-import { addBreadcrumb, Severity } from "@sentry/node";
-import Table = require("cli-table");
-import consola = require("consola");
+import { addBreadcrumb, Severity } from '@sentry/node';
+import Table = require('cli-table');
+import consola = require('consola');
 
 /**
  * Format a list as a table
@@ -61,7 +61,7 @@ class SentryBreadcrumbReporter {
  * Read logging level from the environment and return the appropriate enum value
  */
 function getLogLevelFromEnv(): LOG_LEVEL {
-  const logLevelName = (process.env.CRAFT_LOG_LEVEL || "").toUpperCase();
+  const logLevelName = (process.env.CRAFT_LOG_LEVEL || '').toUpperCase();
   const logLevelNumber = LOG_LEVEL[logLevelName as keyof typeof LOG_LEVEL];
   return logLevelNumber ?? consola.level;
 }
@@ -82,7 +82,7 @@ let initialized = false;
  */
 export function init(logLevel?: LOG_LEVEL): Logger {
   if (initialized) {
-    consola.warn("Logger already initialized, ignoring duplicate init.");
+    consola.warn('Logger already initialized, ignoring duplicate init.');
   }
 
   setLogLevel(logLevel !== undefined ? logLevel : getLogLevelFromEnv());

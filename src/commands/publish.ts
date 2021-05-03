@@ -1,16 +1,16 @@
-import * as Github from "@octokit/rest";
-import * as inquirer from "inquirer";
-import { Arguments, Argv, CommandBuilder } from "yargs";
-import chalk from "chalk";
+import * as Github from '@octokit/rest';
+import * as inquirer from 'inquirer';
+import { Arguments, Argv, CommandBuilder } from 'yargs';
+import chalk from 'chalk';
 import {
   existsSync,
   readFileSync,
   writeFileSync,
   promises as fsPromises,
-} from "fs";
-import { join } from "path";
-import shellQuote from "shell-quote";
-import stringLength from "string-length";
+} from 'fs';
+import { join } from 'path';
+import shellQuote from 'shell-quote';
+import stringLength from 'string-length';
 
 import {
   checkMinimalConfigVersion,
@@ -18,38 +18,38 @@ import {
   getStatusProviderFromConfig,
   getArtifactProviderFromConfig,
   DEFAULT_RELEASE_BRANCH_NAME,
-} from "../config";
-import { formatTable, logger } from "../logger";
-import { GithubGlobalConfig, TargetConfig } from "../schemas/project_config";
+} from '../config';
+import { formatTable, logger } from '../logger';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import {
   getAllTargetNames,
   getTargetByName,
   getTargetId,
   SpecialTarget,
-} from "../targets";
-import { BaseTarget } from "../targets/base";
-import { coerceType, handleGlobalError, reportError } from "../utils/errors";
-import { withTempDir } from "../utils/files";
-import { stringToRegexp } from "../utils/filters";
-import { getGithubClient, mergeReleaseBranch } from "../utils/githubApi";
-import { isDryRun } from "../utils/helpers";
-import { hasInput } from "../utils/noInput";
-import { formatSize, formatJson } from "../utils/strings";
+} from '../targets';
+import { BaseTarget } from '../targets/base';
+import { coerceType, handleGlobalError, reportError } from '../utils/errors';
+import { withTempDir } from '../utils/files';
+import { stringToRegexp } from '../utils/filters';
+import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
+import { isDryRun } from '../utils/helpers';
+import { hasInput } from '../utils/noInput';
+import { formatSize, formatJson } from '../utils/strings';
 import {
   catchKeyboardInterrupt,
   hasExecutable,
   spawnProcess,
-} from "../utils/system";
-import { isValidVersion } from "../utils/version";
-import { BaseStatusProvider } from "../status_providers/base";
-import { BaseArtifactProvider } from "../artifact_providers/base";
+} from '../utils/system';
+import { isValidVersion } from '../utils/version';
+import { BaseStatusProvider } from '../status_providers/base';
+import { BaseArtifactProvider } from '../artifact_providers/base';
 
 /** Default path to post-release script, relative to project root */
-const DEFAULT_POST_RELEASE_SCRIPT_PATH = join("scripts", "post-release.sh");
+const DEFAULT_POST_RELEASE_SCRIPT_PATH = join('scripts', 'post-release.sh');
 
-export const command = ["publish NEW-VERSION"];
-export const aliases = ["pp", "publish"];
-export const description = "🛫 Publish artifacts";
+export const command = ['publish NEW-VERSION'];
+export const aliases = ['pp', 'publish'];
+export const description = '🛫 Publish artifacts';
 
 export const builder: CommandBuilder = (yargs: Argv) => {
   const definedTargets = getConfiguration().targets || [];
@@ -59,48 +59,48 @@ export const builder: CommandBuilder = (yargs: Argv) => {
     .map(getTargetId);
 
   return yargs
-    .positional("NEW-VERSION", {
-      description: "Version to publish",
-      type: "string",
+    .positional('NEW-VERSION', {
+      description: 'Version to publish',
+      type: 'string',
     })
-    .option("target", {
-      alias: "t",
+    .option('target', {
+      alias: 't',
       choices: allowedTargetNames.concat([
         SpecialTarget.All,
         SpecialTarget.None,
       ]),
       default: SpecialTarget.All,
-      description: "Publish to this target",
-      type: "string",
+      description: 'Publish to this target',
+      type: 'string',
     })
-    .option("rev", {
-      alias: "r",
+    .option('rev', {
+      alias: 'r',
       description:
-        "Source revision (git SHA or tag) to publish (if not release branch head)",
-      type: "string",
+        'Source revision (git SHA or tag) to publish (if not release branch head)',
+      type: 'string',
     })
-    .option("no-merge", {
+    .option('no-merge', {
       default: false,
-      description: "Do not merge the release branch after publishing",
-      type: "boolean",
+      description: 'Do not merge the release branch after publishing',
+      type: 'boolean',
     })
-    .option("keep-branch", {
+    .option('keep-branch', {
       default: false,
-      description: "Do not remove release branch after merging it",
-      type: "boolean",
+      description: 'Do not remove release branch after merging it',
+      type: 'boolean',
     })
-    .option("keep-downloads", {
+    .option('keep-downloads', {
       default: false,
-      description: "Keep all downloaded files",
-      type: "boolean",
+      description: 'Keep all downloaded files',
+      type: 'boolean',
     })
-    .option("no-status-check", {
+    .option('no-status-check', {
       default: false,
-      description: "Do not check for build status",
-      type: "boolean",
+      description: 'Do not check for build status',
+      type: 'boolean',
     })
     .check(checkVersion)
-    .demandOption("new-version", "Please specify the version to publish");
+    .demandOption('new-version', 'Please specify the version to publish');
 };
 
 /** Command line options. */
@@ -157,8 +157,8 @@ async function publishToTarget(
   const publishMessage = `=== Publishing to target: ${chalk.bold(
     chalk.cyan(getTargetId(target.config))
   )} ===`;
-  const delim = Array(stringLength(publishMessage) + 1).join("=");
-  logger.info(" ");
+  const delim = Array(stringLength(publishMessage) + 1).join('=');
+  logger.info(' ');
   logger.info(delim);
   logger.info(publishMessage);
   logger.info(delim);
@@ -180,26 +180,26 @@ async function printRevisionSummary(
     const artifactData = artifacts.map((ar) => [
       ar.filename,
       formatSize(ar.storedFile.size),
-      ar.storedFile.lastUpdated || "",
+      ar.storedFile.lastUpdated || '',
 
       // sometimes mimeTypes are stored with the encoding included, e.g.
       // `application/javascript; charset=utf-8`, but we only really care about
       // the first part
-      (ar.mimeType && ar.mimeType.split(";")[0]) || "",
+      (ar.mimeType && ar.mimeType.split(';')[0]) || '',
     ]);
     // sort alphabetically by filename
     artifactData.sort((a1, a2) => (a1[0] < a2[0] ? -1 : a1[0] > a2[0] ? 1 : 0));
     const table = formatTable(
       {
-        head: ["File Name", "Size", "Updated", "ContentType"],
-        style: { head: ["cyan"] },
+        head: ['File Name', 'Size', 'Updated', 'ContentType'],
+        style: { head: ['cyan'] },
       },
       artifactData
     );
-    logger.info(" ");
+    logger.info(' ');
     logger.info(`Available artifacts: \n${table.toString()}\n`);
   } else {
-    logger.warn("No artifacts found for the revision.");
+    logger.warn('No artifacts found for the revision.');
   }
 }
 
@@ -207,19 +207,19 @@ async function printRevisionSummary(
  * Prompt the user that everything is OK and we should proceed with publishing
  */
 async function promptConfirmation(targetList: BaseTarget[]): Promise<void> {
-  logger.info("Publishing to targets:");
+  logger.info('Publishing to targets:');
 
   logger.info(
-    targetList.map((target) => `  - ${getTargetId(target.config)}`).join("\n")
+    targetList.map((target) => `  - ${getTargetId(target.config)}`).join('\n')
   );
-  logger.info(" ");
+  logger.info(' ');
 
   if (hasInput()) {
     const questions = [
       {
         message: 'Is everything OK? Type "yes" to proceed:',
-        name: "readyToPublish",
-        type: "input",
+        name: 'readyToPublish',
+        type: 'input',
         // Force the user to type something that is not empty or one letter such
         // as y/n to make sure this is a concious choice.
         validate: (input: string) =>
@@ -227,13 +227,13 @@ async function promptConfirmation(targetList: BaseTarget[]): Promise<void> {
       },
     ];
     const answers = (await inquirer.prompt(questions)) as any;
-    const readyToPublish = coerceType<string>(answers.readyToPublish, "string");
-    if (readyToPublish.toLowerCase() !== "yes") {
-      logger.error("Oh, okay. Aborting.");
+    const readyToPublish = coerceType<string>(answers.readyToPublish, 'string');
+    if (readyToPublish.toLowerCase() !== 'yes') {
+      logger.error('Oh, okay. Aborting.');
       process.exit(1);
     }
   } else {
-    logger.debug("Skipping the prompting.");
+    logger.debug('Skipping the prompting.');
   }
 }
 
@@ -241,7 +241,7 @@ async function getTargetList(
   targetConfigList: TargetConfig[],
   artifactProvider: BaseArtifactProvider
 ): Promise<BaseTarget[]> {
-  logger.debug("Initializing targets");
+  logger.debug('Initializing targets');
   const targetList: BaseTarget[] = [];
   for (const targetConfig of targetConfigList) {
     const targetClass = getTargetByName(targetConfig.name);
@@ -283,7 +283,7 @@ async function checkRequiredArtifacts(
   if (!requiredNames || requiredNames.length === 0) {
     return;
   }
-  logger.debug("Checking that the required artifact names are present...");
+  logger.debug('Checking that the required artifact names are present...');
   const artifacts = await artifactProvider.listArtifactsForRevision(revision);
 
   // innocent until proven guilty...
@@ -334,13 +334,13 @@ async function checkRevisionStatus(
   }
 
   try {
-    logger.debug("Fetching repository information...");
+    logger.debug('Fetching repository information...');
     // This will additionally check that the user has proper permissions
     const repositoryInfo = await statusProvider.getRepositoryInfo();
     logger.debug(`Repository info received: "${formatJson(repositoryInfo)}"`);
   } catch (e) {
     reportError(
-      "Cannot get repository information from Zeus. Check your configuration and credentials. " +
+      'Cannot get repository information from Zeus. Check your configuration and credentials. ' +
         `Error: ${e.message}`
     );
   }
@@ -368,7 +368,7 @@ async function handleReleaseBranch(
   keepBranch = false
 ): Promise<void> {
   if (!branchName || skipMerge) {
-    logger.info("Skipping the merge step.");
+    logger.info('Skipping the merge step.');
     return;
   }
 
@@ -381,11 +381,11 @@ async function handleReleaseBranch(
       branchName
     );
   } else {
-    logger.info("[dry-run] Not merging the release branch");
+    logger.info('[dry-run] Not merging the release branch');
   }
 
   if (keepBranch) {
-    logger.info("Not deleting the release branch.");
+    logger.info('Not deleting the release branch.');
   } else {
     const ref = `heads/${branchName}`;
     logger.debug(`Deleting the release branch, ref: ${ref}`);
@@ -401,7 +401,7 @@ async function handleReleaseBranch(
       );
       logger.info(`Removed the remote branch: "${branchName}"`);
     } else {
-      logger.info("[dry-run] Not deleting the remote branch");
+      logger.info('[dry-run] Not deleting the remote branch');
     }
   }
 }
@@ -423,12 +423,12 @@ export async function runPostReleaseCommand(
   let args: shellQuote.ParseEntry[];
   if (postReleaseCommand !== undefined && postReleaseCommand.length === 0) {
     // Not running post-release command
-    logger.debug("Not running the post-release command: no command specified");
+    logger.debug('Not running the post-release command: no command specified');
     return false;
   } else if (postReleaseCommand) {
     [sysCommand, ...args] = shellQuote.parse(postReleaseCommand);
   } else if (hasExecutable(DEFAULT_POST_RELEASE_SCRIPT_PATH)) {
-    sysCommand = "/bin/bash";
+    sysCommand = '/bin/bash';
     args = [DEFAULT_POST_RELEASE_SCRIPT_PATH];
   } else {
     // Not running post-release command
@@ -437,11 +437,11 @@ export async function runPostReleaseCommand(
     );
     return false;
   }
-  args = [...args, "", newVersion];
+  args = [...args, '', newVersion];
   logger.info(`Running the post-release command...`);
   const additionalEnv = {
     CRAFT_NEW_VERSION: newVersion,
-    CRAFT_OLD_VERSION: "",
+    CRAFT_OLD_VERSION: '',
   };
   await spawnProcess(sysCommand as string, args as string[], {
     env: { ...process.env, ...additionalEnv },
@@ -455,7 +455,7 @@ export async function runPostReleaseCommand(
  * @param argv Command-line arguments
  */
 export async function publishMain(argv: PublishOptions): Promise<any> {
-  logger.debug("Argv:", JSON.stringify(argv));
+  logger.debug('Argv:', JSON.stringify(argv));
   checkMinimalConfigVersion();
 
   // Get publishing configuration
@@ -470,7 +470,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   let revision: string;
   let branchName;
   if (argv.rev) {
-    branchName = "";
+    branchName = '';
     logger.debug(
       `Fetching GitHub information for provided revision: "${argv.rev}"`
     );
@@ -486,7 +486,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       config.releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
     branchName = `${branchPrefix}/${newVersion}`;
 
-    logger.debug("Fetching branch information", branchName);
+    logger.debug('Fetching branch information', branchName);
     const response = await githubClient.repos.getBranch({
       branch: branchName,
       owner: githubConfig.owner,
@@ -494,7 +494,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     });
     revision = response.data.commit.sha;
   }
-  logger.debug("Revision to publish: ", revision);
+  logger.debug('Revision to publish: ', revision);
 
   const statusProvider = getStatusProviderFromConfig();
   const artifactProvider = getArtifactProviderFromConfig();
@@ -509,7 +509,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   // Find targets
   let targetsToPublish: Set<string> = new Set(
-    (typeof argv.target === "string" ? [argv.target] : argv.target) || [
+    (typeof argv.target === 'string' ? [argv.target] : argv.target) || [
       SpecialTarget.All,
     ]
   );
@@ -556,7 +556,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     !earlierStateExists &&
     targetConfigList.length === 0
   ) {
-    logger.warn("No valid targets detected! Exiting.");
+    logger.warn('No valid targets detected! Exiting.');
     return undefined;
   }
 
@@ -578,17 +578,17 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
       if (argv.keepDownloads) {
         logger.info(
-          "Directory with the downloaded artifacts will not be removed",
+          'Directory with the downloaded artifacts will not be removed',
           `Path: ${downloadDirectory}`
         );
       }
     }, !argv.keepDownloads);
 
-    logger.info(" ");
+    logger.info(' ');
   }
 
   if (argv.rev) {
-    logger.info("Not merging any branches because revision was specified.");
+    logger.info('Not merging any branches because revision was specified.');
   } else if (
     targetsToPublish.has(SpecialTarget.All) ||
     targetsToPublish.has(SpecialTarget.None) ||
@@ -614,11 +614,11 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     logger.success(`Version ${newVersion} has been published!`);
   } else {
     const msg = [
-      "The release branch was not merged because you published only to specific targets.",
-      "After all the targets are published, run the following command to merge the release branch:",
+      'The release branch was not merged because you published only to specific targets.',
+      'After all the targets are published, run the following command to merge the release branch:',
       `  $ craft publish ${newVersion} --target none\n`,
     ];
-    logger.warn(msg.join("\n"));
+    logger.warn(msg.join('\n'));
   }
 
   // Run the post-release script

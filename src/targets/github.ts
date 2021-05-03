@@ -1,29 +1,29 @@
-import * as Github from "@octokit/rest";
-import { createReadStream, statSync } from "fs";
-import { basename } from "path";
+import * as Github from '@octokit/rest';
+import { createReadStream, statSync } from 'fs';
+import { basename } from 'path';
 
-import { getConfiguration, getGlobalGithubConfig } from "../config";
-import { logger as loggerRaw } from "../logger";
-import { GithubGlobalConfig, TargetConfig } from "../schemas/project_config";
-import { DEFAULT_CHANGELOG_PATH, findChangeset } from "../utils/changes";
+import { getConfiguration, getGlobalGithubConfig } from '../config';
+import { logger as loggerRaw } from '../logger';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { DEFAULT_CHANGELOG_PATH, findChangeset } from '../utils/changes';
 import {
   getFile,
   getGithubClient,
   HTTP_RESPONSE_5XX,
   HTTP_UNPROCESSABLE_ENTITY,
   retryHttp,
-} from "../utils/githubApi";
-import { isDryRun } from "../utils/helpers";
-import { isPreviewRelease, versionToTag } from "../utils/version";
-import { BaseTarget } from "./base";
-import { BaseArtifactProvider } from "../artifact_providers/base";
+} from '../utils/githubApi';
+import { isDryRun } from '../utils/helpers';
+import { isPreviewRelease, versionToTag } from '../utils/version';
+import { BaseTarget } from './base';
+import { BaseArtifactProvider } from '../artifact_providers/base';
 
-const logger = loggerRaw.withScope("[github]");
+const logger = loggerRaw.withScope('[github]');
 
 /**
  * Default content type for GitHub release assets
  */
-export const DEFAULT_CONTENT_TYPE = "application/octet-stream";
+export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
 
 /**
  * Configuration options for the Github target
@@ -55,14 +55,14 @@ interface GithubRelease {
 /**
  * Tag type as used in GitdataCreateTagParams from Github API
  */
-type GithubCreateTagType = "commit" | "tree" | "blob";
+type GithubCreateTagType = 'commit' | 'tree' | 'blob';
 
 /**
  * Target responsible for publishing releases on Github
  */
 export class GithubTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = "github";
+  public readonly name: string = 'github';
   /** Target options */
   public readonly githubConfig: GithubTargetConfig;
   /** Github client */
@@ -77,11 +77,11 @@ export class GithubTarget extends BaseTarget {
       ...getGlobalGithubConfig(),
       annotatedTag:
         this.config.annotatedTag === undefined || !!this.config.annotatedTag,
-      changelog: getConfiguration().changelog || "",
+      changelog: getConfiguration().changelog || '',
       previewReleases:
         this.config.previewReleases === undefined ||
         !!this.config.previewReleases,
-      tagPrefix: this.config.tagPrefix || "",
+      tagPrefix: this.config.tagPrefix || '',
     };
     this.github = getGithubClient();
   }
@@ -110,7 +110,7 @@ export class GithubTarget extends BaseTarget {
       owner: this.githubConfig.owner,
       repo: this.githubConfig.repo,
       tag,
-      type: "commit" as GithubCreateTagType,
+      type: 'commit' as GithubCreateTagType,
     };
     const tagCreatedResponse = await this.github.git.createTag(createTagParams);
 
@@ -178,7 +178,7 @@ export class GithubTarget extends BaseTarget {
       revision
     );
     const changes = (changelog && findChangeset(changelog, tag)) || {};
-    logger.debug("Changes extracted from changelog: ", JSON.stringify(changes));
+    logger.debug('Changes extracted from changelog: ', JSON.stringify(changes));
 
     const createReleaseParams = {
       draft: false,
@@ -196,12 +196,12 @@ export class GithubTarget extends BaseTarget {
       if (this.githubConfig.annotatedTag) {
         await this.createAnnotatedTag(version, revision, tag);
         // We've just created the tag, so "target_commitish" will not be used.
-        createReleaseParams.target_commitish = "";
+        createReleaseParams.target_commitish = '';
       }
 
       logger.info(
         `Creating a new ${
-          isPreview ? "*preview* " : ""
+          isPreview ? '*preview* ' : ''
         }release for tag "${tag}"`
       );
       const created = await this.github.repos.createRelease(
@@ -213,7 +213,7 @@ export class GithubTarget extends BaseTarget {
       return {
         id: 0,
         tag_name: tag,
-        upload_url: "",
+        upload_url: '',
       };
     }
   }
@@ -312,18 +312,18 @@ export class GithubTarget extends BaseTarget {
     const stats = statSync(path);
     const name = basename(path);
     const params = {
-      "Content-Length": stats.size,
-      "Content-Type": contentTypeProcessed,
+      'Content-Length': stats.size,
+      'Content-Type': contentTypeProcessed,
       file: createReadStream(path),
       headers: {
-        "content-length": stats.size,
-        "content-type": contentTypeProcessed,
+        'content-length': stats.size,
+        'content-type': contentTypeProcessed,
       },
       id: release.id,
       name,
       url: release.upload_url,
     };
-    logger.debug("Upload parameters:", JSON.stringify(params));
+    logger.debug('Upload parameters:', JSON.stringify(params));
     logger.info(
       `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}`
     );
@@ -333,7 +333,7 @@ export class GithubTarget extends BaseTarget {
           async () => this.github.repos.uploadReleaseAsset(params),
           {
             cleanupFn: async () => {
-              logger.debug("Cleaning up before the next retry...");
+              logger.debug('Cleaning up before the next retry...');
               return this.deleteAssetsByFilename(release, name);
             },
             retries: 5,
@@ -370,7 +370,7 @@ export class GithubTarget extends BaseTarget {
     } else {
       const assets = await this.getAssetsForRelease(release);
       if (assets.length > 0) {
-        logger.warn("Existing assets found for the release, deleting them...");
+        logger.warn('Existing assets found for the release, deleting them...');
         await this.deleteAssets(assets);
         logger.debug(`Deleted ${assets.length} assets`);
       }

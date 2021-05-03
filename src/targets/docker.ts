@@ -1,14 +1,14 @@
-import { logger as loggerRaw } from "../logger";
-import { TargetConfig } from "../schemas/project_config";
-import { BaseArtifactProvider } from "../artifact_providers/base";
-import { ConfigurationError } from "../utils/errors";
-import { renderTemplateSafe } from "../utils/strings";
-import { checkExecutableIsPresent, spawnProcess } from "../utils/system";
-import { BaseTarget } from "./base";
+import { logger as loggerRaw } from '../logger';
+import { TargetConfig } from '../schemas/project_config';
+import { BaseArtifactProvider } from '../artifact_providers/base';
+import { ConfigurationError } from '../utils/errors';
+import { renderTemplateSafe } from '../utils/strings';
+import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
+import { BaseTarget } from './base';
 
-const logger = loggerRaw.withScope("[docker]");
+const logger = loggerRaw.withScope('[docker]');
 
-const DEFAULT_DOCKER_BIN = "docker";
+const DEFAULT_DOCKER_BIN = 'docker';
 
 /**
  * Command to launch docker
@@ -34,7 +34,7 @@ export interface DockerTargetOptions {
  */
 export class DockerTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = "docker";
+  public readonly name: string = 'docker';
   /** Target options */
   public readonly dockerConfig: DockerTargetOptions;
 
@@ -56,7 +56,7 @@ export class DockerTarget extends BaseTarget {
         `Cannot perform Docker release: missing credentials.
          Please use DOCKER_USERNAME and DOCKER_PASSWORD environment variables.`.replace(
           /^\s+/gm,
-          ""
+          ''
         )
       );
     }
@@ -65,8 +65,8 @@ export class DockerTarget extends BaseTarget {
       password: process.env.DOCKER_PASSWORD,
       source: this.config.source,
       target: this.config.target,
-      sourceTemplate: this.config.sourceFormat || "{{{source}}}:{{{revision}}}",
-      targetTemplate: this.config.targetFormat || "{{{target}}}:{{{version}}}",
+      sourceTemplate: this.config.sourceFormat || '{{{source}}}:{{{revision}}}',
+      targetTemplate: this.config.targetFormat || '{{{target}}}:{{{version}}}',
       username: process.env.DOCKER_USERNAME,
     };
   }
@@ -79,7 +79,7 @@ export class DockerTarget extends BaseTarget {
   public async login(): Promise<any> {
     const { username, password } = this.dockerConfig;
     return spawnProcess(DOCKER_BIN, [
-      "login",
+      'login',
       `--username=${username}`,
       `--password=${password}`,
     ]);
@@ -90,14 +90,14 @@ export class DockerTarget extends BaseTarget {
    * @param revision Image tag, usually the git revision
    */
   public async pull(revision: string): Promise<any> {
-    logger.debug("Pulling source image...");
+    logger.debug('Pulling source image...');
     const sourceImage = renderTemplateSafe(this.dockerConfig.sourceTemplate, {
       ...this.dockerConfig,
       revision,
     });
     return spawnProcess(
       DOCKER_BIN,
-      ["pull", sourceImage],
+      ['pull', sourceImage],
       {},
       { enableInDryRunMode: true }
     );
@@ -117,11 +117,11 @@ export class DockerTarget extends BaseTarget {
       ...this.dockerConfig,
       version,
     });
-    logger.debug("Tagging target image...");
-    await spawnProcess(DOCKER_BIN, ["tag", sourceImage, targetImage]);
+    logger.debug('Tagging target image...');
+    await spawnProcess(DOCKER_BIN, ['tag', sourceImage, targetImage]);
     return spawnProcess(
       DOCKER_BIN,
-      ["push", targetImage],
+      ['push', targetImage],
       {},
       { showStdout: true }
     );
@@ -138,6 +138,6 @@ export class DockerTarget extends BaseTarget {
     await this.pull(revision);
     await this.push(revision, version);
 
-    logger.info("Docker release complete");
+    logger.info('Docker release complete');
   }
 }

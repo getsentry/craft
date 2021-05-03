@@ -2,10 +2,10 @@ import {
   calculateChecksum,
   HashAlgorithm,
   HashOutputFormat,
-} from "../utils/system";
-import { clearObjectProperties } from "../utils/objects";
-import { ConfigurationError } from "../utils/errors";
-import { logger as loggerRaw } from "../logger";
+} from '../utils/system';
+import { clearObjectProperties } from '../utils/objects';
+import { ConfigurationError } from '../utils/errors';
+import { logger as loggerRaw } from '../logger';
 
 const logger = loggerRaw.withScope(`[artifact-provider]`);
 
@@ -130,7 +130,7 @@ export abstract class BaseArtifactProvider {
     if (downloadDirectory) {
       this.defaultDownloadDirectory = downloadDirectory;
     } else {
-      throw new ConfigurationError("Download directory cannot be empty!");
+      throw new ConfigurationError('Download directory cannot be empty!');
     }
   }
 
@@ -165,7 +165,7 @@ export abstract class BaseArtifactProvider {
     } else if (this.defaultDownloadDirectory) {
       finalDownloadDirectory = this.defaultDownloadDirectory;
     } else {
-      throw new Error("Download directory not configured!");
+      throw new Error('Download directory not configured!');
     }
 
     const cacheKey = `${finalDownloadDirectory}/${artifact.filename}/${artifact.storedFile.lastUpdated}`;

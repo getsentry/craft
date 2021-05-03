@@ -1,5 +1,5 @@
 body {
-  font-family: "Oxygen", serif;
+  font-family: 'Oxygen', serif;
   color: #46433a;
   background-color: #fcfcfc;
 }
@@ -113,7 +113,7 @@ footer {
 }
 
 .poweredby {
-  font-family: "Arial Narrow", Arial;
+  font-family: 'Arial Narrow', Arial;
   font-size: 0.6em;
   line-height: 0.6em;
   padding: 0 5px;

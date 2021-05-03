@@ -1,12 +1,12 @@
-import Github from "@octokit/rest";
-import request from "request";
-import { Duplex, Readable } from "stream";
+import Github from '@octokit/rest';
+import request from 'request';
+import { Duplex, Readable } from 'stream';
 
-import { LOG_LEVEL, logger } from "../logger";
+import { LOG_LEVEL, logger } from '../logger';
 
-import { ConfigurationError } from "./errors";
-import { isDryRun } from "./helpers";
-import { sleepAsync } from "./system";
+import { ConfigurationError } from './errors';
+import { isDryRun } from './helpers';
+import { sleepAsync } from './system';
 
 export const HTTP_UNPROCESSABLE_ENTITY = 422;
 export const HTTP_RESPONSE_1XX = /^1\d\d$/;
@@ -53,9 +53,9 @@ export class GithubRemote {
   /** GitHub personal authentication token */
   protected apiToken?: string;
   /** GitHub hostname */
-  protected readonly GITHUB_HOSTNAME: string = "github.com";
+  protected readonly GITHUB_HOSTNAME: string = 'github.com';
   /** Protocol prefix */
-  protected readonly PROTOCOL_PREFIX: string = "https://";
+  protected readonly PROTOCOL_PREFIX: string = 'https://';
   /** Url in the form of /OWNER/REPO/ */
   protected readonly url: string;
 
@@ -102,7 +102,7 @@ export class GithubRemote {
     const authData =
       this.username && this.apiToken
         ? `${this.username}:${this.apiToken}@`
-        : "";
+        : '';
     return this.PROTOCOL_PREFIX + authData + this.GITHUB_HOSTNAME + this.url;
   }
 }
@@ -117,7 +117,7 @@ export function getGithubApiToken(): string {
     process.env.GITHUB_TOKEN || process.env.GITHUB_API_TOKEN;
   if (!githubApiToken) {
     throw new ConfigurationError(
-      "GitHub target: GITHUB_TOKEN not found in the environment"
+      'GitHub target: GITHUB_TOKEN not found in the environment'
     );
   }
   return githubApiToken;
@@ -131,7 +131,7 @@ export function getGithubApiToken(): string {
  * @param token Github authentication token
  * @returns Github client
  */
-export function getGithubClient(token = ""): Github {
+export function getGithubClient(token = ''): Github {
   const githubApiToken = token || getGithubApiToken();
 
   const attrs = {
@@ -147,7 +147,7 @@ export function getGithubClient(token = ""): Github {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { retry } = require("@octokit/plugin-retry");
+  const { retry } = require('@octokit/plugin-retry');
   const octokitWithRetries = Github.plugin(retry);
   return new octokitWithRetries(attrs);
 }
@@ -162,7 +162,7 @@ export async function getAuthUsername(github: Github): Promise<string> {
   const userData = await github.users.getAuthenticated({});
   const username = (userData.data || {}).login;
   if (!username) {
-    throw new Error("Cannot reliably detect Github username, aborting");
+    throw new Error('Cannot reliably detect Github username, aborting');
   }
   return username;
 }
@@ -195,7 +195,7 @@ export async function getFile(
     if (response.data instanceof Array || response.data.content === undefined) {
       return undefined;
     }
-    return Buffer.from(response.data.content, "base64").toString();
+    return Buffer.from(response.data.content, 'base64').toString();
   } catch (e) {
     if (e.status === 404) {
       return undefined;
@@ -240,14 +240,14 @@ export async function mergeReleaseBranch(
 ): Promise<string | undefined> {
   const baseBranch = base || (await getDefaultBranch(github, owner, repo));
   if (!baseBranch) {
-    throw new Error("Cannot determine base branch while merging");
+    throw new Error('Cannot determine base branch while merging');
   }
 
   try {
     logger.info(`Merging release branch: "${branch}" into "${baseBranch}"...`);
 
     if (isDryRun()) {
-      logger.info("[dry-run] Skipping merge.");
+      logger.info('[dry-run] Skipping merge.');
       return undefined;
     }
 
@@ -261,7 +261,7 @@ export async function mergeReleaseBranch(
       logger.info(`Merging: done.`);
       return response.data.sha;
     } else if (response.status === 204) {
-      logger.warn("Base already contains the head, nothing to merge");
+      logger.warn('Base already contains the head, nothing to merge');
       return undefined;
     } else {
       throw new Error(`Unexpected response: ${JSON.stringify(response)}`);
@@ -271,7 +271,7 @@ export async function mergeReleaseBranch(
       // Conflicts found
       logger.error(
         `Cannot merge release branch "${branch}": conflicts detected`,
-        "Please resolve the conflicts and merge the branch manually:",
+        'Please resolve the conflicts and merge the branch manually:',
         `    git checkout master && git merge ${branch}`
       );
     }
@@ -334,7 +334,7 @@ export function codeMatches(
   }
 
   for (const pattern of patternList) {
-    if (typeof pattern === "number") {
+    if (typeof pattern === 'number') {
       if (pattern === code) {
         return true;
       }

@@ -1,26 +1,26 @@
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from 'fs';
+import * as path from 'path';
 
-import * as _ from "lodash";
-import simpleGit from "simple-git";
+import * as _ from 'lodash';
+import simpleGit from 'simple-git';
 
-import { getGlobalGithubConfig } from "../config";
-import { logger as loggerRaw } from "../logger";
-import { GithubGlobalConfig, TargetConfig } from "../schemas/project_config";
-import { forEachChained } from "../utils/async";
-import { ConfigurationError } from "../utils/errors";
-import { withTempDir } from "../utils/files";
+import { getGlobalGithubConfig } from '../config';
+import { logger as loggerRaw } from '../logger';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { forEachChained } from '../utils/async';
+import { ConfigurationError } from '../utils/errors';
+import { withTempDir } from '../utils/files';
 import {
   checkExecutableIsPresent,
   sleepAsync,
   spawnProcess,
-} from "../utils/system";
-import { BaseTarget } from "./base";
-import { BaseArtifactProvider } from "../artifact_providers/base";
+} from '../utils/system';
+import { BaseTarget } from './base';
+import { BaseArtifactProvider } from '../artifact_providers/base';
 
-const logger = loggerRaw.withScope("[crates]");
+const logger = loggerRaw.withScope('[crates]');
 
-const DEFAULT_CARGO_BIN = "cargo";
+const DEFAULT_CARGO_BIN = 'cargo';
 
 /**
  * Command to launch cargo
@@ -32,7 +32,7 @@ const CARGO_BIN = process.env.CARGO_BIN || DEFAULT_CARGO_BIN;
  * dependency. This sometimes indicates a false positive if the cache has not
  * been updated.
  */
-const VERSION_ERROR = "failed to select a version for the requirement";
+const VERSION_ERROR = 'failed to select a version for the requirement';
 
 /**
  * Maximum number of attempts including the initial one when publishing fails
@@ -103,7 +103,7 @@ export interface CrateMetadata {
  */
 export class CratesTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = "crates";
+  public readonly name: string = 'crates';
   /** Target options */
   public readonly cratesConfig: CratesTargetOptions;
 
@@ -145,11 +145,11 @@ export class CratesTarget extends BaseTarget {
    */
   public async getCrateMetadata(directory: string): Promise<CrateMetadata> {
     const args = [
-      "metadata",
-      "--manifest-path",
+      'metadata',
+      '--manifest-path',
       `${directory}/Cargo.toml`,
-      "--no-deps",
-      "--format-version=1",
+      '--no-deps',
+      '--format-version=1',
     ];
 
     logger.info(`Loading workspace information from ${directory}/Cargo.toml`);
@@ -160,7 +160,7 @@ export class CratesTarget extends BaseTarget {
       { enableInDryRunMode: true }
     );
     if (!metadata) {
-      throw new ConfigurationError("Empty Cargo metadata!");
+      throw new ConfigurationError('Empty Cargo metadata!');
     }
     return JSON.parse(metadata.toString());
   }
@@ -185,7 +185,7 @@ export class CratesTarget extends BaseTarget {
     const isWorkspaceDependency = (dep: CrateDependency) => {
       // Optionally exclude dev dependencies from dependency resolution. When
       // this flag is provided, these usually lead to circular dependencies.
-      if (this.cratesConfig.noDevDeps && dep.kind === "dev") {
+      if (this.cratesConfig.noDevDeps && dep.kind === 'dev') {
         return false;
       }
 
@@ -202,7 +202,7 @@ export class CratesTarget extends BaseTarget {
       );
 
       if (leafDependencies.length === 0) {
-        throw new Error("Circular dependency detected!");
+        throw new Error('Circular dependency detected!');
       }
 
       leafDependencies.forEach((next) => {
@@ -235,7 +235,7 @@ export class CratesTarget extends BaseTarget {
     logger.debug(
       `Publishing packages in the following order: ${crates
         .map((c) => c.name)
-        .join(", ")}`
+        .join(', ')}`
     );
     return forEachChained(crates, async (crate) => this.publishPackage(crate));
   }
@@ -248,12 +248,12 @@ export class CratesTarget extends BaseTarget {
    */
   public async publishPackage(crate: CratePackage): Promise<any> {
     const args = this.cratesConfig.noDevDeps
-      ? ["hack", "publish", "--allow-dirty", "--no-dev-deps"]
-      : ["publish"];
+      ? ['hack', 'publish', '--allow-dirty', '--no-dev-deps']
+      : ['publish'];
 
     args.push(
-      "--no-verify", // Verification should be done on the CI stage
-      "--manifest-path",
+      '--no-verify', // Verification should be done on the CI stage
+      '--manifest-path',
       crate.manifest_path
     );
 
@@ -300,12 +300,12 @@ export class CratesTarget extends BaseTarget {
     await git.checkout(revision);
 
     logger.info(`Checking out submodules`);
-    await git.submoduleUpdate(["--init"]);
+    await git.submoduleUpdate(['--init']);
 
     // Cargo seems to run into problems if the crate resides within a git
     // checkout located in a memory file system on Mac (e.g. /tmp). This can be
     // avoided by signaling to cargo that this is not a git checkout.
-    const gitdir = path.join(directory, ".git");
+    const gitdir = path.join(directory, '.git');
     fs.renameSync(gitdir, `${gitdir}.bak`);
   }
 
@@ -326,9 +326,9 @@ export class CratesTarget extends BaseTarget {
         await this.publishWorkspace(directory);
       },
       true,
-      "craft-crates-"
+      'craft-crates-'
     );
 
-    logger.info("Crates release complete");
+    logger.info('Crates release complete');
   }
 }

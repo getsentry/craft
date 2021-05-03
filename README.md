@@ -354,7 +354,7 @@ your configuration.
 **Example:**
 
 ```yaml
-minVersion: "0.5.0"
+minVersion: '0.5.0'
 ```
 
 ### Required Files
@@ -434,13 +434,13 @@ targets:
       - algorithm: sha384
         format: base64
     config:
-      canonical: "npm:@sentry/browser"
+      canonical: 'npm:@sentry/browser'
   - name: registry
     id: node
     type: sdk
     onlyIfPresent: /^sentry-node-.*\.tgz$/
     config:
-      canonical: "npm:@sentry/node"
+      canonical: 'npm:@sentry/node'
 ```
 
 ### Per-target options
@@ -783,13 +783,13 @@ targets:
   - name: registry
     type: sdk
     config:
-      canonical: "npm:@sentry/browser"
+      canonical: 'npm:@sentry/browser'
 
   - name: registry
     type: app
-    urlTemplate: "https://example.com/{{version}}/{{file}}"
+    urlTemplate: 'https://example.com/{{version}}/{{file}}'
     config:
-      canonical: "npm:@sentry/browser"
+      canonical: 'npm:@sentry/browser'
     checksums:
       - algorithm: sha256
         format: hex

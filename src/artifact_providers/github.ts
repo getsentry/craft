@@ -1,24 +1,24 @@
-import Github from "@octokit/rest";
-import * as fs from "fs";
-import request from "request";
-import * as path from "path";
+import Github from '@octokit/rest';
+import * as fs from 'fs';
+import request from 'request';
+import * as path from 'path';
 
 import {
   ArtifactProviderConfig,
   BaseArtifactProvider,
   RemoteArtifact,
-} from "../artifact_providers/base";
-import { getGlobalGithubConfig } from "../config";
-import { logger as loggerRaw } from "../logger";
-import { GithubGlobalConfig } from "../schemas/project_config";
-import { getGithubClient } from "../utils/githubApi";
+} from '../artifact_providers/base';
+import { getGlobalGithubConfig } from '../config';
+import { logger as loggerRaw } from '../logger';
+import { GithubGlobalConfig } from '../schemas/project_config';
+import { getGithubClient } from '../utils/githubApi';
 import {
   detectContentType,
   scan,
   withTempFile,
   withTempDir,
-} from "../utils/files";
-import { extractZipArchive } from "../utils/system";
+} from '../utils/files';
+import { extractZipArchive } from '../utils/system';
 
 const MAX_TRIES = 3;
 
@@ -91,7 +91,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
 
     // https://docs.github.com/en/free-pro-team@latest/rest/reference/actions#artifacts
     const artifactResponse = ((
-      await this.github.request("GET /repos/{owner}/{repo}/actions/artifacts", {
+      await this.github.request('GET /repos/{owner}/{repo}/actions/artifacts', {
         owner: owner,
         repo: repo,
         per_page,
@@ -174,11 +174,11 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
         // we need any here since our github api client doesn't have support for artifacts requests yet
         request({ uri: archiveResponse.url })
           .pipe(file)
-          .on("finish", () => {
+          .on('finish', () => {
             logger.info(`Finished downloading.`);
             resolve();
           })
-          .on("error", (error) => {
+          .on('error', (error) => {
             reject(error);
           });
       });
@@ -213,12 +213,12 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     const { repoName, repoOwner } = this.config;
 
     const archiveResponse = (await this.github.request(
-      "/repos/{owner}/{repo}/actions/artifacts/{artifact_id}/{archive_format}",
+      '/repos/{owner}/{repo}/actions/artifacts/{artifact_id}/{archive_format}',
       {
         owner: repoOwner,
         repo: repoName,
         artifact_id: foundArtifact.id,
-        archive_format: "zip",
+        archive_format: 'zip',
       }
     )) as ArchiveResponse;
 

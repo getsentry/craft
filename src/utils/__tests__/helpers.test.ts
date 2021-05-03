@@ -1,6 +1,6 @@
-import { isDryRun } from "../helpers";
+import { isDryRun } from '../helpers';
 
-describe("isDryRun", () => {
+describe('isDryRun', () => {
   /**
    * Helper function to test expected isDryRun() output given a DRY_RUN value
    *
@@ -23,13 +23,13 @@ describe("isDryRun", () => {
     delete process.env.DRY_RUN;
   });
 
-  test("undefined", () => testValue(undefined, false));
-  test("empty string", () => testValue("", false));
-  test("false", () => testValue("false", false));
-  test("0", () => testValue("0", false));
-  test("no", () => testValue("no", false));
-  test("true", () => testValue("true", true));
-  test("1", () => testValue("1", true));
-  test("yes", () => testValue("yes", true));
-  test("any non-empty string", () => testValue("dogs are great!", true));
+  test('undefined', () => testValue(undefined, false));
+  test('empty string', () => testValue('', false));
+  test('false', () => testValue('false', false));
+  test('0', () => testValue('0', false));
+  test('no', () => testValue('no', false));
+  test('true', () => testValue('true', true));
+  test('1', () => testValue('1', true));
+  test('yes', () => testValue('yes', true));
+  test('any non-empty string', () => testValue('dogs are great!', true));
 }); // end describe('isDryRun')

@@ -1,20 +1,20 @@
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from 'fs';
+import * as path from 'path';
 
 import {
   Bucket as GCSBucket,
   File as GCSFile,
   Storage as GCSStorage,
   UploadOptions as GCSUploadOptions,
-} from "@google-cloud/storage";
-import { isDryRun } from "./helpers";
+} from '@google-cloud/storage';
+import { isDryRun } from './helpers';
 
-import { logger, Logger, logger as loggerRaw } from "../logger";
-import { reportError, ConfigurationError } from "./errors";
-import { checkEnvForPrerequisite, RequiredConfigVar } from "./env";
-import { detectContentType } from "./files";
-import { RemoteArtifact } from "../artifact_providers/base";
-import { formatJson } from "./strings";
+import { logger, Logger, logger as loggerRaw } from '../logger';
+import { reportError, ConfigurationError } from './errors';
+import { checkEnvForPrerequisite, RequiredConfigVar } from './env';
+import { detectContentType } from './files';
+import { RemoteArtifact } from '../artifact_providers/base';
+import { formatJson } from './strings';
 
 const DEFAULT_MAX_RETRIES = 5;
 export const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
@@ -121,7 +121,7 @@ export function getGCSCredsFromEnv(
     reportError(`Error parsing JSON credentials: ${err}`);
   }
 
-  for (const field of ["project_id", "client_email", "private_key"]) {
+  for (const field of ['project_id', 'client_email', 'private_key']) {
     if (!parsedCofig[field]) {
       reportError(`GCS credentials missing \`${field}\`!`);
     }
@@ -181,7 +181,7 @@ export class CraftGCSClient {
     // stopped normalizing paths. If you keep this, you'll end up with a path
     // like `//your/dir/and/file` instead of `/your/dir/and/file`
     // See #169 for more information.
-    if (pathInBucket[0] === "/") {
+    if (pathInBucket[0] === '/') {
       pathInBucket = pathInBucket.substring(1);
     }
 
@@ -243,7 +243,7 @@ export class CraftGCSClient {
       this.logger.debug(
         `Successfully uploaded \`${filename}\`. It can be downloaded by running ` +
           `\`gsutil cp ${path.posix.join(
-            "gs://",
+            'gs://',
             this.bucketName,
             pathInBucket,
             filename

@@ -2,7 +2,7 @@
 
 const PUBLISHED_LAYER_TEST = {
   Version: 1,
-  LayerVersionArn: "test:layer:version:arn",
+  LayerVersionArn: 'test:layer:version:arn',
 };
 
 export class Lambda {

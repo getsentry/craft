@@ -1,8 +1,8 @@
-import { Artifact, Status } from "@zeus-ci/sdk";
+import { Artifact, Status } from '@zeus-ci/sdk';
 
-jest.mock("../../utils/env");
+jest.mock('../../utils/env');
 
-import { ZeusStore } from "../zeus";
+import { ZeusStore } from '../zeus';
 
 // TODO (kmclb) move these tests over to the artifact provider test folder
 
@@ -11,92 +11,92 @@ function artifactFactory(
   options?: Record<string, unknown>
 ): Artifact {
   return {
-    download_url: "http://invalid",
+    download_url: 'http://invalid',
     file: {
-      name: "test",
+      name: 'test',
       size: 100,
     },
     id: name,
     name,
     status: Status.FINISHED,
-    type: "test/test",
+    type: 'test/test',
     ...options,
   };
 }
 
-const REPO_OWNER = "craft-test-owner";
-const REPO_NAME = "craft-test";
+const REPO_OWNER = 'craft-test-owner';
+const REPO_NAME = 'craft-test';
 
-describe("filterArtifactsForRevision", () => {
+describe('filterArtifactsForRevision', () => {
   const zeusStore = new ZeusStore(REPO_OWNER, REPO_NAME);
   const artifactList = [
-    "test1.zip",
-    "test2.exe",
-    "test3.tgz",
-    "smthelse",
+    'test1.zip',
+    'test2.exe',
+    'test3.tgz',
+    'smthelse',
   ].map((name) => artifactFactory(name, undefined));
   zeusStore.listArtifactsForRevision = jest.fn(
     async (_revision) => artifactList
   );
-  const revision = "1234567";
+  const revision = '1234567';
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  test("does not change the list if no arguments provided", async () => {
+  test('does not change the list if no arguments provided', async () => {
     const filtered = await zeusStore.filterArtifactsForRevision(revision);
 
     expect(filtered).toBe(artifactList);
   });
 
-  test("uses includeNames", async () => {
+  test('uses includeNames', async () => {
     const filtered = await zeusStore.filterArtifactsForRevision(revision, {
       includeNames: /.exe$/,
     });
 
-    expect(filtered).toEqual([artifactFactory("test2.exe")]);
+    expect(filtered).toEqual([artifactFactory('test2.exe')]);
   });
 
-  test("uses excludeNames", async () => {
+  test('uses excludeNames', async () => {
     const filtered = await zeusStore.filterArtifactsForRevision(revision, {
       excludeNames: /^test.*$/,
     });
 
-    expect(filtered).toEqual([artifactFactory("smthelse")]);
+    expect(filtered).toEqual([artifactFactory('smthelse')]);
   });
 
-  test("uses both includeNames and excludeNames", async () => {
+  test('uses both includeNames and excludeNames', async () => {
     const filtered = await zeusStore.filterArtifactsForRevision(revision, {
       excludeNames: /(exe|zip)$/,
       includeNames: /^test/,
     });
 
-    expect(filtered).toEqual([artifactFactory("test3.tgz")]);
+    expect(filtered).toEqual([artifactFactory('test3.tgz')]);
   });
 });
 
-describe("filterArtifactsForRevision", () => {
+describe('filterArtifactsForRevision', () => {
   const zeusStore = new ZeusStore(REPO_OWNER, REPO_NAME);
   const artifactList = [
-    "test1.zip",
-    "test2.exe",
-    "test3.tgz",
-    "smthelse",
+    'test1.zip',
+    'test2.exe',
+    'test3.tgz',
+    'smthelse',
   ].map((name) => artifactFactory(name, undefined));
   zeusStore.client.listArtifactsForRevision = jest
     .fn()
     .mockReturnValue(artifactList);
   const mockClientListArtifacts = zeusStore.client
     .listArtifactsForRevision as jest.Mock;
-  const revision = "1234567";
+  const revision = '1234567';
 
   beforeEach(() => {
     jest.clearAllMocks();
     zeusStore.clearStoreCaches();
   });
 
-  test("calls Zeus client with proper arguments", async () => {
+  test('calls Zeus client with proper arguments', async () => {
     const result = await zeusStore.listArtifactsForRevision(revision);
 
     expect(result).toEqual(artifactList);
@@ -107,7 +107,7 @@ describe("filterArtifactsForRevision", () => {
     );
   });
 
-  test("caches results", async () => {
+  test('caches results', async () => {
     const result1 = await zeusStore.listArtifactsForRevision(revision);
     const result2 = await zeusStore.listArtifactsForRevision(revision);
 
@@ -115,20 +115,20 @@ describe("filterArtifactsForRevision", () => {
     expect(mockClientListArtifacts).toHaveBeenCalledTimes(1);
   });
 
-  test("picks only the most recent artifact in case there are duplicated names", async () => {
-    const name = "file.zip";
+  test('picks only the most recent artifact in case there are duplicated names', async () => {
+    const name = 'file.zip';
     const artifacts = [
       artifactFactory(name, {
-        id: "1",
-        updated_at: "2018-01-01T00:00:10.000000+00:00",
+        id: '1',
+        updated_at: '2018-01-01T00:00:10.000000+00:00',
       }),
       artifactFactory(name, {
-        id: "2",
-        updated_at: "2018-11-11T00:55:55.999999+00:00",
+        id: '2',
+        updated_at: '2018-11-11T00:55:55.999999+00:00',
       }),
       artifactFactory(name, {
-        id: "3",
-        updated_at: "invalid",
+        id: '3',
+        updated_at: 'invalid',
       }),
     ];
     mockClientListArtifacts.mockReturnValue(artifacts);

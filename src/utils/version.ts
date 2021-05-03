@@ -1,4 +1,4 @@
-import { getGitTagPrefix } from "../config";
+import { getGitTagPrefix } from '../config';
 
 /**
  * Regular expression for matching semver versions
@@ -23,7 +23,7 @@ const semverRegex = () =>
 export function getVersion(text: string): string | null {
   const matches = semverRegex().exec(text);
   const version = matches && matches[0];
-  return version && version[0].toLowerCase() === "v"
+  return version && version[0].toLowerCase() === 'v'
     ? version.substr(1)
     : version;
 }
@@ -137,10 +137,10 @@ export function versionToTag(version: string, tagPrefix?: string): string {
  * Reads "package.json" from project root and returns its contents
  */
 export function getPackage(): any {
-  const pkg = require("../../package.json") || {};
+  const pkg = require('../../package.json') || {};
   // Sanity check
   if (Object.keys(pkg).length === 0) {
-    throw new Error("Invalid package.json: the file is empty!");
+    throw new Error('Invalid package.json: the file is empty!');
   }
   return pkg;
 }

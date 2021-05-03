@@ -1,44 +1,44 @@
-import { existsSync, lstatSync, readFileSync } from "fs";
-import { dirname, join } from "path";
+import { existsSync, lstatSync, readFileSync } from 'fs';
+import { dirname, join } from 'path';
 
-import ajv from "ajv";
-import { safeLoad } from "js-yaml";
+import ajv from 'ajv';
+import { safeLoad } from 'js-yaml';
 
-import { logger } from "./logger";
+import { logger } from './logger';
 import {
   CraftProjectConfig,
   GithubGlobalConfig,
   ArtifactProviderName,
   StatusProviderName,
-} from "./schemas/project_config";
-import { ConfigurationError } from "./utils/errors";
+} from './schemas/project_config';
+import { ConfigurationError } from './utils/errors';
 import {
   getPackageVersion,
   parseVersion,
   versionGreaterOrEqualThan,
-} from "./utils/version";
-import { BaseArtifactProvider } from "./artifact_providers/base";
-import { GithubArtifactProvider } from "./artifact_providers/github";
-import { ZeusArtifactProvider } from "./artifact_providers/zeus";
-import { NoneArtifactProvider } from "./artifact_providers/none";
-import { GCSArtifactProvider } from "./artifact_providers/gcs";
+} from './utils/version';
+import { BaseArtifactProvider } from './artifact_providers/base';
+import { GithubArtifactProvider } from './artifact_providers/github';
+import { ZeusArtifactProvider } from './artifact_providers/zeus';
+import { NoneArtifactProvider } from './artifact_providers/none';
+import { GCSArtifactProvider } from './artifact_providers/gcs';
 
-import { ZeusStatusProvider } from "./status_providers/zeus";
-import { GithubStatusProvider } from "./status_providers/github";
-import { BaseStatusProvider } from "./status_providers/base";
+import { ZeusStatusProvider } from './status_providers/zeus';
+import { GithubStatusProvider } from './status_providers/github';
+import { BaseStatusProvider } from './status_providers/base';
 
 // TODO support multiple configuration files (one per configuration)
-export const CONFIG_FILE_NAME = ".craft.yml";
+export const CONFIG_FILE_NAME = '.craft.yml';
 
 /**
  * The default prefix for the release branch.
  */
-export const DEFAULT_RELEASE_BRANCH_NAME = "release";
+export const DEFAULT_RELEASE_BRANCH_NAME = 'release';
 
 /**
  * Epoch version for changing all defaults to GitHub
  */
-export const DEFAULTS_EPOCH_VERSION = "0.21.0";
+export const DEFAULTS_EPOCH_VERSION = '0.21.0';
 
 /**
  * Cached path to the configuration file
@@ -78,7 +78,7 @@ export function findConfigFile(): string | undefined {
     currentDir = parentDir;
     depth += 1;
   }
-  logger.warn("findConfigFile: Reached maximum allowed directory depth");
+  logger.warn('findConfigFile: Reached maximum allowed directory depth');
   return undefined;
 }
 
@@ -114,7 +114,7 @@ export function getConfigFileDir(): string | undefined {
  * Reads JSON schema for project configuration
  */
 export function getProjectConfigSchema(): any {
-  return require("./schemas/projectConfig.schema");
+  return require('./schemas/projectConfig.schema');
 }
 
 /**
@@ -127,8 +127,8 @@ export function getProjectConfigSchema(): any {
 export function validateConfiguration(
   rawConfig: Record<string, any>
 ): CraftProjectConfig {
-  logger.debug("Parsing and validating the configuration file...");
-  const schemaName = "projectConfig";
+  logger.debug('Parsing and validating the configuration file...');
+  const schemaName = 'projectConfig';
   const projectConfigSchema = getProjectConfigSchema();
   const ajvValidator = new ajv().addSchema(projectConfigSchema, schemaName);
   const valid = ajvValidator.validate(schemaName, rawConfig);
@@ -150,8 +150,8 @@ export function getConfiguration(): CraftProjectConfig {
   }
 
   const configPath = getConfigFilePath();
-  logger.debug("Configuration file found: ", configPath);
-  const rawConfig = safeLoad(readFileSync(configPath, "utf-8")) as Record<
+  logger.debug('Configuration file found: ', configPath);
+  const rawConfig = safeLoad(readFileSync(configPath, 'utf-8')) as Record<
     string,
     any
   >;
@@ -170,14 +170,14 @@ export function checkMinimalConfigVersion(): void {
   const minVersionRaw = config.minVersion;
   if (!minVersionRaw) {
     logger.debug(
-      "No minimal version specified in the configuration, skpipping the check"
+      'No minimal version specified in the configuration, skpipping the check'
     );
     return;
   }
 
   const currentVersionRaw = getPackageVersion();
   if (!currentVersionRaw) {
-    throw new Error("Cannot get the current craft version");
+    throw new Error('Cannot get the current craft version');
   }
 
   const minVersion = parseVersion(minVersionRaw);
@@ -232,16 +232,16 @@ export function getGlobalGithubConfig(): GithubGlobalConfig {
 
   if (!repoGithubConfig) {
     throw new ConfigurationError(
-      "GitHub configuration not found in the config file"
+      'GitHub configuration not found in the config file'
     );
   }
 
   if (!repoGithubConfig.owner) {
-    throw new ConfigurationError("GitHub target: owner not found");
+    throw new ConfigurationError('GitHub target: owner not found');
   }
 
   if (!repoGithubConfig.repo) {
-    throw new ConfigurationError("GitHub target: repo not found");
+    throw new ConfigurationError('GitHub target: repo not found');
   }
 
   return repoGithubConfig;
@@ -252,8 +252,8 @@ export function getGlobalGithubConfig(): GithubGlobalConfig {
  */
 export function getGitTagPrefix(): string {
   const targets = getConfiguration().targets || [];
-  const githubTarget = targets.find((target) => target.name === "github");
-  return githubTarget?.tagPrefix || "";
+  const githubTarget = targets.find((target) => target.name === 'github');
+  return githubTarget?.tagPrefix || '';
 }
 
 /**
@@ -296,7 +296,7 @@ export function getArtifactProviderFromConfig(): BaseArtifactProvider {
     case ArtifactProviderName.Github:
       return new GithubArtifactProvider(artifactProviderConfig);
     default: {
-      throw new ConfigurationError("Invalid artifact provider");
+      throw new ConfigurationError('Invalid artifact provider');
     }
   }
 }
@@ -345,7 +345,7 @@ export function getStatusProviderFromConfig(): BaseStatusProvider {
         statusProviderConfig
       );
     default: {
-      throw new ConfigurationError("Invalid status provider");
+      throw new ConfigurationError('Invalid status provider');
     }
   }
 }

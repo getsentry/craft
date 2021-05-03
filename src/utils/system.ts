@@ -1,28 +1,28 @@
-import { spawn, SpawnOptions } from "child_process";
-import { createHash, Hash } from "crypto";
-import * as fs from "fs";
-import * as path from "path";
-import split from "split";
-import { Readable } from "stream";
-import tar from "tar";
-import unzipper from "unzipper";
+import { spawn, SpawnOptions } from 'child_process';
+import { createHash, Hash } from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
+import split from 'split';
+import { Readable } from 'stream';
+import tar from 'tar';
+import unzipper from 'unzipper';
 
-import { logger } from "../logger";
+import { logger } from '../logger';
 
-import { reportError } from "./errors";
-import { downloadSources } from "./githubApi";
-import { isDryRun } from "./helpers";
+import { reportError } from './errors';
+import { downloadSources } from './githubApi';
+import { isDryRun } from './helpers';
 
 /**
  * Types of supported hashing algorithms
  */
 export enum HashAlgorithm {
   /** SHA256 */
-  SHA256 = "sha256",
+  SHA256 = 'sha256',
   /** SHA384 */
-  SHA384 = "sha384",
+  SHA384 = 'sha384',
   /** SHA512 */
-  SHA512 = "sha512",
+  SHA512 = 'sha512',
 }
 
 /**
@@ -30,9 +30,9 @@ export enum HashAlgorithm {
  */
 export enum HashOutputFormat {
   /** Hex digest, consists of [0-9a-f] characters */
-  Hex = "hex",
+  Hex = 'hex',
   /** The digest is encoded as base64 string. Used e.g. for Subresource Integrity (SRI) */
-  Base64 = "base64",
+  Base64 = 'base64',
 }
 
 /**
@@ -87,14 +87,14 @@ export function replaceEnvVariable(
   arg: string,
   env: Record<string, any>
 ): string {
-  if (!env || !arg || arg[0] !== "$") {
+  if (!env || !arg || arg[0] !== '$') {
     return arg;
   }
 
   const argLen = arg.length;
-  if (arg[1] === "{" && arg[argLen - 1] === "}") {
+  if (arg[1] === '{' && arg[argLen - 1] === '}') {
     const envVarKey = arg.slice(2, argLen - 1);
-    return env[envVarKey] || "";
+    return env[envVarKey] || '';
   } else {
     return arg;
   }
@@ -132,17 +132,17 @@ export async function spawnProcess(
   options: SpawnOptions = {},
   spawnProcessOptions: SpawnProcessOptions = {}
 ): Promise<Buffer | undefined> {
-  const argsString = args.map((arg) => `"${arg}"`).join(" ");
+  const argsString = args.map((arg) => `"${arg}"`).join(' ');
 
   if (isDryRun() && !spawnProcessOptions.enableInDryRunMode) {
-    logger.info("[dry-run] Not spawning process:", `${command} ${argsString}`);
+    logger.info('[dry-run] Not spawning process:', `${command} ${argsString}`);
     return undefined;
   }
 
   return new Promise<any>((resolve, reject) => {
     const stdoutChunks: Buffer[] = [];
-    let stdout = "";
-    let stderr = "";
+    let stdout = '';
+    let stderr = '';
     let child;
 
     // NOTE: On Linux, stdout and stderr might flush immediately after the
@@ -154,7 +154,7 @@ export async function spawnProcess(
       reject(processError(e.code, command, args, options, stdout, stderr));
 
     try {
-      logger.debug("Spawning process:", `${command} ${argsString}`);
+      logger.debug('Spawning process:', `${command} ${argsString}`);
 
       // Do a shell-like replacement of arguments that look like environment variables
       const processedArgs = args.map((arg) =>
@@ -162,18 +162,18 @@ export async function spawnProcess(
       );
 
       // Allow child to accept input
-      options.stdio = ["inherit", "pipe", "pipe"];
+      options.stdio = ['inherit', 'pipe', 'pipe'];
       child = spawn(command, processedArgs, options);
 
       if (!child.stdout || !child.stderr) {
-        throw new Error("Invalid standard output or error for child process");
+        throw new Error('Invalid standard output or error for child process');
       }
-      child.on("exit", (code) => (code === 0 ? succeed() : fail({ code })));
-      child.on("error", fail);
+      child.on('exit', (code) => (code === 0 ? succeed() : fail({ code })));
+      child.on('error', fail);
 
-      child.stdout.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));
+      child.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
 
-      child.stdout.pipe(split()).on("data", (data: any) => {
+      child.stdout.pipe(split()).on('data', (data: any) => {
         const output = `${command}: ${data}`;
         if (spawnProcessOptions.showStdout) {
           logger.info(output);
@@ -182,7 +182,7 @@ export async function spawnProcess(
         }
         stdout += `${output}\n`;
       });
-      child.stderr.pipe(split()).on("data", (data: any) => {
+      child.stderr.pipe(split()).on('data', (data: any) => {
         const output = `${command}: ${data}`;
         logger.debug(output);
         stderr += `${output}\n`;
@@ -216,9 +216,9 @@ export async function calculateChecksum(
   const hash = createHash(algorithm);
 
   return new Promise<string>((resolve, reject) => {
-    stream.on("data", (data) => hash.update(data, "utf8"));
-    stream.on("end", () => resolve(formatDigest(hash, format)));
-    stream.on("error", reject);
+    stream.on('data', (data) => hash.update(data, 'utf8'));
+    stream.on('end', () => resolve(formatDigest(hash, format)));
+    stream.on('error', reject);
   });
 }
 
@@ -232,10 +232,10 @@ export async function calculateChecksum(
 function formatDigest(hash: Hash, format: HashOutputFormat): string {
   switch (format) {
     case HashOutputFormat.Base64: {
-      return hash.digest("base64");
+      return hash.digest('base64');
     }
     case HashOutputFormat.Hex: {
-      return hash.digest("hex");
+      return hash.digest('hex');
     }
     default: {
       throw new Error(`Invalid hash format: ${format}`);
@@ -258,10 +258,10 @@ export async function sleepAsync(ms: number): Promise<void> {
  * @param fileName Base name of the given file
  */
 function getPotentialPaths(fileName: string): string[] {
-  const envPath = process.env.PATH || "";
-  const envExt = process.env.PATHEXT || "";
+  const envPath = process.env.PATH || '';
+  const envExt = process.env.PATHEXT || '';
   return envPath
-    .replace(/"/g, "")
+    .replace(/"/g, '')
     .split(path.delimiter)
     .map((chunk) =>
       envExt
@@ -297,7 +297,7 @@ function isExecutable(filePath: string): boolean {
  */
 export function hasExecutable(name: string): boolean {
   // Relative/absolute path
-  if (name.indexOf("/") > -1) {
+  if (name.indexOf('/') > -1) {
     return isExecutable(name);
   }
   const found = getPotentialPaths(name).find(isExecutable) || [];
@@ -335,8 +335,8 @@ export async function extractSourcesFromTarStream(
     try {
       stream
         .pipe(tar.extract({ strip: 1, cwd: dir }))
-        .on("error", reject)
-        .on("finish", () => {
+        .on('error', reject)
+        .on('finish', () => {
           setTimeout(resolve, 100);
         });
     } catch (e) {
@@ -361,8 +361,8 @@ export async function extractZipArchive(
     try {
       fs.createReadStream(filePath)
         .pipe(unzipper.Extract({ strip: 1, path: dir }))
-        .on("error", reject)
-        .on("finish", () => {
+        .on('error', reject)
+        .on('finish', () => {
           setTimeout(resolve, 100);
         });
     } catch (e) {
@@ -402,15 +402,15 @@ export async function downloadAndExtract(
  * @param maxTimeDiff Maximum time interval in milliseconds between the signals
  */
 export function catchKeyboardInterrupt(maxTimeDiff = 1000): void {
-  if (process.env.CRAFT_CATCH_KEYBOARD_INTERRUPT !== "1") {
+  if (process.env.CRAFT_CATCH_KEYBOARD_INTERRUPT !== '1') {
     logger.debug(
-      "Catching Ctrl-C is disabled by default. See https://github.com/getsentry/craft/issues/21"
+      'Catching Ctrl-C is disabled by default. See https://github.com/getsentry/craft/issues/21'
     );
     return;
   }
 
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    logger.debug("stdin or stdout is not a TTY, not catching SIGINTs");
+    logger.debug('stdin or stdout is not a TTY, not catching SIGINTs');
     return;
   }
 
@@ -419,20 +419,20 @@ export function catchKeyboardInterrupt(maxTimeDiff = 1000): void {
   // the external "yarn" process is killed, and no longer attached to stdout,
   // while the craft process receives only one SIGINT.
   // Hence, we're trying to detect if we run the script via yarn/npm.
-  if ((process.env.npm_package_scripts_cli || "").indexOf("node") > -1) {
-    logger.debug("NPM/Yarn script environment detected, not catching SIGINTs");
+  if ((process.env.npm_package_scripts_cli || '').indexOf('node') > -1) {
+    logger.debug('NPM/Yarn script environment detected, not catching SIGINTs');
     return;
   }
 
-  logger.debug("Setting custom SIGINT handler");
+  logger.debug('Setting custom SIGINT handler');
   let lastSignalTime = 0;
-  process.on("SIGINT", () => {
+  process.on('SIGINT', () => {
     const now = Date.now();
     if (lastSignalTime && now - lastSignalTime <= maxTimeDiff) {
-      logger.warn("Got ^C, exiting.");
+      logger.warn('Got ^C, exiting.');
       process.exit(1);
     } else {
-      logger.warn("Press ^C again (quickly!) to exit.");
+      logger.warn('Press ^C again (quickly!) to exit.');
       lastSignalTime = now;
     }
   });

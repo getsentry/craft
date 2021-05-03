@@ -1,21 +1,21 @@
-import { mapLimit } from "async";
-import * as Github from "@octokit/rest";
+import { mapLimit } from 'async';
+import * as Github from '@octokit/rest';
 
-import { getGlobalGithubConfig } from "../config";
-import { logger as loggerRaw } from "../logger";
-import { GithubGlobalConfig, TargetConfig } from "../schemas/project_config";
-import { ConfigurationError } from "../utils/errors";
-import { getGithubClient } from "../utils/githubApi";
-import { isDryRun } from "../utils/helpers";
-import { renderTemplateSafe } from "../utils/strings";
-import { HashAlgorithm, HashOutputFormat } from "../utils/system";
-import { BaseTarget } from "./base";
+import { getGlobalGithubConfig } from '../config';
+import { logger as loggerRaw } from '../logger';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { ConfigurationError } from '../utils/errors';
+import { getGithubClient } from '../utils/githubApi';
+import { isDryRun } from '../utils/helpers';
+import { renderTemplateSafe } from '../utils/strings';
+import { HashAlgorithm, HashOutputFormat } from '../utils/system';
+import { BaseTarget } from './base';
 import {
   BaseArtifactProvider,
   MAX_DOWNLOAD_CONCURRENCY,
-} from "../artifact_providers/base";
+} from '../artifact_providers/base';
 
-const logger = loggerRaw.withScope("[brew]");
+const logger = loggerRaw.withScope('[brew]');
 
 /**
  * Regex used to parse homebrew taps (github repositories)
@@ -47,7 +47,7 @@ export interface BrewTargetOptions {
  */
 export class BrewTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = "brew";
+  public readonly name: string = 'brew';
   /** Target options */
   public readonly brewConfig: BrewTargetOptions;
   /** Github client */
@@ -97,8 +97,8 @@ export class BrewTarget extends BaseTarget {
     const { tap } = this.config;
     if (!tap) {
       return {
-        owner: "homebrew",
-        repo: "homebrew-core",
+        owner: 'homebrew',
+        repo: 'homebrew-core',
       };
     }
 
@@ -161,7 +161,7 @@ export class BrewTarget extends BaseTarget {
     // Format checksums and the tag version into the formula file
     const filesList = await this.getArtifactsForRevision(revision);
     logger.debug(
-      "Downloading artifacts for the revision:",
+      'Downloading artifacts for the revision:',
       JSON.stringify(filesList.map((file) => file.filename))
     );
 
@@ -185,17 +185,17 @@ export class BrewTarget extends BaseTarget {
     // Try to find the repository to publish in
     if (tapRepo.owner !== owner) {
       // TODO: Create a PR if we have no push rights to this repo
-      logger.warn("Skipping homebrew release: PRs not supported yet");
+      logger.warn('Skipping homebrew release: PRs not supported yet');
       return undefined;
     }
 
     const params = {
-      content: Buffer.from(data).toString("base64"),
+      content: Buffer.from(data).toString('base64'),
       message: `release: ${formulaName} ${version}`,
       owner: tapRepo.owner,
       path: formulaPath,
       repo: tapRepo.repo,
-      sha: (await this.getFormulaSha(formulaPath)) || "",
+      sha: (await this.getFormulaSha(formulaPath)) || '',
     };
 
     logger.info(
@@ -204,7 +204,7 @@ export class BrewTarget extends BaseTarget {
         `formula ${formulaName}`
     );
 
-    const action = params.sha ? "Updating" : "Creating";
+    const action = params.sha ? 'Updating' : 'Creating';
     logger.debug(
       `${action} file ${params.owner}/${params.repo}:${params.path} (${params.sha})`
     );
@@ -214,6 +214,6 @@ export class BrewTarget extends BaseTarget {
     } else {
       logger.info(`[dry-run] Skipping file action: ${action}`);
     }
-    logger.info("Homebrew release complete");
+    logger.info('Homebrew release complete');
   }
 }

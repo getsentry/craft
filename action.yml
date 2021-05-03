@@ -1,22 +1,22 @@
-name: "Craft"
-description: "Use getsentry/craft to publish your project"
+name: 'Craft'
+description: 'Use getsentry/craft to publish your project'
 inputs:
   action:
-    description: "The action to take. Can be either prepare or publish"
+    description: 'The action to take. Can be either prepare or publish'
     required: true
-    default: "--help"
+    default: '--help'
   version:
-    description: "The version number for the new release"
+    description: 'The version number for the new release'
     required: true
   no_merge:
-    description: "Do not merge the release branch after publishing"
+    description: 'Do not merge the release branch after publishing'
     required: false
   keep_branch:
-    description: "Do not remove release branch after merging it"
+    description: 'Do not remove release branch after merging it'
     required: false
 runs:
-  using: "docker"
-  image: "docker://getsentry/craft"
+  using: 'docker'
+  image: 'docker://getsentry/craft'
   args:
     - ${{ inputs.action }}
     - ${{ inputs.version }}

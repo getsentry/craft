@@ -1,10 +1,10 @@
-import ora from "ora";
+import ora from 'ora';
 
-import { sleepAsync } from "../utils/system";
+import { sleepAsync } from '../utils/system';
 
-import { reportError } from "../utils/errors";
+import { reportError } from '../utils/errors';
 
-import { logger } from "../logger";
+import { logger } from '../logger';
 
 /** Max number of seconds to wait for the build to finish */
 const BUILD_STATUS_POLLING_MAX = 60 * 60;
@@ -17,13 +17,13 @@ const BUILD_POLLING_INTERVAL = 30;
  */
 export enum CommitStatus {
   /** Commit is still being tested/checked/etc. */
-  PENDING = "pending",
+  PENDING = 'pending',
   /** All required commit checks have passed successfully */
-  SUCCESS = "success",
+  SUCCESS = 'success',
   /** One or more commit checks failed */
-  FAILURE = "failure",
+  FAILURE = 'failure',
   /** Commit could not be found */
-  NOT_FOUND = "not_found",
+  NOT_FOUND = 'not_found',
 }
 
 /** Repository information */
@@ -55,7 +55,7 @@ export abstract class BaseStatusProvider {
    */
   public async waitForTheBuildToSucceed(revision: string): Promise<void> {
     // Status spinner
-    const spinner = ora({ spinner: "bouncingBar" }) as any;
+    const spinner = ora({ spinner: 'bouncingBar' }) as any;
     let secondsPassed = 0;
     let firstIteration = true;
 
@@ -104,8 +104,8 @@ export abstract class BaseStatusProvider {
       // Format as "YYYY-MM-DD hh:mm:ss"
       const timeString = new Date()
         .toISOString()
-        .replace(/T/, " ")
-        .replace(/\..+/, "");
+        .replace(/T/, ' ')
+        .replace(/\..+/, '');
       // Update the spinner
       const waitMessage = `[${timeString}] CI builds are still in progress, sleeping for ${BUILD_POLLING_INTERVAL} seconds...`;
       spinner.text = waitMessage;

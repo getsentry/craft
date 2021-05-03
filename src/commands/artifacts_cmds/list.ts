@@ -1,13 +1,13 @@
-import { logger, formatTable } from "../../logger";
-import { ArtifactsOptions } from "../artifacts";
-import { getArtifactProviderFromConfig } from "../../config";
-import { handleGlobalError } from "../../utils/errors";
-import { formatSize } from "../../utils/strings";
-import { NoneArtifactProvider } from "../../artifact_providers/none";
+import { logger, formatTable } from '../../logger';
+import { ArtifactsOptions } from '../artifacts';
+import { getArtifactProviderFromConfig } from '../../config';
+import { handleGlobalError } from '../../utils/errors';
+import { formatSize } from '../../utils/strings';
+import { NoneArtifactProvider } from '../../artifact_providers/none';
 
-export const command = ["list"];
-export const aliases = ["l"];
-export const description = "List artifacts";
+export const command = ['list'];
+export const aliases = ['l'];
+export const description = 'List artifacts';
 
 /**
  * Body of 'artifacts list' command
@@ -33,13 +33,13 @@ async function handlerMain(argv: ArtifactsOptions): Promise<any> {
   const artifactData = artifacts.map((ar) => [
     ar.filename,
     formatSize(ar.storedFile.size),
-    ar.storedFile.lastUpdated || "",
+    ar.storedFile.lastUpdated || '',
   ]);
 
   const table = formatTable(
     {
-      head: ["File Name", "Size", "Updated"],
-      style: { head: ["cyan"] },
+      head: ['File Name', 'Size', 'Updated'],
+      style: { head: ['cyan'] },
     },
     artifactData
   );

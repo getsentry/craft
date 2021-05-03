@@ -1,16 +1,16 @@
-import { filterAsync, forEachChained, promiseProps } from "../async";
-import { logger } from "../../logger";
+import { filterAsync, forEachChained, promiseProps } from '../async';
+import { logger } from '../../logger';
 
-jest.mock("../../logger");
+jest.mock('../../logger');
 
-describe("filterAsync", () => {
-  test("filters with sync predicate", async () => {
+describe('filterAsync', () => {
+  test('filters with sync predicate', async () => {
     expect.assertions(1);
     const filtered = await filterAsync([1, 2, 3, 4], (i) => i > 2);
     expect(filtered).toEqual([3, 4]);
   });
 
-  test("filters with async predicate", async () => {
+  test('filters with async predicate', async () => {
     expect.assertions(1);
 
     const predicate = (i: number) =>
@@ -21,7 +21,7 @@ describe("filterAsync", () => {
     expect(filtered).toEqual([3, 4]);
   });
 
-  test("passes filter arguments to the predicate", async () => {
+  test('passes filter arguments to the predicate', async () => {
     expect.assertions(1);
 
     const arr = [1];
@@ -31,10 +31,10 @@ describe("filterAsync", () => {
     expect(predicate).toHaveBeenCalledWith(1, 0, arr);
   });
 
-  test("passes this to the predicate", async () => {
+  test('passes this to the predicate', async () => {
     expect.assertions(1);
 
-    const that = { key: "value" };
+    const that = { key: 'value' };
     await filterAsync(
       [1],
       function predicate(): any {
@@ -45,45 +45,45 @@ describe("filterAsync", () => {
   });
 });
 
-describe("promiseProps", () => {
-  test("awaits an empty object", async () => {
+describe('promiseProps', () => {
+  test('awaits an empty object', async () => {
     expect.assertions(1);
     const result = await promiseProps({});
     expect(result).toEqual({});
   });
 
-  test("awaits a plain object", async () => {
+  test('awaits a plain object', async () => {
     expect.assertions(1);
-    const result = await promiseProps({ foo: "foo", bar: 42 });
-    expect(result).toEqual({ foo: "foo", bar: 42 });
+    const result = await promiseProps({ foo: 'foo', bar: 42 });
+    expect(result).toEqual({ foo: 'foo', bar: 42 });
   });
 
-  test("awaits an object with promises", async () => {
+  test('awaits an object with promises', async () => {
     expect.assertions(1);
     const result = await promiseProps({
       bar: Promise.resolve(42),
-      foo: Promise.resolve("foo"),
+      foo: Promise.resolve('foo'),
     });
-    expect(result).toEqual({ foo: "foo", bar: 42 });
+    expect(result).toEqual({ foo: 'foo', bar: 42 });
   });
 });
 
-describe("forEachChained", () => {
-  test("invokes synchronous actions", async () => {
+describe('forEachChained', () => {
+  test('invokes synchronous actions', async () => {
     expect.assertions(1);
 
     const fun = jest.fn();
-    const arr = ["a", "b", "c"];
+    const arr = ['a', 'b', 'c'];
     await forEachChained(arr, fun);
 
     expect(fun.mock.calls).toEqual([
-      ["a", 0, arr],
-      ["b", 1, arr],
-      ["c", 2, arr],
+      ['a', 0, arr],
+      ['b', 1, arr],
+      ['c', 2, arr],
     ]);
   });
 
-  test("invokes asynchronous actions sequentially", async () => {
+  test('invokes asynchronous actions sequentially', async () => {
     expect.assertions(1);
 
     const fun = jest.fn();
@@ -101,10 +101,10 @@ describe("forEachChained", () => {
     ]);
   });
 
-  test("passes this to the action", async () => {
+  test('passes this to the action', async () => {
     expect.assertions(1);
 
-    const that = { "1": 2 };
+    const that = { '1': 2 };
     await forEachChained(
       [1],
       function action(): void {
@@ -114,26 +114,26 @@ describe("forEachChained", () => {
     );
   });
 
-  describe("sync and async iteratees in regular and dry-run mode", () => {
-    const arr = ["first", "second", "third", "fourth"];
+  describe('sync and async iteratees in regular and dry-run mode', () => {
+    const arr = ['first', 'second', 'third', 'fourth'];
 
     function syncIteratee(arrEntry: string): string {
       logger.debug(`Processing array entry \`${arrEntry}\``);
 
-      if (arrEntry === "second" || arrEntry === "fourth") {
-        throw new Error("drat");
+      if (arrEntry === 'second' || arrEntry === 'fourth') {
+        throw new Error('drat');
       } else {
-        return "yay!";
+        return 'yay!';
       }
     }
 
     function asyncIteratee(arrEntry: string): Promise<string> {
       logger.debug(`Processing array entry \`${arrEntry}\``);
 
-      if (arrEntry === "second" || arrEntry === "fourth") {
-        return Promise.reject(new Error("drat"));
+      if (arrEntry === 'second' || arrEntry === 'fourth') {
+        return Promise.reject(new Error('drat'));
       } else {
-        return Promise.resolve("yay!");
+        return Promise.resolve('yay!');
       }
     }
 
@@ -144,14 +144,14 @@ describe("forEachChained", () => {
 
       // check that the error does actually get thrown, the first time it hits a
       // problematic entry
-      await expect(forEachChained(arr, iteratee)).rejects.toThrowError("drat");
+      await expect(forEachChained(arr, iteratee)).rejects.toThrowError('drat');
       expect(logger.debug).toHaveBeenCalledWith(
-        "Processing array entry `second`"
+        'Processing array entry `second`'
       );
 
       // we didn't get this far
       expect(logger.debug).not.toHaveBeenCalledWith(
-        "Processing array entry `third`"
+        'Processing array entry `third`'
       );
     }
 
@@ -163,12 +163,12 @@ describe("forEachChained", () => {
       // check that it logs the error rather than throws it
       await expect(forEachChained(arr, iteratee)).resolves.not.toThrowError();
       expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining("drat")
+        expect.stringContaining('drat')
       );
 
       // check that it's gotten all the way through the array
       expect(logger.debug).toHaveBeenCalledWith(
-        "Processing array entry `fourth`"
+        'Processing array entry `fourth`'
       );
     }
 
@@ -176,21 +176,21 @@ describe("forEachChained", () => {
       delete process.env.DRY_RUN;
     });
 
-    it("blows up the first time sync iteratee errors (non-dry-run mode)", async () => {
+    it('blows up the first time sync iteratee errors (non-dry-run mode)', async () => {
       await regularModeExpectCheck(syncIteratee);
     });
 
-    it("blows up the first time async iteratee errors (non-dry-run mode)", async () => {
+    it('blows up the first time async iteratee errors (non-dry-run mode)', async () => {
       await regularModeExpectCheck(asyncIteratee);
     });
 
-    it("logs error but keeps going if in dry-run mode - sync iteratee", async () => {
-      process.env.DRY_RUN = "true";
+    it('logs error but keeps going if in dry-run mode - sync iteratee', async () => {
+      process.env.DRY_RUN = 'true';
       await dryrunModeExpectCheck(syncIteratee);
     });
 
-    it("logs error but keeps going if in dry-run mode - async iteratee", async () => {
-      process.env.DRY_RUN = "true";
+    it('logs error but keeps going if in dry-run mode - async iteratee', async () => {
+      process.env.DRY_RUN = 'true';
       await dryrunModeExpectCheck(asyncIteratee);
     });
   }); // end describe('sync and async iteratees in regular and dry-run mode')

@@ -1,48 +1,48 @@
-import { mapLimit } from "async";
-import * as Github from "@octokit/rest";
-import * as _ from "lodash";
-import simpleGit from "simple-git";
-import * as path from "path";
+import { mapLimit } from 'async';
+import * as Github from '@octokit/rest';
+import * as _ from 'lodash';
+import simpleGit from 'simple-git';
+import * as path from 'path';
 
-import { getGlobalGithubConfig } from "../config";
-import { logger as loggerRaw } from "../logger";
-import { GithubGlobalConfig, TargetConfig } from "../schemas/project_config";
-import { ConfigurationError, reportError } from "../utils/errors";
-import { withTempDir } from "../utils/files";
+import { getGlobalGithubConfig } from '../config';
+import { logger as loggerRaw } from '../logger';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { ConfigurationError, reportError } from '../utils/errors';
+import { withTempDir } from '../utils/files';
 import {
   getAuthUsername,
   getGithubApiToken,
   getGithubClient,
   GithubRemote,
-} from "../utils/githubApi";
-import { renderTemplateSafe } from "../utils/strings";
-import { isPreviewRelease } from "../utils/version";
-import { stringToRegexp } from "../utils/filters";
-import { BaseTarget } from "./base";
+} from '../utils/githubApi';
+import { renderTemplateSafe } from '../utils/strings';
+import { isPreviewRelease } from '../utils/version';
+import { stringToRegexp } from '../utils/filters';
+import { BaseTarget } from './base';
 import {
   RemoteArtifact,
   BaseArtifactProvider,
   MAX_DOWNLOAD_CONCURRENCY,
-} from "../artifact_providers/base";
+} from '../artifact_providers/base';
 import {
   castChecksums,
   ChecksumEntry,
   getArtifactChecksums,
-} from "../utils/checksum";
-import * as registryUtils from "../utils/registry";
-import { getPackageDirPath } from "../utils/packagePath";
-import { isDryRun } from "../utils/helpers";
+} from '../utils/checksum';
+import * as registryUtils from '../utils/registry';
+import { getPackageDirPath } from '../utils/packagePath';
+import { isDryRun } from '../utils/helpers';
 
-const logger = loggerRaw.withScope("[registry]");
+const logger = loggerRaw.withScope('[registry]');
 
 const DEFAULT_REGISTRY_REMOTE: GithubRemote = registryUtils.getRegistryGithubRemote();
 
 /** Type of the registry package */
 export enum RegistryPackageType {
   /** App is a generic package type that doesn't belong to any specific registry */
-  APP = "app",
+  APP = 'app',
   /** SDK is a package hosted in one of public registries (PyPI, NPM, etc.) */
-  SDK = "sdk",
+  SDK = 'sdk',
 }
 
 /** "registry" target options */
@@ -68,7 +68,7 @@ export interface RegistryConfig {
  */
 export class RegistryTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = "registry";
+  public readonly name: string = 'registry';
   /** Target options */
   public readonly registryConfig: RegistryConfig;
   /** Github client */
@@ -104,7 +104,7 @@ export class RegistryTarget extends BaseTarget {
     let urlTemplate;
     if (registryType === RegistryPackageType.APP) {
       urlTemplate = this.config.urlTemplate;
-      if (urlTemplate && typeof urlTemplate !== "string") {
+      if (urlTemplate && typeof urlTemplate !== 'string') {
         throw new ConfigurationError(
           `Invalid "urlTemplate" specified: ${urlTemplate}`
         );
@@ -114,18 +114,18 @@ export class RegistryTarget extends BaseTarget {
     const releaseConfig = this.config.config;
     if (!releaseConfig) {
       throw new ConfigurationError(
-        "Cannot find configuration dictionary for release registry"
+        'Cannot find configuration dictionary for release registry'
       );
     }
     const canonicalName = releaseConfig.canonical;
     if (!canonicalName) {
       throw new ConfigurationError(
-        "Canonical name not found in the configuration"
+        'Canonical name not found in the configuration'
       );
     }
 
     const linkPrereleases = this.config.linkPrereleases || false;
-    if (typeof linkPrereleases !== "boolean") {
+    if (typeof linkPrereleases !== 'boolean') {
       throw new ConfigurationError('Invlaid type of "linkPrereleases"');
     }
 
@@ -134,7 +134,7 @@ export class RegistryTarget extends BaseTarget {
     const onlyIfPresentStr = this.config.onlyIfPresent || undefined;
     let onlyIfPresent;
     if (onlyIfPresentStr) {
-      if (typeof onlyIfPresentStr !== "string") {
+      if (typeof onlyIfPresentStr !== 'string') {
         throw new ConfigurationError('Invalid type of "onlyIfPresent"');
       }
       onlyIfPresent = stringToRegexp(onlyIfPresentStr);
@@ -173,7 +173,7 @@ export class RegistryTarget extends BaseTarget {
 
     const artifacts = await this.getArtifactsForRevision(revision);
     if (artifacts.length === 0) {
-      logger.warn("No artifacts found, not adding any links to the manifest");
+      logger.warn('No artifacts found, not adding any links to the manifest');
       return;
     }
 
@@ -259,12 +259,12 @@ export class RegistryTarget extends BaseTarget {
 
     const artifacts = await this.getArtifactsForRevision(revision);
     if (artifacts.length === 0) {
-      logger.warn("No artifacts found, not adding any file data");
+      logger.warn('No artifacts found, not adding any file data');
       return;
     }
 
     logger.info(
-      "Adding extra data (checksums, download links) for available artifacts..."
+      'Adding extra data (checksums, download links) for available artifacts...'
     );
     const files: { [key: string]: any } = {};
 
@@ -342,8 +342,8 @@ export class RegistryTarget extends BaseTarget {
     const git = simpleGit(directory);
     logger.info(`Cloning "${remote.getRemoteString()}" to "${directory}"...`);
     await git.clone(remote.getRemoteStringWithAuth(), directory, [
-      "--filter=tree:0",
-      "--single-branch",
+      '--filter=tree:0',
+      '--single-branch',
     ]);
 
     const packageDirPath = getPackageDirPath(
@@ -370,18 +370,18 @@ export class RegistryTarget extends BaseTarget {
     );
 
     // Commit
-    await git.add(["."]);
+    await git.add(['.']);
     await git.commit(`craft: release "${canonicalName}", version "${version}"`);
 
     // Ensure we are still up to date with upstream
-    await git.pull("origin", "master", ["--rebase"]);
+    await git.pull('origin', 'master', ['--rebase']);
 
     // Push!
     if (!isDryRun()) {
       logger.info(`Pushing the changes...`);
-      await git.push("origin", "master");
+      await git.push('origin', 'master');
     } else {
-      logger.info("[dry-run] Not pushing the changes.");
+      logger.info('[dry-run] Not pushing the changes.');
     }
   }
 
@@ -390,7 +390,7 @@ export class RegistryTarget extends BaseTarget {
    */
   public async publish(version: string, revision: string): Promise<any> {
     if (!this.registryConfig.linkPrereleases && isPreviewRelease(version)) {
-      logger.info("Preview release detected, skipping the target");
+      logger.info('Preview release detected, skipping the target');
       return undefined;
     }
 
@@ -419,8 +419,8 @@ export class RegistryTarget extends BaseTarget {
       (directory) =>
         this.pushVersionToRegistry(directory, remote, version, revision),
       true,
-      "craft-release-registry-"
+      'craft-release-registry-'
     );
-    logger.info("Release registry updated");
+    logger.info('Release registry updated');
   }
 }

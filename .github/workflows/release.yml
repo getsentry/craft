@@ -11,7 +11,7 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-    name: "Release a new version"
+    name: 'Release a new version'
     steps:
       - uses: actions/checkout@v2
         with:

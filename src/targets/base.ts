@@ -1,11 +1,11 @@
-import { logger } from "../logger";
-import { TargetConfig } from "../schemas/project_config";
-import { FilterOptions } from "../stores/zeus";
-import { stringToRegexp } from "../utils/filters";
+import { logger } from '../logger';
+import { TargetConfig } from '../schemas/project_config';
+import { FilterOptions } from '../stores/zeus';
+import { stringToRegexp } from '../utils/filters';
 import {
   BaseArtifactProvider,
   RemoteArtifact,
-} from "../artifact_providers/base";
+} from '../artifact_providers/base';
 
 // TODO: make abstract?
 /**
@@ -13,7 +13,7 @@ import {
  */
 export class BaseTarget {
   /** Target name */
-  public readonly name: string = "base";
+  public readonly name: string = 'base';
   /** Artifact provider */
   public readonly artifactProvider: BaseArtifactProvider;
   /** Unparsed target configuration */
@@ -47,7 +47,7 @@ export class BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(_version: string, _revision: string): Promise<void> {
-    throw new Error("Not implemented");
+    throw new Error('Not implemented');
     return;
   }
 
@@ -69,7 +69,7 @@ export class BaseTarget {
     };
     // This is a hacky legacy way of skipping artifact downloads.
     // Can be removed when we fully migrate from ZeusStore to artifact providers.
-    if (filterOptions.includeNames?.source === "none") {
+    if (filterOptions.includeNames?.source === 'none') {
       logger.debug(
         `target.includeNames is 'none', skipping artifacts downloads.`
       );

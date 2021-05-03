@@ -1,39 +1,39 @@
-import { NoneArtifactProvider } from "../../artifact_providers/none";
-import { ConfigurationError } from "../../utils/errors";
-import { AwsLambdaLayerTarget } from "../awsLambdaLayer";
+import { NoneArtifactProvider } from '../../artifact_providers/none';
+import { ConfigurationError } from '../../utils/errors';
+import { AwsLambdaLayerTarget } from '../awsLambdaLayer';
 
-jest.mock("fs");
+jest.mock('fs');
 
 /** Returns a new AwsLambdaLayerTarget test instance. */
 function getAwsLambdaTarget(): AwsLambdaLayerTarget {
   return new AwsLambdaLayerTarget(
     {
-      name: "aws-lambda-layer",
-      ["testKey"]: "testValue",
+      name: 'aws-lambda-layer',
+      ['testKey']: 'testValue',
     },
     new NoneArtifactProvider()
   );
 }
 
 function setAwsEnvironmentVariables() {
-  process.env.AWS_ACCESS_KEY_ID = "test aws access key";
-  process.env.AWS_SECRET_ACCESS_KEY = "test aws secret access key";
-  process.env.GITHUB_TOKEN = "test github token";
-  process.env.GITHUB_API_TOKEN = "test github api token";
+  process.env.AWS_ACCESS_KEY_ID = 'test aws access key';
+  process.env.AWS_SECRET_ACCESS_KEY = 'test aws secret access key';
+  process.env.GITHUB_TOKEN = 'test github token';
+  process.env.GITHUB_API_TOKEN = 'test github api token';
 }
 
 function setTestingProjectConfig(awsTarget: AwsLambdaLayerTarget) {
-  awsTarget.config.layerName = "testLayerName";
+  awsTarget.config.layerName = 'testLayerName';
   awsTarget.config.compatibleRuntimes = [
     {
-      name: "runtimeTestName",
-      versions: ["nodejs10.x", "nodejs12.x"],
+      name: 'runtimeTestName',
+      versions: ['nodejs10.x', 'nodejs12.x'],
     },
   ];
-  awsTarget.config.license = "MIT";
+  awsTarget.config.license = 'MIT';
 }
 
-describe("get aws config environment variables", () => {
+describe('get aws config environment variables', () => {
   const oldEnvVariables = process.env;
 
   beforeEach(() => {
@@ -46,15 +46,15 @@ describe("get aws config environment variables", () => {
   });
 
   function deleteTargetOptionsFromEnvironment() {
-    if ("AWS_ACCESS_KEY_ID" in process.env) {
+    if ('AWS_ACCESS_KEY_ID' in process.env) {
       delete process.env.AWS_ACCESS_KEY_ID;
     }
-    if ("AWS_SECRET_ACCESES_KEY" in process.env) {
+    if ('AWS_SECRET_ACCESES_KEY' in process.env) {
       delete process.env.AWS_SECRET_ACCESES_KEY;
     }
   }
 
-  test("errors on missing environment variables", () => {
+  test('errors on missing environment variables', () => {
     deleteTargetOptionsFromEnvironment();
     try {
       getAwsLambdaTarget();
@@ -63,7 +63,7 @@ describe("get aws config environment variables", () => {
     }
   });
 
-  test("success on environment variables", () => {
+  test('success on environment variables', () => {
     deleteTargetOptionsFromEnvironment();
     setAwsEnvironmentVariables();
     // AwsLambdaTarget needs the environment variables to initialize.
@@ -71,7 +71,7 @@ describe("get aws config environment variables", () => {
   });
 });
 
-describe("project config parameters", () => {
+describe('project config parameters', () => {
   beforeAll(() => {
     setAwsEnvironmentVariables();
   });
@@ -82,11 +82,11 @@ describe("project config parameters", () => {
     delete awsTarget.config.license;
   }
 
-  test("missing config parameters", async () => {
+  test('missing config parameters', async () => {
     const awsTarget = getAwsLambdaTarget();
     clearConfig(awsTarget);
     try {
-      await awsTarget.publish("", "");
+      await awsTarget.publish('', '');
     } catch (error) {
       expect(error instanceof ConfigurationError).toBe(true);
       expect(
@@ -95,10 +95,10 @@ describe("project config parameters", () => {
     }
   });
 
-  test("correct config", async () => {
+  test('correct config', async () => {
     const awsTarget = getAwsLambdaTarget();
     setTestingProjectConfig(awsTarget);
-    const failingTestErrorMsg = "failing mock test";
+    const failingTestErrorMsg = 'failing mock test';
     const getArtifactsFailingMock = jest.fn().mockImplementation(() => {
       throw new Error(failingTestErrorMsg);
     });
@@ -111,15 +111,15 @@ describe("project config parameters", () => {
       awsTarget.getArtifactsForRevision = getArtifactsFailingMock.bind(
         AwsLambdaLayerTarget
       );
-      await awsTarget.publish("", ""); // Should break the mocked function.
-      fail("Should not reach here");
+      await awsTarget.publish('', ''); // Should break the mocked function.
+      fail('Should not reach here');
     } catch (error) {
       expect(new RegExp(failingTestErrorMsg).test(error.message)).toBe(true);
     }
   });
 });
 
-describe("publish", () => {
+describe('publish', () => {
   beforeAll(() => {
     setAwsEnvironmentVariables();
   });
@@ -128,7 +128,7 @@ describe("publish", () => {
     return [];
   });
 
-  test("error on missing artifact", async () => {
+  test('error on missing artifact', async () => {
     const awsTarget = getAwsLambdaTarget();
     setTestingProjectConfig(awsTarget);
     awsTarget.getArtifactsForRevision = noArtifactsForRevision.bind(
@@ -138,7 +138,7 @@ describe("publish", () => {
     // thrown; when it's on dry run, the error is logged and `undefined` is
     // returned. Thus, both alternatives have been considered.
     try {
-      const noPackageFound = await awsTarget.publish("version", "revision");
+      const noPackageFound = await awsTarget.publish('version', 'revision');
       expect(noPackageFound).toBe(undefined);
     } catch (error) {
       expect(error instanceof Error).toBe(true);
@@ -148,10 +148,10 @@ describe("publish", () => {
   });
 
   const twoArtifactsForRevision = jest.fn().mockImplementation(function () {
-    return ["file1", "file2"];
+    return ['file1', 'file2'];
   });
 
-  test("error on having too many artifacts", async () => {
+  test('error on having too many artifacts', async () => {
     const awsTarget = getAwsLambdaTarget();
     setTestingProjectConfig(awsTarget);
     awsTarget.getArtifactsForRevision = twoArtifactsForRevision.bind(
@@ -162,8 +162,8 @@ describe("publish", () => {
     // returned. Thus, both alternatives have been considered.
     try {
       const multiplePackagesFound = await awsTarget.publish(
-        "version",
-        "revision"
+        'version',
+        'revision'
       );
       expect(multiplePackagesFound).toBe(undefined);
     } catch (error) {

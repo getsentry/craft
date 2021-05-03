@@ -1,5 +1,5 @@
-import { BaseStatusProvider, CommitStatus, RepositoryInfo } from "./base";
-import { ZeusStore } from "../stores/zeus";
+import { BaseStatusProvider, CommitStatus, RepositoryInfo } from './base';
+import { ZeusStore } from '../stores/zeus';
 
 /**
  * TODO
@@ -28,7 +28,7 @@ export class ZeusStatusProvider extends BaseStatusProvider {
     try {
       zeusRevision = await this.store.getRevision(revision);
     } catch (e) {
-      const errorMessage: string = e.message || "";
+      const errorMessage: string = e.message || '';
       if (errorMessage.match(/404 not found|resource not found/i)) {
         return CommitStatus.NOT_FOUND;
       }

@@ -1,6 +1,6 @@
-import * as path from "path";
-import { RegistryPackageType } from "../targets/registry";
-import { ConfigurationError } from "./errors";
+import * as path from 'path';
+import { RegistryPackageType } from '../targets/registry';
+import { ConfigurationError } from './errors';
 
 /**
  * Returns the path to the SDK, given its canonical name.
@@ -11,7 +11,7 @@ import { ConfigurationError } from "./errors";
  */
 function getSdkPackagePath(registryDir: string, canonical: string): string {
   const packageDirs = parseCanonical(canonical);
-  return path.posix.join(registryDir, "packages", ...packageDirs);
+  return path.posix.join(registryDir, 'packages', ...packageDirs);
 }
 
 /**
@@ -23,12 +23,12 @@ function getSdkPackagePath(registryDir: string, canonical: string): string {
  */
 function getAppPackagePath(registryDir: string, canonical: string): string {
   const packageDirs = parseCanonical(canonical);
-  if (packageDirs[0] !== "app") {
+  if (packageDirs[0] !== 'app') {
     throw new ConfigurationError(
       `Invalid canonical entry for an app: ${canonical}`
     );
   }
-  return path.posix.join(registryDir, "apps", ...packageDirs.slice(1));
+  return path.posix.join(registryDir, 'apps', ...packageDirs.slice(1));
 }
 
 /**
@@ -67,18 +67,18 @@ export function getPackageDirPath(
  * @returns A list of directories
  */
 export function parseCanonical(canonicalName: string): string[] {
-  const [registry, ...splitPackageName] = canonicalName.split(":");
+  const [registry, ...splitPackageName] = canonicalName.split(':');
 
   // This essentially replaces colons with forward slashes for the package name
   // of the initial canonical name
-  const packageName = splitPackageName.join("/");
+  const packageName = splitPackageName.join('/');
 
   if (!registry || !packageName) {
     throw new ConfigurationError(
       `Cannot parse canonical name for the package: ${canonicalName}`
     );
   }
-  const packageDirs = packageName.split("/");
+  const packageDirs = packageName.split('/');
   if (packageDirs.some((x) => !x)) {
     throw new ConfigurationError(
       `Cannot parse canonical name for the package: ${canonicalName}`

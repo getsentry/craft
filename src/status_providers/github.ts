@@ -1,10 +1,10 @@
-import * as Github from "@octokit/rest";
+import * as Github from '@octokit/rest';
 
-import { logger } from "../logger";
-import { BaseStatusProvider, CommitStatus, RepositoryInfo } from "./base";
-import { getGithubClient } from "../utils/githubApi";
-import { ConfigurationError } from "../utils/errors";
-import { formatJson } from "../utils/strings";
+import { logger } from '../logger';
+import { BaseStatusProvider, CommitStatus, RepositoryInfo } from './base';
+import { getGithubClient } from '../utils/githubApi';
+import { ConfigurationError } from '../utils/errors';
+import { formatJson } from '../utils/strings';
 
 /**
  * Status provider that talks to GitHub to get commit checks (statuses)
@@ -74,34 +74,34 @@ export class GithubStatusProvider extends BaseStatusProvider {
           return contextResult;
         }
       }
-      logger.debug("All contexts concluded successfully!");
+      logger.debug('All contexts concluded successfully!');
       return CommitStatus.SUCCESS;
     } else {
       logger.debug(
-        "No config provided for Github status provider, calculating the combined status..."
+        'No config provided for Github status provider, calculating the combined status...'
       );
 
       let commitApiStatusResult;
       if (
         revisionStatus.total_count === 0 &&
-        revisionStatus.state === "pending"
+        revisionStatus.state === 'pending'
       ) {
         // Edge case, this is what GitHub returns when there are no registered legacy checks.
-        logger.debug("No legacy checks detected, checking for runs...");
+        logger.debug('No legacy checks detected, checking for runs...');
         const hasPendingActiveSuites = revisionCheckSuites.check_suites.some(
           (suite) =>
             // Need the any cast as octokit lacks this prop in its types
             (suite as any).latest_check_runs_count > 0 &&
-            suite.status === "queued"
+            suite.status === 'queued'
         );
         if (revisionChecks.total_count > 0) {
-          logger.debug("Check runs exist, continuing...");
+          logger.debug('Check runs exist, continuing...');
           commitApiStatusResult = CommitStatus.SUCCESS;
         } else if (hasPendingActiveSuites) {
-          logger.debug("Pending check suites exist, continuing...");
+          logger.debug('Pending check suites exist, continuing...');
           commitApiStatusResult = CommitStatus.PENDING;
         } else {
-          logger.warn("No valid build contexts detected, did any checks run?");
+          logger.warn('No valid build contexts detected, did any checks run?');
           commitApiStatusResult = CommitStatus.NOT_FOUND;
         }
       } else {
@@ -156,10 +156,10 @@ export class GithubStatusProvider extends BaseStatusProvider {
     logger.debug(`Status check results: ${formatJson(results)}`);
 
     if (results.includes(CommitStatus.FAILURE)) {
-      logger.error("At least one of the checks has failed, result: FAILURE");
+      logger.error('At least one of the checks has failed, result: FAILURE');
       return CommitStatus.FAILURE;
     } else if (results.includes(CommitStatus.PENDING)) {
-      logger.debug("At least one of the checks is pending, result: PENDING");
+      logger.debug('At least one of the checks is pending, result: PENDING');
       return CommitStatus.PENDING;
     } else if (
       results[0] === CommitStatus.NOT_FOUND &&
@@ -171,7 +171,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
       logger.debug(`Context "${context}" was build succesffully!`);
       return CommitStatus.SUCCESS;
     } else {
-      throw new Error("Unreachable");
+      throw new Error('Unreachable');
     }
   }
 
@@ -181,9 +181,9 @@ export class GithubStatusProvider extends BaseStatusProvider {
    * @param state Status string
    */
   private stateToCommitStatus(state: string): CommitStatus {
-    if (state === "success") {
+    if (state === 'success') {
       return CommitStatus.SUCCESS;
-    } else if (state === "pending") {
+    } else if (state === 'pending') {
       return CommitStatus.PENDING;
     } else {
       return CommitStatus.FAILURE;
@@ -229,15 +229,15 @@ export class GithubStatusProvider extends BaseStatusProvider {
     let isSomethingPending = revisionCheckSuites.check_suites.some(
       (suite) =>
         // Need the any cast as octokit lacks this prop in its types
-        (suite as any).latest_check_runs_count > 0 && suite.status === "queued"
+        (suite as any).latest_check_runs_count > 0 && suite.status === 'queued'
     );
     let found = false;
     for (const run of revisionChecks.check_runs) {
       if (context && run.name !== context) {
         continue;
       }
-      if (run.status === "completed") {
-        if (run.conclusion !== "success" && run.conclusion !== "skipped") {
+      if (run.status === 'completed') {
+        if (run.conclusion !== 'success' && run.conclusion !== 'skipped') {
           return CommitStatus.FAILURE;
         }
       } else {

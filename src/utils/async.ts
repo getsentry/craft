@@ -1,5 +1,5 @@
-import * as _ from "lodash";
-import { reportError } from "./errors";
+import * as _ from 'lodash';
+import { reportError } from './errors';
 
 /**
  * Asynchronously calls the predicate on every element of the array and filters
