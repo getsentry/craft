@@ -1,0 +1,26 @@
+name: "Lint"
+on:
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint fixes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: volta-cli/action@v1
+      - uses: actions/cache@v2
+        id: cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-${{ hashFiles('package.json', 'yarn.lock') }}
+      - name: Install Dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: yarn install --frozen-lockfile
+      - name: Lint
+        run: yarn lint
+      - name: Save lint fixes
+        run: >
+          git diff --quiet ||
+          git commit -anm 'ref: Lint fixes' &&
+          git push
