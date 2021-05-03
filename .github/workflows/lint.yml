@@ -9,8 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          # Full git history is needed to push back the fixes
-          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
       - uses: volta-cli/action@v1
       - uses: actions/cache@v2
         id: cache
