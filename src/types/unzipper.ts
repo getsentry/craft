@@ -1,1 +1,1 @@
-declare module 'unzipper';
+declare module "unzipper";

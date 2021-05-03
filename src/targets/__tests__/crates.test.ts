@@ -1,15 +1,15 @@
-import { CrateDependency, CratePackage, CratesTarget } from '../crates';
-import { NoneArtifactProvider } from '../../artifact_providers/none';
+import { CrateDependency, CratePackage, CratesTarget } from "../crates";
+import { NoneArtifactProvider } from "../../artifact_providers/none";
 
-jest.mock('../../utils/system');
+jest.mock("../../utils/system");
 
 function cratePackageFactory(name: string): CratePackage {
   return {
     dependencies: [],
     id: name,
-    manifest_path: '',
+    manifest_path: "",
     name,
-    version: '1.0.0',
+    version: "1.0.0",
     publish: null,
   };
 }
@@ -17,7 +17,7 @@ function cratePackageFactory(name: string): CratePackage {
 function cratePackageToDependency(cratePackage: CratePackage): CrateDependency {
   return {
     name: cratePackage.name,
-    req: '1.0.0',
+    req: "1.0.0",
     kind: null,
   };
 }
@@ -25,22 +25,22 @@ function cratePackageToDependency(cratePackage: CratePackage): CrateDependency {
 function makeDev(dependency: CrateDependency): CrateDependency {
   return {
     ...dependency,
-    kind: 'dev',
+    kind: "dev",
   };
 }
 
-describe('getPublishOrder', () => {
-  process.env.CRATES_IO_TOKEN = 'xxx';
+describe("getPublishOrder", () => {
+  process.env.CRATES_IO_TOKEN = "xxx";
   const target = new CratesTarget(
     {
-      name: 'crates',
+      name: "crates",
       noDevDeps: true,
     },
     new NoneArtifactProvider()
   );
 
-  test('sorts crate packages properly', () => {
-    const packages = ['p1', 'p2', 'p3', 'p4'].map(cratePackageFactory);
+  test("sorts crate packages properly", () => {
+    const packages = ["p1", "p2", "p3", "p4"].map(cratePackageFactory);
     const [p1, p2, p3, p4] = packages;
     p1.dependencies = [p2, p3].map(cratePackageToDependency);
     p3.dependencies = [p4].map(cratePackageToDependency);
@@ -49,13 +49,13 @@ describe('getPublishOrder', () => {
     expect(target.getPublishOrder(packages)).toEqual(sortedPackages);
   });
 
-  test('does not fail on a single package', () => {
-    const packages = [cratePackageFactory('p1')];
+  test("does not fail on a single package", () => {
+    const packages = [cratePackageFactory("p1")];
     expect(target.getPublishOrder(packages)).toEqual(packages);
   });
 
-  test('errors on circular dependencies', () => {
-    const packages = ['p1', 'p2'].map(cratePackageFactory);
+  test("errors on circular dependencies", () => {
+    const packages = ["p1", "p2"].map(cratePackageFactory);
     const [p1, p2] = packages;
 
     p1.dependencies = [cratePackageToDependency(p2)];
@@ -64,8 +64,8 @@ describe('getPublishOrder', () => {
     expect(() => target.getPublishOrder(packages)).toThrowError(Error);
   });
 
-  test('excludes dev dependencies', () => {
-    const packages = ['p1', 'p2'].map(cratePackageFactory);
+  test("excludes dev dependencies", () => {
+    const packages = ["p1", "p2"].map(cratePackageFactory);
     const [p1, p2] = packages;
 
     p1.dependencies = [cratePackageToDependency(p2)];

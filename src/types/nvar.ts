@@ -1,1 +1,1 @@
-declare module 'nvar';
+declare module "nvar";

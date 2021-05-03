@@ -1,5 +1,5 @@
-import * as mustache from 'mustache';
-import * as util from 'util';
+import * as mustache from "mustache";
+import * as util from "util";
 
 /**
  * Sanitizes object attributes
@@ -12,7 +12,7 @@ import * as util from 'util';
  * @returns Normalized object
  */
 export function sanitizeObject(obj: Record<string, any>): any {
-  if (typeof obj !== 'object' || obj === null) {
+  if (typeof obj !== "object" || obj === null) {
     throw new Error(`Cannot normalize value: ${obj}`);
   }
 
@@ -23,17 +23,17 @@ export function sanitizeObject(obj: Record<string, any>): any {
     let newValue;
 
     // Allowed value types
-    if (['boolean', 'string', 'number', 'undefined'].indexOf(valueType) > -1) {
+    if (["boolean", "string", "number", "undefined"].indexOf(valueType) > -1) {
       newValue = value;
     } else if (value === null) {
       newValue = undefined;
-    } else if (valueType === 'object') {
+    } else if (valueType === "object") {
       newValue = sanitizeObject(value);
     } else {
       continue;
     }
     result[key] = newValue;
-    const normalizedKey = key.replace(/\./g, '__');
+    const normalizedKey = key.replace(/\./g, "__");
     if (key !== normalizedKey) {
       result[normalizedKey] = newValue;
     }
@@ -84,7 +84,7 @@ export function formatSize(size: number): string {
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function formatJson(obj: any): string {
   const result = JSON.stringify(obj, null, 4);
-  if (obj instanceof Error && result === '{}') {
+  if (obj instanceof Error && result === "{}") {
     // Error that doesn't implement toJSON()
     return util.format(obj);
   } else {

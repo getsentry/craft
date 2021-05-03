@@ -1,16 +1,16 @@
-import { logger as loggerRaw } from '../logger';
-import { TargetConfig } from '../schemas/project_config';
+import { logger as loggerRaw } from "../logger";
+import { TargetConfig } from "../schemas/project_config";
 import {
   BaseArtifactProvider,
   RemoteArtifact,
-} from '../artifact_providers/base';
-import { ConfigurationError, reportError } from '../utils/errors';
-import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
-import { BaseTarget } from './base';
+} from "../artifact_providers/base";
+import { ConfigurationError, reportError } from "../utils/errors";
+import { checkExecutableIsPresent, spawnProcess } from "../utils/system";
+import { BaseTarget } from "./base";
 
-const logger = loggerRaw.withScope('[pypi]');
+const logger = loggerRaw.withScope("[pypi]");
 
-const DEFAULT_TWINE_BIN = 'twine';
+const DEFAULT_TWINE_BIN = "twine";
 
 /**
  * Command to launch twine
@@ -35,7 +35,7 @@ export interface PypiTargetOptions {
  */
 export class PypiTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = 'pypi';
+  public readonly name: string = "pypi";
   /** Target options */
   public readonly pypiConfig: PypiTargetOptions;
 
@@ -57,7 +57,7 @@ export class PypiTarget extends BaseTarget {
         `Cannot perform PyPI release: missing credentials.
          Please use TWINE_USERNAME and TWINE_PASSWORD environment variables.`.replace(
           /^\s+/gm,
-          ''
+          ""
         )
       );
     }
@@ -75,7 +75,7 @@ export class PypiTarget extends BaseTarget {
    */
   public async uploadAsset(path: string): Promise<any> {
     // TODO: Sign the package with "--sign"
-    return spawnProcess(TWINE_BIN, ['upload', path]);
+    return spawnProcess(TWINE_BIN, ["upload", path]);
   }
 
   /**
@@ -88,13 +88,13 @@ export class PypiTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(_version: string, revision: string): Promise<any> {
-    logger.debug('Fetching artifact list...');
+    logger.debug("Fetching artifact list...");
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_PYPI_REGEX,
     });
 
     if (!packageFiles.length) {
-      reportError('Cannot release to PyPI: no packages found');
+      reportError("Cannot release to PyPI: no packages found");
       return undefined;
     }
 
@@ -106,6 +106,6 @@ export class PypiTarget extends BaseTarget {
       })
     );
 
-    logger.info('PyPI release complete');
+    logger.info("PyPI release complete");
   }
 }

@@ -1,13 +1,13 @@
-import { DescribeRegionsCommandOutput, EC2 } from '@aws-sdk/client-ec2';
-import { Lambda } from '@aws-sdk/client-lambda';
-import { logger as loggerRaw } from '../logger';
+import { DescribeRegionsCommandOutput, EC2 } from "@aws-sdk/client-ec2";
+import { Lambda } from "@aws-sdk/client-lambda";
+import { logger as loggerRaw } from "../logger";
 
-const logger = loggerRaw.withScope('[aws-lambda-layer]');
+const logger = loggerRaw.withScope("[aws-lambda-layer]");
 
 /** Prefix of the canonical name. */
-const RUNTIME_CANONICAL_PREFIX = 'aws-layer:';
+const RUNTIME_CANONICAL_PREFIX = "aws-layer:";
 /** Substring used to separate the different ARN parts. */
-const ARN_SEPARATOR = ':';
+const ARN_SEPARATOR = ":";
 /** Index (0-based) of the account number in the ARN. */
 const ARN_ACCOUNT_INDEX = 4;
 
@@ -79,9 +79,9 @@ export class AwsLambdaLayerManager {
     await lambda.addLayerVersionPermission({
       LayerName: this.layerName,
       VersionNumber: publishedLayer.Version,
-      StatementId: 'public',
-      Action: 'lambda:GetLayerVersion',
-      Principal: '*',
+      StatementId: "public",
+      Action: "lambda:GetLayerVersion",
+      Principal: "*",
     });
 
     if (this.verboseInfo) {
@@ -91,7 +91,7 @@ export class AwsLambdaLayerManager {
 
     return {
       region: region,
-      arn: publishedLayer.LayerVersionArn || '',
+      arn: publishedLayer.LayerVersionArn || "",
       version: publishedLayer.Version || -1,
     };
   }
@@ -103,19 +103,19 @@ export class AwsLambdaLayerManager {
    */
   public async publishToAllRegions(): Promise<PublishedLayer[]> {
     const publishedLayers = await Promise.all(
-      this.awsRegions.map(async region => {
+      this.awsRegions.map(async (region) => {
         try {
           return await this.publishLayerToRegion(region);
         } catch (error) {
           logger.warn(
-            'Something went wrong with AWS trying to publish to region ' +
+            "Something went wrong with AWS trying to publish to region " +
               `${region}: ${error.message}`
           );
           return undefined;
         }
       })
     );
-    return publishedLayers.filter(layer => {
+    return publishedLayers.filter((layer) => {
       return layer !== undefined;
     }) as PublishedLayer[];
   }
@@ -135,15 +135,13 @@ export class AwsLambdaLayerManager {
  * regions) to AWS. For more information, see
  * https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html#describeRegions-property
  */
-export async function getRegionsFromAws(): Promise<
-  DescribeRegionsCommandOutput
-> {
-  logger.debug('Fetching AWS regions...');
-  const ec2 = new EC2({ region: 'us-east-2' });
+export async function getRegionsFromAws(): Promise<DescribeRegionsCommandOutput> {
+  logger.debug("Fetching AWS regions...");
+  const ec2 = new EC2({ region: "us-east-2" });
   try {
     return await ec2.describeRegions({});
   } catch (error) {
-    throw new Error('AWS error fetching regions.');
+    throw new Error("AWS error fetching regions.");
   }
 }
 
@@ -155,7 +153,7 @@ export function extractRegionNames(
   awsRegions: DescribeRegionsCommandOutput
 ): string[] {
   const regionNames: string[] = [];
-  awsRegions.Regions?.map(currentRegion => {
+  awsRegions.Regions?.map((currentRegion) => {
     if (currentRegion.RegionName !== undefined) {
       regionNames.push(currentRegion.RegionName);
     }

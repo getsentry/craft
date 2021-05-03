@@ -1,16 +1,16 @@
-import { logger as loggerRaw } from '../logger';
+import { logger as loggerRaw } from "../logger";
 import {
   BaseArtifactProvider,
   RemoteArtifact,
-} from '../artifact_providers/base';
-import { reportError } from '../utils/errors';
-import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
-import { BaseTarget } from './base';
-import { TargetConfig } from 'src/schemas/project_config';
+} from "../artifact_providers/base";
+import { reportError } from "../utils/errors";
+import { checkExecutableIsPresent, spawnProcess } from "../utils/system";
+import { BaseTarget } from "./base";
+import { TargetConfig } from "src/schemas/project_config";
 
-const logger = loggerRaw.withScope('[gem]');
+const logger = loggerRaw.withScope("[gem]");
 
-const DEFAULT_GEM_BIN = 'gem';
+const DEFAULT_GEM_BIN = "gem";
 
 /**
  * Command to launch gem
@@ -27,7 +27,7 @@ const DEFAULT_GEM_REGEX = /^.*(\.gem)$/;
  */
 export class GemTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = 'gem';
+  public readonly name: string = "gem";
 
   public constructor(
     config: TargetConfig,
@@ -44,7 +44,7 @@ export class GemTarget extends BaseTarget {
    * @returns A promise that resolves when the gem pushed
    */
   public async pushGem(path: string): Promise<any> {
-    return spawnProcess(GEM_BIN, ['push', path]);
+    return spawnProcess(GEM_BIN, ["push", path]);
   }
 
   /**
@@ -54,13 +54,13 @@ export class GemTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(_version: string, revision: string): Promise<any> {
-    logger.debug('Fetching artifact list...');
+    logger.debug("Fetching artifact list...");
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_GEM_REGEX,
     });
 
     if (!packageFiles.length) {
-      reportError('Cannot push gem: no packages found');
+      reportError("Cannot push gem: no packages found");
       return undefined;
     }
 
@@ -72,6 +72,6 @@ export class GemTarget extends BaseTarget {
       })
     );
 
-    logger.info('Successfully registered gem');
+    logger.info("Successfully registered gem");
   }
 }

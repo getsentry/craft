@@ -1,9 +1,9 @@
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const consola = require('consola');
+const consola = require("consola");
 
-const loggerModule: typeof consola = jest.genMockFromModule('../logger');
+const loggerModule: typeof consola = jest.genMockFromModule("../logger");
 
-loggerModule.logger.withScope = function(): any {
+loggerModule.logger.withScope = function (): any {
   return this;
 };
 

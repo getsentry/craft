@@ -5,17 +5,17 @@ import {
   RevisionInfo,
   Status,
   RepositoryInfo,
-} from '@zeus-ci/sdk';
-import * as _ from 'lodash';
+} from "@zeus-ci/sdk";
+import * as _ from "lodash";
 
-import { checkEnvForPrerequisite } from '../utils/env';
+import { checkEnvForPrerequisite } from "../utils/env";
 import {
   calculateChecksum,
   HashAlgorithm,
   HashOutputFormat,
-} from '../utils/system';
-import { clearObjectProperties } from '../utils/objects';
-import { logger } from '../logger';
+} from "../utils/system";
+import { clearObjectProperties } from "../utils/objects";
+import { logger } from "../logger";
 
 // TODO (kmclb) get rid of this file once artifact providers are done
 
@@ -66,8 +66,8 @@ export class ZeusStore {
     downloadDirectory?: string
   ) {
     checkEnvForPrerequisite({
-      legacyName: 'ZEUS_TOKEN',
-      name: 'ZEUS_API_TOKEN',
+      legacyName: "ZEUS_TOKEN",
+      name: "ZEUS_API_TOKEN",
     });
     // We currently need ZEUS_TOKEN set for zeus-sdk to work properly
     if (!process.env.ZEUS_TOKEN) {
@@ -118,7 +118,7 @@ export class ZeusStore {
    */
   public async downloadArtifacts(artifacts: Artifact[]): Promise<string[]> {
     return Promise.all(
-      artifacts.map(async artifact => this.downloadArtifact(artifact))
+      artifacts.map(async (artifact) => this.downloadArtifact(artifact))
     );
   }
 
@@ -143,16 +143,18 @@ export class ZeusStore {
     );
 
     // For every filename, take the artifact with the most recent update time
-    const nameToArtifacts = _.groupBy(artifacts, artifact => artifact.name);
-    const filteredArtifacts = Object.keys(nameToArtifacts).map(artifactName => {
-      const artifactObjects = nameToArtifacts[artifactName];
-      // Sort by the update time
-      const sortedArtifacts = _.sortBy(
-        artifactObjects,
-        artifact => Date.parse(artifact.updated_at || '') || 0
-      );
-      return sortedArtifacts[sortedArtifacts.length - 1];
-    });
+    const nameToArtifacts = _.groupBy(artifacts, (artifact) => artifact.name);
+    const filteredArtifacts = Object.keys(nameToArtifacts).map(
+      (artifactName) => {
+        const artifactObjects = nameToArtifacts[artifactName];
+        // Sort by the update time
+        const sortedArtifacts = _.sortBy(
+          artifactObjects,
+          (artifact) => Date.parse(artifact.updated_at || "") || 0
+        );
+        return sortedArtifacts[sortedArtifacts.length - 1];
+      }
+    );
 
     this.fileListCache[revision] = filteredArtifacts;
     return filteredArtifacts;
@@ -174,13 +176,13 @@ export class ZeusStore {
     }
     const { includeNames, excludeNames } = filterOptions;
     if (includeNames) {
-      filteredArtifacts = filteredArtifacts.filter(artifact =>
+      filteredArtifacts = filteredArtifacts.filter((artifact) =>
         includeNames.test(artifact.name)
       );
     }
     if (excludeNames) {
       filteredArtifacts = filteredArtifacts.filter(
-        artifact => !excludeNames.test(artifact.name)
+        (artifact) => !excludeNames.test(artifact.name)
       );
     }
     return filteredArtifacts;

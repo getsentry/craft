@@ -2,16 +2,16 @@ import {
   Artifact as ZeusArtifact,
   Client as ZeusClient,
   Status,
-} from '@zeus-ci/sdk';
-import * as _ from 'lodash';
+} from "@zeus-ci/sdk";
+import * as _ from "lodash";
 
 import {
   BaseArtifactProvider,
   RemoteArtifact,
   ArtifactProviderConfig,
-} from '../artifact_providers/base';
-import { checkEnvForPrerequisite } from '../utils/env';
-import { logger as loggerRaw } from '../logger';
+} from "../artifact_providers/base";
+import { checkEnvForPrerequisite } from "../utils/env";
+import { logger as loggerRaw } from "../logger";
 
 const logger = loggerRaw.withScope(`[artifact-provider/zeus]`);
 
@@ -30,8 +30,8 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
   public constructor(config: ArtifactProviderConfig) {
     super(config);
     checkEnvForPrerequisite({
-      legacyName: 'ZEUS_TOKEN',
-      name: 'ZEUS_API_TOKEN',
+      legacyName: "ZEUS_TOKEN",
+      name: "ZEUS_API_TOKEN",
     });
     // We currently need ZEUS_TOKEN set for zeus-sdk to work properly
     if (!process.env.ZEUS_TOKEN) {
@@ -96,10 +96,10 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
         name: storedFilename,
         size,
       },
-      id: '',
+      id: "",
       name,
       status: Status.UNKNOWN,
-      type: type || '',
+      type: type || "",
       updated_at,
     };
   }
@@ -143,7 +143,7 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
       // return an empty list, whereas in the latter case (unknown commit), it
       // will error. This error message check and the length check below are
       // here to disambiguate those two situations.
-      const errorMessage: string = e.message || '';
+      const errorMessage: string = e.message || "";
       if (errorMessage.match(/404 not found|resource not found/i)) {
         logger.debug(`Revision \`${revision}\` not found!`);
       }
@@ -162,22 +162,22 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
     // most recent update time
     const nameToZeusArtifacts = _.groupBy(
       zeusArtifacts,
-      zeusArtifact => zeusArtifact.name
+      (zeusArtifact) => zeusArtifact.name
     );
     const dedupedZeusArtifacts = Object.keys(nameToZeusArtifacts).map(
-      zeusArtifactName => {
+      (zeusArtifactName) => {
         const zeusArtifactObjects = nameToZeusArtifacts[zeusArtifactName];
         // Sort by the update time
         const sortedZeusArtifacts = _.sortBy(
           zeusArtifactObjects,
-          zeusArtifactObject =>
-            Date.parse(zeusArtifactObject.updated_at || '') || 0
+          (zeusArtifactObject) =>
+            Date.parse(zeusArtifactObject.updated_at || "") || 0
         );
         return sortedZeusArtifacts[sortedZeusArtifacts.length - 1];
       }
     );
 
-    return dedupedZeusArtifacts.map(zeusArtifact =>
+    return dedupedZeusArtifacts.map((zeusArtifact) =>
       this.convertToRemoteArtifact(zeusArtifact)
     );
   }

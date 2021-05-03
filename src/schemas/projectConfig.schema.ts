@@ -4,110 +4,110 @@
  */
 
 const projectConfigJsonSchema = {
-  title: 'CraftProjectConfig',
-  description: 'Craft project-specific configuration',
-  type: 'object',
+  title: "CraftProjectConfig",
+  description: "Craft project-specific configuration",
+  type: "object",
   properties: {
     github: {
-      title: 'GithubGlobalConfig',
-      description: 'Global (non-target!) GitHub configuration for the project',
-      type: 'object',
+      title: "GithubGlobalConfig",
+      description: "Global (non-target!) GitHub configuration for the project",
+      type: "object",
       properties: {
         owner: {
-          type: 'string',
+          type: "string",
         },
         repo: {
-          type: 'string',
+          type: "string",
         },
       },
       additionalProperties: false,
-      required: ['owner', 'repo'],
+      required: ["owner", "repo"],
     },
     targets: {
-      type: 'array',
-      items: { $ref: '#/definitions/targetConfig' },
+      type: "array",
+      items: { $ref: "#/definitions/targetConfig" },
     },
-    preReleaseCommand: { type: 'string' },
-    postReleaseCommand: { type: 'string' },
-    releaseBranchPrefix: { type: 'string' },
-    changelog: { type: 'string' },
+    preReleaseCommand: { type: "string" },
+    postReleaseCommand: { type: "string" },
+    releaseBranchPrefix: { type: "string" },
+    changelog: { type: "string" },
     changelogPolicy: {
-      title: 'ChangelogPolicy',
-      description: 'Different policies for changelog management',
-      type: 'string',
-      enum: ['auto', 'simple', 'none'],
-      tsEnumNames: ['Auto', 'Simple', 'None'],
+      title: "ChangelogPolicy",
+      description: "Different policies for changelog management",
+      type: "string",
+      enum: ["auto", "simple", "none"],
+      tsEnumNames: ["Auto", "Simple", "None"],
     },
     minVersion: {
-      type: 'string',
-      pattern: '^\\d+\\.\\d+\\.\\d+.*$',
+      type: "string",
+      pattern: "^\\d+\\.\\d+\\.\\d+.*$",
     },
     requireNames: {
-      type: 'array',
-      items: { type: 'string' },
+      type: "array",
+      items: { type: "string" },
     },
     statusProvider: {
-      title: 'BaseStatusProvider',
-      description: 'Which service should be used for status checks',
-      type: 'object',
+      title: "BaseStatusProvider",
+      description: "Which service should be used for status checks",
+      type: "object",
       properties: {
         name: {
-          title: 'StatusProviderName',
-          description: 'Name of the status provider',
-          type: 'string',
-          enum: ['zeus', 'github'],
-          tsEnumNames: ['Zeus', 'Github'],
+          title: "StatusProviderName",
+          description: "Name of the status provider",
+          type: "string",
+          enum: ["zeus", "github"],
+          tsEnumNames: ["Zeus", "Github"],
         },
         config: {
-          type: 'object',
+          type: "object",
         },
       },
       additionalProperties: false,
-      required: ['name'],
+      required: ["name"],
     },
     artifactProvider: {
-      title: 'BaseArtifactProvider',
-      description: 'Which service should be used for artifact storage',
-      type: 'object',
+      title: "BaseArtifactProvider",
+      description: "Which service should be used for artifact storage",
+      type: "object",
       properties: {
         name: {
-          title: 'ArtifactProviderName',
-          description: 'Name of the artifact provider',
-          type: 'string',
-          enum: ['zeus', 'gcs', 'github', 'none'],
-          tsEnumNames: ['Zeus', 'GCS', 'Github', 'None'],
+          title: "ArtifactProviderName",
+          description: "Name of the artifact provider",
+          type: "string",
+          enum: ["zeus", "gcs", "github", "none"],
+          tsEnumNames: ["Zeus", "GCS", "Github", "None"],
         },
         config: {
-          type: 'object',
+          type: "object",
         },
       },
       additionalProperties: false,
-      required: ['name'],
+      required: ["name"],
     },
   },
   additionalProperties: false,
-  required: ['github'],
+  required: ["github"],
 
   definitions: {
     targetConfig: {
-      title: 'TargetConfig',
-      description: 'Generic target configuration',
-      type: 'object',
+      title: "TargetConfig",
+      description: "Generic target configuration",
+      type: "object",
       properties: {
         name: {
-          type: 'string',
+          type: "string",
         },
         id: {
-          type: 'string',
+          type: "string",
         },
         includeNames: {
-          type: 'string',
+          type: "string",
         },
         excludeNames: {
-          type: 'string',
+          type: "string",
         },
       },
-      required: ['name'],
+      required: ["name"],
     },
 
     /**
@@ -132,36 +132,36 @@ const projectConfigJsonSchema = {
      *
      */
     githubConfig: {
-      title: 'GithubTargetConfig',
-      description: 'Configuration options for the Github target',
-      extends: { $ref: '#/definitions/targetConfig' },
+      title: "GithubTargetConfig",
+      description: "Configuration options for the Github target",
+      extends: { $ref: "#/definitions/targetConfig" },
       properties: {
         changelog: {
-          type: 'string',
+          type: "string",
         },
-        name: { type: 'string', enum: ['github'] },
+        name: { type: "string", enum: ["github"] },
       },
-      required: ['name'],
+      required: ["name"],
       additionalProperties: false,
     },
     npmConfig: {
-      title: 'NpmTargetConfig',
-      description: 'Configuration options for the NPM target',
-      extends: { $ref: '#/definitions/targetConfig' },
+      title: "NpmTargetConfig",
+      description: "Configuration options for the NPM target",
+      extends: { $ref: "#/definitions/targetConfig" },
       properties: {
         access: {
-          type: 'string',
+          type: "string",
         },
       },
       additionalProperties: false,
     },
     cratesConfig: {
-      title: 'CratesTargetConfig',
-      description: 'Configuration options for the Crates target',
-      extends: { $ref: '#/definitions/targetConfig' },
+      title: "CratesTargetConfig",
+      description: "Configuration options for the Crates target",
+      extends: { $ref: "#/definitions/targetConfig" },
       properties: {
         noDevDeps: {
-          type: 'boolean',
+          type: "boolean",
         },
       },
       additionalProperties: false,

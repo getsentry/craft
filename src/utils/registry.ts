@@ -1,10 +1,10 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from "fs";
+import * as path from "path";
 
-import { logger } from '../logger';
-import { createSymlinks } from './symlink';
-import { reportError } from './errors';
-import { GithubRemote } from './githubApi';
+import { logger } from "../logger";
+import { createSymlinks } from "./symlink";
+import { reportError } from "./errors";
+import { GithubRemote } from "./githubApi";
 
 /**
  * Gets the package manifest version in the given directory.
@@ -20,7 +20,7 @@ export async function getPackageManifest(
   if (fs.existsSync(versionFilePath)) {
     reportError(`Version file for "${version}" already exists. Aborting.`);
   }
-  const packageManifestPath = path.join(packageDirPath, 'latest.json');
+  const packageManifestPath = path.join(packageDirPath, "latest.json");
   logger.debug('Reading the current configuration from "latest.json"...');
   return JSON.parse(fs.readFileSync(packageManifestPath).toString()) || {};
 }
@@ -40,8 +40,8 @@ export function updateManifestSymlinks(
   versionFilePath: string,
   previousVersion: string
 ): void {
-  const manifestString = JSON.stringify(updatedManifest, undefined, 2) + '\n';
-  logger.debug('Updated manifest', manifestString);
+  const manifestString = JSON.stringify(updatedManifest, undefined, 2) + "\n";
+  logger.debug("Updated manifest", manifestString);
   logger.debug(`Writing updated manifest to "${versionFilePath}"...`);
   fs.writeFileSync(versionFilePath, manifestString);
   createSymlinks(versionFilePath, version, previousVersion);
@@ -51,5 +51,5 @@ export function updateManifestSymlinks(
  * Returns a GithubRemote object to the sentry release registry.
  */
 export function getRegistryGithubRemote(): GithubRemote {
-  return new GithubRemote('getsentry', 'sentry-release-registry');
+  return new GithubRemote("getsentry", "sentry-release-registry");
 }

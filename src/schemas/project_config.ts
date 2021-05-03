@@ -60,23 +60,23 @@ export interface BaseArtifactProvider {
  * Different policies for changelog management
  */
 export const enum ChangelogPolicy {
-  Auto = 'auto',
-  Simple = 'simple',
-  None = 'none',
+  Auto = "auto",
+  Simple = "simple",
+  None = "none",
 }
 /**
  * Name of the status provider
  */
 export const enum StatusProviderName {
-  Zeus = 'zeus',
-  Github = 'github',
+  Zeus = "zeus",
+  Github = "github",
 }
 /**
  * Name of the artifact provider
  */
 export const enum ArtifactProviderName {
-  Zeus = 'zeus',
-  GCS = 'gcs',
-  Github = 'github',
-  None = 'none',
+  Zeus = "zeus",
+  GCS = "gcs",
+  Github = "github",
+  None = "none",
 }

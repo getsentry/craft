@@ -1,4 +1,4 @@
-const fs: any = jest.createMockFromModule('fs');
+const fs: any = jest.createMockFromModule("fs");
 
 function readFileSync(input: any) {
   return input;

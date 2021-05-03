@@ -1,69 +1,69 @@
-import { existsSync, promises as fsPromises } from 'fs';
-import { dirname, join, relative } from 'path';
-import * as shellQuote from 'shell-quote';
-import simpleGit, { SimpleGit } from 'simple-git';
-import { Arguments, Argv, CommandBuilder } from 'yargs';
+import { existsSync, promises as fsPromises } from "fs";
+import { dirname, join, relative } from "path";
+import * as shellQuote from "shell-quote";
+import simpleGit, { SimpleGit } from "simple-git";
+import { Arguments, Argv, CommandBuilder } from "yargs";
 
 import {
   checkMinimalConfigVersion,
   getConfigFilePath,
   getConfiguration,
   DEFAULT_RELEASE_BRANCH_NAME,
-} from '../config';
-import { logger } from '../logger';
-import { ChangelogPolicy } from '../schemas/project_config';
+} from "../config";
+import { logger } from "../logger";
+import { ChangelogPolicy } from "../schemas/project_config";
 import {
   DEFAULT_CHANGELOG_PATH,
   DEFAULT_UNRELEASED_TITLE,
   findChangeset,
   removeChangeset,
   prependChangeset,
-} from '../utils/changes';
+} from "../utils/changes";
 import {
   ConfigurationError,
   handleGlobalError,
   reportError,
-} from '../utils/errors';
-import { getDefaultBranch, getGithubClient } from '../utils/githubApi';
-import { isDryRun } from '../utils/helpers';
-import { formatJson } from '../utils/strings';
-import { sleepAsync, spawnProcess } from '../utils/system';
-import { isValidVersion, versionToTag } from '../utils/version';
+} from "../utils/errors";
+import { getDefaultBranch, getGithubClient } from "../utils/githubApi";
+import { isDryRun } from "../utils/helpers";
+import { formatJson } from "../utils/strings";
+import { sleepAsync, spawnProcess } from "../utils/system";
+import { isValidVersion, versionToTag } from "../utils/version";
 
-import { handler as publishMainHandler, PublishOptions } from './publish';
+import { handler as publishMainHandler, PublishOptions } from "./publish";
 
-export const command = ['prepare NEW-VERSION'];
-export const aliases = ['p', 'prerelease', 'prepublish', 'prepare', 'release'];
-export const description = '🚢 Prepare a new release branch';
+export const command = ["prepare NEW-VERSION"];
+export const aliases = ["p", "prerelease", "prepublish", "prepare", "release"];
+export const description = "🚢 Prepare a new release branch";
 
 /** Default path to bump-version script, relative to project root */
-const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
+const DEFAULT_BUMP_VERSION_PATH = join("scripts", "bump-version.sh");
 
 export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
-    .positional('NEW-VERSION', {
-      description: 'The new version you want to release',
-      type: 'string',
+    .positional("NEW-VERSION", {
+      description: "The new version you want to release",
+      type: "string",
     })
-    .option('no-push', {
+    .option("no-push", {
       default: false,
-      description: 'Do not push the release branch',
-      type: 'boolean',
+      description: "Do not push the release branch",
+      type: "boolean",
     })
-    .option('no-git-checks', {
+    .option("no-git-checks", {
       default: false,
-      description: 'Ignore local git changes and unsynchronized remotes',
-      type: 'boolean',
+      description: "Ignore local git changes and unsynchronized remotes",
+      type: "boolean",
     })
-    .option('no-changelog', {
+    .option("no-changelog", {
       default: false,
-      description: 'Do not check for changelog entries',
-      type: 'boolean',
+      description: "Do not check for changelog entries",
+      type: "boolean",
     })
-    .option('publish', {
+    .option("publish", {
       default: false,
       description: 'Run "publish" right after "release"',
-      type: 'boolean',
+      type: "boolean",
     })
     .check(checkVersionOrPart);
 
@@ -98,8 +98,8 @@ const SLEEP_BEFORE_PUBLISH_SECONDS = 30;
  */
 function checkVersionOrPart(argv: Arguments<any>, _opt: any): any {
   const version = argv.newVersion;
-  if (['major', 'minor', 'patch'].indexOf(version) > -1) {
-    throw Error('Version part is not supported yet');
+  if (["major", "minor", "patch"].indexOf(version) > -1) {
+    throw Error("Version part is not supported yet");
   } else if (isValidVersion(version)) {
     return true;
   } else {
@@ -124,7 +124,7 @@ async function createReleaseBranch(
   const branchPrefix = releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
   const branchName = `${branchPrefix}/${newVersion}`;
 
-  const branchHead = await git.raw(['show-ref', '--heads', branchName]);
+  const branchHead = await git.raw(["show-ref", "--heads", branchName]);
 
   // in case `show-ref` can't find a branch it returns `null`
   if (branchHead) {
@@ -141,7 +141,7 @@ async function createReleaseBranch(
     logger.info(`Created a new release branch: "${branchName}"`);
     logger.info(`Switched to branch "${branchName}"`);
   } else {
-    logger.info('[dry-run] Not creating a new release branch');
+    logger.info("[dry-run] Not creating a new release branch");
   }
   return branchName;
 }
@@ -163,14 +163,14 @@ async function pushReleaseBranch(
     logger.info(`Pushing the release branch "${branchName}"...`);
     // TODO check remote somehow
     if (!isDryRun()) {
-      await git.push(remoteName, branchName, ['--set-upstream']);
+      await git.push(remoteName, branchName, ["--set-upstream"]);
     } else {
-      logger.info('[dry-run] Not pushing the release branch.');
+      logger.info("[dry-run] Not pushing the release branch.");
     }
   } else {
-    logger.info('Not pushing the release branch.');
+    logger.info("Not pushing the release branch.");
     logger.info(
-      'You can push this branch later using the following command:',
+      "You can push this branch later using the following command:",
       `  $ git push -u ${remoteName} "${branchName}"`
     );
   }
@@ -189,15 +189,15 @@ async function commitNewVersion(
   const message = `release: ${newVersion}`;
   const repoStatus = await git.status();
   if (!(repoStatus.created.length || repoStatus.modified.length)) {
-    reportError('Nothing to commit: has the pre-release command done its job?');
+    reportError("Nothing to commit: has the pre-release command done its job?");
   }
 
-  logger.info('Committing the release changes...');
+  logger.info("Committing the release changes...");
   logger.debug(`Commit message: "${message}"`);
   if (!isDryRun()) {
-    await git.commit(message, ['--all']);
+    await git.commit(message, ["--all"]);
   } else {
-    logger.info('[dry-run] Not committing the changes.');
+    logger.info("[dry-run] Not committing the changes.");
   }
 }
 
@@ -218,19 +218,19 @@ export async function runPreReleaseCommand(
   let args: string[];
   if (preReleaseCommand !== undefined && preReleaseCommand.length === 0) {
     // Not running pre-release command
-    logger.warn('Not running the pre-release command: no command specified');
+    logger.warn("Not running the pre-release command: no command specified");
     return false;
   } else if (preReleaseCommand) {
     [sysCommand, ...args] = shellQuote.parse(preReleaseCommand) as string[];
   } else {
-    sysCommand = '/bin/bash';
+    sysCommand = "/bin/bash";
     args = [DEFAULT_BUMP_VERSION_PATH];
   }
-  args = [...args, '', newVersion];
+  args = [...args, "", newVersion];
   logger.info(`Running the pre-release command...`);
   const additionalEnv = {
     CRAFT_NEW_VERSION: newVersion,
-    CRAFT_OLD_VERSION: '',
+    CRAFT_OLD_VERSION: "",
   };
   await spawnProcess(sysCommand, args, {
     env: { ...process.env, ...additionalEnv },
@@ -251,17 +251,17 @@ async function checkGitState(
   checkGitStatus = true
 ): Promise<void> {
   if (!checkGitStatus) {
-    logger.warn('Not checking the status of the local repository');
+    logger.warn("Not checking the status of the local repository");
     return;
   }
 
-  logger.info('Checking the local repository status...');
+  logger.info("Checking the local repository status...");
   const isRepo = await git.checkIsRepo();
   if (!isRepo) {
-    throw new ConfigurationError('Not a git repository!');
+    throw new ConfigurationError("Not a git repository!");
   }
   const repoStatus = await git.status();
-  logger.debug('Repository status:', formatJson(repoStatus));
+  logger.debug("Repository status:", formatJson(repoStatus));
 
   // Check that we are on master
   // TODO check what's here when we are in a detached state
@@ -280,8 +280,8 @@ async function checkGitState(
     repoStatus.staged.length
   ) {
     reportError(
-      'Your repository is in a dirty state. ' +
-        'Please stash or commit the pending changes.',
+      "Your repository is in a dirty state. " +
+        "Please stash or commit the pending changes.",
       logger
     );
   }
@@ -317,7 +317,7 @@ async function execPublish(newVersion: string): Promise<never> {
   if (!isDryRun()) {
     await sleepAsync(SLEEP_BEFORE_PUBLISH_SECONDS * 1000);
   } else {
-    logger.info('[dry-run] Not wasting time on sleep');
+    logger.info("[dry-run] Not wasting time on sleep");
   }
 
   try {
@@ -331,7 +331,7 @@ async function execPublish(newVersion: string): Promise<never> {
     );
     throw e;
   }
-  throw new Error('Unreachable');
+  throw new Error("Unreachable");
 }
 
 /**
@@ -347,7 +347,7 @@ async function checkForExistingTag(
   checkGitStatus = true
 ): Promise<void> {
   if (!checkGitStatus) {
-    logger.warn('Not checking if the version (git tag) already exists');
+    logger.warn("Not checking if the version (git tag) already exists");
   }
 
   const gitTag = versionToTag(newVersion);
@@ -384,11 +384,11 @@ async function prepareChangelog(
     );
   }
 
-  logger.info('Checking the changelog...');
+  logger.info("Checking the changelog...");
   logger.debug(`Changelog policy: "${changelogPolicy}".`);
 
-  const relativePath = relative('', changelogPath);
-  if (relativePath.startsWith('.')) {
+  const relativePath = relative("", changelogPath);
+  if (relativePath.startsWith(".")) {
     throw new ConfigurationError(`Invalid changelog path: "${changelogPath}"`);
   }
 
@@ -411,7 +411,7 @@ async function prepareChangelog(
       // eslint-disable-next-line no-case-declarations
       let replaceSection;
       if (!changeset) {
-        changeset = { name: newVersion, body: '' };
+        changeset = { name: newVersion, body: "" };
       }
       if (!changeset.body) {
         replaceSection = changeset.name;
@@ -432,7 +432,7 @@ async function prepareChangelog(
       if (!isDryRun()) {
         await fsPromises.writeFile(relativePath, changelogString);
       } else {
-        logger.info('[dry-run] Not updating changelog file.');
+        logger.info("[dry-run] Not updating changelog file.");
         logger.debug(`New changelog:\n${changelogString}`);
       }
 
@@ -466,7 +466,7 @@ async function switchToDefaultBranch(
   if (!isDryRun()) {
     await git.checkout(defaultBranch);
   } else {
-    logger.info('[dry-run] Not switching branches.');
+    logger.info("[dry-run] Not switching branches.");
   }
 }
 
@@ -476,7 +476,7 @@ async function switchToDefaultBranch(
  * @param argv Command-line arguments
  */
 export async function releaseMain(argv: ReleaseOptions): Promise<any> {
-  logger.debug('Argv: ', JSON.stringify(argv));
+  logger.debug("Argv: ", JSON.stringify(argv));
   checkMinimalConfigVersion();
 
   // Get repo configuration
@@ -534,7 +534,7 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
     // Commit the pending changes
     await commitNewVersion(git, newVersion);
   } else {
-    logger.debug('Not committing anything since preReleaseCommand is empty.');
+    logger.debug("Not committing anything since preReleaseCommand is empty.");
   }
 
   // Push the release branch
@@ -563,7 +563,7 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
  * @returns Git remote name from environment or default
  */
 function getRemoteName(): string {
-  return process.env.CRAFT_REMOTE || 'origin';
+  return process.env.CRAFT_REMOTE || "origin";
 }
 
 export const handler = async (args: {

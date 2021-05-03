@@ -1,15 +1,15 @@
-import { existsSync, statSync } from 'fs';
-import { join } from 'path';
-const os = require('os');
+import { existsSync, statSync } from "fs";
+import { join } from "path";
+const os = require("os");
 
-import nvar from 'nvar';
+import nvar from "nvar";
 
-import { CONFIG_FILE_NAME, getConfigFileDir } from '../config';
-import { ConfigurationError } from './errors';
-import { logger } from '../logger';
+import { CONFIG_FILE_NAME, getConfigFileDir } from "../config";
+import { ConfigurationError } from "./errors";
+import { logger } from "../logger";
 
 /** File name where additional environment variables are stored */
-export const ENV_FILE_NAME = '.craft.env';
+export const ENV_FILE_NAME = ".craft.env";
 
 /**
  * A token, key, or other value which can be stored either in an env file or
@@ -169,7 +169,7 @@ export function readEnvironmentConfig(overwriteExisting = false): void {
  * only one is required.
  */
 export function checkEnvForPrerequisite(...varList: RequiredConfigVar[]): void {
-  const varNames = varList.map(v => v.name).join(' or ');
+  const varNames = varList.map((v) => v.name).join(" or ");
   logger.debug(`Checking for environment variable(s) ${varNames}`);
 
   if (!varList.some(envHasVar)) {

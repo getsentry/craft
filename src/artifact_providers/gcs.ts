@@ -2,10 +2,10 @@ import {
   BaseArtifactProvider,
   RemoteArtifact,
   ArtifactProviderConfig,
-} from '../artifact_providers/base';
-import { CraftGCSClient, getGCSCredsFromEnv } from '../utils/gcsApi';
-import { ConfigurationError } from '../utils/errors';
-import { logger as loggerRaw } from '../logger';
+} from "../artifact_providers/base";
+import { CraftGCSClient, getGCSCredsFromEnv } from "../utils/gcsApi";
+import { ConfigurationError } from "../utils/errors";
+import { logger as loggerRaw } from "../logger";
 
 const logger = loggerRaw.withScope(`[artifact-provider/gcs]`);
 
@@ -28,10 +28,10 @@ export class GCSArtifactProvider extends BaseArtifactProvider {
     super(config);
     const { project_id, client_email, private_key } = getGCSCredsFromEnv(
       {
-        name: 'CRAFT_GCS_STORE_CREDS_JSON',
+        name: "CRAFT_GCS_STORE_CREDS_JSON",
       },
       {
-        name: 'CRAFT_GCS_STORE_CREDS_PATH',
+        name: "CRAFT_GCS_STORE_CREDS_PATH",
       },
       logger
     );
@@ -39,7 +39,7 @@ export class GCSArtifactProvider extends BaseArtifactProvider {
     // TODO (kmclb) get rid of this check once config validation is working
     if (!config.bucket) {
       throw new ConfigurationError(
-        'No GCS bucket provided in artifact provider config!'
+        "No GCS bucket provided in artifact provider config!"
       );
     }
 

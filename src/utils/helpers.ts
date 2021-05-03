@@ -7,6 +7,6 @@
 export function isDryRun(): boolean {
   const dryRun = process.env.DRY_RUN;
   return (
-    Boolean(dryRun) && dryRun !== 'false' && dryRun !== '0' && dryRun !== 'no'
+    Boolean(dryRun) && dryRun !== "false" && dryRun !== "0" && dryRun !== "no"
   );
 }

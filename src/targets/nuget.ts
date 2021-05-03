@@ -1,20 +1,20 @@
-import { logger as loggerRaw } from '../logger';
-import { TargetConfig } from '../schemas/project_config';
-import { ConfigurationError, reportError } from '../utils/errors';
-import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
-import { BaseTarget } from './base';
+import { logger as loggerRaw } from "../logger";
+import { TargetConfig } from "../schemas/project_config";
+import { ConfigurationError, reportError } from "../utils/errors";
+import { checkExecutableIsPresent, spawnProcess } from "../utils/system";
+import { BaseTarget } from "./base";
 import {
   BaseArtifactProvider,
   RemoteArtifact,
-} from '../artifact_providers/base';
+} from "../artifact_providers/base";
 
-const logger = loggerRaw.withScope('[nuget]');
+const logger = loggerRaw.withScope("[nuget]");
 
 /** Command to launch dotnet tools */
-export const NUGET_DOTNET_BIN = process.env.NUGET_DOTNET_BIN || 'dotnet';
+export const NUGET_DOTNET_BIN = process.env.NUGET_DOTNET_BIN || "dotnet";
 
 /** Default Nuget registry URL */
-export const DEFAULT_NUGET_SERVER_URL = 'https://api.nuget.org/v3/index.json';
+export const DEFAULT_NUGET_SERVER_URL = "https://api.nuget.org/v3/index.json";
 
 /** A regular expression used to find the package tarball */
 const DEFAULT_NUGET_REGEX = /^.*\d\.\d.*\.nupkg$/;
@@ -32,7 +32,7 @@ export interface NugetTargetOptions {
  */
 export class NugetTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = 'nuget';
+  public readonly name: string = "nuget";
   /** Target options */
   public readonly nugetConfig: NugetTargetOptions;
 
@@ -69,12 +69,12 @@ export class NugetTarget extends BaseTarget {
    */
   public async uploadAsset(path: string): Promise<any> {
     return spawnProcess(NUGET_DOTNET_BIN, [
-      'nuget',
-      'push',
+      "nuget",
+      "push",
       path,
-      '--api-key',
-      '${NUGET_API_TOKEN}',
-      '--source',
+      "--api-key",
+      "${NUGET_API_TOKEN}",
+      "--source",
       this.nugetConfig.serverUrl,
     ]);
   }
@@ -86,14 +86,14 @@ export class NugetTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(_version: string, revision: string): Promise<any> {
-    logger.debug('Fetching artifact list...');
+    logger.debug("Fetching artifact list...");
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_NUGET_REGEX,
     });
 
     if (!packageFiles.length) {
       reportError(
-        'Cannot release to Nuget: there are no Nuget packages found!'
+        "Cannot release to Nuget: there are no Nuget packages found!"
       );
     }
 
@@ -105,6 +105,6 @@ export class NugetTarget extends BaseTarget {
       })
     );
 
-    logger.info('Nuget release complete');
+    logger.info("Nuget release complete");
   }
 }

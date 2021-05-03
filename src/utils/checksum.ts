@@ -1,9 +1,9 @@
 import {
   BaseArtifactProvider,
   RemoteArtifact,
-} from '../artifact_providers/base';
-import { ConfigurationError } from './errors';
-import { HashAlgorithm, HashOutputFormat } from './system';
+} from "../artifact_providers/base";
+import { ConfigurationError } from "./errors";
+import { HashAlgorithm, HashOutputFormat } from "./system";
 
 /** Describes a checksum entry. */
 export interface ChecksumEntry {
@@ -31,7 +31,7 @@ export function castChecksums(checksums: any[]): ChecksumEntry[] {
   }
   return checksums.map(
     (item: any): ChecksumEntry => {
-      if (typeof item !== 'object' || !item.algorithm || !item.format) {
+      if (typeof item !== "object" || !item.algorithm || !item.format) {
         throw new ConfigurationError(
           `Invalid checksum type: ${JSON.stringify(item)}`
         );

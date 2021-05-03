@@ -1,33 +1,33 @@
 steps:
-  - name: 'gcr.io/kaniko-project/executor:v1.5.1'
+  - name: "gcr.io/kaniko-project/executor:v1.5.1"
     args:
-      - '--cache=true'
-      - '--use-new-run'
-      - '--build-arg'
-      - 'SOURCE_COMMIT=$COMMIT_SHA'
-      - '--destination=us.gcr.io/$PROJECT_ID/craft:builder-$COMMIT_SHA'
-      - '-f'
-      -  'builder.dockerfile'
-  - name: 'us.gcr.io/$PROJECT_ID/craft:builder-$COMMIT_SHA'
-  - name: 'gcr.io/kaniko-project/executor:v1.5.1'
+      - "--cache=true"
+      - "--use-new-run"
+      - "--build-arg"
+      - "SOURCE_COMMIT=$COMMIT_SHA"
+      - "--destination=us.gcr.io/$PROJECT_ID/craft:builder-$COMMIT_SHA"
+      - "-f"
+      - "builder.dockerfile"
+  - name: "us.gcr.io/$PROJECT_ID/craft:builder-$COMMIT_SHA"
+  - name: "gcr.io/kaniko-project/executor:v1.5.1"
     args:
-      - '--cache=true'
-      - '--use-new-run'
-      - '--build-arg'
-      - 'SOURCE_COMMIT=$COMMIT_SHA'
-      - '--destination=us.gcr.io/$PROJECT_ID/craft:$COMMIT_SHA'
+      - "--cache=true"
+      - "--use-new-run"
+      - "--build-arg"
+      - "SOURCE_COMMIT=$COMMIT_SHA"
+      - "--destination=us.gcr.io/$PROJECT_ID/craft:$COMMIT_SHA"
     timeout: 900s
   # Smoke tests
-  - name: 'us.gcr.io/$PROJECT_ID/craft:$COMMIT_SHA'
+  - name: "us.gcr.io/$PROJECT_ID/craft:$COMMIT_SHA"
     args:
-      - '--help'
+      - "--help"
     timeout: 60s
-  - name: 'gcr.io/cloud-builders/docker'
-    secretEnv: ['DOCKER_PASSWORD']
-    entrypoint: 'bash'
+  - name: "gcr.io/cloud-builders/docker"
+    secretEnv: ["DOCKER_PASSWORD"]
+    entrypoint: "bash"
     args:
-      - '-e'
-      - '-c'
+      - "-e"
+      - "-c"
       - |
         # Only push to Docker Hub from master
         [ "$BRANCH_NAME" != "master" ] && exit 0

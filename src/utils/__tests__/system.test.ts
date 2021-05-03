@@ -1,7 +1,7 @@
-import * as fs from 'fs';
+import * as fs from "fs";
 
-import { logger } from '../../logger';
-import { withTempFile } from '../files';
+import { logger } from "../../logger";
+import { withTempFile } from "../files";
 
 import {
   calculateChecksum,
@@ -11,78 +11,78 @@ import {
   replaceEnvVariable,
   sleepAsync,
   spawnProcess,
-} from '../system';
+} from "../system";
 
-jest.mock('../../logger');
+jest.mock("../../logger");
 
-describe('spawnProcess', () => {
-  test('resolves on success with standard output', async () => {
+describe("spawnProcess", () => {
+  test("resolves on success with standard output", async () => {
     expect.assertions(1);
     const stdout =
-      (await spawnProcess(process.execPath, ['-p', '"test"'])) || '';
-    expect(stdout.toString()).toBe('test\n');
+      (await spawnProcess(process.execPath, ["-p", '"test"'])) || "";
+    expect(stdout.toString()).toBe("test\n");
   });
 
-  test('rejects on non-zero exit code', async () => {
+  test("rejects on non-zero exit code", async () => {
     try {
       expect.assertions(2);
-      await spawnProcess('test', ['']);
+      await spawnProcess("test", [""]);
     } catch (e) {
       expect(e.code).toBe(1);
       expect(e.message).toMatch(/code 1/);
     }
   });
 
-  test('rejects on error', async () => {
+  test("rejects on error", async () => {
     try {
       expect.assertions(1);
-      await spawnProcess('this_command_does_not_exist');
+      await spawnProcess("this_command_does_not_exist");
     } catch (e) {
       expect(e.message).toMatch(/ENOENT/);
     }
   });
 
-  test('attaches args on error', async () => {
+  test("attaches args on error", async () => {
     try {
       expect.assertions(1);
-      await spawnProcess('test', ['x', 'y']);
+      await spawnProcess("test", ["x", "y"]);
     } catch (e) {
-      expect(e.args).toEqual(['x', 'y']);
+      expect(e.args).toEqual(["x", "y"]);
     }
   });
 
-  test('attaches options on error', async () => {
+  test("attaches options on error", async () => {
     try {
       expect.assertions(1);
-      await spawnProcess('test', [], { cwd: '/tmp/' });
+      await spawnProcess("test", [], { cwd: "/tmp/" });
     } catch (e) {
-      expect(e.options.cwd).toEqual('/tmp/');
+      expect(e.options.cwd).toEqual("/tmp/");
     }
   });
 
-  test('strips env from options on error', async () => {
+  test("strips env from options on error", async () => {
     try {
       expect.assertions(1);
-      await spawnProcess('test', [], { env: { x: '123', password: '456' } });
+      await spawnProcess("test", [], { env: { x: "123", password: "456" } });
     } catch (e) {
       expect(e.options.env).toBeUndefined();
     }
   });
 
-  test('does not write to output by default', async () => {
+  test("does not write to output by default", async () => {
     const mockedLogInfo = logger.info as jest.Mock;
 
-    await spawnProcess(process.execPath, ['-p', '"test-string"']);
+    await spawnProcess(process.execPath, ["-p", '"test-string"']);
 
     expect(mockedLogInfo).toHaveBeenCalledTimes(0);
   });
 
-  test('writes to output if told so', async () => {
+  test("writes to output if told so", async () => {
     const mockedLogInfo = logger.info as jest.Mock;
 
     await spawnProcess(
       process.execPath,
-      ['-e', 'process.stdout.write("test-string")'],
+      ["-e", 'process.stdout.write("test-string")'],
       {},
       { showStdout: true }
     );
@@ -92,8 +92,8 @@ describe('spawnProcess', () => {
   });
 });
 
-describe('sleepAsync', () => {
-  test('sleeps for at least the given number of ms', async () => {
+describe("sleepAsync", () => {
+  test("sleeps for at least the given number of ms", async () => {
     const sleepMs = 50;
     const timeStart = new Date().getTime();
     await sleepAsync(sleepMs);
@@ -104,86 +104,86 @@ describe('sleepAsync', () => {
   });
 });
 
-describe('replaceEnvVariable', () => {
-  test('replaces a variable', async () => {
-    expect(replaceEnvVariable('${ENV_VAR}', { ENV_VAR: '123' })).toBe('123');
+describe("replaceEnvVariable", () => {
+  test("replaces a variable", async () => {
+    expect(replaceEnvVariable("${ENV_VAR}", { ENV_VAR: "123" })).toBe("123");
   });
 
-  test('does not replace a variable if there is no curly braces', async () => {
-    expect(replaceEnvVariable('$ENV_VAR', { ENV_VAR: '123' })).toBe('$ENV_VAR');
+  test("does not replace a variable if there is no curly braces", async () => {
+    expect(replaceEnvVariable("$ENV_VAR", { ENV_VAR: "123" })).toBe("$ENV_VAR");
   });
 
-  test('replaces a non-existing environment variable with empty string', async () => {
-    expect(replaceEnvVariable('${ENV_VAR}', {})).toBe('');
+  test("replaces a non-existing environment variable with empty string", async () => {
+    expect(replaceEnvVariable("${ENV_VAR}", {})).toBe("");
   });
 });
 
-describe('calculateChecksum', () => {
-  test('Default checksum on a basic file', async () => {
+describe("calculateChecksum", () => {
+  test("Default checksum on a basic file", async () => {
     expect.assertions(1);
 
-    await withTempFile(async tmpFilePath => {
-      fs.writeFileSync(tmpFilePath, '\n');
+    await withTempFile(async (tmpFilePath) => {
+      fs.writeFileSync(tmpFilePath, "\n");
 
       const checksum = await calculateChecksum(tmpFilePath);
       expect(checksum).toBe(
-        '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b'
+        "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
       );
     });
   });
 
-  test('Base64-formatted checksum on a basic file', async () => {
+  test("Base64-formatted checksum on a basic file", async () => {
     expect.assertions(1);
 
-    await withTempFile(async tmpFilePath => {
-      fs.writeFileSync(tmpFilePath, '\n');
+    await withTempFile(async (tmpFilePath) => {
+      fs.writeFileSync(tmpFilePath, "\n");
 
       const checksum = await calculateChecksum(tmpFilePath, {
         format: HashOutputFormat.Base64,
       });
-      expect(checksum).toBe('AbpHGcgLb+kRsJGnwFEktk7uzpZOCcBY74+YBdrKVGs=');
+      expect(checksum).toBe("AbpHGcgLb+kRsJGnwFEktk7uzpZOCcBY74+YBdrKVGs=");
     });
   });
 
-  test('Base64-formatted checksum with custom algorithm on a basic file', async () => {
+  test("Base64-formatted checksum with custom algorithm on a basic file", async () => {
     expect.assertions(1);
 
-    await withTempFile(async tmpFilePath => {
-      fs.writeFileSync(tmpFilePath, '\n');
+    await withTempFile(async (tmpFilePath) => {
+      fs.writeFileSync(tmpFilePath, "\n");
 
       const checksum = await calculateChecksum(tmpFilePath, {
         algorithm: HashAlgorithm.SHA384,
         format: HashOutputFormat.Base64,
       });
       expect(checksum).toBe(
-        '7GZOiJ7WwbJ2PKz3iZ2Vt/NHNz65guUjQZ/uo6o2LYkbO/Al8pImelhUBJCReJw+'
+        "7GZOiJ7WwbJ2PKz3iZ2Vt/NHNz65guUjQZ/uo6o2LYkbO/Al8pImelhUBJCReJw+"
       );
     });
   });
 });
 
-describe('isExecutableInPath', () => {
-  test('checks for existing executable', () => {
-    expect(hasExecutable('node')).toBe(true);
+describe("isExecutableInPath", () => {
+  test("checks for existing executable", () => {
+    expect(hasExecutable("node")).toBe(true);
   });
 
-  test('checks for non-existing executable', () => {
-    expect(hasExecutable('not-existing-executable')).toBe(false);
+  test("checks for non-existing executable", () => {
+    expect(hasExecutable("not-existing-executable")).toBe(false);
   });
 
-  test('checks for existing executable using absolute path', () => {
+  test("checks for existing executable using absolute path", () => {
     expect(hasExecutable(`${process.cwd()}/node_modules/.bin/jest`)).toBe(true);
   });
 
-  test('checks for non-existing executable using absolute path', () => {
-    expect(hasExecutable('/dev/null/non-existing-binary')).toBe(false);
+  test("checks for non-existing executable using absolute path", () => {
+    expect(hasExecutable("/dev/null/non-existing-binary")).toBe(false);
   });
 
-  test('checks for existing executable using relative path', () => {
-    expect(hasExecutable('./node_modules/.bin/jest')).toBe(true);
+  test("checks for existing executable using relative path", () => {
+    expect(hasExecutable("./node_modules/.bin/jest")).toBe(true);
   });
 
-  test('checks for non-existing executable using relative path', () => {
-    expect(hasExecutable('./bin/non-existing-binary')).toBe(false);
+  test("checks for non-existing executable using relative path", () => {
+    expect(hasExecutable("./bin/non-existing-binary")).toBe(false);
   });
 });

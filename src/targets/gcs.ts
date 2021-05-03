@@ -1,20 +1,20 @@
-import { logger as loggerRaw } from '../logger';
-import { TargetConfig } from '../schemas/project_config';
-import { forEachChained } from '../utils/async';
-import { ConfigurationError, reportError } from '../utils/errors';
+import { logger as loggerRaw } from "../logger";
+import { TargetConfig } from "../schemas/project_config";
+import { forEachChained } from "../utils/async";
+import { ConfigurationError, reportError } from "../utils/errors";
 import {
   BucketPath,
   CraftGCSClient,
   GCSBucketConfig,
   getGCSCredsFromEnv,
   DEFAULT_UPLOAD_METADATA,
-} from '../utils/gcsApi';
-import { renderTemplateSafe } from '../utils/strings';
-import { BaseTarget } from './base';
+} from "../utils/gcsApi";
+import { renderTemplateSafe } from "../utils/strings";
+import { BaseTarget } from "./base";
 import {
   BaseArtifactProvider,
   RemoteArtifact,
-} from '../artifact_providers/base';
+} from "../artifact_providers/base";
 
 const logger = loggerRaw.withScope(`[gcs]`);
 
@@ -23,7 +23,7 @@ const logger = loggerRaw.withScope(`[gcs]`);
  *
  * Omits required property `path` since that will be computed dynamically later.
  */
-interface PathTemplate extends Omit<BucketPath, 'path'> {
+interface PathTemplate extends Omit<BucketPath, "path"> {
   /**
    * Template for the path, into which `version` and `revision` can be
    * substituted
@@ -44,7 +44,7 @@ export interface GCSTargetConfig extends GCSBucketConfig {
  */
 export class GcsTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = 'gcs';
+  public readonly name: string = "gcs";
   /** Target options */
   public readonly targetConfig: GCSTargetConfig;
   /** GCS API client */
@@ -65,12 +65,12 @@ export class GcsTarget extends BaseTarget {
   protected getGCSTargetConfig(): GCSTargetConfig {
     const { project_id, client_email, private_key } = getGCSCredsFromEnv(
       {
-        name: 'CRAFT_GCS_TARGET_CREDS_JSON',
-        legacyName: 'CRAFT_GCS_CREDENTIALS_JSON',
+        name: "CRAFT_GCS_TARGET_CREDS_JSON",
+        legacyName: "CRAFT_GCS_CREDENTIALS_JSON",
       },
       {
-        name: 'CRAFT_GCS_TARGET_CREDS_PATH',
-        legacyName: 'CRAFT_GCS_CREDENTIALS_PATH',
+        name: "CRAFT_GCS_TARGET_CREDS_PATH",
+        legacyName: "CRAFT_GCS_CREDENTIALS_PATH",
       },
       logger
     );
@@ -78,7 +78,7 @@ export class GcsTarget extends BaseTarget {
     const bucketName = this.config.bucket;
     // TODO (kmclb) get rid of this check once config validation is working
     if (!bucketName) {
-      reportError('No GCS bucket provided!');
+      reportError("No GCS bucket provided!");
     }
 
     const pathTemplates: PathTemplate[] = this.parseRawPathConfig(
@@ -111,12 +111,12 @@ export class GcsTarget extends BaseTarget {
       // in JS empty arrays are truthy
       (rawPathConfig.length && rawPathConfig.length === 0)
     ) {
-      reportError('No bucket paths provided!');
+      reportError("No bucket paths provided!");
     }
 
     // if there's only one path, and no metadata specified, path config can be
     // provided as a string rather than an array of objects
-    else if (typeof rawPathConfig === 'string') {
+    else if (typeof rawPathConfig === "string") {
       parsedTemplates = [
         {
           template: rawPathConfig,
@@ -129,7 +129,7 @@ export class GcsTarget extends BaseTarget {
     // and `metadata`
     else if (Array.isArray(rawPathConfig)) {
       rawPathConfig.forEach((configEntry: any) => {
-        if (typeof configEntry !== 'object') {
+        if (typeof configEntry !== "object") {
           reportError(
             `Invalid bucket destination: ${JSON.stringify(
               configEntry
@@ -142,7 +142,7 @@ export class GcsTarget extends BaseTarget {
         if (!template) {
           reportError(`Invalid bucket path template: ${template}`);
         }
-        if (metadata && typeof metadata !== 'object') {
+        if (metadata && typeof metadata !== "object") {
           reportError(
             `Invalid metadata for path "${template}": "${JSON.stringify(
               metadata
@@ -191,7 +191,7 @@ export class GcsTarget extends BaseTarget {
     });
 
     // enforce the constraint that all paths must start with a slash
-    if (realPath[0] !== '/') {
+    if (realPath[0] !== "/") {
       realPath = `/${realPath}`;
     }
     logger.debug(
@@ -213,7 +213,7 @@ export class GcsTarget extends BaseTarget {
     const artifacts = await this.getArtifactsForRevision(revision);
     if (!artifacts.length) {
       throw new ConfigurationError(
-        'No artifacts to publish: please check your configuration!'
+        "No artifacts to publish: please check your configuration!"
       );
     }
 
@@ -251,13 +251,13 @@ export class GcsTarget extends BaseTarget {
         );
 
         return Promise.all(
-          localFilePaths.map(async localPath =>
+          localFilePaths.map(async (localPath) =>
             this.gcsClient.uploadArtifact(localPath, bucketPath)
           )
         );
       }
     );
 
-    logger.info('Upload to GCS complete.');
+    logger.info("Upload to GCS complete.");
   }
 }

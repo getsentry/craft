@@ -1,1 +1,1 @@
-declare module 'split';
+declare module "split";

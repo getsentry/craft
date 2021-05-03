@@ -1,9 +1,9 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from "fs";
+import * as path from "path";
 
-import { logger } from '../logger';
-import { ConfigurationError } from './errors';
-import { parseVersion, versionGreaterOrEqualThan } from './version';
+import { logger } from "../logger";
+import { ConfigurationError } from "./errors";
+import { parseVersion, versionGreaterOrEqualThan } from "./version";
 
 /**
  * Creates a symlink, overwriting the existing one
@@ -54,7 +54,7 @@ export function createSymlinks(
     logger.debug(
       `Changing symlink for "latest.json" from version "${oldVersion}" to "${newVersion}"`
     );
-    forceSymlink(baseVersionName, path.join(packageDir, 'latest.json'));
+    forceSymlink(baseVersionName, path.join(packageDir, "latest.json"));
   }
 
   // link major

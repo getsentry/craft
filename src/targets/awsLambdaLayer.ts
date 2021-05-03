@@ -1,32 +1,32 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from "fs";
+import * as path from "path";
 
-import * as Github from '@octokit/rest';
-import simpleGit from 'simple-git';
+import * as Github from "@octokit/rest";
+import simpleGit from "simple-git";
 import {
   getAuthUsername,
   getGithubApiToken,
   getGithubClient,
   GithubRemote,
-} from '../utils/githubApi';
+} from "../utils/githubApi";
 
-import { logger as loggerRaw } from '../logger';
-import { TargetConfig } from '../schemas/project_config';
-import { BaseTarget } from './base';
-import { BaseArtifactProvider } from '../artifact_providers/base';
-import { ConfigurationError, reportError } from '../utils/errors';
+import { logger as loggerRaw } from "../logger";
+import { TargetConfig } from "../schemas/project_config";
+import { BaseTarget } from "./base";
+import { BaseArtifactProvider } from "../artifact_providers/base";
+import { ConfigurationError, reportError } from "../utils/errors";
 import {
   AwsLambdaLayerManager,
   CompatibleRuntime,
   extractRegionNames,
   getAccountFromArn,
   getRegionsFromAws,
-} from '../utils/awsLambdaLayerManager';
-import { createSymlinks } from '../utils/symlink';
-import { withTempDir } from '../utils/files';
-import { isDryRun } from '../utils/helpers';
-import { isPreviewRelease } from '../utils/version';
-import { getRegistryGithubRemote } from '../utils/registry';
+} from "../utils/awsLambdaLayerManager";
+import { createSymlinks } from "../utils/symlink";
+import { withTempDir } from "../utils/files";
+import { isDryRun } from "../utils/helpers";
+import { isPreviewRelease } from "../utils/version";
+import { getRegistryGithubRemote } from "../utils/registry";
 
 const logger = loggerRaw.withScope(`[aws-lambda-layer]`);
 
@@ -49,15 +49,15 @@ interface AwsLambdaTargetConfig {
  */
 export class AwsLambdaLayerTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = 'aws-lambda-layer';
+  public readonly name: string = "aws-lambda-layer";
   /** Target options */
   public readonly awsLambdaConfig: AwsLambdaTargetConfig;
   /** GitHub client. */
   public readonly github: Github;
   /** The directory where the runtime-specific directories are. */
-  private readonly AWS_REGISTRY_DIR = 'aws-lambda-layers';
+  private readonly AWS_REGISTRY_DIR = "aws-lambda-layers";
   /** File containing data fields every new version file overrides  */
-  private readonly BASE_FILENAME = 'base.json';
+  private readonly BASE_FILENAME = "base.json";
 
   public constructor(
     config: TargetConfig,
@@ -93,18 +93,18 @@ export class AwsLambdaLayerTarget extends BaseTarget {
    */
   private checkProjectConfig(): void {
     const missingConfigOptions = [];
-    if (!('layerName' in this.config)) {
-      missingConfigOptions.push('layerName');
+    if (!("layerName" in this.config)) {
+      missingConfigOptions.push("layerName");
     }
-    if (!('compatibleRuntimes' in this.config)) {
-      missingConfigOptions.push('compatibleRuntimes');
+    if (!("compatibleRuntimes" in this.config)) {
+      missingConfigOptions.push("compatibleRuntimes");
     }
-    if (!('license' in this.config)) {
-      missingConfigOptions.push('license');
+    if (!("license" in this.config)) {
+      missingConfigOptions.push("license");
     }
     if (missingConfigOptions.length > 0) {
       throw new ConfigurationError(
-        'Missing project configuration parameter(s): ' + missingConfigOptions
+        "Missing project configuration parameter(s): " + missingConfigOptions
       );
     }
   }
@@ -117,7 +117,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   public async publish(version: string, revision: string): Promise<any> {
     this.checkProjectConfig();
 
-    logger.debug('Fetching artifact list...');
+    logger.debug("Fetching artifact list...");
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames:
         this.config.includeNames === undefined
@@ -126,13 +126,13 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     });
 
     if (packageFiles.length == 0) {
-      reportError('Cannot publish AWS Lambda Layer: no packages found');
+      reportError("Cannot publish AWS Lambda Layer: no packages found");
       return undefined;
     } else if (packageFiles.length > 1) {
       reportError(
-        'Cannot publish AWS Lambda Layer: ' +
-          'multiple packages with matching patterns were found. You may want ' +
-          'to include or modify the includeNames parameter in the project config'
+        "Cannot publish AWS Lambda Layer: " +
+          "multiple packages with matching patterns were found. You may want " +
+          "to include or modify the includeNames parameter in the project config"
       );
       return undefined;
     }
@@ -142,14 +142,14 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     );
 
     const awsRegions = extractRegionNames(await getRegionsFromAws());
-    logger.debug('AWS regions: ' + awsRegions);
+    logger.debug("AWS regions: " + awsRegions);
 
     const remote = this.awsLambdaConfig.registryRemote;
     const username = await getAuthUsername(this.github);
     remote.setAuth(username, getGithubApiToken());
 
     await withTempDir(
-      async directory => {
+      async (directory) => {
         const git = simpleGit(directory);
         logger.info(`Cloning ${remote.getRemoteString()} to ${directory}...`);
         await git.clone(remote.getRemoteStringWithAuth(), directory);
@@ -161,30 +161,30 @@ export class AwsLambdaLayerTarget extends BaseTarget {
             awsRegions,
             artifactBuffer
           );
-          logger.debug('Finished publishing runtimes.');
+          logger.debug("Finished publishing runtimes.");
         } else {
-          logger.info('[dry-run] Not publishing new layers.');
+          logger.info("[dry-run] Not publishing new layers.");
         }
 
-        await git.add(['.']);
-        await git.checkout('master');
+        await git.add(["."]);
+        await git.checkout("master");
         const runtimeNames = this.config.compatibleRuntimes.map(
           (runtime: CompatibleRuntime) => runtime.name
         );
         await git.commit(
-          'craft(aws-lambda): AWS Lambda layers published\n\n' +
+          "craft(aws-lambda): AWS Lambda layers published\n\n" +
             `v${version} for ${runtimeNames}`
         );
 
         if (
           isPushableToRegistry(version, this.awsLambdaConfig.linkPrereleases)
         ) {
-          logger.info('Pushing changes...');
+          logger.info("Pushing changes...");
           await git.push();
         }
       },
       true,
-      'craft-release-awslambdalayer-'
+      "craft-release-awslambdalayer-"
     );
   }
 
@@ -215,7 +215,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         let publishedLayers = [];
         try {
           publishedLayers = await layerManager.publishToAllRegions();
-          logger.debug('Finished publishing to all regions.');
+          logger.debug("Finished publishing to all regions.");
         } catch (error) {
           logger.error(
             `Did not publish layers for ${runtime.name}. ` +
@@ -247,7 +247,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           return;
         }
 
-        const regionsVersions = publishedLayers.map(layer => {
+        const regionsVersions = publishedLayers.map((layer) => {
           return {
             region: layer.region,
             version: layer.version.toString(),
@@ -302,11 +302,11 @@ function createVersionSymlinks(
   versionFilepath: string
 ): void {
   logger.debug(`Creating symlinks...`);
-  const latestVersionPath = path.posix.join(directory, 'latest.json');
+  const latestVersionPath = path.posix.join(directory, "latest.json");
   if (fs.existsSync(latestVersionPath)) {
     const previousVersion = fs
       .readlinkSync(latestVersionPath)
-      .split('.json')[0];
+      .split(".json")[0];
     createSymlinks(versionFilepath, version, previousVersion);
   } else {
     // When no previous versions are found, just create symlinks.
@@ -330,7 +330,7 @@ function isPushableToRegistry(
   linkPrereleases: boolean
 ): boolean {
   if (isDryRun()) {
-    logger.info('[dry-run] Not pushing the branch.');
+    logger.info("[dry-run] Not pushing the branch.");
     return false;
   }
   if (isPreviewRelease(version) && !linkPrereleases) {

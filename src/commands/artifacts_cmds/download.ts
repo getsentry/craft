@@ -1,35 +1,35 @@
-import * as _ from 'lodash';
-import { logger } from '../../logger';
-import { ArtifactsOptions } from '../artifacts';
-import { getArtifactProviderFromConfig } from '../../config';
-import { handleGlobalError, ConfigurationError } from '../../utils/errors';
-import { Argv, CommandBuilder } from 'yargs';
-import { resolve } from 'path';
-import { existsSync, lstatSync } from 'fs';
-import mkdirp = require('mkdirp');
-import { NoneArtifactProvider } from '../../artifact_providers/none';
+import * as _ from "lodash";
+import { logger } from "../../logger";
+import { ArtifactsOptions } from "../artifacts";
+import { getArtifactProviderFromConfig } from "../../config";
+import { handleGlobalError, ConfigurationError } from "../../utils/errors";
+import { Argv, CommandBuilder } from "yargs";
+import { resolve } from "path";
+import { existsSync, lstatSync } from "fs";
+import mkdirp = require("mkdirp");
+import { NoneArtifactProvider } from "../../artifact_providers/none";
 
-export const command = ['download [NAME..]'];
-export const aliases = ['d', 'get'];
-export const description = 'Download artifacts';
+export const command = ["download [NAME..]"];
+export const aliases = ["d", "get"];
+export const description = "Download artifacts";
 export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
-    .positional('NAME', {
-      alias: 'names',
-      description: 'Artifact name to download',
-      type: 'string',
+    .positional("NAME", {
+      alias: "names",
+      description: "Artifact name to download",
+      type: "string",
     })
-    .array('NAME')
-    .option('all', {
-      alias: 'a',
+    .array("NAME")
+    .option("all", {
+      alias: "a",
       default: false,
-      description: 'Download all artifacts',
-      type: 'boolean',
+      description: "Download all artifacts",
+      type: "boolean",
     })
-    .option('directory', {
-      alias: 'd',
-      description: 'Target directory',
-      type: 'string',
+    .option("directory", {
+      alias: "d",
+      description: "Target directory",
+      type: "string",
     });
 
 /** Options for "download" command */
@@ -70,7 +70,7 @@ async function prepareOutputDirectory(
  */
 async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
   if (!argv.all && argv.names.length === 0) {
-    throw new ConfigurationError('No names to download, exiting.');
+    throw new ConfigurationError("No names to download, exiting.");
   }
 
   const revision = argv.rev;
@@ -92,9 +92,9 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
   }
 
   const filesToDownload = argv.all
-    ? artifacts.map(ar => ar.filename)
+    ? artifacts.map((ar) => ar.filename)
     : argv.names;
-  const nameToArtifact = _.fromPairs(artifacts.map(ar => [ar.filename, ar]));
+  const nameToArtifact = _.fromPairs(artifacts.map((ar) => [ar.filename, ar]));
 
   logger.info(`Fetching artifacts for revision: ${revision}`);
   for (const name of filesToDownload) {

@@ -1,20 +1,20 @@
 /* eslint-env jest */
 
-import { findChangeset, removeChangeset, prependChangeset } from '../changes';
+import { findChangeset, removeChangeset, prependChangeset } from "../changes";
 
-describe('findChangeset', () => {
+describe("findChangeset", () => {
   const sampleChangeset = {
-    body: 'this is a test',
-    name: 'Version 1.0.0',
+    body: "this is a test",
+    name: "Version 1.0.0",
   };
 
   test.each([
     [
-      'regular',
+      "regular",
       `# Changelog\n## ${sampleChangeset.name}\n${sampleChangeset.body}\n`,
     ],
     [
-      'ignore date in parentheses',
+      "ignore date in parentheses",
       `# Changelog
     ## 1.0.1
     newer
@@ -27,7 +27,7 @@ describe('findChangeset', () => {
     `,
     ],
     [
-      'extracts a change between headings',
+      "extracts a change between headings",
       `# Changelog
     ## 1.0.1
     newer
@@ -40,11 +40,11 @@ describe('findChangeset', () => {
     `,
     ],
     [
-      'extracts changes from underlined headings',
+      "extracts changes from underlined headings",
       `Changelog\n====\n${sampleChangeset.name}\n----\n${sampleChangeset.body}\n`,
     ],
     [
-      'extracts changes from alternating headings',
+      "extracts changes from alternating headings",
       `# Changelog
     ## 1.0.1
     newer
@@ -57,14 +57,14 @@ describe('findChangeset', () => {
     older
     `,
     ],
-  ])('should extract %s', (_testName, markdown) => {
-    expect(findChangeset(markdown, 'v1.0.0')).toEqual(sampleChangeset);
+  ])("should extract %s", (_testName, markdown) => {
+    expect(findChangeset(markdown, "v1.0.0")).toEqual(sampleChangeset);
   });
 
-  test('supports sub-headings', () => {
+  test("supports sub-headings", () => {
     const changeset = {
-      body: '### Features\nthis is a test',
-      name: 'Version 1.0.0',
+      body: "### Features\nthis is a test",
+      name: "Version 1.0.0",
     };
 
     const markdown = `# Changelog
@@ -72,13 +72,13 @@ describe('findChangeset', () => {
         ${changeset.body}
       `;
 
-    expect(findChangeset(markdown, 'v1.0.0')).toEqual(changeset);
+    expect(findChangeset(markdown, "v1.0.0")).toEqual(changeset);
   });
 
   test.each([
-    ['changeset cannot be found', 'v1.0.0'],
-    ['invalid version', 'not a version'],
-  ])('should return null on %s', (_testName, version) => {
+    ["changeset cannot be found", "v1.0.0"],
+    ["invalid version", "not a version"],
+  ])("should return null on %s", (_testName, version) => {
     const markdown = `# Changelog
     ## 1.0.1
     newer
@@ -92,8 +92,8 @@ describe('findChangeset', () => {
 
 test.each([
   [
-    'remove from the top',
-    '1.0.1',
+    "remove from the top",
+    "1.0.1",
     `# Changelog
     1.0.0
     -------
@@ -107,8 +107,8 @@ test.each([
     `,
   ],
   [
-    'remove from the middle',
-    '0.9.1',
+    "remove from the middle",
+    "0.9.1",
     `# Changelog
     ## 1.0.1
     newer
@@ -122,8 +122,8 @@ test.each([
     `,
   ],
   [
-    'remove from underlined',
-    '1.0.0',
+    "remove from underlined",
+    "1.0.0",
     `# Changelog
     ## 1.0.1
     newer
@@ -136,8 +136,8 @@ test.each([
     `,
   ],
   [
-    'remove from the bottom',
-    '0.9.0',
+    "remove from the bottom",
+    "0.9.0",
     `# Changelog
     ## 1.0.1
     newer
@@ -152,8 +152,8 @@ test.each([
 `,
   ],
   [
-    'not remove missing',
-    'non-existent version',
+    "not remove missing",
+    "non-existent version",
     `# Changelog
     ## 1.0.1
     newer
@@ -170,8 +170,8 @@ test.each([
     `,
   ],
   [
-    'not remove empty',
-    '',
+    "not remove empty",
+    "",
     `# Changelog
     ## 1.0.1
     newer
@@ -187,7 +187,7 @@ test.each([
     older
     `,
   ],
-])('remove changeset should %s', (_testName, header, expected) => {
+])("remove changeset should %s", (_testName, header, expected) => {
   const markdown = `# Changelog
     ## 1.0.1
     newer
@@ -208,45 +208,45 @@ test.each([
 
 test.each([
   [
-    'prepend to empty text',
-    '',
-    '## 2.0.0\n\nrewrote everything from scratch\n\n',
+    "prepend to empty text",
+    "",
+    "## 2.0.0\n\nrewrote everything from scratch\n\n",
   ],
   [
-    'prepend without top-level header',
-    '## 1.0.0\n\nthis is a test\n',
-    '## 2.0.0\n\nrewrote everything from scratch\n\n## 1.0.0\n\nthis is a test\n',
+    "prepend without top-level header",
+    "## 1.0.0\n\nthis is a test\n",
+    "## 2.0.0\n\nrewrote everything from scratch\n\n## 1.0.0\n\nthis is a test\n",
   ],
   [
-    'prepend after top-level header (empty body)',
-    '# Changelog\n',
-    '# Changelog\n## 2.0.0\n\nrewrote everything from scratch\n\n',
+    "prepend after top-level header (empty body)",
+    "# Changelog\n",
+    "# Changelog\n## 2.0.0\n\nrewrote everything from scratch\n\n",
   ],
   [
-    'prepend after top-level header',
-    '# Changelog\n\n## 1.0.0\n\nthis is a test\n',
-    '# Changelog\n\n## 2.0.0\n\nrewrote everything from scratch\n\n## 1.0.0\n\nthis is a test\n',
+    "prepend after top-level header",
+    "# Changelog\n\n## 1.0.0\n\nthis is a test\n",
+    "# Changelog\n\n## 2.0.0\n\nrewrote everything from scratch\n\n## 1.0.0\n\nthis is a test\n",
   ],
   [
-    'prepend with underlined when detected',
-    '# Changelog\n\n1.0.0\n-----\n\nthis is a test\n',
-    '# Changelog\n\n2.0.0\n-----\n\nrewrote everything from scratch\n\n1.0.0\n-----\n\nthis is a test\n',
+    "prepend with underlined when detected",
+    "# Changelog\n\n1.0.0\n-----\n\nthis is a test\n",
+    "# Changelog\n\n2.0.0\n-----\n\nrewrote everything from scratch\n\n1.0.0\n-----\n\nthis is a test\n",
   ],
   [
-    'prepend with consistent padding with the rest',
-    '# Changelog\n\n   ## 1.0.0\n\n   this is a test\n',
-    '# Changelog\n\n   ## 2.0.0\n\n   rewrote everything from scratch\n\n   ## 1.0.0\n\n   this is a test\n',
+    "prepend with consistent padding with the rest",
+    "# Changelog\n\n   ## 1.0.0\n\n   this is a test\n",
+    "# Changelog\n\n   ## 2.0.0\n\n   rewrote everything from scratch\n\n   ## 1.0.0\n\n   this is a test\n",
   ],
   [
-    'prepend with consistent padding with the rest (underlined)',
-    '# Changelog\n\n   1.0.0\n-----\n\n   this is a test\n',
-    '# Changelog\n\n   2.0.0\n-----\n\n   rewrote everything from scratch\n\n   1.0.0\n-----\n\n   this is a test\n',
+    "prepend with consistent padding with the rest (underlined)",
+    "# Changelog\n\n   1.0.0\n-----\n\n   this is a test\n",
+    "# Changelog\n\n   2.0.0\n-----\n\n   rewrote everything from scratch\n\n   1.0.0\n-----\n\n   this is a test\n",
   ],
-])('prependChangeset should %s', (_testName, markdown, expected) => {
+])("prependChangeset should %s", (_testName, markdown, expected) => {
   expect(
     prependChangeset(markdown, {
-      body: 'rewrote everything from scratch',
-      name: '2.0.0',
+      body: "rewrote everything from scratch",
+      name: "2.0.0",
     })
   ).toEqual(expected);
 });

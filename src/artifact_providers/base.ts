@@ -2,10 +2,10 @@ import {
   calculateChecksum,
   HashAlgorithm,
   HashOutputFormat,
-} from '../utils/system';
-import { clearObjectProperties } from '../utils/objects';
-import { ConfigurationError } from '../utils/errors';
-import { logger as loggerRaw } from '../logger';
+} from "../utils/system";
+import { clearObjectProperties } from "../utils/objects";
+import { ConfigurationError } from "../utils/errors";
+import { logger as loggerRaw } from "../logger";
 
 const logger = loggerRaw.withScope(`[artifact-provider]`);
 
@@ -130,7 +130,7 @@ export abstract class BaseArtifactProvider {
     if (downloadDirectory) {
       this.defaultDownloadDirectory = downloadDirectory;
     } else {
-      throw new ConfigurationError('Download directory cannot be empty!');
+      throw new ConfigurationError("Download directory cannot be empty!");
     }
   }
 
@@ -165,7 +165,7 @@ export abstract class BaseArtifactProvider {
     } else if (this.defaultDownloadDirectory) {
       finalDownloadDirectory = this.defaultDownloadDirectory;
     } else {
-      throw new Error('Download directory not configured!');
+      throw new Error("Download directory not configured!");
     }
 
     const cacheKey = `${finalDownloadDirectory}/${artifact.filename}/${artifact.storedFile.lastUpdated}`;
@@ -179,7 +179,7 @@ export abstract class BaseArtifactProvider {
     const promise = this.doDownloadArtifact(
       artifact,
       finalDownloadDirectory
-    ).catch(err => {
+    ).catch((err) => {
       logger.error(
         `Unable to download ${artifact.filename} from artifact provider!`
       );
@@ -221,7 +221,7 @@ export abstract class BaseArtifactProvider {
     downloadDirectory?: string
   ): Promise<string[]> {
     return Promise.all(
-      artifacts.map(async artifact =>
+      artifacts.map(async (artifact) =>
         this.downloadArtifact(artifact, downloadDirectory)
       )
     );
@@ -328,13 +328,13 @@ export abstract class BaseArtifactProvider {
     }
     const { includeNames, excludeNames } = filterOptions;
     if (includeNames) {
-      filteredArtifacts = filteredArtifacts.filter(artifact =>
+      filteredArtifacts = filteredArtifacts.filter((artifact) =>
         includeNames.test(artifact.filename)
       );
     }
     if (excludeNames) {
       filteredArtifacts = filteredArtifacts.filter(
-        artifact => !excludeNames.test(artifact.filename)
+        (artifact) => !excludeNames.test(artifact.filename)
       );
     }
     return filteredArtifacts;

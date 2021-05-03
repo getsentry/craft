@@ -3,7 +3,7 @@
 // Definitions by: Mark Ashley Bell <https://github.com/markashleybell>, Manuel Thalmann <https://github.com/manuth>, Sentry.io <https://getsentry/sentry>
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
 
-declare module 'mustache' {
+declare module "mustache" {
   /**
    * Provides the functionality to render templates with `{{mustaches}}`.
    */
