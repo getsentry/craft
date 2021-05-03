@@ -30,7 +30,7 @@ async function handlerMain(argv: ArtifactsOptions): Promise<any> {
     return undefined;
   }
 
-  const artifactData = artifacts.map((ar) => [
+  const artifactData = artifacts.map(ar => [
     ar.filename,
     formatSize(ar.storedFile.size),
     ar.storedFile.lastUpdated || '',

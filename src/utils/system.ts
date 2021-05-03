@@ -132,7 +132,7 @@ export async function spawnProcess(
   options: SpawnOptions = {},
   spawnProcessOptions: SpawnProcessOptions = {}
 ): Promise<Buffer | undefined> {
-  const argsString = args.map((arg) => `"${arg}"`).join(' ');
+  const argsString = args.map(arg => `"${arg}"`).join(' ');
 
   if (isDryRun() && !spawnProcessOptions.enableInDryRunMode) {
     logger.info('[dry-run] Not spawning process:', `${command} ${argsString}`);
@@ -157,7 +157,7 @@ export async function spawnProcess(
       logger.debug('Spawning process:', `${command} ${argsString}`);
 
       // Do a shell-like replacement of arguments that look like environment variables
-      const processedArgs = args.map((arg) =>
+      const processedArgs = args.map(arg =>
         replaceEnvVariable(arg, { ...process.env, ...options.env })
       );
 
@@ -168,7 +168,7 @@ export async function spawnProcess(
       if (!child.stdout || !child.stderr) {
         throw new Error('Invalid standard output or error for child process');
       }
-      child.on('exit', (code) => (code === 0 ? succeed() : fail({ code })));
+      child.on('exit', code => (code === 0 ? succeed() : fail({ code })));
       child.on('error', fail);
 
       child.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
@@ -216,7 +216,7 @@ export async function calculateChecksum(
   const hash = createHash(algorithm);
 
   return new Promise<string>((resolve, reject) => {
-    stream.on('data', (data) => hash.update(data, 'utf8'));
+    stream.on('data', data => hash.update(data, 'utf8'));
     stream.on('end', () => resolve(formatDigest(hash, format)));
     stream.on('error', reject);
   });
@@ -249,7 +249,7 @@ function formatDigest(hash: Hash, format: HashOutputFormat): string {
  * @param ms Milliseconds to sleep
  */
 export async function sleepAsync(ms: number): Promise<void> {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+  return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
 /**
@@ -263,10 +263,8 @@ function getPotentialPaths(fileName: string): string[] {
   return envPath
     .replace(/"/g, '')
     .split(path.delimiter)
-    .map((chunk) =>
-      envExt
-        .split(path.delimiter)
-        .map((ext) => path.join(chunk, fileName + ext))
+    .map(chunk =>
+      envExt.split(path.delimiter).map(ext => path.join(chunk, fileName + ext))
     )
     .reduce((a, b) => a.concat(b));
 }

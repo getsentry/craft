@@ -34,10 +34,8 @@ describe('filterArtifactsForRevision', () => {
     'test2.exe',
     'test3.tgz',
     'smthelse',
-  ].map((name) => artifactFactory(name, undefined));
-  zeusStore.listArtifactsForRevision = jest.fn(
-    async (_revision) => artifactList
-  );
+  ].map(name => artifactFactory(name, undefined));
+  zeusStore.listArtifactsForRevision = jest.fn(async _revision => artifactList);
   const revision = '1234567';
 
   beforeEach(() => {
@@ -83,7 +81,7 @@ describe('filterArtifactsForRevision', () => {
     'test2.exe',
     'test3.tgz',
     'smthelse',
-  ].map((name) => artifactFactory(name, undefined));
+  ].map(name => artifactFactory(name, undefined));
   zeusStore.client.listArtifactsForRevision = jest
     .fn()
     .mockReturnValue(artifactList);
@@ -131,7 +129,7 @@ describe('filterArtifactsForRevision', () => {
         updated_at: 'invalid',
       }),
     ];
-    mockClientListArtifacts.mockReturnValue(artifacts);
+    mockClientListArtifacts.mockReturnValue(Array.from(artifacts));
 
     const result = await zeusStore.listArtifactsForRevision(revision);
 

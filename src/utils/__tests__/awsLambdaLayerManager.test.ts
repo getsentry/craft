@@ -84,7 +84,7 @@ describe('layer publishing', () => {
   test('publish to all regions', async () => {
     const manager = getTestAwsLambdaLayerManager();
     const pubishedLayers = await manager.publishToAllRegions();
-    const publishedRegions = pubishedLayers.map((layer) => layer.region);
+    const publishedRegions = pubishedLayers.map(layer => layer.region);
     expect(publishedRegions).toStrictEqual(AWS_TEST_REGIONS);
   });
 });

@@ -103,7 +103,7 @@ export class AwsLambdaLayerManager {
    */
   public async publishToAllRegions(): Promise<PublishedLayer[]> {
     const publishedLayers = await Promise.all(
-      this.awsRegions.map(async (region) => {
+      this.awsRegions.map(async region => {
         try {
           return await this.publishLayerToRegion(region);
         } catch (error) {
@@ -115,7 +115,7 @@ export class AwsLambdaLayerManager {
         }
       })
     );
-    return publishedLayers.filter((layer) => {
+    return publishedLayers.filter(layer => {
       return layer !== undefined;
     }) as PublishedLayer[];
   }
@@ -153,7 +153,7 @@ export function extractRegionNames(
   awsRegions: DescribeRegionsCommandOutput
 ): string[] {
   const regionNames: string[] = [];
-  awsRegions.Regions?.map((currentRegion) => {
+  awsRegions.Regions?.map(currentRegion => {
     if (currentRegion.RegionName !== undefined) {
       regionNames.push(currentRegion.RegionName);
     }

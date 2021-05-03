@@ -356,6 +356,6 @@ export class CraftGCSClient {
     }
 
     const files = filesResponse[0];
-    return files.map((gcsFile) => this.convertToRemoteArtifact(gcsFile));
+    return files.map(gcsFile => this.convertToRemoteArtifact(gcsFile));
   }
 }

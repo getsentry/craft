@@ -192,7 +192,7 @@ export class NpmTarget extends BaseTarget {
       args.push('--tag=next');
     }
 
-    return withTempFile((filePath) => {
+    return withTempFile(filePath => {
       // Pass OTP if configured
       const spawnOptions: SpawnOptions = {};
       spawnOptions.env = { ...process.env };

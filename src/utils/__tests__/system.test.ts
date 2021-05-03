@@ -122,7 +122,7 @@ describe('calculateChecksum', () => {
   test('Default checksum on a basic file', async () => {
     expect.assertions(1);
 
-    await withTempFile(async (tmpFilePath) => {
+    await withTempFile(async tmpFilePath => {
       fs.writeFileSync(tmpFilePath, '\n');
 
       const checksum = await calculateChecksum(tmpFilePath);
@@ -135,7 +135,7 @@ describe('calculateChecksum', () => {
   test('Base64-formatted checksum on a basic file', async () => {
     expect.assertions(1);
 
-    await withTempFile(async (tmpFilePath) => {
+    await withTempFile(async tmpFilePath => {
       fs.writeFileSync(tmpFilePath, '\n');
 
       const checksum = await calculateChecksum(tmpFilePath, {
@@ -148,7 +148,7 @@ describe('calculateChecksum', () => {
   test('Base64-formatted checksum with custom algorithm on a basic file', async () => {
     expect.assertions(1);
 
-    await withTempFile(async (tmpFilePath) => {
+    await withTempFile(async tmpFilePath => {
       fs.writeFileSync(tmpFilePath, '\n');
 
       const checksum = await calculateChecksum(tmpFilePath, {

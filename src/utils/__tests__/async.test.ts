@@ -1,4 +1,4 @@
-import { filterAsync, forEachChained, promiseProps } from '../async';
+import { filterAsync, forEachChained } from '../async';
 import { logger } from '../../logger';
 
 jest.mock('../../logger');
@@ -6,7 +6,7 @@ jest.mock('../../logger');
 describe('filterAsync', () => {
   test('filters with sync predicate', async () => {
     expect.assertions(1);
-    const filtered = await filterAsync([1, 2, 3, 4], (i) => i > 2);
+    const filtered = await filterAsync([1, 2, 3, 4], i => i > 2);
     expect(filtered).toEqual([3, 4]);
   });
 
@@ -14,7 +14,7 @@ describe('filterAsync', () => {
     expect.assertions(1);
 
     const predicate = (i: number) =>
-      new Promise<boolean>((resolve) =>
+      new Promise<boolean>(resolve =>
         setTimeout(() => resolve(i > 2), i * 100)
       );
     const filtered = await filterAsync([1, 2, 3, 4], predicate);
@@ -45,29 +45,6 @@ describe('filterAsync', () => {
   });
 });
 
-describe('promiseProps', () => {
-  test('awaits an empty object', async () => {
-    expect.assertions(1);
-    const result = await promiseProps({});
-    expect(result).toEqual({});
-  });
-
-  test('awaits a plain object', async () => {
-    expect.assertions(1);
-    const result = await promiseProps({ foo: 'foo', bar: 42 });
-    expect(result).toEqual({ foo: 'foo', bar: 42 });
-  });
-
-  test('awaits an object with promises', async () => {
-    expect.assertions(1);
-    const result = await promiseProps({
-      bar: Promise.resolve(42),
-      foo: Promise.resolve('foo'),
-    });
-    expect(result).toEqual({ foo: 'foo', bar: 42 });
-  });
-});
-
 describe('forEachChained', () => {
   test('invokes synchronous actions', async () => {
     expect.assertions(1);
@@ -90,7 +67,7 @@ describe('forEachChained', () => {
     const arr = [500, 300, 100];
 
     fun.mockImplementation(
-      (timeout) => new Promise((resolve) => setTimeout(resolve, timeout))
+      timeout => new Promise(resolve => setTimeout(resolve, timeout))
     );
 
     await forEachChained(arr, fun);

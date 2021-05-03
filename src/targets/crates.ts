@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import * as _ from 'lodash';
 import simpleGit from 'simple-git';
 
 import { getGlobalGithubConfig } from '../config';
@@ -179,7 +178,10 @@ export class CratesTarget extends BaseTarget {
    * @returns The sorted list of packages
    */
   public getPublishOrder(packages: CratePackage[]): CratePackage[] {
-    const remaining = _.keyBy(packages, (p) => p.name);
+    const remaining = packages.reduce((dict, p) => {
+      dict[p.name] = p;
+      return dict;
+    }, {} as { [index: string]: CratePackage });
     const ordered: CratePackage[] = [];
 
     const isWorkspaceDependency = (dep: CrateDependency) => {
@@ -194,18 +196,17 @@ export class CratesTarget extends BaseTarget {
 
     // We iterate until there are no packages left. Note that cargo will already
     // check for cycles in the dependency graph and fail if its not a DAG.
-    while (!_.isEmpty(remaining)) {
-      const leafDependencies = _.filter(
-        remaining,
+    while (Object.keys(remaining).length > 0) {
+      const leafDependencies = Object.values(remaining).filter(
         // Find all packages with no remaining workspace dependencies
-        (p) => p.dependencies.filter(isWorkspaceDependency).length === 0
+        p => p.dependencies.filter(isWorkspaceDependency).length === 0
       );
 
       if (leafDependencies.length === 0) {
         throw new Error('Circular dependency detected!');
       }
 
-      leafDependencies.forEach((next) => {
+      leafDependencies.forEach(next => {
         ordered.push(next);
         delete remaining[next.name];
       });
@@ -227,17 +228,17 @@ export class CratesTarget extends BaseTarget {
     const metadata = await this.getCrateMetadata(directory);
     const unorderedCrates = metadata.packages
       // only publish workspace members
-      .filter((p) => metadata.workspace_members.indexOf(p.id) > -1)
+      .filter(p => metadata.workspace_members.indexOf(p.id) > -1)
       // skip crates with `"publish": []`
-      .filter((p) => !p.publish || p.publish.length);
+      .filter(p => !p.publish || p.publish.length);
 
     const crates = this.getPublishOrder(unorderedCrates);
     logger.debug(
       `Publishing packages in the following order: ${crates
-        .map((c) => c.name)
+        .map(c => c.name)
         .join(', ')}`
     );
-    return forEachChained(crates, async (crate) => this.publishPackage(crate));
+    return forEachChained(crates, async crate => this.publishPackage(crate));
   }
 
   /**
@@ -321,7 +322,7 @@ export class CratesTarget extends BaseTarget {
   public async publish(_version: string, revision: string): Promise<any> {
     const githubConfig = getGlobalGithubConfig();
     await withTempDir(
-      async (directory) => {
+      async directory => {
         await this.cloneWithSubmodules(githubConfig, revision, directory);
         await this.publishWorkspace(directory);
       },

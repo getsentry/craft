@@ -15,5 +15,5 @@ const compileOptions = { style: { singleQuote: true, trailingComma: 'es5' } };
 const schema = require(jsonInputPath);
 json2ts
   .compile(schema, '', compileOptions)
-  .then((ts) => fs.writeFileSync(tsOutputPath, ts))
-  .catch((e) => console.error(e));
+  .then(ts => fs.writeFileSync(tsOutputPath, ts))
+  .catch(e => console.error(e));

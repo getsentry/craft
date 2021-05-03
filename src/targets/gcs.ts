@@ -251,7 +251,7 @@ export class GcsTarget extends BaseTarget {
         );
 
         return Promise.all(
-          localFilePaths.map(async (localPath) =>
+          localFilePaths.map(async localPath =>
             this.gcsClient.uploadArtifact(localPath, bucketPath)
           )
         );

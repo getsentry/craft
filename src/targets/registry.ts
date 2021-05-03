@@ -1,6 +1,5 @@
 import { mapLimit } from 'async';
 import * as Github from '@octokit/rest';
-import * as _ from 'lodash';
 import simpleGit from 'simple-git';
 import * as path from 'path';
 
@@ -268,14 +267,14 @@ export class RegistryTarget extends BaseTarget {
     );
     const files: { [key: string]: any } = {};
 
-    await mapLimit(artifacts, MAX_DOWNLOAD_CONCURRENCY, async (artifact) => {
+    await mapLimit(artifacts, MAX_DOWNLOAD_CONCURRENCY, async artifact => {
       const fileData = await this.getArtifactData(artifact, version, revision);
-      if (!_.isEmpty(fileData)) {
+      if (Object.keys(fileData).length > 0) {
         files[artifact.filename] = fileData;
       }
     });
 
-    if (!_.isEmpty(files)) {
+    if (Object.keys(files).length > 0) {
       packageManifest.files = files;
     }
   }
@@ -416,7 +415,7 @@ export class RegistryTarget extends BaseTarget {
     remote.setAuth(username, getGithubApiToken());
 
     await withTempDir(
-      (directory) =>
+      directory =>
         this.pushVersionToRegistry(directory, remote, version, revision),
       true,
       'craft-release-registry-'

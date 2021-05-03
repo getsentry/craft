@@ -9,7 +9,7 @@ export function handler(): any {
   const definedTargets = getConfiguration().targets || [];
   const possibleTargetNames = new Set(getAllTargetNames());
   const allowedTargetNames = definedTargets
-    .filter((target) => target.name && possibleTargetNames.has(target.name))
+    .filter(target => target.name && possibleTargetNames.has(target.name))
     .map(getTargetId);
 
   console.log(formatJson(allowedTargetNames));

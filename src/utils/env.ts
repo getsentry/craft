@@ -169,7 +169,7 @@ export function readEnvironmentConfig(overwriteExisting = false): void {
  * only one is required.
  */
 export function checkEnvForPrerequisite(...varList: RequiredConfigVar[]): void {
-  const varNames = varList.map((v) => v.name).join(' or ');
+  const varNames = varList.map(v => v.name).join(' or ');
   logger.debug(`Checking for environment variable(s) ${varNames}`);
 
   if (!varList.some(envHasVar)) {

@@ -55,7 +55,7 @@ export const builder: CommandBuilder = (yargs: Argv) => {
   const definedTargets = getConfiguration().targets || [];
   const possibleTargetNames = new Set(getAllTargetNames());
   const allowedTargetNames = definedTargets
-    .filter((target) => target.name && possibleTargetNames.has(target.name))
+    .filter(target => target.name && possibleTargetNames.has(target.name))
     .map(getTargetId);
 
   return yargs
@@ -177,7 +177,7 @@ async function printRevisionSummary(
 ): Promise<void> {
   const artifacts = await artifactProvider.listArtifactsForRevision(revision);
   if (artifacts.length > 0) {
-    const artifactData = artifacts.map((ar) => [
+    const artifactData = artifacts.map(ar => [
       ar.filename,
       formatSize(ar.storedFile.size),
       ar.storedFile.lastUpdated || '',
@@ -210,7 +210,7 @@ async function promptConfirmation(targetList: BaseTarget[]): Promise<void> {
   logger.info('Publishing to targets:');
 
   logger.info(
-    targetList.map((target) => `  - ${getTargetId(target.config)}`).join('\n')
+    targetList.map(target => `  - ${getTargetId(target.config)}`).join('\n')
   );
   logger.info(' ');
 
@@ -291,7 +291,7 @@ async function checkRequiredArtifacts(
 
   for (const requiredNameRegexString of requiredNames) {
     const requiredNameRegex = stringToRegexp(requiredNameRegexString);
-    const matchedArtifacts = artifacts.filter((artifact) =>
+    const matchedArtifacts = artifacts.filter(artifact =>
       requiredNameRegex.test(artifact.filename)
     );
     if (matchedArtifacts.length === 0) {
@@ -546,7 +546,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   }
 
   if (!targetsToPublish.has(SpecialTarget.All)) {
-    targetConfigList = targetConfigList.filter((targetConf) =>
+    targetConfigList = targetConfigList.filter(targetConf =>
       targetsToPublish.has(getTargetId(targetConf))
     );
   }

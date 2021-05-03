@@ -108,12 +108,12 @@ export function findChangeset(
 
   let changesetLoc = locateChangeset(
     markdown,
-    (match) => getVersion(match) === version
+    match => getVersion(match) === version
   );
   if (!changesetLoc && fallbackToUnreleased) {
     changesetLoc = locateChangeset(
       markdown,
-      (match) => match === DEFAULT_UNRELEASED_TITLE
+      match => match === DEFAULT_UNRELEASED_TITLE
     );
   }
 
@@ -127,7 +127,7 @@ export function findChangeset(
  * @returns The markdown string without the changeset with the provided header
  */
 export function removeChangeset(markdown: string, header: string): string {
-  const location = locateChangeset(markdown, (match) => match === header);
+  const location = locateChangeset(markdown, match => match === header);
   if (!location) {
     return markdown;
   }

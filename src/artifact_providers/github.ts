@@ -103,7 +103,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
 
     // We need to find the archive where name maches the revision
     const foundArtifacts = allArtifacts.filter(
-      (artifact) => artifact.name === revision
+      artifact => artifact.name === revision
     );
 
     if (foundArtifacts.length === 1) {
@@ -167,7 +167,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     archiveResponse: ArchiveResponse
   ): Promise<RemoteArtifact[]> {
     const artifacts: RemoteArtifact[] = [];
-    await withTempFile(async (tempFilepath) => {
+    await withTempFile(async tempFilepath => {
       const file = fs.createWriteStream(tempFilepath);
 
       await new Promise<void>((resolve, reject) => {
@@ -178,15 +178,15 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
             logger.info(`Finished downloading.`);
             resolve();
           })
-          .on('error', (error) => {
+          .on('error', error => {
             reject(error);
           });
       });
 
-      await withTempDir(async (tmpDir) => {
+      await withTempDir(async tmpDir => {
         logger.debug(`Extracting "${tempFilepath}" to "${tmpDir}"...`);
         await extractZipArchive(tempFilepath, tmpDir);
-        (await scan(tmpDir)).forEach((file) => {
+        (await scan(tmpDir)).forEach(file => {
           artifacts.push({
             filename: path.basename(file),
             mimeType: detectContentType(file),

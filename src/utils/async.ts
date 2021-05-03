@@ -1,4 +1,3 @@
-import * as _ from 'lodash';
 import { reportError } from './errors';
 
 /**
@@ -19,23 +18,6 @@ export async function filterAsync<T>(
 ): Promise<T[]> {
   const verdicts = await Promise.all(array.map(predicate, thisArg));
   return array.filter((_element, index) => verdicts[index]);
-}
-
-/**
- * Returns a promise that resolves when each value of the given object resolves.
- * Works just like `Promise.all`, just on objects.
- *
- * @param object An object with one or more
- * @returns A promise that resolves with each value
- * @async
- */
-export async function promiseProps(object: Record<string, any>): Promise<any> {
-  const pairs = _.toPairs(object).map(async ([key, value]) => [
-    key,
-    await Promise.resolve(value),
-  ]);
-
-  return _.fromPairs(await Promise.all(pairs));
 }
 
 /**

@@ -94,7 +94,7 @@ export class CocoapodsTarget extends BaseTarget {
     const fileName = basename(specPath);
 
     await withTempDir(
-      async (directory) => {
+      async directory => {
         const filePath = join(directory, fileName);
         await writeFile(filePath, specContents, 'utf8');
 

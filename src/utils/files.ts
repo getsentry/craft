@@ -54,8 +54,8 @@ export async function scan(
  */
 export async function listFiles(directory: string): Promise<string[]> {
   const files = await readdir(directory);
-  const paths = files.map((name) => path.join(directory, name));
-  return filterAsync(paths, async (filePath) => {
+  const paths = files.map(name => path.join(directory, name));
+  return filterAsync(paths, async filePath => {
     const stats = await lstat(filePath);
     return stats.isFile();
   });

@@ -89,7 +89,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
         // Edge case, this is what GitHub returns when there are no registered legacy checks.
         logger.debug('No legacy checks detected, checking for runs...');
         const hasPendingActiveSuites = revisionCheckSuites.check_suites.some(
-          (suite) =>
+          suite =>
             // Need the any cast as octokit lacks this prop in its types
             (suite as any).latest_check_runs_count > 0 &&
             suite.status === 'queued'
@@ -163,7 +163,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
       return CommitStatus.PENDING;
     } else if (
       results[0] === CommitStatus.NOT_FOUND &&
-      results.every((el) => el === results[0])
+      results.every(el => el === results[0])
     ) {
       logger.error(`Context "${context}" was not found, result: FAILURE`);
       return CommitStatus.FAILURE;
@@ -227,7 +227,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
   ): CommitStatus {
     // Check runs: we have an array of runs, and each of them has a status
     let isSomethingPending = revisionCheckSuites.check_suites.some(
-      (suite) =>
+      suite =>
         // Need the any cast as octokit lacks this prop in its types
         (suite as any).latest_check_runs_count > 0 && suite.status === 'queued'
     );

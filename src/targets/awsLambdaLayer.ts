@@ -149,7 +149,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     remote.setAuth(username, getGithubApiToken());
 
     await withTempDir(
-      async (directory) => {
+      async directory => {
         const git = simpleGit(directory);
         logger.info(`Cloning ${remote.getRemoteString()} to ${directory}...`);
         await git.clone(remote.getRemoteStringWithAuth(), directory);
@@ -247,7 +247,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           return;
         }
 
-        const regionsVersions = publishedLayers.map((layer) => {
+        const regionsVersions = publishedLayers.map(layer => {
           return {
             region: layer.region,
             version: layer.version.toString(),

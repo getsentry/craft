@@ -105,7 +105,7 @@ export class GhPagesTarget extends BaseTarget {
     directory: string
   ): Promise<void> {
     // Check that the directory is empty
-    const dirContents = fs.readdirSync(directory).filter((f) => f !== '.git');
+    const dirContents = fs.readdirSync(directory).filter(f => f !== '.git');
     if (dirContents.length > 0) {
       throw new Error(
         'Destination directory is not empty: cannot extract the acrhive!'
@@ -117,16 +117,14 @@ export class GhPagesTarget extends BaseTarget {
     await extractZipArchive(archivePath, directory);
 
     // If there's a single top-level directory -- move its contents to the git root
-    const newDirContents = fs
-      .readdirSync(directory)
-      .filter((f) => f !== '.git');
+    const newDirContents = fs.readdirSync(directory).filter(f => f !== '.git');
     if (
       newDirContents.length === 1 &&
       fs.statSync(path.join(directory, newDirContents[0])).isDirectory()
     ) {
       logger.debug('Single top-level directory found, moving files from it...');
       const innerDirPath = path.join(directory, newDirContents[0]);
-      fs.readdirSync(innerDirPath).forEach((item) => {
+      fs.readdirSync(innerDirPath).forEach(item => {
         const srcPath = path.join(innerDirPath, item);
         const destPath = path.join(directory, item);
         fs.renameSync(srcPath, destPath);
@@ -230,7 +228,7 @@ export class GhPagesTarget extends BaseTarget {
     );
 
     await withTempDir(
-      async (directory) =>
+      async directory =>
         this.commitArchiveToBranch(
           directory,
           remote,

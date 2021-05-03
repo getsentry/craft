@@ -162,12 +162,12 @@ export class BrewTarget extends BaseTarget {
     const filesList = await this.getArtifactsForRevision(revision);
     logger.debug(
       'Downloading artifacts for the revision:',
-      JSON.stringify(filesList.map((file) => file.filename))
+      JSON.stringify(filesList.map(file => file.filename))
     );
 
     const checksums: any = {};
 
-    await mapLimit(filesList, MAX_DOWNLOAD_CONCURRENCY, async (file) => {
+    await mapLimit(filesList, MAX_DOWNLOAD_CONCURRENCY, async file => {
       checksums[file.filename] = await this.artifactProvider.getChecksum(
         file,
         HashAlgorithm.SHA256,

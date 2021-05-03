@@ -85,7 +85,7 @@ describe('gcsApi module', () => {
       // function
       expect.assertions(3);
 
-      await withTempFile((tempFilepath) => {
+      await withTempFile(tempFilepath => {
         fs.writeFileSync(tempFilepath, gcsCredsJSON);
         process.env.DOG_CREDS_PATH = tempFilepath;
 
@@ -267,7 +267,7 @@ describe('gcsApi module', () => {
       it('calls the GCS library download method with the right parameters', async () => {
         expect.assertions(1);
 
-        await withTempDir(async (tempDownloadDirectory) => {
+        await withTempDir(async tempDownloadDirectory => {
           await client.downloadArtifact(
             squirrelStatsArtifact.storedFile.downloadFilepath,
             tempDownloadDirectory
@@ -298,7 +298,7 @@ describe('gcsApi module', () => {
       it('errors if GCS download goes sideways', async () => {
         expect.assertions(1);
 
-        await withTempDir(async (tempDownloadDirectory) => {
+        await withTempDir(async tempDownloadDirectory => {
           mockGCSDownload.mockImplementation(() => {
             throw new Error('The squirrel got away!');
           });
@@ -317,7 +317,7 @@ describe('gcsApi module', () => {
       });
 
       it("doesn't upload anything in dry run mode", async () => {
-        await withTempDir(async (tempDownloadDirectory) => {
+        await withTempDir(async tempDownloadDirectory => {
           expect.assertions(1);
 
           process.env.DRY_RUN = 'true';

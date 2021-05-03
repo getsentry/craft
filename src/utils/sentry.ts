@@ -21,7 +21,7 @@ export function initSentrySdk(): void {
   logger.debug('Sentry DSN found in the environment, initializing the SDK');
   Sentry.init({ dsn: sentryDsn });
 
-  Sentry.configureScope((scope) => {
+  Sentry.configureScope(scope => {
     scope.setTag('os-username', userInfo().username);
     scope.setTag('os-hostname', hostname());
     scope.setTag('os-platform', platform());

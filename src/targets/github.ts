@@ -378,7 +378,7 @@ export class GithubTarget extends BaseTarget {
 
     const artifacts = await this.getArtifactsForRevision(revision);
     await Promise.all(
-      artifacts.map(async (artifact) => {
+      artifacts.map(async artifact => {
         const path = await this.artifactProvider.downloadArtifact(artifact);
         return this.uploadAsset(release, path, artifact.mimeType);
       })

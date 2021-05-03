@@ -179,7 +179,7 @@ export abstract class BaseArtifactProvider {
     const promise = this.doDownloadArtifact(
       artifact,
       finalDownloadDirectory
-    ).catch((err) => {
+    ).catch(err => {
       logger.error(
         `Unable to download ${artifact.filename} from artifact provider!`
       );
@@ -221,7 +221,7 @@ export abstract class BaseArtifactProvider {
     downloadDirectory?: string
   ): Promise<string[]> {
     return Promise.all(
-      artifacts.map(async (artifact) =>
+      artifacts.map(async artifact =>
         this.downloadArtifact(artifact, downloadDirectory)
       )
     );
@@ -328,13 +328,13 @@ export abstract class BaseArtifactProvider {
     }
     const { includeNames, excludeNames } = filterOptions;
     if (includeNames) {
-      filteredArtifacts = filteredArtifacts.filter((artifact) =>
+      filteredArtifacts = filteredArtifacts.filter(artifact =>
         includeNames.test(artifact.filename)
       );
     }
     if (excludeNames) {
       filteredArtifacts = filteredArtifacts.filter(
-        (artifact) => !excludeNames.test(artifact.filename)
+        artifact => !excludeNames.test(artifact.filename)
       );
     }
     return filteredArtifacts;

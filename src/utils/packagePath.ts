@@ -79,7 +79,7 @@ export function parseCanonical(canonicalName: string): string[] {
     );
   }
   const packageDirs = packageName.split('/');
-  if (packageDirs.some((x) => !x)) {
+  if (packageDirs.some(x => !x)) {
     throw new ConfigurationError(
       `Cannot parse canonical name for the package: ${canonicalName}`
     );

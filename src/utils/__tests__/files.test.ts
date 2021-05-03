@@ -5,7 +5,7 @@ import { listFiles, withTempDir } from '../files';
 
 describe('listFiles', () => {
   const testDir = resolve(__dirname, '../__fixtures__/listFiles');
-  const testFiles = ['a', 'b'].map((f) => join(testDir, f));
+  const testFiles = ['a', 'b'].map(f => join(testDir, f));
 
   test('returns only files', async () => {
     expect.assertions(1);
@@ -21,7 +21,7 @@ describe('withTempDir', () => {
   ): Promise<any> {
     let directory = '';
     try {
-      await withTempDir((dir) => {
+      await withTempDir(dir => {
         directory = dir;
         expect(existsSync(directory)).toBeTruthy();
         return callback(directory);
@@ -30,7 +30,7 @@ describe('withTempDir', () => {
       if (cleanupEnabled) {
         // We intentionally do not block on the clean up operation
         // so wait ~100ms before checking
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 100));
         expect(existsSync(directory)).toBeFalsy();
       } else {
         expect(existsSync(directory)).toBeTruthy();
@@ -57,7 +57,7 @@ describe('withTempDir', () => {
   test('creates and does not remove if cleanup flag is specified', async () => {
     expect.assertions(2);
     let tempDir = '';
-    await testDirectories((arg) => {
+    await testDirectories(arg => {
       tempDir = arg;
     }, false);
     // Cleanup
