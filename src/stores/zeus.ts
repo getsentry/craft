@@ -150,7 +150,7 @@ export class ZeusStore {
     // the end of the group and that item is the last, most recent item.
     // Alternative would be:
     //   1. Group by name: O(N)
-    //   2. Sort for each name: O(M*N*log(N)) -- where M is the # of groups
+    //   2. Sort each group by date: O(M*N*log(N)) -- where M is the # of groups
     //   3. Pick the most recent entry from each group: O(M)
     const filteredArtifacts = artifacts
       .sort((a, b) => {
