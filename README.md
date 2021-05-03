@@ -958,8 +958,8 @@ Here is how you can integrate your GitHub project with `craft`:
 
 3. Add `.craft.yml` configuration file to your project
 
-- List there all the targets you want to publish to
-- Configure additional options (changelog management policy, tag prefix, etc.)
+   - List there all the targets you want to publish to
+   - Configure additional options (changelog management policy, tag prefix, etc.)
 
 4. Add a [pre-release script](#pre-release-version-bumping-script-conventions) to your project.
 5. Get various [configuration tokens](#global-configuration)
