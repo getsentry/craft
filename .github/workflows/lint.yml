@@ -23,7 +23,7 @@ jobs:
         run: yarn lint
       - name: Save lint fixes
         run: >
-          git config user.email "bot@getsentry.com" &&
+          git config user.email "bot@sentry.io" &&
           git config user.name "getsentry-bot" &&
           git diff --quiet ||
           git commit -anm 'ref: Lint fixes' &&
