@@ -87,7 +87,7 @@
     "precli": "build",
     "cli": "node dist/craft",
     "clean": "rimraf dist coverage",
-    "lint": "prettier --write .",
+    "lint:fix": "prettier --write .",
     "test": "jest",
     "test:watch": "jest --watch --notify",
     "compile-config-schema": "node ./scripts/config-json-schema-to-ts.js"

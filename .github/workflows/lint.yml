@@ -20,7 +20,7 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: yarn install --frozen-lockfile
       - name: Lint
-        run: yarn lint
+        run: yarn lint:fix
       - name: Save lint fixes
         run: >
           git config user.email "bot@sentry.io" &&
