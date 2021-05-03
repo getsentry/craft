@@ -21,9 +21,8 @@ jobs:
         run: yarn lint
       - name: Save lint fixes
         run: >
-          GIT_COMMITTER_NAME=getsentry-bot
-          GIT_AUTHOR_NAME=getsentry-bot
-          EMAIL=bot@getsentry.com
+          git config user.email "bot@getsentry.com" &&
+          git config user.name "getsentry-bot" &&
           git diff --quiet ||
           git commit -anm 'ref: Lint fixes' &&
           git push
