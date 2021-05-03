@@ -117,7 +117,7 @@ export class ZeusStore {
    */
   public async downloadArtifacts(artifacts: Artifact[]): Promise<string[]> {
     return Promise.all(
-      artifacts.map(async artifact => this.downloadArtifact(artifact))
+      artifacts.map(async (artifact) => this.downloadArtifact(artifact))
     );
   }
 
@@ -142,28 +142,22 @@ export class ZeusStore {
     );
 
     // For every filename, take the artifact with the most recent update time
-    const filteredArtifacts = artifacts
-      .sort((a, b) => {
-        if (a.name < b.name) {
-          return -1;
-        } else if (a.name > b.name) {
-          return 1;
-        } else {
-          const aUpdatedAt = Date.parse(a.updated_at ?? '') || 0;
-          const bUpdatedAt = Date.parse(b.updated_at ?? '') || 0;
-          if (aUpdatedAt < bUpdatedAt) {
-            return -1;
-          } else if (aUpdatedAt > bUpdatedAt) {
-            return 1;
-          } else {
-            return 0;
-          }
-        }
-      })
-      .filter((artifact, idx, arr) => artifact.name !== arr[idx + 1]?.name);
+    const latestArtifacts = Object.values(
+      artifacts.reduce((dict, artifact) => {
+        const updatedAt = Date.parse(artifact.updated_at ?? '') || 0;
+        const existing = dict[artifact.name];
+        const existingUpdatedAt = Date.parse(existing?.updated_at ?? '') || 0;
 
-    this.fileListCache[revision] = filteredArtifacts;
-    return filteredArtifacts;
+        if (updatedAt >= existingUpdatedAt) {
+          dict[artifact.name] = artifact;
+        }
+
+        return dict;
+      }, {} as { [key: string]: Artifact })
+    );
+
+    this.fileListCache[revision] = latestArtifacts;
+    return latestArtifacts;
   }
 
   /**
@@ -182,13 +176,13 @@ export class ZeusStore {
     }
     const { includeNames, excludeNames } = filterOptions;
     if (includeNames) {
-      filteredArtifacts = filteredArtifacts.filter(artifact =>
+      filteredArtifacts = filteredArtifacts.filter((artifact) =>
         includeNames.test(artifact.name)
       );
     }
     if (excludeNames) {
       filteredArtifacts = filteredArtifacts.filter(
-        artifact => !excludeNames.test(artifact.name)
+        (artifact) => !excludeNames.test(artifact.name)
       );
     }
     return filteredArtifacts;
