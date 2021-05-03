@@ -117,7 +117,7 @@ export class ZeusStore {
    */
   public async downloadArtifacts(artifacts: Artifact[]): Promise<string[]> {
     return Promise.all(
-      artifacts.map(async artifact => this.downloadArtifact(artifact))
+      artifacts.map(async (artifact) => this.downloadArtifact(artifact))
     );
   }
 
@@ -142,38 +142,22 @@ export class ZeusStore {
     );
 
     // For every filename, take the artifact with the most recent update time
-    // Sort by name first, for grouping, and then updated at for recency.
-    // This costs us O(N*logN) operations.
-    // After this, we'll do a filter sweep to only pick the _latest_ entry for
-    // the same name. We can do this without an explicit grouping pass thanks to
-    // our initial sort: if the next item doesn't have the same name, we are at
-    // the end of the group and that item is the last, most recent item.
-    // Alternative would be:
-    //   1. Group by name: O(N)
-    //   2. Sort each group by date: O(M*N*log(N)) -- where M is the # of groups
-    //   3. Pick the most recent entry from each group: O(M)
-    const filteredArtifacts = artifacts
-      .sort((a, b) => {
-        if (a.name < b.name) {
-          return -1;
-        } else if (a.name > b.name) {
-          return 1;
-        } else {
-          const aUpdatedAt = Date.parse(a.updated_at ?? '') || 0;
-          const bUpdatedAt = Date.parse(b.updated_at ?? '') || 0;
-          if (aUpdatedAt < bUpdatedAt) {
-            return -1;
-          } else if (aUpdatedAt > bUpdatedAt) {
-            return 1;
-          } else {
-            return 0;
-          }
-        }
-      })
-      .filter((artifact, idx, arr) => artifact.name !== arr[idx + 1]?.name);
+    const latestArtifacts = Object.values(
+      artifacts.reduce((dict, artifact) => {
+        const updatedAt = Date.parse(artifact.updated_at ?? '') || 0;
+        const existing = dict[artifact.name];
+        const existingUpdatedAt = Date.parse(existing?.updated_at ?? '') || 0;
 
-    this.fileListCache[revision] = filteredArtifacts;
-    return filteredArtifacts;
+        if (updatedAt >= existingUpdatedAt) {
+          dict[artifact.name] = artifact;
+        }
+
+        return dict;
+      }, {} as { [key: string]: Artifact })
+    );
+
+    this.fileListCache[revision] = latestArtifacts;
+    return latestArtifacts;
   }
 
   /**
@@ -192,13 +176,13 @@ export class ZeusStore {
     }
     const { includeNames, excludeNames } = filterOptions;
     if (includeNames) {
-      filteredArtifacts = filteredArtifacts.filter(artifact =>
+      filteredArtifacts = filteredArtifacts.filter((artifact) =>
         includeNames.test(artifact.name)
       );
     }
     if (excludeNames) {
       filteredArtifacts = filteredArtifacts.filter(
-        artifact => !excludeNames.test(artifact.name)
+        (artifact) => !excludeNames.test(artifact.name)
       );
     }
     return filteredArtifacts;

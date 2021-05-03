@@ -160,36 +160,18 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
     // files within the same commit), for each filename, take the one with the
     // most recent update time
 
-    // Sort by name first, for grouping, and then updated at for recency.
-    // This costs us O(N*logN) operations.
-    // After this, we'll do a filter sweep to only pick the _latest_ entry for
-    // the same name. We can do this without an explicit grouping pass thanks to
-    // our initial sort: if the next item doesn't have the same name, we are at
-    // the end of the group and that item is the last, most recent item.
-    // Alternative would be:
-    //   1. Group by name: O(N)
-    //   2. Sort for each name: O(M*N*log(N)) -- where M is the # of groups
-    //   3. Pick the most recent entry from each group: O(M)
-    zeusArtifacts.sort((a, b) => {
-      if (a.name < b.name) {
-        return -1;
-      } else if (a.name > b.name) {
-        return 1;
-      } else {
-        const aUpdatedAt = Date.parse(a.updated_at ?? '') || 0;
-        const bUpdatedAt = Date.parse(b.updated_at ?? '') || 0;
-        if (aUpdatedAt < bUpdatedAt) {
-          return -1;
-        } else if (aUpdatedAt > bUpdatedAt) {
-          return 1;
-        } else {
-          return 0;
-        }
-      }
-    });
+    return Object.values(
+      zeusArtifacts.reduce((dict, artifact) => {
+        const updatedAt = Date.parse(artifact.updated_at ?? '') || 0;
+        const existing = dict[artifact.name];
+        const existingUpdatedAt = Date.parse(existing?.updated_at ?? '') || 0;
 
-    return zeusArtifacts
-      .filter((artifact, idx, arr) => artifact.name !== arr[idx + 1]?.name)
-      .map((zeusArtifact) => this.convertToRemoteArtifact(zeusArtifact));
+        if (updatedAt >= existingUpdatedAt) {
+          dict[artifact.name] = artifact;
+        }
+
+        return dict;
+      }, {} as { [key: string]: ZeusArtifact })
+    ).map((zeusArtifact) => this.convertToRemoteArtifact(zeusArtifact));;
   }
 }
