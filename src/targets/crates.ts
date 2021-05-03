@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import * as _ from 'lodash';
 import simpleGit from 'simple-git';
 
 import { getGlobalGithubConfig } from '../config';
@@ -179,7 +178,10 @@ export class CratesTarget extends BaseTarget {
    * @returns The sorted list of packages
    */
   public getPublishOrder(packages: CratePackage[]): CratePackage[] {
-    const remaining = _.keyBy(packages, p => p.name);
+    const remaining = packages.reduce((dict, p) => {
+      dict[p.name] = p;
+      return dict;
+    }, {} as { [index: string]: CratePackage });
     const ordered: CratePackage[] = [];
 
     const isWorkspaceDependency = (dep: CrateDependency) => {
@@ -194,9 +196,8 @@ export class CratesTarget extends BaseTarget {
 
     // We iterate until there are no packages left. Note that cargo will already
     // check for cycles in the dependency graph and fail if its not a DAG.
-    while (!_.isEmpty(remaining)) {
-      const leafDependencies = _.filter(
-        remaining,
+    while (Object.keys(remaining).length > 0) {
+      const leafDependencies = Object.values(remaining).filter(
         // Find all packages with no remaining workspace dependencies
         p => p.dependencies.filter(isWorkspaceDependency).length === 0
       );
