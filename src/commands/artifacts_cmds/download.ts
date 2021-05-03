@@ -1,6 +1,6 @@
-import * as _ from 'lodash';
 import { logger } from '../../logger';
 import { ArtifactsOptions } from '../artifacts';
+import type { RemoteArtifact } from '../../artifact_providers/base';
 import { getArtifactProviderFromConfig } from '../../config';
 import { handleGlobalError, ConfigurationError } from '../../utils/errors';
 import { Argv, CommandBuilder } from 'yargs';
@@ -94,7 +94,13 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
   const filesToDownload = argv.all
     ? artifacts.map(ar => ar.filename)
     : argv.names;
-  const nameToArtifact = _.fromPairs(artifacts.map(ar => [ar.filename, ar]));
+  const nameToArtifact = artifacts.reduce(
+    (dict, artifact) => {
+      dict[artifact.filename] = artifact;
+      return dict;
+    },
+    {} as { [index: string]: RemoteArtifact; }
+  );
 
   logger.info(`Fetching artifacts for revision: ${revision}`);
   for (const name of filesToDownload) {

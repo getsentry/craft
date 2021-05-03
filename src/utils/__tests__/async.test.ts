@@ -1,4 +1,4 @@
-import { filterAsync, forEachChained, promiseProps } from '../async';
+import { filterAsync, forEachChained } from '../async';
 import { logger } from '../../logger';
 
 jest.mock('../../logger');
@@ -42,29 +42,6 @@ describe('filterAsync', () => {
       },
       that
     );
-  });
-});
-
-describe('promiseProps', () => {
-  test('awaits an empty object', async () => {
-    expect.assertions(1);
-    const result = await promiseProps({});
-    expect(result).toEqual({});
-  });
-
-  test('awaits a plain object', async () => {
-    expect.assertions(1);
-    const result = await promiseProps({ foo: 'foo', bar: 42 });
-    expect(result).toEqual({ foo: 'foo', bar: 42 });
-  });
-
-  test('awaits an object with promises', async () => {
-    expect.assertions(1);
-    const result = await promiseProps({
-      bar: Promise.resolve(42),
-      foo: Promise.resolve('foo'),
-    });
-    expect(result).toEqual({ foo: 'foo', bar: 42 });
   });
 });
 
