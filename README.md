@@ -381,7 +381,7 @@ By default, it will use GitHub but you can add more providers if needed.
 
 | Option   | Description                                                                                        |
 | -------- | -------------------------------------------------------------------------------------------------- |
-| `name`   | Name of the status provider: either `github` (default) or `zeus` (deprecated)                                   |
+| `name`   | Name of the status provider: either `github` (default) or `zeus` (deprecated)                      |
 | `config` | In case of `github`: may include `contexts` key that contains a list of required contexts (checks) |
 
 **Example:**
@@ -955,9 +955,12 @@ Here is how you can integrate your GitHub project with `craft`:
 
    - The name of the artifacts is very important and needs to be `name: ${{ github.sha }}`. Craft uses this as a unique id to fetch the artifacts.
    - Keep in mind that this action maintains the folder structure and zips everything together. Craft will download the zip and recursively walk it to find all assets.
+
 3. Add `.craft.yml` configuration file to your project
-  - List there all the targets you want to publish to
-  - Configure additional options (changelog management policy, tag prefix, etc.)
+
+   - List there all the targets you want to publish to
+   - Configure additional options (changelog management policy, tag prefix, etc.)
+
 4. Add a [pre-release script](#pre-release-version-bumping-script-conventions) to your project.
 5. Get various [configuration tokens](#global-configuration)
 6. Run `craft prepare <version> --publish` and profit!

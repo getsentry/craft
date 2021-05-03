@@ -135,9 +135,7 @@ export class AwsLambdaLayerManager {
  * regions) to AWS. For more information, see
  * https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html#describeRegions-property
  */
-export async function getRegionsFromAws(): Promise<
-  DescribeRegionsCommandOutput
-> {
+export async function getRegionsFromAws(): Promise<DescribeRegionsCommandOutput> {
   logger.debug('Fetching AWS regions...');
   const ec2 = new EC2({ region: 'us-east-2' });
   try {

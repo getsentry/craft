@@ -551,7 +551,11 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     );
   }
 
-  if (!targetsToPublish.has(SpecialTarget.None) && !earlierStateExists && targetConfigList.length === 0) {
+  if (
+    !targetsToPublish.has(SpecialTarget.None) &&
+    !earlierStateExists &&
+    targetConfigList.length === 0
+  ) {
     logger.warn('No valid targets detected! Exiting.');
     return undefined;
   }

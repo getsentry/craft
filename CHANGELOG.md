@@ -22,6 +22,7 @@
   `statusProvider` and `artifactProvider` to `github` if `minVersion` is greater
   or equal to `0.21.0`. If your craft configuration file does not set these
   providers explicitly, you can keep the old behavior by modifying your config:
+
   ```yaml
   minVersion: 0.21.0
   artifactProvider:

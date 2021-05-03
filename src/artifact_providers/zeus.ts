@@ -172,6 +172,6 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
 
         return dict;
       }, {} as { [key: string]: ZeusArtifact })
-    ).map((zeusArtifact) => this.convertToRemoteArtifact(zeusArtifact));;
+    ).map(zeusArtifact => this.convertToRemoteArtifact(zeusArtifact));
   }
 }

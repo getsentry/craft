@@ -117,7 +117,7 @@ export class ZeusStore {
    */
   public async downloadArtifacts(artifacts: Artifact[]): Promise<string[]> {
     return Promise.all(
-      artifacts.map(async (artifact) => this.downloadArtifact(artifact))
+      artifacts.map(async artifact => this.downloadArtifact(artifact))
     );
   }
 
@@ -176,13 +176,13 @@ export class ZeusStore {
     }
     const { includeNames, excludeNames } = filterOptions;
     if (includeNames) {
-      filteredArtifacts = filteredArtifacts.filter((artifact) =>
+      filteredArtifacts = filteredArtifacts.filter(artifact =>
         includeNames.test(artifact.name)
       );
     }
     if (excludeNames) {
       filteredArtifacts = filteredArtifacts.filter(
-        (artifact) => !excludeNames.test(artifact.name)
+        artifact => !excludeNames.test(artifact.name)
       );
     }
     return filteredArtifacts;

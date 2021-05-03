@@ -4,12 +4,6 @@
     "types": ["node", "jest"],
     "plugins": []
   },
-  "include": [
-    "src/**/*.ts",
-    "**/__mocks__/**/*.ts",
-    "**/__tests_/**/*.ts"
-  ],
-  "exclude": [
-    "dist/**/*"
-  ]
+  "include": ["src/**/*.ts", "**/__mocks__/**/*.ts", "**/__tests_/**/*.ts"],
+  "exclude": ["dist/**/*"]
 }

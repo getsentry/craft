@@ -94,13 +94,10 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
   const filesToDownload = argv.all
     ? artifacts.map(ar => ar.filename)
     : argv.names;
-  const nameToArtifact = artifacts.reduce(
-    (dict, artifact) => {
-      dict[artifact.filename] = artifact;
-      return dict;
-    },
-    {} as { [index: string]: RemoteArtifact; }
-  );
+  const nameToArtifact = artifacts.reduce((dict, artifact) => {
+    dict[artifact.filename] = artifact;
+    return dict;
+  }, {} as { [index: string]: RemoteArtifact });
 
   logger.info(`Fetching artifacts for revision: ${revision}`);
   for (const name of filesToDownload) {
