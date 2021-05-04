@@ -114,7 +114,7 @@ export class NpmTarget extends BaseTarget {
    * Ask the user for the OTP value
    */
   protected async requestOtp(): Promise<string> {
-    const {   otp   } = await prompts({
+    const { otp } = await prompts({
       message: 'Looks like your NPM account uses 2FA. Enter OTP:',
       name: 'otp',
       type: 'text',
