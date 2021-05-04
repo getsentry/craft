@@ -31,6 +31,7 @@
     "@types/async": "^3.0.1",
     "@types/cli-table": "^0.3.0",
     "@types/form-data": "^2.2.1",
+    "@types/git-url-parse": "^9.0.0",
     "@types/jest": "^26.0.14",
     "@types/js-yaml": "^3.11.1",
     "@types/mkdirp": "^1.0.0",
