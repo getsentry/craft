@@ -1441,6 +1441,13 @@
   resolved "https://registry.yarnpkg.com/@types/prettier/-/prettier-2.1.6.tgz#f4b1efa784e8db479cdb8b14403e2144b1e9ff03"
   integrity sha512-6gOkRe7OIioWAXfnO/2lFiv+SJichKVSys1mSsgyrYHSEjk8Ctv4tSR/Odvnu+HWlH2C8j53dahU03XmQdd5fA==
 
+"@types/prompts@^2.0.11":
+  version "2.0.11"
+  resolved "https://registry.yarnpkg.com/@types/prompts/-/prompts-2.0.11.tgz#0cef3d1c7e5144c74abd71691287613b7514b03a"
+  integrity sha512-dcF5L3rU9VfpLEJIV++FEyhGhuIpJllNEwllVuJ5g8eoVqjf048tW9+spivIwjzgPbtaGAl7mIZW3cmhDAq2UQ==
+  dependencies:
+    "@types/node" "*"
+
 "@types/request@^2.47.1":
   version "2.48.5"
   resolved "https://registry.yarnpkg.com/@types/request/-/request-2.48.5.tgz#019b8536b402069f6d11bee1b2c03e7f232937a0"
