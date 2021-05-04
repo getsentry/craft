@@ -84,7 +84,7 @@
     "build:fat": "yarn run compile-config-schema && tsc -p tsconfig.build.json",
     "build:watch": "yarn run compile-config-schema && tsc -p tsconfig.build.json --watch",
     "build": "yarn compile-config-schema && esbuild src/index.ts --bundle --platform=node --target=node10.8 --outfile=dist/craft --minify",
-    "precli": "build",
+    "precli": "yarn build",
     "cli": "node dist/craft",
     "clean": "rimraf dist coverage",
     "fix": "prettier --write .",
