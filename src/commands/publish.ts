@@ -28,7 +28,7 @@ import {
   SpecialTarget,
 } from '../targets';
 import { BaseTarget } from '../targets/base';
-import { coerceType, handleGlobalError, reportError } from '../utils/errors';
+import { handleGlobalError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
 import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
