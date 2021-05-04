@@ -39,7 +39,7 @@ export class NugetTarget extends BaseTarget {
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GithubGlobalConfig,
+    githubRepo: GithubGlobalConfig
   ) {
     super(config, artifactProvider, githubRepo);
     this.nugetConfig = this.getNugetConfig();

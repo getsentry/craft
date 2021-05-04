@@ -146,7 +146,7 @@ export function validateConfiguration(
 /**
  * Returns the parsed configuration file contents
  */
-export function getConfiguration(clearCache=false): CraftProjectConfig {
+export function getConfiguration(clearCache = false): CraftProjectConfig {
   if (!clearCache && _configCache) {
     return _configCache;
   }
@@ -252,7 +252,7 @@ export async function getGlobalGithubConfig(
       remotes.find(remote => remote.name === 'origin') || remotes[0];
     const remoteUrl = defaultRemote
       ? GitUrlParse(defaultRemote.refs.push || defaultRemote.refs.fetch)
-      : {source: null};
+      : { source: null };
 
     if (remoteUrl.source === 'github.com') {
       repoGithubConfig = {
@@ -282,9 +282,7 @@ export function getGitTagPrefix(): string {
  * @returns An instance of artifact provider (which may be the dummy
  * NoneArtifactProvider if artifact storage is disabled).
  */
-export async function getArtifactProviderFromConfig(): Promise<
-  BaseArtifactProvider
-> {
+export async function getArtifactProviderFromConfig(): Promise<BaseArtifactProvider> {
   const projectConfig = getConfiguration();
 
   let artifactProviderName = projectConfig.artifactProvider?.name;
@@ -329,9 +327,7 @@ export async function getArtifactProviderFromConfig(): Promise<
  *
  * @returns An instance of status provider
  */
-export async function getStatusProviderFromConfig(): Promise<
-  BaseStatusProvider
-> {
+export async function getStatusProviderFromConfig(): Promise<BaseStatusProvider> {
   const config = getConfiguration();
   const githubConfig = await getGlobalGithubConfig();
 

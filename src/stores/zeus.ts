@@ -6,7 +6,6 @@ import {
   Status,
   RepositoryInfo,
 } from '@zeus-ci/sdk';
-import * as _ from 'lodash';
 
 import { checkEnvForPrerequisite } from '../utils/env';
 import {
@@ -143,19 +142,22 @@ export class ZeusStore {
     );
 
     // For every filename, take the artifact with the most recent update time
-    const nameToArtifacts = _.groupBy(artifacts, artifact => artifact.name);
-    const filteredArtifacts = Object.keys(nameToArtifacts).map(artifactName => {
-      const artifactObjects = nameToArtifacts[artifactName];
-      // Sort by the update time
-      const sortedArtifacts = _.sortBy(
-        artifactObjects,
-        artifact => Date.parse(artifact.updated_at || '') || 0
-      );
-      return sortedArtifacts[sortedArtifacts.length - 1];
-    });
+    const latestArtifacts = Object.values(
+      artifacts.reduce((dict, artifact) => {
+        const updatedAt = Date.parse(artifact.updated_at ?? '') || 0;
+        const existing = dict[artifact.name];
+        const existingUpdatedAt = Date.parse(existing?.updated_at ?? '') || 0;
 
-    this.fileListCache[revision] = filteredArtifacts;
-    return filteredArtifacts;
+        if (updatedAt >= existingUpdatedAt) {
+          dict[artifact.name] = artifact;
+        }
+
+        return dict;
+      }, {} as { [key: string]: Artifact })
+    );
+
+    this.fileListCache[revision] = latestArtifacts;
+    return latestArtifacts;
   }
 
   /**

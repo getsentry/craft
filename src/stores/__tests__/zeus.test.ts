@@ -129,7 +129,7 @@ describe('filterArtifactsForRevision', () => {
         updated_at: 'invalid',
       }),
     ];
-    mockClientListArtifacts.mockReturnValue(artifacts);
+    mockClientListArtifacts.mockReturnValue(Array.from(artifacts));
 
     const result = await zeusStore.listArtifactsForRevision(revision);
 

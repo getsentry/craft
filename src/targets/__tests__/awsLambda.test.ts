@@ -125,7 +125,7 @@ describe('publish', () => {
     setAwsEnvironmentVariables();
   });
 
-  const noArtifactsForRevision = jest.fn().mockImplementation(function() {
+  const noArtifactsForRevision = jest.fn().mockImplementation(function () {
     return [];
   });
 
@@ -148,7 +148,7 @@ describe('publish', () => {
     }
   });
 
-  const twoArtifactsForRevision = jest.fn().mockImplementation(function() {
+  const twoArtifactsForRevision = jest.fn().mockImplementation(function () {
     return ['file1', 'file2'];
   });
 

@@ -32,7 +32,7 @@ export class GemTarget extends BaseTarget {
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GithubGlobalConfig,
+    githubRepo: GithubGlobalConfig
   ) {
     super(config, artifactProvider, githubRepo);
     checkExecutableIsPresent(GEM_BIN);

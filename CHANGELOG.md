@@ -4,6 +4,7 @@
 
 - ci: Fix our build matrix, add Node 14 & 16 (#211)
 - build: Fix and simplify jest and TS configs (#210)
+- upgrade(ts-jest): Upgrade ts-jest to latest version (#212)
 
 ## 0.21.1
 
@@ -21,6 +22,7 @@
   `statusProvider` and `artifactProvider` to `github` if `minVersion` is greater
   or equal to `0.21.0`. If your craft configuration file does not set these
   providers explicitly, you can keep the old behavior by modifying your config:
+
   ```yaml
   minVersion: 0.21.0
   artifactProvider:

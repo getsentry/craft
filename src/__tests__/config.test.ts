@@ -68,7 +68,9 @@ describe('getProjectConfigSchema', () => {
 });
 
 describe('getGlobalGithubConfig', () => {
-  const mockReadFileSync: jest.MockedFunction<typeof fs.readFileSync> = jest.fn();
+  const mockReadFileSync: jest.MockedFunction<
+    typeof fs.readFileSync
+  > = jest.fn();
   const mockGetRemotes = jest.fn();
   beforeAll(() => {
     fs.readFileSync = mockReadFileSync;
