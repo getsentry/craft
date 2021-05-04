@@ -6,7 +6,7 @@ import {
 import { reportError } from '../utils/errors';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
-import { GithubGlobalConfig, TargetConfig } from 'src/schemas/project_config';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 
 const logger = loggerRaw.withScope('[gem]');
 
