@@ -1,5 +1,5 @@
 import { SpawnOptions, spawnSync } from 'child_process';
-import * as inquirer from 'inquirer';
+import prompts from 'prompts';
 
 import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
@@ -114,17 +114,14 @@ export class NpmTarget extends BaseTarget {
    * Ask the user for the OTP value
    */
   protected async requestOtp(): Promise<string> {
-    const questions = [
-      {
-        message: 'Looks like your NPM account uses 2FA. Enter OTP:',
-        name: 'otp',
-        type: 'input',
-        validate: (input: string) =>
-          (input.length > 3 && input.length < 10) || 'Valid OTP, please',
-      },
-    ];
-    const answers = (await inquirer.prompt(questions)) as any;
-    return answers.otp;
+    const { otp } = await prompts({
+      message: 'Looks like your NPM account uses 2FA. Enter OTP:',
+      name: 'otp',
+      type: 'text',
+      validate: (input: string) =>
+        (input.length > 3 && input.length < 10) || 'Valid OTP, please',
+    });
+    return otp;
   }
 
   /**

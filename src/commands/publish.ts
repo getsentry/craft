@@ -1,5 +1,5 @@
 import * as Github from '@octokit/rest';
-import * as inquirer from 'inquirer';
+import prompts from 'prompts';
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 import chalk from 'chalk';
 import {
@@ -28,7 +28,7 @@ import {
   SpecialTarget,
 } from '../targets';
 import { BaseTarget } from '../targets/base';
-import { coerceType, handleGlobalError, reportError } from '../utils/errors';
+import { handleGlobalError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
 import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
@@ -215,19 +215,15 @@ async function promptConfirmation(targetList: BaseTarget[]): Promise<void> {
   logger.info(' ');
 
   if (hasInput()) {
-    const questions = [
-      {
-        message: 'Is everything OK? Type "yes" to proceed:',
-        name: 'readyToPublish',
-        type: 'input',
-        // Force the user to type something that is not empty or one letter such
-        // as y/n to make sure this is a concious choice.
-        validate: (input: string) =>
-          input.length >= 2 || 'Please type "yes" to proceed',
-      },
-    ];
-    const answers = (await inquirer.prompt(questions)) as any;
-    const readyToPublish = coerceType<string>(answers.readyToPublish, 'string');
+    const { readyToPublish } = await prompts({
+      message: 'Is everything OK? Type "yes" to proceed:',
+      name: 'readyToPublish',
+      type: 'text',
+      // Force the user to type something that is not empty or one letter such
+      // as y/n to make sure this is a concious choice.
+      validate: (input: string) =>
+        input.length >= 2 || 'Please type "yes" to proceed',
+    });
     if (readyToPublish.toLowerCase() !== 'yes') {
       logger.error('Oh, okay. Aborting.');
       process.exit(1);
