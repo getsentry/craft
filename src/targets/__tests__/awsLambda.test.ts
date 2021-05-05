@@ -11,8 +11,7 @@ function getAwsLambdaTarget(): AwsLambdaLayerTarget {
       name: 'aws-lambda-layer',
       ['testKey']: 'testValue',
     },
-    new NoneArtifactProvider(),
-    { owner: 'getsentry', repo: 'craft' }
+    new NoneArtifactProvider()
   );
 }
 

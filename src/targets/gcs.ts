@@ -1,5 +1,5 @@
 import { logger as loggerRaw } from '../logger';
-import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { TargetConfig } from '../schemas/project_config';
 import { forEachChained } from '../utils/async';
 import { ConfigurationError, reportError } from '../utils/errors';
 import {
@@ -52,10 +52,9 @@ export class GcsTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider,
-    githubRepo: GithubGlobalConfig
+    artifactProvider: BaseArtifactProvider
   ) {
-    super(config, artifactProvider, githubRepo);
+    super(config, artifactProvider);
     this.targetConfig = this.getGCSTargetConfig();
     this.gcsClient = new CraftGCSClient(this.targetConfig);
   }
