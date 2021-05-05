@@ -2,7 +2,7 @@ import { SpawnOptions, spawnSync } from 'child_process';
 import prompts from 'prompts';
 
 import { logger as loggerRaw } from '../logger';
-import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { isDryRun } from '../utils/helpers';
 import { hasExecutable, spawnProcess } from '../utils/system';
@@ -70,10 +70,9 @@ export class NpmTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider,
-    githubRepo: GithubGlobalConfig
+    artifactProvider: BaseArtifactProvider
   ) {
-    super(config, artifactProvider, githubRepo);
+    super(config, artifactProvider);
     this.checkRequirements();
     this.npmConfig = this.getNpmConfig();
   }

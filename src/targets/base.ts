@@ -21,12 +21,12 @@ export class BaseTarget {
   /** Artifact filtering options for the target */
   public readonly filterOptions: FilterOptions;
   /** Github repo configuration */
-  public readonly githubRepo: GithubGlobalConfig;
+  public readonly githubRepo?: GithubGlobalConfig;
 
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GithubGlobalConfig
+    githubRepo?: GithubGlobalConfig
   ) {
     this.artifactProvider = artifactProvider;
     this.config = config;

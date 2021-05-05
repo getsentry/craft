@@ -104,6 +104,8 @@ export class CratesTarget extends BaseTarget {
   public readonly name: string = 'crates';
   /** Target options */
   public readonly cratesConfig: CratesTargetOptions;
+  /** Github repo configuration */
+  public readonly githubRepo: GithubGlobalConfig;
 
   public constructor(
     config: TargetConfig,
@@ -113,6 +115,7 @@ export class CratesTarget extends BaseTarget {
     super(config, artifactProvider, githubRepo);
     this.cratesConfig = this.getCratesConfig();
     checkExecutableIsPresent(CARGO_BIN);
+    this.githubRepo = githubRepo;
   }
 
   /**
