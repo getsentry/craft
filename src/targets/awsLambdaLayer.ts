@@ -11,7 +11,7 @@ import {
 } from '../utils/githubApi';
 
 import { logger as loggerRaw } from '../logger';
-import { TargetConfig } from '../schemas/project_config';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { ConfigurationError, reportError } from '../utils/errors';
@@ -61,9 +61,10 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
+    githubRepo: GithubGlobalConfig
   ) {
-    super(config, artifactProvider);
+    super(config, artifactProvider, githubRepo);
     this.github = getGithubClient();
     this.awsLambdaConfig = this.getAwsLambdaConfig();
   }

@@ -4,7 +4,6 @@ import * as path from 'path';
 import * as Github from '@octokit/rest';
 import simpleGit from 'simple-git';
 
-import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
@@ -54,11 +53,12 @@ export class GhPagesTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
+    githubRepo: GithubGlobalConfig
   ) {
-    super(config, artifactProvider);
+    super(config, artifactProvider, githubRepo);
     this.github = getGithubClient();
-    this.githubRepo = getGlobalGithubConfig();
+    this.githubRepo = githubRepo;
     this.ghPagesConfig = this.getGhPagesConfig();
   }
 

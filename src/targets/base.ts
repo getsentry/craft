@@ -1,5 +1,5 @@
 import { logger } from '../logger';
-import { TargetConfig } from '../schemas/project_config';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { FilterOptions } from '../stores/zeus';
 import { stringToRegexp } from '../utils/filters';
 import {
@@ -20,13 +20,17 @@ export class BaseTarget {
   public readonly config: TargetConfig;
   /** Artifact filtering options for the target */
   public readonly filterOptions: FilterOptions;
+  /** Github repo configuration */
+  public readonly githubRepo: GithubGlobalConfig;
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
+    githubRepo: GithubGlobalConfig
   ) {
     this.artifactProvider = artifactProvider;
     this.config = config;
+    this.githubRepo = githubRepo;
     this.filterOptions = {};
     if (this.config.includeNames) {
       this.filterOptions.includeNames = stringToRegexp(
@@ -46,7 +50,11 @@ export class BaseTarget {
    * @param version New version to be released
    * @param revision Git commit SHA to be published
    */
-  public async publish(_version: string, _revision: string): Promise<void> {
+  public async publish(
+    _version: string,
+
+    _revision: string
+  ): Promise<void> {
     throw new Error('Not implemented');
     return;
   }

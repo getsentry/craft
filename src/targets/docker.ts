@@ -1,5 +1,5 @@
 import { logger as loggerRaw } from '../logger';
-import { TargetConfig } from '../schemas/project_config';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { ConfigurationError } from '../utils/errors';
 import { renderTemplateSafe } from '../utils/strings';
@@ -40,9 +40,10 @@ export class DockerTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
+    githubRepo: GithubGlobalConfig
   ) {
-    super(config, artifactProvider);
+    super(config, artifactProvider, githubRepo);
     this.dockerConfig = this.getDockerConfig();
     checkExecutableIsPresent(DOCKER_BIN);
   }

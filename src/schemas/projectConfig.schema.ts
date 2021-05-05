@@ -86,7 +86,6 @@ const projectConfigJsonSchema = {
     },
   },
   additionalProperties: false,
-  required: ['github'],
 
   definitions: {
     targetConfig: {

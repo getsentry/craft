@@ -75,7 +75,7 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
 
   const revision = argv.rev;
 
-  const artifactProvider = getArtifactProviderFromConfig();
+  const artifactProvider = await getArtifactProviderFromConfig();
   if (artifactProvider instanceof NoneArtifactProvider) {
     logger.warn(
       `Artifact provider is disabled in the configuration, nothing to do.`

@@ -8,7 +8,7 @@
  * Craft project-specific configuration
  */
 export interface CraftProjectConfig {
-  github: GithubGlobalConfig;
+  github?: GithubGlobalConfig;
   targets?: TargetConfig[];
   preReleaseCommand?: string;
   postReleaseCommand?: string;

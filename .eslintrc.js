@@ -17,5 +17,11 @@ module.exports = {
     'no-constant-condition': ['error', { checkLoops: false }],
     // Make sure variables marked with _ are ignored (ex. _varName)
     '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+    '@typescript-eslint/ban-ts-comment': [
+      'error',
+      {
+        'ts-ignore': 'allow-with-description',
+      },
+    ],
   },
 };

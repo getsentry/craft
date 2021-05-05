@@ -39,20 +39,15 @@ describe('validateConfiguration', () => {
   test('parses minimal configuration', () => {
     const data = { github: { owner: 'getsentry', repo: 'craft' } };
 
-    const projectConfig = validateConfiguration(data);
-
-    expect(projectConfig).toEqual(data);
+    expect(validateConfiguration(data)).toEqual(data);
   });
 
-  test('fails with empty configuration', () => {
-    // this ensures that we do actually run the expect line in the catch block
-    expect.assertions(1);
-
-    try {
-      validateConfiguration({});
-    } catch (e) {
-      expect(e.message).toMatch(/should have required property/i);
-    }
+  test('fails with bad configuration', () => {
+    expect(() => validateConfiguration({ zoom: 1 }))
+      .toThrowErrorMatchingInlineSnapshot(`
+      "Cannot parse configuration file:
+      data should NOT have additional properties"
+    `);
   });
 });
 

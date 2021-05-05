@@ -1,5 +1,5 @@
 import { logger as loggerRaw } from '../logger';
-import { TargetConfig } from '../schemas/project_config';
+import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import {
   BaseArtifactProvider,
   RemoteArtifact,
@@ -41,9 +41,10 @@ export class PypiTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
+    githubRepo: GithubGlobalConfig
   ) {
-    super(config, artifactProvider);
+    super(config, artifactProvider, githubRepo);
     this.pypiConfig = this.getPypiConfig();
     checkExecutableIsPresent(TWINE_BIN);
   }

@@ -1,7 +1,6 @@
 import { mapLimit } from 'async';
 import * as Github from '@octokit/rest';
 
-import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError } from '../utils/errors';
@@ -57,12 +56,13 @@ export class BrewTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
+    githubRepo: GithubGlobalConfig
   ) {
-    super(config, artifactProvider);
+    super(config, artifactProvider, githubRepo);
     this.brewConfig = this.getBrewConfig();
     this.github = getGithubClient();
-    this.githubRepo = getGlobalGithubConfig();
+    this.githubRepo = githubRepo;
   }
 
   /**

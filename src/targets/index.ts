@@ -1,4 +1,4 @@
-import { TargetConfig } from 'src/schemas/project_config';
+import { TargetConfig } from '../schemas/project_config';
 import { BaseTarget } from './base';
 import { BrewTarget } from './brew';
 import { CocoapodsTarget } from './cocoapods';

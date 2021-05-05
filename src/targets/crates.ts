@@ -3,7 +3,6 @@ import * as path from 'path';
 
 import simpleGit from 'simple-git';
 
-import { getGlobalGithubConfig } from '../config';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { forEachChained } from '../utils/async';
@@ -108,9 +107,10 @@ export class CratesTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
+    githubRepo: GithubGlobalConfig
   ) {
-    super(config, artifactProvider);
+    super(config, artifactProvider, githubRepo);
     this.cratesConfig = this.getCratesConfig();
     checkExecutableIsPresent(CARGO_BIN);
   }
@@ -320,10 +320,9 @@ export class CratesTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(_version: string, revision: string): Promise<any> {
-    const githubConfig = getGlobalGithubConfig();
     await withTempDir(
       async directory => {
-        await this.cloneWithSubmodules(githubConfig, revision, directory);
+        await this.cloneWithSubmodules(this.githubRepo, revision, directory);
         await this.publishWorkspace(directory);
       },
       true,
