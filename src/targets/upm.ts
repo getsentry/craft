@@ -111,15 +111,13 @@ export class UpmTarget extends BaseTarget {
       username,
       getGithubApiToken()
     );
-    logger.debug(
-      `Target release repository: ` +
-        `"${this.config.releaseTarget.getRemoteString}"`
-    );
+    const remoteAddr = remote.getRemoteString();
+    logger.debug(`Target release repository: ` + `"${remoteAddr}"`);
 
     await withTempDir(
       async directory => {
         const git = simpleGit(directory);
-        logger.info(`Cloning ${remote.getRemoteString()} to ${directory}...`);
+        logger.info(`Cloning ${remoteAddr} to ${directory}...`);
         await git.clone(remote.getRemoteStringWithAuth(), directory);
 
         logger.info('Clearing the repository.');
