@@ -106,7 +106,7 @@ export class UpmTarget extends BaseTarget {
 
     const username = await getAuthUsername(this.github);
     const remote = new GithubRemote(
-      this.config.relaeseOwner,
+      this.config.releaseOwner,
       this.config.releaseRepo,
       username,
       getGithubApiToken()
