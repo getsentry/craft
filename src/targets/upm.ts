@@ -128,7 +128,8 @@ export class UpmTarget extends BaseTarget {
 
         logger.info('Adding files to repository.');
         await git.add(['.']);
-        const targetRevision = (await git.commit(`release ${version}`)).commit;
+        const commitResult = await git.commit(`release ${version}`);
+        const targetRevision = await git.revparse([commitResult.commit]);
 
         if (isDryRun()) {
           logger.info('[dry-run]: git push origin main');
