@@ -185,9 +185,9 @@ export class GithubTarget extends BaseTarget {
     const createReleaseParams = {
       draft: false,
       name: tag,
-      owner: this.githubRepo.owner,
+      owner: this.githubConfig.owner,
       prerelease: isPreview,
-      repo: this.githubRepo.repo,
+      repo: this.githubConfig.repo,
       tag_name: tag,
       target_commitish: revision,
       ...changes,
