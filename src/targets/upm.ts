@@ -130,6 +130,11 @@ export class UpmTarget extends BaseTarget {
         logger.info('Adding files to repository.');
         await git.add(['.']);
         const commitResult = await git.commit(`release ${version}`);
+        if (!commitResult.commit) {
+          throw new Error(
+            'Commit on target repository failed. Maybe there were no changes at all?'
+          );
+        }
         const targetRevision = await git.revparse([commitResult.commit]);
 
         if (isDryRun()) {
