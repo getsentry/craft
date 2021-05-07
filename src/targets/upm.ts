@@ -15,7 +15,7 @@ import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../artifact_providers/base';
-import { ConfigurationError, reportError } from '../utils/errors';
+import { reportError } from '../utils/errors';
 import { extractZipArchive } from '../utils/system';
 import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
@@ -40,40 +40,23 @@ export class UpmTarget extends BaseTarget {
     githubRepo: GithubGlobalConfig
   ) {
     super(config, artifactProvider, githubRepo);
+
     this.github = getGithubClient();
 
+    const githubTargetConfig = {
+      name: 'github',
+      tagPrefix: config.tagPrefix,
+      previewReleases: false,
+      annotatedTag: true,
+      owner: config.releaseOwner,
+      repo: config.releaseRepo,
+    };
+
     this.githubTarget = new GithubTarget(
-      this.getGithubTargetConfig(),
+      githubTargetConfig,
       new NoneArtifactProvider(),
       githubRepo
     );
-  }
-
-  protected getGithubTargetConfig(): TargetConfig {
-    if (!process.env.GITHUB_TOKEN) {
-      throw new ConfigurationError(
-        'Missing environment variable ' + 'GITHUB_TOKEN'
-      );
-    }
-    if (!('releaseOwner' in this.config)) {
-      throw new ConfigurationError(
-        'Missing project configuration parameter ' + 'releaseOwner'
-      );
-    }
-    if (!('releaseRepo' in this.config)) {
-      throw new ConfigurationError(
-        'Missing project configuration parameter ' + 'releaseRepo'
-      );
-    }
-
-    return {
-      name: 'github',
-      tagPrefix: this.config.tagPrefix,
-      previewReleases: false,
-      annotatedTag: true,
-      owner: this.config.releaseOwner,
-      repo: this.config.releaseRepo,
-    };
   }
 
   /**
@@ -88,7 +71,7 @@ export class UpmTarget extends BaseTarget {
   ): Promise<RemoteArtifact | undefined> {
     const packageFiles = await this.getArtifactsForRevision(revision);
     if (packageFiles.length === 0) {
-      reportError('Cannot publish UPM: No release artifact found');
+      reportError('Cannot publish UPM: No release artifact found.');
       return;
     }
     if (packageFiles.length > 1) {
@@ -113,7 +96,7 @@ export class UpmTarget extends BaseTarget {
     logger.info('Fetching artifact...');
     const packageFile = await this.fetchArtifact(revision);
     if (!packageFile) {
-      return undefined;
+      return;
     }
 
     logger.info(`Found artifact: "${packageFile.filename}", downloading...`);
