@@ -62,9 +62,10 @@ export class UpmTarget extends BaseTarget {
   /**
    * Fetches the artifact for the provided revision.
    *
-   * @param revision Git commit SHA for the to be published artifact.
-   * @returns The requested artifact, undefined of no or multiple artifacts
-   * have been found.
+   * @param revision Git commit SHA for the artifact to be published.
+   * @returns The requested artifact. When no artifacts found or multiple
+   *          artifacts have been found, returns undefined in dry-run mode and
+   *          throws an exception in "normal" mode.
    */
   public async fetchArtifact(
     revision: string
