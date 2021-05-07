@@ -9,7 +9,7 @@ describe('UPM Target', () => {
     process.env = {
       ...cleanEnv,
       GITHUB_TOKEN: 'ghp_TAN21WJQkLtYVdHCh5eQJ8hTWoYvNh47gGWH',
-      DRY_RUN: '',
+      DRY_RUN: 'false',
     };
     jest.resetAllMocks();
 
@@ -26,7 +26,7 @@ describe('UPM Target', () => {
 
   describe('artifacts', () => {
     beforeEach(() => {
-      process.env.DRY_RUN = '';
+      process.env.DRY_RUN = 'false';
     });
     test.each`
       artifacts             | error
