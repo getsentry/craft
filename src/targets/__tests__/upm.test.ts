@@ -13,7 +13,7 @@ const getUpmTarget = () =>
     { owner: 'testSourceOwner', repo: 'testSourceRepo' }
   );
 
-describe('publish', () => {
+describe('artifacts', () => {
   const cleanEnv = { ...process.env };
 
   beforeEach(() => {
@@ -24,27 +24,19 @@ describe('publish', () => {
     jest.resetAllMocks();
   });
 
-  test('error on missing artifact', async () => {
-    const upmTarget = getUpmTarget();
-    upmTarget.getArtifactsForRevision = jest.fn().mockReturnValueOnce([]);
+  test.each`
+    artifacts             | error
+    ${[]}                 | ${'Cannot publish UPM: No release artifact found.'}
+    ${['file1', 'file2']} | ${'Cannot publish UPM: Too many release artifacts found:file1\nfile2'}
+  `(
+    'error with artifact count $artifacts.length',
+    async ({ artifacts, error }) => {
+      const upmTarget = getUpmTarget();
+      upmTarget.getArtifactsForRevision = jest
+        .fn()
+        .mockReturnValueOnce(artifacts);
 
-    expect(
-      upmTarget.publish('version', 'revision')
-    ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `"Cannot publish UPM: No release artifact found."`
-    );
-  });
-
-  test('error on too many artifacts', async () => {
-    const upmTarget = getUpmTarget();
-    upmTarget.getArtifactsForRevision = jest
-      .fn()
-      .mockReturnValueOnce(['file1', 'file2']);
-
-    expect(upmTarget.publish('version', 'revision')).rejects
-      .toThrowErrorMatchingInlineSnapshot(`
-      "Cannot publish UPM: Too many release artifacts found:file1
-      file2"
-    `);
-  });
+      expect(upmTarget.publish('version', 'revision')).rejects.toThrow(error);
+    }
+  );
 });
