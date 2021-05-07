@@ -149,12 +149,13 @@ export class GithubTarget extends BaseTarget {
   /**
    * Gets an existing or creates a new release for the given version
    *
-   * The release name and description body is loaded from CHANGELOG.md in the
+   * The release name and description body is brought in from `changes`
    * respective tag, if present. Otherwise, the release name defaults to the
    * tag and the body to the commit it points to.
    *
    * @param version The version to release
    * @param revision Git commit SHA to be published
+   * @param changes The changeset information for this release
    * @returns The newly created release
    */
   public async getOrCreateRelease(
