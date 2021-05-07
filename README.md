@@ -943,18 +943,18 @@ _none_
 
 **Configuration**
 
-| Option         | Description                             |
-| -------------- | --------------------------------------- |
-| `releaseOwner` | Name of the owner of the release target |
-| `releaseRepo`  | Name of the repo of the release target  |
+| Option             | Description                             |
+| ------------------ | --------------------------------------- |
+| `releaseRepoOwner` | Name of the owner of the release target |
+| `releaseRepoName`  | Name of the repo of the release target  |
 
 **Example**
 
 ```yaml
 targets:
   - name: upm
-    releaseOwner: 'getsentry'
-    releaseRepo: 'unity'
+    releaseRepoOwner: 'getsentry'
+    releaseRepoName: 'unity'
 ```
 
 ## Integrating Your Project with `craft`

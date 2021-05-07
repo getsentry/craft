@@ -16,8 +16,8 @@ describe('UPM Target', () => {
     upmTarget = new UpmTarget(
       {
         name: 'upm-test',
-        releaseOwner: 'getsentry-test',
-        releaseRepo: 'unity-test',
+        releaseRepoOwner: 'getsentry-test',
+        releaseRepoName: 'unity-test',
       },
       new NoneArtifactProvider(),
       { owner: 'testSourceOwner', repo: 'testSourceRepo' }

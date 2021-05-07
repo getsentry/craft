@@ -48,8 +48,8 @@ export class UpmTarget extends BaseTarget {
       tagPrefix: config.tagPrefix,
       previewReleases: false,
       annotatedTag: true,
-      owner: config.releaseOwner,
-      repo: config.releaseRepo,
+      owner: config.releaseRepoOwner,
+      repo: config.releaseRepoName,
     };
 
     this.githubTarget = new GithubTarget(
@@ -106,8 +106,8 @@ export class UpmTarget extends BaseTarget {
 
     const username = await getAuthUsername(this.github);
     const remote = new GithubRemote(
-      this.config.releaseOwner,
-      this.config.releaseRepo,
+      this.config.releaseRepoOwner,
+      this.config.releaseRepoName,
       username,
       getGithubApiToken()
     );
