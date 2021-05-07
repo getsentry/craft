@@ -50,17 +50,20 @@ export class UpmTarget extends BaseTarget {
   }
 
   protected getGithubTargetConfig(): TargetConfig {
-    if(!process.env.GITHUB_TOKEN) {
-      throw new ConfigurationError('Missing environment variable '
-        + 'GITHUB_TOKEN');
+    if (!process.env.GITHUB_TOKEN) {
+      throw new ConfigurationError(
+        'Missing environment variable ' + 'GITHUB_TOKEN'
+      );
     }
     if (!('releaseOwner' in this.config)) {
-      throw new ConfigurationError('Missing project configuration parameter '
-       + 'releaseOwner');
+      throw new ConfigurationError(
+        'Missing project configuration parameter ' + 'releaseOwner'
+      );
     }
     if (!('releaseRepo' in this.config)) {
-      throw new ConfigurationError('Missing project configuration parameter '
-       + 'releaseRepo');
+      throw new ConfigurationError(
+        'Missing project configuration parameter ' + 'releaseRepo'
+      );
     }
 
     return {
@@ -70,7 +73,7 @@ export class UpmTarget extends BaseTarget {
       annotatedTag: true,
       owner: this.config.releaseOwner,
       repo: this.config.releaseRepo,
-    }
+    };
   }
 
   /**

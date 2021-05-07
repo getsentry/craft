@@ -6,16 +6,16 @@ jest.mock('fs');
 
 /** Returns a new UpmTarget test instance. */
 function getUpmTarget(): UpmTarget {
-    return new UpmTarget(
-      {
-        name: 'upm-test',
-        ['releaseOwner']: 'getsentry-test',
-        ['releaseRepo']: 'unity-test',
-      },
-      new NoneArtifactProvider(),
-      { owner: 'testSourceOwner', repo: 'testSourceRepo' }
-    );
-  }
+  return new UpmTarget(
+    {
+      name: 'upm-test',
+      ['releaseOwner']: 'getsentry-test',
+      ['releaseRepo']: 'unity-test',
+    },
+    new NoneArtifactProvider(),
+    { owner: 'testSourceOwner', repo: 'testSourceRepo' }
+  );
+}
 
 /** Returns a new UpmTarget test instance without configs. */
 function getUpmTargetWithoutConfig(): UpmTarget {
@@ -72,7 +72,7 @@ describe('UPM config parameters', () => {
   });
 
   test('success on config parameters', async () => {
-    getUpmTarget();      
+    getUpmTarget();
   });
 });
 
@@ -83,13 +83,11 @@ describe('publish', () => {
 
   test('error on missing artifact', async () => {
     const upmTarget = getUpmTarget();
-    upmTarget.getArtifactsForRevision = noArtifactsForRevision.bind(
-      UpmTarget
-    );
+    upmTarget.getArtifactsForRevision = noArtifactsForRevision.bind(UpmTarget);
 
-    expect(upmTarget.publish('version', 'revision'))
-      .rejects
-      .toThrowErrorMatchingInlineSnapshot();
+    expect(
+      upmTarget.publish('version', 'revision')
+    ).rejects.toThrowErrorMatchingInlineSnapshot();
 
     // try {
     //   const publishResult = await upmTarget.publish('version', 'revision');
@@ -98,7 +96,7 @@ describe('publish', () => {
     //   // expect(error instanceof Error).toBe(true);
     //   // const noPackagePattern = /No release artifact found/;
     //   // expect(noPackagePattern.test(error.message)).toBe(true);
-      
+
     // }
   });
 
