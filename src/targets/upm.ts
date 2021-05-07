@@ -66,7 +66,7 @@ export class UpmTarget extends BaseTarget {
    * @returns The requested artifact, undefined of no or multiple artifacts
    * have been found.
    */
-  protected async fetchArtifact(
+  public async fetchArtifact(
     revision: string
   ): Promise<RemoteArtifact | undefined> {
     const packageFiles = await this.getArtifactsForRevision(revision);

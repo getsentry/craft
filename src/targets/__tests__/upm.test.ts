@@ -36,7 +36,7 @@ describe('artifacts', () => {
         .fn()
         .mockReturnValueOnce(artifacts);
 
-      expect(upmTarget.publish('version', 'revision')).rejects.toThrow(error);
+      expect(upmTarget.fetchArtifact('revision')).rejects.toThrow(error);
     }
   );
 });
