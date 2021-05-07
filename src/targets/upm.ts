@@ -76,7 +76,7 @@ export class UpmTarget extends BaseTarget {
     }
     if (packageFiles.length > 1) {
       reportError(
-        `Cannot publish UPM: Too many release artifacts found:${packageFiles.join(
+        `Cannot publish UPM: Too many release artifacts found:\n${packageFiles.join(
           '\n'
         )}`
       );

@@ -31,7 +31,7 @@ describe('UPM Target', () => {
     test.each`
       artifacts             | error
       ${[]}                 | ${'Cannot publish UPM: No release artifact found.'}
-      ${['file1', 'file2']} | ${'Cannot publish UPM: Too many release artifacts found:file1\nfile2'}
+      ${['file1', 'file2']} | ${'Cannot publish UPM: Too many release artifacts found:\nfile1\nfile2'}
     `(
       'error with artifact count $artifacts.length',
       async ({ artifacts, error }) => {
