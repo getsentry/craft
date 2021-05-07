@@ -933,7 +933,7 @@ targets:
 
 ### Unity Package Manager (`upm`)
 
-Pulls the package as a zipped artefact and pushes the unzipped content to the target repository, tagging it with the provided version.
+Pulls the package as a zipped artifact and pushes the unzipped content to the target repository, tagging it with the provided version.
 
 _WARNING!_ The destination repository will be completely overwritten.
 
