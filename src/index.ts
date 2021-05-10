@@ -96,7 +96,7 @@ function main(): void {
     .global('dry-run')
     .strict()
     .showHelpOnFail(true)
-    .middleware(argv => logger.debug('Argv: ', JSON.stringify(argv))
+    .middleware(argv => logger.debug('Argv: ', JSON.stringify(argv)))
     .parse();
 }
 
