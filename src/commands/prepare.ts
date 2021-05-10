@@ -322,7 +322,6 @@ async function execPublish(newVersion: string): Promise<never> {
     );
     throw e;
   }
-  throw new Error('Unreachable');
 }
 
 /**
