@@ -477,7 +477,6 @@ async function switchToDefaultBranch(
  * @param argv Command-line arguments
  */
 export async function releaseMain(argv: ReleaseOptions): Promise<any> {
-  logger.debug('Argv: ', JSON.stringify(argv));
   checkMinimalConfigVersion();
 
   // Get repo configuration
