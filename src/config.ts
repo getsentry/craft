@@ -1,5 +1,5 @@
 import { existsSync, lstatSync, readFileSync } from 'fs';
-import { dirname, join } from 'path';
+import path from 'path';
 
 import ajv from 'ajv';
 import { safeLoad } from 'js-yaml';
@@ -67,12 +67,12 @@ export function findConfigFile(): string | undefined {
   let depth = 0;
   let currentDir = cwd;
   while (depth <= MAX_DEPTH) {
-    const probePath = join(currentDir, CONFIG_FILE_NAME);
+    const probePath = path.join(currentDir, CONFIG_FILE_NAME);
     if (existsSync(probePath) && lstatSync(probePath).isFile()) {
       _configPathCache = probePath;
       return _configPathCache;
     }
-    const parentDir = dirname(currentDir);
+    const parentDir = path.dirname(currentDir);
     if (currentDir === parentDir) {
       // Reached root directory
       return undefined;
@@ -109,7 +109,7 @@ export function getConfigFileDir(): string | undefined {
   if (!configFilePath) {
     return undefined;
   }
-  return dirname(configFilePath);
+  return path.dirname(configFilePath);
 }
 
 /**
@@ -246,20 +246,33 @@ export async function getGlobalGithubConfig(
   let repoGithubConfig = getConfiguration(clearCache).github || null;
 
   if (!repoGithubConfig) {
-    const configDir = getConfigFileDir();
-    const remotes = await simpleGit(configDir).getRemotes(true);
-    const defaultRemote =
-      remotes.find(remote => remote.name === 'origin') || remotes[0];
-    const remoteUrl = defaultRemote
-      ? GitUrlParse(defaultRemote.refs.push || defaultRemote.refs.fetch)
-      : { source: null };
+    const configDir = getConfigFileDir() || '.';
+    const git = simpleGit(configDir);
+    let remoteUrl;
+    try {
+      const remotes = await git.getRemotes(true);
+      const defaultRemote =
+        remotes.find(remote => remote.name === 'origin') || remotes[0];
+      remoteUrl =
+        defaultRemote &&
+        GitUrlParse(defaultRemote.refs.push || defaultRemote.refs.fetch);
+    } catch (error) {
+      logger.warn('Error when trying to get git remotes: ', error);
+    }
 
-    if (remoteUrl.source === 'github.com') {
+    if (remoteUrl?.source === 'github.com') {
+      const gitRoot = await git.revparse(['--show-toplevel']);
+      const projectPath = path.posix.format(
+        path.parse(path.relative(gitRoot, configDir))
+      );
       repoGithubConfig = {
         owner: remoteUrl.owner,
         repo: remoteUrl.name,
+        projectPath,
       };
     }
+  } else if (!repoGithubConfig.projectPath) {
+    repoGithubConfig.projectPath = '.';
   }
 
   _globalGithubConfigCache = Object.freeze(repoGithubConfig);
