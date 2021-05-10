@@ -1,4 +1,7 @@
 minVersion: '0.21.0'
+github:
+  owner: getsentry
+  repo: craft
 changelogPolicy: auto
 requireNames:
   - /^sentry-craft.*\.tgz$/
