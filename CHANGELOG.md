@@ -9,6 +9,7 @@
 - upgrade(ts-jest): Upgrade ts-jest to latest version (#212)
 - feat: Add projectPath config option to GitHub (#220)
 - feat: Add config CLI command (#221)
+- feat(prepare): Add rev option to base a release on (#223)
 
 ## 0.21.1
 

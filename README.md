@@ -169,6 +169,8 @@ Options:
   --no-input       Suppresses all user prompts        [boolean] [default: false]
   --dry-run        Dry run mode: do not perform any real actions
                                                       [boolean] [default: false]
+  --rev, -r        Source revision to prepare the release from.
+                                                        [string] [default: null]
   --no-push        Do not push the release branch     [boolean] [default: false]
   --no-git-checks  Ignore local git changes and unsynchronized remotes
                                                       [boolean] [default: false]
@@ -224,14 +226,14 @@ After some basic sanity checks this command creates a new release branch
 commits the changes made by the script, and then pushes the new branch to
 GitHub. At this point CI systems kick in, and the results of those builds, as
 well as built artifacts (binaries, NPM archives, Python wheels) are gradually
-uploaded to Zeus.
+uploaded to GitHub.
 
 To publish the built artifacts we run `publish`:
 
 `$ craft publish 1.2.3`
 
 This command will find our release branch (`release/1.2.3`), check the build
-status of the respective git revision in Zeus, and then publish available
+status of the respective git revision in GitHub, and then publish available
 artifacts to configured targets (for example, to GitHub and NPM in the case of
 Craft).
 
