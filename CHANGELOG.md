@@ -2,9 +2,13 @@
 
 ## Unreleased
 
+- feat(config): Automatically detect GitHub config when missing (#208)
+- feat: Add upm target (#209)
 - ci: Fix our build matrix, add Node 14 & 16 (#211)
 - build: Fix and simplify jest and TS configs (#210)
 - upgrade(ts-jest): Upgrade ts-jest to latest version (#212)
+- feat: Add projectPath config option to GitHub (#220)
+- feat: Add config CLI command (#221)
 
 ## 0.21.1
 
