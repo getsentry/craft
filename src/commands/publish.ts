@@ -13,7 +13,6 @@ import shellQuote from 'shell-quote';
 import stringLength from 'string-length';
 
 import {
-  checkMinimalConfigVersion,
   getConfiguration,
   getStatusProviderFromConfig,
   getArtifactProviderFromConfig,
@@ -458,7 +457,6 @@ export async function runPostReleaseCommand(
  */
 export async function publishMain(argv: PublishOptions): Promise<any> {
   logger.debug('Argv:', JSON.stringify(argv));
-  checkMinimalConfigVersion();
 
   // Get publishing configuration
   const config = getConfiguration() || {};

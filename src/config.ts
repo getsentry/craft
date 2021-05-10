@@ -158,6 +158,7 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
     any
   >;
   _configCache = validateConfiguration(rawConfig);
+  checkMinimalConfigVersion(_configCache);
   return _configCache;
 }
 
@@ -167,8 +168,7 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
  * "minVersion" configuration parameter specifies the minimal version of "craft"
  * that can work with the given configuration.
  */
-export function checkMinimalConfigVersion(): void {
-  const config = getConfiguration();
+function checkMinimalConfigVersion(config: CraftProjectConfig): void {
   const minVersionRaw = config.minVersion;
   if (!minVersionRaw) {
     logger.debug(
@@ -192,7 +192,7 @@ export function checkMinimalConfigVersion(): void {
   }
 
   if (versionGreaterOrEqualThan(currentVersion, minVersion)) {
-    logger.info(
+    logger.debug(
       `"craft" version is compatible with the minimal version from the configuration file.`
     );
   } else {
