@@ -476,8 +476,6 @@ async function switchToDefaultBranch(
  * @param argv Command-line arguments
  */
 export async function releaseMain(argv: ReleaseOptions): Promise<any> {
-  logger.debug('Argv: ', JSON.stringify(argv));
-
   // Get repo configuration
   const config = getConfiguration();
   const githubConfig = await getGlobalGithubConfig();

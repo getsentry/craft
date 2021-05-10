@@ -456,8 +456,6 @@ export async function runPostReleaseCommand(
  * @param argv Command-line arguments
  */
 export async function publishMain(argv: PublishOptions): Promise<any> {
-  logger.debug('Argv:', JSON.stringify(argv));
-
   // Get publishing configuration
   const config = getConfiguration() || {};
   const githubConfig = await getGlobalGithubConfig();
