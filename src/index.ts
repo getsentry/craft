@@ -13,6 +13,7 @@ import { getPackageVersion } from './utils/version';
 import * as prepare from './commands/prepare';
 import * as publish from './commands/publish';
 import * as targets from './commands/targets';
+import * as config from './commands/config';
 import * as artifacts from './commands/artifacts';
 
 /**
@@ -74,6 +75,7 @@ function main(): void {
     .command(prepare)
     .command(publish)
     .command(targets)
+    .command(config)
     .command(artifacts)
     .demandCommand()
     .version()

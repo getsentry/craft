@@ -20,7 +20,7 @@ steps:
   # Smoke tests
   - name: 'us.gcr.io/$PROJECT_ID/craft:$COMMIT_SHA'
     args:
-      - '--help'
+      - 'config'
     timeout: 60s
   - name: 'gcr.io/cloud-builders/docker'
     secretEnv: ['DOCKER_PASSWORD']
