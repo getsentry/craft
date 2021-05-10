@@ -254,7 +254,7 @@ github:
 ```
 
 If you are using Craft in a monorepo where each project has their own `.craft.yml`
-configuration, you need o set the `github` information with the inclusion of
+configuration, you need to set the `github` information with the inclusion of
 `projectPath`. Although Craft can infer the relative path of your project, it
 cannot do this on sparse checkouts or when `.git` directory does not exist:
 
