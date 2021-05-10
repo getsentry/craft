@@ -5,7 +5,6 @@ import simpleGit, { SimpleGit } from 'simple-git';
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 
 import {
-  checkMinimalConfigVersion,
   getConfigFileDir,
   getConfiguration,
   DEFAULT_RELEASE_BRANCH_NAME,
@@ -477,8 +476,6 @@ async function switchToDefaultBranch(
  * @param argv Command-line arguments
  */
 export async function releaseMain(argv: ReleaseOptions): Promise<any> {
-  checkMinimalConfigVersion();
-
   // Get repo configuration
   const config = getConfiguration();
   const githubConfig = await getGlobalGithubConfig();
