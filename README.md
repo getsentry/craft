@@ -242,13 +242,31 @@ located in the project root.
 
 ### GitHub project
 
-One of the required settings you need to specify is GitHub project parameters. For example:
+Craft tries to determine the GitHub repo information from the local git repo and
+its remotes configuration. However, since `publish` command does not require a
+local git checkout, you may want to hard-code this information into the
+configuration itself:
 
 ```yaml
 github:
   owner: getsentry
   repo: sentry-javascript
 ```
+
+If you are using Craft in a monorepo where each project has their own `.craft.yml`
+configuration, you need to set the `github` information with the inclusion of
+`projectPath`. Although Craft can infer the relative path of your project, it
+cannot do this on sparse checkouts or when `.git` directory does not exist:
+
+```yaml
+github:
+  owner: getsentry
+  repo: sentry-ruby
+  projectPath: sentry-rails
+```
+
+This is used to determine the repo-relative location of the changelog in your
+project.
 
 ### Pre-release Command
 

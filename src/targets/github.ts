@@ -1,6 +1,6 @@
 import * as Github from '@octokit/rest';
 import { createReadStream, statSync } from 'fs';
-import { basename } from 'path';
+import { basename, posix } from 'path';
 
 import { getConfiguration } from '../config';
 import { logger as loggerRaw } from '../logger';
@@ -83,13 +83,18 @@ export class GithubTarget extends BaseTarget {
     this.githubRepo = githubRepo;
     const owner = config.owner || githubRepo.owner;
     const repo = config.repo || githubRepo.repo;
+    const projectPath = githubRepo.projectPath || '.';
+    const changelogPath =
+      getConfiguration().changelog || DEFAULT_CHANGELOG_PATH;
+
+    const changelog = posix.join(projectPath, changelogPath);
 
     this.githubConfig = {
       owner,
       repo,
+      changelog,
       annotatedTag:
         this.config.annotatedTag === undefined || !!this.config.annotatedTag,
-      changelog: getConfiguration().changelog || DEFAULT_CHANGELOG_PATH,
       previewReleases:
         this.config.previewReleases === undefined ||
         !!this.config.previewReleases,
