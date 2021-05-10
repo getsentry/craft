@@ -19,6 +19,9 @@ const projectConfigJsonSchema = {
         repo: {
           type: 'string',
         },
+        projectPath: {
+          type: 'string',
+        },
       },
       additionalProperties: false,
       required: ['owner', 'repo'],

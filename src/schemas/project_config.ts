@@ -26,6 +26,7 @@ export interface CraftProjectConfig {
 export interface GithubGlobalConfig {
   owner: string;
   repo: string;
+  projectPath?: string;
 }
 /**
  * Generic target configuration
