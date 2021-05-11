@@ -1,7 +1,7 @@
 import { existsSync, promises as fsPromises } from 'fs';
 import { join, relative } from 'path';
 import * as shellQuote from 'shell-quote';
-import simpleGit, { SimpleGit } from 'simple-git';
+import simpleGit, { SimpleGit, StatusResult } from 'simple-git';
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 
 import {
@@ -25,10 +25,10 @@ import {
   reportError,
 } from '../utils/errors';
 import { getDefaultBranch, getGithubClient } from '../utils/githubApi';
-import { isDryRun } from '../utils/helpers';
+import { isDryRun, promptConfirmation } from '../utils/helpers';
 import { formatJson } from '../utils/strings';
 import { sleepAsync, spawnProcess } from '../utils/system';
-import { isValidVersion, versionToTag } from '../utils/version';
+import { isValidVersion } from '../utils/version';
 
 import { handler as publishMainHandler, PublishOptions } from './publish';
 
@@ -43,6 +43,12 @@ export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
     .positional('NEW-VERSION', {
       description: 'The new version you want to release',
+      type: 'string',
+    })
+    .option('rev', {
+      alias: 'r',
+      description:
+        'Source revision (git SHA or tag) to prepare from (if not branch head)',
       type: 'string',
     })
     .option('no-push', {
@@ -68,9 +74,11 @@ export const builder: CommandBuilder = (yargs: Argv) =>
     .check(checkVersionOrPart);
 
 /** Command line options. */
-interface ReleaseOptions {
+interface PrepareOptions {
   /** The new version to release */
   newVersion: string;
+  /** The base revision to release */
+  rev: string;
   /** Do not perform basic git checks */
   noGitChecks: boolean;
   /** Do not check for changelog */
@@ -118,6 +126,7 @@ function checkVersionOrPart(argv: Arguments<any>, _opt: any): any {
  */
 async function createReleaseBranch(
   git: SimpleGit,
+  rev: string,
   newVersion: string,
   releaseBranchPrefix?: string
 ): Promise<string> {
@@ -137,7 +146,7 @@ async function createReleaseBranch(
   }
 
   if (!isDryRun()) {
-    await git.checkoutLocalBranch(branchName);
+    await git.checkoutBranch(branchName, rev);
     logger.info(`Created a new release branch: "${branchName}"`);
     logger.info(`Switched to branch "${branchName}"`);
   } else {
@@ -241,36 +250,14 @@ export async function runPreReleaseCommand(
 /**
  * Checks that it is safe to perform the release right now
  *
- * @param git Local git client
- * @param defaultBranch Default branch of the remote repository
- * @param checkGitStatus Set to true to enable the check
+ * @param repoStatus Result of git.status()
+ * @param rev Revision to prepare the relese from
  */
-async function checkGitState(
-  git: SimpleGit,
-  defaultBranch: string,
-  checkGitStatus = true
-): Promise<void> {
-  if (!checkGitStatus) {
-    logger.warn('Not checking the status of the local repository');
-    return;
-  }
-
+function checkGitStatus(repoStatus: StatusResult, rev: string) {
   logger.info('Checking the local repository status...');
-  const isRepo = await git.checkIsRepo();
-  if (!isRepo) {
-    throw new ConfigurationError('Not a git repository!');
-  }
-  const repoStatus = await git.status();
+
   logger.debug('Repository status:', formatJson(repoStatus));
 
-  // Check that we are on master
-  // TODO check what's here when we are in a detached state
-  const currentBranch = repoStatus.current;
-  if (defaultBranch !== currentBranch) {
-    reportError(
-      `Please switch to your default branch (${defaultBranch}) first`
-    );
-  }
   if (
     repoStatus.conflicted.length ||
     repoStatus.created.length ||
@@ -286,10 +273,9 @@ async function checkGitState(
     );
   }
 
-  if (repoStatus.ahead > 0) {
-    reportError(
-      `Your repository has unpushed changes: the current branch is ${repoStatus.ahead} commits ahead.`,
-      logger
+  if (repoStatus.current !== rev) {
+    logger.warn(
+      `You are releasing from '${rev}', not '${repoStatus.current}' which you are currently on.`
     );
   }
 }
@@ -331,31 +317,6 @@ async function execPublish(newVersion: string): Promise<never> {
     );
     throw e;
   }
-  throw new Error('Unreachable');
-}
-
-/**
- * Checks that there is no corresponding git tag for the given version
- *
- * @param git Local git client
- * @param newVersion Version we're about to release
- * @param checkGitStatus Set to true to enable the check
- */
-async function checkForExistingTag(
-  git: SimpleGit,
-  newVersion: string,
-  checkGitStatus = true
-): Promise<void> {
-  if (!checkGitStatus) {
-    logger.warn('Not checking if the version (git tag) already exists');
-  }
-
-  const gitTag = versionToTag(newVersion);
-  const existingTags = await git.tags();
-  if (existingTags.all.indexOf(gitTag) > -1) {
-    reportError(`Git tag "${gitTag}" already exists!`);
-  }
-  logger.debug(`Git tag ${gitTag} does not exist yet.`);
 }
 
 /**
@@ -475,7 +436,7 @@ async function switchToDefaultBranch(
  *
  * @param argv Command-line arguments
  */
-export async function releaseMain(argv: ReleaseOptions): Promise<any> {
+export async function prepareMain(argv: PrepareOptions): Promise<any> {
   // Get repo configuration
   const config = getConfiguration();
   const githubConfig = await getGlobalGithubConfig();
@@ -488,6 +449,10 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
   const newVersion = argv.newVersion;
 
   const git = simpleGit(configFileDir);
+  const isRepo = await git.checkIsRepo();
+  if (!isRepo) {
+    throw new ConfigurationError('Not in a git repository!');
+  }
 
   // Get some information about the Github project
   const githubClient = getGithubClient();
@@ -497,19 +462,21 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
     githubConfig.repo
   );
   logger.debug(`Default branch for the repo:`, defaultBranch);
+  const repoStatus = await git.status();
+  const rev = argv.rev || repoStatus.current || defaultBranch;
 
-  // Check that we're in an acceptable state for the release
-  await checkGitState(git, defaultBranch, !argv.noGitChecks);
+  if (argv.noGitChecks) {
+    logger.info('Not checking the status of the local repository');
+  } else {
+    // Check that we're in an acceptable state for the release
+    checkGitStatus(repoStatus, rev);
+  }
 
-  // Check whether the version/tag already exists
-  await checkForExistingTag(git, newVersion, !argv.noGitChecks);
-
-  // Check & update the changelog
-  await prepareChangelog(
-    newVersion,
-    argv.noChangelog ? ChangelogPolicy.None : config.changelogPolicy,
-    config.changelog
-  );
+  logger.info(`Releasing version ${newVersion} from ${rev}`);
+  if (!argv.rev && rev !== defaultBranch) {
+    logger.warn("You're not on your default branch, so I have to ask...");
+    await promptConfirmation();
+  }
 
   logger.info(`Preparing to release the version: ${newVersion}`);
 
@@ -517,8 +484,16 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
   // exists.
   const branchName = await createReleaseBranch(
     git,
+    rev,
     newVersion,
     config.releaseBranchPrefix
+  );
+
+  // Check & update the changelog
+  await prepareChangelog(
+    newVersion,
+    argv.noChangelog ? ChangelogPolicy.None : config.changelogPolicy,
+    config.changelog
   );
 
   // Run a pre-release script (e.g. for version bumping)
@@ -551,7 +526,9 @@ export async function releaseMain(argv: ReleaseOptions): Promise<any> {
     );
   }
 
-  await switchToDefaultBranch(git, defaultBranch);
+  if (!argv.rev) {
+    await switchToDefaultBranch(git, defaultBranch);
+  }
 }
 
 /**
@@ -567,7 +544,7 @@ export const handler = async (args: {
   [argName: string]: any;
 }): Promise<void> => {
   try {
-    return await releaseMain(args as ReleaseOptions);
+    return await prepareMain(args as PrepareOptions);
   } catch (e) {
     handleGlobalError(e);
   }
