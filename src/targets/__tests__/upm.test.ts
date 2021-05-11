@@ -11,7 +11,7 @@ describe('UPM Target', () => {
       ...cleanEnv,
       GITHUB_TOKEN: 'ghp_TAN21WJQkLtYVdHCh5eQJ8hTWoYvNh47gGWH',
     };
-    setGlobals({ 'dry-run': false, 'log-level': 'Info', "no-input": true });
+    setGlobals({ 'dry-run': false, 'log-level': 'Info', 'no-input': true });
     jest.resetAllMocks();
 
     upmTarget = new UpmTarget(

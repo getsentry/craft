@@ -286,9 +286,7 @@ export class CraftGCSClient {
 
       logger.debug(`Successfully downloaded \`${destinationFilename}\`.`);
     } else {
-      logger.info(
-        `[dry-run] Skipping download for \`${destinationFilename}\``
-      );
+      logger.info(`[dry-run] Skipping download for \`${destinationFilename}\``);
     }
 
     return path.join(destinationDirectory, destinationFilename);
