@@ -47,8 +47,8 @@ export const builder: CommandBuilder = (yargs: Argv) =>
     })
     .option('rev', {
       alias: 'r',
-      default: null,
-      description: 'Source revision to prepare the release from.',
+      description:
+        'Source revision (git SHA or tag) to prepare from (if not branch head)',
       type: 'string',
     })
     .option('no-push', {
@@ -250,9 +250,8 @@ export async function runPreReleaseCommand(
 /**
  * Checks that it is safe to perform the release right now
  *
- * @param git Local git client
- * @param defaultBranch Default branch of the remote repository
- * @param checkGitStatus Set to true to enable the check
+ * @param repoStatus Result of git.status()
+ * @param rev Revision to prepare the relese from
  */
 function checkGitStatus(repoStatus: StatusResult, rev: string) {
   logger.info('Checking the local repository status...');
