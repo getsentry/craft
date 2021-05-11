@@ -1,24 +1,36 @@
-import isCI from 'is-ci';
 import prompts from 'prompts';
-import { logger } from '../logger';
+import { logger, LogLevel } from '../logger';
 
-const FALSY_ENV_VALUES = new Set(['', '0', 'false', 'no']);
-function envToBool(envVar: string | undefined): boolean | undefined {
-  if (envVar == null) {
-    return undefined;
-  }
-  const normalized = envVar.toLowerCase();
+const FALSY_ENV_VALUES = new Set(['', 'undefined', 'null', '0', 'false', 'no']);
+export function envToBool(envVar: unknown): boolean {
+  const normalized = String(envVar).toLowerCase();
   return !FALSY_ENV_VALUES.has(normalized);
 }
 
-/**
- * Returns true or false depending on the value of process.env.DRY_RUN.
- *
- * @returns false if DRY_RUN is unset or is set to '', 'false', '0', or 'no',
- * true otherwise
- */
+interface GlobalFlags {
+  [flag: string]: any;
+  'dry-run': boolean;
+  'no-input': boolean;
+  'log-level': keyof typeof LogLevel;
+}
+
+const GLOBAL_FLAGS: GlobalFlags = {
+  'dry-run': false,
+  'no-input': false,
+  'log-level': 'Info',
+};
+
+export function setGlobals(argv: GlobalFlags): void {
+  for (const globalFlag of Object.keys(GLOBAL_FLAGS)) {
+    GLOBAL_FLAGS[globalFlag] = argv[globalFlag];
+  }
+  logger.level = LogLevel[GLOBAL_FLAGS['log-level']];
+  logger.debug('Argv: ', JSON.stringify(argv));
+  logger.resume();
+}
+
 export function isDryRun(): boolean {
-  return envToBool(process.env.DRY_RUN) || false;
+  return GLOBAL_FLAGS['dry-run'];
 }
 
 /**
@@ -44,16 +56,6 @@ export async function promptConfirmation(): Promise<void> {
   }
 }
 
-let _hasInput: boolean;
-/**
- * Returns true if user input is allowed. Uses the is-ci module and
- * the value of CRAFT_NO_INPUT environment variable is checked for
- * a true-ish value.
- */
-export function hasInput(clearCache = false): boolean {
-  if (clearCache || _hasInput === undefined) {
-    _hasInput = !(envToBool(process.env.CRAFT_NO_INPUT) ?? isCI);
-  }
-
-  return _hasInput;
+export function hasInput(): boolean {
+  return !GLOBAL_FLAGS['no-input'];
 }
