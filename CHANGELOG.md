@@ -10,6 +10,7 @@
 - feat: Add projectPath config option to GitHub (#220)
 - feat: Add config CLI command (#221)
 - feat(prepare): Add rev option to base a release on (#223)
+- ref: Unify global flags (#224)
 
 ## 0.21.1
 
