@@ -4,8 +4,7 @@ import yargs from 'yargs';
 
 import { logger, init as initLogger } from './logger';
 import { readEnvironmentConfig } from './utils/env';
-import { isDryRun } from './utils/helpers';
-import { hasNoInput, setNoInput } from './utils/noInput';
+import { isDryRun, hasInput } from './utils/helpers';
 import { initSentrySdk } from './utils/sentry';
 import { getPackageVersion } from './utils/version';
 
@@ -37,10 +36,13 @@ function processDryRun<T>(arg: T): T {
  * Handler for '--no-input' option
  */
 function processNoInput<T>(arg: T): T {
-  if (arg) {
-    setNoInput(true);
+  // if the user explicitly set the flag on the command line, their choice
+  // should override any previously set env var
+  if (process.argv.indexOf('--no-input') > -1) {
+    process.env.CRAFT_NO_INPUT = String(arg);
   }
-  if (hasNoInput()) {
+
+  if (!hasInput(true)) {
     logger.debug('[no-input] The script will not accept any input!');
   }
   return arg;

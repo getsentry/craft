@@ -1,5 +1,4 @@
 import * as Github from '@octokit/rest';
-import prompts from 'prompts';
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 import chalk from 'chalk';
 import {
@@ -32,8 +31,7 @@ import { handleGlobalError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
 import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
-import { isDryRun } from '../utils/helpers';
-import { hasInput } from '../utils/noInput';
+import { isDryRun, promptConfirmation } from '../utils/helpers';
 import { formatSize, formatJson } from '../utils/strings';
 import {
   catchKeyboardInterrupt,
@@ -200,36 +198,6 @@ async function printRevisionSummary(
     logger.info(`Available artifacts: \n${table.toString()}\n`);
   } else {
     logger.warn('No artifacts found for the revision.');
-  }
-}
-
-/**
- * Prompt the user that everything is OK and we should proceed with publishing
- */
-async function promptConfirmation(targetList: BaseTarget[]): Promise<void> {
-  logger.info('Publishing to targets:');
-
-  logger.info(
-    targetList.map(target => `  - ${getTargetId(target.config)}`).join('\n')
-  );
-  logger.info(' ');
-
-  if (hasInput()) {
-    const { readyToPublish } = await prompts({
-      message: 'Is everything OK? Type "yes" to proceed:',
-      name: 'readyToPublish',
-      type: 'text',
-      // Force the user to type something that is not empty or one letter such
-      // as y/n to make sure this is a concious choice.
-      validate: (input: string) =>
-        input.length >= 2 || 'Please type "yes" to proceed',
-    });
-    if (readyToPublish.toLowerCase() !== 'yes') {
-      logger.error('Oh, okay. Aborting.');
-      process.exit(1);
-    }
-  } else {
-    logger.debug('Skipping the prompting.');
   }
 }
 
@@ -560,7 +528,13 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   const targetList = await getTargetList(targetConfigList, artifactProvider);
   if (targetList.length > 0) {
-    await promptConfirmation(targetList);
+    logger.info('Publishing to targets:');
+
+    logger.info(
+      targetList.map(target => `  - ${getTargetId(target.config)}`).join('\n')
+    );
+    logger.info(' ');
+    await promptConfirmation();
 
     await withTempDir(async (downloadDirectory: string) => {
       artifactProvider.setDownloadDirectory(downloadDirectory);

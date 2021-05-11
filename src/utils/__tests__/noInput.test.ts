@@ -1,49 +1,29 @@
 /* eslint-env jest */
 
-import { hasInput, hasNoInput, resetNoInput, setNoInput } from '../noInput';
+import { hasInput } from '../helpers';
+import isCI from 'is-ci';
 
-describe('setNoInput', () => {
-  afterEach(() => {
-    delete process.env.CI;
+describe('hasInput', () => {
+  beforeEach(() => {
     delete process.env.CRAFT_NO_INPUT;
-    resetNoInput();
   });
 
-  test('sets and returns true', () => {
-    setNoInput(true);
-    expect(hasNoInput()).toBe(true);
-    expect(hasInput()).toBe(false);
+  test('uses negative of isCI value by default', () => {
+    expect(hasInput(true)).toBe(!isCI);
   });
 
-  test('sets and returns false', () => {
-    setNoInput(false);
-    expect(hasNoInput()).toBe(false);
-    expect(hasInput()).toBe(true);
-  });
-});
-
-describe('resetNoInput', () => {
-  afterEach(() => {
-    delete process.env.CI;
-    delete process.env.CRAFT_NO_INPUT;
-    resetNoInput();
+  test('sets hasInput to true when env var is 0', () => {
+    process.env.CRAFT_NO_INPUT = '0';
+    expect(hasInput(true)).toBe(true);
   });
 
-  test('sets noInput to false by default', () => {
-    delete process.env.CRAFT_NO_INPUT;
-    resetNoInput();
-    expect(hasNoInput()).toBe(false);
+  test('sets hasInput to true when env var is false', () => {
+    process.env.CRAFT_NO_INPUT = 'false';
+    expect(hasInput(true)).toBe(true);
   });
 
-  test('sets noInput to true via craft env', () => {
+  test('sets hasInput to false via craft env', () => {
     process.env.CRAFT_NO_INPUT = '1';
-    resetNoInput();
-    expect(hasNoInput()).toBe(true);
-  });
-
-  test('sets noInput to true via CI env', () => {
-    process.env.CI = '1';
-    resetNoInput();
-    expect(hasNoInput()).toBe(true);
+    expect(hasInput(true)).toBe(false);
   });
 });

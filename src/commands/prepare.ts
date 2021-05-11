@@ -1,7 +1,7 @@
 import { existsSync, promises as fsPromises } from 'fs';
 import { join, relative } from 'path';
 import * as shellQuote from 'shell-quote';
-import simpleGit, { SimpleGit } from 'simple-git';
+import simpleGit, { SimpleGit, StatusResult } from 'simple-git';
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 
 import {
@@ -25,7 +25,7 @@ import {
   reportError,
 } from '../utils/errors';
 import { getDefaultBranch, getGithubClient } from '../utils/githubApi';
-import { isDryRun } from '../utils/helpers';
+import { isDryRun, promptConfirmation } from '../utils/helpers';
 import { formatJson } from '../utils/strings';
 import { sleepAsync, spawnProcess } from '../utils/system';
 import { isValidVersion } from '../utils/version';
@@ -254,13 +254,9 @@ export async function runPreReleaseCommand(
  * @param defaultBranch Default branch of the remote repository
  * @param checkGitStatus Set to true to enable the check
  */
-async function checkGitState(git: SimpleGit, rev: string): Promise<void> {
+function checkGitStatus(repoStatus: StatusResult, rev: string) {
   logger.info('Checking the local repository status...');
-  const isRepo = await git.checkIsRepo();
-  if (!isRepo) {
-    throw new ConfigurationError('Not a git repository!');
-  }
-  const repoStatus = await git.status();
+
   logger.debug('Repository status:', formatJson(repoStatus));
 
   if (
@@ -454,6 +450,10 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   const newVersion = argv.newVersion;
 
   const git = simpleGit(configFileDir);
+  const isRepo = await git.checkIsRepo();
+  if (!isRepo) {
+    throw new ConfigurationError('Not in a git repository!');
+  }
 
   // Get some information about the Github project
   const githubClient = getGithubClient();
@@ -463,13 +463,19 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     githubConfig.repo
   );
   logger.debug(`Default branch for the repo:`, defaultBranch);
-  const rev = argv.rev || defaultBranch;
+  const repoStatus = await git.status();
+  const rev = argv.rev || repoStatus.current || defaultBranch;
 
   if (argv.noGitChecks) {
     logger.info('Not checking the status of the local repository');
   } else {
     // Check that we're in an acceptable state for the release
-    await checkGitState(git, rev);
+    checkGitStatus(repoStatus, rev);
+  }
+
+  logger.info(`Releasing version ${newVersion} from ${rev}`);
+  if (!argv.rev && rev !== defaultBranch) {
+    await promptConfirmation();
   }
 
   // Check & update the changelog
