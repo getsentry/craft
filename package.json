@@ -46,6 +46,7 @@
     "@types/shell-quote": "^1.6.0",
     "@types/tar": "^4.0.0",
     "@types/tmp": "^0.0.33",
+    "@types/unzipper": "^0.10.3",
     "@types/update-notifier": "^2.2.0",
     "@types/yargs": "^15.0.3",
     "@typescript-eslint/eslint-plugin": "^3.3.0",
