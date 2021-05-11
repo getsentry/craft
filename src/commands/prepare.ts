@@ -478,13 +478,6 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     await promptConfirmation();
   }
 
-  // Check & update the changelog
-  await prepareChangelog(
-    newVersion,
-    argv.noChangelog ? ChangelogPolicy.None : config.changelogPolicy,
-    config.changelog
-  );
-
   logger.info(`Preparing to release the version: ${newVersion}`);
 
   // Create a new release branch and check it out. Throw an error if it already
@@ -494,6 +487,13 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     rev,
     newVersion,
     config.releaseBranchPrefix
+  );
+
+  // Check & update the changelog
+  await prepareChangelog(
+    newVersion,
+    argv.noChangelog ? ChangelogPolicy.None : config.changelogPolicy,
+    config.changelog
   );
 
   // Run a pre-release script (e.g. for version bumping)
