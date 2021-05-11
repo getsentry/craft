@@ -474,6 +474,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
   logger.info(`Releasing version ${newVersion} from ${rev}`);
   if (!argv.rev && rev !== defaultBranch) {
+    logger.warn("You're not on your default branch, so I have to ask...");
     await promptConfirmation();
   }
 
