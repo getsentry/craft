@@ -81,43 +81,49 @@ craft <command>
 Commands:
   craft prepare NEW-VERSION  🚢 Prepare a new release branch
                           [aliases: p, prerelease, prepublish, prepare, release]
-  craft publish NEW-VERSION  🛫 Publish artifacts           [aliases: pp, publish]
+  craft publish NEW-VERSION  🛫 Publish artifacts         [aliases: pp, publish]
+  craft targets              List defined targets as JSON array
+  craft config               Print the parsed, processed, and validated Craft
+                             config for the current project in pretty-JSON.
+  craft artifacts <command>  📦 Manage artifacts          [aliases: a, artifact]
 
 Options:
-  --no-input     Suppresses all user prompts          [boolean] [default: false]
+  --no-input     Suppresses all user prompts                    [default: false]
   --dry-run      Dry run mode: do not perform any real actions
-                                                      [boolean] [default: false]
+  --log-level    Logging level
+          [choices: "Fatal", "Error", "Warn", "Log", "Info", "Success", "Debug",
+                                 "Trace", "Silent", "Verbose"] [default: "Info"]
   -v, --version  Show version number                                   [boolean]
   -h, --help     Show help                                             [boolean]
 ```
 
 ## Caveats
 
-- When interacting with remote GitHub repositories, `craft` uses by default the
-  "origin" remote. If you have a different setup, set the `CRAFT_REMOTE`
-  environment variable.
+- When interacting with remote GitHub repositories, `craft` uses the
+  remote `origin` by default. If you have a different setup, set the
+  `CRAFT_REMOTE` environment variable to the git remote you are using.
 
 ## Global Configuration
 
-Global configuration for `craft` can be done either by using environment variables
-or by adding values to a configuration file (see below).
+Global configuration for `craft` can be done either by using environment
+variables or by adding values to a configuration file (see below).
 
-In either case, at least the following two values must be configured in order
-for craft to function properly:
+All command line flags can be set through environment variables by prefixing
+them with `CRAFT_` and converting them to UPPERCASE_UNDERSCORED versions:
 
-- `GITHUB_TOKEN`
+```
+CRAFT_LOG_LEVEL=Debug
+CRAFT_DRY_RUN=1
+CRAFT_NO_INPUT=0
+```
 
-  Get your personal GitHub API token here: https://github.com/settings/tokens
+Since Craft heavily relies on GitHub, it needs the `GITHUB_TOKEN` environment
+variable to be set to a proper
+[GitHub Personal Access Token](https://github.com/settings/tokens) for almost
+anything. The token only needs `repo` scope (`repo:status` and `public_repo`
+subscopes, to be precise).
 
-  The token only needs "repo" scope ("repo:status" and "public_repo" subscopes, to be even more precise).
-
-- `ZEUS_API_TOKEN`
-
-  You can generate your personal Zeus token here: https://zeus.ci/settings/token
-
-  Required only for `craft publish`.
-
-Additional configuration may be required when publishing to specific
+Additional environment variables may be required when publishing to specific
 targets (e.g. `TWINE_USERNAME` and `TWINE_PASSWORD` for PyPI target).
 
 ### Environment Files
@@ -129,15 +135,17 @@ following locations:
 - `$PROJECT_DIR/.craft.env`
 - the shell's environment
 
-...where `$HOME` is the current user's home directory, and `$PROJECT_DIR` is the directory where `.craft.yml` is located.
+where `$HOME` is the current user's home directory, and `$PROJECT_DIR` is the
+directory where `.craft.yml` is located.
 
-The above locations will be checked in the order specified above, with values
+These locations will be checked in the order specified above, with values
 found in one location overwriting anything found in previous locations. In other
 words, environment variables will take precedence over either configuration
 file, and the project-specific file will take precedence over the file in
 `$HOME`.
 
-The files must be written in shell (`sh`/`bash`) format. Leading `export` is allowed.
+The env files must be written in shell (`sh`/`bash`) format.
+Leading `export` is allowed.
 
 Example:
 
@@ -166,16 +174,20 @@ Positionals:
   NEW-VERSION  The new version you want to release           [string] [required]
 
 Options:
-  --no-input       Suppresses all user prompts        [boolean] [default: false]
+  --no-input       Suppresses all user prompts                  [default: false]
   --dry-run        Dry run mode: do not perform any real actions
-                                                      [boolean] [default: false]
-  --rev, -r        Source revision to prepare the release from.
-                                                        [string] [default: null]
+  --log-level      Logging level
+          [choices: "Fatal", "Error", "Warn", "Log", "Info", "Success", "Debug",
+                                 "Trace", "Silent", "Verbose"] [default: "Info"]
+  --rev, -r        Source revision (git SHA or tag) to prepare from (if not
+                   branch head)                                         [string]
   --no-push        Do not push the release branch     [boolean] [default: false]
   --no-git-checks  Ignore local git changes and unsynchronized remotes
                                                       [boolean] [default: false]
   --no-changelog   Do not check for changelog entries [boolean] [default: false]
   --publish        Run "publish" right after "release"[boolean] [default: false]
+  -v, --version    Show version number                                 [boolean]
+  -h, --help       Show help                                           [boolean]
 ```
 
 ### `craft publish`: Publishing the Release
@@ -196,20 +208,24 @@ Positionals:
   NEW-VERSION  Version to publish                            [string] [required]
 
 Options:
-  --no-input         Suppresses all user prompts      [boolean] [default: false]
+  --no-input         Suppresses all user prompts                [default: false]
   --dry-run          Dry run mode: do not perform any real actions
-                                                      [boolean] [default: false]
+  --log-level        Logging level
+          [choices: "Fatal", "Error", "Warn", "Log", "Info", "Success", "Debug",
+                                 "Trace", "Silent", "Verbose"] [default: "Info"]
   --target, -t       Publish to this target
-  [string] [choices: "brew", "cocoapods", "crates", "gcs", "gh-pages", "github",
-             "npm", "nuget", "pypi", "registry", "all", "none"] [default: "all"]
-  --rev, -r          Source revision to publish                         [string]
+    [string] [choices: "npm", "gcs", "registry", "docker", "github", "gh-pages",
+                                                 "all", "none"] [default: "all"]
+  --rev, -r          Source revision (git SHA or tag) to publish (if not release
+                     branch head)                                       [string]
   --no-merge         Do not merge the release branch after publishing
                                                       [boolean] [default: false]
   --keep-branch      Do not remove release branch after merging it
                                                       [boolean] [default: false]
   --keep-downloads   Keep all downloaded files        [boolean] [default: false]
-  --no-status-check  Do not check for build status in Zeus
-                                                      [boolean] [default: false]
+  --no-status-check  Do not check for build status    [boolean] [default: false]
+  -v, --version      Show version number                               [boolean]
+  -h, --help         Show help                                         [boolean]
 ```
 
 ### Example
