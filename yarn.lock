@@ -1511,6 +1511,13 @@
   resolved "https://registry.yarnpkg.com/@types/tough-cookie/-/tough-cookie-4.0.0.tgz#fef1904e4668b6e5ecee60c52cc6a078ffa6697d"
   integrity sha512-I99sngh224D0M7XgW1s120zxCt3VYQ3IQsuw3P3jbq5GG4yc79+ZjyKznyOGIQrflfylLgcfekeZW/vk0yng6A==
 
+"@types/unzipper@^0.10.3":
+  version "0.10.3"
+  resolved "https://registry.yarnpkg.com/@types/unzipper/-/unzipper-0.10.3.tgz#9eea872fb1fa460da76f253878b6275af588f464"
+  integrity sha512-01mQdTLp3/KuBVDhP82FNBf+enzVOjJ9dGsCWa5z8fcYAFVgA9bqIQ2NmsgNFzN/DhD0PUQj4n5p7k6I9mq80g==
+  dependencies:
+    "@types/node" "*"
+
 "@types/update-notifier@^2.2.0":
   version "2.5.1"
   resolved "https://registry.yarnpkg.com/@types/update-notifier/-/update-notifier-2.5.1.tgz#bbf689a326ae5da577c3f95f59c8877f88f8dd65"
@@ -3025,7 +3032,7 @@ fsevents@^2.1.2:
   resolved "https://registry.yarnpkg.com/fsevents/-/fsevents-2.3.1.tgz#b209ab14c61012636c8863507edf7fb68cc54e9f"
   integrity sha512-YR47Eg4hChJGAB1O3yEAOkGO+rlzutoICGqGo9EZ4lKWokzZRSyIW1QmTzqjtw8MJdj9srP869CuWw/hyzSiBw==
 
-fstream@~1.0.10:
+fstream@^1.0.12:
   version "1.0.12"
   resolved "https://registry.yarnpkg.com/fstream/-/fstream-1.0.12.tgz#4e8ba8ee2d48be4f7d0de505455548eae5932045"
   integrity sha512-WvJ193OHa0GHPEL+AycEJgxvBEwyfRkN1vhjca23OaPVMCaLCXTd5qAu82AjTcgP1UJmytkOKb63Ypde7raDIg==
@@ -3205,10 +3212,10 @@ google-p12-pem@^3.0.3:
   dependencies:
     node-forge "^0.10.0"
 
-graceful-fs@^4.1.2, graceful-fs@^4.2.4:
-  version "4.2.4"
-  resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.2.4.tgz#2256bde14d3632958c465ebc96dc467ca07a29fb"
-  integrity sha512-WjKPNJF79dtJAVniUlGGWHYGz2jWxT6VhN/4m1NdkbZ2nOsEF+cI1Edgql5zCRhs/VsQYRvrXctxktVXZUkixw==
+graceful-fs@^4.1.2, graceful-fs@^4.2.2, graceful-fs@^4.2.4:
+  version "4.2.6"
+  resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.2.6.tgz#ff040b2b0853b23c3d31027523706f1885d76bee"
+  integrity sha512-nTnJ528pbqxYanhpDYsi4Rd8MAeaBA67+RZ10CM1m3bTAVFEDcd5AuA4a6W5YkGZ1iNXHzZz8T6TBKLeBuNriQ==
 
 growly@^1.3.0:
   version "1.3.0"
@@ -5992,17 +5999,18 @@ unset-value@^1.0.0:
     has-value "^0.3.1"
     isobject "^3.0.0"
 
-unzipper@0.9.7:
-  version "0.9.7"
-  resolved "https://registry.yarnpkg.com/unzipper/-/unzipper-0.9.7.tgz#766bb2397608ed6b8c42becf44285f2dddd1d463"
-  integrity sha512-icFtME1RD648v+cjfcUWoky4bHbMTi8nk06nGxH77EPYyEeKaTgT3nRHM/dQ3znGXLi3+OlhYo86zQzNBRdNhw==
+unzipper@0.10.11:
+  version "0.10.11"
+  resolved "https://registry.yarnpkg.com/unzipper/-/unzipper-0.10.11.tgz#0b4991446472cbdb92ee7403909f26c2419c782e"
+  integrity sha512-+BrAq2oFqWod5IESRjL3S8baohbevGcVA+teAIOYWM3pDVdseogqbzhhvvmiyQrUNKFUnDMtELW3X8ykbyDCJw==
   dependencies:
     big-integer "^1.6.17"
     binary "~0.3.0"
     bluebird "~3.4.1"
     buffer-indexof-polyfill "~1.0.0"
     duplexer2 "~0.1.4"
-    fstream "~1.0.10"
+    fstream "^1.0.12"
+    graceful-fs "^4.2.2"
     listenercount "~1.0.1"
     readable-stream "~2.3.6"
     setimmediate "~1.0.4"
