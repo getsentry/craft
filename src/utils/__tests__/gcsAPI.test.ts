@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { setGlobals } from '../../utils/helpers';
 import {
   getGCSCredsFromEnv,
   CraftGCSClient,
@@ -58,6 +59,7 @@ const client = new CraftGCSClient({
 
 describe('gcsApi module', () => {
   afterEach(() => {
+    setGlobals({ 'dry-run': false, 'log-level': 'Info', 'no-input': true });
     // in case we've modified the env in any way, reset it
     process.env = { ...cleanEnv };
 
@@ -252,7 +254,7 @@ describe('gcsApi module', () => {
       it("doesn't upload anything in dry run mode", async () => {
         expect.assertions(1);
 
-        process.env.DRY_RUN = 'true';
+        setGlobals({ 'dry-run': true, 'log-level': 'Info', 'no-input': true });
 
         await client.uploadArtifact(
           squirrelStatsLocalPath,
@@ -320,7 +322,11 @@ describe('gcsApi module', () => {
         await withTempDir(async tempDownloadDirectory => {
           expect.assertions(1);
 
-          process.env.DRY_RUN = 'true';
+          setGlobals({
+            'dry-run': true,
+            'log-level': 'Info',
+            'no-input': true,
+          });
 
           await client.downloadArtifact(
             squirrelSimulatorArtifact.storedFile.downloadFilepath,

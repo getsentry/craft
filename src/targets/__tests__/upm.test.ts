@@ -1,3 +1,4 @@
+import { setGlobals } from '../../utils/helpers';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { UpmTarget } from '../upm';
 
@@ -9,8 +10,8 @@ describe('UPM Target', () => {
     process.env = {
       ...cleanEnv,
       GITHUB_TOKEN: 'ghp_TAN21WJQkLtYVdHCh5eQJ8hTWoYvNh47gGWH',
-      DRY_RUN: 'false',
     };
+    setGlobals({ 'dry-run': false, 'log-level': 'Info', 'no-input': true });
     jest.resetAllMocks();
 
     upmTarget = new UpmTarget(
@@ -26,7 +27,7 @@ describe('UPM Target', () => {
 
   describe('artifacts', () => {
     beforeEach(() => {
-      process.env.DRY_RUN = 'false';
+      setGlobals({ 'dry-run': false, 'log-level': 'Info', 'no-input': true });
     });
     test.each`
       artifacts             | error
