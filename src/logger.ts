@@ -1,6 +1,10 @@
 import { addBreadcrumb, Severity } from '@sentry/node';
-import Table = require('cli-table');
-import consola = require('consola');
+import Table from 'cli-table';
+import consola, {
+  BasicReporter,
+  ConsolaReporterLogObject,
+  LogLevel,
+} from 'consola';
 
 /**
  * Format a list as a table
@@ -17,80 +21,22 @@ export function formatTable(
   return table.toString();
 }
 
-/***************************************************************/
-/**
- * Below: we module-export "consola" instance by default.
- */
-
-export enum LOG_LEVEL {
-  ERROR = 0,
-  WARN = 1,
-  INFO = 2,
-  SUCCESS = 3,
-  DEBUG = 4,
-  TRACE = 4,
-}
-
-/** Log entry as passed to consola reporters */
-interface LogEntry {
-  /** Entry type */
-  type: string;
-  /** Creation date */
-  date: string;
-  /** Message */
-  message: string;
-  /** Additional message (e.g. if more than one line) */
-  additional: string;
-}
-
-export type Logger = typeof consola;
+export { LogLevel as LogLevel };
 
 /** Reporter that sends logs to Sentry */
-class SentryBreadcrumbReporter {
-  /** Hook point for handling log entries */
-  public log(logEntry: LogEntry): void {
+class SentryBreadcrumbReporter extends BasicReporter {
+  public log(logObj: ConsolaReporterLogObject) {
     const breadcrumb = {
-      message: `${logEntry.message}\n${logEntry.additional}`,
-      level: logEntry.type as Severity,
+      message: this.formatLogObj(logObj),
+      level: logObj.type as Severity,
     };
     addBreadcrumb(breadcrumb);
   }
 }
 
-/**
- * Read logging level from the environment and return the appropriate enum value
- */
-function getLogLevelFromEnv(): LOG_LEVEL {
-  const logLevelName = (process.env.CRAFT_LOG_LEVEL || '').toUpperCase();
-  const logLevelNumber = LOG_LEVEL[logLevelName as keyof typeof LOG_LEVEL];
-  return logLevelNumber ?? consola.level;
-}
-
-/**
- * Set log level to the given level
- * @param logLevel desired log level
- */
-export function setLogLevel(logLevel: LOG_LEVEL): void {
-  consola.level = logLevel;
-}
-
-let initialized = false;
-
-/**
- * Initialize and return the logger
- * @param [logLevel] The desired logging level
- */
-export function init(logLevel?: LOG_LEVEL): Logger {
-  if (initialized) {
-    consola.warn('Logger already initialized, ignoring duplicate init.');
-  }
-
-  setLogLevel(logLevel !== undefined ? logLevel : getLogLevelFromEnv());
-  consola.reporters.push(new SentryBreadcrumbReporter());
-  initialized = true;
-  return consola;
-}
-
-setLogLevel(getLogLevelFromEnv());
-
-export { consola as logger };
+export const logger = consola.create({});
+// Pause until we set the logging level from helpers#setGlobals
+// This allows us to enqueue debug logging even before we set the
+// logging level. These are flushed as soon as we run `logger.resume()`.
+logger.pause();
+logger.addReporter(new SentryBreadcrumbReporter());

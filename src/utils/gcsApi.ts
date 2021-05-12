@@ -9,7 +9,7 @@ import {
 } from '@google-cloud/storage';
 import { isDryRun } from './helpers';
 
-import { logger, Logger, logger as loggerRaw } from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { reportError, ConfigurationError } from './errors';
 import { checkEnvForPrerequisite, RequiredConfigVar } from './env';
 import { detectContentType } from './files';
@@ -19,7 +19,7 @@ import { formatJson } from './strings';
 const DEFAULT_MAX_RETRIES = 5;
 export const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
 
-const defaultLogger = loggerRaw.withScope(`[gcs client]`);
+const logger = loggerRaw.withScope(`[gcs client]`);
 
 /**
  * Configuration options for the GCS bucket
@@ -33,8 +33,6 @@ export interface GCSBucketConfig {
   credentials: { client_email: string; private_key: string };
   /** Maximum number of retries after unsuccessful request */
   maxRetries?: number;
-  /** Optional custom logger to use when logging messages to the console */
-  logger?: Logger;
 }
 
 /**
@@ -76,8 +74,7 @@ interface GCSCreds {
  */
 export function getGCSCredsFromEnv(
   jsonVar: RequiredConfigVar,
-  filepathVar: RequiredConfigVar,
-  logger: Logger = defaultLogger
+  filepathVar: RequiredConfigVar
 ): GCSCreds {
   // make sure we have at least one of the necessary variables
   try {
@@ -139,8 +136,6 @@ export class CraftGCSClient {
   public readonly bucketName: string;
   /** CGS Client */
   private readonly bucket: GCSBucket;
-  /** Logger to use when logging messages to the console */
-  private readonly logger: Logger;
 
   public constructor(config: GCSBucketConfig) {
     const {
@@ -148,7 +143,6 @@ export class CraftGCSClient {
       projectId,
       credentials,
       maxRetries = DEFAULT_MAX_RETRIES,
-      logger = defaultLogger,
     } = config;
 
     this.bucketName = bucketName;
@@ -160,7 +154,6 @@ export class CraftGCSClient {
       }),
       bucketName
     );
-    this.logger = logger;
   }
 
   /**
@@ -205,7 +198,7 @@ export class CraftGCSClient {
     // currently don't preserve the content type of artifact provider files in
     // any way, so setting it on upload is pointless. Action item: fix this.
     if (contentType) {
-      this.logger.debug(
+      logger.debug(
         `Detected \`${filename}\` to be of type \`${contentType}\`.`
       );
     }
@@ -220,12 +213,12 @@ export class CraftGCSClient {
       resumable: !process.env.CI,
     };
 
-    this.logger.debug(
+    logger.debug(
       `File \`${filename}\`, upload options: ${formatJson(uploadConfig)}`
     );
 
     if (!isDryRun()) {
-      this.logger.debug(
+      logger.debug(
         `Attempting to upload \`${filename}\` to \`${path.posix.join(
           this.bucketName,
           pathInBucket
@@ -240,7 +233,7 @@ export class CraftGCSClient {
       }
 
       // TODO (kmclb) replace this with a `craft download` command once that's a thing
-      this.logger.debug(
+      logger.debug(
         `Successfully uploaded \`${filename}\`. It can be downloaded by running ` +
           `\`gsutil cp ${path.posix.join(
             'gs://',
@@ -250,7 +243,7 @@ export class CraftGCSClient {
           )} <path-to-download-location>\`.`
       );
     } else {
-      this.logger.info(`[dry-run] Skipping upload for \`${filename}\``);
+      logger.info(`[dry-run] Skipping upload for \`${filename}\``);
     }
   }
 
@@ -278,7 +271,7 @@ export class CraftGCSClient {
     }
 
     if (!isDryRun()) {
-      this.logger.debug(
+      logger.debug(
         `Attempting to download \`${destinationFilename}\` to \`${destinationDirectory}\`.`
       );
 
@@ -291,11 +284,9 @@ export class CraftGCSClient {
           ${formatJson(err)}`);
       }
 
-      this.logger.debug(`Successfully downloaded \`${destinationFilename}\`.`);
+      logger.debug(`Successfully downloaded \`${destinationFilename}\`.`);
     } else {
-      this.logger.info(
-        `[dry-run] Skipping download for \`${destinationFilename}\``
-      );
+      logger.info(`[dry-run] Skipping download for \`${destinationFilename}\``);
     }
 
     return path.join(destinationDirectory, destinationFilename);

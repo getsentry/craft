@@ -2,7 +2,7 @@ import Github from '@octokit/rest';
 import request from 'request';
 import { Duplex, Readable } from 'stream';
 
-import { LOG_LEVEL, logger } from '../logger';
+import { LogLevel, logger } from '../logger';
 
 import { ConfigurationError } from './errors';
 import { isDryRun } from './helpers';
@@ -138,7 +138,7 @@ export function getGithubClient(token = ''): Github {
     auth: `token ${githubApiToken}`,
   } as any;
 
-  if (logger.level >= LOG_LEVEL.DEBUG) {
+  if (logger.level >= LogLevel.Debug) {
     attrs.log = {
       info: (message: string, _: any) => {
         logger.debug(message);

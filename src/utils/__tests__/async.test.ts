@@ -1,3 +1,4 @@
+import { setGlobals } from '../../utils/helpers';
 import { filterAsync, forEachChained } from '../async';
 import { logger } from '../../logger';
 
@@ -150,7 +151,7 @@ describe('forEachChained', () => {
     }
 
     beforeEach(() => {
-      delete process.env.DRY_RUN;
+      setGlobals({ 'dry-run': false, 'log-level': 'Info', 'no-input': true });
     });
 
     it('blows up the first time sync iteratee errors (non-dry-run mode)', async () => {
@@ -162,13 +163,13 @@ describe('forEachChained', () => {
     });
 
     it('logs error but keeps going if in dry-run mode - sync iteratee', async () => {
-      process.env.DRY_RUN = 'true';
+      setGlobals({ 'dry-run': true, 'log-level': 'Info', 'no-input': true });
       await dryrunModeExpectCheck(syncIteratee);
     });
 
     it('logs error but keeps going if in dry-run mode - async iteratee', async () => {
-      process.env.DRY_RUN = 'true';
+      setGlobals({ 'dry-run': true, 'log-level': 'Info', 'no-input': true });
       await dryrunModeExpectCheck(asyncIteratee);
     });
   }); // end describe('sync and async iteratees in regular and dry-run mode')
-}); // end describe('forEachChained')
+});
