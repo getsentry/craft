@@ -67,7 +67,7 @@ function main(): void {
       describe: 'Logging level',
       global: true,
     })
-    .strict()
+    .strictCommands()
     .showHelpOnFail(true)
     .middleware(setGlobals)
     .parse();
