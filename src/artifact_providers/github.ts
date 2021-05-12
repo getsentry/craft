@@ -95,20 +95,15 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
 
     const allArtifacts = artifactResponse.artifacts;
 
-    // We need to find the archive where name maches the revision
-    const foundArtifacts = allArtifacts.filter(
-      artifact => artifact.name === revision
+    // We need to find the most recent archive where name maches the revision
+    const foundArtifact = allArtifacts.reduce((result, artifact) =>
+      artifact.name === revision && result?.created_at < artifact.created_at
+        ? artifact
+        : result
     );
 
-    if (foundArtifacts.length === 1) {
-      return foundArtifacts[0];
-    }
-
-    if (foundArtifacts.length > 1) {
-      throw new Error(
-        `Found multiple artifacts with the same revision \`${revision}\`\n` +
-          `Please make sure your job only uploads one set of artifacts.`
-      );
+    if (foundArtifact) {
+      return foundArtifact;
     }
 
     let checkNextPage = false;
@@ -145,10 +140,10 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     }
 
     if (artifactResponse.total_count === 0) {
-      throw new Error(`Failed to discover any artifacts (tries ${tries})`);
+      throw new Error(`Failed to discover any artifacts (tries: ${tries})`);
     } else {
       throw new Error(
-        `Can't find artifacts for revision \`${revision}\` (tries: ${tries})`
+        `Can't find any artifacts for revision "${revision}" (tries: ${tries})`
       );
     }
   }
