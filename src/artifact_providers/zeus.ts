@@ -137,7 +137,7 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
       // Zeus may know about a commit (from its role as a status provider) but
       // not have any files associated with that commit. In the former case
       // (known commit, no files), Zeus will return an empty list, whereas in
-      // the latter case(unknown commit), it will error.
+      // the latter case (unknown commit), it will error.
       // This error message check and the length check below are to disambiguate
       // those two situations.
       const errorMessage: string = e.message || '';
@@ -153,7 +153,7 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
     }
 
     // Zeus stores multiple copies of the same file for a given revision,
-    // take the one with the most recent update time
+    // take the one with the most recent update time.
     return Object.values(
       zeusArtifacts.reduce((dict, artifact) => {
         const updatedAt = Date.parse(artifact.updated_at ?? '') || 0;
