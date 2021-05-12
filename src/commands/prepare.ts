@@ -71,6 +71,11 @@ export const builder: CommandBuilder = (yargs: Argv) =>
       description: 'Run "publish" right after "release"',
       type: 'boolean',
     })
+    .option('remote', {
+      default: 'origin',
+      description: 'The git remote to use when pushing',
+      type: 'string',
+    })
     .check(checkVersionOrPart);
 
 /** Command line options. */
@@ -79,6 +84,8 @@ interface PrepareOptions {
   newVersion: string;
   /** The base revision to release */
   rev: string;
+  /** The git remote to use when pushing */
+  remote: string;
   /** Do not perform basic git checks */
   noGitChecks: boolean;
   /** Do not check for changelog */
@@ -128,6 +135,7 @@ async function createReleaseBranch(
   git: SimpleGit,
   rev: string,
   newVersion: string,
+  remoteName: string,
   releaseBranchPrefix?: string
 ): Promise<string> {
   const branchPrefix = releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
@@ -138,7 +146,6 @@ async function createReleaseBranch(
   // in case `show-ref` can't find a branch it returns `null`
   if (branchHead) {
     let errorMsg = `Branch already exists: ${branchName}. `;
-    const remoteName = getRemoteName();
     errorMsg +=
       'Run the following commands to delete the branch, and then rerun "prepare":\n';
     errorMsg += `    git branch -D ${branchName}; git push ${remoteName} --delete ${branchName}\n`;
@@ -165,9 +172,9 @@ async function createReleaseBranch(
 async function pushReleaseBranch(
   git: SimpleGit,
   branchName: string,
+  remoteName: string,
   pushFlag = true
 ): Promise<any> {
-  const remoteName = getRemoteName();
   if (pushFlag) {
     logger.info(`Pushing the release branch "${branchName}"...`);
     // TODO check remote somehow
@@ -486,6 +493,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     git,
     rev,
     newVersion,
+    argv.remote,
     config.releaseBranchPrefix
   );
 
@@ -510,7 +518,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   }
 
   // Push the release branch
-  await pushReleaseBranch(git, branchName, !argv.noPush);
+  await pushReleaseBranch(git, branchName, argv.remote, !argv.noPush);
 
   logger.info(
     `View diff at: https://github.com/${githubConfig.owner}/${githubConfig.repo}/compare/${branchName}`
@@ -529,15 +537,6 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   if (!argv.rev) {
     await switchToDefaultBranch(git, defaultBranch);
   }
-}
-
-/**
- * Gets Git remote name to use
- *
- * @returns Git remote name from environment or default
- */
-function getRemoteName(): string {
-  return process.env.CRAFT_REMOTE || 'origin';
 }
 
 export const handler = async (args: {
