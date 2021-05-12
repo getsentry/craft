@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.22.0
 
 - feat(config): Automatically detect GitHub config when missing (#208)
 - feat: Add upm target (#209)
