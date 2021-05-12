@@ -18,6 +18,7 @@ export interface GCSArtifactProviderConfig extends ArtifactProviderConfig {
  * Google Cloud Storage artifact provider
  */
 export class GCSArtifactProvider extends BaseArtifactProvider {
+  public readonly name = 'gcs';
   /** Client for interacting with the GCS bucket */
   private readonly gcsClient: CraftGCSClient;
 

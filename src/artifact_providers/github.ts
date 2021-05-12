@@ -45,6 +45,7 @@ interface ArchiveResponse extends Github.AnyResponse {
  * Github artifact provider
  */
 export class GithubArtifactProvider extends BaseArtifactProvider {
+  public readonly name = 'github';
   /** Github client */
   public readonly github: Github;
 

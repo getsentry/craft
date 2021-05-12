@@ -89,6 +89,7 @@ export interface ArtifactProviderConfig {
  * Base interface for artifact providers.
  */
 export abstract class BaseArtifactProvider {
+  public abstract readonly name: string;
   /** Cache for local paths to downloaded files */
   protected readonly downloadCache: {
     [key: string]: Promise<string> | undefined;

@@ -10,6 +10,7 @@ import { formatJson } from '../utils/strings';
  * Status provider that talks to GitHub to get commit checks (statuses)
  */
 export class GithubStatusProvider extends BaseStatusProvider {
+  public readonly name = 'github';
   /** Github client */
   private readonly github: Github;
 
