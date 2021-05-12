@@ -11,6 +11,7 @@
 - feat: Add config CLI command (#221)
 - feat(prepare): Add rev option to base a release on (#223)
 - ref: Unify global flags (#224)
+- fix(github-artifacts): Allow multiple artifacts on the SHA, use latest (#226)
 
 ## 0.21.1
 
