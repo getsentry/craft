@@ -97,7 +97,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
 
     // We need to find the most recent archive where name matches the revision.
     const foundArtifact = allArtifacts.reduce((result, artifact) =>
-      artifact.name === revision && result?.created_at < artifact.created_at
+      artifact.name === revision && result.created_at < artifact.created_at
         ? artifact
         : result
     );
