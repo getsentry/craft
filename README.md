@@ -62,13 +62,21 @@ then enforces a specific workflow for managing release branches, changelogs, art
 
 ## Installation
 
-The tool is distributed as an NPM package and can be installed via `npm` or `yarn`:
+### Binary
 
-```bash
+`craft` is [distributed as a minified single JS binary](https://github.com/getsentry/craft/releases/latest).
+
+### npm (not recommended)
+
+Recommendation is to used this file directly but one can also install `craft` as
+an [NPM package](https://yarn.pm/@sentry/craft) and can be installed via `yarn`
+or `npm`:
+
+```shell
 yarn global add @sentry/craft
+```
 
-# Or (not preferred):
-
+```shell
 npm install -g @sentry/craft
 ```
 
@@ -1098,24 +1106,26 @@ git diff --quiet || git commit -anm 'meta: Bump new development version' && git 
 
 ### Logging Level
 
-Logging level for `craft` can be configured via setting `CRAFT_LOG_LEVEL`
-environment variable.
+Logging level for `craft` can be configured via setting the `CRAFT_LOG_LEVEL`
+environment variable or using the `--log-level` CLI flag.
 
-Accepted values are: `debug`, `success` (default), `info`, `warn`, `error`.
+Accepted values are: `Fatal`, `Error`, `Warn`, `Log`, `Info`, `Success`,
+`Debug`, `Trace`, `Silent`, `Verbose`
 
 ### Dry-run Mode
 
-Dry-run mode can be enabled via setting `DRY_RUN` environment variable to any
-truthy value (any value other than `unset`, `""`, `0`, `false` and `no`).
+Dry-run mode can be enabled via setting the `CRAFT_DRY_RUN` environment variable
+to any truthy value (any value other than `undefined`, `null`, `""`, `0`,
+`false`, and `no`). One may also use the `--dry-run` CLI flag.
 
-In dry-run mode no destructive actions will be performed (creating branches,
-pushing tags, committing files, etc.)
+In dry-run mode no destructive actions will be performed (creating remote
+branches, pushing tags, committing files, etc.)
 
 ### Sentry Support
 
-Errors you encounter while using Craft can be sent to Sentry. To use this feature,
-add `CRAFT_SENTRY_DSN` variable to your environment (or "craft" configuration file) that
-contains a Sentry project's DSN.
+Errors you encounter while using Craft can be sent to Sentry. To use this
+feature, add `CRAFT_SENTRY_DSN` variable to your environment (or "craft"
+configuration file) that contains a Sentry project's DSN.
 
 For example:
 
@@ -1126,3 +1136,5 @@ export CRAFT_SENTRY_DSN='https://1234@sentry.io/2345'
 ### Releasing
 
 `craft` obviously uses `craft` for preparing and publishing new releases!
+
+[_Did you mean **recursion**?_](#craft-prepare-preparing-a-new-release)
