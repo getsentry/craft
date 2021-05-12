@@ -34,6 +34,7 @@ export interface RepositoryInfo {}
  * Base class for commit status providers
  */
 export abstract class BaseStatusProvider {
+  public abstract readonly name: string;
   public config: any;
 
   /**
@@ -61,9 +62,7 @@ export abstract class BaseStatusProvider {
 
     while (true) {
       const status = await this.getRevisionStatus(revision);
-      logger.debug(
-        `Got status "${status}" from status provider: ${this.constructor.name}`
-      );
+      logger.debug(`Got status "${status}" from status provider: ${this.name}`);
 
       if (status === CommitStatus.SUCCESS) {
         if (spinner.isSpinning) {

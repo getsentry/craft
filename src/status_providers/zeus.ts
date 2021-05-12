@@ -5,6 +5,7 @@ import { ZeusStore } from '../stores/zeus';
  * TODO
  */
 export class ZeusStatusProvider extends BaseStatusProvider {
+  public readonly name = 'zeus';
   /** Zeus API client */
   public readonly store: ZeusStore;
 

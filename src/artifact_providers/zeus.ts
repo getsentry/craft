@@ -23,6 +23,7 @@ const logger = loggerRaw.withScope(`[artifact-provider/zeus]`);
  * line tool.
  */
 export class ZeusArtifactProvider extends BaseArtifactProvider {
+  public readonly name = 'zeus';
   /** Zeus API client */
   public readonly client: ZeusClient;
 
