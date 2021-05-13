@@ -109,7 +109,8 @@ Options:
 
 - When interacting with remote GitHub repositories, `craft` uses the
   remote `origin` by default. If you have a different setup, set the
-  `CRAFT_REMOTE` environment variable to the git remote you are using.
+  `CRAFT_REMOTE` environment variable or the `--remote` option to the git remote
+  you are using.
 
 ## Global Configuration
 
@@ -194,6 +195,8 @@ Options:
                                                       [boolean] [default: false]
   --no-changelog   Do not check for changelog entries [boolean] [default: false]
   --publish        Run "publish" right after "release"[boolean] [default: false]
+  --remote         The git remote to use when pushing
+                                                    [string] [default: "origin"]
   -v, --version    Show version number                                 [boolean]
   -h, --help       Show help                                           [boolean]
 ```
