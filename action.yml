@@ -8,17 +8,9 @@ inputs:
   version:
     description: 'The version number for the new release'
     required: true
-  no_merge:
-    description: 'Do not merge the release branch after publishing'
-    required: false
-  keep_branch:
-    description: 'Do not remove release branch after merging it'
-    required: false
 runs:
   using: 'docker'
   image: 'docker://getsentry/craft'
   args:
     - ${{ inputs.action }}
     - ${{ inputs.version }}
-    - ${{ inputs.action == 'publish' && (inputs.no_merge || inputs.keep_branch) && inputs.no_merge || '--' }}
-    - ${{ inputs.action == 'publish' && (inputs.no_merge || inputs.keep_branch) && inputs.keep_branch || '--' }}
