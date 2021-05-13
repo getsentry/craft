@@ -244,15 +244,6 @@ function formatDigest(hash: Hash, format: HashOutputFormat): string {
 }
 
 /**
- * Sleep for the provided number of milliseconds
- *
- * @param ms Milliseconds to sleep
- */
-export async function sleepAsync(ms: number): Promise<void> {
-  return new Promise<void>(resolve => setTimeout(resolve, ms));
-}
-
-/**
  * Get current PATH and concatenate every entry with the provided file path
  *
  * @param fileName Base name of the given file

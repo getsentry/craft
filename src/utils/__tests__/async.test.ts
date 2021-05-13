@@ -1,5 +1,5 @@
 import { setGlobals } from '../../utils/helpers';
-import { filterAsync, forEachChained } from '../async';
+import { filterAsync, forEachChained, withRetry, sleep } from '../async';
 import { logger } from '../../logger';
 
 jest.mock('../../logger');
@@ -171,5 +171,68 @@ describe('forEachChained', () => {
       setGlobals({ 'dry-run': true, 'log-level': 'Info', 'no-input': true });
       await dryrunModeExpectCheck(asyncIteratee);
     });
-  }); // end describe('sync and async iteratees in regular and dry-run mode')
+  });
+});
+
+describe('sleepAsync', () => {
+  test('sleeps for at least the given number of ms', async () => {
+    const sleepMs = 50;
+    const timeStart = new Date().getTime();
+    await sleep(sleepMs);
+    const timeEnd = new Date().getTime();
+    const diff = timeEnd - timeStart;
+    expect(diff).toBeGreaterThanOrEqual(sleepMs - 1);
+    expect(diff).toBeLessThan(sleepMs * 2);
+  });
+});
+
+describe('withRetry', () => {
+  test('fails after max retries', async () => {
+    const fn = () => {
+      throw new Error('I always fail');
+    };
+    await expect(withRetry(fn)).rejects.toThrowErrorMatchingInlineSnapshot(
+      `"Max retries reached: 3"`
+    );
+  });
+
+  test('passes on second try', async () => {
+    let counter = 0;
+    const fn = async () => {
+      counter += 1;
+      if (counter % 2) {
+        throw new Error('I fail on odd numbers');
+      }
+      return 'success';
+    };
+    await expect(withRetry(fn)).resolves.toBe('success');
+  });
+
+  test('fails when onRetry returns false', async () => {
+    let counter = 0;
+    const fn = async () => {
+      counter += 1;
+      if (counter % 2) {
+        throw new Error('I fail on odd numbers');
+      }
+      return 'success';
+    };
+    await expect(
+      withRetry(fn, 5, () => Promise.resolve(false))
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`"Cancelled retry"`);
+  });
+
+  test('fails when onRetry throws', async () => {
+    let counter = 0;
+    const fn = async () => {
+      counter += 1;
+      if (counter % 2) {
+        throw new Error('I fail on odd numbers');
+      }
+      return 'success';
+    };
+    await expect(
+      withRetry(fn, 5, () => Promise.reject(new Error('no retries')))
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`"Cancelled retry"`);
+  });
 });

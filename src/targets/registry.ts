@@ -30,6 +30,7 @@ import {
 import * as registryUtils from '../utils/registry';
 import { getPackageDirPath } from '../utils/packagePath';
 import { isDryRun } from '../utils/helpers';
+import { withRetry } from '../utils/async';
 
 const logger = loggerRaw.withScope('[registry]');
 
@@ -372,13 +373,13 @@ export class RegistryTarget extends BaseTarget {
     await git.add(['.']);
     await git.commit(`craft: release "${canonicalName}", version "${version}"`);
 
-    // Ensure we are still up to date with upstream
-    await git.pull('origin', 'master', ['--rebase']);
-
     // Push!
     if (!isDryRun()) {
       logger.info(`Pushing the changes...`);
-      await git.push('origin', 'master');
+      // Ensure we are still up to date with upstream
+      await withRetry(() =>
+        git.pull('origin', 'master', ['--rebase']).push('origin', 'master')
+      );
     } else {
       logger.info('[dry-run] Not pushing the changes.');
     }

@@ -12,6 +12,7 @@ import {
 } from '../config';
 import { logger } from '../logger';
 import { ChangelogPolicy } from '../schemas/project_config';
+import { sleep } from '../utils/async';
 import {
   DEFAULT_CHANGELOG_PATH,
   DEFAULT_UNRELEASED_TITLE,
@@ -27,7 +28,7 @@ import {
 import { getDefaultBranch, getGithubClient } from '../utils/githubApi';
 import { isDryRun, promptConfirmation } from '../utils/helpers';
 import { formatJson } from '../utils/strings';
-import { sleepAsync, spawnProcess } from '../utils/system';
+import { spawnProcess } from '../utils/system';
 import { isValidVersion } from '../utils/version';
 
 import { handler as publishMainHandler, PublishOptions } from './publish';
@@ -308,7 +309,7 @@ async function execPublish(newVersion: string): Promise<never> {
     `Sleeping for ${SLEEP_BEFORE_PUBLISH_SECONDS} seconds before publishing...`
   );
   if (!isDryRun()) {
-    await sleepAsync(SLEEP_BEFORE_PUBLISH_SECONDS * 1000);
+    await sleep(SLEEP_BEFORE_PUBLISH_SECONDS * 1000);
   } else {
     logger.info('[dry-run] Not wasting time on sleep');
   }

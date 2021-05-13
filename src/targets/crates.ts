@@ -5,14 +5,10 @@ import simpleGit from 'simple-git';
 
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
-import { forEachChained } from '../utils/async';
+import { forEachChained, sleep, withRetry } from '../utils/async';
 import { ConfigurationError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
-import {
-  checkExecutableIsPresent,
-  sleepAsync,
-  spawnProcess,
-} from '../utils/system';
+import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 
@@ -268,19 +264,20 @@ export class CratesTarget extends BaseTarget {
 
     let delay = RETRY_DELAY_SECS;
     logger.info(`Publishing ${crate.name}`);
-    for (let i = 0; i <= MAX_ATTEMPTS; i++) {
-      try {
-        return await spawnProcess(CARGO_BIN, args, { env });
-      } catch (e) {
-        if (i < MAX_ATTEMPTS && e.message.includes(VERSION_ERROR)) {
-          logger.warn(`Publish failed, trying again in ${delay}s...`);
-          await sleepAsync(delay * 1000);
-          delay *= RETRY_EXP_FACTOR;
-        } else {
-          throw e;
+    await withRetry(
+      () => spawnProcess(CARGO_BIN, args, { env }),
+      MAX_ATTEMPTS,
+
+      async err => {
+        if (!err.message.includes(VERSION_ERROR)) {
+          return false;
         }
+        logger.warn(`Publish failed, trying again in ${delay}s...`);
+        await sleep(delay * 1000);
+        delay *= RETRY_EXP_FACTOR;
+        return true;
       }
-    }
+    );
   }
 
   /**
