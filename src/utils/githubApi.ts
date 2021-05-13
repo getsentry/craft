@@ -6,7 +6,7 @@ import { LogLevel, logger } from '../logger';
 
 import { ConfigurationError } from './errors';
 import { isDryRun } from './helpers';
-import { sleepAsync } from './system';
+import { sleep } from './async';
 
 export const HTTP_UNPROCESSABLE_ENTITY = 422;
 export const HTTP_RESPONSE_1XX = /^1\d\d$/;
@@ -378,7 +378,7 @@ export async function retryHttp<T>(
         if (params.cleanupFn) {
           await params.cleanupFn();
         }
-        await sleepAsync(params.cooldown);
+        await sleep(params.cooldown);
         retryNum += 1;
         continue;
       } else {

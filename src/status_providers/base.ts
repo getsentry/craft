@@ -1,6 +1,6 @@
 import ora from 'ora';
 
-import { sleepAsync } from '../utils/system';
+import { sleep } from '../utils/async';
 
 import { reportError } from '../utils/errors';
 
@@ -109,7 +109,7 @@ export abstract class BaseStatusProvider {
       const waitMessage = `[${timeString}] CI builds are still in progress, sleeping for ${BUILD_POLLING_INTERVAL} seconds...`;
       spinner.text = waitMessage;
       spinner.start();
-      await sleepAsync(BUILD_POLLING_INTERVAL * 1000);
+      await sleep(BUILD_POLLING_INTERVAL * 1000);
       secondsPassed += BUILD_POLLING_INTERVAL;
     }
   }

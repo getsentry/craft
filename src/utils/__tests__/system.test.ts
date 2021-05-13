@@ -9,7 +9,6 @@ import {
   HashAlgorithm,
   HashOutputFormat,
   replaceEnvVariable,
-  sleepAsync,
   spawnProcess,
 } from '../system';
 
@@ -89,18 +88,6 @@ describe('spawnProcess', () => {
 
     expect(mockedLogInfo).toHaveBeenCalledTimes(1);
     expect(mockedLogInfo.mock.calls[0][0]).toMatch(/test-string/);
-  });
-});
-
-describe('sleepAsync', () => {
-  test('sleeps for at least the given number of ms', async () => {
-    const sleepMs = 50;
-    const timeStart = new Date().getTime();
-    await sleepAsync(sleepMs);
-    const timeEnd = new Date().getTime();
-    const diff = timeEnd - timeStart;
-    expect(diff).toBeGreaterThanOrEqual(sleepMs - 1);
-    expect(diff).toBeLessThan(sleepMs * 2);
   });
 });
 

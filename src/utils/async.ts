@@ -49,3 +49,74 @@ export async function forEachChained<T>(
     Promise.resolve()
   );
 }
+
+/**
+ * Sleep for the provided number of milliseconds
+ *
+ * @param ms Milliseconds to sleep
+ */
+export async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Standard error extender from @mhio/exception
+class ExtendedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = this.constructor.name;
+    this.message = message;
+    if (typeof Error.captureStackTrace === 'function') {
+      Error.captureStackTrace(this, this.constructor);
+    } else {
+      this.stack = new Error(message).stack;
+    }
+  }
+}
+
+class RetryError extends ExtendedError {
+  constructor(message: string, error: Error) {
+    super(message);
+    const messageLines = (this.message.match(/\r?\n/g) || []).length + 1;
+    const stackList = (this.stack || '')
+      .split(/\r?\n/)
+      .slice(0, messageLines + 1);
+    if (error.stack) {
+      stackList.push(error.stack);
+    }
+    this.stack = stackList.join('\n');
+  }
+}
+
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  onRetry?: (err: Error) => Promise<boolean>
+): Promise<T> {
+  if (!onRetry) {
+    onRetry = () => Promise.resolve(true);
+  }
+  let error,
+    tries = 0;
+  while (maxRetries > tries) {
+    try {
+      return await fn();
+    } catch (err) {
+      error = err;
+      tries += 1;
+      try {
+        const shouldBreak = !(await onRetry(error));
+        if (shouldBreak) {
+          break;
+        }
+      } catch (onRetryErr) {
+        error = onRetryErr;
+        break;
+      }
+    }
+  }
+  if (tries >= maxRetries) {
+    throw new RetryError(`Max retries reached: ${maxRetries}`, error);
+  } else {
+    throw new RetryError('Cancelled retry', error);
+  }
+}
