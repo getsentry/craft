@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.1
+
+- fix(cli): Fix global flag parsing interference (#234)
+
 ## 0.22.0
 
 - feat(config): Automatically detect GitHub config when missing (#208)
