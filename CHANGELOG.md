@@ -2,7 +2,7 @@
 
 ## 0.22.1
 
-- fix(cli): Fix global flag parsing interference (#234)
+- fix(cli): Fix global flag parsing interference (#235)
 
 ## 0.22.0
 
