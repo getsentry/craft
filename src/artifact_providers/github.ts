@@ -19,7 +19,7 @@ import { extractZipArchive } from '../utils/system';
 
 const MAX_TRIES = 3;
 
-interface ArtifactItem {
+export interface ArtifactItem {
   id: number;
   name: string;
   size_in_bytes: number;
@@ -72,7 +72,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
    * @param revision
    * @param page
    */
-  private async listArtifact(
+  protected async getRevisionArtifact(
     revision: string,
     revisionDate?: string,
     page = 0,
@@ -135,7 +135,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     }
 
     if (tries < MAX_TRIES) {
-      return this.listArtifact(revision, revisionDate, page, tries);
+      return this.getRevisionArtifact(revision, revisionDate, page, tries);
     }
 
     if (artifactResponse.total_count === 0) {
@@ -230,7 +230,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       `Fetching Github artifacts for ${repoOwner}/${repoName}, revision ${revision}`
     );
 
-    const foundArtifact = await this.listArtifact(revision);
+    const foundArtifact = await this.getRevisionArtifact(revision);
 
     this.logger.debug(`Requesting archive URL from Github...`);
 
