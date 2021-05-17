@@ -1,4 +1,3 @@
-import { logger as loggerRaw } from '../logger';
 import {
   BaseArtifactProvider,
   RemoteArtifact,
@@ -7,8 +6,6 @@ import { reportError } from '../utils/errors';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 import { TargetConfig } from '../schemas/project_config';
-
-const logger = loggerRaw.withScope('[gem]');
 
 const DEFAULT_GEM_BIN = 'gem';
 
@@ -54,7 +51,7 @@ export class GemTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(_version: string, revision: string): Promise<any> {
-    logger.debug('Fetching artifact list...');
+    this.logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_GEM_REGEX,
     });
@@ -67,11 +64,11 @@ export class GemTarget extends BaseTarget {
     await Promise.all(
       packageFiles.map(async (file: RemoteArtifact) => {
         const path = await this.artifactProvider.downloadArtifact(file);
-        logger.info(`Pushing gem "${file.filename}"`);
+        this.logger.info(`Pushing gem "${file.filename}"`);
         return this.pushGem(path);
       })
     );
 
-    logger.info('Successfully registered gem');
+    this.logger.info('Successfully registered gem');
   }
 }

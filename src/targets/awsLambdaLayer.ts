@@ -10,7 +10,6 @@ import {
   GithubRemote,
 } from '../utils/githubApi';
 
-import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
@@ -27,8 +26,6 @@ import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
 import { isPreviewRelease } from '../utils/version';
 import { getRegistryGithubRemote } from '../utils/registry';
-
-const logger = loggerRaw.withScope(`[aws-lambda-layer]`);
 
 const DEFAULT_REGISTRY_REMOTE: GithubRemote = getRegistryGithubRemote();
 
@@ -117,7 +114,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   public async publish(version: string, revision: string): Promise<any> {
     this.checkProjectConfig();
 
-    logger.debug('Fetching artifact list...');
+    this.logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames:
         this.config.includeNames === undefined
@@ -142,7 +139,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     );
 
     const awsRegions = extractRegionNames(await getRegionsFromAws());
-    logger.debug('AWS regions: ' + awsRegions);
+    this.logger.debug('AWS regions: ' + awsRegions);
 
     const remote = this.awsLambdaConfig.registryRemote;
     const username = await getAuthUsername(this.github);
@@ -151,7 +148,9 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     await withTempDir(
       async directory => {
         const git = simpleGit(directory);
-        logger.info(`Cloning ${remote.getRemoteString()} to ${directory}...`);
+        this.logger.info(
+          `Cloning ${remote.getRemoteString()} to ${directory}...`
+        );
         await git.clone(remote.getRemoteStringWithAuth(), directory);
 
         if (!isDryRun()) {
@@ -161,9 +160,9 @@ export class AwsLambdaLayerTarget extends BaseTarget {
             awsRegions,
             artifactBuffer
           );
-          logger.debug('Finished publishing runtimes.');
+          this.logger.debug('Finished publishing runtimes.');
         } else {
-          logger.info('[dry-run] Not publishing new layers.');
+          this.logger.info('[dry-run] Not publishing new layers.');
         }
 
         await git.add(['.']);
@@ -176,16 +175,64 @@ export class AwsLambdaLayerTarget extends BaseTarget {
             `v${version} for ${runtimeNames}`
         );
 
-        if (
-          isPushableToRegistry(version, this.awsLambdaConfig.linkPrereleases)
-        ) {
-          logger.info('Pushing changes...');
+        if (this.isPushableToRegistry(version)) {
+          this.logger.info('Pushing changes...');
           await git.push();
         }
       },
       true,
       'craft-release-awslambdalayer-'
     );
+  }
+
+  /**
+   * Returns whether the current version release should be pushed to the registy.
+   *
+   * If the dry-run mode is enabled, the release is not pusheable.
+   * If the release is a preview release, unless otherwise stated in the
+   * configuration, the release is not pusheable.
+   * In any other case, the release is pusheable.
+   *
+   * @param version The new version to be released.
+   * @param linkPrereleases Whether the current release is a prerelease.
+   */
+  private isPushableToRegistry(version: string): boolean {
+    if (isDryRun()) {
+      this.logger.info('[dry-run] Not pushing the branch.');
+      return false;
+    }
+    if (isPreviewRelease(version) && !this.awsLambdaConfig.linkPrereleases) {
+      // preview release
+      this.logger.info(
+        "Preview release detected, not updating the layer's data."
+      );
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Creates symlinks to the new version file, and updates previous ones if needed.
+   * @param directory The directory where symlinks will be created.
+   * @param version The new version to be released.
+   * @param versionFilepath Path to the new version file.
+   */
+  private createVersionSymlinks(
+    directory: string,
+    version: string,
+    versionFilepath: string
+  ): void {
+    this.logger.debug(`Creating symlinks...`);
+    const latestVersionPath = path.posix.join(directory, 'latest.json');
+    if (fs.existsSync(latestVersionPath)) {
+      const previousVersion = fs
+        .readlinkSync(latestVersionPath)
+        .split('.json')[0];
+      createSymlinks(versionFilepath, version, previousVersion);
+    } else {
+      // When no previous versions are found, just create symlinks.
+      createSymlinks(versionFilepath, version);
+    }
   }
 
   /**
@@ -203,7 +250,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   ): Promise<void> {
     await Promise.all(
       this.config.compatibleRuntimes.map(async (runtime: CompatibleRuntime) => {
-        logger.debug(`Publishing runtime ${runtime.name}...`);
+        this.logger.debug(`Publishing runtime ${runtime.name}...`);
         const layerManager = new AwsLambdaLayerManager(
           runtime,
           this.config.layerName,
@@ -215,9 +262,9 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         let publishedLayers = [];
         try {
           publishedLayers = await layerManager.publishToAllRegions();
-          logger.debug('Finished publishing to all regions.');
+          this.logger.debug('Finished publishing to all regions.');
         } catch (error) {
-          logger.error(
+          this.logger.error(
             `Did not publish layers for ${runtime.name}. ` +
               `Something went wrong with AWS: ${error.message}`
           );
@@ -226,10 +273,10 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
         // If no layers have been created, don't do extra work updating files.
         if (publishedLayers.length == 0) {
-          logger.info(`${runtime.name}: no layers published.`);
+          this.logger.info(`${runtime.name}: no layers published.`);
           return;
         } else {
-          logger.info(
+          this.logger.info(
             `${runtime.name}: ${publishedLayers.length} layers published.`
           );
         }
@@ -241,7 +288,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           runtime.name
         );
         if (!fs.existsSync(runtimeBaseDir)) {
-          logger.warn(
+          this.logger.warn(
             `Directory structure for ${runtime.name} is missing, skipping file creation.`
           );
           return;
@@ -273,7 +320,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         );
 
         if (!fs.existsSync(baseFilepath)) {
-          logger.warn(`The ${runtime.name} base file is missing.`);
+          this.logger.warn(`The ${runtime.name} base file is missing.`);
           fs.writeFileSync(newVersionFilepath, JSON.stringify(runtimeData));
         } else {
           const baseData = JSON.parse(fs.readFileSync(baseFilepath).toString());
@@ -283,60 +330,11 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           );
         }
 
-        createVersionSymlinks(runtimeBaseDir, version, newVersionFilepath);
-        logger.info(`${runtime.name}: created files and updated symlinks.`);
+        this.createVersionSymlinks(runtimeBaseDir, version, newVersionFilepath);
+        this.logger.info(
+          `${runtime.name}: created files and updated symlinks.`
+        );
       })
     );
   }
-}
-
-/**
- * Creates symlinks to the new version file, and updates previous ones if needed.
- * @param directory The directory where symlinks will be created.
- * @param version The new version to be released.
- * @param versionFilepath Path to the new version file.
- */
-function createVersionSymlinks(
-  directory: string,
-  version: string,
-  versionFilepath: string
-): void {
-  logger.debug(`Creating symlinks...`);
-  const latestVersionPath = path.posix.join(directory, 'latest.json');
-  if (fs.existsSync(latestVersionPath)) {
-    const previousVersion = fs
-      .readlinkSync(latestVersionPath)
-      .split('.json')[0];
-    createSymlinks(versionFilepath, version, previousVersion);
-  } else {
-    // When no previous versions are found, just create symlinks.
-    createSymlinks(versionFilepath, version);
-  }
-}
-
-/**
- * Returns whether the current version release should be pushed to the registy.
- *
- * If the dry-run mode is enabled, the release is not pusheable.
- * If the release is a preview release, unless otherwise stated in the
- * configuration, the release is not pusheable.
- * In any other case, the release is pusheable.
- *
- * @param version The new version to be released.
- * @param linkPrereleases Whether the current release is a prerelease.
- */
-function isPushableToRegistry(
-  version: string,
-  linkPrereleases: boolean
-): boolean {
-  if (isDryRun()) {
-    logger.info('[dry-run] Not pushing the branch.');
-    return false;
-  }
-  if (isPreviewRelease(version) && !linkPrereleases) {
-    // preview release
-    logger.info("Preview release detected, not updating the layer's data.");
-    return false;
-  }
-  return true;
 }

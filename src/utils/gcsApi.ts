@@ -9,7 +9,7 @@ import {
 } from '@google-cloud/storage';
 import { isDryRun } from './helpers';
 
-import { logger as loggerRaw } from '../logger';
+import { logger } from '../logger';
 import { reportError, ConfigurationError } from './errors';
 import { checkEnvForPrerequisite, RequiredConfigVar } from './env';
 import { detectContentType } from './files';
@@ -18,8 +18,6 @@ import { formatJson } from './strings';
 
 const DEFAULT_MAX_RETRIES = 5;
 export const DEFAULT_UPLOAD_METADATA = { cacheControl: `public, max-age=300` };
-
-const logger = loggerRaw.withScope(`[gcs client]`);
 
 /**
  * Configuration options for the GCS bucket

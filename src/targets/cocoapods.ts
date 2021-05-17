@@ -3,7 +3,6 @@ import * as fs from 'fs';
 import { basename, join } from 'path';
 import { promisify } from 'util';
 
-import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
@@ -12,8 +11,6 @@ import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 const writeFile = promisify(fs.writeFile);
-
-const logger = loggerRaw.withScope('[cocoapods]');
 
 const DEFAULT_COCOAPODS_BIN = 'pod';
 
@@ -77,7 +74,7 @@ export class CocoapodsTarget extends BaseTarget {
     const { owner, repo } = this.githubRepo;
     const specPath = this.cocoapodsConfig.specPath;
 
-    logger.info(`Loading podspec from ${owner}/${repo}:${specPath}`);
+    this.logger.info(`Loading podspec from ${owner}/${repo}:${specPath}`);
     const specContents = await getFile(
       this.github,
       owner,
@@ -98,7 +95,7 @@ export class CocoapodsTarget extends BaseTarget {
         const filePath = join(directory, fileName);
         await writeFile(filePath, specContents, 'utf8');
 
-        logger.info(`Pushing podspec "${fileName}" to cocoapods...`);
+        this.logger.info(`Pushing podspec "${fileName}" to cocoapods...`);
         await spawnProcess(COCOAPODS_BIN, ['setup']);
         await spawnProcess(
           COCOAPODS_BIN,
@@ -115,6 +112,6 @@ export class CocoapodsTarget extends BaseTarget {
       'craft-cocoapods-'
     );
 
-    logger.info('Cocoapods release complete');
+    this.logger.info('Cocoapods release complete');
   }
 }

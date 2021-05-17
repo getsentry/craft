@@ -3,7 +3,6 @@ import { createReadStream, statSync } from 'fs';
 import { basename, posix } from 'path';
 
 import { getConfiguration } from '../config';
-import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import {
   Changeset,
@@ -21,8 +20,6 @@ import { isDryRun } from '../utils/helpers';
 import { isPreviewRelease, versionToTag } from '../utils/version';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
-
-const logger = loggerRaw.withScope('[github]');
 
 /**
  * Default content type for GitHub release assets
@@ -120,7 +117,7 @@ export class GithubTarget extends BaseTarget {
     revision: string,
     tag: string
   ): Promise<void> {
-    logger.debug(`Creating a tag object: "${tag}"`);
+    this.logger.debug(`Creating a tag object: "${tag}"`);
     const createTagParams = {
       message: `Tag for release: ${version}`,
       object: revision,
@@ -133,7 +130,7 @@ export class GithubTarget extends BaseTarget {
 
     const ref = `refs/tags/${tag}`;
     const refSha = tagCreatedResponse.data.sha;
-    logger.debug(`Creating a reference "${ref}" for object "${refSha}"`);
+    this.logger.debug(`Creating a reference "${ref}" for object "${refSha}"`);
     try {
       await this.github.git.createRef({
         owner: this.githubConfig.owner,
@@ -143,7 +140,7 @@ export class GithubTarget extends BaseTarget {
       });
     } catch (e) {
       if (e.message && e.message.match(/reference already exists/i)) {
-        logger.error(
+        this.logger.error(
           `Reference "${ref}" already exists. Does tag "${tag}" already exist?`
         );
       }
@@ -169,7 +166,7 @@ export class GithubTarget extends BaseTarget {
     changes?: Changeset
   ): Promise<GithubRelease> {
     const tag = versionToTag(version, this.githubConfig.tagPrefix);
-    logger.info(`Git tag: "${tag}"`);
+    this.logger.info(`Git tag: "${tag}"`);
     const isPreview =
       this.githubConfig.previewReleases && isPreviewRelease(version);
 
@@ -179,13 +176,13 @@ export class GithubTarget extends BaseTarget {
         repo: this.githubConfig.repo,
         tag,
       });
-      logger.warn(`Found the existing release for tag "${tag}"`);
+      this.logger.warn(`Found the existing release for tag "${tag}"`);
       return response.data;
     } catch (e) {
       if (e.status !== 404) {
         throw e;
       }
-      logger.debug(`Release for tag "${tag}" not found.`);
+      this.logger.debug(`Release for tag "${tag}" not found.`);
     }
 
     const createReleaseParams = {
@@ -199,7 +196,7 @@ export class GithubTarget extends BaseTarget {
       ...changes,
     };
 
-    logger.debug(`Annotated tag: ${this.githubConfig.annotatedTag}`);
+    this.logger.debug(`Annotated tag: ${this.githubConfig.annotatedTag}`);
     if (!isDryRun()) {
       if (this.githubConfig.annotatedTag) {
         await this.createAnnotatedTag(version, revision, tag);
@@ -207,7 +204,7 @@ export class GithubTarget extends BaseTarget {
         createReleaseParams.target_commitish = '';
       }
 
-      logger.info(
+      this.logger.info(
         `Creating a new ${
           isPreview ? '*preview* ' : ''
         }release for tag "${tag}"`
@@ -217,7 +214,7 @@ export class GithubTarget extends BaseTarget {
       );
       return created.data;
     } else {
-      logger.info(`[dry-run] Not creating the release`);
+      this.logger.info(`[dry-run] Not creating the release`);
       return {
         id: 0,
         tag_name: tag,
@@ -241,7 +238,10 @@ export class GithubTarget extends BaseTarget {
       name: version,
       body: '',
     };
-    logger.debug('Changes extracted from changelog: ', JSON.stringify(changes));
+    this.logger.debug(
+      'Changes extracted from changelog: ',
+      JSON.stringify(changes)
+    );
     return changes;
   }
 
@@ -256,11 +256,11 @@ export class GithubTarget extends BaseTarget {
     asset: Github.ReposListAssetsForReleaseResponseItem
   ): Promise<void> {
     if (isDryRun()) {
-      logger.debug(`[dry-run] Not deleting the asset: "${asset.name}"`);
+      this.logger.debug(`[dry-run] Not deleting the asset: "${asset.name}"`);
       return;
     }
 
-    logger.debug(`Deleting asset: "${asset.name}"...`);
+    this.logger.debug(`Deleting asset: "${asset.name}"...`);
     return retryHttp(async () =>
       this.github.repos.deleteReleaseAsset({
         asset_id: asset.id,
@@ -350,8 +350,8 @@ export class GithubTarget extends BaseTarget {
       name,
       url: release.upload_url,
     };
-    logger.debug('Upload parameters:', JSON.stringify(params));
-    logger.info(
+    this.logger.debug('Upload parameters:', JSON.stringify(params));
+    this.logger.info(
       `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}`
     );
     if (!isDryRun()) {
@@ -360,7 +360,7 @@ export class GithubTarget extends BaseTarget {
           async () => this.github.repos.uploadReleaseAsset(params),
           {
             cleanupFn: async () => {
-              logger.debug('Cleaning up before the next retry...');
+              this.logger.debug('Cleaning up before the next retry...');
               return this.deleteAssetsByFilename(release, name);
             },
             retries: 5,
@@ -368,12 +368,12 @@ export class GithubTarget extends BaseTarget {
           }
         );
       } catch (e) {
-        logger.error(`Cannot upload asset "${name}".`);
+        this.logger.error(`Cannot upload asset "${name}".`);
         throw e;
       }
-      logger.log(`Uploaded asset "${name}".`);
+      this.logger.log(`Uploaded asset "${name}".`);
     } else {
-      logger.info(`[dry-run] Not uploading asset "${name}"`);
+      this.logger.info(`[dry-run] Not uploading asset "${name}"`);
     }
   }
 
@@ -390,15 +390,17 @@ export class GithubTarget extends BaseTarget {
     const release = await this.getOrCreateRelease(version, revision, changes);
 
     if (isDryRun()) {
-      logger.info(
+      this.logger.info(
         `[dry-run] Skipping check for existing assets for the release`
       );
     } else {
       const assets = await this.getAssetsForRelease(release);
       if (assets.length > 0) {
-        logger.warn('Existing assets found for the release, deleting them...');
+        this.logger.warn(
+          'Existing assets found for the release, deleting them...'
+        );
         await this.deleteAssets(assets);
-        logger.debug(`Deleted ${assets.length} assets`);
+        this.logger.debug(`Deleted ${assets.length} assets`);
       }
     }
 

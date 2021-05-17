@@ -8,7 +8,6 @@ import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../artifact_providers/base';
-import { logger as loggerRaw } from '../logger';
 import { getGithubClient } from '../utils/githubApi';
 import {
   detectContentType,
@@ -19,8 +18,6 @@ import {
 import { extractZipArchive } from '../utils/system';
 
 const MAX_TRIES = 3;
-
-const logger = loggerRaw.withScope(`[artifact-provider/github]`);
 
 interface ArtifactItem {
   id: number;
@@ -62,7 +59,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     downloadDirectory: string
   ): Promise<string> {
     const destination = path.join(downloadDirectory, artifact.filename);
-    logger.debug(
+    this.logger.debug(
       `rename ${artifact.storedFile.downloadFilepath} to ${destination}`
     );
     fs.renameSync(artifact.storedFile.downloadFilepath, destination);
@@ -94,16 +91,18 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       })
     ).data as unknown) as ArtifactList;
 
-    const allArtifacts = artifactResponse.artifacts;
+    const { artifacts } = artifactResponse;
+    this.logger.debug(`All available artifacts on page ${page}:`, artifacts);
 
     // We need to find the most recent archive where name matches the revision.
-    const foundArtifact = allArtifacts.reduce((result, artifact) =>
+    const foundArtifact = artifacts.reduce((result, artifact) =>
       artifact.name === revision && result.created_at < artifact.created_at
         ? artifact
         : result
     );
 
     if (foundArtifact) {
+      this.logger.debug(`Found artifact on page ${page}:`, foundArtifact);
       return foundArtifact;
     }
 
@@ -124,7 +123,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       // the artifacts are listed in descending date order on this endpoint.
       // There is no public documentation on this but the observed data and
       // common-sense logic suggests that this is a reasonably safe assumption.
-      const lastArtifact = allArtifacts[allArtifacts.length - 1];
+      const lastArtifact = artifacts[artifacts.length - 1];
       checkNextPage = lastArtifact.created_at >= revisionDate;
     }
 
@@ -165,7 +164,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
         request({ uri: archiveResponse.url })
           .pipe(file)
           .on('finish', () => {
-            logger.info(`Finished downloading.`);
+            this.logger.info(`Finished downloading.`);
             resolve();
           })
           .on('error', error => {
@@ -174,7 +173,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       });
 
       await withTempDir(async tmpDir => {
-        logger.debug(`Extracting "${tempFilepath}" to "${tmpDir}"...`);
+        this.logger.debug(`Extracting "${tempFilepath}" to "${tmpDir}"...`);
         await extractZipArchive(tempFilepath, tmpDir);
         (await scan(tmpDir)).forEach(file => {
           artifacts.push({
@@ -228,17 +227,17 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
   ): Promise<RemoteArtifact[]> {
     const { repoName, repoOwner } = this.config;
 
-    logger.info(
+    this.logger.info(
       `Fetching Github artifacts for ${repoOwner}/${repoName}, revision ${revision}`
     );
 
     const foundArtifact = await this.listArtifact(revision);
 
-    logger.debug(`Requesting archive URL from Github...`);
+    this.logger.debug(`Requesting archive URL from Github...`);
 
     const archiveResponse = await this.getArchiveDownloadUrl(foundArtifact);
 
-    logger.debug(`Downloading ZIP from Github artifacts...`);
+    this.logger.debug(`Downloading ZIP from Github artifacts...`);
 
     return await this.downloadAndUnpackArtifacts(archiveResponse);
   }
