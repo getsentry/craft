@@ -1,6 +1,6 @@
 import { DescribeRegionsCommandOutput, EC2 } from '@aws-sdk/client-ec2';
 import { Lambda } from '@aws-sdk/client-lambda';
-import { logger } from 'src/logger';
+import { logger } from '../logger';
 
 /** Prefix of the canonical name. */
 const RUNTIME_CANONICAL_PREFIX = 'aws-layer:';
