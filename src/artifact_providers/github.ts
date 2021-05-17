@@ -94,14 +94,14 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       })
     ).data as unknown) as ArtifactList;
 
-    const allArtifacts = artifactResponse.artifacts;
+    const { artifacts } = artifactResponse;
 
     // We need to find the most recent archive where name matches the revision.
-    const foundArtifact = allArtifacts.reduce((result, artifact) =>
-      artifact.name === revision && result.created_at < artifact.created_at
+    const foundArtifact = artifacts.reduce((result, artifact) =>
+      artifact.name === revision && (!result || result.created_at < artifact.created_at)
         ? artifact
         : result
-    );
+    , null as ArtifactItem | null);
 
     if (foundArtifact) {
       return foundArtifact;
@@ -124,7 +124,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       // the artifacts are listed in descending date order on this endpoint.
       // There is no public documentation on this but the observed data and
       // common-sense logic suggests that this is a reasonably safe assumption.
-      const lastArtifact = allArtifacts[allArtifacts.length - 1];
+      const lastArtifact = artifacts[artifacts.length - 1];
       checkNextPage = lastArtifact.created_at >= revisionDate;
     }
 
