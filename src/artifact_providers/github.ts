@@ -97,16 +97,13 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     const { artifacts } = artifactResponse;
 
     // We need to find the most recent archive where name matches the revision.
-    let foundArtifact: ArtifactItem | undefined;
-    for (const artifact of artifacts) {
-      if (
-        artifact.name === revision &&
-        (!foundArtifact || foundArtifact.created_at < artifact.created_at)
-      ) {
-        foundArtifact = artifact;
-      }
-    }
-
+    // XXX(BYK): we assume the artifacts are listed in descending date order on
+    // this endpoint.
+    // There is no public documentation on this but the observed data and
+    // common-sense logic suggests that this is a reasonably safe assumption.
+    const foundArtifact = artifacts.find(
+      artifact => artifact.name === revision
+    );
     if (foundArtifact) {
       return foundArtifact;
     }
