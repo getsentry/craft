@@ -1,4 +1,6 @@
-import { DescribeRegionsCommandOutput, EC2 } from '@aws-sdk/client-ec2';
+import * as XmlParser from 'fast-xml-parser';
+import { promisify } from 'util';
+import request from 'request';
 import { Lambda } from '@aws-sdk/client-lambda';
 import { logger } from '../logger';
 
@@ -128,35 +130,35 @@ export class AwsLambdaLayerManager {
   }
 }
 
+interface Region {
+  regionName: string;
+  regionEndpoint: string;
+}
+
 /**
  * Requests all regions that are enabled for the current account (or all
  * regions) to AWS. For more information, see
  * https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/EC2.html#describeRegions-property
  */
-export async function getRegionsFromAws(): Promise<DescribeRegionsCommandOutput> {
+export async function getRegionsFromAws(): Promise<string[]> {
   logger.debug('Fetching AWS regions...');
-  const ec2 = new EC2({ region: 'us-east-2' });
-  try {
-    return await ec2.describeRegions({});
-  } catch (error) {
-    throw new Error('AWS error fetching regions.');
-  }
-}
-
-/**
- * Extracts the region name from each region, when available.
- * @param awsRegions data containing the regions returned by AWS.
- */
-export function extractRegionNames(
-  awsRegions: DescribeRegionsCommandOutput
-): string[] {
-  const regionNames: string[] = [];
-  awsRegions.Regions?.map(currentRegion => {
-    if (currentRegion.RegionName !== undefined) {
-      regionNames.push(currentRegion.RegionName);
-    }
-  });
-  return regionNames;
+  return promisify(request.get)({
+    uri:
+      'https://ec2.us-east-2.amazonaws.com/?Action=DescribeRegions&Version=2013-10-15',
+    aws: {
+      // @ts-ignore bad type info
+      key: process.env.AWS_ACCESS_KEY_ID || '',
+      secret: process.env.AWS_SECRET_ACCESS_KEY || '',
+      sign_version: 4,
+      service: 'ec2',
+    },
+  }).then(data =>
+    XmlParser.parse(data.body)
+      .DescribeRegionsResponse.regionInfo.item.map(
+        (region: Region) => region.regionName
+      )
+      .filter(Boolean)
+  );
 }
 
 /**

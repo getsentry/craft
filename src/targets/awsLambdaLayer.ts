@@ -17,7 +17,6 @@ import { ConfigurationError, reportError } from '../utils/errors';
 import {
   AwsLambdaLayerManager,
   CompatibleRuntime,
-  extractRegionNames,
   getAccountFromArn,
   getRegionsFromAws,
 } from '../utils/awsLambdaLayerManager';
@@ -138,7 +137,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       await this.artifactProvider.downloadArtifact(packageFiles[0])
     );
 
-    const awsRegions = extractRegionNames(await getRegionsFromAws());
+    const awsRegions = await getRegionsFromAws();
     this.logger.debug('AWS regions: ' + awsRegions);
 
     const remote = this.awsLambdaConfig.registryRemote;

@@ -1,4 +1,3 @@
-import { DescribeRegionsCommandOutput } from '@aws-sdk/client-ec2';
 import * as awsManager from '../awsLambdaLayerManager';
 
 const CANONICAL_SEPARATOR = ':';
@@ -8,9 +7,6 @@ const COMPATIBLE_RUNTIME_DATA = {
   versions: ['test version 1', 'test version 2'],
 };
 const AWS_TEST_REGIONS = ['test aws region 1', 'test aws region 2'];
-
-/** The default region used to fetch all available AWS regions. */
-const DEFAULT_REGION = 'us-east-2';
 
 function getTestAwsLambdaLayerManager(): awsManager.AwsLambdaLayerManager {
   return new awsManager.AwsLambdaLayerManager(
@@ -38,38 +34,6 @@ describe('utils', () => {
     const testArn =
       'arn:aws:lambda:region:' + testAccount + ':layer:layerName:version';
     expect(awsManager.getAccountFromArn(testArn)).toBe(testAccount);
-  });
-
-  test('get regions', async () => {
-    const regions = await awsManager.getRegionsFromAws();
-    expect(regions).toBe(DEFAULT_REGION);
-  });
-
-  test('extract region names', () => {
-    const testRegionName1 = 'eu-north-1';
-    const testRegionName2 = 'ap-south-1';
-
-    const regionsToExtract = {
-      Regions: [
-        {
-          Endpoint: 'ec2.eu-north-1.amazonaws.com',
-          RegionName: testRegionName1,
-          OptInStatus: 'opt-in-not-required',
-        },
-        {
-          Endpoint: 'ec2.ap-south-1.amazonaws.com',
-          RegionName: testRegionName2,
-          OptInStatus: 'opt-in-not-required',
-        },
-      ],
-    };
-    const extractedRegionNames = [testRegionName1, testRegionName2];
-
-    expect(
-      awsManager.extractRegionNames(
-        regionsToExtract as DescribeRegionsCommandOutput
-      )
-    ).toStrictEqual(extractedRegionNames);
   });
 });
 
