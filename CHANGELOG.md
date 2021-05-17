@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.2
+
+- fix(logging): Fix scoped loggers not respecting log level (#236)
+
 ## 0.22.1
 
 - fix(cli): Fix global flag parsing interference (#235)
