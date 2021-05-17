@@ -13,7 +13,6 @@ const mockRepos = {
   getContents: jest.fn(),
 };
 
-// TODO rewrite with module mock, port github helpers from probot-release
 jest.mock('@octokit/rest', () =>
   jest.fn().mockImplementation(() => ({ repos: mockRepos }))
 );

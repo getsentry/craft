@@ -19,7 +19,7 @@ import { extractZipArchive } from '../utils/system';
 
 const MAX_TRIES = 3;
 
-interface ArtifactItem {
+export interface ArtifactItem {
   id: number;
   name: string;
   size_in_bytes: number;
@@ -72,7 +72,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
    * @param revision
    * @param page
    */
-  private async listArtifact(
+  protected async getRevisionArtifact(
     revision: string,
     revisionDate?: string,
     page = 0,
@@ -95,12 +95,13 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     this.logger.debug(`All available artifacts on page ${page}:`, artifacts);
 
     // We need to find the most recent archive where name matches the revision.
-    const foundArtifact = artifacts.reduce((result, artifact) =>
-      artifact.name === revision && result.created_at < artifact.created_at
-        ? artifact
-        : result
+    // XXX(BYK): we assume the artifacts are listed in descending date order on
+    // this endpoint.
+    // There is no public documentation on this but the observed data and
+    // common-sense logic suggests that this is a reasonably safe assumption.
+    const foundArtifact = artifacts.find(
+      artifact => artifact.name === revision
     );
-
     if (foundArtifact) {
       this.logger.debug(`Found artifact on page ${page}:`, foundArtifact);
       return foundArtifact;
@@ -120,9 +121,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       // XXX(BYK): The assumption here is that the artifact created_at date
       // should always be greater than or equal to the associated revision date
       // ** AND **
-      // the artifacts are listed in descending date order on this endpoint.
-      // There is no public documentation on this but the observed data and
-      // common-sense logic suggests that this is a reasonably safe assumption.
+      // the descending date order. See the note above
       const lastArtifact = artifacts[artifacts.length - 1];
       checkNextPage = lastArtifact.created_at >= revisionDate;
     }
@@ -136,7 +135,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     }
 
     if (tries < MAX_TRIES) {
-      return this.listArtifact(revision, revisionDate, page, tries);
+      return this.getRevisionArtifact(revision, revisionDate, page, tries);
     }
 
     if (artifactResponse.total_count === 0) {
@@ -231,7 +230,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       `Fetching Github artifacts for ${repoOwner}/${repoName}, revision ${revision}`
     );
 
-    const foundArtifact = await this.listArtifact(revision);
+    const foundArtifact = await this.getRevisionArtifact(revision);
 
     this.logger.debug(`Requesting archive URL from Github...`);
 

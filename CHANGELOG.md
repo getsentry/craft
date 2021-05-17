@@ -3,6 +3,7 @@
 ## 0.22.2
 
 - fix(logging): Fix scoped loggers not respecting log level (#236)
+- fix(github-artifacts): Fix incorrect artifact resolution (#237)
 
 ## 0.22.1
 
