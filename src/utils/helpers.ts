@@ -1,5 +1,5 @@
 import prompts from 'prompts';
-import { logger, LogLevel } from '../logger';
+import { logger, LogLevel, setLevel } from '../logger';
 
 const FALSY_ENV_VALUES = new Set(['', 'undefined', 'null', '0', 'false', 'no']);
 export function envToBool(envVar: unknown): boolean {
@@ -24,9 +24,8 @@ export function setGlobals(argv: GlobalFlags): void {
   for (const globalFlag of Object.keys(GLOBAL_FLAGS)) {
     GLOBAL_FLAGS[globalFlag] = argv[globalFlag];
   }
-  logger.level = LogLevel[GLOBAL_FLAGS['log-level']];
-  logger.debug('Argv: ', JSON.stringify(argv));
-  logger.resume();
+  setLevel(LogLevel[GLOBAL_FLAGS['log-level']]);
+  logger.debug('Argv: ', argv);
 }
 
 export function isDryRun(): boolean {

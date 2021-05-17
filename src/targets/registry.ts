@@ -3,7 +3,6 @@ import * as Github from '@octokit/rest';
 import simpleGit from 'simple-git';
 import * as path from 'path';
 
-import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
@@ -31,8 +30,6 @@ import * as registryUtils from '../utils/registry';
 import { getPackageDirPath } from '../utils/packagePath';
 import { isDryRun } from '../utils/helpers';
 import { withRetry } from '../utils/async';
-
-const logger = loggerRaw.withScope('[registry]');
 
 const DEFAULT_REGISTRY_REMOTE: GithubRemote = registryUtils.getRegistryGithubRemote();
 
@@ -173,7 +170,9 @@ export class RegistryTarget extends BaseTarget {
 
     const artifacts = await this.getArtifactsForRevision(revision);
     if (artifacts.length === 0) {
-      logger.warn('No artifacts found, not adding any links to the manifest');
+      this.logger.warn(
+        'No artifacts found, not adding any links to the manifest'
+      );
       return;
     }
 
@@ -188,7 +187,7 @@ export class RegistryTarget extends BaseTarget {
         }
       );
     }
-    logger.debug(
+    this.logger.debug(
       `Writing file urls to the manifest, files found: ${artifacts.length}`
     );
     manifest.file_urls = fileUrls;
@@ -259,11 +258,11 @@ export class RegistryTarget extends BaseTarget {
 
     const artifacts = await this.getArtifactsForRevision(revision);
     if (artifacts.length === 0) {
-      logger.warn('No artifacts found, not adding any file data');
+      this.logger.warn('No artifacts found, not adding any file data');
       return;
     }
 
-    logger.info(
+    this.logger.info(
       'Adding extra data (checksums, download links) for available artifacts...'
     );
     const files: { [key: string]: any } = {};
@@ -340,7 +339,9 @@ export class RegistryTarget extends BaseTarget {
     const canonicalName: string = this.registryConfig.canonicalName;
 
     const git = simpleGit(directory);
-    logger.info(`Cloning "${remote.getRemoteString()}" to "${directory}"...`);
+    this.logger.info(
+      `Cloning "${remote.getRemoteString()}" to "${directory}"...`
+    );
     await git.clone(remote.getRemoteStringWithAuth(), directory, [
       '--filter=tree:0',
       '--single-branch',
@@ -375,13 +376,13 @@ export class RegistryTarget extends BaseTarget {
 
     // Push!
     if (!isDryRun()) {
-      logger.info(`Pushing the changes...`);
+      this.logger.info(`Pushing the changes...`);
       // Ensure we are still up to date with upstream
       await withRetry(() =>
         git.pull('origin', 'master', ['--rebase']).push('origin', 'master')
       );
     } else {
-      logger.info('[dry-run] Not pushing the changes.');
+      this.logger.info('[dry-run] Not pushing the changes.');
     }
   }
 
@@ -390,7 +391,7 @@ export class RegistryTarget extends BaseTarget {
    */
   public async publish(version: string, revision: string): Promise<any> {
     if (!this.registryConfig.linkPrereleases && isPreviewRelease(version)) {
-      logger.info('Preview release detected, skipping the target');
+      this.logger.info('Preview release detected, skipping the target');
       return undefined;
     }
 
@@ -404,7 +405,7 @@ export class RegistryTarget extends BaseTarget {
         }
       );
       if (artifacts.length === 0) {
-        logger.warn(
+        this.logger.warn(
           `No files found that match "${onlyIfPresentPattern.toString()}", skipping the target.`
         );
         return undefined;
@@ -421,6 +422,6 @@ export class RegistryTarget extends BaseTarget {
       true,
       'craft-release-registry-'
     );
-    logger.info('Release registry updated');
+    this.logger.info('Release registry updated');
   }
 }

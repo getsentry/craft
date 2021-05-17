@@ -1,4 +1,3 @@
-import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { forEachChained } from '../utils/async';
 import { ConfigurationError, reportError } from '../utils/errors';
@@ -15,8 +14,6 @@ import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../artifact_providers/base';
-
-const logger = loggerRaw.withScope(`[gcs]`);
 
 /**
  * Adds templating to the BucketPath interface.
@@ -192,7 +189,7 @@ export class GcsTarget extends BaseTarget {
     if (realPath[0] !== '/') {
       realPath = `/${realPath}`;
     }
-    logger.debug(
+    this.logger.debug(
       `Processed path template \`${template}\` and got \`${realPath}\``
     );
     return { path: realPath, metadata };
@@ -217,7 +214,7 @@ export class GcsTarget extends BaseTarget {
 
     const { bucketName } = this.targetConfig;
 
-    logger.info(`Uploading to GCS bucket: "${bucketName}"`);
+    this.logger.info(`Uploading to GCS bucket: "${bucketName}"`);
 
     // before we can upload the artifacts to our target, we first need to
     // download them from the artifact provider
@@ -240,8 +237,8 @@ export class GcsTarget extends BaseTarget {
           revision
         );
 
-        logger.info(`Uploading files to ${bucketPath.path}.`);
-        logger.debug(
+        this.logger.info(`Uploading files to ${bucketPath.path}.`);
+        this.logger.debug(
           `Upload options: ${JSON.stringify({
             gzip: true,
             metadata: bucketPath.metadata || DEFAULT_UPLOAD_METADATA,
@@ -256,6 +253,6 @@ export class GcsTarget extends BaseTarget {
       }
     );
 
-    logger.info('Upload to GCS complete.');
+    this.logger.info('Upload to GCS complete.');
   }
 }

@@ -34,6 +34,14 @@ class SentryBreadcrumbReporter extends BasicReporter {
   }
 }
 
+export function setLevel(level: LogLevel): void {
+  logger.level = level;
+  // @ts-ignore We know _defaults exists, and this is the only way
+  // to modify the default level after creation.
+  logger._defaults.level = level;
+  logger.resume();
+}
+
 export const logger = consola.create({});
 // Pause until we set the logging level from helpers#setGlobals
 // This allows us to enqueue debug logging even before we set the

@@ -7,8 +7,6 @@ import { clearObjectProperties } from '../utils/objects';
 import { ConfigurationError } from '../utils/errors';
 import { logger as loggerRaw } from '../logger';
 
-const logger = loggerRaw.withScope(`[artifact-provider]`);
-
 /** Maximum concurrency for downloads */
 export const MAX_DOWNLOAD_CONCURRENCY = 5;
 
@@ -89,7 +87,8 @@ export interface ArtifactProviderConfig {
  * Base interface for artifact providers.
  */
 export abstract class BaseArtifactProvider {
-  public abstract readonly name: string;
+  public readonly name: string = 'base';
+  protected readonly logger: typeof loggerRaw;
   /** Cache for local paths to downloaded files */
   protected readonly downloadCache: {
     [key: string]: Promise<string> | undefined;
@@ -112,6 +111,7 @@ export abstract class BaseArtifactProvider {
   protected defaultDownloadDirectory: string | undefined;
 
   public constructor(config: ArtifactProviderConfig) {
+    this.logger = loggerRaw.withScope(`[artifact-provider/${this.name}]`);
     this.clearCaches();
 
     this.config = config;
@@ -174,14 +174,14 @@ export abstract class BaseArtifactProvider {
     if (cached) {
       return cached;
     }
-    logger.debug(
+    this.logger.debug(
       `Downloading \`${artifact.filename}\` to \`${finalDownloadDirectory}\``
     );
     const promise = this.doDownloadArtifact(
       artifact,
       finalDownloadDirectory
     ).catch(err => {
-      logger.error(
+      this.logger.error(
         `Unable to download ${artifact.filename} from artifact provider!`
       );
       throw err;
@@ -238,11 +238,11 @@ export abstract class BaseArtifactProvider {
   public async listArtifactsForRevision(
     revision: string
   ): Promise<RemoteArtifact[]> {
-    logger.debug(`Fetching artifact list for revision \`${revision}\`.`);
+    this.logger.debug(`Fetching artifact list for revision \`${revision}\`.`);
     // check the cache first
     const cached = this.fileListCache[revision];
     if (cached) {
-      logger.debug(`Found list in cache.`);
+      this.logger.debug(`Found list in cache.`);
       return cached;
     }
 
@@ -251,7 +251,7 @@ export abstract class BaseArtifactProvider {
     try {
       artifacts = await this.doListArtifactsForRevision(revision);
     } catch (err) {
-      logger.error(
+      this.logger.error(
         `Unable to retrieve artifact list for revision ${revision}!`
       );
       throw err;
@@ -259,9 +259,9 @@ export abstract class BaseArtifactProvider {
     this.fileListCache[revision] = artifacts;
 
     if (artifacts.length === 0) {
-      logger.info(`No artifacts found for revision ${revision}`);
+      this.logger.info(`No artifacts found for revision ${revision}`);
     } else {
-      logger.debug(`Found ${artifacts.length} artifacts.`);
+      this.logger.debug(`Found ${artifacts.length} artifacts.`);
     }
 
     return artifacts;

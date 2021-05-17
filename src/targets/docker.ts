@@ -1,12 +1,9 @@
-import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { ConfigurationError } from '../utils/errors';
 import { renderTemplateSafe } from '../utils/strings';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
-
-const logger = loggerRaw.withScope('[docker]');
 
 const DEFAULT_DOCKER_BIN = 'docker';
 
@@ -90,7 +87,7 @@ export class DockerTarget extends BaseTarget {
    * @param revision Image tag, usually the git revision
    */
   public async pull(revision: string): Promise<any> {
-    logger.debug('Pulling source image...');
+    this.logger.debug('Pulling source image...');
     const sourceImage = renderTemplateSafe(this.dockerConfig.sourceTemplate, {
       ...this.dockerConfig,
       revision,
@@ -117,7 +114,7 @@ export class DockerTarget extends BaseTarget {
       ...this.dockerConfig,
       version,
     });
-    logger.debug('Tagging target image...');
+    this.logger.debug('Tagging target image...');
     await spawnProcess(DOCKER_BIN, ['tag', sourceImage, targetImage]);
     return spawnProcess(
       DOCKER_BIN,
@@ -138,6 +135,6 @@ export class DockerTarget extends BaseTarget {
     await this.pull(revision);
     await this.push(revision, version);
 
-    logger.info('Docker release complete');
+    this.logger.info('Docker release complete');
   }
 }

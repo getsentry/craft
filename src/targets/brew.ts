@@ -1,7 +1,6 @@
 import { mapLimit } from 'async';
 import * as Github from '@octokit/rest';
 
-import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError } from '../utils/errors';
 import { getGithubClient } from '../utils/githubApi';
@@ -13,8 +12,6 @@ import {
   BaseArtifactProvider,
   MAX_DOWNLOAD_CONCURRENCY,
 } from '../artifact_providers/base';
-
-const logger = loggerRaw.withScope('[brew]');
 
 /**
  * Regex used to parse homebrew taps (github repositories)
@@ -125,7 +122,7 @@ export class BrewTarget extends BaseTarget {
   public async getFormulaSha(path: string): Promise<string | undefined> {
     try {
       const tap = this.brewConfig.tapRepo;
-      logger.debug(`Loading SHA for ${tap.owner}/${tap.repo}:${path}`);
+      this.logger.debug(`Loading SHA for ${tap.owner}/${tap.repo}:${path}`);
       const response = await this.github.repos.getContents({
         ...tap,
         path,
@@ -160,7 +157,7 @@ export class BrewTarget extends BaseTarget {
 
     // Format checksums and the tag version into the formula file
     const filesList = await this.getArtifactsForRevision(revision);
-    logger.debug(
+    this.logger.debug(
       'Downloading artifacts for the revision:',
       JSON.stringify(filesList.map(file => file.filename))
     );
@@ -180,12 +177,12 @@ export class BrewTarget extends BaseTarget {
       revision,
       version,
     });
-    logger.debug(`Homebrew formula for ${formulaName}:\n${data}`);
+    this.logger.debug(`Homebrew formula for ${formulaName}:\n${data}`);
 
     // Try to find the repository to publish in
     if (tapRepo.owner !== owner) {
       // TODO: Create a PR if we have no push rights to this repo
-      logger.warn('Skipping homebrew release: PRs not supported yet');
+      this.logger.warn('Skipping homebrew release: PRs not supported yet');
       return undefined;
     }
 
@@ -198,22 +195,22 @@ export class BrewTarget extends BaseTarget {
       sha: (await this.getFormulaSha(formulaPath)) || '',
     };
 
-    logger.info(
+    this.logger.info(
       `Releasing ${owner}/${repo} tag ${version} ` +
         `to homebrew tap ${tapRepo.owner}/${tapRepo.repo} ` +
         `formula ${formulaName}`
     );
 
     const action = params.sha ? 'Updating' : 'Creating';
-    logger.debug(
+    this.logger.debug(
       `${action} file ${params.owner}/${params.repo}:${params.path} (${params.sha})`
     );
 
     if (!isDryRun()) {
       await this.github.repos.createOrUpdateFile(params);
     } else {
-      logger.info(`[dry-run] Skipping file action: ${action}`);
+      this.logger.info(`[dry-run] Skipping file action: ${action}`);
     }
-    logger.info('Homebrew release complete');
+    this.logger.info('Homebrew release complete');
   }
 }

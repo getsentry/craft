@@ -8,7 +8,6 @@ import {
 } from '../utils/githubApi';
 
 import { GithubTarget } from './github';
-import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { BaseTarget } from './base';
 import {
@@ -20,8 +19,6 @@ import { extractZipArchive } from '../utils/system';
 import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
 import { NoneArtifactProvider } from '../artifact_providers/none';
-
-const logger = loggerRaw.withScope('[upm]');
 
 /**
  * Target responsible for publishing to upm registry
@@ -94,13 +91,15 @@ export class UpmTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(version: string, revision: string): Promise<any> {
-    logger.info('Fetching artifact...');
+    this.logger.info('Fetching artifact...');
     const packageFile = await this.fetchArtifact(revision);
     if (!packageFile) {
       return;
     }
 
-    logger.info(`Found artifact: "${packageFile.filename}", downloading...`);
+    this.logger.info(
+      `Found artifact: "${packageFile.filename}", downloading...`
+    );
     const artifactPath = await this.artifactProvider.downloadArtifact(
       packageFile
     );
@@ -113,21 +112,21 @@ export class UpmTarget extends BaseTarget {
       getGithubApiToken()
     );
     const remoteAddr = remote.getRemoteString();
-    logger.debug(`Target release repository: ` + `"${remoteAddr}"`);
+    this.logger.debug(`Target release repository: ` + `"${remoteAddr}"`);
 
     await withTempDir(
       async directory => {
         const git = simpleGit(directory);
-        logger.info(`Cloning ${remoteAddr} to ${directory}...`);
+        this.logger.info(`Cloning ${remoteAddr} to ${directory}...`);
         await git.clone(remote.getRemoteStringWithAuth(), directory);
 
-        logger.info('Clearing the repository.');
+        this.logger.info('Clearing the repository.');
         await git.rm(['-r', '-f', '.']);
 
-        logger.info(`Extracting "${packageFile.filename}".`);
+        this.logger.info(`Extracting "${packageFile.filename}".`);
         await extractZipArchive(artifactPath, directory);
 
-        logger.info('Adding files to repository.');
+        this.logger.info('Adding files to repository.');
         await git.add(['.']);
         const commitResult = await git.commit(`release ${version}`);
         if (!commitResult.commit) {
@@ -138,7 +137,7 @@ export class UpmTarget extends BaseTarget {
         const targetRevision = await git.revparse([commitResult.commit]);
 
         if (isDryRun()) {
-          logger.info('[dry-run]: git push origin main');
+          this.logger.info('[dry-run]: git push origin main');
         } else {
           await git.push(['origin', 'main']);
           const changes = await this.githubTarget.getRevisionChanges(
@@ -156,6 +155,6 @@ export class UpmTarget extends BaseTarget {
       '_craft-release-upm-'
     );
 
-    logger.info('UPM release complete');
+    this.logger.info('UPM release complete');
   }
 }

@@ -3,7 +3,6 @@ import * as path from 'path';
 
 import simpleGit from 'simple-git';
 
-import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { forEachChained, sleep, withRetry } from '../utils/async';
 import { ConfigurationError } from '../utils/errors';
@@ -11,8 +10,6 @@ import { withTempDir } from '../utils/files';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
-
-const logger = loggerRaw.withScope('[crates]');
 
 const DEFAULT_CARGO_BIN = 'cargo';
 
@@ -150,7 +147,9 @@ export class CratesTarget extends BaseTarget {
       '--format-version=1',
     ];
 
-    logger.info(`Loading workspace information from ${directory}/Cargo.toml`);
+    this.logger.info(
+      `Loading workspace information from ${directory}/Cargo.toml`
+    );
     const metadata = await spawnProcess(
       CARGO_BIN,
       args,
@@ -232,7 +231,7 @@ export class CratesTarget extends BaseTarget {
       .filter(p => !p.publish || p.publish.length);
 
     const crates = this.getPublishOrder(unorderedCrates);
-    logger.debug(
+    this.logger.debug(
       `Publishing packages in the following order: ${crates
         .map(c => c.name)
         .join(', ')}`
@@ -263,7 +262,7 @@ export class CratesTarget extends BaseTarget {
     };
 
     let delay = RETRY_DELAY_SECS;
-    logger.info(`Publishing ${crate.name}`);
+    this.logger.info(`Publishing ${crate.name}`);
     await withRetry(
       () => spawnProcess(CARGO_BIN, args, { env }),
       MAX_ATTEMPTS,
@@ -272,7 +271,7 @@ export class CratesTarget extends BaseTarget {
         if (!err.message.includes(VERSION_ERROR)) {
           return false;
         }
-        logger.warn(`Publish failed, trying again in ${delay}s...`);
+        this.logger.warn(`Publish failed, trying again in ${delay}s...`);
         await sleep(delay * 1000);
         delay *= RETRY_EXP_FACTOR;
         return true;
@@ -296,11 +295,11 @@ export class CratesTarget extends BaseTarget {
     const git = simpleGit(directory);
     const url = `https://github.com/${owner}/${repo}.git`;
 
-    logger.info(`Cloning ${owner}/${repo} into ${directory}`);
+    this.logger.info(`Cloning ${owner}/${repo} into ${directory}`);
     await git.clone(url, directory);
     await git.checkout(revision);
 
-    logger.info(`Checking out submodules`);
+    this.logger.info(`Checking out submodules`);
     await git.submoduleUpdate(['--init']);
 
     // Cargo seems to run into problems if the crate resides within a git
@@ -329,6 +328,6 @@ export class CratesTarget extends BaseTarget {
       'craft-crates-'
     );
 
-    logger.info('Crates release complete');
+    this.logger.info('Crates release complete');
   }
 }

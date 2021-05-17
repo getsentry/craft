@@ -10,9 +10,6 @@ import {
   ArtifactProviderConfig,
 } from '../artifact_providers/base';
 import { checkEnvForPrerequisite } from '../utils/env';
-import { logger as loggerRaw } from '../logger';
-
-const logger = loggerRaw.withScope(`[artifact-provider/zeus]`);
 
 // TODO (kmclb) once `craft upload` is a thing, add an upload method here (and change the docstring below)
 
@@ -39,7 +36,7 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
     }
     this.client = new ZeusClient({
       defaultDirectory: config.downloadDirectory,
-      logger,
+      logger: this.logger,
     });
   }
 
@@ -124,7 +121,7 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
     revision: string
   ): Promise<RemoteArtifact[]> {
     const { repoName, repoOwner } = this.config;
-    logger.debug(
+    this.logger.debug(
       `Fetching Zeus artifacts for ${repoOwner}/${repoName}, revision ${revision}`
     );
     let zeusArtifacts;
@@ -143,14 +140,14 @@ export class ZeusArtifactProvider extends BaseArtifactProvider {
       // those two situations.
       const errorMessage: string = e.message || '';
       if (errorMessage.match(/404 not found|resource not found/i)) {
-        logger.debug(`Revision \`${revision}\` not found!`);
+        this.logger.debug(`Revision \`${revision}\` not found!`);
       }
       throw e;
     }
 
     // see comment above
     if (zeusArtifacts.length === 0) {
-      logger.debug(`Revision \`${revision}\` found.`);
+      this.logger.debug(`Revision \`${revision}\` found.`);
     }
 
     // Zeus stores multiple copies of the same file for a given revision,

@@ -1,7 +1,6 @@
 import { SpawnOptions, spawnSync } from 'child_process';
 import prompts from 'prompts';
 
-import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { isDryRun } from '../utils/helpers';
@@ -14,8 +13,6 @@ import {
 } from '../artifact_providers/base';
 import { withTempFile } from '../utils/files';
 import { writeFileSync } from 'fs';
-
-const logger = loggerRaw.withScope('[npm]');
 
 /** Command to launch "npm" */
 export const NPM_BIN = process.env.NPM_BIN || 'npm';
@@ -82,7 +79,7 @@ export class NpmTarget extends BaseTarget {
    */
   protected checkRequirements(): void {
     if (hasExecutable(NPM_BIN)) {
-      logger.debug('Checking that NPM has recent version...');
+      this.logger.debug('Checking that NPM has recent version...');
       const npmVersion = spawnSync(NPM_BIN, ['--version'])
         .stdout.toString()
         .trim();
@@ -99,12 +96,12 @@ export class NpmTarget extends BaseTarget {
           `NPM version is too old: ${npmVersion}. Please update your NodeJS`
         );
       }
-      logger.debug(`Found NPM version ${npmVersion}`);
+      this.logger.debug(`Found NPM version ${npmVersion}`);
     } else if (hasExecutable(YARN_BIN)) {
       const yarnVersion = spawnSync(YARN_BIN, ['--version'])
         .stdout.toString()
         .trim();
-      logger.debug(`Found Yarn version ${yarnVersion}`);
+      this.logger.debug(`Found Yarn version ${yarnVersion}`);
     } else {
       reportError('No "npm" or "yarn" found!');
     }
@@ -184,8 +181,10 @@ export class NpmTarget extends BaseTarget {
     // In case we have a prerelease, there should never be a reason to publish
     // it with the latest tag in npm.
     if (isPreviewRelease(options.version)) {
-      logger.warn('Detected pre-release version for npm package!');
-      logger.warn('Adding tag "next" to not make it "latest" in registry.');
+      this.logger.warn('Detected pre-release version for npm package!');
+      this.logger.warn(
+        'Adding tag "next" to not make it "latest" in registry.'
+      );
       args.push('--tag=next');
     }
 
@@ -221,7 +220,7 @@ export class NpmTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(version: string, revision: string): Promise<any> {
-    logger.debug('Fetching artifact list...');
+    this.logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_PACKAGE_REGEX,
     });
@@ -239,11 +238,11 @@ export class NpmTarget extends BaseTarget {
     await Promise.all(
       packageFiles.map(async (file: RemoteArtifact) => {
         const path = await this.artifactProvider.downloadArtifact(file);
-        logger.info(`Releasing ${file.filename} to NPM`);
+        this.logger.info(`Releasing ${file.filename} to NPM`);
         return this.publishPackage(path, publishOptions);
       })
     );
 
-    logger.info('NPM release complete');
+    this.logger.info('NPM release complete');
   }
 }
