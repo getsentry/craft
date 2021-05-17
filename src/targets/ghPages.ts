@@ -4,7 +4,6 @@ import * as path from 'path';
 import * as Github from '@octokit/rest';
 import simpleGit from 'simple-git';
 
-import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
@@ -18,8 +17,6 @@ import { isDryRun } from '../utils/helpers';
 import { extractZipArchive } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
-
-const logger = loggerRaw.withScope('[gh-pages]');
 
 /**
  * Regex for docs archives
@@ -113,7 +110,7 @@ export class GhPagesTarget extends BaseTarget {
     }
 
     // Extract the archive
-    logger.info(`Extracting "${archivePath}" to "${directory}"...`);
+    this.logger.info(`Extracting "${archivePath}" to "${directory}"...`);
     await extractZipArchive(archivePath, directory);
 
     // If there's a single top-level directory -- move its contents to the git root
@@ -122,7 +119,9 @@ export class GhPagesTarget extends BaseTarget {
       newDirContents.length === 1 &&
       fs.statSync(path.join(directory, newDirContents[0])).isDirectory()
     ) {
-      logger.debug('Single top-level directory found, moving files from it...');
+      this.logger.debug(
+        'Single top-level directory found, moving files from it...'
+      );
       const innerDirPath = path.join(directory, newDirContents[0]);
       fs.readdirSync(innerDirPath).forEach(item => {
         const srcPath = path.join(innerDirPath, item);
@@ -149,17 +148,19 @@ export class GhPagesTarget extends BaseTarget {
     archivePath: string,
     version: string
   ): Promise<void> {
-    logger.info(`Cloning "${remote.getRemoteString()}" to "${directory}"...`);
+    this.logger.info(
+      `Cloning "${remote.getRemoteString()}" to "${directory}"...`
+    );
     await simpleGit().clone(remote.getRemoteStringWithAuth(), directory);
     const git = simpleGit(directory);
-    logger.debug(`Checking out branch: "${branch}"`);
+    this.logger.debug(`Checking out branch: "${branch}"`);
     try {
       await git.checkout([branch]);
     } catch (e) {
       if (!e.message.match(/pathspec .* did not match any file/)) {
         throw e;
       }
-      logger.debug(
+      this.logger.debug(
         `Branch ${branch} does not exist, creating a new orphaned branch...`
       );
       await git.checkout(['--orphan', branch]);
@@ -174,7 +175,7 @@ export class GhPagesTarget extends BaseTarget {
     }
 
     // Clean the previous state
-    logger.debug(`Removing existing files from the working tree...`);
+    this.logger.debug(`Removing existing files from the working tree...`);
     await git.rm(['-r', '-f', '.']);
 
     // Extract the archive
@@ -185,11 +186,11 @@ export class GhPagesTarget extends BaseTarget {
     await git.commit(`craft(gh-pages): update, version "${version}"`);
 
     // Push!
-    logger.info(`Pushing branch "${branch}"...`);
+    this.logger.info(`Pushing branch "${branch}"...`);
     if (!isDryRun()) {
       await git.push('origin', branch, ['--set-upstream']);
     } else {
-      logger.info('[dry-run] Not pushing the branch.');
+      this.logger.info('[dry-run] Not pushing the branch.');
     }
   }
 
@@ -199,7 +200,7 @@ export class GhPagesTarget extends BaseTarget {
   public async publish(version: string, revision: string): Promise<any> {
     const { githubOwner, githubRepo, branch } = this.ghPagesConfig;
 
-    logger.debug('Fetching artifact list...');
+    this.logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_DEPLOY_ARCHIVE_REGEX,
     });
@@ -240,6 +241,6 @@ export class GhPagesTarget extends BaseTarget {
       'craft-gh-pages-'
     );
 
-    logger.info('GitHub pages release complete');
+    this.logger.info('GitHub pages release complete');
   }
 }

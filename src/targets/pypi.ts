@@ -1,4 +1,3 @@
-import { logger as loggerRaw } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import {
   BaseArtifactProvider,
@@ -7,8 +6,6 @@ import {
 import { ConfigurationError, reportError } from '../utils/errors';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
-
-const logger = loggerRaw.withScope('[pypi]');
 
 const DEFAULT_TWINE_BIN = 'twine';
 
@@ -88,7 +85,7 @@ export class PypiTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(_version: string, revision: string): Promise<any> {
-    logger.debug('Fetching artifact list...');
+    this.logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_PYPI_REGEX,
     });
@@ -101,11 +98,11 @@ export class PypiTarget extends BaseTarget {
     await Promise.all(
       packageFiles.map(async (file: RemoteArtifact) => {
         const path = await this.artifactProvider.downloadArtifact(file);
-        logger.info(`Uploading file "${file.filename}" via twine`);
+        this.logger.info(`Uploading file "${file.filename}" via twine`);
         return this.uploadAsset(path);
       })
     );
 
-    logger.info('PyPI release complete');
+    this.logger.info('PyPI release complete');
   }
 }

@@ -1,4 +1,4 @@
-import { logger } from '../logger';
+import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { FilterOptions } from '../stores/zeus';
 import { stringToRegexp } from '../utils/filters';
@@ -14,6 +14,7 @@ import {
 export class BaseTarget {
   /** Target name */
   public readonly name: string = 'base';
+  protected readonly logger: typeof loggerRaw;
   /** Artifact provider */
   public readonly artifactProvider: BaseArtifactProvider;
   /** Unparsed target configuration */
@@ -28,6 +29,7 @@ export class BaseTarget {
     artifactProvider: BaseArtifactProvider,
     githubRepo?: GithubGlobalConfig
   ) {
+    this.logger = loggerRaw.withScope(`[artifact-provider/${this.name}]`);
     this.artifactProvider = artifactProvider;
     this.config = config;
     this.githubRepo = githubRepo;
@@ -78,12 +80,12 @@ export class BaseTarget {
     // This is a hacky legacy way of skipping artifact downloads.
     // Can be removed when we fully migrate from ZeusStore to artifact providers.
     if (filterOptions.includeNames?.source === 'none') {
-      logger.debug(
+      this.logger.debug(
         `target.includeNames is 'none', skipping artifacts downloads.`
       );
       return [];
     }
-    logger.debug(
+    this.logger.debug(
       `Getting artifact list for revision "${revision}", filtering options: {includeNames: ${String(
         filterOptions.includeNames
       )}, excludeNames:${String(filterOptions.excludeNames)}}`

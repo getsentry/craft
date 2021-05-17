@@ -1,8 +1,6 @@
 import { DescribeRegionsCommandOutput, EC2 } from '@aws-sdk/client-ec2';
 import { Lambda } from '@aws-sdk/client-lambda';
-import { logger as loggerRaw } from '../logger';
-
-const logger = loggerRaw.withScope('[aws-lambda-layer]');
+import { logger } from '../logger';
 
 /** Prefix of the canonical name. */
 const RUNTIME_CANONICAL_PREFIX = 'aws-layer:';
