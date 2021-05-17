@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.2
+
+- fix(github-artifacts): Fix incorrect artifact resolution (#237)
+
 ## 0.22.1
 
 - fix(cli): Fix global flag parsing interference (#235)
