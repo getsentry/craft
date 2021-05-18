@@ -20,7 +20,6 @@
     "**/yargs-parser": ">=18.1.2"
   },
   "devDependencies": {
-    "@aws-sdk/client-ec2": "^3.2.0",
     "@aws-sdk/client-lambda": "^3.2.0",
     "@google-cloud/storage": "^5.7.0",
     "@octokit/plugin-retry": "^3.0.7",
@@ -55,6 +54,7 @@
     "esbuild": "^0.11.6",
     "eslint": "^7.2.0",
     "eslint-config-prettier": "^6.11.0",
+    "fast-xml-parser": "^3.19.0",
     "git-url-parse": "^11.4.4",
     "is-ci": "^2.0.0",
     "jest": "^26.5.3",
