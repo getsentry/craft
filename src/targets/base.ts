@@ -7,13 +7,13 @@ import {
   RemoteArtifact,
 } from '../artifact_providers/base';
 
-// TODO: make abstract?
 /**
  * Base class for all remote targets
  */
 export class BaseTarget {
   /** Target name */
   public readonly name: string = 'base';
+  public readonly id: string;
   protected readonly logger: typeof loggerRaw;
   /** Artifact provider */
   public readonly artifactProvider: BaseArtifactProvider;
@@ -24,6 +24,12 @@ export class BaseTarget {
   /** Github repo configuration */
   public readonly githubRepo?: GithubGlobalConfig;
 
+  public static getId(target: TargetConfig): string {
+    return target.id
+      ? `${target.name}[${target.id}]`
+      : target.name || '__undefined__';
+  }
+
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
@@ -32,6 +38,7 @@ export class BaseTarget {
     this.logger = loggerRaw.withScope(`[artifact-provider/${this.name}]`);
     this.artifactProvider = artifactProvider;
     this.config = config;
+    this.id = BaseTarget.getId(config);
     this.githubRepo = githubRepo;
     this.filterOptions = {};
     if (this.config.includeNames) {
