@@ -9,18 +9,20 @@ import { GithubRemote } from './githubApi';
 /**
  * Gets the package manifest version in the given directory.
  *
+ * @param baseDir Base directory for the registry clone
  * @param packageDirPath The package directory.
  * @param version The package version.
  */
-export async function getPackageManifest(
+export function getPackageManifest(
+  baseDir: string,
   packageDirPath: string,
   version: string
-): Promise<any> {
-  const versionFilePath = path.join(packageDirPath, `${version}.json`);
+): any {
+  const versionFilePath = path.join(baseDir, packageDirPath, `${version}.json`);
   if (fs.existsSync(versionFilePath)) {
     reportError(`Version file for "${version}" already exists. Aborting.`);
   }
-  const packageManifestPath = path.join(packageDirPath, 'latest.json');
+  const packageManifestPath = path.join(baseDir, packageDirPath, 'latest.json');
   logger.debug('Reading the current configuration from "latest.json"...');
   return JSON.parse(fs.readFileSync(packageManifestPath).toString()) || {};
 }
@@ -35,7 +37,7 @@ export async function getPackageManifest(
  * @param previousVersion The previous version.
  */
 export function updateManifestSymlinks(
-  updatedManifest: any,
+  updatedManifest: unknown,
   version: string,
   versionFilePath: string,
   previousVersion: string

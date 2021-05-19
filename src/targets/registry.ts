@@ -1,6 +1,7 @@
 import { mapLimit } from 'async';
 import * as Github from '@octokit/rest';
-import simpleGit from 'simple-git';
+import rimraf from 'rimraf';
+import simpleGit, { SimpleGit } from 'simple-git';
 import * as path from 'path';
 
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
@@ -46,7 +47,7 @@ export interface RegistryConfig {
   /** Type of the registry package */
   type: RegistryPackageType;
   /** Unique package cannonical name, including type and/or registry name */
-  canonicalName?: string;
+  canonicalName: string;
   /** Git remote of the release registry */
   registryRemote: GithubRemote;
   /** Should we create registry entries for pre-releases? */
@@ -59,18 +60,45 @@ export interface RegistryConfig {
   onlyIfPresent?: RegExp;
 }
 
+interface LocalRegistry {
+  dir: string;
+  git: SimpleGit;
+}
+
 /**
  * Target responsible for publishing static assets to GitHub pages
  */
 export class RegistryTarget extends BaseTarget {
+  /** A set of all created registry instances to be able to batch them */
+  private static instances: Set<RegistryTarget> = new Set();
+  // A promise-based lock to ensure non-parallel publishing when batching
+  // all registry targets. It is acquired and waited on at the publish stage
+  private static lock: undefined | Promise<void>;
+  /** The information of the canonical local checkout of the registry */
+  private static localRepo: undefined | LocalRegistry;
   /** Target name */
-  public readonly name: string = 'registry';
+  public readonly name = 'registry';
   /** Target options */
   public readonly registryConfig: RegistryConfig;
   /** Github client */
   public readonly github: Github;
   /** Github repo configuration */
   public readonly githubRepo: GithubGlobalConfig;
+  private published = false;
+
+  public isPublished(): boolean {
+    return this.published;
+  }
+
+  private isLastToPublish() {
+    let numToPublish = RegistryTarget.instances.size;
+    for (const instance of RegistryTarget.instances) {
+      if (instance.isPublished()) {
+        numToPublish -= 1;
+      }
+    }
+    return numToPublish === 1;
+  }
 
   public constructor(
     config: TargetConfig,
@@ -81,6 +109,7 @@ export class RegistryTarget extends BaseTarget {
     this.github = getGithubClient();
     this.githubRepo = githubRepo;
     this.registryConfig = this.getRegistryConfig();
+    RegistryTarget.instances.add(this);
   }
 
   /**
@@ -318,41 +347,24 @@ export class RegistryTarget extends BaseTarget {
   }
 
   /**
-   * Commits and pushes the new version of the package to the release registry.
+   * Commits the new version of the package to the release registry.
    *
-   * @param directory The directory with the checkout out registry
-   * @param remote The GitHub remote object
+   * @param localRepo The local checkout of the registry
    * @param version The new version
    * @param revision Git commit SHA to be published
    */
-  public async pushVersionToRegistry(
-    directory: string,
-    remote: GithubRemote,
+  private async commitVersionToRegistry(
+    localRepo: LocalRegistry,
     version: string,
     revision: string
   ): Promise<void> {
-    if (this.registryConfig.canonicalName === undefined) {
-      throw new ConfigurationError(
-        '"canonical" value not found in the registry configuration.'
-      );
-    }
-    const canonicalName: string = this.registryConfig.canonicalName;
-
-    const git = simpleGit(directory);
-    this.logger.info(
-      `Cloning "${remote.getRemoteString()}" to "${directory}"...`
-    );
-    await git.clone(remote.getRemoteStringWithAuth(), directory, [
-      '--filter=tree:0',
-      '--single-branch',
-    ]);
-
+    const canonicalName = this.registryConfig.canonicalName;
     const packageDirPath = getPackageDirPath(
       this.registryConfig.type,
-      directory,
       canonicalName
     );
-    const packageManifest = await registryUtils.getPackageManifest(
+    const packageManifest = registryUtils.getPackageManifest(
+      localRepo.dir,
       packageDirPath,
       version
     );
@@ -371,19 +383,25 @@ export class RegistryTarget extends BaseTarget {
     );
 
     // Commit
-    await git.add(['.']);
-    await git.commit(`craft: release "${canonicalName}", version "${version}"`);
+    await localRepo.git
+      .add(['.'])
+      .commit(`craft: release "${canonicalName}", version "${version}"`);
+  }
 
-    // Push!
-    if (!isDryRun()) {
-      this.logger.info(`Pushing the changes...`);
-      // Ensure we are still up to date with upstream
-      await withRetry(() =>
-        git.pull('origin', 'master', ['--rebase']).push('origin', 'master')
-      );
-    } else {
-      this.logger.info('[dry-run] Not pushing the changes.');
-    }
+  private async cloneRegistry(directory: string): Promise<SimpleGit> {
+    const remote = this.registryConfig.registryRemote;
+    const username = await getAuthUsername(this.github);
+    remote.setAuth(username, getGithubApiToken());
+
+    const git = simpleGit(directory);
+    this.logger.info(
+      `Cloning "${remote.getRemoteString()}" to "${directory}"...`
+    );
+    await git.clone(remote.getRemoteStringWithAuth(), directory, [
+      '--filter=tree:0',
+      '--single-branch',
+    ]);
+    return git;
   }
 
   /**
@@ -392,6 +410,7 @@ export class RegistryTarget extends BaseTarget {
   public async publish(version: string, revision: string): Promise<any> {
     if (!this.registryConfig.linkPrereleases && isPreviewRelease(version)) {
       this.logger.info('Preview release detected, skipping the target');
+      this.published = true;
       return undefined;
     }
 
@@ -408,20 +427,67 @@ export class RegistryTarget extends BaseTarget {
         this.logger.warn(
           `No files found that match "${onlyIfPresentPattern.toString()}", skipping the target.`
         );
+        this.published = true;
         return undefined;
       }
     }
 
-    const remote = this.registryConfig.registryRemote;
-    const username = await getAuthUsername(this.github);
-    remote.setAuth(username, getGithubApiToken());
+    if (RegistryTarget.lock) {
+      await RegistryTarget.lock;
+    }
 
-    await withTempDir(
-      directory =>
-        this.pushVersionToRegistry(directory, remote, version, revision),
-      true,
-      'craft-release-registry-'
-    );
-    this.logger.info('Release registry updated');
+    await (RegistryTarget.lock = this.doPublish(version, revision));
+    RegistryTarget.lock = undefined;
+  }
+
+  private async doPublish(version: string, revision: string) {
+    if (!RegistryTarget.localRepo) {
+      await withTempDir(
+        async dir => {
+          RegistryTarget.localRepo = {
+            dir,
+            git: await this.cloneRegistry(dir),
+          };
+        },
+        // We will clean the directory after pushing
+        false,
+        'craft-release-registry-'
+      );
+    }
+    let localRepo: LocalRegistry;
+    if (RegistryTarget.localRepo) {
+      localRepo = RegistryTarget.localRepo;
+    } else {
+      // XXX(BYK): This should NEVER happen
+      throw new Error(
+        `Local registry missing, it should have been cloned at this stage!`
+      );
+    }
+    this.commitVersionToRegistry(localRepo, version, revision);
+
+    if (this.isLastToPublish()) {
+      // Push!
+      if (!isDryRun()) {
+        this.logger.info(`Pushing the changes...`);
+        // Ensure we are still up to date with upstream
+        await withRetry(() =>
+          localRepo.git
+            .pull('origin', 'master', ['--rebase'])
+            .push('origin', 'master')
+        );
+      } else {
+        this.logger.info('[dry-run] Not pushing the changes.');
+      }
+      this.published = true;
+      RegistryTarget.localRepo = undefined;
+      rimraf(localRepo.dir, () => {
+        /* intentionally don't block on deletion */
+      });
+      this.logger.info('Release registry updated.');
+    } else {
+      this.logger.debug(
+        'Not pushing yet as more registry targets are on the queue.'
+      );
+    }
   }
 }
