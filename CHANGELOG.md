@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.23.0
+
+- feat(registry): Batch all registry targets (#241)
+
 ## 0.22.2
 
 - fix(logging): Fix scoped loggers not respecting log level (#236)
