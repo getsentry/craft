@@ -1,5 +1,11 @@
 import { setGlobals } from '../../utils/helpers';
-import { filterAsync, forEachChained, withRetry, sleep } from '../async';
+import {
+  filterAsync,
+  forEachChained,
+  withRetry,
+  sleep,
+  mapLimit,
+} from '../async';
 import { logger } from '../../logger';
 
 jest.mock('../../logger');
@@ -234,5 +240,27 @@ describe('withRetry', () => {
     await expect(
       withRetry(fn, 5, () => Promise.reject(new Error('no retries')))
     ).rejects.toThrowErrorMatchingInlineSnapshot(`"Cancelled retry"`);
+  });
+});
+
+describe('mapLimit', () => {
+  test('transforms and returns mapped values', () =>
+    expect(mapLimit([1, 2, 3, 4, 5], 2, x => x * x)).resolves.toStrictEqual([
+      1,
+      4,
+      9,
+      16,
+      25,
+    ]));
+
+  test('limit concurrency', async () => {
+    const maxDelay = 15;
+    const wait = 50;
+    const now = Date.now();
+    const result = await mapLimit([1, 2, 3, 4, 5], 1, async x => {
+      await sleep(wait);
+      return (Date.now() - now) / x - wait;
+    });
+    expect(result.every(delay => delay > 0 && delay <= maxDelay));
   });
 });

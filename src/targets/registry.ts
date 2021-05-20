@@ -1,10 +1,11 @@
-import { mapLimit } from 'async';
+import { Mutex } from 'async-mutex';
 import * as Github from '@octokit/rest';
 import rimraf from 'rimraf';
 import simpleGit, { SimpleGit } from 'simple-git';
 import * as path from 'path';
 
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { mapLimit } from '../utils/async';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
@@ -65,6 +66,13 @@ interface LocalRegistry {
   git: SimpleGit;
 }
 
+interface ArtifactData {
+  url?: string;
+  checksums?: {
+    [key: string]: string;
+  };
+}
+
 /**
  * Target responsible for publishing static assets to GitHub pages
  */
@@ -73,7 +81,7 @@ export class RegistryTarget extends BaseTarget {
   private static instances: Set<RegistryTarget> = new Set();
   // A promise-based lock to ensure non-parallel publishing when batching
   // all registry targets. It is acquired and waited on at the publish stage
-  private static lock: undefined | Promise<void>;
+  private static lock = new Mutex();
   /** The information of the canonical local checkout of the registry */
   private static localRepo: undefined | LocalRegistry;
   /** Target name */
@@ -241,8 +249,8 @@ export class RegistryTarget extends BaseTarget {
     artifact: RemoteArtifact,
     version: string,
     revision: string
-  ): Promise<any> {
-    const artifactData: any = {};
+  ): Promise<ArtifactData> {
+    const artifactData: ArtifactData = {};
 
     if (this.registryConfig.urlTemplate) {
       artifactData.url = renderTemplateSafe(this.registryConfig.urlTemplate, {
@@ -285,6 +293,16 @@ export class RegistryTarget extends BaseTarget {
     // Clear existing data
     delete packageManifest.files;
 
+    if (
+      !this.registryConfig.urlTemplate &&
+      this.registryConfig.checksums.length === 0
+    ) {
+      this.logger.warn(
+        'No URL template or checksums, not adding any file data'
+      );
+      return;
+    }
+
     const artifacts = await this.getArtifactsForRevision(revision);
     if (artifacts.length === 0) {
       this.logger.warn('No artifacts found, not adding any file data');
@@ -294,18 +312,14 @@ export class RegistryTarget extends BaseTarget {
     this.logger.info(
       'Adding extra data (checksums, download links) for available artifacts...'
     );
-    const files: { [key: string]: any } = {};
 
+    const files: { [key: string]: any } = {};
     await mapLimit(artifacts, MAX_DOWNLOAD_CONCURRENCY, async artifact => {
       const fileData = await this.getArtifactData(artifact, version, revision);
-      if (Object.keys(fileData).length > 0) {
-        files[artifact.filename] = fileData;
-      }
+      files[artifact.filename] = fileData;
     });
 
-    if (Object.keys(files).length > 0) {
-      packageManifest.files = files;
-    }
+    packageManifest.files = files;
   }
 
   /**
@@ -432,12 +446,7 @@ export class RegistryTarget extends BaseTarget {
       }
     }
 
-    if (RegistryTarget.lock) {
-      await RegistryTarget.lock;
-    }
-
-    await (RegistryTarget.lock = this.doPublish(version, revision));
-    RegistryTarget.lock = undefined;
+    RegistryTarget.lock.runExclusive(() => this.doPublish(version, revision));
   }
 
   private async doPublish(version: string, revision: string) {

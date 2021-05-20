@@ -1,3 +1,4 @@
+import { Semaphore } from 'async-mutex';
 import { reportError } from './errors';
 
 /**
@@ -119,4 +120,13 @@ export async function withRetry<T>(
   } else {
     throw new RetryError('Cancelled retry', error);
   }
+}
+
+export async function mapLimit<T, U>(
+  list: T[],
+  limit: number,
+  fn: (item: T) => U | Promise<U>
+): Promise<U[]> {
+  const limiter = new Semaphore(limit);
+  return Promise.all(list.map(item => limiter.runExclusive(() => fn(item))));
 }

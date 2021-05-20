@@ -1,7 +1,7 @@
-import { mapLimit } from 'async';
 import * as Github from '@octokit/rest';
 
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { mapLimit } from '../utils/async';
 import { ConfigurationError } from '../utils/errors';
 import { getGithubClient } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
