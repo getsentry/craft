@@ -74,12 +74,12 @@ interface ArtifactData {
 }
 
 /**
- * Target responsible for publishing static assets to GitHub pages
+ * Target responsible for publishing to Sentry's release registry: https://github.com/getsentry/sentry-release-registry/
  */
 export class RegistryTarget extends BaseTarget {
   /** A set of all created registry instances to be able to batch them */
   private static instances: Set<RegistryTarget> = new Set();
-  // A promise-based lock to ensure non-parallel publishing when batching
+  // A promise-based lock to serialize publishing when batching
   // all registry targets. It is acquired and waited on at the publish stage
   private static lock = new Mutex();
   /** The information of the canonical local checkout of the registry */
@@ -419,7 +419,7 @@ export class RegistryTarget extends BaseTarget {
   }
 
   /**
-   * Pushes an archive with static HTML web assets to the configured branch
+   * Modifies/adds meta information regarding the package we are publishing
    */
   public async publish(version: string, revision: string): Promise<any> {
     if (this.published) {
