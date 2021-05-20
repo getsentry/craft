@@ -450,7 +450,7 @@ export class RegistryTarget extends BaseTarget {
       }
     }
 
-    const startBatch = RegistryTarget.lock.isLocked();
+    const startBatch = !RegistryTarget.lock.isLocked();
     const result = RegistryTarget.lock.runExclusive(() =>
       this.doPublish(version, revision)
     );
