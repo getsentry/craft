@@ -450,6 +450,15 @@ export class RegistryTarget extends BaseTarget {
       }
     }
 
+    // XXX(BYK): Here we check if there is another publish already going on.
+    // Our main goal is to detect if we are the first one to start, and if we are
+    // then trigger all the others (but grab the lock/mutex first so they don't
+    // start before us) and return a promise which resolves when *all*
+    // RegistryTargets are published.
+    // This is due to the combination of batching and publish state saving:
+    // If we just return a promise for ourselves, Craft will think this publish
+    // is completed whereas it won't be until the last RegistryTarget is published
+    // as we delay the final `git push` until then.
     const startBatch = !RegistryTarget.lock.isLocked();
     const result = RegistryTarget.lock.runExclusive(() =>
       this.doPublish(version, revision)
