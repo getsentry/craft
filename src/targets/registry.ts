@@ -422,6 +422,10 @@ export class RegistryTarget extends BaseTarget {
    * Pushes an archive with static HTML web assets to the configured branch
    */
   public async publish(version: string, revision: string): Promise<any> {
+    if (this.published) {
+      return undefined;
+    }
+
     if (!this.registryConfig.linkPrereleases && isPreviewRelease(version)) {
       this.logger.info('Preview release detected, skipping the target');
       this.published = true;
@@ -446,7 +450,20 @@ export class RegistryTarget extends BaseTarget {
       }
     }
 
-    RegistryTarget.lock.runExclusive(() => this.doPublish(version, revision));
+    const startBatch = RegistryTarget.lock.isLocked();
+    const result = RegistryTarget.lock.runExclusive(() =>
+      this.doPublish(version, revision)
+    );
+    if (startBatch) {
+      const batch = [];
+      for (const instance of RegistryTarget.instances) {
+        batch.push(
+          instance === this ? result : instance.publish(version, revision)
+        );
+      }
+      return Promise.all(batch);
+    }
+    return result;
   }
 
   private async doPublish(version: string, revision: string) {
@@ -497,6 +514,7 @@ export class RegistryTarget extends BaseTarget {
       this.logger.debug(
         'Not pushing yet as more registry targets are on the queue.'
       );
+      this.published = true;
     }
   }
 }
