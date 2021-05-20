@@ -20,12 +20,7 @@ import {
 } from '../config';
 import { formatTable, logger } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
-import {
-  getAllTargetNames,
-  getTargetByName,
-  getTargetId,
-  SpecialTarget,
-} from '../targets';
+import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
 import { handleGlobalError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
@@ -54,7 +49,7 @@ export const builder: CommandBuilder = (yargs: Argv) => {
   const possibleTargetNames = new Set(getAllTargetNames());
   const allowedTargetNames = definedTargets
     .filter(target => target.name && possibleTargetNames.has(target.name))
-    .map(getTargetId);
+    .map(BaseTarget.getId);
 
   return yargs
     .positional('NEW-VERSION', {
@@ -153,7 +148,7 @@ async function publishToTarget(
   revision: string
 ): Promise<void> {
   const publishMessage = `=== Publishing to target: ${chalk.bold(
-    chalk.cyan(getTargetId(target.config))
+    chalk.cyan(target.id)
   )} ===`;
   const delim = Array(stringLength(publishMessage) + 1).join('=');
   logger.info(' ');
@@ -210,7 +205,7 @@ async function getTargetList(
   const targetList: BaseTarget[] = [];
   for (const targetConfig of targetConfigList) {
     const targetClass = getTargetByName(targetConfig.name);
-    const targetDescriptor = getTargetId(targetConfig);
+    const targetDescriptor = BaseTarget.getId(targetConfig);
     if (!targetClass) {
       logger.warn(`Target implementation for "${targetDescriptor}" not found.`);
       continue;
@@ -499,7 +494,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   if (earlierStateExists) {
     logger.info(`Found publish state file, resuming from there...`);
     publishState = JSON.parse(readFileSync(publishStateFile).toString());
-    targetsToPublish = new Set(targetConfigList.map(getTargetId));
+    targetsToPublish = new Set(targetConfigList.map(BaseTarget.getId));
   } else {
     publishState = { published: Object.create(null) };
   }
@@ -513,7 +508,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   if (!targetsToPublish.has(SpecialTarget.All)) {
     targetConfigList = targetConfigList.filter(targetConf =>
-      targetsToPublish.has(getTargetId(targetConf))
+      targetsToPublish.has(BaseTarget.getId(targetConf))
     );
   }
 
@@ -530,9 +525,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   if (targetList.length > 0) {
     logger.info('Publishing to targets:');
 
-    logger.info(
-      targetList.map(target => `  - ${getTargetId(target.config)}`).join('\n')
-    );
+    logger.info(targetList.map(target => `  - ${target.id}`).join('\n'));
     logger.info(' ');
     await promptConfirmation();
 
@@ -542,7 +535,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       // Publish to all targets
       for (const target of targetList) {
         await publishToTarget(target, newVersion, revision);
-        publishState.published[getTargetId(target.config)] = true;
+        publishState.published[BaseTarget.getId(target.config)] = true;
         if (!isDryRun()) {
           writeFileSync(publishStateFile, JSON.stringify(publishState));
         }
