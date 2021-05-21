@@ -1,6 +1,5 @@
 import Github from '@octokit/rest';
-import request from 'request';
-import { Duplex, Readable } from 'stream';
+import fetch from 'node-fetch';
 
 import { LogLevel, logger } from '../logger';
 
@@ -294,22 +293,17 @@ export async function downloadSources(
   owner: string,
   repo: string,
   sha: string
-): Promise<Readable> {
+): Promise<NodeJS.ReadableStream> {
   logger.info(`Downloading sources for ${owner}/${repo}:${sha}`);
   // TODO add api token to allow downloading from private repos
   const url = `https://github.com/${owner}/${repo}/archive/${sha}.tar.gz`;
-
-  return new Promise<Readable>((resolve, reject) => {
-    request({ url, encoding: null }, (error, _response, body: Buffer) => {
-      if (error) {
-        reject(error);
-      }
-      const stream = new Duplex();
-      stream.push(body);
-      stream.push(null);
-      resolve(stream);
-    });
-  });
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(
+      `Unexpected HTTP response from ${url}: ${response.status} (${response.statusText})`
+    );
+  }
+  return response.body;
 }
 
 /**
