@@ -156,8 +156,6 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
   ): Promise<RemoteArtifact[]> {
     const artifacts: RemoteArtifact[] = [];
     await withTempFile(async tempFilepath => {
-      const file = fs.createWriteStream(tempFilepath);
-
       const response = await fetch(archiveResponse.url);
       if (!response.ok) {
         throw new Error(
@@ -165,7 +163,10 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
         );
       }
       await new Promise((resolve, reject) =>
-        response.body.pipe(file).on('finish', resolve).on('error', reject)
+        response.body
+          .pipe(fs.createWriteStream(tempFilepath))
+          .on('finish', resolve)
+          .on('error', reject)
       );
       this.logger.info(`Finished downloading.`);
 
