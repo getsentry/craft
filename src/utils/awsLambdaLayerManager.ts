@@ -1,6 +1,6 @@
 import * as XmlParser from 'fast-xml-parser';
-import { promisify } from 'util';
-import request from 'request';
+import aws4 from 'aws4';
+import fetch from 'node-fetch';
 import { Lambda } from '@aws-sdk/client-lambda';
 import { logger } from '../logger';
 
@@ -142,23 +142,25 @@ interface Region {
  */
 export async function getRegionsFromAws(): Promise<string[]> {
   logger.debug('Fetching AWS regions...');
-  return promisify(request.get)({
-    uri:
-      'https://ec2.us-east-2.amazonaws.com/?Action=DescribeRegions&Version=2013-10-15',
-    aws: {
-      // @ts-ignore bad type info
-      key: process.env.AWS_ACCESS_KEY_ID || '',
-      secret: process.env.AWS_SECRET_ACCESS_KEY || '',
-      sign_version: 4,
-      service: 'ec2',
-    },
-  }).then(data =>
-    XmlParser.parse(data.body)
-      .DescribeRegionsResponse.regionInfo.item.map(
-        (region: Region) => region.regionName
-      )
-      .filter(Boolean)
-  );
+  const { hostname, path, headers } = aws4.sign({
+    service: 'ec2',
+    region: 'us-east-2',
+    path: '/?Action=DescribeRegions&Version=2013-10-15',
+  });
+
+  const url = `https://${hostname}${path}`;
+  const response = await fetch(url, { headers });
+  if (!response.ok) {
+    throw new Error(
+      `Unexpected HTTP response from ${url}: ${response.status} (${response.statusText})`
+    );
+  }
+  const data = await response.text();
+  return XmlParser.parse(data)
+    .DescribeRegionsResponse.regionInfo.item.map(
+      (region: Region) => region.regionName
+    )
+    .filter(Boolean);
 }
 
 /**
