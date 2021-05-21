@@ -3,7 +3,6 @@ import { createHash, Hash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import split from 'split';
-import { Readable } from 'stream';
 import tar from 'tar';
 import unzipper from 'unzipper';
 
@@ -317,7 +316,7 @@ export function checkExecutableIsPresent(name: string): void {
  * @async
  */
 export async function extractSourcesFromTarStream(
-  stream: Readable,
+  stream: NodeJS.ReadableStream,
   dir: string
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {

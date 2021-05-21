@@ -1,6 +1,6 @@
 import Github from '@octokit/rest';
 import * as fs from 'fs';
-import request from 'request';
+import fetch from 'node-fetch';
 import * as path from 'path';
 
 import {
@@ -156,20 +156,19 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
   ): Promise<RemoteArtifact[]> {
     const artifacts: RemoteArtifact[] = [];
     await withTempFile(async tempFilepath => {
-      const file = fs.createWriteStream(tempFilepath);
-
-      await new Promise<void>((resolve, reject) => {
-        // we need any here since our github api client doesn't have support for artifacts requests yet
-        request({ uri: archiveResponse.url })
-          .pipe(file)
-          .on('finish', () => {
-            this.logger.info(`Finished downloading.`);
-            resolve();
-          })
-          .on('error', error => {
-            reject(error);
-          });
-      });
+      const response = await fetch(archiveResponse.url);
+      if (!response.ok) {
+        throw new Error(
+          `Unexpected HTTP response from ${archiveResponse.url}: ${response.status} (${response.statusText})`
+        );
+      }
+      await new Promise((resolve, reject) =>
+        response.body
+          .pipe(fs.createWriteStream(tempFilepath))
+          .on('finish', resolve)
+          .on('error', reject)
+      );
+      this.logger.info(`Finished downloading.`);
 
       await withTempDir(async tmpDir => {
         this.logger.debug(`Extracting "${tempFilepath}" to "${tmpDir}"...`);
