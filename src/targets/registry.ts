@@ -349,10 +349,10 @@ export class RegistryTarget extends BaseTarget {
 
     const packageDirPath = getPackageDirPath(
       this.registryConfig.type,
-      directory,
       canonicalName
     );
     const packageManifest = await registryUtils.getPackageManifest(
+      directory,
       packageDirPath,
       version
     );
