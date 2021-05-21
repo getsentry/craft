@@ -425,10 +425,10 @@ export class RegistryTarget extends BaseTarget {
     if (this.published) {
       return undefined;
     }
+    this.published = true;
 
     if (!this.registryConfig.linkPrereleases && isPreviewRelease(version)) {
       this.logger.info('Preview release detected, skipping the target');
-      this.published = true;
       return undefined;
     }
 
@@ -445,7 +445,6 @@ export class RegistryTarget extends BaseTarget {
         this.logger.warn(
           `No files found that match "${onlyIfPresentPattern.toString()}", skipping the target.`
         );
-        this.published = true;
         return undefined;
       }
     }
@@ -513,7 +512,6 @@ export class RegistryTarget extends BaseTarget {
       } else {
         this.logger.info('[dry-run] Not pushing the changes.');
       }
-      this.published = true;
       RegistryTarget.localRepo = undefined;
       rimraf(localRepo.dir, () => {
         /* intentionally don't block on deletion */
