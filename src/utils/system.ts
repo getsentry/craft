@@ -9,7 +9,6 @@ import unzipper from 'unzipper';
 import { logger } from '../logger';
 
 import { reportError } from './errors';
-import { downloadSources } from './githubApi';
 import { isDryRun } from './helpers';
 
 /**
@@ -355,27 +354,6 @@ export async function extractZipArchive(
       reject(e);
     }
   });
-}
-
-/**
- * Downloads source code of the Github repository and puts it in the specified
- * directory
- *
- * @param owner Repository owner
- * @param repo Repository name
- * @param sha Revision SHA identifier
- * @param directory A directory to extract to
- * @returns A promise that resolves when the sources are ready
- */
-export async function downloadAndExtract(
-  owner: string,
-  repo: string,
-  sha: string,
-  directory: string
-): Promise<void> {
-  const stream = await downloadSources(owner, repo, sha);
-  logger.info(`Extracting sources to ${directory}`);
-  return extractSourcesFromTarStream(stream, directory);
 }
 
 /**

@@ -261,18 +261,11 @@ export async function getGlobalGithubConfig(
     }
 
     if (remoteUrl?.source === 'github.com') {
-      const gitRoot = await git.revparse(['--show-toplevel']);
-      const projectPath = path.posix.format(
-        path.parse(path.relative(gitRoot, configDir))
-      );
       repoGithubConfig = {
         owner: remoteUrl.owner,
         repo: remoteUrl.name,
-        projectPath,
       };
     }
-  } else if (!repoGithubConfig.projectPath) {
-    repoGithubConfig.projectPath = '.';
   }
 
   _globalGithubConfigCache = Object.freeze(repoGithubConfig);

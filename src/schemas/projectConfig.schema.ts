@@ -19,6 +19,7 @@ const projectConfigJsonSchema = {
         repo: {
           type: 'string',
         },
+        // TODO(byk): This is now obsolete, deprecate and remove?
         projectPath: {
           type: 'string',
         },
