@@ -140,10 +140,7 @@ export class UpmTarget extends BaseTarget {
           this.logger.info('[dry-run]: git push origin main');
         } else {
           await git.push(['origin', 'main']);
-          const changes = await this.githubTarget.getChangelog(
-            version,
-            revision
-          );
+          const changes = await this.githubTarget.getChangelog(version);
           await this.githubTarget.getOrCreateRelease(
             version,
             targetRevision,
