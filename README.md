@@ -281,6 +281,7 @@ github:
   owner: getsentry
   repo: sentry-javascript
 ```
+
 ### Pre-release Command
 
 This command will run on your newly created release branch as part of `prepare`
