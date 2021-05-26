@@ -331,8 +331,7 @@ async function checkRevisionStatus(
  * Determines the closest branch we can merge to from the current checkout
  * Adapted from https://stackoverflow.com/a/55238339/90297
  * @param git our local Git client
- * @param github A GitHub client in case we need to fallback to the default branch
- * @param githubRepo
+ * @param remoteName Name of the remote to query for the default branch
  * @returns
  */
 async function getMergeTarget(
@@ -370,6 +369,7 @@ async function getMergeTarget(
  *
  * @param git Git client
  * @param remoteName The git remote name to interact with
+ * @param branch Name of the release branch
  * @param [mergeTarget] Branch name to merge the release branch into
  * @param keepBranch If set to "true", the branch will not be deleted
  */
