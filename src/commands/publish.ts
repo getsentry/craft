@@ -345,7 +345,8 @@ async function getMergeTarget(
     '--simplify-by-decoration',
     '--oneline'
   );
-  logger.debug('Trying to find merge target: ', logOutput);
+  logger.debug('Trying to find merge target:');
+  logger.debug(logOutput);
   const branchName =
     stripRemoteName(
       logOutput
