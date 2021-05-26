@@ -281,22 +281,6 @@ github:
   owner: getsentry
   repo: sentry-javascript
 ```
-
-If you are using Craft in a monorepo where each project has their own `.craft.yml`
-configuration, you need to set the `github` information with the inclusion of
-`projectPath`. Although Craft can infer the relative path of your project, it
-cannot do this on sparse checkouts or when `.git` directory does not exist:
-
-```yaml
-github:
-  owner: getsentry
-  repo: sentry-ruby
-  projectPath: sentry-rails
-```
-
-This is used to determine the repo-relative location of the changelog in your
-project.
-
 ### Pre-release Command
 
 This command will run on your newly created release branch as part of `prepare`
