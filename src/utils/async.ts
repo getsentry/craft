@@ -13,8 +13,7 @@ import { reportError } from './errors';
 export async function filterAsync<T>(
   array: T[],
   predicate: (arg: T) => boolean | Promise<boolean>,
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-  thisArg?: any
+  thisArg?: unknown
 ): Promise<T[]> {
   const verdicts = await Promise.all(array.map(predicate, thisArg));
   return array.filter((_element, index) => verdicts[index]);

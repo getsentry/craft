@@ -4,7 +4,7 @@ import {
   getAuthUsername,
   getGithubApiToken,
   getGithubClient,
-  GithubRemote,
+  GitHubRemote,
 } from '../utils/githubApi';
 
 import { GithubTarget } from './github';
@@ -105,7 +105,7 @@ export class UpmTarget extends BaseTarget {
     );
 
     const username = await getAuthUsername(this.github);
-    const remote = new GithubRemote(
+    const remote = new GitHubRemote(
       this.config.releaseRepoOwner,
       this.config.releaseRepoName,
       username,

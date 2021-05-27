@@ -1,7 +1,4 @@
-minVersion: '0.21.0'
-github:
-  owner: getsentry
-  repo: craft
+minVersion: '0.22.2'
 changelogPolicy: auto
 requireNames:
   - /^sentry-craft.*\.tgz$/
@@ -19,13 +16,12 @@ targets:
         metadata:
           cacheControl: 'public, max-age=300'
   - name: registry
-    type: app
-    urlTemplate: 'https://downloads.sentry-cdn.com/craft/{{version}}/{{file}}'
-    checksums:
-      - algorithm: sha256
-        format: hex
-    config:
-      canonical: 'app:craft'
+    apps:
+      'app:craft':
+        urlTemplate: 'https://downloads.sentry-cdn.com/craft/{{version}}/{{file}}'
+        checksums:
+          - algorithm: sha256
+            format: hex
   - name: docker
     source: us.gcr.io/sentryio/craft
     target: getsentry/craft

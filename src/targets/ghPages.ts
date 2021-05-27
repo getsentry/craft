@@ -11,7 +11,7 @@ import {
   getAuthUsername,
   getGithubApiToken,
   getGithubClient,
-  GithubRemote,
+  GitHubRemote,
 } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
 import { extractZipArchive } from '../utils/system';
@@ -143,7 +143,7 @@ export class GhPagesTarget extends BaseTarget {
    */
   public async commitArchiveToBranch(
     directory: string,
-    remote: GithubRemote,
+    remote: GitHubRemote,
     branch: string,
     archivePath: string,
     version: string
@@ -221,7 +221,7 @@ export class GhPagesTarget extends BaseTarget {
 
     const username = await getAuthUsername(this.github);
 
-    const remote = new GithubRemote(
+    const remote = new GitHubRemote(
       githubOwner,
       githubRepo,
       username,

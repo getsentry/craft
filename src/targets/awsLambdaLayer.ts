@@ -7,7 +7,7 @@ import {
   getAuthUsername,
   getGithubApiToken,
   getGithubClient,
-  GithubRemote,
+  GitHubRemote,
 } from '../utils/githubApi';
 
 import { TargetConfig } from '../schemas/project_config';
@@ -24,9 +24,7 @@ import { createSymlinks } from '../utils/symlink';
 import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
 import { isPreviewRelease } from '../utils/version';
-import { getRegistryGithubRemote } from '../utils/registry';
-
-const DEFAULT_REGISTRY_REMOTE: GithubRemote = getRegistryGithubRemote();
+import { DEFAULT_REGISTRY_REMOTE } from '../utils/registry';
 
 /** Config options for the "aws-lambda-layer" target. */
 interface AwsLambdaTargetConfig {
@@ -35,7 +33,7 @@ interface AwsLambdaTargetConfig {
   /** AWS secret access key, set as `AWS_SECRET_ACCESS_KEY`. */
   awsSecretAccessKey: string;
   /** Git remote of the release registry. */
-  registryRemote: GithubRemote;
+  registryRemote: GitHubRemote;
   /** Should layer versions of prereleases be pushed to the registry? */
   linkPrereleases: boolean;
 }

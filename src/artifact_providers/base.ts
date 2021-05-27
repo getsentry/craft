@@ -96,7 +96,7 @@ export abstract class BaseArtifactProvider {
 
   /** Cache for storing mapping between revisions and a list of their artifacts */
   protected readonly fileListCache: {
-    [key: string]: RemoteArtifact[] | undefined;
+    [key: string]: Promise<RemoteArtifact[]> | undefined;
   } = {};
 
   /** Cache for checksums computed for the files stored on disk */
@@ -240,23 +240,23 @@ export abstract class BaseArtifactProvider {
   ): Promise<RemoteArtifact[]> {
     this.logger.debug(`Fetching artifact list for revision \`${revision}\`.`);
     // check the cache first
-    const cached = this.fileListCache[revision];
-    if (cached) {
+    if (this.fileListCache[revision]) {
       this.logger.debug(`Found list in cache.`);
-      return cached;
+    } else {
+      // Cache the promise immediately to cause any subsequent calls during the
+      // fetch to use the pending promise instead of fetching again in parallel
+      this.fileListCache[revision] = this.doListArtifactsForRevision(revision);
     }
 
-    // the data wasn't in the cache, so now we have to go get it
-    let artifacts;
+    let artifacts: RemoteArtifact[];
     try {
-      artifacts = await this.doListArtifactsForRevision(revision);
+      artifacts = (await this.fileListCache[revision]) || [];
     } catch (err) {
       this.logger.error(
         `Unable to retrieve artifact list for revision ${revision}!`
       );
       throw err;
     }
-    this.fileListCache[revision] = artifacts;
 
     if (artifacts.length === 0) {
       this.logger.info(`No artifacts found for revision ${revision}`);
