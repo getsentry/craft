@@ -1,11 +1,10 @@
 import { existsSync, promises as fsPromises } from 'fs';
 import { join, relative } from 'path';
 import * as shellQuote from 'shell-quote';
-import simpleGit, { SimpleGit, StatusResult } from 'simple-git';
+import { SimpleGit, StatusResult } from 'simple-git';
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 
 import {
-  getConfigFileDir,
   getConfiguration,
   DEFAULT_RELEASE_BRANCH_NAME,
   getGlobalGithubConfig,
@@ -25,7 +24,7 @@ import {
   handleGlobalError,
   reportError,
 } from '../utils/errors';
-import { getDefaultBranch, getGithubClient } from '../utils/githubApi';
+import { getGitClient, getDefaultBranch } from '../utils/git';
 import { isDryRun, promptConfirmation } from '../utils/helpers';
 import { formatJson } from '../utils/strings';
 import { spawnProcess } from '../utils/system';
@@ -296,12 +295,13 @@ function checkGitStatus(repoStatus: StatusResult, rev: string) {
  *
  * @param newVersion Version to publish
  */
-async function execPublish(newVersion: string): Promise<never> {
+async function execPublish(remote: string, newVersion: string): Promise<never> {
   logger.info('Running the "publish" command...');
   const publishOptions: PublishOptions = {
+    remote,
+    newVersion,
     keepBranch: false,
     keepDownloads: false,
-    newVersion,
     noMerge: false,
     noStatusCheck: false,
   };
@@ -448,27 +448,11 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   // Get repo configuration
   const config = getConfiguration();
   const githubConfig = await getGlobalGithubConfig();
-
-  // Move to the directory where the config file is located
-  const configFileDir = getConfigFileDir() || '.';
-  process.chdir(configFileDir);
-  logger.debug(`Working directory:`, process.cwd());
-
   const newVersion = argv.newVersion;
 
-  const git = simpleGit(configFileDir);
-  const isRepo = await git.checkIsRepo();
-  if (!isRepo) {
-    throw new ConfigurationError('Not in a git repository!');
-  }
+  const git = await getGitClient();
 
-  // Get some information about the Github project
-  const githubClient = getGithubClient();
-  const defaultBranch = await getDefaultBranch(
-    githubClient,
-    githubConfig.owner,
-    githubConfig.repo
-  );
+  const defaultBranch = await getDefaultBranch(git, argv.remote);
   logger.debug(`Default branch for the repo:`, defaultBranch);
   const repoStatus = await git.status();
   const rev = argv.rev || repoStatus.current || defaultBranch;
@@ -527,7 +511,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
   if (argv.publish) {
     logger.success(`Release branch "${branchName}" has been pushed.`);
-    await execPublish(newVersion);
+    await execPublish(argv.remote, newVersion);
   } else {
     logger.success(
       'Done. Do not forget to run "craft publish" to publish the artifacts:',

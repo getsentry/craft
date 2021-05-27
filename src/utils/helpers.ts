@@ -24,6 +24,7 @@ export function setGlobals(argv: GlobalFlags): void {
   for (const globalFlag of Object.keys(GLOBAL_FLAGS)) {
     GLOBAL_FLAGS[globalFlag] = argv[globalFlag];
   }
+  logger.debug('Global flags:', GLOBAL_FLAGS);
   setLevel(LogLevel[GLOBAL_FLAGS['log-level']]);
   logger.debug('Argv: ', argv);
 }

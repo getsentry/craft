@@ -27,7 +27,10 @@ import { GCSArtifactProvider } from './artifact_providers/gcs';
 
 import { ZeusStatusProvider } from './status_providers/zeus';
 import { GithubStatusProvider } from './status_providers/github';
-import { BaseStatusProvider } from './status_providers/base';
+import {
+  BaseStatusProvider,
+  StatusProviderConfig,
+} from './status_providers/base';
 
 // TODO support multiple configuration files (one per configuration)
 export const CONFIG_FILE_NAME = '.craft.yml';
@@ -261,18 +264,11 @@ export async function getGlobalGithubConfig(
     }
 
     if (remoteUrl?.source === 'github.com') {
-      const gitRoot = await git.revparse(['--show-toplevel']);
-      const projectPath = path.posix.format(
-        path.parse(path.relative(gitRoot, configDir))
-      );
       repoGithubConfig = {
         owner: remoteUrl.owner,
         repo: remoteUrl.name,
-        projectPath,
       };
     }
-  } else if (!repoGithubConfig.projectPath) {
-    repoGithubConfig.projectPath = '.';
   }
 
   _globalGithubConfigCache = Object.freeze(repoGithubConfig);
@@ -315,11 +311,13 @@ export async function getArtifactProviderFromConfig(): Promise<BaseArtifactProvi
 
   const githubRepo = await getGlobalGithubConfig();
   const artifactProviderConfig = {
+    name: artifactProviderName,
     ...projectConfig.artifactProvider?.config,
     repoName: githubRepo.repo,
     repoOwner: githubRepo.owner,
   };
 
+  logger.debug(`Using "${artifactProviderName}" for artifacts`);
   switch (artifactProviderName) {
     case ArtifactProviderName.Zeus:
       return new ZeusArtifactProvider(artifactProviderConfig);
@@ -348,9 +346,8 @@ export async function getStatusProviderFromConfig(): Promise<BaseStatusProvider>
     config: undefined,
     name: undefined,
   };
-  const statusProviderConfig = rawStatusProvider.config;
-  let statusProviderName = rawStatusProvider.name;
 
+  let statusProviderName = rawStatusProvider.name;
   if (statusProviderName == null) {
     if (isAfterEpoch()) {
       statusProviderName = StatusProviderName.Github;
@@ -365,19 +362,17 @@ export async function getStatusProviderFromConfig(): Promise<BaseStatusProvider>
     }
   }
 
+  const statusProviderConfig: StatusProviderConfig = {
+    ...rawStatusProvider.config,
+    name: statusProviderName,
+  };
+
+  logger.debug(`Using "${statusProviderName}" for status checks`);
   switch (statusProviderName) {
     case StatusProviderName.Zeus:
-      return new ZeusStatusProvider(
-        githubConfig.owner,
-        githubConfig.repo,
-        statusProviderConfig
-      );
+      return new ZeusStatusProvider(statusProviderConfig, githubConfig);
     case StatusProviderName.Github:
-      return new GithubStatusProvider(
-        githubConfig.owner,
-        githubConfig.repo,
-        statusProviderConfig
-      );
+      return new GithubStatusProvider(statusProviderConfig, githubConfig);
     default: {
       throw new ConfigurationError('Invalid status provider');
     }

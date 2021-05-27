@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.23.0
+
+- feat(publish): Ability to merge to non-default (#245)
+- fix(logging): Proper scoping and log levels (#247)
+
 ## 0.22.2
 
 - fix(logging): Fix scoped loggers not respecting log level (#236)

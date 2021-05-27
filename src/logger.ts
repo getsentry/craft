@@ -2,6 +2,7 @@ import { addBreadcrumb, Severity } from '@sentry/node';
 import Table from 'cli-table';
 import consola, {
   BasicReporter,
+  Consola,
   ConsolaReporterLogObject,
   LogLevel,
 } from 'consola';
@@ -21,8 +22,6 @@ export function formatTable(
   return table.toString();
 }
 
-export { LogLevel as LogLevel };
-
 /** Reporter that sends logs to Sentry */
 class SentryBreadcrumbReporter extends BasicReporter {
   public log(logObj: ConsolaReporterLogObject) {
@@ -34,17 +33,26 @@ class SentryBreadcrumbReporter extends BasicReporter {
   }
 }
 
-export function setLevel(level: LogLevel): void {
-  logger.level = level;
-  // @ts-ignore We know _defaults exists, and this is the only way
-  // to modify the default level after creation.
-  logger._defaults.level = level;
-  logger.resume();
+export { LogLevel as LogLevel };
+const loggers: Consola[] = [];
+function createLogger(tag?: string) {
+  const loggerInstance = consola.withDefaults({ tag });
+  loggerInstance.addReporter(new SentryBreadcrumbReporter());
+  loggerInstance.withScope = createLogger;
+  loggers.push(loggerInstance);
+  return loggerInstance;
 }
 
-export const logger = consola.create({});
+export const logger = createLogger();
 // Pause until we set the logging level from helpers#setGlobals
 // This allows us to enqueue debug logging even before we set the
 // logging level. These are flushed as soon as we run `logger.resume()`.
 logger.pause();
-logger.addReporter(new SentryBreadcrumbReporter());
+
+export function setLevel(logLevel: LogLevel): void {
+  consola.level = logLevel;
+  for (const loggerInstance of loggers) {
+    loggerInstance.level = logLevel;
+    loggerInstance.resume();
+  }
+}

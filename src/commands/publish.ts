@@ -1,4 +1,3 @@
-import * as Github from '@octokit/rest';
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 import chalk from 'chalk';
 import {
@@ -19,13 +18,12 @@ import {
   getGlobalGithubConfig,
 } from '../config';
 import { formatTable, logger } from '../logger';
-import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { TargetConfig } from '../schemas/project_config';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
 import { handleGlobalError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
-import { getGithubClient, mergeReleaseBranch } from '../utils/githubApi';
 import { isDryRun, promptConfirmation } from '../utils/helpers';
 import { formatSize, formatJson } from '../utils/strings';
 import {
@@ -36,6 +34,8 @@ import {
 import { isValidVersion } from '../utils/version';
 import { BaseStatusProvider } from '../status_providers/base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
+import { SimpleGit } from 'simple-git';
+import { getGitClient, getDefaultBranch, stripRemoteName } from '../utils/git';
 
 /** Default path to post-release script, relative to project root */
 const DEFAULT_POST_RELEASE_SCRIPT_PATH = join('scripts', 'post-release.sh');
@@ -72,6 +72,17 @@ export const builder: CommandBuilder = (yargs: Argv) => {
         'Source revision (git SHA or tag) to publish (if not release branch head)',
       type: 'string',
     })
+    .option('merge-target', {
+      alias: 'm',
+      description:
+        'Target branch to merge into. Uses the default branch from GitHub as a fallback',
+      type: 'string',
+    })
+    .option('remote', {
+      default: 'origin',
+      description: 'The git remote to use when pushing',
+      type: 'string',
+    })
     .option('no-merge', {
       default: false,
       description: 'Do not merge the release branch after publishing',
@@ -98,8 +109,12 @@ export const builder: CommandBuilder = (yargs: Argv) => {
 
 /** Command line options. */
 export interface PublishOptions {
+  /** The git remote to use when pushing */
+  remote: string;
   /** Revision to publish (can be commit, tag, etc.) */
   rev?: string;
+  /** Target branch to merge the release into, auto detected when empty */
+  mergeTarget?: string;
   /** One or more targets we want to publish */
   target?: string | string[];
   /** The new version to publish */
@@ -313,37 +328,70 @@ async function checkRevisionStatus(
 }
 
 /**
+ * Determines the closest branch we can merge to from the current checkout
+ * Adapted from https://stackoverflow.com/a/55238339/90297
+ * @param git our local Git client
+ * @param remoteName Name of the remote to query for the default branch
+ * @returns
+ */
+async function getMergeTarget(
+  git: SimpleGit,
+  remoteName: string
+): Promise<string> {
+  const logOutput = await git.raw(
+    'log',
+    '--decorate',
+    '--simplify-by-decoration',
+    '--oneline'
+  );
+  logger.debug('Trying to find merge target:');
+  logger.debug(logOutput);
+  const branchName =
+    stripRemoteName(
+      logOutput
+        .match(/^[\da-f]+ \((?!HEAD )([^)]+)\)/m)?.[1]
+        ?.split(',', 1)?.[0],
+      remoteName
+    ) || (await getDefaultBranch(git, remoteName));
+
+  if (!branchName) {
+    throw new Error('Cannot determine where to merge to!');
+  }
+
+  return branchName;
+}
+
+/**
  * Deals with the release branch after publishing is done
  *
  * Leave the release branch unmerged, or merge it but not delete it if the
  * corresponding flags are set.
  *
- * @param github Github client
- * @param githubConfig Github repository configuration
- * @param branchName Release branch name
- * @param skipMerge If set to "true", the branch will not be merged
+ * @param git Git client
+ * @param remoteName The git remote name to interact with
+ * @param branch Name of the release branch
+ * @param [mergeTarget] Branch name to merge the release branch into
  * @param keepBranch If set to "true", the branch will not be deleted
  */
 async function handleReleaseBranch(
-  github: Github,
-  githubConfig: GithubGlobalConfig,
-  branchName: string,
-  skipMerge = false,
+  git: SimpleGit,
+  remoteName: string,
+  branch: string,
+  mergeTarget?: string,
   keepBranch = false
 ): Promise<void> {
-  if (!branchName || skipMerge) {
-    logger.info('Skipping the merge step.');
-    return;
+  if (!mergeTarget) {
+    mergeTarget = await getMergeTarget(git, remoteName);
   }
+  logger.debug(`Checking out merge target branch:`, mergeTarget);
+  await git.checkout(mergeTarget);
 
-  logger.debug(`Merging the release branch: ${branchName}`);
+  logger.debug(`Merging ${branch} into: ${mergeTarget}`);
   if (!isDryRun()) {
-    await mergeReleaseBranch(
-      github,
-      githubConfig.owner,
-      githubConfig.repo,
-      branchName
-    );
+    await git
+      .pull(remoteName, mergeTarget, ['--rebase'])
+      .merge(['--no-ff', '--no-edit', branch])
+      .push(remoteName, mergeTarget);
   } else {
     logger.info('[dry-run] Not merging the release branch');
   }
@@ -351,19 +399,10 @@ async function handleReleaseBranch(
   if (keepBranch) {
     logger.info('Not deleting the release branch.');
   } else {
-    const ref = `heads/${branchName}`;
-    logger.debug(`Deleting the release branch, ref: ${ref}`);
+    logger.debug(`Deleting the release branch: ${branch}`);
     if (!isDryRun()) {
-      const response = await github.git.deleteRef({
-        owner: githubConfig.owner,
-        ref,
-        repo: githubConfig.repo,
-      });
-      logger.debug(
-        `Deleted ref "${ref}"`,
-        `Response status: ${response.status}`
-      );
-      logger.info(`Removed the remote branch: "${branchName}"`);
+      await git.branch(['-D', branch]).push([remoteName, '--delete', branch]);
+      logger.info(`Removed the remote branch: "${branch}"`);
     } else {
       logger.info('[dry-run] Not deleting the remote branch');
     }
@@ -421,46 +460,38 @@ export async function runPostReleaseCommand(
 export async function publishMain(argv: PublishOptions): Promise<any> {
   // Get publishing configuration
   const config = getConfiguration() || {};
-  const githubConfig = await getGlobalGithubConfig();
-  const githubClient = getGithubClient();
 
   const newVersion = argv.newVersion;
 
   logger.info(`Publishing version: "${newVersion}"`);
 
-  let revision: string;
+  const git = await getGitClient();
+
+  const rev = argv.rev;
+  let checkoutTarget;
   let branchName;
-  if (argv.rev) {
-    branchName = '';
-    logger.debug(
-      `Fetching GitHub information for provided revision: "${argv.rev}"`
-    );
-    const response = await githubClient.repos.getCommit({
-      owner: githubConfig.owner,
-      ref: argv.rev,
-      repo: githubConfig.repo,
-    });
-    revision = response.data.sha;
+  if (rev) {
+    logger.debug(`Trying to get branch name for provided revision: "${rev}"`);
+    branchName = (
+      await git.raw('name-rev', '--name-only', '--no-undefined', rev)
+    ).trim();
+    checkoutTarget = branchName || rev;
   } else {
     // Find the remote branch
     const branchPrefix =
       config.releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
     branchName = `${branchPrefix}/${newVersion}`;
-
-    logger.debug('Fetching branch information', branchName);
-    const response = await githubClient.repos.getBranch({
-      branch: branchName,
-      owner: githubConfig.owner,
-      repo: githubConfig.repo,
-    });
-    revision = response.data.commit.sha;
+    checkoutTarget = branchName;
   }
+
+  logger.debug('Checking out release branch', branchName);
+  await git.checkout(checkoutTarget);
+
+  const revision = await git.revparse('HEAD');
   logger.debug('Revision to publish: ', revision);
 
   const statusProvider = await getStatusProviderFromConfig();
   const artifactProvider = await getArtifactProviderFromConfig();
-  logger.debug(`Using "${statusProvider.name}" for status checks`);
-  logger.debug(`Using "${artifactProvider.name}" for artifacts`);
 
   // Check status of all CI builds linked to the revision
   await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);
@@ -552,8 +583,12 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     logger.info(' ');
   }
 
-  if (argv.rev) {
-    logger.info('Not merging any branches because revision was specified.');
+  if (argv.noMerge) {
+    logger.info('Not merging per user request via no-merge option.');
+  } else if (!branchName) {
+    logger.info(
+      'Not merging because cannot determine a branch name to merge from.'
+    );
   } else if (
     targetsToPublish.has(SpecialTarget.All) ||
     targetsToPublish.has(SpecialTarget.None) ||
@@ -561,10 +596,10 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   ) {
     // Publishing done, MERGE DAT BRANCH!
     await handleReleaseBranch(
-      githubClient,
-      githubConfig,
+      git,
+      argv.remote,
       branchName,
-      argv.noMerge,
+      argv.mergeTarget,
       argv.keepBranch
     );
     if (!isDryRun()) {
