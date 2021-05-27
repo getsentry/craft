@@ -4,7 +4,8 @@ import { sleep } from '../utils/async';
 
 import { reportError } from '../utils/errors';
 
-import { logger } from '../logger';
+import { logger as loggerRaw } from '../logger';
+import { GithubGlobalConfig } from 'src/schemas/project_config';
 
 /** Max number of seconds to wait for the build to finish */
 const BUILD_STATUS_POLLING_MAX = 60 * 60;
@@ -26,6 +27,13 @@ export enum CommitStatus {
   NOT_FOUND = 'not_found',
 }
 
+export interface StatusProviderConfig {
+  name: string;
+
+  /** Other, provider-specific config options */
+  [key: string]: any;
+}
+
 /** Repository information */
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface RepositoryInfo {}
@@ -34,9 +42,14 @@ export interface RepositoryInfo {}
  * Base class for commit status providers
  */
 export abstract class BaseStatusProvider {
-  public abstract readonly name: string;
-  public config: any;
+  protected readonly logger: typeof loggerRaw;
 
+  public constructor(
+    public readonly config: StatusProviderConfig,
+    public readonly githubConfig: GithubGlobalConfig
+  ) {
+    this.logger = loggerRaw.withScope(`[status-provider/${config.name}]`);
+  }
   /**
    * Gets a status for the given revision
    *
@@ -62,13 +75,13 @@ export abstract class BaseStatusProvider {
 
     while (true) {
       const status = await this.getRevisionStatus(revision);
-      logger.debug(`Got status "${status}" from status provider: ${this.name}`);
+      this.logger.debug(`Got status "${status}" for revision ${revision}`);
 
       if (status === CommitStatus.SUCCESS) {
         if (spinner.isSpinning) {
           spinner.succeed();
         }
-        logger.info(`Revision ${revision} has been built successfully.`);
+        this.logger.info(`Revision ${revision} has been built successfully.`);
         return;
       } else if (status === CommitStatus.FAILURE) {
         if (spinner.isSpinning) {
@@ -80,7 +93,7 @@ export abstract class BaseStatusProvider {
         return;
       } else if (status === CommitStatus.NOT_FOUND) {
         if (firstIteration) {
-          logger.info(
+          this.logger.info(
             `Revision ${revision} has not been found, waiting for a bit.`
           );
         }
@@ -88,7 +101,7 @@ export abstract class BaseStatusProvider {
 
       if (firstIteration) {
         if (status !== CommitStatus.NOT_FOUND) {
-          logger.info(`Revision ${revision} has been found.`);
+          this.logger.info(`Revision ${revision} has been found.`);
         }
       }
 

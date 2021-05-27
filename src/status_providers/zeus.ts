@@ -1,22 +1,25 @@
-import { BaseStatusProvider, CommitStatus, RepositoryInfo } from './base';
+import {
+  BaseStatusProvider,
+  CommitStatus,
+  RepositoryInfo,
+  StatusProviderConfig,
+} from './base';
 import { ZeusStore } from '../stores/zeus';
+import { GithubGlobalConfig } from 'src/schemas/project_config';
 
 /**
  * TODO
  */
 export class ZeusStatusProvider extends BaseStatusProvider {
-  public readonly name = 'zeus';
   /** Zeus API client */
   public readonly store: ZeusStore;
 
   public constructor(
-    repoOwner: string,
-    repoName: string,
-    config?: Record<string, any>
+    config: StatusProviderConfig,
+    githubConfig: GithubGlobalConfig
   ) {
-    super();
-    this.store = new ZeusStore(repoOwner, repoName);
-    this.config = config;
+    super(config, githubConfig);
+    this.store = new ZeusStore(this.githubConfig.owner, this.githubConfig.repo);
   }
 
   /**

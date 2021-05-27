@@ -73,6 +73,7 @@ export interface FilterOptions {
  * Configuration options needed for all artifact providers
  */
 export interface ArtifactProviderConfig {
+  name: string;
   /** Name of the repo containing the code getting released */
   repoName: string;
   /** GitHub org to which the repo belongs */
@@ -87,7 +88,6 @@ export interface ArtifactProviderConfig {
  * Base interface for artifact providers.
  */
 export abstract class BaseArtifactProvider {
-  public readonly name: string = 'base';
   protected readonly logger: typeof loggerRaw;
   /** Cache for local paths to downloaded files */
   protected readonly downloadCache: {
@@ -111,7 +111,7 @@ export abstract class BaseArtifactProvider {
   protected defaultDownloadDirectory: string | undefined;
 
   public constructor(config: ArtifactProviderConfig) {
-    this.logger = loggerRaw.withScope(`[artifact-provider/${this.name}]`);
+    this.logger = loggerRaw.withScope(`[artifact-provider/${config.name}]`);
     this.clearCaches();
 
     this.config = config;

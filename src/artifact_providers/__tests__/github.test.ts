@@ -23,6 +23,7 @@ describe('GitHub Artifact Provider', () => {
     >).mockReturnValueOnce(mockClient);
 
     githubArtifactProvider = new TestGithubArtifactProvider({
+      name: 'github-test',
       repoOwner: 'getsentry',
       repoName: 'craft',
     });

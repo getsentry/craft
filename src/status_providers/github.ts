@@ -1,27 +1,30 @@
 import * as Github from '@octokit/rest';
 
 import { logger } from '../logger';
-import { BaseStatusProvider, CommitStatus, RepositoryInfo } from './base';
+import {
+  BaseStatusProvider,
+  CommitStatus,
+  RepositoryInfo,
+  StatusProviderConfig,
+} from './base';
 import { getGithubClient } from '../utils/githubApi';
 import { ConfigurationError } from '../utils/errors';
 import { formatJson } from '../utils/strings';
+import { GithubGlobalConfig } from 'src/schemas/project_config';
 
 /**
  * Status provider that talks to GitHub to get commit checks (statuses)
  */
 export class GithubStatusProvider extends BaseStatusProvider {
-  public readonly name = 'github';
   /** Github client */
   private readonly github: Github;
 
   public constructor(
-    private readonly repoOwner: string,
-    private readonly repoName: string,
-    config?: Record<string, any>
+    config: StatusProviderConfig,
+    githubConfig: GithubGlobalConfig
   ) {
-    super();
+    super(config, githubConfig);
     this.github = getGithubClient();
-    this.config = config;
   }
 
   /**
@@ -272,9 +275,8 @@ export class GithubStatusProvider extends BaseStatusProvider {
     logger.debug(`Fetching combined revision status...`);
     const revisionStatusResponse = await this.github.repos.getCombinedStatusForRef(
       {
-        owner: this.repoOwner,
+        ...this.githubConfig,
         ref: revision,
-        repo: this.repoName,
       }
     );
     const revisionStatus = revisionStatusResponse.data;
@@ -300,9 +302,8 @@ export class GithubStatusProvider extends BaseStatusProvider {
     logger.debug(`Fetching Checks API status...`);
     const revisionCheckSuites = (
       await this.github.checks.listSuitesForRef({
-        owner: this.repoOwner,
+        ...this.githubConfig,
         ref: revision,
-        repo: this.repoName,
       })
     ).data;
     logger.debug(
@@ -327,9 +328,8 @@ export class GithubStatusProvider extends BaseStatusProvider {
   ): Promise<Github.ChecksListForRefResponse> {
     logger.debug(`Fetching Checks API status...`);
     const revisionChecksResponse = await this.github.checks.listForRef({
-      owner: this.repoOwner,
+      ...this.githubConfig,
       ref: revision,
-      repo: this.repoName,
     });
     const revisionChecks = revisionChecksResponse.data;
     logger.debug(`Revision checks received: "${formatJson(revisionChecks)}"`);
@@ -342,8 +342,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
    */
   public async getRepositoryInfo(): Promise<RepositoryInfo> {
     return this.github.repos.get({
-      owner: this.repoOwner,
-      repo: this.repoName,
+      ...this.githubConfig,
     });
   }
 }

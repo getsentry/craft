@@ -8,9 +8,12 @@ import {
  * Empty artifact provider that does nothing.
  */
 export class NoneArtifactProvider extends BaseArtifactProvider {
-  public readonly name = 'none';
   public constructor(
-    config: ArtifactProviderConfig = { repoName: 'none', repoOwner: 'none' }
+    config: ArtifactProviderConfig = {
+      repoName: 'none',
+      repoOwner: 'none',
+      name: 'none',
+    }
   ) {
     super(config);
   }
