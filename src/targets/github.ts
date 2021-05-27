@@ -1,6 +1,6 @@
 import * as Github from '@octokit/rest';
-import { createReadStream, statSync } from 'fs';
-import { basename, posix } from 'path';
+import { createReadStream, promises, statSync } from 'fs';
+import { basename } from 'path';
 
 import { getConfiguration } from '../config';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
@@ -9,13 +9,7 @@ import {
   DEFAULT_CHANGELOG_PATH,
   findChangeset,
 } from '../utils/changes';
-import {
-  getFile,
-  getGithubClient,
-  HTTP_RESPONSE_5XX,
-  HTTP_UNPROCESSABLE_ENTITY,
-  retryHttp,
-} from '../utils/githubApi';
+import { getGithubClient } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
 import { isPreviewRelease, versionToTag } from '../utils/version';
 import { BaseTarget } from './base';
@@ -80,11 +74,7 @@ export class GithubTarget extends BaseTarget {
     this.githubRepo = githubRepo;
     const owner = config.owner || githubRepo.owner;
     const repo = config.repo || githubRepo.repo;
-    const projectPath = githubRepo.projectPath || '.';
-    const changelogPath =
-      getConfiguration().changelog || DEFAULT_CHANGELOG_PATH;
-
-    const changelog = posix.join(projectPath, changelogPath);
+    const changelog = getConfiguration().changelog || DEFAULT_CHANGELOG_PATH;
 
     this.githubConfig = {
       owner,
@@ -223,17 +213,10 @@ export class GithubTarget extends BaseTarget {
     }
   }
 
-  public async getRevisionChanges(
-    version: string,
-    revision: string
-  ): Promise<Changeset> {
-    const changelog = await getFile(
-      this.github,
-      this.githubRepo.owner,
-      this.githubRepo.repo,
-      this.githubConfig.changelog,
-      revision
-    );
+  public async getChangelog(version: string): Promise<Changeset> {
+    const changelog = (
+      await promises.readFile(this.githubConfig.changelog)
+    ).toString();
     const changes = (changelog && findChangeset(changelog, version)) || {
       name: version,
       body: '',
@@ -254,20 +237,18 @@ export class GithubTarget extends BaseTarget {
    */
   public async deleteAsset(
     asset: Github.ReposListAssetsForReleaseResponseItem
-  ): Promise<void> {
+  ): Promise<Github.AnyResponse | undefined> {
     if (isDryRun()) {
       this.logger.debug(`[dry-run] Not deleting the asset: "${asset.name}"`);
       return;
     }
 
     this.logger.debug(`Deleting asset: "${asset.name}"...`);
-    return retryHttp(async () =>
-      this.github.repos.deleteReleaseAsset({
-        asset_id: asset.id,
-        owner: this.githubConfig.owner,
-        repo: this.githubConfig.repo,
-      })
-    ) as any;
+    return this.github.repos.deleteReleaseAsset({
+      asset_id: asset.id,
+      owner: this.githubConfig.owner,
+      repo: this.githubConfig.repo,
+    });
   }
 
   /**
@@ -294,14 +275,12 @@ export class GithubTarget extends BaseTarget {
   public async getAssetsForRelease(
     release: GithubRelease
   ): Promise<Github.ReposListAssetsForReleaseResponseItem[]> {
-    const listAssets = async () =>
-      this.github.repos.listAssetsForRelease({
-        owner: this.githubConfig.owner,
-        per_page: 50,
-        release_id: release.id,
-        repo: this.githubConfig.repo,
-      });
-    const assetsResponse = await retryHttp(listAssets);
+    const assetsResponse = await this.github.repos.listAssetsForRelease({
+      owner: this.githubConfig.owner,
+      per_page: 50,
+      release_id: release.id,
+      repo: this.githubConfig.repo,
+    });
     return assetsResponse.data;
   }
 
@@ -356,17 +335,7 @@ export class GithubTarget extends BaseTarget {
     );
     if (!isDryRun()) {
       try {
-        await retryHttp(
-          async () => this.github.repos.uploadReleaseAsset(params),
-          {
-            cleanupFn: async () => {
-              this.logger.debug('Cleaning up before the next retry...');
-              return this.deleteAssetsByFilename(release, name);
-            },
-            retries: 5,
-            retryCodes: [HTTP_RESPONSE_5XX, HTTP_UNPROCESSABLE_ENTITY],
-          }
-        );
+        await this.github.repos.uploadReleaseAsset(params);
       } catch (e) {
         this.logger.error(`Cannot upload asset "${name}".`);
         throw e;
@@ -386,8 +355,8 @@ export class GithubTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(version: string, revision: string): Promise<any> {
-    const changes = await this.getRevisionChanges(version, revision);
-    const release = await this.getOrCreateRelease(version, revision, changes);
+    const changelog = await this.getChangelog(version);
+    const release = await this.getOrCreateRelease(version, revision, changelog);
 
     if (isDryRun()) {
       this.logger.info(
