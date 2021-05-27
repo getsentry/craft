@@ -33,10 +33,10 @@ export class GithubStatusProvider extends BaseStatusProvider {
   public async getRevisionStatus(revision: string): Promise<CommitStatus> {
     // TODO move this validation earlier
     let contexts = [];
-    if (this.config) {
+    if (this.config.contexts) {
       contexts = this.config.contexts;
 
-      if (contexts && !(Array.isArray(contexts) && contexts.length > 0)) {
+      if (!(Array.isArray(contexts) && contexts.length > 0)) {
         throw new ConfigurationError(
           `Invalid configuration for GithubStatusProvider`
         );
