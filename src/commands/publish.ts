@@ -391,7 +391,7 @@ async function handleReleaseBranch(
     await git
       .pull(remoteName, mergeTarget, ['--rebase'])
       .merge(['--no-ff', '--no-edit', branch])
-      .push(remoteName);
+      .push(remoteName, mergeTarget);
   } else {
     logger.info('[dry-run] Not merging the release branch');
   }
