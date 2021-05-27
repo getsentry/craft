@@ -11,8 +11,6 @@ import {
  * Base class for all remote targets
  */
 export class BaseTarget {
-  /** Target name */
-  public readonly name: string = 'base';
   public readonly id: string;
   protected readonly logger: typeof loggerRaw;
   /** Artifact provider */
@@ -35,7 +33,7 @@ export class BaseTarget {
     artifactProvider: BaseArtifactProvider,
     githubRepo?: GithubGlobalConfig
   ) {
-    this.logger = loggerRaw.withScope(`[artifact-provider/${this.name}]`);
+    this.logger = loggerRaw.withScope(`[target/${config.name}]`);
     this.artifactProvider = artifactProvider;
     this.config = config;
     this.id = BaseTarget.getId(config);

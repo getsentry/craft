@@ -492,8 +492,6 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   const statusProvider = await getStatusProviderFromConfig();
   const artifactProvider = await getArtifactProviderFromConfig();
-  logger.debug(`Using "${statusProvider.name}" for status checks`);
-  logger.debug(`Using "${artifactProvider.name}" for artifacts`);
 
   // Check status of all CI builds linked to the revision
   await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);

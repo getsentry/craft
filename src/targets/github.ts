@@ -57,7 +57,7 @@ type GithubCreateTagType = 'commit' | 'tree' | 'blob';
  */
 export class GithubTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = 'github';
+  public readonly name = 'github';
   /** Target options */
   public readonly githubConfig: GithubTargetConfig;
   /** Github client */
