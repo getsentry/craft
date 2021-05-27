@@ -34,10 +34,9 @@ class SentryBreadcrumbReporter extends BasicReporter {
 }
 
 export { LogLevel as LogLevel };
-let level = LogLevel.Info;
 const loggers: Consola[] = [];
 function createLogger(tag?: string) {
-  const loggerInstance = consola.create({ defaults: { tag, level } });
+  const loggerInstance = consola.withDefaults({ tag });
   loggerInstance.addReporter(new SentryBreadcrumbReporter());
   loggerInstance.withScope = createLogger;
   loggers.push(loggerInstance);
@@ -51,9 +50,9 @@ export const logger = createLogger();
 logger.pause();
 
 export function setLevel(logLevel: LogLevel): void {
-  level = logLevel;
+  consola.level = logLevel;
   for (const loggerInstance of loggers) {
-    loggerInstance.level = level;
+    loggerInstance.level = logLevel;
     loggerInstance.resume();
   }
 }
