@@ -3,7 +3,11 @@ import { createReadStream, promises, statSync } from 'fs';
 import { basename } from 'path';
 
 import { getConfiguration } from '../config';
-import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import {
+  ChangelogPolicy,
+  GithubGlobalConfig,
+  TargetConfig,
+} from '../schemas/project_config';
 import {
   Changeset,
   DEFAULT_CHANGELOG_PATH,
@@ -14,6 +18,7 @@ import { isDryRun } from '../utils/helpers';
 import { isPreviewRelease, versionToTag } from '../utils/version';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
+import { logger } from '../logger';
 
 /**
  * Default content type for GitHub release assets
@@ -214,9 +219,14 @@ export class GithubTarget extends BaseTarget {
   }
 
   public async getChangelog(version: string): Promise<Changeset> {
-    const changelog = (
-      await promises.readFile(this.githubConfig.changelog)
-    ).toString();
+    let changelog;
+    try {
+      changelog = (
+        await promises.readFile(this.githubConfig.changelog)
+      ).toString();
+    } catch (err) {
+      logger.error('Cannot read changelog, moving on without one', err);
+    }
     const changes = (changelog && findChangeset(changelog, version)) || {
       name: version,
       body: '',
@@ -355,7 +365,11 @@ export class GithubTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(version: string, revision: string): Promise<any> {
-    const changelog = await this.getChangelog(version);
+    const config = getConfiguration();
+    let changelog;
+    if (config.changelogPolicy !== ChangelogPolicy.None) {
+      changelog = await this.getChangelog(version);
+    }
     const release = await this.getOrCreateRelease(version, revision, changelog);
 
     if (isDryRun()) {
