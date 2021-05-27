@@ -36,7 +36,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
     if (this.config) {
       contexts = this.config.contexts;
 
-      if (!Array.isArray(contexts) || contexts.length === 0) {
+      if ((contexts && !Array.isArray(contexts)) || contexts.length === 0) {
         throw new ConfigurationError(
           `Invalid configuration for GithubStatusProvider`
         );
