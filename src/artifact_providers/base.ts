@@ -91,12 +91,12 @@ export abstract class BaseArtifactProvider {
   protected readonly logger: typeof loggerRaw;
   /** Cache for local paths to downloaded files */
   protected readonly downloadCache: {
-    [key: string]: Promise<string> | undefined;
+    [key: string]: Promise<string>;
   } = {};
 
   /** Cache for storing mapping between revisions and a list of their artifacts */
   protected readonly fileListCache: {
-    [key: string]: Promise<RemoteArtifact[]> | undefined;
+    [key: string]: Promise<RemoteArtifact[]>;
   } = {};
 
   /** Cache for checksums computed for the files stored on disk */
@@ -250,7 +250,7 @@ export abstract class BaseArtifactProvider {
 
     let artifacts: RemoteArtifact[];
     try {
-      artifacts = (await this.fileListCache[revision]) || [];
+      artifacts = await this.fileListCache[revision];
     } catch (err) {
       this.logger.error(
         `Unable to retrieve artifact list for revision ${revision}!`
