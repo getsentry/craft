@@ -7,7 +7,7 @@ import { ConfigurationError } from './errors';
 /**
  * Abstraction for GitHub remotes
  */
-export class GitHubRemote {
+export class GithubRemote {
   /** GitHub owner */
   public readonly owner: string;
   /** GitHub repository name */

@@ -7,7 +7,7 @@ import {
   getAuthUsername,
   getGithubApiToken,
   getGithubClient,
-  GitHubRemote,
+  GithubRemote,
 } from '../utils/githubApi';
 
 import { TargetConfig } from '../schemas/project_config';
@@ -33,7 +33,7 @@ interface AwsLambdaTargetConfig {
   /** AWS secret access key, set as `AWS_SECRET_ACCESS_KEY`. */
   awsSecretAccessKey: string;
   /** Git remote of the release registry. */
-  registryRemote: GitHubRemote;
+  registryRemote: GithubRemote;
   /** Should layer versions of prereleases be pushed to the registry? */
   linkPrereleases: boolean;
 }

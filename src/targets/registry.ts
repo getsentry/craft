@@ -9,7 +9,7 @@ import {
   getAuthUsername,
   getGithubApiToken,
   getGithubClient,
-  GitHubRemote,
+  GithubRemote,
 } from '../utils/githubApi';
 import { renderTemplateSafe } from '../utils/strings';
 import { isPreviewRelease } from '../utils/version';
@@ -69,7 +69,7 @@ export class RegistryTarget extends BaseTarget {
   /** Target name */
   public readonly name = 'registry';
   /** Git remote of the release registry */
-  public readonly remote: GitHubRemote;
+  public readonly remote: GithubRemote;
   /** Target options */
   public readonly registryConfig: RegistryConfig[];
   /** Github client */
@@ -86,7 +86,7 @@ export class RegistryTarget extends BaseTarget {
     const remote = this.config.remote;
     if (remote) {
       const [owner, repo] = remote.split('/', 2);
-      this.remote = new GitHubRemote(owner, repo);
+      this.remote = new GithubRemote(owner, repo);
     } else {
       this.remote = DEFAULT_REGISTRY_REMOTE;
     }

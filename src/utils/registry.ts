@@ -4,7 +4,7 @@ import * as path from 'path';
 import { logger } from '../logger';
 import { createSymlinks } from './symlink';
 import { reportError } from './errors';
-import { GitHubRemote } from './githubApi';
+import { GithubRemote } from './githubApi';
 import { getPackageDirPath } from '../utils/packagePath';
 
 /** Type of the registry package */
@@ -66,7 +66,7 @@ export async function updateManifestSymlinks(
   createSymlinks(versionFilePath, version, previousVersion);
 }
 
-export const DEFAULT_REGISTRY_REMOTE = new GitHubRemote(
+export const DEFAULT_REGISTRY_REMOTE = new GithubRemote(
   'getsentry',
   'sentry-release-registry'
 );
