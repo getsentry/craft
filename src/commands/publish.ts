@@ -350,7 +350,7 @@ async function getMergeTarget(
   const branchName =
     stripRemoteName(
       logOutput
-        .match(/^[\da-f]+ \((?!HEAD )([^)]+)\)/m)?.[1]
+        .match(/^[\da-f]+ \((?!HEAD |tag: )([^)]+)\)/m)?.[1]
         ?.split(',', 1)?.[0],
       remoteName
     ) || (await getDefaultBranch(git, remoteName));
