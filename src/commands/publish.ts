@@ -610,7 +610,11 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       // file. If unlinking fails, we honestly don't care, at least to fail
       // the final steps. And it doesn't make sense to wait until this op
       // finishes then as nothing relies on the removal of this file.
-      fsPromises.unlink(publishStateFile);
+      fsPromises
+        .unlink(publishStateFile)
+        .catch(err =>
+          logger.debug("Couldn't remove publish state file: ", err)
+        );
     }
     logger.success(`Version ${newVersion} has been published!`);
   } else {

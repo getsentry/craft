@@ -6,6 +6,7 @@ import * as tmp from 'tmp';
 import * as util from 'util';
 
 import { filterAsync } from './async';
+import { logger } from '../logger';
 
 const lstat = util.promisify(fs.lstat);
 const readdirp = util.promisify(fs.readdir);
@@ -82,13 +83,14 @@ export async function withTempDir<T>(
     return await callback(directory);
   } finally {
     if (cleanup) {
-      rimraf(directory, () => {
+      rimraf(directory, err => {
         // XXX(BYK): intentionally DO NOT await unlinking as we do not want
         // to block (both in terms of waiting for IO and the success of the
         // operation) finishing the task at hand. If unlinking fails, we honestly
         // don't care as this is already a temporary file and will be removed
         // eventually by the OS. And it doesn't make sense to wait until this op
         // finishes then as nothing relies on the removal of this file.
+        logger.debug(`Couldn't remove temp dir ${directory}: `, err);
       });
     }
   }
