@@ -41,11 +41,11 @@ export interface RegistryConfig {
   /** Unique package cannonical name, including type and/or registry name */
   canonicalName: string;
   /** Should we create registry entries for pre-releases? */
-  linkPrereleases: boolean;
+  linkPrereleases?: boolean;
   /** URL template for file assets */
   urlTemplate?: string;
   /** Types of checksums to compute for artifacts */
-  checksums: ChecksumEntry[];
+  checksums?: ChecksumEntry[];
   /** Pattern that allows to skip the target if there's no matching file */
   onlyIfPresent?: RegExp;
 }
@@ -61,6 +61,11 @@ interface ArtifactData {
     [key: string]: string;
   };
 }
+
+const BATCH_KEYS = {
+  sdks: RegistryPackageType.SDK,
+  apps: RegistryPackageType.APP,
+};
 
 /**
  * Target responsible for publishing to Sentry's release registry: https://github.com/getsentry/sentry-release-registry/
@@ -99,30 +104,22 @@ export class RegistryTarget extends BaseTarget {
    * Extracts Registry target options from the raw configuration.
    */
   public getRegistryConfig(): RegistryConfig[] {
-    if (!this.config.sdks && !this.config.apps) {
+    const items = Object.entries(BATCH_KEYS).flatMap(([key, type]) =>
+      Object.entries(this.config[key] || {}).map(([canonicalName, conf]) => ({
+        ...(conf as Record<string, unknown>),
+        type,
+        canonicalName,
+      }))
+    );
+
+    if (items.length === 0 && this.config.type) {
       this.logger.warn(
-        'You are using a deprecated registry traget config, please update.'
+        'You are using a deprecated registry target config, please update.'
       );
       return [this.getLegacyRegistryConfig()];
+    } else {
+      return items;
     }
-
-    const items = [];
-    for (const canonicalName of Object.keys(this.config.sdks || {})) {
-      items.push({
-        ...this.config.sdks[canonicalName],
-        type: RegistryPackageType.SDK,
-        canonicalName,
-      });
-    }
-    for (const canonicalName of Object.keys(this.config.apps || {})) {
-      items.push({
-        ...this.config.apps[canonicalName],
-        type: RegistryPackageType.APP,
-        canonicalName,
-      });
-    }
-
-    return items;
   }
 
   private getLegacyRegistryConfig(): RegistryConfig {
@@ -263,7 +260,7 @@ export class RegistryTarget extends BaseTarget {
       });
     }
 
-    if (registryConfig.checksums.length > 0) {
+    if (registryConfig.checksums && registryConfig.checksums.length > 0) {
       artifactData.checksums = await getArtifactChecksums(
         registryConfig.checksums,
         artifact,
@@ -297,7 +294,11 @@ export class RegistryTarget extends BaseTarget {
     // Clear existing data
     delete packageManifest.files;
 
-    if (!registryConfig.urlTemplate && registryConfig.checksums.length === 0) {
+    if (
+      !registryConfig.urlTemplate &&
+      registryConfig.checksums &&
+      registryConfig.checksums.length === 0
+    ) {
       this.logger.warn(
         'No URL template or checksums, not adding any file data'
       );

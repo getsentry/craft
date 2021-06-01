@@ -794,6 +794,9 @@ the corresponding package directory can be found inside "packages" directory of 
 release regsitry. Type "app" indicates that the package's version files are located
 in "apps" directory of the registry.
 
+It is strongly discouraged to have multiple `registry` targets in a config as it
+supports grouping/batching multiple apps and SDKs in a single target.
+
 **Environment**
 
 _none_
@@ -802,30 +805,26 @@ _none_
 
 | Option             | Description                                                                                                                                                                                                                               |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `type`             | Type of the package: can be "sdk" or "app".                                                                                                                                                                                               |
-| `config.canonical` | Canonical name of the package that includes package registry name (e.g. NPM, PyPI) and the full package name.                                                                                                                             |
-| `urlTemplate`      | **optional** URL template that will be used to generate download links for "app" package type.                                                                                                                                            |
-| `linkPrereleases`  | **optional** Update package versions even if the release is a preview release, "false" by default.                                                                                                                                        |
-| `checksums`        | **optional** A list of checksums that will be computed for matched files (see `includeNames`). Every checksum entry is an object with two attributes: algorithm (one of "sha256", "sha384", and "sha512) and format ("base64" and "hex"). |
-| `onlyIfPresent`    | **optional** A file pattern. The target will be executed _only_ when the matched file is found.                                                                                                                                           |
+| `apps`             | List of `app` configs as a dict, keyed by their canonical names (example: `app:craft`)                                                                                                                                                                                               |
+| `sdks` | List of `sdk` configs as a dict, keyed by their canonical names (example: `maven:io.sentry:sentry`)                                                                                                                             |
+| `(sdks|apps).urlTemplate`      | **optional** URL template that will be used to generate download links for "app" package type.                                                                                                                                            |
+| `(sdks|apps).linkPrereleases`  | **optional** Update package versions even if the release is a preview release, "false" by default.                                                                                                                                        |
+| `(sdks|apps).checksums`        | **optional** A list of checksums that will be computed for matched files (see `includeNames`). Every checksum entry is an object with two attributes: algorithm (one of `sha256`, `sha384`, and `sha512`) and format (`base64` and `hex`). |
+| `(sdks|apps).onlyIfPresent`    | **optional** A file pattern. The target will be executed _only_ when the matched file is found.                                                                                                                                           |
 
 **Example**
 
 ```yaml
 targets:
   - name: registry
-    type: sdk
-    config:
-      canonical: 'npm:@sentry/browser'
-
-  - name: registry
-    type: app
-    urlTemplate: 'https://example.com/{{version}}/{{file}}'
-    config:
-      canonical: 'npm:@sentry/browser'
-    checksums:
-      - algorithm: sha256
-        format: hex
+    sdks:
+      'npm:@sentry/browser':
+    apps:
+      'npm:@sentry/browser':
+        urlTemplate: 'https://example.com/{{version}}/{{file}}'
+        checksums:
+          - algorithm: sha256
+            format: hex
 ```
 
 ### Cocoapods (`cocoapods`)
