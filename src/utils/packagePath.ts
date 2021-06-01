@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { RegistryPackageType } from '../targets/registry';
+import { RegistryPackageType } from '../utils/registry';
 import { ConfigurationError } from './errors';
 
 /**

@@ -4,6 +4,7 @@
 
 - feat(publish): Ability to merge to non-default (#245)
 - fix(logging): Proper scoping and log levels (#247)
+- feat(registry-target): Allow batched updates w/ new config (#249)
 
 ## 0.22.2
 

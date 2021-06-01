@@ -24,9 +24,7 @@ import { createSymlinks } from '../utils/symlink';
 import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
 import { isPreviewRelease } from '../utils/version';
-import { getRegistryGithubRemote } from '../utils/registry';
-
-const DEFAULT_REGISTRY_REMOTE: GithubRemote = getRegistryGithubRemote();
+import { DEFAULT_REGISTRY_REMOTE } from '../utils/registry';
 
 /** Config options for the "aws-lambda-layer" target. */
 interface AwsLambdaTargetConfig {

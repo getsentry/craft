@@ -226,6 +226,7 @@ async function getTargetList(
       continue;
     }
     try {
+      logger.debug(`Creating target ${targetConfig.name}:`, targetConfig);
       const target = new targetClass(
         targetConfig,
         artifactProvider,
