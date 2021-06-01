@@ -803,14 +803,14 @@ _none_
 
 **Configuration**
 
-| Option             | Description                                                                                                                                                                                                                               |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps`             | List of `app` configs as a dict, keyed by their canonical names (example: `app:craft`)                                                                                                                                                                                               |
-| `sdks` | List of `sdk` configs as a dict, keyed by their canonical names (example: `maven:io.sentry:sentry`)                                                                                                                             |
-| `(sdks|apps).urlTemplate`      | **optional** URL template that will be used to generate download links for "app" package type.                                                                                                                                            |
-| `(sdks|apps).linkPrereleases`  | **optional** Update package versions even if the release is a preview release, "false" by default.                                                                                                                                        |
-| `(sdks|apps).checksums`        | **optional** A list of checksums that will be computed for matched files (see `includeNames`). Every checksum entry is an object with two attributes: algorithm (one of `sha256`, `sha384`, and `sha512`) and format (`base64` and `hex`). |
-| `(sdks|apps).onlyIfPresent`    | **optional** A file pattern. The target will be executed _only_ when the matched file is found.                                                                                                                                           |
+| Option | Description                                                                                         |
+| ------ | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `apps` | List of `app` configs as a dict, keyed by their canonical names (example: `app:craft`)              |
+| `sdks` | List of `sdk` configs as a dict, keyed by their canonical names (example: `maven:io.sentry:sentry`) |
+| `(sdks | apps).urlTemplate`                                                                                  | **optional** URL template that will be used to generate download links for "app" package type.                                                                                                                                             |
+| `(sdks | apps).linkPrereleases`                                                                              | **optional** Update package versions even if the release is a preview release, "false" by default.                                                                                                                                         |
+| `(sdks | apps).checksums`                                                                                    | **optional** A list of checksums that will be computed for matched files (see `includeNames`). Every checksum entry is an object with two attributes: algorithm (one of `sha256`, `sha384`, and `sha512`) and format (`base64` and `hex`). |
+| `(sdks | apps).onlyIfPresent`                                                                                | **optional** A file pattern. The target will be executed _only_ when the matched file is found.                                                                                                                                            |
 
 **Example**
 
