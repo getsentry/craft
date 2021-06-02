@@ -10,7 +10,9 @@ export async function getDefaultBranch(
 ): Promise<string> {
   // This part is courtesy of https://stackoverflow.com/a/62397081/90297
   return stripRemoteName(
-    await git.revparse(['--abbrev-ref', `${remoteName}/HEAD`]),
+    await git
+      .remote(['set-head', remoteName, '--auto'])
+      .revparse(['--abbrev-ref', `${remoteName}/HEAD`]),
     remoteName
   );
 }
