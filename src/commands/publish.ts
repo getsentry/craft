@@ -25,7 +25,7 @@ import { handleGlobalError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
 import { isDryRun, promptConfirmation } from '../utils/helpers';
-import { formatSize, formatJson } from '../utils/strings';
+import { formatSize } from '../utils/strings';
 import {
   catchKeyboardInterrupt,
   hasExecutable,
@@ -215,7 +215,7 @@ async function getTargetList(
   targetConfigList: TargetConfig[],
   artifactProvider: BaseArtifactProvider
 ): Promise<BaseTarget[]> {
-  logger.debug('Initializing targets');
+  logger.trace('Initializing targets');
   const githubRepo = await getGlobalGithubConfig();
   const targetList: BaseTarget[] = [];
   for (const targetConfig of targetConfigList) {
@@ -226,7 +226,8 @@ async function getTargetList(
       continue;
     }
     try {
-      logger.debug(`Creating target ${targetConfig.name}:`, targetConfig);
+      logger.debug(`Creating target ${targetDescriptor}`);
+      logger.trace(targetConfig);
       const target = new targetClass(
         targetConfig,
         artifactProvider,
@@ -317,7 +318,8 @@ async function checkRevisionStatus(
     logger.debug('Fetching repository information...');
     // This will additionally check that the user has proper permissions
     const repositoryInfo = await statusProvider.getRepositoryInfo();
-    logger.debug(`Repository info received: "${formatJson(repositoryInfo)}"`);
+    logger.debug('Repository info received');
+    logger.trace(repositoryInfo);
   } catch (e) {
     reportError(
       'Cannot get repository information from Zeus. Check your configuration and credentials. ' +
@@ -346,7 +348,7 @@ async function getMergeTarget(
     '--oneline'
   );
   logger.debug('Trying to find merge target:');
-  logger.debug(logOutput);
+  logger.trace(logOutput);
   const branchName =
     stripRemoteName(
       logOutput
@@ -613,7 +615,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       fsPromises
         .unlink(publishStateFile)
         .catch(err =>
-          logger.debug("Couldn't remove publish state file: ", err)
+          logger.trace("Couldn't remove publish state file: ", err)
         );
     }
     logger.success(`Version ${newVersion} has been published!`);

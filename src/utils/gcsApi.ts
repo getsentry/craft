@@ -211,7 +211,7 @@ export class CraftGCSClient {
       resumable: !process.env.CI,
     };
 
-    logger.debug(
+    logger.trace(
       `File \`${filename}\`, upload options: ${formatJson(uploadConfig)}`
     );
 

@@ -112,7 +112,7 @@ export class UpmTarget extends BaseTarget {
       getGithubApiToken()
     );
     const remoteAddr = remote.getRemoteString();
-    this.logger.debug(`Target release repository: ` + `"${remoteAddr}"`);
+    this.logger.debug(`Target release repository: ${remoteAddr}`);
 
     await withTempDir(
       async directory => {

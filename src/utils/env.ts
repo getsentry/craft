@@ -1,6 +1,8 @@
 import { existsSync, statSync } from 'fs';
 import { join } from 'path';
-const os = require('os');
+// XXX(BYK): This is to be able to spy on `homedir()` in tests
+// TODO(BYK): Convert this to ES6 imports
+import os = require('os');
 
 import nvar from 'nvar';
 
@@ -38,7 +40,7 @@ export interface RequiredConfigVar {
 function envHasVar(envVar: RequiredConfigVar): boolean {
   const { name, legacyName } = envVar;
 
-  logger.debug(`Checking for environment variable ${name}`);
+  logger.debug('Checking for environment variable:', name);
 
   // not found, under either the current name or legacy name (if app.)
   if (!process.env[name] && !process.env[legacyName as string]) {
@@ -55,16 +57,13 @@ function envHasVar(envVar: RequiredConfigVar): boolean {
   // the less simple cases - only using legacy name or using both
   else if (process.env[legacyName] && !process.env[name]) {
     logger.warn(
-      `Usage of ${legacyName} is deprecated, and will be removed in ` +
-        `later versions. Please use ${name} instead.`
+      `Usage of ${legacyName} is deprecated, and will be removed in later versions. Please use ${name} instead.`
     );
     logger.debug(`Moving legacy environment variable ${legacyName} to ${name}`);
     process.env[name] = process.env[legacyName];
   } else if (process.env[legacyName] && process.env[name]) {
     logger.warn(
-      `When searching configuration files and your environment, found ` +
-        `${name} but also found legacy ${legacyName}. Do you mean ` +
-        `to be using both?`
+      `When searching configuration files and your environment, found ${name} but also found legacy ${legacyName}. Do you mean to be using both?`
     );
   }
 
@@ -87,8 +86,7 @@ function checkFileIsPrivate(path: string): boolean {
   if (mode & GROUP_MODE_MASK || mode & OTHER_MODE_MASK) {
     const perms = (mode & FULL_MODE_MASK).toString(8);
     logger.warn(
-      `Permissions 0${perms} for file "${path}" are too open. ` +
-        `Consider making it readable only for the user.`
+      `Permissions 0${perms} for file "${path}" are too open. Consider making it readable only for the user.`
     );
     return false;
   }
@@ -112,20 +110,18 @@ export function readEnvironmentConfig(overwriteExisting = false): void {
   const homedirEnvFile = join(os.homedir(), ENV_FILE_NAME);
   if (existsSync(homedirEnvFile)) {
     logger.debug(
-      `Found environment file in the home directory: ${homedirEnvFile}`
+      'Found environment file in the home directory:',
+      homedirEnvFile
     );
     checkFileIsPrivate(homedirEnvFile);
     const homedirEnv = {};
     nvar({ path: homedirEnvFile, target: homedirEnv });
     newEnv = { ...newEnv, ...homedirEnv };
-    logger.debug(
-      `Read the following variables from ${homedirEnvFile}: ${Object.keys(
-        homedirEnv
-      ).toString()}`
-    );
+    logger.trace('Read the following variables from env file:', homedirEnv);
   } else {
     logger.debug(
-      `No environment file found in the home directory: ${homedirEnvFile}`
+      'No environment file found in the home directory:',
+      homedirEnvFile
     );
   }
 
@@ -134,23 +130,21 @@ export function readEnvironmentConfig(overwriteExisting = false): void {
   const configFileDir = getConfigFileDir();
   const configDirEnvFile = configFileDir && join(configFileDir, ENV_FILE_NAME);
   if (!configDirEnvFile) {
-    logger.debug(`No configuration file (${CONFIG_FILE_NAME}) found!`);
+    logger.debug('No configuration file found:', CONFIG_FILE_NAME);
   } else if (configDirEnvFile && existsSync(configDirEnvFile)) {
     logger.debug(
-      `Found environment file in the configuration directory: ${configDirEnvFile}`
+      'Found environment file in the configuration directory:',
+      configDirEnvFile
     );
     checkFileIsPrivate(configDirEnvFile);
     const configDirEnv = {};
     nvar({ path: configDirEnvFile, target: configDirEnv });
     newEnv = { ...newEnv, ...configDirEnv };
-    logger.debug(
-      `Read the following variables from ${configDirEnvFile}: ${Object.keys(
-        configDirEnv
-      ).toString()}`
-    );
+    logger.trace('Read the following variables from env file:', configDirEnv);
   } else {
     logger.debug(
-      `No environment file found in the configuration directory: ${configDirEnvFile}`
+      'No environment file found in the configuration directory:',
+      configDirEnvFile
     );
   }
 
@@ -170,7 +164,7 @@ export function readEnvironmentConfig(overwriteExisting = false): void {
  */
 export function checkEnvForPrerequisite(...varList: RequiredConfigVar[]): void {
   const varNames = varList.map(v => v.name).join(' or ');
-  logger.debug(`Checking for environment variable(s) ${varNames}`);
+  logger.debug('Checking for environment variable(s):', varNames);
 
   if (!varList.some(envHasVar)) {
     // note: Technically this function only checks the environment, not any

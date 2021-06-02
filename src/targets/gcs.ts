@@ -238,12 +238,10 @@ export class GcsTarget extends BaseTarget {
         );
 
         this.logger.info(`Uploading files to ${bucketPath.path}.`);
-        this.logger.debug(
-          `Upload options: ${JSON.stringify({
-            gzip: true,
-            metadata: bucketPath.metadata || DEFAULT_UPLOAD_METADATA,
-          })}`
-        );
+        this.logger.debug('Upload options:', {
+          gzip: true,
+          metadata: bucketPath.metadata || DEFAULT_UPLOAD_METADATA,
+        });
 
         return Promise.all(
           localFilePaths.map(async localPath =>

@@ -136,7 +136,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     );
 
     const awsRegions = await getRegionsFromAws();
-    this.logger.debug('AWS regions: ' + awsRegions);
+    this.logger.trace('AWS regions: ', awsRegions);
 
     const remote = this.awsLambdaConfig.registryRemote;
     const username = await getAuthUsername(this.github);
@@ -219,7 +219,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     version: string,
     versionFilepath: string
   ): void {
-    this.logger.debug(`Creating symlinks...`);
+    this.logger.debug('Creating symlinks...');
     const latestVersionPath = path.posix.join(directory, 'latest.json');
     if (fs.existsSync(latestVersionPath)) {
       const previousVersion = fs

@@ -90,7 +90,7 @@ export async function withTempDir<T>(
         // don't care as this is already a temporary file and will be removed
         // eventually by the OS. And it doesn't make sense to wait until this op
         // finishes then as nothing relies on the removal of this file.
-        logger.debug(`Couldn't remove temp dir ${directory}: `, err);
+        logger.trace(`Couldn't remove temp dir ${directory}: `, err);
       });
     }
   }

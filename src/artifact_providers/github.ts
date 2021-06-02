@@ -91,7 +91,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     ).data as unknown) as ArtifactList;
 
     const { artifacts } = artifactResponse;
-    this.logger.debug(`All available artifacts on page ${page}:`, artifacts);
+    this.logger.trace(`All available artifacts on page ${page}:`, artifacts);
 
     // We need to find the most recent archive where name matches the revision.
     // XXX(BYK): we assume the artifacts are listed in descending date order on
@@ -102,7 +102,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       artifact => artifact.name === revision
     );
     if (foundArtifact) {
-      this.logger.debug(`Found artifact on page ${page}:`, foundArtifact);
+      this.logger.trace(`Found artifact on page ${page}:`, foundArtifact);
       return foundArtifact;
     }
 
