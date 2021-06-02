@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.23.1
+
+- fix(git): Ensure origin/HEAD is set (#252)
+
 ## 0.23.0
 
 - feat(publish): Ability to merge to non-default (#245)
