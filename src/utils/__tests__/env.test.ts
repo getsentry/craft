@@ -1,6 +1,8 @@
 import { writeFileSync } from 'fs';
 import { join } from 'path';
-const os = require('os');
+// XXX(BYK): This is to be able to spy on `homedir()` in tests
+// TODO(BYK): Convert this to ES6 imports
+import os = require('os');
 
 import * as config from '../../config';
 import {
