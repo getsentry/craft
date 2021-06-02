@@ -1,6 +1,6 @@
 import { existsSync, statSync } from 'fs';
 import { join } from 'path';
-import * as os from 'os';
+const os = require('os');
 
 import nvar from 'nvar';
 
