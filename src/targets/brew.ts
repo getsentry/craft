@@ -157,10 +157,8 @@ export class BrewTarget extends BaseTarget {
 
     // Format checksums and the tag version into the formula file
     const filesList = await this.getArtifactsForRevision(revision);
-    this.logger.debug(
-      'Downloading artifacts for the revision:',
-      JSON.stringify(filesList.map(file => file.filename))
-    );
+    this.logger.debug('Downloading artifacts for the revision');
+    this.logger.trace(filesList.map(file => file.filename));
 
     const checksums: any = {};
 

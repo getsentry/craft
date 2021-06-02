@@ -280,9 +280,8 @@ export class GithubStatusProvider extends BaseStatusProvider {
       }
     );
     const revisionStatus = revisionStatusResponse.data;
-    logger.debug(
-      `Revision combined status received: "${formatJson(revisionStatus)}"`
-    );
+    logger.debug('Combined revision status received.');
+    logger.trace(revisionStatus);
     return revisionStatus;
   }
 
@@ -299,16 +298,15 @@ export class GithubStatusProvider extends BaseStatusProvider {
   protected async getRevisionCheckSuites(
     revision: string
   ): Promise<Github.ChecksListSuitesForRefResponse> {
-    logger.debug(`Fetching Checks API status...`);
+    logger.debug('Fetching Checks API status...');
     const revisionCheckSuites = (
       await this.github.checks.listSuitesForRef({
         ...this.githubConfig,
         ref: revision,
       })
     ).data;
-    logger.debug(
-      `Revision check suites received: "${formatJson(revisionCheckSuites)}"`
-    );
+    logger.debug('Revision check suites received.');
+    logger.trace(revisionCheckSuites);
 
     return revisionCheckSuites;
   }
@@ -326,13 +324,14 @@ export class GithubStatusProvider extends BaseStatusProvider {
   protected async getRevisionChecks(
     revision: string
   ): Promise<Github.ChecksListForRefResponse> {
-    logger.debug(`Fetching Checks API status...`);
+    logger.debug('Fetching Checks API status...');
     const revisionChecksResponse = await this.github.checks.listForRef({
       ...this.githubConfig,
       ref: revision,
     });
     const revisionChecks = revisionChecksResponse.data;
-    logger.debug(`Revision checks received: "${formatJson(revisionChecks)}"`);
+    logger.debug('Revision checks received.');
+    logger.trace(revisionChecks);
 
     return revisionChecks;
   }

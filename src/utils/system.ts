@@ -152,7 +152,7 @@ export async function spawnProcess(
       reject(processError(e.code, command, args, options, stdout, stderr));
 
     try {
-      logger.debug('Spawning process:', `${command} ${argsString}`);
+      logger.trace('Spawning process:', `${command} ${argsString}`);
 
       // Do a shell-like replacement of arguments that look like environment variables
       const processedArgs = args.map(arg =>
@@ -176,13 +176,13 @@ export async function spawnProcess(
         if (spawnProcessOptions.showStdout) {
           logger.info(output);
         } else {
-          logger.debug(output);
+          logger.trace(output);
         }
         stdout += `${output}\n`;
       });
       child.stderr.pipe(split()).on('data', (data: any) => {
         const output = `${command}: ${data}`;
-        logger.debug(output);
+        logger.trace(output);
         stderr += `${output}\n`;
       });
     } catch (e) {

@@ -1,6 +1,6 @@
 import { existsSync, statSync } from 'fs';
 import { join } from 'path';
-const os = require('os');
+import * as os from 'os';
 
 import nvar from 'nvar';
 
@@ -118,11 +118,7 @@ export function readEnvironmentConfig(overwriteExisting = false): void {
     const homedirEnv = {};
     nvar({ path: homedirEnvFile, target: homedirEnv });
     newEnv = { ...newEnv, ...homedirEnv };
-    logger.debug(
-      `Read the following variables from ${homedirEnvFile}: ${Object.keys(
-        homedirEnv
-      ).toString()}`
-    );
+    logger.trace('Read the following variables from env file:', homedirEnv);
   } else {
     logger.debug(
       `No environment file found in the home directory: ${homedirEnvFile}`
@@ -143,11 +139,7 @@ export function readEnvironmentConfig(overwriteExisting = false): void {
     const configDirEnv = {};
     nvar({ path: configDirEnvFile, target: configDirEnv });
     newEnv = { ...newEnv, ...configDirEnv };
-    logger.debug(
-      `Read the following variables from ${configDirEnvFile}: ${Object.keys(
-        configDirEnv
-      ).toString()}`
-    );
+    logger.trace('Read the following variables from env file:', configDirEnv);
   } else {
     logger.debug(
       `No environment file found in the configuration directory: ${configDirEnvFile}`

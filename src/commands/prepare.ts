@@ -208,8 +208,8 @@ async function commitNewVersion(
     reportError('Nothing to commit: has the pre-release command done its job?');
   }
 
-  logger.info('Committing the release changes...');
-  logger.debug(`Commit message: "${message}"`);
+  logger.debug('Committing the release changes...');
+  logger.trace(`Commit message: "${message}"`);
   if (!isDryRun()) {
     await git.commit(message, ['--all']);
   } else {
@@ -357,6 +357,7 @@ async function prepareChangelog(
   logger.debug(`Changelog policy: "${changelogPolicy}".`);
 
   const relativePath = relative('', changelogPath);
+  logger.debug(`Changelog path: ${relativePath}`);
   if (relativePath.startsWith('.')) {
     throw new ConfigurationError(`Invalid changelog path: "${changelogPath}"`);
   }
@@ -368,8 +369,6 @@ async function prepareChangelog(
   }
 
   let changelogString = (await fsPromises.readFile(relativePath)).toString();
-  logger.debug(`Changelog path: ${relativePath}`);
-
   let changeset = findChangeset(
     changelogString,
     newVersion,
@@ -402,7 +401,7 @@ async function prepareChangelog(
         await fsPromises.writeFile(relativePath, changelogString);
       } else {
         logger.info('[dry-run] Not updating changelog file.');
-        logger.debug(`New changelog:\n${changelogString}`);
+        logger.trace(`New changelog:\n${changelogString}`);
       }
 
       break;
@@ -414,7 +413,8 @@ async function prepareChangelog(
       }
   }
 
-  logger.debug(`Changelog entry found:\n"""\n${changeset.body}\n"""`);
+  logger.debug('Changelog entry found:', changeset.name);
+  logger.trace(changeset.body);
 }
 
 /**

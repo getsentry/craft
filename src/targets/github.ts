@@ -231,10 +231,9 @@ export class GithubTarget extends BaseTarget {
       name: version,
       body: '',
     };
-    this.logger.debug(
-      'Changes extracted from changelog: ',
-      JSON.stringify(changes)
-    );
+    this.logger.debug('Changes extracted from changelog.');
+    this.logger.trace(changes);
+
     return changes;
   }
 
@@ -339,7 +338,7 @@ export class GithubTarget extends BaseTarget {
       name,
       url: release.upload_url,
     };
-    this.logger.debug('Upload parameters:', JSON.stringify(params));
+    this.logger.trace('Upload parameters:', params);
     this.logger.info(
       `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}`
     );

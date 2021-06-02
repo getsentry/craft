@@ -60,7 +60,7 @@ export async function updateManifestSymlinks(
   previousVersion: string
 ): Promise<void> {
   const manifestString = JSON.stringify(updatedManifest, undefined, 2) + '\n';
-  logger.debug('Updated manifest', manifestString);
+  logger.trace('Updated manifest', manifestString);
   logger.debug(`Writing updated manifest to "${versionFilePath}"...`);
   await fsPromises.writeFile(versionFilePath, manifestString);
   createSymlinks(versionFilePath, version, previousVersion);
