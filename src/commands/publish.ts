@@ -296,7 +296,7 @@ async function checkRequiredArtifacts(
 }
 
 /**
- * Checks statuses of all builds on status provider for the provided revision
+ * Checks statuses of all builds on the status provider for the provided revision
  *
  * @param statusProvider Status provider instance
  * @param revision Git commit SHA to check
