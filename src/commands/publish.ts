@@ -162,8 +162,8 @@ async function publishToTarget(
   version: string,
   revision: string
 ): Promise<void> {
-  const publishMessage = `=== Publishing to target: ${chalk.bold(
-    chalk.cyan(target.id)
+  const publishMessage = `=== Publishing to target: ${chalk.bold.cyan(
+    target.id
   )} ===`;
   const delim = Array(stringLength(publishMessage) + 1).join('=');
   logger.info(' ');

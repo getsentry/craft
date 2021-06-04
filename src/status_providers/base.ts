@@ -7,11 +7,12 @@ import { reportError } from '../utils/errors';
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig } from 'src/schemas/project_config';
 
+const MILLISECONDS = 1000;
 /** Max number of seconds to wait for the build to finish */
-const BUILD_STATUS_POLLING_MAX = 60 * 60;
+const BUILD_STATUS_POLLING_MAX = 60 * 60 * MILLISECONDS;
 
 /** Interval in seconds while polling provider */
-const BUILD_POLLING_INTERVAL = 30;
+const BUILD_POLLING_INTERVAL = 30 * MILLISECONDS;
 
 /**
  * Allowed commit statuses that status providers may report
@@ -69,8 +70,8 @@ export abstract class BaseStatusProvider {
    */
   public async waitForTheBuildToSucceed(revision: string): Promise<void> {
     // Status spinner
-    const spinner = ora({ spinner: 'bouncingBar' }) as any;
-    let secondsPassed = 0;
+    const spinner = ora();
+    const startTime = Date.now();
     let firstIteration = true;
 
     while (true) {
@@ -91,21 +92,15 @@ export abstract class BaseStatusProvider {
           `Build(s) for revision ${revision} have not succeeded. Please check the revision's status.`
         );
         return;
-      } else if (status === CommitStatus.NOT_FOUND) {
-        if (firstIteration) {
-          this.logger.info(
-            `Revision ${revision} has not been found, waiting for a bit.`
-          );
-        }
+      } else if (firstIteration) {
+        this.logger.info(
+          status === CommitStatus.NOT_FOUND
+            ? `Revision ${revision} has not been found, waiting for a bit.`
+            : `Revision ${revision} has been found.`
+        );
       }
 
-      if (firstIteration) {
-        if (status !== CommitStatus.NOT_FOUND) {
-          this.logger.info(`Revision ${revision} has been found.`);
-        }
-      }
-
-      if (secondsPassed > BUILD_STATUS_POLLING_MAX) {
+      if (Date.now() - startTime > BUILD_STATUS_POLLING_MAX) {
         throw new Error(
           `Waited for more than ${BUILD_STATUS_POLLING_MAX} seconds for the build to finish. Aborting.`
         );
@@ -119,11 +114,14 @@ export abstract class BaseStatusProvider {
         .replace(/T/, ' ')
         .replace(/\..+/, '');
       // Update the spinner
-      const waitMessage = `[${timeString}] CI builds are still in progress, sleeping for ${BUILD_POLLING_INTERVAL} seconds...`;
+      const waitMessage = `[${timeString}] Waiting for CI builds, next check in ${
+        BUILD_POLLING_INTERVAL / 1000
+      } seconds...`;
       spinner.text = waitMessage;
-      spinner.start();
-      await sleep(BUILD_POLLING_INTERVAL * 1000);
-      secondsPassed += BUILD_POLLING_INTERVAL;
+      if (!spinner.isSpinning) {
+        spinner.start();
+      }
+      await sleep(BUILD_POLLING_INTERVAL);
     }
   }
 }
