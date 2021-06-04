@@ -414,7 +414,7 @@ By default, it will use GitHub but you can add more providers if needed.
 
 | Option   | Description                                                                                        |
 | -------- | -------------------------------------------------------------------------------------------------- |
-| `name`   | Name of the status provider: either `github` (default) or `zeus` (deprecated)                      |
+| `name`   | Name of the status provider: only `github` (default) for now.                                      |
 | `config` | In case of `github`: may include `contexts` key that contains a list of required contexts (checks) |
 
 **Example:**
@@ -435,9 +435,9 @@ project, you can set it to `none`.
 
 **Configuration**
 
-| Option | Description                                                                              |
-| ------ | ---------------------------------------------------------------------------------------- |
-| `name` | Name of the artifact provider: `github` (default), `gcs`, `none`, or `zeus` (deprecated) |
+| Option | Description                                                         |
+| ------ | ------------------------------------------------------------------- |
+| `name` | Name of the artifact provider: `github` (default), `gcs`, or `none` |
 
 **Example:**
 
@@ -480,11 +480,11 @@ targets:
 
 The following options can be applied to every target individually:
 
-| Name           | Description                                                                                                                                                                                                                                                                           |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `includeNames` | **optional**. Regular expression: only matched files will be processed by the target. There is one special case that `includeNames` supports, if your build doesn't any artifacts you can write `includeNames: /none/`, this will skip the check for artifacts towards Zeus entirely. |
-| `excludeNames` | **optional**. Regular expression: the matched files will be skipped by the target. Matching is performed after testing for inclusion (via `includeNames`).                                                                                                                            |
-| `id`           | **optional**. A unique id for the target type so one can refer to that target individually with the `-t` option with the `publish` command like `-t registry[browser]`. (see the example config above)                                                                                |
+| Name           | Description                                                                                                                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `includeNames` | **optional**. Regular expression: only matched files will be processed by the target. There is one special case that `includeNames` supports.                                                          |
+| `excludeNames` | **optional**. Regular expression: the matched files will be skipped by the target. Matching is performed after testing for inclusion (via `includeNames`).                                             |
+| `id`           | **optional**. A unique id for the target type so one can refer to that target individually with the `-t` option with the `publish` command like `-t registry[browser]`. (see the example config above) |
 
 If neither option is included, all artifacts for the release will be processed by the target.
 

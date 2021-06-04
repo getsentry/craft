@@ -21,11 +21,9 @@ import {
 } from './utils/version';
 import { BaseArtifactProvider } from './artifact_providers/base';
 import { GithubArtifactProvider } from './artifact_providers/github';
-import { ZeusArtifactProvider } from './artifact_providers/zeus';
 import { NoneArtifactProvider } from './artifact_providers/none';
 import { GCSArtifactProvider } from './artifact_providers/gcs';
 
-import { ZeusStatusProvider } from './status_providers/zeus';
 import { GithubStatusProvider } from './status_providers/github';
 import {
   BaseStatusProvider,
@@ -39,11 +37,6 @@ export const CONFIG_FILE_NAME = '.craft.yml';
  * The default prefix for the release branch.
  */
 export const DEFAULT_RELEASE_BRANCH_NAME = 'release';
-
-/**
- * Epoch version for changing all defaults to GitHub
- */
-export const DEFAULTS_EPOCH_VERSION = '0.21.0';
 
 /**
  * Cached path to the configuration file
@@ -205,28 +198,6 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
   }
 }
 
-export function isAfterEpoch(): boolean {
-  const config = getConfiguration();
-  const minVersionRaw = config.minVersion;
-  if (!minVersionRaw) {
-    return false;
-  }
-
-  const minVersion = parseVersion(minVersionRaw);
-  if (!minVersion) {
-    throw new Error(`Cannot parse the minimal version: "${minVersionRaw}"`);
-  }
-
-  const epochVersion = parseVersion(DEFAULTS_EPOCH_VERSION);
-  if (!epochVersion) {
-    throw new Error(
-      `Cannot parse the current version: "${DEFAULTS_EPOCH_VERSION}"`
-    );
-  }
-
-  return versionGreaterOrEqualThan(minVersion, epochVersion);
-}
-
 /**
  * Return the parsed global Github configuration
  */
@@ -296,17 +267,7 @@ export async function getArtifactProviderFromConfig(): Promise<BaseArtifactProvi
 
   let artifactProviderName = projectConfig.artifactProvider?.name;
   if (artifactProviderName == null) {
-    if (isAfterEpoch()) {
-      artifactProviderName = ArtifactProviderName.Github;
-    } else {
-      logger.warn(
-        `You are relying on the default artifact provider, which has changed Craft v${DEFAULTS_EPOCH_VERSION}.`
-      );
-      logger.warn(
-        `This will affect you when you set your \`minVersion\` in your config to ${DEFAULTS_EPOCH_VERSION} or later.`
-      );
-      artifactProviderName = ArtifactProviderName.Zeus;
-    }
+    artifactProviderName = ArtifactProviderName.Github;
   }
 
   const githubRepo = await getGlobalGithubConfig();
@@ -319,8 +280,6 @@ export async function getArtifactProviderFromConfig(): Promise<BaseArtifactProvi
 
   logger.debug(`Using "${artifactProviderName}" for artifacts`);
   switch (artifactProviderName) {
-    case ArtifactProviderName.Zeus:
-      return new ZeusArtifactProvider(artifactProviderConfig);
     case ArtifactProviderName.None:
       return new NoneArtifactProvider();
     case ArtifactProviderName.GCS:
@@ -349,17 +308,7 @@ export async function getStatusProviderFromConfig(): Promise<BaseStatusProvider>
 
   let statusProviderName = rawStatusProvider.name;
   if (statusProviderName == null) {
-    if (isAfterEpoch()) {
-      statusProviderName = StatusProviderName.Github;
-    } else {
-      logger.warn(
-        `You are relying on the default status provider, which has changed Craft v${DEFAULTS_EPOCH_VERSION}.`
-      );
-      logger.warn(
-        `This will affect you when you set your \`minVersion\` in your config to ${DEFAULTS_EPOCH_VERSION} or later.`
-      );
-      statusProviderName = StatusProviderName.Zeus;
-    }
+    statusProviderName = StatusProviderName.Github;
   }
 
   const statusProviderConfig: StatusProviderConfig = {
@@ -369,8 +318,6 @@ export async function getStatusProviderFromConfig(): Promise<BaseStatusProvider>
 
   logger.debug(`Using "${statusProviderName}" for status checks`);
   switch (statusProviderName) {
-    case StatusProviderName.Zeus:
-      return new ZeusStatusProvider(statusProviderConfig, githubConfig);
     case StatusProviderName.Github:
       return new GithubStatusProvider(statusProviderConfig, githubConfig);
     default: {

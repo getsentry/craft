@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.24.0
+
+- ref(zeus): Remove all Zeus support (#253)
+
 ## 0.23.1
 
 - fix(git): Ensure origin/HEAD is set (#252)

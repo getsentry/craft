@@ -1,6 +1,6 @@
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
-import { FilterOptions } from '../stores/zeus';
+import { FilterOptions } from '../artifact_providers/base';
 import { stringToRegexp } from '../utils/filters';
 import {
   BaseArtifactProvider,
@@ -82,14 +82,6 @@ export class BaseTarget {
       ...defaultFilterOptions,
       ...this.filterOptions,
     };
-    // This is a hacky legacy way of skipping artifact downloads.
-    // Can be removed when we fully migrate from ZeusStore to artifact providers.
-    if (filterOptions.includeNames?.source === 'none') {
-      this.logger.debug(
-        `target.includeNames is 'none', skipping artifacts downloads.`
-      );
-      return [];
-    }
     this.logger.debug(
       `Getting artifact list for revision "${revision}", filtering options: {includeNames: ${String(
         filterOptions.includeNames
