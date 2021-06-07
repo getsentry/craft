@@ -249,7 +249,7 @@ We run `prepare` command first:
 `$ craft prepare 1.2.3`
 
 After some basic sanity checks this command creates a new release branch
-`release/1.2.3`, runs the version-bumping script (`scripts/bump-version.sh`),
+`release/1.2.3`, runs the version-bumping script (`scripts/bump-npm-version.sh`),
 commits the changes made by the script, and then pushes the new branch to
 GitHub. At this point CI systems kick in, and the results of those builds, as
 well as built artifacts (binaries, NPM archives, Python wheels) are gradually
@@ -285,12 +285,12 @@ github:
 ### Pre-release Command
 
 This command will run on your newly created release branch as part of `prepare`
-command. By default, it is set to `bash scripts/bump-version.sh`. Please refer
+command. By default, it is set to `bash scripts/bump-npm-version.sh`. Please refer
 to the [Pre-release version bumping script conventions section](#pre-release-version-bumping-script-conventions)
 for more details.
 
 ```yaml
-preReleaseCommand: bash scripts/bump-version.sh
+preReleaseCommand: bash scripts/bump-npm-version.sh
 ```
 
 ### Post-release Command
@@ -1027,7 +1027,7 @@ Here is how you can integrate your GitHub project with `craft`:
 
 Among other actions, `craft prepare` runs an external, project-specific command
 or script that is responsible for version bumping. By default, this script
-should be located at: `./scripts/bump-version.sh`. The command can be configured
+should be located at: `./scripts/bump-npm-version.sh`. The command can be configured
 by specifying the `preReleaseCommand` configuration option in `craft.yml`.
 
 The following requirements are on the script interface and functionality:
@@ -1044,7 +1044,7 @@ The following requirements are on the script interface and functionality:
 ```bash
 #!/bin/bash
 ### Example of a version-bumping script for an NPM project.
-### Located at: ./scripts/bump-version.sh
+### Located at: ./scripts/bump-npm-version.sh
 set -eux
 OLD_VERSION="${1}"
 NEW_VERSION="${2}"
@@ -1084,7 +1084,7 @@ NEW_VERSION="${2}"
 # Ensure master branch
 git checkout master
 # Advance the CalVer release by one-month and add the `.dev0` suffix
-./scripts/bump-version.sh '' $(date -d "$(echo $NEW_VERSION | sed -e 's/^\([0-9]\{2\}\)\.\([0-9]\{1,2\}\)\.[0-9]\+$/20\1-\2-1/') 1 month" +%y.%-m.0.dev0)
+./scripts/bump-npm-version.sh '' $(date -d "$(echo $NEW_VERSION | sed -e 's/^\([0-9]\{2\}\)\.\([0-9]\{1,2\}\)\.[0-9]\+$/20\1-\2-1/') 1 month" +%y.%-m.0.dev0)
 # Only commit if there are changes, make sure to `pull --rebase` before pushing to avoid conflicts
 git diff --quiet || git commit -anm 'meta: Bump new development version' && git pull --rebase && git push
 ```

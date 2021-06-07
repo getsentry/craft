@@ -19,7 +19,7 @@ describe('runPreReleaseCommand', () => {
 
     expect(mockedSpawnProcess).toBeCalledWith(
       '/bin/bash',
-      [pathJoin('scripts', 'bump-version.sh'), '', newVersion],
+      [pathJoin('scripts', 'bump-npm-version.sh'), '', newVersion],
       {
         env: {
           ...process.env,

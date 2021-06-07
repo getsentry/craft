@@ -36,8 +36,8 @@ export const command = ['prepare NEW-VERSION'];
 export const aliases = ['p', 'prerelease', 'prepublish', 'prepare', 'release'];
 export const description = '🚢 Prepare a new release branch';
 
-/** Default path to bump-version script, relative to project root */
-const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
+/** Default path to bump-npm-version script, relative to project root */
+const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-npm-version.sh');
 
 export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
