@@ -10,7 +10,7 @@ import * as Github from '@octokit/rest';
 export class GitWrapper {
   private github: Github;
   private remote: GithubRemote;
-  private username = '';
+  private authUsername = '';
   private git: SimpleGit;
   private directory: string;
 
@@ -21,9 +21,9 @@ export class GitWrapper {
     this.git = simpleGit(directory);
   }
 
-  public async init(): Promise<void> {
-    this.username = await getAuthUsername(this.github);
-    this.remote.setAuth(this.username, getGithubApiToken());
+  public async setAuth(): Promise<void> {
+    this.authUsername = await getAuthUsername(this.github);
+    this.remote.setAuth(this.authUsername, getGithubApiToken());
   }
 
   public async clone(): Promise<void> {
