@@ -252,7 +252,7 @@ async function getTargetList(
  * Using the "requiredNames", we can introduce artifact patterns/names that *have* to
  * be present before starting the publishing process.
  *
- * @param zeus Zeus store object
+ * @param artifactProvider Artifact provider instance
  * @param revision Git revision SHA
  * @param requiredNames A list of patterns that all have to match
  */
@@ -295,12 +295,10 @@ async function checkRequiredArtifacts(
   }
 }
 
-// TODO there is at least one case that is not covered: how to detect Zeus builds
-// that have unknown status (neither failed nor succeeded)
 /**
- * Checks statuses of all builds on Zeus for the provided revision
+ * Checks statuses of all builds on the status provider for the provided revision
  *
- * @param zeus Zeus store object
+ * @param statusProvider Status provider instance
  * @param revision Git commit SHA to check
  * @param skipStatusCheckFlag A flag to enable/disable this check
  */
@@ -322,7 +320,7 @@ async function checkRevisionStatus(
     logger.trace(repositoryInfo);
   } catch (e) {
     reportError(
-      'Cannot get repository information from Zeus. Check your configuration and credentials. ' +
+      `Cannot get repository information from ${statusProvider.config.name}. Check your configuration and credentials.\n` +
         `Error: ${e.message}`
     );
   }

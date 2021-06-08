@@ -46,7 +46,6 @@
     "@types/yargs": "^15.0.3",
     "@typescript-eslint/eslint-plugin": "^3.3.0",
     "@typescript-eslint/parser": "^3.3.0",
-    "@zeus-ci/sdk": "0.1.8",
     "ajv": "6.6.2",
     "async": "3.1.0",
     "aws4": "^1.11.0",
