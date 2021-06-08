@@ -1,10 +1,14 @@
 import { TargetConfig } from '../schemas/project_config';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { BaseTarget } from './base';
-import { ConfigurationError } from 'src/utils/errors';
-import { withTempDir } from 'src/utils/files';
+import { ConfigurationError } from '../utils/errors';
+import { withTempDir } from '../utils/files';
+import { GitWrapper } from '../utils/gitWrapper';
 
 // TODO: add docs to the readme
+
+const GIT_REPO_OWNER = 'getsentry';
+const GIT_REPO_NAME = 'sentry-java';
 
 /** Config options for the "maven" target. */
 interface MavenTargetConfig {
@@ -56,13 +60,13 @@ export class MavenTarget extends BaseTarget {
     await withTempDir(
       async dir => {
         console.log(`tmp dir: ${dir}`);
+        const git = new GitWrapper(GIT_REPO_OWNER, GIT_REPO_NAME, dir);
+        await git.setAuth();
+        await git.clone();
+        console.log('cloned');
       },
-      true, // TODO: set cleanup to true in production
+      false, // TODO: set cleanup to true in production
       'craft-release-maven-' // Not making global since the directoy is supposed to be removed.
     );
-  }
-
-  private async cloneRepository(): Promise<void> {
-    //
   }
 }
