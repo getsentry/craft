@@ -3,6 +3,7 @@
 ## 0.24.0
 
 - ref(zeus): Remove all Zeus support (#253)
+- fix(registry): Fix empty `files` entries (#256)
 
 ## 0.23.1
 
