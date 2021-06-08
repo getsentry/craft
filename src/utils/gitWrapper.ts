@@ -29,4 +29,8 @@ export class GitWrapper {
   public async clone(): Promise<void> {
     await this.git.clone(this.remote.getRemoteStringWithAuth(), this.directory);
   }
+
+  public async checkout(branchName: string): Promise<void> {
+    await this.git.checkout(branchName);
+  }
 }

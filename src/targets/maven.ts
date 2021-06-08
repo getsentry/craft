@@ -4,11 +4,14 @@ import { BaseTarget } from './base';
 import { ConfigurationError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { GitWrapper } from '../utils/gitWrapper';
+import { exec } from 'child_process';
 
 // TODO: add docs to the readme
 
 const GIT_REPO_OWNER = 'getsentry';
 const GIT_REPO_NAME = 'sentry-java';
+const CHECK_BUILD_CMD = 'make all';
+const DEPLOY_CMD = 'make doReleasee'; // FIXME: added an additional `e` at the end to prevent accidental deploys
 
 /** Config options for the "maven" target. */
 interface MavenTargetConfig {
@@ -55,7 +58,7 @@ export class MavenTarget extends BaseTarget {
     );
   }
 
-  public async publish(_version: string, _revison: string): Promise<void> {
+  public async publish(version: string, _revison: string): Promise<void> {
     console.log('publish step on maven target');
     await withTempDir(
       async dir => {
@@ -63,10 +66,21 @@ export class MavenTarget extends BaseTarget {
         const git = new GitWrapper(GIT_REPO_OWNER, GIT_REPO_NAME, dir);
         await git.setAuth();
         await git.clone();
+        await git.checkout(`release/${version}`); // TODO: this should be customized
+        execCmd(dir, CHECK_BUILD_CMD);
+        execCmd(dir, DEPLOY_CMD); // GPG signing is done in this step
         console.log('cloned');
       },
       false, // TODO: set cleanup to true in production
       'craft-release-maven-' // Not making global since the directoy is supposed to be removed.
     );
   }
+}
+
+function execCmd(workDir: string, command: string): void {
+  exec(command, { cwd: workDir }, error => {
+    if (error) {
+      throw new Error(`Error executing ${command}:` + error);
+    }
+  });
 }
