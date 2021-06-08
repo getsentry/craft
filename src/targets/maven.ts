@@ -5,6 +5,7 @@ import { ConfigurationError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { GitWrapper } from '../utils/gitWrapper';
 import { exec } from 'child_process';
+import { isDryRun } from '../utils/helpers';
 
 // TODO: add docs to the readme
 
@@ -12,6 +13,7 @@ const GIT_REPO_OWNER = 'getsentry';
 const GIT_REPO_NAME = 'sentry-java';
 const CHECK_BUILD_CMD = 'make all';
 const DEPLOY_CMD = 'make doReleasee'; // FIXME: added an additional `e` at the end to prevent accidental deploys
+const FILES_TO_COMMIT = ['gradle.properties'];
 
 /** Config options for the "maven" target. */
 interface MavenTargetConfig {
@@ -67,13 +69,26 @@ export class MavenTarget extends BaseTarget {
         await git.setAuth();
         await git.clone();
         await git.checkout(`release/${version}`); // TODO: this should be customized
-        execCmd(dir, CHECK_BUILD_CMD);
+        execCmd(dir, CHECK_BUILD_CMD); // TODO: takes a lot of time, add an option to skip this step
         execCmd(dir, DEPLOY_CMD); // GPG signing is done in this step
+        git.add(FILES_TO_COMMIT);
+        git.commit(`craft(maven): Deployed ${version} to Maven Central.`);
+        if (this.shouldPush()) {
+          await git.push();
+        }
         console.log('cloned');
       },
       false, // TODO: set cleanup to true in production
       'craft-release-maven-' // Not making global since the directoy is supposed to be removed.
     );
+  }
+
+  private shouldPush(): boolean {
+    if (isDryRun()) {
+      this.logger.info('[dry-run] Not pushing the branch.');
+      return false;
+    }
+    return true;
   }
 }
 

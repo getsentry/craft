@@ -33,4 +33,16 @@ export class GitWrapper {
   public async checkout(branchName: string): Promise<void> {
     await this.git.checkout(branchName);
   }
+
+  public add(files: string[]): void {
+    this.git.add(files);
+  }
+
+  public commit(msg: string): void {
+    this.git.commit(msg);
+  }
+
+  public async push(): Promise<void> {
+    await this.git.push();
+  }
 }
