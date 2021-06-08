@@ -3,7 +3,6 @@ import { BaseArtifactProvider } from '../artifact_providers/base';
 import { BaseTarget } from './base';
 import { ConfigurationError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
-import { exec } from 'child_process';
 import { isDryRun } from '../utils/helpers';
 import * as Github from '@octokit/rest';
 import {
@@ -11,15 +10,19 @@ import {
   getGithubApiToken,
   getGithubClient,
   GithubRemote,
-} from 'src/utils/githubApi';
+} from '../utils/githubApi';
 import simpleGit from 'simple-git';
+import { homedir } from 'os';
+import { join } from 'path';
+import * as fs from 'fs';
+
 // TODO: add docs to the readme
 
 const GIT_REPO_OWNER = 'getsentry';
 const GIT_REPO_NAME = 'sentry-java';
-const CHECK_BUILD_CMD = 'make all';
-const DEPLOY_CMD = 'make doReleasee'; // FIXME: added an additional `e` at the end to prevent accidental deploys
 const FILES_TO_COMMIT = ['gradle.properties'];
+
+const USER_GRADLE_PROPS_FILE = join(homedir(), '/.gradle/gradle.properties');
 
 /** Config options for the "maven" target. */
 interface MavenTargetConfig {
@@ -57,6 +60,7 @@ export class MavenTarget extends BaseTarget {
     return {
       ossrhUsername: this.getEnvVarValue('OSSRH_USERNAME'),
       ossrhPassword: this.getEnvVarValue('OSSRH_PASSWORD'),
+      // MAVEN_CENTRAL_* shouldnt be required if the user already has `gradle.properties`
       mavenUsername: this.getEnvVarValue('MAVEN_CENTRAL_USERNAME'),
       mavenPassword: this.getEnvVarValue('MAVEN_CENTRAL_PASSWORD'),
     };
@@ -73,7 +77,6 @@ export class MavenTarget extends BaseTarget {
   }
 
   public async publish(version: string, _revison: string): Promise<void> {
-    console.log('publish step on maven target');
     await withTempDir(
       async dir => {
         console.log(`tmp dir: ${dir}`);
@@ -82,18 +85,31 @@ export class MavenTarget extends BaseTarget {
         const username = await getAuthUsername(this.github);
         this.githubRemote.setAuth(username, getGithubApiToken());
         await git.clone(this.githubRemote.getRemoteStringWithAuth(), dir);
-        await git.checkout(`release/${version}`); // TODO: this should be customized
+        await git.checkout(`release/${version}`); // TODO: release name should be customized
 
-        execCmd(dir, CHECK_BUILD_CMD); // TODO: takes a lot of time, add an option to skip this step
-        execCmd(dir, DEPLOY_CMD); // GPG signing is done in this step
-        git.add(FILES_TO_COMMIT);
-        git.commit(`craft(maven): Deployed ${version} to Maven Central.`);
+        await this.createUserGradlePropsFile();
+
+        await git.add(FILES_TO_COMMIT);
+        await git.commit(`craft(maven): Deployed ${version} to Maven Central.`);
         if (this.shouldPush()) {
           await git.push();
         }
       },
       false, // TODO: set cleanup to true in production
       'craft-release-maven-' // Not making global since the directoy is supposed to be removed.
+    );
+  }
+
+  private async createUserGradlePropsFile(): Promise<void> {
+    // TODO: set option to use current file, instead of always overwriting it
+    fs.writeFileSync(
+      USER_GRADLE_PROPS_FILE,
+      // Using `` instead of string concatenation makes all the lines but the
+      // first one to be indented to the right. To avoid that, these lines
+      // shouldn't have that much space at the beginning, something the linter
+      // doesn't agree with (and the code would be harder to read).
+      `mavenCentralUsername=${this.mavenConfig?.mavenUsername}\n` +
+        `mavenCentralPassword=${this.mavenConfig?.mavenPassword}`
     );
   }
 
@@ -104,12 +120,4 @@ export class MavenTarget extends BaseTarget {
     }
     return true;
   }
-}
-
-function execCmd(workDir: string, command: string): void {
-  exec(command, { cwd: workDir }, error => {
-    if (error) {
-      throw new Error(`Error executing ${command}:` + error);
-    }
-  });
 }
