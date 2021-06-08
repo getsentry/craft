@@ -3,10 +3,16 @@ import { BaseArtifactProvider } from '../artifact_providers/base';
 import { BaseTarget } from './base';
 import { ConfigurationError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
-import { GitWrapper } from '../utils/gitWrapper';
 import { exec } from 'child_process';
 import { isDryRun } from '../utils/helpers';
-
+import * as Github from '@octokit/rest';
+import {
+  getAuthUsername,
+  getGithubApiToken,
+  getGithubClient,
+  GithubRemote,
+} from 'src/utils/githubApi';
+import simpleGit from 'simple-git';
 // TODO: add docs to the readme
 
 const GIT_REPO_OWNER = 'getsentry';
@@ -31,6 +37,10 @@ export class MavenTarget extends BaseTarget {
   public readonly name: string = 'maven';
   /** Target options */
   public readonly mavenConfig: MavenTargetConfig | undefined; // TODO: remove `undefined` when using actual config
+  /** GitHub client. */
+  public readonly github: Github;
+  /** GitHub remote. */
+  public readonly githubRemote: GithubRemote;
 
   public constructor(
     config: TargetConfig,
@@ -39,6 +49,8 @@ export class MavenTarget extends BaseTarget {
     super(config, artifactProvider);
     // this.mavenConfig = this.getMavenConfig();
     console.log('got maven config');
+    this.github = getGithubClient();
+    this.githubRemote = new GithubRemote(GIT_REPO_OWNER, GIT_REPO_NAME);
   }
 
   private getMavenConfig(): MavenTargetConfig {
@@ -65,10 +77,13 @@ export class MavenTarget extends BaseTarget {
     await withTempDir(
       async dir => {
         console.log(`tmp dir: ${dir}`);
-        const git = new GitWrapper(GIT_REPO_OWNER, GIT_REPO_NAME, dir);
-        await git.setAuth();
-        await git.clone();
+
+        const git = simpleGit(dir);
+        const username = await getAuthUsername(this.github);
+        this.githubRemote.setAuth(username, getGithubApiToken());
+        await git.clone(this.githubRemote.getRemoteStringWithAuth(), dir);
         await git.checkout(`release/${version}`); // TODO: this should be customized
+
         execCmd(dir, CHECK_BUILD_CMD); // TODO: takes a lot of time, add an option to skip this step
         execCmd(dir, DEPLOY_CMD); // GPG signing is done in this step
         git.add(FILES_TO_COMMIT);
@@ -76,7 +91,6 @@ export class MavenTarget extends BaseTarget {
         if (this.shouldPush()) {
           await git.push();
         }
-        console.log('cloned');
       },
       false, // TODO: set cleanup to true in production
       'craft-release-maven-' // Not making global since the directoy is supposed to be removed.
