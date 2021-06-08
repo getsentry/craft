@@ -296,8 +296,7 @@ export class RegistryTarget extends BaseTarget {
 
     if (
       !registryConfig.urlTemplate &&
-      registryConfig.checksums &&
-      registryConfig.checksums.length === 0
+      !(registryConfig.checksums && registryConfig.checksums.length > 0)
     ) {
       this.logger.warn(
         'No URL template or checksums, not adding any file data'
