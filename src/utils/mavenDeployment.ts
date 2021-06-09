@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { exec } from 'child_process';
 
-const ANDROID_DIST_EXTENSION = 'aar';
+const ANDROID_DIST_EXTENSION = '.aar'; // Must include the leading `.`
 const ANDROID_RELEASE_SUBSTR = 'release';
 
 /**
