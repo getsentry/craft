@@ -1,5 +1,5 @@
 import { TargetConfig } from '../schemas/project_config';
-import { releaseToMaven } from '../utils/mavenDeployment';
+import { MavenReleaser } from '../utils/mavenDeployment';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { BaseTarget } from './base';
 import { ConfigurationError } from '../utils/errors';
@@ -120,7 +120,7 @@ export class MavenTarget extends BaseTarget {
         await git.checkout(`release/${version}`); // TODO: release name should be customized
 
         await this.createUserGradlePropsFile();
-        releaseToMaven(
+        const mavenReleaser = new MavenReleaser(
           this.mavenConfig?.distributionsPath,
           this.mavenConfig.settingsPath,
           this.mavenConfig?.mavenRepoUrl,
@@ -128,6 +128,7 @@ export class MavenTarget extends BaseTarget {
           this.mavenConfig?.mavenCliPath,
           this.mavenConfig?.gradleCliPath
         );
+        mavenReleaser.release();
 
         await git.add(FILES_TO_COMMIT);
         await git.commit(`craft(maven): Deployed ${version} to Maven Central.`);
