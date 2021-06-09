@@ -1,4 +1,5 @@
 import { TargetConfig } from '../schemas/project_config';
+import { releaseToMaven } from '../utils/mavenDeployment';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { BaseTarget } from './base';
 import { ConfigurationError } from '../utils/errors';
@@ -58,7 +59,7 @@ export class MavenTarget extends BaseTarget {
   /** Target name */
   public readonly name: string = 'maven';
   /** Target options */
-  public readonly mavenConfig: MavenTargetConfig | undefined; // TODO: remove `undefined` when using actual config
+  public readonly mavenConfig: MavenTargetConfig;
   /** GitHub client. */
   public readonly github: Github;
   /** GitHub remote. */
@@ -112,8 +113,6 @@ export class MavenTarget extends BaseTarget {
   public async publish(version: string, _revison: string): Promise<void> {
     await withTempDir(
       async dir => {
-        console.log(`tmp dir: ${dir}`);
-
         const git = simpleGit(dir);
         const username = await getAuthUsername(this.github);
         this.githubRemote.setAuth(username, getGithubApiToken());
@@ -121,6 +120,14 @@ export class MavenTarget extends BaseTarget {
         await git.checkout(`release/${version}`); // TODO: release name should be customized
 
         await this.createUserGradlePropsFile();
+        releaseToMaven(
+          this.mavenConfig?.distributionsPath,
+          this.mavenConfig.settingsPath,
+          this.mavenConfig?.mavenRepoUrl,
+          this.mavenConfig?.mavenRepoId,
+          this.mavenConfig?.mavenCliPath,
+          this.mavenConfig?.gradleCliPath
+        );
 
         await git.add(FILES_TO_COMMIT);
         await git.commit(`craft(maven): Deployed ${version} to Maven Central.`);
@@ -128,8 +135,8 @@ export class MavenTarget extends BaseTarget {
           await git.push();
         }
       },
-      false, // TODO: set cleanup to true in production
-      'craft-release-maven-' // Not making global since the directoy is supposed to be removed.
+      true,
+      'craft-release-maven-'
     );
   }
 
