@@ -18,17 +18,33 @@ const ANDROID_RELEASE_SUBSTR = 'release';
 /** Config options for the "maven" target. */
 interface MavenTargetConfig {
   // Required env variables
-  ossrhUsername: string; // OSSRH_USERNAME
-  ossrhPassword: string; // OSSRH_PASSWORD
-  mavenUsername: string; // MAVEN_CENTRAL_USERNAME
-  mavenPassword: string; // MAVEN_CENTRAL_PASSWORD
+  ossrhUsername: string;
+  ossrhPassword: string;
+  mavenUsername: string;
+  mavenPassword: string;
   // Optional env variables (have a default value)
-  distributionsPath: string; // DISTRIBUTIONS_PATH
-  settingsPath: string; // SETTINGS_PATH
-  mavenRepoUrl: string; // MAVEN_REPO_URL
-  mavenRepoId: string; // MAVEN_REPO_ID
-  mavenCliPath: string; // MAVEN_CLI_PATH
-  gradleCliPath: string; // GRADLE_CLI_PATH
+  distributionsPath: string;
+  settingsPath: string;
+  mavenRepoUrl: string;
+  mavenRepoId: string;
+  mavenCliPath: string;
+  gradleCliPath: string;
+}
+
+enum RequiredConfig {
+  ossrhUsername = 'OSSRH_USERNAME',
+  ossrhPassword = 'OSSRH_PASSWORD',
+  mavenUsername = 'MAVEN_CENTRAL_USERNAME',
+  mavenPassword = 'MAVEN_CENTRAL_PASSWORD',
+}
+
+enum OptionalConfig {
+  distributionsPath = 'DISTRIBUTIONS_PATH',
+  settingsPath = 'SETTINGS_PATH',
+  mavenRepoUrl = 'MAVEN_REPO_URL',
+  mavenRepoId = 'MAVEN_REPO_ID',
+  mavenCliPath = 'MAVEN_CLI_PATH',
+  gradleCliPath = 'MAVEN_CLI_PATH',
 }
 
 // Paths should be relative to the root of the repository
@@ -62,22 +78,24 @@ export class MavenTarget extends BaseTarget {
   private getMavenConfig(): MavenTargetConfig {
     return {
       // Required env variables
-      ossrhUsername: this.getEnvVarValue('OSSRH_USERNAME'),
-      ossrhPassword: this.getEnvVarValue('OSSRH_PASSWORD'),
+      ossrhUsername: this.getEnvVarValue(RequiredConfig.ossrhUsername),
+      ossrhPassword: this.getEnvVarValue(RequiredConfig.mavenPassword),
       // TODO: MAVEN_CENTRAL_* shouldnt be required if the user already has `gradle.properties`
-      mavenUsername: this.getEnvVarValue('MAVEN_CENTRAL_USERNAME'),
-      mavenPassword: this.getEnvVarValue('MAVEN_CENTRAL_PASSWORD'),
+      mavenUsername: this.getEnvVarValue(RequiredConfig.mavenUsername),
+      mavenPassword: this.getEnvVarValue(RequiredConfig.mavenPassword),
       // Optional env variables
-      distributionsPath: this.getEnvVarOrDefault('DISTRIBUTIONS_PATH'),
-      settingsPath: this.getEnvVarOrDefault('SETTINGS_PATH'),
-      mavenRepoUrl: this.getEnvVarOrDefault('MAVEN_REPO_URL'),
-      mavenRepoId: this.getEnvVarOrDefault('MAVEN_REPO_ID'),
-      mavenCliPath: this.getEnvVarOrDefault('MAVEN_CLI_PATH'),
-      gradleCliPath: this.getEnvVarOrDefault('GRADLE_CLI_PATH'),
+      distributionsPath: this.getEnvVarOrDefault(
+        OptionalConfig.distributionsPath
+      ),
+      settingsPath: this.getEnvVarOrDefault(OptionalConfig.settingsPath),
+      mavenRepoUrl: this.getEnvVarOrDefault(OptionalConfig.mavenRepoUrl),
+      mavenRepoId: this.getEnvVarOrDefault(OptionalConfig.mavenRepoId),
+      mavenCliPath: this.getEnvVarOrDefault(OptionalConfig.mavenCliPath),
+      gradleCliPath: this.getEnvVarOrDefault(OptionalConfig.gradleCliPath),
     };
   }
 
-  private getEnvVarValue(envVar: string): string {
+  private getEnvVarValue(envVar: RequiredConfig): string {
     if (process.env[envVar]) {
       return process.env[envVar] as string; // `as string` to make TS happy
     }
@@ -87,7 +105,7 @@ export class MavenTarget extends BaseTarget {
     );
   }
 
-  private getEnvVarOrDefault(envVar: string): string {
+  private getEnvVarOrDefault(envVar: OptionalConfig): string {
     if (process.env[envVar]) {
       return process.env[envVar] as string; // `as string` to make TS happy
     }
