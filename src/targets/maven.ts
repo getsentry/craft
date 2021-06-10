@@ -21,7 +21,8 @@ import * as fs from 'fs';
 
 const GIT_REPO_OWNER = 'getsentry';
 const GIT_REPO_NAME = 'sentry-java';
-const FILES_TO_COMMIT = ['gradle.properties'];
+const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
+const FILES_TO_COMMIT = [GRADLE_PROPERTIES_FILENAME];
 
 /** Config options for the "maven" target. */
 interface MavenTargetConfig {
@@ -142,7 +143,7 @@ export class MavenTarget extends BaseTarget {
   private async createUserGradlePropsFile(): Promise<void> {
     // TODO: set option to use current file, instead of always overwriting it
     fs.writeFileSync(
-      getGradleHomeDir(),
+      join(getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
       // Using `` instead of string concatenation makes all the lines but the
       // first one to be indented to the right. To avoid that, these lines
       // shouldn't have that much space at the beginning, something the linter
@@ -161,11 +162,11 @@ export class MavenTarget extends BaseTarget {
   }
 }
 
-function getGradleHomeDir(): string {
+export function getGradleHomeDir(): string {
   // See https://docs.gradle.org/current/userguide/build_environment.html#sec:gradle_environment_variables
   if (process.env.GRADLE_USER_HOME) {
     return process.env.GRADLE_USER_HOME;
   }
 
-  return join(homedir(), '.gradle/gradle.properties');
+  return join(homedir(), '.gradle');
 }
