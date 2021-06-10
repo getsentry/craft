@@ -59,12 +59,19 @@ export class MavenReleaser {
         sourcesFile,
         pomFile
       );
-      exec(command);
+      exec(command, (error, _stdout, _stderr) => {
+        throw new Error(`Cannot upload to Maven:\n` + error);
+      });
     }
   }
 
   public closeAndRelease(): void {
-    exec(`./${this.gradleCliPath} closeAndReleaseRepository`);
+    exec(
+      `./${this.gradleCliPath} closeAndReleaseRepository`,
+      (error, _stdout, _stderr) => {
+        throw new Error(`Cannot close and release to Maven:\n` + error);
+      }
+    );
   }
 
   /**
