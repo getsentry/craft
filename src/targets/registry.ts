@@ -33,7 +33,6 @@ import {
 } from '../utils/registry';
 import { isDryRun } from '../utils/helpers';
 import { filterAsync, withRetry } from '../utils/async';
-import { ResourceConflictException } from '@aws-sdk/client-lambda';
 
 /** "registry" target options */
 export interface RegistryConfig {
