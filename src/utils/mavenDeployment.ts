@@ -65,6 +65,9 @@ export class MavenReleaser {
     }
   }
 
+  /**
+   * Finishes the release flow.
+   */
   public closeAndRelease(): void {
     exec(
       `./${this.gradleCliPath} closeAndReleaseRepository`,
@@ -77,7 +80,7 @@ export class MavenReleaser {
   /**
    * Returns the path to the first Android distribution file, if any.
    */
-  private getAndroidDistributionFile(
+  public getAndroidDistributionFile(
     distributionDir: string
   ): string | undefined {
     const files = fs.readdirSync(distributionDir);
@@ -96,7 +99,7 @@ export class MavenReleaser {
   /**
    * Returns the command to be executed, using the given parameters.
    */
-  private getMavenUploadCmd(
+  public getMavenUploadCmd(
     targetFile: string,
     javadocFile: string,
     sourcesFile: string,
