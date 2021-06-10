@@ -105,11 +105,19 @@ export class RegistryTarget extends BaseTarget {
    */
   public getRegistryConfig(): RegistryConfig[] {
     const items = Object.entries(BATCH_KEYS).flatMap(([key, type]) =>
-      Object.entries(this.config[key] || {}).map(([canonicalName, conf]) => ({
-        ...(conf as Record<string, unknown>),
-        type,
-        canonicalName,
-      }))
+      Object.entries(this.config[key] || {}).map(([canonicalName, conf]) => {
+        const config = conf as Record<string, unknown>;
+        const result = Object.assign(Object.create(null), config, {
+          type,
+          canonicalName,
+        });
+
+        if (typeof config.onlyIfPresent === 'string') {
+          result.onlyIfPresent = stringToRegexp(config.onlyIfPresent);
+        }
+
+        return result;
+      })
     );
 
     if (items.length === 0 && this.config.type) {
