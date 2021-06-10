@@ -16,20 +16,9 @@ const ANDROID_DIST_EXTENSION = '.aar'; // Must include the leading `.`
 const ANDROID_RELEASE_SUBSTR = 'release';
 
 /** Config options for the "maven" target. */
-interface MavenTargetConfig {
-  // Required env variables
-  ossrhUsername: string;
-  ossrhPassword: string;
-  mavenUsername: string;
-  mavenPassword: string;
-  // Optional env variables (have a default value)
-  distributionsPath: string;
-  settingsPath: string;
-  mavenRepoUrl: string;
-  mavenRepoId: string;
-  mavenCliPath: string;
-  gradleCliPath: string;
-}
+type MavenTargetConfig = {
+  [key in keyof (typeof RequiredConfig & typeof OptionalConfig)]: string;
+};
 
 enum RequiredConfig {
   ossrhUsername = 'OSSRH_USERNAME',
