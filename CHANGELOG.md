@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- feat(maven): Add maven target to deploy to Maven Central (#258)
+
 ## 0.24.0
 
 - ref(zeus): Remove all Zeus support (#253)
