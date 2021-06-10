@@ -7,6 +7,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { exec } from 'child_process';
 import { isDryRun } from '../utils/helpers';
+import { withRetry } from '../utils/async';
 
 // TODO: add docs to the readme
 
@@ -135,8 +136,11 @@ export class MavenTarget extends BaseTarget {
         sourcesFile,
         pomFile
       );
-      exec(command, (error, _stdout, _stderr) => {
-        throw new Error(`Cannot upload ${distDir} to Maven:\n` + error);
+
+      withRetry(async () => {
+        exec(command, (error, _stdout, _stderr) => {
+          throw new Error(`Cannot upload ${distDir} to Maven:\n` + error);
+        });
       });
     }
   }
@@ -145,12 +149,14 @@ export class MavenTarget extends BaseTarget {
    * Finishes the release flow.
    */
   public closeAndRelease(): void {
-    exec(
-      `./${this.mavenConfig.gradleCliPath} closeAndReleaseRepository`,
-      (error, _stdout, _stderr) => {
-        throw new Error(`Cannot close and release to Maven:\n` + error);
-      }
-    );
+    withRetry(async () => {
+      exec(
+        `./${this.mavenConfig.gradleCliPath} closeAndReleaseRepository`,
+        (error, _stdout, _stderr) => {
+          throw new Error(`Cannot close and release to Maven:\n` + error);
+        }
+      );
+    });
   }
 
   /**
