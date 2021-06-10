@@ -6,6 +6,7 @@ import { homedir } from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import { exec } from 'child_process';
+import { isDryRun } from '../utils/helpers';
 
 // TODO: add docs to the readme
 
@@ -95,6 +96,10 @@ export class MavenTarget extends BaseTarget {
 
   public async publish(_version: string, _revison: string): Promise<void> {
     this.createUserGradlePropsFile();
+    if (isDryRun()) {
+      this.logger.info('[dry-run] Not uploading to Maven.');
+      return;
+    }
     this.upload();
     this.closeAndRelease();
   }
