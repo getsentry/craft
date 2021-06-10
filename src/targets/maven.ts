@@ -33,7 +33,7 @@ enum OptionalConfig {
   mavenRepoUrl = 'MAVEN_REPO_URL',
   mavenRepoId = 'MAVEN_REPO_ID',
   mavenCliPath = 'MAVEN_CLI_PATH',
-  gradleCliPath = 'MAVEN_CLI_PATH',
+  gradleCliPath = 'GRADLE_CLI_PATH',
 }
 
 // Paths should be relative to the root of the repository
