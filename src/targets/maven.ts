@@ -147,7 +147,7 @@ export class MavenTarget extends BaseTarget {
         pomFile
       );
       exec(command, (error, _stdout, _stderr) => {
-        throw new Error(`Cannot upload to Maven:\n` + error);
+        throw new Error(`Cannot upload ${distDir} to Maven:\n` + error);
       });
     }
   }
