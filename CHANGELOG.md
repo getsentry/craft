@@ -4,9 +4,14 @@
 
 - feat(maven): Add maven target to deploy to Maven Central (#258)
 
+## 0.24.1
+
+- fix(registry): Fix onlyIfPresent config on batch (#259)
+
 ## 0.24.0
 
 - ref(zeus): Remove all Zeus support (#253)
+- fix(registry): Fix empty `files` entries (#256)
 
 ## 0.23.1
 
