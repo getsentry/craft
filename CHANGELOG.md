@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.24.2
+
+- upgrade(js-yaml): Bump to 3.13.1 for security fixes (#260)
+
 ## 0.24.1
 
 - fix(registry): Fix onlyIfPresent config on batch (#259)
