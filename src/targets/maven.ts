@@ -23,8 +23,6 @@ const GIT_REPO_OWNER = 'getsentry';
 const GIT_REPO_NAME = 'sentry-java';
 const FILES_TO_COMMIT = ['gradle.properties'];
 
-const USER_GRADLE_PROPS_FILE = join(homedir(), '/.gradle/gradle.properties');
-
 /** Config options for the "maven" target. */
 interface MavenTargetConfig {
   // Required env variables
@@ -144,7 +142,7 @@ export class MavenTarget extends BaseTarget {
   private async createUserGradlePropsFile(): Promise<void> {
     // TODO: set option to use current file, instead of always overwriting it
     fs.writeFileSync(
-      USER_GRADLE_PROPS_FILE,
+      getGradleHomeDir(),
       // Using `` instead of string concatenation makes all the lines but the
       // first one to be indented to the right. To avoid that, these lines
       // shouldn't have that much space at the beginning, something the linter
@@ -161,4 +159,13 @@ export class MavenTarget extends BaseTarget {
     }
     return true;
   }
+}
+
+function getGradleHomeDir(): string {
+  // See https://docs.gradle.org/current/userguide/build_environment.html#sec:gradle_environment_variables
+  if (process.env.GRADLE_USER_HOME) {
+    return process.env.GRADLE_USER_HOME;
+  }
+
+  return join(homedir(), '.gradle/gradle.properties');
 }
