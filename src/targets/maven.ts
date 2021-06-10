@@ -40,7 +40,7 @@ interface MavenTargetConfig {
 }
 
 // Paths should be relative to the root of the repository
-const DEFAULT_ENV_VARIABLES: { [key: string]: string } = {
+const DEFAULT_ENV_VARIABLES: Record<string, string> = {
   DISTRIBUTIONS_PATH: 'distributions/',
   SETTINGS_PATH: 'scripts/settings.xml',
   MAVEN_REPO_URL:
@@ -105,7 +105,7 @@ export class MavenTarget extends BaseTarget {
     if (process.env[envVar]) {
       return process.env[envVar] as string; // `as string` to make TS happy
     }
-    return DEFAULT_ENV_VARIABLES[envVar] as string;
+    return DEFAULT_ENV_VARIABLES[envVar];
   }
 
   public async publish(version: string, _revison: string): Promise<void> {
@@ -119,12 +119,12 @@ export class MavenTarget extends BaseTarget {
 
         await this.createUserGradlePropsFile();
         const mavenReleaser = new MavenReleaser(
-          this.mavenConfig?.distributionsPath,
+          this.mavenConfig.distributionsPath,
           this.mavenConfig.settingsPath,
-          this.mavenConfig?.mavenRepoUrl,
-          this.mavenConfig?.mavenRepoId,
-          this.mavenConfig?.mavenCliPath,
-          this.mavenConfig?.gradleCliPath
+          this.mavenConfig.mavenRepoUrl,
+          this.mavenConfig.mavenRepoId,
+          this.mavenConfig.mavenCliPath,
+          this.mavenConfig.gradleCliPath
         );
         mavenReleaser.release();
 

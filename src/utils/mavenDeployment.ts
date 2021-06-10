@@ -42,13 +42,13 @@ export class MavenReleaser {
    * Note that after upload, this must be `closeAndRelease`.
    */
   public upload(): void {
-    const distributionsDirs: string[] = fs.readdirSync(this.distributionsPath);
+    const distributionsDirs = fs.readdirSync(this.distributionsPath);
     for (const distDir of distributionsDirs) {
       const moduleName = path.parse(distDir).base;
-      let targetFile = this.getAndroidDistributionFile(distDir);
-      if (!targetFile) {
-        targetFile = path.join(distDir, `${moduleName}.jar`);
-      }
+      const androidFile = this.getAndroidDistributionFile(distDir);
+      const targetFile = androidFile
+        ? androidFile
+        : path.join(distDir, `${moduleName}.jar`);
       const javadocFile = path.join(distDir, `${moduleName}-javadoc.jar`);
       const sourcesFile = path.join(distDir, `${moduleName}-sources.jar`);
       const pomFile = path.join(distDir, 'pom-default.xml');
