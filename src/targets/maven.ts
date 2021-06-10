@@ -1,28 +1,18 @@
 import { TargetConfig } from '../schemas/project_config';
-import { MavenReleaser } from '../utils/mavenDeployment';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { BaseTarget } from './base';
 import { ConfigurationError } from '../utils/errors';
-import { withTempDir } from '../utils/files';
-import { isDryRun } from '../utils/helpers';
-import * as Github from '@octokit/rest';
-import {
-  getAuthUsername,
-  getGithubApiToken,
-  getGithubClient,
-  GithubRemote,
-} from '../utils/githubApi';
-import simpleGit from 'simple-git';
 import { homedir } from 'os';
-import { join } from 'path';
+import * as path from 'path';
 import * as fs from 'fs';
+import { exec } from 'child_process';
 
 // TODO: add docs to the readme
 
-const GIT_REPO_OWNER = 'getsentry';
-const GIT_REPO_NAME = 'sentry-java';
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
-const FILES_TO_COMMIT = [GRADLE_PROPERTIES_FILENAME];
+
+const ANDROID_DIST_EXTENSION = '.aar'; // Must include the leading `.`
+const ANDROID_RELEASE_SUBSTR = 'release';
 
 /** Config options for the "maven" target. */
 interface MavenTargetConfig {
@@ -59,10 +49,6 @@ export class MavenTarget extends BaseTarget {
   public readonly name: string = 'maven';
   /** Target options */
   public readonly mavenConfig: MavenTargetConfig;
-  /** GitHub client. */
-  public readonly github: Github;
-  /** GitHub remote. */
-  public readonly githubRemote: GithubRemote;
 
   public constructor(
     config: TargetConfig,
@@ -70,8 +56,6 @@ export class MavenTarget extends BaseTarget {
   ) {
     super(config, artifactProvider);
     this.mavenConfig = this.getMavenConfig();
-    this.github = getGithubClient();
-    this.githubRemote = new GithubRemote(GIT_REPO_OWNER, GIT_REPO_NAME);
   }
 
   private getMavenConfig(): MavenTargetConfig {
@@ -109,41 +93,99 @@ export class MavenTarget extends BaseTarget {
     return DEFAULT_ENV_VARIABLES[envVar];
   }
 
-  public async publish(version: string, _revison: string): Promise<void> {
-    await withTempDir(
-      async dir => {
-        const git = simpleGit(dir);
-        const username = await getAuthUsername(this.github);
-        this.githubRemote.setAuth(username, getGithubApiToken());
-        await git.clone(this.githubRemote.getRemoteStringWithAuth(), dir);
-        await git.checkout(`release/${version}`); // TODO: release name should be customized
+  public async publish(_version: string, _revison: string): Promise<void> {
+    this.createUserGradlePropsFile();
+    this.upload();
+    this.closeAndRelease();
+  }
 
-        await this.createUserGradlePropsFile();
-        const mavenReleaser = new MavenReleaser(
-          this.mavenConfig.distributionsPath,
-          this.mavenConfig.settingsPath,
-          this.mavenConfig.mavenRepoUrl,
-          this.mavenConfig.mavenRepoId,
-          this.mavenConfig.mavenCliPath,
-          this.mavenConfig.gradleCliPath
-        );
-        mavenReleaser.release();
+  /**
+   * Deploys to Maven Central the distribution packages.
+   * Note that after upload, this must be `closeAndRelease`.
+   */
+  public upload(): void {
+    const distributionsDirs = fs.readdirSync(
+      this.mavenConfig.distributionsPath
+    );
+    for (const distDir of distributionsDirs) {
+      const moduleName = path.parse(distDir).base;
+      const androidFile = this.getAndroidDistributionFile(distDir);
+      const targetFile = androidFile
+        ? androidFile
+        : path.join(distDir, `${moduleName}.jar`);
+      const javadocFile = path.join(distDir, `${moduleName}-javadoc.jar`);
+      const sourcesFile = path.join(distDir, `${moduleName}-sources.jar`);
+      const pomFile = path.join(distDir, 'pom-default.xml');
 
-        await git.add(FILES_TO_COMMIT);
-        await git.commit(`craft(maven): Deployed ${version} to Maven Central.`);
-        if (this.shouldPush()) {
-          await git.push();
-        }
-      },
-      true,
-      'craft-release-maven-'
+      const command = this.getMavenUploadCmd(
+        targetFile,
+        javadocFile,
+        sourcesFile,
+        pomFile
+      );
+      exec(command, (error, _stdout, _stderr) => {
+        throw new Error(`Cannot upload to Maven:\n` + error);
+      });
+    }
+  }
+
+  /**
+   * Finishes the release flow.
+   */
+  public closeAndRelease(): void {
+    exec(
+      `./${this.mavenConfig.gradleCliPath} closeAndReleaseRepository`,
+      (error, _stdout, _stderr) => {
+        throw new Error(`Cannot close and release to Maven:\n` + error);
+      }
     );
   }
 
-  private async createUserGradlePropsFile(): Promise<void> {
+  /**
+   * Returns the path to the first Android distribution file, if any.
+   */
+  public getAndroidDistributionFile(
+    distributionDir: string
+  ): string | undefined {
+    const files = fs.readdirSync(distributionDir);
+    for (const filepath of files) {
+      const file = path.parse(filepath);
+      if (
+        file.ext === ANDROID_DIST_EXTENSION &&
+        file.base.includes(ANDROID_RELEASE_SUBSTR)
+      ) {
+        return filepath;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Returns the command to be executed, using the given parameters.
+   */
+  public getMavenUploadCmd(
+    targetFile: string,
+    javadocFile: string,
+    sourcesFile: string,
+    pomFile: string
+  ): string {
+    return (
+      `./${this.mavenConfig.mavenCliPath} gpg:sign-and-deploy-file ` +
+      `-Dfile=${targetFile} ` +
+      `-Dfiles=${javadocFile},${sourcesFile} ` +
+      `-Dclassifiers=javadoc,sources ` +
+      `-Dtypes=jar,jar ` +
+      `-DpomFile=${pomFile} ` +
+      `-DrepositoryId=${this.mavenConfig.mavenRepoId} ` +
+      `-Durl=${this.mavenConfig.mavenRepoUrl} ` +
+      `--settings ${this.mavenConfig.settingsPath} `
+    );
+  }
+
+  private createUserGradlePropsFile(): void {
     // TODO: set option to use current file, instead of always overwriting it
     fs.writeFileSync(
-      join(getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
+      path.join(getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
       // Using `` instead of string concatenation makes all the lines but the
       // first one to be indented to the right. To avoid that, these lines
       // shouldn't have that much space at the beginning, something the linter
@@ -151,14 +193,6 @@ export class MavenTarget extends BaseTarget {
       `mavenCentralUsername=${this.mavenConfig?.mavenUsername}\n` +
         `mavenCentralPassword=${this.mavenConfig?.mavenPassword}`
     );
-  }
-
-  private shouldPush(): boolean {
-    if (isDryRun()) {
-      this.logger.info('[dry-run] Not pushing the branch.');
-      return false;
-    }
-    return true;
   }
 }
 
@@ -168,5 +202,5 @@ export function getGradleHomeDir(): string {
     return process.env.GRADLE_USER_HOME;
   }
 
-  return join(homedir(), '.gradle');
+  return path.join(homedir(), '.gradle');
 }
