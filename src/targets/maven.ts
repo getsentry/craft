@@ -9,8 +9,6 @@ import { exec } from 'child_process';
 import { isDryRun } from '../utils/helpers';
 import { withRetry } from '../utils/async';
 
-// TODO: add docs to the readme
-
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
 const ANDROID_DIST_EXTENSION = '.aar'; // Must include the leading `.`

@@ -51,6 +51,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Ruby Gems Index (`gem`)](#ruby-gems-index-gem)
   - [AWS Lambda Layer (`aws-lambda-layer`)](#aws-lambda-layer-aws-lambda-layer)
   - [Unity Package Manager (`upm`)](#unity-package-manager-upm)
+  - [Maven central (`maven`)](#maven-central-maven)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Post-release Script: Conventions](#post-release-script-conventions)
@@ -986,6 +987,36 @@ targets:
   - name: upm
     releaseRepoOwner: 'getsentry'
     releaseRepoName: 'unity'
+```
+
+### Maven central (`maven`)
+
+PGP signs and publishes packages to Maven Central.
+
+**Environment**
+
+| Name                     | Description                                                                                                                       |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `OSSRH_USERNAME`         | Username of Sonatype repository.                                                                                                  |
+| `OSSRH_PASSWORD`         | Password of Sonatype repository.                                                                                                  |
+| `MAVEN_CENTRAL_USERNAME` | Username of Maven Central.                                                                                                        |
+| `MAVEN_CENTRAL_PASSWORD` | Password of Maven Central.                                                                                                        |
+| `DISTRIBUTIONS_PATH`     | **optional** Path to the directory with unzipeed distribution packages. Defaults to `distributions/`.                             |
+| `SETTINGS_PATH`          | **optional** Path to the Maven `settings.xml`, containing Maven Central username and API key. Defaults to `scripts/settings.xml`. |
+| `MAVEN_REPO_URL`         | **optional** URL of the Maven repository. Defaults to `https://oss.sonatype.org/service/local/staging/deploy/maven2/`.            |
+| `MAVEN_REPO_ID`          | **optional** ID of the Maven server in the `settings.xml`. Defaults to `ossrh`.                                                   |
+| `MAVEN_CLI_PATH`         | **optional** Path to the Maven CLI. Defaults to `scripts/mvnw.cmd`.                                                               |
+| `GRADLE_CLI_PATH`        | **optional** Path to the Gradle CLI. Defaults to `gradlew`.                                                                       |
+
+**Configuration**
+
+_none_
+
+**Example**
+
+```yml
+targets:
+  - name: maven
 ```
 
 ## Integrating Your Project with `craft`
