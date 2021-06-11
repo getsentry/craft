@@ -1,7 +1,7 @@
 import { homedir } from 'os';
 import { join } from 'path';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
-import { MavenTarget, getGradleHomeDir } from '../maven';
+import { MavenTarget } from '../maven';
 
 const directories: Record<string, string[]> = {
   android: ['androidChild'],
@@ -224,6 +224,7 @@ describe('get gradle home directory', () => {
   const gradleHomeEnvVar = 'GRADLE_USER_HOME';
 
   beforeEach(() => {
+    setRequiredConfig();
     // no need to check whether it already exists
     delete process.env[gradleHomeEnvVar];
   });
@@ -231,13 +232,13 @@ describe('get gradle home directory', () => {
   test('with gradle home', () => {
     const expectedHomeDir = 'testDirectory';
     process.env[gradleHomeEnvVar] = expectedHomeDir;
-    const actual = getGradleHomeDir();
+    const actual = createMavenTarget().getGradleHomeDir();
     expect(actual).toEqual(expectedHomeDir);
   });
 
   test('without gradle home', () => {
     const expected = join(homedir(), '.gradle');
-    const actual = getGradleHomeDir();
+    const actual = createMavenTarget().getGradleHomeDir();
     expect(actual).toEqual(expected);
   });
 });

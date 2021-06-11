@@ -201,7 +201,7 @@ export class MavenTarget extends BaseTarget {
   private createUserGradlePropsFile(): void {
     // TODO: set option to use current file, instead of always overwriting it
     fs.writeFileSync(
-      path.join(getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
+      path.join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
       // Using `` instead of string concatenation makes all the lines but the
       // first one to be indented to the right. To avoid that, these lines
       // shouldn't have that much space at the beginning, something the linter
@@ -210,13 +210,13 @@ export class MavenTarget extends BaseTarget {
         `mavenCentralPassword=${this.mavenConfig?.mavenPassword}`
     );
   }
-}
 
-export function getGradleHomeDir(): string {
-  // See https://docs.gradle.org/current/userguide/build_environment.html#sec:gradle_environment_variables
-  if (process.env.GRADLE_USER_HOME) {
-    return process.env.GRADLE_USER_HOME;
+  public getGradleHomeDir(): string {
+    // See https://docs.gradle.org/current/userguide/build_environment.html#sec:gradle_environment_variables
+    if (process.env.GRADLE_USER_HOME) {
+      return process.env.GRADLE_USER_HOME;
+    }
+
+    return path.join(homedir(), '.gradle');
   }
-
-  return path.join(homedir(), '.gradle');
 }
