@@ -101,12 +101,12 @@ export class MavenTarget extends BaseTarget {
   }
 
   public async publish(_version: string, _revison: string): Promise<void> {
-    this.createUserGradlePropsFile();
+    await this.createUserGradlePropsFile();
     if (isDryRun()) {
       this.logger.info('[dry-run] Not uploading to Maven.');
       return;
     }
-    this.upload();
+    await this.upload();
     this.closeAndRelease();
   }
 
@@ -114,13 +114,13 @@ export class MavenTarget extends BaseTarget {
    * Deploys to Maven Central the distribution packages.
    * Note that after upload, this must be `closeAndRelease`.
    */
-  public upload(): void {
-    const distributionsDirs = fs.readdirSync(
+  public async upload(): Promise<void> {
+    const distributionsDirs = await fs.promises.readdir(
       this.mavenConfig.distributionsPath
     );
     for (const distDir of distributionsDirs) {
       const moduleName = path.parse(distDir).base;
-      const androidFile = this.getAndroidDistributionFile(distDir);
+      const androidFile = await this.getAndroidDistributionFile(distDir);
       const targetFile = androidFile
         ? androidFile
         : path.join(distDir, `${moduleName}.jar`);
@@ -160,10 +160,10 @@ export class MavenTarget extends BaseTarget {
   /**
    * Returns the path to the first Android distribution file, if any.
    */
-  public getAndroidDistributionFile(
+  public async getAndroidDistributionFile(
     distributionDir: string
-  ): string | undefined {
-    const files = fs.readdirSync(distributionDir);
+  ): Promise<string | undefined> {
+    const files = await fs.promises.readdir(distributionDir);
     for (const filepath of files) {
       const file = path.parse(filepath);
       if (
@@ -198,9 +198,9 @@ export class MavenTarget extends BaseTarget {
     );
   }
 
-  private createUserGradlePropsFile(): void {
+  private async createUserGradlePropsFile(): Promise<void> {
     // TODO: set option to use current file, instead of always overwriting it
-    fs.writeFileSync(
+    await fs.promises.writeFile(
       path.join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
       // Using `` instead of string concatenation makes all the lines but the
       // first one to be indented to the right. To avoid that, these lines

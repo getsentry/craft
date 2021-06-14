@@ -13,9 +13,11 @@ const directories: Record<string, string[]> = {
 
 jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
-  readdirSync: (parentDir: string) => directories[parentDir],
-  writeFileSync: () => {
-    /** do nothing */
+  promises: {
+    readdir: async (parentDir: string) => directories[parentDir],
+    writeFile: async () => {
+      /* do nothing */
+    },
   },
 }));
 
@@ -128,7 +130,7 @@ describe('upload to Maven', () => {
     };
   }
 
-  test("when it's an Android distribution", () => {
+  test("when it's an Android distribution", async () => {
     const parentDir = 'android';
     process.env.DISTRIBUTIONS_PATH = parentDir;
     const distDir = directories[parentDir][0];
@@ -141,7 +143,7 @@ describe('upload to Maven', () => {
     const mavenTarget = createMavenTarget();
     const mavenUploadCmdSpy = jest.spyOn(mavenTarget, 'getMavenUploadCmd');
     const androidDisSpy = jest.spyOn(mavenTarget, 'getAndroidDistributionFile');
-    mavenTarget.upload();
+    await mavenTarget.upload();
 
     expect(androidDisSpy).toHaveBeenCalledTimes(1);
     expect(mavenUploadCmdSpy).toHaveBeenCalledTimes(1);
@@ -153,7 +155,7 @@ describe('upload to Maven', () => {
     );
   });
 
-  test("when it's not an Android distribution", () => {
+  test("when it's not an Android distribution", async () => {
     const parentDir = 'other';
     process.env.DISTRIBUTIONS_PATH = parentDir;
     const distDir = directories[parentDir][0];
@@ -166,7 +168,7 @@ describe('upload to Maven', () => {
     const mavenTarget = createMavenTarget();
     const mavenUploadCmdSpy = jest.spyOn(mavenTarget, 'getMavenUploadCmd');
     const androidDisSpy = jest.spyOn(mavenTarget, 'getAndroidDistributionFile');
-    mavenTarget.upload();
+    await mavenTarget.upload();
 
     expect(androidDisSpy).toHaveBeenCalledTimes(1);
     expect(mavenUploadCmdSpy).toHaveBeenCalledTimes(1);
@@ -188,7 +190,7 @@ describe('get Android distribution file', () => {
     removeRequiredConfig();
   });
 
-  test('when exists', () => {
+  test('when exists', async () => {
     const parentDirectory = 'android';
     process.env.DISTRIBUTIONS_PATH = parentDirectory;
     const expectedChildDirectory = directories[parentDirectory][0];
@@ -196,27 +198,29 @@ describe('get Android distribution file', () => {
 
     const mavenTarget = createMavenTarget();
     const androidDisSpy = jest.spyOn(mavenTarget, 'getAndroidDistributionFile');
-    mavenTarget.upload();
+    await mavenTarget.upload();
 
     expect(androidDisSpy).toHaveBeenCalledTimes(1);
     expect(androidDisSpy).toHaveBeenCalledWith(expectedChildDirectory);
-    expect(androidDisSpy).toHaveReturnedWith(expectedAndroidFile);
+    expect(androidDisSpy).toHaveReturnedWith(
+      Promise.resolve(expectedAndroidFile)
+    );
 
     jest.resetAllMocks();
   });
 
-  test("when it doesn't exist", () => {
+  test("when it doesn't exist", async () => {
     const parentDirectory = 'other';
     process.env.DISTRIBUTIONS_PATH = parentDirectory;
     const expectedChildDirectory = directories[parentDirectory][0];
 
     const mavenTarget = createMavenTarget();
     const androidDisSpy = jest.spyOn(mavenTarget, 'getAndroidDistributionFile');
-    mavenTarget.upload();
+    await mavenTarget.upload();
 
     expect(androidDisSpy).toHaveBeenCalledTimes(1);
     expect(androidDisSpy).toHaveBeenCalledWith(expectedChildDirectory);
-    expect(androidDisSpy).toHaveReturnedWith(undefined);
+    expect(androidDisSpy).toHaveReturnedWith(Promise.resolve(undefined));
   });
 });
 
