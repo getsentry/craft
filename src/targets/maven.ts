@@ -131,36 +131,39 @@ export class MavenTarget extends BaseTarget {
     const distributionsDirs = await fs.promises.readdir(
       this.mavenConfig.distributionsPath
     );
-    for (const distDir of distributionsDirs) {
-      const moduleName = path.parse(distDir).base;
-      const androidFile = await this.getAndroidDistributionFile(distDir);
-      const targetFile = androidFile
-        ? androidFile
-        : path.join(distDir, `${moduleName}.jar`);
-      const javadocFile = path.join(distDir, `${moduleName}-javadoc.jar`);
-      const sourcesFile = path.join(distDir, `${moduleName}-sources.jar`);
-      const pomFile = path.join(distDir, 'pom-default.xml');
 
-      const command = this.getMavenUploadCmd(
-        targetFile,
-        javadocFile,
-        sourcesFile,
-        pomFile
-      );
+    await Promise.all(
+      distributionsDirs.map(async distDir => {
+        const moduleName = path.parse(distDir).base;
+        const androidFile = await this.getAndroidDistributionFile(distDir);
+        const targetFile = androidFile
+          ? androidFile
+          : path.join(distDir, `${moduleName}.jar`);
+        const javadocFile = path.join(distDir, `${moduleName}-javadoc.jar`);
+        const sourcesFile = path.join(distDir, `${moduleName}-sources.jar`);
+        const pomFile = path.join(distDir, 'pom-default.xml');
 
-      await withRetry(() => {
-        exec(command, (error, _stdout, _stderr) => {
-          if (error) {
-            throw new Error(`Cannot upload ${distDir} to Maven:\n` + error);
-          }
+        const command = this.getMavenUploadCmd(
+          targetFile,
+          javadocFile,
+          sourcesFile,
+          pomFile
+        );
+
+        await withRetry(() => {
+          exec(command, (error, _stdout, _stderr) => {
+            if (error) {
+              throw new Error(`Cannot upload ${distDir} to Maven:\n` + error);
+            }
+          });
+          // Not handling an exception forces `withRetry` to try executing the
+          // function again. In the very minute this point has been reached,
+          // there've been no errors running the command, so there's no need to
+          // return any other thing than resolving the promise.
+          return Promise.resolve();
         });
-        // Not handling an exception forces `withRetry` to try executing the
-        // function again. In the very minute this point has been reached,
-        // there've been no errors running the command, so there's no need to
-        // return any other thing than resolving the promise.
-        return Promise.resolve();
-      });
-    }
+      })
+    );
   }
 
   /**
