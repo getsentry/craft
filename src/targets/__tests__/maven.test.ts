@@ -37,8 +37,8 @@ const REQUIRED_OPTIONS: string[] = [
 ];
 
 const OPTIONAL_OPTIONS: string[] = [
-  'DISTRIBUTIONS_PATH',
-  'SETTINGS_PATH',
+  'MAVEN_DISTRIBUTIONS_PATH',
+  'MAVEN_SETTINGS_PATH',
   'MAVEN_REPO_URL',
   'MAVEN_REPO_ID',
   'MAVEN_CLI_PATH',
@@ -132,7 +132,7 @@ describe('upload to Maven', () => {
 
   test("when it's an Android distribution", async () => {
     const parentDir = 'android';
-    process.env.DISTRIBUTIONS_PATH = parentDir;
+    process.env.MAVEN_DISTRIBUTIONS_PATH = parentDir;
     const distDir = directories[parentDir][0];
     const androidTestFile = directories[distDir][0];
     const { javadocFile, sourcesFile, pomFile } = getFileParameters(
@@ -157,7 +157,7 @@ describe('upload to Maven', () => {
 
   test("when it's not an Android distribution", async () => {
     const parentDir = 'other';
-    process.env.DISTRIBUTIONS_PATH = parentDir;
+    process.env.MAVEN_DISTRIBUTIONS_PATH = parentDir;
     const distDir = directories[parentDir][0];
     const nonAndroidTestFile = join(distDir, `${distDir}.jar`);
     const { javadocFile, sourcesFile, pomFile } = getFileParameters(
@@ -192,7 +192,7 @@ describe('get Android distribution file', () => {
 
   test('when exists', async () => {
     const parentDirectory = 'android';
-    process.env.DISTRIBUTIONS_PATH = parentDirectory;
+    process.env.MAVEN_DISTRIBUTIONS_PATH = parentDirectory;
     const expectedChildDirectory = directories[parentDirectory][0];
     const expectedAndroidFile = directories[expectedChildDirectory][0];
 
@@ -211,7 +211,7 @@ describe('get Android distribution file', () => {
 
   test("when it doesn't exist", async () => {
     const parentDirectory = 'other';
-    process.env.DISTRIBUTIONS_PATH = parentDirectory;
+    process.env.MAVEN_DISTRIBUTIONS_PATH = parentDirectory;
     const expectedChildDirectory = directories[parentDirectory][0];
 
     const mavenTarget = createMavenTarget();

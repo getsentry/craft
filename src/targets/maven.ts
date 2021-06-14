@@ -27,8 +27,8 @@ enum RequiredConfig {
 }
 
 enum OptionalConfig {
-  distributionsPath = 'DISTRIBUTIONS_PATH',
-  settingsPath = 'SETTINGS_PATH',
+  distributionsPath = 'MAVEN_DISTRIBUTIONS_PATH',
+  settingsPath = 'MAVEN_SETTINGS_PATH',
   mavenRepoUrl = 'MAVEN_REPO_URL',
   mavenRepoId = 'MAVEN_REPO_ID',
   mavenCliPath = 'MAVEN_CLI_PATH',
@@ -37,8 +37,8 @@ enum OptionalConfig {
 
 // Paths should be relative to the root of the repository
 const DEFAULT_ENV_VARIABLES: Record<string, string> = {
-  DISTRIBUTIONS_PATH: 'distributions/',
-  SETTINGS_PATH: 'scripts/settings.xml',
+  MAVEN_DISTRIBUTIONS_PATH: 'distributions/',
+  MAVEN_SETTINGS_PATH: 'scripts/settings.xml',
   MAVEN_REPO_URL:
     'https://oss.sonatype.org/service/local/staging/deploy/maven2/',
   MAVEN_REPO_ID: 'ossrh',
