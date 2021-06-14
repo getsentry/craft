@@ -1008,10 +1008,6 @@ PGP signs and publishes packages to Maven Central.
 | `MAVEN_CLI_PATH`           | **optional** Path to the Maven CLI. Defaults to `scripts/mvnw.cmd`.                                                               |
 | `GRADLE_CLI_PATH`          | **optional** Path to the Gradle CLI. Defaults to `gradlew`.                                                                       |
 
-**Configuration**
-
-_none_
-
 **Example**
 
 ```yml
