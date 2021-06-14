@@ -148,10 +148,17 @@ export class MavenTarget extends BaseTarget {
         pomFile
       );
 
-      withRetry(async () => {
+      await withRetry(() => {
         exec(command, (error, _stdout, _stderr) => {
-          throw new Error(`Cannot upload ${distDir} to Maven:\n` + error);
+          if (error) {
+            throw new Error(`Cannot upload ${distDir} to Maven:\n` + error);
+          }
         });
+        // Not handling an exception forces `withRetry` to try executing the
+        // function again. In the very minute this point has been reached,
+        // there've been no errors running the command, so there's no need to
+        // return any other thing than resolving the promise.
+        return Promise.resolve();
       });
     }
   }
@@ -160,13 +167,20 @@ export class MavenTarget extends BaseTarget {
    * Finishes the release flow.
    */
   public closeAndRelease(): void {
-    withRetry(async () => {
+    withRetry(() => {
       exec(
         `./${this.mavenConfig.gradleCliPath} closeAndReleaseRepository`,
         (error, _stdout, _stderr) => {
-          throw new Error(`Cannot close and release to Maven:\n` + error);
+          if (error) {
+            throw new Error(`Cannot close and release to Maven:\n` + error);
+          }
         }
       );
+      // Not handling an exception forces `withRetry` to try executing the
+      // function again. In the very minute this point has been reached,
+      // there've been no errors running the command, so there's no need to
+      // return any other thing than resolving the promise.
+      return Promise.resolve();
     });
   }
 
