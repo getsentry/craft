@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import { exec } from 'child_process';
 import { isDryRun } from '../utils/helpers';
 import { withRetry } from '../utils/async';
+import { checkExecutableIsPresent } from '../utils/system';
 
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
@@ -61,6 +62,7 @@ export class MavenTarget extends BaseTarget {
   ) {
     super(config, artifactProvider);
     this.mavenConfig = this.getMavenConfig();
+    this.checkRequiredSoftware();
   }
 
   private getMavenConfig(): MavenTargetConfig {
@@ -98,6 +100,17 @@ export class MavenTarget extends BaseTarget {
       return process.env[envVar] as string; // `as string` to make TS happy
     }
     return DEFAULT_ENV_VARIABLES[envVar];
+  }
+
+  /**
+   * Checks whether the required software to run this target is available
+   * in the system. It assumes the config for this target to be available.
+   */
+  private checkRequiredSoftware(): void {
+    this.logger.debug('Checking Maven CLI is available...');
+    checkExecutableIsPresent(this.mavenConfig.mavenCliPath);
+    this.logger.debug('Checking GPG is available...');
+    checkExecutableIsPresent('gpg');
   }
 
   public async publish(_version: string, _revison: string): Promise<void> {

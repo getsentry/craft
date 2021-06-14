@@ -28,6 +28,13 @@ jest.mock('child_process', () => ({
   },
 }));
 
+jest.mock('../../utils/system', () => ({
+  ...jest.requireActual('../../utils/system'),
+  checkExecutableIsPresent: () => {
+    /** do nothing */
+  },
+}));
+
 const REQUIRED_OPTIONS: string[] = [
   'GITHUB_TOKEN', // Not specific to Maven target
   'OSSRH_USERNAME',
