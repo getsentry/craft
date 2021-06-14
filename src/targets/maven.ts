@@ -167,9 +167,10 @@ export class MavenTarget extends BaseTarget {
    * Finishes the release flow.
    */
   public closeAndRelease(): void {
+    const gradleCliAbsPath = path.resolve(this.mavenConfig.gradleCliPath);
     withRetry(() => {
       exec(
-        `./${this.mavenConfig.gradleCliPath} closeAndReleaseRepository`,
+        `${gradleCliAbsPath} closeAndReleaseRepository`,
         (error, _stdout, _stderr) => {
           if (error) {
             throw new Error(`Cannot close and release to Maven:\n` + error);
