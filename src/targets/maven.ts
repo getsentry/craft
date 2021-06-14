@@ -206,8 +206,8 @@ export class MavenTarget extends BaseTarget {
       // first one to be indented to the right. To avoid that, these lines
       // shouldn't have that much space at the beginning, something the linter
       // doesn't agree with (and the code would be harder to read).
-      `mavenCentralUsername=${this.mavenConfig?.mavenUsername}\n` +
-        `mavenCentralPassword=${this.mavenConfig?.mavenPassword}`
+      `mavenCentralUsername=${this.mavenConfig.mavenUsername}\n` +
+        `mavenCentralPassword=${this.mavenConfig.mavenPassword}`
     );
   }
 
