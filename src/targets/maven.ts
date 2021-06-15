@@ -6,7 +6,7 @@ import {
 import { BaseTarget } from './base';
 import { ConfigurationError } from '../utils/errors';
 import { homedir } from 'os';
-import { basename, join, parse, relative } from 'path';
+import { basename, join, parse } from 'path';
 import { promises as fsPromises } from 'fs';
 import { sleep, withRetry } from '../utils/async';
 import {
@@ -15,7 +15,6 @@ import {
   spawnProcess,
 } from '../utils/system';
 import { withTempDir } from '../utils/files';
-import { getConfigFilePath } from '../config';
 
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
@@ -394,12 +393,11 @@ export class MavenTarget extends BaseTarget {
    * uploaded accordingly.
    */
   public async closeAndRelease(): Promise<void> {
-    const gradleCliAbsPath = relative(
-      getConfigFilePath(),
-      this.mavenConfig.gradleCliPath
-    );
     this.retrySpawnProcess(
-      () => spawnProcess(gradleCliAbsPath, ['closeAndReleaseRepository']),
+      () =>
+        spawnProcess(this.mavenConfig.gradleCliPath, [
+          'closeAndReleaseRepository',
+        ]),
       'Closing and releasing'
     );
   }
