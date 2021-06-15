@@ -18,7 +18,7 @@
     "**/kind-of": ">=6.0.3",
     "**/node-fetch": ">=2.6.1",
     "**/yargs-parser": ">=18.1.2",
-    "parse-url": ">=5.0.3"
+    "**/parse-url": ">=5.0.3"
   },
   "devDependencies": {
     "@aws-sdk/client-lambda": "^3.2.0",
