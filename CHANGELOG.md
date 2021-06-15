@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.24.3
+
+- upgrade(parse-url): Force parse-url>=5.0.3 for security (#261)
+
 ## 0.24.2
 
 - upgrade(js-yaml): Bump to 3.13.1 for security fixes (#260)
