@@ -1,13 +1,20 @@
 import { TargetConfig } from '../schemas/project_config';
-import { BaseArtifactProvider } from '../artifact_providers/base';
+import {
+  BaseArtifactProvider,
+  RemoteArtifact,
+} from '../artifact_providers/base';
 import { BaseTarget } from './base';
 import { ConfigurationError } from '../utils/errors';
 import { homedir } from 'os';
 import * as path from 'path';
 import { access, constants as fsConstants, promises as fsPromises } from 'fs';
-import { isDryRun } from '../utils/helpers';
 import { sleep, withRetry } from '../utils/async';
-import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
+import {
+  checkExecutableIsPresent,
+  extractZipArchive,
+  spawnProcess,
+} from '../utils/system';
+import { withTempDir } from '../utils/files';
 
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
@@ -143,74 +150,103 @@ export class MavenTarget extends BaseTarget {
 
   public async publish(_version: string, revison: string): Promise<void> {
     // await this.createUserGradlePropsFile();
-    // await this.upload();
+    await this.upload(revison);
     // await this.closeAndRelease();
-
-    this.logger.debug('Fetching artifact list...');
-    const packageFiles = await this.getArtifactsForRevision(revison);
-    console.log(packageFiles);
   }
 
   /**
    * Deploys to Maven Central the distribution packages.
    * Note that after upload, this must be `closeAndRelease`.
    */
-  public async upload(): Promise<void> {
-    const distributionsDirs = await fsPromises.readdir(
-      this.mavenConfig.distributionsPath
+  public async upload(revision: string): Promise<void> {
+    this.logger.debug('Fetching artifact list...');
+    const artifacts = await this.getArtifactsForRevision(revision);
+
+    await withTempDir(
+      async dir => {
+        await Promise.all(
+          artifacts.map(
+            async artifact => await this.uploadArtifact(artifact, dir)
+          )
+        );
+      },
+      true,
+      'craft-release-maven-'
+    );
+  }
+
+  private async uploadArtifact(
+    artifact: RemoteArtifact,
+    dir: string
+  ): Promise<void> {
+    await this.extractArtifact(artifact, dir);
+    const pkgName = path.basename(artifact.filename, '.zip');
+    const distDir = path.join(dir, pkgName);
+    await this.uploadDistribution(distDir);
+  }
+
+  private async extractArtifact(
+    artifact: RemoteArtifact,
+    dir: string
+  ): Promise<void> {
+    this.logger.debug(`Downloading ${artifact.filename}...`);
+    const downloadedPkgPath = await this.artifactProvider.downloadArtifact(
+      artifact
+    );
+    this.logger.debug(
+      `Extracting ${artifact.filename} to ${downloadedPkgPath}...`
+    );
+    await extractZipArchive(downloadedPkgPath, dir);
+  }
+
+  private async uploadDistribution(distDir: string): Promise<void> {
+    const moduleName = path.parse(distDir).base;
+    const targetFile = path.join(
+      this.mavenConfig.distributionsPath,
+      distDir,
+      this.getTargetFilename(distDir)
+    );
+    // The file must be readable by the calling process
+    access(targetFile, fsConstants.R_OK, err => {
+      if (err) {
+        Promise.reject(err);
+      }
+    });
+    const javadocFile = path.join(
+      this.mavenConfig.distributionsPath,
+      distDir,
+      `${moduleName}-javadoc.jar`
+    );
+    const sourcesFile = path.join(
+      this.mavenConfig.distributionsPath,
+      distDir,
+      `${moduleName}-sources.jar`
+    );
+    const pomFile = path.join(
+      this.mavenConfig.distributionsPath,
+      distDir,
+      'pom-default.xml'
     );
 
-    await Promise.all(
-      distributionsDirs.map(async distDir => {
-        const moduleName = path.parse(distDir).base;
-        const targetFile = path.join(
-          this.mavenConfig.distributionsPath,
-          distDir,
-          this.getTargetFilename(distDir)
-        );
-        // The file must be readable by the calling process
-        access(targetFile, fsConstants.R_OK, err => {
-          if (err) {
-            Promise.reject(err);
-          }
-        });
-        const javadocFile = path.join(
-          this.mavenConfig.distributionsPath,
-          distDir,
-          `${moduleName}-javadoc.jar`
-        );
-        const sourcesFile = path.join(
-          this.mavenConfig.distributionsPath,
-          distDir,
-          `${moduleName}-sources.jar`
-        );
-        const pomFile = path.join(
-          this.mavenConfig.distributionsPath,
-          distDir,
-          'pom-default.xml'
-        );
+    this.logger.debug(`${distDir} - targetFile: ${targetFile}`);
+    this.logger.debug(`${distDir} - javadocFile: ${javadocFile}`);
+    this.logger.debug(`${distDir} - sourcesFile: ${sourcesFile}`);
+    this.logger.debug(`${distDir} - pomFile: ${pomFile}`);
 
-        this.logger.debug(`${distDir} - targetFile: ${targetFile}`);
-        this.logger.debug(`${distDir} - javadocFile: ${javadocFile}`);
-        this.logger.debug(`${distDir} - sourcesFile: ${sourcesFile}`);
-        this.logger.debug(`${distDir} - pomFile: ${pomFile}`);
-
-        this.retrySpawnProcess(
-          () =>
-            spawnProcess(this.mavenConfig.mavenCliPath, [
-              'gpg:sign-and-deploy-file',
-              `-Dfile=${targetFile}`,
-              `-Dfiles=${javadocFile},${sourcesFile}`,
-              `-Dclassifiers=javadoc,sources`,
-              `-Dtypes=jar,jar`,
-              `-DpomFile=${pomFile}`,
-              `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
-              `-Durl=${this.mavenConfig.mavenRepoUrl}`,
-              `--settings ${this.mavenConfig.settingsPath}`,
-            ]),
-          'Uploading'
-        );
-      })
+    this.retrySpawnProcess(
+      () =>
+        spawnProcess(this.mavenConfig.mavenCliPath, [
+          'gpg:sign-and-deploy-file',
+          `-Dfile=${targetFile}`,
+          `-Dfiles=${javadocFile},${sourcesFile}`,
+          `-Dclassifiers=javadoc,sources`,
+          `-Dtypes=jar,jar`,
+          `-DpomFile=${pomFile}`,
+          `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
+          `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+          `--settings ${this.mavenConfig.settingsPath}`,
+        ]),
+      'Uploading'
     );
   }
 
