@@ -5,10 +5,9 @@ import { ConfigurationError } from '../utils/errors';
 import { homedir } from 'os';
 import * as path from 'path';
 import { access, constants as fsConstants, promises as fsPromises } from 'fs';
-import { exec } from 'child_process';
 import { isDryRun } from '../utils/helpers';
 import { withRetry } from '../utils/async';
-import { checkExecutableIsPresent } from '../utils/system';
+import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
@@ -178,25 +177,19 @@ export class MavenTarget extends BaseTarget {
         this.logger.debug(`${distDir} - sourcesFile: ${sourcesFile}`);
         this.logger.debug(`${distDir} - pomFile: ${pomFile}`);
 
-        const command = this.getMavenUploadCmd(
-          targetFile,
-          javadocFile,
-          sourcesFile,
-          pomFile
+        await withRetry(() =>
+          spawnProcess(this.mavenConfig.mavenCliPath, [
+            'gpg:sign-and-deploy-file',
+            `-Dfile=${targetFile}`,
+            `-Dfiles=${javadocFile},${sourcesFile}`,
+            `-Dclassifiers=javadoc,sources`,
+            `-Dtypes=jar,jar`,
+            `-DpomFile=${pomFile}`,
+            `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
+            `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+            `--settings ${this.mavenConfig.settingsPath}`,
+          ])
         );
-
-        await withRetry(() => {
-          exec(command, (error, _stdout, _stderr) => {
-            if (error) {
-              throw new Error(`Cannot upload ${distDir} to Maven:\n` + error);
-            }
-          });
-          // Not handling an exception forces `withRetry` to try executing the
-          // function again. In the very minute this point has been reached,
-          // there've been no errors running the command, so there's no need to
-          // return any other thing than resolving the promise.
-          return Promise.resolve();
-        });
       })
     );
   }
@@ -218,42 +211,8 @@ export class MavenTarget extends BaseTarget {
    */
   public closeAndRelease(): void {
     const gradleCliAbsPath = path.resolve(this.mavenConfig.gradleCliPath);
-    withRetry(() => {
-      exec(
-        `${gradleCliAbsPath} closeAndReleaseRepository`,
-        (error, _stdout, _stderr) => {
-          if (error) {
-            throw new Error(`Cannot close and release to Maven:\n` + error);
-          }
-        }
-      );
-      // Not handling an exception forces `withRetry` to try executing the
-      // function again. In the very minute this point has been reached,
-      // there've been no errors running the command, so there's no need to
-      // return any other thing than resolving the promise.
-      return Promise.resolve();
-    });
-  }
-
-  /**
-   * Returns the command to be executed, using the given parameters.
-   */
-  public getMavenUploadCmd(
-    targetFile: string,
-    javadocFile: string,
-    sourcesFile: string,
-    pomFile: string
-  ): string {
-    return (
-      `./${this.mavenConfig.mavenCliPath} gpg:sign-and-deploy-file ` +
-      `-Dfile=${targetFile} ` +
-      `-Dfiles=${javadocFile},${sourcesFile} ` +
-      `-Dclassifiers=javadoc,sources ` +
-      `-Dtypes=jar,jar ` +
-      `-DpomFile=${pomFile} ` +
-      `-DrepositoryId=${this.mavenConfig.mavenRepoId} ` +
-      `-Durl=${this.mavenConfig.mavenRepoUrl} ` +
-      `--settings ${this.mavenConfig.settingsPath} `
+    withRetry(() =>
+      spawnProcess(gradleCliAbsPath, ['closeAndReleaseRepository'])
     );
   }
 
