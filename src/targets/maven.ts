@@ -106,9 +106,11 @@ export class MavenTarget extends BaseTarget {
    * in the system. It assumes the config for this target to be available.
    */
   private checkRequiredSoftware(): void {
-    this.logger.debug('Checking Maven CLI is available...');
+    this.logger.debug(
+      `Checking if Maven CLI is available on ${this.mavenConfig.mavenCliPath}...`
+    );
     checkExecutableIsPresent(this.mavenConfig.mavenCliPath);
-    this.logger.debug('Checking GPG is available...');
+    this.logger.debug(`Checking if GPG is available in the path...`);
     checkExecutableIsPresent('gpg');
   }
 
