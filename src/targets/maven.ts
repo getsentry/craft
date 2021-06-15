@@ -61,10 +61,7 @@ export class MavenTarget extends BaseTarget {
     // TODO: check for config
     this.mavenConfig = this.getMavenConfig();
     this.checkRequiredSoftware();
-    // A `RegExp` type has a more convenient API
-    this.config.androidDistDirRegex = new RegExp(
-      this.config.androidDistDirRegex
-    );
+    this.makeRegexpFromConfiguration();
   }
 
   private getMavenConfig(): MavenTargetConfig {
@@ -113,6 +110,16 @@ export class MavenTarget extends BaseTarget {
     checkExecutableIsPresent(this.mavenConfig.mavenCliPath);
     this.logger.debug('Checking GPG is available...');
     checkExecutableIsPresent('gpg');
+  }
+
+  private makeRegexpFromConfiguration(): void {
+    // TS needs to have the `RegExp` instance here, and not /regexp/
+    this.config.androidDistDirPattern = new RegExp(
+      this.config.androidDistDirPattern
+    );
+    this.config.androidFileSearchPattern = new RegExp(
+      this.config.androidFileSearchPattern
+    );
   }
 
   public async publish(_version: string, _revison: string): Promise<void> {
@@ -194,10 +201,10 @@ export class MavenTarget extends BaseTarget {
 
   private getTargetFilename(distDir: string): string {
     const moduleName = path.parse(distDir).base;
-    const isAndroidDistDir = this.config.androidDistDirRegex.test(moduleName);
+    const isAndroidDistDir = this.config.androidDistDirPattern.test(moduleName);
     const androidDistFile = moduleName.replace(
-      this.config.androidFileSearchRegex,
-      this.config.androidFileReplaceRegex
+      this.config.androidFileSearchPattern,
+      this.config.androidFileReplaceStr
     );
     if (isAndroidDistDir) {
       return androidDistFile;
