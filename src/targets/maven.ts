@@ -200,38 +200,12 @@ export class MavenTarget extends BaseTarget {
   }
 
   private async uploadDistribution(distDir: string): Promise<void> {
-    const moduleName = path.parse(distDir).base;
-    const targetFile = path.join(
-      this.mavenConfig.distributionsPath,
-      distDir,
-      this.getTargetFilename(distDir)
-    );
-    // The file must be readable by the calling process
-    access(targetFile, fsConstants.R_OK, err => {
-      if (err) {
-        Promise.reject(err);
-      }
-    });
-    const javadocFile = path.join(
-      this.mavenConfig.distributionsPath,
-      distDir,
-      `${moduleName}-javadoc.jar`
-    );
-    const sourcesFile = path.join(
-      this.mavenConfig.distributionsPath,
-      distDir,
-      `${moduleName}-sources.jar`
-    );
-    const pomFile = path.join(
-      this.mavenConfig.distributionsPath,
-      distDir,
-      'pom-default.xml'
-    );
-
-    this.logger.debug(`${distDir} - targetFile: ${targetFile}`);
-    this.logger.debug(`${distDir} - javadocFile: ${javadocFile}`);
-    this.logger.debug(`${distDir} - sourcesFile: ${sourcesFile}`);
-    this.logger.debug(`${distDir} - pomFile: ${pomFile}`);
+    const {
+      targetFile,
+      javadocFile,
+      sourcesFile,
+      pomFile,
+    } = this.getFilesForMavenCli(distDir);
 
     this.retrySpawnProcess(
       () =>
@@ -248,6 +222,36 @@ export class MavenTarget extends BaseTarget {
         ]),
       'Uploading'
     );
+  }
+
+  private getFilesForMavenCli(distDir: string): Record<string, string> {
+    const moduleName = path.parse(distDir).base;
+    const targetFile = path.join(
+      this.mavenConfig.distributionsPath,
+      distDir,
+      this.getTargetFilename(distDir)
+    );
+    const javadocFile = path.join(
+      this.mavenConfig.distributionsPath,
+      distDir,
+      `${moduleName}-javadoc.jar`
+    );
+    const sourcesFile = path.join(
+      this.mavenConfig.distributionsPath,
+      distDir,
+      `${moduleName}-sources.jar`
+    );
+    const pomFile = path.join(
+      this.mavenConfig.distributionsPath,
+      distDir,
+      'pom-default.xml'
+    );
+    return {
+      targetFile,
+      javadocFile,
+      sourcesFile,
+      pomFile,
+    };
   }
 
   private getTargetFilename(distDir: string): string {
