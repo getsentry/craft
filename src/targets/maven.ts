@@ -202,12 +202,11 @@ export class MavenTarget extends BaseTarget {
   private getTargetFilename(distDir: string): string {
     const moduleName = path.parse(distDir).base;
     const isAndroidDistDir = this.config.androidDistDirPattern.test(moduleName);
-    const androidDistFile = moduleName.replace(
-      this.config.androidFileSearchPattern,
-      this.config.androidFileReplaceStr
-    );
     if (isAndroidDistDir) {
-      return androidDistFile;
+      return moduleName.replace(
+        this.config.androidFileSearchPattern,
+        this.config.androidFileReplaceStr
+      );
     }
     return `${moduleName}.jar`;
   }
