@@ -6,12 +6,30 @@ import { homedir } from 'os';
 import * as path from 'path';
 import { access, constants as fsConstants, promises as fsPromises } from 'fs';
 import { isDryRun } from '../utils/helpers';
-import { withRetry } from '../utils/async';
+import { sleep, withRetry } from '../utils/async';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
-/** Config options for the "maven" target. */
+/**
+ * Maximum number of attempts including the initial one when publishing fails.
+ * After this number of retries, publishing fails.
+ */
+const MAX_PUBLISHING_ATTEMPTS = 5;
+
+/**
+ * Delay between retries of publish operations, in seconds.
+ */
+const RETRY_DELAY_SECS = 3;
+
+/**
+ * Exponential backoff applied to the retry delay.
+ */
+const RETRY_EXP_FACTOR = 2;
+
+/**
+ * Config options for the "maven" target.
+ */
 type MavenTargetConfig = {
   [key in keyof (typeof RequiredConfig & typeof OptionalConfig)]: string;
 };
@@ -173,18 +191,20 @@ export class MavenTarget extends BaseTarget {
         this.logger.debug(`${distDir} - sourcesFile: ${sourcesFile}`);
         this.logger.debug(`${distDir} - pomFile: ${pomFile}`);
 
-        await withRetry(() =>
-          spawnProcess(this.mavenConfig.mavenCliPath, [
-            'gpg:sign-and-deploy-file',
-            `-Dfile=${targetFile}`,
-            `-Dfiles=${javadocFile},${sourcesFile}`,
-            `-Dclassifiers=javadoc,sources`,
-            `-Dtypes=jar,jar`,
-            `-DpomFile=${pomFile}`,
-            `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
-            `-Durl=${this.mavenConfig.mavenRepoUrl}`,
-            `--settings ${this.mavenConfig.settingsPath}`,
-          ])
+        this.retrySpawnProcess(
+          () =>
+            spawnProcess(this.mavenConfig.mavenCliPath, [
+              'gpg:sign-and-deploy-file',
+              `-Dfile=${targetFile}`,
+              `-Dfiles=${javadocFile},${sourcesFile}`,
+              `-Dclassifiers=javadoc,sources`,
+              `-Dtypes=jar,jar`,
+              `-DpomFile=${pomFile}`,
+              `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
+              `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+              `--settings ${this.mavenConfig.settingsPath}`,
+            ]),
+          'Uploading'
         );
       })
     );
@@ -207,8 +227,28 @@ export class MavenTarget extends BaseTarget {
    */
   public async closeAndRelease(): Promise<void> {
     const gradleCliAbsPath = path.resolve(this.mavenConfig.gradleCliPath);
-    await withRetry(() =>
-      spawnProcess(gradleCliAbsPath, ['closeAndReleaseRepository'])
+    const spawnProcessFn = () =>
+      spawnProcess(gradleCliAbsPath, ['closeAndReleaseRepository']);
+    this.retrySpawnProcess(spawnProcessFn, 'Closing and releasing');
+  }
+
+  private async retrySpawnProcess(
+    processFn: () => Promise<any>,
+    actionName: string
+  ): Promise<void> {
+    let retryDelay = RETRY_DELAY_SECS;
+    await withRetry(
+      () => processFn(),
+      MAX_PUBLISHING_ATTEMPTS,
+      async err => {
+        this.logger.warn(
+          `${actionName} failed. Trying again in ${retryDelay}s.`
+        );
+        this.logger.debug(`${actionName} error: ${err}`);
+        await sleep(retryDelay * 1000);
+        retryDelay *= RETRY_EXP_FACTOR;
+        return true;
+      }
     );
   }
 
