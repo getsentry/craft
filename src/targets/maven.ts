@@ -7,7 +7,7 @@ import { BaseTarget } from './base';
 import { ConfigurationError } from '../utils/errors';
 import { homedir } from 'os';
 import * as path from 'path';
-import { access, constants as fsConstants, promises as fsPromises } from 'fs';
+import { promises as fsPromises } from 'fs';
 import { sleep, withRetry } from '../utils/async';
 import {
   checkExecutableIsPresent,
@@ -57,7 +57,6 @@ enum OptionalConfig {
   gradleCliPath = 'GRADLE_CLI_PATH',
 }
 
-// Paths should be relative to the root of the repository
 const DEFAULT_ENV_VARIABLES: Record<string, string> = {
   MAVEN_DISTRIBUTIONS_PATH: 'distributions/',
   MAVEN_SETTINGS_PATH: 'scripts/settings.xml',
@@ -149,9 +148,31 @@ export class MavenTarget extends BaseTarget {
   }
 
   public async publish(_version: string, revison: string): Promise<void> {
-    // await this.createUserGradlePropsFile();
+    await this.createUserGradlePropsFile();
     await this.upload(revison);
-    // await this.closeAndRelease();
+    await this.closeAndRelease();
+  }
+
+  private async createUserGradlePropsFile(): Promise<void> {
+    // TODO: set option to use current file, instead of always overwriting it
+    await fsPromises.writeFile(
+      path.join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
+      // Using `` instead of string concatenation makes all the lines but the
+      // first one to be indented to the right. To avoid that, these lines
+      // shouldn't have that much space at the beginning, something the linter
+      // doesn't agree with (and the code would be harder to read).
+      `mavenCentralUsername=${this.mavenConfig.mavenUsername}\n` +
+        `mavenCentralPassword=${this.mavenConfig.mavenPassword}`
+    );
+  }
+
+  public getGradleHomeDir(): string {
+    // See https://docs.gradle.org/current/userguide/build_environment.html#sec:gradle_environment_variables
+    if (process.env.GRADLE_USER_HOME) {
+      return process.env.GRADLE_USER_HOME;
+    }
+
+    return path.join(homedir(), '.gradle');
   }
 
   /**
@@ -265,17 +286,6 @@ export class MavenTarget extends BaseTarget {
     }
     return `${moduleName}.jar`;
   }
-
-  /**
-   * Finishes the release flow.
-   */
-  public async closeAndRelease(): Promise<void> {
-    const gradleCliAbsPath = path.resolve(this.mavenConfig.gradleCliPath);
-    const spawnProcessFn = () =>
-      spawnProcess(gradleCliAbsPath, ['closeAndReleaseRepository']);
-    this.retrySpawnProcess(spawnProcessFn, 'Closing and releasing');
-  }
-
   private async retrySpawnProcess(
     processFn: () => Promise<any>,
     actionName: string
@@ -296,25 +306,13 @@ export class MavenTarget extends BaseTarget {
     );
   }
 
-  private async createUserGradlePropsFile(): Promise<void> {
-    // TODO: set option to use current file, instead of always overwriting it
-    await fsPromises.writeFile(
-      path.join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
-      // Using `` instead of string concatenation makes all the lines but the
-      // first one to be indented to the right. To avoid that, these lines
-      // shouldn't have that much space at the beginning, something the linter
-      // doesn't agree with (and the code would be harder to read).
-      `mavenCentralUsername=${this.mavenConfig.mavenUsername}\n` +
-        `mavenCentralPassword=${this.mavenConfig.mavenPassword}`
-    );
-  }
-
-  public getGradleHomeDir(): string {
-    // See https://docs.gradle.org/current/userguide/build_environment.html#sec:gradle_environment_variables
-    if (process.env.GRADLE_USER_HOME) {
-      return process.env.GRADLE_USER_HOME;
-    }
-
-    return path.join(homedir(), '.gradle');
+  /**
+   * Finishes the release flow.
+   */
+  public async closeAndRelease(): Promise<void> {
+    const gradleCliAbsPath = path.resolve(this.mavenConfig.gradleCliPath);
+    const spawnProcessFn = () =>
+      spawnProcess(gradleCliAbsPath, ['closeAndReleaseRepository']);
+    this.retrySpawnProcess(spawnProcessFn, 'Closing and releasing');
   }
 }
