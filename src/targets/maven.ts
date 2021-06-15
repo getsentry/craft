@@ -6,7 +6,7 @@ import {
 import { BaseTarget } from './base';
 import { ConfigurationError } from '../utils/errors';
 import { homedir } from 'os';
-import { basename, join, parse } from 'path';
+import { basename, join, parse, relative } from 'path';
 import { promises as fsPromises } from 'fs';
 import { sleep, withRetry } from '../utils/async';
 import {
@@ -394,9 +394,13 @@ export class MavenTarget extends BaseTarget {
    * uploaded accordingly.
    */
   public async closeAndRelease(): Promise<void> {
-    const gradleCliAbsPath = path.resolve(this.mavenConfig.gradleCliPath);
-    const spawnProcessFn = () =>
-      spawnProcess(gradleCliAbsPath, ['closeAndReleaseRepository']);
-    this.retrySpawnProcess(spawnProcessFn, 'Closing and releasing');
+    const gradleCliAbsPath = relative(
+      getConfigFilePath(),
+      this.mavenConfig.gradleCliPath
+    );
+    this.retrySpawnProcess(
+      () => spawnProcess(gradleCliAbsPath, ['closeAndReleaseRepository']),
+      'Closing and releasing'
+    );
   }
 }
