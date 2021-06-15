@@ -6,7 +6,7 @@ import {
 import { BaseTarget } from './base';
 import { ConfigurationError } from '../utils/errors';
 import { homedir } from 'os';
-import * as path from 'path';
+import { basename, join, parse } from 'path';
 import { promises as fsPromises } from 'fs';
 import { sleep, withRetry } from '../utils/async';
 import {
@@ -15,6 +15,7 @@ import {
   spawnProcess,
 } from '../utils/system';
 import { withTempDir } from '../utils/files';
+import { getConfigFilePath } from '../config';
 
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
@@ -180,7 +181,7 @@ export class MavenTarget extends BaseTarget {
    */
   private async createUserGradlePropsFile(): Promise<void> {
     await fsPromises.writeFile(
-      path.join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
+      join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
       // Using `` instead of string concatenation makes all the lines but the
       // first one to be indented to the right. To avoid that, these lines
       // shouldn't have that much space at the beginning, something the linter
@@ -202,7 +203,7 @@ export class MavenTarget extends BaseTarget {
       return process.env.GRADLE_USER_HOME;
     }
 
-    return path.join(homedir(), '.gradle');
+    return join(homedir(), '.gradle');
   }
 
   /**
@@ -238,8 +239,8 @@ export class MavenTarget extends BaseTarget {
     dir: string
   ): Promise<void> {
     await this.extractArtifact(artifact, dir);
-    const pkgName = path.basename(artifact.filename, '.zip');
-    const distDir = path.join(dir, pkgName);
+    const pkgName = basename(artifact.filename, '.zip');
+    const distDir = join(dir, pkgName);
     await this.uploadDistribution(distDir);
   }
 
@@ -301,23 +302,23 @@ export class MavenTarget extends BaseTarget {
    * @returns record of required files.
    */
   private getFilesForMavenCli(distDir: string): Record<string, string> {
-    const moduleName = path.parse(distDir).base;
-    const targetFile = path.join(
+    const moduleName = parse(distDir).base;
+    const targetFile = join(
       this.mavenConfig.distributionsPath,
       distDir,
       this.getTargetFilename(distDir)
     );
-    const javadocFile = path.join(
+    const javadocFile = join(
       this.mavenConfig.distributionsPath,
       distDir,
       `${moduleName}-javadoc.jar`
     );
-    const sourcesFile = path.join(
+    const sourcesFile = join(
       this.mavenConfig.distributionsPath,
       distDir,
       `${moduleName}-sources.jar`
     );
-    const pomFile = path.join(
+    const pomFile = join(
       this.mavenConfig.distributionsPath,
       distDir,
       'pom-default.xml'
@@ -345,7 +346,7 @@ export class MavenTarget extends BaseTarget {
    * @returns the target file name.
    */
   private getTargetFilename(distDir: string): string {
-    const moduleName = path.parse(distDir).base;
+    const moduleName = parse(distDir).base;
     const isAndroidDistDir = this.config.androidDistDirPattern.test(moduleName);
     if (isAndroidDistDir) {
       return moduleName.replace(
