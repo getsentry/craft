@@ -12,9 +12,6 @@ import { checkExecutableIsPresent } from '../utils/system';
 
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
-const ANDROID_DIST_EXTENSION = '.aar'; // Must include the leading `.`
-const ANDROID_RELEASE_SUBSTR = 'release';
-
 /** Config options for the "maven" target. */
 type MavenTargetConfig = {
   [key in keyof (typeof RequiredConfig & typeof OptionalConfig)]: string;
@@ -61,8 +58,13 @@ export class MavenTarget extends BaseTarget {
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);
+    // TODO: check for config
     this.mavenConfig = this.getMavenConfig();
     this.checkRequiredSoftware();
+    // A `RegExp` type has a more convenient API
+    this.config.androidDistDirRegex = new RegExp(
+      this.config.androidDistDirRegex
+    );
   }
 
   private getMavenConfig(): MavenTargetConfig {
@@ -135,13 +137,37 @@ export class MavenTarget extends BaseTarget {
     await Promise.all(
       distributionsDirs.map(async distDir => {
         const moduleName = path.parse(distDir).base;
-        const androidFile = await this.getAndroidDistributionFile(distDir);
-        const targetFile = androidFile
-          ? androidFile
-          : path.join(distDir, `${moduleName}.jar`);
-        const javadocFile = path.join(distDir, `${moduleName}-javadoc.jar`);
-        const sourcesFile = path.join(distDir, `${moduleName}-sources.jar`);
-        const pomFile = path.join(distDir, 'pom-default.xml');
+        const targetFile = path.join(
+          this.mavenConfig.distributionsPath,
+          distDir,
+          this.getTargetFilename(distDir)
+        );
+        // The file must be readable by the calling process
+        fs.access(targetFile, fs.constants.R_OK, err => {
+          if (err) {
+            Promise.reject(err);
+          }
+        });
+        const javadocFile = path.join(
+          this.mavenConfig.distributionsPath,
+          distDir,
+          `${moduleName}-javadoc.jar`
+        );
+        const sourcesFile = path.join(
+          this.mavenConfig.distributionsPath,
+          distDir,
+          `${moduleName}-sources.jar`
+        );
+        const pomFile = path.join(
+          this.mavenConfig.distributionsPath,
+          distDir,
+          'pom-default.xml'
+        );
+
+        this.logger.debug(`${distDir} - targetFile: ${targetFile}`);
+        this.logger.debug(`${distDir} - javadocFile: ${javadocFile}`);
+        this.logger.debug(`${distDir} - sourcesFile: ${sourcesFile}`);
+        this.logger.debug(`${distDir} - pomFile: ${pomFile}`);
 
         const command = this.getMavenUploadCmd(
           targetFile,
@@ -166,6 +192,19 @@ export class MavenTarget extends BaseTarget {
     );
   }
 
+  private getTargetFilename(distDir: string): string {
+    const moduleName = path.parse(distDir).base;
+    const isAndroidDistDir = this.config.androidDistDirRegex.test(moduleName);
+    const androidDistFile = moduleName.replace(
+      this.config.androidFileSearchRegex,
+      this.config.androidFileReplaceRegex
+    );
+    if (isAndroidDistDir) {
+      return androidDistFile;
+    }
+    return `${moduleName}.jar`;
+  }
+
   /**
    * Finishes the release flow.
    */
@@ -186,25 +225,6 @@ export class MavenTarget extends BaseTarget {
       // return any other thing than resolving the promise.
       return Promise.resolve();
     });
-  }
-
-  /**
-   * Returns the path to the first Android distribution file, if any.
-   */
-  public async getAndroidDistributionFile(
-    distributionDir: string
-  ): Promise<string | undefined> {
-    const files = await fs.promises.readdir(distributionDir);
-    for (const filepath of files) {
-      const file = path.parse(filepath);
-      if (
-        file.ext === ANDROID_DIST_EXTENSION &&
-        file.base.includes(ANDROID_RELEASE_SUBSTR)
-      ) {
-        return filepath;
-      }
-    }
-    return undefined;
   }
 
   /**
