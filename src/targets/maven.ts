@@ -87,6 +87,13 @@ export class MavenTarget extends BaseTarget {
     this.makeRegexpFromConfiguration();
   }
 
+  /**
+   * Returns the maven config with the required data (e.g. environment
+   * variables) for this target. If there's a configuration requirement missing,
+   * raises an error.
+   *
+   * @returns the maven config for this target.
+   */
   private getMavenConfig(): MavenTargetConfig {
     return {
       // Required env variables
@@ -127,6 +134,7 @@ export class MavenTarget extends BaseTarget {
   /**
    * Checks whether the required software to run this target is available
    * in the system. It assumes the config for this target to be available.
+   * If there's required software missing, raises an error.
    */
   private checkRequiredSoftware(): void {
     this.logger.debug(
@@ -137,8 +145,14 @@ export class MavenTarget extends BaseTarget {
     checkExecutableIsPresent('gpg');
   }
 
+  /**
+   * Parses the required target's configuration variables' types from strings to
+   * RegExp.
+   *
+   * To make TS happy, they must be `RegExp` objects. It's not valid to write
+   * `/myRegex/`
+   */
   private makeRegexpFromConfiguration(): void {
-    // TS needs to have the `RegExp` instance here, and not /regexp/
     this.config.androidDistDirPattern = new RegExp(
       this.config.androidDistDirPattern
     );
@@ -147,14 +161,24 @@ export class MavenTarget extends BaseTarget {
     );
   }
 
+  /**
+   * Publishes current Java and Android distributions.
+   * @param version New version to be released.
+   * @param revision Git commit SHA to be published.
+   */
   public async publish(_version: string, revison: string): Promise<void> {
     await this.createUserGradlePropsFile();
     await this.upload(revison);
     await this.closeAndRelease();
   }
 
+  /**
+   * Creates the required user's `gradle.properties` file.
+   *
+   * If there's an existing one, it's overwritten.
+   * TODO: control when it's overwritten with an option.
+   */
   private async createUserGradlePropsFile(): Promise<void> {
-    // TODO: set option to use current file, instead of always overwriting it
     await fsPromises.writeFile(
       path.join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
       // Using `` instead of string concatenation makes all the lines but the
@@ -166,8 +190,14 @@ export class MavenTarget extends BaseTarget {
     );
   }
 
+  /**
+   * Retrieves the Gradle Home path.
+   *
+   * See https://docs.gradle.org/current/userguide/build_environment.html#sec:gradle_environment_variables
+   *
+   * @returns the gradle home path.
+   */
   public getGradleHomeDir(): string {
-    // See https://docs.gradle.org/current/userguide/build_environment.html#sec:gradle_environment_variables
     if (process.env.GRADLE_USER_HOME) {
       return process.env.GRADLE_USER_HOME;
     }
@@ -176,8 +206,9 @@ export class MavenTarget extends BaseTarget {
   }
 
   /**
-   * Deploys to Maven Central the distribution packages.
-   * Note that after upload, this must be `closeAndRelease`.
+   * Uploads the artifacts with the required files. This is a required step
+   * to make a release, but this doesn't perform any releases; after upload,
+   * the flow must finish with `closeAndRelease`.
    */
   public async upload(revision: string): Promise<void> {
     this.logger.debug('Fetching artifact list...');
@@ -196,6 +227,12 @@ export class MavenTarget extends BaseTarget {
     );
   }
 
+  /**
+   * Extracts and uploads all required files in the artifact.
+   *
+   * @param artifact the remote artifact to be uploaded.
+   * @param dir directory where the artifact can be extracted.
+   */
   private async uploadArtifact(
     artifact: RemoteArtifact,
     dir: string
@@ -206,6 +243,12 @@ export class MavenTarget extends BaseTarget {
     await this.uploadDistribution(distDir);
   }
 
+  /**
+   * Downloads and extracts the artifacts in the given directory.
+   *
+   * @param artifact the artifact to be extracted.
+   * @param dir the directory to extract the artifact in.
+   */
   private async extractArtifact(
     artifact: RemoteArtifact,
     dir: string
@@ -220,6 +263,11 @@ export class MavenTarget extends BaseTarget {
     await extractZipArchive(downloadedPkgPath, dir);
   }
 
+  /**
+   * Uploads the given distribution, including all files that are required.
+   *
+   * @param distDir directory of the distribution.
+   */
   private async uploadDistribution(distDir: string): Promise<void> {
     const {
       targetFile,
@@ -245,6 +293,13 @@ export class MavenTarget extends BaseTarget {
     );
   }
 
+  /**
+   * Retrieves a record of all the required files by Maven CLI to upload
+   * anything.
+   *
+   * @param distDir directory of the distribution.
+   * @returns record of required files.
+   */
   private getFilesForMavenCli(distDir: string): Record<string, string> {
     const moduleName = path.parse(distDir).base;
     const targetFile = path.join(
@@ -275,6 +330,20 @@ export class MavenTarget extends BaseTarget {
     };
   }
 
+  /**
+   * Retrieves the target file name for the current distribution.
+   *
+   * If the distibution is an Android distribution, the target file is the
+   * file containing "release" in the name and the ".aar" extension.
+   * Typically, the module (directory) name without the version and appending
+   * "-release.aar" at the end.
+   *
+   * If the distribution isn't an Android distribution, the target filename is
+   * the module name appending ".jar" to the end.
+   *
+   * @param distDir directory where distributions are.
+   * @returns the target file name.
+   */
   private getTargetFilename(distDir: string): string {
     const moduleName = path.parse(distDir).base;
     const isAndroidDistDir = this.config.androidDistDirPattern.test(moduleName);
@@ -286,6 +355,17 @@ export class MavenTarget extends BaseTarget {
     }
     return `${moduleName}.jar`;
   }
+
+  /**
+   * Retries executing the function, delaying ongoing calls for some time.
+   *
+   * The function is retried `MAX_PUBLISHING_ATTEMPTS` times.
+   * The delay after each call starts at `RETRY_DELAY_SECS`, and is incremented
+   * exponentially by `RETRY_EXP_FACTOR`.
+   *
+   * @param processFn function to be retried.
+   * @param actionName name of the action the function is performing.
+   */
   private async retrySpawnProcess(
     processFn: () => Promise<any>,
     actionName: string
@@ -307,7 +387,10 @@ export class MavenTarget extends BaseTarget {
   }
 
   /**
-   * Finishes the release flow.
+   * Finishes the release flow, by closing and releasing to the repository.
+   * Note that this is a required step to make a release, but it doesn't
+   * perform any release on its own. Required files must have previously been
+   * uploaded accordingly.
    */
   public async closeAndRelease(): Promise<void> {
     const gradleCliAbsPath = path.resolve(this.mavenConfig.gradleCliPath);
