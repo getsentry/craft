@@ -141,10 +141,14 @@ export class MavenTarget extends BaseTarget {
     );
   }
 
-  public async publish(_version: string, _revison: string): Promise<void> {
-    await this.createUserGradlePropsFile();
-    await this.upload();
-    await this.closeAndRelease();
+  public async publish(_version: string, revison: string): Promise<void> {
+    // await this.createUserGradlePropsFile();
+    // await this.upload();
+    // await this.closeAndRelease();
+
+    this.logger.debug('Fetching artifact list...');
+    const packageFiles = await this.getArtifactsForRevision(revison);
+    console.log(packageFiles);
   }
 
   /**
