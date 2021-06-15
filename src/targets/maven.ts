@@ -4,7 +4,7 @@ import { BaseTarget } from './base';
 import { ConfigurationError } from '../utils/errors';
 import { homedir } from 'os';
 import * as path from 'path';
-import * as fs from 'fs';
+import { access, constants as fsConstants, promises as fsPromises } from 'fs';
 import { exec } from 'child_process';
 import { isDryRun } from '../utils/helpers';
 import { withRetry } from '../utils/async';
@@ -139,7 +139,7 @@ export class MavenTarget extends BaseTarget {
    * Note that after upload, this must be `closeAndRelease`.
    */
   public async upload(): Promise<void> {
-    const distributionsDirs = await fs.promises.readdir(
+    const distributionsDirs = await fsPromises.readdir(
       this.mavenConfig.distributionsPath
     );
 
@@ -152,7 +152,7 @@ export class MavenTarget extends BaseTarget {
           this.getTargetFilename(distDir)
         );
         // The file must be readable by the calling process
-        fs.access(targetFile, fs.constants.R_OK, err => {
+        access(targetFile, fsConstants.R_OK, err => {
           if (err) {
             Promise.reject(err);
           }
@@ -259,7 +259,7 @@ export class MavenTarget extends BaseTarget {
 
   private async createUserGradlePropsFile(): Promise<void> {
     // TODO: set option to use current file, instead of always overwriting it
-    await fs.promises.writeFile(
+    await fsPromises.writeFile(
       path.join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
       // Using `` instead of string concatenation makes all the lines but the
       // first one to be indented to the right. To avoid that, these lines
