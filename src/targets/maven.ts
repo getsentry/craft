@@ -126,7 +126,7 @@ export class MavenTarget extends BaseTarget {
   public async publish(_version: string, _revison: string): Promise<void> {
     await this.createUserGradlePropsFile();
     await this.upload();
-    this.closeAndRelease();
+    await this.closeAndRelease();
   }
 
   /**
@@ -205,9 +205,9 @@ export class MavenTarget extends BaseTarget {
   /**
    * Finishes the release flow.
    */
-  public closeAndRelease(): void {
+  public async closeAndRelease(): Promise<void> {
     const gradleCliAbsPath = path.resolve(this.mavenConfig.gradleCliPath);
-    withRetry(() =>
+    await withRetry(() =>
       spawnProcess(gradleCliAbsPath, ['closeAndReleaseRepository'])
     );
   }
