@@ -125,10 +125,6 @@ export class MavenTarget extends BaseTarget {
 
   public async publish(_version: string, _revison: string): Promise<void> {
     await this.createUserGradlePropsFile();
-    if (isDryRun()) {
-      this.logger.info('[dry-run] Not uploading to Maven.');
-      return;
-    }
     await this.upload();
     this.closeAndRelease();
   }
