@@ -1009,8 +1009,8 @@ PGP signs and publishes packages to Maven Central.
 | `androidDistDirPattern`      | Pattern of Android distribution directory names.                                                               |
 | `androidFileReplaceePattern` | Pattern of substring of Android distribution module names to be replaced to get the Android distribution file. |
 | `androidFileReplacerStr`     | String to be replaced in the Android module names to get the Android distribution file.                        |
-| `gradleCliPath`              | Path to the Gradle CLI.                                                                                        |
-| `mavenCliPath`               | Path to the Maven CLI.                                                                                         |
+| `gradleCliPath`              | Path to the Gradle CLI. It must be executable by the calling process.                                          |
+| `mavenCliPath`               | Path to the Maven CLI. It must be executable by the calling process.                                           |
 | `mavenSettingsPath`          | Path to the Maven `settings.xml` file.                                                                         |
 | `mavenRepoId`                | ID of the Maven server in the `settings.xml`.                                                                  |
 | `mavenRepoUrl`               | URL of the Maven repository.                                                                                   |
