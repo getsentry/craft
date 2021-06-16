@@ -302,26 +302,10 @@ export class MavenTarget extends BaseTarget {
    */
   private getFilesForMavenCli(distDir: string): Record<string, string> {
     const moduleName = parse(distDir).base;
-    const targetFile = join(
-      this.mavenConfig.distributionsPath,
-      distDir,
-      this.getTargetFilename(distDir)
-    );
-    const javadocFile = join(
-      this.mavenConfig.distributionsPath,
-      distDir,
-      `${moduleName}-javadoc.jar`
-    );
-    const sourcesFile = join(
-      this.mavenConfig.distributionsPath,
-      distDir,
-      `${moduleName}-sources.jar`
-    );
-    const pomFile = join(
-      this.mavenConfig.distributionsPath,
-      distDir,
-      'pom-default.xml'
-    );
+    const targetFile = join(distDir, this.getTargetFilename(distDir));
+    const javadocFile = join(distDir, `${moduleName}-javadoc.jar`);
+    const sourcesFile = join(distDir, `${moduleName}-sources.jar`);
+    const pomFile = join(distDir, 'pom-default.xml');
     return {
       targetFile,
       javadocFile,
