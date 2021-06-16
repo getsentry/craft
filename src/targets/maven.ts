@@ -4,7 +4,6 @@ import {
   RemoteArtifact,
 } from '../artifact_providers/base';
 import { BaseTarget } from './base';
-import { ConfigurationError } from '../utils/errors';
 import { homedir } from 'os';
 import { basename, join, parse } from 'path';
 import { promises as fsPromises } from 'fs';
@@ -15,6 +14,7 @@ import {
   spawnProcess,
 } from '../utils/system';
 import { withTempDir } from '../utils/files';
+import { checkEnvForPrerequisite } from '../utils/env';
 
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
@@ -98,12 +98,7 @@ export class MavenTarget extends BaseTarget {
 
   private getTargetSecrets(): Record<TargetSettingType, string> {
     const secrets = targetSecrets.map(secret => {
-      if (!process.env[secret]) {
-        throw new ConfigurationError(
-          `Cannot publish to Maven Central: missing credentials.
-            Please, use the ${secret} environment variable.`
-        );
-      }
+      checkEnvForPrerequisite({ name: secret });
       return {
         name: secret,
         value: process.env[secret],
