@@ -995,33 +995,39 @@ PGP signs and publishes packages to Maven Central.
 
 **Environment**
 
-| Name                       | Description                                                                                                                       |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `OSSRH_USERNAME`           | Username of Sonatype repository.                                                                                                  |
-| `OSSRH_PASSWORD`           | Password of Sonatype repository.                                                                                                  |
-| `MAVEN_CENTRAL_USERNAME`   | Username of Maven Central.                                                                                                        |
-| `MAVEN_CENTRAL_PASSWORD`   | Password of Maven Central.                                                                                                        |
-| `MAVEN_DISTRIBUTIONS_PATH` | **optional** Path to the directory with unzipeed distribution packages (see example below). Defaults to `distributions/`.         |
-| `MAVEN_SETTINGS_PATH`      | **optional** Path to the Maven `settings.xml`, containing Maven Central username and API key. Defaults to `scripts/settings.xml`. |
-| `MAVEN_REPO_URL`           | **optional** URL of the Maven repository. Defaults to `https://oss.sonatype.org/service/local/staging/deploy/maven2/`.            |
-| `MAVEN_REPO_ID`            | **optional** ID of the Maven server in the `settings.xml`. Defaults to `ossrh`.                                                   |
-| `MAVEN_CLI_PATH`           | **optional** Path to the Maven CLI. Defaults to `scripts/mvnw.cmd`.                                                               |
-| `GRADLE_CLI_PATH`          | **optional** Path to the Gradle CLI. Defaults to `gradlew`.                                                                       |
+| Name                     | Description                      |
+| ------------------------ | -------------------------------- |
+| `OSSRH_USERNAME`         | Username of Sonatype repository. |
+| `OSSRH_PASSWORD`         | Password of Sonatype repository. |
+| `MAVEN_CENTRAL_USERNAME` | Username of Maven Central.       |
+| `MAVEN_CENTRAL_PASSWORD` | Password of Maven Central.       |
 
-It's assumed that all distribution packages have been downloaded and unzipped in one directory:
+**Configuration**
 
-```
-distributions
-├── sentry-dist1-1.2.3
-├── sentry-dist2-1.2.3
-└── sentry-android-dist-1.2.3
-```
+| Option                       | Description                                                                                                    |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `androidDistDirPattern`      | Pattern of Android distribution directory names.                                                               |
+| `androidFileReplaceePattern` | Pattern of substring of Android distribution module names to be replaced to get the Android distribution file. |
+| `androidFileReplacerStr`     | String to be replaced in the Android module names to get the Android distribution file.                        |
+| `gradleCliPath`              | Path to the Gradle CLI.                                                                                        |
+| `mavenCliPath`               | Path to the Maven CLI.                                                                                         |
+| `mavenSettingsPath`          | Path to the Maven `settings.xml` file.                                                                         |
+| `mavenRepoId`                | ID of the Maven server in the `settings.xml`.                                                                  |
+| `mavenRepoUrl`               | URL of the Maven repository.                                                                                   |
 
 **Example**
 
-```yml
+```yaml
 targets:
   - name: maven
+      androidDistDirPattern: ^sentry-android-.*$
+      androidFileReplaceePattern: \d\.\d\.\d(-SNAPSHOT)?
+      androidFileReplacerStr: release.aar
+      gradleCliPath: gradlew
+      mavenCliPath: scripts/mvnw.cmd
+      mavenSettingsPath: scripts/settings.xml
+      mavenRepoId: ossrh
+      mavenRepoUrl: https://oss.sonatype.org/service/local/staging/deploy/maven2/
 ```
 
 ## Integrating Your Project with `craft`
