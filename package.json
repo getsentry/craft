@@ -1,6 +1,6 @@
 {
   "name": "@sentry/craft",
-  "version": "0.24.2",
+  "version": "0.24.4",
   "description": "The universal sentry workflow CLI",
   "main": "dist/craft",
   "repository": "https://github.com/getsentry/craft",
@@ -17,7 +17,8 @@
     "**/dot-prop": ">=4.2.1",
     "**/kind-of": ">=6.0.3",
     "**/node-fetch": ">=2.6.1",
-    "**/yargs-parser": ">=18.1.2"
+    "**/yargs-parser": ">=18.1.2",
+    "**/parse-url": ">=5.0.3"
   },
   "devDependencies": {
     "@aws-sdk/client-lambda": "^3.2.0",
