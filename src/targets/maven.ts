@@ -143,6 +143,10 @@ export class MavenTarget extends BaseTarget {
       `Checking if Maven CLI is available on ${this.mavenConfig.mavenCliPath}...`
     );
     checkExecutableIsPresent(this.mavenConfig.mavenCliPath);
+    this.logger.debug(
+      `Checking if Gradle CLI is available on ${this.mavenConfig.gradleCliPath}...`
+    );
+    checkExecutableIsPresent(this.mavenConfig.gradleCliPath);
     this.logger.debug(`Checking if GPG is available in the path...`);
     checkExecutableIsPresent('gpg');
   }
