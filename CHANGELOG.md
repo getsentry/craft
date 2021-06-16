@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.24.4
+
+- fix(registry): Fix error w/ simple registry config (#262)
+
 ## 0.24.3
 
 - upgrade(parse-url): Force parse-url>=5.0.3 for security (#261)
