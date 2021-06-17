@@ -134,3 +134,26 @@ describe('publish to Maven', () => {
     expect(closeAndReleaseMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('get gradle home directory', () => {
+  const gradleHomeEnvVar = 'GRADLE_USER_HOME';
+
+  beforeEach(() => {
+    setTargetSecretsInEnv();
+    // no need to check whether it already exists
+    delete process.env[gradleHomeEnvVar];
+  });
+
+  test('with gradle home', () => {
+    const expectedHomeDir = 'testDirectory';
+    process.env[gradleHomeEnvVar] = expectedHomeDir;
+    const actual = createMavenTarget(getTargetOptions()).getGradleHomeDir();
+    expect(actual).toEqual(expectedHomeDir);
+  });
+
+  test('without gradle home', () => {
+    const expected = join(homedir(), '.gradle');
+    const actual = createMavenTarget(getTargetOptions()).getGradleHomeDir();
+    expect(actual).toEqual(expected);
+  });
+});
