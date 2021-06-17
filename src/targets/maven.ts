@@ -20,6 +20,12 @@ import { ConfigurationError } from '../utils/errors';
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
 /**
+ * Default gradle user home directory. See
+ * https://docs.gradle.org/current/userguide/build_environment.html#sec:gradle_environment_variables
+ */
+const DEFAULT_GRADLE_USER_HOME = join(homedir(), '.gradle');
+
+/**
  * Maximum number of attempts including the initial one when publishing fails.
  * After this number of retries, publishing fails.
  */
@@ -98,11 +104,11 @@ export class MavenTarget extends BaseTarget {
   }
 
   private getTargetSecrets(): Record<TargetSettingType, string> {
-    const secrets = targetSecrets.map(secret => {
-      checkEnvForPrerequisite({ name: secret });
+    const secrets = targetSecrets.map(name => {
+      checkEnvForPrerequisite({ name });
       return {
-        name: secret,
-        value: process.env[secret],
+        name,
+        value: process.env[name],
       };
     });
     return this.reduceConfig(secrets);
@@ -142,7 +148,7 @@ export class MavenTarget extends BaseTarget {
    */
   private checkRequiredSoftware(): void {
     this.logger.debug(
-      `Checking if Maven CLI is available on ${this.mavenConfig.mavenCliPath}...`
+      `Checking if Maven CLI is available: ${this.mavenConfig.mavenCliPath}`
     );
     checkExecutableIsPresent(this.mavenConfig.mavenCliPath);
     this.logger.debug(
@@ -189,19 +195,15 @@ export class MavenTarget extends BaseTarget {
   public async createUserGradlePropsFile(): Promise<void> {
     await fsPromises.writeFile(
       join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
-      // Using `` instead of string concatenation makes all the lines but the
-      // first one to be indented to the right. To avoid that, these lines
-      // shouldn't have that much space at the beginning, something the linter
-      // doesn't agree with (and the code would be harder to read).
-      `mavenCentralUsername=${this.mavenConfig.MAVEN_CENTRAL_USERNAME}\n` +
-        `mavenCentralPassword=${this.mavenConfig.MAVEN_CENTRAL_PASSWORD}`
+      [
+        'mavenCentralUsername=' + this.mavenConfig.MAVEN_CENTRAL_USERNAME,
+        'mavenCentralPassword=' + this.mavenConfig.MAVEN_CENTRAL_PASSWORD,
+      ].join('\n')
     );
   }
 
   /**
    * Retrieves the Gradle Home path.
-   *
-   * See https://docs.gradle.org/current/userguide/build_environment.html#sec:gradle_environment_variables
    *
    * @returns the gradle home path.
    */
@@ -210,7 +212,7 @@ export class MavenTarget extends BaseTarget {
       return process.env.GRADLE_USER_HOME;
     }
 
-    return join(homedir(), '.gradle');
+    return DEFAULT_GRADLE_USER_HOME;
   }
 
   /**
@@ -246,6 +248,7 @@ export class MavenTarget extends BaseTarget {
     dir: string
   ): Promise<void> {
     await this.extractArtifact(artifact, dir);
+    // All artifacts downloaded from GitHub are ZIP files.
     const pkgName = basename(artifact.filename, '.zip');
     const distDir = join(dir, pkgName);
     await this.uploadDistribution(distDir);
@@ -284,6 +287,8 @@ export class MavenTarget extends BaseTarget {
       pomFile,
     } = this.getFilesForMavenCli(distDir);
 
+    // Maven central is very flaky, so retrying with an exponential delay in
+    // in case it fails.
     this.retrySpawnProcess(
       () =>
         spawnProcess(this.mavenConfig.mavenCliPath, [
@@ -355,27 +360,21 @@ export class MavenTarget extends BaseTarget {
    * The delay after each call starts at `RETRY_DELAY_SECS`, and is incremented
    * exponentially by `RETRY_EXP_FACTOR`.
    *
-   * @param processFn function to be retried.
+   * @param fnToRetry function to be retried.
    * @param actionName name of the action the function is performing.
    */
   private async retrySpawnProcess(
-    processFn: () => Promise<any>,
+    fnToRetry: () => Promise<any>,
     actionName: string
   ): Promise<void> {
     let retryDelay = RETRY_DELAY_SECS;
-    await withRetry(
-      () => processFn(),
-      MAX_PUBLISHING_ATTEMPTS,
-      async err => {
-        this.logger.warn(
-          `${actionName} failed. Trying again in ${retryDelay}s.`
-        );
-        this.logger.debug(`${actionName} error: ${err}`);
-        await sleep(retryDelay * 1000);
-        retryDelay *= RETRY_EXP_FACTOR;
-        return true;
-      }
-    );
+    await withRetry(fnToRetry, MAX_PUBLISHING_ATTEMPTS, async err => {
+      this.logger.warn(`${actionName} failed. Trying again in ${retryDelay}s.`);
+      this.logger.debug(`${actionName} error: `, err);
+      await sleep(retryDelay * 1000);
+      retryDelay *= RETRY_EXP_FACTOR;
+      return true;
+    });
   }
 
   /**
@@ -385,6 +384,8 @@ export class MavenTarget extends BaseTarget {
    * uploaded accordingly.
    */
   public async closeAndRelease(): Promise<void> {
+    // Maven central is very flaky, so retrying with an exponential delay in
+    // in case it fails.
     this.retrySpawnProcess(
       () =>
         spawnProcess(this.mavenConfig.gradleCliPath, [
