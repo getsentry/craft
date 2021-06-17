@@ -7,11 +7,11 @@ import { BaseTarget } from './base';
 import { homedir } from 'os';
 import { basename, join, parse } from 'path';
 import { promises as fsPromises } from 'fs';
-import { sleep, withRetry } from '../utils/async';
 import {
   checkExecutableIsPresent,
   extractZipArchive,
   spawnProcess,
+  retrySpawnProcess,
 } from '../utils/system';
 import { withTempDir } from '../utils/files';
 import { checkEnvForPrerequisite } from '../utils/env';
@@ -303,7 +303,7 @@ export class MavenTarget extends BaseTarget {
 
     // Maven central is very flaky, so retrying with an exponential delay in
     // in case it fails.
-    this.retrySpawnProcess(
+    retrySpawnProcess(
       () =>
         spawnProcess(this.mavenConfig.mavenCliPath, [
           'gpg:sign-and-deploy-file',
@@ -316,7 +316,10 @@ export class MavenTarget extends BaseTarget {
           `-Durl=${this.mavenConfig.mavenRepoUrl}`,
           `--settings ${this.mavenConfig.mavenSettingsPath}`,
         ]),
-      'Uploading'
+      'Uploading',
+      MAX_PUBLISHING_ATTEMPTS,
+      RETRY_DELAY_SECS,
+      RETRY_EXP_FACTOR
     );
   }
 
@@ -370,30 +373,6 @@ export class MavenTarget extends BaseTarget {
   }
 
   /**
-   * Retries executing the function, delaying ongoing calls for some time.
-   *
-   * The function is retried `MAX_PUBLISHING_ATTEMPTS` times.
-   * The delay after each call starts at `RETRY_DELAY_SECS`, and is incremented
-   * exponentially by `RETRY_EXP_FACTOR`.
-   *
-   * @param fnToRetry function to be retried.
-   * @param actionName name of the action the function is performing.
-   */
-  private async retrySpawnProcess(
-    fnToRetry: () => Promise<any>,
-    actionName: string
-  ): Promise<void> {
-    let retryDelay = RETRY_DELAY_SECS;
-    await withRetry(fnToRetry, MAX_PUBLISHING_ATTEMPTS, async err => {
-      this.logger.warn(`${actionName} failed. Trying again in ${retryDelay}s.`);
-      this.logger.debug(`${actionName} error: `, err);
-      await sleep(retryDelay * 1000);
-      retryDelay *= RETRY_EXP_FACTOR;
-      return true;
-    });
-  }
-
-  /**
    * Finishes the release flow, by closing and releasing to the repository.
    * Note that this is a required step to make a release, but it doesn't
    * perform any release on its own. Required files must have previously been
@@ -402,12 +381,15 @@ export class MavenTarget extends BaseTarget {
   public async closeAndRelease(): Promise<void> {
     // Maven central is very flaky, so retrying with an exponential delay in
     // in case it fails.
-    this.retrySpawnProcess(
+    retrySpawnProcess(
       () =>
         spawnProcess(this.mavenConfig.gradleCliPath, [
           'closeAndReleaseRepository',
         ]),
-      'Closing and releasing'
+      'Closing and releasing',
+      MAX_PUBLISHING_ATTEMPTS,
+      RETRY_DELAY_SECS,
+      RETRY_EXP_FACTOR
     );
   }
 }

@@ -7,6 +7,7 @@ import tar from 'tar';
 import unzipper from 'unzipper';
 
 import { logger } from '../logger';
+import { sleep, withRetry } from './async';
 
 import { reportError } from './errors';
 import { isDryRun } from './helpers';
@@ -188,6 +189,38 @@ export async function spawnProcess(
     } catch (e) {
       fail(e);
     }
+  });
+}
+
+/**
+ * Retries executing the function, delaying ongoing calls for some time.
+ *
+ * After every call to the function, a delay in seconds is present before the
+ * next call; starting from `initialRetryDelay` and being incremented
+ * exponentially by `retryExpFactor`.
+ *
+ * @param fnToRetry function to retry
+ * @param actionName name of the action the function is performing
+ * @param maxPublishingAttemps maximum number of attemps
+ * @param initialRetryDelay delay between retries of running the function, in seconds
+ * @param retryExpFactor exponential backoff applied to the retry delay
+ */
+export async function retrySpawnProcess(
+  fnToRetry: () => Promise<any>,
+  actionName: string,
+  maxPublishingAttemps = 3,
+  initialRetryDelay = 1,
+  retryExpFactor = 2
+): Promise<void> {
+  let currentRetryDelay = initialRetryDelay;
+  await withRetry(fnToRetry, maxPublishingAttemps, async err => {
+    this.logger.warn(
+      `${actionName} failed. Trying again in ${currentRetryDelay}s.`
+    );
+    this.logger.debug(`${actionName} error: `, err);
+    await sleep(currentRetryDelay * 1000);
+    currentRetryDelay *= retryExpFactor;
+    return true;
   });
 }
 
