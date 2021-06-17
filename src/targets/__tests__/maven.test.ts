@@ -75,7 +75,7 @@ function createMavenTarget(targetOptions?: TestTargetConfig): MavenTarget {
   return new MavenTarget(options, new NoneArtifactProvider());
 }
 
-describe('maven target configuration', () => {
+describe('Maven target configuration', () => {
   beforeEach(() => removeTargetSecretsFromEnv());
 
   function getExpectedValueOfConfigKey(configKey: string): string | RegExp {
@@ -110,25 +110,27 @@ describe('maven target configuration', () => {
   });
 });
 
-describe('get gradle home directory', () => {
-  const gradleHomeEnvVar = 'GRADLE_USER_HOME';
+describe('publish to Maven', () => {
+  beforeAll(() => setTargetSecretsInEnv());
 
-  beforeEach(() => {
-    setRequiredConfig();
-    // no need to check whether it already exists
-    delete process.env[gradleHomeEnvVar];
-  });
+  afterAll(() => removeTargetSecretsFromEnv());
 
-  test('with gradle home', () => {
-    const expectedHomeDir = 'testDirectory';
-    process.env[gradleHomeEnvVar] = expectedHomeDir;
-    const actual = createMavenTarget().getGradleHomeDir();
-    expect(actual).toEqual(expectedHomeDir);
-  });
+  test('main flow', async () => {
+    const mvnTarget = createMavenTarget(getTargetOptions());
+    const gradlePropsMock = jest.fn();
+    mvnTarget.createUserGradlePropsFile = gradlePropsMock;
+    const uploadMock = jest.fn();
+    mvnTarget.upload = uploadMock;
+    const closeAndReleaseMock = jest.fn();
+    mvnTarget.closeAndRelease = closeAndReleaseMock;
 
-  test('without gradle home', () => {
-    const expected = join(homedir(), '.gradle');
-    const actual = createMavenTarget().getGradleHomeDir();
-    expect(actual).toEqual(expected);
+    const version = '1.0.0';
+    const revision = 'r3v1s10n';
+
+    await mvnTarget.publish(version, revision);
+    expect(gradlePropsMock).toHaveBeenCalledTimes(1);
+    expect(uploadMock).toHaveBeenCalledTimes(1);
+    expect(uploadMock).toHaveBeenLastCalledWith(revision);
+    expect(closeAndReleaseMock).toHaveBeenCalledTimes(1);
   });
 });

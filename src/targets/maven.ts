@@ -186,7 +186,7 @@ export class MavenTarget extends BaseTarget {
    * If there's an existing one, it's overwritten.
    * TODO: control when it's overwritten with an option.
    */
-  private async createUserGradlePropsFile(): Promise<void> {
+  public async createUserGradlePropsFile(): Promise<void> {
     await fsPromises.writeFile(
       join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
       // Using `` instead of string concatenation makes all the lines but the
