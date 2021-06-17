@@ -50,9 +50,6 @@ const targetSecrets = [
 type SecretsType = typeof targetSecrets[number];
 
 const targetOptions = [
-  'androidDistDirPattern',
-  'androidFileReplaceePattern',
-  'androidFileReplacerStr',
   'gradleCliPath',
   'mavenCliPath',
   'mavenSettingsPath',
@@ -61,14 +58,20 @@ const targetOptions = [
 ] as const;
 type OptionsType = typeof targetOptions[number];
 
+type AndroidFields = {
+  android: {
+    distDirPattern: string;
+    fileReplaceePattern: string;
+    fileReplacerStr: string;
+  };
+};
+
 type TargetSettingType = SecretsType | OptionsType;
 
 /**
  * Config options for the "maven" target.
  */
-type MavenTargetConfig = {
-  [key in TargetSettingType]: string;
-};
+type MavenTargetConfig = Record<TargetSettingType, string> & AndroidFields;
 
 /**
  * Target responsible for uploading files to Maven Central.
@@ -99,7 +102,8 @@ export class MavenTarget extends BaseTarget {
   private getMavenConfig(): MavenTargetConfig {
     return {
       ...this.getTargetSecrets(),
-      ...this.getTargetSettings(),
+      ...this.getOuterTargetSettings(),
+      ...this.getAndroidSettings(),
     };
   }
 
@@ -125,7 +129,7 @@ export class MavenTarget extends BaseTarget {
     }, {});
   }
 
-  private getTargetSettings(): Record<TargetSettingType, string> {
+  private getOuterTargetSettings(): Record<TargetSettingType, string> {
     const settings = targetOptions.map(setting => {
       if (!this.config[setting]) {
         throw new ConfigurationError(
@@ -139,6 +143,16 @@ export class MavenTarget extends BaseTarget {
       };
     });
     return this.reduceConfig(settings);
+  }
+
+  private getAndroidSettings(): AndroidFields {
+    return {
+      android: {
+        distDirPattern: this.config.android.distDirPattern,
+        fileReplaceePattern: this.config.android.fileReplaceePattern,
+        fileReplacerStr: this.config.android.fileReplacerStr,
+      },
+    };
   }
 
   /**
@@ -167,11 +181,11 @@ export class MavenTarget extends BaseTarget {
    * `/myRegex/`
    */
   private makeRegexpFromConfiguration(): void {
-    this.config.androidDistDirPattern = new RegExp(
-      this.config.androidDistDirPattern
+    this.config.android.distDirPattern = new RegExp(
+      this.config.android.distDirPattern
     );
-    this.config.androidFileSearchPattern = new RegExp(
-      this.config.androidFileSearchPattern
+    this.config.android.fileReplaceePattern = new RegExp(
+      this.config.android.fileReplaceePattern
     );
   }
 
@@ -343,11 +357,13 @@ export class MavenTarget extends BaseTarget {
    */
   private getTargetFilename(distDir: string): string {
     const moduleName = parse(distDir).base;
-    const isAndroidDistDir = this.config.androidDistDirPattern.test(moduleName);
+    const isAndroidDistDir = this.config.android.distDirPattern.test(
+      moduleName
+    );
     if (isAndroidDistDir) {
       return moduleName.replace(
-        this.config.androidFileSearchPattern,
-        this.config.androidFileReplaceStr
+        this.config.android.fileReplaceePattern,
+        this.config.android.fileReplacerStr
       );
     }
     return `${moduleName}.jar`;
