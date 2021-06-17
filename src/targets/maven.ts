@@ -266,23 +266,6 @@ export class MavenTarget extends BaseTarget {
     artifact: RemoteArtifact,
     dir: string
   ): Promise<void> {
-    await this.extractArtifact(artifact, dir);
-    // All artifacts downloaded from GitHub are ZIP files.
-    const pkgName = basename(artifact.filename, '.zip');
-    const distDir = join(dir, pkgName);
-    await this.uploadDistribution(distDir);
-  }
-
-  /**
-   * Downloads and extracts the artifacts in the given directory.
-   *
-   * @param artifact the artifact to be extracted.
-   * @param dir the directory to extract the artifact in.
-   */
-  private async extractArtifact(
-    artifact: RemoteArtifact,
-    dir: string
-  ): Promise<void> {
     this.logger.debug(`Downloading ${artifact.filename}...`);
     const downloadedPkgPath = await this.artifactProvider.downloadArtifact(
       artifact
@@ -290,7 +273,11 @@ export class MavenTarget extends BaseTarget {
     this.logger.debug(
       `Extracting ${artifact.filename} to ${downloadedPkgPath}...`
     );
-    extractZipArchive(downloadedPkgPath, dir);
+    await extractZipArchive(downloadedPkgPath, dir);
+    // All artifacts downloaded from GitHub are ZIP files.
+    const pkgName = basename(artifact.filename, '.zip');
+    const distDir = join(dir, pkgName);
+    await this.uploadDistribution(distDir);
   }
 
   /**
