@@ -42,7 +42,7 @@ const RETRY_DELAY_SECS = 3;
  */
 const RETRY_EXP_FACTOR = 2;
 
-const targetSecrets = [
+export const targetSecrets = [
   'OSSRH_USERNAME',
   'OSSRH_PASSWORD',
   'MAVEN_CENTRAL_USERNAME',
@@ -50,7 +50,7 @@ const targetSecrets = [
 ] as const;
 type SecretsType = typeof targetSecrets[number];
 
-const targetOptions = [
+export const targetOptions = [
   'gradleCliPath',
   'mavenCliPath',
   'mavenSettingsPath',
@@ -72,7 +72,8 @@ type TargetSettingType = SecretsType | OptionsType;
 /**
  * Config options for the "maven" target.
  */
-type MavenTargetConfig = Record<TargetSettingType, string> & AndroidFields;
+export type MavenTargetConfig = Record<TargetSettingType, string> &
+  AndroidFields;
 
 /**
  * Target responsible for uploading files to Maven Central.

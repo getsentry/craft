@@ -2,7 +2,7 @@ import { homedir } from 'os';
 import { join } from 'path';
 import { ConfigurationError } from '../../utils/errors';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
-import { MavenTarget } from '../maven';
+import { MavenTarget, MavenTargetConfig, targetOptions } from '../maven';
 
 jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
@@ -27,23 +27,7 @@ const targetSecrets: string[] = [
   'MAVEN_CENTRAL_PASSWORD',
 ];
 
-const targetOptions: string[] = [
-  'androidDistDirPattern',
-  'androidFileReplaceePattern',
-  'androidFileReplacerStr',
-  'gradleCliPath',
-  'mavenCliPath',
-  'mavenSettingsPath',
-  'mavenRepoId',
-  'mavenRepoUrl',
-];
-
 const DEFAULT_OPTION_VALUE = 'my_default_value';
-
-interface TestTargetConfig {
-  name: string;
-  [otherKeys: string]: string;
-}
 
 function setTargetSecretsInEnv(): void {
   for (const option of targetSecrets) {
@@ -57,21 +41,31 @@ function removeTargetSecretsFromEnv(): void {
   }
 }
 
-function getTargetOptions(): TestTargetConfig {
-  const defaultOptions: TestTargetConfig = {
-    name: 'maven',
+function getTargetOptions(): MavenTargetConfig {
+  return {
+    OSSRH_USERNAME: DEFAULT_OPTION_VALUE,
+    OSSRH_PASSWORD: DEFAULT_OPTION_VALUE,
+    MAVEN_CENTRAL_USERNAME: DEFAULT_OPTION_VALUE,
+    MAVEN_CENTRAL_PASSWORD: DEFAULT_OPTION_VALUE,
+    gradleCliPath: DEFAULT_OPTION_VALUE,
+    mavenCliPath: DEFAULT_OPTION_VALUE,
+    mavenSettingsPath: DEFAULT_OPTION_VALUE,
+    mavenRepoId: DEFAULT_OPTION_VALUE,
+    mavenRepoUrl: DEFAULT_OPTION_VALUE,
+    android: {
+      distDirRegex: '/distDir/',
+      fileReplaceeRegex: '/replacee/',
+      fileReplacerStr: 'replacer',
+    },
   };
-  targetOptions.map(option => (defaultOptions[option] = DEFAULT_OPTION_VALUE));
-  return defaultOptions;
 }
 
-function createMavenTarget(targetOptions?: TestTargetConfig): MavenTarget {
-  const options = targetOptions
-    ? targetOptions
-    : {
-        name: 'maven',
-        ['testKey']: 'testValue',
-      };
+function createMavenTarget(targetOptions?: MavenTargetConfig): MavenTarget {
+  const finalOptions = targetOptions ? targetOptions : getTargetOptions();
+  const options = {
+    name: 'maven',
+    ...finalOptions,
+  };
   return new MavenTarget(options, new NoneArtifactProvider());
 }
 
@@ -88,7 +82,7 @@ describe('Maven target configuration', () => {
     return DEFAULT_OPTION_VALUE;
   }
 
-  test('with target secrets and options', () => {
+  test('with options', () => {
     setTargetSecretsInEnv();
     const mvnTarget = createMavenTarget(getTargetOptions());
     targetOptions.map(secret =>
@@ -100,12 +94,7 @@ describe('Maven target configuration', () => {
     );
   });
 
-  test('with only target secrets', () => {
-    setTargetSecretsInEnv();
-    expect(createMavenTarget).toThrowError(ConfigurationError);
-  });
-
-  test('with only target options', () => {
+  test('without options', () => {
     expect(createMavenTarget).toThrowError(ConfigurationError);
   });
 });
