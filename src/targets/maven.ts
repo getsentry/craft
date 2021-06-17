@@ -16,6 +16,7 @@ import {
 import { withTempDir } from '../utils/files';
 import { checkEnvForPrerequisite } from '../utils/env';
 import { ConfigurationError } from '../utils/errors';
+import { stringToRegexp } from '../utils/filters';
 
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
@@ -60,8 +61,8 @@ type OptionsType = typeof targetOptions[number];
 
 type AndroidFields = {
   android: {
-    distDirPattern: string;
-    fileReplaceePattern: string;
+    distDirRegex: string;
+    fileReplaceeRegex: string;
     fileReplacerStr: string;
   };
 };
@@ -146,10 +147,20 @@ export class MavenTarget extends BaseTarget {
   }
 
   private getAndroidSettings(): AndroidFields {
+    if (
+      !this.config.android.distDirRegex ||
+      !this.config.android.fileReplaceeRegex ||
+      !this.config.android.fileReplacerStr
+    ) {
+      throw new ConfigurationError(
+        'Required Android configuration not found in configuration file. ' +
+          'See the documentation for more details.'
+      );
+    }
     return {
       android: {
-        distDirPattern: this.config.android.distDirPattern,
-        fileReplaceePattern: this.config.android.fileReplaceePattern,
+        distDirRegex: this.config.android.distDirRegex,
+        fileReplaceeRegex: this.config.android.fileReplaceeRegex,
         fileReplacerStr: this.config.android.fileReplacerStr,
       },
     };
@@ -176,16 +187,13 @@ export class MavenTarget extends BaseTarget {
   /**
    * Parses the required target's configuration variables' types from strings to
    * RegExp.
-   *
-   * To make TS happy, they must be `RegExp` objects. It's not valid to write
-   * `/myRegex/`
    */
   private makeRegexpFromConfiguration(): void {
-    this.config.android.distDirPattern = new RegExp(
-      this.config.android.distDirPattern
+    this.config.android.distDirRegex = stringToRegexp(
+      this.config.android.distDirRegex
     );
-    this.config.android.fileReplaceePattern = new RegExp(
-      this.config.android.fileReplaceePattern
+    this.config.android.distDirRegex = stringToRegexp(
+      this.config.android.fileReplaceeRegex
     );
   }
 
@@ -360,12 +368,10 @@ export class MavenTarget extends BaseTarget {
    */
   private getTargetFilename(distDir: string): string {
     const moduleName = parse(distDir).base;
-    const isAndroidDistDir = this.config.android.distDirPattern.test(
-      moduleName
-    );
+    const isAndroidDistDir = this.config.android.distDirRegex.test(moduleName);
     if (isAndroidDistDir) {
       return moduleName.replace(
-        this.config.android.fileReplaceePattern,
+        this.config.android.fileReplaceeRegex,
         this.config.android.fileReplacerStr
       );
     }
