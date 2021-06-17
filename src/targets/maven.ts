@@ -15,6 +15,7 @@ import {
 } from '../utils/system';
 import { withTempDir } from '../utils/files';
 import { checkEnvForPrerequisite } from '../utils/env';
+import { ConfigurationError } from '../utils/errors';
 
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
@@ -120,6 +121,12 @@ export class MavenTarget extends BaseTarget {
 
   private getTargetSettings(): Record<TargetSettingType, string> {
     const settings = targetOptions.map(setting => {
+      if (!this.config[setting]) {
+        throw new ConfigurationError(
+          `Required configuration ${setting} not found in configuration file. ` +
+            `See the documentation for more details.`
+        );
+      }
       return {
         name: setting,
         value: this.config[setting],
