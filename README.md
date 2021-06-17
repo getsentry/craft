@@ -1020,14 +1020,14 @@ PGP signs and publishes packages to Maven Central.
 ```yaml
 targets:
   - name: maven
-      androidDistDirPattern: ^sentry-android-.*$
-      androidFileReplaceePattern: \d\.\d\.\d(-SNAPSHOT)?
-      androidFileReplacerStr: release.aar
-      gradleCliPath: gradlew
-      mavenCliPath: scripts/mvnw.cmd
-      mavenSettingsPath: scripts/settings.xml
-      mavenRepoId: ossrh
-      mavenRepoUrl: https://oss.sonatype.org/service/local/staging/deploy/maven2/
+    androidDistDirPattern: ^sentry-android-.*$
+    androidFileReplaceePattern: \d\.\d\.\d(-SNAPSHOT)?
+    androidFileReplacerStr: release.aar
+    gradleCliPath: gradlew
+    mavenCliPath: scripts/mvnw.cmd
+    mavenSettingsPath: scripts/settings.xml
+    mavenRepoId: ossrh
+    mavenRepoUrl: https://oss.sonatype.org/service/local/staging/deploy/maven2/
 ```
 
 ## Integrating Your Project with `craft`
