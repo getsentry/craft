@@ -214,8 +214,8 @@ export class MavenTarget extends BaseTarget {
    * If there's an existing one, it's overwritten.
    * TODO: control when it's overwritten with an option.
    */
-  public async createUserGradlePropsFile(): Promise<void> {
-    await fsPromises.writeFile(
+  public createUserGradlePropsFile(): Promise<void> {
+    return fsPromises.writeFile(
       join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
       [
         'mavenCentralUsername=' + this.mavenConfig.MAVEN_CENTRAL_USERNAME,
@@ -247,13 +247,10 @@ export class MavenTarget extends BaseTarget {
     const artifacts = await this.getArtifactsForRevision(revision);
 
     await withTempDir(
-      async dir => {
-        await Promise.all(
-          artifacts.map(
-            async artifact => await this.uploadArtifact(artifact, dir)
-          )
-        );
-      },
+      dir =>
+        Promise.all(
+          artifacts.map(artifact => this.uploadArtifact(artifact, dir))
+        ),
       true,
       'craft-release-maven-'
     );
@@ -293,7 +290,7 @@ export class MavenTarget extends BaseTarget {
     this.logger.debug(
       `Extracting ${artifact.filename} to ${downloadedPkgPath}...`
     );
-    await extractZipArchive(downloadedPkgPath, dir);
+    extractZipArchive(downloadedPkgPath, dir);
   }
 
   /**
