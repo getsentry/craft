@@ -10,7 +10,6 @@ import { promises as fsPromises } from 'fs';
 import {
   checkExecutableIsPresent,
   extractZipArchive,
-  spawnProcess,
   retrySpawnProcess,
 } from '../utils/system';
 import { withTempDir } from '../utils/files';
@@ -25,22 +24,6 @@ const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
  * https://docs.gradle.org/current/userguide/build_environment.html#sec:gradle_environment_variables
  */
 const DEFAULT_GRADLE_USER_HOME = join(homedir(), '.gradle');
-
-/**
- * Maximum number of attempts including the initial one when publishing fails.
- * After this number of retries, publishing fails.
- */
-const MAX_PUBLISHING_ATTEMPTS = 5;
-
-/**
- * Delay between retries of publish operations, in seconds.
- */
-const RETRY_DELAY_SECS = 3;
-
-/**
- * Exponential backoff applied to the retry delay.
- */
-const RETRY_EXP_FACTOR = 2;
 
 export const targetSecrets = [
   'OSSRH_USERNAME',
@@ -296,24 +279,17 @@ export class MavenTarget extends BaseTarget {
 
     // Maven central is very flaky, so retrying with an exponential delay in
     // in case it fails.
-    retrySpawnProcess(
-      () =>
-        spawnProcess(this.mavenConfig.mavenCliPath, [
-          'gpg:sign-and-deploy-file',
-          `-Dfile=${targetFile}`,
-          `-Dfiles=${javadocFile},${sourcesFile}`,
-          `-Dclassifiers=javadoc,sources`,
-          `-Dtypes=jar,jar`,
-          `-DpomFile=${pomFile}`,
-          `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
-          `-Durl=${this.mavenConfig.mavenRepoUrl}`,
-          `--settings ${this.mavenConfig.mavenSettingsPath}`,
-        ]),
-      'Uploading',
-      MAX_PUBLISHING_ATTEMPTS,
-      RETRY_DELAY_SECS,
-      RETRY_EXP_FACTOR
-    );
+    await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
+      'gpg:sign-and-deploy-file',
+      `-Dfile=${targetFile}`,
+      `-Dfiles=${javadocFile},${sourcesFile}`,
+      `-Dclassifiers=javadoc,sources`,
+      `-Dtypes=jar,jar`,
+      `-DpomFile=${pomFile}`,
+      `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
+      `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+      `--settings ${this.mavenConfig.mavenSettingsPath}`,
+    ]);
   }
 
   /**
@@ -372,15 +348,8 @@ export class MavenTarget extends BaseTarget {
   public async closeAndRelease(): Promise<void> {
     // Maven central is very flaky, so retrying with an exponential delay in
     // in case it fails.
-    retrySpawnProcess(
-      () =>
-        spawnProcess(this.mavenConfig.gradleCliPath, [
-          'closeAndReleaseRepository',
-        ]),
-      'Closing and releasing',
-      MAX_PUBLISHING_ATTEMPTS,
-      RETRY_DELAY_SECS,
-      RETRY_EXP_FACTOR
-    );
+    await retrySpawnProcess(this.mavenConfig.gradleCliPath, [
+      'closeAndReleaseRepository',
+    ]);
   }
 }

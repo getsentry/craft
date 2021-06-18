@@ -13,6 +13,21 @@ import { reportError } from './errors';
 import { isDryRun } from './helpers';
 
 /**
+ * Delay between retries of running commands, in seconds.
+ */
+const RETRY_DELAY_SECS = 3;
+
+/**
+ * Exponential backoff applied to the retry delay.
+ */
+const RETRY_EXP_FACTOR = 2;
+
+/**
+ * Maximum number of attempts including the initial one when a command fails.
+ */
+const MAX_RETRIES = 5;
+
+/**
  * Types of supported hashing algorithms
  */
 export enum HashAlgorithm {
@@ -193,34 +208,64 @@ export async function spawnProcess(
 }
 
 /**
- * Retries executing the function, delaying ongoing calls for some time.
+ * Retrying options for retrySpawnProcess()
+ */
+interface RetryOptions {
+  maxRetries?: number;
+  retryDelay?: number;
+  retryExpFactor?: number;
+}
+
+/**
+ * Retries executing the command, delaying ongoing calls for some time.
  *
  * After every call to the function, a delay in seconds is present before the
- * next call; starting from `initialRetryDelay` and being incremented
- * exponentially by `retryExpFactor`.
+ * next call, and this is incremented exponentially by the factor (see
+ * retry options).
  *
- * @param fnToRetry function to retry
- * @param actionName name of the action the function is performing
- * @param maxPublishingAttemps maximum number of attemps
- * @param initialRetryDelay delay between retries of running the function, in seconds
- * @param retryExpFactor exponential backoff applied to the retry delay
+ * @param command the command to run.
+ * @param args optional arguments to pass to the command.
+ * @param retryOptions optional options to configure retry delays and attemps.
+ * @param spawnOptions optional options to pass to child_process.spawn
+ * @param spawnProcessOptions optional options to pass to spawnProcess()
+ * @returns a promise that resolves when command exits successfully.
+ * @async
  */
 export async function retrySpawnProcess(
-  fnToRetry: () => Promise<any>,
-  actionName: string,
-  maxPublishingAttemps = 3,
-  initialRetryDelay = 1,
-  retryExpFactor = 2
-): Promise<void> {
-  let currentRetryDelay = initialRetryDelay;
-  await withRetry(fnToRetry, maxPublishingAttemps, async err => {
-    this.logger.warn(
-      `${actionName} failed. Trying again in ${currentRetryDelay}s.`
-    );
-    this.logger.debug(`${actionName} error: `, err);
-    await sleep(currentRetryDelay * 1000);
-    currentRetryDelay *= retryExpFactor;
-    return true;
+  command: string,
+  args: string[] = [],
+  retryOptions: RetryOptions = {},
+  spawnOptions: SpawnOptions = {},
+  spawnProcessOptions: SpawnProcessOptions = {}
+): Promise<Buffer | undefined> {
+  const argsString = args.map(arg => `"${arg}"`).join(' ');
+
+  if (isDryRun() && !spawnProcessOptions.enableInDryRunMode) {
+    logger.info('[dry-run] Not spawning process:', `${command} ${argsString}`);
+    return undefined;
+  }
+
+  const maxRetries = retryOptions.maxRetries || MAX_RETRIES;
+  const retryExpFactor = retryOptions.retryExpFactor || RETRY_EXP_FACTOR;
+  let retryDelay = retryOptions.retryDelay || RETRY_DELAY_SECS;
+
+  return new Promise((resolve, reject) => {
+    try {
+      const res = withRetry(
+        () => spawnProcess(command, args, spawnOptions, spawnProcessOptions),
+        maxRetries,
+        async err => {
+          logger.warn(`${command} failed. Trying again in ${retryDelay}s.`);
+          logger.debug('Command failure error: ', err);
+          await sleep(retryDelay * 1000);
+          retryDelay *= retryExpFactor;
+          return true;
+        }
+      );
+      resolve(res);
+    } catch (error) {
+      reject(error);
+    }
   });
 }
 
