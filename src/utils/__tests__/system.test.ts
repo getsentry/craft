@@ -9,6 +9,7 @@ import {
   HashAlgorithm,
   HashOutputFormat,
   replaceEnvVariable,
+  retrySpawnProcess,
   spawnProcess,
 } from '../system';
 
@@ -88,6 +89,34 @@ describe('spawnProcess', () => {
 
     expect(mockedLogInfo).toHaveBeenCalledTimes(1);
     expect(mockedLogInfo.mock.calls[0][0]).toMatch(/test-string/);
+  });
+});
+
+describe('retrySpawnProcess', () => {
+  beforeAll(() => {
+    jest.mock('../system', () => ({
+      ...jest.requireActual('../system'),
+      spawnProcess: jest.fn(),
+    }));
+  });
+
+  afterAll(() => {
+    jest.resetModules();
+  });
+
+  test('resolves before max retries', async () => {
+    const res = await retrySpawnProcess('ls', [], { maxRetries: 1 });
+    expect(res).toBeInstanceOf(Buffer);
+  });
+
+  test('hits max retries and exits', async () => {
+    expect(
+      retrySpawnProcess('thisCommandDoesntExist', [], {
+        maxRetries: 2,
+        retryDelay: 1,
+        retryExpFactor: 1,
+      })
+    ).rejects.toThrow();
   });
 });
 

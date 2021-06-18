@@ -23,7 +23,7 @@ const RETRY_DELAY_SECS = 3;
 const RETRY_EXP_FACTOR = 2;
 
 /**
- * Maximum number of attempts including the initial one when a command fails.
+ * Maximum number of retries including the initial one when a command fails.
  */
 const MAX_RETRIES = 5;
 
@@ -210,7 +210,7 @@ export async function spawnProcess(
 /**
  * Retrying options for retrySpawnProcess()
  */
-interface RetryOptions {
+export interface RetryOptions {
   maxRetries?: number;
   retryDelay?: number;
   retryExpFactor?: number;
@@ -225,7 +225,7 @@ interface RetryOptions {
  *
  * @param command the command to run.
  * @param args optional arguments to pass to the command.
- * @param retryOptions optional options to configure retry delays and attemps.
+ * @param retryOptions optional options to configure retry delays and retries.
  * @param spawnOptions optional options to pass to child_process.spawn
  * @param spawnProcessOptions optional options to pass to spawnProcess()
  * @returns a promise that resolves when command exits successfully.
@@ -250,22 +250,19 @@ export async function retrySpawnProcess(
   let retryDelay = retryOptions.retryDelay || RETRY_DELAY_SECS;
 
   return new Promise((resolve, reject) => {
-    try {
-      const res = withRetry(
-        () => spawnProcess(command, args, spawnOptions, spawnProcessOptions),
-        maxRetries,
-        async err => {
-          logger.warn(`${command} failed. Trying again in ${retryDelay}s.`);
-          logger.debug('Command failure error: ', err);
-          await sleep(retryDelay * 1000);
-          retryDelay *= retryExpFactor;
-          return true;
-        }
-      );
-      resolve(res);
-    } catch (error) {
-      reject(error);
-    }
+    withRetry(
+      () => spawnProcess(command, args, spawnOptions, spawnProcessOptions),
+      maxRetries,
+      async err => {
+        logger.warn(`${command} failed. Trying again in ${retryDelay}s.`);
+        logger.debug('Command failure error: ', err);
+        await sleep(retryDelay * 1000);
+        retryDelay *= retryExpFactor;
+        return true;
+      }
+    )
+      .then(value => resolve(value))
+      .catch(error => reject(error));
   });
 }
 
