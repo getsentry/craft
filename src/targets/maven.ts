@@ -174,14 +174,16 @@ export class MavenTarget extends BaseTarget {
    */
   private checkRequiredSoftware(): void {
     this.logger.debug(
-      `Checking if Maven CLI is available: ${this.mavenConfig.mavenCliPath}`
+      'Checking if Maven CLI is available: ',
+      this.mavenConfig.mavenCliPath
     );
     checkExecutableIsPresent(this.mavenConfig.mavenCliPath);
     this.logger.debug(
-      `Checking if Gradle CLI is available on ${this.mavenConfig.gradleCliPath}...`
+      'Checking if Gradle CLI is available: ',
+      this.mavenConfig.gradleCliPath
     );
     checkExecutableIsPresent(this.mavenConfig.gradleCliPath);
-    this.logger.debug(`Checking if GPG is available in the path...`);
+    this.logger.debug('Checking if GPG is available in the path...');
     checkExecutableIsPresent('gpg');
   }
 
@@ -267,13 +269,11 @@ export class MavenTarget extends BaseTarget {
     artifact: RemoteArtifact,
     dir: string
   ): Promise<void> {
-    this.logger.debug(`Downloading ${artifact.filename}...`);
+    this.logger.debug('Downloading: ', artifact.filename);
     const downloadedPkgPath = await this.artifactProvider.downloadArtifact(
       artifact
     );
-    this.logger.debug(
-      `Extracting ${artifact.filename} to ${downloadedPkgPath}...`
-    );
+    this.logger.debug(`Extracting ${artifact.filename}: `, downloadedPkgPath);
     await extractZipArchive(downloadedPkgPath, dir);
     // All artifacts downloaded from GitHub are ZIP files.
     const pkgName = basename(artifact.filename, '.zip');
