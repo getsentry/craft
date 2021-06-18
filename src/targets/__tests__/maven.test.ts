@@ -3,6 +3,7 @@ import { join } from 'path';
 import { ConfigurationError } from '../../utils/errors';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { MavenTarget, MavenTargetConfig, targetOptions } from '../maven';
+import { retrySpawnProcess } from '../../utils/system';
 
 jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
@@ -13,12 +14,12 @@ jest.mock('fs', () => ({
   },
 }));
 
-jest.mock('../../utils/system', () => ({
-  ...jest.requireActual('../../utils/system'),
-  checkExecutableIsPresent: () => {
-    /** do nothing */
-  },
-}));
+jest.mock('../../utils/system', () => {
+  return {
+    checkExecutableIsPresent: jest.fn(),
+    retrySpawnProcess: jest.fn(),
+  };
+});
 
 const targetSecrets: string[] = [
   'OSSRH_USERNAME',
@@ -121,6 +122,12 @@ describe('publish to Maven', () => {
     expect(uploadMock).toHaveBeenCalledTimes(1);
     expect(uploadMock).toHaveBeenLastCalledWith(revision);
     expect(closeAndReleaseMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('close and release', async () => {
+    const mvnTarget = createMavenTarget(getTargetOptions());
+    await mvnTarget.closeAndRelease();
+    expect(retrySpawnProcess).toHaveBeenCalled();
   });
 });
 
