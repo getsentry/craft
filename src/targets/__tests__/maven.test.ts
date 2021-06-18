@@ -17,8 +17,12 @@ jest.mock('fs', () => ({
 jest.mock('../../utils/system', () => ({
   ...jest.requireActual('../../utils/system'),
   checkExecutableIsPresent: jest.fn(),
-  retrySpawnProcess: jest.fn(),
   extractZipArchive: jest.fn(),
+}));
+
+jest.mock('../../utils/async', () => ({
+  ...jest.requireActual('../../utils/async'),
+  retrySpawnProcess: jest.fn(),
 }));
 
 const targetSecrets: string[] = [

@@ -8,7 +8,6 @@ import { retrySpawnProcess } from '../async';
 import { spawnProcess } from '../system';
 
 jest.mock('../system', () => {
-  console.log('mocking ...');
   const original = jest.requireActual('../system');
   return {
     ...original,
@@ -16,7 +15,7 @@ jest.mock('../system', () => {
   };
 });
 
-describe.only('retrySpawnProcess', () => {
+describe('retrySpawnProcess', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
