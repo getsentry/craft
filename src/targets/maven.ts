@@ -7,11 +7,8 @@ import { BaseTarget } from './base';
 import { homedir } from 'os';
 import { basename, join, parse } from 'path';
 import { promises as fsPromises } from 'fs';
-import {
-  checkExecutableIsPresent,
-  extractZipArchive,
-  retrySpawnProcess,
-} from '../utils/system';
+import { checkExecutableIsPresent, extractZipArchive } from '../utils/system';
+import { retrySpawnProcess } from '../utils/async';
 import { withTempDir } from '../utils/files';
 import { checkEnvForPrerequisite } from '../utils/env';
 import { ConfigurationError } from '../utils/errors';

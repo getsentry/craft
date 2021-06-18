@@ -4,6 +4,42 @@ import { logger } from '../../logger';
 
 jest.mock('../../logger');
 
+import { retrySpawnProcess } from '../async';
+import { spawnProcess } from '../system';
+
+jest.mock('../system', () => {
+  console.log('mocking ...');
+  const original = jest.requireActual('../system');
+  return {
+    ...original,
+    spawnProcess: jest.fn(original.spawnProcess),
+  };
+});
+
+describe.only('retrySpawnProcess', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('resolves before max retries', async () => {
+    const res = await retrySpawnProcess('ls', [], { maxRetries: 1 });
+    expect(res).toBeInstanceOf(Buffer);
+  });
+
+  test('hits max retries and exits', async () => {
+    try {
+      await retrySpawnProcess('thisCommandDoesntExist', [], {
+        maxRetries: 2,
+        retryDelay: 0.01,
+        retryExpFactor: 1,
+      });
+    } catch (error) {
+      expect(error.message).toMatch('Max retries reached: 2');
+      expect(spawnProcess).toHaveBeenCalledTimes(2);
+    }
+  });
+});
+
 describe('filterAsync', () => {
   test('filters with sync predicate', async () => {
     expect.assertions(1);

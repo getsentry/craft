@@ -3,7 +3,7 @@ import { join } from 'path';
 import { ConfigurationError } from '../../utils/errors';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { MavenTarget, MavenTargetConfig, targetOptions } from '../maven';
-import { retrySpawnProcess } from '../../utils/system';
+import { retrySpawnProcess } from '../../utils/async';
 
 jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
