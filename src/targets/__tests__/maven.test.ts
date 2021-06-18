@@ -14,12 +14,12 @@ jest.mock('fs', () => ({
   },
 }));
 
-jest.mock('../../utils/system', () => {
-  return {
-    checkExecutableIsPresent: jest.fn(),
-    retrySpawnProcess: jest.fn(),
-  };
-});
+jest.mock('../../utils/system', () => ({
+  ...jest.requireActual('../../utils/system'),
+  checkExecutableIsPresent: jest.fn(),
+  retrySpawnProcess: jest.fn(),
+  extractZipArchive: jest.fn(),
+}));
 
 const targetSecrets: string[] = [
   'OSSRH_USERNAME',
@@ -105,6 +105,8 @@ describe('publish to Maven', () => {
 
   afterAll(() => removeTargetSecretsFromEnv());
 
+  beforeEach(() => jest.resetAllMocks());
+
   test('main flow', async () => {
     const mvnTarget = createMavenTarget(getTargetOptions());
     const gradlePropsMock = jest.fn();
@@ -124,10 +126,23 @@ describe('publish to Maven', () => {
     expect(closeAndReleaseMock).toHaveBeenCalledTimes(1);
   });
 
+  test('upload', async () => {
+    const mvnTarget = createMavenTarget(getTargetOptions());
+    mvnTarget.getArtifactsForRevision = jest
+      .fn()
+      .mockResolvedValueOnce([{ filename: 'mockArtifact.zip' }]);
+    mvnTarget.artifactProvider.downloadArtifact = jest
+      .fn()
+      .mockResolvedValueOnce('artifact/download/path');
+
+    await mvnTarget.upload('r3v1s10n');
+    expect(retrySpawnProcess).toBeCalledTimes(1);
+  });
+
   test('close and release', async () => {
     const mvnTarget = createMavenTarget(getTargetOptions());
     await mvnTarget.closeAndRelease();
-    expect(retrySpawnProcess).toHaveBeenCalled();
+    expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
   });
 });
 
