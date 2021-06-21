@@ -141,7 +141,9 @@ export class MavenTarget extends BaseTarget {
     return {
       android: {
         distDirRegex: stringToRegexp(this.config.android.distDirRegex),
-        fileReplaceeRegex: stringToRegexp(this.config.android.fileReplaceeRegex),
+        fileReplaceeRegex: stringToRegexp(
+          this.config.android.fileReplaceeRegex
+        ),
         fileReplacerStr: this.config.android.fileReplacerStr,
       },
     };
@@ -170,7 +172,7 @@ export class MavenTarget extends BaseTarget {
     checkExecutableIsPresent('gpg');
   }
 
-   /**
+  /**
    * Publishes current Java and Android distributions.
    * @param version New version to be released.
    * @param revision Git commit SHA to be published.
@@ -214,19 +216,12 @@ export class MavenTarget extends BaseTarget {
   /**
    * Uploads the artifacts with the required files. This is a required step
    * to make a release, but this doesn't perform any releases; after upload,
-   * the flow must finish with `closeAndRelease`.
+   * the flow must finish with `closeAndReleaseRepository`.
    */
   public async upload(revision: string): Promise<void> {
     const artifacts = await this.getArtifactsForRevision(revision);
 
-    await withTempDir(
-      dir =>
-        Promise.all(
-          artifacts.map(artifact => this.uploadArtifact(artifact, dir))
-        ),
-      true,
-      'craft-release-maven-'
-    );
+    await Promise.all(artifacts.map(artifact => this.uploadArtifact(artifact)));
   }
 
   /**
@@ -235,20 +230,20 @@ export class MavenTarget extends BaseTarget {
    * @param artifact the remote artifact to be uploaded.
    * @param dir directory where the artifact can be extracted.
    */
-  private async uploadArtifact(
-    artifact: RemoteArtifact,
-    dir: string
-  ): Promise<void> {
-    this.logger.debug('Downloading: ', artifact.filename);
+  private async uploadArtifact(artifact: RemoteArtifact): Promise<void> {
+    this.logger.debug('Downloading:', artifact.filename);
     const downloadedPkgPath = await this.artifactProvider.downloadArtifact(
       artifact
     );
     this.logger.debug(`Extracting ${artifact.filename}: `, downloadedPkgPath);
-    await extractZipArchive(downloadedPkgPath, dir);
-    // All artifacts downloaded from GitHub are ZIP files.
-    const pkgName = basename(artifact.filename, '.zip');
-    const distDir = join(dir, pkgName);
-    await this.uploadDistribution(distDir);
+
+    await withTempDir(async dir => {
+      await extractZipArchive(downloadedPkgPath, dir);
+      // All artifacts downloaded from GitHub are ZIP files.
+      const pkgName = basename(artifact.filename, '.zip');
+      const distDir = join(dir, pkgName);
+      await this.uploadDistribution(distDir);
+    });
   }
 
   /**
@@ -312,7 +307,9 @@ export class MavenTarget extends BaseTarget {
    */
   private getTargetFilename(distDir: string): string {
     const moduleName = parse(distDir).base;
-    const isAndroidDistDir = this.mavenConfig.android.distDirRegex.test(moduleName);
+    const isAndroidDistDir = this.mavenConfig.android.distDirRegex.test(
+      moduleName
+    );
     if (isAndroidDistDir) {
       return moduleName.replace(
         this.mavenConfig.android.fileReplaceeRegex,
