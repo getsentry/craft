@@ -41,8 +41,8 @@ type OptionsType = typeof targetOptions[number];
 
 type AndroidFields = {
   android: {
-    distDirRegex: string;
-    fileReplaceeRegex: string;
+    distDirRegex: RegExp;
+    fileReplaceeRegex: RegExp;
     fileReplacerStr: string;
   };
 };
@@ -71,7 +71,6 @@ export class MavenTarget extends BaseTarget {
     super(config, artifactProvider);
     this.mavenConfig = this.getMavenConfig();
     this.checkRequiredSoftware();
-    this.makeRegexpFromConfiguration();
   }
 
   /**
@@ -138,10 +137,11 @@ export class MavenTarget extends BaseTarget {
           'See the documentation for more details.'
       );
     }
+
     return {
       android: {
-        distDirRegex: this.config.android.distDirRegex,
-        fileReplaceeRegex: this.config.android.fileReplaceeRegex,
+        distDirRegex: stringToRegexp(this.config.android.distDirRegex),
+        fileReplaceeRegex: stringToRegexp(this.config.android.fileReplaceeRegex),
         fileReplacerStr: this.config.android.fileReplacerStr,
       },
     };
@@ -170,20 +170,7 @@ export class MavenTarget extends BaseTarget {
     checkExecutableIsPresent('gpg');
   }
 
-  /**
-   * Parses the required target's configuration variables' types from strings to
-   * RegExp.
-   */
-  private makeRegexpFromConfiguration(): void {
-    this.config.android.distDirRegex = stringToRegexp(
-      this.config.android.distDirRegex
-    );
-    this.config.android.distDirRegex = stringToRegexp(
-      this.config.android.fileReplaceeRegex
-    );
-  }
-
-  /**
+   /**
    * Publishes current Java and Android distributions.
    * @param version New version to be released.
    * @param revision Git commit SHA to be published.
@@ -191,7 +178,12 @@ export class MavenTarget extends BaseTarget {
   public async publish(_version: string, revison: string): Promise<void> {
     await this.createUserGradlePropsFile();
     await this.upload(revison);
-    await this.closeAndRelease();
+
+    // Maven central is very flaky, so retrying with an exponential delay in
+    // in case it fails.
+    await retrySpawnProcess(this.mavenConfig.gradleCliPath, [
+      'closeAndReleaseRepository',
+    ]);
   }
 
   /**
@@ -320,27 +312,13 @@ export class MavenTarget extends BaseTarget {
    */
   private getTargetFilename(distDir: string): string {
     const moduleName = parse(distDir).base;
-    const isAndroidDistDir = this.config.android.distDirRegex.test(moduleName);
+    const isAndroidDistDir = this.mavenConfig.android.distDirRegex.test(moduleName);
     if (isAndroidDistDir) {
       return moduleName.replace(
-        this.config.android.fileReplaceeRegex,
-        this.config.android.fileReplacerStr
+        this.mavenConfig.android.fileReplaceeRegex,
+        this.mavenConfig.android.fileReplacerStr
       );
     }
     return `${moduleName}.jar`;
-  }
-
-  /**
-   * Finishes the release flow, by closing and releasing to the repository.
-   * Note that this is a required step to make a release, but it doesn't
-   * perform any release on its own. Required files must have previously been
-   * uploaded accordingly.
-   */
-  public async closeAndRelease(): Promise<void> {
-    // Maven central is very flaky, so retrying with an exponential delay in
-    // in case it fails.
-    await retrySpawnProcess(this.mavenConfig.gradleCliPath, [
-      'closeAndReleaseRepository',
-    ]);
   }
 }
