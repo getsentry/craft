@@ -307,15 +307,15 @@ export class MavenTarget extends BaseTarget {
    */
   private getTargetFilename(distDir: string): string {
     const moduleName = parse(distDir).base;
+
     const isAndroidDistDir = this.mavenConfig.android.distDirRegex.test(
       moduleName
     );
-    if (isAndroidDistDir) {
-      return moduleName.replace(
-        this.mavenConfig.android.fileReplaceeRegex,
-        this.mavenConfig.android.fileReplacerStr
-      );
-    }
-    return `${moduleName}.jar`;
+    return isAndroidDistDir
+      ? moduleName.replace(
+          this.mavenConfig.android.fileReplaceeRegex,
+          this.mavenConfig.android.fileReplacerStr
+        )
+      : `${moduleName}.jar`;
   }
 }

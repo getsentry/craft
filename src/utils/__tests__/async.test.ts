@@ -21,17 +21,25 @@ describe('retrySpawnProcess', () => {
   });
 
   test('resolves before max retries', async () => {
-    const res = await retrySpawnProcess('ls', [], { maxRetries: 1 });
+    const res = await retrySpawnProcess('ls', [], undefined, undefined, {
+      maxRetries: 1,
+    });
     expect(res).toBeInstanceOf(Buffer);
   });
 
   test('hits max retries and exits', async () => {
     try {
-      await retrySpawnProcess('thisCommandDoesntExist', [], {
-        maxRetries: 2,
-        retryDelay: 0.01,
-        retryExpFactor: 1,
-      });
+      await retrySpawnProcess(
+        'thisCommandDoesntExist',
+        [],
+        undefined,
+        undefined,
+        {
+          maxRetries: 2,
+          retryDelay: 0.01,
+          retryExpFactor: 1,
+        }
+      );
     } catch (error) {
       expect(error.message).toMatch('Max retries reached: 2');
       expect(spawnProcess).toHaveBeenCalledTimes(2);
