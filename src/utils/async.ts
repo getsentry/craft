@@ -47,7 +47,7 @@ export async function retrySpawnProcess(
   args: string[] = [],
   spawnOptions: SpawnOptions = {},
   spawnProcessOptions: SpawnProcessOptions = {},
-  retryOptions: RetryOptions = {},
+  retryOptions: RetryOptions = {}
 ): Promise<Buffer | undefined> {
   const maxRetries = retryOptions.maxRetries ?? MAX_RETRIES;
   const retryExpFactor = retryOptions.retryExpFactor ?? RETRY_EXP_FACTOR;
