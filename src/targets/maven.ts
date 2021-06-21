@@ -163,7 +163,10 @@ export class MavenTarget extends BaseTarget {
       this.mavenConfig.gradleCliPath
     );
     checkExecutableIsPresent(this.mavenConfig.gradleCliPath);
-    this.logger.debug('Checking if GPG is available: ', this.mavenConfig.gradleCliPath);
+    this.logger.debug(
+      'Checking if GPG is available: ',
+      this.mavenConfig.gradleCliPath
+    );
     checkExecutableIsPresent('gpg');
   }
 
