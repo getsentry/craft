@@ -163,7 +163,7 @@ export class MavenTarget extends BaseTarget {
       this.mavenConfig.gradleCliPath
     );
     checkExecutableIsPresent(this.mavenConfig.gradleCliPath);
-    this.logger.debug('Checking if GPG is available in the path...');
+    this.logger.debug('Checking if GPG is available: ', this.mavenConfig.gradleCliPath);
     checkExecutableIsPresent('gpg');
   }
 
@@ -213,11 +213,7 @@ export class MavenTarget extends BaseTarget {
    * @returns the gradle home path.
    */
   public getGradleHomeDir(): string {
-    if (process.env.GRADLE_USER_HOME) {
-      return process.env.GRADLE_USER_HOME;
-    }
-
-    return DEFAULT_GRADLE_USER_HOME;
+    return process.env.GRADLE_USER_HOME || DEFAULT_GRADLE_USER_HOME;
   }
 
   /**
@@ -226,7 +222,6 @@ export class MavenTarget extends BaseTarget {
    * the flow must finish with `closeAndRelease`.
    */
   public async upload(revision: string): Promise<void> {
-    this.logger.debug('Fetching artifact list...');
     const artifacts = await this.getArtifactsForRevision(revision);
 
     await withTempDir(
@@ -298,15 +293,11 @@ export class MavenTarget extends BaseTarget {
    */
   private getFilesForMavenCli(distDir: string): Record<string, string> {
     const moduleName = parse(distDir).base;
-    const targetFile = join(distDir, this.getTargetFilename(distDir));
-    const javadocFile = join(distDir, `${moduleName}-javadoc.jar`);
-    const sourcesFile = join(distDir, `${moduleName}-sources.jar`);
-    const pomFile = join(distDir, 'pom-default.xml');
     return {
-      targetFile,
-      javadocFile,
-      sourcesFile,
-      pomFile,
+      targetFile: join(distDir, this.getTargetFilename(distDir)),
+      javadocFile: join(distDir, `${moduleName}-javadoc.jar`),
+      sourcesFile: join(distDir, `${moduleName}-sources.jar`),
+      pomFile: join(distDir, 'pom-default.xml'),
     };
   }
 
