@@ -23,6 +23,15 @@ jest.mock('../../utils/async', () => ({
   retrySpawnProcess: jest.fn(),
 }));
 
+// simple mock to always use the same temporary directory,
+// instead of creating a new one
+// jest.mock('../../utils/files', () => ({
+//   ...jest.requireActual('../../utils/files'),
+//   withTempDir: jest.fn().mockImplementation(async cb => {
+//     return await cb('tmpDir');
+//   }),
+// }));
+
 const DEFAULT_OPTION_VALUE = 'my_default_value';
 
 function setTargetSecretsInEnv(): void {
@@ -120,7 +129,18 @@ describe('publish to Maven', () => {
       .mockResolvedValueOnce('artifact/download/path');
 
     await mvnTarget.upload('r3v1s10n');
+    // if `withTempDir` gets mocked (eg by uncommenting the lines at the top
+    // of the file), this gets called 0 times and thus fails
     expect(retrySpawnProcess).toBeCalledTimes(1);
+    // expect(retrySpawnProcess).toHaveBeenLastCalledWith(
+    //   DEFAULT_OPTION_VALUE,
+    //   // Only testing the command here
+    //   expect.any(Array)
+    // );
+
+    // @ts-ignore
+    const tmp = retrySpawnProcess.mock.calls[0];
+    expect(tmp).toMatchInlineSnapshot();
   });
 });
 
