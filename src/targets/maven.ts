@@ -183,9 +183,9 @@ export class MavenTarget extends BaseTarget {
 
     // Maven central is very flaky, so retrying with an exponential delay in
     // in case it fails.
-    await retrySpawnProcess(this.mavenConfig.gradleCliPath, [
-      'closeAndReleaseRepository',
-    ]);
+    // await retrySpawnProcess(this.mavenConfig.gradleCliPath, [
+    //   'closeAndReleaseRepository',
+    // ]);
   }
 
   /**
