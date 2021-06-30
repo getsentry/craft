@@ -995,12 +995,10 @@ PGP signs and publishes packages to Maven Central.
 
 **Environment**
 
-| Name                     | Description                      |
-| ------------------------ | -------------------------------- |
-| `OSSRH_USERNAME`         | Username of Sonatype repository. |
-| `OSSRH_PASSWORD`         | Password of Sonatype repository. |
-| `MAVEN_CENTRAL_USERNAME` | Username of Maven Central.       |
-| `MAVEN_CENTRAL_PASSWORD` | Password of Maven Central.       |
+| Name             | Description                      |
+| ---------------- | -------------------------------- |
+| `OSSRH_USERNAME` | Username of Sonatype repository. |
+| `OSSRH_PASSWORD` | Password of Sonatype repository. |
 
 **Configuration**
 

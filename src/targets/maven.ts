@@ -22,12 +22,7 @@ const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
  */
 const DEFAULT_GRADLE_USER_HOME = join(homedir(), '.gradle');
 
-export const targetSecrets = [
-  'OSSRH_USERNAME',
-  'OSSRH_PASSWORD',
-  'MAVEN_CENTRAL_USERNAME',
-  'MAVEN_CENTRAL_PASSWORD',
-] as const;
+export const targetSecrets = ['OSSRH_USERNAME', 'OSSRH_PASSWORD'] as const;
 type SecretsType = typeof targetSecrets[number];
 
 export const targetOptions = [
@@ -198,8 +193,9 @@ export class MavenTarget extends BaseTarget {
     return fsPromises.writeFile(
       join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
       [
-        'mavenCentralUsername=' + this.mavenConfig.MAVEN_CENTRAL_USERNAME,
-        'mavenCentralPassword=' + this.mavenConfig.MAVEN_CENTRAL_PASSWORD,
+        // OSSRH and Maven Central credentials are the same
+        'mavenCentralUsername=' + this.mavenConfig.OSSRH_USERNAME,
+        'mavenCentralPassword=' + this.mavenConfig.OSSRH_PASSWORD,
       ].join('\n')
     );
   }
