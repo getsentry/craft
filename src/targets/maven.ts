@@ -220,7 +220,12 @@ export class MavenTarget extends BaseTarget {
    * the flow must finish with `closeAndReleaseRepository`.
    */
   public async upload(revision: string): Promise<void> {
-    const artifacts = await this.getArtifactsForRevision(revision);
+    const artifacts = await this.getArtifactsForRevision(revision, {
+      includeNames:
+        this.config.includeNames === undefined
+          ? undefined
+          : stringToRegexp(this.config.includeNames),
+    });
 
     await Promise.all(artifacts.map(artifact => this.uploadArtifact(artifact)));
   }
