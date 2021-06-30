@@ -264,40 +264,27 @@ export class MavenTarget extends BaseTarget {
    * @param distDir directory of the distribution.
    */
   private async uploadDistribution(distDir: string): Promise<void> {
-    // const {
-    //   targetFile,
-    //   javadocFile,
-    //   sourcesFile,
-    //   pomFile,
-    // } = this.getFilesForMavenCli(distDir);
+    const {
+      targetFile,
+      javadocFile,
+      sourcesFile,
+      pomFile,
+    } = this.getFilesForMavenCli(distDir);
 
     // Maven central is very flaky, so retrying with an exponential delay in
     // in case it fails.
-    await spawnProcess(
-      // this.mavenConfig.mavenCliPath,
-      // // `${this.mavenConfig.mavenCliPath} gpg:sign-and-deploy-file`,
-      // [
-      //   'gpg:sign-and-deploy-file',
-      //   `-Dfile=${targetFile}`,
-      //   `-Dfiles=${javadocFile},${sourcesFile}`,
-      //   `-Dclassifiers=javadoc,sources`,
-      //   `-Dtypes=jar,jar`,
-      //   `-DpomFile=${pomFile}`,
-      //   `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
-      //   `-Durl=${this.mavenConfig.mavenRepoUrl}`,
-      //   `--settings ${this.mavenConfig.mavenSettingsPath}`,
-      // ]
-      `this.mavenConfig.mavenCliPath ` +
-        `gpg:sign-and-deploy-file ` +
-        `-Dfile=/Users/iker/dev/sentry-java/distributions/sentry-android-6.0.0/sentry-android-release.aar ` +
-        `-Dfiles=/Users/iker/dev/sentry-java/distributions/sentry-android-6.0.0/sentry-android-6.0.0-javadoc.jar,/Users/iker/dev/sentry-java/distributions/sentry-android-6.0.0/sentry-android-6.0.0-sources.jar.asc ` +
-        `-Dclassifiers=javadoc,sources ` +
-        `-Dtypes=jar,jar ` +
-        `-DpomFile=/Users/iker/dev/sentry-java/distributions/sentry-android-6.0.0/pom-default.xml ` +
-        `-DrepositoryId=${this.mavenConfig.mavenRepoId} ` +
-        `-Durl=${this.mavenConfig.mavenRepoUrl} ` +
-        `--settings /Users/iker/dev/sentry-java/scripts/settings.xml `
-    );
+    await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
+      'gpg:sign-and-deploy-file',
+      `-Dfile=${targetFile}`,
+      `-Dfiles=${javadocFile},${sourcesFile}`,
+      `-Dclassifiers=javadoc,sources`,
+      `-Dtypes=jar,jar`,
+      `-DpomFile=${pomFile}`,
+      `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
+      `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+      `--settings`,
+      `${this.mavenConfig.mavenSettingsPath}`,
+    ]);
   }
 
   /**
