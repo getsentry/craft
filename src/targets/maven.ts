@@ -227,7 +227,13 @@ export class MavenTarget extends BaseTarget {
           : stringToRegexp(this.config.includeNames),
     });
 
-    await Promise.all(artifacts.map(artifact => this.uploadArtifact(artifact)));
+    // We don't want to do this in parallel but in serial, because the gpg-agent
+    // runs out of memory. See
+    // https://github.com/sbt/sbt-pgp/issues/168
+    // https://github.com/gradle/gradle/issues/12167
+    for (const artifact of artifacts) {
+      await this.uploadArtifact(artifact);
+    }
   }
 
   /**
