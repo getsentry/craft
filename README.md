@@ -264,6 +264,8 @@ status of the respective git revision in GitHub, and then publish available
 artifacts to configured targets (for example, to GitHub and NPM in the case of
 Craft).
 
+- Be sure that your [CI config.](https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#example-including-branches-and-tags) runs for `release/**` branches.
+
 ## Configuration File: `.craft.yml`
 
 Project configuration for `craft` is stored in `.craft.yml` configuration file,
