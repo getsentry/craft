@@ -50,8 +50,6 @@ function getTargetOptions() {
   return {
     OSSRH_USERNAME: DEFAULT_OPTION_VALUE,
     OSSRH_PASSWORD: DEFAULT_OPTION_VALUE,
-    MAVEN_CENTRAL_USERNAME: DEFAULT_OPTION_VALUE,
-    MAVEN_CENTRAL_PASSWORD: DEFAULT_OPTION_VALUE,
     gradleCliPath: DEFAULT_OPTION_VALUE,
     mavenCliPath: DEFAULT_OPTION_VALUE,
     mavenSettingsPath: DEFAULT_OPTION_VALUE,
@@ -69,11 +67,11 @@ function createMavenTarget(
   targetOptions?: Record<string, unknown>
 ): MavenTarget {
   const finalOptions = targetOptions ? targetOptions : getTargetOptions();
-  const options = {
+  const mergedOptions = {
     name: 'maven',
     ...finalOptions,
   };
-  return new MavenTarget(options, new NoneArtifactProvider());
+  return new MavenTarget(mergedOptions, new NoneArtifactProvider());
 }
 
 describe('Maven target configuration', () => {
@@ -138,9 +136,12 @@ describe('publish to Maven', () => {
     //   expect.any(Array)
     // );
 
+    // `retrySpawnProcess` is `undefined` in debug mode
     // @ts-ignore
     const tmp = retrySpawnProcess.mock.calls[0];
-    expect(tmp).toMatchInlineSnapshot();
+    // @ts-ignore
+    console.log(retrySpawnProcess);
+    expect(tmp).toMatchInlineSnapshot(`undefined`);
   });
 });
 
