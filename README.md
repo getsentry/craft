@@ -264,8 +264,6 @@ status of the respective git revision in GitHub, and then publish available
 artifacts to configured targets (for example, to GitHub and NPM in the case of
 Craft).
 
-- Be sure that your [CI config.](https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#example-including-branches-and-tags) runs for `release/**` branches.
-
 ## Configuration File: `.craft.yml`
 
 Project configuration for `craft` is stored in `.craft.yml` configuration file,
@@ -997,6 +995,14 @@ Here is how you can integrate your GitHub project with `craft`:
 1. Set up a workflow that builds your assets and runs your tests. Allow building
    release branches (their names follow `release/{VERSION}` by default,
    configurable through `releaseBranchPrefix`).
+
+   ```yaml
+   on:
+     push:
+       branches:
+         - 'release/**'
+   ```
+
 2. Use the official `actions/upload-artifact@v2` action to upload your assets.
    Here is an example config (step) of an archive job:
 
