@@ -12,6 +12,7 @@ interface JavaSymbolsTargetConfig {
   symbolCollectorPath: string;
   serverEndpoint: string;
   batchType: string;
+  bundleIdPrefix: string;
 }
 
 export class JavaSymbols extends BaseTarget {
@@ -31,16 +32,22 @@ export class JavaSymbols extends BaseTarget {
   private getJavaSymbolsConfig(): JavaSymbolsTargetConfig {
     checkEnvForPrerequisite({ name: 'SYMBOL_COLLECTOR_PATH' });
 
-    if (!this.config.serverEndpoint || !this.config.batchType) {
+    if (
+      !this.config.serverEndpoint ||
+      !this.config.batchType ||
+      !this.config.bundleIdPrefix
+    ) {
       throw new ConfigurationError(
         'Required configuration not found in configuration file. ' +
           'See the documentation for more details.'
       );
     }
+
     return {
       symbolCollectorPath: process.env.SYMBOL_COLLECTOR_PATH || '', // || to make TS happy
       serverEndpoint: this.config.serverEndpoint,
       batchType: this.config.batchType,
+      bundleIdPrefix: this.config.bundleIdPrefix,
     };
   }
 
