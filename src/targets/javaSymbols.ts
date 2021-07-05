@@ -6,6 +6,7 @@ import { ConfigurationError } from '../utils/errors';
 import { BaseTarget } from './base';
 import { withTempDir } from '../utils/files';
 import { promises as fsPromises } from 'fs';
+import { spawnProcess } from '../utils/system';
 
 /** Config options for the "java-symbols" target. */
 interface JavaSymbolsTargetConfig {
@@ -51,7 +52,9 @@ export class JavaSymbols extends BaseTarget {
     };
   }
 
-  public async publish(_version: string, revision: string): Promise<any> {
+  public async publish(version: string, revision: string): Promise<any> {
+    const bundleId = this.javaSymbolsConfig.bundleIdPrefix + `${version}`;
+
     const artifacts = await this.getArtifactsForRevision(revision, {
       includeNames:
         this.config.includeNames === undefined
@@ -68,7 +71,18 @@ export class JavaSymbols extends BaseTarget {
         await fsPromises.mkdir(subdirPath);
         this.artifactProvider.downloadArtifact(artifact, subdirPath);
       });
-      // TODO: run command to upload
+      spawnProcess(this.javaSymbolsConfig.symbolCollectorPath, [
+        '--upload',
+        'directory',
+        '--path',
+        dir,
+        '--batch-type',
+        this.javaSymbolsConfig.batchType,
+        '--bundle-id',
+        bundleId,
+        '--server-endpoint',
+        this.javaSymbolsConfig.serverEndpoint,
+      ]);
     });
   }
 }
