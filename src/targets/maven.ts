@@ -178,6 +178,11 @@ export class MavenTarget extends BaseTarget {
 
     // Maven central is very flaky, so retrying with an exponential delay in
     // in case it fails.
+    // TODO: close the repository by doing the requests from Craft
+    // What the gradle plugin does is a / some requests to close the repo, see
+    // https://github.com/vanniktech/gradle-maven-publish-plugin/tree/master/src/main/kotlin/com/vanniktech/maven/publish/nexus
+    // If Craft did those requests, it wouldn't be necessary to rely on a third
+    // party plugin for releases.
     await retrySpawnProcess(this.mavenConfig.gradleCliPath, [
       'closeAndReleaseRepository',
     ]);
