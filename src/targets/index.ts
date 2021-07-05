@@ -13,6 +13,7 @@ import { PypiTarget } from './pypi';
 import { RegistryTarget } from './registry';
 import { AwsLambdaLayerTarget } from './awsLambdaLayer';
 import { UpmTarget } from './upm';
+import { JavaSymbols } from './javaSymbols';
 
 export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   brew: BrewTarget,
@@ -29,6 +30,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   registry: RegistryTarget,
   'aws-lambda-layer': AwsLambdaLayerTarget,
   upm: UpmTarget,
+  'java-symbols': JavaSymbols,
 };
 
 /** Targets that are treated specially */
