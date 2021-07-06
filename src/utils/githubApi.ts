@@ -23,6 +23,8 @@ export class GithubRemote {
   /** Url in the form of /OWNER/REPO/ */
   protected readonly url: string;
 
+  protected readonly github: Github;
+
   public constructor(
     owner: string,
     repo: string,
@@ -35,6 +37,7 @@ export class GithubRemote {
       this.setAuth(username, apiToken);
     }
     this.url = `/${this.owner}/${this.repo}/`;
+    this.github = new Github();
   }
 
   /**
@@ -68,6 +71,44 @@ export class GithubRemote {
         ? `${this.username}:${this.apiToken}@`
         : '';
     return this.PROTOCOL_PREFIX + authData + this.GITHUB_HOSTNAME + this.url;
+  }
+
+  public async getLatestRelease(): Promise<any> {
+    const release = await this.github.repos.getLatestRelease({
+      owner: this.owner,
+      repo: this.repo,
+    });
+    return release.data;
+  }
+
+  public async getReleaseByTag(tag: string): Promise<any> {
+    const release = await this.github.repos.getReleaseByTag({
+      owner: this.owner,
+      repo: this.repo,
+      tag: tag,
+    });
+    return release.data;
+  }
+
+  public async listReleaseAssets(releaseId: number): Promise<any[]> {
+    const releaseAssets = await this.github.repos.listAssetsForRelease({
+      owner: this.owner,
+      repo: this.repo,
+      release_id: releaseId,
+    });
+    return releaseAssets.data;
+  }
+
+  public async getAsset(assetId: number): Promise<any> {
+    const asset = await this.github.repos.getReleaseAsset({
+      owner: this.owner,
+      repo: this.repo,
+      asset_id: assetId,
+      headers: {
+        accept: 'application/octet-stream',
+      },
+    });
+    return asset.data;
   }
 }
 
