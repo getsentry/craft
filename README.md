@@ -82,7 +82,7 @@ npm install -g @sentry/craft
 
 ## Usage
 
-```plain
+```shell
 $ craft -h
 craft <command>
 
@@ -120,7 +120,7 @@ variables or by adding values to a configuration file (see below).
 All command line flags can be set through environment variables by prefixing
 them with `CRAFT_` and converting them to UPPERCASE_UNDERSCORED versions:
 
-```
+```shell
 CRAFT_LOG_LEVEL=Debug
 CRAFT_DRY_RUN=1
 CRAFT_NO_INPUT=0
@@ -158,7 +158,7 @@ Leading `export` is allowed.
 
 Example:
 
-```sh
+```shell
 # ~/.craft.env
 GITHUB_TOKEN=token123
 export NUGET_API_TOKEN=abcdefgh
@@ -174,7 +174,7 @@ that CI triggered by pushing this branch will result in release artifacts
 being built and uploaded to the artifact provider you wish to use during the
 subsequent `publish` step.
 
-```plain
+```shell
 craft prepare NEW-VERSION
 
 🚢 Prepare a new release branch
@@ -210,7 +210,7 @@ that branch. Once the checks pass, it downloads the release artifacts from the
 artifact provider configured in `.craft.yml` and uploads them to the targets named
 on the command line (and pre-configured in `.craft.yml`).
 
-```plain
+```shell
 craft publish NEW-VERSION
 
 🛫 Publish artifacts
@@ -1124,7 +1124,7 @@ configuration file) that contains a Sentry project's DSN.
 
 For example:
 
-```bash
+```shell
 export CRAFT_SENTRY_DSN='https://1234@sentry.io/2345'
 ```
 
