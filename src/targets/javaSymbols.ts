@@ -7,6 +7,7 @@ import { BaseTarget } from './base';
 import { withTempDir } from '../utils/files';
 import { promises as fsPromises } from 'fs';
 import { spawnProcess } from '../utils/system';
+import { GithubRemote } from '../utils/githubApi';
 
 /** Config options for the "java-symbols" target. */
 interface JavaSymbolsTargetConfig {
@@ -25,11 +26,15 @@ export class JavaSymbols extends BaseTarget {
   /** Target options */
   public readonly javaSymbolsConfig: JavaSymbolsTargetConfig;
 
+  public readonly github: GithubRemote;
+
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);
+    // TODO: don't hardcode repo's data
+    this.github = new GithubRemote('getsentry', 'symbol-collector');
     this.javaSymbolsConfig = this.getJavaSymbolsConfig();
   }
 
