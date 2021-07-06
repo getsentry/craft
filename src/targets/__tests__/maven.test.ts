@@ -1,6 +1,5 @@
 import { homedir } from 'os';
 import { join } from 'path';
-import { ConfigurationError } from '../../utils/errors';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { MavenTarget, targetOptions, targetSecrets } from '../maven';
 import { retrySpawnProcess } from '../../utils/async';
@@ -18,19 +17,7 @@ jest.mock('../../utils/system', () => ({
   extractZipArchive: jest.fn(),
 }));
 
-jest.mock('../../utils/async', () => ({
-  ...jest.requireActual('../../utils/async'),
-  retrySpawnProcess: jest.fn(),
-}));
-
-// simple mock to always use the same temporary directory,
-// instead of creating a new one
-// jest.mock('../../utils/files', () => ({
-//   ...jest.requireActual('../../utils/files'),
-//   withTempDir: jest.fn().mockImplementation(async cb => {
-//     return await cb('tmpDir');
-//   }),
-// }));
+jest.mock('../../utils/async');
 
 const DEFAULT_OPTION_VALUE = 'my_default_value';
 
@@ -89,12 +76,13 @@ describe('Maven target configuration', () => {
     );
   });
 
-  test('without options', () => {
-    expect(createMavenTarget).toThrowError(ConfigurationError);
-  });
+  test('without options', () =>
+    expect(createMavenTarget).toThrowErrorMatchingInlineSnapshot(
+      `"Required value(s) OSSRH_USERNAME not found in configuration files or the environment. See the documentation for more details."`
+    ));
 });
 
-describe('publish to Maven', () => {
+describe('publish', () => {
   beforeAll(() => setTargetSecretsInEnv());
 
   afterAll(() => removeTargetSecretsFromEnv());
@@ -102,11 +90,19 @@ describe('publish to Maven', () => {
   beforeEach(() => jest.resetAllMocks());
 
   test('main flow', async () => {
+    const callOrder: string[] = [];
     const mvnTarget = createMavenTarget();
-    const gradlePropsMock = jest.fn();
+    const gradlePropsMock = jest.fn(
+      async () => void callOrder.push('gradleProps')
+    );
     mvnTarget.createUserGradlePropsFile = gradlePropsMock;
-    const uploadMock = jest.fn();
+    const uploadMock = jest.fn(async () => void callOrder.push('upload'));
     mvnTarget.upload = uploadMock;
+    (retrySpawnProcess as jest.MockedFunction<
+      typeof retrySpawnProcess
+    >).mockImplementationOnce(
+      async () => void callOrder.push('closeAndRelease')
+    );
 
     const version = '1.0.0';
     const revision = 'r3v1s10n';
@@ -115,6 +111,15 @@ describe('publish to Maven', () => {
     expect(gradlePropsMock).toHaveBeenCalledTimes(1);
     expect(uploadMock).toHaveBeenCalledTimes(1);
     expect(uploadMock).toHaveBeenLastCalledWith(revision);
+    expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
+    expect(retrySpawnProcess).toHaveBeenCalledWith(DEFAULT_OPTION_VALUE, [
+      'closeAndReleaseRepository',
+    ]);
+    expect(callOrder).toStrictEqual([
+      'gradleProps',
+      'upload',
+      'closeAndRelease',
+    ]);
   });
 
   test('upload', async () => {
@@ -127,21 +132,27 @@ describe('publish to Maven', () => {
       .mockResolvedValueOnce('artifact/download/path');
 
     await mvnTarget.upload('r3v1s10n');
-    // if `withTempDir` gets mocked (eg by uncommenting the lines at the top
-    // of the file), this gets called 0 times and thus fails
     expect(retrySpawnProcess).toBeCalledTimes(1);
-    // expect(retrySpawnProcess).toHaveBeenLastCalledWith(
-    //   DEFAULT_OPTION_VALUE,
-    //   // Only testing the command here
-    //   expect.any(Array)
-    // );
-
-    // `retrySpawnProcess` is `undefined` in debug mode
-    // @ts-ignore
-    const tmp = retrySpawnProcess.mock.calls[0];
-    // @ts-ignore
-    console.log(retrySpawnProcess);
-    expect(tmp).toMatchInlineSnapshot(`undefined`);
+    const callArgs = (retrySpawnProcess as jest.MockedFunction<
+      typeof retrySpawnProcess
+    >).mock.calls[0];
+    expect(callArgs).toMatchInlineSnapshot(`
+      Array [
+        "my_default_value",
+        Array [
+          "gpg:sign-and-deploy-file",
+          "-Dfile=C:\\\\Users\\\\byk\\\\AppData\\\\Local\\\\Temp\\\\craft-neTYOE\\\\mockArtifact\\\\mockArtifact.jar",
+          "-Dfiles=C:\\\\Users\\\\byk\\\\AppData\\\\Local\\\\Temp\\\\craft-neTYOE\\\\mockArtifact\\\\mockArtifact-javadoc.jar,C:\\\\Users\\\\byk\\\\AppData\\\\Local\\\\Temp\\\\craft-neTYOE\\\\mockArtifact\\\\mockArtifact-sources.jar",
+          "-Dclassifiers=javadoc,sources",
+          "-Dtypes=jar,jar",
+          "-DpomFile=C:\\\\Users\\\\byk\\\\AppData\\\\Local\\\\Temp\\\\craft-neTYOE\\\\mockArtifact\\\\pom-default.xml",
+          "-DrepositoryId=my_default_value",
+          "-Durl=my_default_value",
+          "--settings",
+          "my_default_value",
+        ],
+      ]
+    `);
   });
 });
 
