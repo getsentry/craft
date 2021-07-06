@@ -995,6 +995,14 @@ Here is how you can integrate your GitHub project with `craft`:
 1. Set up a workflow that builds your assets and runs your tests. Allow building
    release branches (their names follow `release/{VERSION}` by default,
    configurable through `releaseBranchPrefix`).
+
+   ```yaml
+   on:
+     push:
+       branches:
+         - 'release/**'
+   ```
+
 2. Use the official `actions/upload-artifact@v2` action to upload your assets.
    Here is an example config (step) of an archive job:
 
