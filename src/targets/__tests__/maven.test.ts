@@ -3,6 +3,9 @@ import { join } from 'path';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { MavenTarget, targetOptions, targetSecrets } from '../maven';
 import { retrySpawnProcess } from '../../utils/async';
+import { withTempDir } from '../../utils/files';
+
+jest.mock('../../utils/files');
 
 jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
@@ -123,6 +126,14 @@ describe('publish', () => {
   });
 
   test('upload', async () => {
+    // simple mock to always use the same temporary directory,
+    // instead of creating a new one
+    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+      async cb => {
+        return await cb('tmpDir');
+      }
+    );
+
     const mvnTarget = createMavenTarget();
     mvnTarget.getArtifactsForRevision = jest
       .fn()
@@ -135,17 +146,18 @@ describe('publish', () => {
     expect(retrySpawnProcess).toBeCalledTimes(1);
     const callArgs = (retrySpawnProcess as jest.MockedFunction<
       typeof retrySpawnProcess
-    >).mock.calls[0];
+      >).mock.calls[0];
+
     expect(callArgs).toMatchInlineSnapshot(`
       Array [
         "my_default_value",
         Array [
           "gpg:sign-and-deploy-file",
-          "-Dfile=C:\\\\Users\\\\byk\\\\AppData\\\\Local\\\\Temp\\\\craft-neTYOE\\\\mockArtifact\\\\mockArtifact.jar",
-          "-Dfiles=C:\\\\Users\\\\byk\\\\AppData\\\\Local\\\\Temp\\\\craft-neTYOE\\\\mockArtifact\\\\mockArtifact-javadoc.jar,C:\\\\Users\\\\byk\\\\AppData\\\\Local\\\\Temp\\\\craft-neTYOE\\\\mockArtifact\\\\mockArtifact-sources.jar",
+          "-Dfile=tmpDir\\\\mockArtifact\\\\mockArtifact.jar",
+          "-Dfiles=tmpDir\\\\mockArtifact\\\\mockArtifact-javadoc.jar,tmpDir\\\\mockArtifact\\\\mockArtifact-sources.jar",
           "-Dclassifiers=javadoc,sources",
           "-Dtypes=jar,jar",
-          "-DpomFile=C:\\\\Users\\\\byk\\\\AppData\\\\Local\\\\Temp\\\\craft-neTYOE\\\\mockArtifact\\\\pom-default.xml",
+          "-DpomFile=tmpDir\\\\mockArtifact\\\\pom-default.xml",
           "-DrepositoryId=my_default_value",
           "-Durl=my_default_value",
           "--settings",
