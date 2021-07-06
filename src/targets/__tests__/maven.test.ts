@@ -146,7 +146,7 @@ describe('publish', () => {
     expect(retrySpawnProcess).toBeCalledTimes(1);
     const callArgs = (retrySpawnProcess as jest.MockedFunction<
       typeof retrySpawnProcess
-      >).mock.calls[0];
+    >).mock.calls[0];
 
     expect(callArgs).toMatchInlineSnapshot(`
       Array [
