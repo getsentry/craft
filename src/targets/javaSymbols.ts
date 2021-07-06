@@ -86,19 +86,27 @@ export class JavaSymbols extends BaseTarget {
         collectorDir
       );
 
+      const symbolsPath = join(dir, 'symbols');
+      await fsPromises.mkdir(symbolsPath);
+
       // Download all artifacts in the same parent directory, where the symbol
-      // collector will look for and deal with them.
-      // Do it in different subdirectories, since some files have the same name.
-      artifacts.map(async (artifact, index) => {
-        const subdirPath = dir + '/' + index;
-        await fsPromises.mkdir(subdirPath);
-        this.artifactProvider.downloadArtifact(artifact, subdirPath);
-      });
-      spawnProcess(this.javaSymbolsConfig.symbolCollectorPath, [
+      // collector will recursively look for and deal with them.
+      // Since there are files with the same name, download them in different
+      // directories.
+      this.logger.debug('Downloading artifacts...');
+      await Promise.all(
+        artifacts.map(async (artifact, index) => {
+          const subdirPath = join(symbolsPath, index + '');
+          await fsPromises.mkdir(subdirPath);
+          await this.artifactProvider.downloadArtifact(artifact, subdirPath);
+        })
+      );
+
+      await spawnProcess(symbolCollectorPath, [
         '--upload',
         'directory',
         '--path',
-        dir,
+        symbolsPath,
         '--batch-type',
         this.javaSymbolsConfig.batchType,
         '--bundle-id',
