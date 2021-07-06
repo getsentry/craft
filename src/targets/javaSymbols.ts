@@ -10,10 +10,13 @@ import { spawnProcess } from '../utils/system';
 
 /** Config options for the "java-symbols" target. */
 interface JavaSymbolsTargetConfig {
-  symbolCollectorPath: string;
   serverEndpoint: string;
   batchType: string;
   bundleIdPrefix: string;
+  useLatestSymCollectorRelease: boolean;
+  releaseTag: string;
+  symCollectorAssetName: string;
+  binaryName: string;
 }
 
 export class JavaSymbols extends BaseTarget {
@@ -45,10 +48,14 @@ export class JavaSymbols extends BaseTarget {
     }
 
     return {
-      symbolCollectorPath: process.env.SYMBOL_COLLECTOR_PATH || '', // || to make TS happy
       serverEndpoint: this.config.serverEndpoint,
       batchType: this.config.batchType,
       bundleIdPrefix: this.config.bundleIdPrefix,
+      // TODO: read config params below from the config file
+      useLatestSymCollectorRelease: true,
+      releaseTag: '1.3.1',
+      symCollectorAssetName: 'symbolcollector-console-linux-x64.zip',
+      binaryName: 'SymbolCollector.Console',
     };
   }
 
