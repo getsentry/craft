@@ -2,11 +2,16 @@ import { checkEnvForPrerequisite } from '../utils/env';
 import { stringToRegexp } from '../utils/filters';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { TargetConfig } from '../schemas/project_config';
-import { ConfigurationError } from '../utils/errors';
+import { ConfigurationError, reportError } from '../utils/errors';
 import { BaseTarget } from './base';
 import { withTempDir } from '../utils/files';
 import { promises as fsPromises } from 'fs';
-import { spawnProcess } from '../utils/system';
+import {
+  extractZipArchive,
+  makeExecutable,
+  spawnProcess,
+} from '../utils/system';
+import { join } from 'path';
 import { GithubRemote } from '../utils/githubApi';
 
 /** Config options for the "java-symbols" target. */
@@ -75,6 +80,12 @@ export class JavaSymbols extends BaseTarget {
     });
 
     await withTempDir(async dir => {
+      const collectorDir = join(dir, 'collector');
+      await fsPromises.mkdir(collectorDir);
+      const symbolCollectorPath = await this.downloadSymbolCollector(
+        collectorDir
+      );
+
       // Download all artifacts in the same parent directory, where the symbol
       // collector will look for and deal with them.
       // Do it in different subdirectories, since some files have the same name.
@@ -96,5 +107,65 @@ export class JavaSymbols extends BaseTarget {
         this.javaSymbolsConfig.serverEndpoint,
       ]);
     });
+  }
+
+  private async downloadSymbolCollector(dir: string): Promise<string> {
+    // Currently, GitHub doesn't offer an API to download the asset of a
+    // release by its name, and the asset ID must be provided. The workaround
+    // is to get the release ID where the assets are and look for all the assets
+    // until there's one matching the name to get its ID
+    const assetDownloadId = await this.getAssetDownloadId();
+    const assetDstPath = await this.downloadAsset(assetDownloadId, dir);
+    this.logger.debug('Extracting asset...');
+    await extractZipArchive(assetDstPath, dir);
+
+    const binaryPath = join(dir, this.javaSymbolsConfig.binaryName);
+    this.makeBinaryExecutable(binaryPath);
+    return binaryPath;
+  }
+
+  private async getAssetDownloadId(): Promise<number> {
+    const releaseId = await this.getReleaseId();
+    this.logger.debug('Fetching release assets...');
+    const releaseAssets = await this.github.listReleaseAssets(releaseId);
+    const matchingAssets = releaseAssets.filter(
+      asset => asset.name === this.javaSymbolsConfig.symCollectorAssetName
+    );
+    if (matchingAssets.length != 1) {
+      reportError(`Found ${matchingAssets.length} assets, 1 expected.`);
+    }
+    const assetId = matchingAssets[0].id;
+    this.logger.debug('Found asset to download: ', assetId);
+    return assetId;
+  }
+
+  private async getReleaseId(): Promise<number> {
+    this.logger.debug('Fetching the release...');
+    const targetRelease = this.javaSymbolsConfig.useLatestSymCollectorRelease
+      ? await this.github.getLatestRelease()
+      : await this.github.getReleaseByTag(this.javaSymbolsConfig.releaseTag);
+    this.logger.debug('Fetched release: ', targetRelease.id);
+    return targetRelease.id;
+  }
+
+  private async downloadAsset(assetId: number, dir: string): Promise<string> {
+    this.logger.debug('Fetching the asset to download...');
+    const assetDataBuffer = await this.github.getAsset(assetId);
+    const assetDstPath = join(
+      dir,
+      this.javaSymbolsConfig.symCollectorAssetName
+    );
+    this.logger.debug('Downloading asset to: ', assetDstPath);
+    await fsPromises.appendFile(assetDstPath, Buffer.from(assetDataBuffer));
+    return assetDstPath;
+  }
+
+  private makeBinaryExecutable(binaryPath: string): void {
+    const isExecutablePresent = makeExecutable(binaryPath);
+    if (!isExecutablePresent) {
+      throw new ConfigurationError(
+        'Cannot access to the binary declared in the config file: ' + binaryPath
+      );
+    }
   }
 }
