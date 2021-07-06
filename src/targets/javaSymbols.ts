@@ -71,13 +71,14 @@ export class JavaSymbols extends BaseTarget {
 
   public async publish(version: string, revision: string): Promise<any> {
     const bundleId = this.javaSymbolsConfig.bundleIdPrefix + `${version}`;
-
+    this.logger.debug('Fetching artifacts...');
     const artifacts = await this.getArtifactsForRevision(revision, {
       includeNames:
         this.config.includeNames === undefined
           ? undefined
           : stringToRegexp(this.config.includeNames),
     });
+    this.logger.debug(`Found ${artifacts.length} symbol artifacts.`);
 
     await withTempDir(async dir => {
       const collectorDir = join(dir, 'collector');
