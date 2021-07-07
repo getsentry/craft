@@ -51,6 +51,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Ruby Gems Index (`gem`)](#ruby-gems-index-gem)
   - [AWS Lambda Layer (`aws-lambda-layer`)](#aws-lambda-layer-aws-lambda-layer)
   - [Unity Package Manager (`upm`)](#unity-package-manager-upm)
+  - [Java Symbols (`java-symbols`)](#java-symbols-java-symbols)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Post-release Script: Conventions](#post-release-script-conventions)
@@ -986,6 +987,29 @@ targets:
   - name: upm
     releaseRepoOwner: 'getsentry'
     releaseRepoName: 'unity'
+```
+
+### Java Symbols (`java-symbols`)
+
+Using the [`symbol-collector`](https://github.com/getsentry/symbol-collector) client, uploads native symbols.
+
+**Configuration**
+
+| Option           | Description                                                                              |
+| ---------------- | ---------------------------------------------------------------------------------------- |
+| `serverEndpoint` | The server endpoint.                                                                     |
+| `batchType`      | The batch type.                                                                          |
+| `bundleIdPrefix` | The prefix of the bundle ID. The new version will be appended to the end of this prefix. |
+
+**Example**
+
+```yaml
+targets:
+  - name: java-symbols
+    includeNames: /libsentry(-android)?\.so/
+    serverEndpoint: my-server.com
+    batchType: Android
+    bundleIdPrefix: android-ndk-
 ```
 
 ## Integrating Your Project with `craft`
