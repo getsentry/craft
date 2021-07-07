@@ -86,6 +86,8 @@ describe('Maven target configuration', () => {
 });
 
 describe('publish', () => {
+  const tmpDirName = 'tmpDir';
+
   beforeAll(() => setTargetSecretsInEnv());
 
   afterAll(() => removeTargetSecretsFromEnv());
@@ -130,7 +132,7 @@ describe('publish', () => {
     // instead of creating a new one
     (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
-        return await cb('tmpDir');
+        return await cb(tmpDirName);
       }
     );
 
@@ -148,23 +150,40 @@ describe('publish', () => {
       typeof retrySpawnProcess
     >).mock.calls[0];
 
-    expect(callArgs).toMatchInlineSnapshot(`
-      Array [
-        "my_default_value",
-        Array [
-          "gpg:sign-and-deploy-file",
-          "-Dfile=tmpDir\\\\mockArtifact\\\\mockArtifact.jar",
-          "-Dfiles=tmpDir\\\\mockArtifact\\\\mockArtifact-javadoc.jar,tmpDir\\\\mockArtifact\\\\mockArtifact-sources.jar",
-          "-Dclassifiers=javadoc,sources",
-          "-Dtypes=jar,jar",
-          "-DpomFile=tmpDir\\\\mockArtifact\\\\pom-default.xml",
-          "-DrepositoryId=my_default_value",
-          "-Durl=my_default_value",
-          "--settings",
-          "my_default_value",
-        ],
-      ]
-    `);
+    console.log(callArgs);
+    expect(callArgs).toHaveLength(2);
+    expect(callArgs[0]).toEqual(DEFAULT_OPTION_VALUE);
+    const cmdArgs = callArgs[1];
+    expect(cmdArgs).toBeDefined();
+    expect(cmdArgs).toHaveLength(10);
+    // @ts-ignore `cmdArgs[*]` possibly undefined
+    expect(cmdArgs[0]).toEqual('gpg:sign-and-deploy-file');
+    // @ts-ignore `cmdArgs[*]` possibly undefined
+    expect(cmdArgs[1]).toMatch(new RegExp(`-Dfile=${tmpDirName}.*`));
+    // @ts-ignore `cmdArgs[*]` possibly undefined
+    expect(cmdArgs[2]).toMatch(
+      new RegExp(
+        `-Dfiles=${tmpDirName}.*-javadoc\.jar,${tmpDirName}.*-sources\.jar`
+      )
+    );
+    // @ts-ignore `cmdArgs[*]` possibly undefined
+    expect(cmdArgs[3]).toMatch(new RegExp(`-Dclassifiers=javadoc,sources`));
+    // @ts-ignore `cmdArgs[*]` possibly undefined
+    expect(cmdArgs[4]).toMatch(new RegExp(`-Dtypes=jar,jar`));
+    // @ts-ignore `cmdArgs[*]` possibly undefined
+    expect(cmdArgs[5]).toMatch(
+      new RegExp(`-DpomFile=${tmpDirName}.*pom-default\.xml`)
+    );
+    // @ts-ignore `cmdArgs[*]` possibly undefined
+    expect(cmdArgs[6]).toMatch(
+      new RegExp(`-DrepositoryId=${DEFAULT_OPTION_VALUE}`)
+    );
+    // @ts-ignore `cmdArgs[*]` possibly undefined
+    expect(cmdArgs[7]).toMatch(new RegExp(`-Durl=${DEFAULT_OPTION_VALUE}`));
+    // @ts-ignore `cmdArgs[*]` possibly undefined
+    expect(cmdArgs[8]).toMatch(new RegExp(`--settings`));
+    // @ts-ignore `cmdArgs[*]` possibly undefined
+    expect(cmdArgs[9]).toMatch(DEFAULT_OPTION_VALUE);
   });
 });
 
