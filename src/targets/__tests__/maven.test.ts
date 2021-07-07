@@ -150,9 +150,10 @@ describe('publish', () => {
       typeof retrySpawnProcess
     >).mock.calls[0];
 
-    console.log(callArgs);
     expect(callArgs).toHaveLength(2);
+    expect(callArgs[0]).toBeDefined();
     expect(callArgs[0]).toEqual(DEFAULT_OPTION_VALUE);
+
     const cmdArgs = callArgs[1];
     expect(cmdArgs).toBeDefined();
     expect(cmdArgs).toHaveLength(10);
