@@ -28,21 +28,42 @@ describe('retrySpawnProcess', () => {
   });
 
   test('hits max retries and exits', async () => {
+    const numRetries = 3;
+    const delay = 0.01;
+    const expFactor = 2;
+    let startTime = -1;
+
     try {
+      startTime = new Date().getTime();
       await retrySpawnProcess(
-        'thisCommandDoesntExist',
-        [],
-        undefined,
-        undefined,
+        'thisCommandDoesntExist', // command
+        [], // args
+        undefined, // spawnoptions
+        undefined, // spawn process options
         {
-          maxRetries: 2,
-          retryDelay: 0.01,
-          retryExpFactor: 1,
+          // retry options
+          maxRetries: numRetries,
+          retryDelay: delay,
+          retryExpFactor: expFactor,
         }
       );
     } catch (error) {
-      expect(error.message).toMatch('Max retries reached: 2');
-      expect(spawnProcess).toHaveBeenCalledTimes(2);
+      const endTime = new Date().getTime();
+
+      let delayThreshold = 0;
+      let retriesLeft = numRetries;
+      let currentDelay = delay;
+      while (retriesLeft > 0) {
+        delayThreshold += currentDelay;
+        currentDelay *= expFactor;
+        retriesLeft--;
+      }
+      // Parsing seconds to miliseconds may be more accurate than
+      // the other way around
+      delayThreshold *= 1000;
+      expect(endTime - startTime).toBeGreaterThanOrEqual(delayThreshold);
+      expect(error.message).toMatch(`Max retries reached: ${numRetries}`);
+      expect(spawnProcess).toHaveBeenCalledTimes(numRetries);
     }
   });
 });
