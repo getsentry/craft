@@ -151,40 +151,26 @@ describe('publish', () => {
     >).mock.calls[0];
 
     expect(callArgs).toHaveLength(2);
-    expect(callArgs[0]).toBeDefined();
     expect(callArgs[0]).toEqual(DEFAULT_OPTION_VALUE);
 
-    const cmdArgs = callArgs[1];
-    expect(cmdArgs).toBeDefined();
+    const cmdArgs = callArgs[1] as string[];
     expect(cmdArgs).toHaveLength(10);
-    // @ts-ignore `cmdArgs[*]` possibly undefined
-    expect(cmdArgs[0]).toEqual('gpg:sign-and-deploy-file');
-    // @ts-ignore `cmdArgs[*]` possibly undefined
-    expect(cmdArgs[1]).toMatch(new RegExp(`-Dfile=${tmpDirName}.*`));
-    // @ts-ignore `cmdArgs[*]` possibly undefined
+    expect(cmdArgs[0]).toBe('gpg:sign-and-deploy-file');
+    expect(cmdArgs[1]).toMatch(new RegExp(`-Dfile=${tmpDirName}.+`));
     expect(cmdArgs[2]).toMatch(
       new RegExp(
-        `-Dfiles=${tmpDirName}.*-javadoc\.jar,${tmpDirName}.*-sources\.jar`
+        `-Dfiles=${tmpDirName}.+-javadoc\.jar,${tmpDirName}.+-sources\.jar`
       )
     );
-    // @ts-ignore `cmdArgs[*]` possibly undefined
-    expect(cmdArgs[3]).toMatch(new RegExp(`-Dclassifiers=javadoc,sources`));
-    // @ts-ignore `cmdArgs[*]` possibly undefined
-    expect(cmdArgs[4]).toMatch(new RegExp(`-Dtypes=jar,jar`));
-    // @ts-ignore `cmdArgs[*]` possibly undefined
+    expect(cmdArgs[3]).toBe(`-Dclassifiers=javadoc,sources`);
+    expect(cmdArgs[4]).toBe(`-Dtypes=jar,jar`);
     expect(cmdArgs[5]).toMatch(
-      new RegExp(`-DpomFile=${tmpDirName}.*pom-default\.xml`)
+      new RegExp(`-DpomFile=${tmpDirName}.+pom-default\.xml`)
     );
-    // @ts-ignore `cmdArgs[*]` possibly undefined
-    expect(cmdArgs[6]).toMatch(
-      new RegExp(`-DrepositoryId=${DEFAULT_OPTION_VALUE}`)
-    );
-    // @ts-ignore `cmdArgs[*]` possibly undefined
-    expect(cmdArgs[7]).toMatch(new RegExp(`-Durl=${DEFAULT_OPTION_VALUE}`));
-    // @ts-ignore `cmdArgs[*]` possibly undefined
-    expect(cmdArgs[8]).toMatch(new RegExp(`--settings`));
-    // @ts-ignore `cmdArgs[*]` possibly undefined
-    expect(cmdArgs[9]).toMatch(DEFAULT_OPTION_VALUE);
+    expect(cmdArgs[6]).toBe(`-DrepositoryId=${DEFAULT_OPTION_VALUE}`);
+    expect(cmdArgs[7]).toBe(`-Durl=${DEFAULT_OPTION_VALUE}`);
+    expect(cmdArgs[8]).toBe('--settings');
+    expect(cmdArgs[9]).toBe(DEFAULT_OPTION_VALUE);
   });
 });
 
