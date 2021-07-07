@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.25.0
+## Unreleased
 
 - feat(maven): Add maven target to deploy to Maven Central (#258)
 
