@@ -50,6 +50,8 @@ type TargetSettingType = SecretsType | OptionsType;
 export type MavenTargetConfig = Record<TargetSettingType, string> &
   AndroidFields;
 
+type PartialTargetConfig = { name: string; value: string | undefined }[];
+
 /**
  * Target responsible for uploading files to Maven Central.
  */
@@ -94,9 +96,7 @@ export class MavenTarget extends BaseTarget {
     return this.reduceConfig(secrets);
   }
 
-  private reduceConfig(
-    config: { name: string; value: string | undefined }[]
-  ): Record<string, string> {
+  private reduceConfig(config: PartialTargetConfig): Record<string, string> {
     return config.reduce((prev, current) => {
       return {
         ...prev,
@@ -160,10 +160,7 @@ export class MavenTarget extends BaseTarget {
       this.mavenConfig.gradleCliPath
     );
     checkExecutableIsPresent(this.mavenConfig.gradleCliPath);
-    this.logger.debug(
-      'Checking if GPG is available: ',
-      this.mavenConfig.gradleCliPath
-    );
+    this.logger.debug('Checking if GPG is available');
     checkExecutableIsPresent('gpg');
   }
 
@@ -199,8 +196,8 @@ export class MavenTarget extends BaseTarget {
       join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
       [
         // OSSRH and Maven Central credentials are the same
-        'mavenCentralUsername=' + this.mavenConfig.OSSRH_USERNAME,
-        'mavenCentralPassword=' + this.mavenConfig.OSSRH_PASSWORD,
+        `mavenCentralUsername=${this.mavenConfig.OSSRH_USERNAME}`,
+        `mavenCentralPassword=${this.mavenConfig.OSSRH_PASSWORD}`,
       ].join('\n')
     );
   }
