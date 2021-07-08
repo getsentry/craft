@@ -13,7 +13,7 @@ import {
 import { join } from 'path';
 import { GithubRemote } from '../utils/githubApi';
 
-const DEFAULT_SYM_COLLECTOR_ENDPOINT =
+const DEFAULT_SYM_COLLECTOR_SERVER_ENDPOINT =
   'https://symbol-collector.services.sentry.io/';
 const DEFAULT_SYM_COLLECTOR_ASSET_NAME =
   'symbolcollector-console-linux-x64.zip';
@@ -21,12 +21,22 @@ const DEFAULT_SYM_COLLECTOR_FILENAME = 'SymbolCollector.Console';
 
 /** Config options for the "native-symbols" target. */
 interface NativeSymbolsTargetConfig {
+  /** Server endpoint to upload symbols. */
   serverEndpoint: string;
+  /** batch-type of the symbols to be uploaded. */
   batchType: string;
+  /** Prefix of the bundle ID to be uploaded. */
   bundleIdPrefix: string;
+  /** Whether to use the latest Symbol Collector release. */
   useLatestSymCollectorRelease: boolean;
+  /** Tag of the release of the Symbol Collector that should be used. */
   releaseTag: string;
+  /**
+   * Name of the asset in the release where the Symbol Collector
+   * binary should be found.
+   */
   symCollectorAssetName: string;
+  /** Name of the Symbol Collector binary, inside the asset. */
   binaryName: string;
 }
 
@@ -62,7 +72,7 @@ export class NativeSymbols extends BaseTarget {
 
     return {
       serverEndpoint:
-        this.config.serverEndpoint || DEFAULT_SYM_COLLECTOR_ENDPOINT,
+        this.config.serverEndpoint || DEFAULT_SYM_COLLECTOR_SERVER_ENDPOINT,
       batchType: this.config.batchType,
       bundleIdPrefix: this.config.bundleIdPrefix,
       useLatestSymCollectorRelease: this.config.useLatestSymCollectorRelease,
