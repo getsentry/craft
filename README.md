@@ -51,6 +51,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Ruby Gems Index (`gem`)](#ruby-gems-index-gem)
   - [AWS Lambda Layer (`aws-lambda-layer`)](#aws-lambda-layer-aws-lambda-layer)
   - [Unity Package Manager (`upm`)](#unity-package-manager-upm)
+  - [Maven central (`maven`)](#maven-central-maven)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Post-release Script: Conventions](#post-release-script-conventions)
@@ -986,6 +987,50 @@ targets:
   - name: upm
     releaseRepoOwner: 'getsentry'
     releaseRepoName: 'unity'
+```
+
+### Maven central (`maven`)
+
+PGP signs and publishes packages to Maven Central.
+
+**Environment**
+
+| Name             | Description                      |
+| ---------------- | -------------------------------- |
+| `OSSRH_USERNAME` | Username of Sonatype repository. |
+| `OSSRH_PASSWORD` | Password of Sonatype repository. |
+
+**Configuration**
+
+| Option              | Description                                                           |
+| ------------------- | --------------------------------------------------------------------- |
+| `gradleCliPath`     | Path to the Gradle CLI. It must be executable by the calling process. |
+| `mavenCliPath`      | Path to the Maven CLI. It must be executable by the calling process.  |
+| `mavenSettingsPath` | Path to the Maven `settings.xml` file.                                |
+| `mavenRepoId`       | ID of the Maven server in the `settings.xml`.                         |
+| `mavenRepoUrl`      | URL of the Maven repository.                                          |
+| `android`           | Structure containing the data available below.                        |
+
+The `android` structure contains the following options:
+
+- `distDirRegex`: pattern of distribution directory names.
+- `fileReplaceeRegex` :pattern of substring of distribution module names to be replaced to get the Android distribution file.
+- `fileReplacerStr`: string to be replaced in the module names to get the Android distribution file.
+
+**Example**
+
+```yaml
+targets:
+  - name: maven
+    gradleCliPath: ./gradlew
+    mavenCliPath: scripts/mvnw.cmd
+    mavenSettingsPath: scripts/settings.xml
+    mavenRepoId: ossrh
+    mavenRepoUrl: https://oss.sonatype.org/service/local/staging/deploy/maven2/
+    android:
+      distDirRegex: /^sentry-android-.*$/
+      fileReplaceeRegex: /\d\.\d\.\d(-SNAPSHOT)?/
+      fileReplacerStr: release.aar
 ```
 
 ## Integrating Your Project with `craft`
