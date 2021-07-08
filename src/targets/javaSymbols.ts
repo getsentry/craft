@@ -47,9 +47,9 @@ export class JavaSymbols extends BaseTarget {
     checkEnvForPrerequisite({ name: 'SYMBOL_COLLECTOR_PATH' });
 
     if (
-      !this.config.serverEndpoint ||
       !this.config.batchType ||
-      !this.config.bundleIdPrefix
+      !this.config.bundleIdPrefix ||
+      !(this.config.useLatestSymCollectorRelease || this.config.releaseTag)
     ) {
       throw new ConfigurationError(
         'Required configuration not found in configuration file. ' +
@@ -61,11 +61,9 @@ export class JavaSymbols extends BaseTarget {
       serverEndpoint: this.config.serverEndpoint,
       batchType: this.config.batchType,
       bundleIdPrefix: this.config.bundleIdPrefix,
-      // TODO: read config params below from the config file
-      useLatestSymCollectorRelease: true,
-      releaseTag: '1.3.1',
-      symCollectorAssetName: 'symbolcollector-console-linux-x64.zip',
-      binaryName: 'SymbolCollector.Console',
+      useLatestSymCollectorRelease: this.config.useLatestSymCollectorRelease,
+      releaseTag: this.config.releaseTag,
+      symCollectorAssetName: 'symbolcollector-console-linux-x64.zip', // TODO: set default
     };
   }
 
