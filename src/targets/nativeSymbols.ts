@@ -1,4 +1,3 @@
-import { checkEnvForPrerequisite } from '../utils/env';
 import { stringToRegexp } from '../utils/filters';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { TargetConfig } from '../schemas/project_config';
@@ -50,8 +49,6 @@ export class NativeSymbols extends BaseTarget {
   }
 
   private getJavaSymbolsConfig(): JavaSymbolsTargetConfig {
-    checkEnvForPrerequisite({ name: 'SYMBOL_COLLECTOR_PATH' });
-
     if (
       !this.config.batchType ||
       !this.config.bundleIdPrefix ||
