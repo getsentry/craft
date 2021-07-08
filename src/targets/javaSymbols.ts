@@ -14,6 +14,12 @@ import {
 import { join } from 'path';
 import { GithubRemote } from '../utils/githubApi';
 
+const DEFAULT_SYM_COLLECTOR_ENDPOINT =
+  'https://symbol-collector.services.sentry.io/';
+const DEFAULT_SYM_COLLECTOR_ASSET_NAME =
+  'symbolcollector-console-linux-x64.zip';
+const DEFAULT_SYM_COLLECTOR_FILENAME = 'SymbolCollector.Console';
+
 /** Config options for the "java-symbols" target. */
 interface JavaSymbolsTargetConfig {
   serverEndpoint: string;
@@ -58,12 +64,14 @@ export class JavaSymbols extends BaseTarget {
     }
 
     return {
-      serverEndpoint: this.config.serverEndpoint,
+      serverEndpoint:
+        this.config.serverEndpoint || DEFAULT_SYM_COLLECTOR_ENDPOINT,
       batchType: this.config.batchType,
       bundleIdPrefix: this.config.bundleIdPrefix,
       useLatestSymCollectorRelease: this.config.useLatestSymCollectorRelease,
       releaseTag: this.config.releaseTag,
-      symCollectorAssetName: 'symbolcollector-console-linux-x64.zip', // TODO: set default
+      symCollectorAssetName: DEFAULT_SYM_COLLECTOR_ASSET_NAME,
+      binaryName: this.config.binaryName || DEFAULT_SYM_COLLECTOR_FILENAME,
     };
   }
 
