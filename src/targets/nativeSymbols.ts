@@ -20,7 +20,7 @@ const DEFAULT_SYM_COLLECTOR_ASSET_NAME =
   'symbolcollector-console-linux-x64.zip';
 const DEFAULT_SYM_COLLECTOR_FILENAME = 'SymbolCollector.Console';
 
-/** Config options for the "java-symbols" target. */
+/** Config options for the "native-symbols" target. */
 interface JavaSymbolsTargetConfig {
   serverEndpoint: string;
   batchType: string;
@@ -31,9 +31,9 @@ interface JavaSymbolsTargetConfig {
   binaryName: string;
 }
 
-export class JavaSymbols extends BaseTarget {
+export class NativeSymbols extends BaseTarget {
   /** Target name */
-  public readonly name: string = 'java-symbols';
+  public readonly name: string = 'native-symbols';
   /** Target options */
   public readonly javaSymbolsConfig: JavaSymbolsTargetConfig;
 
