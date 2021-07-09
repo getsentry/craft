@@ -19,8 +19,8 @@ const DEFAULT_SYM_COLLECTOR_ASSET_NAME =
   'symbolcollector-console-linux-x64.zip';
 const DEFAULT_SYM_COLLECTOR_FILENAME = 'SymbolCollector.Console';
 
-/** Config options for the "native-symbols" target. */
-interface NativeSymbolsTargetConfig {
+/** Config options for the "symbol-collector" target. */
+interface SymbolCollectorTargetConfig {
   /** Server endpoint to upload symbols. */
   serverEndpoint: string;
   /** batch-type of the symbols to be uploaded. */
@@ -40,11 +40,11 @@ interface NativeSymbolsTargetConfig {
   binaryName: string;
 }
 
-export class NativeSymbols extends BaseTarget {
+export class SymbolCollector extends BaseTarget {
   /** Target name */
-  public readonly name: string = 'native-symbols';
+  public readonly name: string = 'symbol-collector';
   /** Target options */
-  public readonly nativeSymbolsConfig: NativeSymbolsTargetConfig;
+  public readonly symbolCollectorConfig: SymbolCollectorTargetConfig;
 
   public readonly github: GithubRemote;
 
@@ -55,10 +55,10 @@ export class NativeSymbols extends BaseTarget {
     super(config, artifactProvider);
     // TODO: don't hardcode repo's data
     this.github = new GithubRemote('getsentry', 'symbol-collector');
-    this.nativeSymbolsConfig = this.getNativeSymbolsConfig();
+    this.symbolCollectorConfig = this.getSymbolCollectorConfig();
   }
 
-  private getNativeSymbolsConfig(): NativeSymbolsTargetConfig {
+  private getSymbolCollectorConfig(): SymbolCollectorTargetConfig {
     if (
       !this.config.batchType ||
       !this.config.bundleIdPrefix ||
@@ -83,7 +83,7 @@ export class NativeSymbols extends BaseTarget {
   }
 
   public async publish(version: string, revision: string): Promise<any> {
-    const bundleId = this.nativeSymbolsConfig.bundleIdPrefix + `${version}`;
+    const bundleId = this.symbolCollectorConfig.bundleIdPrefix + `${version}`;
     this.logger.debug('Fetching artifacts...');
     const artifacts = await this.getArtifactsForRevision(revision, {
       includeNames:
@@ -122,11 +122,11 @@ export class NativeSymbols extends BaseTarget {
         '--path',
         symbolsPath,
         '--batch-type',
-        this.nativeSymbolsConfig.batchType,
+        this.symbolCollectorConfig.batchType,
         '--bundle-id',
         bundleId,
         '--server-endpoint',
-        this.nativeSymbolsConfig.serverEndpoint,
+        this.symbolCollectorConfig.serverEndpoint,
       ]);
     });
   }
@@ -141,7 +141,7 @@ export class NativeSymbols extends BaseTarget {
     this.logger.debug('Extracting asset...');
     await extractZipArchive(assetDstPath, dir);
 
-    const binaryPath = join(dir, this.nativeSymbolsConfig.binaryName);
+    const binaryPath = join(dir, this.symbolCollectorConfig.binaryName);
     this.makeBinaryExecutable(binaryPath);
     return binaryPath;
   }
@@ -151,7 +151,7 @@ export class NativeSymbols extends BaseTarget {
     this.logger.debug('Fetching release assets...');
     const releaseAssets = await this.github.listReleaseAssets(releaseId);
     const matchingAssets = releaseAssets.filter(
-      asset => asset.name === this.nativeSymbolsConfig.symCollectorAssetName
+      asset => asset.name === this.symbolCollectorConfig.symCollectorAssetName
     );
     if (matchingAssets.length != 1) {
       reportError(`Found ${matchingAssets.length} assets, 1 expected.`);
@@ -163,9 +163,12 @@ export class NativeSymbols extends BaseTarget {
 
   private async getReleaseId(): Promise<number> {
     this.logger.debug('Fetching the release...');
-    const targetRelease = this.nativeSymbolsConfig.useLatestSymCollectorRelease
+    const targetRelease = this.symbolCollectorConfig
+      .useLatestSymCollectorRelease
       ? await this.github.getLatestRelease()
-      : await this.github.getReleaseByTag(this.nativeSymbolsConfig.releaseTag);
+      : await this.github.getReleaseByTag(
+          this.symbolCollectorConfig.releaseTag
+        );
     this.logger.debug('Fetched release: ', targetRelease.id);
     return targetRelease.id;
   }
@@ -175,7 +178,7 @@ export class NativeSymbols extends BaseTarget {
     const assetDataBuffer = await this.github.getAsset(assetId);
     const assetDstPath = join(
       dir,
-      this.nativeSymbolsConfig.symCollectorAssetName
+      this.symbolCollectorConfig.symCollectorAssetName
     );
     this.logger.debug('Downloading asset to: ', assetDstPath);
     await fsPromises.appendFile(assetDstPath, Buffer.from(assetDataBuffer));

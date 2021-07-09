@@ -13,7 +13,7 @@ import { PypiTarget } from './pypi';
 import { RegistryTarget } from './registry';
 import { AwsLambdaLayerTarget } from './awsLambdaLayer';
 import { UpmTarget } from './upm';
-import { NativeSymbols } from './nativeSymbols';
+import { SymbolCollector } from './symbolCollector';
 
 export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   brew: BrewTarget,
@@ -30,7 +30,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   registry: RegistryTarget,
   'aws-lambda-layer': AwsLambdaLayerTarget,
   upm: UpmTarget,
-  'native-symbols': NativeSymbols,
+  'symbol-collector': SymbolCollector,
 };
 
 /** Targets that are treated specially */
