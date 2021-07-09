@@ -85,23 +85,26 @@ export class SymbolCollector extends BaseTarget {
       await Promise.all(
         artifacts.map(async (artifact, index) => {
           const subdirPath = join(dir, index + '');
-          await fsPromises.mkdir(subdirPath);
+          await fsPromises.mkdir(subdirPath); // FIXME
           await this.artifactProvider.downloadArtifact(artifact, subdirPath);
         })
       );
 
-      await spawnProcess(SYM_COLLECTOR_BIN_NAME, [
-        '--upload',
-        'directory',
-        '--path',
-        dir,
-        '--batch-type',
-        this.symbolCollectorConfig.batchType,
-        '--bundle-id',
-        bundleId,
-        '--server-endpoint',
-        this.symbolCollectorConfig.serverEndpoint,
-      ]);
+      const processOutput = (
+        await spawnProcess(SYM_COLLECTOR_BIN_NAME, [
+          '--upload',
+          'directory',
+          '--path',
+          dir,
+          '--batch-type',
+          this.symbolCollectorConfig.batchType,
+          '--bundle-id',
+          bundleId,
+          '--server-endpoint',
+          this.symbolCollectorConfig.serverEndpoint,
+        ])
+      )?.toString();
+      this.logger.debug('Process output: ', processOutput);
     });
   }
 }
