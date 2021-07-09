@@ -273,18 +273,6 @@ function isExecutable(filePath: string): boolean {
   }
 }
 
-export function makeExecutable(filePath: string): boolean {
-  if (isExecutable(filePath)) {
-    return true;
-  }
-  try {
-    fs.chmodSync(filePath, fs.constants.F_OK | fs.constants.X_OK);
-  } catch (e) {
-    return false;
-  }
-  return true;
-}
-
 /**
  * Checks if the provided executable is available
  *
