@@ -1,8 +1,26 @@
+import { withTempDir } from '../../utils/files';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
-import { checkExecutableIsPresent } from '../../utils/system';
+import { checkExecutableIsPresent, spawnProcess } from '../../utils/system';
 import { SymbolCollector, SYM_COLLECTOR_BIN_NAME } from '../symbolCollector';
 
+jest.mock('../../utils/files');
 jest.mock('../../utils/system');
+jest.mock('fs', () => {
+  const original = jest.requireActual('fs');
+  return {
+    ...original,
+    promises: {
+      mkdir: jest.fn(() => {
+        /** do nothing */
+      }),
+    },
+  };
+});
+
+const customConfig = {
+  batchType: 'batchType',
+  bundleIdPrefix: 'bundleIdPrefix-',
+};
 
 function getSymbolCollectorInstance(
   customConfig?: Record<string, unknown>
@@ -57,11 +75,6 @@ describe('target config', () => {
       typeof checkExecutableIsPresent
     >) = jest.fn();
 
-    const customConfig = {
-      batchType: 'batch type',
-      bundleIdPrefix: 'bundle id prefix',
-    };
-
     const symCollector = getSymbolCollectorInstance(customConfig);
     const actualConfig = symCollector.symbolCollectorConfig;
     expect(checkExecutableIsPresent).toHaveBeenCalledTimes(1);
@@ -71,5 +84,63 @@ describe('target config', () => {
     expect(actualConfig).toHaveProperty('serverEndpoint');
     expect(actualConfig).toHaveProperty('batchType');
     expect(actualConfig).toHaveProperty('bundleIdPrefix');
+  });
+});
+
+describe('publish', () => {
+  test('no artifacts found', () => {
+    const symCollector = getSymbolCollectorInstance(customConfig);
+    symCollector.getArtifactsForRevision = jest
+      .fn()
+      .mockReturnValueOnce(() => []);
+    expect(spawnProcess).not.toHaveBeenCalled();
+  });
+
+  test('with artifacts', async () => {
+    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+      async cb => await cb('tmpDir')
+    );
+    (spawnProcess as jest.MockedFunction<
+      typeof spawnProcess
+    >).mockImplementation(() => Promise.resolve(undefined));
+
+    const mockedArtifacts = [
+      { filename: 'artifact1', storedFile: { lastUpdated: 'tomorrow' } },
+      { filename: 'artifact2', storedFile: { lastUpdated: 'next week' } },
+      { filename: 'artifact2', storedFile: { lastUpdated: 'in 5 years' } },
+    ];
+
+    const symCollector = getSymbolCollectorInstance(customConfig);
+    symCollector.getArtifactsForRevision = jest
+      .fn()
+      .mockReturnValueOnce(mockedArtifacts);
+    symCollector.artifactProvider.downloadArtifact = jest.fn();
+
+    await symCollector.publish('version', 'revision');
+
+    expect(symCollector.getArtifactsForRevision).toHaveBeenCalledTimes(1);
+    expect(
+      symCollector.artifactProvider.downloadArtifact
+    ).toHaveBeenCalledTimes(mockedArtifacts.length);
+
+    expect(spawnProcess).toHaveBeenCalledTimes(1);
+    const [cmd, args] = (spawnProcess as jest.MockedFunction<
+      typeof spawnProcess
+    >).mock.calls[0] as string[];
+    expect(cmd).toBe(SYM_COLLECTOR_BIN_NAME);
+    expect(args).toMatchInlineSnapshot(`
+      Array [
+        "--upload",
+        "directory",
+        "--path",
+        "tmpDir",
+        "--batch-type",
+        "batchType",
+        "--bundle-id",
+        "bundleIdPrefix-version",
+        "--server-endpoint",
+        "https://symbol-collector.services.sentry.io/",
+      ]
+    `);
   });
 });
