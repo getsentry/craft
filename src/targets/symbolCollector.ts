@@ -68,6 +68,12 @@ export class SymbolCollector extends BaseTarget {
           ? undefined
           : stringToRegexp(this.config.includeNames),
     });
+
+    if (artifacts.length == 0) {
+      this.logger.info(`Didn't found any artifacts after filtering`);
+      return;
+    }
+
     this.logger.debug(`Found ${artifacts.length} symbol artifacts.`);
 
     await withTempDir(async dir => {
