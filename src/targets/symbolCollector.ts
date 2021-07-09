@@ -14,7 +14,7 @@ const DEFAULT_SYM_COLLECTOR_SERVER_ENDPOINT =
  * Name of the binary of the symbol collector.
  * Must be available in the path.
  */
-const SYM_COLLECTOR_BIN_NAME = 'SymbolCollector.Console';
+export const SYM_COLLECTOR_BIN_NAME = 'SymbolCollector.Console';
 
 /** Config options for the "symbol-collector" target. */
 interface SymbolCollectorTargetConfig {
