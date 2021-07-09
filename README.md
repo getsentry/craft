@@ -51,7 +51,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Ruby Gems Index (`gem`)](#ruby-gems-index-gem)
   - [AWS Lambda Layer (`aws-lambda-layer`)](#aws-lambda-layer-aws-lambda-layer)
   - [Unity Package Manager (`upm`)](#unity-package-manager-upm)
-  - [Java Symbols (`java-symbols`)](#java-symbols-java-symbols)
+  - [Symbol Collector (`symbol-collector`)](#symbol-collector-symbol-collector)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Post-release Script: Conventions](#post-release-script-conventions)
@@ -989,25 +989,25 @@ targets:
     releaseRepoName: 'unity'
 ```
 
-### Java Symbols (`java-symbols`)
+### Symbol Collector (`symbol-collector`)
 
 Using the [`symbol-collector`](https://github.com/getsentry/symbol-collector) client, uploads native symbols.
+The client needs to be available in the path.
 
 **Configuration**
 
-| Option           | Description                                                                              |
-| ---------------- | ---------------------------------------------------------------------------------------- |
-| `serverEndpoint` | The server endpoint.                                                                     |
-| `batchType`      | The batch type.                                                                          |
-| `bundleIdPrefix` | The prefix of the bundle ID. The new version will be appended to the end of this prefix. |
+| Option           | Description                                                                                  |
+| ---------------- | -------------------------------------------------------------------------------------------- |
+| `serverEndpoint` | **optional** The server endpoint. Defaults to `https://symbol-collector.services.sentry.io`. |
+| `batchType`      | The batch type of the symbols to be uploaded.                                                |
+| `bundleIdPrefix` | The prefix of the bundle ID. The new version will be appended to the end of this prefix.     |
 
 **Example**
 
 ```yaml
 targets:
-  - name: java-symbols
+  - name: symbol-collector
     includeNames: /libsentry(-android)?\.so/
-    serverEndpoint: my-server.com
     batchType: Android
     bundleIdPrefix: android-ndk-
 ```
