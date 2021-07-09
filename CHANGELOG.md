@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- feat(maven): Add maven target to deploy to Maven Central (#258)
+
 ## 0.24.4
 
 - fix(registry): Fix error w/ simple registry config (#262)

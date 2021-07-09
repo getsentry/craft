@@ -51,6 +51,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Ruby Gems Index (`gem`)](#ruby-gems-index-gem)
   - [AWS Lambda Layer (`aws-lambda-layer`)](#aws-lambda-layer-aws-lambda-layer)
   - [Unity Package Manager (`upm`)](#unity-package-manager-upm)
+  - [Maven central (`maven`)](#maven-central-maven)
   - [Symbol Collector (`symbol-collector`)](#symbol-collector-symbol-collector)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
@@ -83,7 +84,7 @@ npm install -g @sentry/craft
 
 ## Usage
 
-```plain
+```shell
 $ craft -h
 craft <command>
 
@@ -121,7 +122,7 @@ variables or by adding values to a configuration file (see below).
 All command line flags can be set through environment variables by prefixing
 them with `CRAFT_` and converting them to UPPERCASE_UNDERSCORED versions:
 
-```
+```shell
 CRAFT_LOG_LEVEL=Debug
 CRAFT_DRY_RUN=1
 CRAFT_NO_INPUT=0
@@ -159,7 +160,7 @@ Leading `export` is allowed.
 
 Example:
 
-```sh
+```shell
 # ~/.craft.env
 GITHUB_TOKEN=token123
 export NUGET_API_TOKEN=abcdefgh
@@ -175,7 +176,7 @@ that CI triggered by pushing this branch will result in release artifacts
 being built and uploaded to the artifact provider you wish to use during the
 subsequent `publish` step.
 
-```plain
+```shell
 craft prepare NEW-VERSION
 
 🚢 Prepare a new release branch
@@ -211,7 +212,7 @@ that branch. Once the checks pass, it downloads the release artifacts from the
 artifact provider configured in `.craft.yml` and uploads them to the targets named
 on the command line (and pre-configured in `.craft.yml`).
 
-```plain
+```shell
 craft publish NEW-VERSION
 
 🛫 Publish artifacts
@@ -989,6 +990,49 @@ targets:
     releaseRepoName: 'unity'
 ```
 
+### Maven central (`maven`)
+
+PGP signs and publishes packages to Maven Central.
+
+**Environment**
+
+| Name             | Description                      |
+| ---------------- | -------------------------------- |
+| `OSSRH_USERNAME` | Username of Sonatype repository. |
+| `OSSRH_PASSWORD` | Password of Sonatype repository. |
+
+**Configuration**
+
+| Option              | Description                                                           |
+| ------------------- | --------------------------------------------------------------------- |
+| `gradleCliPath`     | Path to the Gradle CLI. It must be executable by the calling process. |
+| `mavenCliPath`      | Path to the Maven CLI. It must be executable by the calling process.  |
+| `mavenSettingsPath` | Path to the Maven `settings.xml` file.                                |
+| `mavenRepoId`       | ID of the Maven server in the `settings.xml`.                         |
+| `mavenRepoUrl`      | URL of the Maven repository.                                          |
+| `android`           | Structure containing the data available below.                        |
+
+The `android` structure contains the following options:
+
+- `distDirRegex`: pattern of distribution directory names.
+- `fileReplaceeRegex` :pattern of substring of distribution module names to be replaced to get the Android distribution file.
+- `fileReplacerStr`: string to be replaced in the module names to get the Android distribution file.
+
+**Example**
+
+```yaml
+- name: maven
+  gradleCliPath: ./gradlew
+  mavenCliPath: scripts/mvnw.cmd
+  mavenSettingsPath: scripts/settings.xml
+  mavenRepoId: ossrh
+  mavenRepoUrl: https://oss.sonatype.org/service/local/staging/deploy/maven2/
+  android:
+    distDirRegex: /^sentry-android-.*$/
+    fileReplaceeRegex: /\d\.\d\.\d(-SNAPSHOT)?/
+    fileReplacerStr: release.aar
+```
+
 ### Symbol Collector (`symbol-collector`)
 
 Using the [`symbol-collector`](https://github.com/getsentry/symbol-collector) client, uploads native symbols.
@@ -1019,6 +1063,14 @@ Here is how you can integrate your GitHub project with `craft`:
 1. Set up a workflow that builds your assets and runs your tests. Allow building
    release branches (their names follow `release/{VERSION}` by default,
    configurable through `releaseBranchPrefix`).
+
+   ```yaml
+   on:
+     push:
+       branches:
+         - 'release/**'
+   ```
+
 2. Use the official `actions/upload-artifact@v2` action to upload your assets.
    Here is an example config (step) of an archive job:
 
@@ -1140,7 +1192,7 @@ configuration file) that contains a Sentry project's DSN.
 
 For example:
 
-```bash
+```shell
 export CRAFT_SENTRY_DSN='https://1234@sentry.io/2345'
 ```
 

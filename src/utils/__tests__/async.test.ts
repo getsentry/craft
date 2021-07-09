@@ -4,6 +4,70 @@ import { logger } from '../../logger';
 
 jest.mock('../../logger');
 
+import { retrySpawnProcess } from '../async';
+import { spawnProcess } from '../system';
+
+jest.mock('../system', () => {
+  const original = jest.requireActual('../system');
+  return {
+    ...original,
+    spawnProcess: jest.fn(original.spawnProcess),
+  };
+});
+
+describe('retrySpawnProcess', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('resolves before max retries', async () => {
+    const res = await retrySpawnProcess('ls', [], undefined, undefined, {
+      maxRetries: 1,
+    });
+    expect(res).toBeInstanceOf(Buffer);
+  });
+
+  test('hits max retries and exits', async () => {
+    const numRetries = 3;
+    const delay = 0.01;
+    const expFactor = 2;
+    let startTime = -1;
+
+    try {
+      startTime = new Date().getTime();
+      await retrySpawnProcess(
+        'thisCommandDoesntExist', // command
+        [], // args
+        undefined, // spawnoptions
+        undefined, // spawn process options
+        {
+          // retry options
+          maxRetries: numRetries,
+          retryDelay: delay,
+          retryExpFactor: expFactor,
+        }
+      );
+    } catch (error) {
+      const endTime = new Date().getTime();
+
+      let delayThreshold = 0;
+      let retriesLeft = numRetries;
+      let currentDelay = delay;
+      while (retriesLeft > 0) {
+        delayThreshold += currentDelay;
+        currentDelay *= expFactor;
+        retriesLeft--;
+      }
+      // Parsing seconds to miliseconds may be more accurate than
+      // the other way around
+      delayThreshold *= 1000;
+      expect(endTime - startTime).toBeGreaterThanOrEqual(delayThreshold);
+      expect(error.message).toMatch(`Max retries reached: ${numRetries}`);
+      expect(spawnProcess).toHaveBeenCalledTimes(numRetries);
+    }
+  });
+});
+
 describe('filterAsync', () => {
   test('filters with sync predicate', async () => {
     expect.assertions(1);
