@@ -1,17 +1,12 @@
 import { stringToRegexp } from '../utils/filters';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { TargetConfig } from '../schemas/project_config';
-import { ConfigurationError, reportError } from '../utils/errors';
+import { ConfigurationError } from '../utils/errors';
 import { BaseTarget } from './base';
 import { withTempDir } from '../utils/files';
 import { promises as fsPromises } from 'fs';
-import {
-  extractZipArchive,
-  makeExecutable,
-  spawnProcess,
-} from '../utils/system';
+import { spawnProcess } from '../utils/system';
 import { join } from 'path';
-import { GithubRemote } from '../utils/githubApi';
 
 const DEFAULT_SYM_COLLECTOR_SERVER_ENDPOINT =
   'https://symbol-collector.services.sentry.io/';
@@ -37,15 +32,11 @@ export class SymbolCollector extends BaseTarget {
   /** Target options */
   public readonly symbolCollectorConfig: SymbolCollectorTargetConfig;
 
-  public readonly github: GithubRemote;
-
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);
-    // TODO: don't hardcode repo's data
-    this.github = new GithubRemote('getsentry', 'symbol-collector');
     this.symbolCollectorConfig = this.getSymbolCollectorConfig();
   }
 
