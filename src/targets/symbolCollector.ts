@@ -5,7 +5,7 @@ import { ConfigurationError } from '../utils/errors';
 import { BaseTarget } from './base';
 import { withTempDir } from '../utils/files';
 import { promises as fsPromises } from 'fs';
-import { spawnProcess } from '../utils/system';
+import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { join } from 'path';
 
 const DEFAULT_SYM_COLLECTOR_SERVER_ENDPOINT =
@@ -41,6 +41,9 @@ export class SymbolCollector extends BaseTarget {
   }
 
   private getSymbolCollectorConfig(): SymbolCollectorTargetConfig {
+    // The Symbol Collector should be available in the path
+    checkExecutableIsPresent(SYM_COLLECTOR_BIN_NAME);
+
     if (!this.config.batchType || !this.config.bundleIdPrefix) {
       throw new ConfigurationError(
         'Required configuration not found in configuration file. ' +
