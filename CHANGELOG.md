@@ -3,6 +3,7 @@
 ## Unreleased
 
 - feat(maven): Add maven target to deploy to Maven Central (#258)
+- feat(symbol-collector): Add symbol-collector target (#266)
 
 ## 0.24.4
 

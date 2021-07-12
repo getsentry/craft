@@ -218,10 +218,7 @@ export class MavenTarget extends BaseTarget {
    */
   public async upload(revision: string): Promise<void> {
     const artifacts = await this.getArtifactsForRevision(revision, {
-      includeNames:
-        this.config.includeNames === undefined
-          ? undefined
-          : stringToRegexp(this.config.includeNames),
+      includeNames: this.config.includeNames,
     });
 
     // We don't want to do this in parallel but in serial, because the gpg-agent
