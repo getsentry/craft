@@ -88,11 +88,17 @@ export function parseFilterOptions(
   rawFilters: RawFilterOptions
 ): ParsedFilterOptions {
   const parsedFilters: ParsedFilterOptions = {};
-  if (typeof rawFilters.includeNames === 'string') {
-    parsedFilters.includeNames = stringToRegexp(rawFilters.includeNames);
+  if (typeof rawFilters.includeNames !== 'undefined') {
+    parsedFilters.includeNames =
+      typeof rawFilters.includeNames === 'string'
+        ? stringToRegexp(rawFilters.includeNames)
+        : rawFilters.includeNames;
   }
-  if (typeof rawFilters.excludeNames === 'string') {
-    parsedFilters.excludeNames = stringToRegexp(rawFilters.excludeNames);
+  if (typeof rawFilters.excludeNames !== 'undefined') {
+    parsedFilters.excludeNames =
+      typeof rawFilters.excludeNames === 'string'
+        ? stringToRegexp(rawFilters.excludeNames)
+        : rawFilters.excludeNames;
   }
   return parsedFilters;
 }
