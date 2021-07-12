@@ -62,7 +62,8 @@ export interface LocalArtifact extends AbstractArtifact {
 }
 
 /**
- * Raw filtering options for artifacts
+ * Raw filtering options for artifacts.
+ * They should be parsed by `parseFilterOptions`.
  */
 export interface RawFilterOptions {
   /** Include files that match this pattern */
@@ -88,13 +89,13 @@ export function parseFilterOptions(
   rawFilters: RawFilterOptions
 ): ParsedFilterOptions {
   const parsedFilters: ParsedFilterOptions = {};
-  if (typeof rawFilters.includeNames !== 'undefined') {
+  if (rawFilters.includeNames) {
     parsedFilters.includeNames =
       typeof rawFilters.includeNames === 'string'
         ? stringToRegexp(rawFilters.includeNames)
         : rawFilters.includeNames;
   }
-  if (typeof rawFilters.excludeNames !== 'undefined') {
+  if (rawFilters.excludeNames) {
     parsedFilters.excludeNames =
       typeof rawFilters.excludeNames === 'string'
         ? stringToRegexp(rawFilters.excludeNames)

@@ -23,7 +23,7 @@ const customConfig = {
 };
 
 function getSymbolCollectorInstance(
-  config: Record<string, unknown> = { ['testKey']: 'testVal' }
+  config: Record<string, unknown> = { testKey: 'testVal' }
 ): SymbolCollector {
   return new SymbolCollector(
     {
