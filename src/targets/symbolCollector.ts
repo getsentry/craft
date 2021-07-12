@@ -44,9 +44,15 @@ export class SymbolCollector extends BaseTarget {
     // The Symbol Collector should be available in the path
     checkExecutableIsPresent(SYM_COLLECTOR_BIN_NAME);
 
-    if (!this.config.batchType || !this.config.bundleIdPrefix) {
+    if (!this.config.batchType) {
       throw new ConfigurationError(
-        'Required configuration not found in configuration file. ' +
+        'The required `batchType` parameter is missing in the configuration file. ' +
+          'See the documentation for more details.'
+      );
+    }
+    if (!this.config.bundleIdPrefix) {
+      throw new ConfigurationError(
+        'The required `bundleIdPrefix` parameter is missing in the configuration file. ' +
           'See the documentation for more details.'
       );
     }
@@ -60,8 +66,7 @@ export class SymbolCollector extends BaseTarget {
   }
 
   public async publish(version: string, revision: string): Promise<any> {
-    const bundleId = this.symbolCollectorConfig.bundleIdPrefix + `${version}`;
-    this.logger.debug('Fetching artifacts...');
+    const bundleId = this.symbolCollectorConfig.bundleIdPrefix + version;
     const artifacts = await this.getArtifactsForRevision(revision, {
       includeNames:
         this.config.includeNames === undefined
@@ -69,8 +74,8 @@ export class SymbolCollector extends BaseTarget {
           : stringToRegexp(this.config.includeNames),
     });
 
-    if (artifacts.length == 0) {
-      this.logger.info(`Didn't found any artifacts after filtering`);
+    if (artifacts.length === 0) {
+      this.logger.warn(`Didn't found any artifacts after filtering`);
       return;
     }
 
@@ -84,27 +89,24 @@ export class SymbolCollector extends BaseTarget {
       this.logger.debug('Downloading artifacts...');
       await Promise.all(
         artifacts.map(async (artifact, index) => {
-          const subdirPath = join(dir, index + '');
-          await fsPromises.mkdir(subdirPath); // FIXME
+          const subdirPath = join(dir, String(index));
+          await fsPromises.mkdir(subdirPath);
           await this.artifactProvider.downloadArtifact(artifact, subdirPath);
         })
       );
 
-      const processOutput = (
-        await spawnProcess(SYM_COLLECTOR_BIN_NAME, [
-          '--upload',
-          'directory',
-          '--path',
-          dir,
-          '--batch-type',
-          this.symbolCollectorConfig.batchType,
-          '--bundle-id',
-          bundleId,
-          '--server-endpoint',
-          this.symbolCollectorConfig.serverEndpoint,
-        ])
-      )?.toString();
-      this.logger.debug('Process output: ', processOutput);
+      await spawnProcess(SYM_COLLECTOR_BIN_NAME, [
+        '--upload',
+        'directory',
+        '--path',
+        dir,
+        '--batch-type',
+        this.symbolCollectorConfig.batchType,
+        '--bundle-id',
+        bundleId,
+        '--server-endpoint',
+        this.symbolCollectorConfig.serverEndpoint,
+      ]);
     });
   }
 }

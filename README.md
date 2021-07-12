@@ -1037,14 +1037,14 @@ targets:
 ### Symbol Collector (`symbol-collector`)
 
 Using the [`symbol-collector`](https://github.com/getsentry/symbol-collector) client, uploads native symbols.
-The client needs to be available in the path.
+The `symbol-collector` needs to be available in the path.
 
 **Configuration**
 
 | Option           | Description                                                                                  |
 | ---------------- | -------------------------------------------------------------------------------------------- |
 | `serverEndpoint` | **optional** The server endpoint. Defaults to `https://symbol-collector.services.sentry.io`. |
-| `batchType`      | The batch type of the symbols to be uploaded.                                                |
+| `batchType`      | The batch type of the symbols to be uploaded. I.e: `Android`, `macOS`, `iOS`.                |
 | `bundleIdPrefix` | The prefix of the bundle ID. The new version will be appended to the end of this prefix.     |
 
 **Example**

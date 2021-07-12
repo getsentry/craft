@@ -23,16 +23,11 @@ const customConfig = {
 };
 
 function getSymbolCollectorInstance(
-  customConfig?: Record<string, unknown>
+  config: Record<string, unknown> = { ['testKey']: 'testVal' }
 ): SymbolCollector {
-  const config = customConfig
-    ? customConfig
-    : {
-        ['testKey']: 'testVal',
-      };
   return new SymbolCollector(
     {
-      name: 'aws-lambda-layer',
+      name: 'symbol-collector',
       ...config,
     },
     new NoneArtifactProvider()
@@ -62,7 +57,8 @@ describe('target config', () => {
     >) = jest.fn();
 
     expect(getSymbolCollectorInstance).toThrowErrorMatchingInlineSnapshot(
-      `"Required configuration not found in configuration file. See the documentation for more details."`
+      '"The required `batchType` parameter is missing in the configuration file. ' +
+        'See the documentation for more details."'
     );
     expect(checkExecutableIsPresent).toHaveBeenCalledTimes(1);
     expect(checkExecutableIsPresent).toHaveBeenCalledWith(

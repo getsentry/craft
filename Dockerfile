@@ -8,16 +8,16 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get -qq update \
   && apt-get install -y --no-install-recommends \
-  apt-transport-https \
-  build-essential \
-  curl \
-  dirmngr \
-  gnupg \
-  git \
-  ruby-full \
-  twine \
-  jq \
-  unzip \
+    apt-transport-https \
+    build-essential \
+    curl \
+    dirmngr \
+    gnupg \
+    git \
+    ruby-full \
+    twine \
+    jq \
+    unzip \
   && curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
   && dpkg -i /tmp/packages-microsoft-prod.deb \
   && rm /tmp/packages-microsoft-prod.deb \
@@ -36,7 +36,7 @@ RUN apt-get -qq update \
   && gem update --no-document --system 3.1.5 \
   && gem install cocoapods \
   # Install https://github.com/getsentry/symbol-collector
-  && symbol_collector_url=$(curl -s https://api.github.com/repos/getsentry/symbol-collector/releases/tags/1.3.1 | \
+  && symbol_collector_url=$(curl -s https://api.github.com/repos/getsentry/symbol-collector/releases/tags/1.2.1 | \
   jq -r '.assets[].browser_download_url | select(endswith("symbolcollector-console-linux-x64.zip"))') \
   && curl -sL $symbol_collector_url -o "/tmp/sym-collector.zip" \
   && unzip /tmp/sym-collector.zip -d /usr/local/bin/ \
