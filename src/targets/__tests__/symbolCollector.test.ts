@@ -100,11 +100,7 @@ describe('publish', () => {
       typeof spawnProcess
     >).mockImplementation(() => Promise.resolve(undefined));
 
-    const mockedArtifacts = [
-      { filename: 'artifact1', storedFile: { lastUpdated: 'tomorrow' } },
-      { filename: 'artifact2', storedFile: { lastUpdated: 'next week' } },
-      { filename: 'artifact2', storedFile: { lastUpdated: 'in 5 years' } },
-    ];
+    const mockedArtifacts = ['artifact1', 'artifact2', 'artifact3'];
 
     const symCollector = getSymbolCollectorInstance(customConfig);
     symCollector.getArtifactsForRevision = jest
