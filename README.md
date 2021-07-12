@@ -1021,16 +1021,17 @@ The `android` structure contains the following options:
 **Example**
 
 ```yaml
-- name: maven
-  gradleCliPath: ./gradlew
-  mavenCliPath: scripts/mvnw.cmd
-  mavenSettingsPath: scripts/settings.xml
-  mavenRepoId: ossrh
-  mavenRepoUrl: https://oss.sonatype.org/service/local/staging/deploy/maven2/
-  android:
-    distDirRegex: /^sentry-android-.*$/
-    fileReplaceeRegex: /\d\.\d\.\d(-SNAPSHOT)?/
-    fileReplacerStr: release.aar
+targets:
+  - name: maven
+    gradleCliPath: ./gradlew
+    mavenCliPath: scripts/mvnw.cmd
+    mavenSettingsPath: scripts/settings.xml
+    mavenRepoId: ossrh
+    mavenRepoUrl: https://oss.sonatype.org/service/local/staging/deploy/maven2/
+    android:
+      distDirRegex: /^sentry-android-.*$/
+      fileReplaceeRegex: /\d\.\d\.\d(-SNAPSHOT)?/
+      fileReplacerStr: release.aar
 ```
 
 ### Symbol Collector (`symbol-collector`)
