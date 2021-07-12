@@ -1,6 +1,10 @@
 import { logger as loggerRaw } from '../logger';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
-import { FilterOptions } from '../artifact_providers/base';
+import {
+  parseFilterOptions,
+  RawFilterOptions,
+  ParsedFilterOptions,
+} from '../artifact_providers/base';
 import { stringToRegexp } from '../utils/filters';
 import {
   BaseArtifactProvider,
@@ -18,7 +22,7 @@ export class BaseTarget {
   /** Unparsed target configuration */
   public readonly config: TargetConfig;
   /** Artifact filtering options for the target */
-  public readonly filterOptions: FilterOptions;
+  public readonly filterOptions: ParsedFilterOptions;
   /** Github repo configuration */
   public readonly githubRepo?: GithubGlobalConfig;
 
@@ -76,10 +80,10 @@ export class BaseTarget {
    */
   public async getArtifactsForRevision(
     revision: string,
-    defaultFilterOptions: FilterOptions = {}
+    defaultFilterOptions: RawFilterOptions = {}
   ): Promise<RemoteArtifact[]> {
     const filterOptions = {
-      ...defaultFilterOptions,
+      ...parseFilterOptions(defaultFilterOptions),
       ...this.filterOptions,
     };
     this.logger.debug(

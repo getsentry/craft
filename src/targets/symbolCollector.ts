@@ -1,4 +1,3 @@
-import { stringToRegexp } from '../utils/filters';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { TargetConfig } from '../schemas/project_config';
 import { ConfigurationError } from '../utils/errors';
@@ -68,10 +67,7 @@ export class SymbolCollector extends BaseTarget {
   public async publish(version: string, revision: string): Promise<any> {
     const bundleId = this.symbolCollectorConfig.bundleIdPrefix + version;
     const artifacts = await this.getArtifactsForRevision(revision, {
-      includeNames:
-        this.config.includeNames === undefined
-          ? undefined
-          : stringToRegexp(this.config.includeNames),
+      includeNames: this.config.includeNames,
     });
 
     if (artifacts.length === 0) {

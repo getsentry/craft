@@ -6,6 +6,7 @@ import {
 import { clearObjectProperties } from '../utils/objects';
 import { ConfigurationError } from '../utils/errors';
 import { logger as loggerRaw } from '../logger';
+import { stringToRegexp } from '../utils/filters';
 
 /** Maximum concurrency for downloads */
 export const MAX_DOWNLOAD_CONCURRENCY = 5;
@@ -61,14 +62,41 @@ export interface LocalArtifact extends AbstractArtifact {
 }
 
 /**
- * Fitlering options for artifacts
+ * Raw filtering options for artifacts
  */
-export interface FilterOptions {
+export interface RawFilterOptions {
+  /** Include files that match this pattern */
+  includeNames?: RegExp | string;
+  /** Exclude files that match this pattern */
+  excludeNames?: RegExp | string;
+}
+
+/**
+ * Parsed filtering options for artifacts
+ */
+export interface ParsedFilterOptions {
   /** Include files that match this regexp */
   includeNames?: RegExp;
   /** Exclude files that match this regexp */
   excludeNames?: RegExp;
 }
+
+/**
+ * Returns parsed the given raw filters.
+ */
+export function parseFilterOptions(
+  rawFilters: RawFilterOptions
+): ParsedFilterOptions {
+  const parsedFilters: ParsedFilterOptions = {};
+  if (typeof rawFilters.includeNames === 'string') {
+    parsedFilters.includeNames = stringToRegexp(rawFilters.includeNames);
+  }
+  if (typeof rawFilters.excludeNames === 'string') {
+    parsedFilters.excludeNames = stringToRegexp(rawFilters.excludeNames);
+  }
+  return parsedFilters;
+}
+
 /**
  * Configuration options needed for all artifact providers
  */
@@ -321,7 +349,7 @@ export abstract class BaseArtifactProvider {
    */
   public async filterArtifactsForRevision(
     revision: string,
-    filterOptions?: FilterOptions
+    filterOptions?: ParsedFilterOptions
   ): Promise<RemoteArtifact[]> {
     let filteredArtifacts = await this.listArtifactsForRevision(revision);
     if (!filterOptions || filteredArtifacts.length === 0) {
