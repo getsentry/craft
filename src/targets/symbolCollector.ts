@@ -105,7 +105,7 @@ export class SymbolCollector extends BaseTarget {
       ]);
 
       if (cmdOutput) {
-        this.logger.info(cmdOutput);
+        this.logger.info(cmdOutput.toString());
       } else {
         this.logger.info(`The command didn't have any output.`);
       }
