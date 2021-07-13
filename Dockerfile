@@ -8,16 +8,16 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get -qq update \
   && apt-get install -y --no-install-recommends \
-  apt-transport-https \
-  build-essential \
-  curl \
-  dirmngr \
-  gnupg \
-  git \
-  ruby-full \
-  twine \
-  jq \
-  unzip \
+    apt-transport-https \
+    build-essential \
+    curl \
+    dirmngr \
+    gnupg \
+    git \
+    ruby-full \
+    twine \
+    jq \
+    unzip \
   && curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
   && dpkg -i /tmp/packages-microsoft-prod.deb \
   && rm /tmp/packages-microsoft-prod.deb \
@@ -25,8 +25,8 @@ RUN apt-get -qq update \
   && curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - \
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
-  dotnet-sdk-5.0 \
-  docker-ce-cli \
+    dotnet-sdk-5.0 \
+    docker-ce-cli \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* \
   && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s --  --profile minimal -y \
