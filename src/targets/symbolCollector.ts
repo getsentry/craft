@@ -91,22 +91,24 @@ export class SymbolCollector extends BaseTarget {
         })
       );
 
-      this.logger.info(
-        (
-          await spawnProcess(SYM_COLLECTOR_BIN_NAME, [
-            '--upload',
-            'directory',
-            '--path',
-            dir,
-            '--batch-type',
-            this.symbolCollectorConfig.batchType,
-            '--bundle-id',
-            bundleId,
-            '--server-endpoint',
-            this.symbolCollectorConfig.serverEndpoint,
-          ])
-        )?.toString()
-      );
+      const cmdOutput = await spawnProcess(SYM_COLLECTOR_BIN_NAME, [
+        '--upload',
+        'directory',
+        '--path',
+        dir,
+        '--batch-type',
+        this.symbolCollectorConfig.batchType,
+        '--bundle-id',
+        bundleId,
+        '--server-endpoint',
+        this.symbolCollectorConfig.serverEndpoint,
+      ]);
+
+      if (cmdOutput) {
+        this.logger.info(cmdOutput);
+      } else {
+        this.logger.info(`The command didn't have any output.`);
+      }
     });
   }
 }
