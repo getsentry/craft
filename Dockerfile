@@ -25,8 +25,8 @@ RUN apt-get -qq update \
   && curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - \
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
-  dotnet-sdk-3.1 \
-  docker-ce-cli \
+    dotnet-sdk-5.0 \
+    docker-ce-cli \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* \
   && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s --  --profile minimal -y \
