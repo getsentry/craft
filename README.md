@@ -52,6 +52,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [AWS Lambda Layer (`aws-lambda-layer`)](#aws-lambda-layer-aws-lambda-layer)
   - [Unity Package Manager (`upm`)](#unity-package-manager-upm)
   - [Maven central (`maven`)](#maven-central-maven)
+  - [Symbol Collector (`symbol-collector`)](#symbol-collector-symbol-collector)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Post-release Script: Conventions](#post-release-script-conventions)
@@ -1031,6 +1032,29 @@ targets:
       distDirRegex: /^sentry-android-.*$/
       fileReplaceeRegex: /\d\.\d\.\d(-SNAPSHOT)?/
       fileReplacerStr: release.aar
+```
+
+### Symbol Collector (`symbol-collector`)
+
+Using the [`symbol-collector`](https://github.com/getsentry/symbol-collector) client, uploads native symbols.
+The `symbol-collector` needs to be available in the path.
+
+**Configuration**
+
+| Option           | Description                                                                                  |
+| ---------------- | -------------------------------------------------------------------------------------------- |
+| `serverEndpoint` | **optional** The server endpoint. Defaults to `https://symbol-collector.services.sentry.io`. |
+| `batchType`      | The batch type of the symbols to be uploaded. I.e: `Android`, `macOS`, `iOS`.                |
+| `bundleIdPrefix` | The prefix of the bundle ID. The new version will be appended to the end of this prefix.     |
+
+**Example**
+
+```yaml
+targets:
+  - name: symbol-collector
+    includeNames: /libsentry(-android)?\.so/
+    batchType: Android
+    bundleIdPrefix: android-ndk-
 ```
 
 ## Integrating Your Project with `craft`

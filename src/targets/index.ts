@@ -14,6 +14,7 @@ import { RegistryTarget } from './registry';
 import { AwsLambdaLayerTarget } from './awsLambdaLayer';
 import { UpmTarget } from './upm';
 import { MavenTarget } from './maven';
+import { SymbolCollector } from './symbolCollector';
 
 export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   brew: BrewTarget,
@@ -31,6 +32,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   'aws-lambda-layer': AwsLambdaLayerTarget,
   upm: UpmTarget,
   maven: MavenTarget,
+  'symbol-collector': SymbolCollector,
 };
 
 /** Targets that are treated specially */
