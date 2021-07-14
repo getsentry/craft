@@ -36,7 +36,7 @@ RUN apt-get -qq update \
   && gem update --no-document --system 3.1.5 \
   && gem install cocoapods \
   # Install https://github.com/getsentry/symbol-collector
-  && symbol_collector_url=$(curl -s https://api.github.com/repos/getsentry/symbol-collector/releases/tags/1.2.1 | \
+  && symbol_collector_url=$(curl -s https://api.github.com/repos/getsentry/symbol-collector/releases/tags/1.3.2 | \
   jq -r '.assets[].browser_download_url | select(endswith("symbolcollector-console-linux-x64.zip"))') \
   && curl -sL $symbol_collector_url -o "/tmp/sym-collector.zip" \
   && unzip /tmp/sym-collector.zip -d /usr/local/bin/ \
