@@ -105,9 +105,11 @@ export class SymbolCollector extends BaseTarget {
       ]);
 
       if (cmdOutput) {
-        this.logger.info(cmdOutput.toString());
-      } else {
-        this.logger.info(`The command didn't have any output.`);
+        if (cmdOutput.length === 0) {
+          this.logger.info(`The command didn't have any output.`);
+        } else {
+          this.logger.info('Command output:\n', cmdOutput.toString());
+        }
       }
     });
   }
