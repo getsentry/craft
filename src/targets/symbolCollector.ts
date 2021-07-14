@@ -91,7 +91,7 @@ export class SymbolCollector extends BaseTarget {
         })
       );
 
-      await spawnProcess(SYM_COLLECTOR_BIN_NAME, [
+      const cmdOutput = await spawnProcess(SYM_COLLECTOR_BIN_NAME, [
         '--upload',
         'directory',
         '--path',
@@ -103,6 +103,14 @@ export class SymbolCollector extends BaseTarget {
         '--server-endpoint',
         this.symbolCollectorConfig.serverEndpoint,
       ]);
+
+      if (cmdOutput) {
+        if (cmdOutput.length === 0) {
+          this.logger.info(`The command didn't have any output.`);
+        } else {
+          this.logger.info('Command output:\n', cmdOutput.toString());
+        }
+      }
     });
   }
 }
