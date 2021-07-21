@@ -5,12 +5,11 @@ import {
 } from '../artifact_providers/base';
 import { BaseTarget } from './base';
 import { homedir } from 'os';
-import { basename, join, parse } from 'path';
-import { promises as fsPromises } from 'fs';
+import { basename, extname, join, parse } from 'path';
+import { constants as fsConstants, promises as fsPromises } from 'fs';
 import { checkExecutableIsPresent, extractZipArchive } from '../utils/system';
 import { retrySpawnProcess } from '../utils/async';
 import { withTempDir } from '../utils/files';
-import { checkEnvForPrerequisite } from '../utils/env';
 import { ConfigurationError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
 
@@ -21,6 +20,9 @@ const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
  * https://docs.gradle.org/current/userguide/build_environment.html#sec:gradle_environment_variables
  */
 const DEFAULT_GRADLE_USER_HOME = join(homedir(), '.gradle');
+const POM_DEFAULT_FILENAME = 'pom-default.xml';
+const POM_FILE_EXTNAME = '.xml'; // Must include the leading `.`
+const BOM_FILE_KEY_REGEXP = stringToRegexp('/<packaging>pom</packaging>/');
 
 export const targetSecrets = ['OSSRH_USERNAME', 'OSSRH_PASSWORD'] as const;
 type SecretsType = typeof targetSecrets[number];
@@ -258,12 +260,92 @@ export class MavenTarget extends BaseTarget {
    * @param distDir directory of the distribution.
    */
   private async uploadDistribution(distDir: string): Promise<void> {
+    const bomFile = await this.getBomFileFomDist(distDir);
+    if (bomFile) {
+      this.logger.debug('Found BOM: ', bomFile);
+      await this.uploadBomDistribution(bomFile);
+    } else {
+      this.logger.debug('Did not find a BOM.');
+      await this.uploadPomDistribution(distDir);
+    }
+  }
+
+  private async getBomFileFomDist(
+    distDir: string
+  ): Promise<string | undefined> {
+    const pomFilepath = join(distDir, POM_DEFAULT_FILENAME);
+    if (await this.isBomFile(pomFilepath)) {
+      return pomFilepath;
+    }
+
+    // There may be several files in the ZIP-ed artifact with the same name,
+    // where the BOM may be one of them (there may not be a BOM). Files may be
+    // renamed when extracting the ZIP, so the default name (`pom-default.xml`)
+    // may not match. It's assumed that any renaming keeps the same extension,
+    // so all files with the same extension are checked to identify the BOM.
+    const filesInDir = await fsPromises.readdir(distDir);
+    const potentialPoms = filesInDir
+      .filter(f => extname(f) === POM_FILE_EXTNAME)
+      .filter(f => f !== POM_DEFAULT_FILENAME)
+      .map(f => join(distDir, f));
+
+    for (const f of potentialPoms) {
+      if (await this.isBomFile(f)) {
+        return f;
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Returns whether the given POM is a BOM.
+   *
+   * A BOM file is a POM file with the following key:
+   * `<packaging>pom</packaging>`, usually named as `pom-default.xml`.
+   *
+   * @param pomFilepath path to the POM.
+   * @returns true if the POM is a BOM.
+   */
+  private async isBomFile(pomFilepath: string): Promise<boolean> {
+    try {
+      await fsPromises.access(pomFilepath, fsConstants.R_OK);
+      const fileContents = await fsPromises.readFile(pomFilepath, {
+        encoding: 'utf8',
+      });
+      const matchesRequiredKey = BOM_FILE_KEY_REGEXP.test(fileContents);
+      if (matchesRequiredKey) {
+        return true;
+      }
+      return false;
+    } catch (error) {
+      this.logger.warn(
+        `Error checking whether it's a BOM file: ${pomFilepath}\n`,
+        error
+      );
+      return false;
+    }
+  }
+
+  private async uploadBomDistribution(bomFile: string): Promise<void> {
+    await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
+      'gpg:sign-and-deploy-file',
+      `-Dfile=${bomFile}`,
+      `-DpomFile=${bomFile}`,
+      `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
+      `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+      '--settings',
+      this.mavenConfig.mavenSettingsPath,
+    ]);
+  }
+
+  private async uploadPomDistribution(distDir: string): Promise<void> {
     const {
       targetFile,
       javadocFile,
       sourcesFile,
       pomFile,
-    } = this.getFilesForMavenCli(distDir);
+    } = this.getFilesForMavenPomDist(distDir);
 
     // Maven central is very flaky, so retrying with an exponential delay in
     // in case it fails.
@@ -288,7 +370,7 @@ export class MavenTarget extends BaseTarget {
    * @param distDir directory of the distribution.
    * @returns record of required files.
    */
-  private getFilesForMavenCli(distDir: string): Record<string, string> {
+  private getFilesForMavenPomDist(distDir: string): Record<string, string> {
     const moduleName = parse(distDir).base;
     return {
       targetFile: join(distDir, this.getTargetFilename(distDir)),
