@@ -1010,12 +1010,12 @@ PGP signs and publishes packages to Maven Central.
 | `mavenSettingsPath` | Path to the Maven `settings.xml` file.                                |
 | `mavenRepoId`       | ID of the Maven server in the `settings.xml`.                         |
 | `mavenRepoUrl`      | URL of the Maven repository.                                          |
-| `android`           | Structure containing the data available below.                        |
+| `android`           | **optional** Structure containing the data available below.           |
 
-The `android` structure contains the following options:
+The `android` structure is optional, but not including it when required may result in failing the release or even releasing wrong files. It contains the following options:
 
 - `distDirRegex`: pattern of distribution directory names.
-- `fileReplaceeRegex` :pattern of substring of distribution module names to be replaced to get the Android distribution file.
+- `fileReplaceeRegex`: pattern of substring of distribution module names to be replaced to get the Android distribution file.
 - `fileReplacerStr`: string to be replaced in the module names to get the Android distribution file.
 
 **Example**
