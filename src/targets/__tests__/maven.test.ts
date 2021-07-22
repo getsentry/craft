@@ -1,7 +1,12 @@
 import { homedir } from 'os';
 import { join } from 'path';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
-import { MavenTarget, targetOptions, targetSecrets } from '../maven';
+import {
+  MavenTarget,
+  POM_DEFAULT_FILENAME,
+  targetOptions,
+  targetSecrets,
+} from '../maven';
 import { retrySpawnProcess } from '../../utils/async';
 import { withTempDir } from '../../utils/files';
 
@@ -11,6 +16,11 @@ jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
   promises: {
     writeFile: jest.fn(() => Promise.resolve()),
+    readFile: jest.fn((file: string) => file),
+    readdir: async () => Promise.resolve([]), // empty dir
+    access: jest.fn().mockImplementation(() => {
+      // do nothing
+    }),
   },
 }));
 
@@ -109,10 +119,8 @@ describe('publish', () => {
       async () => void callOrder.push('closeAndRelease')
     );
 
-    const version = '1.0.0';
     const revision = 'r3v1s10n';
-
-    await mvnTarget.publish(version, revision);
+    await mvnTarget.publish('1.0.0', revision);
     expect(gradlePropsMock).toHaveBeenCalledTimes(1);
     expect(uploadMock).toHaveBeenCalledTimes(1);
     expect(uploadMock).toHaveBeenLastCalledWith(revision);
@@ -127,7 +135,7 @@ describe('publish', () => {
     ]);
   });
 
-  test('upload', async () => {
+  test('upload POM', async () => {
     // simple mock to always use the same temporary directory,
     // instead of creating a new one
     (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
@@ -143,9 +151,11 @@ describe('publish', () => {
     mvnTarget.artifactProvider.downloadArtifact = jest
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
+    mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(undefined);
 
     await mvnTarget.upload('r3v1s10n');
-    expect(retrySpawnProcess).toBeCalledTimes(1);
+
+    expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
     const callArgs = (retrySpawnProcess as jest.MockedFunction<
       typeof retrySpawnProcess
     >).mock.calls[0];
@@ -171,6 +181,49 @@ describe('publish', () => {
     expect(cmdArgs[7]).toBe(`-Durl=${DEFAULT_OPTION_VALUE}`);
     expect(cmdArgs[8]).toBe('--settings');
     expect(cmdArgs[9]).toBe(DEFAULT_OPTION_VALUE);
+  });
+
+  test('upload BOM', async () => {
+    // simple mock to always use the same temporary directory,
+    // instead of creating a new one
+    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+      async cb => {
+        return await cb(tmpDirName);
+      }
+    );
+
+    const mvnTarget = createMavenTarget();
+    mvnTarget.getArtifactsForRevision = jest
+      .fn()
+      .mockResolvedValueOnce([{ filename: 'mockArtifact.zip' }]);
+    mvnTarget.artifactProvider.downloadArtifact = jest
+      .fn()
+      .mockResolvedValueOnce('artifact/download/path');
+    mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce('path/to/bomfile');
+
+    await mvnTarget.upload('r3v1s10n');
+
+    expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
+    const callArgs = (retrySpawnProcess as jest.MockedFunction<
+      typeof retrySpawnProcess
+    >).mock.calls[0];
+
+    expect(callArgs).toHaveLength(2);
+    expect(callArgs[0]).toEqual(DEFAULT_OPTION_VALUE);
+
+    const cmdArgs = callArgs[1] as string[];
+    expect(cmdArgs).toHaveLength(7);
+    expect(cmdArgs[0]).toBe('gpg:sign-and-deploy-file');
+    expect(cmdArgs[1]).toMatch(
+      new RegExp(`-Dfile=${tmpDirName}.+${POM_DEFAULT_FILENAME}`)
+    );
+    expect(cmdArgs[2]).toMatch(
+      new RegExp(`-DpomFile=${tmpDirName}.*${POM_DEFAULT_FILENAME}`)
+    );
+    expect(cmdArgs[3]).toBe(`-DrepositoryId=${DEFAULT_OPTION_VALUE}`);
+    expect(cmdArgs[4]).toBe(`-Durl=${DEFAULT_OPTION_VALUE}`);
+    expect(cmdArgs[5]).toBe('--settings');
+    expect(cmdArgs[6]).toBe(DEFAULT_OPTION_VALUE);
   });
 });
 

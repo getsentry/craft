@@ -12,6 +12,7 @@ import { retrySpawnProcess } from '../utils/async';
 import { withTempDir } from '../utils/files';
 import { ConfigurationError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
+import { checkEnvForPrerequisite } from '../utils/env';
 
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
@@ -20,7 +21,7 @@ const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
  * https://docs.gradle.org/current/userguide/build_environment.html#sec:gradle_environment_variables
  */
 const DEFAULT_GRADLE_USER_HOME = join(homedir(), '.gradle');
-const POM_DEFAULT_FILENAME = 'pom-default.xml';
+export const POM_DEFAULT_FILENAME = 'pom-default.xml';
 const POM_FILE_EXTNAME = '.xml'; // Must include the leading `.`
 const BOM_FILE_KEY_REGEXP = stringToRegexp('/<packaging>pom</packaging>/');
 
@@ -307,7 +308,7 @@ export class MavenTarget extends BaseTarget {
    * @param pomFilepath path to the POM.
    * @returns true if the POM is a BOM.
    */
-  private async isBomFile(pomFilepath: string): Promise<boolean> {
+  public async isBomFile(pomFilepath: string): Promise<boolean> {
     try {
       await fsPromises.access(pomFilepath, fsConstants.R_OK);
       const fileContents = await fsPromises.readFile(pomFilepath, {
