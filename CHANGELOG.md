@@ -4,6 +4,7 @@
 
 - feat(maven): Add maven target to deploy to Maven Central (#258)
 - feat(symbol-collector): Add symbol-collector target (#266)
+- ref(maven): Support BOM files in `maven` target (#270)
 
 ## 0.24.4
 
