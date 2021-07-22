@@ -286,6 +286,10 @@ export class MavenTarget extends BaseTarget {
     // renamed when extracting the ZIP, so the default name (`pom-default.xml`)
     // may not match. It's assumed that any renaming keeps the same extension,
     // so all files with the same extension are checked to identify the BOM.
+    // TODO: make sure all scenarios are considered and tested.
+    // Each file system may handle this case differently, and attended vs
+    // unattended mode also have different behaviours. It's not desired to get
+    // the BOM renamed in such a way that isn't handled by the target.
     const filesInDir = await fsPromises.readdir(distDir);
     const potentialPoms = filesInDir
       .filter(f => extname(f) === POM_FILE_EXT)
@@ -320,7 +324,7 @@ export class MavenTarget extends BaseTarget {
     } catch (error) {
       this.logger.warn(
         `Could not determine if path corresponds to a BOM file: ${pomFilepath}\n` +
-          `Error:\n`,
+          'Error:\n',
         error
       );
       return false;

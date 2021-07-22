@@ -151,7 +151,7 @@ describe('publish', () => {
     mvnTarget.artifactProvider.downloadArtifact = jest
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
-    mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(undefined);
+    mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
 
     await mvnTarget.upload('r3v1s10n');
 
