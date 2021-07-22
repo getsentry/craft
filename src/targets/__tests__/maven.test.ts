@@ -46,7 +46,7 @@ function removeTargetSecretsFromEnv(): void {
   }
 }
 
-function getTargetOptions() {
+function getAllTargetOptions() {
   return {
     OSSRH_USERNAME: DEFAULT_OPTION_VALUE,
     OSSRH_PASSWORD: DEFAULT_OPTION_VALUE,
@@ -63,10 +63,24 @@ function getTargetOptions() {
   };
 }
 
+function getRequiredTargetOptions() {
+  return {
+    OSSRH_USERNAME: DEFAULT_OPTION_VALUE,
+    OSSRH_PASSWORD: DEFAULT_OPTION_VALUE,
+    gradleCliPath: DEFAULT_OPTION_VALUE,
+    mavenCliPath: DEFAULT_OPTION_VALUE,
+    mavenSettingsPath: DEFAULT_OPTION_VALUE,
+    mavenRepoId: DEFAULT_OPTION_VALUE,
+    mavenRepoUrl: DEFAULT_OPTION_VALUE,
+  };
+}
+
 function createMavenTarget(
   targetOptions?: Record<string, unknown>
 ): MavenTarget {
-  const finalOptions = targetOptions ? targetOptions : getTargetOptions();
+  const finalOptions = targetOptions
+    ? targetOptions
+    : getRequiredTargetOptions();
   const mergedOptions = {
     name: 'maven',
     ...finalOptions,
@@ -77,9 +91,9 @@ function createMavenTarget(
 describe('Maven target configuration', () => {
   beforeEach(() => removeTargetSecretsFromEnv());
 
-  test('with options', () => {
+  test('with only required options', () => {
     setTargetSecretsInEnv();
-    const mvnTarget = createMavenTarget(getTargetOptions());
+    const mvnTarget = createMavenTarget(getRequiredTargetOptions());
     targetOptions.map(secret =>
       expect(mvnTarget.config).toEqual(
         expect.objectContaining({
@@ -89,7 +103,28 @@ describe('Maven target configuration', () => {
     );
   });
 
-  test('without options', () =>
+  test('with all options', () => {
+    setTargetSecretsInEnv();
+    const mvnTarget = createMavenTarget(getAllTargetOptions());
+    targetOptions.map(secret =>
+      expect(mvnTarget.config).toEqual(
+        expect.objectContaining({
+          [secret]: DEFAULT_OPTION_VALUE,
+        })
+      )
+    );
+    expect(mvnTarget.config.android.distDirRegex).toStrictEqual(
+      expect.any(String)
+    );
+    expect(mvnTarget.config.android.fileReplaceeRegex).toStrictEqual(
+      expect.any(String)
+    );
+    expect(mvnTarget.config.android.fileReplacerStr).toStrictEqual(
+      expect.any(String)
+    );
+  });
+
+  test('without any options', () =>
     expect(createMavenTarget).toThrowErrorMatchingInlineSnapshot(
       `"Required value(s) OSSRH_USERNAME not found in configuration files or the environment. See the documentation for more details."`
     ));

@@ -51,7 +51,7 @@ type TargetSettingType = SecretsType | OptionsType;
  * Config options for the "maven" target.
  */
 export type MavenTargetConfig = Record<TargetSettingType, string> &
-  AndroidFields;
+  Partial<AndroidFields>;
 
 type PartialTargetConfig = { name: string; value: string | undefined }[];
 
@@ -81,10 +81,24 @@ export class MavenTarget extends BaseTarget {
    * @returns the maven config for this target.
    */
   private getMavenConfig(): MavenTargetConfig {
+    const targetSecrets = this.getTargetSecrets();
+    const outerTargetSettings = this.getOuterTargetSettings();
+
+    if (this.config.android) {
+      const androidSettings = this.getAndroidSettings();
+      return {
+        ...targetSecrets,
+        ...outerTargetSettings,
+        ...androidSettings,
+      };
+    }
+
+    this.logger.warn(
+      'You may need the Android configuration and it was not found in the configuration file.'
+    );
     return {
       ...this.getTargetSecrets(),
       ...this.getOuterTargetSettings(),
-      ...this.getAndroidSettings(),
     };
   }
 
@@ -401,14 +415,18 @@ export class MavenTarget extends BaseTarget {
   private getTargetFilename(distDir: string): string {
     const moduleName = parse(distDir).base;
 
-    const isAndroidDistDir = this.mavenConfig.android.distDirRegex.test(
-      moduleName
-    );
-    return isAndroidDistDir
-      ? moduleName.replace(
+    if (this.mavenConfig.android) {
+      const isAndroidDistDir = this.mavenConfig.android.distDirRegex.test(
+        moduleName
+      );
+      if (isAndroidDistDir) {
+        return moduleName.replace(
           this.mavenConfig.android.fileReplaceeRegex,
           this.mavenConfig.android.fileReplacerStr
-        )
-      : `${moduleName}.jar`;
+        );
+      }
+    }
+
+    return `${moduleName}.jar`;
   }
 }
