@@ -22,7 +22,7 @@ const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
  */
 const DEFAULT_GRADLE_USER_HOME = join(homedir(), '.gradle');
 export const POM_DEFAULT_FILENAME = 'pom-default.xml';
-const POM_FILE_EXTNAME = '.xml'; // Must include the leading `.`
+const POM_FILE_EXT = '.xml'; // Must include the leading `.`
 const BOM_FILE_KEY_REGEXP = stringToRegexp('/<packaging>pom</packaging>/');
 
 export const targetSecrets = ['OSSRH_USERNAME', 'OSSRH_PASSWORD'] as const;
@@ -271,6 +271,10 @@ export class MavenTarget extends BaseTarget {
     }
   }
 
+  /**
+   * Returns the path to the BOM file in the given distribution directory, and
+   * `undefined` if there isn't any.
+   */
   private async getBomFileFomDist(
     distDir: string
   ): Promise<string | undefined> {
@@ -286,7 +290,7 @@ export class MavenTarget extends BaseTarget {
     // so all files with the same extension are checked to identify the BOM.
     const filesInDir = await fsPromises.readdir(distDir);
     const potentialPoms = filesInDir
-      .filter(f => extname(f) === POM_FILE_EXTNAME)
+      .filter(f => extname(f) === POM_FILE_EXT)
       .filter(f => f !== POM_DEFAULT_FILENAME)
       .map(f => join(distDir, f));
 
@@ -314,14 +318,11 @@ export class MavenTarget extends BaseTarget {
       const fileContents = await fsPromises.readFile(pomFilepath, {
         encoding: 'utf8',
       });
-      const matchesRequiredKey = BOM_FILE_KEY_REGEXP.test(fileContents);
-      if (matchesRequiredKey) {
-        return true;
-      }
-      return false;
+      return BOM_FILE_KEY_REGEXP.test(fileContents);
     } catch (error) {
       this.logger.warn(
-        `Error checking whether it's a BOM file: ${pomFilepath}\n`,
+        `Could not determine if path corresponds to a BOM file: ${pomFilepath}\n` +
+          `Error:\n`,
         error
       );
       return false;
