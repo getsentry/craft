@@ -261,7 +261,7 @@ export class MavenTarget extends BaseTarget {
    * @param distDir directory of the distribution.
    */
   private async uploadDistribution(distDir: string): Promise<void> {
-    const bomFile = await this.getBomFileFomDist(distDir);
+    const bomFile = await this.getBomFileInDist(distDir);
     if (bomFile) {
       this.logger.debug('Found BOM: ', bomFile);
       await this.uploadBomDistribution(bomFile);
@@ -275,9 +275,7 @@ export class MavenTarget extends BaseTarget {
    * Returns the path to the BOM file in the given distribution directory, and
    * `undefined` if there isn't any.
    */
-  private async getBomFileFomDist(
-    distDir: string
-  ): Promise<string | undefined> {
+  private async getBomFileInDist(distDir: string): Promise<string | undefined> {
     const pomFilepath = join(distDir, POM_DEFAULT_FILENAME);
     if (await this.isBomFile(pomFilepath)) {
       return pomFilepath;
