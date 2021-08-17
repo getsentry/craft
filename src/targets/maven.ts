@@ -13,6 +13,7 @@ import { withTempDir } from '../utils/files';
 import { ConfigurationError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
 import { checkEnvForPrerequisite } from '../utils/env';
+import { LogLevel } from 'consola';
 
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
@@ -331,16 +332,20 @@ export class MavenTarget extends BaseTarget {
   }
 
   private async uploadBomDistribution(bomFile: string): Promise<void> {
-    const cmdOutput = await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
-      'gpg:sign-and-deploy-file',
-      `-Dfile=${bomFile}`,
-      `-DpomFile=${bomFile}`,
-      `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
-      `-Durl=${this.mavenConfig.mavenRepoUrl}`,
-      '--settings',
-      this.mavenConfig.mavenSettingsPath,
-    ]);
-    this.logCmdOutput(cmdOutput);
+    await retrySpawnProcess(
+      this.mavenConfig.mavenCliPath,
+      [
+        'gpg:sign-and-deploy-file',
+        `-Dfile=${bomFile}`,
+        `-DpomFile=${bomFile}`,
+        `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
+        `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+        '--settings',
+        this.mavenConfig.mavenSettingsPath,
+      ],
+      {},
+      { showStdout: this.logger.level >= LogLevel.Debug }
+    );
   }
 
   private async uploadPomDistribution(distDir: string): Promise<void> {
@@ -353,19 +358,23 @@ export class MavenTarget extends BaseTarget {
 
     // Maven central is very flaky, so retrying with an exponential delay in
     // in case it fails.
-    const cmdOutput = await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
-      'gpg:sign-and-deploy-file',
-      `-Dfile=${targetFile}`,
-      `-Dfiles=${javadocFile},${sourcesFile}`,
-      `-Dclassifiers=javadoc,sources`,
-      `-Dtypes=jar,jar`,
-      `-DpomFile=${pomFile}`,
-      `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
-      `-Durl=${this.mavenConfig.mavenRepoUrl}`,
-      `--settings`,
-      `${this.mavenConfig.mavenSettingsPath}`,
-    ]);
-    this.logCmdOutput(cmdOutput);
+    await retrySpawnProcess(
+      this.mavenConfig.mavenCliPath,
+      [
+        'gpg:sign-and-deploy-file',
+        `-Dfile=${targetFile}`,
+        `-Dfiles=${javadocFile},${sourcesFile}`,
+        `-Dclassifiers=javadoc,sources`,
+        `-Dtypes=jar,jar`,
+        `-DpomFile=${pomFile}`,
+        `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
+        `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+        `--settings`,
+        `${this.mavenConfig.mavenSettingsPath}`,
+      ],
+      {},
+      { showStdout: this.logger.level >= LogLevel.Debug }
+    );
   }
 
   /**
@@ -411,15 +420,5 @@ export class MavenTarget extends BaseTarget {
           this.mavenConfig.android.fileReplacerStr
         )
       : `${moduleName}.jar`;
-  }
-
-  private logCmdOutput(output: Buffer | undefined): void {
-    if (output) {
-      if (output.length === 0) {
-        this.logger.debug(`The command didn't have any output.`);
-      } else {
-        this.logger.debug('Command output:\n', output.toString());
-      }
-    }
   }
 }
