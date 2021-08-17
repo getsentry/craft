@@ -18,6 +18,7 @@ jest.mock('fs', () => ({
     writeFile: jest.fn(() => Promise.resolve()),
     readFile: jest.fn((file: string) => file),
     readdir: async () => Promise.resolve([]), // empty dir
+    unlink: jest.fn(),
   },
 }));
 
@@ -104,10 +105,14 @@ describe('publish', () => {
   test('main flow', async () => {
     const callOrder: string[] = [];
     const mvnTarget = createMavenTarget();
-    const gradlePropsMock = jest.fn(
-      async () => void callOrder.push('gradleProps')
+    const createGradlePropsMock = jest.fn(
+      async () => void callOrder.push('createGradleProps')
     );
-    mvnTarget.createUserGradlePropsFile = gradlePropsMock;
+    mvnTarget.createUserGradlePropsFile = createGradlePropsMock;
+    const deleteGradlePropsMock = jest.fn(
+      async () => void callOrder.push('deleteGradleProps')
+    );
+    mvnTarget.deleteUserGradlePropsFile = deleteGradlePropsMock;
     const uploadMock = jest.fn(async () => void callOrder.push('upload'));
     mvnTarget.upload = uploadMock;
     (retrySpawnProcess as jest.MockedFunction<
@@ -118,7 +123,7 @@ describe('publish', () => {
 
     const revision = 'r3v1s10n';
     await mvnTarget.publish('1.0.0', revision);
-    expect(gradlePropsMock).toHaveBeenCalledTimes(1);
+    expect(createGradlePropsMock).toHaveBeenCalledTimes(1);
     expect(uploadMock).toHaveBeenCalledTimes(1);
     expect(uploadMock).toHaveBeenLastCalledWith(revision);
     expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
@@ -126,9 +131,10 @@ describe('publish', () => {
       'closeAndReleaseRepository',
     ]);
     expect(callOrder).toStrictEqual([
-      'gradleProps',
+      'createGradleProps',
       'upload',
       'closeAndRelease',
+      'deleteGradleProps',
     ]);
   });
 
