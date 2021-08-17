@@ -4,8 +4,8 @@
 
 - feat(maven): Add maven target to deploy to Maven Central (#258)
 - feat(symbol-collector): Add symbol-collector target (#266)
-- ref(maven): Support BOM files in `maven` target (#270)
-- ref(maven): Optional `android` config (#271)
+- feat(maven): Support BOM files in `maven` target (#270)
+- feat(maven): Optional `android` config (#271)
 
 ## 0.24.4
 
