@@ -18,9 +18,6 @@ jest.mock('fs', () => ({
     writeFile: jest.fn(() => Promise.resolve()),
     readFile: jest.fn((file: string) => file),
     readdir: async () => Promise.resolve([]), // empty dir
-    access: jest.fn().mockImplementation(() => {
-      // do nothing
-    }),
   },
 }));
 
