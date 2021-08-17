@@ -126,6 +126,7 @@ describe('publish', () => {
     expect(createGradlePropsMock).toHaveBeenCalledTimes(1);
     expect(uploadMock).toHaveBeenCalledTimes(1);
     expect(uploadMock).toHaveBeenLastCalledWith(revision);
+    expect(deleteGradlePropsMock).toHaveBeenCalledTimes(1);
     expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
     expect(retrySpawnProcess).toHaveBeenCalledWith(DEFAULT_OPTION_VALUE, [
       'closeAndReleaseRepository',
