@@ -305,13 +305,7 @@ export class MavenTarget extends BaseTarget {
       .filter(f => f !== POM_DEFAULT_FILENAME && extname(f) === POM_FILE_EXT)
       .map(f => join(distDir, f));
 
-    for (const f of potentialPoms) {
-      if (await this.isBomFile(f)) {
-        return f;
-      }
-    }
-
-    return undefined;
+    return potentialPoms.find(async f => await this.isBomFile(f));
   }
 
   /**
