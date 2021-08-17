@@ -331,7 +331,7 @@ export class MavenTarget extends BaseTarget {
   }
 
   private async uploadBomDistribution(bomFile: string): Promise<void> {
-    await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
+    const cmdOutput = await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
       'gpg:sign-and-deploy-file',
       `-Dfile=${bomFile}`,
       `-DpomFile=${bomFile}`,
@@ -340,6 +340,7 @@ export class MavenTarget extends BaseTarget {
       '--settings',
       this.mavenConfig.mavenSettingsPath,
     ]);
+    this.logCmdOutput(cmdOutput);
   }
 
   private async uploadPomDistribution(distDir: string): Promise<void> {
@@ -352,7 +353,7 @@ export class MavenTarget extends BaseTarget {
 
     // Maven central is very flaky, so retrying with an exponential delay in
     // in case it fails.
-    await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
+    const cmdOutput = await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
       'gpg:sign-and-deploy-file',
       `-Dfile=${targetFile}`,
       `-Dfiles=${javadocFile},${sourcesFile}`,
@@ -364,6 +365,7 @@ export class MavenTarget extends BaseTarget {
       `--settings`,
       `${this.mavenConfig.mavenSettingsPath}`,
     ]);
+    this.logCmdOutput(cmdOutput);
   }
 
   /**
@@ -409,5 +411,15 @@ export class MavenTarget extends BaseTarget {
           this.mavenConfig.android.fileReplacerStr
         )
       : `${moduleName}.jar`;
+  }
+
+  private logCmdOutput(output: Buffer | undefined): void {
+    if (output) {
+      if (output.length === 0) {
+        this.logger.debug(`The command didn't have any output.`);
+      } else {
+        this.logger.debug('Command output:\n', output.toString());
+      }
+    }
   }
 }
