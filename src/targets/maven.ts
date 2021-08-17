@@ -186,6 +186,7 @@ export class MavenTarget extends BaseTarget {
     await retrySpawnProcess(this.mavenConfig.gradleCliPath, [
       'closeAndReleaseRepository',
     ]);
+    await this.deleteUserGradlePropsFile();
   }
 
   /**
@@ -202,6 +203,15 @@ export class MavenTarget extends BaseTarget {
         `mavenCentralUsername=${this.mavenConfig.OSSRH_USERNAME}`,
         `mavenCentralPassword=${this.mavenConfig.OSSRH_PASSWORD}`,
       ].join('\n')
+    );
+  }
+
+  /**
+   * Deletes the user's `gradle.properties` file.
+   */
+  public deleteUserGradlePropsFile(): Promise<void> {
+    return fsPromises.unlink(
+      join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME)
     );
   }
 
