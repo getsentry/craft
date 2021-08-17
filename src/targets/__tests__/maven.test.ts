@@ -160,7 +160,7 @@ describe('publish', () => {
       typeof retrySpawnProcess
     >).mock.calls[0];
 
-    expect(callArgs).toHaveLength(2);
+    expect(callArgs).toHaveLength(4);
     expect(callArgs[0]).toEqual(DEFAULT_OPTION_VALUE);
 
     const cmdArgs = callArgs[1] as string[];
@@ -181,6 +181,9 @@ describe('publish', () => {
     expect(cmdArgs[7]).toBe(`-Durl=${DEFAULT_OPTION_VALUE}`);
     expect(cmdArgs[8]).toBe('--settings');
     expect(cmdArgs[9]).toBe(DEFAULT_OPTION_VALUE);
+    expect(callArgs[2]).toEqual({});
+    // log level isn't >= debug on tests
+    expect(callArgs[3]).toEqual({ showStdout: false });
   });
 
   test('upload BOM', async () => {
@@ -208,7 +211,7 @@ describe('publish', () => {
       typeof retrySpawnProcess
     >).mock.calls[0];
 
-    expect(callArgs).toHaveLength(2);
+    expect(callArgs).toHaveLength(4);
     expect(callArgs[0]).toEqual(DEFAULT_OPTION_VALUE);
 
     const cmdArgs = callArgs[1] as string[];
@@ -224,6 +227,9 @@ describe('publish', () => {
     expect(cmdArgs[4]).toBe(`-Durl=${DEFAULT_OPTION_VALUE}`);
     expect(cmdArgs[5]).toBe('--settings');
     expect(cmdArgs[6]).toBe(DEFAULT_OPTION_VALUE);
+    expect(callArgs[2]).toEqual({});
+    // log level isn't >= debug on tests
+    expect(callArgs[3]).toEqual({ showStdout: false });
   });
 });
 
