@@ -36,13 +36,12 @@ export class SymbolCollector extends BaseTarget {
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);
+    // The Symbol Collector should be available in the path
+    checkExecutableIsPresent(SYM_COLLECTOR_BIN_NAME);
     this.symbolCollectorConfig = this.getSymbolCollectorConfig();
   }
 
   private getSymbolCollectorConfig(): SymbolCollectorTargetConfig {
-    // The Symbol Collector should be available in the path
-    checkExecutableIsPresent(SYM_COLLECTOR_BIN_NAME);
-
     if (!this.config.batchType) {
       throw new ConfigurationError(
         'The required `batchType` parameter is missing in the configuration file. ' +
@@ -68,6 +67,7 @@ export class SymbolCollector extends BaseTarget {
     const bundleId = this.symbolCollectorConfig.bundleIdPrefix + version;
     const artifacts = await this.getArtifactsForRevision(revision, {
       includeNames: this.config.includeNames,
+      excludeNames: this.config.excludeNames,
     });
 
     if (artifacts.length === 0) {
