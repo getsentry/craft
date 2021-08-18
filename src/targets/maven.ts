@@ -6,7 +6,7 @@ import {
 import { BaseTarget } from './base';
 import { homedir } from 'os';
 import { basename, extname, join, parse } from 'path';
-import { constants as fsConstants, promises as fsPromises } from 'fs';
+import { promises as fsPromises } from 'fs';
 import { checkExecutableIsPresent, extractZipArchive } from '../utils/system';
 import { retrySpawnProcess } from '../utils/async';
 import { withTempDir } from '../utils/files';
@@ -23,7 +23,7 @@ const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 const DEFAULT_GRADLE_USER_HOME = join(homedir(), '.gradle');
 export const POM_DEFAULT_FILENAME = 'pom-default.xml';
 const POM_FILE_EXT = '.xml'; // Must include the leading `.`
-const BOM_FILE_KEY_REGEXP = stringToRegexp('/<packaging>pom</packaging>/');
+const BOM_FILE_KEY_REGEXP = new RegExp('<packaging>pom</packaging>');
 
 export const targetSecrets = ['OSSRH_USERNAME', 'OSSRH_PASSWORD'] as const;
 type SecretsType = typeof targetSecrets[number];
@@ -186,6 +186,7 @@ export class MavenTarget extends BaseTarget {
     await retrySpawnProcess(this.mavenConfig.gradleCliPath, [
       'closeAndReleaseRepository',
     ]);
+    await this.deleteUserGradlePropsFile();
   }
 
   /**
@@ -202,6 +203,15 @@ export class MavenTarget extends BaseTarget {
         `mavenCentralUsername=${this.mavenConfig.OSSRH_USERNAME}`,
         `mavenCentralPassword=${this.mavenConfig.OSSRH_PASSWORD}`,
       ].join('\n')
+    );
+  }
+
+  /**
+   * Deletes the user's `gradle.properties` file.
+   */
+  public deleteUserGradlePropsFile(): Promise<void> {
+    return fsPromises.unlink(
+      join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME)
     );
   }
 
@@ -292,17 +302,10 @@ export class MavenTarget extends BaseTarget {
     // the BOM renamed in such a way that isn't handled by the target.
     const filesInDir = await fsPromises.readdir(distDir);
     const potentialPoms = filesInDir
-      .filter(f => extname(f) === POM_FILE_EXT)
-      .filter(f => f !== POM_DEFAULT_FILENAME)
+      .filter(f => f !== POM_DEFAULT_FILENAME && extname(f) === POM_FILE_EXT)
       .map(f => join(distDir, f));
 
-    for (const f of potentialPoms) {
-      if (await this.isBomFile(f)) {
-        return f;
-      }
-    }
-
-    return undefined;
+    return potentialPoms.find(f => this.isBomFile(f));
   }
 
   /**
@@ -316,7 +319,6 @@ export class MavenTarget extends BaseTarget {
    */
   public async isBomFile(pomFilepath: string): Promise<boolean> {
     try {
-      await fsPromises.access(pomFilepath, fsConstants.R_OK);
       const fileContents = await fsPromises.readFile(pomFilepath, {
         encoding: 'utf8',
       });
