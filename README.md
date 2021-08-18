@@ -994,6 +994,8 @@ targets:
 
 PGP signs and publishes packages to Maven Central.
 
+Note: in order to see the output of the commands, set the [logging level](#logging-level) to `trace`.
+
 **Environment**
 
 | Name             | Description                      |

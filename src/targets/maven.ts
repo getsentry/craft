@@ -13,7 +13,6 @@ import { withTempDir } from '../utils/files';
 import { ConfigurationError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
 import { checkEnvForPrerequisite } from '../utils/env';
-import { LogLevel } from 'consola';
 
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
@@ -332,20 +331,15 @@ export class MavenTarget extends BaseTarget {
   }
 
   private async uploadBomDistribution(bomFile: string): Promise<void> {
-    await retrySpawnProcess(
-      this.mavenConfig.mavenCliPath,
-      [
-        'gpg:sign-and-deploy-file',
-        `-Dfile=${bomFile}`,
-        `-DpomFile=${bomFile}`,
-        `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
-        `-Durl=${this.mavenConfig.mavenRepoUrl}`,
-        '--settings',
-        this.mavenConfig.mavenSettingsPath,
-      ],
-      {},
-      { showStdout: this.logger.level >= LogLevel.Debug }
-    );
+    await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
+      'gpg:sign-and-deploy-file',
+      `-Dfile=${bomFile}`,
+      `-DpomFile=${bomFile}`,
+      `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
+      `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+      '--settings',
+      this.mavenConfig.mavenSettingsPath,
+    ]);
   }
 
   private async uploadPomDistribution(distDir: string): Promise<void> {
@@ -358,23 +352,18 @@ export class MavenTarget extends BaseTarget {
 
     // Maven central is very flaky, so retrying with an exponential delay in
     // in case it fails.
-    await retrySpawnProcess(
-      this.mavenConfig.mavenCliPath,
-      [
-        'gpg:sign-and-deploy-file',
-        `-Dfile=${targetFile}`,
-        `-Dfiles=${javadocFile},${sourcesFile}`,
-        `-Dclassifiers=javadoc,sources`,
-        `-Dtypes=jar,jar`,
-        `-DpomFile=${pomFile}`,
-        `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
-        `-Durl=${this.mavenConfig.mavenRepoUrl}`,
-        `--settings`,
-        `${this.mavenConfig.mavenSettingsPath}`,
-      ],
-      {},
-      { showStdout: this.logger.level >= LogLevel.Debug }
-    );
+    await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
+      'gpg:sign-and-deploy-file',
+      `-Dfile=${targetFile}`,
+      `-Dfiles=${javadocFile},${sourcesFile}`,
+      `-Dclassifiers=javadoc,sources`,
+      `-Dtypes=jar,jar`,
+      `-DpomFile=${pomFile}`,
+      `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
+      `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+      `--settings`,
+      `${this.mavenConfig.mavenSettingsPath}`,
+    ]);
   }
 
   /**
