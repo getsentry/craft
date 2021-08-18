@@ -38,11 +38,13 @@ export const targetOptions = [
 type OptionsType = typeof targetOptions[number];
 
 type AndroidFields = {
-  android: {
-    distDirRegex: RegExp;
-    fileReplaceeRegex: RegExp;
-    fileReplacerStr: string;
-  };
+  android:
+    | false
+    | {
+        distDirRegex: RegExp;
+        fileReplaceeRegex: RegExp;
+        fileReplacerStr: string;
+      };
 };
 
 type TargetSettingType = SecretsType | OptionsType;
@@ -51,7 +53,7 @@ type TargetSettingType = SecretsType | OptionsType;
  * Config options for the "maven" target.
  */
 export type MavenTargetConfig = Record<TargetSettingType, string> &
-  Partial<AndroidFields>;
+  AndroidFields;
 
 type PartialTargetConfig = { name: string; value: string | undefined }[];
 
@@ -81,24 +83,10 @@ export class MavenTarget extends BaseTarget {
    * @returns the maven config for this target.
    */
   private getMavenConfig(): MavenTargetConfig {
-    const targetSecrets = this.getTargetSecrets();
-    const outerTargetSettings = this.getOuterTargetSettings();
-
-    if (this.config.android) {
-      const androidSettings = this.getAndroidSettings();
-      return {
-        ...targetSecrets,
-        ...outerTargetSettings,
-        ...androidSettings,
-      };
-    }
-
-    this.logger.warn(
-      'You may need the Android configuration and it was not found in the configuration file.'
-    );
     return {
       ...this.getTargetSecrets(),
       ...this.getOuterTargetSettings(),
+      ...this.getAndroidSettings(),
     };
   }
 
@@ -139,7 +127,14 @@ export class MavenTarget extends BaseTarget {
   }
 
   private getAndroidSettings(): AndroidFields {
+    if (this.config.android === false) {
+      return {
+        android: false,
+      };
+    }
+
     if (
+      !this.config.android ||
       !this.config.android.distDirRegex ||
       !this.config.android.fileReplaceeRegex ||
       !this.config.android.fileReplacerStr
@@ -415,7 +410,7 @@ export class MavenTarget extends BaseTarget {
   private getTargetFilename(distDir: string): string {
     const moduleName = parse(distDir).base;
 
-    if (this.mavenConfig.android) {
+    if (this.mavenConfig.android !== false) {
       const isAndroidDistDir = this.mavenConfig.android.distDirRegex.test(
         moduleName
       );
