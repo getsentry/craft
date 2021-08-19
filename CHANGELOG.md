@@ -6,6 +6,7 @@
 - feat(symbol-collector): Add symbol-collector target (#266)
 - feat(maven): Support BOM files in `maven` target (#270)
 - feat(maven): Optional `android` config (#271)
+- feat(maven): Remove Gradle properties after publishing (#276)
 
 ## 0.24.4
 
