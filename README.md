@@ -1010,15 +1010,29 @@ PGP signs and publishes packages to Maven Central.
 | `mavenSettingsPath` | Path to the Maven `settings.xml` file.                                |
 | `mavenRepoId`       | ID of the Maven server in the `settings.xml`.                         |
 | `mavenRepoUrl`      | URL of the Maven repository.                                          |
-| `android`           | **optional** Structure containing the data available below.           |
+| `android`           | Android configuration, see below.                                     |
 
-The `android` structure is optional, but not including it when required may result in failing the release or even releasing wrong files. It contains the following options:
+If your project isn't related to Android, you don't need this configuration and
+can set the option to `false`. If not, set the following nested elements:
 
 - `distDirRegex`: pattern of distribution directory names.
 - `fileReplaceeRegex`: pattern of substring of distribution module names to be replaced to get the Android distribution file.
 - `fileReplacerStr`: string to be replaced in the module names to get the Android distribution file.
 
-**Example**
+**Example (without Android config)**
+
+```yaml
+targets:
+  - name: maven
+    gradleCliPath: ./gradlew
+    mavenCliPath: scripts/mvnw.cmd
+    mavenSettingsPath: scripts/settings.xml
+    mavenRepoId: ossrh
+    mavenRepoUrl: https://oss.sonatype.org/service/local/staging/deploy/maven2/
+    android: false
+```
+
+**Example (with Android config)**
 
 ```yaml
 targets:
