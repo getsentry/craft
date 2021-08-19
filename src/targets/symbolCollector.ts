@@ -36,12 +36,13 @@ export class SymbolCollector extends BaseTarget {
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);
-    // The Symbol Collector should be available in the path
-    checkExecutableIsPresent(SYM_COLLECTOR_BIN_NAME);
     this.symbolCollectorConfig = this.getSymbolCollectorConfig();
   }
 
   private getSymbolCollectorConfig(): SymbolCollectorTargetConfig {
+    // The Symbol Collector should be available in the path
+    checkExecutableIsPresent(SYM_COLLECTOR_BIN_NAME);
+
     if (!this.config.batchType) {
       throw new ConfigurationError(
         'The required `batchType` parameter is missing in the configuration file. ' +
