@@ -140,7 +140,7 @@ export class MavenTarget extends BaseTarget {
       !this.config.android.fileReplacerStr
     ) {
       throw new ConfigurationError(
-        'Required Android configuration not found in configuration file. ' +
+        'Required Android configuration is incorrect or was not found in the configuration file. ' +
           'See the documentation for more details.'
       );
     }
