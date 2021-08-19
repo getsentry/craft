@@ -1,4 +1,3 @@
-import { stringToRegexp } from '../../utils/filters';
 import { parseFilterOptions, RawFilterOptions } from '../base';
 
 describe('parseFilterOptions', () => {
@@ -11,71 +10,42 @@ describe('parseFilterOptions', () => {
 
   test.each([
     [undefined, undefined],
-    [undefined, '/onlyExclude/'],
-    ['/onlyInclude/', undefined],
+    [undefined, '/exclude/'],
+    [undefined, new RegExp('exclude')],
+    ['/include/', undefined],
+    [new RegExp('include'), undefined],
     ['/include/', '/exclude/'],
-  ])('undefined and string properties', (includeNames, excludeNames) => {
-    const rawFilters: RawFilterOptions = {
-      includeNames: includeNames,
-      excludeNames: excludeNames,
-    };
-    const parsedFilters = parseFilterOptions(rawFilters);
-
-    if (includeNames) {
-      expect(parsedFilters.includeNames).toStrictEqual(
-        stringToRegexp(includeNames)
-      );
-    } else {
-      expect(parsedFilters.includeNames).not.toBeDefined();
-    }
-    if (excludeNames) {
-      expect(parsedFilters.excludeNames).toStrictEqual(
-        stringToRegexp(excludeNames)
-      );
-    } else {
-      expect(parsedFilters.excludeNames).not.toBeDefined();
-    }
-  });
-
-  test.each([
-    [undefined, undefined],
-    [undefined, new RegExp('onlyExclude')],
-    [new RegExp('onlyInclude'), undefined],
+    ['/include/', new RegExp('exclude')],
+    [new RegExp('include'), '/exclude/'],
     [new RegExp('include'), new RegExp('exclude')],
-  ])('undefined and regex properties', (includeNames, excludeNames) => {
-    const rawFilters: RawFilterOptions = {
-      includeNames: includeNames,
-      excludeNames: excludeNames,
-    };
-    const parsedFilters = parseFilterOptions(rawFilters);
+  ])(
+    'undefined, string and regexp properties',
+    (includeNames, excludeNames) => {
+      const rawFilters: RawFilterOptions = {
+        includeNames: includeNames,
+        excludeNames: excludeNames,
+      };
+      const parsedFilters = parseFilterOptions(rawFilters);
 
-    if (includeNames) {
-      expect(parsedFilters.includeNames).toStrictEqual(includeNames);
-    } else {
-      expect(parsedFilters.includeNames).not.toBeDefined();
+      if (includeNames) {
+        expect(parsedFilters.includeNames).toStrictEqual(
+          typeof includeNames === 'string'
+            ? new RegExp(includeNames.slice(1, -1))
+            : includeNames
+        );
+      } else {
+        expect(parsedFilters.includeNames).not.toBeDefined();
+      }
+
+      if (excludeNames) {
+        expect(parsedFilters.excludeNames).toStrictEqual(
+          typeof excludeNames === 'string'
+            ? new RegExp(excludeNames.slice(1, -1))
+            : excludeNames
+        );
+      } else {
+        expect(parsedFilters.excludeNames).not.toBeDefined();
+      }
     }
-    if (excludeNames) {
-      expect(parsedFilters.excludeNames).toStrictEqual(excludeNames);
-    } else {
-      expect(parsedFilters.excludeNames).not.toBeDefined();
-    }
-  });
-
-  test('string and regex properties', () => {
-    const strIncNames: RawFilterOptions = {
-      includeNames: '/string/',
-      excludeNames: new RegExp('regexp'),
-    };
-    const parsedStrInc = parseFilterOptions(strIncNames);
-    expect(parsedStrInc.includeNames).toStrictEqual(stringToRegexp('/string/'));
-    expect(parsedStrInc.excludeNames).toStrictEqual(new RegExp('regexp'));
-
-    const rgxIncNames: RawFilterOptions = {
-      includeNames: new RegExp('regexp'),
-      excludeNames: '/string/',
-    };
-    const parsedRgxInc = parseFilterOptions(rgxIncNames);
-    expect(parsedRgxInc.includeNames).toStrictEqual(new RegExp('regexp'));
-    expect(parsedRgxInc.excludeNames).toStrictEqual(stringToRegexp('/string/'));
-  });
+  );
 });
