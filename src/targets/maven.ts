@@ -276,7 +276,6 @@ export class MavenTarget extends BaseTarget {
       this.logger.debug('Found BOM: ', bomFile);
       await this.uploadBomDistribution(bomFile);
     } else {
-      this.logger.debug('Did not find a BOM.');
       await this.uploadPomDistribution(distDir);
     }
   }
