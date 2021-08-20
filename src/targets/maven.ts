@@ -133,15 +133,20 @@ export class MavenTarget extends BaseTarget {
       };
     }
 
+    if (!this.config.android) {
+      throw new ConfigurationError(
+        'Required Android configuration was not found in the configuration file. ' +
+          'See the documentation for more details'
+      );
+    }
+
     if (
-      !this.config.android ||
       !this.config.android.distDirRegex ||
       !this.config.android.fileReplaceeRegex ||
       !this.config.android.fileReplacerStr
     ) {
       throw new ConfigurationError(
-        'Required Android configuration is incorrect or was not found in the configuration file. ' +
-          'See the documentation for more details.'
+        'Required Android configuration is incorrect. See the documentation for more details.'
       );
     }
 

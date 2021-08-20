@@ -98,7 +98,7 @@ describe('Maven target configuration', () => {
   });
 
   test('env vars without options', () => {
-    expect(createMavenTarget.bind(this, {})).toThrowErrorMatchingInlineSnapshot(
+    expect(() => createMavenTarget({})).toThrowErrorMatchingInlineSnapshot(
       `"Required configuration gradleCliPath not found in configuration file. See the documentation for more details."`
     );
   });
@@ -106,20 +106,16 @@ describe('Maven target configuration', () => {
   test('no android config', () => {
     const config = getRequiredTargetConfig();
     delete config.android;
-    expect(
-      createMavenTarget.bind(this, config)
-    ).toThrowErrorMatchingInlineSnapshot(
-      `"Required Android configuration is incorrect or was not found in the configuration file. See the documentation for more details."`
+    expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
+      `"Required Android configuration was not found in the configuration file. See the documentation for more details"`
     );
   });
 
   test('incorrect one-line android config', () => {
     const config = getRequiredTargetConfig();
     config.android = 'yes';
-    expect(
-      createMavenTarget.bind(this, config)
-    ).toThrowErrorMatchingInlineSnapshot(
-      `"Required Android configuration is incorrect or was not found in the configuration file. See the documentation for more details."`
+    expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
+      `"Required Android configuration is incorrect. See the documentation for more details."`
     );
   });
 
@@ -132,10 +128,8 @@ describe('Maven target configuration', () => {
   test('incorrect object android config, missing prop', () => {
     const config = getFullTargetConfig();
     delete config.android.distDirRegex;
-    expect(
-      createMavenTarget.bind(this, config)
-    ).toThrowErrorMatchingInlineSnapshot(
-      `"Required Android configuration is incorrect or was not found in the configuration file. See the documentation for more details."`
+    expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
+      `"Required Android configuration is incorrect. See the documentation for more details."`
     );
   });
 
@@ -143,10 +137,8 @@ describe('Maven target configuration', () => {
     const config = getFullTargetConfig();
     delete config.android.distDirRegex;
     config.android.anotherParam = 'unused';
-    expect(
-      createMavenTarget.bind(this, config)
-    ).toThrowErrorMatchingInlineSnapshot(
-      `"Required Android configuration is incorrect or was not found in the configuration file. See the documentation for more details."`
+    expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
+      `"Required Android configuration is incorrect. See the documentation for more details."`
     );
   });
 
@@ -155,9 +147,7 @@ describe('Maven target configuration', () => {
     config.android.additionalProp = 'not relevant';
     const mvnTarget = createMavenTarget(config);
     const androidConfig: any = mvnTarget.mavenConfig.android;
-    expect(androidConfig.distDirRegex).toBeDefined();
-    expect(androidConfig.fileReplaceeRegex).toBeDefined();
-    expect(androidConfig.fileReplacerStr).toBeDefined();
+    expect(config.android).toMatchObject(androidConfig);
     expect(androidConfig.additionalProp).not.toBeDefined();
   });
 
@@ -182,15 +172,9 @@ describe('Maven target configuration', () => {
         })
       )
     );
-    expect(mvnTarget.config.android.distDirRegex).toStrictEqual(
-      expect.any(String)
-    );
-    expect(mvnTarget.config.android.fileReplaceeRegex).toStrictEqual(
-      expect.any(String)
-    );
-    expect(mvnTarget.config.android.fileReplacerStr).toStrictEqual(
-      expect.any(String)
-    );
+    expect(typeof mvnTarget.config.android.distDirRegex).toBe('string');
+    expect(typeof mvnTarget.config.android.fileReplaceeRegex).toBe('string');
+    expect(typeof mvnTarget.config.android.fileReplacerStr).toBe('string');
   });
 });
 
