@@ -68,6 +68,7 @@ export class SymbolCollector extends BaseTarget {
     const bundleId = this.symbolCollectorConfig.bundleIdPrefix + version;
     const artifacts = await this.getArtifactsForRevision(revision, {
       includeNames: this.config.includeNames,
+      excludeNames: this.config.excludeNames,
     });
 
     if (artifacts.length === 0) {

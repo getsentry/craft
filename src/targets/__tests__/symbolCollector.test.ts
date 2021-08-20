@@ -60,10 +60,6 @@ describe('target config', () => {
       '"The required `batchType` parameter is missing in the configuration file. ' +
         'See the documentation for more details."'
     );
-    expect(checkExecutableIsPresent).toHaveBeenCalledTimes(1);
-    expect(checkExecutableIsPresent).toHaveBeenCalledWith(
-      SYM_COLLECTOR_BIN_NAME
-    );
   });
 
   test('symbol collector present and config ok', () => {
