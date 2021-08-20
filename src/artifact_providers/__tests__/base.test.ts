@@ -11,13 +11,13 @@ describe('parseFilterOptions', () => {
   test.each([
     [undefined, undefined],
     [undefined, '/exclude/'],
-    [undefined, new RegExp('exclude')],
+    [undefined, /exclude/],
     ['/include/', undefined],
-    [new RegExp('include'), undefined],
+    [/include/, undefined],
     ['/include/', '/exclude/'],
-    ['/include/', new RegExp('exclude')],
-    [new RegExp('include'), '/exclude/'],
-    [new RegExp('include'), new RegExp('exclude')],
+    ['/include/', /exclude/],
+    [/include/, '/exclude/'],
+    [/include/, /exclude/],
   ])(
     'undefined, string and regexp properties',
     (includeNames, excludeNames) => {
@@ -27,25 +27,13 @@ describe('parseFilterOptions', () => {
       };
       const parsedFilters = parseFilterOptions(rawFilters);
 
-      if (includeNames) {
-        expect(parsedFilters.includeNames).toStrictEqual(
-          typeof includeNames === 'string'
-            ? new RegExp(includeNames.slice(1, -1))
-            : includeNames
-        );
-      } else {
-        expect(parsedFilters.includeNames).not.toBeDefined();
-      }
+      expect(parsedFilters.includeNames).toStrictEqual(
+        includeNames && /include/
+      );
 
-      if (excludeNames) {
-        expect(parsedFilters.excludeNames).toStrictEqual(
-          typeof excludeNames === 'string'
-            ? new RegExp(excludeNames.slice(1, -1))
-            : excludeNames
-        );
-      } else {
-        expect(parsedFilters.excludeNames).not.toBeDefined();
-      }
+      expect(parsedFilters.excludeNames).toStrictEqual(
+        excludeNames && /exclude/
+      );
     }
   );
 });
