@@ -6,7 +6,7 @@ import {
 import { BaseTarget } from './base';
 import { homedir } from 'os';
 import { basename, extname, join, parse } from 'path';
-import { promises as fsPromises } from 'fs';
+import { promises as fsPromises, constants as fsConstants } from 'fs';
 import { checkExecutableIsPresent, extractZipArchive } from '../utils/system';
 import { retrySpawnProcess } from '../utils/async';
 import { withTempDir } from '../utils/files';
@@ -187,31 +187,117 @@ export class MavenTarget extends BaseTarget {
    * @param revision Git commit SHA to be published.
    */
   public async publish(_version: string, revison: string): Promise<void> {
-    await this.createUserGradlePropsFile();
-    await this.upload(revison);
+    await withTempDir(async dir => {
+      const snapshotPath = await this.makeGradlePropsSnapshot(dir);
+      // Overwrite the file, instead of appending the content, because:
+      // 1. The target must get all the config by itself, without relying on
+      // local config files.
+      // 2. Appending more config to the gradle config file may imply a
+      // misconfiguration(such as duplicated or conflicting keys).
+      await this.createUserGradlePropsFile();
 
-    // Maven central is very flaky, so retrying with an exponential delay in
-    // in case it fails.
-    // TODO: close the repository by doing the requests from Craft
-    // What the gradle plugin does is a / some requests to close the repo, see
-    // https://github.com/vanniktech/gradle-maven-publish-plugin/tree/master/src/main/kotlin/com/vanniktech/maven/publish/nexus
-    // If Craft did those requests, it wouldn't be necessary to rely on a third
-    // party plugin for releases.
-    await retrySpawnProcess(this.mavenConfig.gradleCliPath, [
-      'closeAndReleaseRepository',
-    ]);
-    await this.deleteUserGradlePropsFile();
+      await this.upload(revison);
+
+      // Maven central is very flaky, so retrying with an exponential delay in
+      // in case it fails.
+      // TODO: close the repository by doing the requests from Craft
+      // What the gradle plugin does is a / some requests to close the repo, see
+      // https://github.com/vanniktech/gradle-maven-publish-plugin/tree/master/src/main/kotlin/com/vanniktech/maven/publish/nexus
+      // If Craft did those requests, it wouldn't be necessary to rely on a third
+      // party plugin for releases.
+      await retrySpawnProcess(this.mavenConfig.gradleCliPath, [
+        'closeAndReleaseRepository',
+      ]);
+      await this.recoverGradlePropsSnapshot(snapshotPath);
+    });
+  }
+
+  /**
+   * Makes a snapshot of the gradle properties file, if exists.
+   *
+   * @param snapshotDir Directory to place the snapshot in.
+   * @returns The path to the snapshot in the given directory,
+   *  or `undefined` if the snapshot wasn't created.
+   */
+  private async makeGradlePropsSnapshot(
+    snapshotDir: string
+  ): Promise<string | undefined> {
+    const propsExpectedPath = this.getGradlePropsPath();
+    try {
+      await fsPromises.access(propsExpectedPath, fsConstants.R_OK);
+    } catch (error) {
+      this.logger.debug(
+        'Did not find a gradle properties file in: ',
+        propsExpectedPath
+      );
+      return undefined;
+    }
+
+    const snapshotPath = join(
+      snapshotDir,
+      `${GRADLE_PROPERTIES_FILENAME}-SNAPSHOT`
+    );
+    try {
+      this.logger.debug(
+        `Making a snapshot of ${propsExpectedPath} in `,
+        snapshotPath
+      );
+      await fsPromises.copyFile(propsExpectedPath, snapshotPath);
+      return snapshotPath;
+    } catch (error) {
+      this.logger.error(
+        `Cannot make a gradle properties snapshot of ${propsExpectedPath}` +
+          '\nError:\n',
+        error
+      );
+      return undefined;
+    }
+  }
+
+  /**
+   * Restores the gradle properties snapshot.
+   *
+   * @param snapshotPath Path to the snapshot of the gradle properties file.
+   */
+  private async recoverGradlePropsSnapshot(
+    snapshotPath: string | undefined
+  ): Promise<void> {
+    if (!snapshotPath) {
+      this.logger.debug('Deleting temporary gradle properties file...');
+      return this.deleteUserGradlePropsFile();
+    }
+
+    const gradlePropsPath = this.getGradlePropsPath();
+    try {
+      await fsPromises.access(gradlePropsPath, fsConstants.W_OK);
+      this.logger.debug(
+        'Recovering gradle properties snapshot from ',
+        snapshotPath
+      );
+      await fsPromises.copyFile(snapshotPath, gradlePropsPath);
+    } catch (error) {
+      this.logger.error(
+        `Could not recover gradle properties snapshot from ${snapshotPath} to ${gradlePropsPath}` +
+          '\nError:\n',
+        error
+      );
+    }
+  }
+
+  /**
+   * Returns the path where the gradle properties file should be. If there's a
+   * gradle properties file, it is in this path.
+   */
+  private getGradlePropsPath(): string {
+    return join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME);
   }
 
   /**
    * Creates the required user's `gradle.properties` file.
-   *
-   * If there's an existing one, it's overwritten.
-   * TODO: control when it's overwritten with an option.
    */
   public createUserGradlePropsFile(): Promise<void> {
     return fsPromises.writeFile(
-      join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
+      this.getGradlePropsPath(),
       [
         // OSSRH and Maven Central credentials are the same
         `mavenCentralUsername=${this.mavenConfig.OSSRH_USERNAME}`,
