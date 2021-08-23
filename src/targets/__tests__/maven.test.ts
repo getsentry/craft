@@ -44,7 +44,7 @@ function removeTargetSecretsFromEnv(): void {
   }
 }
 
-function getTargetOptions() {
+function getFullTargetConfig(): any {
   return {
     OSSRH_USERNAME: DEFAULT_OPTION_VALUE,
     OSSRH_PASSWORD: DEFAULT_OPTION_VALUE,
@@ -61,23 +61,98 @@ function getTargetOptions() {
   };
 }
 
-function createMavenTarget(
-  targetOptions?: Record<string, unknown>
-): MavenTarget {
-  const finalOptions = targetOptions ? targetOptions : getTargetOptions();
-  const mergedOptions = {
-    name: 'maven',
-    ...finalOptions,
+function getRequiredTargetConfig(): any {
+  return {
+    OSSRH_USERNAME: DEFAULT_OPTION_VALUE,
+    OSSRH_PASSWORD: DEFAULT_OPTION_VALUE,
+    gradleCliPath: DEFAULT_OPTION_VALUE,
+    mavenCliPath: DEFAULT_OPTION_VALUE,
+    mavenSettingsPath: DEFAULT_OPTION_VALUE,
+    mavenRepoId: DEFAULT_OPTION_VALUE,
+    mavenRepoUrl: DEFAULT_OPTION_VALUE,
+    android: false,
   };
-  return new MavenTarget(mergedOptions, new NoneArtifactProvider());
+}
+
+function createMavenTarget(
+  targetConfig?: Record<string, unknown>
+): MavenTarget {
+  const finalConfig = targetConfig ? targetConfig : getRequiredTargetConfig();
+  const mergedConfig = {
+    name: 'maven',
+    ...finalConfig,
+  };
+  return new MavenTarget(mergedConfig, new NoneArtifactProvider());
 }
 
 describe('Maven target configuration', () => {
-  beforeEach(() => removeTargetSecretsFromEnv());
+  beforeEach(() => setTargetSecretsInEnv());
 
-  test('with options', () => {
-    setTargetSecretsInEnv();
-    const mvnTarget = createMavenTarget(getTargetOptions());
+  afterEach(() => removeTargetSecretsFromEnv());
+
+  test('no env vars and no options', () => {
+    removeTargetSecretsFromEnv();
+    expect(createMavenTarget).toThrowErrorMatchingInlineSnapshot(
+      `"Required value(s) OSSRH_USERNAME not found in configuration files or the environment. See the documentation for more details."`
+    );
+  });
+
+  test('env vars without options', () => {
+    expect(() => createMavenTarget({})).toThrowErrorMatchingInlineSnapshot(
+      `"Required configuration gradleCliPath not found in configuration file. See the documentation for more details."`
+    );
+  });
+
+  test('no android config', () => {
+    const config = getRequiredTargetConfig();
+    delete config.android;
+    expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
+      `"Required Android configuration was not found in the configuration file. See the documentation for more details"`
+    );
+  });
+
+  test('incorrect one-line android config', () => {
+    const config = getRequiredTargetConfig();
+    config.android = 'yes';
+    expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
+      `"Required Android configuration is incorrect. See the documentation for more details."`
+    );
+  });
+
+  test('correct one-line android config', () => {
+    const config = getRequiredTargetConfig();
+    const mvnTarget = createMavenTarget(config);
+    expect(mvnTarget.mavenConfig.android).toStrictEqual(config.android);
+  });
+
+  test('incorrect object android config, missing prop', () => {
+    const config = getFullTargetConfig();
+    delete config.android.distDirRegex;
+    expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
+      `"Required Android configuration is incorrect. See the documentation for more details."`
+    );
+  });
+
+  test('incorrect object android config, replaced prop', () => {
+    const config = getFullTargetConfig();
+    delete config.android.distDirRegex;
+    config.android.anotherParam = 'unused';
+    expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
+      `"Required Android configuration is incorrect. See the documentation for more details."`
+    );
+  });
+
+  test('correct object android config, with additional props', () => {
+    const config = getFullTargetConfig();
+    config.android.additionalProp = 'not relevant';
+    const mvnTarget = createMavenTarget(config);
+    const androidConfig: any = mvnTarget.mavenConfig.android;
+    expect(config.android).toMatchObject(androidConfig);
+    expect(androidConfig.additionalProp).not.toBeDefined();
+  });
+
+  test('minimum required options', () => {
+    const mvnTarget = createMavenTarget(getRequiredTargetConfig());
     targetOptions.map(secret =>
       expect(mvnTarget.config).toEqual(
         expect.objectContaining({
@@ -87,10 +162,20 @@ describe('Maven target configuration', () => {
     );
   });
 
-  test('without options', () =>
-    expect(createMavenTarget).toThrowErrorMatchingInlineSnapshot(
-      `"Required value(s) OSSRH_USERNAME not found in configuration files or the environment. See the documentation for more details."`
-    ));
+  test('full target options', () => {
+    setTargetSecretsInEnv();
+    const mvnTarget = createMavenTarget(getFullTargetConfig());
+    targetOptions.map(secret =>
+      expect(mvnTarget.config).toEqual(
+        expect.objectContaining({
+          [secret]: DEFAULT_OPTION_VALUE,
+        })
+      )
+    );
+    expect(typeof mvnTarget.config.android.distDirRegex).toBe('string');
+    expect(typeof mvnTarget.config.android.fileReplaceeRegex).toBe('string');
+    expect(typeof mvnTarget.config.android.fileReplacerStr).toBe('string');
+  });
 });
 
 describe('publish', () => {

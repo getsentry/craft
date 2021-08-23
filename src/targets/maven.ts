@@ -38,11 +38,13 @@ export const targetOptions = [
 type OptionsType = typeof targetOptions[number];
 
 type AndroidFields = {
-  android: {
-    distDirRegex: RegExp;
-    fileReplaceeRegex: RegExp;
-    fileReplacerStr: string;
-  };
+  android:
+    | false
+    | {
+        distDirRegex: RegExp;
+        fileReplaceeRegex: RegExp;
+        fileReplacerStr: string;
+      };
 };
 
 type TargetSettingType = SecretsType | OptionsType;
@@ -125,14 +127,26 @@ export class MavenTarget extends BaseTarget {
   }
 
   private getAndroidSettings(): AndroidFields {
+    if (this.config.android === false) {
+      return {
+        android: false,
+      };
+    }
+
+    if (!this.config.android) {
+      throw new ConfigurationError(
+        'Required Android configuration was not found in the configuration file. ' +
+          'See the documentation for more details'
+      );
+    }
+
     if (
       !this.config.android.distDirRegex ||
       !this.config.android.fileReplaceeRegex ||
       !this.config.android.fileReplacerStr
     ) {
       throw new ConfigurationError(
-        'Required Android configuration not found in configuration file. ' +
-          'See the documentation for more details.'
+        'Required Android configuration is incorrect. See the documentation for more details.'
       );
     }
 
@@ -402,14 +416,18 @@ export class MavenTarget extends BaseTarget {
   private getTargetFilename(distDir: string): string {
     const moduleName = parse(distDir).base;
 
-    const isAndroidDistDir = this.mavenConfig.android.distDirRegex.test(
-      moduleName
-    );
-    return isAndroidDistDir
-      ? moduleName.replace(
+    if (this.mavenConfig.android !== false) {
+      const isAndroidDistDir = this.mavenConfig.android.distDirRegex.test(
+        moduleName
+      );
+      if (isAndroidDistDir) {
+        return moduleName.replace(
           this.mavenConfig.android.fileReplaceeRegex,
           this.mavenConfig.android.fileReplacerStr
-        )
-      : `${moduleName}.jar`;
+        );
+      }
+    }
+
+    return `${moduleName}.jar`;
   }
 }
