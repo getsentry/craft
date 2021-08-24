@@ -19,6 +19,8 @@ jest.mock('fs', () => ({
     readFile: jest.fn((file: string) => file),
     readdir: async () => Promise.resolve([]), // empty dir
     unlink: jest.fn(),
+    access: jest.fn(),
+    copyFile: jest.fn(),
   },
 }));
 
@@ -188,16 +190,22 @@ describe('publish', () => {
   beforeEach(() => jest.resetAllMocks());
 
   test('main flow', async () => {
+    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+      async cb => {
+        return await cb(tmpDirName);
+      }
+    );
+
     const callOrder: string[] = [];
     const mvnTarget = createMavenTarget();
-    const createGradlePropsMock = jest.fn(
-      async () => void callOrder.push('createGradleProps')
+    const makeSnapshotMock = jest.fn(
+      async () => void callOrder.push('makeSnapshot')
     );
-    mvnTarget.createUserGradlePropsFile = createGradlePropsMock;
-    const deleteGradlePropsMock = jest.fn(
-      async () => void callOrder.push('deleteGradleProps')
+    mvnTarget.createUserGradlePropsFile = makeSnapshotMock;
+    const recoverGradlePropsSnapshot = jest.fn(
+      async () => void callOrder.push('recoverSnapshot')
     );
-    mvnTarget.deleteUserGradlePropsFile = deleteGradlePropsMock;
+    mvnTarget.recoverGradlePropsSnapshot = recoverGradlePropsSnapshot;
     const uploadMock = jest.fn(async () => void callOrder.push('upload'));
     mvnTarget.upload = uploadMock;
     (retrySpawnProcess as jest.MockedFunction<
@@ -208,19 +216,19 @@ describe('publish', () => {
 
     const revision = 'r3v1s10n';
     await mvnTarget.publish('1.0.0', revision);
-    expect(createGradlePropsMock).toHaveBeenCalledTimes(1);
+    expect(makeSnapshotMock).toHaveBeenCalledTimes(1);
     expect(uploadMock).toHaveBeenCalledTimes(1);
     expect(uploadMock).toHaveBeenLastCalledWith(revision);
-    expect(deleteGradlePropsMock).toHaveBeenCalledTimes(1);
+    expect(recoverGradlePropsSnapshot).toHaveBeenCalledTimes(1);
     expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
     expect(retrySpawnProcess).toHaveBeenCalledWith(DEFAULT_OPTION_VALUE, [
       'closeAndReleaseRepository',
     ]);
     expect(callOrder).toStrictEqual([
-      'createGradleProps',
+      'makeSnapshot',
       'upload',
       'closeAndRelease',
-      'deleteGradleProps',
+      'recoverSnapshot',
     ]);
   });
 
@@ -336,5 +344,25 @@ describe('get gradle home directory', () => {
     const expected = join(homedir(), '.gradle');
     const actual = createMavenTarget().getGradleHomeDir();
     expect(actual).toEqual(expected);
+  });
+});
+
+describe('gradle props snapshots', () => {
+  beforeAll(() => setTargetSecretsInEnv());
+
+  afterAll(() => removeTargetSecretsFromEnv());
+
+  test('recover an existing snapshot', () => {
+    const mvnTarget = createMavenTarget(getRequiredTargetConfig());
+    mvnTarget.deleteUserGradlePropsFile = jest.fn();
+    mvnTarget.recoverGradlePropsSnapshot('/a/random/path');
+    expect(mvnTarget.deleteUserGradlePropsFile).not.toHaveBeenCalled();
+  });
+
+  test('recover a nonexisting snapshot', () => {
+    const mvnTarget = createMavenTarget(getRequiredTargetConfig());
+    mvnTarget.deleteUserGradlePropsFile = jest.fn();
+    mvnTarget.recoverGradlePropsSnapshot(undefined);
+    expect(mvnTarget.deleteUserGradlePropsFile).toHaveBeenCalledTimes(1);
   });
 });

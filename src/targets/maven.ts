@@ -219,7 +219,7 @@ export class MavenTarget extends BaseTarget {
    * @returns The path to the snapshot in the given directory,
    *  or `undefined` if the snapshot wasn't created.
    */
-  private async makeGradlePropsSnapshot(
+  public async makeGradlePropsSnapshot(
     snapshotDir: string
   ): Promise<string | undefined> {
     const propsExpectedPath = this.getGradlePropsPath();
@@ -259,7 +259,7 @@ export class MavenTarget extends BaseTarget {
    *
    * @param snapshotPath Path to the snapshot of the gradle properties file.
    */
-  private async recoverGradlePropsSnapshot(
+  public async recoverGradlePropsSnapshot(
     snapshotPath: string | undefined
   ): Promise<void> {
     if (!snapshotPath) {
