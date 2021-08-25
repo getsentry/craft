@@ -275,7 +275,9 @@ function checkGitStatus(repoStatus: StatusResult, rev: string) {
   ) {
     reportError(
       'Your repository is in a dirty state. ' +
-        'Please stash or commit the pending changes.',
+        'Please stash or commit the pending changes.' +
+        '\nRepo Status:\n' +
+        JSON.stringify(repoStatus),
       logger
     );
   }
