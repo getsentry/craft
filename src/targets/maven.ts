@@ -208,7 +208,7 @@ export class MavenTarget extends BaseTarget {
       await retrySpawnProcess(this.mavenConfig.gradleCliPath, [
         'closeAndReleaseRepository',
       ]);
-      await this.recoverGradlePropsSnapshot(snapshotPath);
+      await this.restoreGradleProps(snapshotPath);
     });
   }
 
@@ -259,7 +259,7 @@ export class MavenTarget extends BaseTarget {
    *
    * @param snapshotPath Path to the snapshot of the gradle properties file.
    */
-  public async recoverGradlePropsSnapshot(
+  public async restoreGradleProps(
     snapshotPath: string | undefined
   ): Promise<void> {
     if (!snapshotPath) {
@@ -269,7 +269,6 @@ export class MavenTarget extends BaseTarget {
 
     const gradlePropsPath = this.getGradlePropsPath();
     try {
-      await fsPromises.access(gradlePropsPath, fsConstants.W_OK);
       this.logger.debug(
         'Recovering gradle properties snapshot from ',
         snapshotPath

@@ -202,10 +202,10 @@ describe('publish', () => {
       async () => void callOrder.push('makeSnapshot')
     );
     mvnTarget.createUserGradlePropsFile = makeSnapshotMock;
-    const recoverGradlePropsSnapshot = jest.fn(
-      async () => void callOrder.push('recoverSnapshot')
+    const restoreGradleProps = jest.fn(
+      async () => void callOrder.push('restoreSnapshot')
     );
-    mvnTarget.recoverGradlePropsSnapshot = recoverGradlePropsSnapshot;
+    mvnTarget.restoreGradleProps = restoreGradleProps;
     const uploadMock = jest.fn(async () => void callOrder.push('upload'));
     mvnTarget.upload = uploadMock;
     (retrySpawnProcess as jest.MockedFunction<
@@ -219,7 +219,7 @@ describe('publish', () => {
     expect(makeSnapshotMock).toHaveBeenCalledTimes(1);
     expect(uploadMock).toHaveBeenCalledTimes(1);
     expect(uploadMock).toHaveBeenLastCalledWith(revision);
-    expect(recoverGradlePropsSnapshot).toHaveBeenCalledTimes(1);
+    expect(restoreGradleProps).toHaveBeenCalledTimes(1);
     expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
     expect(retrySpawnProcess).toHaveBeenCalledWith(DEFAULT_OPTION_VALUE, [
       'closeAndReleaseRepository',
@@ -228,7 +228,7 @@ describe('publish', () => {
       'makeSnapshot',
       'upload',
       'closeAndRelease',
-      'recoverSnapshot',
+      'restoreSnapshot',
     ]);
   });
 
@@ -352,17 +352,17 @@ describe('gradle props snapshots', () => {
 
   afterAll(() => removeTargetSecretsFromEnv());
 
-  test('recover an existing snapshot', () => {
+  test('restore an existing snapshot', () => {
     const mvnTarget = createMavenTarget(getRequiredTargetConfig());
     mvnTarget.deleteUserGradlePropsFile = jest.fn();
-    mvnTarget.recoverGradlePropsSnapshot('/a/random/path');
+    mvnTarget.restoreGradleProps('/a/random/path');
     expect(mvnTarget.deleteUserGradlePropsFile).not.toHaveBeenCalled();
   });
 
-  test('recover a nonexisting snapshot', () => {
+  test('restore a nonexisting snapshot', () => {
     const mvnTarget = createMavenTarget(getRequiredTargetConfig());
     mvnTarget.deleteUserGradlePropsFile = jest.fn();
-    mvnTarget.recoverGradlePropsSnapshot(undefined);
+    mvnTarget.restoreGradleProps(undefined);
     expect(mvnTarget.deleteUserGradlePropsFile).toHaveBeenCalledTimes(1);
   });
 });
