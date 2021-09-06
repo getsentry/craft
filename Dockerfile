@@ -1,4 +1,4 @@
-FROM node:12-buster
+FROM node:14-bullseye
 
 ENV DEBIAN_FRONTEND=noninteractive \
   DOTNET_CLI_TELEMETRY_OPTOUT=1 \
