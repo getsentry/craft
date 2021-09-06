@@ -8,6 +8,7 @@
 - feat(maven): Optional `android` config (#271)
 - feat(maven): Remove Gradle properties after publishing (#276)
 - upgrade(docker): Upgrade to Debain Bullseye and Node 14 (#282)
+- fix(cocoapods): Add COCOAPODS_ALLOW_ROOT=1 to Docker (#281)
 
 ## 0.24.4
 
