@@ -6,7 +6,11 @@ import {
 import { BaseTarget } from './base';
 import { homedir } from 'os';
 import { basename, extname, join, parse } from 'path';
-import { promises as fsPromises, constants as fsConstants } from 'fs';
+import {
+  promises as fsPromises,
+  accessSync,
+  constants as fsConstants,
+} from 'fs';
 import { checkExecutableIsPresent, extractZipArchive } from '../utils/system';
 import { retrySpawnProcess } from '../utils/async';
 import { withTempDir } from '../utils/files';
@@ -224,7 +228,7 @@ export class MavenTarget extends BaseTarget {
   ): Promise<string | undefined> {
     const propsExpectedPath = this.getGradlePropsPath();
     try {
-      await fsPromises.access(propsExpectedPath, fsConstants.R_OK);
+      accessSync(propsExpectedPath, fsConstants.R_OK);
     } catch (error) {
       this.logger.debug(
         'Did not find a gradle properties file in: ',
@@ -246,11 +250,9 @@ export class MavenTarget extends BaseTarget {
       return snapshotPath;
     } catch (error) {
       this.logger.error(
-        `Cannot make a gradle properties snapshot of ${propsExpectedPath}` +
-          '\nError:\n',
-        error
+        `Cannot make a gradle properties snapshot of ${propsExpectedPath}`
       );
-      return undefined;
+      throw error;
     }
   }
 
