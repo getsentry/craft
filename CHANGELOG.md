@@ -7,6 +7,7 @@
 - feat(maven): Support BOM files in `maven` target (#270)
 - feat(maven): Optional `android` config (#271)
 - feat(maven): Remove Gradle properties after publishing (#276)
+- upgrade(docker): Upgrade to Debain Bullseye and Node 14 (#282)
 
 ## 0.24.4
 
