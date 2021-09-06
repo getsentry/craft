@@ -61,6 +61,8 @@ export type MavenTargetConfig = Record<TargetSettingType, string> &
 
 type PartialTargetConfig = { name: string; value: string | undefined }[];
 
+type CallbackFunction = () => Promise<any>;
+
 /**
  * Target responsible for uploading files to Maven Central.
  */
@@ -191,15 +193,7 @@ export class MavenTarget extends BaseTarget {
    * @param revision Git commit SHA to be published.
    */
   public async publish(_version: string, revison: string): Promise<void> {
-    await withTempDir(async dir => {
-      const snapshotPath = await this.makeGradlePropsSnapshot(dir);
-      // Overwrite the file, instead of appending the content, because:
-      // 1. The target must get all the config by itself, without relying on
-      // local config files.
-      // 2. Appending more config to the gradle config file may imply a
-      // misconfiguration(such as duplicated or conflicting keys).
-      await this.createUserGradlePropsFile();
-
+    await this.withGradleProps(async () => {
       await this.upload(revison);
 
       // Maven central is very flaky, so retrying with an exponential delay in
@@ -212,7 +206,40 @@ export class MavenTarget extends BaseTarget {
       await retrySpawnProcess(this.mavenConfig.gradleCliPath, [
         'closeAndReleaseRepository',
       ]);
-      await this.restoreGradleProps(snapshotPath);
+    });
+  }
+
+  /**
+   * Encapsulates the given callback in a context manager. Maven CLI requires
+   * Maven Central credentials to be available in the gradle properties, which
+   * should be deleted to not expose them. The context manager makes a snapshot
+   * of the gradle properties, adds the credentials, runs the callback, and
+   * restores the snapshot.
+   *
+   * @param cb Callback to encapsulate.
+   */
+  private async withGradleProps(
+    cb: CallbackFunction
+  ): ReturnType<CallbackFunction> {
+    await withTempDir(async dir => {
+      const snapshotPath = await this.makeGradlePropsSnapshot(dir);
+      // Overwrite the file, instead of appending the content, because:
+      // 1. The target must get all the config by itself, without relying on
+      // local config files.
+      // 2. Appending more config to the gradle config file may imply a
+      // misconfiguration (such as duplicated or conflicting keys).
+      await this.createUserGradlePropsFile();
+
+      try {
+        return await cb();
+      } finally {
+        if (snapshotPath) {
+          await this.restoreGradleProps(snapshotPath);
+        } else {
+          this.logger.debug('Deleting temporary gradle properties file...');
+          this.deleteUserGradlePropsFile();
+        }
+      }
     });
   }
 
@@ -258,6 +285,7 @@ export class MavenTarget extends BaseTarget {
 
   /**
    * Restores the gradle properties snapshot.
+   * If a gradle properties file already exists, it's overwritten.
    *
    * @param snapshotPath Path to the snapshot of the gradle properties file.
    */
