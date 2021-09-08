@@ -61,7 +61,7 @@ export type MavenTargetConfig = Record<TargetSettingType, string> &
 
 type PartialTargetConfig = { name: string; value: string | undefined }[];
 
-type CallbackFunction = () => Promise<any>;
+type AsyncCallback = () => Promise<unknown>;
 
 /**
  * Target responsible for uploading files to Maven Central.
@@ -218,10 +218,8 @@ export class MavenTarget extends BaseTarget {
    *
    * @param cb Callback to encapsulate.
    */
-  private async withGradleProps(
-    cb: CallbackFunction
-  ): ReturnType<CallbackFunction> {
-    await withTempDir(async dir => {
+  private async withGradleProps(cb: AsyncCallback): ReturnType<AsyncCallback> {
+    return withTempDir(async dir => {
       const snapshotPath = await this.makeGradlePropsSnapshot(dir);
       // Overwrite the file, instead of appending the content, because:
       // 1. The target must get all the config by itself, without relying on
@@ -233,12 +231,7 @@ export class MavenTarget extends BaseTarget {
       try {
         return await cb();
       } finally {
-        if (snapshotPath) {
-          await this.restoreGradleProps(snapshotPath);
-        } else {
-          this.logger.debug('Deleting temporary gradle properties file...');
-          this.deleteUserGradlePropsFile();
-        }
+        await this.restoreGradleProps(snapshotPath);
       }
     });
   }
@@ -248,11 +241,11 @@ export class MavenTarget extends BaseTarget {
    *
    * @param snapshotDir Directory to place the snapshot in.
    * @returns The path to the snapshot in the given directory,
-   *  or `undefined` if the snapshot wasn't created.
+   *  or `null` if the snapshot wasn't created.
    */
   public async makeGradlePropsSnapshot(
     snapshotDir: string
-  ): Promise<string | undefined> {
+  ): Promise<string | null> {
     const propsExpectedPath = this.getGradlePropsPath();
     try {
       accessSync(propsExpectedPath, fsConstants.R_OK);
@@ -261,7 +254,7 @@ export class MavenTarget extends BaseTarget {
         'Did not find a gradle properties file in: ',
         propsExpectedPath
       );
-      return undefined;
+      return null;
     }
 
     const snapshotPath = join(
@@ -289,12 +282,12 @@ export class MavenTarget extends BaseTarget {
    *
    * @param snapshotPath Path to the snapshot of the gradle properties file.
    */
-  public async restoreGradleProps(
-    snapshotPath: string | undefined
-  ): Promise<void> {
+  public async restoreGradleProps(snapshotPath: string | null): Promise<void> {
     if (!snapshotPath) {
       this.logger.debug('Deleting temporary gradle properties file...');
-      return this.deleteUserGradlePropsFile();
+      return fsPromises.unlink(
+        join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME)
+      );
     }
 
     const gradlePropsPath = this.getGradlePropsPath();
@@ -332,15 +325,6 @@ export class MavenTarget extends BaseTarget {
         `mavenCentralUsername=${this.mavenConfig.OSSRH_USERNAME}`,
         `mavenCentralPassword=${this.mavenConfig.OSSRH_PASSWORD}`,
       ].join('\n')
-    );
-  }
-
-  /**
-   * Deletes the user's `gradle.properties` file.
-   */
-  public deleteUserGradlePropsFile(): Promise<void> {
-    return fsPromises.unlink(
-      join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME)
     );
   }
 
