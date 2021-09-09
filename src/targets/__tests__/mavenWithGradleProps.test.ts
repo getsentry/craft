@@ -76,10 +76,16 @@ describe('withGradleProps', () => {
   test('non-existent props file', async () => {
     await withTempDir(async dir => {
       // TODO: make the calls to `fs` async
-      // TODO: expect a fixed amount of asserts
 
       process.env.GRADLE_USER_HOME = dir;
       const expectedPropsPath = `${dir}/${GRADLE_PROPERTIES_FILENAME}`;
+
+      /**
+       * Expect 3 assertions:
+       *  2 testing whether the correct file in execution is created.
+       *  1 testing whether the user's file has been deleted.
+       */
+      expect.assertions(3);
 
       const mvnTarget = createMavenTarget(getRequiredTargetConfig());
       mvnTarget.upload = jest
@@ -98,10 +104,17 @@ describe('withGradleProps', () => {
   test('existent props file', async () => {
     await withTempDir(async dir => {
       // TODO: make the calls to `fs` async
-      // TODO: expect a fixed amount of asserts
+
       process.env.GRADLE_USER_HOME = dir;
       const expectedPropsPath = `${dir}/${GRADLE_PROPERTIES_FILENAME}`;
       const testProps = 'some random data to test prop snapshotting';
+
+      /**
+       * Expect 3 assertions:
+       *  2 testing whether the correct file in execution is created.
+       *  1 testing whether the file user's props file has correctly been restored.
+       */
+      expect.assertions(3);
 
       try {
         await fs.promises.writeFile(expectedPropsPath, testProps);
@@ -119,7 +132,6 @@ describe('withGradleProps', () => {
         );
       await mvnTarget.publish('v3rs10n', 'r3v1s10n');
 
-      expect(() => fs.accessSync(expectedPropsPath)).not.toThrowError();
       expect(fs.readFileSync(expectedPropsPath).toString()).toStrictEqual(
         testProps
       );
