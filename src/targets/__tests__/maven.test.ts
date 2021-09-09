@@ -346,23 +346,3 @@ describe('get gradle home directory', () => {
     expect(actual).toEqual(expected);
   });
 });
-
-describe('gradle props snapshots', () => {
-  beforeAll(() => setTargetSecretsInEnv());
-
-  afterAll(() => removeTargetSecretsFromEnv());
-
-  test('restore an existing snapshot', () => {
-    const mvnTarget = createMavenTarget(getRequiredTargetConfig());
-    mvnTarget.deleteUserGradlePropsFile = jest.fn();
-    mvnTarget.restoreGradleProps('/a/random/path');
-    expect(mvnTarget.deleteUserGradlePropsFile).not.toHaveBeenCalled();
-  });
-
-  test('restore a nonexisting snapshot', () => {
-    const mvnTarget = createMavenTarget(getRequiredTargetConfig());
-    mvnTarget.deleteUserGradlePropsFile = jest.fn();
-    mvnTarget.restoreGradleProps(undefined);
-    expect(mvnTarget.deleteUserGradlePropsFile).toHaveBeenCalledTimes(1);
-  });
-});

@@ -18,7 +18,7 @@ import { ConfigurationError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
 import { checkEnvForPrerequisite } from '../utils/env';
 
-const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
+export const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
 /**
  * Default gradle user home directory. See
