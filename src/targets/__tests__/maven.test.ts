@@ -2,6 +2,7 @@ import { homedir } from 'os';
 import { join } from 'path';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import {
+  GRADLE_PROPERTIES_FILENAME,
   MavenTarget,
   POM_DEFAULT_FILENAME,
   targetOptions,
@@ -9,6 +10,7 @@ import {
 } from '../maven';
 import { retrySpawnProcess } from '../../utils/async';
 import { withTempDir } from '../../utils/files';
+import { promises as fsPromises } from 'fs';
 
 jest.mock('../../utils/files');
 
@@ -190,11 +192,11 @@ describe('publish', () => {
   beforeEach(() => jest.resetAllMocks());
 
   test('main flow', async () => {
-    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
-      async cb => {
-        return await cb(tmpDirName);
-      }
-    );
+    (withTempDir as jest.MockedFunction<
+      typeof withTempDir
+    >).mockImplementationOnce(async cb => {
+      return await cb(tmpDirName);
+    });
 
     const callOrder: string[] = [];
     const mvnTarget = createMavenTarget();
@@ -235,11 +237,11 @@ describe('publish', () => {
   test('upload POM', async () => {
     // simple mock to always use the same temporary directory,
     // instead of creating a new one
-    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
-      async cb => {
-        return await cb(tmpDirName);
-      }
-    );
+    (withTempDir as jest.MockedFunction<
+      typeof withTempDir
+    >).mockImplementationOnce(async cb => {
+      return await cb(tmpDirName);
+    });
 
     const mvnTarget = createMavenTarget();
     mvnTarget.getArtifactsForRevision = jest
@@ -283,11 +285,11 @@ describe('publish', () => {
   test('upload BOM', async () => {
     // simple mock to always use the same temporary directory,
     // instead of creating a new one
-    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
-      async cb => {
-        return await cb(tmpDirName);
-      }
-    );
+    (withTempDir as jest.MockedFunction<
+      typeof withTempDir
+    >).mockImplementationOnce(async cb => {
+      return await cb(tmpDirName);
+    });
 
     const mvnTarget = createMavenTarget();
     mvnTarget.getArtifactsForRevision = jest
@@ -344,5 +346,94 @@ describe('get gradle home directory', () => {
     const expected = join(homedir(), '.gradle');
     const actual = createMavenTarget().getGradleHomeDir();
     expect(actual).toEqual(expected);
+  });
+});
+
+describe('withGradleProps', () => {
+  beforeAll(() => {
+    setTargetSecretsInEnv();
+  });
+
+  afterAll(() => {
+    removeTargetSecretsFromEnv();
+  });
+
+  beforeEach(() => {
+    delete process.env.GRADLE_USER_HOME;
+  });
+
+  /**
+   * Checks whether the properties file is correct.
+   * @param path Path to the properties file.
+   */
+  async function testCorrectPropsFile(path: string): Promise<void> {
+    try {
+      const content = (await fsPromises.readFile(path)).toString();
+      expect(content).toMatch(`mavenCentralUsername=${DEFAULT_OPTION_VALUE}`);
+      expect(content).toMatch(`mavenCentralPassword=${DEFAULT_OPTION_VALUE}`);
+    } catch (error) {
+      throw new Error(`Cannot read the contents of the props file: ${error}`);
+    }
+  }
+
+  test('non-existent props file', async () => {
+    await withTempDir(async dir => {
+      process.env.GRADLE_USER_HOME = dir;
+      const expectedPropsPath = `${dir}/${GRADLE_PROPERTIES_FILENAME}`;
+
+      /**
+       * Expect 3 assertions:
+       *  2 testing whether the correct file in execution is created.
+       *  1 testing whether the user's file has been deleted.
+       */
+      expect.assertions(3);
+
+      const mvnTarget = createMavenTarget(getRequiredTargetConfig());
+      mvnTarget.upload = jest
+        .fn()
+        .mockImplementationOnce(
+          async () => await testCorrectPropsFile(expectedPropsPath)
+        );
+
+      await mvnTarget.publish('v3rs10n', 'r3v1s10n');
+      await expect(fsPromises.access(expectedPropsPath)).rejects.toThrowError(
+        /ENOENT: no such file/
+      );
+    });
+  });
+
+  test('existent props file', async () => {
+    await withTempDir(async dir => {
+      process.env.GRADLE_USER_HOME = dir;
+      const expectedPropsPath = `${dir}/${GRADLE_PROPERTIES_FILENAME}`;
+      const testProps = 'some random data to test prop snapshotting';
+
+      /**
+       * Expect 3 assertions:
+       *  2 testing whether the correct file in execution is created.
+       *  1 testing whether the file user's props file has correctly been restored.
+       */
+      expect.assertions(3);
+
+      try {
+        await fsPromises.writeFile(expectedPropsPath, testProps);
+      } catch (error) {
+        // If we can't create the props file this test doesn't test anything
+        // new, so stop it.
+        throw new Error(`Cannot create a props file: ${error}`);
+      }
+
+      const mvnTarget = createMavenTarget(getRequiredTargetConfig());
+      mvnTarget.upload = jest
+        .fn()
+        .mockImplementationOnce(
+          async () => await testCorrectPropsFile(expectedPropsPath)
+        );
+      await mvnTarget.publish('v3rs10n', 'r3v1s10n');
+
+      expect(
+        (await fsPromises.readFile(expectedPropsPath)).toString()
+      ).toStrictEqual(testProps);
+    });
   });
 });
