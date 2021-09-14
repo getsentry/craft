@@ -24,7 +24,7 @@ import {
   handleGlobalError,
   reportError,
 } from '../utils/errors';
-import { getGitClient, getDefaultBranch } from '../utils/git';
+import { getGitClient, getDefaultBranch, getLatestTag } from '../utils/git';
 import { isDryRun, promptConfirmation } from '../utils/helpers';
 import { formatJson } from '../utils/strings';
 import { spawnProcess } from '../utils/system';
@@ -141,7 +141,7 @@ async function createReleaseBranch(
   const branchPrefix = releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
   const branchName = `${branchPrefix}/${newVersion}`;
 
-  const branchHead = await git.raw(['show-ref', '--heads', branchName]);
+  const branchHead = await git.raw('show-ref', '--heads', branchName);
 
   // in case `show-ref` can't find a branch it returns `null`
   if (branchHead) {
@@ -227,6 +227,7 @@ async function commitNewVersion(
  * @param preReleaseCommand Custom pre-release command
  */
 export async function runPreReleaseCommand(
+  oldVersion: string,
   newVersion: string,
   preReleaseCommand?: string
 ): Promise<boolean> {
@@ -242,11 +243,11 @@ export async function runPreReleaseCommand(
     sysCommand = '/bin/bash';
     args = [DEFAULT_BUMP_VERSION_PATH];
   }
-  args = [...args, '', newVersion];
+  args = [...args, oldVersion, newVersion];
   logger.info(`Running the pre-release command...`);
   const additionalEnv = {
     CRAFT_NEW_VERSION: newVersion,
-    CRAFT_OLD_VERSION: '',
+    CRAFT_OLD_VERSION: oldVersion,
   };
   await spawnProcess(sysCommand, args, {
     env: { ...process.env, ...additionalEnv },
@@ -472,8 +473,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
   logger.info(`Preparing to release the version: ${newVersion}`);
 
-  // Create a new release branch and check it out. Throw an error if it already
-  // exists.
+  // Create a new release branch and check it out. Fail if it already exists.
   const branchName = await createReleaseBranch(
     git,
     rev,
@@ -481,6 +481,13 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     argv.remote,
     config.releaseBranchPrefix
   );
+
+  // Do this once we are on the release branch as we might be releasing from
+  // a custom revision and it is harder to tell git to give us the tag right
+  // before a specific revision.
+  // TL;DR - WARNING:
+  // The order matters here, do not move this command above craeteReleaseBranch!
+  const oldVersion = await getLatestTag(git);
 
   // Check & update the changelog
   await prepareChangelog(
@@ -491,6 +498,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
   // Run a pre-release script (e.g. for version bumping)
   const preReleaseCommandRan = await runPreReleaseCommand(
+    oldVersion,
     newVersion,
     config.preReleaseCommand
   );
