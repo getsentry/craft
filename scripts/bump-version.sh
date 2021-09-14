@@ -12,4 +12,5 @@ export npm_config_git_tag_version=false
 
 NPM_VERSION=$(npm version $NEW_VERSION)
 VERSION=${NPM_VERSION:1}
+echo "Previous version: $OLD_VERSION"
 echo "New version: $VERSION"

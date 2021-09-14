@@ -5,6 +5,7 @@ import { runPreReleaseCommand } from '../prepare';
 jest.mock('../../utils/system');
 
 describe('runPreReleaseCommand', () => {
+  const oldVersion = '2.3.3';
   const newVersion = '2.3.4';
   const mockedSpawnProcess = spawnProcess as jest.Mock;
 
@@ -15,16 +16,16 @@ describe('runPreReleaseCommand', () => {
   test('runs with default command', async () => {
     expect.assertions(1);
 
-    await runPreReleaseCommand(newVersion);
+    await runPreReleaseCommand(oldVersion, newVersion);
 
     expect(mockedSpawnProcess).toBeCalledWith(
       '/bin/bash',
-      [pathJoin('scripts', 'bump-version.sh'), '', newVersion],
+      [pathJoin('scripts', 'bump-version.sh'), oldVersion, newVersion],
       {
         env: {
           ...process.env,
           CRAFT_NEW_VERSION: newVersion,
-          CRAFT_OLD_VERSION: '',
+          CRAFT_OLD_VERSION: oldVersion,
         },
       }
     );
@@ -34,18 +35,19 @@ describe('runPreReleaseCommand', () => {
     expect.assertions(1);
 
     await runPreReleaseCommand(
+      oldVersion,
       newVersion,
       'python ./increase_version.py "argument 1"'
     );
 
     expect(mockedSpawnProcess).toBeCalledWith(
       'python',
-      ['./increase_version.py', 'argument 1', '', newVersion],
+      ['./increase_version.py', 'argument 1', oldVersion, newVersion],
       {
         env: {
           ...process.env,
           CRAFT_NEW_VERSION: newVersion,
-          CRAFT_OLD_VERSION: '',
+          CRAFT_OLD_VERSION: oldVersion,
         },
       }
     );

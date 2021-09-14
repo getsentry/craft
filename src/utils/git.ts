@@ -17,6 +17,11 @@ export async function getDefaultBranch(
   );
 }
 
+export async function getLatestTag(git: SimpleGit): Promise<string> {
+  // This part is courtesy of https://stackoverflow.com/a/7261049/90297
+  return (await git.raw('describe', '--tags', '--abbrev=0')).trim();
+}
+
 export function stripRemoteName(
   branch: string | undefined,
   remoteName: string
