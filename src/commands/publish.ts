@@ -319,10 +319,10 @@ async function checkRevisionStatus(
     logger.debug('Repository info received');
     logger.trace(repositoryInfo);
   } catch (e) {
-    reportError(
-      `Cannot get repository information from ${statusProvider.config.name}. Check your configuration and credentials.\n` +
-        `Error: ${e.message}`
+    logger.error(
+      `Cannot get repository information from ${statusProvider.config.name}. Check your configuration and credentials.`
     );
+    reportError(e);
   }
 
   await statusProvider.waitForTheBuildToSucceed(revision);
