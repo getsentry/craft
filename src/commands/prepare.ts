@@ -24,7 +24,12 @@ import {
   handleGlobalError,
   reportError,
 } from '../utils/errors';
-import { getGitClient, getDefaultBranch, getLatestTag } from '../utils/git';
+import {
+  getGitClient,
+  getDefaultBranch,
+  getLatestTag,
+  getChangesSince,
+} from '../utils/git';
 import { isDryRun, promptConfirmation } from '../utils/helpers';
 import { formatJson } from '../utils/strings';
 import { spawnProcess } from '../utils/system';
@@ -331,11 +336,15 @@ async function execPublish(remote: string, newVersion: string): Promise<never> {
 /**
  * Checks changelog entries in accordance with the provided changelog policy.
  *
+ * @param git Local git client
+ * @param oldVersion The previous version to start the change list
  * @param newVersion The new version we are releasing
  * @param changelogPolicy One of the changelog policies, such as "none", "simple", etc.
  * @param changelogPath Path to the changelog file
  */
 async function prepareChangelog(
+  git: SimpleGit,
+  oldVersion: string,
   newVersion: string,
   changelogPolicy: ChangelogPolicy = ChangelogPolicy.None,
   changelogPath: string = DEFAULT_CHANGELOG_PATH
@@ -384,6 +393,14 @@ async function prepareChangelog(
       }
       if (!changeset.body) {
         replaceSection = changeset.name;
+        const changes = await getChangesSince(git, oldVersion);
+        changeset.body = changes
+          .map(change =>
+            change.pr
+              ? `- ${change.message}`
+              : `- ${change.message} (${change.hash.slice(0, 8)})`
+          )
+          .join('\n');
       }
       if (changeset.name === DEFAULT_UNRELEASED_TITLE) {
         replaceSection = changeset.name;
@@ -491,6 +508,8 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
   // Check & update the changelog
   await prepareChangelog(
+    git,
+    oldVersion,
     newVersion,
     argv.noChangelog ? ChangelogPolicy.None : config.changelogPolicy,
     config.changelog

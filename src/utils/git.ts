@@ -4,6 +4,14 @@ import { getConfigFileDir } from '../config';
 import { ConfigurationError } from './errors';
 import { logger } from '../logger';
 
+export interface GitChange {
+  hash: string;
+  message: string;
+  pr: string | null;
+}
+
+export const PRExtractor = /(?<=\(#)\d+(?=\)$)/;
+
 export async function getDefaultBranch(
   git: SimpleGit,
   remoteName: string
@@ -20,6 +28,23 @@ export async function getDefaultBranch(
 export async function getLatestTag(git: SimpleGit): Promise<string> {
   // This part is courtesy of https://stackoverflow.com/a/7261049/90297
   return (await git.raw('describe', '--tags', '--abbrev=0')).trim();
+}
+
+export async function getChangesSince(
+  git: SimpleGit,
+  rev: string
+): Promise<GitChange[]> {
+  const { all: commits } = await git.log({
+    from: rev,
+    to: 'HEAD',
+    symmetric: false,
+    '--no-merges': null,
+  });
+  return commits.map(commit => ({
+    hash: commit.hash,
+    message: commit.message,
+    pr: commit.message.match(PRExtractor)?.[0] || null,
+  }));
 }
 
 export function stripRemoteName(
