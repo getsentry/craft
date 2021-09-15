@@ -292,14 +292,13 @@ export class MavenTarget extends BaseTarget {
 
     try {
       this.logger.debug(
-        'Recovering gradle properties snapshot from ',
+        'Restoring gradle properties snapshot from ',
         snapshotPath
       );
       await fsPromises.copyFile(snapshotPath, gradlePropsPath);
     } catch (error) {
       this.logger.error(
-        `Could not recover gradle properties snapshot from ${snapshotPath} to ${gradlePropsPath}` +
-          '\nError:\n',
+        `Could not restore gradle properties snapshot from ${snapshotPath} to ${gradlePropsPath}\n`,
         error
       );
     }
