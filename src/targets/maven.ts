@@ -283,14 +283,13 @@ export class MavenTarget extends BaseTarget {
    * @param snapshotPath Path to the snapshot of the gradle properties file.
    */
   public async restoreGradleProps(snapshotPath: string | null): Promise<void> {
+    const gradlePropsPath = this.getGradlePropsPath();
+
     if (!snapshotPath) {
       this.logger.debug('Deleting temporary gradle properties file...');
-      return fsPromises.unlink(
-        join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME)
-      );
+      return fsPromises.unlink(gradlePropsPath);
     }
 
-    const gradlePropsPath = this.getGradlePropsPath();
     try {
       this.logger.debug(
         'Recovering gradle properties snapshot from ',
