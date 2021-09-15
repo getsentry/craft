@@ -336,6 +336,8 @@ async function execPublish(remote: string, newVersion: string): Promise<never> {
 /**
  * Checks changelog entries in accordance with the provided changelog policy.
  *
+ * @param git Local git client
+ * @param oldVersion The previous version to start the change list
  * @param newVersion The new version we are releasing
  * @param changelogPolicy One of the changelog policies, such as "none", "simple", etc.
  * @param changelogPath Path to the changelog file
