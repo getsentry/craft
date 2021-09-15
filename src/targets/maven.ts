@@ -295,7 +295,8 @@ export class MavenTarget extends BaseTarget {
         'Restoring gradle properties snapshot from ',
         snapshotPath
       );
-      await fsPromises.copyFile(snapshotPath, gradlePropsPath);
+      // Overwrites dst if it already exists
+      await fsPromises.rename(snapshotPath, gradlePropsPath);
     } catch (error) {
       this.logger.error(
         `Could not restore gradle properties snapshot from ${snapshotPath} to ${gradlePropsPath}\n`,
