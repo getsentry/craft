@@ -1,3 +1,9 @@
+import { SimpleGit } from 'simple-git';
+import { logger } from 'src/logger';
+
+import { getGlobalGithubConfig } from '../config';
+import { getChangesSince } from '../utils/git';
+import { getGithubClient } from '../utils/githubApi';
 import { getVersion } from './version';
 
 /**
@@ -174,4 +180,152 @@ export function prependChangeset(
   const startIdx = start?.index ?? markdown.length;
 
   return markdown.slice(0, startIdx) + newSection + markdown.slice(startIdx);
+}
+
+interface Commit {
+  hash: string;
+  title: string;
+  hasPRinTitle: boolean;
+  pr: string | null;
+  milestone: string | null;
+}
+
+interface Milestone {
+  title?: string;
+  description?: string;
+  state?: string;
+  prs: string[];
+}
+
+// This is set to 8 since GitHub and GitLab prefer that over the default 7 to
+// avoid collisions.
+const SHORT_SHA_LENGTH = 8;
+function formatCommit(commit: Commit): string {
+  let text = `- ${commit.title}`;
+  if (!commit.hasPRinTitle) {
+    const link = commit.pr ? `#${commit.pr}` : commit.hash.slice(0, SHORT_SHA_LENGTH);
+    text = `${text} (${link})`;
+  }
+  return text;
+}
+
+export async function generateChangesetFromGit(
+  git: SimpleGit,
+  rev: string
+): Promise<string> {
+  const { repo, owner } = await getGlobalGithubConfig();
+  const gitCommits = await getChangesSince(git, rev);
+  const commitsQuery = gitCommits
+    .map(
+      ({ hash }) => `C${hash}: object(oid: "${hash}") {...PRFragment}`
+    )
+    .join('\n');
+
+  const github = getGithubClient();
+  const { repository: githubCommits } = await github.graphql(`{
+    repository(name: "${repo}", owner: "${owner}") {
+      ${commitsQuery}
+    }
+  }
+
+  fragment PRFragment on Commit {
+    associatedPullRequests(first: 1) {
+      nodes {
+        number
+        milestone {
+          number
+        }
+      }
+    }
+  }`);
+
+  const milestones: {
+    [number: string]: Milestone;
+  } = {};
+  const commits: {
+    [hash: string]: Commit;
+  } = {};
+  const leftovers: Commit[] = [];
+  const missing: Commit[] = [];
+  for (const gitCommit of gitCommits) {
+    const hash = gitCommit.hash;
+
+    const commit = (commits[hash] = {
+      hash: hash,
+      title: gitCommit.message,
+      pr: gitCommit.pr,
+      hasPRinTitle: Boolean(gitCommit.pr),
+      milestone: null,
+    });
+    const commitInfo = githubCommits[`C${hash}`];
+    if (commitInfo) {
+      const pr = commitInfo.associatedPullRequests.nodes[0];
+      if (pr) {
+        commit.pr = pr.number;
+        commit.milestone = pr.milestone?.number;
+      }
+    } else {
+      missing.push(commit);
+    }
+
+    const milestoneNum = commit.milestone;
+    if (milestoneNum != null) {
+      const milestone = milestones[milestoneNum] || { prs: [] };
+      // We _know_ the PR exists as milestones are attached to PRs
+      milestone.prs.push(commit.pr as string);
+      milestones[milestoneNum] = milestone;
+    } else {
+      leftovers.push(commit);
+    }
+  }
+
+  if (missing.length > 0) {
+    logger.warn(
+      `The following commits were not found on GitHub:`,
+      missing.map(commit => `${commit.hash.slice(0, 8)} ${commit.title}`)
+    );
+  }
+
+  const milestoneQuery = Object.keys(milestones)
+    .map(
+      number => `M${number}: milestone(number: ${number}) { ...MilestoneFragment }`
+    )
+    .join('\n');
+
+  const { repository: milestonesInfo } = await github.graphql(`{
+    repository(name: "${repo}", owner: "${owner}") {
+      ${milestoneQuery}
+    }
+  }
+
+    fragment MilestoneFragment on Milestone {
+      title
+      description
+      state
+    }
+  `);
+
+  const changelogSections = [];
+  for (const milestoneNum of Object.keys(milestones)) {
+    const milestoneInfo = milestonesInfo[`M${milestoneNum}`];
+    if (milestoneInfo == null) {
+      // XXX(BYK): This case should never happen in real life
+      throw new Error(`Cannot get information for milestone #${milestoneNum}`);
+    }
+
+    changelogSections.push(
+      `## ${milestoneInfo.title}${
+        milestoneInfo.state === 'OPEN' ? ' (ongoing)' : ''
+      }`
+    );
+    changelogSections.push(milestoneInfo.description);
+    changelogSections.push(
+      `PRs: ${milestones[milestoneNum].prs.map(pr => `#${pr}`).join(', ')}`
+    );
+  }
+
+  changelogSections.push(`## Various fixes & improvements`);
+  changelogSections.push(leftovers.map(formatCommit).join('\n'));
+
+  return changelogSections.join('\n\n');
 }

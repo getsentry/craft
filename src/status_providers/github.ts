@@ -10,7 +10,7 @@ import {
 import { getGithubClient } from '../utils/githubApi';
 import { ConfigurationError } from '../utils/errors';
 import { formatJson } from '../utils/strings';
-import { GithubGlobalConfig } from 'src/schemas/project_config';
+import { GithubGlobalConfig } from '../schemas/project_config';
 
 type ReposGetCombinedStatusForRefResponse = RestEndpointMethodTypes['repos']['getCombinedStatusForRef']['response']['data'];
 type ChecksListSuitesForRefResponse = RestEndpointMethodTypes['checks']['listSuitesForRef']['response']['data'];
