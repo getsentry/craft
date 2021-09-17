@@ -1,4 +1,4 @@
-import * as Github from '@octokit/rest';
+import { Octokit } from '@octokit/rest';
 import simpleGit from 'simple-git';
 import {
   getAuthUsername,
@@ -27,7 +27,7 @@ export class UpmTarget extends BaseTarget {
   /** Target name */
   public readonly name: string = 'upm';
   /** Github client */
-  public readonly github: Github;
+  public readonly github: Octokit;
   /** Internal GitHub Target */
   private readonly githubTarget: GithubTarget;
 

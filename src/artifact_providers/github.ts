@@ -43,7 +43,7 @@ interface ArchiveResponse extends Github.AnyResponse {
  */
 export class GithubArtifactProvider extends BaseArtifactProvider {
   /** Github client */
-  public readonly github: Github;
+  public readonly github: Octokit;
 
   public constructor(config: ArtifactProviderConfig) {
     super(config);

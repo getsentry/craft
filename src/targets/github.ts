@@ -1,5 +1,5 @@
-import * as Github from '@octokit/rest';
-import { createReadStream, promises, statSync } from 'fs';
+import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
+import { readFileSync, promises, statSync } from 'fs';
 import { basename } from 'path';
 
 import { getConfiguration } from '../config';
@@ -57,6 +57,13 @@ interface GithubRelease {
  */
 type GithubCreateTagType = 'commit' | 'tree' | 'blob';
 
+type ArrayElement<
+  ArrayType extends readonly unknown[]
+> = ArrayType extends readonly (infer ElementType)[] ? ElementType : never;
+type ReposListAssetsForReleaseResponseItem = ArrayElement<
+  RestEndpointMethodTypes['repos']['listReleaseAssets']['response']['data']
+>;
+
 /**
  * Target responsible for publishing releases on Github
  */
@@ -66,7 +73,7 @@ export class GithubTarget extends BaseTarget {
   /** Target options */
   public readonly githubConfig: GithubTargetConfig;
   /** Github client */
-  public readonly github: Github;
+  public readonly github: Octokit;
   /** Github repo configuration */
   public readonly githubRepo: GithubGlobalConfig;
 
@@ -134,7 +141,7 @@ export class GithubTarget extends BaseTarget {
         sha: refSha,
       });
     } catch (e) {
-      if (e.message && e.message.match(/reference already exists/i)) {
+      if (e instanceof Error && e.message.match(/reference already exists/i)) {
         this.logger.error(
           `Reference "${ref}" already exists. Does tag "${tag}" already exist?`
         );
@@ -173,7 +180,7 @@ export class GithubTarget extends BaseTarget {
       });
       this.logger.warn(`Found the existing release for tag "${tag}"`);
       return response.data;
-    } catch (e) {
+    } catch (e: any) {
       if (e.status !== 404) {
         throw e;
       }
@@ -245,8 +252,11 @@ export class GithubTarget extends BaseTarget {
    * @param asset Asset to delete
    */
   public async deleteAsset(
-    asset: Github.ReposListAssetsForReleaseResponseItem
-  ): Promise<Github.AnyResponse | undefined> {
+    asset: ReposListAssetsForReleaseResponseItem
+  ): Promise<
+    | RestEndpointMethodTypes['repos']['deleteReleaseAsset']['response']
+    | undefined
+  > {
     if (isDryRun()) {
       this.logger.debug(`[dry-run] Not deleting the asset: "${asset.name}"`);
       return;
@@ -266,7 +276,7 @@ export class GithubTarget extends BaseTarget {
    * @param assets A list of assets to delete
    */
   public async deleteAssets(
-    assets: Github.ReposListAssetsForReleaseResponseItem[]
+    assets: ReposListAssetsForReleaseResponseItem[]
   ): Promise<void> {
     // Doing it serially, just in case
     for (const asset of assets) {
@@ -283,8 +293,8 @@ export class GithubTarget extends BaseTarget {
    */
   public async getAssetsForRelease(
     release: GithubRelease
-  ): Promise<Github.ReposListAssetsForReleaseResponseItem[]> {
-    const assetsResponse = await this.github.repos.listAssetsForRelease({
+  ): Promise<ReposListAssetsForReleaseResponseItem[]> {
+    const assetsResponse = await this.github.repos.listReleaseAssets({
       owner: this.githubConfig.owner,
       per_page: 50,
       release_id: release.id,
@@ -327,16 +337,14 @@ export class GithubTarget extends BaseTarget {
     const stats = statSync(path);
     const name = basename(path);
     const params = {
-      'Content-Length': stats.size,
-      'Content-Type': contentTypeProcessed,
-      file: createReadStream(path),
+      ...this.githubConfig,
+      data: readFileSync(path, { encoding: 'binary' }),
       headers: {
-        'content-length': stats.size,
-        'content-type': contentTypeProcessed,
+        'Content-Length': stats.size,
+        'Content-Type': contentTypeProcessed,
       },
-      id: release.id,
+      release_id: release.id,
       name,
-      url: release.upload_url,
     };
     this.logger.trace('Upload parameters:', params);
     this.logger.info(

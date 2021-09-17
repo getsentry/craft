@@ -1,4 +1,4 @@
-import * as Github from '@octokit/rest';
+import { Octokit } from '@octokit/rest';
 import * as fs from 'fs';
 import { basename, join } from 'path';
 import { promisify } from 'util';
@@ -34,7 +34,7 @@ export class CocoapodsTarget extends BaseTarget {
   /** Target options */
   public readonly cocoapodsConfig: CocoapodsTargetOptions;
   /** Github client */
-  public readonly github: Github;
+  public readonly github: Octokit;
   /** Github repo configuration */
   public readonly githubRepo: GithubGlobalConfig;
 

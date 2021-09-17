@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import * as Github from '@octokit/rest';
+import { Octokit } from '@octokit/rest';
 import simpleGit from 'simple-git';
 import {
   getAuthUsername,
@@ -47,7 +47,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   /** Target options */
   public readonly awsLambdaConfig: AwsLambdaTargetConfig;
   /** GitHub client. */
-  public readonly github: Github;
+  public readonly github: Octokit;
   /** The directory where the runtime-specific directories are. */
   private readonly AWS_REGISTRY_DIR = 'aws-lambda-layers';
   /** File containing data fields every new version file overrides  */
@@ -262,8 +262,8 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           this.logger.debug('Finished publishing to all regions.');
         } catch (error) {
           this.logger.error(
-            `Did not publish layers for ${runtime.name}. ` +
-              `Something went wrong with AWS: ${error.message}`
+            `Did not publish layers for ${runtime.name}.`,
+            error
           );
           return;
         }
