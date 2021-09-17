@@ -44,8 +44,9 @@ export async function getChangesSince(
     from: rev,
     to: 'HEAD',
     // The symmetric option defaults to true, giving us all the different commits
-    // between `from` and `to` whereas what we are interested in is only the ones
-    // accessible from `to` so we get a "changelog" kind of list.
+    // reachable from both `from` and `to` whereas what we are interested in is only the ones
+    // reachable from `to` and _not_ from `from` so we get a "changelog" kind of list.
+    // One is `A - B` and the other is more like `A XOR B`. We want `A - B`.
     // See https://github.com/steveukx/git-js#git-log and
     // https://git-scm.com/docs/gitrevisions#_dotted_range_notations for more
     symmetric: false,
