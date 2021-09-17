@@ -10,6 +10,12 @@ export interface GitChange {
   pr: string | null;
 }
 
+// This regex relies on the default GitHub behavior where it appends the PR
+// number to the end of the commit title as: `fix: Commit title (#123)`.
+// This makes it very cheap and quick to extract the associated PR number just
+// from the commit log locally.
+// If this fails at some future, we can always revert back to using the GitHub
+// API that gives you the PRs associated with a commit: https://git.io/JzUVK
 export const PRExtractor = /(?<=\(#)\d+(?=\)$)/;
 
 export async function getDefaultBranch(
@@ -37,6 +43,12 @@ export async function getChangesSince(
   const { all: commits } = await git.log({
     from: rev,
     to: 'HEAD',
+    // The symmetric option defaults to true, giving us all the different commits
+    // reachable from both `from` and `to` whereas what we are interested in is only the ones
+    // reachable from `to` and _not_ from `from` so we get a "changelog" kind of list.
+    // One is `A - B` and the other is more like `A XOR B`. We want `A - B`.
+    // See https://github.com/steveukx/git-js#git-log and
+    // https://git-scm.com/docs/gitrevisions#_dotted_range_notations for more
     symmetric: false,
     '--no-merges': null,
   });
