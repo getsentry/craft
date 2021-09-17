@@ -43,8 +43,8 @@ export async function getChangesSince(
   const { all: commits } = await git.log({
     from: rev,
     to: 'HEAD',
-    // The symmetric option defaults to true, giving us all the differen commits
-    // between `from` and `to` whereas what we are interested is only the ones
+    // The symmetric option defaults to true, giving us all the different commits
+    // between `from` and `to` whereas what we are interested in is only the ones
     // accessible from `to` so we get a "changelog" kind of list.
     // See https://github.com/steveukx/git-js#git-log and
     // https://git-scm.com/docs/gitrevisions#_dotted_range_notations for more
