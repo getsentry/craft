@@ -57,12 +57,7 @@ interface GithubRelease {
  */
 type GithubCreateTagType = 'commit' | 'tree' | 'blob';
 
-type ArrayElement<
-  ArrayType extends readonly unknown[]
-> = ArrayType extends readonly (infer ElementType)[] ? ElementType : never;
-type ReposListAssetsForReleaseResponseItem = ArrayElement<
-  RestEndpointMethodTypes['repos']['listReleaseAssets']['response']['data']
->;
+type ReposListAssetsForReleaseResponseItem = RestEndpointMethodTypes['repos']['listReleaseAssets']['response']['data'][0];
 
 /**
  * Target responsible for publishing releases on Github

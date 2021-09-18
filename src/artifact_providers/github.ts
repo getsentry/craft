@@ -1,4 +1,4 @@
-import Github from '@octokit/rest';
+import { Octokit } from '@octokit/rest';
 import * as fs from 'fs';
 import fetch from 'node-fetch';
 import * as path from 'path';
@@ -32,10 +32,6 @@ export interface ArtifactItem {
 interface ArtifactList {
   total_count: number;
   artifacts: Array<ArtifactItem>;
-}
-
-interface ArchiveResponse extends Github.AnyResponse {
-  url: string;
 }
 
 /**
@@ -151,14 +147,14 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
    * @param archiveResponse
    */
   private async downloadAndUnpackArtifacts(
-    archiveResponse: ArchiveResponse
+    url: string
   ): Promise<RemoteArtifact[]> {
     const artifacts: RemoteArtifact[] = [];
     await withTempFile(async tempFilepath => {
-      const response = await fetch(archiveResponse.url);
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(
-          `Unexpected HTTP response from ${archiveResponse.url}: ${response.status} (${response.statusText})`
+          `Unexpected HTTP response from ${url}: ${response.status} (${response.statusText})`
         );
       }
       await new Promise((resolve, reject) =>
@@ -190,30 +186,26 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
   }
 
   /**
-   * Returns {@link ArchiveResponse} for a giving {@link ArtifactItem}
+   * Returns {@link ArtifactResponse} for a giving {@link ArtifactItem}
    * @param foundArtifact
    */
   private async getArchiveDownloadUrl(
     foundArtifact: ArtifactItem
-  ): Promise<ArchiveResponse> {
+  ): Promise<string> {
     const { repoName, repoOwner } = this.config;
 
-    const archiveResponse = (await this.github.request(
-      '/repos/{owner}/{repo}/actions/artifacts/{artifact_id}/{archive_format}',
-      {
-        owner: repoOwner,
-        repo: repoName,
-        artifact_id: foundArtifact.id,
-        archive_format: 'zip',
-      }
-    )) as ArchiveResponse;
+    const archiveResponse = await this.github.actions.getArtifact({
+      owner: repoOwner,
+      repo: repoName,
+      artifact_id: foundArtifact.id,
+    });
 
     if (archiveResponse.status !== 200) {
       throw new Error(
         `Failed to fetch archive ${JSON.stringify(archiveResponse)}`
       );
     }
-    return archiveResponse;
+    return archiveResponse.data.archive_download_url;
   }
 
   /**
@@ -232,10 +224,10 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
 
     this.logger.debug(`Requesting archive URL from Github...`);
 
-    const archiveResponse = await this.getArchiveDownloadUrl(foundArtifact);
+    const archiveUrl = await this.getArchiveDownloadUrl(foundArtifact);
 
     this.logger.debug(`Downloading ZIP from Github artifacts...`);
 
-    return await this.downloadAndUnpackArtifacts(archiveResponse);
+    return await this.downloadAndUnpackArtifacts(archiveUrl);
   }
 }
