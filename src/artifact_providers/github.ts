@@ -1,4 +1,4 @@
-import { Octokit } from '@octokit/rest';
+import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
 import * as fs from 'fs';
 import fetch from 'node-fetch';
 import * as path from 'path';
@@ -19,20 +19,7 @@ import { extractZipArchive } from '../utils/system';
 
 const MAX_TRIES = 3;
 
-export interface ArtifactItem {
-  id: number;
-  name: string;
-  size_in_bytes: number;
-  url: string;
-  archive_download_url: string;
-  created_at: string;
-  expires_at: string;
-}
-
-interface ArtifactList {
-  total_count: number;
-  artifacts: Array<ArtifactItem>;
-}
+export type ArtifactItem = RestEndpointMethodTypes['actions']['listArtifactsForRepo']['response']['data']['artifacts'][0];
 
 /**
  * Github artifact provider
@@ -77,14 +64,14 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     const per_page = 100;
 
     // https://docs.github.com/en/free-pro-team@latest/rest/reference/actions#artifacts
-    const artifactResponse = ((
-      await this.github.request('GET /repos/{owner}/{repo}/actions/artifacts', {
+    const artifactResponse = (
+      await this.github.actions.listArtifactsForRepo({
         owner: owner,
         repo: repo,
         per_page,
         page,
       })
-    ).data as unknown) as ArtifactList;
+    ).data;
 
     const { artifacts } = artifactResponse;
     this.logger.trace(`All available artifacts on page ${page}:`, artifacts);
@@ -118,7 +105,9 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       // ** AND **
       // the descending date order. See the note above
       const lastArtifact = artifacts[artifacts.length - 1];
-      checkNextPage = lastArtifact.created_at >= revisionDate;
+      checkNextPage =
+        lastArtifact.created_at == null ||
+        lastArtifact.created_at >= revisionDate;
     }
 
     if (checkNextPage) {

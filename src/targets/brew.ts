@@ -131,7 +131,7 @@ export class BrewTarget extends BaseTarget {
         return undefined;
       }
       return response.data.sha;
-    } catch (e) {
+    } catch (e: any) {
       if (e.status === 404) {
         return undefined;
       }

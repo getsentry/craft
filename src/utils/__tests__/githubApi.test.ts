@@ -73,7 +73,7 @@ describe('getFile', () => {
 
     try {
       await getFile(github, owner, repo, '/path/to/missing', 'v1.0.0');
-    } catch (e) {
+    } catch (e: any) {
       expect(e.message).toMatch(errorText);
       expect(e.status).toBe(500);
       expect(e.code).toBe(undefined);
