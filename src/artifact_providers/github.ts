@@ -194,18 +194,14 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
   ): Promise<string> {
     const { repoName, repoOwner } = this.config;
 
-    const archiveResponse = await this.github.actions.getArtifact({
+    const archiveResponse = await this.github.actions.downloadArtifact({
       owner: repoOwner,
       repo: repoName,
       artifact_id: foundArtifact.id,
+      archive_format: 'zip',
     });
 
-    if (archiveResponse.status !== 200) {
-      throw new Error(
-        `Failed to fetch archive ${JSON.stringify(archiveResponse)}`
-      );
-    }
-    return archiveResponse.data.archive_download_url;
+    return archiveResponse.url;
   }
 
   /**
