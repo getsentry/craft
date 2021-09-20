@@ -1,27 +1,27 @@
-import Github from '@octokit/rest';
+import { Octokit } from '@octokit/rest';
 
 import { getFile } from '../githubApi';
 
 const mockRepos = {
-  getContents: jest.fn(),
+  getContent: jest.fn(),
 };
 
-jest.mock('@octokit/rest', () =>
-  jest.fn().mockImplementation(() => ({ repos: mockRepos }))
-);
+jest.mock('@octokit/rest', () => ({
+  Octokit: jest.fn().mockImplementation(() => ({ repos: mockRepos })),
+}));
 
 describe('getFile', () => {
-  const github = new Github();
+  const github = new Octokit();
   const owner = 'owner';
   const repo = 'repo';
 
-  const getContents = (github.repos.getContents as unknown) as jest.Mock;
+  const getContent = (github.repos.getContent as unknown) as jest.Mock;
 
   test('loads and decodes the file', async () => {
     expect.assertions(2);
     const testContent = 'test content.';
 
-    getContents.mockReturnValue({
+    getContent.mockReturnValue({
       data: { content: Buffer.from(testContent).toString('base64') },
     });
 
@@ -32,7 +32,7 @@ describe('getFile', () => {
       '/path/to/file',
       'v1.0.0'
     );
-    expect(getContents).toHaveBeenCalledWith({
+    expect(getContent).toHaveBeenCalledWith({
       owner: 'owner',
       path: '/path/to/file',
       ref: 'v1.0.0',
@@ -45,7 +45,7 @@ describe('getFile', () => {
   test('returns null for missing files', async () => {
     expect.assertions(1);
 
-    getContents.mockImplementation(() => {
+    getContent.mockImplementation(() => {
       const e = new Error('file not found') as any;
       e.status = 404;
       throw e;
@@ -65,7 +65,7 @@ describe('getFile', () => {
     expect.assertions(3);
 
     const errorText = 'internal server error';
-    getContents.mockImplementation(() => {
+    getContent.mockImplementation(() => {
       const e = new Error(errorText) as any;
       e.status = 500;
       throw e;
@@ -73,7 +73,7 @@ describe('getFile', () => {
 
     try {
       await getFile(github, owner, repo, '/path/to/missing', 'v1.0.0');
-    } catch (e) {
+    } catch (e: any) {
       expect(e.message).toMatch(errorText);
       expect(e.status).toBe(500);
       expect(e.code).toBe(undefined);

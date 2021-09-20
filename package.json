@@ -23,8 +23,8 @@
   "devDependencies": {
     "@aws-sdk/client-lambda": "^3.2.0",
     "@google-cloud/storage": "^5.7.0",
-    "@octokit/plugin-retry": "^3.0.7",
-    "@octokit/rest": "16.35.2",
+    "@octokit/plugin-retry": "^3.0.9",
+    "@octokit/rest": "^18.10.0",
     "@sentry/node": "4.6.3",
     "@sentry/typescript": "^5.17.0",
     "@types/async": "^3.0.1",
