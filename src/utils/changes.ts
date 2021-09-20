@@ -1,5 +1,5 @@
 import { SimpleGit } from 'simple-git';
-import { logger } from 'src/logger';
+import { logger } from '../logger';
 
 import { getGlobalGithubConfig } from '../config';
 import { getChangesSince } from '../utils/git';
