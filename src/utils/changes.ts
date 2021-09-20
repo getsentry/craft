@@ -203,7 +203,9 @@ const SHORT_SHA_LENGTH = 8;
 function formatCommit(commit: Commit): string {
   let text = `- ${commit.title}`;
   if (!commit.hasPRinTitle) {
-    const link = commit.pr ? `#${commit.pr}` : commit.hash.slice(0, SHORT_SHA_LENGTH);
+    const link = commit.pr
+      ? `#${commit.pr}`
+      : commit.hash.slice(0, SHORT_SHA_LENGTH);
     text = `${text} (${link})`;
   }
   return text;
@@ -216,9 +218,7 @@ export async function generateChangesetFromGit(
   const { repo, owner } = await getGlobalGithubConfig();
   const gitCommits = await getChangesSince(git, rev);
   const commitsQuery = gitCommits
-    .map(
-      ({ hash }) => `C${hash}: object(oid: "${hash}") {...PRFragment}`
-    )
+    .map(({ hash }) => `C${hash}: object(oid: "${hash}") {...PRFragment}`)
     .join('\n');
 
   const github = getGithubClient();
@@ -288,7 +288,8 @@ export async function generateChangesetFromGit(
 
   const milestoneQuery = Object.keys(milestones)
     .map(
-      number => `M${number}: milestone(number: ${number}) { ...MilestoneFragment }`
+      number =>
+        `M${number}: milestone(number: ${number}) { ...MilestoneFragment }`
     )
     .join('\n');
 
