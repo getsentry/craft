@@ -1,4 +1,3 @@
-import { Octokit } from '@octokit/rest';
 import { SimpleGit } from 'simple-git';
 import { logger } from '../logger';
 
@@ -218,9 +217,7 @@ export async function generateChangesetFromGit(
 ): Promise<string> {
   const gitCommits = await getChangesSince(git, rev);
 
-  const github = getGithubClient();
   const githubCommits = await getMilestoneAndPRFromCommits(
-    github,
     gitCommits.map(commit => commit.hash)
   );
 
@@ -259,10 +256,7 @@ export async function generateChangesetFromGit(
     );
   }
 
-  const milestonesInfo = await getMilestonesDetails(
-    github,
-    Object.keys(milestones)
-  );
+  const milestonesInfo = await getMilestonesDetails(Object.keys(milestones));
 
   const changelogSections = [];
   for (const milestoneNum of Object.keys(milestones)) {
@@ -297,10 +291,7 @@ interface MilestonesDetailsResult {
   };
 }
 
-async function getMilestonesDetails(
-  github: Octokit,
-  milestones: string[]
-): Promise<any> {
+async function getMilestonesDetails(milestones: string[]): Promise<any> {
   const milestoneQuery = Object.keys(milestones)
     .map(
       number =>
@@ -311,7 +302,7 @@ async function getMilestonesDetails(
     .join('\n');
 
   const { repo, owner } = await getGlobalGithubConfig();
-  return ((await github.graphql(`{
+  return ((await getGithubClient().graphql(`{
     repository(name: "${repo}", owner: "${owner}") {
       ${milestoneQuery}
     }
@@ -341,7 +332,6 @@ interface CommitInfoResult {
 }
 
 async function getMilestoneAndPRFromCommits(
-  github: Octokit,
   hashes: string[]
 ): Promise<
   Record</* hash */ string, { pr: string | null; milestone: string | null }>
@@ -353,7 +343,7 @@ async function getMilestoneAndPRFromCommits(
     .join('\n');
 
   const { repo, owner } = await getGlobalGithubConfig();
-  const commitInfo = ((await github.graphql(`{
+  const commitInfo = ((await getGithubClient().graphql(`{
     repository(name: "${repo}", owner: "${owner}") {
       ${commitsQuery}
     }
