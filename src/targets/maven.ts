@@ -298,9 +298,10 @@ export class MavenTarget extends BaseTarget {
   public async restoreGradleProps(snapshotPath: string | null): Promise<void> {
     const gradlePropsPath = this.getGradlePropsPath();
 
+    this.logger.debug('Deleting temporary gradle properties file...');
+    await fsPromises.unlink(gradlePropsPath);
     if (!snapshotPath) {
-      this.logger.debug('Deleting temporary gradle properties file...');
-      return fsPromises.unlink(gradlePropsPath);
+      return;
     }
 
     try {
