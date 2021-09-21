@@ -1,3 +1,4 @@
+import { Octokit } from '@octokit/rest';
 import { SimpleGit } from 'simple-git';
 import { logger } from '../logger';
 
@@ -215,14 +216,144 @@ export async function generateChangesetFromGit(
   git: SimpleGit,
   rev: string
 ): Promise<string> {
-  const { repo, owner } = await getGlobalGithubConfig();
   const gitCommits = await getChangesSince(git, rev);
-  const commitsQuery = gitCommits
-    .map(({ hash }) => `C${hash}: object(oid: "${hash}") {...PRFragment}`)
-    .join('\n');
 
   const github = getGithubClient();
-  const { repository: githubCommits } = await github.graphql(`{
+  const githubCommits = await getMilestoneAndPRFromCommits(
+    github,
+    gitCommits.map(commit => commit.hash)
+  );
+
+  const milestones: Record</*milestone #*/ string, Milestone> = {};
+  const commits: Record</*hash*/ string, Commit> = {};
+  const leftovers: Commit[] = [];
+  const missing: Commit[] = [];
+  for (const gitCommit of gitCommits) {
+    const hash = gitCommit.hash;
+
+    const githubCommit = githubCommits[hash];
+    const commit = (commits[hash] = {
+      hash: hash,
+      title: gitCommit.message,
+      hasPRinTitle: Boolean(gitCommit.pr),
+      ...githubCommit,
+    });
+
+    if (!githubCommit) {
+      missing.push(commit);
+    }
+    if (!commit.milestone) {
+      leftovers.push(commit);
+    } else {
+      const milestone = milestones[commit.milestone] || { prs: [] };
+      // We _know_ the PR exists as milestones are attached to PRs
+      milestone.prs.push(commit.pr as string);
+      milestones[commit.milestone] = milestone;
+    }
+  }
+
+  if (missing.length > 0) {
+    logger.warn(
+      `The following commits were not found on GitHub:`,
+      missing.map(commit => `${commit.hash.slice(0, 8)} ${commit.title}`)
+    );
+  }
+
+  const milestonesInfo = await getMilestonesDetails(
+    github,
+    Object.keys(milestones)
+  );
+
+  const changelogSections = [];
+  for (const milestoneNum of Object.keys(milestones)) {
+    const milestone = milestonesInfo[`M${milestoneNum}`];
+    if (milestone == null) {
+      // XXX(BYK): This case should never happen in real life
+      throw new Error(`Cannot get information for milestone #${milestoneNum}`);
+    }
+
+    changelogSections.push(
+      `## ${milestone.title}${milestone.state === 'OPEN' ? ' (ongoing)' : ''}`
+    );
+    changelogSections.push(milestone.description);
+    changelogSections.push(
+      `PRs: ${milestones[milestoneNum].prs.map(pr => `#${pr}`).join(', ')}`
+    );
+  }
+
+  changelogSections.push(`## Various fixes & improvements`);
+  changelogSections.push(leftovers.map(formatCommit).join('\n'));
+
+  return changelogSections.join('\n\n');
+}
+
+interface MilestonesDetailsResult {
+  repository: {
+    [number: string]: {
+      title: string;
+      description: string;
+      state: 'OPEN' | 'CLOSED';
+    };
+  };
+}
+
+async function getMilestonesDetails(
+  github: Octokit,
+  milestones: string[]
+): Promise<any> {
+  const milestoneQuery = Object.keys(milestones)
+    .map(
+      number =>
+        // We need to prefix the milestone number (with `M` here) when using it
+        // as an alias as aliases cannot start with a number.
+        `M${number}: milestone(number: ${number}) { ...MilestoneFragment }`
+    )
+    .join('\n');
+
+  const { repo, owner } = await getGlobalGithubConfig();
+  return ((await github.graphql(`{
+    repository(name: "${repo}", owner: "${owner}") {
+      ${milestoneQuery}
+    }
+  }
+
+    fragment MilestoneFragment on Milestone {
+      title
+      description
+      state
+    }
+  `)) as MilestonesDetailsResult).repository;
+}
+
+interface CommitInfoResult {
+  repository: {
+    [hash: string]: {
+      associatedPullRequests: Array<{
+        nodes: {
+          number: string;
+          milestone: {
+            number: string;
+          };
+        };
+      }>;
+    };
+  };
+}
+
+async function getMilestoneAndPRFromCommits(
+  github: Octokit,
+  hashes: string[]
+): Promise<
+  Record</* hash */ string, { pr: string | null; milestone: string | null }>
+> {
+  const commitsQuery = hashes
+    // We need to prefix the hash value (with `C` here) when using it as an
+    // alias as aliases cannot start with a number but hashes can.
+    .map(hash => `C${hash}: object(oid: "${hash}") {...PRFragment}`)
+    .join('\n');
+
+  const { repo, owner } = await getGlobalGithubConfig();
+  const commitInfo = ((await github.graphql(`{
     repository(name: "${repo}", owner: "${owner}") {
       ${commitsQuery}
     }
@@ -237,92 +368,16 @@ export async function generateChangesetFromGit(
         }
       }
     }
-  }`);
+  }`)) as CommitInfoResult).repository;
 
-  const milestones: Record</*milestone #*/ string, Milestone> = {};
-  const commits: Record</*hash*/ string, Commit> = {};
-  const leftovers: Commit[] = [];
-  const missing: Commit[] = [];
-  for (const gitCommit of gitCommits) {
-    const hash = gitCommit.hash;
-
-    const commit = (commits[hash] = {
-      hash: hash,
-      title: gitCommit.message,
-      pr: gitCommit.pr,
-      hasPRinTitle: Boolean(gitCommit.pr),
-      milestone: null,
-    });
-    const commitInfo = githubCommits[`C${hash}`];
-    if (commitInfo) {
-      const pr = commitInfo.associatedPullRequests.nodes[0];
-      if (pr) {
-        commit.pr = pr.number;
-        commit.milestone = pr.milestone?.number;
-      }
-    } else {
-      missing.push(commit);
-    }
-
-    const milestoneNum = commit.milestone;
-    if (milestoneNum != null) {
-      const milestone = milestones[milestoneNum] || { prs: [] };
-      // We _know_ the PR exists as milestones are attached to PRs
-      milestone.prs.push(commit.pr as string);
-      milestones[milestoneNum] = milestone;
-    } else {
-      leftovers.push(commit);
-    }
-  }
-
-  if (missing.length > 0) {
-    logger.warn(
-      `The following commits were not found on GitHub:`,
-      missing.map(commit => `${commit.hash.slice(0, 8)} ${commit.title}`)
-    );
-  }
-
-  const milestoneQuery = Object.keys(milestones)
-    .map(
-      number =>
-        `M${number}: milestone(number: ${number}) { ...MilestoneFragment }`
-    )
-    .join('\n');
-
-  const { repository: milestonesInfo } = await github.graphql(`{
-    repository(name: "${repo}", owner: "${owner}") {
-      ${milestoneQuery}
-    }
-  }
-
-    fragment MilestoneFragment on Milestone {
-      title
-      description
-      state
-    }
-  `);
-
-  const changelogSections = [];
-  for (const milestoneNum of Object.keys(milestones)) {
-    const milestoneInfo = milestonesInfo[`M${milestoneNum}`];
-    if (milestoneInfo == null) {
-      // XXX(BYK): This case should never happen in real life
-      throw new Error(`Cannot get information for milestone #${milestoneNum}`);
-    }
-
-    changelogSections.push(
-      `## ${milestoneInfo.title}${
-        milestoneInfo.state === 'OPEN' ? ' (ongoing)' : ''
-      }`
-    );
-    changelogSections.push(milestoneInfo.description);
-    changelogSections.push(
-      `PRs: ${milestones[milestoneNum].prs.map(pr => `#${pr}`).join(', ')}`
-    );
-  }
-
-  changelogSections.push(`## Various fixes & improvements`);
-  changelogSections.push(leftovers.map(formatCommit).join('\n'));
-
-  return changelogSections.join('\n\n');
+  return Object.fromEntries(
+    Object.entries(commitInfo).map(([hash, commit]) => [
+      // Strip the prefix on the hash we used to workaround in GraphQL
+      hash.slice(1),
+      {
+        pr: commit.associatedPullRequests[0]?.nodes.number,
+        milestone: commit.associatedPullRequests[0]?.nodes.milestone?.number,
+      },
+    ])
+  );
 }
