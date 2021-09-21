@@ -7,7 +7,7 @@ import {
   RepositoryInfo,
   StatusProviderConfig,
 } from './base';
-import { getGithubClient } from '../utils/githubApi';
+import { getGitHubClient } from '../utils/githubApi';
 import { ConfigurationError } from '../utils/errors';
 import { formatJson } from '../utils/strings';
 import { GithubGlobalConfig } from '../schemas/project_config';
@@ -28,7 +28,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
     githubConfig: GithubGlobalConfig
   ) {
     super(config, githubConfig);
-    this.github = getGithubClient();
+    this.github = getGitHubClient();
   }
 
   /**

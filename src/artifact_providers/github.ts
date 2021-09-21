@@ -8,7 +8,7 @@ import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../artifact_providers/base';
-import { getGithubClient } from '../utils/githubApi';
+import { getGitHubClient } from '../utils/githubApi';
 import {
   detectContentType,
   scan,
@@ -30,7 +30,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
 
   public constructor(config: ArtifactProviderConfig) {
     super(config);
-    this.github = getGithubClient();
+    this.github = getGitHubClient();
   }
 
   /**

@@ -3,7 +3,7 @@ import { logger } from '../logger';
 
 import { getGlobalGithubConfig } from '../config';
 import { getChangesSince } from './git';
-import { getGithubClient } from './githubApi';
+import { getGitHubClient } from './githubApi';
 import { getVersion } from './version';
 
 /**
@@ -302,7 +302,7 @@ async function getMilestonesDetails(milestones: string[]): Promise<any> {
     .join('\n');
 
   const { repo, owner } = await getGlobalGithubConfig();
-  return ((await getGithubClient().graphql(`{
+  return ((await getGitHubClient().graphql(`{
     repository(name: "${repo}", owner: "${owner}") {
       ${milestoneQuery}
     }
@@ -343,7 +343,7 @@ async function getMilestoneAndPRFromCommits(
     .join('\n');
 
   const { repo, owner } = await getGlobalGithubConfig();
-  const commitInfo = ((await getGithubClient().graphql(`{
+  const commitInfo = ((await getGitHubClient().graphql(`{
     repository(name: "${repo}", owner: "${owner}") {
       ${commitsQuery}
     }

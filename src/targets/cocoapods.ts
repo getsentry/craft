@@ -6,7 +6,7 @@ import { promisify } from 'util';
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
-import { getFile, getGithubClient } from '../utils/githubApi';
+import { getFile, getGitHubClient } from '../utils/githubApi';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
@@ -45,7 +45,7 @@ export class CocoapodsTarget extends BaseTarget {
   ) {
     super(config, artifactProvider, githubRepo);
     this.cocoapodsConfig = this.getCocoapodsConfig();
-    this.github = getGithubClient();
+    this.github = getGitHubClient();
     this.githubRepo = githubRepo;
     checkExecutableIsPresent(COCOAPODS_BIN);
   }

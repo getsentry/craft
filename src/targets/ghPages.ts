@@ -10,7 +10,7 @@ import { withTempDir } from '../utils/files';
 import {
   getAuthUsername,
   getGithubApiToken,
-  getGithubClient,
+  getGitHubClient,
   GithubRemote,
 } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
@@ -54,7 +54,7 @@ export class GhPagesTarget extends BaseTarget {
     githubRepo: GithubGlobalConfig
   ) {
     super(config, artifactProvider, githubRepo);
-    this.github = getGithubClient();
+    this.github = getGitHubClient();
     this.githubRepo = githubRepo;
     this.ghPagesConfig = this.getGhPagesConfig();
   }

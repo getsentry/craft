@@ -97,7 +97,7 @@ const _GitHubClientCache: Record<string, Octokit> = {};
  * @param token Github authentication token
  * @returns Github client
  */
-export function getGithubClient(token = ''): Octokit {
+export function getGitHubClient(token = ''): Octokit {
   const githubApiToken = token || getGithubApiToken();
 
   if (!_GitHubClientCache[githubApiToken]) {

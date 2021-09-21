@@ -13,7 +13,7 @@ import {
   DEFAULT_CHANGELOG_PATH,
   findChangeset,
 } from '../utils/changelog';
-import { getGithubClient } from '../utils/githubApi';
+import { getGitHubClient } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
 import { isPreviewRelease, versionToTag } from '../utils/version';
 import { BaseTarget } from './base';
@@ -94,7 +94,7 @@ export class GithubTarget extends BaseTarget {
         !!this.config.previewReleases,
       tagPrefix: this.config.tagPrefix || '',
     };
-    this.github = getGithubClient();
+    this.github = getGitHubClient();
   }
 
   /**

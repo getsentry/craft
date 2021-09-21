@@ -3,7 +3,7 @@ import simpleGit from 'simple-git';
 import {
   getAuthUsername,
   getGithubApiToken,
-  getGithubClient,
+  getGitHubClient,
   GithubRemote,
 } from '../utils/githubApi';
 
@@ -38,7 +38,7 @@ export class UpmTarget extends BaseTarget {
   ) {
     super(config, artifactProvider, githubRepo);
 
-    this.github = getGithubClient();
+    this.github = getGitHubClient();
 
     const githubTargetConfig = {
       name: 'github',

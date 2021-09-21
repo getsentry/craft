@@ -1,5 +1,5 @@
 jest.mock('../../utils/githubApi.ts');
-import { getGithubClient } from '../../utils/githubApi';
+import { getGitHubClient } from '../../utils/githubApi';
 import { GithubArtifactProvider, ArtifactItem } from '../github';
 
 class TestGithubArtifactProvider extends GithubArtifactProvider {
@@ -17,8 +17,8 @@ describe('GitHub Artifact Provider', () => {
     mockClient = {
       actions: { listArtifactsForRepo: jest.fn() },
     };
-    (getGithubClient as jest.MockedFunction<
-      typeof getGithubClient
+    (getGitHubClient as jest.MockedFunction<
+      typeof getGitHubClient
       // @ts-ignore we only need to mock a subset
     >).mockReturnValueOnce(mockClient);
 
