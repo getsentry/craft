@@ -194,8 +194,10 @@ interface Milestone {
   title?: string;
   description?: string;
   state?: 'OPEN' | 'CLOSED';
-  prs: string[];
 }
+type MilestoneWithPRs = Milestone & {
+  prs: string[];
+};
 
 // This is set to 8 since GitHub and GitLab prefer that over the default 7 to
 // avoid collisions.
@@ -221,7 +223,7 @@ export async function generateChangesetFromGit(
     gitCommits.map(commit => commit.hash)
   );
 
-  const milestones: Record</*milestone #*/ string, Milestone> = {};
+  const milestones: Record</*milestone #*/ string, MilestoneWithPRs> = {};
   const commits: Record</*hash*/ string, Commit> = {};
   const leftovers: Commit[] = [];
   const missing: Commit[] = [];
@@ -260,7 +262,7 @@ export async function generateChangesetFromGit(
 
   const changelogSections = [];
   for (const milestoneNum of Object.keys(milestones)) {
-    const milestone = milestonesInfo[`M${milestoneNum}`];
+    const milestone = milestonesInfo[milestoneNum];
     if (milestone == null) {
       // XXX(BYK): This case should never happen in real life
       throw new Error(`Cannot get information for milestone #${milestoneNum}`);
@@ -281,52 +283,18 @@ export async function generateChangesetFromGit(
   return changelogSections.join('\n\n');
 }
 
-interface MilestonesDetailsResult {
-  repository: {
-    [number: string]: {
-      title: string;
-      description: string;
-      state: 'OPEN' | 'CLOSED';
-    };
-  };
-}
-
-async function getMilestonesDetails(milestones: string[]): Promise<any> {
-  const milestoneQuery = Object.keys(milestones)
-    .map(
-      number =>
-        // We need to prefix the milestone number (with `M` here) when using it
-        // as an alias as aliases cannot start with a number.
-        `M${number}: milestone(number: ${number}) { ...MilestoneFragment }`
-    )
-    .join('\n');
-
-  const { repo, owner } = await getGlobalGithubConfig();
-  return ((await getGitHubClient().graphql(`{
-    repository(name: "${repo}", owner: "${owner}") {
-      ${milestoneQuery}
-    }
-
-    fragment MilestoneFragment on Milestone {
-      title
-      description
-      state
-    }
-  `)) as MilestonesDetailsResult).repository;
-}
-
 interface CommitInfoResult {
   repository: {
     [hash: string]: {
-      associatedPullRequests: Array<{
-        nodes: {
+      associatedPullRequests: {
+        nodes: Array<{
           number: string;
           milestone: {
             number: string;
           };
-        };
-      }>;
-    };
+        }>;
+      };
+    } | null;
   };
 }
 
@@ -364,9 +332,59 @@ async function getMilestoneAndPRFromCommits(
       // Strip the prefix on the hash we used to workaround in GraphQL
       hash.slice(1),
       {
-        pr: commit.associatedPullRequests[0]?.nodes.number,
-        milestone: commit.associatedPullRequests[0]?.nodes.milestone?.number,
+        pr: commit?.associatedPullRequests.nodes[0]?.number ?? null,
+        milestone:
+          commit?.associatedPullRequests.nodes[0]?.milestone?.number ?? null,
       },
+    ])
+  );
+}
+
+interface MilestonesDetailsResult {
+  repository: {
+    [number: string]: {
+      title: string;
+      description: string;
+      state: 'OPEN' | 'CLOSED';
+    };
+  };
+}
+
+async function getMilestonesDetails(
+  milestones: string[]
+): Promise<Record<string, Milestone>> {
+  if (milestones.length === 0) {
+    return {};
+  }
+
+  const milestoneQuery = milestones
+    .map(
+      number =>
+        // We need to prefix the milestone number (with `M` here) when using it
+        // as an alias as aliases cannot start with a number.
+        `M${number}: milestone(number: ${number}) {...MilestoneFragment}`
+    )
+    .join('\n');
+
+  const { repo, owner } = await getGlobalGithubConfig();
+  const milestoneInfo = ((await getGitHubClient().graphql(`{
+    repository(name: "${repo}", owner: "${owner}") {
+      ${milestoneQuery}
+    }
+  }
+
+  fragment MilestoneFragment on Milestone {
+    title
+    description
+    state
+  }
+`)) as MilestonesDetailsResult).repository;
+
+  return Object.fromEntries(
+    Object.entries(milestoneInfo).map(([number, milestone]) => [
+      // Strip the prefix on the hash we used to workaround in GraphQL
+      number.slice(1),
+      milestone,
     ])
   );
 }
