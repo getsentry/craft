@@ -10,12 +10,12 @@ class TestGithubArtifactProvider extends GithubArtifactProvider {
 
 describe('GitHub Artifact Provider', () => {
   let githubArtifactProvider: TestGithubArtifactProvider;
-  let mockClient: { request: jest.Mock };
+  let mockClient: { actions: { listArtifactsForRepo: jest.Mock } };
 
   beforeEach(() => {
     jest.resetAllMocks();
     mockClient = {
-      request: jest.fn(),
+      actions: { listArtifactsForRepo: jest.fn() },
     };
     (getGithubClient as jest.MockedFunction<
       typeof getGithubClient
@@ -31,7 +31,7 @@ describe('GitHub Artifact Provider', () => {
 
   describe('listArtifactsForRevision', () => {
     test('it should get the artifact with the revision name', async () => {
-      mockClient.request.mockResolvedValueOnce({
+      mockClient.actions.listArtifactsForRepo.mockResolvedValueOnce({
         status: 200,
         data: {
           total_count: 2,
@@ -88,7 +88,7 @@ describe('GitHub Artifact Provider', () => {
     });
 
     test('it should get the latest artifact with the same name ', async () => {
-      mockClient.request.mockResolvedValueOnce({
+      mockClient.actions.listArtifactsForRepo.mockResolvedValueOnce({
         status: 200,
         data: {
           total_count: 2,
@@ -145,7 +145,7 @@ describe('GitHub Artifact Provider', () => {
     });
 
     test('it should throw when no artifacts are found after 3 retries', async () => {
-      mockClient.request.mockResolvedValue({
+      mockClient.actions.listArtifactsForRepo.mockResolvedValue({
         status: 200,
         data: {
           total_count: 0,
@@ -160,11 +160,11 @@ describe('GitHub Artifact Provider', () => {
         `"Failed to discover any artifacts (tries: 3)"`
       );
 
-      expect(mockClient.request).toBeCalledTimes(3);
+      expect(mockClient.actions.listArtifactsForRepo).toBeCalledTimes(3);
     });
 
     test('it should throw when no artifacts with the name can be found', async () => {
-      mockClient.request.mockResolvedValue({
+      mockClient.actions.listArtifactsForRepo.mockResolvedValue({
         status: 200,
         data: {
           total_count: 2,

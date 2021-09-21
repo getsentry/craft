@@ -1,5 +1,5 @@
 import { mapLimit } from 'async';
-import * as Github from '@octokit/rest';
+import { Octokit } from '@octokit/rest';
 import simpleGit, { SimpleGit } from 'simple-git';
 
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
@@ -78,7 +78,7 @@ export class RegistryTarget extends BaseTarget {
   /** Target options */
   public readonly registryConfig: RegistryConfig[];
   /** Github client */
-  public readonly github: Github;
+  public readonly github: Octokit;
   /** Github repo configuration */
   public readonly githubRepo: GithubGlobalConfig;
 

@@ -1,4 +1,4 @@
-import * as Github from '@octokit/rest';
+import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
 
 import { logger } from '../logger';
 import {
@@ -12,12 +12,16 @@ import { ConfigurationError } from '../utils/errors';
 import { formatJson } from '../utils/strings';
 import { GithubGlobalConfig } from 'src/schemas/project_config';
 
+type ReposGetCombinedStatusForRefResponse = RestEndpointMethodTypes['repos']['getCombinedStatusForRef']['response']['data'];
+type ChecksListSuitesForRefResponse = RestEndpointMethodTypes['checks']['listSuitesForRef']['response']['data'];
+type ChecksListForRefResponse = RestEndpointMethodTypes['checks']['listForRef']['response']['data'];
+
 /**
  * Status provider that talks to GitHub to get commit checks (statuses)
  */
 export class GithubStatusProvider extends BaseStatusProvider {
   /** Github client */
-  private readonly github: Github;
+  private readonly github: Octokit;
 
   public constructor(
     config: StatusProviderConfig,
@@ -145,9 +149,9 @@ export class GithubStatusProvider extends BaseStatusProvider {
    */
   private getStatusForContext(
     context: string,
-    revisionStatus: Github.ReposGetCombinedStatusForRefResponse,
-    revisionCheckSuites: Github.ChecksListSuitesForRefResponse,
-    revisionChecks: Github.ChecksListForRefResponse
+    revisionStatus: ReposGetCombinedStatusForRefResponse,
+    revisionCheckSuites: ChecksListSuitesForRefResponse,
+    revisionChecks: ChecksListForRefResponse
   ): CommitStatus {
     const results = [
       this.getResultFromCommitApiStatus(revisionStatus, context),
@@ -201,7 +205,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
    * @param context If passed, only result of the corresponding context is considered
    */
   private getResultFromCommitApiStatus(
-    combinedStatus: Github.ReposGetCombinedStatusForRefResponse,
+    combinedStatus: ReposGetCombinedStatusForRefResponse,
     context?: string
   ): CommitStatus {
     if (context) {
@@ -225,8 +229,8 @@ export class GithubStatusProvider extends BaseStatusProvider {
    * @param context If provided, only the corresponding run is considered
    */
   private getResultFromRevisionChecks(
-    revisionCheckSuites: Github.ChecksListSuitesForRefResponse,
-    revisionChecks: Github.ChecksListForRefResponse,
+    revisionCheckSuites: ChecksListSuitesForRefResponse,
+    revisionChecks: ChecksListForRefResponse,
     context?: string
   ): CommitStatus {
     // Check runs: we have an array of runs, and each of them has a status
@@ -271,7 +275,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
    */
   protected async getCommitApiStatus(
     revision: string
-  ): Promise<Github.ReposGetCombinedStatusForRefResponse> {
+  ): Promise<ReposGetCombinedStatusForRefResponse> {
     logger.debug(`Fetching combined revision status...`);
     const revisionStatusResponse = await this.github.repos.getCombinedStatusForRef(
       {
@@ -297,7 +301,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
    */
   protected async getRevisionCheckSuites(
     revision: string
-  ): Promise<Github.ChecksListSuitesForRefResponse> {
+  ): Promise<ChecksListSuitesForRefResponse> {
     logger.debug('Fetching Checks API status...');
     const revisionCheckSuites = (
       await this.github.checks.listSuitesForRef({
@@ -323,7 +327,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
    */
   protected async getRevisionChecks(
     revision: string
-  ): Promise<Github.ChecksListForRefResponse> {
+  ): Promise<ChecksListForRefResponse> {
     logger.debug('Fetching Checks API status...');
     const revisionChecksResponse = await this.github.checks.listForRef({
       ...this.githubConfig,

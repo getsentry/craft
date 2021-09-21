@@ -1,15 +1,5 @@
 # Changelog
 
-## Unreleased
-
-- feat(maven): Add maven target to deploy to Maven Central (#258)
-- feat(symbol-collector): Add symbol-collector target (#266)
-- feat(maven): Support BOM files in `maven` target (#270)
-- feat(maven): Optional `android` config (#271)
-- feat(maven): Remove Gradle properties after publishing (#276)
-- upgrade(docker): Upgrade to Debain Bullseye and Node 14 (#282)
-- fix(cocoapods): Add COCOAPODS_ALLOW_ROOT=1 to Docker (#281)
-
 ## 0.24.4
 
 - fix(registry): Fix error w/ simple registry config (#262)

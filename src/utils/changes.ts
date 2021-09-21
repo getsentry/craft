@@ -23,6 +23,7 @@ export interface Changeset {
 export interface ChangesetLoc {
   start: RegExpExecArray;
   end: RegExpExecArray | null;
+  padding: string;
 }
 
 /**
@@ -72,9 +73,11 @@ function locateChangeset(
   ) {
     const matchedTitle = match[2] || match[3];
     if (predicate(matchedTitle)) {
+      const padSize = match?.[1]?.length || 0;
       return {
         end: HEADER_REGEX.exec(markdown),
         start: match,
+        padding: new Array(padSize + 1).join(' '),
       };
     }
   }
@@ -153,10 +156,10 @@ export function prependChangeset(
   changeset: Changeset
 ): string {
   // Try to locate the top-most non-empty header, no matter what is inside
-  const start = locateChangeset(markdown, Boolean)?.start;
-  const padding = start?.[1]?.length || 0;
-  const padStr = new Array(padding + 1).join(' ');
-  const body = changeset.body || `${padStr}${DEFAULT_CHANGESET_BODY}`;
+  const { start, padding } = locateChangeset(markdown, Boolean) || {
+    padding: '',
+  };
+  const body = changeset.body || `${padding}${DEFAULT_CHANGESET_BODY}`;
   let header;
   if (start?.[3]) {
     const underline = new Array(changeset.name.length + 1).join('-');
@@ -164,7 +167,10 @@ export function prependChangeset(
   } else {
     header = `## ${changeset.name}`;
   }
-  const newSection = `${padStr}${header}\n\n${padStr}${body}\n\n`;
+  const newSection = `${padding}${header}\n\n${body.replace(
+    /^/gm,
+    padding
+  )}\n\n`;
   const startIdx = start?.index ?? markdown.length;
 
   return markdown.slice(0, startIdx) + newSection + markdown.slice(startIdx);

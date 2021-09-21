@@ -1,5 +1,5 @@
 import { mapLimit } from 'async';
-import * as Github from '@octokit/rest';
+import { Octokit } from '@octokit/rest';
 
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError } from '../utils/errors';
@@ -47,7 +47,7 @@ export class BrewTarget extends BaseTarget {
   /** Target options */
   public readonly brewConfig: BrewTargetOptions;
   /** Github client */
-  public readonly github: Github;
+  public readonly github: Octokit;
   /** Github repo configuration */
   public readonly githubRepo: GithubGlobalConfig;
 
@@ -123,7 +123,7 @@ export class BrewTarget extends BaseTarget {
     try {
       const tap = this.brewConfig.tapRepo;
       this.logger.debug(`Loading SHA for ${tap.owner}/${tap.repo}:${path}`);
-      const response = await this.github.repos.getContents({
+      const response = await this.github.repos.getContent({
         ...tap,
         path,
       });
@@ -131,7 +131,7 @@ export class BrewTarget extends BaseTarget {
         return undefined;
       }
       return response.data.sha;
-    } catch (e) {
+    } catch (e: any) {
       if (e.status === 404) {
         return undefined;
       }
@@ -205,7 +205,7 @@ export class BrewTarget extends BaseTarget {
     );
 
     if (!isDryRun()) {
-      await this.github.repos.createOrUpdateFile(params);
+      await this.github.repos.createOrUpdateFileContents(params);
     } else {
       this.logger.info(`[dry-run] Skipping file action: ${action}`);
     }

@@ -27,7 +27,7 @@ export class ConfigurationError extends Error {
  * @param errorLogger Optional logger to use
  */
 export function reportError(
-  error: Error | string,
+  error: unknown,
   errorLogger: {
     error: (...message: string[]) => void;
     [key: string]: any;
@@ -35,7 +35,7 @@ export function reportError(
 ): void {
   if (!isDryRun()) {
     // wrap the error in an Error object if it isn't already one
-    const errorObj = error instanceof Error ? error : new Error(error);
+    const errorObj = error instanceof Error ? error : new Error(String(error));
     throw errorObj;
   } else {
     // conversely, convert the error to a string if it isn't already one
