@@ -306,7 +306,6 @@ async function getMilestonesDetails(milestones: string[]): Promise<any> {
     repository(name: "${repo}", owner: "${owner}") {
       ${milestoneQuery}
     }
-  }
 
     fragment MilestoneFragment on Milestone {
       title
