@@ -415,13 +415,9 @@ describe('withGradleProps', () => {
        */
       expect.assertions(3);
 
-      try {
-        await fsPromises.writeFile(expectedPropsPath, testProps);
-      } catch (error) {
-        // If we can't create the props file this test doesn't test anything
-        // new, so stop it.
-        throw new Error(`Cannot create a props file: ${error}`);
-      }
+      // If we can't create the props file this test doesn't test anything
+      // new, so stop it (don't catch the error).
+      await fsPromises.writeFile(expectedPropsPath, testProps);
 
       const mvnTarget = createMavenTarget(getRequiredTargetConfig());
       mvnTarget.upload = jest
