@@ -193,7 +193,7 @@ interface Commit {
 interface Milestone {
   title?: string;
   description?: string;
-  state?: string;
+  state?: 'OPEN' | 'CLOSED';
   prs: string[];
 }
 
@@ -239,12 +239,8 @@ export async function generateChangesetFromGit(
     }
   }`);
 
-  const milestones: {
-    [number: string]: Milestone;
-  } = {};
-  const commits: {
-    [hash: string]: Commit;
-  } = {};
+  const milestones: Record</*milestone #*/ string, Milestone> = {};
+  const commits: Record</*hash*/ string, Commit> = {};
   const leftovers: Commit[] = [];
   const missing: Commit[] = [];
   for (const gitCommit of gitCommits) {
