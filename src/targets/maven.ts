@@ -10,6 +10,7 @@ import {
   promises as fsPromises,
   accessSync,
   constants as fsConstants,
+  existsSync,
 } from 'fs';
 import { checkExecutableIsPresent, extractZipArchive } from '../utils/system';
 import { retrySpawnProcess } from '../utils/async';
@@ -247,14 +248,26 @@ export class MavenTarget extends BaseTarget {
     snapshotDir: string
   ): Promise<string | null> {
     const propsExpectedPath = this.getGradlePropsPath();
-    try {
-      accessSync(propsExpectedPath, fsConstants.R_OK);
-    } catch (error) {
+
+    // The props file not existing is an allowed use case.
+    // Existing but not being able to read it is another use case that isn't
+    // allowed (it's not possible to make the snapshot).
+    if (!existsSync(propsExpectedPath)) {
       this.logger.debug(
-        'Did not find a gradle properties file in: ',
+        'Did not find a gradle properties file in ',
         propsExpectedPath
       );
       return null;
+    }
+
+    try {
+      accessSync(propsExpectedPath, fsConstants.R_OK);
+    } catch (error) {
+      this.logger.error(
+        'Cannot read gradle properties file: ',
+        propsExpectedPath
+      );
+      throw error;
     }
 
     const snapshotPath = join(
@@ -298,6 +311,10 @@ export class MavenTarget extends BaseTarget {
       // Overwrites dst if it already exists
       await fsPromises.rename(snapshotPath, gradlePropsPath);
     } catch (error) {
+      // Don't explicitly check for the existence of the file to throw a specific exception.
+      // The target uses temporary directories to place snapshots so it's unlikely to have a collision.
+      // Warning about having a one on a file in a directory to be removed doesn't provide valuable
+      // information, and the `rename` method overwrites it in any case.
       this.logger.error(
         `Could not restore gradle properties snapshot from ${snapshotPath} to ${gradlePropsPath}\n`,
         error
