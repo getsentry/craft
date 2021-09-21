@@ -12,7 +12,7 @@ import {
   Changeset,
   DEFAULT_CHANGELOG_PATH,
   findChangeset,
-} from '../utils/changes';
+} from '../utils/changelog';
 import { getGithubClient } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
 import { isPreviewRelease, versionToTag } from '../utils/version';

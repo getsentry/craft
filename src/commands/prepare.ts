@@ -19,7 +19,7 @@ import {
   removeChangeset,
   prependChangeset,
   generateChangesetFromGit,
-} from '../utils/changes';
+} from '../utils/changelog';
 import {
   ConfigurationError,
   handleGlobalError,

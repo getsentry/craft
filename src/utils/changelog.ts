@@ -2,8 +2,8 @@ import { SimpleGit } from 'simple-git';
 import { logger } from '../logger';
 
 import { getGlobalGithubConfig } from '../config';
-import { getChangesSince } from '../utils/git';
-import { getGithubClient } from '../utils/githubApi';
+import { getChangesSince } from './git';
+import { getGithubClient } from './githubApi';
 import { getVersion } from './version';
 
 /**

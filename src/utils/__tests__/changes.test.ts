@@ -1,6 +1,6 @@
 /* eslint-env jest */
 
-import { findChangeset, removeChangeset, prependChangeset } from '../changes';
+import { findChangeset, removeChangeset, prependChangeset } from '../changelog';
 
 describe('findChangeset', () => {
   const sampleChangeset = {
