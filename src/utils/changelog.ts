@@ -277,8 +277,10 @@ export async function generateChangesetFromGit(
     );
   }
 
-  changelogSections.push(`## Various fixes & improvements`);
-  changelogSections.push(leftovers.map(formatCommit).join('\n'));
+  if (leftovers.length > 0) {
+    changelogSections.push(`## Various fixes & improvements`);
+    changelogSections.push(leftovers.map(formatCommit).join('\n'));
+  }
 
   return changelogSections.join('\n\n');
 }
@@ -303,6 +305,10 @@ async function getMilestoneAndPRFromCommits(
 ): Promise<
   Record</* hash */ string, { pr: string | null; milestone: string | null }>
 > {
+  if (hashes.length === 0) {
+    return {};
+  }
+
   const commitsQuery = hashes
     // We need to prefix the hash value (with `C` here) when using it as an
     // alias as aliases cannot start with a number but hashes can.
