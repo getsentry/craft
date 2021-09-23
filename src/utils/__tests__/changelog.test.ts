@@ -445,6 +445,11 @@ describe('generateChangesetFromGit', () => {
         message: 'Upgrade the steering wheel (#900)',
         pr: '900',
       },
+      {
+        hash: 'f1234567890abcde',
+        message: 'Fix the clacking sound on gear changes (#950)',
+        pr: '950',
+      },
     ]);
     makeCommitResponse([
       {
@@ -466,6 +471,10 @@ describe('generateChangesetFromGit', () => {
         hash: 'ef1234567890abcd',
         pr: '900',
         milestone: '5',
+      },
+      {
+        hash: 'f1234567890abcde',
+        pr: '950',
       },
     ]);
     mockClient.mockResolvedValueOnce({
@@ -500,7 +509,8 @@ describe('generateChangesetFromGit', () => {
 
       ## Various fixes & improvements
 
-      - Upgraded the kernel (abcdef12)"
+      - Upgraded the kernel (abcdef12)
+      - Fix the clacking sound on gear changes (#950)"
     `);
   });
 });

@@ -219,7 +219,7 @@ export async function generateChangesetFromGit(
 ): Promise<string> {
   const gitCommits = await getChangesSince(git, rev);
 
-  const githubCommits = await getMilestoneAndPRFromCommits(
+  const githubCommits = await getPRAndMilestoneFromCommit(
     gitCommits.map(commit => commit.hash)
   );
 
@@ -258,7 +258,7 @@ export async function generateChangesetFromGit(
     );
   }
 
-  const milestonesInfo = await getMilestonesDetails(Object.keys(milestones));
+  const milestonesInfo = await getMilestoneInfo(Object.keys(milestones));
 
   const changelogSections = [];
   for (const milestoneNum of Object.keys(milestones)) {
@@ -300,7 +300,7 @@ interface CommitInfoResult {
   };
 }
 
-async function getMilestoneAndPRFromCommits(
+async function getPRAndMilestoneFromCommit(
   hashes: string[]
 ): Promise<
   Record</* hash */ string, { pr: string | null; milestone: string | null }>
@@ -356,7 +356,7 @@ interface MilestonesDetailsResult {
   };
 }
 
-async function getMilestonesDetails(
+async function getMilestoneInfo(
   milestones: string[]
 ): Promise<Record<string, Milestone>> {
   if (milestones.length === 0) {
