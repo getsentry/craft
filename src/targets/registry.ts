@@ -8,7 +8,7 @@ import { withTempDir } from '../utils/files';
 import {
   getAuthUsername,
   getGithubApiToken,
-  getGithubClient,
+  getGitHubClient,
   GithubRemote,
 } from '../utils/githubApi';
 import { renderTemplateSafe } from '../utils/strings';
@@ -95,7 +95,7 @@ export class RegistryTarget extends BaseTarget {
     } else {
       this.remote = DEFAULT_REGISTRY_REMOTE;
     }
-    this.github = getGithubClient();
+    this.github = getGitHubClient();
     this.githubRepo = githubRepo;
     this.registryConfig = this.getRegistryConfig();
   }

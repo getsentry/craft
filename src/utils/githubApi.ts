@@ -87,6 +87,8 @@ export function getGithubApiToken(): string {
   return githubApiToken;
 }
 
+const _GitHubClientCache: Record<string, Octokit> = {};
+
 /**
  * Gets an authenticated Github client object
  *
@@ -95,25 +97,27 @@ export function getGithubApiToken(): string {
  * @param token Github authentication token
  * @returns Github client
  */
-export function getGithubClient(token = ''): Octokit {
+export function getGitHubClient(token = ''): Octokit {
   const githubApiToken = token || getGithubApiToken();
 
-  const attrs = {
-    auth: `token ${githubApiToken}`,
-  } as any;
-
-  if (logger.level >= LogLevel.Debug) {
-    attrs.log = {
-      info: (message: string, _: any) => {
-        logger.debug(message);
-      },
+  if (!_GitHubClientCache[githubApiToken]) {
+    const attrs: any = {
+      auth: `token ${githubApiToken}`,
     };
+
+    if (logger.level >= LogLevel.Debug) {
+      attrs.log = {
+        info: (message: string) => logger.debug(message),
+      };
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { retry } = require('@octokit/plugin-retry');
+    const octokitWithRetries = Octokit.plugin(retry);
+    _GitHubClientCache[githubApiToken] = new octokitWithRetries(attrs);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { retry } = require('@octokit/plugin-retry');
-  const octokitWithRetries = Octokit.plugin(retry);
-  return new octokitWithRetries(attrs);
+  return _GitHubClientCache[githubApiToken];
 }
 
 /**

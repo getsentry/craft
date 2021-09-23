@@ -18,18 +18,14 @@ import {
   findChangeset,
   removeChangeset,
   prependChangeset,
-} from '../utils/changes';
+  generateChangesetFromGit,
+} from '../utils/changelog';
 import {
   ConfigurationError,
   handleGlobalError,
   reportError,
 } from '../utils/errors';
-import {
-  getGitClient,
-  getDefaultBranch,
-  getLatestTag,
-  getChangesSince,
-} from '../utils/git';
+import { getGitClient, getDefaultBranch, getLatestTag } from '../utils/git';
 import { isDryRun, promptConfirmation } from '../utils/helpers';
 import { formatJson } from '../utils/strings';
 import { spawnProcess } from '../utils/system';
@@ -393,14 +389,7 @@ async function prepareChangelog(
       }
       if (!changeset.body) {
         replaceSection = changeset.name;
-        const changes = await getChangesSince(git, oldVersion);
-        changeset.body = changes
-          .map(change =>
-            change.pr
-              ? `- ${change.message}`
-              : `- ${change.message} (${change.hash.slice(0, 8)})`
-          )
-          .join('\n');
+        changeset.body = await generateChangesetFromGit(git, oldVersion);
       }
       if (changeset.name === DEFAULT_UNRELEASED_TITLE) {
         replaceSection = changeset.name;

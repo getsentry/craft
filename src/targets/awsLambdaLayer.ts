@@ -6,7 +6,7 @@ import simpleGit from 'simple-git';
 import {
   getAuthUsername,
   getGithubApiToken,
-  getGithubClient,
+  getGitHubClient,
   GithubRemote,
 } from '../utils/githubApi';
 
@@ -58,7 +58,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);
-    this.github = getGithubClient();
+    this.github = getGitHubClient();
     this.awsLambdaConfig = this.getAwsLambdaConfig();
   }
 

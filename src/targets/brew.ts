@@ -3,7 +3,7 @@ import { Octokit } from '@octokit/rest';
 
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError } from '../utils/errors';
-import { getGithubClient } from '../utils/githubApi';
+import { getGitHubClient } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
 import { renderTemplateSafe } from '../utils/strings';
 import { HashAlgorithm, HashOutputFormat } from '../utils/system';
@@ -58,7 +58,7 @@ export class BrewTarget extends BaseTarget {
   ) {
     super(config, artifactProvider, githubRepo);
     this.brewConfig = this.getBrewConfig();
-    this.github = getGithubClient();
+    this.github = getGitHubClient();
     this.githubRepo = githubRepo;
   }
 
