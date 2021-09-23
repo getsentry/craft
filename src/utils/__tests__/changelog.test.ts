@@ -331,6 +331,8 @@ describe('generateChangesetFromGit', () => {
           pr: null,
         },
       ]);
+      // We do not have a PR number from the commit nor we get a PR number from
+      // the GitHub API call, only a hash.
       makeCommitResponse([{ hash: 'abcdef1234567890' }]);
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
       expect(changes).toMatchInlineSnapshot(`
