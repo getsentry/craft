@@ -39,9 +39,13 @@ export interface ChangesetLoc {
   padding: string;
 }
 
+function escapeMarkdownPound(text: string): string {
+  return text.replace(/#/g, '&#35;');
+}
+
 function markdownHeader(level: number, text: string): string {
   const prefix = new Array(level + 1).join('#');
-  return `${prefix} ${text}`;
+  return `${prefix} ${escapeMarkdownPound(text)}`;
 }
 
 /**
@@ -289,7 +293,9 @@ export async function generateChangesetFromGit(
         `${milestone.title}${milestone.state === 'OPEN' ? ' (ongoing)' : ''}`
       )
     );
-    changelogSections.push(milestone.description);
+    if (milestone.description) {
+      changelogSections.push(escapeMarkdownPound(milestone.description));
+    }
     changelogSections.push(
       `PRs: ${milestones[milestoneNum].prs.map(pr => `#${pr}`).join(', ')}`
     );

@@ -487,8 +487,7 @@ describe('generateChangesetFromGit', () => {
         },
         M5: {
           title: 'Better driver experience',
-          description:
-            'We are working on making your driving experience more pleasant and safer.',
+          description: '',
           state: 'OPEN',
         },
       },
@@ -503,14 +502,77 @@ describe('generateChangesetFromGit', () => {
 
       ### Better driver experience (ongoing)
 
-      We are working on making your driving experience more pleasant and safer.
-
       PRs: #789, #900
 
       ### Various fixes & improvements
 
       - Upgraded the kernel (abcdef12)
       - Fix the clacking sound on gear changes (#950)"
+    `);
+  });
+
+  it('should escape # signs on milestone titles', async () => {
+    mockGetChangesSince.mockResolvedValueOnce([
+      {
+        hash: 'abcdef1234567890',
+        message: 'Upgraded the kernel',
+        pr: '123',
+      },
+    ]);
+    makeCommitResponse([
+      {
+        hash: 'abcdef1234567890',
+        pr: '123',
+        milestone: '1',
+      },
+    ]);
+    mockClient.mockResolvedValueOnce({
+      repository: {
+        M1: {
+          title: 'Drivetrain #1 in town',
+          description:
+            'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
+          state: 'CLOSED',
+        },
+      },
+    });
+    const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
+    expect(changes).toMatchInlineSnapshot(`
+      "### Drivetrain &#35;1 in town
+
+      We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!
+
+      PRs: #123"
+    `);
+  });
+  it('should omit milestone body if it is empty', async () => {
+    mockGetChangesSince.mockResolvedValueOnce([
+      {
+        hash: 'abcdef1234567890',
+        message: 'Upgraded the kernel',
+        pr: '123',
+      },
+    ]);
+    makeCommitResponse([
+      {
+        hash: 'abcdef1234567890',
+        pr: '123',
+        milestone: '1',
+      },
+    ]);
+    mockClient.mockResolvedValueOnce({
+      repository: {
+        M1: {
+          title: 'Better drivetrain',
+          state: 'CLOSED',
+        },
+      },
+    });
+    const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
+    expect(changes).toMatchInlineSnapshot(`
+      "### Better drivetrain
+
+      PRs: #123"
     `);
   });
 });
