@@ -37,7 +37,7 @@ PRs: #281, #282
 - build(deps): Bump path-parse from 1.0.6 to 1.0.7 (#274)
 - build(deps-dev): Bump tar from 4.4.8 to 4.4.15 (#273)
 - docs: Consistent code samples for shell (e84f693f)
-- docs: Mention release/** branches on README (#263)
+- docs: Mention release/\*\* branches on README (#263)
 
 ## 0.24.4
 
