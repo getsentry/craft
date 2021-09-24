@@ -6,7 +6,8 @@ import { logger } from '../logger';
 
 export interface GitChange {
   hash: string;
-  message: string;
+  title: string;
+  body: string;
   pr: string | null;
 }
 
@@ -54,7 +55,8 @@ export async function getChangesSince(
   });
   return commits.map(commit => ({
     hash: commit.hash,
-    message: commit.message,
+    title: commit.message,
+    body: commit.body,
     pr: commit.message.match(PRExtractor)?.[0] || null,
   }));
 }

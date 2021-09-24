@@ -11,6 +11,7 @@ import { getVersion } from './version';
  */
 export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
 export const DEFAULT_UNRELEASED_TITLE = 'Unreleased';
+export const SKIP_CHANGELOG_MAGIC_WORD = '#skip-changelog';
 const DEFAULT_CHANGESET_BODY = '- No documented changes.';
 const VERSION_HEADER_LEVEL = 2;
 const SUBSECTION_HEADER_LEVEL = VERSION_HEADER_LEVEL + 1;
@@ -236,10 +237,12 @@ export async function generateChangesetFromGit(
   git: SimpleGit,
   rev: string
 ): Promise<string> {
-  const gitCommits = await getChangesSince(git, rev);
+  const gitCommits = (await getChangesSince(git, rev)).filter(
+    ({ body }) => !body.includes(SKIP_CHANGELOG_MAGIC_WORD)
+  );
 
   const githubCommits = await getPRAndMilestoneFromCommit(
-    gitCommits.map(commit => commit.hash)
+    gitCommits.map(({ hash }) => hash)
   );
 
   const milestones: Record</*milestone #*/ string, MilestoneWithPRs> = {};
@@ -250,9 +253,16 @@ export async function generateChangesetFromGit(
     const hash = gitCommit.hash;
 
     const githubCommit = githubCommits[hash];
+    if (
+      githubCommit?.prBody &&
+      githubCommit.prBody.includes(SKIP_CHANGELOG_MAGIC_WORD)
+    ) {
+      continue;
+    }
+
     const commit = (commits[hash] = {
       hash: hash,
-      title: gitCommit.message,
+      title: gitCommit.title,
       hasPRinTitle: Boolean(gitCommit.pr),
       ...githubCommit,
     });
@@ -317,6 +327,7 @@ interface CommitInfoResult {
       associatedPullRequests: {
         nodes: Array<{
           number: string;
+          body: string;
           milestone: {
             number: string;
           };
@@ -329,7 +340,10 @@ interface CommitInfoResult {
 async function getPRAndMilestoneFromCommit(
   hashes: string[]
 ): Promise<
-  Record</* hash */ string, { pr: string | null; milestone: string | null }>
+  Record<
+    /* hash */ string,
+    { pr: string | null; prBody: string | null; milestone: string | null }
+  >
 > {
   if (hashes.length === 0) {
     return {};
@@ -352,6 +366,7 @@ async function getPRAndMilestoneFromCommit(
     associatedPullRequests(first: 1) {
       nodes {
         number
+        body
         milestone {
           number
         }
@@ -365,6 +380,7 @@ async function getPRAndMilestoneFromCommit(
       hash.slice(1),
       {
         pr: commit?.associatedPullRequests.nodes[0]?.number ?? null,
+        prBody: commit?.associatedPullRequests.nodes[0]?.body ?? null,
         milestone:
           commit?.associatedPullRequests.nodes[0]?.milestone?.number ?? null,
       },

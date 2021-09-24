@@ -12,6 +12,7 @@ import {
   removeChangeset,
   prependChangeset,
   generateChangesetFromGit,
+  SKIP_CHANGELOG_MAGIC_WORD,
 } from '../changelog';
 
 describe('findChangeset', () => {
@@ -268,21 +269,24 @@ describe('generateChangesetFromGit', () => {
   const makeCommitResponse = (commits: Record<string, string>[]) =>
     mockClient.mockResolvedValueOnce({
       repository: Object.fromEntries(
-        commits.map(({ hash, pr, milestone }: Record<string, string>) => [
-          `C${hash}`,
-          {
-            associatedPullRequests: {
-              nodes: pr
-                ? [
-                    {
-                      number: pr,
-                      milestone: milestone ? { number: milestone } : null,
-                    },
-                  ]
-                : [],
+        commits.map(
+          ({ hash, pr, prBody, milestone }: Record<string, string>) => [
+            `C${hash}`,
+            {
+              associatedPullRequests: {
+                nodes: pr
+                  ? [
+                      {
+                        number: pr,
+                        body: prBody || '',
+                        milestone: milestone ? { number: milestone } : null,
+                      },
+                    ]
+                  : [],
+              },
             },
-          },
-        ])
+          ]
+        )
       ),
     });
 
@@ -311,7 +315,8 @@ describe('generateChangesetFromGit', () => {
       mockGetChangesSince.mockResolvedValueOnce([
         {
           hash: 'abcdef1234567890',
-          message: 'Upgraded the kernel',
+          title: 'Upgraded the kernel',
+          body: '',
           pr: null,
         },
       ]);
@@ -327,7 +332,8 @@ describe('generateChangesetFromGit', () => {
       mockGetChangesSince.mockResolvedValueOnce([
         {
           hash: 'abcdef1234567890',
-          message: 'Upgraded the kernel',
+          title: 'Upgraded the kernel',
+          body: '',
           pr: null,
         },
       ]);
@@ -346,7 +352,8 @@ describe('generateChangesetFromGit', () => {
       mockGetChangesSince.mockResolvedValueOnce([
         {
           hash: 'abcdef1234567890',
-          message: 'Upgraded the kernel (#123)',
+          title: 'Upgraded the kernel (#123)',
+          body: '',
           pr: '123',
         },
       ]);
@@ -367,7 +374,8 @@ describe('generateChangesetFromGit', () => {
       mockGetChangesSince.mockResolvedValueOnce([
         {
           hash: 'abcdef1234567890',
-          message: 'Upgraded the kernel',
+          title: 'Upgraded the kernel',
+          body: '',
           pr: null,
         },
       ]);
@@ -384,17 +392,20 @@ describe('generateChangesetFromGit', () => {
       mockGetChangesSince.mockResolvedValueOnce([
         {
           hash: 'abcdef1234567890',
-          message: 'Upgraded the kernel',
+          title: 'Upgraded the kernel',
+          body: '',
           pr: null,
         },
         {
           hash: 'bcdef1234567890a',
-          message: 'Upgraded the manifold (#123)',
+          title: 'Upgraded the manifold (#123)',
+          body: '',
           pr: '123',
         },
         {
           hash: 'cdef1234567890ab',
-          message: 'Refactored the crankshaft',
+          title: 'Refactored the crankshaft',
+          body: '',
           pr: null,
         },
       ]);
@@ -418,36 +429,42 @@ describe('generateChangesetFromGit', () => {
       `);
     });
   });
-  it('should handle group prs under milestones', async () => {
+  it('should group prs under milestones', async () => {
     mockGetChangesSince.mockResolvedValueOnce([
       {
         hash: 'abcdef1234567890',
-        message: 'Upgraded the kernel',
+        title: 'Upgraded the kernel',
+        body: '',
         pr: null,
       },
       {
         hash: 'bcdef1234567890a',
-        message: 'Upgraded the manifold (#123)',
+        title: 'Upgraded the manifold (#123)',
+        body: '',
         pr: '123',
       },
       {
         hash: 'cdef1234567890ab',
-        message: 'Refactored the crankshaft',
+        title: 'Refactored the crankshaft',
+        body: '',
         pr: null,
       },
       {
         hash: 'def1234567890abc',
-        message: 'Upgrade the HUD (#789)',
+        title: 'Upgrade the HUD (#789)',
+        body: '',
         pr: '789',
       },
       {
         hash: 'ef1234567890abcd',
-        message: 'Upgrade the steering wheel (#900)',
+        title: 'Upgrade the steering wheel (#900)',
+        body: '',
         pr: '900',
       },
       {
         hash: 'f1234567890abcde',
-        message: 'Fix the clacking sound on gear changes (#950)',
+        title: 'Fix the clacking sound on gear changes (#950)',
+        body: '',
         pr: '950',
       },
     ]);
@@ -515,7 +532,8 @@ describe('generateChangesetFromGit', () => {
     mockGetChangesSince.mockResolvedValueOnce([
       {
         hash: 'abcdef1234567890',
-        message: 'Upgraded the kernel',
+        title: 'Upgraded the kernel',
+        body: '',
         pr: '123',
       },
     ]);
@@ -549,7 +567,8 @@ describe('generateChangesetFromGit', () => {
     mockGetChangesSince.mockResolvedValueOnce([
       {
         hash: 'abcdef1234567890',
-        message: 'Upgraded the kernel',
+        title: 'Upgraded the kernel',
+        body: '',
         pr: '123',
       },
     ]);
@@ -573,6 +592,103 @@ describe('generateChangesetFromGit', () => {
       "### Better drivetrain
 
       PRs: #123"
+    `);
+  });
+
+  it(`should skip commits & prs with the magic ${SKIP_CHANGELOG_MAGIC_WORD}`, async () => {
+    mockGetChangesSince.mockResolvedValueOnce([
+      {
+        hash: 'abcdef1234567890',
+        title: 'Upgraded the kernel',
+        body: SKIP_CHANGELOG_MAGIC_WORD,
+        pr: null,
+      },
+      {
+        hash: 'bcdef1234567890a',
+        title: 'Upgraded the manifold (#123)',
+        body: '',
+        pr: '123',
+      },
+      {
+        hash: 'cdef1234567890ab',
+        title: 'Refactored the crankshaft',
+        body: '',
+        pr: null,
+      },
+      {
+        hash: 'def1234567890abc',
+        title: 'Upgrade the HUD (#789)',
+        body: '',
+        pr: '789',
+      },
+      {
+        hash: 'ef1234567890abcd',
+        title: 'Upgrade the steering wheel (#900)',
+        body: `Some very important update but ${SKIP_CHANGELOG_MAGIC_WORD}`,
+        pr: '900',
+      },
+      {
+        hash: 'f1234567890abcde',
+        title: 'Fix the clacking sound on gear changes (#950)',
+        body: '',
+        pr: '950',
+      },
+    ]);
+    makeCommitResponse([
+      {
+        hash: 'bcdef1234567890a',
+        pr: '123',
+        milestone: '1',
+      },
+      {
+        hash: 'cdef1234567890ab',
+        pr: '456',
+        prBody: `This is important but we'll ${SKIP_CHANGELOG_MAGIC_WORD} for internal.`,
+        milestone: '1',
+      },
+      {
+        hash: 'def1234567890abc',
+        pr: '789',
+        milestone: '5',
+      },
+      {
+        hash: 'f1234567890abcde',
+        pr: '950',
+      },
+    ]);
+    mockClient.mockResolvedValueOnce({
+      repository: {
+        M1: {
+          title: 'Better drivetrain',
+          description:
+            'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
+          state: 'CLOSED',
+        },
+        M5: {
+          title: 'Better driver experience',
+          description:
+            'We are working on making your driving experience more pleasant and safer.',
+          state: 'OPEN',
+        },
+      },
+    });
+    const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
+    expect(changes).toMatchInlineSnapshot(`
+      "### Better drivetrain
+
+      We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!
+
+      PRs: #123
+
+      ### Better driver experience (ongoing)
+
+      We are working on making your driving experience more pleasant and safer.
+
+      PRs: #789
+
+      ### Various fixes & improvements
+
+      - Fix the clacking sound on gear changes (#950)"
     `);
   });
 });
