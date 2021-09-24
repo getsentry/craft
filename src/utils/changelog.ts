@@ -253,10 +253,7 @@ export async function generateChangesetFromGit(
     const hash = gitCommit.hash;
 
     const githubCommit = githubCommits[hash];
-    if (
-      githubCommit?.prBody &&
-      githubCommit.prBody.includes(SKIP_CHANGELOG_MAGIC_WORD)
-    ) {
+    if (githubCommit?.prBody?.includes(SKIP_CHANGELOG_MAGIC_WORD)) {
       continue;
     }
 
@@ -375,16 +372,20 @@ async function getPRAndMilestoneFromCommit(
   }`)) as CommitInfoResult).repository;
 
   return Object.fromEntries(
-    Object.entries(commitInfo).map(([hash, commit]) => [
-      // Strip the prefix on the hash we used to workaround in GraphQL
-      hash.slice(1),
-      {
-        pr: commit?.associatedPullRequests.nodes[0]?.number ?? null,
-        prBody: commit?.associatedPullRequests.nodes[0]?.body ?? null,
-        milestone:
-          commit?.associatedPullRequests.nodes[0]?.milestone?.number ?? null,
-      },
-    ])
+    Object.entries(commitInfo).map(([hash, commit]) => {
+      const pr = commit?.associatedPullRequests.nodes[0];
+      return [
+        // Strip the prefix on the hash we used to workaround in GraphQL
+        hash.slice(1),
+        pr
+          ? {
+              pr: pr.number,
+              prBody: pr.body,
+              milestone: pr.milestone?.number ?? null,
+            }
+          : { pr: null, prBody: null, milestone: null },
+      ];
+    })
   );
 }
 
