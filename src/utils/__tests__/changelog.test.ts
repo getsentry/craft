@@ -318,7 +318,7 @@ describe('generateChangesetFromGit', () => {
       makeCommitResponse([]);
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
       expect(changes).toMatchInlineSnapshot(`
-        "## Various fixes & improvements
+        "### Various fixes & improvements
 
         - Upgraded the kernel (abcdef12)"
       `);
@@ -336,7 +336,7 @@ describe('generateChangesetFromGit', () => {
       makeCommitResponse([{ hash: 'abcdef1234567890' }]);
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
       expect(changes).toMatchInlineSnapshot(`
-        "## Various fixes & improvements
+        "### Various fixes & improvements
 
         - Upgraded the kernel (abcdef12)"
       `);
@@ -357,7 +357,7 @@ describe('generateChangesetFromGit', () => {
       ]);
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
       expect(changes).toMatchInlineSnapshot(`
-        "## Various fixes & improvements
+        "### Various fixes & improvements
 
         - Upgraded the kernel (#123)"
       `);
@@ -374,7 +374,7 @@ describe('generateChangesetFromGit', () => {
       makeCommitResponse([{ hash: 'abcdef1234567890', pr: '123' }]);
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
       expect(changes).toMatchInlineSnapshot(`
-        "## Various fixes & improvements
+        "### Various fixes & improvements
 
         - Upgraded the kernel (#123)"
       `);
@@ -410,7 +410,7 @@ describe('generateChangesetFromGit', () => {
       ]);
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
       expect(changes).toMatchInlineSnapshot(`
-        "## Various fixes & improvements
+        "### Various fixes & improvements
 
         - Upgraded the kernel (abcdef12)
         - Upgraded the manifold (#123)
@@ -495,19 +495,19 @@ describe('generateChangesetFromGit', () => {
     });
     const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
     expect(changes).toMatchInlineSnapshot(`
-      "## Better drivetrain
+      "### Better drivetrain
 
       We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!
 
       PRs: #123, #456
 
-      ## Better driver experience (ongoing)
+      ### Better driver experience (ongoing)
 
       We are working on making your driving experience more pleasant and safer.
 
       PRs: #789, #900
 
-      ## Various fixes & improvements
+      ### Various fixes & improvements
 
       - Upgraded the kernel (abcdef12)
       - Fix the clacking sound on gear changes (#950)"

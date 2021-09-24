@@ -2,31 +2,31 @@
 
 ## 0.25.0
 
-## Automated Changelog Generation
+### Automated Changelog Generation
 
 We now automatically generate changelog entries for the `auto` changelog policy where none provided, instead of saying "No documented changes". The commits/PRs are grouped by their associated GitHub milestones and the milestone title and description are used in the changelog along with a list of related commits/PRs. Any unaccounted changes are grouped under the "Various improvements and fixes" section.
 
 PRs: #291, #290, #289, #287, #285
 
-## Added Maven Target (ongoing)
+### Added Maven Target (ongoing)
 
 Added the long-awaited Maven target, full with Android support.
 
 PRs: #271, #275, #276, #270, #258
 
-## Added symbol-collector Target
+### Added symbol-collector Target
 
 Added target for our very own [symbol-collector](https://github.com/getsentry/symbol-collector/) to collect and upload all native system symbols with Craft.
 
 PRs: #284, #277, #269, #268, #267, #266
 
-## Fixed Cocoapods Support
+### Fixed Cocoapods Support
 
-Turns out our Cocoapods target was a bit outdated and broken. We have fixed it in this release! 🥳 
+Turns out our Cocoapods target was a bit outdated and broken. We have fixed it in this release! 🥳
 
 PRs: #281, #282
 
-## Various fixes & improvements
+### Various fixes & improvements
 
 - build: Drop Node 12 support, target Node 14 (#293)
 - build(deps): Bump tmpl from 1.0.4 to 1.0.5 (#292)
@@ -37,7 +37,7 @@ PRs: #281, #282
 - build(deps): Bump path-parse from 1.0.6 to 1.0.7 (#274)
 - build(deps-dev): Bump tar from 4.4.8 to 4.4.15 (#273)
 - docs: Consistent code samples for shell (e84f693f)
-- docs: Mention release/** branches on README (#263)
+- docs: Mention release/\*\* branches on README (#263)
 
 ## 0.24.4
 

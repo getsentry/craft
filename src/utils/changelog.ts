@@ -12,7 +12,14 @@ import { getVersion } from './version';
 export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
 export const DEFAULT_UNRELEASED_TITLE = 'Unreleased';
 const DEFAULT_CHANGESET_BODY = '- No documented changes.';
+const VERSION_HEADER_LEVEL = 2;
+const SUBSECTION_HEADER_LEVEL = VERSION_HEADER_LEVEL + 1;
 
+// Ensure subsections are nested under version headers otherwise we won't be
+// able to find them and put on GitHub releases.
+if (SUBSECTION_HEADER_LEVEL <= VERSION_HEADER_LEVEL) {
+  throw new Error('Subsection headers should nest under version headers!');
+}
 /**
  * A single changeset with name and description
  */
@@ -30,6 +37,11 @@ export interface ChangesetLoc {
   start: RegExpExecArray;
   end: RegExpExecArray | null;
   padding: string;
+}
+
+function markdownHeader(level: number, text: string): string {
+  const prefix = new Array(level + 1).join('#');
+  return `${prefix} ${text}`;
 }
 
 /**
@@ -70,7 +82,10 @@ function locateChangeset(
   markdown: string,
   predicate: (match: string) => boolean
 ): ChangesetLoc | null {
-  const HEADER_REGEX = /^( *)(?:## +([^\n]+?) *(?:##)?|([^\n]+)\n *(?:-){2,}) *(?:\n+|$)/gm;
+  const HEADER_REGEX = new RegExp(
+    `^( *)(?:#{${VERSION_HEADER_LEVEL}} +([^\\n]+?) *(?:#{${VERSION_HEADER_LEVEL}})?|([^\\n]+)\\n *(?:-){2,}) *(?:\\n+|$)`,
+    'gm'
+  );
 
   for (
     let match = HEADER_REGEX.exec(markdown);
@@ -171,7 +186,7 @@ export function prependChangeset(
     const underline = new Array(changeset.name.length + 1).join('-');
     header = `${changeset.name}\n${underline}`;
   } else {
-    header = `## ${changeset.name}`;
+    header = markdownHeader(VERSION_HEADER_LEVEL, changeset.name);
   }
   const newSection = `${padding}${header}\n\n${body.replace(
     /^/gm,
@@ -269,7 +284,10 @@ export async function generateChangesetFromGit(
     }
 
     changelogSections.push(
-      `## ${milestone.title}${milestone.state === 'OPEN' ? ' (ongoing)' : ''}`
+      markdownHeader(
+        SUBSECTION_HEADER_LEVEL,
+        `${milestone.title}${milestone.state === 'OPEN' ? ' (ongoing)' : ''}`
+      )
     );
     changelogSections.push(milestone.description);
     changelogSections.push(
@@ -278,7 +296,9 @@ export async function generateChangesetFromGit(
   }
 
   if (leftovers.length > 0) {
-    changelogSections.push(`## Various fixes & improvements`);
+    changelogSections.push(
+      markdownHeader(SUBSECTION_HEADER_LEVEL, 'Various fixes & improvements')
+    );
     changelogSections.push(leftovers.map(formatCommit).join('\n'));
   }
 
