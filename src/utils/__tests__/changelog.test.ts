@@ -267,30 +267,6 @@ test.each([
 describe('generateChangesetFromGit', () => {
   let mockClient: jest.Mock;
 
-  const makeCommitResponse = (commits: Record<string, string>[]) =>
-    mockClient.mockResolvedValueOnce({
-      repository: Object.fromEntries(
-        commits.map(
-          ({ hash, pr, prBody, milestone }: Record<string, string>) => [
-            `C${hash}`,
-            {
-              associatedPullRequests: {
-                nodes: pr
-                  ? [
-                      {
-                        number: pr,
-                        body: prBody || '',
-                        milestone: milestone ? { number: milestone } : null,
-                      },
-                    ]
-                  : [],
-              },
-            },
-          ]
-        )
-      ),
-    });
-
   const mockGetChangesSince = getChangesSince as jest.MockedFunction<
     typeof getChangesSince
   >;
@@ -305,33 +281,66 @@ describe('generateChangesetFromGit', () => {
     >).mockReturnValue({ graphql: mockClient });
   });
 
+  interface TestCommit {
+    hash: string;
+    title: string;
+    body: string;
+    pr?: {
+      local?: string;
+      remote?: {
+        number: string;
+        body?: string;
+        milestone?: string;
+      };
+    };
+  }
+
+  interface TestMilestone {
+    title: string;
+    description?: string;
+  }
+
   function setup(
-    commits: any[],
-    milestones: Record<string, Record<string, string>> = {}
+    commits: TestCommit[],
+    milestones: Record<string, TestMilestone> = {}
   ): void {
     mockGetChangesSince.mockResolvedValueOnce(
       commits.map(commit => ({
         hash: commit.hash,
         title: commit.title,
         body: commit.body,
-        pr: commit.pr?.local,
+        pr: commit.pr?.local || null,
       }))
     );
 
-    makeCommitResponse(
-      commits.map(commit => ({
-        hash: commit.hash,
-        pr: commit.pr?.remote,
-        prBody: commit.prBody,
-        milestone: commit.milestone,
-      }))
-    );
+    mockClient.mockResolvedValueOnce({
+      repository: Object.fromEntries(
+        commits.map(({ hash, pr }: TestCommit) => [
+          `C${hash}`,
+          {
+            associatedPullRequests: {
+              nodes: pr?.remote
+                ? [
+                    {
+                      number: pr.remote.number,
+                      body: pr.remote.body || '',
+                      milestone: pr.remote.milestone
+                        ? { number: pr.remote.milestone }
+                        : null,
+                    },
+                  ]
+                : [],
+            },
+          },
+        ])
+      ),
+    });
 
     mockClient.mockResolvedValueOnce({
       repository: Object.keys(milestones).reduce((obj, key) => {
         obj[`M${key}`] = milestones[key];
         return obj;
-      }, {} as Record<string, Record<string, string>>),
+      }, {} as Record<string, TestMilestone>),
     });
   }
 
@@ -369,7 +378,7 @@ describe('generateChangesetFromGit', () => {
           hash: 'abcdef1234567890',
           title: 'Upgraded the kernel',
           body: '',
-          pr: { remote: '123' },
+          pr: { remote: { number: '123' } },
         },
       ],
       {},
@@ -387,13 +396,13 @@ describe('generateChangesetFromGit', () => {
           hash: 'bcdef1234567890a',
           title: 'Upgraded the manifold (#123)',
           body: '',
-          pr: { local: '123', remote: '123' },
+          pr: { local: '123', remote: { number: '123' } },
         },
         {
           hash: 'cdef1234567890ab',
           title: 'Refactored the crankshaft',
           body: '',
-          pr: { remote: '456' },
+          pr: { remote: { number: '456' } },
         },
       ],
       {},
@@ -417,35 +426,31 @@ describe('generateChangesetFromGit', () => {
           hash: 'bcdef1234567890a',
           title: 'Upgraded the manifold (#123)',
           body: '',
-          pr: { local: '123', remote: '123' },
-          milestone: '1',
+          pr: { local: '123', remote: { number: '123', milestone: '1' } },
         },
         {
           hash: 'cdef1234567890ab',
           title: 'Refactored the crankshaft',
           body: '',
-          pr: { remote: '456' },
-          milestone: '1',
+          pr: { remote: { number: '456', milestone: '1' } },
         },
         {
           hash: 'def1234567890abc',
           title: 'Upgrade the HUD (#789)',
           body: '',
-          pr: { local: '789', remote: '789' },
-          milestone: '5',
+          pr: { local: '789', remote: { number: '789', milestone: '5' } },
         },
         {
           hash: 'ef1234567890abcd',
           title: 'Upgrade the steering wheel (#900)',
           body: '',
-          pr: { local: '900', remote: '900' },
-          milestone: '5',
+          pr: { local: '900', remote: { number: '900', milestone: '5' } },
         },
         {
           hash: 'f1234567890abcde',
           title: 'Fix the clacking sound on gear changes (#950)',
           body: '',
-          pr: { local: '950', remote: '950' },
+          pr: { local: '950', remote: { number: '950' } },
         },
       ],
       {
@@ -487,9 +492,11 @@ describe('generateChangesetFromGit', () => {
           body: '',
           pr: {
             local: '123',
-            remote: '123',
+            remote: {
+              number: '123',
+              milestone: '1',
+            },
           },
-          milestone: '1',
         },
       ],
       {
@@ -515,8 +522,7 @@ describe('generateChangesetFromGit', () => {
           hash: 'abcdef1234567890',
           title: 'Upgraded the kernel',
           body: '',
-          pr: { local: '123', remote: '123' },
-          milestone: '1',
+          pr: { local: '123', remote: { number: '123', milestone: '1' } },
         },
       ],
       {
@@ -539,23 +545,25 @@ describe('generateChangesetFromGit', () => {
           hash: 'bcdef1234567890a',
           title: 'Upgraded the manifold (#123)',
           body: '',
-          pr: { local: '123', remote: '123' },
-          milestone: '1',
+          pr: { local: '123', remote: { number: '123', milestone: '1' } },
         },
         {
           hash: 'cdef1234567890ab',
           title: 'Refactored the crankshaft',
           body: '',
-          pr: { remote: '456' },
-          prBody: `This is important but we'll ${SKIP_CHANGELOG_MAGIC_WORD} for internal.`,
-          milestone: '1',
+          pr: {
+            remote: {
+              number: '456',
+              body: `This is important but we'll ${SKIP_CHANGELOG_MAGIC_WORD} for internal.`,
+              milestone: '1',
+            },
+          },
         },
         {
           hash: 'def1234567890abc',
           title: 'Upgrade the HUD (#789)',
           body: '',
-          pr: { local: '789', remote: '789' },
-          milestone: '5',
+          pr: { local: '789', remote: { number: '789', milestone: '5' } },
         },
         {
           hash: 'ef1234567890abcd',
@@ -567,7 +575,7 @@ describe('generateChangesetFromGit', () => {
           hash: 'f1234567890abcde',
           title: 'Fix the clacking sound on gear changes (#950)',
           body: '',
-          pr: { local: '950', remote: '950' },
+          pr: { local: '950', remote: { number: '950' } },
         },
       ],
       {
@@ -606,8 +614,8 @@ describe('generateChangesetFromGit', () => {
     '%s',
     async (
       _name: string,
-      commits: any[],
-      milestones: Record<string, Record<string, string>>,
+      commits: TestCommit[],
+      milestones: Record<string, TestMilestone>,
       output: string
     ) => {
       setup(commits, milestones);
