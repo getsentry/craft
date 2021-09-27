@@ -266,29 +266,6 @@ test.each([
 
 describe('generateChangesetFromGit', () => {
   let mockClient: jest.Mock;
-  const makeCommitResponse = (commits: Record<string, string>[]) =>
-    mockClient.mockResolvedValueOnce({
-      repository: Object.fromEntries(
-        commits.map(
-          ({ hash, pr, prBody, milestone }: Record<string, string>) => [
-            `C${hash}`,
-            {
-              associatedPullRequests: {
-                nodes: pr
-                  ? [
-                      {
-                        number: pr,
-                        body: prBody || '',
-                        milestone: milestone ? { number: milestone } : null,
-                      },
-                    ]
-                  : [],
-              },
-            },
-          ]
-        )
-      ),
-    });
 
   const mockGetChangesSince = getChangesSince as jest.MockedFunction<
     typeof getChangesSince
@@ -304,391 +281,347 @@ describe('generateChangesetFromGit', () => {
     >).mockReturnValue({ graphql: mockClient });
   });
 
-  it('should not fail on empty changeset', async () => {
-    mockGetChangesSince.mockResolvedValueOnce([]);
-    const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
-    expect(changes).toBe('');
-  });
+  interface TestCommit {
+    hash: string;
+    title: string;
+    body: string;
+    pr?: {
+      local?: string;
+      remote?: {
+        number: string;
+        body?: string;
+        milestone?: string;
+      };
+    };
+  }
 
-  describe('standalone changes', () => {
-    it('should use short commit SHA for local commits', async () => {
-      mockGetChangesSince.mockResolvedValueOnce([
+  interface TestMilestone {
+    title: string;
+    description: string;
+  }
+
+  function setup(
+    commits: TestCommit[],
+    milestones: Record<string, TestMilestone> = {}
+  ): void {
+    mockGetChangesSince.mockResolvedValueOnce(
+      commits.map(commit => ({
+        hash: commit.hash,
+        title: commit.title,
+        body: commit.body,
+        pr: commit.pr?.local || null,
+      }))
+    );
+
+    mockClient.mockResolvedValueOnce({
+      repository: Object.fromEntries(
+        commits.map(({ hash, pr }: TestCommit) => [
+          `C${hash}`,
+          {
+            associatedPullRequests: {
+              nodes: pr?.remote
+                ? [
+                    {
+                      number: pr.remote.number,
+                      body: pr.remote.body || '',
+                      milestone: pr.remote.milestone
+                        ? { number: pr.remote.milestone }
+                        : null,
+                    },
+                  ]
+                : [],
+            },
+          },
+        ])
+      ),
+    });
+
+    mockClient.mockResolvedValueOnce({
+      repository: Object.keys(milestones).reduce((obj, key) => {
+        obj[`M${key}`] = milestones[key];
+        return obj;
+      }, {} as Record<string, TestMilestone>),
+    });
+  }
+
+  it.each([
+    ['empty changeset', [], {}, ''],
+    [
+      'short commit SHA for local commits w/o pull requests',
+      [
         {
           hash: 'abcdef1234567890',
           title: 'Upgraded the kernel',
           body: '',
-          pr: null,
         },
-      ]);
-      makeCommitResponse([]);
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
-      expect(changes).toMatchInlineSnapshot(`
-        "### Various fixes & improvements
-
-        - Upgraded the kernel (abcdef12)"
-      `);
-    });
-    it('should use short commit SHA for local commits w/o pull requests', async () => {
-      mockGetChangesSince.mockResolvedValueOnce([
-        {
-          hash: 'abcdef1234567890',
-          title: 'Upgraded the kernel',
-          body: '',
-          pr: null,
-        },
-      ]);
-      // We do not have a PR number from the commit nor we get a PR number from
-      // the GitHub API call, only a hash.
-      makeCommitResponse([{ hash: 'abcdef1234567890' }]);
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
-      expect(changes).toMatchInlineSnapshot(`
-        "### Various fixes & improvements
-
-        - Upgraded the kernel (abcdef12)"
-      `);
-    });
-
-    it('should use pull request number when available locally', async () => {
-      mockGetChangesSince.mockResolvedValueOnce([
+      ],
+      {},
+      '### Various fixes & improvements\n\n- Upgraded the kernel (abcdef12)',
+    ],
+    [
+      'use pull request number when available locally',
+      [
         {
           hash: 'abcdef1234567890',
           title: 'Upgraded the kernel (#123)',
           body: '',
-          pr: '123',
+          pr: { local: '123' },
         },
-      ]);
-      makeCommitResponse([
-        {
-          hash: 'abcdef1234567890',
-        },
-      ]);
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
-      expect(changes).toMatchInlineSnapshot(`
-        "### Various fixes & improvements
-
-        - Upgraded the kernel (#123)"
-      `);
-    });
-
-    it('should use pull request number when available remotely', async () => {
-      mockGetChangesSince.mockResolvedValueOnce([
+      ],
+      {},
+      '### Various fixes & improvements\n\n- Upgraded the kernel (#123)',
+    ],
+    [
+      'use pull request number when available remotely',
+      [
         {
           hash: 'abcdef1234567890',
           title: 'Upgraded the kernel',
           body: '',
-          pr: null,
+          pr: { remote: { number: '123' } },
         },
-      ]);
-      makeCommitResponse([{ hash: 'abcdef1234567890', pr: '123' }]);
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
-      expect(changes).toMatchInlineSnapshot(`
-        "### Various fixes & improvements
-
-        - Upgraded the kernel (#123)"
-      `);
-    });
-
-    it('should handle multiple commits properly', async () => {
-      mockGetChangesSince.mockResolvedValueOnce([
+      ],
+      {},
+      '### Various fixes & improvements\n\n- Upgraded the kernel (#123)',
+    ],
+    [
+      'handle multiple commits properly',
+      [
         {
           hash: 'abcdef1234567890',
           title: 'Upgraded the kernel',
           body: '',
-          pr: null,
         },
         {
           hash: 'bcdef1234567890a',
           title: 'Upgraded the manifold (#123)',
           body: '',
-          pr: '123',
+          pr: { local: '123', remote: { number: '123' } },
         },
         {
           hash: 'cdef1234567890ab',
           title: 'Refactored the crankshaft',
           body: '',
-          pr: null,
+          pr: { remote: { number: '456' } },
         },
-      ]);
-      makeCommitResponse([
+      ],
+      {},
+      [
+        '### Various fixes & improvements',
+        '',
+        '- Upgraded the kernel (abcdef12)',
+        '- Upgraded the manifold (#123)',
+        '- Refactored the crankshaft (#456)',
+      ].join('\n'),
+    ],
+    [
+      'group prs under milestones',
+      [
+        {
+          hash: 'abcdef1234567890',
+          title: 'Upgraded the kernel',
+          body: '',
+        },
         {
           hash: 'bcdef1234567890a',
-          pr: '123',
+          title: 'Upgraded the manifold (#123)',
+          body: '',
+          pr: { local: '123', remote: { number: '123', milestone: '1' } },
         },
         {
           hash: 'cdef1234567890ab',
-          pr: '456',
+          title: 'Refactored the crankshaft',
+          body: '',
+          pr: { remote: { number: '456', milestone: '1' } },
         },
-      ]);
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
-      expect(changes).toMatchInlineSnapshot(`
-        "### Various fixes & improvements
-
-        - Upgraded the kernel (abcdef12)
-        - Upgraded the manifold (#123)
-        - Refactored the crankshaft (#456)"
-      `);
-    });
-  });
-  it('should group prs under milestones', async () => {
-    mockGetChangesSince.mockResolvedValueOnce([
+        {
+          hash: 'def1234567890abc',
+          title: 'Upgrade the HUD (#789)',
+          body: '',
+          pr: { local: '789', remote: { number: '789', milestone: '5' } },
+        },
+        {
+          hash: 'ef1234567890abcd',
+          title: 'Upgrade the steering wheel (#900)',
+          body: '',
+          pr: { local: '900', remote: { number: '900', milestone: '5' } },
+        },
+        {
+          hash: 'f1234567890abcde',
+          title: 'Fix the clacking sound on gear changes (#950)',
+          body: '',
+          pr: { local: '950', remote: { number: '950' } },
+        },
+      ],
       {
-        hash: 'abcdef1234567890',
-        title: 'Upgraded the kernel',
-        body: '',
-        pr: null,
-      },
-      {
-        hash: 'bcdef1234567890a',
-        title: 'Upgraded the manifold (#123)',
-        body: '',
-        pr: '123',
-      },
-      {
-        hash: 'cdef1234567890ab',
-        title: 'Refactored the crankshaft',
-        body: '',
-        pr: null,
-      },
-      {
-        hash: 'def1234567890abc',
-        title: 'Upgrade the HUD (#789)',
-        body: '',
-        pr: '789',
-      },
-      {
-        hash: 'ef1234567890abcd',
-        title: 'Upgrade the steering wheel (#900)',
-        body: '',
-        pr: '900',
-      },
-      {
-        hash: 'f1234567890abcde',
-        title: 'Fix the clacking sound on gear changes (#950)',
-        body: '',
-        pr: '950',
-      },
-    ]);
-    makeCommitResponse([
-      {
-        hash: 'bcdef1234567890a',
-        pr: '123',
-        milestone: '1',
-      },
-      {
-        hash: 'cdef1234567890ab',
-        pr: '456',
-        milestone: '1',
-      },
-      {
-        hash: 'def1234567890abc',
-        pr: '789',
-        milestone: '5',
-      },
-      {
-        hash: 'ef1234567890abcd',
-        pr: '900',
-        milestone: '5',
-      },
-      {
-        hash: 'f1234567890abcde',
-        pr: '950',
-      },
-    ]);
-    mockClient.mockResolvedValueOnce({
-      repository: {
-        M1: {
+        '1': {
           title: 'Better drivetrain',
           description:
             'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
           state: 'CLOSED',
         },
-        M5: {
+        '5': {
           title: 'Better driver experience',
           description: '',
           state: 'OPEN',
         },
       },
-    });
-    const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
-    expect(changes).toMatchInlineSnapshot(`
-      "### Better drivetrain
-
-      We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!
-
-      PRs: #123, #456
-
-      ### Better driver experience (ongoing)
-
-      PRs: #789, #900
-
-      ### Various fixes & improvements
-
-      - Upgraded the kernel (abcdef12)
-      - Fix the clacking sound on gear changes (#950)"
-    `);
-  });
-
-  it('should escape # signs on milestone titles', async () => {
-    mockGetChangesSince.mockResolvedValueOnce([
+      [
+        '### Better drivetrain',
+        '',
+        'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
+        '',
+        'PRs: #123, #456',
+        '',
+        '### Better driver experience (ongoing)',
+        '',
+        'PRs: #789, #900',
+        '',
+        '### Various fixes & improvements',
+        '',
+        '- Upgraded the kernel (abcdef12)',
+        '- Fix the clacking sound on gear changes (#950)',
+      ].join('\n'),
+    ],
+    [
+      'should escape # signs on milestone titles',
+      [
+        {
+          hash: 'abcdef1234567890',
+          title: 'Upgraded the kernel',
+          body: '',
+          pr: {
+            local: '123',
+            remote: {
+              number: '123',
+              milestone: '1',
+            },
+          },
+        },
+      ],
       {
-        hash: 'abcdef1234567890',
-        title: 'Upgraded the kernel',
-        body: '',
-        pr: '123',
-      },
-    ]);
-    makeCommitResponse([
-      {
-        hash: 'abcdef1234567890',
-        pr: '123',
-        milestone: '1',
-      },
-    ]);
-    mockClient.mockResolvedValueOnce({
-      repository: {
-        M1: {
+        '1': {
           title: 'Drivetrain #1 in town',
           description:
             'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
           state: 'CLOSED',
         },
       },
-    });
-    const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
-    expect(changes).toMatchInlineSnapshot(`
-      "### Drivetrain &#35;1 in town
-
-      We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!
-
-      PRs: #123"
-    `);
-  });
-  it('should omit milestone body if it is empty', async () => {
-    mockGetChangesSince.mockResolvedValueOnce([
+      [
+        '### Drivetrain &#35;1 in town',
+        '',
+        'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
+        '',
+        'PRs: #123',
+      ].join('\n'),
+    ],
+    [
+      'should omit milestone body if it is empty',
+      [
+        {
+          hash: 'abcdef1234567890',
+          title: 'Upgraded the kernel',
+          body: '',
+          pr: { local: '123', remote: { number: '123', milestone: '1' } },
+        },
+      ],
       {
-        hash: 'abcdef1234567890',
-        title: 'Upgraded the kernel',
-        body: '',
-        pr: '123',
-      },
-    ]);
-    makeCommitResponse([
-      {
-        hash: 'abcdef1234567890',
-        pr: '123',
-        milestone: '1',
-      },
-    ]);
-    mockClient.mockResolvedValueOnce({
-      repository: {
-        M1: {
+        '1': {
           title: 'Better drivetrain',
+          description: '',
           state: 'CLOSED',
         },
       },
-    });
-    const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
-    expect(changes).toMatchInlineSnapshot(`
-      "### Better drivetrain
-
-      PRs: #123"
-    `);
-  });
-
-  it(`should skip commits & prs with the magic ${SKIP_CHANGELOG_MAGIC_WORD}`, async () => {
-    mockGetChangesSince.mockResolvedValueOnce([
+      '### Better drivetrain\n\nPRs: #123',
+    ],
+    [
+      `should skip commits & prs with the magic ${SKIP_CHANGELOG_MAGIC_WORD}`,
+      [
+        {
+          hash: 'abcdef1234567890',
+          title: 'Upgraded the kernel',
+          body: SKIP_CHANGELOG_MAGIC_WORD,
+        },
+        {
+          hash: 'bcdef1234567890a',
+          title: 'Upgraded the manifold (#123)',
+          body: '',
+          pr: { local: '123', remote: { number: '123', milestone: '1' } },
+        },
+        {
+          hash: 'cdef1234567890ab',
+          title: 'Refactored the crankshaft',
+          body: '',
+          pr: {
+            remote: {
+              number: '456',
+              body: `This is important but we'll ${SKIP_CHANGELOG_MAGIC_WORD} for internal.`,
+              milestone: '1',
+            },
+          },
+        },
+        {
+          hash: 'def1234567890abc',
+          title: 'Upgrade the HUD (#789)',
+          body: '',
+          pr: { local: '789', remote: { number: '789', milestone: '5' } },
+        },
+        {
+          hash: 'ef1234567890abcd',
+          title: 'Upgrade the steering wheel (#900)',
+          body: `Some very important update but ${SKIP_CHANGELOG_MAGIC_WORD}`,
+          pr: { local: '900' },
+        },
+        {
+          hash: 'f1234567890abcde',
+          title: 'Fix the clacking sound on gear changes (#950)',
+          body: '',
+          pr: { local: '950', remote: { number: '950' } },
+        },
+      ],
       {
-        hash: 'abcdef1234567890',
-        title: 'Upgraded the kernel',
-        body: SKIP_CHANGELOG_MAGIC_WORD,
-        pr: null,
-      },
-      {
-        hash: 'bcdef1234567890a',
-        title: 'Upgraded the manifold (#123)',
-        body: '',
-        pr: '123',
-      },
-      {
-        hash: 'cdef1234567890ab',
-        title: 'Refactored the crankshaft',
-        body: '',
-        pr: null,
-      },
-      {
-        hash: 'def1234567890abc',
-        title: 'Upgrade the HUD (#789)',
-        body: '',
-        pr: '789',
-      },
-      {
-        hash: 'ef1234567890abcd',
-        title: 'Upgrade the steering wheel (#900)',
-        body: `Some very important update but ${SKIP_CHANGELOG_MAGIC_WORD}`,
-        pr: '900',
-      },
-      {
-        hash: 'f1234567890abcde',
-        title: 'Fix the clacking sound on gear changes (#950)',
-        body: '',
-        pr: '950',
-      },
-    ]);
-    makeCommitResponse([
-      {
-        hash: 'bcdef1234567890a',
-        pr: '123',
-        milestone: '1',
-      },
-      {
-        hash: 'cdef1234567890ab',
-        pr: '456',
-        prBody: `This is important but we'll ${SKIP_CHANGELOG_MAGIC_WORD} for internal.`,
-        milestone: '1',
-      },
-      {
-        hash: 'def1234567890abc',
-        pr: '789',
-        milestone: '5',
-      },
-      {
-        hash: 'f1234567890abcde',
-        pr: '950',
-      },
-    ]);
-    mockClient.mockResolvedValueOnce({
-      repository: {
-        M1: {
+        '1': {
           title: 'Better drivetrain',
           description:
             'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
           state: 'CLOSED',
         },
-        M5: {
+        '5': {
           title: 'Better driver experience',
           description:
             'We are working on making your driving experience more pleasant and safer.',
           state: 'OPEN',
         },
       },
-    });
-    const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
-    expect(changes).toMatchInlineSnapshot(`
-      "### Better drivetrain
-
-      We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!
-
-      PRs: #123
-
-      ### Better driver experience (ongoing)
-
-      We are working on making your driving experience more pleasant and safer.
-
-      PRs: #789
-
-      ### Various fixes & improvements
-
-      - Fix the clacking sound on gear changes (#950)"
-    `);
-  });
+      [
+        '### Better drivetrain',
+        '',
+        'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
+        '',
+        'PRs: #123',
+        '',
+        '### Better driver experience (ongoing)',
+        '',
+        'We are working on making your driving experience more pleasant and safer.',
+        '',
+        'PRs: #789',
+        '',
+        '### Various fixes & improvements',
+        '',
+        '- Fix the clacking sound on gear changes (#950)',
+      ].join('\n'),
+    ],
+  ])(
+    '%s',
+    async (
+      _name: string,
+      commits: TestCommit[],
+      milestones: Record<string, TestMilestone>,
+      output: string
+    ) => {
+      setup(commits, milestones);
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(changes).toBe(output);
+    }
+  );
 });
