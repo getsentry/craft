@@ -297,7 +297,7 @@ describe('generateChangesetFromGit', () => {
 
   interface TestMilestone {
     title: string;
-    description?: string;
+    description: string;
   }
 
   function setup(
@@ -528,6 +528,7 @@ describe('generateChangesetFromGit', () => {
       {
         '1': {
           title: 'Better drivetrain',
+          description: '',
           state: 'CLOSED',
         },
       },

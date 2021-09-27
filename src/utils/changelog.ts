@@ -211,9 +211,9 @@ interface Commit {
 }
 
 interface Milestone {
-  title?: string;
-  description?: string;
-  state?: 'OPEN' | 'CLOSED';
+  title: string;
+  description: string;
+  state: 'OPEN' | 'CLOSED';
 }
 type MilestoneWithPRs = Milestone & {
   prs: string[];
@@ -300,7 +300,7 @@ export async function generateChangesetFromGit(
         `${milestone.title}${milestone.state === 'OPEN' ? ' (ongoing)' : ''}`
       )
     );
-    if (milestone.description) {
+    if (milestone.description && milestone.description !== '') {
       changelogSections.push(escapeMarkdownPound(milestone.description));
     }
     changelogSections.push(
