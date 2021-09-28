@@ -2,13 +2,13 @@
 
 ## 0.25.1
 
-## Automated Changelog Fixups
+### Automated Changelog Fixups
 
 We have fixed some edge cases and a major issue affecting GitHub release logs in our automated changelog generation. These are mostly about how we generated Markdown.
 
 PRs: #299, #298, #297, #296, #295
 
-## Various fixes & improvements
+### Various fixes & improvements
 
 - ci(release): Fetch all commits for prev version determination (eabce5ec)
 - upgrade(ansi-regex): Upgrade ansi-regex to 5.0.1 (#300)
