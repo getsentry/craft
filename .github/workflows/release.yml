@@ -15,6 +15,8 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
+          # Fetch all commits so we can determine previous version
+          fetch-depth: 0
           token: ${{ secrets.GH_RELEASE_PAT }}
       - name: Prepare release
         uses: getsentry/action-prepare-release@v1
