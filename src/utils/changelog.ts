@@ -300,7 +300,7 @@ export async function generateChangesetFromGit(
         `${milestone.title}${milestone.state === 'OPEN' ? ' (ongoing)' : ''}`
       )
     );
-    if (milestone.description && milestone.description !== '') {
+    if (milestone.description) {
       changelogSections.push(escapeMarkdownPound(milestone.description));
     }
     changelogSections.push(
