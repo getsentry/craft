@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.25.2
+
+### Automated Changelog Fixups
+
+We have fixed some edge cases and a major issue affecting GitHub release logs in our automated changelog generation. These are mostly about how we generated Markdown.
+
+PRs: #301
+
+### Various fixes & improvements
+
+- docs(changelog): Fix subsections for 0.25.1 (bd1bc975)
+
 ## 0.25.1
 
 ### Automated Changelog Fixups
