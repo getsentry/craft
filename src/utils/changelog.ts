@@ -212,7 +212,7 @@ interface Commit {
 
 interface Milestone {
   title: string;
-  description: string;
+  description: string | null;
   state: 'OPEN' | 'CLOSED';
 }
 type MilestoneWithPRs = Milestone & {
@@ -300,7 +300,7 @@ export async function generateChangesetFromGit(
         `${milestone.title}${milestone.state === 'OPEN' ? ' (ongoing)' : ''}`
       )
     );
-    if (milestone.description !== '') {
+    if (milestone.description) {
       changelogSections.push(escapeMarkdownPound(milestone.description));
     }
     changelogSections.push(
@@ -353,23 +353,28 @@ async function getPRAndMilestoneFromCommit(
     .join('\n');
 
   const { repo, owner } = await getGlobalGithubConfig();
-  const commitInfo = ((await getGitHubClient().graphql(`{
-    repository(name: "${repo}", owner: "${owner}") {
-      ${commitsQuery}
-    }
-  }
-
-  fragment PRFragment on Commit {
-    associatedPullRequests(first: 1) {
-      nodes {
-        number
-        body
-        milestone {
-          number
-        }
+  const graphqlQuery = `{
+      repository(name: "${repo}", owner: "${owner}") {
+        ${commitsQuery}
       }
     }
-  }`)) as CommitInfoResult).repository;
+
+    fragment PRFragment on Commit {
+      associatedPullRequests(first: 1) {
+        nodes {
+          number
+          body
+          milestone {
+            number
+          }
+        }
+      }
+    }`;
+  logger.trace('Running graphql query:', graphqlQuery);
+  const commitInfo = ((await getGitHubClient().graphql(
+    graphqlQuery
+  )) as CommitInfoResult).repository;
+  logger.trace('Query result:', commitInfo);
 
   return Object.fromEntries(
     Object.entries(commitInfo).map(([hash, commit]) => {
@@ -416,18 +421,23 @@ async function getMilestoneInfo(
     .join('\n');
 
   const { repo, owner } = await getGlobalGithubConfig();
-  const milestoneInfo = ((await getGitHubClient().graphql(`{
-    repository(name: "${repo}", owner: "${owner}") {
-      ${milestoneQuery}
+  const graphqlQuery = `{
+      repository(name: "${repo}", owner: "${owner}") {
+        ${milestoneQuery}
+      }
     }
-  }
 
-  fragment MilestoneFragment on Milestone {
-    title
-    description
-    state
-  }
-`)) as MilestonesDetailsResult).repository;
+    fragment MilestoneFragment on Milestone {
+      title
+      description
+      state
+    }
+  `;
+  logger.trace('Running graphql query:', graphqlQuery);
+  const milestoneInfo = ((await getGitHubClient().graphql(
+    graphqlQuery
+  )) as MilestonesDetailsResult).repository;
+  logger.trace('Query result:', milestoneInfo);
 
   return Object.fromEntries(
     Object.entries(milestoneInfo).map(([number, milestone]) => [
