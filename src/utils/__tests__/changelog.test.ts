@@ -297,7 +297,7 @@ describe('generateChangesetFromGit', () => {
 
   interface TestMilestone {
     title: string;
-    description: string;
+    description: string | null;
   }
 
   function setup(
@@ -516,13 +516,20 @@ describe('generateChangesetFromGit', () => {
       ].join('\n'),
     ],
     [
-      'should omit milestone body if it is empty',
+      'should omit milestone body if it is empty or null',
       [
         {
           hash: 'abcdef1234567890',
           title: 'Upgraded the kernel',
           body: '',
           pr: { local: '123', remote: { number: '123', milestone: '1' } },
+        },
+
+        {
+          hash: 'bcdef123456789a',
+          title: 'Upgraded the manifold (#456)',
+          body: '',
+          pr: { local: '456', remote: { number: '456', milestone: '2' } },
         },
       ],
       {
@@ -531,8 +538,21 @@ describe('generateChangesetFromGit', () => {
           description: '',
           state: 'CLOSED',
         },
+        '2': {
+          title: 'Better Engine',
+          description: null,
+          state: 'CLOSED',
+        },
       },
-      '### Better drivetrain\n\nPRs: #123',
+      [
+        '### Better drivetrain',
+        '',
+        'PRs: #123',
+        '',
+        '### Better Engine',
+        '',
+        'PRs: #456',
+      ].join('\n'),
     ],
     [
       `should skip commits & prs with the magic ${SKIP_CHANGELOG_MAGIC_WORD}`,
