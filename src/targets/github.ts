@@ -333,7 +333,10 @@ export class GithubTarget extends BaseTarget {
     const name = basename(path);
     const params = {
       ...this.githubConfig,
-      data: readFileSync(path, { encoding: 'binary' }),
+      // so note here.  Octokit types this out as string, but in fact it also
+      // accepts a `Buffer` here.  In fact passing a string is not what we want
+      // as we upload binary data.
+      data: readFileSync(path) as any,
       headers: {
         'Content-Length': stats.size,
         'Content-Type': contentTypeProcessed,
