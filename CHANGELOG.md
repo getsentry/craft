@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.25.3
+
+### Various fixes & improvements
+
+- fix: github release uploads (#302)
+
 ## 0.25.2
 
 ### Automated Changelog Fixups
