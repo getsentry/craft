@@ -44,5 +44,7 @@ RUN apt-get -qq update \
 
 COPY dist/craft /usr/local/bin/craft
 RUN chmod +x /usr/local/bin/craft
+ARG SOURCE_COMMIT
+ENV CRAFT_BUILD_SHA=$SOURCE_COMMIT
 
 ENTRYPOINT ["craft"]

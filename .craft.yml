@@ -1,5 +1,15 @@
-minVersion: '0.22.2'
+minVersion: '0.25.3'
 changelogPolicy: auto
+preReleaseCommand: >-
+  node -p "
+    const {execSync} = require('child_process');
+    execSync('npm --no-git-tag-version version ' + process.env.CRAFT_NEW_VERSION).toString();
+  "
+postReleaseCommand: >-
+  node -p "
+    const {execSync} = require('child_process');
+    execSync('npm --no-git-tag-version version preminor --preid=dev').toString();
+  "
 requireNames:
   - /^sentry-craft.*\.tgz$/
   - /^craft$/

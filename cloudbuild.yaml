@@ -20,6 +20,7 @@ steps:
   # Smoke tests
   - name: 'us.gcr.io/$PROJECT_ID/craft:$COMMIT_SHA'
     args:
+      - '--log-level=DEBUG'
       - 'config'
     timeout: 60s
   - name: 'gcr.io/cloud-builders/docker'

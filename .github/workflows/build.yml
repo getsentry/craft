@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  job_build:
+  test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -29,9 +29,9 @@ jobs:
       - name: Test
         run: yarn test
 
-  job_artifacts:
+  artifacts:
     name: Artifacts Upload
-    needs: job_build
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -45,7 +45,7 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: yarn install --frozen-lockfile
       - name: Build
-        run: yarn build
+        run: yarn build --define:process.env.CRAFT_BUILD_SHA='"'${{ github.sha }}'"'
       - name: NPM Pack
         run: npm pack
       - name: Docs
