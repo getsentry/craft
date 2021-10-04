@@ -45,7 +45,7 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: yarn install --frozen-lockfile
       - name: Build
-        run: yarn build --define:process.env.CRAFT_BUILD_SHA='${{ github.sha }}'
+        run: yarn build --define:process.env.CRAFT_BUILD_SHA='"'${{ github.sha }}'"'
       - name: NPM Pack
         run: npm pack
       - name: Docs
