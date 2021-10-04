@@ -149,5 +149,9 @@ export function getPackage(): any {
  * Reads the package's version from "package.json"
  */
 export function getPackageVersion(): string {
-  return getPackage().version;
+  const { version } = getPackage();
+  // We set process.env.CRAFT_BUILD_SHA at build time
+  const buildInfo = process.env.CRAFT_BUILD_SHA;
+
+  return buildInfo ? `${version} (${buildInfo})` : version;
 }
