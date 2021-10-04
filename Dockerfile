@@ -42,8 +42,9 @@ RUN apt-get -qq update \
   && unzip /tmp/sym-collector.zip -d /usr/local/bin/ \
   && chmod +x /usr/local/bin/SymbolCollector.Console
 
-ENV CRAFT_BUILD_SHA=$SOURCE_COMMIT
 COPY dist/craft /usr/local/bin/craft
 RUN chmod +x /usr/local/bin/craft
+ARG SOURCE_COMMIT
+ENV CRAFT_BUILD_SHA=$SOURCE_COMMIT
 
 ENTRYPOINT ["craft"]
