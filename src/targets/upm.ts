@@ -20,6 +20,9 @@ import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
 import { NoneArtifactProvider } from '../artifact_providers/none';
 
+/** Name of the artifact that contains the UPM package */
+const ARTIFACT_NAME = 'package-release.zip';
+
 /**
  * Target responsible for publishing to upm registry
  */
@@ -30,8 +33,6 @@ export class UpmTarget extends BaseTarget {
   public readonly github: Octokit;
   /** Internal GitHub Target */
   private readonly githubTarget: GithubTarget;
-  /**  */
-  public readonly packageName: string = 'package-release.zip';
 
   public constructor(
     config: TargetConfig,
@@ -76,11 +77,11 @@ export class UpmTarget extends BaseTarget {
     }
 
     const packageFile = packageFiles.find(
-      packageFile => packageFile.filename === this.packageName
+      packageFile => packageFile.filename === ARTIFACT_NAME
     );
     if (packageFile === undefined) {
       reportError(
-        `Cannot publish UPM: Failed to find "${this.packageName}" in the artifacts.`
+        `Cannot publish UPM: Failed to find "${ARTIFACT_NAME}" in the artifacts.`
       );
     }
 
