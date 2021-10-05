@@ -30,6 +30,8 @@ export class UpmTarget extends BaseTarget {
   public readonly github: Github;
   /** Internal GitHub Target */
   private readonly githubTarget: GithubTarget;
+  /**  */
+  public readonly packageName: string = 'package-release.zip';
 
   public constructor(
     config: TargetConfig,
@@ -72,16 +74,13 @@ export class UpmTarget extends BaseTarget {
       reportError('Cannot publish UPM: No release artifact found.');
       return;
     }
-    if (packageFiles.length > 1) {
-      reportError(
-        `Cannot publish UPM: Too many release artifacts found:\n${packageFiles.join(
-          '\n'
-        )}`
-      );
-      return;
+
+    const packageFile = packageFiles.find(packageFile => packageFile.filename === this.packageName);
+    if(packageFile === undefined) {
+      reportError(`Cannot publish UPM: Failed to find "${this.packageName}" in the artifacts.`);
     }
 
-    return packageFiles[0];
+    return packageFile;
   }
 
   /**
