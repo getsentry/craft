@@ -1,6 +1,7 @@
 import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
 import { readFileSync, promises, statSync } from 'fs';
 import { basename } from 'path';
+import { createHash } from 'crypto';
 
 import { getConfiguration } from '../config';
 import {
@@ -19,6 +20,7 @@ import { isPreviewRelease, versionToTag } from '../utils/version';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { logger } from '../logger';
+import ora from 'ora';
 
 /**
  * Default content type for GitHub release assets
@@ -333,10 +335,6 @@ export class GithubTarget extends BaseTarget {
     const name = basename(path);
     const params = {
       ...this.githubConfig,
-      // so note here.  Octokit types this out as string, but in fact it also
-      // accepts a `Buffer` here.  In fact passing a string is not what we want
-      // as we upload binary data.
-      data: readFileSync(path) as any,
       headers: {
         'Content-Length': stats.size,
         'Content-Type': contentTypeProcessed,
@@ -345,17 +343,62 @@ export class GithubTarget extends BaseTarget {
       name,
     };
     this.logger.trace('Upload parameters:', params);
-    this.logger.info(
-      `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}`
-    );
     if (!isDryRun()) {
+      const uploadSpinner = ora(
+        `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}`
+      ).start();
       try {
-        await this.github.repos.uploadReleaseAsset(params);
+        const file = readFileSync(path);
+        const { url, size } = (
+          await this.github.repos.uploadReleaseAsset({
+            ...params,
+            // XXX: Octokit types this out as string, but in fact it also
+            // accepts a `Buffer` here. In fact passing a string is not what we
+            // want as we upload binary data.
+            data: file as any,
+          })
+        ).data;
+
+        uploadSpinner.text = `Verifying asset "${name}...`;
+        if (size != stats.size) {
+          throw new Error(
+            `Uploaded asset size does not match local asset size for "${name} (${stats.size} != ${size}).`
+          );
+        }
+
+        // XXX: This is a bit hacky as we rely on two things:
+        // 1. GitHub issuing a redirect to S3, where they store the artifacts,
+        //    or at least pass those request headers unmodified to us
+        // 2. AWS S3 using the MD5 hash of the file for its ETag cache header
+        //    when we issue a HEAD request.
+        const response = await this.github.request(`HEAD ${url}`, {
+          headers: {
+            // WARNING: You **MUST** pass this accept header otherwise you'll
+            //          get a useless JSON API response back, instead of getting
+            //          redirected to the raw file itself.
+            //          And don't even think about using `browser_download_url`
+            //          field as it is close to impossible to authendicate for
+            //          that URL with a token and you'll lose hours getting 404s
+            //          for private repos. Consider yourself warned. --xoxo BYK
+            Accept: DEFAULT_CONTENT_TYPE,
+          },
+        });
+
+        // ETag header comes in quotes for some reason so strip those
+        const remoteChecksum = response.headers['etag']?.slice(1, -1);
+        const localChecksum = createHash('md5').update(file).digest('hex');
+        if (localChecksum !== remoteChecksum) {
+          logger.trace(`Checksum mismatch for "${name}"`, response.headers);
+          throw new Error(
+            `Uploaded asset MD5 checksum does not match local asset checksum for "${name} (${localChecksum} != ${remoteChecksum})`
+          );
+        }
       } catch (e) {
-        this.logger.error(`Cannot upload asset "${name}".`);
+        uploadSpinner.fail(`Cannot upload asset "${name}".`);
+
         throw e;
       }
-      this.logger.log(`Uploaded asset "${name}".`);
+      uploadSpinner.succeed(`Uploaded asset "${name}".`);
     } else {
       this.logger.info(`[dry-run] Not uploading asset "${name}"`);
     }
