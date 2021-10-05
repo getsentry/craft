@@ -1,8 +1,6 @@
 import { mapLimit } from 'async';
-import * as Github from '@octokit/rest';
-import rimraf from 'rimraf';
+import { Octokit } from '@octokit/rest';
 import simpleGit, { SimpleGit } from 'simple-git';
-import * as path from 'path';
 
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
@@ -10,7 +8,7 @@ import { withTempDir } from '../utils/files';
 import {
   getAuthUsername,
   getGithubApiToken,
-  getGithubClient,
+  getGitHubClient,
   GithubRemote,
 } from '../utils/githubApi';
 import { renderTemplateSafe } from '../utils/strings';
@@ -27,20 +25,14 @@ import {
   ChecksumEntry,
   getArtifactChecksums,
 } from '../utils/checksum';
-import * as registryUtils from '../utils/registry';
-import { getPackageDirPath } from '../utils/packagePath';
+import {
+  DEFAULT_REGISTRY_REMOTE,
+  getPackageManifest,
+  updateManifestSymlinks,
+  RegistryPackageType,
+} from '../utils/registry';
 import { isDryRun } from '../utils/helpers';
-import { withRetry } from '../utils/async';
-
-const DEFAULT_REGISTRY_REMOTE: GithubRemote = registryUtils.getRegistryGithubRemote();
-
-/** Type of the registry package */
-export enum RegistryPackageType {
-  /** App is a generic package type that doesn't belong to any specific registry */
-  APP = 'app',
-  /** SDK is a package hosted in one of public registries (PyPI, NPM, etc.) */
-  SDK = 'sdk',
-}
+import { filterAsync, withRetry } from '../utils/async';
 
 /** "registry" target options */
 export interface RegistryConfig {
@@ -48,14 +40,12 @@ export interface RegistryConfig {
   type: RegistryPackageType;
   /** Unique package cannonical name, including type and/or registry name */
   canonicalName: string;
-  /** Git remote of the release registry */
-  registryRemote: GithubRemote;
   /** Should we create registry entries for pre-releases? */
-  linkPrereleases: boolean;
+  linkPrereleases?: boolean;
   /** URL template for file assets */
   urlTemplate?: string;
   /** Types of checksums to compute for artifacts */
-  checksums: ChecksumEntry[];
+  checksums?: ChecksumEntry[];
   /** Pattern that allows to skip the target if there's no matching file */
   onlyIfPresent?: RegExp;
 }
@@ -72,18 +62,23 @@ interface ArtifactData {
   };
 }
 
+const BATCH_KEYS = {
+  sdks: RegistryPackageType.SDK,
+  apps: RegistryPackageType.APP,
+};
+
 /**
  * Target responsible for publishing to Sentry's release registry: https://github.com/getsentry/sentry-release-registry/
  */
 export class RegistryTarget extends BaseTarget {
-  /** The information of the canonical local checkout of the registry */
-  private static localRepo: undefined | LocalRegistry;
   /** Target name */
   public readonly name = 'registry';
+  /** Git remote of the release registry */
+  public readonly remote: GithubRemote;
   /** Target options */
-  public readonly registryConfig: RegistryConfig;
+  public readonly registryConfig: RegistryConfig[];
   /** Github client */
-  public readonly github: Github;
+  public readonly github: Octokit;
   /** Github repo configuration */
   public readonly githubRepo: GithubGlobalConfig;
 
@@ -93,7 +88,14 @@ export class RegistryTarget extends BaseTarget {
     githubRepo: GithubGlobalConfig
   ) {
     super(config, artifactProvider, githubRepo);
-    this.github = getGithubClient();
+    const remote = this.config.remote;
+    if (remote) {
+      const [owner, repo] = remote.split('/', 2);
+      this.remote = new GithubRemote(owner, repo);
+    } else {
+      this.remote = DEFAULT_REGISTRY_REMOTE;
+    }
+    this.github = getGitHubClient();
     this.githubRepo = githubRepo;
     this.registryConfig = this.getRegistryConfig();
   }
@@ -101,7 +103,34 @@ export class RegistryTarget extends BaseTarget {
   /**
    * Extracts Registry target options from the raw configuration.
    */
-  public getRegistryConfig(): RegistryConfig {
+  public getRegistryConfig(): RegistryConfig[] {
+    const items = Object.entries(BATCH_KEYS).flatMap(([key, type]) =>
+      Object.entries(this.config[key] || {}).map(([canonicalName, conf]) => {
+        const config = conf as RegistryConfig | null;
+        const result = Object.assign(Object.create(null), config, {
+          type,
+          canonicalName,
+        });
+
+        if (typeof config?.onlyIfPresent === 'string') {
+          result.onlyIfPresent = stringToRegexp(config.onlyIfPresent);
+        }
+
+        return result;
+      })
+    );
+
+    if (items.length === 0 && this.config.type) {
+      this.logger.warn(
+        'You are using a deprecated registry target config, please update.'
+      );
+      return [this.getLegacyRegistryConfig()];
+    } else {
+      return items;
+    }
+  }
+
+  private getLegacyRegistryConfig(): RegistryConfig {
     const registryType = this.config.type;
     if (
       [RegistryPackageType.APP, RegistryPackageType.SDK].indexOf(
@@ -157,7 +186,6 @@ export class RegistryTarget extends BaseTarget {
       checksums,
       linkPrereleases,
       onlyIfPresent,
-      registryRemote: DEFAULT_REGISTRY_REMOTE,
       type: registryType,
       urlTemplate,
     };
@@ -175,11 +203,12 @@ export class RegistryTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async addFileLinks(
+    registryConfig: RegistryConfig,
     manifest: { [key: string]: any },
     version: string,
     revision: string
   ): Promise<void> {
-    if (!this.registryConfig.urlTemplate) {
+    if (!registryConfig.urlTemplate) {
       return;
     }
 
@@ -194,7 +223,7 @@ export class RegistryTarget extends BaseTarget {
     const fileUrls: { [_: string]: string } = {};
     for (const artifact of artifacts) {
       fileUrls[artifact.filename] = renderTemplateSafe(
-        this.registryConfig.urlTemplate,
+        registryConfig.urlTemplate,
         {
           file: artifact.filename,
           revision,
@@ -224,23 +253,24 @@ export class RegistryTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async getArtifactData(
+    registryConfig: RegistryConfig,
     artifact: RemoteArtifact,
     version: string,
     revision: string
   ): Promise<ArtifactData> {
     const artifactData: ArtifactData = {};
 
-    if (this.registryConfig.urlTemplate) {
-      artifactData.url = renderTemplateSafe(this.registryConfig.urlTemplate, {
+    if (registryConfig.urlTemplate) {
+      artifactData.url = renderTemplateSafe(registryConfig.urlTemplate, {
         file: artifact.filename,
         revision,
         version,
       });
     }
 
-    if (this.registryConfig.checksums.length > 0) {
+    if (registryConfig.checksums && registryConfig.checksums.length > 0) {
       artifactData.checksums = await getArtifactChecksums(
-        this.registryConfig.checksums,
+        registryConfig.checksums,
         artifact,
         this.artifactProvider
       );
@@ -264,6 +294,7 @@ export class RegistryTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async addFilesData(
+    registryConfig: RegistryConfig,
     packageManifest: { [key: string]: any },
     version: string,
     revision: string
@@ -272,8 +303,8 @@ export class RegistryTarget extends BaseTarget {
     delete packageManifest.files;
 
     if (
-      !this.registryConfig.urlTemplate &&
-      this.registryConfig.checksums.length === 0
+      !registryConfig.urlTemplate &&
+      !(registryConfig.checksums && registryConfig.checksums.length > 0)
     ) {
       this.logger.warn(
         'No URL template or checksums, not adding any file data'
@@ -293,7 +324,12 @@ export class RegistryTarget extends BaseTarget {
 
     const files: { [key: string]: any } = {};
     await mapLimit(artifacts, MAX_DOWNLOAD_CONCURRENCY, async artifact => {
-      const fileData = await this.getArtifactData(artifact, version, revision);
+      const fileData = await this.getArtifactData(
+        registryConfig,
+        artifact,
+        version,
+        revision
+      );
       files[artifact.filename] = fileData;
     });
 
@@ -312,6 +348,7 @@ export class RegistryTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async getUpdatedManifest(
+    registryConfig: RegistryConfig,
     packageManifest: { [key: string]: any },
     canonical: string,
     version: string,
@@ -328,12 +365,17 @@ export class RegistryTarget extends BaseTarget {
     const updatedManifest = { ...packageManifest, version };
 
     // Add file links if it's a generic app (legacy)
-    if (this.registryConfig.type === RegistryPackageType.APP) {
-      await this.addFileLinks(updatedManifest, version, revision);
+    if (registryConfig.type === RegistryPackageType.APP) {
+      await this.addFileLinks(
+        registryConfig,
+        updatedManifest,
+        version,
+        revision
+      );
     }
 
     // Add various file-related data
-    await this.addFilesData(updatedManifest, version, revision);
+    await this.addFilesData(registryConfig, updatedManifest, version, revision);
 
     return updatedManifest;
   }
@@ -345,25 +387,23 @@ export class RegistryTarget extends BaseTarget {
    * @param version The new version
    * @param revision Git commit SHA to be published
    */
-  private async commitVersionToRegistry(
+  private async updateVersionInRegistry(
+    registryConfig: RegistryConfig,
     localRepo: LocalRegistry,
     version: string,
     revision: string
   ): Promise<void> {
-    const canonicalName = this.registryConfig.canonicalName;
-    const packageDirPath = getPackageDirPath(
-      this.registryConfig.type,
-      canonicalName
-    );
-    const packageManifest = registryUtils.getPackageManifest(
+    const canonicalName = registryConfig.canonicalName;
+    const { versionFilePath, packageManifest } = await getPackageManifest(
       localRepo.dir,
-      packageDirPath,
+      registryConfig.type,
+      canonicalName,
       version
     );
 
-    const versionFilePath = path.join(packageDirPath, `${version}.json`);
-    registryUtils.updateManifestSymlinks(
+    updateManifestSymlinks(
       await this.getUpdatedManifest(
+        registryConfig,
         packageManifest,
         canonicalName,
         version,
@@ -373,15 +413,10 @@ export class RegistryTarget extends BaseTarget {
       versionFilePath,
       packageManifest.version || undefined
     );
-
-    // Commit
-    await localRepo.git
-      .add(['.'])
-      .commit(`craft: release "${canonicalName}", version "${version}"`);
   }
 
   private async cloneRegistry(directory: string): Promise<SimpleGit> {
-    const remote = this.registryConfig.registryRemote;
+    const remote = this.remote;
     const username = await getAuthUsername(this.github);
     remote.setAuth(username, getGithubApiToken());
 
@@ -396,78 +431,88 @@ export class RegistryTarget extends BaseTarget {
     return git;
   }
 
+  public async getValidItems(
+    version: string,
+    revision: string
+  ): Promise<RegistryConfig[]> {
+    return filterAsync(this.registryConfig, async registryConfig => {
+      if (!registryConfig.linkPrereleases && isPreviewRelease(version)) {
+        this.logger.info(
+          `Preview release detected, skipping ${registryConfig.canonicalName}`
+        );
+        return false;
+      }
+
+      // If we have onlyIfPresent specified, check that we have any of matched files
+      const onlyIfPresentPattern = registryConfig.onlyIfPresent;
+      if (onlyIfPresentPattern) {
+        const artifacts = await this.artifactProvider.filterArtifactsForRevision(
+          revision,
+          {
+            includeNames: onlyIfPresentPattern,
+          }
+        );
+        if (artifacts.length === 0) {
+          this.logger.warn(
+            `No files found that match "${onlyIfPresentPattern.toString()}", skipping the target.`
+          );
+          return false;
+        }
+      }
+      return true;
+    });
+  }
+
   /**
    * Modifies/adds meta information regarding the package we are publishing
    */
   public async publish(version: string, revision: string): Promise<any> {
-    if (!this.registryConfig.linkPrereleases && isPreviewRelease(version)) {
-      this.logger.info('Preview release detected, skipping the target');
-      return undefined;
+    const items = await this.getValidItems(version, revision);
+
+    if (items.length === 0) {
+      this.logger.warn('No suitable items found, bailing');
+      return;
     }
 
-    // If we have onlyIfPresent specified, check that we have any of matched files
-    const onlyIfPresentPattern = this.registryConfig.onlyIfPresent;
-    if (onlyIfPresentPattern) {
-      const artifacts = await this.artifactProvider.filterArtifactsForRevision(
-        revision,
-        {
-          includeNames: onlyIfPresentPattern,
-        }
-      );
-      if (artifacts.length === 0) {
-        this.logger.warn(
-          `No files found that match "${onlyIfPresentPattern.toString()}", skipping the target.`
+    await withTempDir(
+      async dir => {
+        const localRepo = {
+          dir,
+          git: await this.cloneRegistry(dir),
+        };
+        await Promise.all(
+          items.map(registryConfig =>
+            this.updateVersionInRegistry(
+              registryConfig,
+              localRepo,
+              version,
+              revision
+            )
+          )
         );
-        return undefined;
-      }
-    }
 
-    return this.doPublish(version, revision);
-  }
-
-  private async doPublish(version: string, revision: string) {
-    if (!RegistryTarget.localRepo) {
-      await withTempDir(
-        async dir => {
-          RegistryTarget.localRepo = {
-            dir,
-            git: await this.cloneRegistry(dir),
-          };
-          process.on('beforeExit', () => {
-            RegistryTarget.localRepo = undefined;
-            rimraf(localRepo.dir, () => {
-              /* intentionally don't block on deletion */
-            });
-          });
-        },
-        // We will clean the directory after pushing
-        false,
-        'craft-release-registry-'
-      );
-    }
-    let localRepo: LocalRegistry;
-    if (RegistryTarget.localRepo) {
-      localRepo = RegistryTarget.localRepo;
-    } else {
-      // XXX(BYK): This should NEVER happen
-      throw new Error(
-        `Local registry missing, it should have been cloned at this stage!`
-      );
-    }
-    this.commitVersionToRegistry(localRepo, version, revision);
-
-    // Push!
-    if (!isDryRun()) {
-      this.logger.info(`Pushing the changes...`);
-      // Ensure we are still up to date with upstream
-      await withRetry(() =>
-        localRepo.git
-          .pull('origin', 'master', ['--rebase'])
-          .push('origin', 'master')
-      );
-    } else {
-      this.logger.info('[dry-run] Not pushing the changes.');
-    }
+        // Commit
+        await localRepo.git
+          .add(['.'])
+          .commit(
+            `craft: release "${this.githubRepo.repo}", version "${version}"`
+          );
+        // Push!
+        if (!isDryRun()) {
+          this.logger.info(`Pushing the changes...`);
+          // Ensure we are still up to date with upstream
+          await withRetry(() =>
+            localRepo.git
+              .pull('origin', 'master', ['--rebase'])
+              .push('origin', 'master')
+          );
+        } else {
+          this.logger.info('[dry-run] Not pushing the changes.');
+        }
+      },
+      true,
+      'craft-release-registry-'
+    );
 
     this.logger.info('Release registry updated.');
   }

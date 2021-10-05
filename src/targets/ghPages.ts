@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import * as Github from '@octokit/rest';
+import { Octokit } from '@octokit/rest';
 import simpleGit from 'simple-git';
 
 import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
@@ -10,7 +10,7 @@ import { withTempDir } from '../utils/files';
 import {
   getAuthUsername,
   getGithubApiToken,
-  getGithubClient,
+  getGitHubClient,
   GithubRemote,
 } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
@@ -44,7 +44,7 @@ export class GhPagesTarget extends BaseTarget {
   /** Target options */
   public readonly ghPagesConfig: GhPagesConfig;
   /** Github client */
-  public readonly github: Github;
+  public readonly github: Octokit;
   /** Github repo configuration */
   public readonly githubRepo: GithubGlobalConfig;
 
@@ -54,7 +54,7 @@ export class GhPagesTarget extends BaseTarget {
     githubRepo: GithubGlobalConfig
   ) {
     super(config, artifactProvider, githubRepo);
-    this.github = getGithubClient();
+    this.github = getGitHubClient();
     this.githubRepo = githubRepo;
     this.ghPagesConfig = this.getGhPagesConfig();
   }

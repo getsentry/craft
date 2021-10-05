@@ -1,9 +1,9 @@
-import * as Github from '@octokit/rest';
+import { Octokit } from '@octokit/rest';
 import simpleGit from 'simple-git';
 import {
   getAuthUsername,
   getGithubApiToken,
-  getGithubClient,
+  getGitHubClient,
   GithubRemote,
 } from '../utils/githubApi';
 
@@ -27,7 +27,7 @@ export class UpmTarget extends BaseTarget {
   /** Target name */
   public readonly name: string = 'upm';
   /** Github client */
-  public readonly github: Github;
+  public readonly github: Octokit;
   /** Internal GitHub Target */
   private readonly githubTarget: GithubTarget;
   /**  */
@@ -40,7 +40,7 @@ export class UpmTarget extends BaseTarget {
   ) {
     super(config, artifactProvider, githubRepo);
 
-    this.github = getGithubClient();
+    this.github = getGitHubClient();
 
     const githubTargetConfig = {
       name: 'github',
@@ -115,7 +115,7 @@ export class UpmTarget extends BaseTarget {
       getGithubApiToken()
     );
     const remoteAddr = remote.getRemoteString();
-    this.logger.debug(`Target release repository: ` + `"${remoteAddr}"`);
+    this.logger.debug(`Target release repository: ${remoteAddr}`);
 
     await withTempDir(
       async directory => {

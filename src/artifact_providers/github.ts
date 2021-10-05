@@ -1,4 +1,4 @@
-import Github from '@octokit/rest';
+import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
 import * as fs from 'fs';
 import fetch from 'node-fetch';
 import * as path from 'path';
@@ -8,7 +8,7 @@ import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../artifact_providers/base';
-import { getGithubClient } from '../utils/githubApi';
+import { getGitHubClient } from '../utils/githubApi';
 import {
   detectContentType,
   scan,
@@ -19,35 +19,18 @@ import { extractZipArchive } from '../utils/system';
 
 const MAX_TRIES = 3;
 
-export interface ArtifactItem {
-  id: number;
-  name: string;
-  size_in_bytes: number;
-  url: string;
-  archive_download_url: string;
-  created_at: string;
-  expires_at: string;
-}
-
-interface ArtifactList {
-  total_count: number;
-  artifacts: Array<ArtifactItem>;
-}
-
-interface ArchiveResponse extends Github.AnyResponse {
-  url: string;
-}
+export type ArtifactItem = RestEndpointMethodTypes['actions']['listArtifactsForRepo']['response']['data']['artifacts'][0];
 
 /**
  * Github artifact provider
  */
 export class GithubArtifactProvider extends BaseArtifactProvider {
   /** Github client */
-  public readonly github: Github;
+  public readonly github: Octokit;
 
   public constructor(config: ArtifactProviderConfig) {
     super(config);
-    this.github = getGithubClient();
+    this.github = getGitHubClient();
   }
 
   /**
@@ -81,17 +64,17 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     const per_page = 100;
 
     // https://docs.github.com/en/free-pro-team@latest/rest/reference/actions#artifacts
-    const artifactResponse = ((
-      await this.github.request('GET /repos/{owner}/{repo}/actions/artifacts', {
+    const artifactResponse = (
+      await this.github.actions.listArtifactsForRepo({
         owner: owner,
         repo: repo,
         per_page,
         page,
       })
-    ).data as unknown) as ArtifactList;
+    ).data;
 
     const { artifacts } = artifactResponse;
-    this.logger.debug(`All available artifacts on page ${page}:`, artifacts);
+    this.logger.trace(`All available artifacts on page ${page}:`, artifacts);
 
     // We need to find the most recent archive where name matches the revision.
     // XXX(BYK): we assume the artifacts are listed in descending date order on
@@ -102,7 +85,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       artifact => artifact.name === revision
     );
     if (foundArtifact) {
-      this.logger.debug(`Found artifact on page ${page}:`, foundArtifact);
+      this.logger.trace(`Found artifact on page ${page}:`, foundArtifact);
       return foundArtifact;
     }
 
@@ -122,7 +105,9 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
       // ** AND **
       // the descending date order. See the note above
       const lastArtifact = artifacts[artifacts.length - 1];
-      checkNextPage = lastArtifact.created_at >= revisionDate;
+      checkNextPage =
+        lastArtifact.created_at == null ||
+        lastArtifact.created_at >= revisionDate;
     }
 
     if (checkNextPage) {
@@ -151,14 +136,14 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
    * @param archiveResponse
    */
   private async downloadAndUnpackArtifacts(
-    archiveResponse: ArchiveResponse
+    url: string
   ): Promise<RemoteArtifact[]> {
     const artifacts: RemoteArtifact[] = [];
     await withTempFile(async tempFilepath => {
-      const response = await fetch(archiveResponse.url);
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(
-          `Unexpected HTTP response from ${archiveResponse.url}: ${response.status} (${response.statusText})`
+          `Unexpected HTTP response from ${url}: ${response.status} (${response.statusText})`
         );
       }
       await new Promise((resolve, reject) =>
@@ -190,30 +175,22 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
   }
 
   /**
-   * Returns {@link ArchiveResponse} for a giving {@link ArtifactItem}
+   * Returns {@link ArtifactResponse} for a giving {@link ArtifactItem}
    * @param foundArtifact
    */
   private async getArchiveDownloadUrl(
     foundArtifact: ArtifactItem
-  ): Promise<ArchiveResponse> {
+  ): Promise<string> {
     const { repoName, repoOwner } = this.config;
 
-    const archiveResponse = (await this.github.request(
-      '/repos/{owner}/{repo}/actions/artifacts/{artifact_id}/{archive_format}',
-      {
-        owner: repoOwner,
-        repo: repoName,
-        artifact_id: foundArtifact.id,
-        archive_format: 'zip',
-      }
-    )) as ArchiveResponse;
+    const archiveResponse = await this.github.actions.downloadArtifact({
+      owner: repoOwner,
+      repo: repoName,
+      artifact_id: foundArtifact.id,
+      archive_format: 'zip',
+    });
 
-    if (archiveResponse.status !== 200) {
-      throw new Error(
-        `Failed to fetch archive ${JSON.stringify(archiveResponse)}`
-      );
-    }
-    return archiveResponse;
+    return archiveResponse.url;
   }
 
   /**
@@ -232,10 +209,10 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
 
     this.logger.debug(`Requesting archive URL from Github...`);
 
-    const archiveResponse = await this.getArchiveDownloadUrl(foundArtifact);
+    const archiveUrl = await this.getArchiveDownloadUrl(foundArtifact);
 
     this.logger.debug(`Downloading ZIP from Github artifacts...`);
 
-    return await this.downloadAndUnpackArtifacts(archiveResponse);
+    return await this.downloadAndUnpackArtifacts(archiveUrl);
   }
 }

@@ -1,4 +1,4 @@
-import * as Github from '@octokit/rest';
+import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
 
 import { logger } from '../logger';
 import {
@@ -7,24 +7,28 @@ import {
   RepositoryInfo,
   StatusProviderConfig,
 } from './base';
-import { getGithubClient } from '../utils/githubApi';
+import { getGitHubClient } from '../utils/githubApi';
 import { ConfigurationError } from '../utils/errors';
 import { formatJson } from '../utils/strings';
-import { GithubGlobalConfig } from 'src/schemas/project_config';
+import { GithubGlobalConfig } from '../schemas/project_config';
+
+type ReposGetCombinedStatusForRefResponse = RestEndpointMethodTypes['repos']['getCombinedStatusForRef']['response']['data'];
+type ChecksListSuitesForRefResponse = RestEndpointMethodTypes['checks']['listSuitesForRef']['response']['data'];
+type ChecksListForRefResponse = RestEndpointMethodTypes['checks']['listForRef']['response']['data'];
 
 /**
  * Status provider that talks to GitHub to get commit checks (statuses)
  */
 export class GithubStatusProvider extends BaseStatusProvider {
   /** Github client */
-  private readonly github: Github;
+  private readonly github: Octokit;
 
   public constructor(
     config: StatusProviderConfig,
     githubConfig: GithubGlobalConfig
   ) {
     super(config, githubConfig);
-    this.github = getGithubClient();
+    this.github = getGitHubClient();
   }
 
   /**
@@ -145,9 +149,9 @@ export class GithubStatusProvider extends BaseStatusProvider {
    */
   private getStatusForContext(
     context: string,
-    revisionStatus: Github.ReposGetCombinedStatusForRefResponse,
-    revisionCheckSuites: Github.ChecksListSuitesForRefResponse,
-    revisionChecks: Github.ChecksListForRefResponse
+    revisionStatus: ReposGetCombinedStatusForRefResponse,
+    revisionCheckSuites: ChecksListSuitesForRefResponse,
+    revisionChecks: ChecksListForRefResponse
   ): CommitStatus {
     const results = [
       this.getResultFromCommitApiStatus(revisionStatus, context),
@@ -201,7 +205,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
    * @param context If passed, only result of the corresponding context is considered
    */
   private getResultFromCommitApiStatus(
-    combinedStatus: Github.ReposGetCombinedStatusForRefResponse,
+    combinedStatus: ReposGetCombinedStatusForRefResponse,
     context?: string
   ): CommitStatus {
     if (context) {
@@ -225,8 +229,8 @@ export class GithubStatusProvider extends BaseStatusProvider {
    * @param context If provided, only the corresponding run is considered
    */
   private getResultFromRevisionChecks(
-    revisionCheckSuites: Github.ChecksListSuitesForRefResponse,
-    revisionChecks: Github.ChecksListForRefResponse,
+    revisionCheckSuites: ChecksListSuitesForRefResponse,
+    revisionChecks: ChecksListForRefResponse,
     context?: string
   ): CommitStatus {
     // Check runs: we have an array of runs, and each of them has a status
@@ -271,7 +275,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
    */
   protected async getCommitApiStatus(
     revision: string
-  ): Promise<Github.ReposGetCombinedStatusForRefResponse> {
+  ): Promise<ReposGetCombinedStatusForRefResponse> {
     logger.debug(`Fetching combined revision status...`);
     const revisionStatusResponse = await this.github.repos.getCombinedStatusForRef(
       {
@@ -280,9 +284,8 @@ export class GithubStatusProvider extends BaseStatusProvider {
       }
     );
     const revisionStatus = revisionStatusResponse.data;
-    logger.debug(
-      `Revision combined status received: "${formatJson(revisionStatus)}"`
-    );
+    logger.debug('Combined revision status received.');
+    logger.trace(revisionStatus);
     return revisionStatus;
   }
 
@@ -298,17 +301,16 @@ export class GithubStatusProvider extends BaseStatusProvider {
    */
   protected async getRevisionCheckSuites(
     revision: string
-  ): Promise<Github.ChecksListSuitesForRefResponse> {
-    logger.debug(`Fetching Checks API status...`);
+  ): Promise<ChecksListSuitesForRefResponse> {
+    logger.debug('Fetching Checks API status...');
     const revisionCheckSuites = (
       await this.github.checks.listSuitesForRef({
         ...this.githubConfig,
         ref: revision,
       })
     ).data;
-    logger.debug(
-      `Revision check suites received: "${formatJson(revisionCheckSuites)}"`
-    );
+    logger.debug('Revision check suites received.');
+    logger.trace(revisionCheckSuites);
 
     return revisionCheckSuites;
   }
@@ -325,14 +327,15 @@ export class GithubStatusProvider extends BaseStatusProvider {
    */
   protected async getRevisionChecks(
     revision: string
-  ): Promise<Github.ChecksListForRefResponse> {
-    logger.debug(`Fetching Checks API status...`);
+  ): Promise<ChecksListForRefResponse> {
+    logger.debug('Fetching Checks API status...');
     const revisionChecksResponse = await this.github.checks.listForRef({
       ...this.githubConfig,
       ref: revision,
     });
     const revisionChecks = revisionChecksResponse.data;
-    logger.debug(`Revision checks received: "${formatJson(revisionChecks)}"`);
+    logger.debug('Revision checks received.');
+    logger.trace(revisionChecks);
 
     return revisionChecks;
   }

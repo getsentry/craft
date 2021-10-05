@@ -1,4 +1,4 @@
-import Github from '@octokit/rest';
+import { Octokit } from '@octokit/rest';
 
 import { LogLevel, logger } from '../logger';
 
@@ -87,6 +87,8 @@ export function getGithubApiToken(): string {
   return githubApiToken;
 }
 
+const _GitHubClientCache: Record<string, Octokit> = {};
+
 /**
  * Gets an authenticated Github client object
  *
@@ -95,25 +97,27 @@ export function getGithubApiToken(): string {
  * @param token Github authentication token
  * @returns Github client
  */
-export function getGithubClient(token = ''): Github {
+export function getGitHubClient(token = ''): Octokit {
   const githubApiToken = token || getGithubApiToken();
 
-  const attrs = {
-    auth: `token ${githubApiToken}`,
-  } as any;
-
-  if (logger.level >= LogLevel.Debug) {
-    attrs.log = {
-      info: (message: string, _: any) => {
-        logger.debug(message);
-      },
+  if (!_GitHubClientCache[githubApiToken]) {
+    const attrs: any = {
+      auth: `token ${githubApiToken}`,
     };
+
+    if (logger.level >= LogLevel.Debug) {
+      attrs.log = {
+        info: (message: string) => logger.debug(message),
+      };
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { retry } = require('@octokit/plugin-retry');
+    const octokitWithRetries = Octokit.plugin(retry);
+    _GitHubClientCache[githubApiToken] = new octokitWithRetries(attrs);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { retry } = require('@octokit/plugin-retry');
-  const octokitWithRetries = Github.plugin(retry);
-  return new octokitWithRetries(attrs);
+  return _GitHubClientCache[githubApiToken];
 }
 
 /**
@@ -122,7 +126,7 @@ export function getGithubClient(token = ''): Github {
  * @param github Github client
  * @returns Github username
  */
-export async function getAuthUsername(github: Github): Promise<string> {
+export async function getAuthUsername(github: Octokit): Promise<string> {
   const userData = await github.users.getAuthenticated({});
   const username = (userData.data || {}).login;
   if (!username) {
@@ -142,25 +146,25 @@ export async function getAuthUsername(github: Github): Promise<string> {
  * @returns The decoded file contents
  */
 export async function getFile(
-  github: Github,
+  github: Octokit,
   owner: string,
   repo: string,
   path: string,
   ref: string
 ): Promise<string | undefined> {
   try {
-    const response = await github.repos.getContents({
+    const response = await github.repos.getContent({
       owner,
       path,
       ref,
       repo,
     });
     // Response theoretically could be a list of files
-    if (response.data instanceof Array || response.data.content === undefined) {
+    if (response.data instanceof Array || !('content' in response.data)) {
       return undefined;
     }
     return Buffer.from(response.data.content, 'base64').toString();
-  } catch (e) {
+  } catch (e: any) {
     if (e.status === 404) {
       return undefined;
     }

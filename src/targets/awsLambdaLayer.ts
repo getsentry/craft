@@ -1,12 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import * as Github from '@octokit/rest';
+import { Octokit } from '@octokit/rest';
 import simpleGit from 'simple-git';
 import {
   getAuthUsername,
   getGithubApiToken,
-  getGithubClient,
+  getGitHubClient,
   GithubRemote,
 } from '../utils/githubApi';
 
@@ -24,9 +24,7 @@ import { createSymlinks } from '../utils/symlink';
 import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
 import { isPreviewRelease } from '../utils/version';
-import { getRegistryGithubRemote } from '../utils/registry';
-
-const DEFAULT_REGISTRY_REMOTE: GithubRemote = getRegistryGithubRemote();
+import { DEFAULT_REGISTRY_REMOTE } from '../utils/registry';
 
 /** Config options for the "aws-lambda-layer" target. */
 interface AwsLambdaTargetConfig {
@@ -49,7 +47,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   /** Target options */
   public readonly awsLambdaConfig: AwsLambdaTargetConfig;
   /** GitHub client. */
-  public readonly github: Github;
+  public readonly github: Octokit;
   /** The directory where the runtime-specific directories are. */
   private readonly AWS_REGISTRY_DIR = 'aws-lambda-layers';
   /** File containing data fields every new version file overrides  */
@@ -60,7 +58,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);
-    this.github = getGithubClient();
+    this.github = getGitHubClient();
     this.awsLambdaConfig = this.getAwsLambdaConfig();
   }
 
@@ -138,7 +136,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     );
 
     const awsRegions = await getRegionsFromAws();
-    this.logger.debug('AWS regions: ' + awsRegions);
+    this.logger.trace('AWS regions: ', awsRegions);
 
     const remote = this.awsLambdaConfig.registryRemote;
     const username = await getAuthUsername(this.github);
@@ -221,7 +219,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     version: string,
     versionFilepath: string
   ): void {
-    this.logger.debug(`Creating symlinks...`);
+    this.logger.debug('Creating symlinks...');
     const latestVersionPath = path.posix.join(directory, 'latest.json');
     if (fs.existsSync(latestVersionPath)) {
       const previousVersion = fs
@@ -264,8 +262,8 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           this.logger.debug('Finished publishing to all regions.');
         } catch (error) {
           this.logger.error(
-            `Did not publish layers for ${runtime.name}. ` +
-              `Something went wrong with AWS: ${error.message}`
+            `Did not publish layers for ${runtime.name}.`,
+            error
           );
           return;
         }

@@ -1,6 +1,8 @@
 import { writeFileSync } from 'fs';
 import { join } from 'path';
-const os = require('os');
+// XXX(BYK): This is to be able to spy on `homedir()` in tests
+// TODO(BYK): Convert this to ES6 imports
+import os = require('os');
 
 import * as config from '../../config';
 import {
@@ -29,7 +31,8 @@ describe('env utils functions', () => {
       process.env.DOGS = 'RULE'; // just to prevent the function erroring
       checkEnvForPrerequisite({ name: 'DOGS' });
       expect(logger.debug).toHaveBeenCalledWith(
-        expect.stringContaining('Checking for environment variable DOGS')
+        'Checking for environment variable:',
+        'DOGS'
       );
     });
 
@@ -90,13 +93,16 @@ describe('env utils functions', () => {
           checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' })
         ).toThrowError(ConfigurationError);
         expect(logger.debug).toHaveBeenCalledWith(
-          `Checking for environment variable(s) MAISEY or CHARLIE`
+          'Checking for environment variable(s):',
+          'MAISEY or CHARLIE'
         );
         expect(logger.debug).toHaveBeenCalledWith(
-          expect.stringContaining('Checking for environment variable MAISEY')
+          'Checking for environment variable:',
+          'MAISEY'
         );
         expect(logger.debug).toHaveBeenCalledWith(
-          expect.stringContaining('Checking for environment variable CHARLIE')
+          'Checking for environment variable:',
+          'CHARLIE'
         );
       });
 

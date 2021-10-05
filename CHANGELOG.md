@@ -1,9 +1,105 @@
 # Changelog
 
+## 0.25.3
+
+### Various fixes & improvements
+
+- fix: github release uploads (#302)
+
+## 0.25.2
+
+### Automated Changelog Fixups
+
+We have fixed some edge cases and a major issue affecting GitHub release logs in our automated changelog generation. These are mostly about how we generated Markdown.
+
+PRs: #301
+
+### Various fixes & improvements
+
+- docs(changelog): Fix subsections for 0.25.1 (bd1bc975)
+
+## 0.25.1
+
+### Automated Changelog Fixups
+
+We have fixed some edge cases and a major issue affecting GitHub release logs in our automated changelog generation. These are mostly about how we generated Markdown.
+
+PRs: #299, #298, #297, #296, #295
+
+### Various fixes & improvements
+
+- ci(release): Fetch all commits for prev version determination (eabce5ec)
+- upgrade(ansi-regex): Upgrade ansi-regex to 5.0.1 (#300)
+
+## 0.25.0
+
+### Automated Changelog Generation
+
+We now automatically generate changelog entries for the `auto` changelog policy where none provided, instead of saying "No documented changes". The commits/PRs are grouped by their associated GitHub milestones and the milestone title and description are used in the changelog along with a list of related commits/PRs. Any unaccounted changes are grouped under the "Various improvements and fixes" section.
+
+PRs: #291, #290, #289, #287, #285
+
+### Added Maven Target (ongoing)
+
+Added the long-awaited Maven target, full with Android support.
+
+PRs: #271, #275, #276, #270, #258
+
+### Added symbol-collector Target
+
+Added target for our very own [symbol-collector](https://github.com/getsentry/symbol-collector/) to collect and upload all native system symbols with Craft.
+
+PRs: #284, #277, #269, #268, #267, #266
+
+### Fixed Cocoapods Support
+
+Turns out our Cocoapods target was a bit outdated and broken. We have fixed it in this release! 🥳
+
+PRs: #281, #282
+
+### Various fixes & improvements
+
+- build: Drop Node 12 support, target Node 14 (#293)
+- build(deps): Bump tmpl from 1.0.4 to 1.0.5 (#292)
+- ref: Fix TypeScript type warning regarding catch (#288)
+- build(deps): Bump set-value from 3.0.2 to 4.1.0 (#286)
+- ci: Drop Node 10 support, use Node 14 by default (#283)
+- build(deps-dev): Bump tar from 4.4.15 to 4.4.18 (#280)
+- build(deps): Bump path-parse from 1.0.6 to 1.0.7 (#274)
+- build(deps-dev): Bump tar from 4.4.8 to 4.4.15 (#273)
+- docs: Consistent code samples for shell (e84f693f)
+- docs: Mention release/\*\* branches on README (#263)
+
+## 0.24.4
+
+- fix(registry): Fix error w/ simple registry config (#262)
+
+## 0.24.3
+
+- upgrade(parse-url): Force parse-url>=5.0.3 for security (#261)
+
+## 0.24.2
+
+- upgrade(js-yaml): Bump to 3.13.1 for security fixes (#260)
+
+## 0.24.1
+
+- fix(registry): Fix onlyIfPresent config on batch (#259)
+
+## 0.24.0
+
+- ref(zeus): Remove all Zeus support (#253)
+- fix(registry): Fix empty `files` entries (#256)
+
+## 0.23.1
+
+- fix(git): Ensure origin/HEAD is set (#252)
+
 ## 0.23.0
 
 - feat(publish): Ability to merge to non-default (#245)
 - fix(logging): Proper scoping and log levels (#247)
+- feat(registry-target): Allow batched updates w/ new config (#249)
 
 ## 0.22.2
 

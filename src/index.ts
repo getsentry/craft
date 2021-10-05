@@ -85,7 +85,7 @@ function main(): void {
     .command(config)
     .command(artifacts)
     .demandCommand()
-    .version()
+    .version(getPackageVersion())
     .alias('v', 'version')
     .help()
     .alias('h', 'help')

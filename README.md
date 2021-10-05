@@ -51,6 +51,8 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Ruby Gems Index (`gem`)](#ruby-gems-index-gem)
   - [AWS Lambda Layer (`aws-lambda-layer`)](#aws-lambda-layer-aws-lambda-layer)
   - [Unity Package Manager (`upm`)](#unity-package-manager-upm)
+  - [Maven central (`maven`)](#maven-central-maven)
+  - [Symbol Collector (`symbol-collector`)](#symbol-collector-symbol-collector)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Post-release Script: Conventions](#post-release-script-conventions)
@@ -82,7 +84,7 @@ npm install -g @sentry/craft
 
 ## Usage
 
-```plain
+```shell
 $ craft -h
 craft <command>
 
@@ -120,7 +122,7 @@ variables or by adding values to a configuration file (see below).
 All command line flags can be set through environment variables by prefixing
 them with `CRAFT_` and converting them to UPPERCASE_UNDERSCORED versions:
 
-```
+```shell
 CRAFT_LOG_LEVEL=Debug
 CRAFT_DRY_RUN=1
 CRAFT_NO_INPUT=0
@@ -158,7 +160,7 @@ Leading `export` is allowed.
 
 Example:
 
-```sh
+```shell
 # ~/.craft.env
 GITHUB_TOKEN=token123
 export NUGET_API_TOKEN=abcdefgh
@@ -174,7 +176,7 @@ that CI triggered by pushing this branch will result in release artifacts
 being built and uploaded to the artifact provider you wish to use during the
 subsequent `publish` step.
 
-```plain
+```shell
 craft prepare NEW-VERSION
 
 🚢 Prepare a new release branch
@@ -210,7 +212,7 @@ that branch. Once the checks pass, it downloads the release artifacts from the
 artifact provider configured in `.craft.yml` and uploads them to the targets named
 on the command line (and pre-configured in `.craft.yml`).
 
-```plain
+```shell
 craft publish NEW-VERSION
 
 🛫 Publish artifacts
@@ -328,8 +330,13 @@ In `auto` mode, `craft prepare` will use the following logic:
 1. If there's already an entry for the given version, use that
 2. Else if there is an entry named `Unreleased`, rename that to the given
    version
-3. Else, create a new section for the version and populate it with a default
-   text: `- No documented changes for this release.`
+3. Else, create a new section for the version and populate it with the changes
+   since the last version. It uses [GitHub Milestones](https://git.io/Jzlqy) to
+   provide a concise and rich changelog. If the PRs are associated with a
+   milestone, the milestone title and description are used as the changelog
+   entry alongside a brief list of associated PRs. Any individual commits and
+   PRs are listed under the "Various improvements & fixes" section at the
+   bottom. Check out [Craft's own releases](https://git.io/Jzlmu) as example.
 
 **Configuration**
 
@@ -414,7 +421,7 @@ By default, it will use GitHub but you can add more providers if needed.
 
 | Option   | Description                                                                                        |
 | -------- | -------------------------------------------------------------------------------------------------- |
-| `name`   | Name of the status provider: either `github` (default) or `zeus` (deprecated)                      |
+| `name`   | Name of the status provider: only `github` (default) for now.                                      |
 | `config` | In case of `github`: may include `contexts` key that contains a list of required contexts (checks) |
 
 **Example:**
@@ -435,9 +442,9 @@ project, you can set it to `none`.
 
 **Configuration**
 
-| Option | Description                                                                              |
-| ------ | ---------------------------------------------------------------------------------------- |
-| `name` | Name of the artifact provider: `github` (default), `gcs`, `none`, or `zeus` (deprecated) |
+| Option | Description                                                         |
+| ------ | ------------------------------------------------------------------- |
+| `name` | Name of the artifact provider: `github` (default), `gcs`, or `none` |
 
 **Example:**
 
@@ -480,11 +487,11 @@ targets:
 
 The following options can be applied to every target individually:
 
-| Name           | Description                                                                                                                                                                                                                                                                           |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `includeNames` | **optional**. Regular expression: only matched files will be processed by the target. There is one special case that `includeNames` supports, if your build doesn't any artifacts you can write `includeNames: /none/`, this will skip the check for artifacts towards Zeus entirely. |
-| `excludeNames` | **optional**. Regular expression: the matched files will be skipped by the target. Matching is performed after testing for inclusion (via `includeNames`).                                                                                                                            |
-| `id`           | **optional**. A unique id for the target type so one can refer to that target individually with the `-t` option with the `publish` command like `-t registry[browser]`. (see the example config above)                                                                                |
+| Name           | Description                                                                                                                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `includeNames` | **optional**. Regular expression: only matched files will be processed by the target. There is one special case that `includeNames` supports.                                                          |
+| `excludeNames` | **optional**. Regular expression: the matched files will be skipped by the target. Matching is performed after testing for inclusion (via `includeNames`).                                             |
+| `id`           | **optional**. A unique id for the target type so one can refer to that target individually with the `-t` option with the `publish` command like `-t registry[browser]`. (see the example config above) |
 
 If neither option is included, all artifacts for the release will be processed by the target.
 
@@ -794,38 +801,37 @@ the corresponding package directory can be found inside "packages" directory of 
 release regsitry. Type "app" indicates that the package's version files are located
 in "apps" directory of the registry.
 
+It is strongly discouraged to have multiple `registry` targets in a config as it
+supports grouping/batching multiple apps and SDKs in a single target.
+
 **Environment**
 
 _none_
 
 **Configuration**
 
-| Option             | Description                                                                                                                                                                                                                               |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `type`             | Type of the package: can be "sdk" or "app".                                                                                                                                                                                               |
-| `config.canonical` | Canonical name of the package that includes package registry name (e.g. NPM, PyPI) and the full package name.                                                                                                                             |
-| `urlTemplate`      | **optional** URL template that will be used to generate download links for "app" package type.                                                                                                                                            |
-| `linkPrereleases`  | **optional** Update package versions even if the release is a preview release, "false" by default.                                                                                                                                        |
-| `checksums`        | **optional** A list of checksums that will be computed for matched files (see `includeNames`). Every checksum entry is an object with two attributes: algorithm (one of "sha256", "sha384", and "sha512) and format ("base64" and "hex"). |
-| `onlyIfPresent`    | **optional** A file pattern. The target will be executed _only_ when the matched file is found.                                                                                                                                           |
+| Option                         | Description                                                                                                                                                                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `apps`                         | List of `app` configs as a dict, keyed by their canonical names (example: `app:craft`)                                                                                                                                                     |
+| `sdks`                         | List of `sdk` configs as a dict, keyed by their canonical names (example: `maven:io.sentry:sentry`)                                                                                                                                        |
+| `(sdks\|apps).urlTemplate`     | **optional** URL template that will be used to generate download links for "app" package type.                                                                                                                                             |
+| `(sdks\|apps).linkPrereleases` | **optional** Update package versions even if the release is a preview release, "false" by default.                                                                                                                                         |
+| `(sdks\|apps).checksums`       | **optional** A list of checksums that will be computed for matched files (see `includeNames`). Every checksum entry is an object with two attributes: algorithm (one of `sha256`, `sha384`, and `sha512`) and format (`base64` and `hex`). |
+| `(sdks\|apps).onlyIfPresent`   | **optional** A file pattern. The target will be executed _only_ when the matched file is found.                                                                                                                                            |
 
 **Example**
 
 ```yaml
 targets:
   - name: registry
-    type: sdk
-    config:
-      canonical: 'npm:@sentry/browser'
-
-  - name: registry
-    type: app
-    urlTemplate: 'https://example.com/{{version}}/{{file}}'
-    config:
-      canonical: 'npm:@sentry/browser'
-    checksums:
-      - algorithm: sha256
-        format: hex
+    sdks:
+      'npm:@sentry/browser':
+    apps:
+      'npm:@sentry/browser':
+        urlTemplate: 'https://example.com/{{version}}/{{file}}'
+        checksums:
+          - algorithm: sha256
+            format: hex
 ```
 
 ### Cocoapods (`cocoapods`)
@@ -989,6 +995,89 @@ targets:
     releaseRepoName: 'unity'
 ```
 
+### Maven central (`maven`)
+
+PGP signs and publishes packages to Maven Central.
+
+Note: in order to see the output of the commands, set the [logging level](#logging-level) to `trace`.
+
+**Environment**
+
+| Name             | Description                      |
+| ---------------- | -------------------------------- |
+| `OSSRH_USERNAME` | Username of Sonatype repository. |
+| `OSSRH_PASSWORD` | Password of Sonatype repository. |
+
+**Configuration**
+
+| Option              | Description                                                           |
+| ------------------- | --------------------------------------------------------------------- |
+| `gradleCliPath`     | Path to the Gradle CLI. It must be executable by the calling process. |
+| `mavenCliPath`      | Path to the Maven CLI. It must be executable by the calling process.  |
+| `mavenSettingsPath` | Path to the Maven `settings.xml` file.                                |
+| `mavenRepoId`       | ID of the Maven server in the `settings.xml`.                         |
+| `mavenRepoUrl`      | URL of the Maven repository.                                          |
+| `android`           | Android configuration, see below.                                     |
+
+If your project isn't related to Android, you don't need this configuration and
+can set the option to `false`. If not, set the following nested elements:
+
+- `distDirRegex`: pattern of distribution directory names.
+- `fileReplaceeRegex`: pattern of substring of distribution module names to be replaced to get the Android distribution file.
+- `fileReplacerStr`: string to be replaced in the module names to get the Android distribution file.
+
+**Example (without Android config)**
+
+```yaml
+targets:
+  - name: maven
+    gradleCliPath: ./gradlew
+    mavenCliPath: scripts/mvnw.cmd
+    mavenSettingsPath: scripts/settings.xml
+    mavenRepoId: ossrh
+    mavenRepoUrl: https://oss.sonatype.org/service/local/staging/deploy/maven2/
+    android: false
+```
+
+**Example (with Android config)**
+
+```yaml
+targets:
+  - name: maven
+    gradleCliPath: ./gradlew
+    mavenCliPath: scripts/mvnw.cmd
+    mavenSettingsPath: scripts/settings.xml
+    mavenRepoId: ossrh
+    mavenRepoUrl: https://oss.sonatype.org/service/local/staging/deploy/maven2/
+    android:
+      distDirRegex: /^sentry-android-.*$/
+      fileReplaceeRegex: /\d\.\d\.\d(-SNAPSHOT)?/
+      fileReplacerStr: release.aar
+```
+
+### Symbol Collector (`symbol-collector`)
+
+Using the [`symbol-collector`](https://github.com/getsentry/symbol-collector) client, uploads native symbols.
+The `symbol-collector` needs to be available in the path.
+
+**Configuration**
+
+| Option           | Description                                                                                  |
+| ---------------- | -------------------------------------------------------------------------------------------- |
+| `serverEndpoint` | **optional** The server endpoint. Defaults to `https://symbol-collector.services.sentry.io`. |
+| `batchType`      | The batch type of the symbols to be uploaded. I.e: `Android`, `macOS`, `iOS`.                |
+| `bundleIdPrefix` | The prefix of the bundle ID. The new version will be appended to the end of this prefix.     |
+
+**Example**
+
+```yaml
+targets:
+  - name: symbol-collector
+    includeNames: /libsentry(-android)?\.so/
+    batchType: Android
+    bundleIdPrefix: android-ndk-
+```
+
 ## Integrating Your Project with `craft`
 
 Here is how you can integrate your GitHub project with `craft`:
@@ -996,6 +1085,14 @@ Here is how you can integrate your GitHub project with `craft`:
 1. Set up a workflow that builds your assets and runs your tests. Allow building
    release branches (their names follow `release/{VERSION}` by default,
    configurable through `releaseBranchPrefix`).
+
+   ```yaml
+   on:
+     push:
+       branches:
+         - 'release/**'
+   ```
+
 2. Use the official `actions/upload-artifact@v2` action to upload your assets.
    Here is an example config (step) of an archive job:
 
@@ -1117,7 +1214,7 @@ configuration file) that contains a Sentry project's DSN.
 
 For example:
 
-```bash
+```shell
 export CRAFT_SENTRY_DSN='https://1234@sentry.io/2345'
 ```
 

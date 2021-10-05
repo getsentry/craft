@@ -1,8 +1,15 @@
-minVersion: '0.21.0'
-github:
-  owner: getsentry
-  repo: craft
+minVersion: '0.25.3'
 changelogPolicy: auto
+preReleaseCommand: >-
+  node -p "
+    const {execSync} = require('child_process');
+    execSync('npm --no-git-tag-version version ' + process.env.CRAFT_NEW_VERSION).toString();
+  "
+postReleaseCommand: >-
+  node -p "
+    const {execSync} = require('child_process');
+    execSync('npm --no-git-tag-version version preminor --preid=dev').toString();
+  "
 requireNames:
   - /^sentry-craft.*\.tgz$/
   - /^craft$/
@@ -19,13 +26,12 @@ targets:
         metadata:
           cacheControl: 'public, max-age=300'
   - name: registry
-    type: app
-    urlTemplate: 'https://downloads.sentry-cdn.com/craft/{{version}}/{{file}}'
-    checksums:
-      - algorithm: sha256
-        format: hex
-    config:
-      canonical: 'app:craft'
+    apps:
+      'app:craft':
+        urlTemplate: 'https://downloads.sentry-cdn.com/craft/{{version}}/{{file}}'
+        checksums:
+          - algorithm: sha256
+            format: hex
   - name: docker
     source: us.gcr.io/sentryio/craft
     target: getsentry/craft

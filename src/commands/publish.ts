@@ -25,7 +25,7 @@ import { handleGlobalError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
 import { isDryRun, promptConfirmation } from '../utils/helpers';
-import { formatSize, formatJson } from '../utils/strings';
+import { formatSize } from '../utils/strings';
 import {
   catchKeyboardInterrupt,
   hasExecutable,
@@ -162,8 +162,8 @@ async function publishToTarget(
   version: string,
   revision: string
 ): Promise<void> {
-  const publishMessage = `=== Publishing to target: ${chalk.bold(
-    chalk.cyan(target.id)
+  const publishMessage = `=== Publishing to target: ${chalk.bold.cyan(
+    target.id
   )} ===`;
   const delim = Array(stringLength(publishMessage) + 1).join('=');
   logger.info(' ');
@@ -215,7 +215,7 @@ async function getTargetList(
   targetConfigList: TargetConfig[],
   artifactProvider: BaseArtifactProvider
 ): Promise<BaseTarget[]> {
-  logger.debug('Initializing targets');
+  logger.trace('Initializing targets');
   const githubRepo = await getGlobalGithubConfig();
   const targetList: BaseTarget[] = [];
   for (const targetConfig of targetConfigList) {
@@ -226,6 +226,8 @@ async function getTargetList(
       continue;
     }
     try {
+      logger.debug(`Creating target ${targetDescriptor}`);
+      logger.trace(targetConfig);
       const target = new targetClass(
         targetConfig,
         artifactProvider,
@@ -250,7 +252,7 @@ async function getTargetList(
  * Using the "requiredNames", we can introduce artifact patterns/names that *have* to
  * be present before starting the publishing process.
  *
- * @param zeus Zeus store object
+ * @param artifactProvider Artifact provider instance
  * @param revision Git revision SHA
  * @param requiredNames A list of patterns that all have to match
  */
@@ -293,12 +295,10 @@ async function checkRequiredArtifacts(
   }
 }
 
-// TODO there is at least one case that is not covered: how to detect Zeus builds
-// that have unknown status (neither failed nor succeeded)
 /**
- * Checks statuses of all builds on Zeus for the provided revision
+ * Checks statuses of all builds on the status provider for the provided revision
  *
- * @param zeus Zeus store object
+ * @param statusProvider Status provider instance
  * @param revision Git commit SHA to check
  * @param skipStatusCheckFlag A flag to enable/disable this check
  */
@@ -316,12 +316,13 @@ async function checkRevisionStatus(
     logger.debug('Fetching repository information...');
     // This will additionally check that the user has proper permissions
     const repositoryInfo = await statusProvider.getRepositoryInfo();
-    logger.debug(`Repository info received: "${formatJson(repositoryInfo)}"`);
+    logger.debug('Repository info received');
+    logger.trace(repositoryInfo);
   } catch (e) {
-    reportError(
-      'Cannot get repository information from Zeus. Check your configuration and credentials. ' +
-        `Error: ${e.message}`
+    logger.error(
+      `Cannot get repository information from ${statusProvider.config.name}. Check your configuration and credentials.`
     );
+    reportError(e);
   }
 
   await statusProvider.waitForTheBuildToSucceed(revision);
@@ -345,11 +346,11 @@ async function getMergeTarget(
     '--oneline'
   );
   logger.debug('Trying to find merge target:');
-  logger.debug(logOutput);
+  logger.trace(logOutput);
   const branchName =
     stripRemoteName(
       logOutput
-        .match(/^[\da-f]+ \((?!HEAD )([^)]+)\)/m)?.[1]
+        .match(/^[\da-f]+ \((?!HEAD |tag: )([^)]+)\)/m)?.[1]
         ?.split(',', 1)?.[0],
       remoteName
     ) || (await getDefaultBranch(git, remoteName));
@@ -609,7 +610,11 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       // file. If unlinking fails, we honestly don't care, at least to fail
       // the final steps. And it doesn't make sense to wait until this op
       // finishes then as nothing relies on the removal of this file.
-      fsPromises.unlink(publishStateFile);
+      fsPromises
+        .unlink(publishStateFile)
+        .catch(err =>
+          logger.trace("Couldn't remove publish state file: ", err)
+        );
     }
     logger.success(`Version ${newVersion} has been published!`);
   } else {

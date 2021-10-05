@@ -69,14 +69,12 @@ export const enum ChangelogPolicy {
  * Name of the status provider
  */
 export const enum StatusProviderName {
-  Zeus = 'zeus',
   Github = 'github',
 }
 /**
  * Name of the artifact provider
  */
 export const enum ArtifactProviderName {
-  Zeus = 'zeus',
   GCS = 'gcs',
   Github = 'github',
   None = 'none',

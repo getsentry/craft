@@ -60,8 +60,8 @@ const projectConfigJsonSchema = {
           title: 'StatusProviderName',
           description: 'Name of the status provider',
           type: 'string',
-          enum: ['zeus', 'github'],
-          tsEnumNames: ['Zeus', 'Github'],
+          enum: ['github'],
+          tsEnumNames: ['Github'],
         },
         config: {
           type: 'object',
@@ -79,8 +79,8 @@ const projectConfigJsonSchema = {
           title: 'ArtifactProviderName',
           description: 'Name of the artifact provider',
           type: 'string',
-          enum: ['zeus', 'gcs', 'github', 'none'],
-          tsEnumNames: ['Zeus', 'GCS', 'Github', 'None'],
+          enum: ['gcs', 'github', 'none'],
+          tsEnumNames: ['GCS', 'Github', 'None'],
         },
         config: {
           type: 'object',
