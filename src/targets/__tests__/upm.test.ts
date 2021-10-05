@@ -1,6 +1,6 @@
 import { setGlobals } from '../../utils/helpers';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
-import { UpmTarget } from '../upm';
+import { ARTIFACT_NAME, UpmTarget } from '../upm';
 
 describe('UPM Target', () => {
   const cleanEnv = { ...process.env };
@@ -32,7 +32,7 @@ describe('UPM Target', () => {
     test.each`
       artifacts             | error
       ${[]}                 | ${'Cannot publish UPM: No release artifact found.'}
-      ${['file1', 'file2']} | ${'Cannot publish UPM: Failed to find "package-release.zip" in the artifacts.'}
+      ${['file1', 'file2']} | ${'Cannot publish UPM: Failed to find "' + ARTIFACT_NAME + '" in the artifacts.'}
     `(
       'error with artifact count $artifacts.length',
       async ({ artifacts, error }) => {

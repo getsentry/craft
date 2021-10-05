@@ -21,7 +21,7 @@ import { isDryRun } from '../utils/helpers';
 import { NoneArtifactProvider } from '../artifact_providers/none';
 
 /** Name of the artifact that contains the UPM package */
-const ARTIFACT_NAME = 'package-release.zip';
+export const ARTIFACT_NAME = 'package-release.zip';
 
 /**
  * Target responsible for publishing to upm registry
