@@ -390,7 +390,7 @@ export class GithubTarget extends BaseTarget {
         if (localChecksum !== remoteChecksum) {
           logger.trace(`Checksum mismatch for "${name}"`, response.headers);
           throw new Error(
-            `Uploaded asset MD5 checksum does not match local asset checsum for "${name} (${localChecksum} != ${remoteChecksum})`
+            `Uploaded asset MD5 checksum does not match local asset checksum for "${name} (${localChecksum} != ${remoteChecksum})`
           );
         }
       } catch (e) {
