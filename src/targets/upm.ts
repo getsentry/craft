@@ -77,7 +77,7 @@ export class UpmTarget extends BaseTarget {
     }
 
     const packageFile = packageFiles.find(
-      packageFile => packageFile.filename === ARTIFACT_NAME
+      ({ filename }) => filename === ARTIFACT_NAME
     );
     if (packageFile === undefined) {
       reportError(
