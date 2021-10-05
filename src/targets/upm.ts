@@ -75,9 +75,13 @@ export class UpmTarget extends BaseTarget {
       return;
     }
 
-    const packageFile = packageFiles.find(packageFile => packageFile.filename === this.packageName);
-    if(packageFile === undefined) {
-      reportError(`Cannot publish UPM: Failed to find "${this.packageName}" in the artifacts.`);
+    const packageFile = packageFiles.find(
+      packageFile => packageFile.filename === this.packageName
+    );
+    if (packageFile === undefined) {
+      reportError(
+        `Cannot publish UPM: Failed to find "${this.packageName}" in the artifacts.`
+      );
     }
 
     return packageFile;
