@@ -20,6 +20,9 @@ import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
 import { NoneArtifactProvider } from '../artifact_providers/none';
 
+/** Name of the artifact that contains the UPM package */
+export const ARTIFACT_NAME = 'package-release.zip';
+
 /**
  * Target responsible for publishing to upm registry
  */
@@ -72,16 +75,17 @@ export class UpmTarget extends BaseTarget {
       reportError('Cannot publish UPM: No release artifact found.');
       return;
     }
-    if (packageFiles.length > 1) {
+
+    const packageFile = packageFiles.find(
+      ({ filename }) => filename === ARTIFACT_NAME
+    );
+    if (packageFile === undefined) {
       reportError(
-        `Cannot publish UPM: Too many release artifacts found:\n${packageFiles.join(
-          '\n'
-        )}`
+        `Cannot publish UPM: Failed to find "${ARTIFACT_NAME}" in the artifacts.`
       );
-      return;
     }
 
-    return packageFiles[0];
+    return packageFile;
   }
 
   /**
