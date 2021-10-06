@@ -25,6 +25,8 @@ export interface PypiTargetOptions {
   twineUsername: string;
   /** Twine password */
   twinePassword: string;
+  /** Twine Repository URL */
+  twineRepository?: string;
 }
 
 /**
@@ -61,6 +63,7 @@ export class PypiTarget extends BaseTarget {
     return {
       twinePassword: process.env.TWINE_PASSWORD,
       twineUsername: process.env.TWINE_USERNAME,
+      twineRepository: process.env.TWINE_REPOSITORY_URL || 'https://upload.pypi.org/legacy/',
     };
   }
 
