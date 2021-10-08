@@ -401,14 +401,16 @@ export class RegistryTarget extends BaseTarget {
       version
     );
 
-    updateManifestSymlinks(
-      await this.getUpdatedManifest(
-        registryConfig,
-        packageManifest,
-        canonicalName,
-        version,
-        revision
-      ),
+    const newManifest = await this.getUpdatedManifest(
+      registryConfig,
+      packageManifest,
+      canonicalName,
+      version,
+      revision
+    );
+
+    await updateManifestSymlinks(
+      newManifest,
       version,
       versionFilePath,
       packageManifest.version || undefined
