@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.26.0
+
+### Increase Release Safety and Reliability (ongoing)
+
+We recently had an [incident](https://github.com/getsentry/craft/pull/302) where we were uploading broken assets to GitHub releases page. We now verify the uploads to GitHub releases and GCS via hash comparison.
+
+PRs: #308, #304
+
+### Various fixes & improvements
+
+- fix(registry): Add missing await to manifest update (#311)
+- fix: Only log error on tempdir rm when ther is an error (#309)
+- fix: UPM no longer expects exactly 1 artifact (#307)
+
 ## 0.25.3
 
 ### Various fixes & improvements
