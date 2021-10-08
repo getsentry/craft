@@ -8,7 +8,8 @@ preReleaseCommand: >-
 postReleaseCommand: >-
   node -p "
     const {execSync} = require('child_process');
-    execSync('npm --no-git-tag-version version preminor --preid=dev').toString();
+    execSync('npm --no-git-tag-version version preminor --preid=dev')
+    execSync('git diff --quiet || git commit -anm \'meta: Bump new development version\' && git pull --rebase && git push').toString();
   "
 requireNames:
   - /^sentry-craft.*\.tgz$/
