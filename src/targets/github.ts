@@ -1,4 +1,5 @@
 import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
+import { RequestError } from '@octokit/request-error';
 import { readFileSync, promises, statSync } from 'fs';
 import { basename } from 'path';
 import { createHash } from 'crypto';
@@ -60,6 +61,24 @@ interface GithubRelease {
 type GithubCreateTagType = 'commit' | 'tree' | 'blob';
 
 type ReposListAssetsForReleaseResponseItem = RestEndpointMethodTypes['repos']['listReleaseAssets']['response']['data'][0];
+
+interface OctokitError {
+  resource: string;
+  field: string;
+  code:
+    | 'missing'
+    | 'missing_field'
+    | 'invalid'
+    | 'already_exists'
+    | 'unprocessable'
+    | 'custom';
+  message?: string;
+}
+interface OctokitErrorBody {
+  message: string;
+  errors: OctokitError[];
+  documentation_url?: string;
+}
 
 /**
  * Target responsible for publishing releases on Github
@@ -251,34 +270,13 @@ export class GithubTarget extends BaseTarget {
   public async deleteAsset(
     asset: ReposListAssetsForReleaseResponseItem
   ): Promise<
-    | RestEndpointMethodTypes['repos']['deleteReleaseAsset']['response']
-    | undefined
+    RestEndpointMethodTypes['repos']['deleteReleaseAsset']['response']
   > {
-    if (isDryRun()) {
-      this.logger.debug(`[dry-run] Not deleting the asset: "${asset.name}"`);
-      return;
-    }
-
     this.logger.debug(`Deleting asset: "${asset.name}"...`);
     return this.github.repos.deleteReleaseAsset({
       asset_id: asset.id,
-      owner: this.githubConfig.owner,
-      repo: this.githubConfig.repo,
+      ...this.githubConfig,
     });
-  }
-
-  /**
-   * Delete all provided assets
-   *
-   * @param assets A list of assets to delete
-   */
-  public async deleteAssets(
-    assets: ReposListAssetsForReleaseResponseItem[]
-  ): Promise<void> {
-    // Doing it serially, just in case
-    for (const asset of assets) {
-      await this.deleteAsset(asset);
-    }
   }
 
   /**
@@ -289,12 +287,12 @@ export class GithubTarget extends BaseTarget {
    * @param release Release to fetch assets from
    */
   public async getAssetsForRelease(
-    release: GithubRelease
+    release_id: number
   ): Promise<ReposListAssetsForReleaseResponseItem[]> {
     const assetsResponse = await this.github.repos.listReleaseAssets({
       owner: this.githubConfig.owner,
       per_page: 50,
-      release_id: release.id,
+      release_id,
       repo: this.githubConfig.repo,
     });
     return assetsResponse.data;
@@ -304,18 +302,20 @@ export class GithubTarget extends BaseTarget {
    * Deletes assets with the given name from the specific release
    *
    * @param release Release object
-   * @param name Assets with this name will be deleted
+   * @param assetName Assets with this name will be deleted
    */
   public async deleteAssetsByFilename(
-    release: GithubRelease,
-    name: string
-  ): Promise<void> {
-    const assets = await this.getAssetsForRelease(release);
-    for (const asset of assets) {
-      if (asset.name === name) {
-        await this.deleteAsset(asset);
-      }
-    }
+    release_id: number,
+    assetName: string
+  ): Promise<
+    RestEndpointMethodTypes['repos']['deleteReleaseAsset']['response'][]
+  > {
+    const assets = await this.getAssetsForRelease(release_id);
+    return Promise.all(
+      assets
+        .filter(({ name }) => name === assetName)
+        .map(asset => this.deleteAsset(asset))
+    );
   }
 
   /**
@@ -343,64 +343,113 @@ export class GithubTarget extends BaseTarget {
       name,
     };
     this.logger.trace('Upload parameters:', params);
-    if (!isDryRun()) {
-      const uploadSpinner = ora(
-        `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}`
-      ).start();
-      try {
-        const file = readFileSync(path);
-        const { url, size } = (
-          await this.github.repos.uploadReleaseAsset({
-            ...params,
-            // XXX: Octokit types this out as string, but in fact it also
-            // accepts a `Buffer` here. In fact passing a string is not what we
-            // want as we upload binary data.
-            data: file as any,
-          })
-        ).data;
 
-        uploadSpinner.text = `Verifying asset "${name}...`;
-        if (size != stats.size) {
-          throw new Error(
-            `Uploaded asset size does not match local asset size for "${name} (${stats.size} != ${size}).`
-          );
-        }
-
-        // XXX: This is a bit hacky as we rely on two things:
-        // 1. GitHub issuing a redirect to S3, where they store the artifacts,
-        //    or at least pass those request headers unmodified to us
-        // 2. AWS S3 using the MD5 hash of the file for its ETag cache header
-        //    when we issue a HEAD request.
-        const response = await this.github.request(`HEAD ${url}`, {
-          headers: {
-            // WARNING: You **MUST** pass this accept header otherwise you'll
-            //          get a useless JSON API response back, instead of getting
-            //          redirected to the raw file itself.
-            //          And don't even think about using `browser_download_url`
-            //          field as it is close to impossible to authendicate for
-            //          that URL with a token and you'll lose hours getting 404s
-            //          for private repos. Consider yourself warned. --xoxo BYK
-            Accept: DEFAULT_CONTENT_TYPE,
-          },
-        });
-
-        // ETag header comes in quotes for some reason so strip those
-        const remoteChecksum = response.headers['etag']?.slice(1, -1);
-        const localChecksum = createHash('md5').update(file).digest('hex');
-        if (localChecksum !== remoteChecksum) {
-          logger.trace(`Checksum mismatch for "${name}"`, response.headers);
-          throw new Error(
-            `Uploaded asset MD5 checksum does not match local asset checksum for "${name} (${localChecksum} != ${remoteChecksum})`
-          );
-        }
-      } catch (e) {
-        uploadSpinner.fail(`Cannot upload asset "${name}".`);
-
-        throw e;
-      }
-      uploadSpinner.succeed(`Uploaded asset "${name}".`);
-    } else {
+    if (isDryRun()) {
       this.logger.info(`[dry-run] Not uploading asset "${name}"`);
+      return;
+    }
+
+    const uploadSpinner = ora(
+      `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}`
+    ).start();
+    try {
+      const file = readFileSync(path);
+      const { url, size } = await this.handleGitHubUpload(params, file);
+
+      uploadSpinner.text = `Verifying asset "${name}...`;
+      if (size != stats.size) {
+        throw new Error(
+          `Uploaded asset size does not match local asset size for "${name} (${stats.size} != ${size}).`
+        );
+      }
+
+      // XXX: This is a bit hacky as we rely on two things:
+      // 1. GitHub issuing a redirect to S3, where they store the artifacts,
+      //    or at least pass those request headers unmodified to us
+      // 2. AWS S3 using the MD5 hash of the file for its ETag cache header
+      //    when we issue a HEAD request.
+      const response = await this.github.request(`HEAD ${url}`, {
+        headers: {
+          // WARNING: You **MUST** pass this accept header otherwise you'll
+          //          get a useless JSON API response back, instead of getting
+          //          redirected to the raw file itself.
+          //          And don't even think about using `browser_download_url`
+          //          field as it is close to impossible to authendicate for
+          //          that URL with a token and you'll lose hours getting 404s
+          //          for private repos. Consider yourself warned. --xoxo BYK
+          Accept: DEFAULT_CONTENT_TYPE,
+        },
+      });
+
+      // ETag header comes in quotes for some reason so strip those
+      const remoteChecksum = response.headers['etag']?.slice(1, -1);
+      const localChecksum = createHash('md5').update(file).digest('hex');
+      if (localChecksum !== remoteChecksum) {
+        logger.trace(`Checksum mismatch for "${name}"`, response.headers);
+        throw new Error(
+          `Uploaded asset MD5 checksum does not match local asset checksum for "${name} (${localChecksum} != ${remoteChecksum})`
+        );
+      }
+    } catch (e) {
+      uploadSpinner.fail(`Cannot upload asset "${name}".`);
+
+      throw e;
+    }
+    uploadSpinner.succeed(`Uploaded asset "${name}".`);
+  }
+
+  private async handleGitHubUpload(
+    params: {
+      headers: { 'Content-Length': number; 'Content-Type': string };
+      release_id: number;
+      name: string;
+      /** Path to changelon inside the repository */
+      changelog: string;
+      /** Prefix that will be used to generate tag name */
+      tagPrefix: string;
+      /** Mark releases as pre-release, if the version looks like a non-public release */
+      previewReleases: boolean;
+      /** Use annotated (not lightweight) tag */
+      annotatedTag: boolean;
+      owner: string;
+      repo: string;
+      projectPath?: string | undefined;
+    },
+    file: Buffer
+  ): Promise<{ url: string; size: number }> {
+    try {
+      return (
+        await this.github.repos.uploadReleaseAsset({
+          ...params,
+          // XXX: Octokit types this out as string, but in fact it also
+          // accepts a `Buffer` here. In fact passing a string is not what we
+          // want as we upload binary data.
+          data: file as any,
+        })
+      ).data;
+    } catch (err) {
+      if (!(err instanceof RequestError)) {
+        throw err;
+      }
+
+      const isAssetExistsError =
+        err.status == 422 &&
+        (err.response?.data as OctokitErrorBody)?.errors?.some(
+          ({ resource, code, field }) =>
+            resource === 'ReleaseAsset' &&
+            code === 'already_exists' &&
+            field === 'name'
+        );
+
+      if (isAssetExistsError) {
+        logger.info(
+          'Got "asset already exists" error, deleting and retrying...'
+        );
+        await this.deleteAssetsByFilename(params.release_id, params.name);
+        return this.handleGitHubUpload(params, file);
+      }
+
+      throw err;
     }
   }
 
@@ -420,27 +469,28 @@ export class GithubTarget extends BaseTarget {
     }
     const release = await this.getOrCreateRelease(version, revision, changelog);
 
-    if (isDryRun()) {
-      this.logger.info(
-        `[dry-run] Skipping check for existing assets for the release`
+    const assets = await this.getAssetsForRelease(release.id);
+    if (assets.length > 0) {
+      this.logger.warn(
+        'Existing assets found for the release, deleting them...'
       );
-    } else {
-      const assets = await this.getAssetsForRelease(release);
-      if (assets.length > 0) {
-        this.logger.warn(
-          'Existing assets found for the release, deleting them...'
-        );
-        await this.deleteAssets(assets);
+      if (isDryRun()) {
+        this.logger.info('[dry-run] Not deleting assets.');
+      } else {
+        await Promise.allSettled(assets.map(asset => this.deleteAsset(asset)));
         this.logger.debug(`Deleted ${assets.length} assets`);
       }
     }
 
     const artifacts = await this.getArtifactsForRevision(revision);
     await Promise.all(
-      artifacts.map(async artifact => {
-        const path = await this.artifactProvider.downloadArtifact(artifact);
-        return this.uploadAsset(release, path, artifact.mimeType);
-      })
+      artifacts.map(async artifact =>
+        this.uploadAsset(
+          release,
+          await this.artifactProvider.downloadArtifact(artifact),
+          artifact.mimeType
+        )
+      )
     );
   }
 }
