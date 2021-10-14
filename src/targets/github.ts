@@ -304,7 +304,7 @@ export class GithubTarget extends BaseTarget {
    * @param release Release object
    * @param assetName Assets with this name will be deleted
    */
-  public async deleteAssetByFilename(
+  public async deleteAssetByName(
     release_id: number,
     assetName: string
   ): Promise<
@@ -436,6 +436,8 @@ export class GithubTarget extends BaseTarget {
         throw err;
       }
 
+      // This usually happens when the upload gets interrupted somehow with a
+      // 5xx error. See the docs here: https://git.io/JKZot
       const isAssetExistsError =
         err.status == 422 &&
         (err.response?.data as OctokitErrorBody)?.errors?.some(
@@ -449,7 +451,7 @@ export class GithubTarget extends BaseTarget {
         logger.info(
           'Got "asset already exists" error, deleting and retrying...'
         );
-        await this.deleteAssetByFilename(params.release_id, params.name);
+        await this.deleteAssetByName(params.release_id, params.name);
         return this.handleGitHubUpload(params, file);
       }
 
