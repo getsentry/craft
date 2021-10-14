@@ -304,18 +304,22 @@ export class GithubTarget extends BaseTarget {
    * @param release Release object
    * @param assetName Assets with this name will be deleted
    */
-  public async deleteAssetsByFilename(
+  public async deleteAssetByFilename(
     release_id: number,
     assetName: string
   ): Promise<
-    RestEndpointMethodTypes['repos']['deleteReleaseAsset']['response'][]
+    RestEndpointMethodTypes['repos']['deleteReleaseAsset']['response']
   > {
     const assets = await this.getAssetsForRelease(release_id);
-    return Promise.all(
-      assets
-        .filter(({ name }) => name === assetName)
-        .map(asset => this.deleteAsset(asset))
-    );
+    const assetToDelete = assets.find(({ name }) => name === assetName);
+    if (!assetToDelete) {
+      throw new Error(
+        `No such asset with the name ${assetToDelete}.We have these instead: ${assets.map(
+          ({ name }) => name
+        )}`
+      );
+    }
+    return this.deleteAsset(assetToDelete);
   }
 
   /**
@@ -445,7 +449,7 @@ export class GithubTarget extends BaseTarget {
         logger.info(
           'Got "asset already exists" error, deleting and retrying...'
         );
-        await this.deleteAssetsByFilename(params.release_id, params.name);
+        await this.deleteAssetByFilename(params.release_id, params.name);
         return this.handleGitHubUpload(params, file);
       }
 
