@@ -409,7 +409,8 @@ export class GithubTarget extends BaseTarget {
   }
 
   private async handleGitHubUpload(
-    params: RestEndpointMethodTypes['repos']['uploadReleaseAsset']['parameters']
+    params: RestEndpointMethodTypes['repos']['uploadReleaseAsset']['parameters'],
+    retries = 3
   ): Promise<{ url: string; size: number }> {
     try {
       return (await this.github.repos.uploadReleaseAsset(params)).data;
@@ -433,9 +434,15 @@ export class GithubTarget extends BaseTarget {
         throw err;
       }
 
+      if (retries <= 0) {
+        throw new Error(
+          `Reached maximum retries for trying to upload asset "${params.name}.`
+        );
+      }
+
       logger.info('Got "asset already exists" error, deleting and retrying...');
       await this.deleteAssetByName(params.release_id, params.name);
-      return this.handleGitHubUpload(params);
+      return this.handleGitHubUpload(params, --retries);
     }
   }
 
