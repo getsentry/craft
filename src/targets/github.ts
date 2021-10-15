@@ -429,15 +429,13 @@ export class GithubTarget extends BaseTarget {
             field === 'name'
         );
 
-      if (isAssetExistsError) {
-        logger.info(
-          'Got "asset already exists" error, deleting and retrying...'
-        );
-        await this.deleteAssetByName(params.release_id, params.name);
-        return this.handleGitHubUpload(params);
+      if (!isAssetExistsError) {
+        throw err;
       }
 
-      throw err;
+      logger.info('Got "asset already exists" error, deleting and retrying...');
+      await this.deleteAssetByName(params.release_id, params.name);
+      return this.handleGitHubUpload(params);
     }
   }
 
