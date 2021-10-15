@@ -15,6 +15,7 @@ export const SKIP_CHANGELOG_MAGIC_WORD = '#skip-changelog';
 const DEFAULT_CHANGESET_BODY = '- No documented changes.';
 const VERSION_HEADER_LEVEL = 2;
 const SUBSECTION_HEADER_LEVEL = VERSION_HEADER_LEVEL + 1;
+const MAX_COMMITS_PER_QUERY = 50;
 
 // Ensure subsections are nested under version headers otherwise we won't be
 // able to find them and put on GitHub releases.
@@ -318,20 +319,24 @@ export async function generateChangesetFromGit(
   return changelogSections.join('\n\n');
 }
 
-interface CommitInfoResult {
-  repository: {
-    [hash: string]: {
-      associatedPullRequests: {
-        nodes: Array<{
-          number: string;
-          body: string;
-          milestone: {
-            number: string;
-          };
-        }>;
+interface CommitInfo {
+  associatedPullRequests: {
+    nodes: Array<{
+      number: string;
+      body: string;
+      milestone: {
+        number: string;
       };
-    } | null;
+    }>;
   };
+}
+
+interface CommitInfoMap {
+  [hash: string]: CommitInfo | null;
+}
+
+interface CommitInfoResult {
+  repository: CommitInfoMap;
 }
 
 async function getPRAndMilestoneFromCommit(
@@ -346,14 +351,24 @@ async function getPRAndMilestoneFromCommit(
     return {};
   }
 
-  const commitsQuery = hashes
-    // We need to prefix the hash value (with `C` here) when using it as an
-    // alias as aliases cannot start with a number but hashes can.
-    .map(hash => `C${hash}: object(oid: "${hash}") {...PRFragment}`)
-    .join('\n');
+  // Make query in chunks where each chunk has 50 commit hashes
+  // Otherwise GitHub keeps timing out
+  const commitInfo: CommitInfoMap = {};
+  const chunkCount = Math.ceil(hashes.length / MAX_COMMITS_PER_QUERY);
+  for (let chunk = 0; chunk < chunkCount; chunk += 1) {
+    const subset = hashes.slice(
+      chunk * MAX_COMMITS_PER_QUERY,
+      (chunk + 1) * MAX_COMMITS_PER_QUERY
+    );
 
-  const { repo, owner } = await getGlobalGithubConfig();
-  const graphqlQuery = `{
+    const commitsQuery = subset
+      // We need to prefix the hash value (with `C` here) when using it as an
+      // alias as aliases cannot start with a number but hashes can.
+      .map(hash => `C${hash}: object(oid: "${hash}") {...PRFragment}`)
+      .join('\n');
+
+    const { repo, owner } = await getGlobalGithubConfig();
+    const graphqlQuery = `{
       repository(name: "${repo}", owner: "${owner}") {
         ${commitsQuery}
       }
@@ -370,11 +385,14 @@ async function getPRAndMilestoneFromCommit(
         }
       }
     }`;
-  logger.trace('Running graphql query:', graphqlQuery);
-  const commitInfo = ((await getGitHubClient().graphql(
-    graphqlQuery
-  )) as CommitInfoResult).repository;
-  logger.trace('Query result:', commitInfo);
+    logger.trace('Running graphql query:', graphqlQuery);
+    Object.assign(
+      commitInfo,
+      ((await getGitHubClient().graphql(graphqlQuery)) as CommitInfoResult)
+        .repository
+    );
+    logger.trace('Query result:', commitInfo);
+  }
 
   return Object.fromEntries(
     Object.entries(commitInfo).map(([hash, commit]) => {
