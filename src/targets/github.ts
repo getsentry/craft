@@ -314,7 +314,7 @@ export class GithubTarget extends BaseTarget {
     const assetToDelete = assets.find(({ name }) => name === assetName);
     if (!assetToDelete) {
       throw new Error(
-        `No such asset with the name ${assetToDelete}.We have these instead: ${assets.map(
+        `No such asset with the name "${assetToDelete}". We have these instead: ${assets.map(
           ({ name }) => name
         )}`
       );
