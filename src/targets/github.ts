@@ -474,7 +474,7 @@ export class GithubTarget extends BaseTarget {
           assets.map(asset => this.deleteAsset(asset))
         );
         const failed = results.filter(
-          ({ status }) => status === 'fulfilled'
+          ({ status }) => status === 'rejected'
         ) as PromiseRejectedResult[];
         if (failed.length === 0) {
           this.logger.debug(`Deleted ${assets.length} assets`);
