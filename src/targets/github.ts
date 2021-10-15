@@ -74,7 +74,7 @@ interface OctokitError {
     | 'custom';
   message?: string;
 }
-interface OctokitErrorBody {
+interface OctokitErrorResponse {
   message: string;
   errors: OctokitError[];
   documentation_url?: string;
@@ -358,7 +358,13 @@ export class GithubTarget extends BaseTarget {
     ).start();
     try {
       const file = readFileSync(path);
-      const { url, size } = await this.handleGitHubUpload(params, file);
+      const { url, size } = await this.handleGitHubUpload({
+        ...params,
+        // XXX: Octokit types this out as string, but in fact it also
+        // accepts a `Buffer` here. In fact passing a string is not what we
+        // want as we upload binary data.
+        data: file as any,
+      });
 
       uploadSpinner.text = `Verifying asset "${name}...`;
       if (size != stats.size) {
@@ -403,34 +409,10 @@ export class GithubTarget extends BaseTarget {
   }
 
   private async handleGitHubUpload(
-    params: {
-      headers: { 'Content-Length': number; 'Content-Type': string };
-      release_id: number;
-      name: string;
-      /** Path to changelon inside the repository */
-      changelog: string;
-      /** Prefix that will be used to generate tag name */
-      tagPrefix: string;
-      /** Mark releases as pre-release, if the version looks like a non-public release */
-      previewReleases: boolean;
-      /** Use annotated (not lightweight) tag */
-      annotatedTag: boolean;
-      owner: string;
-      repo: string;
-      projectPath?: string | undefined;
-    },
-    file: Buffer
+    params: RestEndpointMethodTypes['repos']['uploadReleaseAsset']['parameters']
   ): Promise<{ url: string; size: number }> {
     try {
-      return (
-        await this.github.repos.uploadReleaseAsset({
-          ...params,
-          // XXX: Octokit types this out as string, but in fact it also
-          // accepts a `Buffer` here. In fact passing a string is not what we
-          // want as we upload binary data.
-          data: file as any,
-        })
-      ).data;
+      return (await this.github.repos.uploadReleaseAsset(params)).data;
     } catch (err) {
       if (!(err instanceof RequestError)) {
         throw err;
@@ -440,7 +422,7 @@ export class GithubTarget extends BaseTarget {
       // 5xx error. See the docs here: https://git.io/JKZot
       const isAssetExistsError =
         err.status == 422 &&
-        (err.response?.data as OctokitErrorBody)?.errors?.some(
+        (err.response?.data as OctokitErrorResponse)?.errors?.some(
           ({ resource, code, field }) =>
             resource === 'ReleaseAsset' &&
             code === 'already_exists' &&
@@ -452,7 +434,7 @@ export class GithubTarget extends BaseTarget {
           'Got "asset already exists" error, deleting and retrying...'
         );
         await this.deleteAssetByName(params.release_id, params.name);
-        return this.handleGitHubUpload(params, file);
+        return this.handleGitHubUpload(params);
       }
 
       throw err;
