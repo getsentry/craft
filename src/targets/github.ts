@@ -470,8 +470,20 @@ export class GithubTarget extends BaseTarget {
       if (isDryRun()) {
         this.logger.info('[dry-run] Not deleting assets.');
       } else {
-        await Promise.allSettled(assets.map(asset => this.deleteAsset(asset)));
-        this.logger.debug(`Deleted ${assets.length} assets`);
+        const results = await Promise.allSettled(
+          assets.map(asset => this.deleteAsset(asset))
+        );
+        const failed = results.filter(
+          ({ status }) => status === 'fulfilled'
+        ) as PromiseRejectedResult[];
+        if (failed.length === 0) {
+          this.logger.debug(`Deleted ${assets.length} assets`);
+        } else {
+          this.logger.debug(
+            'Failed to delete some assets:',
+            failed.map(({ reason }) => reason)
+          );
+        }
       }
     }
 
