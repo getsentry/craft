@@ -299,10 +299,10 @@ export class GithubTarget extends BaseTarget {
   }
 
   /**
-   * Deletes assets with the given name from the specific release
+   * Deletes the asset with the given name from the specific release
    *
    * @param release Release object
-   * @param assetName Assets with this name will be deleted
+   * @param assetName Asset name to be deleted
    */
   public async deleteAssetByName(
     release_id: number,
