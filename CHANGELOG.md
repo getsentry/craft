@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.26.1
+
+### Automated Changelog Fixups
+
+We have fixed some edge cases and a major issue affecting GitHub release logs in our automated changelog generation. These are mostly about how we generated Markdown.
+
+PRs: #316
+
+### Increase Release Safety and Reliability (ongoing)
+
+We recently had an [incident](https://github.com/getsentry/craft/pull/302) where we were uploading broken assets to GitHub releases page. We now verify the uploads to GitHub releases and GCS via hash comparison.
+
+PRs: #315
+
+### Various fixes & improvements
+
+- fix(release): Fix post release script to commit the new version (#312)
+- meta: Bump new development version (896ea585)
+
 ## 0.26.0
 
 ### Increase Release Safety and Reliability (ongoing)
