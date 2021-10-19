@@ -269,14 +269,21 @@ export class GithubTarget extends BaseTarget {
    */
   public async deleteAsset(
     asset: ReposListAssetsForReleaseResponseItem
-  ): Promise<
-    RestEndpointMethodTypes['repos']['deleteReleaseAsset']['response']
-  > {
+  ): Promise<boolean> {
     this.logger.debug(`Deleting asset: "${asset.name}"...`);
-    return this.github.repos.deleteReleaseAsset({
-      asset_id: asset.id,
-      ...this.githubConfig,
-    });
+    if (isDryRun()) {
+      this.logger.info(`[dry-run] Not uploading deleting "${asset.name}"`);
+      return false;
+    }
+
+    return (
+      (
+        await this.github.repos.deleteReleaseAsset({
+          asset_id: asset.id,
+          ...this.githubConfig,
+        })
+      ).status === 204
+    );
   }
 
   /**
@@ -307,9 +314,7 @@ export class GithubTarget extends BaseTarget {
   public async deleteAssetByName(
     release_id: number,
     assetName: string
-  ): Promise<
-    RestEndpointMethodTypes['repos']['deleteReleaseAsset']['response']
-  > {
+  ): Promise<boolean> {
     const assets = await this.getAssetsForRelease(release_id);
     const assetToDelete = assets.find(({ name }) => name === assetName);
     if (!assetToDelete) {
@@ -333,7 +338,7 @@ export class GithubTarget extends BaseTarget {
     release: GithubRelease,
     path: string,
     contentType?: string
-  ): Promise<any> {
+  ): Promise<string | undefined> {
     const contentTypeProcessed = contentType || DEFAULT_CONTENT_TYPE;
     const stats = statSync(path);
     const name = basename(path);
@@ -400,12 +405,13 @@ export class GithubTarget extends BaseTarget {
           `Uploaded asset MD5 checksum does not match local asset checksum for "${name} (${localChecksum} != ${remoteChecksum})`
         );
       }
+      uploadSpinner.succeed(`Uploaded asset "${name}".`);
+      return url;
     } catch (e) {
       uploadSpinner.fail(`Cannot upload asset "${name}".`);
 
       throw e;
     }
-    uploadSpinner.succeed(`Uploaded asset "${name}".`);
   }
 
   private async handleGitHubUpload(
