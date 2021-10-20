@@ -204,6 +204,7 @@ export function prependChangeset(
 }
 
 interface Commit {
+  author?: string;
   hash: string;
   title: string;
   hasPRinTitle: boolean;
@@ -230,6 +231,9 @@ function formatCommit(commit: Commit): string {
       ? `#${commit.pr}`
       : commit.hash.slice(0, SHORT_SHA_LENGTH);
     text = `${text} (${link})`;
+  }
+  if (commit.author) {
+    text = `${text} by @${commit.author}`;
   }
   return text;
 }
@@ -320,10 +324,16 @@ export async function generateChangesetFromGit(
 }
 
 interface CommitInfo {
+  author: {
+    user?: { login: string };
+  };
   associatedPullRequests: {
     nodes: Array<{
       number: string;
       body: string;
+      author: {
+        login: string;
+      };
       milestone: {
         number: string;
       };
@@ -344,7 +354,12 @@ async function getPRAndMilestoneFromCommit(
 ): Promise<
   Record<
     /* hash */ string,
-    { pr: string | null; prBody: string | null; milestone: string | null }
+    {
+      author?: string;
+      pr: string | null;
+      prBody: string | null;
+      milestone: string | null;
+    }
   >
 > {
   if (hashes.length === 0) {
@@ -375,8 +390,14 @@ async function getPRAndMilestoneFromCommit(
     }
 
     fragment PRFragment on Commit {
+      author {
+        user { login }
+      }
       associatedPullRequests(first: 1) {
         nodes {
+          author {
+            login
+          }
           number
           body
           milestone {
@@ -402,11 +423,17 @@ async function getPRAndMilestoneFromCommit(
         hash.slice(1),
         pr
           ? {
+              author: pr.author.login,
               pr: pr.number,
               prBody: pr.body,
               milestone: pr.milestone?.number ?? null,
             }
-          : { pr: null, prBody: null, milestone: null },
+          : {
+              author: commit?.author.user?.login,
+              pr: null,
+              prBody: null,
+              milestone: null,
+            },
       ];
     })
   );
