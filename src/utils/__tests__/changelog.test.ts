@@ -282,12 +282,14 @@ describe('generateChangesetFromGit', () => {
   });
 
   interface TestCommit {
+    author?: string;
     hash: string;
     title: string;
     body: string;
     pr?: {
       local?: string;
       remote?: {
+        author: { login: string };
         number: string;
         body?: string;
         milestone?: string;
@@ -315,13 +317,15 @@ describe('generateChangesetFromGit', () => {
 
     mockClient.mockResolvedValueOnce({
       repository: Object.fromEntries(
-        commits.map(({ hash, pr }: TestCommit) => [
+        commits.map(({ hash, author, pr }: TestCommit) => [
           `C${hash}`,
           {
+            author: { user: author },
             associatedPullRequests: {
               nodes: pr?.remote
                 ? [
                     {
+                      author: pr.remote.author,
                       number: pr.remote.number,
                       body: pr.remote.body || '',
                       milestone: pr.remote.milestone
@@ -378,11 +382,11 @@ describe('generateChangesetFromGit', () => {
           hash: 'abcdef1234567890',
           title: 'Upgraded the kernel',
           body: '',
-          pr: { remote: { number: '123' } },
+          pr: { remote: { number: '123', author: { login: 'sentry' } } },
         },
       ],
       {},
-      '### Various fixes & improvements\n\n- Upgraded the kernel (#123)',
+      '### Various fixes & improvements\n\n- Upgraded the kernel (#123) by @sentry',
     ],
     [
       'handle multiple commits properly',
@@ -396,13 +400,16 @@ describe('generateChangesetFromGit', () => {
           hash: 'bcdef1234567890a',
           title: 'Upgraded the manifold (#123)',
           body: '',
-          pr: { local: '123', remote: { number: '123' } },
+          pr: {
+            local: '123',
+            remote: { number: '123', author: { login: 'alice' } },
+          },
         },
         {
           hash: 'cdef1234567890ab',
           title: 'Refactored the crankshaft',
           body: '',
-          pr: { remote: { number: '456' } },
+          pr: { remote: { number: '456', author: { login: 'bob' } } },
         },
       ],
       {},
@@ -410,8 +417,8 @@ describe('generateChangesetFromGit', () => {
         '### Various fixes & improvements',
         '',
         '- Upgraded the kernel (abcdef12)',
-        '- Upgraded the manifold (#123)',
-        '- Refactored the crankshaft (#456)',
+        '- Upgraded the manifold (#123) by @alice',
+        '- Refactored the crankshaft (#456) by @bob',
       ].join('\n'),
     ],
     [
@@ -426,31 +433,57 @@ describe('generateChangesetFromGit', () => {
           hash: 'bcdef1234567890a',
           title: 'Upgraded the manifold (#123)',
           body: '',
-          pr: { local: '123', remote: { number: '123', milestone: '1' } },
+          pr: {
+            local: '123',
+            remote: {
+              number: '123',
+              author: { login: 'alice' },
+              milestone: '1',
+            },
+          },
         },
         {
           hash: 'cdef1234567890ab',
           title: 'Refactored the crankshaft',
           body: '',
-          pr: { remote: { number: '456', milestone: '1' } },
+          pr: {
+            remote: { number: '456', author: { login: 'bob' }, milestone: '1' },
+          },
         },
         {
           hash: 'def1234567890abc',
           title: 'Upgrade the HUD (#789)',
           body: '',
-          pr: { local: '789', remote: { number: '789', milestone: '5' } },
+          pr: {
+            local: '789',
+            remote: {
+              number: '789',
+              author: { login: 'charlie' },
+              milestone: '5',
+            },
+          },
         },
         {
           hash: 'ef1234567890abcd',
           title: 'Upgrade the steering wheel (#900)',
           body: '',
-          pr: { local: '900', remote: { number: '900', milestone: '5' } },
+          pr: {
+            local: '900',
+            remote: {
+              number: '900',
+              author: { login: 'charlie' },
+              milestone: '5',
+            },
+          },
         },
         {
           hash: 'f1234567890abcde',
           title: 'Fix the clacking sound on gear changes (#950)',
           body: '',
-          pr: { local: '950', remote: { number: '950' } },
+          pr: {
+            local: '950',
+            remote: { number: '950', author: { login: 'bob' } },
+          },
         },
       ],
       {
@@ -471,16 +504,16 @@ describe('generateChangesetFromGit', () => {
         '',
         'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
         '',
-        'PRs: #123, #456',
+        'By: @alice (#123), @bob (#456)',
         '',
         '### Better driver experience (ongoing)',
         '',
-        'PRs: #789, #900',
+        'By: @charlie (#789, #900)',
         '',
         '### Various fixes & improvements',
         '',
         '- Upgraded the kernel (abcdef12)',
-        '- Fix the clacking sound on gear changes (#950)',
+        '- Fix the clacking sound on gear changes (#950) by @bob',
       ].join('\n'),
     ],
     [
@@ -494,6 +527,7 @@ describe('generateChangesetFromGit', () => {
             local: '123',
             remote: {
               number: '123',
+              author: { login: 'sentry' },
               milestone: '1',
             },
           },
@@ -512,7 +546,7 @@ describe('generateChangesetFromGit', () => {
         '',
         'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
         '',
-        'PRs: #123',
+        'By: @sentry (#123)',
       ].join('\n'),
     ],
     [
@@ -522,14 +556,28 @@ describe('generateChangesetFromGit', () => {
           hash: 'abcdef1234567890',
           title: 'Upgraded the kernel',
           body: '',
-          pr: { local: '123', remote: { number: '123', milestone: '1' } },
+          pr: {
+            local: '123',
+            remote: {
+              number: '123',
+              author: { login: 'sentry' },
+              milestone: '1',
+            },
+          },
         },
 
         {
           hash: 'bcdef123456789a',
           title: 'Upgraded the manifold (#456)',
           body: '',
-          pr: { local: '456', remote: { number: '456', milestone: '2' } },
+          pr: {
+            local: '456',
+            remote: {
+              number: '456',
+              author: { login: 'alice' },
+              milestone: '2',
+            },
+          },
         },
       ],
       {
@@ -547,11 +595,11 @@ describe('generateChangesetFromGit', () => {
       [
         '### Better drivetrain',
         '',
-        'PRs: #123',
+        'By: @sentry (#123)',
         '',
         '### Better Engine',
         '',
-        'PRs: #456',
+        'By: @alice (#456)',
       ].join('\n'),
     ],
     [
@@ -566,7 +614,14 @@ describe('generateChangesetFromGit', () => {
           hash: 'bcdef1234567890a',
           title: 'Upgraded the manifold (#123)',
           body: '',
-          pr: { local: '123', remote: { number: '123', milestone: '1' } },
+          pr: {
+            local: '123',
+            remote: {
+              number: '123',
+              author: { login: 'alice' },
+              milestone: '1',
+            },
+          },
         },
         {
           hash: 'cdef1234567890ab',
@@ -575,6 +630,7 @@ describe('generateChangesetFromGit', () => {
           pr: {
             remote: {
               number: '456',
+              author: { login: 'bob' },
               body: `This is important but we'll ${SKIP_CHANGELOG_MAGIC_WORD} for internal.`,
               milestone: '1',
             },
@@ -584,7 +640,14 @@ describe('generateChangesetFromGit', () => {
           hash: 'def1234567890abc',
           title: 'Upgrade the HUD (#789)',
           body: '',
-          pr: { local: '789', remote: { number: '789', milestone: '5' } },
+          pr: {
+            local: '789',
+            remote: {
+              number: '789',
+              author: { login: 'charlie' },
+              milestone: '5',
+            },
+          },
         },
         {
           hash: 'ef1234567890abcd',
@@ -596,7 +659,10 @@ describe('generateChangesetFromGit', () => {
           hash: 'f1234567890abcde',
           title: 'Fix the clacking sound on gear changes (#950)',
           body: '',
-          pr: { local: '950', remote: { number: '950' } },
+          pr: {
+            local: '950',
+            remote: { number: '950', author: { login: 'alice' } },
+          },
         },
       ],
       {
@@ -618,17 +684,17 @@ describe('generateChangesetFromGit', () => {
         '',
         'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
         '',
-        'PRs: #123',
+        'By: @alice (#123)',
         '',
         '### Better driver experience (ongoing)',
         '',
         'We are working on making your driving experience more pleasant and safer.',
         '',
-        'PRs: #789',
+        'By: @charlie (#789)',
         '',
         '### Various fixes & improvements',
         '',
-        '- Fix the clacking sound on gear changes (#950)',
+        '- Fix the clacking sound on gear changes (#950) by @alice',
       ].join('\n'),
     ],
   ])(

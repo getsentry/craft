@@ -203,7 +203,14 @@ export function prependChangeset(
   return markdown.slice(0, startIdx) + newSection + markdown.slice(startIdx);
 }
 
+interface PullRequest {
+  author: string;
+  number: string;
+  body: string;
+}
+
 interface Commit {
+  author?: string;
   hash: string;
   title: string;
   hasPRinTitle: boolean;
@@ -217,7 +224,7 @@ interface Milestone {
   state: 'OPEN' | 'CLOSED';
 }
 type MilestoneWithPRs = Milestone & {
-  prs: string[];
+  prs: PullRequest[];
 };
 
 // This is set to 8 since GitHub and GitLab prefer that over the default 7 to
@@ -230,6 +237,9 @@ function formatCommit(commit: Commit): string {
       ? `#${commit.pr}`
       : commit.hash.slice(0, SHORT_SHA_LENGTH);
     text = `${text} (${link})`;
+  }
+  if (commit.author) {
+    text = `${text} by @${commit.author}`;
   }
   return text;
 }
@@ -273,7 +283,11 @@ export async function generateChangesetFromGit(
     } else {
       const milestone = milestones[commit.milestone] || { prs: [] };
       // We _know_ the PR exists as milestones are attached to PRs
-      milestone.prs.push(commit.pr as string);
+      milestone.prs.push({
+        author: commit.author as string,
+        number: commit.pr as string,
+        body: commit.prBody as string,
+      });
       milestones[commit.milestone] = milestone;
     }
   }
@@ -304,8 +318,21 @@ export async function generateChangesetFromGit(
     if (milestone.description) {
       changelogSections.push(escapeMarkdownPound(milestone.description));
     }
+    const authors: Record<string, PullRequest[]> = {};
+
+    for (const pr of milestones[milestoneNum].prs) {
+      const authorPRs = authors[pr.author] || [];
+      authorPRs.push(pr);
+      authors[pr.author] = authorPRs;
+    }
+
     changelogSections.push(
-      `PRs: ${milestones[milestoneNum].prs.map(pr => `#${pr}`).join(', ')}`
+      `By: ${Object.entries(authors)
+        .map(
+          ([author, prs]) =>
+            `@${author} (${prs.map(({ number }) => `#${number}`).join(', ')})`
+        )
+        .join(', ')}`
     );
   }
 
@@ -320,10 +347,16 @@ export async function generateChangesetFromGit(
 }
 
 interface CommitInfo {
+  author: {
+    user?: { login: string };
+  };
   associatedPullRequests: {
     nodes: Array<{
       number: string;
       body: string;
+      author: {
+        login: string;
+      };
       milestone: {
         number: string;
       };
@@ -344,7 +377,12 @@ async function getPRAndMilestoneFromCommit(
 ): Promise<
   Record<
     /* hash */ string,
-    { pr: string | null; prBody: string | null; milestone: string | null }
+    {
+      author?: string;
+      pr: string | null;
+      prBody: string | null;
+      milestone: string | null;
+    }
   >
 > {
   if (hashes.length === 0) {
@@ -375,8 +413,14 @@ async function getPRAndMilestoneFromCommit(
     }
 
     fragment PRFragment on Commit {
+      author {
+        user { login }
+      }
       associatedPullRequests(first: 1) {
         nodes {
+          author {
+            login
+          }
           number
           body
           milestone {
@@ -402,11 +446,17 @@ async function getPRAndMilestoneFromCommit(
         hash.slice(1),
         pr
           ? {
+              author: pr.author.login,
               pr: pr.number,
               prBody: pr.body,
               milestone: pr.milestone?.number ?? null,
             }
-          : { pr: null, prBody: null, milestone: null },
+          : {
+              author: commit?.author.user?.login,
+              pr: null,
+              prBody: null,
+              milestone: null,
+            },
       ];
     })
   );
