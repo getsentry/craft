@@ -203,6 +203,12 @@ export function prependChangeset(
   return markdown.slice(0, startIdx) + newSection + markdown.slice(startIdx);
 }
 
+interface PullRequest {
+  author: string;
+  number: string;
+  body: string;
+}
+
 interface Commit {
   author?: string;
   hash: string;
@@ -218,7 +224,7 @@ interface Milestone {
   state: 'OPEN' | 'CLOSED';
 }
 type MilestoneWithPRs = Milestone & {
-  prs: string[];
+  prs: PullRequest[];
 };
 
 // This is set to 8 since GitHub and GitLab prefer that over the default 7 to
@@ -277,7 +283,11 @@ export async function generateChangesetFromGit(
     } else {
       const milestone = milestones[commit.milestone] || { prs: [] };
       // We _know_ the PR exists as milestones are attached to PRs
-      milestone.prs.push(commit.pr as string);
+      milestone.prs.push({
+        author: commit.author as string,
+        number: commit.pr as string,
+        body: commit.prBody as string,
+      });
       milestones[commit.milestone] = milestone;
     }
   }
@@ -308,8 +318,21 @@ export async function generateChangesetFromGit(
     if (milestone.description) {
       changelogSections.push(escapeMarkdownPound(milestone.description));
     }
+    const authors: Record<string, PullRequest[]> = {};
+
+    for (const pr of milestones[milestoneNum].prs) {
+      const authorPRs = authors[pr.author] || [];
+      authorPRs.push(pr);
+      authors[pr.author] = authorPRs;
+    }
+
     changelogSections.push(
-      `PRs: ${milestones[milestoneNum].prs.map(pr => `#${pr}`).join(', ')}`
+      `By: ${Object.entries(authors)
+        .map(
+          ([author, prs]) =>
+            `@${author} (${prs.map(({ number }) => `#${number}`).join(', ')})`
+        )
+        .join(', ')}`
     );
   }
 
