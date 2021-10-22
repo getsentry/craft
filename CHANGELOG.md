@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.27.0
+
+### Increase Release Safety and Reliability (ongoing)
+
+We recently had an [incident](https://github.com/getsentry/craft/pull/302) where we were uploading broken assets to GitHub releases page. We now verify the uploads to GitHub releases and GCS via hash comparison.
+
+PRs: #318
+
+### Contributors in Automated Changelogs (ongoing)
+
+GitHub automatically generates a "Contributors" section when you mention the contributors on release notes so why not Craft?
+
+PRs: #319
+
+### Various fixes & improvements
+
+- meta: Bump new development version (6f2538ea)
+
 ## 0.26.2
 
 ### Increase Release Safety and Reliability (ongoing)
