@@ -34,7 +34,6 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Required Files](#required-files)
 - [Status Provider](#status-provider)
 - [Artifact Provider](#artifact-provider)
-  - [Using Github Actions with Github Artifact Provider](#using-github-actions-with-github-artifact-provider)
 - [Target Configurations](#target-configurations)
   - [Per-target options](#per-target-options)
   - [GitHub (`github`)](#github-github)
