@@ -411,7 +411,9 @@ export class GithubTarget extends BaseTarget {
         uploadSpinner.succeed(`Uploaded asset "${name}".`);
       } else {
         logger.warn(`Response headers:`, response.headers);
-        uploadSpinner.succeed(`Uploaded asset "${name}, but failed to find a remote checksum. Cannot verify uploaded file is as expected.`);
+        uploadSpinner.succeed(
+          `Uploaded asset "${name}, but failed to find a remote checksum. Cannot verify uploaded file is as expected.`
+        );
       }
       return url;
     } catch (e) {
