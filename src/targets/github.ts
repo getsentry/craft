@@ -398,14 +398,23 @@ export class GithubTarget extends BaseTarget {
 
       // ETag header comes in quotes for some reason so strip those
       const remoteChecksum = response.headers['etag']?.slice(1, -1);
-      const localChecksum = createHash('md5').update(file).digest('hex');
-      if (localChecksum !== remoteChecksum) {
-        logger.trace(`Checksum mismatch for "${name}"`, response.headers);
-        throw new Error(
-          `Uploaded asset MD5 checksum does not match local asset checksum for "${name} (${localChecksum} != ${remoteChecksum})`
+      if (remoteChecksum) {
+        // XXX: This local checksum calculation only holds for simple cases:
+        // https://github.com/getsentry/craft/issues/322#issuecomment-964303174
+        const localChecksum = createHash('md5').update(file).digest('hex');
+        if (localChecksum !== remoteChecksum) {
+          logger.trace(`Checksum mismatch for "${name}"`, response.headers);
+          throw new Error(
+            `Uploaded asset MD5 checksum does not match local asset checksum for "${name} (${localChecksum} != ${remoteChecksum})`
+          );
+        }
+        uploadSpinner.succeed(`Uploaded asset "${name}".`);
+      } else {
+        logger.warn(`Response headers:`, response.headers);
+        uploadSpinner.succeed(
+          `Uploaded asset "${name}, but failed to find a remote checksum. Cannot verify uploaded file is as expected.`
         );
       }
-      uploadSpinner.succeed(`Uploaded asset "${name}".`);
       return url;
     } catch (e) {
       uploadSpinner.fail(`Cannot upload asset "${name}".`);
