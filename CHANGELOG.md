@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.27.1
+
+### Various fixes & improvements
+
+- Relax checksum requirement (#323) by @chadwhitacre
+- docs: Remove Github Artifact Provider entry in the README (#321) by @kamilogorek
+- ci(release): Omit meta version bumps from changelog (#320) by @BYK
+- meta: Bump new development version (d0028539)
+
 ## 0.27.0
 
 ### Increase Release Safety and Reliability (ongoing)
