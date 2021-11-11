@@ -378,41 +378,11 @@ export class GithubTarget extends BaseTarget {
         );
       }
 
-      // XXX: This is a bit hacky as we rely on two things:
-      // 1. GitHub issuing a redirect to S3, where they store the artifacts,
-      //    or at least pass those request headers unmodified to us
-      // 2. AWS S3 using the MD5 hash of the file for its ETag cache header
-      //    when we issue a HEAD request.
-      const response = await this.github.request(`HEAD ${url}`, {
-        headers: {
-          // WARNING: You **MUST** pass this accept header otherwise you'll
-          //          get a useless JSON API response back, instead of getting
-          //          redirected to the raw file itself.
-          //          And don't even think about using `browser_download_url`
-          //          field as it is close to impossible to authenticate for
-          //          that URL with a token and you'll lose hours getting 404s
-          //          for private repos. Consider yourself warned. --xoxo BYK
-          Accept: DEFAULT_CONTENT_TYPE,
-        },
-      });
-
-      // ETag header comes in quotes for some reason so strip those
-      const remoteChecksum = response.headers['etag']?.slice(1, -1);
-      if (remoteChecksum) {
-        // XXX: This local checksum calculation only holds for simple cases:
-        // https://github.com/getsentry/craft/issues/322#issuecomment-964303174
-        const localChecksum = createHash('md5').update(file).digest('hex');
-        if (localChecksum !== remoteChecksum) {
-          logger.trace(`Checksum mismatch for "${name}"`, response.headers);
-          throw new Error(
-            `Uploaded asset MD5 checksum does not match local asset checksum for "${name} (${localChecksum} != ${remoteChecksum})`
-          );
-        }
-        uploadSpinner.succeed(`Uploaded asset "${name}".`);
-      } else {
-        logger.warn(`Response headers:`, response.headers);
-        uploadSpinner.succeed(
-          `Uploaded asset "${name}, but failed to find a remote checksum. Cannot verify uploaded file is as expected.`
+      const remoteChecksum = await this.getRemoteChecksum(url);
+      const localChecksum = createHash('md5').update(file).digest('hex');
+      if (localChecksum !== remoteChecksum) {
+        throw new Error(
+          `Uploaded asset MD5 checksum does not match local asset checksum for "${name} (${localChecksum} != ${remoteChecksum})`
         );
       }
       return url;
@@ -421,6 +391,29 @@ export class GithubTarget extends BaseTarget {
 
       throw e;
     }
+  }
+
+  private async getRemoteChecksum(url: string): Promise<string | undefined> {
+    // XXX: This is a bit hacky as we rely on two things:
+    // 1. GitHub issuing a redirect to S3, where they store the artifacts,
+    //    or at least pass those request headers unmodified to us
+    // 2. AWS S3 using the MD5 hash of the file for its ETag cache header
+    //    when we issue a HEAD request.
+    const response = await this.github.request(`HEAD ${url}`, {
+      headers: {
+        // WARNING: You **MUST** pass this accept header otherwise you'll
+        //          get a useless JSON API response back, instead of getting
+        //          redirected to the raw file itself.
+        //          And don't even think about using `browser_download_url`
+        //          field as it is close to impossible to authendicate for
+        //          that URL with a token and you'll lose hours getting 404s
+        //          for private repos. Consider yourself warned. --xoxo BYK
+        Accept: DEFAULT_CONTENT_TYPE,
+      },
+    });
+
+    // ETag header comes in quotes for some reason so strip those
+    return response.headers['etag']?.slice(1, -1);
   }
 
   private async handleGitHubUpload(
