@@ -1,7 +1,7 @@
 import { getGitTagPrefix } from '../config';
 
 /**
- * Regular expression for matching semver versions
+ * Regular expression for matching semver versions.
  *
  * Modified to match version components
  * Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
@@ -11,7 +11,7 @@ const semverRegex = () =>
   /\bv?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-?([\da-z-]+(?:\.[\da-z-]+)*))?(?:\+([\da-z-]+(?:\.[\da-z-]+)*))?\b/gi;
 
 /**
- * Extracts a version number from the given text
+ * Extracts a version number from the given text.
  *
  * In case the version contains a leading "v", it is stripped from the result.
  * All semantic versions are supported. See {@link http://semver.org/} for
@@ -29,7 +29,7 @@ export function getVersion(text: string): string | null {
 }
 
 /**
- * Checks if the provided text is a valid version string
+ * Checks if the provided text is a valid version string.
  *
  * @param text String to check
  * @returns true if the string is a valid semantic version, false otherwise
@@ -39,7 +39,7 @@ export function isValidVersion(text: string): boolean {
 }
 
 /**
- * SemVer Parsed semantic version
+ * SemVer is a parsed semantic version.
  */
 export interface SemVer {
   /** The major version number */
@@ -55,7 +55,7 @@ export interface SemVer {
 }
 
 /**
- * Parses a version number from the given text
+ * Parses a version number from the given text.
  *
  * @param text Some text containing a version
  * @returns The parsed version or null
@@ -105,7 +105,7 @@ export function versionGreaterOrEqualThan(v1: SemVer, v2: SemVer): boolean {
 }
 
 /**
- * A regular expression to detect that the version is a pre-release
+ * A regular expression to detect that a version is a pre-release version.
  */
 export const PREVIEW_RELEASE_REGEX = /(?:[^a-z])(preview|pre|rc|dev|alpha|beta|unstable|a|b)(?:[^a-z]|$)/i;
 
@@ -120,7 +120,7 @@ export function isPreviewRelease(text: string): boolean {
 }
 
 /**
- * Returns the git version based on the provided version
+ * Returns the Git version based on the provided version.
  *
  * If no tag prefix is provided, it is taken from the configuration.
  *
@@ -134,7 +134,7 @@ export function versionToTag(version: string, tagPrefix?: string): string {
 }
 
 /**
- * Reads "package.json" from project root and returns its contents
+ * Reads "package.json" from project root and returns its contents.
  */
 export function getPackage(): any {
   const pkg = require('../../package.json') || {};
@@ -146,7 +146,7 @@ export function getPackage(): any {
 }
 
 /**
- * Reads the package's version from "package.json"
+ * Reads the package's version from "package.json".
  */
 export function getPackageVersion(): string {
   const { version } = getPackage();
