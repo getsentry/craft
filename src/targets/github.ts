@@ -24,27 +24,27 @@ import { logger } from '../logger';
 import ora from 'ora';
 
 /**
- * Default content type for GitHub release assets
+ * Default content type for GitHub release assets.
  */
 export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
 
 /**
- * Configuration options for the Github target
+ * Configuration options for the GitHub target.
  */
 export interface GithubTargetConfig extends GithubGlobalConfig {
-  /** Path to changelon inside the repository */
+  /** Path to changelog inside the repository */
   changelog: string;
   /** Prefix that will be used to generate tag name */
   tagPrefix: string;
-  /** Mark releases as pre-release, if the version looks like a non-public release */
+  /** Mark release as pre-release, if the version looks like a non-public release */
   previewReleases: boolean;
   /** Use annotated (not lightweight) tag */
   annotatedTag: boolean;
 }
 
 /**
- * An interface that represents a minimal Github release as returned by
- * Github API.
+ * An interface that represents a minimal GitHub release as returned by the
+ * GitHub API.
  */
 interface GithubRelease {
   /** Release id */
@@ -56,7 +56,7 @@ interface GithubRelease {
 }
 
 /**
- * Tag type as used in GitdataCreateTagParams from Github API
+ * Tag type as expected by the GitHub API.
  */
 type GithubCreateTagType = 'commit' | 'tree' | 'blob';
 
@@ -81,16 +81,16 @@ interface OctokitErrorResponse {
 }
 
 /**
- * Target responsible for publishing releases on Github
+ * Target responsible for publishing releases on GitHub.
  */
 export class GithubTarget extends BaseTarget {
   /** Target name */
   public readonly name = 'github';
   /** Target options */
   public readonly githubConfig: GithubTargetConfig;
-  /** Github client */
+  /** GitHub client */
   public readonly github: Octokit;
-  /** Github repo configuration */
+  /** GitHub repo configuration */
   public readonly githubRepo: GithubGlobalConfig;
 
   public constructor(
@@ -119,10 +119,10 @@ export class GithubTarget extends BaseTarget {
   }
 
   /**
-   * Creates an annotated tag for the given revision
+   * Creates an annotated tag for the given revision.
    *
    * Unlike a lightweight tag (basically just a pointer to a commit), to
-   * create an annotateg tag we must create a tag object first, and then
+   * create an annotated tag we must create a tag object first, and then
    * create a reference to it manually.
    *
    * @param version The version to release
@@ -167,7 +167,7 @@ export class GithubTarget extends BaseTarget {
   }
 
   /**
-   * Gets an existing or creates a new release for the given version
+   * Gets an existing or creates a new release for the given version.
    *
    * The release name and description body is brought in from `changes`
    * respective tag, if present. Otherwise, the release name defaults to the
@@ -289,7 +289,7 @@ export class GithubTarget extends BaseTarget {
   /**
    * Fetches a list of all assets for the given release
    *
-   * The result includes unfinshed asset uploads.
+   * The result includes unfinished asset uploads.
    *
    * @param release Release to fetch assets from
    */
@@ -389,7 +389,7 @@ export class GithubTarget extends BaseTarget {
           //          get a useless JSON API response back, instead of getting
           //          redirected to the raw file itself.
           //          And don't even think about using `browser_download_url`
-          //          field as it is close to impossible to authendicate for
+          //          field as it is close to impossible to authenticate for
           //          that URL with a token and you'll lose hours getting 404s
           //          for private repos. Consider yourself warned. --xoxo BYK
           Accept: DEFAULT_CONTENT_TYPE,
