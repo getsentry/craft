@@ -393,27 +393,57 @@ export class GithubTarget extends BaseTarget {
     }
   }
 
-  private async getRemoteChecksum(url: string): Promise<string | undefined> {
+  private async getRemoteChecksum(url: string): Promise<string> {
     // XXX: This is a bit hacky as we rely on two things:
     // 1. GitHub issuing a redirect to S3, where they store the artifacts,
     //    or at least pass those request headers unmodified to us
     // 2. AWS S3 using the MD5 hash of the file for its ETag cache header
     //    when we issue a HEAD request.
-    const response = await this.github.request(`HEAD ${url}`, {
-      headers: {
-        // WARNING: You **MUST** pass this accept header otherwise you'll
-        //          get a useless JSON API response back, instead of getting
-        //          redirected to the raw file itself.
-        //          And don't even think about using `browser_download_url`
-        //          field as it is close to impossible to authendicate for
-        //          that URL with a token and you'll lose hours getting 404s
-        //          for private repos. Consider yourself warned. --xoxo BYK
-        Accept: DEFAULT_CONTENT_TYPE,
-      },
-    });
+    let response;
+    try {
+      response = await this.github.request(`HEAD ${url}`, {
+        headers: {
+          // WARNING: You **MUST** pass this accept header otherwise you'll
+          //          get a useless JSON API response back, instead of getting
+          //          redirected to the raw file itself.
+          //          And don't even think about using `browser_download_url`
+          //          field as it is close to impossible to authenticate for
+          //          that URL with a token and you'll lose hours getting 404s
+          //          for private repos. Consider yourself warned. --xoxo BYK
+          Accept: DEFAULT_CONTENT_TYPE,
+        },
+      });
+    } catch (e) {
+      throw new Error(
+        `Cannot get asset on GitHub. Status: ${(e as any).status}\n` + e
+      );
+    }
 
-    // ETag header comes in quotes for some reason so strip those
-    return response.headers['etag']?.slice(1, -1);
+    const etag = response.headers['etag'];
+    if (etag && etag.length > 0) {
+      // ETag header comes in quotes for some reason so strip those
+      return etag.slice(1, -1);
+    }
+
+    return await this.md5FromUrl(url);
+  }
+
+  private async md5FromUrl(url: string): Promise<string> {
+    this.logger.debug('Downloading asset from GitHub to check MD5 hash: ', url);
+    let response;
+    try {
+      response = await this.github.request(`GET ${url}`, {
+        headers: {
+          Accept: DEFAULT_CONTENT_TYPE,
+        },
+      });
+    } catch (e) {
+      throw new Error(
+        `Cannot download asset from GitHub. Status: ${(e as any).status}\n` + e
+      );
+    }
+
+    return createHash('md5').update(Buffer.from(response.data)).digest('hex');
   }
 
   private async handleGitHubUpload(
