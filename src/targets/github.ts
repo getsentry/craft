@@ -2,7 +2,7 @@ import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
 import { RequestError } from '@octokit/request-error';
 import { readFileSync, promises, statSync } from 'fs';
 import { basename } from 'path';
-import { createHash } from 'crypto';
+import { BinaryLike, createHash } from 'crypto';
 
 import { getConfiguration } from '../config';
 import {
@@ -379,7 +379,7 @@ export class GithubTarget extends BaseTarget {
       }
 
       const remoteChecksum = await this.getRemoteChecksum(url);
-      const localChecksum = createHash('md5').update(file).digest('hex');
+      const localChecksum = this.md5FromData(file);
       if (localChecksum !== remoteChecksum) {
         throw new Error(
           `Uploaded asset MD5 checksum does not match local asset checksum for "${name} (${localChecksum} != ${remoteChecksum})`
@@ -443,8 +443,11 @@ export class GithubTarget extends BaseTarget {
         `Cannot download asset from GitHub. Status: ${(e as any).status}\n` + e
       );
     }
+    return this.md5FromData(Buffer.from(response.data));
+  }
 
-    return createHash('md5').update(Buffer.from(response.data)).digest('hex');
+  private md5FromData(data: BinaryLike): string {
+    return createHash('md5').update(data).digest('hex');
   }
 
   private async handleGitHubUpload(
