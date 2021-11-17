@@ -395,11 +395,13 @@ export class GithubTarget extends BaseTarget {
   }
 
   private async checksumFromUrl(url: string): Promise<string> {
-    // XXX: This is a bit hacky as we rely on two things:
-    // 1. GitHub issuing a redirect to S3, where they store the artifacts,
-    //    or at least pass those request headers unmodified to us
-    // 2. AWS S3 using the MD5 hash of the file for its ETag cache header
-    //    when we issue a HEAD request.
+    // XXX: This is a bit hacky as we rely on various things:
+    // 1. GitHub issuing a redirect to AWS S3.
+    // 2. S3 using the MD5 hash of the file for its ETag cache header.
+    // 3. The file being small enough to fit in memory.
+    //
+    // Note that if assets are large (5GB) assumption 2 is not correct. See
+    // https://github.com/getsentry/craft/issues/322#issuecomment-964303174
     let response;
     try {
       response = await this.github.request(`HEAD ${url}`, {
