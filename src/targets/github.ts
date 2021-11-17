@@ -378,11 +378,11 @@ export class GithubTarget extends BaseTarget {
         );
       }
 
-      const remoteChecksum = await this.getRemoteChecksum(url);
-      const localChecksum = this.md5FromData(file);
+      const remoteChecksum = await this.checksumFromUrl(url);
+      const localChecksum = this.checksumFromData(file);
       if (localChecksum !== remoteChecksum) {
         throw new Error(
-          `Uploaded asset MD5 checksum does not match local asset checksum for "${name} (${localChecksum} != ${remoteChecksum})`
+          `Uploaded asset checksum does not match local asset checksum for "${name} (${localChecksum} != ${remoteChecksum})`
         );
       }
       uploadSpinner.succeed(`Uploaded asset "${name}".`);
@@ -394,7 +394,7 @@ export class GithubTarget extends BaseTarget {
     }
   }
 
-  private async getRemoteChecksum(url: string): Promise<string> {
+  private async checksumFromUrl(url: string): Promise<string> {
     // XXX: This is a bit hacky as we rely on two things:
     // 1. GitHub issuing a redirect to S3, where they store the artifacts,
     //    or at least pass those request headers unmodified to us
@@ -443,10 +443,10 @@ export class GithubTarget extends BaseTarget {
         `Cannot download asset from GitHub. Status: ${(e as any).status}\n` + e
       );
     }
-    return this.md5FromData(Buffer.from(response.data));
+    return this.checksumFromData(Buffer.from(response.data));
   }
 
-  private md5FromData(data: BinaryLike): string {
+  private checksumFromData(data: BinaryLike): string {
     return createHash('md5').update(data).digest('hex');
   }
 
