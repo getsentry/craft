@@ -385,6 +385,7 @@ export class GithubTarget extends BaseTarget {
           `Uploaded asset MD5 checksum does not match local asset checksum for "${name} (${localChecksum} != ${remoteChecksum})`
         );
       }
+      uploadSpinner.succeed(`Uploaded asset "${name}".`);
       return url;
     } catch (e) {
       uploadSpinner.fail(`Cannot upload asset "${name}".`);
