@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.27.2
+
+### Increase Release Safety and Reliability (ongoing)
+
+Work on increasing the release safety and reliability.
+
+By: @iker-barriocanal (#328)
+
+### Various fixes & improvements
+
+- docs: Fix typos and cleanup some documentation (#325) by @rhcarvalho
+
 ## 0.27.1
 
 ### Various fixes & improvements
