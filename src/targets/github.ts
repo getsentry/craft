@@ -374,7 +374,7 @@ export class GithubTarget extends BaseTarget {
       uploadSpinner.text = `Verifying asset "${name}...`;
       if (size != stats.size) {
         throw new Error(
-          `Uploaded asset size does not match local asset size for "${name} (${stats.size} != ${size}).`
+          `Uploaded asset size (${size} bytes) does not match local asset size (${stats.size} bytes) for "${name}".`
         );
       }
 
