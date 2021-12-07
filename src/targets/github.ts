@@ -1,8 +1,7 @@
 import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
 import { RequestError } from '@octokit/request-error';
-import { readFileSync, promises, statSync } from 'fs';
+import { createReadStream, promises, statSync } from 'fs';
 import { basename } from 'path';
-import { BinaryLike, createHash } from 'crypto';
 
 import { getConfiguration } from '../config';
 import {
@@ -361,8 +360,9 @@ export class GithubTarget extends BaseTarget {
     const uploadSpinner = ora(
       `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}`
     ).start();
+
     try {
-      const file = readFileSync(path);
+      const file = createReadStream(path);
       const { url, size } = await this.handleGitHubUpload({
         ...params,
         // XXX: Octokit types this out as string, but in fact it also
@@ -370,86 +370,18 @@ export class GithubTarget extends BaseTarget {
         // want as we upload binary data.
         data: file as any,
       });
-
       uploadSpinner.text = `Verifying asset "${name}...`;
       if (size != stats.size) {
         throw new Error(
           `Uploaded asset size (${size} bytes) does not match local asset size (${stats.size} bytes) for "${name}".`
         );
       }
-
-      const remoteChecksum = await this.checksumFromUrl(url);
-      const localChecksum = this.checksumFromData(file);
-      if (localChecksum !== remoteChecksum) {
-        throw new Error(
-          `Uploaded asset checksum does not match local asset checksum for "${name} (${localChecksum} != ${remoteChecksum})`
-        );
-      }
       uploadSpinner.succeed(`Uploaded asset "${name}".`);
       return url;
     } catch (e) {
       uploadSpinner.fail(`Cannot upload asset "${name}".`);
-
       throw e;
     }
-  }
-
-  private async checksumFromUrl(url: string): Promise<string> {
-    // XXX: This is a bit hacky as we rely on various things:
-    // 1. GitHub issuing a redirect to AWS S3.
-    // 2. S3 using the MD5 hash of the file for its ETag cache header.
-    // 3. The file being small enough to fit in memory.
-    //
-    // Note that if assets are large (5GB) assumption 2 is not correct. See
-    // https://github.com/getsentry/craft/issues/322#issuecomment-964303174
-    let response;
-    try {
-      response = await this.github.request(`HEAD ${url}`, {
-        headers: {
-          // WARNING: You **MUST** pass this accept header otherwise you'll
-          //          get a useless JSON API response back, instead of getting
-          //          redirected to the raw file itself.
-          //          And don't even think about using `browser_download_url`
-          //          field as it is close to impossible to authenticate for
-          //          that URL with a token and you'll lose hours getting 404s
-          //          for private repos. Consider yourself warned. --xoxo BYK
-          Accept: DEFAULT_CONTENT_TYPE,
-        },
-      });
-    } catch (e) {
-      throw new Error(
-        `Cannot get asset on GitHub. Status: ${(e as any).status}\n` + e
-      );
-    }
-
-    const etag = response.headers['etag'];
-    if (etag && etag.length > 0) {
-      // ETag header comes in quotes for some reason so strip those
-      return etag.slice(1, -1);
-    }
-
-    return await this.md5FromUrl(url);
-  }
-
-  private async md5FromUrl(url: string): Promise<string> {
-    this.logger.debug('Downloading asset from GitHub to check MD5 hash: ', url);
-    let response;
-    try {
-      response = await this.github.request(`GET ${url}`, {
-        headers: {
-          Accept: DEFAULT_CONTENT_TYPE,
-        },
-      });
-    } catch (e) {
-      throw new Error(
-        `Cannot download asset from GitHub. Status: ${(e as any).status}\n` + e
-      );
-    }
-    return this.checksumFromData(Buffer.from(response.data));
-  }
-
-  private checksumFromData(data: BinaryLike): string {
-    return createHash('md5').update(data).digest('hex');
   }
 
   private async handleGitHubUpload(
