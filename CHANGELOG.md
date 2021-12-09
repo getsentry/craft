@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.27.3
+
+### Various fixes & improvements
+
+- fix: Remove GitHub asset checksum (#333) by @rhcarvalho
+- misc: Update error message to clarify what size refers to what (#332) by @rhcarvalho
+- build: Use source map to produce debuggable stack traces (#326) by @rhcarvalho
+
 ## 0.27.2
 
 ### Increase Release Safety and Reliability (ongoing)
