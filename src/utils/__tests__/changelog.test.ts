@@ -411,6 +411,12 @@ describe('generateChangesetFromGit', () => {
           body: '',
           pr: { remote: { number: '456', author: { login: 'bob' } } },
         },
+        {
+          hash: 'cdef1234567890ad',
+          title: 'Refactored the crankshaft again',
+          body: '',
+          pr: { remote: { number: '458', author: { login: 'bob' } } },
+        },
       ],
       {},
       [
@@ -419,6 +425,8 @@ describe('generateChangesetFromGit', () => {
         '- Upgraded the kernel (abcdef12)',
         '- Upgraded the manifold (#123) by @alice',
         '- Refactored the crankshaft (#456) by @bob',
+        '',
+        '_Plus 1 more_',
       ].join('\n'),
     ],
     [
@@ -706,7 +714,7 @@ describe('generateChangesetFromGit', () => {
       output: string
     ) => {
       setup(commits, milestones);
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0');
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(changes).toBe(output);
     }
   );
