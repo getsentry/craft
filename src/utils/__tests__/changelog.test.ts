@@ -422,7 +422,7 @@ describe('generateChangesetFromGit', () => {
       [
         '### Various fixes & improvements',
         '',
-        '(Only listing 3 out of 4.)',
+        '_Listing 3 out of 4_',
         '',
         '- Upgraded the kernel (abcdef12)',
         '- Upgraded the manifold (#123) by @alice',

@@ -344,9 +344,7 @@ export async function generateChangesetFromGit(
       markdownHeader(SUBSECTION_HEADER_LEVEL, 'Various fixes & improvements')
     );
     if (nLeftovers > maxLeftovers) {
-      changelogSections.push(
-        `(Only listing ${maxLeftovers} out of ${nLeftovers}.)`
-      );
+      changelogSections.push(`_Listing ${maxLeftovers} out of ${nLeftovers}_`);
     }
     changelogSections.push(
       leftovers.slice(0, maxLeftovers).map(formatCommit).join('\n')
