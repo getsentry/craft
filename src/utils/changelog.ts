@@ -16,6 +16,7 @@ const DEFAULT_CHANGESET_BODY = '- No documented changes.';
 const VERSION_HEADER_LEVEL = 2;
 const SUBSECTION_HEADER_LEVEL = VERSION_HEADER_LEVEL + 1;
 const MAX_COMMITS_PER_QUERY = 50;
+const MAX_LEFTOVERS = 128;
 
 // Ensure subsections are nested under version headers otherwise we won't be
 // able to find them and put on GitHub releases.
@@ -246,7 +247,8 @@ function formatCommit(commit: Commit): string {
 
 export async function generateChangesetFromGit(
   git: SimpleGit,
-  rev: string
+  rev: string,
+  maxLeftovers: number = MAX_LEFTOVERS
 ): Promise<string> {
   const gitCommits = (await getChangesSince(git, rev)).filter(
     ({ body }) => !body.includes(SKIP_CHANGELOG_MAGIC_WORD)
@@ -336,11 +338,19 @@ export async function generateChangesetFromGit(
     );
   }
 
-  if (leftovers.length > 0) {
+  const nLeftovers = leftovers.length;
+  if (nLeftovers > 0) {
     changelogSections.push(
       markdownHeader(SUBSECTION_HEADER_LEVEL, 'Various fixes & improvements')
     );
-    changelogSections.push(leftovers.map(formatCommit).join('\n'));
+    if (nLeftovers > maxLeftovers) {
+      changelogSections.push(
+        `(Only listing ${maxLeftovers} out of ${nLeftovers}.)`
+      );
+    }
+    changelogSections.push(
+      leftovers.slice(0, maxLeftovers).map(formatCommit).join('\n')
+    );
   }
 
   return changelogSections.join('\n\n');
