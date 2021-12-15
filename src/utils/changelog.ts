@@ -16,7 +16,7 @@ const DEFAULT_CHANGESET_BODY = '- No documented changes.';
 const VERSION_HEADER_LEVEL = 2;
 const SUBSECTION_HEADER_LEVEL = VERSION_HEADER_LEVEL + 1;
 const MAX_COMMITS_PER_QUERY = 50;
-const MAX_LEFTOVERS = 64;
+const MAX_LEFTOVERS = 24;
 
 // Ensure subsections are nested under version headers otherwise we won't be
 // able to find them and put on GitHub releases.
@@ -343,12 +343,12 @@ export async function generateChangesetFromGit(
     changelogSections.push(
       markdownHeader(SUBSECTION_HEADER_LEVEL, 'Various fixes & improvements')
     );
-    if (nLeftovers > maxLeftovers) {
-      changelogSections.push(`_Listing ${maxLeftovers} out of ${nLeftovers}_`);
-    }
     changelogSections.push(
       leftovers.slice(0, maxLeftovers).map(formatCommit).join('\n')
     );
+    if (nLeftovers > maxLeftovers) {
+      changelogSections.push(`_Plus ${nLeftovers - maxLeftovers} more_`);
+    }
   }
 
   return changelogSections.join('\n\n');

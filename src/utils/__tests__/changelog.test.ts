@@ -422,11 +422,11 @@ describe('generateChangesetFromGit', () => {
       [
         '### Various fixes & improvements',
         '',
-        '_Listing 3 out of 4_',
-        '',
         '- Upgraded the kernel (abcdef12)',
         '- Upgraded the manifold (#123) by @alice',
         '- Refactored the crankshaft (#456) by @bob',
+        '',
+        '_Plus 1 more_',
       ].join('\n'),
     ],
     [
