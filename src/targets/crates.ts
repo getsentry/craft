@@ -185,7 +185,12 @@ export class CratesTarget extends BaseTarget {
     const isWorkspaceDependency = (dep: CrateDependency) => {
       // Optionally exclude dev dependencies from dependency resolution. When
       // this flag is provided, these usually lead to circular dependencies.
-      if (this.cratesConfig.noDevDeps && dep.kind === 'dev') {
+      // Path-only dependencies are designated by `req = *`, and are not being
+      // validated by cargo on publish.
+      if (
+        dep.kind === 'dev' &&
+        (dep.req === '*' || this.cratesConfig.noDevDeps)
+      ) {
         return false;
       }
 
