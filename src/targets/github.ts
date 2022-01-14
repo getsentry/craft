@@ -204,7 +204,7 @@ export class GithubTarget extends BaseTarget {
    *
    * @param release Release to fetch assets from
    */
-  public async getAssetsForReleaseDraft(
+  public async getAssetsForRelease(
     release_id: number
   ): Promise<ReposListAssetsForReleaseResponseItem[]> {
     const assetsResponse = await this.github.repos.listReleaseAssets({
@@ -226,7 +226,7 @@ export class GithubTarget extends BaseTarget {
     release_id: number,
     assetName: string
   ): Promise<boolean> {
-    const assets = await this.getAssetsForReleaseDraft(release_id);
+    const assets = await this.getAssetsForRelease(release_id);
     const assetToDelete = assets.find(({ name }) => name === assetName);
     if (!assetToDelete) {
       throw new Error(
@@ -369,7 +369,7 @@ export class GithubTarget extends BaseTarget {
 
     const draft = await this.createReleaseDraft(version, revision, changelog);
 
-    const assets = await this.getAssetsForReleaseDraft(draft.id);
+    const assets = await this.getAssetsForRelease(draft.id);
     if (assets.length > 0) {
       throw new Error('Existing assets found for the release draft! Why?');
     }
