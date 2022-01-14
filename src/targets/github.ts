@@ -262,7 +262,7 @@ export class GithubTarget extends BaseTarget {
   /**
    * Deletes the provided asset from its respective release
    *
-   * Can be also used to delete orphaned (unfinished) releases
+   * Can also be used to delete orphaned (unfinished) releases
    *
    * @param asset Asset to delete
    */
@@ -271,7 +271,7 @@ export class GithubTarget extends BaseTarget {
   ): Promise<boolean> {
     this.logger.debug(`Deleting asset: "${asset.name}"...`);
     if (isDryRun()) {
-      this.logger.info(`[dry-run] Not uploading deleting "${asset.name}"`);
+      this.logger.info(`[dry-run] Not deleting "${asset.name}"`);
       return false;
     }
 
