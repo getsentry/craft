@@ -145,11 +145,12 @@ export class UpmTarget extends BaseTarget {
         } else {
           await git.push(['origin', 'main']);
           const changes = await this.githubTarget.getChangelog(version);
-          await this.githubTarget.getOrCreateRelease(
+          const draft = await this.githubTarget.createReleaseDraft(
             version,
             targetRevision,
             changes
           );
+          await this.githubTarget.publishReleaseDraft(draft.id);
         }
       },
       true,

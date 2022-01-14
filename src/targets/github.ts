@@ -52,11 +52,6 @@ interface GithubRelease {
   upload_url: string;
 }
 
-/**
- * Tag type as expected by the GitHub API.
- */
-type GithubCreateTagType = 'commit' | 'tree' | 'blob';
-
 type ReposListAssetsForReleaseResponseItem = RestEndpointMethodTypes['repos']['listReleaseAssets']['response']['data'][0];
 
 interface OctokitError {
