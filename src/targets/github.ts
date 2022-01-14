@@ -37,8 +37,6 @@ export interface GithubTargetConfig extends GithubGlobalConfig {
   tagPrefix: string;
   /** Mark release as pre-release, if the version looks like a non-public release */
   previewReleases: boolean;
-  /** Use annotated (not lightweight) tag */
-  annotatedTag: boolean;
 }
 
 /**
@@ -107,8 +105,6 @@ export class GithubTarget extends BaseTarget {
       owner,
       repo,
       changelog,
-      annotatedTag:
-        this.config.annotatedTag === undefined || !!this.config.annotatedTag,
       previewReleases:
         this.config.previewReleases === undefined ||
         !!this.config.previewReleases,
@@ -118,55 +114,7 @@ export class GithubTarget extends BaseTarget {
   }
 
   /**
-   * Creates an annotated tag for the given revision.
-   *
-   * Unlike a lightweight tag (basically just a pointer to a commit), to
-   * create an annotated tag we must create a tag object first, and then
-   * create a reference to it manually.
-   *
-   * @param version The version to release
-   * @param revision Git commit SHA to be published
-   * @param tag Tag to create
-   * @returns The newly created release
-   */
-  public async createAnnotatedTag(
-    version: string,
-    revision: string,
-    tag: string
-  ): Promise<void> {
-    this.logger.debug(`Creating a tag object: "${tag}"`);
-    const createTagParams = {
-      message: `Tag for release: ${version}`,
-      object: revision,
-      owner: this.githubConfig.owner,
-      repo: this.githubConfig.repo,
-      tag,
-      type: 'commit' as GithubCreateTagType,
-    };
-    const tagCreatedResponse = await this.github.git.createTag(createTagParams);
-
-    const ref = `refs/tags/${tag}`;
-    const refSha = tagCreatedResponse.data.sha;
-    this.logger.debug(`Creating a reference "${ref}" for object "${refSha}"`);
-    try {
-      await this.github.git.createRef({
-        owner: this.githubConfig.owner,
-        ref,
-        repo: this.githubConfig.repo,
-        sha: refSha,
-      });
-    } catch (e) {
-      if (e instanceof Error && e.message.match(/reference already exists/i)) {
-        this.logger.error(
-          `Reference "${ref}" already exists. Does tag "${tag}" already exist?`
-        );
-      }
-      throw e;
-    }
-  }
-
-  /**
-   * Gets an existing or creates a new release for the given version.
+   * Create a release draft for the given version.
    *
    * The release name and description body is brought in from `changes`
    * respective tag, if present. Otherwise, the release name defaults to the
@@ -177,7 +125,7 @@ export class GithubTarget extends BaseTarget {
    * @param changes The changeset information for this release
    * @returns The newly created release
    */
-  public async getOrCreateRelease(
+  public async createReleaseDraft(
     version: string,
     revision: string,
     changes?: Changeset
@@ -187,56 +135,25 @@ export class GithubTarget extends BaseTarget {
     const isPreview =
       this.githubConfig.previewReleases && isPreviewRelease(version);
 
-    try {
-      const response = await this.github.repos.getReleaseByTag({
-        owner: this.githubConfig.owner,
-        repo: this.githubConfig.repo,
-        tag,
-      });
-      this.logger.warn(`Found the existing release for tag "${tag}"`);
-      return response.data;
-    } catch (e: any) {
-      if (e.status !== 404) {
-        throw e;
-      }
-      this.logger.debug(`Release for tag "${tag}" not found.`);
-    }
-
-    const createReleaseParams = {
-      draft: false,
-      name: tag,
-      owner: this.githubConfig.owner,
-      prerelease: isPreview,
-      repo: this.githubConfig.repo,
-      tag_name: tag,
-      target_commitish: revision,
-      ...changes,
-    };
-
-    this.logger.debug(`Annotated tag: ${this.githubConfig.annotatedTag}`);
-    if (!isDryRun()) {
-      if (this.githubConfig.annotatedTag) {
-        await this.createAnnotatedTag(version, revision, tag);
-        // We've just created the tag, so "target_commitish" will not be used.
-        createReleaseParams.target_commitish = '';
-      }
-
-      this.logger.info(
-        `Creating a new ${
-          isPreview ? '*preview* ' : ''
-        }release for tag "${tag}"`
-      );
-      const created = await this.github.repos.createRelease(
-        createReleaseParams
-      );
-      return created.data;
-    } else {
+    if (isDryRun()) {
       this.logger.info(`[dry-run] Not creating the release`);
       return {
         id: 0,
         tag_name: tag,
         upload_url: '',
       };
+    } else {
+      const created = await this.github.repos.createRelease({
+        draft: true,
+        name: tag,
+        owner: this.githubConfig.owner,
+        prerelease: isPreview,
+        repo: this.githubConfig.repo,
+        tag_name: tag,
+        target_commitish: revision,
+        ...changes,
+      });
+      return created.data;
     }
   }
 
@@ -292,7 +209,7 @@ export class GithubTarget extends BaseTarget {
    *
    * @param release Release to fetch assets from
    */
-  public async getAssetsForRelease(
+  public async getAssetsForReleaseDraft(
     release_id: number
   ): Promise<ReposListAssetsForReleaseResponseItem[]> {
     const assetsResponse = await this.github.repos.listReleaseAssets({
@@ -314,7 +231,7 @@ export class GithubTarget extends BaseTarget {
     release_id: number,
     assetName: string
   ): Promise<boolean> {
-    const assets = await this.getAssetsForRelease(release_id);
+    const assets = await this.getAssetsForReleaseDraft(release_id);
     const assetToDelete = assets.find(({ name }) => name === assetName);
     if (!assetToDelete) {
       throw new Error(
@@ -423,6 +340,24 @@ export class GithubTarget extends BaseTarget {
   }
 
   /**
+   * Publishes the release draft.
+   *
+   * @param release_id Release object ID
+   */
+  public async publishReleaseDraft(release_id: number) {
+    if (isDryRun()) {
+      this.logger.info(`[dry-run] Not publishing the release draft`);
+    } else {
+      await this.github.repos.updateRelease({
+        owner: this.githubConfig.owner,
+        repo: this.githubConfig.repo,
+        release_id,
+        draft: false,
+      });
+    }
+  }
+
+  /**
    * Creates a new GitHub release and publish all available artifacts.
    *
    * It also creates a tag if it doesn't exist
@@ -436,31 +371,12 @@ export class GithubTarget extends BaseTarget {
     if (config.changelogPolicy !== ChangelogPolicy.None) {
       changelog = await this.getChangelog(version);
     }
-    const release = await this.getOrCreateRelease(version, revision, changelog);
 
-    const assets = await this.getAssetsForRelease(release.id);
+    const draft = await this.createReleaseDraft(version, revision, changelog);
+
+    const assets = await this.getAssetsForReleaseDraft(draft.id);
     if (assets.length > 0) {
-      this.logger.warn(
-        'Existing assets found for the release, deleting them...'
-      );
-      if (isDryRun()) {
-        this.logger.info('[dry-run] Not deleting assets.');
-      } else {
-        const results = await Promise.allSettled(
-          assets.map(asset => this.deleteAsset(asset))
-        );
-        const failed = results.filter(
-          ({ status }) => status === 'rejected'
-        ) as PromiseRejectedResult[];
-        if (failed.length === 0) {
-          this.logger.debug(`Deleted ${assets.length} assets`);
-        } else {
-          this.logger.debug(
-            'Failed to delete some assets:',
-            failed.map(({ reason }) => reason)
-          );
-        }
-      }
+      throw new Error('Existing assets found for the release draft! Why?');
     }
 
     const artifacts = await this.getArtifactsForRevision(revision);
@@ -473,8 +389,10 @@ export class GithubTarget extends BaseTarget {
 
     await Promise.all(
       localArtifacts.map(({ path, mimeType }) =>
-        this.uploadAsset(release, path, mimeType)
+        this.uploadAsset(draft, path, mimeType)
       )
     );
+
+    await this.publishReleaseDraft(draft.id);
   }
 }
