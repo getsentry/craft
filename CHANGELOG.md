@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.27.4
+
+### Various fixes & improvements
+
+- fix(crates): Skip path-only dev-dependencies in dep cycle checking (#341) by @Swatinem
+- Limit the number of leftovers listed (#335) by @chadwhitacre
+
 ## 0.27.3
 
 ### Various fixes & improvements
