@@ -137,19 +137,19 @@ export class GithubTarget extends BaseTarget {
         tag_name: tag,
         upload_url: '',
       };
-    } else {
-      const created = await this.github.repos.createRelease({
-        draft: true,
-        name: tag,
-        owner: this.githubConfig.owner,
-        prerelease: isPreview,
-        repo: this.githubConfig.repo,
-        tag_name: tag,
-        target_commitish: revision,
-        ...changes,
-      });
-      return created.data;
     }
+
+    const created = await this.github.repos.createRelease({
+      draft: true,
+      name: tag,
+      owner: this.githubConfig.owner,
+      prerelease: isPreview,
+      repo: this.githubConfig.repo,
+      tag_name: tag,
+      target_commitish: revision,
+      ...changes,
+    });
+    return created.data;
   }
 
   public async getChangelog(version: string): Promise<Changeset> {
@@ -342,14 +342,15 @@ export class GithubTarget extends BaseTarget {
   public async publishReleaseDraft(release_id: number) {
     if (isDryRun()) {
       this.logger.info(`[dry-run] Not publishing the release draft`);
-    } else {
-      await this.github.repos.updateRelease({
-        owner: this.githubConfig.owner,
-        repo: this.githubConfig.repo,
-        release_id,
-        draft: false,
-      });
+      return;
     }
+
+    await this.github.repos.updateRelease({
+      owner: this.githubConfig.owner,
+      repo: this.githubConfig.repo,
+      release_id,
+      draft: false,
+    });
   }
 
   /**
