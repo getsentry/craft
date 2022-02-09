@@ -109,7 +109,7 @@ export class GithubTarget extends BaseTarget {
   }
 
   /**
-   * Create a release draft for the given version.
+   * Create a draft release for the given version.
    *
    * The release name and description body is brought in from `changes`
    * respective tag, if present. Otherwise, the release name defaults to the
@@ -120,7 +120,7 @@ export class GithubTarget extends BaseTarget {
    * @param changes The changeset information for this release
    * @returns The newly created release
    */
-  public async createReleaseDraft(
+  public async createDraftRelease(
     version: string,
     revision: string,
     changes?: Changeset
@@ -131,7 +131,7 @@ export class GithubTarget extends BaseTarget {
       this.githubConfig.previewReleases && isPreviewRelease(version);
 
     if (isDryRun()) {
-      this.logger.info(`[dry-run] Not creating the release`);
+      this.logger.info(`[dry-run] Not creating the draft release`);
       return {
         id: 0,
         tag_name: tag,
@@ -139,7 +139,7 @@ export class GithubTarget extends BaseTarget {
       };
     }
 
-    const created = await this.github.repos.createRelease({
+    return (await this.github.repos.createRelease({
       draft: true,
       name: tag,
       owner: this.githubConfig.owner,
@@ -148,8 +148,7 @@ export class GithubTarget extends BaseTarget {
       tag_name: tag,
       target_commitish: revision,
       ...changes,
-    });
-    return created.data;
+    })).data;
   }
 
   public async getChangelog(version: string): Promise<Changeset> {
@@ -219,7 +218,7 @@ export class GithubTarget extends BaseTarget {
   /**
    * Deletes the asset with the given name from the specific release
    *
-   * @param release Release object
+   * @param release Release object ID
    * @param assetName Asset name to be deleted
    */
   public async deleteAssetByName(
@@ -335,20 +334,19 @@ export class GithubTarget extends BaseTarget {
   }
 
   /**
-   * Publishes the release draft.
+   * Publishes the draft release.
    *
-   * @param release_id Release object ID
+   * @param release Release object
    */
-  public async publishReleaseDraft(release_id: number) {
+  public async publishRelease(release: GithubRelease) {
     if (isDryRun()) {
-      this.logger.info(`[dry-run] Not publishing the release draft`);
+      this.logger.info(`[dry-run] Not publishing the draft release`);
       return;
     }
 
     await this.github.repos.updateRelease({
-      owner: this.githubConfig.owner,
-      repo: this.githubConfig.repo,
-      release_id,
+      ...this.githubConfig,
+      release_id: release.id,
       draft: false,
     });
   }
@@ -368,13 +366,6 @@ export class GithubTarget extends BaseTarget {
       changelog = await this.getChangelog(version);
     }
 
-    const draft = await this.createReleaseDraft(version, revision, changelog);
-
-    const assets = await this.getAssetsForRelease(draft.id);
-    if (assets.length > 0) {
-      throw new Error('Existing assets found for the release draft! Why?');
-    }
-
     const artifacts = await this.getArtifactsForRevision(revision);
     const localArtifacts = await Promise.all(
       artifacts.map(async artifact => ({
@@ -383,12 +374,13 @@ export class GithubTarget extends BaseTarget {
       }))
     );
 
+    const draftRelease = await this.createDraftRelease(version, revision, changelog);
     await Promise.all(
       localArtifacts.map(({ path, mimeType }) =>
-        this.uploadAsset(draft, path, mimeType)
+        this.uploadAsset(draftRelease, path, mimeType)
       )
     );
 
-    await this.publishReleaseDraft(draft.id);
+    await this.publishRelease(draftRelease);
   }
 }
