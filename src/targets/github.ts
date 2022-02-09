@@ -139,16 +139,18 @@ export class GithubTarget extends BaseTarget {
       };
     }
 
-    return (await this.github.repos.createRelease({
-      draft: true,
-      name: tag,
-      owner: this.githubConfig.owner,
-      prerelease: isPreview,
-      repo: this.githubConfig.repo,
-      tag_name: tag,
-      target_commitish: revision,
-      ...changes,
-    })).data;
+    return (
+      await this.github.repos.createRelease({
+        draft: true,
+        name: tag,
+        owner: this.githubConfig.owner,
+        prerelease: isPreview,
+        repo: this.githubConfig.repo,
+        tag_name: tag,
+        target_commitish: revision,
+        ...changes,
+      })
+    ).data;
   }
 
   public async getChangelog(version: string): Promise<Changeset> {
@@ -374,7 +376,11 @@ export class GithubTarget extends BaseTarget {
       }))
     );
 
-    const draftRelease = await this.createDraftRelease(version, revision, changelog);
+    const draftRelease = await this.createDraftRelease(
+      version,
+      revision,
+      changelog
+    );
     await Promise.all(
       localArtifacts.map(({ path, mimeType }) =>
         this.uploadAsset(draftRelease, path, mimeType)
