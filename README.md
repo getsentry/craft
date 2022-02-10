@@ -16,6 +16,8 @@ then enforces a specific workflow for managing release branches, changelogs, art
 ## Table of Contents <!-- omit in toc -->
 
 - [Installation](#installation)
+  - [Binary](#binary)
+  - [npm (not recommended)](#npm-not-recommended)
 - [Usage](#usage)
 - [Caveats](#caveats)
 - [Global Configuration](#global-configuration)
@@ -1002,10 +1004,12 @@ Note: in order to see the output of the commands, set the [logging level](#loggi
 
 **Environment**
 
-| Name             | Description                      |
-| ---------------- | -------------------------------- |
-| `OSSRH_USERNAME` | Username of Sonatype repository. |
-| `OSSRH_PASSWORD` | Password of Sonatype repository. |
+| Name              | Description                                                                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OSSRH_USERNAME`  | Username of Sonatype repository.                                                                                                                    |
+| `OSSRH_PASSWORD`  | Password of Sonatype repository.                                                                                                                    |
+| `GPG_PASSPHRASE`  | Passphrase for your default GPG Private Key.                                                                                                        |
+| `GPG_PRIVATE_KEY` | **optional** GPG Private Key generated via `gpg --armor --export-secret-keys YOUR_ID`. If not provided, default key from your machine will be used. |
 
 **Configuration**
 

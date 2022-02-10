@@ -13,6 +13,7 @@ import { withTempDir } from '../utils/files';
 import { ConfigurationError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
 import { checkEnvForPrerequisite } from '../utils/env';
+import { importGPGKey } from '../utils/gpg';
 
 const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
 
@@ -25,7 +26,11 @@ export const POM_DEFAULT_FILENAME = 'pom-default.xml';
 const POM_FILE_EXT = '.xml'; // Must include the leading `.`
 const BOM_FILE_KEY_REGEXP = new RegExp('<packaging>pom</packaging>');
 
-export const targetSecrets = ['OSSRH_USERNAME', 'OSSRH_PASSWORD'] as const;
+export const targetSecrets = [
+  'GPG_PASSPHRASE',
+  'OSSRH_USERNAME',
+  'OSSRH_PASSWORD',
+] as const;
 type SecretsType = typeof targetSecrets[number];
 
 export const targetOptions = [
@@ -73,6 +78,10 @@ export class MavenTarget extends BaseTarget {
     super(config, artifactProvider);
     this.mavenConfig = this.getMavenConfig();
     this.checkRequiredSoftware();
+
+    if (process.env.GPG_PRIVATE_KEY) {
+      importGPGKey(process.env.GPG_PRIVATE_KEY);
+    }
   }
 
   /**
@@ -353,6 +362,7 @@ export class MavenTarget extends BaseTarget {
       `-DpomFile=${bomFile}`,
       `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
       `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+      `-Dgpg.passphrase=${this.mavenConfig.GPG_PASSPHRASE}`,
       '--settings',
       this.mavenConfig.mavenSettingsPath,
     ]);
@@ -377,6 +387,7 @@ export class MavenTarget extends BaseTarget {
       `-DpomFile=${pomFile}`,
       `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
       `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+      `-Dgpg.passphrase=${this.mavenConfig.GPG_PASSPHRASE}`,
       `--settings`,
       `${this.mavenConfig.mavenSettingsPath}`,
     ]);
