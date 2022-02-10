@@ -8,7 +8,7 @@
  * Craft project-specific configuration
  */
 export interface CraftProjectConfig {
-  github?: GithubGlobalConfig;
+  github?: GitHubGlobalConfig;
   targets?: TargetConfig[];
   preReleaseCommand?: string;
   postReleaseCommand?: string;
@@ -23,7 +23,7 @@ export interface CraftProjectConfig {
 /**
  * Global (non-target!) GitHub configuration for the project
  */
-export interface GithubGlobalConfig {
+export interface GitHubGlobalConfig {
   owner: string;
   repo: string;
   projectPath?: string;
@@ -69,13 +69,13 @@ export const enum ChangelogPolicy {
  * Name of the status provider
  */
 export const enum StatusProviderName {
-  Github = 'github',
+  GitHub = 'github',
 }
 /**
  * Name of the artifact provider
  */
 export const enum ArtifactProviderName {
   GCS = 'gcs',
-  Github = 'github',
+  GitHub = 'github',
   None = 'none',
 }

@@ -5,9 +5,9 @@ import { Octokit } from '@octokit/rest';
 import simpleGit from 'simple-git';
 import {
   getAuthUsername,
-  getGithubApiToken,
+  getGitHubApiToken,
   getGitHubClient,
-  GithubRemote,
+  GitHubRemote,
 } from '../utils/githubApi';
 
 import { TargetConfig } from '../schemas/project_config';
@@ -33,7 +33,7 @@ interface AwsLambdaTargetConfig {
   /** AWS secret access key, set as `AWS_SECRET_ACCESS_KEY`. */
   awsSecretAccessKey: string;
   /** Git remote of the release registry. */
-  registryRemote: GithubRemote;
+  registryRemote: GitHubRemote;
   /** Should layer versions of prereleases be pushed to the registry? */
   linkPrereleases: boolean;
 }
@@ -140,7 +140,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
     const remote = this.awsLambdaConfig.registryRemote;
     const username = await getAuthUsername(this.github);
-    remote.setAuth(username, getGithubApiToken());
+    remote.setAuth(username, getGitHubApiToken());
 
     await withTempDir(
       async directory => {

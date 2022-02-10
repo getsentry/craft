@@ -15,7 +15,7 @@ import {
   getStatusProviderFromConfig,
   getArtifactProviderFromConfig,
   DEFAULT_RELEASE_BRANCH_NAME,
-  getGlobalGithubConfig,
+  getGlobalGitHubConfig,
 } from '../config';
 import { formatTable, logger } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
@@ -216,7 +216,7 @@ async function getTargetList(
   artifactProvider: BaseArtifactProvider
 ): Promise<BaseTarget[]> {
   logger.trace('Initializing targets');
-  const githubRepo = await getGlobalGithubConfig();
+  const githubRepo = await getGlobalGitHubConfig();
   const targetList: BaseTarget[] = [];
   for (const targetConfig of targetConfigList) {
     const targetClass = getTargetByName(targetConfig.name);

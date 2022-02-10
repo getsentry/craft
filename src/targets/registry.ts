@@ -2,14 +2,14 @@ import { mapLimit } from 'async';
 import { Octokit } from '@octokit/rest';
 import simpleGit, { SimpleGit } from 'simple-git';
 
-import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
   getAuthUsername,
-  getGithubApiToken,
+  getGitHubApiToken,
   getGitHubClient,
-  GithubRemote,
+  GitHubRemote,
 } from '../utils/githubApi';
 import { renderTemplateSafe } from '../utils/strings';
 import { isPreviewRelease } from '../utils/version';
@@ -74,24 +74,24 @@ export class RegistryTarget extends BaseTarget {
   /** Target name */
   public readonly name = 'registry';
   /** Git remote of the release registry */
-  public readonly remote: GithubRemote;
+  public readonly remote: GitHubRemote;
   /** Target options */
   public readonly registryConfig: RegistryConfig[];
-  /** Github client */
+  /** GitHub client */
   public readonly github: Octokit;
-  /** Github repo configuration */
-  public readonly githubRepo: GithubGlobalConfig;
+  /** GitHub repo configuration */
+  public readonly githubRepo: GitHubGlobalConfig;
 
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GithubGlobalConfig
+    githubRepo: GitHubGlobalConfig
   ) {
     super(config, artifactProvider, githubRepo);
     const remote = this.config.remote;
     if (remote) {
       const [owner, repo] = remote.split('/', 2);
-      this.remote = new GithubRemote(owner, repo);
+      this.remote = new GitHubRemote(owner, repo);
     } else {
       this.remote = DEFAULT_REGISTRY_REMOTE;
     }
@@ -420,7 +420,7 @@ export class RegistryTarget extends BaseTarget {
   private async cloneRegistry(directory: string): Promise<SimpleGit> {
     const remote = this.remote;
     const username = await getAuthUsername(this.github);
-    remote.setAuth(username, getGithubApiToken());
+    remote.setAuth(username, getGitHubApiToken());
 
     const git = simpleGit(directory);
     this.logger.info(

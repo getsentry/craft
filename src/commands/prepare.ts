@@ -7,7 +7,7 @@ import { Arguments, Argv, CommandBuilder } from 'yargs';
 import {
   getConfiguration,
   DEFAULT_RELEASE_BRANCH_NAME,
-  getGlobalGithubConfig,
+  getGlobalGitHubConfig,
 } from '../config';
 import { logger } from '../logger';
 import { ChangelogPolicy } from '../schemas/project_config';
@@ -454,7 +454,7 @@ async function switchToDefaultBranch(
 export async function prepareMain(argv: PrepareOptions): Promise<any> {
   // Get repo configuration
   const config = getConfiguration();
-  const githubConfig = await getGlobalGithubConfig();
+  const githubConfig = await getGlobalGitHubConfig();
   const newVersion = argv.newVersion;
 
   const git = await getGitClient();

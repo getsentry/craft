@@ -1,5 +1,5 @@
 import { logger as loggerRaw } from '../logger';
-import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import {
   parseFilterOptions,
   RawFilterOptions,
@@ -23,8 +23,8 @@ export class BaseTarget {
   public readonly config: TargetConfig;
   /** Artifact filtering options for the target */
   public readonly filterOptions: ParsedFilterOptions;
-  /** Github repo configuration */
-  public readonly githubRepo?: GithubGlobalConfig;
+  /** GitHub repo configuration */
+  public readonly githubRepo?: GitHubGlobalConfig;
 
   public static getId(target: TargetConfig): string {
     return target.id
@@ -35,7 +35,7 @@ export class BaseTarget {
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo?: GithubGlobalConfig
+    githubRepo?: GitHubGlobalConfig
   ) {
     this.logger = loggerRaw.withScope(`[target/${config.name}]`);
     this.artifactProvider = artifactProvider;

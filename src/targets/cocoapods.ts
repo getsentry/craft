@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import { basename, join } from 'path';
 import { promisify } from 'util';
 
-import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { getFile, getGitHubClient } from '../utils/githubApi';
@@ -33,15 +33,15 @@ export class CocoapodsTarget extends BaseTarget {
   public readonly name: string = 'cocoapods';
   /** Target options */
   public readonly cocoapodsConfig: CocoapodsTargetOptions;
-  /** Github client */
+  /** GitHub client */
   public readonly github: Octokit;
-  /** Github repo configuration */
-  public readonly githubRepo: GithubGlobalConfig;
+  /** GitHub repo configuration */
+  public readonly githubRepo: GitHubGlobalConfig;
 
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GithubGlobalConfig
+    githubRepo: GitHubGlobalConfig
   ) {
     super(config, artifactProvider, githubRepo);
     this.cocoapodsConfig = this.getCocoapodsConfig();

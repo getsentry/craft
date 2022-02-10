@@ -9,7 +9,7 @@ const projectConfigJsonSchema = {
   type: 'object',
   properties: {
     github: {
-      title: 'GithubGlobalConfig',
+      title: 'GitHubGlobalConfig',
       description: 'Global (non-target!) GitHub configuration for the project',
       type: 'object',
       properties: {
@@ -61,7 +61,7 @@ const projectConfigJsonSchema = {
           description: 'Name of the status provider',
           type: 'string',
           enum: ['github'],
-          tsEnumNames: ['Github'],
+          tsEnumNames: ['GitHub'],
         },
         config: {
           type: 'object',
@@ -80,7 +80,7 @@ const projectConfigJsonSchema = {
           description: 'Name of the artifact provider',
           type: 'string',
           enum: ['gcs', 'github', 'none'],
-          tsEnumNames: ['GCS', 'Github', 'None'],
+          tsEnumNames: ['GCS', 'GitHub', 'None'],
         },
         config: {
           type: 'object',
@@ -121,7 +121,7 @@ const projectConfigJsonSchema = {
      *
      * e.g.
      *
-     * interface GithubTargetConfig extends TargetConfig {}
+     * interface GitHubTargetConfig extends TargetConfig {}
      *
      * and
      *
@@ -136,8 +136,8 @@ const projectConfigJsonSchema = {
      *
      */
     githubConfig: {
-      title: 'GithubTargetConfig',
-      description: 'Configuration options for the Github target',
+      title: 'GitHubTargetConfig',
+      description: 'Configuration options for the GitHub target',
       extends: { $ref: '#/definitions/targetConfig' },
       properties: {
         changelog: {

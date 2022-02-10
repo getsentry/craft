@@ -1,15 +1,15 @@
 jest.mock('../../utils/githubApi.ts');
 import { getGitHubClient } from '../../utils/githubApi';
-import { GithubArtifactProvider, ArtifactItem } from '../github';
+import { GitHubArtifactProvider, ArtifactItem } from '../github';
 
-class TestGithubArtifactProvider extends GithubArtifactProvider {
+class TestGitHubArtifactProvider extends GitHubArtifactProvider {
   public testGetRevisionArtifact(revision: string): Promise<ArtifactItem> {
     return this.getRevisionArtifact(revision);
   }
 }
 
 describe('GitHub Artifact Provider', () => {
-  let githubArtifactProvider: TestGithubArtifactProvider;
+  let githubArtifactProvider: TestGitHubArtifactProvider;
   let mockClient: { actions: { listArtifactsForRepo: jest.Mock } };
 
   beforeEach(() => {
@@ -22,7 +22,7 @@ describe('GitHub Artifact Provider', () => {
       // @ts-ignore we only need to mock a subset
     >).mockReturnValueOnce(mockClient);
 
-    githubArtifactProvider = new TestGithubArtifactProvider({
+    githubArtifactProvider = new TestGitHubArtifactProvider({
       name: 'github-test',
       repoOwner: 'getsentry',
       repoName: 'craft',

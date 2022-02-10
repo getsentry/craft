@@ -6,7 +6,7 @@ import { basename } from 'path';
 import { getConfiguration } from '../config';
 import {
   ChangelogPolicy,
-  GithubGlobalConfig,
+  GitHubGlobalConfig,
   TargetConfig,
 } from '../schemas/project_config';
 import {
@@ -30,7 +30,7 @@ export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
 /**
  * Configuration options for the GitHub target.
  */
-export interface GithubTargetConfig extends GithubGlobalConfig {
+export interface GitHubTargetConfig extends GitHubGlobalConfig {
   /** Path to changelog inside the repository */
   changelog: string;
   /** Prefix that will be used to generate tag name */
@@ -43,7 +43,7 @@ export interface GithubTargetConfig extends GithubGlobalConfig {
  * An interface that represents a minimal GitHub release as returned by the
  * GitHub API.
  */
-interface GithubRelease {
+interface GitHubRelease {
   /** Release id */
   id: number;
   /** Tag name */
@@ -75,20 +75,20 @@ interface OctokitErrorResponse {
 /**
  * Target responsible for publishing releases on GitHub.
  */
-export class GithubTarget extends BaseTarget {
+export class GitHubTarget extends BaseTarget {
   /** Target name */
   public readonly name = 'github';
   /** Target options */
-  public readonly githubConfig: GithubTargetConfig;
+  public readonly githubConfig: GitHubTargetConfig;
   /** GitHub client */
   public readonly github: Octokit;
   /** GitHub repo configuration */
-  public readonly githubRepo: GithubGlobalConfig;
+  public readonly githubRepo: GitHubGlobalConfig;
 
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GithubGlobalConfig
+    githubRepo: GitHubGlobalConfig
   ) {
     super(config, artifactProvider, githubRepo);
     this.githubRepo = githubRepo;
@@ -124,7 +124,7 @@ export class GithubTarget extends BaseTarget {
     version: string,
     revision: string,
     changes?: Changeset
-  ): Promise<GithubRelease> {
+  ): Promise<GitHubRelease> {
     const tag = versionToTag(version, this.githubConfig.tagPrefix);
     this.logger.info(`Git tag: "${tag}"`);
     const isPreview =
@@ -139,18 +139,17 @@ export class GithubTarget extends BaseTarget {
       };
     }
 
-    return (
-      await this.github.repos.createRelease({
-        draft: true,
-        name: tag,
-        owner: this.githubConfig.owner,
-        prerelease: isPreview,
-        repo: this.githubConfig.repo,
-        tag_name: tag,
-        target_commitish: revision,
-        ...changes,
-      })
-    ).data;
+    const { data } = await this.github.repos.createRelease({
+      draft: true,
+      name: tag,
+      owner: this.githubConfig.owner,
+      prerelease: isPreview,
+      repo: this.githubConfig.repo,
+      tag_name: tag,
+      target_commitish: revision,
+      ...changes,
+    });
+    return data;
   }
 
   public async getChangelog(version: string): Promise<Changeset> {
@@ -247,7 +246,7 @@ export class GithubTarget extends BaseTarget {
    * @param contentType Optional content-type for uploading
    */
   public async uploadAsset(
-    release: GithubRelease,
+    release: GitHubRelease,
     path: string,
     contentType?: string
   ): Promise<string | undefined> {
@@ -340,7 +339,7 @@ export class GithubTarget extends BaseTarget {
    *
    * @param release Release object
    */
-  public async publishRelease(release: GithubRelease) {
+  public async publishRelease(release: GitHubRelease) {
     if (isDryRun()) {
       this.logger.info(`[dry-run] Not publishing the draft release`);
       return;
