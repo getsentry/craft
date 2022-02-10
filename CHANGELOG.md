@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.27.5
+
+### Increase Release Safety and Reliability (ongoing)
+
+Work on increasing the release safety and reliability.
+
+By: @chadwhitacre (#343)
+
+### Various fixes & improvements
+
+- feat: Unattended GPG signing for Maven target (#346) by @kamilogorek
+- Github → GitHub (#347) by @chadwhitacre
+
 ## 0.27.4
 
 ### Various fixes & improvements
