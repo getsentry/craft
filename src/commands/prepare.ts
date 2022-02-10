@@ -492,7 +492,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   // a custom revision and it is harder to tell git to give us the tag right
   // before a specific revision.
   // TL;DR - WARNING:
-  // The order matters here, do not move this command above craeteReleaseBranch!
+  // The order matters here, do not move this command above createReleaseBranch!
   const oldVersion = await getLatestTag(git);
 
   // Check & update the changelog
