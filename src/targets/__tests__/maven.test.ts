@@ -9,8 +9,10 @@ import {
 } from '../maven';
 import { retrySpawnProcess } from '../../utils/async';
 import { withTempDir } from '../../utils/files';
+import { importGPGKey } from '../../utils/gpg';
 
 jest.mock('../../utils/files');
+jest.mock('../../utils/gpg');
 
 jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
@@ -46,6 +48,7 @@ function removeTargetSecretsFromEnv(): void {
 
 function getFullTargetConfig(): any {
   return {
+    GPG_PASSPHRASE: DEFAULT_OPTION_VALUE,
     OSSRH_USERNAME: DEFAULT_OPTION_VALUE,
     OSSRH_PASSWORD: DEFAULT_OPTION_VALUE,
     gradleCliPath: DEFAULT_OPTION_VALUE,
@@ -63,6 +66,7 @@ function getFullTargetConfig(): any {
 
 function getRequiredTargetConfig(): any {
   return {
+    GPG_PASSPHRASE: DEFAULT_OPTION_VALUE,
     OSSRH_USERNAME: DEFAULT_OPTION_VALUE,
     OSSRH_PASSWORD: DEFAULT_OPTION_VALUE,
     gradleCliPath: DEFAULT_OPTION_VALUE,
@@ -93,7 +97,7 @@ describe('Maven target configuration', () => {
   test('no env vars and no options', () => {
     removeTargetSecretsFromEnv();
     expect(createMavenTarget).toThrowErrorMatchingInlineSnapshot(
-      `"Required value(s) OSSRH_USERNAME not found in configuration files or the environment. See the documentation for more details."`
+      `"Required value(s) GPG_PASSPHRASE not found in configuration files or the environment. See the documentation for more details."`
     );
   });
 
@@ -176,6 +180,13 @@ describe('Maven target configuration', () => {
     expect(typeof mvnTarget.config.android.fileReplaceeRegex).toBe('string');
     expect(typeof mvnTarget.config.android.fileReplacerStr).toBe('string');
   });
+
+  test('import GPG private key if one is present in the environment', () => {
+    setTargetSecretsInEnv();
+    process.env.GPG_PRIVATE_KEY = DEFAULT_OPTION_VALUE;
+    createMavenTarget(getFullTargetConfig());
+    expect(importGPGKey).toHaveBeenCalledWith(DEFAULT_OPTION_VALUE);
+  });
 });
 
 describe('publish', () => {
@@ -253,7 +264,7 @@ describe('publish', () => {
     expect(callArgs[0]).toEqual(DEFAULT_OPTION_VALUE);
 
     const cmdArgs = callArgs[1] as string[];
-    expect(cmdArgs).toHaveLength(10);
+    expect(cmdArgs).toHaveLength(11);
     expect(cmdArgs[0]).toBe('gpg:sign-and-deploy-file');
     expect(cmdArgs[1]).toMatch(new RegExp(`-Dfile=${tmpDirName}.+`));
     expect(cmdArgs[2]).toMatch(
@@ -268,8 +279,9 @@ describe('publish', () => {
     );
     expect(cmdArgs[6]).toBe(`-DrepositoryId=${DEFAULT_OPTION_VALUE}`);
     expect(cmdArgs[7]).toBe(`-Durl=${DEFAULT_OPTION_VALUE}`);
-    expect(cmdArgs[8]).toBe('--settings');
-    expect(cmdArgs[9]).toBe(DEFAULT_OPTION_VALUE);
+    expect(cmdArgs[8]).toBe(`-Dgpg.passphrase=${DEFAULT_OPTION_VALUE}`);
+    expect(cmdArgs[9]).toBe('--settings');
+    expect(cmdArgs[10]).toBe(DEFAULT_OPTION_VALUE);
   });
 
   test('upload BOM', async () => {
@@ -301,7 +313,7 @@ describe('publish', () => {
     expect(callArgs[0]).toEqual(DEFAULT_OPTION_VALUE);
 
     const cmdArgs = callArgs[1] as string[];
-    expect(cmdArgs).toHaveLength(7);
+    expect(cmdArgs).toHaveLength(8);
     expect(cmdArgs[0]).toBe('gpg:sign-and-deploy-file');
     expect(cmdArgs[1]).toMatch(
       new RegExp(`-Dfile=${tmpDirName}.+${POM_DEFAULT_FILENAME}`)
@@ -311,8 +323,9 @@ describe('publish', () => {
     );
     expect(cmdArgs[3]).toBe(`-DrepositoryId=${DEFAULT_OPTION_VALUE}`);
     expect(cmdArgs[4]).toBe(`-Durl=${DEFAULT_OPTION_VALUE}`);
-    expect(cmdArgs[5]).toBe('--settings');
-    expect(cmdArgs[6]).toBe(DEFAULT_OPTION_VALUE);
+    expect(cmdArgs[5]).toBe(`-Dgpg.passphrase=${DEFAULT_OPTION_VALUE}`);
+    expect(cmdArgs[6]).toBe('--settings');
+    expect(cmdArgs[7]).toBe(DEFAULT_OPTION_VALUE);
   });
 });
 
