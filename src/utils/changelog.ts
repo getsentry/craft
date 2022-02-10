@@ -1,7 +1,7 @@
 import { SimpleGit } from 'simple-git';
 import { logger } from '../logger';
 
-import { getGlobalGithubConfig } from '../config';
+import { getGlobalGitHubConfig } from '../config';
 import { getChangesSince } from './git';
 import { getGitHubClient } from './githubApi';
 import { getVersion } from './version';
@@ -413,7 +413,7 @@ async function getPRAndMilestoneFromCommit(
       .map(hash => `C${hash}: object(oid: "${hash}") {...PRFragment}`)
       .join('\n');
 
-    const { repo, owner } = await getGlobalGithubConfig();
+    const { repo, owner } = await getGlobalGitHubConfig();
     const graphqlQuery = `{
       repository(name: "${repo}", owner: "${owner}") {
         ${commitsQuery}
@@ -496,7 +496,7 @@ async function getMilestoneInfo(
     )
     .join('\n');
 
-  const { repo, owner } = await getGlobalGithubConfig();
+  const { repo, owner } = await getGlobalGitHubConfig();
   const graphqlQuery = `{
       repository(name: "${repo}", owner: "${owner}") {
         ${milestoneQuery}

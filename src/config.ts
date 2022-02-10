@@ -9,7 +9,7 @@ import simpleGit from 'simple-git';
 import { logger } from './logger';
 import {
   CraftProjectConfig,
-  GithubGlobalConfig,
+  GitHubGlobalConfig,
   ArtifactProviderName,
   StatusProviderName,
 } from './schemas/project_config';
@@ -20,11 +20,11 @@ import {
   versionGreaterOrEqualThan,
 } from './utils/version';
 import { BaseArtifactProvider } from './artifact_providers/base';
-import { GithubArtifactProvider } from './artifact_providers/github';
+import { GitHubArtifactProvider } from './artifact_providers/github';
 import { NoneArtifactProvider } from './artifact_providers/none';
 import { GCSArtifactProvider } from './artifact_providers/gcs';
 
-import { GithubStatusProvider } from './status_providers/github';
+import { GitHubStatusProvider } from './status_providers/github';
 import {
   BaseStatusProvider,
   StatusProviderConfig,
@@ -199,27 +199,27 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
 }
 
 /**
- * Return the parsed global Github configuration
+ * Return the parsed global GitHub configuration
  */
-let _globalGithubConfigCache: GithubGlobalConfig | null;
-export async function getGlobalGithubConfig(
+let _globalGitHubConfigCache: GitHubGlobalConfig | null;
+export async function getGlobalGitHubConfig(
   clearCache = false
-): Promise<GithubGlobalConfig> {
-  if (!clearCache && _globalGithubConfigCache !== undefined) {
-    if (_globalGithubConfigCache === null) {
+): Promise<GitHubGlobalConfig> {
+  if (!clearCache && _globalGitHubConfigCache !== undefined) {
+    if (_globalGitHubConfigCache === null) {
       throw new ConfigurationError(
         'GitHub configuration not found in the config file and cannot be determined from Git'
       );
     }
 
-    return _globalGithubConfigCache;
+    return _globalGitHubConfigCache;
   }
 
-  // We extract global Github configuration (owner/repo) from top-level
+  // We extract global GitHub configuration (owner/repo) from top-level
   // configuration
-  let repoGithubConfig = getConfiguration(clearCache).github || null;
+  let repoGitHubConfig = getConfiguration(clearCache).github || null;
 
-  if (!repoGithubConfig) {
+  if (!repoGitHubConfig) {
     const configDir = getConfigFileDir() || '.';
     const git = simpleGit(configDir);
     let remoteUrl;
@@ -235,16 +235,16 @@ export async function getGlobalGithubConfig(
     }
 
     if (remoteUrl?.source === 'github.com') {
-      repoGithubConfig = {
+      repoGitHubConfig = {
         owner: remoteUrl.owner,
         repo: remoteUrl.name,
       };
     }
   }
 
-  _globalGithubConfigCache = Object.freeze(repoGithubConfig);
+  _globalGitHubConfigCache = Object.freeze(repoGitHubConfig);
 
-  return getGlobalGithubConfig();
+  return getGlobalGitHubConfig();
 }
 
 /**
@@ -267,10 +267,10 @@ export async function getArtifactProviderFromConfig(): Promise<BaseArtifactProvi
 
   let artifactProviderName = projectConfig.artifactProvider?.name;
   if (artifactProviderName == null) {
-    artifactProviderName = ArtifactProviderName.Github;
+    artifactProviderName = ArtifactProviderName.GitHub;
   }
 
-  const githubRepo = await getGlobalGithubConfig();
+  const githubRepo = await getGlobalGitHubConfig();
   const artifactProviderConfig = {
     name: artifactProviderName,
     ...projectConfig.artifactProvider?.config,
@@ -284,8 +284,8 @@ export async function getArtifactProviderFromConfig(): Promise<BaseArtifactProvi
       return new NoneArtifactProvider();
     case ArtifactProviderName.GCS:
       return new GCSArtifactProvider(artifactProviderConfig);
-    case ArtifactProviderName.Github:
-      return new GithubArtifactProvider(artifactProviderConfig);
+    case ArtifactProviderName.GitHub:
+      return new GitHubArtifactProvider(artifactProviderConfig);
     default: {
       throw new ConfigurationError('Invalid artifact provider');
     }
@@ -299,7 +299,7 @@ export async function getArtifactProviderFromConfig(): Promise<BaseArtifactProvi
  */
 export async function getStatusProviderFromConfig(): Promise<BaseStatusProvider> {
   const config = getConfiguration();
-  const githubConfig = await getGlobalGithubConfig();
+  const githubConfig = await getGlobalGitHubConfig();
 
   const rawStatusProvider = config.statusProvider || {
     config: undefined,
@@ -308,7 +308,7 @@ export async function getStatusProviderFromConfig(): Promise<BaseStatusProvider>
 
   let statusProviderName = rawStatusProvider.name;
   if (statusProviderName == null) {
-    statusProviderName = StatusProviderName.Github;
+    statusProviderName = StatusProviderName.GitHub;
   }
 
   const statusProviderConfig: StatusProviderConfig = {
@@ -318,8 +318,8 @@ export async function getStatusProviderFromConfig(): Promise<BaseStatusProvider>
 
   logger.debug(`Using "${statusProviderName}" for status checks`);
   switch (statusProviderName) {
-    case StatusProviderName.Github:
-      return new GithubStatusProvider(statusProviderConfig, githubConfig);
+    case StatusProviderName.GitHub:
+      return new GitHubStatusProvider(statusProviderConfig, githubConfig);
     default: {
       throw new ConfigurationError('Invalid status provider');
     }

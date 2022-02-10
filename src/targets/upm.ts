@@ -2,13 +2,13 @@ import { Octokit } from '@octokit/rest';
 import simpleGit from 'simple-git';
 import {
   getAuthUsername,
-  getGithubApiToken,
+  getGitHubApiToken,
   getGitHubClient,
-  GithubRemote,
+  GitHubRemote,
 } from '../utils/githubApi';
 
-import { GithubTarget } from './github';
-import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { GitHubTarget } from './github';
+import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { BaseTarget } from './base';
 import {
   BaseArtifactProvider,
@@ -29,15 +29,15 @@ export const ARTIFACT_NAME = 'package-release.zip';
 export class UpmTarget extends BaseTarget {
   /** Target name */
   public readonly name: string = 'upm';
-  /** Github client */
+  /** GitHub client */
   public readonly github: Octokit;
   /** Internal GitHub Target */
-  private readonly githubTarget: GithubTarget;
+  private readonly githubTarget: GitHubTarget;
 
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GithubGlobalConfig
+    githubRepo: GitHubGlobalConfig
   ) {
     super(config, artifactProvider, githubRepo);
 
@@ -52,7 +52,7 @@ export class UpmTarget extends BaseTarget {
       repo: config.releaseRepoName,
     };
 
-    this.githubTarget = new GithubTarget(
+    this.githubTarget = new GitHubTarget(
       githubTargetConfig,
       new NoneArtifactProvider(),
       githubRepo
@@ -109,11 +109,11 @@ export class UpmTarget extends BaseTarget {
     );
 
     const username = await getAuthUsername(this.github);
-    const remote = new GithubRemote(
+    const remote = new GitHubRemote(
       this.config.releaseRepoOwner,
       this.config.releaseRepoName,
       username,
-      getGithubApiToken()
+      getGitHubApiToken()
     );
     const remoteAddr = remote.getRemoteString();
     this.logger.debug(`Target release repository: ${remoteAddr}`);

@@ -1,9 +1,9 @@
 import { getAllTargetNames, getTargetByName } from '..';
-import { GithubTarget } from '../github';
+import { GitHubTarget } from '../github';
 
 describe('getTargetByName', () => {
   test('converts target name to class', () => {
-    expect(getTargetByName('github')).toBe(GithubTarget);
+    expect(getTargetByName('github')).toBe(GitHubTarget);
   });
 });
 

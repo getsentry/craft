@@ -5,7 +5,7 @@ import { sleep } from '../utils/async';
 import { reportError } from '../utils/errors';
 
 import { logger as loggerRaw } from '../logger';
-import { GithubGlobalConfig } from 'src/schemas/project_config';
+import { GitHubGlobalConfig } from 'src/schemas/project_config';
 
 const MILLISECONDS = 1000;
 /** Max number of seconds to wait for the build to finish */
@@ -47,7 +47,7 @@ export abstract class BaseStatusProvider {
 
   public constructor(
     public readonly config: StatusProviderConfig,
-    public readonly githubConfig: GithubGlobalConfig
+    public readonly githubConfig: GitHubGlobalConfig
   ) {
     this.logger = loggerRaw.withScope(`[status-provider/${config.name}]`);
   }

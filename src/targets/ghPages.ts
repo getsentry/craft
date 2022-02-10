@@ -4,14 +4,14 @@ import * as path from 'path';
 import { Octokit } from '@octokit/rest';
 import simpleGit from 'simple-git';
 
-import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
   getAuthUsername,
-  getGithubApiToken,
+  getGitHubApiToken,
   getGitHubClient,
-  GithubRemote,
+  GitHubRemote,
 } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
 import { extractZipArchive } from '../utils/system';
@@ -43,15 +43,15 @@ export class GhPagesTarget extends BaseTarget {
   public readonly name: string = 'gh-pages';
   /** Target options */
   public readonly ghPagesConfig: GhPagesConfig;
-  /** Github client */
+  /** GitHub client */
   public readonly github: Octokit;
-  /** Github repo configuration */
-  public readonly githubRepo: GithubGlobalConfig;
+  /** GitHub repo configuration */
+  public readonly githubRepo: GitHubGlobalConfig;
 
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GithubGlobalConfig
+    githubRepo: GitHubGlobalConfig
   ) {
     super(config, artifactProvider, githubRepo);
     this.github = getGitHubClient();
@@ -143,7 +143,7 @@ export class GhPagesTarget extends BaseTarget {
    */
   public async commitArchiveToBranch(
     directory: string,
-    remote: GithubRemote,
+    remote: GitHubRemote,
     branch: string,
     archivePath: string,
     version: string
@@ -221,11 +221,11 @@ export class GhPagesTarget extends BaseTarget {
 
     const username = await getAuthUsername(this.github);
 
-    const remote = new GithubRemote(
+    const remote = new GitHubRemote(
       githubOwner,
       githubRepo,
       username,
-      getGithubApiToken()
+      getGitHubApiToken()
     );
 
     await withTempDir(

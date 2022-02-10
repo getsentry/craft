@@ -3,7 +3,7 @@ import * as path from 'path';
 
 import simpleGit from 'simple-git';
 
-import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { forEachChained, sleep, withRetry } from '../utils/async';
 import { ConfigurationError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
@@ -97,13 +97,13 @@ export class CratesTarget extends BaseTarget {
   public readonly name: string = 'crates';
   /** Target options */
   public readonly cratesConfig: CratesTargetOptions;
-  /** Github repo configuration */
-  public readonly githubRepo: GithubGlobalConfig;
+  /** GitHub repo configuration */
+  public readonly githubRepo: GitHubGlobalConfig;
 
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GithubGlobalConfig
+    githubRepo: GitHubGlobalConfig
   ) {
     super(config, artifactProvider, githubRepo);
     this.cratesConfig = this.getCratesConfig();
@@ -292,7 +292,7 @@ export class CratesTarget extends BaseTarget {
    * @param directory The directory to clone into.
    */
   public async cloneWithSubmodules(
-    config: GithubGlobalConfig,
+    config: GitHubGlobalConfig,
     revision: string,
     directory: string
   ): Promise<any> {

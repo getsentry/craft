@@ -6,7 +6,7 @@ import { DockerTarget } from './docker';
 import { GcsTarget } from './gcs';
 import { GemTarget } from './gem';
 import { GhPagesTarget } from './ghPages';
-import { GithubTarget } from './github';
+import { GitHubTarget } from './github';
 import { NpmTarget } from './npm';
 import { NugetTarget } from './nuget';
 import { PypiTarget } from './pypi';
@@ -24,7 +24,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   gcs: GcsTarget,
   gem: GemTarget,
   'gh-pages': GhPagesTarget,
-  github: GithubTarget,
+  github: GitHubTarget,
   npm: NpmTarget,
   nuget: NugetTarget,
   pypi: PypiTarget,

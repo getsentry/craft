@@ -1,7 +1,7 @@
 import { mapLimit } from 'async';
 import { Octokit } from '@octokit/rest';
 
-import { GithubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError } from '../utils/errors';
 import { getGitHubClient } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
@@ -46,15 +46,15 @@ export class BrewTarget extends BaseTarget {
   public readonly name: string = 'brew';
   /** Target options */
   public readonly brewConfig: BrewTargetOptions;
-  /** Github client */
+  /** GitHub client */
   public readonly github: Octokit;
-  /** Github repo configuration */
-  public readonly githubRepo: GithubGlobalConfig;
+  /** GitHub repo configuration */
+  public readonly githubRepo: GitHubGlobalConfig;
 
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GithubGlobalConfig
+    githubRepo: GitHubGlobalConfig
   ) {
     super(config, artifactProvider, githubRepo);
     this.brewConfig = this.getBrewConfig();
@@ -114,7 +114,7 @@ export class BrewTarget extends BaseTarget {
    * Resolves the content sha of a formula at the specified location. If the
    * formula does not exist, `undefined` is returned.
    *
-   * @param github A Github context
+   * @param github A GitHub context
    * @param tap Owner and repository of the tap
    * @param path The path to the formula
    * @returns The SHA of the file, if it exists; otherwise undefined

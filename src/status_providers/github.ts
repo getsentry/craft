@@ -10,7 +10,7 @@ import {
 import { getGitHubClient } from '../utils/githubApi';
 import { ConfigurationError } from '../utils/errors';
 import { formatJson } from '../utils/strings';
-import { GithubGlobalConfig } from '../schemas/project_config';
+import { GitHubGlobalConfig } from '../schemas/project_config';
 
 type ReposGetCombinedStatusForRefResponse = RestEndpointMethodTypes['repos']['getCombinedStatusForRef']['response']['data'];
 type ChecksListSuitesForRefResponse = RestEndpointMethodTypes['checks']['listSuitesForRef']['response']['data'];
@@ -19,13 +19,13 @@ type ChecksListForRefResponse = RestEndpointMethodTypes['checks']['listForRef'][
 /**
  * Status provider that talks to GitHub to get commit checks (statuses)
  */
-export class GithubStatusProvider extends BaseStatusProvider {
-  /** Github client */
+export class GitHubStatusProvider extends BaseStatusProvider {
+  /** GitHub client */
   private readonly github: Octokit;
 
   public constructor(
     config: StatusProviderConfig,
-    githubConfig: GithubGlobalConfig
+    githubConfig: GitHubGlobalConfig
   ) {
     super(config, githubConfig);
     this.github = getGitHubClient();
@@ -42,7 +42,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
 
       if (!(Array.isArray(contexts) && contexts.length > 0)) {
         throw new ConfigurationError(
-          `Invalid configuration for GithubStatusProvider`
+          `Invalid configuration for GitHubStatusProvider`
         );
       }
     }
@@ -86,7 +86,7 @@ export class GithubStatusProvider extends BaseStatusProvider {
       return CommitStatus.SUCCESS;
     } else {
       logger.debug(
-        'No config provided for Github status provider, calculating the combined status...'
+        'No config provided for GitHub status provider, calculating the combined status...'
       );
 
       let commitApiStatusResult;

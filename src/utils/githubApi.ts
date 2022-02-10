@@ -7,7 +7,7 @@ import { ConfigurationError } from './errors';
 /**
  * Abstraction for GitHub remotes
  */
-export class GithubRemote {
+export class GitHubRemote {
   /** GitHub owner */
   public readonly owner: string;
   /** GitHub repository name */
@@ -74,9 +74,9 @@ export class GithubRemote {
 /**
  * Gets GitHub API token from environment
  *
- * @returns Github authentication token if found
+ * @returns GitHub authentication token if found
  */
-export function getGithubApiToken(): string {
+export function getGitHubApiToken(): string {
   const githubApiToken =
     process.env.GITHUB_TOKEN || process.env.GITHUB_API_TOKEN;
   if (!githubApiToken) {
@@ -90,15 +90,15 @@ export function getGithubApiToken(): string {
 const _GitHubClientCache: Record<string, Octokit> = {};
 
 /**
- * Gets an authenticated Github client object
+ * Gets an authenticated GitHub client object
  *
  * The authentication token is taken from the environment, if not provided.
  *
- * @param token Github authentication token
- * @returns Github client
+ * @param token GitHub authentication token
+ * @returns GitHub client
  */
 export function getGitHubClient(token = ''): Octokit {
-  const githubApiToken = token || getGithubApiToken();
+  const githubApiToken = token || getGitHubApiToken();
 
   if (!_GitHubClientCache[githubApiToken]) {
     const attrs: any = {
@@ -123,14 +123,14 @@ export function getGitHubClient(token = ''): Octokit {
 /**
  * Gets the currently authenticated GitHub user from the client
  *
- * @param github Github client
- * @returns Github username
+ * @param github GitHub client
+ * @returns GitHub username
  */
 export async function getAuthUsername(github: Octokit): Promise<string> {
   const userData = await github.users.getAuthenticated({});
   const username = (userData.data || {}).login;
   if (!username) {
-    throw new Error('Cannot reliably detect Github username, aborting');
+    throw new Error('Cannot reliably detect GitHub username, aborting');
   }
   return username;
 }
@@ -138,7 +138,7 @@ export async function getAuthUsername(github: Octokit): Promise<string> {
 /**
  * Loads a file from the context's repository
  *
- * @param github Github client
+ * @param github GitHub client
  * @param owner Repository owner
  * @param repo Repository name
  * @param path The path of the file in the repository

@@ -22,10 +22,10 @@ const MAX_TRIES = 3;
 export type ArtifactItem = RestEndpointMethodTypes['actions']['listArtifactsForRepo']['response']['data']['artifacts'][0];
 
 /**
- * Github artifact provider
+ * GitHub artifact provider
  */
-export class GithubArtifactProvider extends BaseArtifactProvider {
-  /** Github client */
+export class GitHubArtifactProvider extends BaseArtifactProvider {
+  /** GitHub client */
   public readonly github: Octokit;
 
   public constructor(config: ArtifactProviderConfig) {
@@ -132,7 +132,7 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
   }
 
   /**
-   * Downloads and unpacks a Github artifact in a temp folder
+   * Downloads and unpacks a GitHub artifact in a temp folder
    * @param archiveResponse
    */
   private async downloadAndUnpackArtifacts(
@@ -202,16 +202,16 @@ export class GithubArtifactProvider extends BaseArtifactProvider {
     const { repoName, repoOwner } = this.config;
 
     this.logger.info(
-      `Fetching Github artifacts for ${repoOwner}/${repoName}, revision ${revision}`
+      `Fetching GitHub artifacts for ${repoOwner}/${repoName}, revision ${revision}`
     );
 
     const foundArtifact = await this.getRevisionArtifact(revision);
 
-    this.logger.debug(`Requesting archive URL from Github...`);
+    this.logger.debug(`Requesting archive URL from GitHub...`);
 
     const archiveUrl = await this.getArchiveDownloadUrl(foundArtifact);
 
-    this.logger.debug(`Downloading ZIP from Github artifacts...`);
+    this.logger.debug(`Downloading ZIP from GitHub artifacts...`);
 
     return await this.downloadAndUnpackArtifacts(archiveUrl);
   }
