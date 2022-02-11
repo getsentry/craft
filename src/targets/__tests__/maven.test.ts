@@ -1,6 +1,3 @@
-import { promises as fsPromises } from 'fs';
-import { homedir } from 'os';
-import { join } from 'path';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import {
   MavenTarget,
@@ -53,7 +50,6 @@ function getFullTargetConfig(): any {
     GPG_PASSPHRASE: DEFAULT_OPTION_VALUE,
     OSSRH_USERNAME: DEFAULT_OPTION_VALUE,
     OSSRH_PASSWORD: DEFAULT_OPTION_VALUE,
-    gradleCliPath: DEFAULT_OPTION_VALUE,
     mavenCliPath: DEFAULT_OPTION_VALUE,
     mavenSettingsPath: DEFAULT_OPTION_VALUE,
     mavenRepoId: DEFAULT_OPTION_VALUE,
@@ -71,7 +67,6 @@ function getRequiredTargetConfig(): any {
     GPG_PASSPHRASE: DEFAULT_OPTION_VALUE,
     OSSRH_USERNAME: DEFAULT_OPTION_VALUE,
     OSSRH_PASSWORD: DEFAULT_OPTION_VALUE,
-    gradleCliPath: DEFAULT_OPTION_VALUE,
     mavenCliPath: DEFAULT_OPTION_VALUE,
     mavenSettingsPath: DEFAULT_OPTION_VALUE,
     mavenRepoId: DEFAULT_OPTION_VALUE,
@@ -105,7 +100,7 @@ describe('Maven target configuration', () => {
 
   test('env vars without options', () => {
     expect(() => createMavenTarget({})).toThrowErrorMatchingInlineSnapshot(
-      `"Required configuration gradleCliPath not found in configuration file. See the documentation for more details."`
+      `"Required configuration mavenCliPath not found in configuration file. See the documentation for more details."`
     );
   });
 
@@ -203,38 +198,16 @@ describe('publish', () => {
   test('main flow', async () => {
     const callOrder: string[] = [];
     const mvnTarget = createMavenTarget();
-    const createGradlePropsMock = jest.fn(
-      async () => void callOrder.push('createGradleProps')
+    mvnTarget.upload = jest.fn(async () => void callOrder.push('upload'));
+    mvnTarget.closeAndReleaseRepository = jest.fn(
+      async () => void callOrder.push('closeAndReleaseRepository')
     );
-    mvnTarget.createUserGradlePropsFile = createGradlePropsMock;
-    const deleteGradlePropsMock = jest.fn(
-      async () => void callOrder.push('deleteGradleProps')
-    );
-    mvnTarget.deleteUserGradlePropsFile = deleteGradlePropsMock;
-    const uploadMock = jest.fn(async () => void callOrder.push('upload'));
-    mvnTarget.upload = uploadMock;
-    (retrySpawnProcess as jest.MockedFunction<
-      typeof retrySpawnProcess
-    >).mockImplementationOnce(
-      async () => void callOrder.push('closeAndRelease')
-    );
-
     const revision = 'r3v1s10n';
     await mvnTarget.publish('1.0.0', revision);
-    expect(createGradlePropsMock).toHaveBeenCalledTimes(1);
-    expect(uploadMock).toHaveBeenCalledTimes(1);
-    expect(uploadMock).toHaveBeenLastCalledWith(revision);
-    expect(deleteGradlePropsMock).toHaveBeenCalledTimes(1);
-    expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
-    expect(retrySpawnProcess).toHaveBeenCalledWith(DEFAULT_OPTION_VALUE, [
-      'closeAndReleaseRepository',
-    ]);
-    expect(callOrder).toStrictEqual([
-      'createGradleProps',
-      'upload',
-      'closeAndRelease',
-      'deleteGradleProps',
-    ]);
+    expect(mvnTarget.upload).toHaveBeenCalledTimes(1);
+    expect(mvnTarget.upload).toHaveBeenLastCalledWith(revision);
+    expect(mvnTarget.closeAndReleaseRepository).toHaveBeenCalledTimes(1);
+    expect(callOrder).toStrictEqual(['upload', 'closeAndReleaseRepository']);
   });
 
   test('upload POM', async () => {
@@ -328,49 +301,5 @@ describe('publish', () => {
     expect(cmdArgs[5]).toBe(`-Dgpg.passphrase=${DEFAULT_OPTION_VALUE}`);
     expect(cmdArgs[6]).toBe('--settings');
     expect(cmdArgs[7]).toBe(DEFAULT_OPTION_VALUE);
-  });
-});
-
-describe('get gradle home directory', () => {
-  const gradleHomeEnvVar = 'GRADLE_USER_HOME';
-
-  beforeEach(() => {
-    setTargetSecretsInEnv();
-    // no need to check whether it already exists
-    delete process.env[gradleHomeEnvVar];
-  });
-
-  test('with gradle home', () => {
-    const expectedHomeDir = 'testDirectory';
-    process.env[gradleHomeEnvVar] = expectedHomeDir;
-    const actual = createMavenTarget().getGradleHomeDir();
-    expect(actual).toEqual(expectedHomeDir);
-  });
-
-  test('without gradle home', () => {
-    const expected = join(homedir(), '.gradle');
-    const actual = createMavenTarget().getGradleHomeDir();
-    expect(actual).toEqual(expected);
-  });
-});
-
-describe('createUserGradlePropsFile', () => {
-  const gradleHomeEnvVar = 'GRADLE_USER_HOME';
-
-  afterEach(() => {
-    delete process.env[gradleHomeEnvVar];
-  });
-
-  test('should make sure that directory exists before writing gradle props file', async () => {
-    const randomTmpDir = '/random/depth/of/directories';
-    process.env[gradleHomeEnvVar] = randomTmpDir;
-    await createMavenTarget().createUserGradlePropsFile();
-    expect(fsPromises.mkdir).toHaveBeenCalledWith(randomTmpDir, {
-      recursive: true,
-    });
-    expect(fsPromises.writeFile).toHaveBeenCalledWith(
-      `${randomTmpDir}/gradle.properties`,
-      `mavenCentralUsername=my_default_value\nmavenCentralPassword=my_default_value`
-    );
   });
 });

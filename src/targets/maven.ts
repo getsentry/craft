@@ -4,7 +4,6 @@ import {
   RemoteArtifact,
 } from '../artifact_providers/base';
 import { BaseTarget } from './base';
-import { homedir } from 'os';
 import { basename, extname, join, parse } from 'path';
 import { promises as fsPromises } from 'fs';
 import { checkExecutableIsPresent, extractZipArchive } from '../utils/system';
@@ -15,13 +14,6 @@ import { stringToRegexp } from '../utils/filters';
 import { checkEnvForPrerequisite } from '../utils/env';
 import { importGPGKey } from '../utils/gpg';
 
-const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
-
-/**
- * Default gradle user home directory. See
- * https://docs.gradle.org/current/userguide/build_environment.html#sec:gradle_environment_variables
- */
-const DEFAULT_GRADLE_USER_HOME = join(homedir(), '.gradle');
 export const POM_DEFAULT_FILENAME = 'pom-default.xml';
 const POM_FILE_EXT = '.xml'; // Must include the leading `.`
 const BOM_FILE_KEY_REGEXP = new RegExp('<packaging>pom</packaging>');
@@ -34,7 +26,6 @@ export const targetSecrets = [
 type SecretsType = typeof targetSecrets[number];
 
 export const targetOptions = [
-  'gradleCliPath',
   'mavenCliPath',
   'mavenSettingsPath',
   'mavenRepoId',
@@ -181,11 +172,6 @@ export class MavenTarget extends BaseTarget {
       this.mavenConfig.mavenCliPath
     );
     checkExecutableIsPresent(this.mavenConfig.mavenCliPath);
-    this.logger.debug(
-      'Checking if Gradle CLI is available: ',
-      this.mavenConfig.gradleCliPath
-    );
-    checkExecutableIsPresent(this.mavenConfig.gradleCliPath);
     this.logger.debug('Checking if GPG is available');
     checkExecutableIsPresent('gpg');
   }
@@ -196,58 +182,8 @@ export class MavenTarget extends BaseTarget {
    * @param revision Git commit SHA to be published.
    */
   public async publish(_version: string, revison: string): Promise<void> {
-    await this.createUserGradlePropsFile();
     await this.upload(revison);
-
-    // Maven central is very flaky, so retrying with an exponential delay in
-    // in case it fails.
-    // TODO: close the repository by doing the requests from Craft
-    // What the gradle plugin does is a / some requests to close the repo, see
-    // https://github.com/vanniktech/gradle-maven-publish-plugin/tree/master/src/main/kotlin/com/vanniktech/maven/publish/nexus
-    // If Craft did those requests, it wouldn't be necessary to rely on a third
-    // party plugin for releases.
-    await retrySpawnProcess(this.mavenConfig.gradleCliPath, [
-      'closeAndReleaseRepository',
-    ]);
-    await this.deleteUserGradlePropsFile();
-  }
-
-  /**
-   * Creates the required user's `gradle.properties` file.
-   *
-   * If there's an existing one, it's overwritten.
-   * TODO: control when it's overwritten with an option.
-   */
-  public async createUserGradlePropsFile(): Promise<void> {
-    const gradleHomeDir = this.getGradleHomeDir();
-    // Setting `recursive: true` allows `mkdir`  to not fail in case directory already exists.
-    await fsPromises.mkdir(gradleHomeDir, { recursive: true });
-    return fsPromises.writeFile(
-      join(gradleHomeDir, GRADLE_PROPERTIES_FILENAME),
-      [
-        // OSSRH and Maven Central credentials are the same
-        `mavenCentralUsername=${this.mavenConfig.OSSRH_USERNAME}`,
-        `mavenCentralPassword=${this.mavenConfig.OSSRH_PASSWORD}`,
-      ].join('\n')
-    );
-  }
-
-  /**
-   * Deletes the user's `gradle.properties` file.
-   */
-  public async deleteUserGradlePropsFile(): Promise<void> {
-    return fsPromises.unlink(
-      join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME)
-    );
-  }
-
-  /**
-   * Retrieves the Gradle Home path.
-   *
-   * @returns the gradle home path.
-   */
-  public getGradleHomeDir(): string {
-    return process.env.GRADLE_USER_HOME || DEFAULT_GRADLE_USER_HOME;
+    await this.closeAndReleaseRepository();
   }
 
   /**
@@ -443,5 +379,11 @@ export class MavenTarget extends BaseTarget {
     }
 
     return `${moduleName}.jar`;
+  }
+
+  // Maven central does not indicate when it completes the action, so we need to
+  // retry every so often and query it for the new state of repository.
+  public async closeAndReleaseRepository(): Promise<void> {
+    //
   }
 }

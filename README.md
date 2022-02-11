@@ -1013,14 +1013,13 @@ Note: in order to see the output of the commands, set the [logging level](#loggi
 
 **Configuration**
 
-| Option              | Description                                                           |
-| ------------------- | --------------------------------------------------------------------- |
-| `gradleCliPath`     | Path to the Gradle CLI. It must be executable by the calling process. |
-| `mavenCliPath`      | Path to the Maven CLI. It must be executable by the calling process.  |
-| `mavenSettingsPath` | Path to the Maven `settings.xml` file.                                |
-| `mavenRepoId`       | ID of the Maven server in the `settings.xml`.                         |
-| `mavenRepoUrl`      | URL of the Maven repository.                                          |
-| `android`           | Android configuration, see below.                                     |
+| Option              | Description                                                          |
+| ------------------- | -------------------------------------------------------------------- |
+| `mavenCliPath`      | Path to the Maven CLI. It must be executable by the calling process. |
+| `mavenSettingsPath` | Path to the Maven `settings.xml` file.                               |
+| `mavenRepoId`       | ID of the Maven server in the `settings.xml`.                        |
+| `mavenRepoUrl`      | URL of the Maven repository.                                         |
+| `android`           | Android configuration, see below.                                    |
 
 If your project isn't related to Android, you don't need this configuration and
 can set the option to `false`. If not, set the following nested elements:
@@ -1034,7 +1033,6 @@ can set the option to `false`. If not, set the following nested elements:
 ```yaml
 targets:
   - name: maven
-    gradleCliPath: ./gradlew
     mavenCliPath: scripts/mvnw.cmd
     mavenSettingsPath: scripts/settings.xml
     mavenRepoId: ossrh
@@ -1047,7 +1045,6 @@ targets:
 ```yaml
 targets:
   - name: maven
-    gradleCliPath: ./gradlew
     mavenCliPath: scripts/mvnw.cmd
     mavenSettingsPath: scripts/settings.xml
     mavenRepoId: ossrh
