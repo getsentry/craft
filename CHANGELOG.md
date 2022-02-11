@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.27.6
+
+### Various fixes & improvements
+
+- fix: Make sure that gradle directory exists before writing to it (#349) by @kamilogorek
+
 ## 0.27.5
 
 ### Increase Release Safety and Reliability (ongoing)
