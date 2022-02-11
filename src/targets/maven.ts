@@ -218,9 +218,12 @@ export class MavenTarget extends BaseTarget {
    * If there's an existing one, it's overwritten.
    * TODO: control when it's overwritten with an option.
    */
-  public createUserGradlePropsFile(): Promise<void> {
+  public async createUserGradlePropsFile(): Promise<void> {
+    const gradleHomeDir = this.getGradleHomeDir();
+    // Setting `recursive: true` allows `mkdir`  to not fail in case directory already exists.
+    await fsPromises.mkdir(gradleHomeDir, { recursive: true });
     return fsPromises.writeFile(
-      join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME),
+      join(gradleHomeDir, GRADLE_PROPERTIES_FILENAME),
       [
         // OSSRH and Maven Central credentials are the same
         `mavenCentralUsername=${this.mavenConfig.OSSRH_USERNAME}`,
@@ -232,7 +235,7 @@ export class MavenTarget extends BaseTarget {
   /**
    * Deletes the user's `gradle.properties` file.
    */
-  public deleteUserGradlePropsFile(): Promise<void> {
+  public async deleteUserGradlePropsFile(): Promise<void> {
     return fsPromises.unlink(
       join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME)
     );

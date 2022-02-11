@@ -1,3 +1,4 @@
+import { promises as fsPromises } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
@@ -19,6 +20,7 @@ jest.mock('fs', () => ({
   promises: {
     writeFile: jest.fn(() => Promise.resolve()),
     readFile: jest.fn((file: string) => file),
+    mkdir: jest.fn(() => Promise.resolve()),
     readdir: async () => Promise.resolve([]), // empty dir
     unlink: jest.fn(),
   },
@@ -349,5 +351,26 @@ describe('get gradle home directory', () => {
     const expected = join(homedir(), '.gradle');
     const actual = createMavenTarget().getGradleHomeDir();
     expect(actual).toEqual(expected);
+  });
+});
+
+describe('createUserGradlePropsFile', () => {
+  const gradleHomeEnvVar = 'GRADLE_USER_HOME';
+
+  afterEach(() => {
+    delete process.env[gradleHomeEnvVar];
+  });
+
+  test('should make sure that directory exists before writing gradle props file', async () => {
+    const randomTmpDir = '/random/depth/of/directories';
+    process.env[gradleHomeEnvVar] = randomTmpDir;
+    await createMavenTarget().createUserGradlePropsFile();
+    expect(fsPromises.mkdir).toHaveBeenCalledWith(randomTmpDir, {
+      recursive: true,
+    });
+    expect(fsPromises.writeFile).toHaveBeenCalledWith(
+      `${randomTmpDir}/gradle.properties`,
+      `mavenCentralUsername=my_default_value\nmavenCentralPassword=my_default_value`
+    );
   });
 });
