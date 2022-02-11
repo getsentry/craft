@@ -6,8 +6,9 @@ import {
 import { BaseTarget } from './base';
 import { basename, extname, join, parse } from 'path';
 import { promises as fsPromises } from 'fs';
+import fetch from 'node-fetch';
 import { checkExecutableIsPresent, extractZipArchive } from '../utils/system';
-import { retrySpawnProcess } from '../utils/async';
+import { retrySpawnProcess, sleep } from '../utils/async';
 import { withTempDir } from '../utils/files';
 import { ConfigurationError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
@@ -17,6 +18,16 @@ import { importGPGKey } from '../utils/gpg';
 export const POM_DEFAULT_FILENAME = 'pom-default.xml';
 const POM_FILE_EXT = '.xml'; // Must include the leading `.`
 const BOM_FILE_KEY_REGEXP = new RegExp('<packaging>pom</packaging>');
+
+const NEXUS_API_BASE_URL = 'https://oss.sonatype.org/service/local/staging';
+const NEXUS_RETRY_DELAY = 10 * 1000; // 10s
+const NEXUS_RETRY_DEADLINE = 15 * 60 * 1000; // 15min
+
+type NexusRepository = {
+  repositoryId: string;
+  type: 'open' | 'closed';
+  transitioning: boolean;
+};
 
 export const targetSecrets = [
   'GPG_PASSPHRASE',
@@ -383,7 +394,102 @@ export class MavenTarget extends BaseTarget {
 
   // Maven central does not indicate when it completes the action, so we need to
   // retry every so often and query it for the new state of repository.
+  // Based on: https://github.com/vanniktech/gradle-maven-publish-plugin/ implementation.
   public async closeAndReleaseRepository(): Promise<void> {
-    //
+    const repository = await this.getRepository();
+    const { repositoryId, type } = repository;
+
+    if (type !== 'open') {
+      throw new Error(
+        'No open repositories available. Go to Nexus Repository Manager to see what happened.'
+      );
+    }
+
+    await this.closeRepository(repositoryId);
+    await this.releaseRepository(repositoryId);
+  }
+
+  private getNexusRequestHeaders(): Record<string, string> {
+    return {
+      Accept: 'application/json',
+      Authorization: `Basic ${Buffer.from(
+        `${process.env.OSSRH_USERNAME}:${process.env.OSSRH_USERNAME}`
+      ).toString(`base64`)}`,
+    };
+  }
+
+  private async getRepository(): Promise<NexusRepository> {
+    const response = await fetch(`${NEXUS_API_BASE_URL}/profile_repositories`, {
+      headers: this.getNexusRequestHeaders(),
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Unable to fetch repository: ${response.status}, ${response.statusText}`
+      );
+    }
+
+    const body = await response.json();
+    const repositories = body.data;
+
+    if (repositories.length === 0) {
+      throw new Error(`No available repositories. Nothing to publish.`);
+    }
+
+    if (repositories.length > 1) {
+      throw new Error(
+        `There are more than 1 active repositories. Please close unwanted deployments.`
+      );
+    }
+
+    return repositories[0];
+  }
+
+  private async closeRepository(repositoryId: string): Promise<void> {
+    const response = await fetch(`${NEXUS_API_BASE_URL}/bulk/close`, {
+      headers: this.getNexusRequestHeaders(),
+      method: 'POST',
+      body: JSON.stringify({
+        data: { stagedRepositoryIds: [repositoryId] },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Unable to close repository: ${response.status}, ${response.statusText}`
+      );
+    }
+
+    const poolingStartTime = Date.now();
+
+    while (true) {
+      if (Date.now() - poolingStartTime > NEXUS_RETRY_DEADLINE) {
+        throw new Error('Deadline for Nexus repository status change reached.');
+      }
+
+      await sleep(NEXUS_RETRY_DELAY);
+
+      const repository = await this.getRepository();
+      const { type, transitioning } = repository;
+
+      if (type === 'closed' && !transitioning) {
+        break;
+      }
+    }
+  }
+
+  private async releaseRepository(repositoryId: string): Promise<void> {
+    const response = await fetch(`${NEXUS_API_BASE_URL}/bulk/promote`, {
+      headers: this.getNexusRequestHeaders(),
+      method: 'POST',
+      body: JSON.stringify({
+        data: { stagedRepositoryIds: [repositoryId] },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Unable to release repository: ${response.status}, ${response.statusText}`
+      );
+    }
   }
 }
