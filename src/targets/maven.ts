@@ -464,13 +464,14 @@ export class MavenTarget extends BaseTarget {
       const { type, transitioning } = await this.getRepository();
 
       if (type === 'closed' && !transitioning) {
+        this.logger.info(`Nexus repository close correctly.`);
         return true;
       }
 
       this.logger.info(
         `Nexus repository still not closed. Waiting for ${
           NEXUS_RETRY_DELAY / 1000
-        }}s to try again.`
+        }s to try again.`
       );
     }
   }
@@ -490,14 +491,16 @@ export class MavenTarget extends BaseTarget {
       );
     }
 
+    this.logger.info(`Nexus repository closed correctly.`);
     return true;
   }
 
   private getNexusRequestHeaders(): Record<string, string> {
     return {
+      'Content-Type': 'application/json',
       Accept: 'application/json',
       Authorization: `Basic ${Buffer.from(
-        `${process.env.OSSRH_USERNAME}:${process.env.OSSRH_USERNAME}`
+        `${this.mavenConfig.OSSRH_USERNAME}:${this.mavenConfig.OSSRH_PASSWORD}`
       ).toString(`base64`)}`,
     };
   }
