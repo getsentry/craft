@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.28.0
+
+### Various fixes & improvements
+
+- feat: Publish maven packages without use of Gradle (#351) by @kamilogorek
+
 ## 0.27.6
 
 ### Various fixes & improvements
