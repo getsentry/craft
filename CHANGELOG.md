@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.28.1
+
+### Various fixes & improvements
+
+- fix: Correctly set auth header and content-type for Nexus requests (#352) by @kamilogorek
+
 ## 0.28.0
 
 ### Various fixes & improvements
