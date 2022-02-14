@@ -19,11 +19,13 @@ export const POM_DEFAULT_FILENAME = 'pom-default.xml';
 const POM_FILE_EXT = '.xml'; // Must include the leading `.`
 const BOM_FILE_KEY_REGEXP = new RegExp('<packaging>pom</packaging>');
 
-const NEXUS_API_BASE_URL = 'https://oss.sonatype.org/service/local/staging';
+// TODO: Make it configurable to allow for sentry-clj releases?
+export const NEXUS_API_BASE_URL =
+  'https://oss.sonatype.org/service/local/staging';
 const NEXUS_RETRY_DELAY = 10 * 1000; // 10s
-const NEXUS_RETRY_DEADLINE = 15 * 60 * 1000; // 15min
+const NEXUS_RETRY_DEADLINE = 30 * 60 * 1000; // 30min
 
-type NexusRepository = {
+export type NexusRepository = {
   repositoryId: string;
   type: 'open' | 'closed';
   transitioning: boolean;
@@ -409,19 +411,11 @@ export class MavenTarget extends BaseTarget {
     await this.releaseRepository(repositoryId);
   }
 
-  private getNexusRequestHeaders(): Record<string, string> {
-    return {
-      Accept: 'application/json',
-      Authorization: `Basic ${Buffer.from(
-        `${process.env.OSSRH_USERNAME}:${process.env.OSSRH_USERNAME}`
-      ).toString(`base64`)}`,
-    };
-  }
-
-  private async getRepository(): Promise<NexusRepository> {
+  public async getRepository(): Promise<NexusRepository> {
     const response = await fetch(`${NEXUS_API_BASE_URL}/profile_repositories`, {
       headers: this.getNexusRequestHeaders(),
     });
+
     if (!response.ok) {
       throw new Error(
         `Unable to fetch repository: ${response.status}, ${response.statusText}`
@@ -444,7 +438,7 @@ export class MavenTarget extends BaseTarget {
     return repositories[0];
   }
 
-  private async closeRepository(repositoryId: string): Promise<void> {
+  public async closeRepository(repositoryId: string): Promise<boolean> {
     const response = await fetch(`${NEXUS_API_BASE_URL}/bulk/close`, {
       headers: this.getNexusRequestHeaders(),
       method: 'POST',
@@ -472,12 +466,18 @@ export class MavenTarget extends BaseTarget {
       const { type, transitioning } = repository;
 
       if (type === 'closed' && !transitioning) {
-        break;
+        return true;
       }
+
+      this.logger.info(
+        `Nexus repository still not closed. Waiting for ${
+          NEXUS_RETRY_DELAY / 1000
+        }}s to try again.`
+      );
     }
   }
 
-  private async releaseRepository(repositoryId: string): Promise<void> {
+  public async releaseRepository(repositoryId: string): Promise<boolean> {
     const response = await fetch(`${NEXUS_API_BASE_URL}/bulk/promote`, {
       headers: this.getNexusRequestHeaders(),
       method: 'POST',
@@ -491,5 +491,16 @@ export class MavenTarget extends BaseTarget {
         `Unable to release repository: ${response.status}, ${response.statusText}`
       );
     }
+
+    return true;
+  }
+
+  private getNexusRequestHeaders(): Record<string, string> {
+    return {
+      Accept: 'application/json',
+      Authorization: `Basic ${Buffer.from(
+        `${process.env.OSSRH_USERNAME}:${process.env.OSSRH_USERNAME}`
+      ).toString(`base64`)}`,
+    };
   }
 }
