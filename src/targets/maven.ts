@@ -4,27 +4,32 @@ import {
   RemoteArtifact,
 } from '../artifact_providers/base';
 import { BaseTarget } from './base';
-import { homedir } from 'os';
 import { basename, extname, join, parse } from 'path';
 import { promises as fsPromises } from 'fs';
+import fetch from 'node-fetch';
 import { checkExecutableIsPresent, extractZipArchive } from '../utils/system';
-import { retrySpawnProcess } from '../utils/async';
+import { retrySpawnProcess, sleep } from '../utils/async';
 import { withTempDir } from '../utils/files';
 import { ConfigurationError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
 import { checkEnvForPrerequisite } from '../utils/env';
 import { importGPGKey } from '../utils/gpg';
 
-const GRADLE_PROPERTIES_FILENAME = 'gradle.properties';
-
-/**
- * Default gradle user home directory. See
- * https://docs.gradle.org/current/userguide/build_environment.html#sec:gradle_environment_variables
- */
-const DEFAULT_GRADLE_USER_HOME = join(homedir(), '.gradle');
 export const POM_DEFAULT_FILENAME = 'pom-default.xml';
 const POM_FILE_EXT = '.xml'; // Must include the leading `.`
 const BOM_FILE_KEY_REGEXP = new RegExp('<packaging>pom</packaging>');
+
+// TODO: Make it configurable to allow for sentry-clj releases?
+export const NEXUS_API_BASE_URL =
+  'https://oss.sonatype.org/service/local/staging';
+const NEXUS_RETRY_DELAY = 10 * 1000; // 10s
+const NEXUS_RETRY_DEADLINE = 30 * 60 * 1000; // 30min
+
+export type NexusRepository = {
+  repositoryId: string;
+  type: 'open' | 'closed';
+  transitioning: boolean;
+};
 
 export const targetSecrets = [
   'GPG_PASSPHRASE',
@@ -34,7 +39,6 @@ export const targetSecrets = [
 type SecretsType = typeof targetSecrets[number];
 
 export const targetOptions = [
-  'gradleCliPath',
   'mavenCliPath',
   'mavenSettingsPath',
   'mavenRepoId',
@@ -181,11 +185,6 @@ export class MavenTarget extends BaseTarget {
       this.mavenConfig.mavenCliPath
     );
     checkExecutableIsPresent(this.mavenConfig.mavenCliPath);
-    this.logger.debug(
-      'Checking if Gradle CLI is available: ',
-      this.mavenConfig.gradleCliPath
-    );
-    checkExecutableIsPresent(this.mavenConfig.gradleCliPath);
     this.logger.debug('Checking if GPG is available');
     checkExecutableIsPresent('gpg');
   }
@@ -196,58 +195,8 @@ export class MavenTarget extends BaseTarget {
    * @param revision Git commit SHA to be published.
    */
   public async publish(_version: string, revison: string): Promise<void> {
-    await this.createUserGradlePropsFile();
     await this.upload(revison);
-
-    // Maven central is very flaky, so retrying with an exponential delay in
-    // in case it fails.
-    // TODO: close the repository by doing the requests from Craft
-    // What the gradle plugin does is a / some requests to close the repo, see
-    // https://github.com/vanniktech/gradle-maven-publish-plugin/tree/master/src/main/kotlin/com/vanniktech/maven/publish/nexus
-    // If Craft did those requests, it wouldn't be necessary to rely on a third
-    // party plugin for releases.
-    await retrySpawnProcess(this.mavenConfig.gradleCliPath, [
-      'closeAndReleaseRepository',
-    ]);
-    await this.deleteUserGradlePropsFile();
-  }
-
-  /**
-   * Creates the required user's `gradle.properties` file.
-   *
-   * If there's an existing one, it's overwritten.
-   * TODO: control when it's overwritten with an option.
-   */
-  public async createUserGradlePropsFile(): Promise<void> {
-    const gradleHomeDir = this.getGradleHomeDir();
-    // Setting `recursive: true` allows `mkdir`  to not fail in case directory already exists.
-    await fsPromises.mkdir(gradleHomeDir, { recursive: true });
-    return fsPromises.writeFile(
-      join(gradleHomeDir, GRADLE_PROPERTIES_FILENAME),
-      [
-        // OSSRH and Maven Central credentials are the same
-        `mavenCentralUsername=${this.mavenConfig.OSSRH_USERNAME}`,
-        `mavenCentralPassword=${this.mavenConfig.OSSRH_PASSWORD}`,
-      ].join('\n')
-    );
-  }
-
-  /**
-   * Deletes the user's `gradle.properties` file.
-   */
-  public async deleteUserGradlePropsFile(): Promise<void> {
-    return fsPromises.unlink(
-      join(this.getGradleHomeDir(), GRADLE_PROPERTIES_FILENAME)
-    );
-  }
-
-  /**
-   * Retrieves the Gradle Home path.
-   *
-   * @returns the gradle home path.
-   */
-  public getGradleHomeDir(): string {
-    return process.env.GRADLE_USER_HOME || DEFAULT_GRADLE_USER_HOME;
+    await this.closeAndReleaseRepository();
   }
 
   /**
@@ -443,5 +392,113 @@ export class MavenTarget extends BaseTarget {
     }
 
     return `${moduleName}.jar`;
+  }
+
+  // Maven central does not indicate when it completes the action, so we need to
+  // retry every so often and query it for the new state of repository.
+  // Based on: https://github.com/vanniktech/gradle-maven-publish-plugin/ implementation.
+  public async closeAndReleaseRepository(): Promise<void> {
+    const { repositoryId, type } = await this.getRepository();
+
+    if (type !== 'open') {
+      throw new Error(
+        'No open repositories available. Go to Nexus Repository Manager to see what happened.'
+      );
+    }
+
+    await this.closeRepository(repositoryId);
+    await this.releaseRepository(repositoryId);
+  }
+
+  public async getRepository(): Promise<NexusRepository> {
+    const response = await fetch(`${NEXUS_API_BASE_URL}/profile_repositories`, {
+      headers: this.getNexusRequestHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Unable to fetch repositories: ${response.status}, ${response.statusText}`
+      );
+    }
+
+    const body = await response.json();
+    const repositories = body.data;
+
+    if (repositories.length === 0) {
+      throw new Error(`No available repositories. Nothing to publish.`);
+    }
+
+    if (repositories.length > 1) {
+      throw new Error(
+        `There are more than 1 active repositories. Please close unwanted deployments.`
+      );
+    }
+
+    return repositories[0];
+  }
+
+  public async closeRepository(repositoryId: string): Promise<boolean> {
+    const response = await fetch(`${NEXUS_API_BASE_URL}/bulk/close`, {
+      headers: this.getNexusRequestHeaders(),
+      method: 'POST',
+      body: JSON.stringify({
+        data: { stagedRepositoryIds: [repositoryId] },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Unable to close repository ${repositoryId}: ${response.status}, ${response.statusText}`
+      );
+    }
+
+    const poolingStartTime = Date.now();
+
+    while (true) {
+      if (Date.now() - poolingStartTime > NEXUS_RETRY_DEADLINE) {
+        throw new Error('Deadline for Nexus repository status change reached.');
+      }
+
+      await sleep(NEXUS_RETRY_DELAY);
+
+      const { type, transitioning } = await this.getRepository();
+
+      if (type === 'closed' && !transitioning) {
+        return true;
+      }
+
+      this.logger.info(
+        `Nexus repository still not closed. Waiting for ${
+          NEXUS_RETRY_DELAY / 1000
+        }}s to try again.`
+      );
+    }
+  }
+
+  public async releaseRepository(repositoryId: string): Promise<boolean> {
+    const response = await fetch(`${NEXUS_API_BASE_URL}/bulk/promote`, {
+      headers: this.getNexusRequestHeaders(),
+      method: 'POST',
+      body: JSON.stringify({
+        data: { stagedRepositoryIds: [repositoryId] },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Unable to release repository ${repositoryId}: ${response.status}, ${response.statusText}`
+      );
+    }
+
+    return true;
+  }
+
+  private getNexusRequestHeaders(): Record<string, string> {
+    return {
+      Accept: 'application/json',
+      Authorization: `Basic ${Buffer.from(
+        `${process.env.OSSRH_USERNAME}:${process.env.OSSRH_USERNAME}`
+      ).toString(`base64`)}`,
+    };
   }
 }

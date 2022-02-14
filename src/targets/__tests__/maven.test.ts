@@ -1,14 +1,15 @@
-import { promises as fsPromises } from 'fs';
-import { homedir } from 'os';
-import { join } from 'path';
+import { URL } from 'url';
+import nock from 'nock';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import {
   MavenTarget,
+  NexusRepository,
+  NEXUS_API_BASE_URL,
   POM_DEFAULT_FILENAME,
   targetOptions,
   targetSecrets,
 } from '../maven';
-import { retrySpawnProcess } from '../../utils/async';
+import { retrySpawnProcess, sleep } from '../../utils/async';
 import { withTempDir } from '../../utils/files';
 import { importGPGKey } from '../../utils/gpg';
 
@@ -32,7 +33,15 @@ jest.mock('../../utils/system', () => ({
   extractZipArchive: jest.fn(),
 }));
 
-jest.mock('../../utils/async');
+jest.mock('../../utils/async', () => ({
+  ...jest.requireActual('../../utils/async'),
+  retrySpawnProcess: jest.fn(() => Promise.resolve()),
+  sleep: jest.fn(() =>
+    setTimeout(() => {
+      Promise.resolve();
+    }, 10)
+  ),
+}));
 
 const DEFAULT_OPTION_VALUE = 'my_default_value';
 
@@ -53,7 +62,6 @@ function getFullTargetConfig(): any {
     GPG_PASSPHRASE: DEFAULT_OPTION_VALUE,
     OSSRH_USERNAME: DEFAULT_OPTION_VALUE,
     OSSRH_PASSWORD: DEFAULT_OPTION_VALUE,
-    gradleCliPath: DEFAULT_OPTION_VALUE,
     mavenCliPath: DEFAULT_OPTION_VALUE,
     mavenSettingsPath: DEFAULT_OPTION_VALUE,
     mavenRepoId: DEFAULT_OPTION_VALUE,
@@ -71,7 +79,6 @@ function getRequiredTargetConfig(): any {
     GPG_PASSPHRASE: DEFAULT_OPTION_VALUE,
     OSSRH_USERNAME: DEFAULT_OPTION_VALUE,
     OSSRH_PASSWORD: DEFAULT_OPTION_VALUE,
-    gradleCliPath: DEFAULT_OPTION_VALUE,
     mavenCliPath: DEFAULT_OPTION_VALUE,
     mavenSettingsPath: DEFAULT_OPTION_VALUE,
     mavenRepoId: DEFAULT_OPTION_VALUE,
@@ -91,11 +98,25 @@ function createMavenTarget(
   return new MavenTarget(mergedConfig, new NoneArtifactProvider());
 }
 
+function getRepositoryInfo(
+  type: NexusRepository['type'],
+  transitioning: NexusRepository['transitioning']
+): NexusRepository {
+  return {
+    type,
+    repositoryId: 'sentry-java',
+    transitioning,
+  };
+}
+
+beforeEach(() => {
+  jest.resetAllMocks();
+  setTargetSecretsInEnv();
+});
+
+afterEach(() => removeTargetSecretsFromEnv());
+
 describe('Maven target configuration', () => {
-  beforeEach(() => setTargetSecretsInEnv());
-
-  afterEach(() => removeTargetSecretsFromEnv());
-
   test('no env vars and no options', () => {
     removeTargetSecretsFromEnv();
     expect(createMavenTarget).toThrowErrorMatchingInlineSnapshot(
@@ -105,7 +126,7 @@ describe('Maven target configuration', () => {
 
   test('env vars without options', () => {
     expect(() => createMavenTarget({})).toThrowErrorMatchingInlineSnapshot(
-      `"Required configuration gradleCliPath not found in configuration file. See the documentation for more details."`
+      `"Required configuration mavenCliPath not found in configuration file. See the documentation for more details."`
     );
   });
 
@@ -192,50 +213,24 @@ describe('Maven target configuration', () => {
 });
 
 describe('publish', () => {
-  const tmpDirName = 'tmpDir';
-
-  beforeAll(() => setTargetSecretsInEnv());
-
-  afterAll(() => removeTargetSecretsFromEnv());
-
-  beforeEach(() => jest.resetAllMocks());
-
   test('main flow', async () => {
     const callOrder: string[] = [];
     const mvnTarget = createMavenTarget();
-    const createGradlePropsMock = jest.fn(
-      async () => void callOrder.push('createGradleProps')
+    mvnTarget.upload = jest.fn(async () => void callOrder.push('upload'));
+    mvnTarget.closeAndReleaseRepository = jest.fn(
+      async () => void callOrder.push('closeAndReleaseRepository')
     );
-    mvnTarget.createUserGradlePropsFile = createGradlePropsMock;
-    const deleteGradlePropsMock = jest.fn(
-      async () => void callOrder.push('deleteGradleProps')
-    );
-    mvnTarget.deleteUserGradlePropsFile = deleteGradlePropsMock;
-    const uploadMock = jest.fn(async () => void callOrder.push('upload'));
-    mvnTarget.upload = uploadMock;
-    (retrySpawnProcess as jest.MockedFunction<
-      typeof retrySpawnProcess
-    >).mockImplementationOnce(
-      async () => void callOrder.push('closeAndRelease')
-    );
-
     const revision = 'r3v1s10n';
     await mvnTarget.publish('1.0.0', revision);
-    expect(createGradlePropsMock).toHaveBeenCalledTimes(1);
-    expect(uploadMock).toHaveBeenCalledTimes(1);
-    expect(uploadMock).toHaveBeenLastCalledWith(revision);
-    expect(deleteGradlePropsMock).toHaveBeenCalledTimes(1);
-    expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
-    expect(retrySpawnProcess).toHaveBeenCalledWith(DEFAULT_OPTION_VALUE, [
-      'closeAndReleaseRepository',
-    ]);
-    expect(callOrder).toStrictEqual([
-      'createGradleProps',
-      'upload',
-      'closeAndRelease',
-      'deleteGradleProps',
-    ]);
+    expect(mvnTarget.upload).toHaveBeenCalledTimes(1);
+    expect(mvnTarget.upload).toHaveBeenCalledWith(revision);
+    expect(mvnTarget.closeAndReleaseRepository).toHaveBeenCalledTimes(1);
+    expect(callOrder).toStrictEqual(['upload', 'closeAndReleaseRepository']);
   });
+});
+
+describe('upload', () => {
+  const tmpDirName = 'tmpDir';
 
   test('upload POM', async () => {
     // simple mock to always use the same temporary directory,
@@ -331,46 +326,248 @@ describe('publish', () => {
   });
 });
 
-describe('get gradle home directory', () => {
-  const gradleHomeEnvVar = 'GRADLE_USER_HOME';
-
-  beforeEach(() => {
-    setTargetSecretsInEnv();
-    // no need to check whether it already exists
-    delete process.env[gradleHomeEnvVar];
+describe('closeAndReleaseRepository', () => {
+  test('should throw if repository is not opened', async () => {
+    const mvnTarget = createMavenTarget();
+    mvnTarget.getRepository = jest.fn(() =>
+      Promise.resolve(getRepositoryInfo('closed', false))
+    );
+    await expect(mvnTarget.closeAndReleaseRepository()).rejects.toThrow();
   });
 
-  test('with gradle home', () => {
-    const expectedHomeDir = 'testDirectory';
-    process.env[gradleHomeEnvVar] = expectedHomeDir;
-    const actual = createMavenTarget().getGradleHomeDir();
-    expect(actual).toEqual(expectedHomeDir);
+  test('should call closeRepository and releaseRepository with fetched repository ID', async () => {
+    const mvnTarget = createMavenTarget();
+    mvnTarget.getRepository = jest.fn(() =>
+      Promise.resolve(getRepositoryInfo('open', false))
+    );
+    const callOrder: string[] = [];
+    mvnTarget.closeRepository = jest.fn(async () => {
+      callOrder.push('closeRepository');
+      return true;
+    });
+    mvnTarget.releaseRepository = jest.fn(async () => {
+      callOrder.push('releaseRepository');
+      return true;
+    });
+
+    await mvnTarget.closeAndReleaseRepository();
+
+    expect(mvnTarget.closeRepository).toHaveBeenCalledWith('sentry-java');
+    expect(mvnTarget.releaseRepository).toHaveBeenCalledWith('sentry-java');
+    expect(callOrder).toStrictEqual(['closeRepository', 'releaseRepository']);
   });
 
-  test('without gradle home', () => {
-    const expected = join(homedir(), '.gradle');
-    const actual = createMavenTarget().getGradleHomeDir();
-    expect(actual).toEqual(expected);
+  test('should not release repostiory if it was not closed properly', async () => {
+    const mvnTarget = createMavenTarget();
+    mvnTarget.getRepository = jest.fn(() =>
+      Promise.resolve(getRepositoryInfo('open', false))
+    );
+    mvnTarget.closeRepository = jest.fn(() => Promise.reject());
+    mvnTarget.releaseRepository = jest.fn(() => Promise.resolve(true));
+
+    try {
+      await mvnTarget.closeAndReleaseRepository();
+    } catch (e) {
+      // no-empty
+    }
+
+    expect(mvnTarget.closeRepository).toHaveBeenCalledWith('sentry-java');
+    expect(mvnTarget.releaseRepository).not.toHaveBeenCalledWith();
   });
 });
 
-describe('createUserGradlePropsFile', () => {
-  const gradleHomeEnvVar = 'GRADLE_USER_HOME';
+describe('getRepository', () => {
+  const url = new URL(NEXUS_API_BASE_URL);
+  const repositoryInfo = getRepositoryInfo('open', false);
 
-  afterEach(() => {
-    delete process.env[gradleHomeEnvVar];
+  test('should return the repository if server responds correctly', async () => {
+    nock(url.origin)
+      .get(`${url.pathname}/profile_repositories`)
+      .reply(200, {
+        data: [repositoryInfo],
+      });
+
+    const mvnTarget = createMavenTarget();
+    await expect(mvnTarget.getRepository()).resolves.toStrictEqual(
+      repositoryInfo
+    );
   });
 
-  test('should make sure that directory exists before writing gradle props file', async () => {
-    const randomTmpDir = '/random/depth/of/directories';
-    process.env[gradleHomeEnvVar] = randomTmpDir;
-    await createMavenTarget().createUserGradlePropsFile();
-    expect(fsPromises.mkdir).toHaveBeenCalledWith(randomTmpDir, {
-      recursive: true,
+  test('should throw if server returns no active repositories', async () => {
+    nock(url.origin).get(`${url.pathname}/profile_repositories`).reply(200, {
+      data: [],
     });
-    expect(fsPromises.writeFile).toHaveBeenCalledWith(
-      `${randomTmpDir}/gradle.properties`,
-      `mavenCentralUsername=my_default_value\nmavenCentralPassword=my_default_value`
+
+    const mvnTarget = createMavenTarget();
+    await expect(mvnTarget.getRepository()).rejects.toThrow(
+      new Error('No available repositories. Nothing to publish.')
+    );
+  });
+
+  test('should throw if server returns more than one active repository', async () => {
+    nock(url.origin)
+      .get(`${url.pathname}/profile_repositories`)
+      .reply(200, {
+        data: [repositoryInfo, repositoryInfo],
+      });
+
+    const mvnTarget = createMavenTarget();
+    await expect(mvnTarget.getRepository()).rejects.toThrow(
+      new Error(
+        'There are more than 1 active repositories. Please close unwanted deployments.'
+      )
+    );
+  });
+
+  test('should throw if server doesnt accept the request', async () => {
+    nock(url.origin).get(`${url.pathname}/profile_repositories`).reply(500);
+
+    const mvnTarget = createMavenTarget();
+    await expect(mvnTarget.getRepository()).rejects.toThrow(
+      new Error('Unable to fetch repositories: 500, Internal Server Error')
+    );
+  });
+});
+
+describe('closeRepository', () => {
+  const url = new URL(NEXUS_API_BASE_URL);
+  const repositoryId = 'sentry-java';
+
+  test('should return true if server responds correctly', async () => {
+    nock(url.origin)
+      .post(`${url.pathname}/bulk/close`, {
+        data: { stagedRepositoryIds: [repositoryId] },
+      })
+      .reply(200);
+
+    const mvnTarget = createMavenTarget();
+    mvnTarget.getRepository = jest.fn(() =>
+      Promise.resolve(getRepositoryInfo('closed', false))
+    );
+
+    await expect(mvnTarget.closeRepository(repositoryId)).resolves.toBe(true);
+  });
+
+  test('should throw if server doesnt accept the request', async () => {
+    nock(url.origin)
+      .post(`${url.pathname}/bulk/close`, {
+        data: { stagedRepositoryIds: [repositoryId] },
+      })
+      .reply(500);
+
+    const mvnTarget = createMavenTarget();
+    await expect(mvnTarget.closeRepository(repositoryId)).rejects.toThrow(
+      new Error(
+        'Unable to close repository sentry-java: 500, Internal Server Error'
+      )
+    );
+  });
+
+  test('should wait for the status of repository to be changed', async () => {
+    nock(url.origin)
+      .post(`${url.pathname}/bulk/close`, {
+        data: { stagedRepositoryIds: [repositoryId] },
+      })
+      .reply(200);
+
+    const mvnTarget = createMavenTarget();
+    mvnTarget.getRepository = jest
+      .fn()
+      .mockImplementationOnce(() =>
+        Promise.resolve(getRepositoryInfo('open', false))
+      )
+      .mockImplementationOnce(() =>
+        Promise.resolve(getRepositoryInfo('open', false))
+      )
+      .mockImplementationOnce(() =>
+        Promise.resolve(getRepositoryInfo('closed', false))
+      );
+
+    await expect(mvnTarget.closeRepository(repositoryId)).resolves.toBe(true);
+    expect(sleep).toHaveBeenCalledTimes(3);
+    expect(mvnTarget.getRepository).toHaveBeenCalledTimes(3);
+  });
+
+  test('should wait for the repository to not be in transitioning state', async () => {
+    nock(url.origin)
+      .post(`${url.pathname}/bulk/close`, {
+        data: { stagedRepositoryIds: [repositoryId] },
+      })
+      .reply(200);
+
+    const mvnTarget = createMavenTarget();
+    mvnTarget.getRepository = jest
+      .fn()
+      .mockImplementationOnce(() =>
+        Promise.resolve(getRepositoryInfo('closed', true))
+      )
+      .mockImplementationOnce(() =>
+        Promise.resolve(getRepositoryInfo('closed', true))
+      )
+      .mockImplementationOnce(() =>
+        Promise.resolve(getRepositoryInfo('closed', false))
+      );
+
+    await expect(mvnTarget.closeRepository(repositoryId)).resolves.toBe(true);
+    expect(sleep).toHaveBeenCalledTimes(3);
+    expect(mvnTarget.getRepository).toHaveBeenCalledTimes(3);
+  });
+
+  test('should throw when status change deadline is reached', async () => {
+    nock(url.origin)
+      .post(`${url.pathname}/bulk/close`, {
+        data: { stagedRepositoryIds: [repositoryId] },
+      })
+      .reply(200);
+
+    const mvnTarget = createMavenTarget();
+    mvnTarget.getRepository = jest.fn(() =>
+      Promise.resolve(getRepositoryInfo('open', false))
+    );
+
+    // Deadline is 30min, so we fake pooling start time and initial read to 1min
+    // and second iteration to something over 30min
+    jest
+      .spyOn(Date, 'now')
+      .mockImplementationOnce(() => 1 * 60 * 1000)
+      .mockImplementationOnce(() => 1 * 60 * 1000)
+      .mockImplementationOnce(() => 32 * 60 * 1000);
+
+    await expect(mvnTarget.closeRepository(repositoryId)).rejects.toThrow(
+      new Error('Deadline for Nexus repository status change reached.')
+    );
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(mvnTarget.getRepository).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('releaseRepository', () => {
+  const url = new URL(NEXUS_API_BASE_URL);
+  const repositoryId = 'sentry-java';
+
+  test('should return true if server responds correctly', async () => {
+    nock(url.origin)
+      .post(`${url.pathname}/bulk/promote`, {
+        data: { stagedRepositoryIds: [repositoryId] },
+      })
+      .reply(200);
+
+    const mvnTarget = createMavenTarget();
+    await expect(mvnTarget.releaseRepository(repositoryId)).resolves.toBe(true);
+  });
+
+  test('should throw if server doesnt accept the request', async () => {
+    nock(url.origin)
+      .post(`${url.pathname}/bulk/promote`, {
+        data: { stagedRepositoryIds: [repositoryId] },
+      })
+      .reply(500);
+
+    const mvnTarget = createMavenTarget();
+    await expect(mvnTarget.releaseRepository(repositoryId)).rejects.toThrow(
+      new Error(
+        'Unable to release repository sentry-java: 500, Internal Server Error'
+      )
     );
   });
 });
