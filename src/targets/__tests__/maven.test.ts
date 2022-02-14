@@ -424,7 +424,7 @@ describe('getRepository', () => {
 
     const mvnTarget = createMavenTarget();
     await expect(mvnTarget.getRepository()).rejects.toThrow(
-      new Error('Unable to fetch repository: 500, Internal Server Error')
+      new Error('Unable to fetch repositories: 500, Internal Server Error')
     );
   });
 });
@@ -457,7 +457,9 @@ describe('closeRepository', () => {
 
     const mvnTarget = createMavenTarget();
     await expect(mvnTarget.closeRepository(repositoryId)).rejects.toThrow(
-      new Error('Unable to close repository: 500, Internal Server Error')
+      new Error(
+        'Unable to close repository sentry-java: 500, Internal Server Error'
+      )
     );
   });
 
@@ -563,7 +565,9 @@ describe('releaseRepository', () => {
 
     const mvnTarget = createMavenTarget();
     await expect(mvnTarget.releaseRepository(repositoryId)).rejects.toThrow(
-      new Error('Unable to release repository: 500, Internal Server Error')
+      new Error(
+        'Unable to release repository sentry-java: 500, Internal Server Error'
+      )
     );
   });
 });

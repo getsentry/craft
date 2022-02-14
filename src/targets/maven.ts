@@ -398,8 +398,7 @@ export class MavenTarget extends BaseTarget {
   // retry every so often and query it for the new state of repository.
   // Based on: https://github.com/vanniktech/gradle-maven-publish-plugin/ implementation.
   public async closeAndReleaseRepository(): Promise<void> {
-    const repository = await this.getRepository();
-    const { repositoryId, type } = repository;
+    const { repositoryId, type } = await this.getRepository();
 
     if (type !== 'open') {
       throw new Error(
@@ -418,7 +417,7 @@ export class MavenTarget extends BaseTarget {
 
     if (!response.ok) {
       throw new Error(
-        `Unable to fetch repository: ${response.status}, ${response.statusText}`
+        `Unable to fetch repositories: ${response.status}, ${response.statusText}`
       );
     }
 
@@ -449,7 +448,7 @@ export class MavenTarget extends BaseTarget {
 
     if (!response.ok) {
       throw new Error(
-        `Unable to close repository: ${response.status}, ${response.statusText}`
+        `Unable to close repository ${repositoryId}: ${response.status}, ${response.statusText}`
       );
     }
 
@@ -462,8 +461,7 @@ export class MavenTarget extends BaseTarget {
 
       await sleep(NEXUS_RETRY_DELAY);
 
-      const repository = await this.getRepository();
-      const { type, transitioning } = repository;
+      const { type, transitioning } = await this.getRepository();
 
       if (type === 'closed' && !transitioning) {
         return true;
@@ -488,7 +486,7 @@ export class MavenTarget extends BaseTarget {
 
     if (!response.ok) {
       throw new Error(
-        `Unable to release repository: ${response.status}, ${response.statusText}`
+        `Unable to release repository ${repositoryId}: ${response.status}, ${response.statusText}`
       );
     }
 
