@@ -1,14 +1,14 @@
 import { constants, promises as fsPromises } from 'fs';
+import { homedir, platform } from 'os';
 import { join } from 'path';
-import { BaseArtifactProvider } from 'src/artifact_providers/base';
-import { checkEnvForPrerequisite } from 'src/utils/env';
-import { checkExecutableIsPresent, spawnProcess } from 'src/utils/system';
-import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
-import { BaseTarget } from './base';
-import * as os from 'os';
-import { withTempDir } from 'src/utils/files';
 import simpleGit from 'simple-git';
-import { forEachChained } from 'src/utils/async';
+import { BaseTarget } from './base';
+import { BaseArtifactProvider } from '../artifact_providers/base';
+import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { forEachChained } from '../utils/async';
+import { checkEnvForPrerequisite } from '../utils/env';
+import { withTempDir } from '../utils/files';
+import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 
 export const targetSecrets = [
   'PUBDEV_ACCESS_TOKEN',
@@ -148,14 +148,14 @@ export class PubDevTarget extends BaseTarget {
   }
 
   private getCredentialsFilePath(): string {
-    const platform = os.platform();
-    switch (platform) {
+    const currentPlatform = platform();
+    switch (currentPlatform) {
       case 'darwin':
-        return `${os.homedir()}/Library/Application Support/dart/pub-credentials.json`;
+        return `${homedir()}/Library/Application Support/dart/pub-credentials.json`;
       case 'linux':
-        return `${os.homedir()}/.config/dart/pub-credentials.json`;
+        return `${homedir()}/.config/dart/pub-credentials.json`;
       default:
-        throw new Error(`Unsupported platform: ${platform}`);
+        throw new Error(`Unsupported platform: ${currentPlatform}`);
     }
   }
 
