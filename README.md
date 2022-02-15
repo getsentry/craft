@@ -54,6 +54,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Unity Package Manager (`upm`)](#unity-package-manager-upm)
   - [Maven central (`maven`)](#maven-central-maven)
   - [Symbol Collector (`symbol-collector`)](#symbol-collector-symbol-collector)
+  - [pub.dev (`pub-dev`)](#pubdev-pub-dev)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Post-release Script: Conventions](#post-release-script-conventions)
@@ -1076,6 +1077,41 @@ targets:
     includeNames: /libsentry(-android)?\.so/
     batchType: Android
     bundleIdPrefix: android-ndk-
+```
+
+### pub.dev (`pub-dev`)
+
+Pushes a new Dart or Flutter package to [pub.dev](https://pub.dev/).
+
+Because there is [no automated way](https://github.com/dart-lang/pub-dev/issues/5388) to login and obtain required tokens, you need to perform a valid release beforehand, for every package that you configure. This will open up your browser and use Google's OAuth to log you in, and generate an appropriate file with stored credentials.
+
+Based on your environment, you can find this file at `$HOME/Library/Application\ Support/dart/pub-credentials.json` for OSX or `$HOME/.config/dart/pub-credentials.json` for Linux.
+
+**Environment**
+
+`dart` must be installed on the system.
+
+| Name                   | Description                                                  |
+| ---------------------- | ------------------------------------------------------------ |
+| `PUBDEV_ACCESS_TOKEN`  | Value of `accessToken` obtained from `pub-credentials.json`  |
+| `PUBDEV_REFRESH_TOKEN` | Value of `refreshToken` obtained from `pub-credentials.json` |
+
+**Configuration**
+
+| Option        | Description                                                                                                                                                                                     |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dartCliPath` | **optional** Path to the Dart CLI. It must be executable by the calling process. Defaults to `dart`.                                                                                            |
+| `packages`    | **optional** List of directories to be released, relative to the root. Useful when a single repository contains multiple packages. When skipped, root directory is assumed as the only package. |
+
+**Example**
+
+```yaml
+targets:
+  - name: pub-dev
+    packages:
+      uno:
+      dos:
+      tres:
 ```
 
 ## Integrating Your Project with `craft`

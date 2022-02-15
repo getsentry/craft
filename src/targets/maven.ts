@@ -496,6 +496,7 @@ export class MavenTarget extends BaseTarget {
   }
 
   private getNexusRequestHeaders(): Record<string, string> {
+    // Nexus API is using `Accept` is for `GET` requests and `Content-Type` for `POST` requests, so it needs both.
     return {
       'Content-Type': 'application/json',
       Accept: 'application/json',
