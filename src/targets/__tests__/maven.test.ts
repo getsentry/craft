@@ -110,11 +110,13 @@ function getRepositoryInfo(
 }
 
 beforeEach(() => {
-  jest.resetAllMocks();
   setTargetSecretsInEnv();
 });
 
-afterEach(() => removeTargetSecretsFromEnv());
+afterEach(() => {
+  removeTargetSecretsFromEnv();
+  jest.resetAllMocks();
+});
 
 describe('Maven target configuration', () => {
   test('no env vars and no options', () => {
