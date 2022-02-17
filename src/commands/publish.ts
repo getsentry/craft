@@ -35,7 +35,7 @@ import { isValidVersion } from '../utils/version';
 import { BaseStatusProvider } from '../status_providers/base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { SimpleGit } from 'simple-git';
-import { getGitClient, getDefaultBranch, stripRemoteName } from '../utils/git';
+import { getGitClient, getDefaultBranch } from '../utils/git';
 
 /** Default path to post-release script, relative to project root */
 const DEFAULT_POST_RELEASE_SCRIPT_PATH = join('scripts', 'post-release.sh');
@@ -329,40 +329,6 @@ async function checkRevisionStatus(
 }
 
 /**
- * Determines the closest branch we can merge to from the current checkout
- * Adapted from https://stackoverflow.com/a/55238339/90297
- * @param git our local Git client
- * @param remoteName Name of the remote to query for the default branch
- * @returns
- */
-async function getMergeTarget(
-  git: SimpleGit,
-  remoteName: string
-): Promise<string> {
-  const logOutput = await git.raw(
-    'log',
-    '--decorate',
-    '--simplify-by-decoration',
-    '--oneline'
-  );
-  logger.debug('Trying to find merge target:');
-  logger.trace(logOutput);
-  const branchName =
-    stripRemoteName(
-      logOutput
-        .match(/^[\da-f]+ \((?!HEAD |tag: )([^)]+)\)/m)?.[1]
-        ?.split(',', 1)?.[0],
-      remoteName
-    ) || (await getDefaultBranch(git, remoteName));
-
-  if (!branchName) {
-    throw new Error('Cannot determine where to merge to!');
-  }
-
-  return branchName;
-}
-
-/**
  * Deals with the release branch after publishing is done
  *
  * Leave the release branch unmerged, or merge it but not delete it if the
@@ -382,7 +348,7 @@ async function handleReleaseBranch(
   keepBranch = false
 ): Promise<void> {
   if (!mergeTarget) {
-    mergeTarget = await getMergeTarget(git, remoteName);
+    mergeTarget = await getDefaultBranch(git, remoteName);
   }
   logger.debug(`Checking out merge target branch:`, mergeTarget);
   await git.checkout(mergeTarget);
