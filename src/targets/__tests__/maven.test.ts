@@ -110,13 +110,11 @@ function getRepositoryInfo(
 }
 
 beforeEach(() => {
+  jest.resetAllMocks();
   setTargetSecretsInEnv();
 });
 
-afterEach(() => {
-  removeTargetSecretsFromEnv();
-  jest.resetAllMocks();
-});
+afterEach(() => removeTargetSecretsFromEnv());
 
 describe('Maven target configuration', () => {
   test('no env vars and no options', () => {
@@ -370,8 +368,7 @@ describe('closeAndReleaseRepository', () => {
     try {
       await mvnTarget.closeAndReleaseRepository();
     } catch (e) {
-      // We only use `closeAndReleaseRepository` to trigger the expected behavior
-      // however, the assertion itself is done on `closeRepository` and `releaseRepository`
+      // no-empty
     }
 
     expect(mvnTarget.closeRepository).toHaveBeenCalledWith('sentry-java');
