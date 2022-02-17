@@ -30,8 +30,6 @@ export interface PubDevTargetOptions {
 export type PubDevTargetConfig = PubDevTargetOptions &
   Record<SecretsType, string>;
 
-type PartialTargetConfig = { name: string; value: string | undefined }[];
-
 /**
  * Target responsible for uploading files to pub.dev.
  */
@@ -50,7 +48,6 @@ export class PubDevTarget extends BaseTarget {
   ) {
     super(config, artifactProvider, githubRepo);
     this.pubDevConfig = this.getPubDevConfig();
-    this.checkRequiredSoftware();
     this.githubRepo = githubRepo;
   }
 
@@ -64,33 +61,34 @@ export class PubDevTarget extends BaseTarget {
   private getPubDevConfig(): PubDevTargetConfig {
     // We could do `...this.config`, but `packages` is in a list, not array format in `.yml`
     // so I wanted to keep setting the defaults unified.
-    return {
+    const config = {
       dartCliPath: this.config.dartCliPath || 'dart',
       packages: this.config.packages
         ? Object.keys(this.config.packages)
         : ['.'],
       ...this.getTargetSecrets(),
     };
+
+    this.checkRequiredSoftware(config);
+
+    return config;
   }
 
   private getTargetSecrets(): Record<SecretsType, string> {
-    const secrets = targetSecrets.map(name => {
-      checkEnvForPrerequisite({ name });
-      return {
-        name,
-        value: process.env[name],
-      };
-    });
-    return this.reduceConfig(secrets);
-  }
-
-  private reduceConfig(config: PartialTargetConfig): Record<string, string> {
-    return config.reduce((prev, current) => {
-      return {
-        ...prev,
-        [current.name]: current.value,
-      };
-    }, {});
+    return targetSecrets
+      .map(name => {
+        checkEnvForPrerequisite({ name });
+        return {
+          name,
+          value: process.env[name],
+        };
+      })
+      .reduce((prev, current) => {
+        return {
+          ...prev,
+          [current.name]: current.value,
+        };
+      }, {}) as Record<SecretsType, string>;
   }
 
   /**
@@ -98,12 +96,12 @@ export class PubDevTarget extends BaseTarget {
    * in the system. It assumes the config for this target to be available.
    * If there's required software missing, raises an error.
    */
-  private checkRequiredSoftware(): void {
+  private checkRequiredSoftware(config: PubDevTargetConfig): void {
     this.logger.debug(
       'Checking if Dart CLI is available: ',
-      this.pubDevConfig.dartCliPath
+      config.dartCliPath
     );
-    checkExecutableIsPresent(this.pubDevConfig.dartCliPath);
+    checkExecutableIsPresent(config.dartCliPath);
   }
 
   /**

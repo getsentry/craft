@@ -1087,9 +1087,9 @@ Because there is [no automated way](https://github.com/dart-lang/pub-dev/issues/
 
 Based on your environment, you can find this file at `$HOME/Library/Application\ Support/dart/pub-credentials.json` for OSX or `$HOME/.config/dart/pub-credentials.json` for Linux.
 
-**Environment**
+For this target to work correctly, either `dart` must be installed on the system or a valid `dartCliPath` must be provided.
 
-`dart` must be installed on the system.
+**Environment**
 
 | Name                   | Description                                                  |
 | ---------------------- | ------------------------------------------------------------ |
