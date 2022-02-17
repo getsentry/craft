@@ -64,7 +64,7 @@ type TargetSettingType = SecretsType | OptionsType;
 export type MavenTargetConfig = Record<TargetSettingType, string> &
   AndroidFields;
 
-type PartialTargetConfig = { name: string; value: string | undefined }[];
+type PartialTargetConfig = Array<{ name: string; value: string | undefined }>;
 
 /**
  * Target responsible for uploading files to Maven Central.
@@ -81,7 +81,6 @@ export class MavenTarget extends BaseTarget {
   ) {
     super(config, artifactProvider);
     this.mavenConfig = this.getMavenConfig();
-    this.checkRequiredSoftware();
 
     if (process.env.GPG_PRIVATE_KEY) {
       importGPGKey(process.env.GPG_PRIVATE_KEY);
@@ -96,11 +95,15 @@ export class MavenTarget extends BaseTarget {
    * @returns the maven config for this target.
    */
   private getMavenConfig(): MavenTargetConfig {
-    return {
+    const config = {
       ...this.getTargetSecrets(),
       ...this.getOuterTargetSettings(),
       ...this.getAndroidSettings(),
     };
+
+    this.checkRequiredSoftware(config);
+
+    return config;
   }
 
   private getTargetSecrets(): Record<TargetSettingType, string> {
@@ -179,12 +182,12 @@ export class MavenTarget extends BaseTarget {
    * in the system. It assumes the config for this target to be available.
    * If there's required software missing, raises an error.
    */
-  private checkRequiredSoftware(): void {
+  private checkRequiredSoftware(config: MavenTargetConfig): void {
     this.logger.debug(
       'Checking if Maven CLI is available: ',
-      this.mavenConfig.mavenCliPath
+      config.mavenCliPath
     );
-    checkExecutableIsPresent(this.mavenConfig.mavenCliPath);
+    checkExecutableIsPresent(config.mavenCliPath);
     this.logger.debug('Checking if GPG is available');
     checkExecutableIsPresent('gpg');
   }
@@ -496,6 +499,7 @@ export class MavenTarget extends BaseTarget {
   }
 
   private getNexusRequestHeaders(): Record<string, string> {
+    // Nexus API is using `Accept` is for `GET` requests and `Content-Type` for `POST` requests, so it needs both.
     return {
       'Content-Type': 'application/json',
       Accept: 'application/json',
