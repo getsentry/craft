@@ -6,8 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
   COCOAPODS_ALLOW_ROOT=1 \
   CARGO_HOME=/root/.cargo \
   RUSTUP_HOME=/root/.rustup \
-  PATH=${PATH}:/root/.cargo/bin \
-  PATH=${PATH}:/usr/lib/dart/bin
+  PATH=${PATH}:/root/.cargo/bin:/usr/lib/dart/bin
 
 RUN apt-get -qq update \
   && apt-get install -y --no-install-recommends \
