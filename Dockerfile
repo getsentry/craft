@@ -6,7 +6,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
   COCOAPODS_ALLOW_ROOT=1 \
   CARGO_HOME=/root/.cargo \
   RUSTUP_HOME=/root/.rustup \
-  PATH=${PATH}:/root/.cargo/bin
+  PATH=${PATH}:/root/.cargo/bin \
+  PATH=${PATH}:/usr/lib/dart/bin
 
 RUN apt-get -qq update \
   && apt-get install -y --no-install-recommends \
@@ -22,16 +23,18 @@ RUN apt-get -qq update \
     unzip \
     openjdk-11-jdk \
     maven \
-    dart \
   && curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
   && dpkg -i /tmp/packages-microsoft-prod.deb \
   && rm /tmp/packages-microsoft-prod.deb \
-  && echo 'deb [arch=amd64] https://download.docker.com/linux/debian buster stable' >> /etc/apt/sources.list \
   && curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - \
+  && echo 'deb [arch=amd64] https://download.docker.com/linux/debian buster stable' >> /etc/apt/sources.list \
+  && curl -fsSL https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/dart.gpg \
+  && echo 'deb [signed-by=/usr/share/keyrings/dart.gpg arch=amd64] https://storage.googleapis.com/download.dartlang.org/linux/debian stable main' | sudo tee /etc/apt/sources.list.d/dart_stable.list \
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
     dotnet-sdk-5.0 \
     docker-ce-cli \
+    dart \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* \
   && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s --  --profile minimal -y \
