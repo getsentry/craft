@@ -15,6 +15,7 @@ import { AwsLambdaLayerTarget } from './awsLambdaLayer';
 import { UpmTarget } from './upm';
 import { MavenTarget } from './maven';
 import { SymbolCollector } from './symbolCollector';
+import { PubDevTarget } from './pubDev';
 
 export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   brew: BrewTarget,
@@ -33,6 +34,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   upm: UpmTarget,
   maven: MavenTarget,
   'symbol-collector': SymbolCollector,
+  'pub-dev': PubDevTarget,
 };
 
 /** Targets that are treated specially */
