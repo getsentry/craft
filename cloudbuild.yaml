@@ -16,6 +16,7 @@ steps:
       - '--build-arg'
       - 'SOURCE_COMMIT=$COMMIT_SHA'
       - '--destination=us.gcr.io/$PROJECT_ID/craft:$COMMIT_SHA'
+    machineType: 'E2_HIGHCPU_8'
     timeout: 900s
   # Smoke tests
   - name: 'us.gcr.io/$PROJECT_ID/craft:$COMMIT_SHA'
