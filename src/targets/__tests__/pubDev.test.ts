@@ -3,8 +3,10 @@ import { platform } from 'os';
 import simpleGit from 'simple-git';
 import { PubDevTarget, targetSecrets } from '../pubDev';
 import { spawnProcess } from '../../utils/system';
+import { isDryRun } from '../../utils/helpers';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 
+jest.mock('../../utils/helpers');
 jest.mock('../../utils/system');
 jest.mock('../../utils/files', () => ({
   ...jest.requireActual('../../utils/files'),
@@ -190,6 +192,31 @@ describe('publish', () => {
       'publishPackage',
     ]);
   });
+
+  test('dry-run mode should skip credentials file creation', async () => {
+    const revision = 'r3v1s10n';
+    const callOrder: string[] = [];
+    const target = createPubDevTarget();
+    target.createCredentialsFile = jest.fn(
+      async () => void callOrder.push('createCredentialsFile')
+    );
+    target.cloneRepository = jest.fn(
+      async () => void callOrder.push('cloneRepository')
+    );
+    target.publishPackage = jest.fn(
+      async () => void callOrder.push('publishPackage')
+    );
+
+    const isDryRunMock = isDryRun as jest.MockedFunction<typeof isDryRun>;
+    isDryRunMock.mockImplementationOnce(() => true);
+
+    await target.publish('1.0.0', revision);
+
+    expect(target.createCredentialsFile).not.toHaveBeenCalled();
+    expect(target.cloneRepository).toHaveBeenCalled();
+    expect(target.publishPackage).toHaveBeenCalled();
+    expect(callOrder).toStrictEqual(['cloneRepository', 'publishPackage']);
+  });
 });
 
 describe('createCredentialsFile', () => {
@@ -293,6 +320,29 @@ describe('publishPackage', () => {
     expect(spawnProcessMock).toHaveBeenCalledWith(
       dartCliPath,
       ['pub', 'publish', '--force'],
+      {
+        cwd: `${TMP_DIR}/${pkg}`,
+      },
+      { showStdout: true }
+    );
+  });
+
+  test('should add --dry-run flag instead of --force if dry-run mode is used', async () => {
+    const pkg = 'uno';
+    const target = createPubDevTarget();
+
+    const spawnProcessMock = spawnProcess as jest.MockedFunction<
+      typeof spawnProcess
+    >;
+
+    const isDryRunMock = isDryRun as jest.MockedFunction<typeof isDryRun>;
+    isDryRunMock.mockImplementationOnce(() => true);
+
+    await target.publishPackage(TMP_DIR, pkg);
+
+    expect(spawnProcessMock).toHaveBeenCalledWith(
+      'dart',
+      ['pub', 'publish', '--dry-run'],
       {
         cwd: `${TMP_DIR}/${pkg}`,
       },

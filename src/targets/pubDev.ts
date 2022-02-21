@@ -9,6 +9,7 @@ import { forEachChained } from '../utils/async';
 import { checkEnvForPrerequisite } from '../utils/env';
 import { withTempDir } from '../utils/files';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
+import { isDryRun } from '../utils/helpers';
 
 export const targetSecrets = [
   'PUBDEV_ACCESS_TOKEN',
@@ -111,7 +112,12 @@ export class PubDevTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(_version: string, revision: string): Promise<any> {
-    await this.createCredentialsFile();
+    // `dart pub publish --dry-run` can be run without any credentials
+    if (isDryRun()) {
+      this.logger.info('[dry-run] Skipping credentials file creation.');
+    } else {
+      await this.createCredentialsFile();
+    }
 
     await withTempDir(
       async directory => {
@@ -186,8 +192,16 @@ export class PubDevTarget extends BaseTarget {
    * @returns A promise that resolves when the package has been published
    */
   public async publishPackage(directory: string, pkg: string): Promise<void> {
-    // `--force` prevents confirmation prompt
-    const args = ['pub', 'publish', '--force'];
+    const args = ['pub', 'publish'];
+
+    if (isDryRun()) {
+      this.logger.info('[dry-run] Running `pub publish` in dry-run mode.');
+      args.push('--dry-run');
+    } else {
+      // `--force` prevents confirmation prompt, but it cannot be use together with `--dry-run`
+      args.push('--force');
+    }
+
     await spawnProcess(
       this.pubDevConfig.dartCliPath,
       args,
