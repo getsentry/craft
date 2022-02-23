@@ -24,6 +24,7 @@ jest.mock('fs', () => ({
   promises: {
     access: jest.fn(() => Promise.resolve()),
     writeFile: jest.fn(() => Promise.resolve()),
+    readFile: jest.fn(() => Promise.resolve()),
   },
 }));
 
@@ -69,6 +70,7 @@ beforeEach(() => {
 
 afterEach(() => {
   removeTargetSecretsFromEnv();
+  jest.clearAllMocks();
 });
 
 describe('PubDev target configuration', () => {
@@ -286,6 +288,76 @@ describe('cloneRepository', () => {
 });
 
 describe('publishPackage', () => {
+  test('should remove dependency_overrides from pubspec.yaml', async () => {
+    const pkg = 'uno';
+    const target = createPubDevTarget();
+
+    const readFileMock = fsPromises.readFile as jest.MockedFunction<
+      typeof fsPromises.readFile
+    >;
+    readFileMock.mockImplementationOnce(() =>
+      // NOTE: Indentation matters here, as its YAML
+      Promise.resolve(`name: sentry_dio
+description: An integration which adds support for performance tracing for the Dio package.
+version: 6.3.0
+homepage: https://docs.sentry.io/platforms/dart/
+repository: https://github.com/getsentry/sentry-dart
+issue_tracker: https://github.com/getsentry/sentry-dart/issues
+
+environment:
+  sdk: '>=2.12.0 <3.0.0'
+
+dependencies:
+  sentry: ^6.3.0
+
+dev_dependencies:
+  lints: ^1.0.0
+
+dependency_overrides:
+  sentry:
+    path: ../dart`)
+    );
+
+    await target.publishPackage(TMP_DIR, pkg);
+
+    const writeFileMock = fsPromises.writeFile as jest.MockedFunction<
+      typeof fsPromises.writeFile
+    >;
+
+    const content = writeFileMock.mock.calls[0][1];
+    expect(content).toMatchInlineSnapshot(`
+      "name: sentry_dio
+      description: An integration which adds support for performance tracing for the Dio package.
+      version: 6.3.0
+      homepage: https://docs.sentry.io/platforms/dart/
+      repository: https://github.com/getsentry/sentry-dart
+      issue_tracker: https://github.com/getsentry/sentry-dart/issues
+      environment:
+        sdk: '>=2.12.0 <3.0.0'
+      dependencies:
+        sentry: ^6.3.0
+      dev_dependencies:
+        lints: ^1.0.0
+      "
+    `);
+  });
+
+  test('should not remove dependency_overrides when in dry-mode', async () => {
+    const pkg = 'uno';
+    const target = createPubDevTarget();
+
+    const isDryRunMock = isDryRun as jest.MockedFunction<typeof isDryRun>;
+    isDryRunMock.mockImplementationOnce(() => true);
+
+    await target.publishPackage(TMP_DIR, pkg);
+
+    const writeFileMock = fsPromises.writeFile as jest.MockedFunction<
+      typeof fsPromises.writeFile
+    >;
+
+    expect(writeFileMock).not.toBeCalled();
+  });
+
   test('should call `dart` cli with appropriate arguments', async () => {
     const pkg = 'uno';
     const target = createPubDevTarget();
