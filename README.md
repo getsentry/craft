@@ -1085,7 +1085,7 @@ Pushes a new Dart or Flutter package to [pub.dev](https://pub.dev/).
 
 Because there is [no automated way](https://github.com/dart-lang/pub-dev/issues/5388) to login and obtain required tokens, you need to perform a valid release beforehand, for every package that you configure. This will open up your browser and use Google's OAuth to log you in, and generate an appropriate file with stored credentials.
 
-Based on your environment, you can find this file at `$HOME/Library/Application\ Support/dart/pub-credentials.json` for OSX or `$HOME/.config/dart/pub-credentials.json` for Linux.
+Based on your environment, you can find this file at either `$HOME/.pub-cache/credentials.json` or `$HOME/Library/Application\ Support/dart/pub-credentials.json` for OSX and `$HOME/.config/dart/pub-credentials.json` for Linux, depending on your setup.
 
 For this target to work correctly, either `dart` must be installed on the system or a valid `dartCliPath` must be provided.
 
