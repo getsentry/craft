@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.29.0
+
+### Various fixes & improvements
+
+- feat: Adds pub.dev target for Dart and Flutter (#353) by @kamilogorek
+- misc: Add explanatory code comments and minor refactor for Maven target (#354) by @kamilogorek
+
 ## 0.28.1
 
 ### Various fixes & improvements
