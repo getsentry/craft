@@ -23,6 +23,7 @@ jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
   promises: {
     access: jest.fn(() => Promise.resolve()),
+    mkdir: jest.fn(() => Promise.resolve()),
     writeFile: jest.fn(() => Promise.resolve()),
     readFile: jest.fn(() => Promise.resolve()),
   },
@@ -244,6 +245,18 @@ describe('createCredentialsFile', () => {
     expect(content).toMatchInlineSnapshot(
       `"{\\"accessToken\\":\\"my_default_value\\",\\"refreshToken\\":\\"my_default_value\\",\\"tokenEndpoint\\":\\"https://accounts.google.com/o/oauth2/token\\",\\"scopes\\":[\\"openid\\",\\"https://www.googleapis.com/auth/userinfo.email\\"],\\"expiration\\":1645564942000}"`
     );
+  });
+
+  test('should make sure that directory exists before writing credentials file', async () => {
+    fsPromises.access = jest.fn(() => Promise.reject());
+    (platform as jest.MockedFunction<typeof platform>).mockImplementationOnce(
+      () => 'linux'
+    );
+    const target = createPubDevTarget();
+    await target.createCredentialsFile();
+    expect(fsPromises.mkdir).toHaveBeenCalledWith('/usr/.config/dart', {
+      recursive: true,
+    });
   });
 
   test('should choose path based on the platform', async () => {

@@ -1,6 +1,6 @@
 import { constants, promises as fsPromises } from 'fs';
 import { homedir, platform } from 'os';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { load, dump } from 'js-yaml';
 import simpleGit from 'simple-git';
 import { BaseTarget } from './base';
@@ -147,6 +147,8 @@ export class PubDevTarget extends BaseTarget {
       await fsPromises.access(credentialsFilePath, constants.F_OK);
       this.logger.warn('Credentials file already exists. Skipping creation.');
     } catch {
+      // Setting `recursive: true` allows `mkdir`  to not fail in case directory already exists.
+      await fsPromises.mkdir(dirname(credentialsFilePath), { recursive: true });
       await fsPromises.writeFile(credentialsFilePath, JSON.stringify(content));
       this.logger.info('Credentials file created.');
     }
