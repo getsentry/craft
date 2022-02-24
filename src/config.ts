@@ -2,7 +2,7 @@ import { existsSync, lstatSync, readFileSync } from 'fs';
 import path from 'path';
 
 import ajv from 'ajv';
-import { safeLoad } from 'js-yaml';
+import { load } from 'js-yaml';
 import GitUrlParse from 'git-url-parse';
 import simpleGit from 'simple-git';
 
@@ -149,7 +149,7 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
 
   const configPath = getConfigFilePath();
   logger.debug('Configuration file found: ', configPath);
-  const rawConfig = safeLoad(readFileSync(configPath, 'utf-8')) as Record<
+  const rawConfig = load(readFileSync(configPath, 'utf-8')) as Record<
     string,
     any
   >;
