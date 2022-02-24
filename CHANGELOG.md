@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.29.2
+
+### Various fixes & improvements
+
+- fix: Make sure dart credentials directory exists before writing (#361) by @kamilogorek
+
 ## 0.29.1
 
 ### Various fixes & improvements
