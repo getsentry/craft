@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.29.1
+
+### Various fixes & improvements
+
+- feat: Remove dependency_overrides entries from pubspec.yaml in dart (#359) by @kamilogorek
+- misc: Update PubDev credentials file location in readme (#358) by @kamilogorek
+
 ## 0.29.0
 
 ### Various fixes & improvements
