@@ -201,7 +201,13 @@ export class PubDevTarget extends BaseTarget {
     } else {
       // `--force` prevents confirmation prompt, but it cannot be use together with `--dry-run`
       args.push('--force');
-      await this.removeDependencyOverrides(directory, pkg);
+      try {
+        await this.removeDependencyOverrides(directory, pkg);
+      } catch (e) {
+        throw new Error(
+          `Cannot remove dependency_overrides key from pubspec.yaml: ${e}`
+        );
+      }
     }
 
     await spawnProcess(
