@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.29.3
+
+### Various fixes & improvements
+
+- deps: Roll back to symbol-collector 1.4.2 (#362) by @kamilogorek
+- meta(gha): Deploy workflow enforce-license-compliance.yml (#360) by @chadwhitacre
+
 ## 0.29.2
 
 ### Various fixes & improvements
