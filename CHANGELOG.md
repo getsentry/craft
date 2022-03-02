@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.30.0
+
+### Various fixes & improvements
+
+- deps: Update symbol-collector to 1.5.3 (#363) by @kamilogorek
+- ref: Use default branch as merge target instead of parent detection (#355) by @kamilogorek
+
 ## 0.29.3
 
 ### Various fixes & improvements
