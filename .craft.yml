@@ -1,4 +1,4 @@
-minVersion: '0.25.3'
+minVersion: '0.30.0'
 changelogPolicy: auto
 preReleaseCommand: >-
   node -p "
@@ -32,8 +32,14 @@ targets:
         checksums:
           - algorithm: sha256
             format: hex
-  - name: docker
+  - id: release
+    name: docker
     source: us.gcr.io/sentryio/craft
     target: getsentry/craft
+  - id: latest
+    name: docker
+    source: us.gcr.io/sentryio/craft
+    target: getsentry/craft
+    targetFormat: '{{{target}}}:latest'
   - name: github
   - name: gh-pages
