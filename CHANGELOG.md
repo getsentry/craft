@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.30.1
+
+### Various fixes & improvements
+
+- fix: Use `unzipper.Open` to use CentralDirectory instead of local headers (#372) by @kamilogorek
+
 ## 0.30.0
 
 ### Various fixes & improvements
