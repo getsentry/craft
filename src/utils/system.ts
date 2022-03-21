@@ -344,15 +344,10 @@ export async function extractZipArchive(
   filePath: string,
   dir: string
 ): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    try {
-      fs.createReadStream(filePath)
-        .pipe(unzipper.Extract({ path: dir, concurrency: 2 }))
-        .on('error', reject)
-        .on('close', resolve);
-    } catch (e) {
-      reject(e);
-    }
+  const archive = await unzipper.Open.file(filePath);
+  await archive.extract({
+    path: dir,
+    concurrency: 2,
   });
 }
 
