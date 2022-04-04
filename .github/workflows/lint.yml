@@ -28,4 +28,4 @@ jobs:
           git config user.name "getsentry-bot" &&
           git diff --quiet ||
           git commit -anm 'ref: Lint fixes' &&
-          git push origin refs/pull/${{ github.event.pull_request.number }}/head
+          git push origin refs/pull/${{ github.event.pull_request.number }}
