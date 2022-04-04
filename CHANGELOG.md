@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.31.0
+
+### Increase Release Safety and Reliability (ongoing)
+
+Work on increasing the release safety and reliability.
+
+By: @BYK (#370)
+
+### Various fixes & improvements
+
+- ci: Use better key for getsentry/action-enforce-license-compliance if available (#377) by @chadwhitacre
+- Use a custom action (#375) by @chadwhitacre
+
 ## 0.30.1
 
 ### Various fixes & improvements
