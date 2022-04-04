@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 10
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: volta-cli/action@v1
       - uses: actions/cache@v3
         id: cache
@@ -28,4 +28,4 @@ jobs:
           git config user.name "getsentry-bot" &&
           git diff --quiet ||
           git commit -anm 'ref: Lint fixes' &&
-          git push
+          git push origin ${{ github.head_ref }}
