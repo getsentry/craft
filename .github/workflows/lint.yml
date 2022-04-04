@@ -1,17 +1,16 @@
 name: 'Lint'
 on:
   pull_request:
+    branches: [master]
 
 jobs:
   lint:
     name: Lint fixes
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/checkout@v3
       - uses: volta-cli/action@v1
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         id: cache
         with:
           path: node_modules
