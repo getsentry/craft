@@ -1,17 +1,18 @@
 name: 'Lint'
 on:
-  pull_request:
+  pull_request_target:
+    branches: [master]
 
 jobs:
   lint:
     name: Lint fixes
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: volta-cli/action@v1
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         id: cache
         with:
           path: node_modules
@@ -27,4 +28,4 @@ jobs:
           git config user.name "getsentry-bot" &&
           git diff --quiet ||
           git commit -anm 'ref: Lint fixes' &&
-          git push
+          git push origin HEAD:refs/pull/${{ github.event.pull_request.number }}
