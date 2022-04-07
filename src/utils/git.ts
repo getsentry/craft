@@ -52,6 +52,10 @@ export async function getChangesSince(
     // https://git-scm.com/docs/gitrevisions#_dotted_range_notations for more
     symmetric: false,
     '--no-merges': null,
+    // Limit changes to the CWD to better support monorepos
+    // this should still return all commits for individual repos when run from
+    // the repo root.
+    file: '.',
   });
   return commits.map(commit => ({
     hash: commit.hash,
