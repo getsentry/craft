@@ -10,3 +10,4 @@ npm-debug.log
 .Spotlight-V100
 .Trashes
 *.env
+.eslintcache
