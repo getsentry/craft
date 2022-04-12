@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-var-requires */
 /**
  * Convert JSON schema for project configuration to a set of TypeScript interfaces
  */
