@@ -268,13 +268,13 @@ describe('upload', () => {
     expect(cmdArgs[1]).toMatch(new RegExp(`-Dfile=${tmpDirName}.+`));
     expect(cmdArgs[2]).toMatch(
       new RegExp(
-        `-Dfiles=${tmpDirName}.+-javadoc\.jar,${tmpDirName}.+-sources\.jar`
+        `-Dfiles=${tmpDirName}.+-javadoc\\.jar,${tmpDirName}.+-sources\\.jar`
       )
     );
     expect(cmdArgs[3]).toBe(`-Dclassifiers=javadoc,sources`);
     expect(cmdArgs[4]).toBe(`-Dtypes=jar,jar`);
     expect(cmdArgs[5]).toMatch(
-      new RegExp(`-DpomFile=${tmpDirName}.+pom-default\.xml`)
+      new RegExp(`-DpomFile=${tmpDirName}.+pom-default\\.xml`)
     );
     expect(cmdArgs[6]).toBe(`-DrepositoryId=${DEFAULT_OPTION_VALUE}`);
     expect(cmdArgs[7]).toBe(`-Durl=${DEFAULT_OPTION_VALUE}`);
