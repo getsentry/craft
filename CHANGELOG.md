@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.32.0
+
+### Various fixes & improvements
+
+- upgrade(simple-git): Use latest version, 3.6.0 (#381) by @BYK
+- feat(changelog): Limit changes to current project folder (#379) by @BYK
+- ci(lint): Make lint job work for external contributors (#378) by @BYK
+
 ## 0.31.0
 
 ### Increase Release Safety and Reliability (ongoing)
