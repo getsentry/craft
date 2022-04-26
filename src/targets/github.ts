@@ -308,8 +308,9 @@ export class GitHubTarget extends BaseTarget {
       }
 
       // This usually happens when the upload gets interrupted somehow with a
-      // 5xx error. See the docs here: https://git.io/JKZot
-      const isAssetExistsError =
+      // 5xx error. See the docs here:
+      // https://docs.github.com/en/rest/releases/assets#upload-a-release-asset
+      cons t isAssetExistsError =
         err.status == 422 &&
         (err.response?.data as OctokitErrorResponse)?.errors?.some(
           ({ resource, code, field }) =>

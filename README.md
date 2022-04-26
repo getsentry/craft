@@ -333,12 +333,14 @@ In `auto` mode, `craft prepare` will use the following logic:
 2. Else if there is an entry named `Unreleased`, rename that to the given
    version
 3. Else, create a new section for the version and populate it with the changes
-   since the last version. It uses [GitHub Milestones](https://git.io/Jzlqy) to
-   provide a concise and rich changelog. If the PRs are associated with a
+   since the last version. It uses [GitHub
+   Milestones](https://docs.github.com/en/issues/using-labels-and-milestones-to-track-work/about-milestones)
+   to provide a concise and rich changelog. If the PRs are associated with a
    milestone, the milestone title and description are used as the changelog
    entry alongside a brief list of associated PRs. Any individual commits and
    PRs are listed under the "Various improvements & fixes" section at the
-   bottom. Check out [Craft's own releases](https://git.io/Jzlmu) as example.
+   bottom. Check out [Craft's own
+   releases](https://github.com/getsentry/craft/releases/) as example.
 
 **Configuration**
 
