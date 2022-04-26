@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.32.1
+
+### Various fixes & improvements
+
+- ref: Remove spinners from github target artifacts upload (#385) by @kamilogorek
+
 ## 0.32.0
 
 ### Various fixes & improvements
