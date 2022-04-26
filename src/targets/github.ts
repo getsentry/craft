@@ -20,7 +20,6 @@ import { isPreviewRelease, versionToTag } from '../utils/version';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { logger } from '../logger';
-import ora from 'ora';
 
 /**
  * Default content type for GitHub release assets.
@@ -269,9 +268,9 @@ export class GitHubTarget extends BaseTarget {
       return;
     }
 
-    const uploadSpinner = ora(
-      `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}`
-    ).start();
+    process.stderr.write(
+      `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}\n`
+    );
 
     try {
       const file = createReadStream(path);
@@ -282,16 +281,15 @@ export class GitHubTarget extends BaseTarget {
         // want as we upload binary data.
         data: file as any,
       });
-      uploadSpinner.text = `Verifying asset "${name}...`;
       if (size != stats.size) {
         throw new Error(
           `Uploaded asset size (${size} bytes) does not match local asset size (${stats.size} bytes) for "${name}".`
         );
       }
-      uploadSpinner.succeed(`Uploaded asset "${name}".`);
+      process.stderr.write(`✔ Uploaded asset "${name}".\n`);
       return url;
     } catch (e) {
-      uploadSpinner.fail(`Cannot upload asset "${name}".`);
+      process.stderr.write(`✖ Cannot upload asset "${name}".\n`);
       throw e;
     }
   }
