@@ -16,7 +16,8 @@ export interface GitChange {
 // This makes it very cheap and quick to extract the associated PR number just
 // from the commit log locally.
 // If this fails at some future, we can always revert back to using the GitHub
-// API that gives you the PRs associated with a commit: https://git.io/JzUVK
+// API that gives you the PRs associated with a commit:
+// https://docs.github.com/en/rest/commits/commits#list-pull-requests-associated-with-a-commit
 export const PRExtractor = /(?<=\(#)\d+(?=\)$)/;
 
 export async function getDefaultBranch(
