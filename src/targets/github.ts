@@ -337,7 +337,7 @@ export class GitHubTarget extends BaseTarget {
    *
    * @param release Release object
    */
-  public async publishRelease(release: GitHubRelease) {
+  public async publishRelease(release: GitHubRelease): Promise<void> {
     if (isDryRun()) {
       this.logger.info(`[dry-run] Not publishing the draft release`);
       return;
