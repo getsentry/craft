@@ -1,6 +1,6 @@
 import { Octokit } from '@octokit/rest';
 
-import { LogLevel, logger } from '../logger';
+import { logger } from '../logger';
 
 import { ConfigurationError } from './errors';
 
@@ -103,13 +103,8 @@ export function getGitHubClient(token = ''): Octokit {
   if (!_GitHubClientCache[githubApiToken]) {
     const attrs: any = {
       auth: `token ${githubApiToken}`,
+      log: logger,
     };
-
-    if (logger.level >= LogLevel.Debug) {
-      attrs.log = {
-        info: (message: string) => logger.debug(message),
-      };
-    }
 
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { retry } = require('@octokit/plugin-retry');
