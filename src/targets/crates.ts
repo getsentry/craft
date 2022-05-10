@@ -26,6 +26,13 @@ const CARGO_BIN = process.env.CARGO_BIN || DEFAULT_CARGO_BIN;
 const VERSION_ERROR = 'failed to select a version for the requirement';
 
 /**
+ * A message fragment emitted by cargo when publishing fails because the crate
+ * had already been published in this exact version. This happens especially
+ * when rerunning a workspace publish after it has failed in the middle.
+ */
+const REPUBLISH_ERROR = 'is already uploaded';
+
+/**
  * Maximum number of attempts including the initial one when publishing fails
  * due to a stale cache. After this number of retries, publishing fails.
  */
@@ -269,7 +276,17 @@ export class CratesTarget extends BaseTarget {
     let delay = RETRY_DELAY_SECS;
     this.logger.info(`Publishing ${crate.name}`);
     await withRetry(
-      () => spawnProcess(CARGO_BIN, args, { env }),
+      async () => {
+        try {
+          spawnProcess(CARGO_BIN, args, { env })
+        } catch (err) {
+          if (err instanceof Error && err.message.includes(REPUBLISH_ERROR)) {
+            this.logger.info(`Skipping ${crate.name}, version ${crate.version} already published`);
+          } else {
+            throw err;
+          }
+        }
+      },
       MAX_ATTEMPTS,
 
       async err => {
