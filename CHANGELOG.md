@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.33.0
+
+### Various fixes & improvements
+
+- ref: Allow for all logger levels in Octokit (#390) by @kamilogorek
+- ref: Upload GitHub artifacts in series (#389) by @kamilogorek
+
 ## 0.32.1
 
 ### Various fixes & improvements
