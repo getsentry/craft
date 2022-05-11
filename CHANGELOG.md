@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.33.1
+
+### Various fixes & improvements
+
+- fix(crates): Resume workspace publish (#392) by @jan-auer
+
 ## 0.33.0
 
 ### Various fixes & improvements
