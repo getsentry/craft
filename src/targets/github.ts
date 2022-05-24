@@ -231,19 +231,7 @@ export class GitHubTarget extends BaseTarget {
     path: string,
     contentType?: string
   ): Promise<string | undefined> {
-    const contentTypeProcessed = contentType || DEFAULT_CONTENT_TYPE;
-    const stats = statSync(path);
     const name = basename(path);
-    const params = {
-      ...this.githubConfig,
-      headers: {
-        'Content-Length': stats.size,
-        'Content-Type': contentTypeProcessed,
-      },
-      release_id: release.id,
-      name,
-    };
-    this.logger.trace('Upload parameters:', params);
 
     if (isDryRun()) {
       this.logger.info(`[dry-run] Not uploading asset "${name}"`);
@@ -255,19 +243,7 @@ export class GitHubTarget extends BaseTarget {
     );
 
     try {
-      const file = createReadStream(path);
-      const { url, size } = await this.handleGitHubUpload({
-        ...params,
-        // XXX: Octokit types this out as string, but in fact it also
-        // accepts a `Buffer` here. In fact passing a string is not what we
-        // want as we upload binary data.
-        data: file as any,
-      });
-      if (size != stats.size) {
-        throw new Error(
-          `Uploaded asset size (${size} bytes) does not match local asset size (${stats.size} bytes) for "${name}".`
-        );
-      }
+      const { url } = await this.handleGitHubUpload(release, path, contentType);
       process.stderr.write(`✔ Uploaded asset "${name}".\n`);
       return url;
     } catch (e) {
@@ -277,19 +253,49 @@ export class GitHubTarget extends BaseTarget {
   }
 
   private async handleGitHubUpload(
-    params: RestEndpointMethodTypes['repos']['uploadReleaseAsset']['parameters'],
-    retries = 3
+    release: GitHubRelease,
+    path: string,
+    contentType?: string,
+    retries = 3,
   ): Promise<{ url: string; size: number }> {
+    const contentTypeProcessed = contentType || DEFAULT_CONTENT_TYPE;
+    const stats = statSync(path);
+    const name = basename(path);
+    // this must be recreated each attempt to prevent fd reuse
+    const file = createReadStream(path);
+
+    const params = {
+      ...this.githubConfig,
+      headers: {
+        'Content-Length': stats.size,
+        'Content-Type': contentTypeProcessed,
+      },
+      release_id: release.id,
+      name,
+      // XXX: Octokit types this out as string, but in fact it also
+      // accepts a `Buffer` here. In fact passing a string is not what we
+      // want as we upload binary data.
+      data: file as any,
+      request: {
+        // we are handling retries -- octokit-retries will resuse our fd and
+        // hang forever
+        retries: 0,
+        timeout: 10 * 1000,
+      },
+    };
+
+    this.logger.trace('Upload parameters:', params);
+
     try {
-      return (
-        await this.github.repos.uploadReleaseAsset({
-          ...params,
-          request: {
-            retries: 0,
-            timeout: 10 * 1000,
-          },
-        })
-      ).data;
+      const ret = (await this.github.repos.uploadReleaseAsset(params)).data;
+
+      if (ret.size != stats.size) {
+        throw new Error(
+          `Uploaded asset size (${ret.size} bytes) does not match local asset size (${stats.size} bytes) for "${name}".`
+        );
+      }
+
+      return ret;
     } catch (err) {
       if (retries <= 0) {
         throw new Error(
@@ -301,7 +307,9 @@ export class GitHubTarget extends BaseTarget {
         'Got an error when trying to upload an asset, deleting and retrying...'
       );
       await this.deleteAssetByName(params.release_id, params.name);
-      return this.handleGitHubUpload(params, --retries);
+      return this.handleGitHubUpload(release, path, contentType, --retries);
+    } finally {
+      file.destroy();
     }
   }
 
