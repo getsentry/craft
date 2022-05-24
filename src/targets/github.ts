@@ -380,11 +380,11 @@ export class GitHubTarget extends BaseTarget {
       changelog
     );
 
-    // We don't want to do this in parallel but in serial, because the GitHub
-    // artifacts endpoint has a tendency to randomly timeout on multiple requests.
-    for (const { path, mimeType } of localArtifacts) {
-      await this.uploadAsset(draftRelease, path, mimeType);
-    }
+    await Promise.all(
+      localArtifacts.map(({ path, mimeType }) =>
+        this.uploadAsset(draftRelease, path, mimeType)
+      )
+    );
 
     await this.publishRelease(draftRelease);
   }
