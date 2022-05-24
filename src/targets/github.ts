@@ -1,5 +1,4 @@
 import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
-import { RequestError } from '@octokit/request-error';
 import { createReadStream, promises, statSync } from 'fs';
 import { basename } from 'path';
 
@@ -52,24 +51,6 @@ interface GitHubRelease {
 }
 
 type ReposListAssetsForReleaseResponseItem = RestEndpointMethodTypes['repos']['listReleaseAssets']['response']['data'][0];
-
-interface OctokitError {
-  resource: string;
-  field: string;
-  code:
-    | 'missing'
-    | 'missing_field'
-    | 'invalid'
-    | 'already_exists'
-    | 'unprocessable'
-    | 'custom';
-  message?: string;
-}
-interface OctokitErrorResponse {
-  message: string;
-  errors: OctokitError[];
-  documentation_url?: string;
-}
 
 /**
  * Target responsible for publishing releases on GitHub.
@@ -228,11 +209,12 @@ export class GitHubTarget extends BaseTarget {
     const assets = await this.getAssetsForRelease(release_id);
     const assetToDelete = assets.find(({ name }) => name === assetName);
     if (!assetToDelete) {
-      throw new Error(
-        `No such asset with the name "${assetToDelete}". We have these instead: ${assets.map(
+      logger.warn(
+        `No such asset with the name "${assetToDelete}", moving on. We have these instead: ${assets.map(
           ({ name }) => name
         )}`
       );
+      return false;
     }
     return this.deleteAsset(assetToDelete);
   }
@@ -299,35 +281,25 @@ export class GitHubTarget extends BaseTarget {
     retries = 3
   ): Promise<{ url: string; size: number }> {
     try {
-      return (await this.github.repos.uploadReleaseAsset(params)).data;
+      return (
+        await this.github.repos.uploadReleaseAsset({
+          ...params,
+          request: {
+            retries: 0,
+            timeout: 10 * 1000,
+          },
+        })
+      ).data;
     } catch (err) {
-      if (!(err instanceof RequestError)) {
-        throw err;
-      }
-
-      // This usually happens when the upload gets interrupted somehow with a
-      // 5xx error. See the docs here:
-      // https://docs.github.com/en/rest/releases/assets#upload-a-release-asset
-      const isAssetExistsError =
-        err.status == 422 &&
-        (err.response?.data as OctokitErrorResponse)?.errors?.some(
-          ({ resource, code, field }) =>
-            resource === 'ReleaseAsset' &&
-            code === 'already_exists' &&
-            field === 'name'
-        );
-
-      if (!isAssetExistsError) {
-        throw err;
-      }
-
       if (retries <= 0) {
         throw new Error(
           `Reached maximum retries for trying to upload asset "${params.name}.`
         );
       }
 
-      logger.info('Got "asset already exists" error, deleting and retrying...');
+      logger.info(
+        'Got an error when trying to upload an asset, deleting and retrying...'
+      );
       await this.deleteAssetByName(params.release_id, params.name);
       return this.handleGitHubUpload(params, --retries);
     }
