@@ -1,6 +1,6 @@
 import { Octokit } from '@octokit/rest';
 
-import { logger } from '../logger';
+import { LogLevel, logger } from '../logger';
 
 import { ConfigurationError } from './errors';
 
@@ -103,8 +103,16 @@ export function getGitHubClient(token = ''): Octokit {
   if (!_GitHubClientCache[githubApiToken]) {
     const attrs: any = {
       auth: `token ${githubApiToken}`,
-      log: logger,
     };
+
+    // Silence debug logs, as they do not provide any useful information
+    // about the requests, yet they are very noisy and make it difficult
+    // to track what's going on.
+    if (logger.level >= LogLevel.Debug) {
+      attrs.log = {
+        info: (message: string) => logger.debug(message),
+      };
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { retry } = require('@octokit/plugin-retry');
