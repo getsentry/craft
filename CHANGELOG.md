@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.33.2
+
+### Various fixes & improvements
+
+- fix: re-open asset when retrying asset upload (#398) by @asottile-sentry
+- ref: Rework how GH artifacts upload retrying works (#397) by @kamilogorek
+- ref: Disable Octokit debug logging as its not useful (#397) by @kamilogorek
+- ref: Upload GitHub artifacts in parallel (#397) by @kamilogorek
+
 ## 0.33.1
 
 ### Various fixes & improvements
