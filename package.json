@@ -74,7 +74,7 @@
     "prettier": "^2.2.1",
     "prompts": "2.4.1",
     "rimraf": "2.7.1",
-    "shell-quote": "1.6.1",
+    "shell-quote": "1.7.3",
     "simple-git": "^3.6.0",
     "source-map-support": "^0.5.20",
     "split": "1.0.1",
