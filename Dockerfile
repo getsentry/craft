@@ -31,7 +31,7 @@ RUN apt-get -qq update \
   && echo 'deb [signed-by=/usr/share/keyrings/dart.gpg arch=amd64] https://storage.googleapis.com/download.dartlang.org/linux/debian stable main' | tee /etc/apt/sources.list.d/dart_stable.list \
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
-    dotnet-sdk-5.0 \
+    dotnet-sdk-6.0 \
     docker-ce-cli \
     dart \
   && apt-get clean \
