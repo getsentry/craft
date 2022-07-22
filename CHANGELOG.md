@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.33.3
+
+### Various fixes & improvements
+
+- bump dotnet 6 (#408) by @bruno-garcia
+- ref: actually upgrade node-fetch (#407) by @asottile-sentry
+- ref: upgrade yarn dependencies to resolve github security notices (#406) by @asottile-sentry
+- build(deps): bump parse-url from 5.0.3 to 7.0.2 (#403) by @dependabot
+- build(deps): bump jsdom from 16.4.0 to 16.7.0 (#402) by @dependabot
+- build(deps-dev): bump shell-quote from 1.6.1 to 1.7.3 (#401) by @dependabot
+
 ## 0.33.2
 
 ### Various fixes & improvements
