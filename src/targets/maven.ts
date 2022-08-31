@@ -14,6 +14,7 @@ import { ConfigurationError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
 import { checkEnvForPrerequisite } from '../utils/env';
 import { importGPGKey } from '../utils/gpg';
+import { readdirSync } from 'fs'
 
 export const POM_DEFAULT_FILENAME = 'pom-default.xml';
 const POM_FILE_EXT = '.xml'; // Must include the leading `.`
@@ -328,17 +329,29 @@ export class MavenTarget extends BaseTarget {
       targetFile,
       javadocFile,
       sourcesFile,
+      klibFiles,
       pomFile,
     } = this.getFilesForMavenPomDist(distDir);
+
+    let sideArtifacts = `${javadocFile},${sourcesFile}`
+    let classifiers = 'javadoc,sources';
+    let types = 'jar,jar';
+    if (klibFiles) {
+      sideArtifacts += klibFiles
+      for (let i = 0; i < klibFiles.length; i++) {
+        types += ',klib'
+      }
+      classifiers += ',cinterop'
+    }
 
     // Maven central is very flaky, so retrying with an exponential delay in
     // in case it fails.
     await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
       'gpg:sign-and-deploy-file',
       `-Dfile=${targetFile}`,
-      `-Dfiles=${javadocFile},${sourcesFile}`,
-      `-Dclassifiers=javadoc,sources`,
-      `-Dtypes=jar,jar`,
+      `-Dfiles=${sideArtifacts}`,
+      `-Dclassifiers=${classifiers}`,
+      `-Dtypes=${types}`,
       `-DpomFile=${pomFile}`,
       `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
       `-Durl=${this.mavenConfig.mavenRepoUrl}`,
@@ -355,14 +368,43 @@ export class MavenTarget extends BaseTarget {
    * @param distDir directory of the distribution.
    * @returns record of required files.
    */
-  private getFilesForMavenPomDist(distDir: string): Record<string, string> {
+  private getFilesForMavenPomDist(distDir: string): Record<string, string | string[]> {
     const moduleName = parse(distDir).base;
-    return {
+    const files = {
       targetFile: join(distDir, this.getTargetFilename(distDir)),
       javadocFile: join(distDir, `${moduleName}-javadoc.jar`),
       sourcesFile: join(distDir, `${moduleName}-sources.jar`),
       pomFile: join(distDir, 'pom-default.xml'),
     };
+    if (this.klibExists(distDir)) {
+      const cinteropFiles: string[] = []
+      readdirSync(distDir).forEach(file => {
+        if (file.includes('cinterop')) {
+          cinteropFiles.push(join(distDir, file.toLowerCase()))
+        }
+      });
+      Object.assign(files, { klibFiles: cinteropFiles })
+      return files
+    }
+    return files;
+  }
+
+  /**
+   * Tries to search for a .klib target file and returns true or false.
+   * This is used for uploading artifacts from Kotlin Multiplatform.
+   *
+   * @param distDir
+   * @returns true if the klib target file exists
+   */
+  private klibExists(distDir: string): boolean {
+    const moduleName = parse(distDir).base;
+    let exists = false
+    readdirSync(distDir).forEach(file => {
+      if (file === `${moduleName.toLowerCase()}.klib`) {
+        exists = true
+      }
+    });
+    return exists
   }
 
   /**
@@ -394,6 +436,9 @@ export class MavenTarget extends BaseTarget {
       }
     }
 
+    if (this.klibExists(distDir)) {
+      return `${moduleName}.klib`;
+    }
     return `${moduleName}.jar`;
   }
 
