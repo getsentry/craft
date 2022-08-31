@@ -120,7 +120,7 @@ export function checkVersionOrPart(argv: Arguments<any>, _opt: any): boolean {
     return true;
   } else {
     let errMsg = `Invalid version or version part specified: "${version}"`;
-    if (version.indexOf('v') === 0) {
+    if (version.startsWith('v')) {
       errMsg += '. Removing the "v" prefix will likely fix the issue';
     }
     throw Error(errMsg);
@@ -281,7 +281,7 @@ function checkGitStatus(repoStatus: StatusResult, rev: string) {
   ) {
     reportError(
       'Your repository is in a dirty state. ' +
-      'Please stash or commit the pending changes.',
+        'Please stash or commit the pending changes.',
       logger
     );
   }

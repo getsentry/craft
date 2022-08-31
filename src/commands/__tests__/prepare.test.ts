@@ -52,7 +52,9 @@ describe('runPreReleaseCommand', () => {
       }
     );
   });
+});
 
+describe('checkVersionOrPart', () => {
   test('return true for valid version', () => {
     const validVersions = [
       '2.3.3',
