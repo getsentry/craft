@@ -112,14 +112,18 @@ const SLEEP_BEFORE_PUBLISH_SECONDS = 30;
  * @param argv Parsed yargs arguments
  * @param _opt A list of options and aliases
  */
-function checkVersionOrPart(argv: Arguments<any>, _opt: any): any {
+export function checkVersionOrPart(argv: Arguments<any>, _opt: any): boolean {
   const version = argv.newVersion;
   if (['major', 'minor', 'patch'].indexOf(version) > -1) {
     throw Error('Version part is not supported yet');
   } else if (isValidVersion(version)) {
     return true;
   } else {
-    throw Error(`Invalid version or version part specified: "${version}"`);
+    let errMsg = `Invalid version or version part specified: "${version}"`;
+    if (version.startsWith('v')) {
+      errMsg += '. Removing the "v" prefix will likely fix the issue';
+    }
+    throw Error(errMsg);
   }
 }
 
