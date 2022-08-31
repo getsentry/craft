@@ -340,8 +340,8 @@ export class MavenTarget extends BaseTarget {
       sideArtifacts += klibFiles
       for (let i = 0; i < klibFiles.length; i++) {
         types += ',klib'
+        classifiers += ',cinterop'
       }
-      classifiers += ',cinterop'
     }
 
     // Maven central is very flaky, so retrying with an exponential delay in
