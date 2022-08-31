@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.33.4
+
+### Various fixes & improvements
+
+- Add additional context to error when version has a 'v' prefix (#411) by @mattgauntseo-sentry
+
 ## 0.33.3
 
 ### Various fixes & improvements
