@@ -14,7 +14,7 @@ import { ConfigurationError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
 import { checkEnvForPrerequisite } from '../utils/env';
 import { importGPGKey } from '../utils/gpg';
-import { readdirSync } from 'fs'
+import { readdirSync, existsSync } from 'fs'
 
 export const POM_DEFAULT_FILENAME = 'pom-default.xml';
 const POM_FILE_EXT = '.xml'; // Must include the leading `.`
@@ -376,7 +376,9 @@ export class MavenTarget extends BaseTarget {
       sourcesFile: join(distDir, `${moduleName}-sources.jar`),
       pomFile: join(distDir, 'pom-default.xml'),
     };
-    if (this.klibExists(distDir)) {
+    // If klib target file name exists, retrieve relevant side artifacts (cinterop)
+    // and append them to the files object
+    if (existsSync(join(distDir, `${moduleName.toLowerCase()}.klib`))) {
       const cinteropFiles: string[] = []
       readdirSync(distDir).forEach(file => {
         if (file.includes('cinterop')) {
@@ -387,24 +389,6 @@ export class MavenTarget extends BaseTarget {
       return files
     }
     return files;
-  }
-
-  /**
-   * Tries to search for a .klib target file and returns true or false.
-   * This is used for uploading artifacts from Kotlin Multiplatform.
-   *
-   * @param distDir
-   * @returns true if the klib target file exists
-   */
-  private klibExists(distDir: string): boolean {
-    const moduleName = parse(distDir).base;
-    let exists = false
-    readdirSync(distDir).forEach(file => {
-      if (file === `${moduleName.toLowerCase()}.klib`) {
-        exists = true
-      }
-    });
-    return exists
   }
 
   /**
@@ -435,8 +419,8 @@ export class MavenTarget extends BaseTarget {
         );
       }
     }
-
-    if (this.klibExists(distDir)) {
+    // If klib target file name exists, use that instead of .jar
+    if (existsSync(join(distDir, `${moduleName.toLowerCase()}.klib`))) {
       return `${moduleName}.klib`;
     }
     return `${moduleName}.jar`;
