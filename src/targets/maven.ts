@@ -330,18 +330,41 @@ export class MavenTarget extends BaseTarget {
       javadocFile,
       sourcesFile,
       klibFiles,
+      allFile,
+      metadataFile,
+      moduleFile,
       pomFile,
     } = this.getFilesForMavenPomDist(distDir);
 
+    // Default values
     let sideArtifacts = `${javadocFile},${sourcesFile}`
     let classifiers = 'javadoc,sources';
     let types = 'jar,jar';
+
     if (klibFiles) {
       sideArtifacts += klibFiles
       for (let i = 0; i < klibFiles.length; i++) {
         types += ',klib'
         classifiers += ',cinterop'
       }
+    }
+
+    if (allFile) {
+      sideArtifacts += `,${allFile}`
+      types += ',jar'
+      classifiers += ',all'
+    }
+
+    if (metadataFile) {
+      sideArtifacts += `,${metadataFile}`
+      types += ',jar'
+      classifiers += ',metadata'
+    }
+
+    if (moduleFile) {
+      sideArtifacts += `,${moduleFile}`
+      types += ',module'
+      classifiers += ',module'
     }
 
     // Maven central is very flaky, so retrying with an exponential delay in
@@ -376,8 +399,18 @@ export class MavenTarget extends BaseTarget {
       sourcesFile: join(distDir, `${moduleName}-sources.jar`),
       pomFile: join(distDir, 'pom-default.xml'),
     };
-    // If klib target file name exists, retrieve relevant side artifacts (cinterop)
-    // and append them to the files object
+    const allFile = join(distDir, `${moduleName.toLowerCase()}-all.jar`)
+    if (existsSync(allFile)) {
+      Object.assign(files, { allFile })
+    }
+    const moduleFile = join(distDir, `${moduleName.toLowerCase()}.module`)
+    if (existsSync(moduleFile)) {
+      Object.assign(files, { moduleFile })
+    }
+    const metadataFile = join(distDir, `${moduleName.toLowerCase()}-metadata.jar`)
+    if (existsSync(metadataFile)) {
+      Object.assign(files, { metadataFile })
+    }
     if (existsSync(join(distDir, `${moduleName.toLowerCase()}.klib`))) {
       const cinteropFiles: string[] = []
       readdirSync(distDir).forEach(file => {
@@ -386,7 +419,6 @@ export class MavenTarget extends BaseTarget {
         }
       });
       Object.assign(files, { klibFiles: cinteropFiles })
-      return files
     }
     return files;
   }
