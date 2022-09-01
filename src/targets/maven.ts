@@ -399,23 +399,20 @@ export class MavenTarget extends BaseTarget {
       sourcesFile: join(distDir, `${moduleName}-sources.jar`),
       pomFile: join(distDir, 'pom-default.xml'),
     };
-    const allFile = join(distDir, `${moduleName.toLowerCase()}-all.jar`)
-    if (existsSync(allFile)) {
-      Object.assign(files, { allFile })
+    if (existsSync(join(distDir, `${moduleName.toLowerCase()}-all.jar`))) {
+      Object.assign(files, { allFile: join(distDir, `${moduleName}-all.jar`)})
     }
-    const moduleFile = join(distDir, `${moduleName.toLowerCase()}.module`)
-    if (existsSync(moduleFile)) {
-      Object.assign(files, { moduleFile })
+    if (existsSync(join(distDir, `${moduleName.toLowerCase()}.module`))) {
+      Object.assign(files, { moduleFile: join(distDir, `${moduleName}.module`) })
     }
-    const metadataFile = join(distDir, `${moduleName.toLowerCase()}-metadata.jar`)
-    if (existsSync(metadataFile)) {
-      Object.assign(files, { metadataFile })
+    if (existsSync(join(distDir, `${moduleName.toLowerCase()}-metadata.jar`))) {
+      Object.assign(files, { metadataFile: join(distDir, `${moduleName}-metadata.jar`) })
     }
     if (existsSync(join(distDir, `${moduleName.toLowerCase()}.klib`))) {
       const cinteropFiles: string[] = []
       readdirSync(distDir).forEach(file => {
         if (file.includes('cinterop')) {
-          cinteropFiles.push(join(distDir, file.toLowerCase()))
+          cinteropFiles.push(join(distDir, file))
         }
       });
       Object.assign(files, { klibFiles: cinteropFiles })
