@@ -5,7 +5,7 @@ import {
 } from '../artifact_providers/base';
 import { BaseTarget } from './base';
 import { basename, extname, join, parse } from 'path';
-import { promises as fsPromises } from 'fs';
+import { promises as fsPromises, readdirSync } from 'fs';
 import fetch from 'node-fetch';
 import { checkExecutableIsPresent, extractZipArchive } from '../utils/system';
 import { retrySpawnProcess, sleep } from '../utils/async';
@@ -14,7 +14,6 @@ import { ConfigurationError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
 import { checkEnvForPrerequisite } from '../utils/env';
 import { importGPGKey } from '../utils/gpg';
-import { readdirSync, existsSync } from 'fs'
 
 export const POM_DEFAULT_FILENAME = 'pom-default.xml';
 const POM_FILE_EXT = '.xml'; // Must include the leading `.`
@@ -57,13 +56,22 @@ type AndroidFields = {
       };
 };
 
+type KotlinMultiplatformFields = {
+  kotlinMultiplatform:
+  | false
+  | {
+    appleDistDirRegex: RegExp;
+    rootDistDirRegex: RegExp;
+  }
+}
+
 type TargetSettingType = SecretsType | OptionsType;
 
 /**
  * Config options for the "maven" target.
  */
 export type MavenTargetConfig = Record<TargetSettingType, string> &
-  AndroidFields;
+  AndroidFields & KotlinMultiplatformFields;
 
 type PartialTargetConfig = Array<{ name: string; value: string | undefined }>;
 
@@ -100,6 +108,7 @@ export class MavenTarget extends BaseTarget {
       ...this.getTargetSecrets(),
       ...this.getOuterTargetSettings(),
       ...this.getAndroidSettings(),
+      ...this.getKotlinMultiplatformSettings(),
     };
 
     this.checkRequiredSoftware(config);
@@ -141,6 +150,45 @@ export class MavenTarget extends BaseTarget {
       };
     });
     return this.reduceConfig(settings);
+  }
+
+  private getKotlinMultiplatformSettings(): KotlinMultiplatformFields {
+    if (this.config.kotlinMultiplatform === false) {
+      return {
+        kotlinMultiplatform: false,
+      };
+    }
+
+    if (!this.config.kotlinMultiplatform) {
+      throw new ConfigurationError(
+        'Required Kotlin Multiplatform configuration was not found in the configuration file. ' +
+          'See the documentation for more details'
+      );
+    }
+
+    if (
+      !this.config.kotlinMultiplatform.rootDistDirRegex
+    ) {
+      throw new ConfigurationError(
+        'Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.'
+      );
+    }
+
+    if (
+      !this.config.kotlinMultiplatform.appleDistDirRegex
+    ) {
+      throw new ConfigurationError(
+        'Required apple configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.'
+      );
+    }
+
+
+    return {
+      kotlinMultiplatform: {
+        appleDistDirRegex: stringToRegexp(this.config.kotlinMultiplatform.appleDistDirRegex),
+        rootDistDirRegex: stringToRegexp(this.config.kotlinMultiplatform.rootDistDirRegex)
+      },
+     }
   }
 
   private getAndroidSettings(): AndroidFields {
@@ -335,53 +383,69 @@ export class MavenTarget extends BaseTarget {
       moduleFile,
       pomFile,
     } = this.getFilesForMavenPomDist(distDir);
+    if (this.mavenConfig.kotlinMultiplatform !== false) {
+      const moduleName = parse(distDir).base;
+      const isRootDistDir = this.mavenConfig.kotlinMultiplatform.rootDistDirRegex.test(
+        moduleName
+      );
+      const isAppleDistDir = this.mavenConfig.kotlinMultiplatform.appleDistDirRegex.test(
+        moduleName
+      );
 
-    // Default values
-    let sideArtifacts = `${javadocFile},${sourcesFile}`
-    let classifiers = 'javadoc,sources';
-    let types = 'jar,jar';
+      let sideArtifacts = `${javadocFile},${sourcesFile}`;
+      let classifiers = 'javadoc,sources';
+      let types = 'jar,jar';
 
-    if (klibFiles) {
-      sideArtifacts += klibFiles
-      for (let i = 0; i < klibFiles.length; i++) {
-        types += ',klib'
-        classifiers += ',cinterop'
+      if (isRootDistDir) {
+        sideArtifacts += `,${allFile}`;
+        types += ',jar';
+        classifiers += ',all';
+      } else if (isAppleDistDir) {
+        sideArtifacts += klibFiles
+        for (let i = 0; i < klibFiles.length; i++) {
+          types += ',klib';
+          classifiers += ',cinterop';
+        }
+        sideArtifacts += `,${metadataFile}`;
+        types += ',jar';
+        classifiers += ',metadata';
       }
-    }
 
-    if (allFile) {
-      sideArtifacts += `,${allFile}`
-      types += ',jar'
-      classifiers += ',all'
-    }
+      // .module files should be available in every KMP artifact
+      sideArtifacts += `,${moduleFile}`;
+      types += ',module';
+      classifiers += ',module';
 
-    if (metadataFile) {
-      sideArtifacts += `,${metadataFile}`
-      types += ',jar'
-      classifiers += ',metadata'
+      await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
+        'gpg:sign-and-deploy-file',
+        `-Dfile=${targetFile}`,
+        `-Dfiles=${sideArtifacts}`,
+        `-Dclassifiers=${classifiers}`,
+        `-Dtypes=${types}`,
+        `-DpomFile=${pomFile}`,
+        `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
+        `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+        `-Dgpg.passphrase=${this.mavenConfig.GPG_PASSPHRASE}`,
+        `--settings`,
+        `${this.mavenConfig.mavenSettingsPath}`,
+      ]);
+    } else {
+      // Maven central is very flaky, so retrying with an exponential delay in
+      // in case it fails.
+      await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
+        'gpg:sign-and-deploy-file',
+        `-Dfile=${targetFile}`,
+        `-Dfiles=${javadocFile},${sourcesFile}`,
+        `-Dclassifiers=javadoc,sources`,
+        `-Dtypes=jar,jar`,
+        `-DpomFile=${pomFile}`,
+        `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
+        `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+        `-Dgpg.passphrase=${this.mavenConfig.GPG_PASSPHRASE}`,
+        `--settings`,
+        `${this.mavenConfig.mavenSettingsPath}`,
+      ]);
     }
-
-    if (moduleFile) {
-      sideArtifacts += `,${moduleFile}`
-      types += ',module'
-      classifiers += ',module'
-    }
-
-    // Maven central is very flaky, so retrying with an exponential delay in
-    // in case it fails.
-    await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
-      'gpg:sign-and-deploy-file',
-      `-Dfile=${targetFile}`,
-      `-Dfiles=${sideArtifacts}`,
-      `-Dclassifiers=${classifiers}`,
-      `-Dtypes=${types}`,
-      `-DpomFile=${pomFile}`,
-      `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
-      `-Durl=${this.mavenConfig.mavenRepoUrl}`,
-      `-Dgpg.passphrase=${this.mavenConfig.GPG_PASSPHRASE}`,
-      `--settings`,
-      `${this.mavenConfig.mavenSettingsPath}`,
-    ]);
   }
 
   /**
@@ -393,29 +457,32 @@ export class MavenTarget extends BaseTarget {
    */
   private getFilesForMavenPomDist(distDir: string): Record<string, string | string[]> {
     const moduleName = parse(distDir).base;
-    const files = {
+    const files: any = {
       targetFile: join(distDir, this.getTargetFilename(distDir)),
       javadocFile: join(distDir, `${moduleName}-javadoc.jar`),
       sourcesFile: join(distDir, `${moduleName}-sources.jar`),
       pomFile: join(distDir, 'pom-default.xml'),
     };
-    if (existsSync(join(distDir, `${moduleName.toLowerCase()}-all.jar`))) {
-      Object.assign(files, { allFile: join(distDir, `${moduleName}-all.jar`)})
-    }
-    if (existsSync(join(distDir, `${moduleName.toLowerCase()}.module`))) {
-      Object.assign(files, { moduleFile: join(distDir, `${moduleName}.module`) })
-    }
-    if (existsSync(join(distDir, `${moduleName.toLowerCase()}-metadata.jar`))) {
-      Object.assign(files, { metadataFile: join(distDir, `${moduleName}-metadata.jar`) })
-    }
-    if (existsSync(join(distDir, `${moduleName.toLowerCase()}.klib`))) {
-      const cinteropFiles: string[] = []
-      readdirSync(distDir).forEach(file => {
-        if (file.includes('cinterop')) {
-          cinteropFiles.push(join(distDir, file))
-        }
-      });
-      Object.assign(files, { klibFiles: cinteropFiles })
+    if (this.mavenConfig.kotlinMultiplatform !== false) {
+      const isRootDistDir = this.mavenConfig.kotlinMultiplatform.rootDistDirRegex.test(
+        moduleName
+      );
+      const isAppleDistDir = this.mavenConfig.kotlinMultiplatform.appleDistDirRegex.test(
+        moduleName
+      );
+      if (isRootDistDir) {
+        files['allFile'] = join(distDir, `${moduleName}-all.jar`);
+      } else if (isAppleDistDir) {
+        files['metadataFile'] = join(distDir, `${moduleName}-metadata.jar`);
+        const cinteropFiles: string[] = [];
+        readdirSync(distDir).forEach(file => {
+          if (file.includes('cinterop')) {
+            cinteropFiles.push(join(distDir, file));
+          }
+        });
+        files['klibFiles'] = cinteropFiles;
+      }
+      files['moduleFile'] = join(distDir, `${moduleName}.module`);
     }
     return files;
   }
@@ -448,9 +515,13 @@ export class MavenTarget extends BaseTarget {
         );
       }
     }
-    // If klib target file name exists, use that instead of .jar
-    if (existsSync(join(distDir, `${moduleName.toLowerCase()}.klib`))) {
-      return `${moduleName}.klib`;
+    if (this.mavenConfig.kotlinMultiplatform !== false) {
+      const isAppleDistDir = this.mavenConfig.kotlinMultiplatform.appleDistDirRegex.test(
+        moduleName
+      );
+      if (isAppleDistDir) {
+        return `${moduleName}.klib`
+      }
     }
     return `${moduleName}.jar`;
   }
