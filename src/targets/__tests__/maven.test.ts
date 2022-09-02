@@ -71,6 +71,10 @@ function getFullTargetConfig(): any {
       fileReplaceeRegex: '/replacee/',
       fileReplacerStr: 'replacer',
     },
+    kotlinMultiplatform: {
+      rootDistDirRegex: '/distDir/',
+      appleDistDirRegex: '/apple-distDir/'
+    },
   };
 }
 
@@ -84,6 +88,7 @@ function getRequiredTargetConfig(): any {
     mavenRepoId: DEFAULT_OPTION_VALUE,
     mavenRepoUrl: DEFAULT_OPTION_VALUE,
     android: false,
+    kotlinMultiplatform: false
   };
 }
 
