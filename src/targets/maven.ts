@@ -5,7 +5,7 @@ import {
 } from '../artifact_providers/base';
 import { BaseTarget } from './base';
 import { basename, extname, join, parse } from 'path';
-import { promises as fsPromises, readdirSync } from 'fs';
+import { promises as fsPromises } from 'fs';
 import fetch from 'node-fetch';
 import { checkExecutableIsPresent, extractZipArchive } from '../utils/system';
 import { retrySpawnProcess, sleep } from '../utils/async';
@@ -373,17 +373,17 @@ export class MavenTarget extends BaseTarget {
   }
 
   private async uploadPomDistribution(distDir: string): Promise<void> {
-    const {
-      targetFile,
-      javadocFile,
-      sourcesFile,
-      klibFiles,
-      allFile,
-      metadataFile,
-      moduleFile,
-      pomFile,
-    } = this.getFilesForMavenPomDist(distDir);
     if (this.mavenConfig.kotlinMultiplatform !== false) {
+      const {
+        targetFile,
+        javadocFile,
+        sourcesFile,
+        klibFiles,
+        allFile,
+        metadataFile,
+        moduleFile,
+        pomFile,
+      } = await this.getFilesForKmpMavenPomDist(distDir)
       const moduleName = parse(distDir).base;
       const isRootDistDir = this.mavenConfig.kotlinMultiplatform.rootDistDirRegex.test(
         moduleName
@@ -401,10 +401,12 @@ export class MavenTarget extends BaseTarget {
         types += ',jar';
         classifiers += ',all';
       } else if (isAppleDistDir) {
-        sideArtifacts += klibFiles;
-        for (let i = 0; i < klibFiles.length; i++) {
-          types += ',klib';
-          classifiers += ',cinterop';
+        if (klibFiles) {
+          sideArtifacts += klibFiles;
+          for (let i = 0; i < klibFiles.length; i++) {
+            types += ',klib';
+            classifiers += ',cinterop';
+          }
         }
         sideArtifacts += `,${metadataFile}`;
         types += ',jar';
@@ -430,6 +432,13 @@ export class MavenTarget extends BaseTarget {
         `${this.mavenConfig.mavenSettingsPath}`,
       ]);
     } else {
+      const {
+        targetFile,
+        javadocFile,
+        sourcesFile,
+        pomFile,
+      } = this.getFilesForMavenPomDist(distDir);
+
       // Maven central is very flaky, so retrying with an exponential delay in
       // in case it fails.
       await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
@@ -457,12 +466,24 @@ export class MavenTarget extends BaseTarget {
    */
   private getFilesForMavenPomDist(distDir: string): Record<string, string | string[]> {
     const moduleName = parse(distDir).base;
-    const files: any = {
+    return {
       targetFile: join(distDir, this.getTargetFilename(distDir)),
       javadocFile: join(distDir, `${moduleName}-javadoc.jar`),
       sourcesFile: join(distDir, `${moduleName}-sources.jar`),
       pomFile: join(distDir, 'pom-default.xml'),
     };
+  }
+
+    /**
+   * Retrieves a record of all the required files by Maven CLI to upload
+   * Kotlin Multiplatform (KMP) artifacts.
+   *
+   * @param distDir directory of the distribution.
+   * @returns record of required files.
+   */
+  private async getFilesForKmpMavenPomDist(distDir: string): Promise<Record<string, string | string[]>> {
+    const files = this.getFilesForMavenPomDist(distDir)
+    const moduleName = parse(distDir).base;
     if (this.mavenConfig.kotlinMultiplatform !== false) {
       const isRootDistDir = this.mavenConfig.kotlinMultiplatform.rootDistDirRegex.test(
         moduleName
@@ -474,12 +495,10 @@ export class MavenTarget extends BaseTarget {
         files['allFile'] = join(distDir, `${moduleName}-all.jar`);
       } else if (isAppleDistDir) {
         files['metadataFile'] = join(distDir, `${moduleName}-metadata.jar`);
-        const cinteropFiles: string[] = [];
-        readdirSync(distDir).forEach(file => {
-          if (file.includes('cinterop')) {
-            cinteropFiles.push(join(distDir, file));
-          }
-        });
+        const cinteropFiles = (await fsPromises.readdir(distDir))
+          .filter(file => file.includes('cinterop'))
+          .map(file => join(distDir, file));
+
         files['klibFiles'] = cinteropFiles;
       }
       files['moduleFile'] = join(distDir, `${moduleName}.module`);
