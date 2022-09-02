@@ -153,17 +153,10 @@ export class MavenTarget extends BaseTarget {
   }
 
   private getKotlinMultiplatformSettings(): KotlinMultiplatformFields {
-    if (this.config.kotlinMultiplatform === false) {
+    if (this.config.kotlinMultiplatform === false || !this.config.kotlinMultiplatform) {
       return {
         kotlinMultiplatform: false,
       };
-    }
-
-    if (!this.config.kotlinMultiplatform) {
-      throw new ConfigurationError(
-        'Required Kotlin Multiplatform configuration was not found in the configuration file. ' +
-          'See the documentation for more details'
-      );
     }
 
     if (
@@ -181,7 +174,6 @@ export class MavenTarget extends BaseTarget {
         'Required apple configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.'
       );
     }
-
 
     return {
       kotlinMultiplatform: {
