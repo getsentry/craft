@@ -401,7 +401,7 @@ export class MavenTarget extends BaseTarget {
         types += ',jar';
         classifiers += ',all';
       } else if (isAppleDistDir) {
-        sideArtifacts += klibFiles
+        sideArtifacts += klibFiles;
         for (let i = 0; i < klibFiles.length; i++) {
           types += ',klib';
           classifiers += ',cinterop';
