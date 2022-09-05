@@ -364,7 +364,7 @@ export class MavenTarget extends BaseTarget {
     ]);
   }
 
-  private async uploadPomDistribution(distDir: string): Promise<void> {
+  private async uploadKmpPomDistribution(distDir: string): Promise<void> {
     if (this.mavenConfig.kotlinMultiplatform !== false) {
       const {
         targetFile,
@@ -423,7 +423,10 @@ export class MavenTarget extends BaseTarget {
         `--settings`,
         `${this.mavenConfig.mavenSettingsPath}`,
       ]);
-    } else {
+    }
+  }
+
+  private async uploadPomDistribution(distDir: string): Promise<void> {
       const {
         targetFile,
         javadocFile,
@@ -456,7 +459,7 @@ export class MavenTarget extends BaseTarget {
    * @param distDir directory of the distribution.
    * @returns record of required files.
    */
-  private getFilesForMavenPomDist(distDir: string): Record<string, string | string[]> {
+  private getFilesForMavenPomDist(distDir: string): Record<string, string> {
     const moduleName = parse(distDir).base;
     return {
       targetFile: join(distDir, this.getTargetFilename(distDir)),
