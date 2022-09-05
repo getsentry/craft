@@ -427,6 +427,9 @@ export class MavenTarget extends BaseTarget {
   }
 
   private async uploadPomDistribution(distDir: string): Promise<void> {
+    if (this.mavenConfig.kotlinMultiplatform !== false) {
+      this.uploadKmpPomDistribution(distDir)
+    } else {
       const {
         targetFile,
         javadocFile,
@@ -477,7 +480,7 @@ export class MavenTarget extends BaseTarget {
    * @returns record of required files.
    */
   private async getFilesForKmpMavenPomDist(distDir: string): Promise<Record<string, string | string[]>> {
-    const files = this.getFilesForMavenPomDist(distDir)
+    const files = this.getFilesForMavenPomDist(distDir) as Record<string, string | string[]>
     const moduleName = parse(distDir).base;
     if (this.mavenConfig.kotlinMultiplatform !== false) {
       const isRootDistDir = this.mavenConfig.kotlinMultiplatform.rootDistDirRegex.test(
