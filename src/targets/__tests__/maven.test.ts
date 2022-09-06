@@ -228,7 +228,7 @@ describe('Maven target configuration', () => {
     config.kotlinMultiplatform.additionalProp = 'not relevant';
     const mvnTarget = createMavenTarget(config);
     const kotlinMultiplatformConfig: any = mvnTarget.mavenConfig.kotlinMultiplatform;
-    expect(config.android).toMatchObject(kotlinMultiplatformConfig);
+    expect(config.kotlinMultiplatform).toMatchObject(kotlinMultiplatformConfig);
     expect(kotlinMultiplatformConfig.additionalProp).not.toBeDefined();
   });
 
