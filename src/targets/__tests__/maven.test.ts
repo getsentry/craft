@@ -145,11 +145,25 @@ describe('Maven target configuration', () => {
     );
   });
 
+  test('no kotlinMultiplatform config', () => {
+    const config = getRequiredTargetConfig();
+    delete config.kotlinMultiplatform;
+    expect(() => createMavenTarget(config)).not.toThrowError();
+  });
+
   test('incorrect one-line android config', () => {
     const config = getRequiredTargetConfig();
     config.android = 'yes';
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
       `"Required Android configuration is incorrect. See the documentation for more details."`
+    );
+  });
+
+  test('incorrect one-line kotlinMultiplatform config', () => {
+    const config = getRequiredTargetConfig();
+    config.kotlinMultiplatform = 'yes';
+    expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
+      `"Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details."`
     );
   });
 
@@ -159,11 +173,35 @@ describe('Maven target configuration', () => {
     expect(mvnTarget.mavenConfig.android).toStrictEqual(config.android);
   });
 
+  test('correct one-line kotlinMultiplatform config', () => {
+    const config = getRequiredTargetConfig();
+    const mvnTarget = createMavenTarget(config);
+    expect(mvnTarget.mavenConfig.kotlinMultiplatform).toStrictEqual(config.kotlinMultiplatform);
+  });
+
   test('incorrect object android config, missing prop', () => {
     const config = getFullTargetConfig();
     delete config.android.distDirRegex;
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
       `"Required Android configuration is incorrect. See the documentation for more details."`
+    );
+  });
+
+  test('incorrect object kotlinMultiplatform config, replaced root distDir', () => {
+    const config = getFullTargetConfig();
+    delete config.kotlinMultiplatform.rootDistDirRegex;
+    config.kotlinMultiplatform.anotherParam = 'unused';
+    expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
+      `"Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details."`
+    );
+  });
+
+  test('incorrect object kotlinMultiplatform config, replaced apple distDir', () => {
+    const config = getFullTargetConfig();
+    delete config.kotlinMultiplatform.appleDistDirRegex;
+    config.kotlinMultiplatform.anotherParam = 'unused';
+    expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
+      `"Required apple configuration for Kotlin Multiplatform is incorrect. See the documentation for more details."`
     );
   });
 
@@ -179,6 +217,15 @@ describe('Maven target configuration', () => {
   test('correct object android config, with additional props', () => {
     const config = getFullTargetConfig();
     config.android.additionalProp = 'not relevant';
+    const mvnTarget = createMavenTarget(config);
+    const androidConfig: any = mvnTarget.mavenConfig.android;
+    expect(config.android).toMatchObject(androidConfig);
+    expect(androidConfig.additionalProp).not.toBeDefined();
+  });
+
+  test('correct object kotlinMultiplatform config, with additional props', () => {
+    const config = getFullTargetConfig();
+    config.kotlinMultiplatform.additionalProp = 'not relevant';
     const mvnTarget = createMavenTarget(config);
     const androidConfig: any = mvnTarget.mavenConfig.android;
     expect(config.android).toMatchObject(androidConfig);
@@ -209,6 +256,8 @@ describe('Maven target configuration', () => {
     expect(typeof mvnTarget.config.android.distDirRegex).toBe('string');
     expect(typeof mvnTarget.config.android.fileReplaceeRegex).toBe('string');
     expect(typeof mvnTarget.config.android.fileReplacerStr).toBe('string');
+    expect(typeof mvnTarget.config.kotlinMultiplatform.rootDistDirRegex).toBe('string');
+    expect(typeof mvnTarget.config.kotlinMultiplatform.appleDistDirRegex).toBe('string');
   });
 
   test('import GPG private key if one is present in the environment', () => {
