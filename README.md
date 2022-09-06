@@ -1016,14 +1016,16 @@ Note: in order to see the output of the commands, set the [logging level](#loggi
 
 **Configuration**
 
-| Option              | Description                                                          |
-| ------------------- | -------------------------------------------------------------------- |
-| `mavenCliPath`      | Path to the Maven CLI. It must be executable by the calling process. |
-| `mavenSettingsPath` | Path to the Maven `settings.xml` file.                               |
-| `mavenRepoId`       | ID of the Maven server in the `settings.xml`.                        |
-| `mavenRepoUrl`      | URL of the Maven repository.                                         |
-| `android`           | Android configuration, see below.                                    |
+| Option                | Description                                                          |
+| --------------------- | -------------------------------------------------------------------- |
+| `mavenCliPath`        | Path to the Maven CLI. It must be executable by the calling process. |
+| `mavenSettingsPath`   | Path to the Maven `settings.xml` file.                               |
+| `mavenRepoId`         | ID of the Maven server in the `settings.xml`.                        |
+| `mavenRepoUrl`        | URL of the Maven repository.                                         |
+| `android`             | Android configuration, see below.                                    |
+| `kotlinMultiplatform` | Kotlin Multiplatform configuration, see below.                       |
 
+The Kotlin Multiplatform configuration is optional and `false` by default.
 If your project isn't related to Android, you don't need this configuration and
 can set the option to `false`. If not, set the following nested elements:
 
@@ -1056,6 +1058,23 @@ targets:
       distDirRegex: /^sentry-android-.*$/
       fileReplaceeRegex: /\d\.\d\.\d(-SNAPSHOT)?/
       fileReplacerStr: release.aar
+```
+
+**Example (with Kotlin Multiplatform config)**
+```yaml
+targets:
+  - name: maven
+    mavenCliPath: scripts/mvnw.cmd
+    mavenSettingsPath: scripts/settings.xml
+    mavenRepoId: ossrh
+    mavenRepoUrl: https://oss.sonatype.org/service/local/staging/deploy/maven2/
+    android:
+      distDirRegex: /^sentry-android-.*$/
+      fileReplaceeRegex: /\d\.\d\.\d(-SNAPSHOT)?/
+      fileReplacerStr: release.aar
+    kotlinMultiplatform:
+      rootDistDirRegex: /sentry-kotlin-multiplatform-[0-9]+.*$/
+      appleDistDirRegex: /sentry-kotlin-multiplatform-(macos|ios|tvos|watchos).*/
 ```
 
 ### Symbol Collector (`symbol-collector`)
