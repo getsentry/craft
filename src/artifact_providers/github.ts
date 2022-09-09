@@ -8,7 +8,7 @@ import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../artifact_providers/base';
-import { getGitHubClient } from '../utils/githubApi';
+import { getGitHubClient} from '../utils/githubApi';
 import {
   detectContentType,
   scan,
@@ -16,8 +16,11 @@ import {
   withTempDir,
 } from '../utils/files';
 import { extractZipArchive } from '../utils/system';
+import { sleep } from '../utils/async';
 
 const MAX_TRIES = 3;
+const MILLISECONDS = 1000;
+const ARTIFACTS_POLLING_INTERVAL = 10 * MILLISECONDS;
 
 export type ArtifactItem = RestEndpointMethodTypes['actions']['listArtifactsForRepo']['response']['data']['artifacts'][0];
 
@@ -49,57 +52,53 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
   }
 
   /**
-   * Tries to find the artifact with the given revision, paging through all results.
+   * Searched for the artifact with the given revision, paging
+   * through results if necessary.
    *
    * @param revision
-   * @param page
+   * @returns The artifact or null.
    */
-  protected async getRevisionArtifact(
-    revision: string,
-    revisionDate?: string,
-    page = 0,
-    tries = 0
-  ): Promise<ArtifactItem> {
+  protected async searchForRevisionArtifact(revision: string, getRevisionDate: lazyRequestCallback<string>): Promise<ArtifactItem|null>  {
     const { repoName: repo, repoOwner: owner } = this.config;
     const per_page = 100;
 
-    // https://docs.github.com/en/free-pro-team@latest/rest/reference/actions#artifacts
-    const artifactResponse = (
-      await this.github.actions.listArtifactsForRepo({
+    this.logger.debug(
+      `Searching GitHub artifacts for ${owner}/${repo}, revision ${revision}`
+    );
+
+    let checkNextPage = true;
+    for (let page = 0; checkNextPage; page++) {
+      // https://docs.github.com/en/free-pro-team@latest/rest/reference/actions#artifacts
+      const artifactResponse = await this.github.actions.listArtifactsForRepo({
         owner: owner,
         repo: repo,
         per_page,
         page,
-      })
-    ).data;
+      });
 
-    const { artifacts } = artifactResponse;
-    this.logger.trace(`All available artifacts on page ${page}:`, artifacts);
+      const { artifacts, total_count } = artifactResponse.data;
+      this.logger.trace(`All available artifacts on page ${page}:`, artifacts);
 
-    // We need to find the most recent archive where name matches the revision.
-    // XXX(BYK): we assume the artifacts are listed in descending date order on
-    // this endpoint.
-    // There is no public documentation on this but the observed data and
-    // common-sense logic suggests that this is a reasonably safe assumption.
-    const foundArtifact = artifacts.find(
-      artifact => artifact.name === revision
-    );
-    if (foundArtifact) {
-      this.logger.trace(`Found artifact on page ${page}:`, foundArtifact);
-      return foundArtifact;
-    }
-
-    let checkNextPage = false;
-    if (artifactResponse.total_count > per_page * (page + 1)) {
-      if (revisionDate === undefined) {
-        revisionDate = (
-          await this.github.git.getCommit({
-            owner,
-            repo,
-            commit_sha: revision,
-          })
-        ).data.committer.date;
+      // We need to find the most recent archive where name matches the revision.
+      // XXX(BYK): we assume the artifacts are listed in descending date order on
+      // this endpoint.
+      // There is no public documentation on this but the observed data and
+      // common-sense logic suggests that this is a reasonably safe assumption.
+      const foundArtifact = artifacts.find(
+        artifact => artifact.name === revision
+      );
+      if (foundArtifact) {
+        this.logger.trace(`Found artifact on page ${page}:`, foundArtifact);
+        return foundArtifact;
       }
+
+      if (total_count <= per_page * (page + 1)) {
+        this.logger.debug(`No more pages remaining`);
+        break;
+      }
+
+      const revisionDate = await getRevisionDate();
+
       // XXX(BYK): The assumption here is that the artifact created_at date
       // should always be greater than or equal to the associated revision date
       // ** AND **
@@ -110,25 +109,51 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
         lastArtifact.created_at >= revisionDate;
     }
 
-    if (checkNextPage) {
-      page += 1;
-    } else {
-      // If we are retrying, reset page index and start over
-      page = 0;
-      tries += 1;
-    }
+    return null;
+  }
 
-    if (tries < MAX_TRIES) {
-      return this.getRevisionArtifact(revision, revisionDate, page, tries);
-    }
+  /**
+   * Tries to find the artifact with the given revision, retrying if
+   * necessary.
+   *
+   * @param revision
+   * @returns The artifact for the given revision or throws an error
+   */
+  protected async getRevisionArtifact(
+    revision: string
+  ): Promise<ArtifactItem> {
+    const { repoName: repo, repoOwner: owner } = this.config;
+    let artifact;
+    const getRevisionDate = lazyRequest<string>(async () => {
+      return (await this.github.git.getCommit({
+        owner,
+        repo,
+        commit_sha: revision,
+      })).data.committer.date;
+    })
 
-    if (artifactResponse.total_count === 0) {
-      throw new Error(`Failed to discover any artifacts (tries: ${tries})`);
-    } else {
-      throw new Error(
-        `Can't find any artifacts for revision "${revision}" (tries: ${tries})`
+    for (let tries = 0; tries < MAX_TRIES; tries++) {
+      this.logger.info(
+        `Fetching GitHub artifacts for ${owner}/${repo}, revision ${revision} (attempt ${tries + 1} of ${MAX_TRIES})`
       );
+
+      artifact = await this.searchForRevisionArtifact(revision, getRevisionDate);
+      if (artifact) {
+        return artifact;
+      }
+
+      // There may be a race condition between artifacts being uploaded
+      // and the GitHub API having the info to return.
+      // Wait before retries to give GitHub a chance to propagate changes.
+      if (tries + 1 < MAX_TRIES) {
+        this.logger.info(`Waiting ${ARTIFACTS_POLLING_INTERVAL / MILLISECONDS} seconds for artifacts to become available via GitHub API...`);
+        await sleep(ARTIFACTS_POLLING_INTERVAL);
+      }
     }
+
+    throw new Error(
+      `Can't find any artifacts for revision "${revision}" (tries: ${MAX_TRIES})`
+    );
   }
 
   /**
@@ -199,12 +224,6 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
   protected async doListArtifactsForRevision(
     revision: string
   ): Promise<RemoteArtifact[]> {
-    const { repoName, repoOwner } = this.config;
-
-    this.logger.info(
-      `Fetching GitHub artifacts for ${repoOwner}/${repoName}, revision ${revision}`
-    );
-
     const foundArtifact = await this.getRevisionArtifact(revision);
 
     this.logger.debug(`Requesting archive URL from GitHub...`);
@@ -215,4 +234,18 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
 
     return await this.downloadAndUnpackArtifacts(archiveUrl);
   }
+}
+
+export function lazyRequest<T>(cb: lazyRequestCallback<T>): lazyRequestCallback<T> {
+  let data: T;
+  return async () => {
+    if (!data) {
+      data = await cb();
+    }
+    return data;
+  }
+}
+
+export interface lazyRequestCallback<T> {
+  (): Promise<T>;
 }
