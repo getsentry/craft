@@ -8,7 +8,7 @@ import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../artifact_providers/base';
-import { getGitHubClient } from '../utils/githubApi';
+import { getGitHubClient} from '../utils/githubApi';
 import {
   detectContentType,
   scan,
@@ -58,7 +58,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
    * @param revision
    * @returns The artifact or null.
    */
-  protected async searchForRevisionArtifact(revision: string): Promise<ArtifactItem|null>  {
+  protected async searchForRevisionArtifact(revision: string, getRevisionDate: lazyRequestCallback<string>): Promise<ArtifactItem|null>  {
     const { repoName: repo, repoOwner: owner } = this.config;
     const per_page = 100;
 
@@ -67,7 +67,6 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
     );
 
     let checkNextPage = true;
-    let revisionDate;
     for (let page = 0; checkNextPage; page++) {
       // https://docs.github.com/en/free-pro-team@latest/rest/reference/actions#artifacts
       const artifactResponse = await this.github.actions.listArtifactsForRepo({
@@ -98,15 +97,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
         break;
       }
 
-      if (revisionDate === undefined) {
-        revisionDate = (
-          await this.github.git.getCommit({
-            owner,
-            repo,
-            commit_sha: revision,
-          })
-        ).data.committer.date;
-      }
+      const revisionDate = await getRevisionDate();
 
       // XXX(BYK): The assumption here is that the artifact created_at date
       // should always be greater than or equal to the associated revision date
@@ -133,13 +124,20 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
   ): Promise<ArtifactItem> {
     const { repoName: repo, repoOwner: owner } = this.config;
     let artifact;
+    const getRevisionDate = lazyRequest<string>(async () => {
+      return (await this.github.git.getCommit({
+        owner,
+        repo,
+        commit_sha: revision,
+      })).data.committer.date;
+    })
 
     for (let tries = 0; tries < MAX_TRIES; tries++) {
       this.logger.info(
         `Fetching GitHub artifacts for ${owner}/${repo}, revision ${revision} (attempt ${tries + 1} of ${MAX_TRIES})`
       );
 
-      artifact = await this.searchForRevisionArtifact(revision);
+      artifact = await this.searchForRevisionArtifact(revision, getRevisionDate);
       if (artifact) {
         return artifact;
       }
@@ -236,4 +234,18 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
 
     return await this.downloadAndUnpackArtifacts(archiveUrl);
   }
+}
+
+export function lazyRequest<T>(cb: lazyRequestCallback<T>): lazyRequestCallback<T> {
+  let data: T;
+  return async () => {
+    if (!data) {
+      data = await cb();
+    }
+    return data;
+  }
+}
+
+export interface lazyRequestCallback<T> {
+  (): Promise<T>;
 }
