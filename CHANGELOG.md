@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.33.5
+
+### Various fixes & improvements
+
+- Adding delay between retries for getting artifacts. (#414) by @mattgauntseo-sentry
+
 ## 0.33.4
 
 ### Various fixes & improvements
