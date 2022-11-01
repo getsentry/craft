@@ -14,11 +14,11 @@ jobs:
         node: ['14', '16']
     name: Node ${{ matrix.node }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: '${{ matrix.node }}'
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         id: cache
         with:
           path: node_modules
@@ -34,9 +34,9 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: volta-cli/action@v1
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         id: cache
         with:
           path: node_modules
