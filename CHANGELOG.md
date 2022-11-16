@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.33.6
+
+### Various fixes & improvements
+
+- upgrade minimatch (#429) by @asottile-sentry
+- ci(volta-cli): Switch to getsentry/action-setup-volta. This will addr… (#428) by @mattgauntseo-sentry
+- Bump action versions (#426) by @mattgauntseo-sentry
+- Update actions/upload-artifact to v3.1.1 (#425) by @mattgauntseo-sentry
+- build(deps): bump parse-url from 7.0.2 to 8.1.0 (#416) by @dependabot
+
 ## 0.33.5
 
 ### Various fixes & improvements
