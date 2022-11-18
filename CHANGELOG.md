@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.33.7
+
+### Various fixes & improvements
+
+- bump dotnet 7 (#431) by @mattjohnsonpint
+
 ## 0.33.6
 
 ### Various fixes & improvements
