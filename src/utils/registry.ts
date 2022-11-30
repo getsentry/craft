@@ -4,8 +4,9 @@ import * as path from 'path';
 import { logger } from '../logger';
 import { createSymlinks } from './symlink';
 import { reportError } from './errors';
-import { GitHubRemote } from './githubApi';
-import { getPackageDirPath } from '../utils/packagePath';
+import { getFile, GitHubRemote } from './githubApi';
+import { GitHubGlobalConfig } from 'src/schemas/project_config';
+import { Octokit } from '@octokit/rest';
 
 /** Type of the registry package */
 export enum RegistryPackageType {
@@ -20,28 +21,49 @@ export enum RegistryPackageType {
  *
  * @param baseDir Base directory for the registry clone
  * @param packageDirPath The package directory.
+ * @param versionFilePath The package manifest for version to be released.
  * @param version The package version.
  */
 export async function getPackageManifest(
-  baseDir: string,
-  type: RegistryPackageType,
-  canonicalName: string,
+  packageDirPath: string,
+  versionFilePath: string,
   version: string
-): Promise<{ versionFilePath: string; packageManifest: any }> {
-  const packageDirPath = getPackageDirPath(type, canonicalName);
-  const versionFilePath = path.join(baseDir, packageDirPath, `${version}.json`);
+) {
   if (existsSync(versionFilePath)) {
     reportError(`Version file for "${version}" already exists. Aborting.`);
   }
-  const packageManifestPath = path.join(baseDir, packageDirPath, 'latest.json');
+  const packageManifestPath = path.join(packageDirPath, 'latest.json');
   logger.debug('Reading the current configuration from', packageManifestPath);
-  return {
-    versionFilePath,
-    packageManifest:
-      JSON.parse(
-        await fsPromises.readFile(packageManifestPath, { encoding: 'utf-8' })
-      ) || {},
-  };
+
+  try {
+    return JSON.parse(
+      await fsPromises.readFile(packageManifestPath, { encoding: 'utf-8' })
+    )
+  } catch (e) {
+    reportError(`Cannot read configuration file ${e}}`);
+  }
+}
+
+/**
+ * Gets the initial package manifest from configured path.
+ */
+export async function getInitialPackageManifest(manifestTemplate: string, githubRepo: GitHubGlobalConfig, github: Octokit, revision: string) {
+  const { owner, repo } = githubRepo;
+
+  logger.info(`Loading manifest template from ${owner}/${repo}:${manifestTemplate}`);
+  const manifestContents = await getFile(
+    github,
+    owner,
+    repo,
+    manifestTemplate,
+    revision
+  );
+
+  if (!manifestContents) {
+    reportError(`Manifest template not found at ${owner}/${repo}:${manifestTemplate}`);
+  }
+
+  return manifestContents;
 }
 
 /**

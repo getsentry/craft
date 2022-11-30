@@ -11,7 +11,7 @@ import { parseVersion, versionGreaterOrEqualThan } from './version';
  * @param target Target path
  * @param newFile Path to the new symlink
  */
-function forceSymlink(target: string, newFile: string): void {
+export function forceSymlink(target: string, newFile: string): void {
   if (fs.existsSync(newFile)) {
     fs.unlinkSync(newFile);
   }

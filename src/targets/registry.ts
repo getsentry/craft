@@ -1,3 +1,5 @@
+import * as path from 'path';
+
 import { mapLimit } from 'async';
 import { Octokit } from '@octokit/rest';
 import simpleGit, { SimpleGit } from 'simple-git';
@@ -30,9 +32,13 @@ import {
   getPackageManifest,
   updateManifestSymlinks,
   RegistryPackageType,
+  getInitialPackageManifest,
 } from '../utils/registry';
 import { isDryRun } from '../utils/helpers';
 import { filterAsync, withRetry } from '../utils/async';
+import { getPackageDirPath } from 'src/utils/packagePath';
+import mkdirp from 'mkdirp';
+import { forceSymlink } from 'src/utils/symlink';
 
 /** "registry" target options */
 export interface RegistryConfig {
@@ -42,6 +48,10 @@ export interface RegistryConfig {
   canonicalName: string;
   /** Should we create registry entries for pre-releases? */
   linkPrereleases?: boolean;
+  /** Path to the initial manifest file. Used when the package is not registered in the release registry yet */
+  manifestTemplate?: string;
+  /** SDK identifier name. Used when the package is not registered in the release registry yet */
+  sdkIdentifier?: string;
   /** URL template for file assets */
   urlTemplate?: string;
   /** Types of checksums to compute for artifacts */
@@ -394,12 +404,44 @@ export class RegistryTarget extends BaseTarget {
     revision: string
   ): Promise<void> {
     const canonicalName = registryConfig.canonicalName;
-    const { versionFilePath, packageManifest } = await getPackageManifest(
-      localRepo.dir,
-      registryConfig.type,
-      canonicalName,
-      version
-    );
+
+    const packageDirPath = path.join(localRepo.dir, getPackageDirPath(registryConfig.type, canonicalName));
+    const versionFilePath = path.join(packageDirPath, `${version}.json`);
+
+
+    let packageManifest;
+    try {
+      packageManifest = await getPackageManifest(
+        packageDirPath,
+        versionFilePath,
+        version
+      );
+    } catch (e) {
+      this.logger.error(e);
+      this.logger.info(`No latest manifest available for the package ${canonicalName}`);
+
+      if (registryConfig.type === RegistryPackageType.SDK && (!registryConfig.sdkIdentifier || registryConfig.sdkIdentifier.startsWith('sentry.'))) {
+        reportError(`Missing or incorrect SDK identifier ${registryConfig.sdkIdentifier}.`);
+      }
+
+      if (registryConfig.manifestTemplate) {
+        packageManifest = await getInitialPackageManifest(registryConfig.manifestTemplate, this.githubRepo, this.github, revision);
+      } else {
+        reportError('Unable to find initial package manifest template.');
+      }
+
+      // Make sure that directory structure exists before doing any symlinking.
+      this.logger.debug(`Creating directory: ${packageDirPath}`);
+      await mkdirp(packageDirPath);
+
+      // For SDKs we also need to create a symlink between package directory
+      // and `sdk/` directory itself, using package name.
+      if (registryConfig.type === RegistryPackageType.SDK) {
+        // We verify the type earlier.
+        forceSymlink(packageDirPath,
+          path.join(localRepo.dir, 'sdks', registryConfig.sdkIdentifier as string));
+      }
+    }
 
     const newManifest = await this.getUpdatedManifest(
       registryConfig,
