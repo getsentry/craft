@@ -29,6 +29,7 @@ import {
   DEFAULT_REGISTRY_REMOTE,
   getPackageManifest,
   updateManifestSymlinks,
+  removeInitialManifest,
   RegistryPackageType,
 } from '../utils/registry';
 import { isDryRun } from '../utils/helpers';
@@ -394,7 +395,7 @@ export class RegistryTarget extends BaseTarget {
     revision: string
   ): Promise<void> {
     const canonicalName = registryConfig.canonicalName;
-    const { versionFilePath, packageManifest } = await getPackageManifest(
+    const { isInitial, versionFilePath, packageManifest } = await getPackageManifest(
       localRepo.dir,
       registryConfig.type,
       canonicalName,
@@ -415,6 +416,14 @@ export class RegistryTarget extends BaseTarget {
       versionFilePath,
       packageManifest.version || undefined
     );
+
+    if (isInitial) {
+      await removeInitialManifest(
+        localRepo.dir,
+        registryConfig.type,
+        canonicalName,
+      )
+    }
   }
 
   private async cloneRegistry(directory: string): Promise<SimpleGit> {
@@ -482,6 +491,7 @@ export class RegistryTarget extends BaseTarget {
           dir,
           git: await this.cloneRegistry(dir),
         };
+
         await Promise.all(
           items.map(registryConfig =>
             this.updateVersionInRegistry(
