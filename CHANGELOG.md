@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.33.8
+
+### Various fixes & improvements
+
+- Emit dotnet and nuget version info (#437) by @mattjohnsonpint
+- Bump symbol collector (#435) by @bruno-garcia
+- build(deps-dev): bump simple-git from 3.6.0 to 3.15.0 (#436) by @dependabot
+- build(deps): bump decode-uri-component from 0.2.0 to 0.2.2 (#434) by @dependabot
+
 ## 0.33.7
 
 ### Various fixes & improvements
