@@ -94,6 +94,15 @@ export class NugetTarget extends BaseTarget {
       );
     }
 
+    // Emit the .NET version for informational purposes.
+    this.logger.info('.NET Version:');
+    await spawnProcess(NUGET_DOTNET_BIN, ['--version']);
+
+    // Also emit the nuget version, which is informative and works around a bug.
+    // See https://github.com/NuGet/Home/issues/12159#issuecomment-1278360511
+    this.logger.info('Nuget Version:');
+    await spawnProcess(NUGET_DOTNET_BIN, ['nuget', '--version']);
+
     await Promise.all(
       packageFiles.map(async (file: RemoteArtifact) => {
         const path = await this.artifactProvider.downloadArtifact(file);
