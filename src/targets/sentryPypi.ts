@@ -96,13 +96,13 @@ export class SentryPypiTarget extends BaseTarget {
         ['-C', directory, 'rev-parse', 'HEAD:'],
         {},
         { enableInDryRunMode: true }
-      )) as Buffer).toString('UTF-8');
+      )) as Buffer).toString('UTF-8').trim();
       const commit = ((await spawnProcess(
         'git',
         ['-C', directory, 'rev-parse', 'HEAD:'],
         {},
         { enableInDryRunMode: true }
-      )) as Buffer).toString('UTF-8');
+      )) as Buffer).toString('UTF-8').trim();
       return [contents, tree, commit];
     });
 
