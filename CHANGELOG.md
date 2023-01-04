@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.34.0
+
+### Various fixes & improvements
+
+- add sentry-pypi target (#438) by @asottile-sentry
+
 ## 0.33.8
 
 ### Various fixes & improvements
