@@ -99,7 +99,7 @@ export class SentryPypiTarget extends BaseTarget {
       )) as Buffer).toString('UTF-8').trim();
       const commit = ((await spawnProcess(
         'git',
-        ['-C', directory, 'rev-parse', 'HEAD:'],
+        ['-C', directory, 'rev-parse', 'HEAD'],
         {},
         { enableInDryRunMode: true }
       )) as Buffer).toString('UTF-8').trim();
