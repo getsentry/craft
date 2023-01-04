@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.34.1
+
+### Various fixes & improvements
+
+- sentry-pypi: fix trailing whitespace in git output (#440) by @asottile-sentry
+- build(deps): bump json5 from 2.1.3 to 2.2.3 (#439) by @dependabot
+
 ## 0.34.0
 
 ### Various fixes & improvements
