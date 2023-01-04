@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.34.2
+
+### Various fixes & improvements
+
+- sentry-pypi: get the commit id, not the tree (#441) by @asottile-sentry
+
 ## 0.34.1
 
 ### Various fixes & improvements
