@@ -9,6 +9,7 @@ import { GhPagesTarget } from './ghPages';
 import { GitHubTarget } from './github';
 import { NpmTarget } from './npm';
 import { NugetTarget } from './nuget';
+import { SentryPypiTarget } from './sentryPypi';
 import { PypiTarget } from './pypi';
 import { RegistryTarget } from './registry';
 import { AwsLambdaLayerTarget } from './awsLambdaLayer';
@@ -29,6 +30,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   npm: NpmTarget,
   nuget: NugetTarget,
   pypi: PypiTarget,
+  'sentry-pypi': SentryPypiTarget,
   registry: RegistryTarget,
   'aws-lambda-layer': AwsLambdaLayerTarget,
   upm: UpmTarget,
