@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.34.3
+
+### Various fixes & improvements
+
+- fix: Publishing podspec depending on other podspec (#442) by @philipphofmann
+
 ## 0.34.2
 
 ### Various fixes & improvements
