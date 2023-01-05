@@ -41,6 +41,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [GitHub (`github`)](#github-github)
   - [NPM (`npm`)](#npm-npm)
   - [Python Package Index (`pypi`)](#python-package-index-pypi)
+  - [Sentry internal PyPI (`sentry-pypi`)](#sentry-internal-pypi-sentry-pypi)
   - [Homebrew (`brew`)](#homebrew-brew)
   - [NuGet (`nuget`)](#nuget-nuget)
   - [Rust Crates (`crates`)](#rust-crates-crates)
@@ -601,6 +602,34 @@ _none_
 ```yaml
 targets:
   - name: pypi
+```
+
+### Sentry internal PyPI (`sentry-pypi`)
+
+Creates a GitHub pull request to import the package into a repo set up
+like [getsentry/pypi]
+
+[getsentry/pypi]: https://github.com/getsentry/pypi
+
+**Environment**
+
+| Name           | Description                                                        |
+| -------------- | ------------------------------------------------------------------ |
+| `GITHUB_TOKEN` | Personal GitHub API token (see https://github.com/settings/tokens) |
+
+**Configuration**
+
+| Option             | Description                                                        |
+| ------------------ | ------------------------------------ |
+| `internalPypiRepo` | GitHub repo containing pypi metadata |
+
+**Example**
+
+```yaml
+targets:
+  - name: pypi
+  - name: sentry-pypi
+    internalPypiRepo: getsentry/pypi
 ```
 
 ### Homebrew (`brew`)
