@@ -1,18 +1,18 @@
-import { Octokit } from "@octokit/rest";
-import * as fs from "fs";
-import { basename, join } from "path";
-import { promisify } from "util";
+import { Octokit } from '@octokit/rest';
+import * as fs from 'fs';
+import { basename, join } from 'path';
+import { promisify } from 'util';
 
-import { GitHubGlobalConfig, TargetConfig } from "../schemas/project_config";
-import { ConfigurationError, reportError } from "../utils/errors";
-import { withTempDir } from "../utils/files";
-import { getFile, getGitHubClient } from "../utils/githubApi";
-import { checkExecutableIsPresent, spawnProcess } from "../utils/system";
-import { BaseTarget } from "./base";
-import { BaseArtifactProvider } from "../artifact_providers/base";
+import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import { ConfigurationError, reportError } from '../utils/errors';
+import { withTempDir } from '../utils/files';
+import { getFile, getGitHubClient } from '../utils/githubApi';
+import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
+import { BaseTarget } from './base';
+import { BaseArtifactProvider } from '../artifact_providers/base';
 const writeFile = promisify(fs.writeFile);
 
-const DEFAULT_COCOAPODS_BIN = "pod";
+const DEFAULT_COCOAPODS_BIN = 'pod';
 
 /**
  * Command to launch cocoapods
@@ -30,7 +30,7 @@ export interface CocoapodsTargetOptions {
  */
 export class CocoapodsTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = "cocoapods";
+  public readonly name: string = 'cocoapods';
   /** Target options */
   public readonly cocoapodsConfig: CocoapodsTargetOptions;
   /** GitHub client */
@@ -56,7 +56,7 @@ export class CocoapodsTarget extends BaseTarget {
   public getCocoapodsConfig(): CocoapodsTargetOptions {
     const specPath = this.config.specPath;
     if (!specPath) {
-      throw new ConfigurationError("No podspec path provided!");
+      throw new ConfigurationError('No podspec path provided!');
     }
 
     return {
@@ -91,15 +91,15 @@ export class CocoapodsTarget extends BaseTarget {
     const fileName = basename(specPath);
 
     await withTempDir(
-      async (directory) => {
+      async directory => {
         const filePath = join(directory, fileName);
-        await writeFile(filePath, specContents, "utf8");
+        await writeFile(filePath, specContents, 'utf8');
 
         this.logger.info(`Pushing podspec "${fileName}" to cocoapods...`);
-        await spawnProcess(COCOAPODS_BIN, ["setup"]);
+        await spawnProcess(COCOAPODS_BIN, ['setup']);
         await spawnProcess(
           COCOAPODS_BIN,
-          ["trunk", "push", fileName, "--allow-warnings", "--synchronous"],
+          ['trunk', 'push', fileName, '--allow-warnings', '--synchronous'],
           {
             cwd: directory,
             env: {
@@ -109,9 +109,9 @@ export class CocoapodsTarget extends BaseTarget {
         );
       },
       true,
-      "craft-cocoapods-"
+      'craft-cocoapods-'
     );
 
-    this.logger.info("Cocoapods release complete");
+    this.logger.info('Cocoapods release complete');
   }
 }
