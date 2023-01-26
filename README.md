@@ -532,7 +532,6 @@ contains any one of `preview`, `pre`, `rc`, `dev`,`alpha`, `beta`, `unstable`,
 | ----------------- | -------------------------------------------------------------------------------------------- |
 | `tagPrefix`       | **optional**. Prefix for new git tags (e.g. "v"). Empty by default.                          |
 | `previewReleases` | **optional**. Automatically detect and create preview releases. `true` by default.           |
-| `annotatedTag`    | **optional**. Creates an annotated tag, set to false for lightweight tag. `true` by default. |
 
 **Example:**
 
@@ -541,7 +540,6 @@ targets:
   - name: github
     tagPrefix: v
     previewReleases: false
-    annotatedTag: false
 ```
 
 ### NPM (`npm`)
