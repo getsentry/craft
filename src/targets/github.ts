@@ -35,6 +35,8 @@ export interface GitHubTargetConfig extends GitHubGlobalConfig {
   tagPrefix: string;
   /** Mark release as pre-release, if the version looks like a non-public release */
   previewReleases: boolean;
+  /** Do not create a full GitHub release, only push a git tag */
+  tagOnly: boolean;
 }
 
 /**
@@ -84,6 +86,7 @@ export class GitHubTarget extends BaseTarget {
         this.config.previewReleases === undefined ||
         !!this.config.previewReleases,
       tagPrefix: this.config.tagPrefix || '',
+      tagOnly: !!this.config.tagOnly,
     };
     this.github = getGitHubClient();
   }
@@ -332,6 +335,34 @@ export class GitHubTarget extends BaseTarget {
   }
 
   /**
+   * Creates a git tag in the remote repository for the version.
+   *
+   * The function currently creates a lightweight (not annotated) tag.
+   * "tagPrefix" is respected when creating a tag name.
+   *
+   * @param version New version to be released
+   * @param revision Git commit SHA to be published
+   */
+  protected async createGitTag(
+    version: string,
+    revision: string
+  ): Promise<any> {
+    const tag = versionToTag(version, this.githubConfig.tagPrefix);
+    const tagRef = `refs/tags/${tag}`;
+    if (isDryRun()) {
+      this.logger.info(`[dry-run] Not pushing the tag reference: "${tagRef}"`);
+    } else {
+      this.logger.info(`Pushing the tag reference: "${tagRef}"...`);
+      await this.github.rest.git.createRef({
+        owner: this.githubConfig.owner,
+        repo: this.githubConfig.repo,
+        ref: tagRef,
+        sha: revision,
+      });
+    }
+  }
+
+  /**
    * Creates a new GitHub release and publish all available artifacts.
    *
    * It also creates a tag if it doesn't exist
@@ -340,6 +371,13 @@ export class GitHubTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(version: string, revision: string): Promise<any> {
+    if (this.githubConfig.tagOnly) {
+      this.logger.info(
+        `Not creating a GitHub release because "tagOnly" flag was set.`
+      );
+      return this.createGitTag(version, revision);
+    }
+
     const config = getConfiguration();
     let changelog;
     if (config.changelogPolicy !== ChangelogPolicy.None) {
