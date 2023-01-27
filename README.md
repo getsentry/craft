@@ -56,6 +56,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Maven central (`maven`)](#maven-central-maven)
   - [Symbol Collector (`symbol-collector`)](#symbol-collector-symbol-collector)
   - [pub.dev (`pub-dev`)](#pubdev-pub-dev)
+  - [Hex (`hex`)](#hex-hex)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Post-release Script: Conventions](#post-release-script-conventions)
@@ -1143,6 +1144,30 @@ targets:
       uno:
       dos:
       tres:
+```
+
+### Hex (`hex`)
+
+Pushes a package to the Elixir / Erlang package manager [Hex](https://hex.pm).
+
+**Environment**
+
+`mix` (bundled with the `elixir` language) must be installed on the system.
+
+| Name          | Description                                               |
+| ---------     | --------------------------------------------------------- |
+| `HEX_API_KEY` | API Key obtained from hex.pm account                      |
+| `MIX_BIN`     | **optional**. Path to "mix" executable. Defaults to `mix` |
+
+**Configuration**
+
+_none_
+
+**Example**
+
+```yaml
+targets:
+  - name: hex
 ```
 
 ## Integrating Your Project with `craft`
