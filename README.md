@@ -528,10 +528,11 @@ contains any one of `preview`, `pre`, `rc`, `dev`,`alpha`, `beta`, `unstable`,
 
 **Configuration**
 
-| Option            | Description                                                                                  |
-| ----------------- | -------------------------------------------------------------------------------------------- |
-| `tagPrefix`       | **optional**. Prefix for new git tags (e.g. "v"). Empty by default.                          |
-| `previewReleases` | **optional**. Automatically detect and create preview releases. `true` by default.           |
+| Option            | Description                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------ |
+| `tagPrefix`       | **optional**. Prefix for new git tags (e.g. "v"). Empty by default.                              |
+| `previewReleases` | **optional**. Automatically detect and create preview releases. `true` by default.               |
+| `tagOnly`         | **optional**. If set to `true`, only create a tag (without a GitHub release).`false` by default. |
 
 **Example:**
 
@@ -617,7 +618,7 @@ like [getsentry/pypi]
 
 **Configuration**
 
-| Option             | Description                                                        |
+| Option             | Description                          |
 | ------------------ | ------------------------------------ |
 | `internalPypiRepo` | GitHub repo containing pypi metadata |
 
