@@ -23,7 +23,7 @@ const BOM_FILE_KEY_REGEXP = new RegExp('<packaging>pom</packaging>');
 export const NEXUS_API_BASE_URL =
   'https://oss.sonatype.org/service/local/staging';
 const NEXUS_RETRY_DELAY = 10 * 1000; // 10s
-const NEXUS_RETRY_DEADLINE = 30 * 60 * 1000; // 30min
+const NEXUS_RETRY_DEADLINE = 60 * 60 * 1000; // 60min
 
 export type NexusRepository = {
   repositoryId: string;
