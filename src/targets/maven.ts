@@ -50,10 +50,10 @@ type AndroidFields = {
   android:
     | false
     | {
-      distDirRegex: RegExp;
-      fileReplaceeRegex: RegExp;
-      fileReplacerStr: string;
-  };
+        distDirRegex: RegExp;
+        fileReplaceeRegex: RegExp;
+        fileReplacerStr: string;
+      };
 };
 
 type TargetSettingType = SecretsType | OptionsType;
