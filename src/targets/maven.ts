@@ -23,7 +23,7 @@ const BOM_FILE_KEY_REGEXP = new RegExp('<packaging>pom</packaging>');
 export const NEXUS_API_BASE_URL =
   'https://oss.sonatype.org/service/local/staging';
 const NEXUS_RETRY_DELAY = 10 * 1000; // 10s
-const NEXUS_RETRY_DEADLINE = 30 * 60 * 1000; // 30min
+const NEXUS_RETRY_DEADLINE = 60 * 60 * 1000; // 60min
 
 export type NexusRepository = {
   repositoryId: string;
@@ -48,12 +48,12 @@ type OptionsType = typeof targetOptions[number];
 
 type AndroidFields = {
   android:
-    | false
-    | {
-        distDirRegex: RegExp;
-        fileReplaceeRegex: RegExp;
-        fileReplacerStr: string;
-      };
+  | false
+  | {
+    distDirRegex: RegExp;
+    fileReplaceeRegex: RegExp;
+    fileReplacerStr: string;
+  };
 };
 
 type TargetSettingType = SecretsType | OptionsType;
@@ -131,7 +131,7 @@ export class MavenTarget extends BaseTarget {
       if (!this.config[setting]) {
         throw new ConfigurationError(
           `Required configuration ${setting} not found in configuration file. ` +
-            `See the documentation for more details.`
+          `See the documentation for more details.`
         );
       }
       return {
@@ -152,7 +152,7 @@ export class MavenTarget extends BaseTarget {
     if (!this.config.android) {
       throw new ConfigurationError(
         'Required Android configuration was not found in the configuration file. ' +
-          'See the documentation for more details'
+        'See the documentation for more details'
       );
     }
 
@@ -303,7 +303,7 @@ export class MavenTarget extends BaseTarget {
     } catch (error) {
       this.logger.warn(
         `Could not determine if path corresponds to a BOM file: ${pomFilepath}\n` +
-          'Error:\n',
+        'Error:\n',
         error
       );
       return false;
@@ -472,8 +472,7 @@ export class MavenTarget extends BaseTarget {
       }
 
       this.logger.info(
-        `Nexus repository still not closed. Waiting for ${
-          NEXUS_RETRY_DELAY / 1000
+        `Nexus repository still not closed. Waiting for ${NEXUS_RETRY_DELAY / 1000
         }s to try again.`
       );
     }
