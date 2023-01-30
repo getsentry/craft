@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.35.0
+
+### Various fixes & improvements
+
+- chore(maven): Increase nexus polling deadline to 60 mins (#450) by @romtsn
+- feat: Add hex target for publishing elixir packages (#449) by @sl0thentr0py
+- feat(github): Allow to push a tag without a release (#447) by @tonyo
+- cleanup(github): Remove mentions of unused annotatedTag (#446) by @tonyo
+- document the sentry-pypi target (#444) by @asottile-sentry
+
 ## 0.34.3
 
 ### Various fixes & improvements
