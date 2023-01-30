@@ -22,6 +22,7 @@ RUN apt-get -qq update \
     unzip \
     openjdk-11-jdk \
     maven \
+    elixir \
   && curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
   && dpkg -i /tmp/packages-microsoft-prod.deb \
   && rm /tmp/packages-microsoft-prod.deb \
