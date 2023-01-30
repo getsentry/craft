@@ -48,11 +48,11 @@ type OptionsType = typeof targetOptions[number];
 
 type AndroidFields = {
   android:
-  | false
-  | {
-    distDirRegex: RegExp;
-    fileReplaceeRegex: RegExp;
-    fileReplacerStr: string;
+    | false
+    | {
+      distDirRegex: RegExp;
+      fileReplaceeRegex: RegExp;
+      fileReplacerStr: string;
   };
 };
 
@@ -131,7 +131,7 @@ export class MavenTarget extends BaseTarget {
       if (!this.config[setting]) {
         throw new ConfigurationError(
           `Required configuration ${setting} not found in configuration file. ` +
-          `See the documentation for more details.`
+            `See the documentation for more details.`
         );
       }
       return {
@@ -152,7 +152,7 @@ export class MavenTarget extends BaseTarget {
     if (!this.config.android) {
       throw new ConfigurationError(
         'Required Android configuration was not found in the configuration file. ' +
-        'See the documentation for more details'
+          'See the documentation for more details'
       );
     }
 
@@ -303,7 +303,7 @@ export class MavenTarget extends BaseTarget {
     } catch (error) {
       this.logger.warn(
         `Could not determine if path corresponds to a BOM file: ${pomFilepath}\n` +
-        'Error:\n',
+          'Error:\n',
         error
       );
       return false;
@@ -472,7 +472,8 @@ export class MavenTarget extends BaseTarget {
       }
 
       this.logger.info(
-        `Nexus repository still not closed. Waiting for ${NEXUS_RETRY_DELAY / 1000
+        `Nexus repository still not closed. Waiting for ${
+          NEXUS_RETRY_DELAY / 1000
         }s to try again.`
       );
     }
