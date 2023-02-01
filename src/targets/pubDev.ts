@@ -124,7 +124,7 @@ export class PubDevTarget extends BaseTarget {
       async directory => {
         await this.cloneRepository(this.githubRepo, revision, directory);
         await forEachChained(this.pubDevConfig.packages, async pkg =>
-          this.publishPackage(directory, pkg)
+          this.publishPackage(directory, pkg, _version)
         );
       },
       true,
@@ -192,9 +192,10 @@ export class PubDevTarget extends BaseTarget {
    *
    * @param directory The path to the root package
    * @param package The path to the package itself, relative to the root
+   * @param version New version to be released
    * @returns A promise that resolves when the package has been published
    */
-  public async publishPackage(directory: string, pkg: string): Promise<void> {
+  public async publishPackage(directory: string, pkg: string, version: string): Promise<void> {
     const args = ['pub', 'publish'];
 
     if (isDryRun()) {
@@ -212,17 +213,25 @@ export class PubDevTarget extends BaseTarget {
       }
     }
 
-    await spawnProcess(
-      this.pubDevConfig.dartCliPath,
-      args,
-      {
-        cwd: join(directory, pkg),
-      },
-      // Dart stops the process and asks user to go to provided url for authorization.
-      // We want the stdout to be visible just in case something goes wrong, otherwise
-      // the process will hang with no clear reason why.
-      { showStdout: true }
-    );
+    try {
+      await spawnProcess(
+        this.pubDevConfig.dartCliPath,
+        args,
+        {
+          cwd: join(directory, pkg),
+        },
+        // Dart stops the process and asks user to go to provided url for authorization.
+        // We want the stdout to be visible just in case something goes wrong, otherwise
+        // the process will hang with no clear reason why.
+        { showStdout: true }
+      );
+    } catch (err) {
+      if (err instanceof Error && err.message.includes(`Version ${version} of package ${pkg} already exists`)) {
+        this.logger.info(`Skipping ${pkg}, version ${version} already published`);
+      } else {
+        throw err;
+      }
+    }
     this.logger.info(
       `Package release complete${pkg !== '.' ? `: ${pkg}` : '.'}`
     );

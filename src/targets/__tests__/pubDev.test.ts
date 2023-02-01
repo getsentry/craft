@@ -128,6 +128,7 @@ describe('PubDev target configuration', () => {
 describe('publish', () => {
   test('single package', async () => {
     const revision = 'r3v1s10n';
+    const version = '1.0.0';
     const callOrder: string[] = [];
     const target = createPubDevTarget();
     target.createCredentialsFile = jest.fn(
@@ -140,7 +141,7 @@ describe('publish', () => {
       async () => void callOrder.push('publishPackage')
     );
 
-    await target.publish('1.0.0', revision);
+    await target.publish(version, revision);
 
     expect(target.createCredentialsFile).toHaveBeenCalled();
     expect(target.cloneRepository).toHaveBeenCalledWith(
@@ -148,7 +149,7 @@ describe('publish', () => {
       revision,
       TMP_DIR
     );
-    expect(target.publishPackage).toHaveBeenCalledWith(TMP_DIR, '.');
+    expect(target.publishPackage).toHaveBeenCalledWith(TMP_DIR, '.', version);
     expect(callOrder).toStrictEqual([
       'createCredentialsFile',
       'cloneRepository',
@@ -158,6 +159,7 @@ describe('publish', () => {
 
   test('multiple packages', async () => {
     const revision = 'r3v1s10n';
+    const version = '1.0.0';
     const callOrder: string[] = [];
     const target = createPubDevTarget({
       packages: {
@@ -176,7 +178,7 @@ describe('publish', () => {
       async () => void callOrder.push('publishPackage')
     );
 
-    await target.publish('1.0.0', revision);
+    await target.publish(version, revision);
 
     expect(target.createCredentialsFile).toHaveBeenCalled();
     expect(target.cloneRepository).toHaveBeenCalledWith(
@@ -184,9 +186,9 @@ describe('publish', () => {
       revision,
       TMP_DIR
     );
-    expect(target.publishPackage).toHaveBeenNthCalledWith(1, TMP_DIR, 'uno');
-    expect(target.publishPackage).toHaveBeenNthCalledWith(2, TMP_DIR, 'dos');
-    expect(target.publishPackage).toHaveBeenNthCalledWith(3, TMP_DIR, 'tres');
+    expect(target.publishPackage).toHaveBeenNthCalledWith(1, TMP_DIR, 'uno', version);
+    expect(target.publishPackage).toHaveBeenNthCalledWith(2, TMP_DIR, 'dos', version);
+    expect(target.publishPackage).toHaveBeenNthCalledWith(3, TMP_DIR, 'tres', version);
     expect(callOrder).toStrictEqual([
       'createCredentialsFile',
       'cloneRepository',
@@ -303,6 +305,7 @@ describe('cloneRepository', () => {
 describe('publishPackage', () => {
   test('should remove dependency_overrides from pubspec.yaml', async () => {
     const pkg = 'uno';
+    const version = '6.3.0';
     const target = createPubDevTarget();
 
     const readFileMock = fsPromises.readFile as jest.MockedFunction<
@@ -331,7 +334,7 @@ dependency_overrides:
     path: ../dart`)
     );
 
-    await target.publishPackage(TMP_DIR, pkg);
+    await target.publishPackage(TMP_DIR, pkg, version);
 
     const writeFileMock = fsPromises.writeFile as jest.MockedFunction<
       typeof fsPromises.writeFile
@@ -357,12 +360,13 @@ dependency_overrides:
 
   test('should not remove dependency_overrides when in dry-mode', async () => {
     const pkg = 'uno';
+    const version = '6.3.0';
     const target = createPubDevTarget();
 
     const isDryRunMock = isDryRun as jest.MockedFunction<typeof isDryRun>;
     isDryRunMock.mockImplementationOnce(() => true);
 
-    await target.publishPackage(TMP_DIR, pkg);
+    await target.publishPackage(TMP_DIR, pkg, version);
 
     const writeFileMock = fsPromises.writeFile as jest.MockedFunction<
       typeof fsPromises.writeFile
@@ -373,8 +377,9 @@ dependency_overrides:
 
   test('should call `dart` cli with appropriate arguments', async () => {
     const pkg = 'uno';
+    const version = '6.3.0';
     const target = createPubDevTarget();
-    await target.publishPackage(TMP_DIR, pkg);
+    await target.publishPackage(TMP_DIR, pkg, version);
 
     const spawnProcessMock = spawnProcess as jest.MockedFunction<
       typeof spawnProcess
@@ -393,10 +398,11 @@ dependency_overrides:
   test('should use custom cli path if provided', async () => {
     const dartCliPath = '/custom/path/dart';
     const pkg = 'uno';
+    const version = '6.3.0';
     const target = createPubDevTarget({
       dartCliPath,
     });
-    await target.publishPackage(TMP_DIR, pkg);
+    await target.publishPackage(TMP_DIR, pkg, version);
 
     const spawnProcessMock = spawnProcess as jest.MockedFunction<
       typeof spawnProcess
@@ -414,6 +420,7 @@ dependency_overrides:
 
   test('should add --dry-run flag instead of --force if dry-run mode is used', async () => {
     const pkg = 'uno';
+    const version = '6.3.0';
     const target = createPubDevTarget();
 
     const spawnProcessMock = spawnProcess as jest.MockedFunction<
@@ -423,7 +430,7 @@ dependency_overrides:
     const isDryRunMock = isDryRun as jest.MockedFunction<typeof isDryRun>;
     isDryRunMock.mockImplementationOnce(() => true);
 
-    await target.publishPackage(TMP_DIR, pkg);
+    await target.publishPackage(TMP_DIR, pkg, version);
 
     expect(spawnProcessMock).toHaveBeenCalledWith(
       'dart',
@@ -433,5 +440,18 @@ dependency_overrides:
       },
       { showStdout: true }
     );
+  });
+
+  test('should skip already published packages', async () => {
+    const pkg = 'uno';
+    const version = '6.3.0';
+    const target = createPubDevTarget();
+
+    const spawnProcessMock = spawnProcess as jest.MockedFunction<
+    typeof spawnProcess
+    >;
+    spawnProcessMock.mockImplementationOnce(() => { throw new Error(`🎯 Version ${version} of package ${pkg} already exists.`); });
+
+    await target.publishPackage(TMP_DIR, pkg, version);
   });
 });
