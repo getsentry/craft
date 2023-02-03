@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.1
+
+### Various fixes & improvements
+
+- Make Flutter available in the docker image (#453) by @marandaneto
+- ref: use --no-document for faster smaller gem install (#454) by @asottile-sentry
+- build(deps-dev): bump simple-git from 3.15.0 to 3.16.0 (#448) by @dependabot
+
 ## 0.35.0
 
 ### Various fixes & improvements
