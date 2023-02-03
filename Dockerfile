@@ -28,8 +28,6 @@ RUN apt-get -qq update \
   && rm /tmp/packages-microsoft-prod.deb \
   && curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - \
   && echo 'deb [arch=amd64] https://download.docker.com/linux/debian buster stable' >> /etc/apt/sources.list \
-  && curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.7.1-stable.tar.xz -o /tmp/flutter_linux_3.7.1-stable.tar.xz \
-  && tar xf /tmp/flutter_linux_3.7.1-stable.tar.xz \
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
     dotnet-sdk-7.0 \
@@ -47,6 +45,10 @@ RUN apt-get -qq update \
   && unzip /tmp/sym-collector.zip -d /usr/local/bin/ \
   && rm /tmp/sym-collector.zip \
   && chmod +x /usr/local/bin/SymbolCollector.Console
+
+RUN curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.7.1-stable.tar.xz -o /tmp/flutter_linux_3.7.1-stable.tar.xz \
+  && tar xf /tmp/flutter_linux_3.7.1-stable.tar.xz \
+  && rm /tmp/flutter_linux_3.7.1-stable.tar.xz
 
 COPY dist/craft /usr/local/bin/craft
 RUN chmod +x /usr/local/bin/craft
