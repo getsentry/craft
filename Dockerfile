@@ -29,8 +29,7 @@ RUN apt-get -qq update \
   && curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - \
   && echo 'deb [arch=amd64] https://download.docker.com/linux/debian buster stable' >> /etc/apt/sources.list \
   && curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.7.1-stable.tar.xz -o /tmp/flutter_linux_3.7.1-stable.tar.xz \
-  && tar xf /tmp/flutter_linux_3.7.1-stable.tar.xz
-  &&
+  && tar xf /tmp/flutter_linux_3.7.1-stable.tar.xz \
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
     dotnet-sdk-7.0 \
