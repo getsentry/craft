@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.0
+
+### Various fixes & improvements
+
+- ref: allow all mounted directories to be considered "safe" (#455) by @asottile-sentry
+
 ## 0.35.1
 
 ### Various fixes & improvements
