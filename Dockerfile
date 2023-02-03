@@ -50,6 +50,9 @@ RUN curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/sta
   && tar xf /tmp/flutter_linux_3.7.1-stable.tar.xz \
   && rm /tmp/flutter_linux_3.7.1-stable.tar.xz
 
+# craft does `git` things against mounted directories as root
+RUN git config --global --add safe.directory '*'
+
 COPY dist/craft /usr/local/bin/craft
 RUN chmod +x /usr/local/bin/craft
 ARG SOURCE_COMMIT
