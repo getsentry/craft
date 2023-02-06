@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
   COCOAPODS_ALLOW_ROOT=1 \
   CARGO_HOME=/root/.cargo \
   RUSTUP_HOME=/root/.rustup \
-  PATH=${PATH}:/root/.cargo/bin:/tmp/flutter/bin
+  PATH=${PATH}:/root/.cargo/bin:/opt/flutter/bin
 
 RUN apt-get -qq update \
   && apt-get install -y --no-install-recommends \
@@ -46,9 +46,9 @@ RUN apt-get -qq update \
   && rm /tmp/sym-collector.zip \
   && chmod +x /usr/local/bin/SymbolCollector.Console
 
-RUN curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.7.1-stable.tar.xz -o /tmp/flutter_linux_3.7.1-stable.tar.xz \
-  && tar xf /tmp/flutter_linux_3.7.1-stable.tar.xz \
-  && rm /tmp/flutter_linux_3.7.1-stable.tar.xz
+RUN curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.7.1-stable.tar.xz -o /opt/flutter_linux_3.7.1-stable.tar.xz \
+  && tar xf /opt/flutter_linux_3.7.1-stable.tar.xz -C /opt \
+  && rm /opt/flutter_linux_3.7.1-stable.tar.xz
 
 # craft does `git` things against mounted directories as root
 RUN git config --global --add safe.directory '*'
