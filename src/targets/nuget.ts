@@ -73,6 +73,7 @@ export class NugetTarget extends BaseTarget {
       '${NUGET_API_TOKEN}',
       '--source',
       this.nugetConfig.serverUrl,
+      '--skip-duplicate'
     ]);
   }
 
