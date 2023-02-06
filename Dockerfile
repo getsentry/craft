@@ -47,7 +47,7 @@ RUN apt-get -qq update \
   && chmod +x /usr/local/bin/SymbolCollector.Console
 
 RUN curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.7.1-stable.tar.xz -o /tmp/flutter_linux_3.7.1-stable.tar.xz \
-  && tar xf /tmp/flutter_linux_3.7.1-stable.tar.xz \
+  && tar xf /tmp/flutter_linux_3.7.1-stable.tar.xz -C /tmp \
   && rm /tmp/flutter_linux_3.7.1-stable.tar.xz
 
 # craft does `git` things against mounted directories as root
