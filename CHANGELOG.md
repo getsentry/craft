@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1
+
+### Various fixes & improvements
+
+- Fix extracting flutter file to tmp folder instead of current folder (#457) by @marandaneto
+
 ## 1.0.0
 
 ### Various fixes & improvements
