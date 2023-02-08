@@ -115,7 +115,7 @@ export class NugetTarget extends BaseTarget {
         // name as the .nupkg file, then download it to the same location.
         // It will be picked up automatically when pushing the .nupkg.
         const symbolFileName = file.filename.replace('.nupkg', '.snupkg');
-        const symbolFile = symbolFiles.find(f => f.filename == symbolFileName);
+        const symbolFile = symbolFiles.find(f => f.filename === symbolFileName);
         if (symbolFile) {
           await this.artifactProvider.downloadArtifact(symbolFile);
         }
