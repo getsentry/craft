@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0
+
+### Various fixes & improvements
+
+- Support nuget snupkg artifacts (#458) by @mattjohnsonpint
+
 ## 1.0.1
 
 ### Various fixes & improvements
