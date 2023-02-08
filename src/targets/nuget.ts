@@ -15,7 +15,6 @@ export const DEFAULT_NUGET_SERVER_URL = 'https://api.nuget.org/v3/index.json';
 
 /** A regular expression used to find the package tarball */
 const DEFAULT_NUGET_REGEX = /^.*\d\.\d.*\.nupkg$/;
-const SYMBOLS_NUGET_REGEX = /^.*\d\.\d.*\.snupkg$/;
 
 /** Nuget target configuration options */
 export interface NugetTargetOptions {
@@ -88,9 +87,6 @@ export class NugetTarget extends BaseTarget {
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_NUGET_REGEX,
     });
-    const symbolFiles = await this.getArtifactsForRevision(revision, {
-      includeNames: SYMBOLS_NUGET_REGEX,
-    });
 
     if (!packageFiles.length) {
       reportError(
@@ -110,19 +106,8 @@ export class NugetTarget extends BaseTarget {
     await Promise.all(
       packageFiles.map(async (file: RemoteArtifact) => {
         const path = await this.artifactProvider.downloadArtifact(file);
-
-        // If an artifact containing a .snupkg file exists with the same base
-        // name as the .nupkg file, then download it to the same location.
-        // It will be picked up automatically when pushing the .nupkg.
-        const symbolFileName = file.filename.replace('.nupkg', '.snupkg');
-        const symbolFile = symbolFiles.find(f => f.filename === symbolFileName);
-        if (symbolFile) {
-          await this.artifactProvider.downloadArtifact(symbolFile);
-        }
-
         this.logger.info(
-          `Uploading file "${file.filename}" via "dotnet nuget"` +
-          (symbolFile ? `, including symbol file "${symbolFile.filename}"` : '')
+          `Uploading file "${file.filename}" via "dotnet nuget"`
         );
         return this.uploadAsset(path);
       })
