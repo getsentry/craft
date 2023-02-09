@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1
+
+### Various fixes & improvements
+
+- Push nupkg and snupkg together (#459) by @mattjohnsonpint
+
 ## 1.1.0
 
 ### Various fixes & improvements
