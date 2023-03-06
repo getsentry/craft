@@ -41,6 +41,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [GitHub (`github`)](#github-github)
   - [NPM (`npm`)](#npm-npm)
   - [Python Package Index (`pypi`)](#python-package-index-pypi)
+  - [Sentry internal PyPI (`sentry-pypi`)](#sentry-internal-pypi-sentry-pypi)
   - [Homebrew (`brew`)](#homebrew-brew)
   - [NuGet (`nuget`)](#nuget-nuget)
   - [Rust Crates (`crates`)](#rust-crates-crates)
@@ -55,6 +56,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Maven central (`maven`)](#maven-central-maven)
   - [Symbol Collector (`symbol-collector`)](#symbol-collector-symbol-collector)
   - [pub.dev (`pub-dev`)](#pubdev-pub-dev)
+  - [Hex (`hex`)](#hex-hex)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Post-release Script: Conventions](#post-release-script-conventions)
@@ -527,11 +529,11 @@ contains any one of `preview`, `pre`, `rc`, `dev`,`alpha`, `beta`, `unstable`,
 
 **Configuration**
 
-| Option            | Description                                                                                  |
-| ----------------- | -------------------------------------------------------------------------------------------- |
-| `tagPrefix`       | **optional**. Prefix for new git tags (e.g. "v"). Empty by default.                          |
-| `previewReleases` | **optional**. Automatically detect and create preview releases. `true` by default.           |
-| `annotatedTag`    | **optional**. Creates an annotated tag, set to false for lightweight tag. `true` by default. |
+| Option            | Description                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------ |
+| `tagPrefix`       | **optional**. Prefix for new git tags (e.g. "v"). Empty by default.                              |
+| `previewReleases` | **optional**. Automatically detect and create preview releases. `true` by default.               |
+| `tagOnly`         | **optional**. If set to `true`, only create a tag (without a GitHub release).`false` by default. |
 
 **Example:**
 
@@ -540,7 +542,6 @@ targets:
   - name: github
     tagPrefix: v
     previewReleases: false
-    annotatedTag: false
 ```
 
 ### NPM (`npm`)
@@ -601,6 +602,34 @@ _none_
 ```yaml
 targets:
   - name: pypi
+```
+
+### Sentry internal PyPI (`sentry-pypi`)
+
+Creates a GitHub pull request to import the package into a repo set up
+like [getsentry/pypi]
+
+[getsentry/pypi]: https://github.com/getsentry/pypi
+
+**Environment**
+
+| Name           | Description                                                        |
+| -------------- | ------------------------------------------------------------------ |
+| `GITHUB_TOKEN` | Personal GitHub API token (see https://github.com/settings/tokens) |
+
+**Configuration**
+
+| Option             | Description                          |
+| ------------------ | ------------------------------------ |
+| `internalPypiRepo` | GitHub repo containing pypi metadata |
+
+**Example**
+
+```yaml
+targets:
+  - name: pypi
+  - name: sentry-pypi
+    internalPypiRepo: getsentry/pypi
 ```
 
 ### Homebrew (`brew`)
@@ -1133,6 +1162,30 @@ targets:
       uno:
       dos:
       tres:
+```
+
+### Hex (`hex`)
+
+Pushes a package to the Elixir / Erlang package manager [Hex](https://hex.pm).
+
+**Environment**
+
+`mix` (bundled with the `elixir` language) must be installed on the system.
+
+| Name          | Description                                               |
+| ---------     | --------------------------------------------------------- |
+| `HEX_API_KEY` | API Key obtained from hex.pm account                      |
+| `MIX_BIN`     | **optional**. Path to "mix" executable. Defaults to `mix` |
+
+**Configuration**
+
+_none_
+
+**Example**
+
+```yaml
+targets:
+  - name: hex
 ```
 
 ## Integrating Your Project with `craft`

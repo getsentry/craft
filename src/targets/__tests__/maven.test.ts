@@ -582,13 +582,13 @@ describe('closeRepository', () => {
       Promise.resolve(getRepositoryInfo('open', false))
     );
 
-    // Deadline is 30min, so we fake pooling start time and initial read to 1min
-    // and second iteration to something over 30min
+    // Deadline is 60min, so we fake pooling start time and initial read to 1min
+    // and second iteration to something over 60min
     jest
       .spyOn(Date, 'now')
       .mockImplementationOnce(() => 1 * 60 * 1000)
       .mockImplementationOnce(() => 1 * 60 * 1000)
-      .mockImplementationOnce(() => 32 * 60 * 1000);
+      .mockImplementationOnce(() => 62 * 60 * 1000);
 
     await expect(mvnTarget.closeRepository(repositoryId)).rejects.toThrow(
       new Error('Deadline for Nexus repository status change reached.')

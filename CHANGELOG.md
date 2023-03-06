@@ -1,5 +1,109 @@
 # Changelog
 
+## 1.1.1
+
+### Various fixes & improvements
+
+- Push nupkg and snupkg together (#459) by @mattjohnsonpint
+
+## 1.1.0
+
+### Various fixes & improvements
+
+- Support nuget snupkg artifacts (#458) by @mattjohnsonpint
+
+## 1.0.1
+
+### Various fixes & improvements
+
+- Fix extracting flutter file to tmp folder instead of current folder (#457) by @marandaneto
+
+## 1.0.0
+
+### Various fixes & improvements
+
+- ref: allow all mounted directories to be considered "safe" (#455) by @asottile-sentry
+
+## 0.35.1
+
+### Various fixes & improvements
+
+- Make Flutter available in the docker image (#453) by @marandaneto
+- ref: use --no-document for faster smaller gem install (#454) by @asottile-sentry
+- build(deps-dev): bump simple-git from 3.15.0 to 3.16.0 (#448) by @dependabot
+
+## 0.35.0
+
+### Various fixes & improvements
+
+- chore(maven): Increase nexus polling deadline to 60 mins (#450) by @romtsn
+- feat: Add hex target for publishing elixir packages (#449) by @sl0thentr0py
+- feat(github): Allow to push a tag without a release (#447) by @tonyo
+- cleanup(github): Remove mentions of unused annotatedTag (#446) by @tonyo
+- document the sentry-pypi target (#444) by @asottile-sentry
+
+## 0.34.3
+
+### Various fixes & improvements
+
+- fix: Publishing podspec depending on other podspec (#442) by @philipphofmann
+
+## 0.34.2
+
+### Various fixes & improvements
+
+- sentry-pypi: get the commit id, not the tree (#441) by @asottile-sentry
+
+## 0.34.1
+
+### Various fixes & improvements
+
+- sentry-pypi: fix trailing whitespace in git output (#440) by @asottile-sentry
+- build(deps): bump json5 from 2.1.3 to 2.2.3 (#439) by @dependabot
+
+## 0.34.0
+
+### Various fixes & improvements
+
+- add sentry-pypi target (#438) by @asottile-sentry
+
+## 0.33.8
+
+### Various fixes & improvements
+
+- Emit dotnet and nuget version info (#437) by @mattjohnsonpint
+- Bump symbol collector (#435) by @bruno-garcia
+- build(deps-dev): bump simple-git from 3.6.0 to 3.15.0 (#436) by @dependabot
+- build(deps): bump decode-uri-component from 0.2.0 to 0.2.2 (#434) by @dependabot
+
+## 0.33.7
+
+### Various fixes & improvements
+
+- bump dotnet 7 (#431) by @mattjohnsonpint
+
+## 0.33.6
+
+### Various fixes & improvements
+
+- upgrade minimatch (#429) by @asottile-sentry
+- ci(volta-cli): Switch to getsentry/action-setup-volta. This will addr… (#428) by @mattgauntseo-sentry
+- Bump action versions (#426) by @mattgauntseo-sentry
+- Update actions/upload-artifact to v3.1.1 (#425) by @mattgauntseo-sentry
+- build(deps): bump parse-url from 7.0.2 to 8.1.0 (#416) by @dependabot
+
+## 0.33.5
+
+### Various fixes & improvements
+
+- Adding delay between retries for getting artifacts. (#414) by @mattgauntseo-sentry
+
+## 0.33.4
+
+### Various fixes & improvements
+
+- Add additional context to error when version has a 'v' prefix (#411) by @mattgauntseo-sentry
+
 ## 0.33.3
 
 ### Various fixes & improvements

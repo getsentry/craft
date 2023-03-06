@@ -99,7 +99,7 @@ export class CocoapodsTarget extends BaseTarget {
         await spawnProcess(COCOAPODS_BIN, ['setup']);
         await spawnProcess(
           COCOAPODS_BIN,
-          ['trunk', 'push', fileName, '--allow-warnings'],
+          ['trunk', 'push', fileName, '--allow-warnings', '--synchronous'],
           {
             cwd: directory,
             env: {
