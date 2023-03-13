@@ -56,13 +56,23 @@ type AndroidFields = {
       };
 };
 
+type KotlinMultiplatformFields = {
+  kmp:
+    | false
+    | {
+        appleDistDirRegex: RegExp;
+        rootDistDirRegex: RegExp;
+      };
+};
+
 type TargetSettingType = SecretsType | OptionsType;
 
 /**
  * Config options for the "maven" target.
  */
 export type MavenTargetConfig = Record<TargetSettingType, string> &
-  AndroidFields;
+  AndroidFields &
+  KotlinMultiplatformFields;
 
 type PartialTargetConfig = Array<{ name: string; value: string | undefined }>;
 
@@ -99,6 +109,7 @@ export class MavenTarget extends BaseTarget {
       ...this.getTargetSecrets(),
       ...this.getOuterTargetSettings(),
       ...this.getAndroidSettings(),
+      ...this.getKotlinMultiplatformSettings(),
     };
 
     this.checkRequiredSoftware(config);
@@ -140,6 +151,33 @@ export class MavenTarget extends BaseTarget {
       };
     });
     return this.reduceConfig(settings);
+  }
+
+  private getKotlinMultiplatformSettings(): KotlinMultiplatformFields {
+    if (this.config.kmp === false || !this.config.kmp) {
+      return {
+        kmp: false,
+      };
+    }
+
+    if (!this.config.kmp.rootDistDirRegex) {
+      throw new ConfigurationError(
+        'Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.'
+      );
+    }
+
+    if (!this.config.kmp.appleDistDirRegex) {
+      throw new ConfigurationError(
+        'Required apple configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.'
+      );
+    }
+
+    return {
+      kmp: {
+        appleDistDirRegex: stringToRegexp(this.config.kmp.appleDistDirRegex),
+        rootDistDirRegex: stringToRegexp(this.config.kmp.rootDistDirRegex),
+      },
+    };
   }
 
   private getAndroidSettings(): AndroidFields {
@@ -323,29 +361,147 @@ export class MavenTarget extends BaseTarget {
     ]);
   }
 
-  private async uploadPomDistribution(distDir: string): Promise<void> {
+  private async uploadKmpPomDistribution(distDir: string): Promise<void> {
+    if (this.mavenConfig.kmp !== false) {
+      const moduleName = parse(distDir).base;
+      const isRootDistDir = this.mavenConfig.kmp.rootDistDirRegex.test(
+        moduleName
+      );
+      const isAppleDistDir = this.mavenConfig.kmp.appleDistDirRegex.test(
+        moduleName
+      );
+      const files = await this.getFilesForKmpMavenPomDist(distDir);
+      const { targetFile, pomFile } = files;
+      const {
+        sideArtifacts,
+        classifiers,
+        types,
+      } = this.transformKmpSideArtifacts(isRootDistDir, isAppleDistDir, files);
+
+      await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
+        'gpg:sign-and-deploy-file',
+        `-Dfile=${targetFile}`,
+        `-Dfiles=${sideArtifacts}`,
+        `-Dclassifiers=${classifiers}`,
+        `-Dtypes=${types}`,
+        `-DpomFile=${pomFile}`,
+        `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
+        `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+        `-Dgpg.passphrase=${this.mavenConfig.GPG_PASSPHRASE}`,
+        `--settings`,
+        `${this.mavenConfig.mavenSettingsPath}`,
+      ]);
+    }
+  }
+
+  /**
+ * Transforms the Kotlin Multiplatform side artifacts into the format required by the publish plugin.
+ *
+ * The "files" Record should contain the following fields:
+ *  - javadocFile
+    - sourcesFile
+    - klibFiles
+    - allFile
+    - metadataFile
+    - moduleFile
+    - kotlinToolingMetadataFile
+ *
+ * Depending on the values of the `isRootDistDir` and `isAppleDistDir` parameters, this function generates
+ * a set of "side artifacts" (javadoc, sources, klib files, metadata, and .module files), as well as a set
+ * of "classifiers" and "types" that are required by the publish plugin.
+ *
+ * @param isRootDistDir boolean indicating whether the distDir is the root distDir
+ * @param isAppleDistDir boolean indicating whether the distDir is the Apple distDir
+ * @param files an object containing the input files, as described above
+ * @returns a Record with three fields:
+ *    - sideArtifacts: a comma-separated string listing the paths to all generated "side artifacts"
+ *    - classifiers: a comma-separated string listing the classifiers for each generated artifact
+ *    - types: a comma-separated string listing the types for each generated artifact
+ */
+  public transformKmpSideArtifacts(
+    isRootDistDir: boolean,
+    isAppleDistDir: boolean,
+    files: Record<string, string | string[]>
+  ): Record<string, string | string[]> {
     const {
-      targetFile,
       javadocFile,
       sourcesFile,
-      pomFile,
-    } = this.getFilesForMavenPomDist(distDir);
+      klibFiles,
+      allFile,
+      metadataFile,
+      moduleFile,
+      kotlinToolingMetadataFile,
+    } = files;
+    let sideArtifacts = `${javadocFile},${sourcesFile}`;
+    let classifiers = 'javadoc,sources';
+    let types = 'jar,jar';
 
-    // Maven central is very flaky, so retrying with an exponential delay in
-    // in case it fails.
-    await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
-      'gpg:sign-and-deploy-file',
-      `-Dfile=${targetFile}`,
-      `-Dfiles=${javadocFile},${sourcesFile}`,
-      `-Dclassifiers=javadoc,sources`,
-      `-Dtypes=jar,jar`,
-      `-DpomFile=${pomFile}`,
-      `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
-      `-Durl=${this.mavenConfig.mavenRepoUrl}`,
-      `-Dgpg.passphrase=${this.mavenConfig.GPG_PASSPHRASE}`,
-      `--settings`,
-      `${this.mavenConfig.mavenSettingsPath}`,
-    ]);
+    if (isRootDistDir) {
+      sideArtifacts += `,${allFile},${kotlinToolingMetadataFile}`;
+      types += ',jar,json';
+      classifiers += ',all,kotlin-tooling-metadata';
+    } else if (isAppleDistDir) {
+      if (klibFiles) {
+        sideArtifacts += `,${klibFiles}`;
+
+        // In order to upload cinterop klib files we need to extract the classifier from the file name.
+        // e.g: "sentry-kotlin-multiplatform-iosarm64-0.0.1-cinterop-Sentry.klib",
+        // the classifier is "cinterop-Sentry".
+        for (let i = 0; i < klibFiles.length; i++) {
+          const input = klibFiles[i];
+          const start = input.indexOf('cinterop');
+          const end = input.indexOf('.klib', start);
+          const classifier = input.substring(start, end);
+
+          types += ',klib';
+          classifiers += `,${classifier}`;
+        }
+      }
+      sideArtifacts += `,${metadataFile}`;
+      types += ',jar';
+      classifiers += ',metadata';
+    }
+
+    // .module files should be available in every KMP artifact
+    sideArtifacts += `,${moduleFile}`;
+    types += ',module';
+    // .module files in this case shouldn't have a classifier
+    classifiers += ',';
+
+    return {
+      sideArtifacts,
+      classifiers,
+      types,
+    };
+  }
+
+  private async uploadPomDistribution(distDir: string): Promise<void> {
+    if (this.mavenConfig.kmp !== false) {
+      this.uploadKmpPomDistribution(distDir);
+    } else {
+      const {
+        targetFile,
+        javadocFile,
+        sourcesFile,
+        pomFile,
+      } = this.getFilesForMavenPomDist(distDir);
+
+      // Maven central is very flaky, so retrying with an exponential delay in
+      // in case it fails.
+      await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
+        'gpg:sign-and-deploy-file',
+        `-Dfile=${targetFile}`,
+        `-Dfiles=${javadocFile},${sourcesFile}`,
+        `-Dclassifiers=javadoc,sources`,
+        `-Dtypes=jar,jar`,
+        `-DpomFile=${pomFile}`,
+        `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
+        `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+        `-Dgpg.passphrase=${this.mavenConfig.GPG_PASSPHRASE}`,
+        `--settings`,
+        `${this.mavenConfig.mavenSettingsPath}`,
+      ]);
+    }
   }
 
   /**
@@ -363,6 +519,47 @@ export class MavenTarget extends BaseTarget {
       sourcesFile: join(distDir, `${moduleName}-sources.jar`),
       pomFile: join(distDir, 'pom-default.xml'),
     };
+  }
+
+  /**
+   * Retrieves a record of all the required files by Maven CLI to upload
+   * Kotlin Multiplatform (KMP) artifacts.
+   *
+   * @param distDir directory of the distribution.
+   * @returns record of required files.
+   */
+  private async getFilesForKmpMavenPomDist(
+    distDir: string
+  ): Promise<Record<string, string | string[]>> {
+    const files = this.getFilesForMavenPomDist(distDir) as Record<
+      string,
+      string | string[]
+    >;
+    const moduleName = parse(distDir).base;
+    if (this.mavenConfig.kmp !== false) {
+      const isRootDistDir = this.mavenConfig.kmp.rootDistDirRegex.test(
+        moduleName
+      );
+      const isAppleDistDir = this.mavenConfig.kmp.appleDistDirRegex.test(
+        moduleName
+      );
+      if (isRootDistDir) {
+        files['allFile'] = join(distDir, `${moduleName}-all.jar`);
+        files['kotlinToolingMetadataFile'] = join(
+          distDir,
+          `${moduleName}-kotlin-tooling-metadata.json`
+        );
+      } else if (isAppleDistDir) {
+        files['metadataFile'] = join(distDir, `${moduleName}-metadata.jar`);
+        const cinteropFiles = (await fsPromises.readdir(distDir))
+          .filter(file => file.includes('cinterop'))
+          .map(file => join(distDir, file));
+
+        files['klibFiles'] = cinteropFiles;
+      }
+      files['moduleFile'] = join(distDir, `${moduleName}.module`);
+    }
+    return files;
   }
 
   /**
@@ -393,7 +590,14 @@ export class MavenTarget extends BaseTarget {
         );
       }
     }
-
+    if (this.mavenConfig.kmp !== false) {
+      const isAppleDistDir = this.mavenConfig.kmp.appleDistDirRegex.test(
+        moduleName
+      );
+      if (isAppleDistDir) {
+        return `${moduleName}.klib`;
+      }
+    }
     return `${moduleName}.jar`;
   }
 

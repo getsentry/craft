@@ -71,6 +71,10 @@ function getFullTargetConfig(): any {
       fileReplaceeRegex: '/replacee/',
       fileReplacerStr: 'replacer',
     },
+    kmp: {
+      rootDistDirRegex: '/distDir/',
+      appleDistDirRegex: '/apple-distDir/',
+    },
   };
 }
 
@@ -84,6 +88,7 @@ function getRequiredTargetConfig(): any {
     mavenRepoId: DEFAULT_OPTION_VALUE,
     mavenRepoUrl: DEFAULT_OPTION_VALUE,
     android: false,
+    kmp: false,
   };
 }
 
@@ -140,11 +145,25 @@ describe('Maven target configuration', () => {
     );
   });
 
+  test('no kotlinMultiplatform config', () => {
+    const config = getRequiredTargetConfig();
+    delete config.kmp;
+    expect(() => createMavenTarget(config)).not.toThrowError();
+  });
+
   test('incorrect one-line android config', () => {
     const config = getRequiredTargetConfig();
     config.android = 'yes';
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
       `"Required Android configuration is incorrect. See the documentation for more details."`
+    );
+  });
+
+  test('incorrect one-line kotlinMultiplatform config', () => {
+    const config = getRequiredTargetConfig();
+    config.kmp = 'yes';
+    expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
+      `"Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details."`
     );
   });
 
@@ -154,11 +173,35 @@ describe('Maven target configuration', () => {
     expect(mvnTarget.mavenConfig.android).toStrictEqual(config.android);
   });
 
+  test('correct one-line kotlinMultiplatform config', () => {
+    const config = getRequiredTargetConfig();
+    const mvnTarget = createMavenTarget(config);
+    expect(mvnTarget.mavenConfig.kmp).toStrictEqual(config.kmp);
+  });
+
   test('incorrect object android config, missing prop', () => {
     const config = getFullTargetConfig();
     delete config.android.distDirRegex;
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
       `"Required Android configuration is incorrect. See the documentation for more details."`
+    );
+  });
+
+  test('incorrect object kotlinMultiplatform config, replaced root distDir', () => {
+    const config = getFullTargetConfig();
+    delete config.kmp.rootDistDirRegex;
+    config.kmp.anotherParam = 'unused';
+    expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
+      `"Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details."`
+    );
+  });
+
+  test('incorrect object kotlinMultiplatform config, replaced apple distDir', () => {
+    const config = getFullTargetConfig();
+    delete config.kmp.appleDistDirRegex;
+    config.kmp.anotherParam = 'unused';
+    expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
+      `"Required apple configuration for Kotlin Multiplatform is incorrect. See the documentation for more details."`
     );
   });
 
@@ -178,6 +221,15 @@ describe('Maven target configuration', () => {
     const androidConfig: any = mvnTarget.mavenConfig.android;
     expect(config.android).toMatchObject(androidConfig);
     expect(androidConfig.additionalProp).not.toBeDefined();
+  });
+
+  test('correct object kotlinMultiplatform config, with additional props', () => {
+    const config = getFullTargetConfig();
+    config.kmp.additionalProp = 'not relevant';
+    const mvnTarget = createMavenTarget(config);
+    const kotlinMultiplatformConfig: any = mvnTarget.mavenConfig.kmp;
+    expect(config.kmp).toMatchObject(kotlinMultiplatformConfig);
+    expect(kotlinMultiplatformConfig.additionalProp).not.toBeDefined();
   });
 
   test('minimum required options', () => {
@@ -204,6 +256,8 @@ describe('Maven target configuration', () => {
     expect(typeof mvnTarget.config.android.distDirRegex).toBe('string');
     expect(typeof mvnTarget.config.android.fileReplaceeRegex).toBe('string');
     expect(typeof mvnTarget.config.android.fileReplacerStr).toBe('string');
+    expect(typeof mvnTarget.config.kmp.rootDistDirRegex).toBe('string');
+    expect(typeof mvnTarget.config.kmp.appleDistDirRegex).toBe('string');
   });
 
   test('import GPG private key if one is present in the environment', () => {
@@ -228,6 +282,72 @@ describe('publish', () => {
     expect(mvnTarget.upload).toHaveBeenCalledWith(revision);
     expect(mvnTarget.closeAndReleaseRepository).toHaveBeenCalledTimes(1);
     expect(callOrder).toStrictEqual(['upload', 'closeAndReleaseRepository']);
+  });
+});
+
+describe('transform KMP artifacts', () => {
+  const tmpDirName = 'tmpDir';
+
+  test('transform apple target side artifacts', async () => {
+    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+      async cb => {
+        return await cb(tmpDirName);
+      }
+    );
+
+    const mvnTarget = createMavenTarget(getFullTargetConfig());
+    const files: Record<string, string | string[]> = {
+      javadocFile: `${tmpDirName}-javadoc.jar`,
+      sourcesFile: `${tmpDirName}-sources.jar`,
+      klibFiles: [
+        `${tmpDirName}-cinterop-Sentry.NSException.klib`,
+        `${tmpDirName}-cinterop-Sentry.klib`,
+      ],
+      allFile: '',
+      metadataFile: `${tmpDirName}-metadata.jar`,
+      moduleFile: `${tmpDirName}.module`,
+    };
+    const {
+      sideArtifacts,
+      classifiers,
+      types,
+    } = mvnTarget.transformKmpSideArtifacts(false, true, files);
+    expect(sideArtifacts).toEqual(
+      `${files.javadocFile},${files.sourcesFile},${files.klibFiles},${files.metadataFile},${files.moduleFile}`
+    );
+    expect(classifiers).toEqual(
+      'javadoc,sources,cinterop-Sentry.NSException,cinterop-Sentry,metadata,'
+    );
+    expect(types).toEqual('jar,jar,klib,klib,jar,module');
+  });
+
+  test('transform root target side artifacts', async () => {
+    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+      async cb => {
+        return await cb(tmpDirName);
+      }
+    );
+
+    const mvnTarget = createMavenTarget(getFullTargetConfig());
+    const files: Record<string, string | string[]> = {
+      javadocFile: `${tmpDirName}-javadoc.jar`,
+      sourcesFile: `${tmpDirName}-sources.jar`,
+      klibFiles: [],
+      allFile: `${tmpDirName}-all.jar`,
+      metadataFile: '',
+      moduleFile: `${tmpDirName}.module`,
+      kotlinToolingMetadataFile: `${tmpDirName}-kotlin-tooling-metadata.json`,
+    };
+    const {
+      sideArtifacts,
+      classifiers,
+      types,
+    } = mvnTarget.transformKmpSideArtifacts(true, false, files);
+    expect(sideArtifacts).toEqual(
+      `${files.javadocFile},${files.sourcesFile},${files.allFile},${files.kotlinToolingMetadataFile},${files.moduleFile}`
+    );
+    expect(classifiers).toEqual('javadoc,sources,all,kotlin-tooling-metadata,');
+    expect(types).toEqual('jar,jar,jar,json,module');
   });
 });
 
