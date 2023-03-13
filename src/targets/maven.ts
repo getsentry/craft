@@ -477,7 +477,7 @@ export class MavenTarget extends BaseTarget {
 
   private async uploadPomDistribution(distDir: string): Promise<void> {
     if (this.mavenConfig.kmp !== false) {
-      this.uploadKmpPomDistribution(distDir);
+      await this.uploadKmpPomDistribution(distDir);
     } else {
       const {
         targetFile,
