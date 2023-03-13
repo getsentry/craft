@@ -57,7 +57,7 @@ type AndroidFields = {
 };
 
 type KotlinMultiplatformFields = {
-  kotlinMultiplatform:
+  kmp:
     | false
     | {
         appleDistDirRegex: RegExp;
@@ -154,35 +154,28 @@ export class MavenTarget extends BaseTarget {
   }
 
   private getKotlinMultiplatformSettings(): KotlinMultiplatformFields {
-    if (
-      this.config.kotlinMultiplatform === false ||
-      !this.config.kotlinMultiplatform
-    ) {
+    if (this.config.kmp === false || !this.config.kmp) {
       return {
-        kotlinMultiplatform: false,
+        kmp: false,
       };
     }
 
-    if (!this.config.kotlinMultiplatform.rootDistDirRegex) {
+    if (!this.config.kmp.rootDistDirRegex) {
       throw new ConfigurationError(
         'Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.'
       );
     }
 
-    if (!this.config.kotlinMultiplatform.appleDistDirRegex) {
+    if (!this.config.kmp.appleDistDirRegex) {
       throw new ConfigurationError(
         'Required apple configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.'
       );
     }
 
     return {
-      kotlinMultiplatform: {
-        appleDistDirRegex: stringToRegexp(
-          this.config.kotlinMultiplatform.appleDistDirRegex
-        ),
-        rootDistDirRegex: stringToRegexp(
-          this.config.kotlinMultiplatform.rootDistDirRegex
-        ),
+      kmp: {
+        appleDistDirRegex: stringToRegexp(this.config.kmp.appleDistDirRegex),
+        rootDistDirRegex: stringToRegexp(this.config.kmp.rootDistDirRegex),
       },
     };
   }
@@ -369,12 +362,12 @@ export class MavenTarget extends BaseTarget {
   }
 
   private async uploadKmpPomDistribution(distDir: string): Promise<void> {
-    if (this.mavenConfig.kotlinMultiplatform !== false) {
+    if (this.mavenConfig.kmp !== false) {
       const moduleName = parse(distDir).base;
-      const isRootDistDir = this.mavenConfig.kotlinMultiplatform.rootDistDirRegex.test(
+      const isRootDistDir = this.mavenConfig.kmp.rootDistDirRegex.test(
         moduleName
       );
-      const isAppleDistDir = this.mavenConfig.kotlinMultiplatform.appleDistDirRegex.test(
+      const isAppleDistDir = this.mavenConfig.kmp.appleDistDirRegex.test(
         moduleName
       );
       const files = await this.getFilesForKmpMavenPomDist(distDir);
@@ -483,7 +476,7 @@ export class MavenTarget extends BaseTarget {
   }
 
   private async uploadPomDistribution(distDir: string): Promise<void> {
-    if (this.mavenConfig.kotlinMultiplatform !== false) {
+    if (this.mavenConfig.kmp !== false) {
       this.uploadKmpPomDistribution(distDir);
     } else {
       const {
@@ -543,11 +536,11 @@ export class MavenTarget extends BaseTarget {
       string | string[]
     >;
     const moduleName = parse(distDir).base;
-    if (this.mavenConfig.kotlinMultiplatform !== false) {
-      const isRootDistDir = this.mavenConfig.kotlinMultiplatform.rootDistDirRegex.test(
+    if (this.mavenConfig.kmp !== false) {
+      const isRootDistDir = this.mavenConfig.kmp.rootDistDirRegex.test(
         moduleName
       );
-      const isAppleDistDir = this.mavenConfig.kotlinMultiplatform.appleDistDirRegex.test(
+      const isAppleDistDir = this.mavenConfig.kmp.appleDistDirRegex.test(
         moduleName
       );
       if (isRootDistDir) {
@@ -597,8 +590,8 @@ export class MavenTarget extends BaseTarget {
         );
       }
     }
-    if (this.mavenConfig.kotlinMultiplatform !== false) {
-      const isAppleDistDir = this.mavenConfig.kotlinMultiplatform.appleDistDirRegex.test(
+    if (this.mavenConfig.kmp !== false) {
+      const isAppleDistDir = this.mavenConfig.kmp.appleDistDirRegex.test(
         moduleName
       );
       if (isAppleDistDir) {
