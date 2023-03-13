@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+### Various fixes & improvements
+
+- feat: maven kotlin multiplatform support (#412) by @buenaflor
+
 ## 1.1.1
 
 ### Various fixes & improvements
