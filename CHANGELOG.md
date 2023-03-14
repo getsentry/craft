@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1
+
+### Various fixes & improvements
+
+- fix missing await when calling uploadKmpPomDistribution (#460) by @buenaflor
+
 ## 1.2.0
 
 ### Various fixes & improvements
