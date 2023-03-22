@@ -1,42 +1,42 @@
-import { existsSync, lstatSync, readFileSync } from 'fs';
-import path from 'path';
+import { existsSync, lstatSync, readFileSync } from "fs";
+import path from "path";
 
-import ajv from 'ajv';
-import { load } from 'js-yaml';
-import GitUrlParse from 'git-url-parse';
-import simpleGit from 'simple-git';
+import ajv from "ajv";
+import { load } from "js-yaml";
+import GitUrlParse from "git-url-parse";
+import simpleGit from "simple-git";
 
-import { logger } from './logger';
+import { logger } from "./logger";
 import {
   CraftProjectConfig,
   GitHubGlobalConfig,
   ArtifactProviderName,
   StatusProviderName,
-} from './schemas/project_config';
-import { ConfigurationError } from './utils/errors';
+} from "./schemas/project_config";
+import { ConfigurationError } from "./utils/errors";
 import {
   getPackageVersion,
   parseVersion,
   versionGreaterOrEqualThan,
-} from './utils/version';
-import { BaseArtifactProvider } from './artifact_providers/base';
-import { GitHubArtifactProvider } from './artifact_providers/github';
-import { NoneArtifactProvider } from './artifact_providers/none';
-import { GCSArtifactProvider } from './artifact_providers/gcs';
+} from "./utils/version";
+import { BaseArtifactProvider } from "./artifact_providers/base";
+import { GitHubArtifactProvider } from "./artifact_providers/github";
+import { NoneArtifactProvider } from "./artifact_providers/none";
+import { GCSArtifactProvider } from "./artifact_providers/gcs";
 
-import { GitHubStatusProvider } from './status_providers/github';
+import { GitHubStatusProvider } from "./status_providers/github";
 import {
   BaseStatusProvider,
   StatusProviderConfig,
-} from './status_providers/base';
+} from "./status_providers/base";
 
 // TODO support multiple configuration files (one per configuration)
-export const CONFIG_FILE_NAME = '.craft.yml';
+export const CONFIG_FILE_NAME = ".craft.yml";
 
 /**
  * The default prefix for the release branch.
  */
-export const DEFAULT_RELEASE_BRANCH_NAME = 'release';
+export const DEFAULT_RELEASE_BRANCH_NAME = "release";
 
 /**
  * Cached path to the configuration file
@@ -76,7 +76,7 @@ export function findConfigFile(): string | undefined {
     currentDir = parentDir;
     depth += 1;
   }
-  logger.warn('findConfigFile: Reached maximum allowed directory depth');
+  logger.warn("findConfigFile: Reached maximum allowed directory depth");
   return undefined;
 }
 
@@ -112,7 +112,7 @@ export function getConfigFileDir(): string | undefined {
  * Reads JSON schema for project configuration
  */
 export function getProjectConfigSchema(): any {
-  return require('./schemas/projectConfig.schema');
+  return require("./schemas/projectConfig.schema");
 }
 
 /**
@@ -125,8 +125,8 @@ export function getProjectConfigSchema(): any {
 export function validateConfiguration(
   rawConfig: Record<string, any>
 ): CraftProjectConfig {
-  logger.debug('Parsing and validating the configuration file...');
-  const schemaName = 'projectConfig';
+  logger.debug("Parsing and validating the configuration file...");
+  const schemaName = "projectConfig";
   const projectConfigSchema = getProjectConfigSchema();
   const ajvValidator = new ajv().addSchema(projectConfigSchema, schemaName);
   const valid = ajvValidator.validate(schemaName, rawConfig);
@@ -148,8 +148,8 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
   }
 
   const configPath = getConfigFilePath();
-  logger.debug('Configuration file found: ', configPath);
-  const rawConfig = load(readFileSync(configPath, 'utf-8')) as Record<
+  logger.debug("Configuration file found: ", configPath);
+  const rawConfig = load(readFileSync(configPath, "utf-8")) as Record<
     string,
     any
   >;
@@ -168,14 +168,14 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
   const minVersionRaw = config.minVersion;
   if (!minVersionRaw) {
     logger.debug(
-      'No minimal version specified in the configuration, skpipping the check'
+      "No minimal version specified in the configuration, skipping the check"
     );
     return;
   }
 
   const currentVersionRaw = getPackageVersion();
   if (!currentVersionRaw) {
-    throw new Error('Cannot get the current craft version');
+    throw new Error("Cannot get the current craft version");
   }
 
   const minVersion = parseVersion(minVersionRaw);
@@ -208,7 +208,7 @@ export async function getGlobalGitHubConfig(
   if (!clearCache && _globalGitHubConfigCache !== undefined) {
     if (_globalGitHubConfigCache === null) {
       throw new ConfigurationError(
-        'GitHub configuration not found in the config file and cannot be determined from Git'
+        "GitHub configuration not found in the config file and cannot be determined from Git"
       );
     }
 
@@ -220,21 +220,21 @@ export async function getGlobalGitHubConfig(
   let repoGitHubConfig = getConfiguration(clearCache).github || null;
 
   if (!repoGitHubConfig) {
-    const configDir = getConfigFileDir() || '.';
+    const configDir = getConfigFileDir() || ".";
     const git = simpleGit(configDir);
     let remoteUrl;
     try {
       const remotes = await git.getRemotes(true);
       const defaultRemote =
-        remotes.find(remote => remote.name === 'origin') || remotes[0];
+        remotes.find((remote) => remote.name === "origin") || remotes[0];
       remoteUrl =
         defaultRemote &&
         GitUrlParse(defaultRemote.refs.push || defaultRemote.refs.fetch);
     } catch (error) {
-      logger.warn('Error when trying to get git remotes: ', error);
+      logger.warn("Error when trying to get git remotes: ", error);
     }
 
-    if (remoteUrl?.source === 'github.com') {
+    if (remoteUrl?.source === "github.com") {
       repoGitHubConfig = {
         owner: remoteUrl.owner,
         repo: remoteUrl.name,
@@ -252,8 +252,8 @@ export async function getGlobalGitHubConfig(
  */
 export function getGitTagPrefix(): string {
   const targets = getConfiguration().targets || [];
-  const githubTarget = targets.find(target => target.name === 'github');
-  return githubTarget?.tagPrefix || '';
+  const githubTarget = targets.find((target) => target.name === "github");
+  return githubTarget?.tagPrefix || "";
 }
 
 /**
@@ -287,7 +287,7 @@ export async function getArtifactProviderFromConfig(): Promise<BaseArtifactProvi
     case ArtifactProviderName.GitHub:
       return new GitHubArtifactProvider(artifactProviderConfig);
     default: {
-      throw new ConfigurationError('Invalid artifact provider');
+      throw new ConfigurationError("Invalid artifact provider");
     }
   }
 }
@@ -321,7 +321,7 @@ export async function getStatusProviderFromConfig(): Promise<BaseStatusProvider>
     case StatusProviderName.GitHub:
       return new GitHubStatusProvider(statusProviderConfig, githubConfig);
     default: {
-      throw new ConfigurationError('Invalid status provider');
+      throw new ConfigurationError("Invalid status provider");
     }
   }
 }
