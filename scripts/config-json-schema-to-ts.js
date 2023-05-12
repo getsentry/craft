@@ -2,9 +2,9 @@
 /**
  * Convert JSON schema for project configuration to a set of TypeScript interfaces
  */
-const fs = require('fs');
-const json2ts = require('json-schema-to-typescript');
 
+const json2ts = require('json-schema-to-typescript');
+const fs = require('fs');
 process.chdir(__dirname);
 
 const jsonInputPath = '../src/schemas/projectConfig.schema.ts';
