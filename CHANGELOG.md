@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.2
+
+### Various fixes & improvements
+
+- Upgrade Flutter to 3.10 in the docker image (#463) by @marandaneto
+
 ## 1.2.1
 
 ### Various fixes & improvements
