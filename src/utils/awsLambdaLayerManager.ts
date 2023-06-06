@@ -1,4 +1,4 @@
-import * as XmlParser from 'fast-xml-parser';
+import { XMLParser } from 'fast-xml-parser';
 import aws4 from 'aws4';
 import fetch from 'node-fetch';
 import { Lambda } from '@aws-sdk/client-lambda';
@@ -156,7 +156,7 @@ export async function getRegionsFromAws(): Promise<string[]> {
     );
   }
   const data = await response.text();
-  return XmlParser.parse(data)
+  return new XMLParser().parse(data)
     .DescribeRegionsResponse.regionInfo.item.map(
       (region: Region) => region.regionName
     )
