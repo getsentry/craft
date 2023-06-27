@@ -243,7 +243,7 @@ describe('createCredentialsFile', () => {
       `/usr/Library/Application Support/dart/pub-credentials.json`
     );
     expect(content).toMatchInlineSnapshot(
-      `"{\\"accessToken\\":\\"my_default_value\\",\\"refreshToken\\":\\"my_default_value\\",\\"tokenEndpoint\\":\\"https://accounts.google.com/o/oauth2/token\\",\\"scopes\\":[\\"openid\\",\\"https://www.googleapis.com/auth/userinfo.email\\"],\\"expiration\\":1645564942000}"`
+      `"{"accessToken":"my_default_value","refreshToken":"my_default_value","tokenEndpoint":"https://accounts.google.com/o/oauth2/token","scopes":["openid","https://www.googleapis.com/auth/userinfo.email"],"expiration":1645564942000}"`
     );
   });
 

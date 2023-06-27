@@ -117,7 +117,7 @@ describe('publish', () => {
     >).mock.calls[0] as string[];
     expect(cmd).toBe(SYM_COLLECTOR_BIN_NAME);
     expect(args).toMatchInlineSnapshot(`
-      Array [
+      [
         "--upload",
         "directory",
         "--path",

@@ -275,7 +275,7 @@ export abstract class BaseArtifactProvider {
   ): Promise<RemoteArtifact[]> {
     this.logger.debug(`Fetching artifact list for revision \`${revision}\`.`);
     // check the cache first
-    if (this.fileListCache[revision]) {
+    if (revision in this.fileListCache) {
       this.logger.debug(`Found list in cache.`);
     } else {
       // Cache the promise immediately to cause any subsequent calls during the
