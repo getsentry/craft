@@ -93,7 +93,7 @@ describe('GitHub Artifact Provider', () => {
           '1b843f2cbb20fdda99ef749e29e75e43e6e43b38'
         )
       ).resolves.toMatchInlineSnapshot(`
-              Object {
+              {
                 "archive_download_url": "https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip",
                 "created_at": "2021-05-12T21:50:35Z",
                 "expired": false,
@@ -166,7 +166,7 @@ describe('GitHub Artifact Provider', () => {
           '1b843f2cbb20fdda99ef749e29e75e43e6e43b38'
         )
       ).resolves.toMatchInlineSnapshot(`
-              Object {
+              {
                 "archive_download_url": "https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip",
                 "created_at": "2021-05-12T21:50:35Z",
                 "expired": false,
@@ -224,7 +224,7 @@ describe('GitHub Artifact Provider', () => {
           '1b843f2cbb20fdda99ef749e29e75e43e6e43b38'
         )
       ).resolves.toMatchInlineSnapshot(`
-              Object {
+              {
                 "archive_download_url": "https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip",
                 "created_at": "2021-05-12T21:50:35Z",
                 "expired": false,
@@ -253,7 +253,7 @@ describe('GitHub Artifact Provider', () => {
           '1b843f2cbb20fdda99ef749e29e75e43e6e43b38'
         )
       ).rejects.toThrowErrorMatchingInlineSnapshot(
-        `"Can't find any artifacts for revision \\"1b843f2cbb20fdda99ef749e29e75e43e6e43b38\\" (tries: 3)"`
+        `"Can't find any artifacts for revision "1b843f2cbb20fdda99ef749e29e75e43e6e43b38" (tries: 3)"`
       );
 
       expect(mockClient.actions.listArtifactsForRepo).toBeCalledTimes(3);
@@ -302,7 +302,7 @@ describe('GitHub Artifact Provider', () => {
           '3c2e87573d3bd16f61cf08fece0638cc47a4fc22'
         )
       ).rejects.toThrowErrorMatchingInlineSnapshot(
-        `"Can't find any artifacts for revision \\"3c2e87573d3bd16f61cf08fece0638cc47a4fc22\\" (tries: 3)"`
+        `"Can't find any artifacts for revision "3c2e87573d3bd16f61cf08fece0638cc47a4fc22" (tries: 3)"`
       );
       expect(sleep).toBeCalledTimes(2);
     });
@@ -365,7 +365,7 @@ describe('GitHub Artifact Provider', () => {
           })
         )
       ).resolves.toMatchInlineSnapshot(`
-        Object {
+        {
           "archive_download_url": "https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip",
           "created_at": "2021-05-12T21:50:35Z",
           "expired": false,

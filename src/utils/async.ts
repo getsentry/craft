@@ -179,7 +179,9 @@ export async function withRetry<T>(
       }
     }
   }
-  if (tries >= maxRetries) {
+  if (typeof error === 'undefined') {
+    throw new Error(`maxRetries must be >= 1: ${maxRetries}`);
+  } else if (tries >= maxRetries) {
     throw new RetryError(`Max retries reached: ${maxRetries}`, error);
   } else {
     throw new RetryError('Cancelled retry', error);

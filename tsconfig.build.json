@@ -12,7 +12,8 @@
     "noImplicitThis": false,
     "esModuleInterop": true,
     "importHelpers": true,
-    "noEmitHelpers": false
+    "noEmitHelpers": false,
+    "useUnknownInCatchVariables": false
   },
   "include": ["src/**/*.ts"],
   "exclude": ["dist/**/*", "**/__mocks__/**", "**/__tests__/**"]

@@ -1,4 +1,4 @@
-FROM node:12-buster-slim as builder
+FROM node:14-buster-slim as builder
 
 WORKDIR /usr/local/lib
 
