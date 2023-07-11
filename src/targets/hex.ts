@@ -81,6 +81,7 @@ export class HexTarget extends BaseTarget {
 
         const spawnOptions = { cwd: directory };
         const spawnProcessOptions = { showStdout: true };
+        await spawnProcess(MIX_BIN, ['local.hex', '--force'], spawnOptions, spawnProcessOptions);
         await spawnProcess(MIX_BIN, ['deps.get'], spawnOptions, spawnProcessOptions);
         await spawnProcess(MIX_BIN, ['hex.publish', '--yes'], spawnOptions, spawnProcessOptions);
       },
