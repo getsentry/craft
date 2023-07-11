@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.3
+
+### Various fixes & improvements
+
+- fix(hex): Need local.hex --force for compiling deps (#471) by @sl0thentr0py
+- ref: update jest (#468) by @asottile-sentry
+- build(deps-dev): bump fast-xml-parser from 4.2.4 to 4.2.5 (#467) by @dependabot
+- build(deps-dev): bump fast-xml-parser from 3.19.0 to 4.2.4 (#466) by @dependabot
+
 ## 1.2.2
 
 ### Various fixes & improvements
