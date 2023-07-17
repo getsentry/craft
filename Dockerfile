@@ -23,6 +23,7 @@ RUN apt-get -qq update \
     openjdk-17-jdk \
     maven \
     elixir \
+    erlang-dev \
   # TODO bump packages.microsoft.com to debian/12 when microsoft updates the package
   && curl -fsSL https://packages.microsoft.com/config/debian/11/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
   && dpkg -i /tmp/packages-microsoft-prod.deb \
