@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0
+
+### Various fixes & improvements
+
+- feat(build): Bump Dockerfile base image to node:20-bookworm (#472) by @sl0thentr0py
+
 ## 1.2.3
 
 ### Various fixes & improvements
