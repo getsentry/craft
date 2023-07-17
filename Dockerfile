@@ -16,7 +16,6 @@ RUN apt-get -qq update \
     dirmngr \
     gnupg \
     git \
-    python3-packaging \
     ruby-full \
     twine \
     jq \
