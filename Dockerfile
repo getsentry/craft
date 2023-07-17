@@ -1,4 +1,4 @@
-FROM node:20-bookworm
+FROM node:14-bullseye
 
 ENV DEBIAN_FRONTEND=noninteractive \
   DOTNET_CLI_TELEMETRY_OPTOUT=1 \
@@ -20,15 +20,14 @@ RUN apt-get -qq update \
     twine \
     jq \
     unzip \
-    openjdk-17-jdk \
+    openjdk-11-jdk \
     maven \
     elixir \
-  # TODO bump packages.microsoft.com to debian/12 when microsoft updates the package
-  && curl -fsSL https://packages.microsoft.com/config/debian/11/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
+  && curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
   && dpkg -i /tmp/packages-microsoft-prod.deb \
   && rm /tmp/packages-microsoft-prod.deb \
   && curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - \
-  && echo 'deb [arch=amd64] https://download.docker.com/linux/debian bookworm stable' >> /etc/apt/sources.list \
+  && echo 'deb [arch=amd64] https://download.docker.com/linux/debian buster stable' >> /etc/apt/sources.list \
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
     dotnet-sdk-7.0 \
