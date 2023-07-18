@@ -209,6 +209,16 @@ export class NpmTarget extends BaseTarget {
       // Disable output buffering because NPM/Yarn can ask us for one-time passwords
       return spawnProcess(bin, args, spawnOptions, {
         showStdout: true,
+      }).catch(error => {
+        // When publishing a list of packages fails for only one package,
+        // you can never fix this by re-running publish because it will then _always_ fail due to existing versions.
+        // Instead, in this case we want to simply ignore the already existing package and continue.
+        if (error.message?.includes('You cannot publish over the previously published versions:')) {
+          console.warn(error);
+          return Promise.resolve();
+        }
+
+        return Promise.reject(error);
       });
     });
   }
