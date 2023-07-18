@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0
+
+### Various fixes & improvements
+
+- Revert changes since 1.2.3 (#475) by @mydea
+- ref: add python3-packaging explicitly (#474) by @asottile-sentry
+- fix(hex): Add erlang-dev for missing parsetools (#473) by @sl0thentr0py
+
 ## 1.3.0
 
 ### Various fixes & improvements
