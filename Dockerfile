@@ -6,12 +6,15 @@ ENV DEBIAN_FRONTEND=noninteractive \
   COCOAPODS_ALLOW_ROOT=1 \
   CARGO_HOME=/root/.cargo \
   RUSTUP_HOME=/root/.rustup \
-  PATH=${PATH}:/root/.cargo/bin:/opt/flutter/bin
+  PATH=${PATH}:/root/.cargo/bin:/opt/flutter/bin:/root/.asdf/bin:/root/.asdf/shims
 
 RUN apt-get -qq update \
   && apt-get install -y --no-install-recommends \
     apt-transport-https \
     build-essential \
+    autoconf \
+    xsltproc \
+    fop \
     curl \
     dirmngr \
     gnupg \
@@ -23,7 +26,6 @@ RUN apt-get -qq update \
     unzip \
     openjdk-11-jdk \
     maven \
-    elixir \
   && curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
   && dpkg -i /tmp/packages-microsoft-prod.deb \
   && rm /tmp/packages-microsoft-prod.deb \
@@ -51,6 +53,14 @@ RUN apt-get -qq update \
 RUN curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.10.0-stable.tar.xz -o /opt/flutter.tar.xz \
   && tar xf /opt/flutter.tar.xz -C /opt \
   && rm /opt/flutter.tar.xz
+
+RUN git clone https://github.com/asdf-vm/asdf.git ~/.asdf --branch v0.12.0 \
+    && asdf plugin add erlang https://github.com/asdf-vm/asdf-erlang.git \
+    && asdf plugin add elixir https://github.com/asdf-vm/asdf-elixir.git \
+    && asdf install erlang 25.3 \
+    && asdf global erlang 25.3 \
+    && asdf install elixir 1.14 \
+    && asdf global elixir 1.14
 
 # craft does `git` things against mounted directories as root
 RUN git config --global --add safe.directory '*'
