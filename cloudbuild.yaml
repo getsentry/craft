@@ -1,5 +1,5 @@
 steps:
-  - name: 'gcr.io/kaniko-project/executor:v1.12.1'
+  - name: 'gcr.io/kaniko-project/executor:v1.5.1'
     args:
       - '--cache=true'
       - '--use-new-run'
@@ -9,10 +9,9 @@ steps:
       - '-f'
       - 'builder.dockerfile'
   - name: 'us.gcr.io/$PROJECT_ID/craft:builder-$COMMIT_SHA'
-  - name: 'gcr.io/kaniko-project/executor:v1.12.1'
+  - name: 'gcr.io/kaniko-project/executor:v1.5.1'
     args:
       - '--cache=true'
-      - '--compressed-caching=false'
       - '--use-new-run'
       - '--build-arg'
       - 'SOURCE_COMMIT=$COMMIT_SHA'
