@@ -23,16 +23,22 @@ RUN apt-get -qq update \
     unzip \
     openjdk-11-jdk \
     maven \
-    elixir \
-  && curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
   && dpkg -i /tmp/packages-microsoft-prod.deb \
   && rm /tmp/packages-microsoft-prod.deb \
   && curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - \
   && echo 'deb [arch=amd64] https://download.docker.com/linux/debian buster stable' >> /etc/apt/sources.list \
+  && curl -fsSL https://packages.erlang-solutions.com/debian/erlang_solutions.asc | apt-key add - \
+  && echo 'deb https://packages.erlang-solutions.com/debian bullseye contrib' >> /etc/apt/sources.list \
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
     dotnet-sdk-7.0 \
     docker-ce-cli \
+    erlang \
+    elixir \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* \
   && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s --  --profile minimal -y \
