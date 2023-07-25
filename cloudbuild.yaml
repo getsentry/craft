@@ -12,6 +12,7 @@ steps:
   - name: 'gcr.io/kaniko-project/executor:v1.12.1'
     args:
       - '--cache=true'
+      - '--compressed-caching=false'
       - '--use-new-run'
       - '--build-arg'
       - 'SOURCE_COMMIT=$COMMIT_SHA'
