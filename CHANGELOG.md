@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.2
+
+### Various fixes & improvements
+
+- feat(elixir): Use precompiled packages from erlang solutions for elixir (#481) by @sl0thentr0py
+- Revert "feat(elixir): Use asdf to install erlang and elixir (#479)" (#480) by @sl0thentr0py
+- feat(elixir): Use asdf to install erlang and elixir (#479) by @sl0thentr0py
+- ref: add python3-packaging explicitly (#478) by @asottile-sentry
+- build(deps): bump word-wrap from 1.2.3 to 1.2.4 (#477) by @dependabot
+
 ## 1.4.1
 
 - No documented changes.
