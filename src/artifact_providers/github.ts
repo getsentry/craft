@@ -18,9 +18,9 @@ import {
 import { extractZipArchive } from '../utils/system';
 import { sleep } from '../utils/async';
 
-const MAX_TRIES = 3;
+const MAX_TRIES = 10;
 const MILLISECONDS = 1000;
-const ARTIFACTS_POLLING_INTERVAL = 10 * MILLISECONDS;
+const ARTIFACTS_POLLING_INTERVAL = 30 * MILLISECONDS;
 
 export type ArtifactItem = RestEndpointMethodTypes['actions']['listArtifactsForRepo']['response']['data']['artifacts'][0];
 
