@@ -48,16 +48,21 @@ export function createSymlinks(
     !versionGreaterOrEqualThan(parsedNewVersion, parsedOldVersion)
   ) {
     logger.warn(
-      `Not updating the latest version file: current version is "${oldVersion}", new version is "${newVersion}"\n`,
+      `Not updating the latest version file: current version is "${oldVersion}", new version is "${newVersion}"`
+    );
+    logger.warn(
       `Not updating the major version file: current version is "${oldVersion}", new version is "${newVersion}"`
     );
   } else {
     logger.debug(
-      `Changing symlink for "latest.json" from version "${oldVersion}" to "${newVersion}"\n`,
-      `Changing symlink for "{major}.json" from version "${oldVersion}" to "${newVersion}"`
+      `Changing symlink for "latest.json" from version "${oldVersion}" to "${newVersion}"`
     );
     forceSymlink(baseVersionName, path.join(packageDir, 'latest.json'));
 
+
+    logger.debug(
+      `Changing symlink for "{major}.json" from version "${oldVersion}" to "${newVersion}"`
+    );
     const majorVersionLink = `${parsedNewVersion.major}.json`;
     forceSymlink(baseVersionName, path.join(packageDir, majorVersionLink));
   }
