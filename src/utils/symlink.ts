@@ -21,7 +21,7 @@ function forceSymlink(target: string, newFile: string): void {
 /**
  * Create symbolic links to the new version file
  *
- * "latest.json" link is not updated if the new version is "older" (e.g., it's
+ * "latest.json" and "{major}.json" links are not updated if the new version is "older" (e.g., it's
  * a patch release for an older major version).
  *
  * @param versionFilePath Path to the new version file
@@ -42,24 +42,25 @@ export function createSymlinks(
   const baseVersionName = path.basename(versionFilePath);
   const packageDir = path.dirname(versionFilePath);
 
-  // link latest, but only if the new version is "newer"
+  // link latest.json and {major}.json, but only if the new version is "newer"
   if (
     parsedOldVersion &&
     !versionGreaterOrEqualThan(parsedNewVersion, parsedOldVersion)
   ) {
     logger.warn(
-      `Not updating the latest version file: current version is "${oldVersion}", new version is "${newVersion}"`
+      `Not updating the latest version file: current version is "${oldVersion}", new version is "${newVersion}"\n`,
+      `Not updating the major version file: current version is "${oldVersion}", new version is "${newVersion}"`
     );
   } else {
     logger.debug(
-      `Changing symlink for "latest.json" from version "${oldVersion}" to "${newVersion}"`
+      `Changing symlink for "latest.json" from version "${oldVersion}" to "${newVersion}"\n`,
+      `Changing symlink for "{major}.json" from version "${oldVersion}" to "${newVersion}"`
     );
     forceSymlink(baseVersionName, path.join(packageDir, 'latest.json'));
-  }
 
-  // link major
-  const majorVersionLink = `${parsedNewVersion.major}.json`;
-  forceSymlink(baseVersionName, path.join(packageDir, majorVersionLink));
+    const majorVersionLink = `${parsedNewVersion.major}.json`;
+    forceSymlink(baseVersionName, path.join(packageDir, majorVersionLink));
+  }
 
   // link minor
   const minorVersionLink = `${parsedNewVersion.major}.${parsedNewVersion.minor}.json`;
