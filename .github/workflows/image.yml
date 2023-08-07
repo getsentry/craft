@@ -41,7 +41,7 @@ jobs:
           --tag "$img" \
           .
     - name: docker login
-      run: docker login --username "$DOCKER_USER" --password-stdin ghrc.io <<< "$DOCKER_PASS"
+      run: docker login --username "$DOCKER_USER" --password-stdin ghcr.io <<< "$DOCKER_PASS"
       env:
         DOCKER_USER: ${{ github.actor }}
         DOCKER_PASS: ${{ secrets.GITHUB_TOKEN }}
