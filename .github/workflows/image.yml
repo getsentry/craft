@@ -3,7 +3,7 @@ name: image
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [master, release/**, test-me-*]
 
 jobs:
   image:
