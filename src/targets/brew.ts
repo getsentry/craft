@@ -163,7 +163,7 @@ export class BrewTarget extends BaseTarget {
     const checksums: any = {};
 
     await mapLimit(filesList, MAX_DOWNLOAD_CONCURRENCY, async file => {
-      const key = file.filename.replace(version, 'latest');
+      const key = file.filename.replace(version, '__VERSION__');
       checksums[key] = await this.artifactProvider.getChecksum(
         file,
         HashAlgorithm.SHA256,
