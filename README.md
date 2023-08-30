@@ -650,7 +650,11 @@ contains the following variables:
 - `version`: The new version
 - `revision`: The tag's commit SHA
 - `checksums`: A map containing sha256 checksums for every release asset. Use
-  the full filename to access the sha, e.g. `checksums.MyProgram-x86`
+  the full filename to access the sha, e.g. `checksums.MyProgram-x86`. If the
+  filename contains dots (`.`), they are being replaced with `__`. If the
+  filename contains the currently released version, it is replaced with `__VERSION__`.
+  For example, `sentry-wizard-v3.9.3.tgz` checksums will be accessible by the key
+  `checksums.sentry-wizard-v__VERSION____tgz`.
 
 **Environment**
 
