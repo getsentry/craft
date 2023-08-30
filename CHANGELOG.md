@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.4
+
+### Various fixes & improvements
+
+- fix(brew): Replace version in artifact names with '__VERSION__' to access checksums from mustache (#488) by @romtsn
+
 ## 1.4.3
 
 ### Various fixes & improvements
