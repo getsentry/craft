@@ -34,11 +34,11 @@ targets:
             format: hex
   - id: release
     name: docker
-    source: us.gcr.io/sentryio/craft
+    source: ghcr.io/getsentry/craft
     target: getsentry/craft
   - id: latest
     name: docker
-    source: us.gcr.io/sentryio/craft
+    source: ghcr.io/getsentry/craft
     target: getsentry/craft
     targetFormat: '{{{target}}}:latest'
   - name: github

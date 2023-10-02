@@ -1,3 +1,20 @@
+FROM node:14-buster-slim as builder
+
+WORKDIR /usr/local/lib
+
+COPY package.json yarn.lock ./
+RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
+  && yarn install --frozen-lockfile --quiet \
+  && rm -r "$YARN_CACHE_FOLDER"
+
+COPY . .
+
+RUN \
+   NODE_ENV=production \
+  NODE_PATH=/usr/local/lib/node_modules \
+  PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/lib/node_modules/.bin" \
+  yarn --modules-folder /usr/local/lib/node_modules build
+
 FROM node:14-bullseye
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -46,7 +63,7 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsof
   && cargo install cargo-hack \
   && gem install cocoapods --no-document \
   # Install https://github.com/getsentry/symbol-collector
-  && symbol_collector_url=$(curl -s https://api.github.com/repos/getsentry/symbol-collector/releases/tags/1.8.0 | \
+  && symbol_collector_url=$(curl -s https://api.github.com/repos/getsentry/symbol-collector/releases/tags/1.12.0 | \
   jq -r '.assets[].browser_download_url | select(endswith("symbolcollector-console-linux-x64.zip"))') \
   && curl -sL $symbol_collector_url -o "/tmp/sym-collector.zip" \
   && unzip /tmp/sym-collector.zip -d /usr/local/bin/ \
@@ -61,8 +78,7 @@ RUN curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/sta
 # craft does `git` things against mounted directories as root
 RUN git config --global --add safe.directory '*'
 
-COPY dist/craft /usr/local/bin/craft
-RUN chmod +x /usr/local/bin/craft
+COPY --from=builder /usr/local/lib/dist/craft /usr/local/bin/craft
 ARG SOURCE_COMMIT
 ENV CRAFT_BUILD_SHA=$SOURCE_COMMIT
 

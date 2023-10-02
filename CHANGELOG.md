@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.4
+
+### Various fixes & improvements
+
+- fix(brew): Replace version in artifact names with '__VERSION__' to access checksums from mustache (#488) by @romtsn
+
+## 1.4.3
+
+### Various fixes & improvements
+
+- fix typo (#487) by @asottile-sentry
+- fix branch trigger for image (#486) by @asottile-sentry
+- ref: build docker image using gha (#485) by @asottile-sentry
+
 ## 1.4.2
 
 ### Various fixes & improvements

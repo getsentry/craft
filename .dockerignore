@@ -4,5 +4,6 @@
 !/LICENSE
 !/README.md
 !/package.json
+!/scripts
+!/src
 !/yarn.lock
-!/dist
