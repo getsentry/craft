@@ -54,7 +54,7 @@ export function createSymlinks(
     versionGreaterOrEqualThan(parsedNewVersion, parsedOldVersion)
   ) {
     logger.debug(
-      `${parsedOldVersion ? 'Updating' : 'Adding'} symlink for "latest.json" ${
+      `Updating symlink "latest.json" ${
         parsedOldVersion ? `from ${oldVersion} ` : ''
       }to "${newVersion}"`
     );
@@ -62,10 +62,10 @@ export function createSymlinks(
   }
 
   // Read possibly existing symlinks for major and minor versions of the new version
-  const newVersionMajorSymlinkedVersion = getExistingSymlinkedVersion(
+  const existingLinkedMajorVersion = getExistingSymlinkedVersion(
     path.join(packageDir, `${parsedNewVersion.major}.json`)
   );
-  const newVersionMinorSymlinkedVersion = getExistingSymlinkedVersion(
+  const existingLinkedMinorVersion = getExistingSymlinkedVersion(
     path.join(
       packageDir,
       `${parsedNewVersion.major}.${parsedNewVersion.minor}.json`
@@ -75,16 +75,14 @@ export function createSymlinks(
   // link {major}.json if there's no link yet for that major
   // or if the new version is newer than the currently linked one
   if (
-    !newVersionMajorSymlinkedVersion ||
-    versionGreaterOrEqualThan(parsedNewVersion, newVersionMajorSymlinkedVersion)
+    !existingLinkedMajorVersion ||
+    versionGreaterOrEqualThan(parsedNewVersion, existingLinkedMajorVersion)
   ) {
     const majorVersionLink = `${parsedNewVersion.major}.json`;
     logger.debug(
-      `${
-        newVersionMajorSymlinkedVersion ? 'Updating' : 'Adding'
-      } symlink for "${majorVersionLink}" ${
-        newVersionMajorSymlinkedVersion
-          ? `from version "${semVerToString(newVersionMajorSymlinkedVersion)}" `
+      `Updating symlink "${majorVersionLink}" ${
+        existingLinkedMajorVersion
+          ? `from version "${semVerToString(existingLinkedMajorVersion)}" `
           : ''
       }to "${newVersion}"`
     );
@@ -94,16 +92,14 @@ export function createSymlinks(
   // link {minor}.json if there's no link yet for that minor
   // or if the new version is newer than the currently linked one
   if (
-    !newVersionMinorSymlinkedVersion ||
-    versionGreaterOrEqualThan(parsedNewVersion, newVersionMinorSymlinkedVersion)
+    !existingLinkedMinorVersion ||
+    versionGreaterOrEqualThan(parsedNewVersion, existingLinkedMinorVersion)
   ) {
     const minorVersionLink = `${parsedNewVersion.major}.${parsedNewVersion.minor}.json`;
     logger.debug(
-      `${
-        newVersionMinorSymlinkedVersion ? 'Updating' : 'Adding'
-      } symlink for "${minorVersionLink}" ${
-        newVersionMinorSymlinkedVersion
-          ? `from version "${semVerToString(newVersionMinorSymlinkedVersion)}" `
+      `Updating symlink "${minorVersionLink}" ${
+        existingLinkedMinorVersion
+          ? `from version "${semVerToString(existingLinkedMinorVersion)}" `
           : ''
       }to "${newVersion}"`
     );
@@ -115,10 +111,9 @@ function getExistingSymlinkedVersion(symlinkPath: string): SemVer | null {
   try {
     // using lstat instead of exists because broken symlinks return false for exists
     fs.lstatSync(symlinkPath);
-    const linkedFile = fs.readlinkSync(symlinkPath);
-    return parseVersion(path.basename(linkedFile));
   } catch {
     // this means the symlink doesn't exist
   }
-  return null;
+  const linkedFile = fs.readlinkSync(symlinkPath);
+  return parseVersion(path.basename(linkedFile));
 }

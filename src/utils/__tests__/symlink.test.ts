@@ -68,153 +68,101 @@ describe('createSymlinks', () => {
     }, true)
   );
 
-  describe('correctly handles already existing symlinks', () => {
-    it('when updating an old major version', async () =>
-      withTempDir(async tmpDir => {
-        // fill the directory with some "previous" versions and symlinks
-        // (we also need to also the concrete version file to avoid broken symlinks)
+  it('handles updating an old major version', async () =>
+    withTempDir(async tmpDir => {
+      // fill the directory with some "previous" versions and symlinks
+      // (we also need to also the concrete version file to avoid broken symlinks)
 
-        fs.writeFileSync(path.join(tmpDir, '1.0.0.json'), 'x');
-        createSymlinks(path.join(tmpDir, '1.0.0.json'), '1.0.0');
+      fs.writeFileSync(path.join(tmpDir, '1.0.0.json'), 'x');
+      createSymlinks(path.join(tmpDir, '1.0.0.json'), '1.0.0');
 
-        fs.writeFileSync(path.join(tmpDir, '2.0.0.json'), 'x');
-        createSymlinks(path.join(tmpDir, '2.0.0.json'), '2.0.0', '1.0.0');
+      fs.writeFileSync(path.join(tmpDir, '2.0.0.json'), 'x');
+      createSymlinks(path.join(tmpDir, '2.0.0.json'), '2.0.0', '1.0.0');
 
-        // now update 1.x (minor)
-        fs.writeFileSync(path.join(tmpDir, '1.5.0.json'), 'x');
-        createSymlinks(path.join(tmpDir, '1.5.0.json'), '1.5.0', '2.0.0');
+      // now update 1.x (minor)
+      fs.writeFileSync(path.join(tmpDir, '1.5.0.json'), 'x');
+      createSymlinks(path.join(tmpDir, '1.5.0.json'), '1.5.0', '2.0.0');
 
-        // now update a version in between 1.x and 1.5.x
-        fs.writeFileSync(path.join(tmpDir, '1.2.0.json'), 'x');
-        createSymlinks(path.join(tmpDir, '1.2.0.json'), '1.2.0', '2.0.0');
+      // now update a version in between 1.x and 1.5.x
+      fs.writeFileSync(path.join(tmpDir, '1.2.0.json'), 'x');
+      createSymlinks(path.join(tmpDir, '1.2.0.json'), '1.2.0', '2.0.0');
 
-        // now update 1.5.x (patch)
-        fs.writeFileSync(path.join(tmpDir, '1.5.1.json'), 'x');
-        createSymlinks(path.join(tmpDir, '1.5.1.json'), '1.5.1', '2.0.0');
+      // now update 1.5.x (patch)
+      fs.writeFileSync(path.join(tmpDir, '1.5.1.json'), 'x');
+      createSymlinks(path.join(tmpDir, '1.5.1.json'), '1.5.1', '2.0.0');
 
-        const filesInDir = await fsPromises.readdir(tmpDir);
-        expect(filesInDir.sort()).toStrictEqual(
-          [
-            '1.0.0.json',
-            '1.2.0.json',
-            '1.5.0.json',
-            '1.5.1.json',
-            '2.0.0.json',
+      const filesInDir = await fsPromises.readdir(tmpDir);
+      expect(filesInDir.sort()).toStrictEqual(
+        [
+          '1.0.0.json',
+          '1.2.0.json',
+          '1.5.0.json',
+          '1.5.1.json',
+          '2.0.0.json',
 
-            '1.json',
-            '2.json',
+          '1.json',
+          '2.json',
 
-            '1.0.json',
-            '1.2.json',
-            '1.5.json',
-            '2.0.json',
+          '1.0.json',
+          '1.2.json',
+          '1.5.json',
+          '2.0.json',
 
-            'latest.json',
-          ].sort()
-        );
+          'latest.json',
+        ].sort()
+      );
 
-        const latestLink = await fsPromises.readlink(
-          path.join(tmpDir, 'latest.json')
-        );
-        const major1Link = await fsPromises.readlink(
-          path.join(tmpDir, '1.json')
-        );
-        const major2Link = await fsPromises.readlink(
-          path.join(tmpDir, '2.json')
-        );
-        const minor10Link = await fsPromises.readlink(
-          path.join(tmpDir, '1.0.json')
-        );
-        const minor12Link = await fsPromises.readlink(
-          path.join(tmpDir, '1.2.json')
-        );
-        const minor15Link = await fsPromises.readlink(
-          path.join(tmpDir, '1.5.json')
-        );
-        const minor20Link = await fsPromises.readlink(
-          path.join(tmpDir, '2.0.json')
-        );
+      const latestLink = await fsPromises.readlink(
+        path.join(tmpDir, 'latest.json')
+      );
+      const major1Link = await fsPromises.readlink(path.join(tmpDir, '1.json'));
+      const major2Link = await fsPromises.readlink(path.join(tmpDir, '2.json'));
+      const minor10Link = await fsPromises.readlink(
+        path.join(tmpDir, '1.0.json')
+      );
+      const minor12Link = await fsPromises.readlink(
+        path.join(tmpDir, '1.2.json')
+      );
+      const minor15Link = await fsPromises.readlink(
+        path.join(tmpDir, '1.5.json')
+      );
+      const minor20Link = await fsPromises.readlink(
+        path.join(tmpDir, '2.0.json')
+      );
 
-        expect(latestLink).toBe('2.0.0.json');
+      expect(latestLink).toBe('2.0.0.json');
 
-        expect(major1Link).toBe('1.5.1.json');
-        expect(major2Link).toBe('2.0.0.json');
+      expect(major1Link).toBe('1.5.1.json');
+      expect(major2Link).toBe('2.0.0.json');
 
-        expect(minor10Link).toBe('1.0.0.json');
-        expect(minor12Link).toBe('1.2.0.json');
-        expect(minor15Link).toBe('1.5.1.json');
-        expect(minor20Link).toBe('2.0.0.json');
-      }, true));
+      expect(minor10Link).toBe('1.0.0.json');
+      expect(minor12Link).toBe('1.2.0.json');
+      expect(minor15Link).toBe('1.5.1.json');
+      expect(minor20Link).toBe('2.0.0.json');
+    }, true));
 
-    it('when updating a previous minor version on the same major', async () =>
-      withTempDir(async tmpDir => {
-        fs.writeFileSync(path.join(tmpDir, '1.0.0.json'), 'x');
-        createSymlinks(path.join(tmpDir, '1.0.0.json'), '1.0.0');
-
-        fs.writeFileSync(path.join(tmpDir, '1.1.0.json'), 'x');
-        createSymlinks(path.join(tmpDir, '1.1.0.json'), '1.1.0', '1.0.0');
-
-        fs.writeFileSync(path.join(tmpDir, '1.0.1.json'), 'x');
-        createSymlinks(path.join(tmpDir, '1.0.1.json'), '1.0.1', '1.1.0');
-
-        const filesInDir = await fsPromises.readdir(tmpDir);
-        expect(filesInDir.sort()).toStrictEqual(
-          [
-            '1.0.0.json',
-            '1.0.1.json',
-            '1.1.0.json',
-
-            '1.json',
-
-            '1.0.json',
-            '1.1.json',
-
-            'latest.json',
-          ].sort()
-        );
-
-        const latestLink = await fsPromises.readlink(
-          path.join(tmpDir, 'latest.json')
-        );
-        const major1Link = await fsPromises.readlink(
-          path.join(tmpDir, '1.json')
-        );
-        const minor10Link = await fsPromises.readlink(
-          path.join(tmpDir, '1.0.json')
-        );
-        const minor11Link = await fsPromises.readlink(
-          path.join(tmpDir, '1.1.json')
-        );
-
-        expect(latestLink).toBe('1.1.0.json');
-        expect(major1Link).toBe('1.1.0.json');
-        expect(minor10Link).toBe('1.0.1.json');
-        expect(minor11Link).toBe('1.1.0.json');
-      }, true));
-  });
-
-  // This is quite an edge case but nevertheless good to know it's covered:
-  it('when updating a previous patch version on the same minor', async () =>
+  it('handles updating a previous minor version on the same major', async () =>
     withTempDir(async tmpDir => {
       fs.writeFileSync(path.join(tmpDir, '1.0.0.json'), 'x');
       createSymlinks(path.join(tmpDir, '1.0.0.json'), '1.0.0');
 
-      fs.writeFileSync(path.join(tmpDir, '1.0.2.json'), 'x');
-      createSymlinks(path.join(tmpDir, '1.0.2.json'), '1.0.2', '1.0.0');
+      fs.writeFileSync(path.join(tmpDir, '1.1.0.json'), 'x');
+      createSymlinks(path.join(tmpDir, '1.1.0.json'), '1.1.0', '1.0.0');
 
       fs.writeFileSync(path.join(tmpDir, '1.0.1.json'), 'x');
-      createSymlinks(path.join(tmpDir, '1.0.1.json'), '1.0.1', '1.0.2');
+      createSymlinks(path.join(tmpDir, '1.0.1.json'), '1.0.1', '1.1.0');
 
       const filesInDir = await fsPromises.readdir(tmpDir);
       expect(filesInDir.sort()).toStrictEqual(
         [
           '1.0.0.json',
           '1.0.1.json',
-          '1.0.2.json',
+          '1.1.0.json',
 
           '1.json',
 
           '1.0.json',
+          '1.1.json',
 
           'latest.json',
         ].sort()
@@ -227,9 +175,53 @@ describe('createSymlinks', () => {
       const minor10Link = await fsPromises.readlink(
         path.join(tmpDir, '1.0.json')
       );
+      const minor11Link = await fsPromises.readlink(
+        path.join(tmpDir, '1.1.json')
+      );
 
-      expect(latestLink).toBe('1.0.2.json');
-      expect(major1Link).toBe('1.0.2.json');
-      expect(minor10Link).toBe('1.0.2.json');
-    }));
+      expect(latestLink).toBe('1.1.0.json');
+      expect(major1Link).toBe('1.1.0.json');
+      expect(minor10Link).toBe('1.0.1.json');
+      expect(minor11Link).toBe('1.1.0.json');
+    }, true));
 });
+
+// This is quite an edge case but nevertheless good to know it's covered:
+it('handles updating a previous patch version on the same minor', async () =>
+  withTempDir(async tmpDir => {
+    fs.writeFileSync(path.join(tmpDir, '1.0.0.json'), 'x');
+    createSymlinks(path.join(tmpDir, '1.0.0.json'), '1.0.0');
+
+    fs.writeFileSync(path.join(tmpDir, '1.0.2.json'), 'x');
+    createSymlinks(path.join(tmpDir, '1.0.2.json'), '1.0.2', '1.0.0');
+
+    fs.writeFileSync(path.join(tmpDir, '1.0.1.json'), 'x');
+    createSymlinks(path.join(tmpDir, '1.0.1.json'), '1.0.1', '1.0.2');
+
+    const filesInDir = await fsPromises.readdir(tmpDir);
+    expect(filesInDir.sort()).toStrictEqual(
+      [
+        '1.0.0.json',
+        '1.0.1.json',
+        '1.0.2.json',
+
+        '1.json',
+
+        '1.0.json',
+
+        'latest.json',
+      ].sort()
+    );
+
+    const latestLink = await fsPromises.readlink(
+      path.join(tmpDir, 'latest.json')
+    );
+    const major1Link = await fsPromises.readlink(path.join(tmpDir, '1.json'));
+    const minor10Link = await fsPromises.readlink(
+      path.join(tmpDir, '1.0.json')
+    );
+
+    expect(latestLink).toBe('1.0.2.json');
+    expect(major1Link).toBe('1.0.2.json');
+    expect(minor10Link).toBe('1.0.2.json');
+  }));
