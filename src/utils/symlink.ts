@@ -53,11 +53,10 @@ export function createSymlinks(
     !parsedOldVersion ||
     versionGreaterOrEqualThan(parsedNewVersion, parsedOldVersion)
   ) {
-    logger.debug(
-      `Updating symlink "latest.json" ${
-        parsedOldVersion ? `from ${oldVersion} ` : ''
-      }to "${newVersion}"`
-    );
+    logger.debug('Symlink "latest.json"', {
+      before: oldVersion,
+      after: newVersion,
+    });
     forceSymlink(baseVersionName, path.join(packageDir, 'latest.json'));
   }
 
@@ -79,13 +78,12 @@ export function createSymlinks(
     versionGreaterOrEqualThan(parsedNewVersion, existingLinkedMajorVersion)
   ) {
     const majorVersionLink = `${parsedNewVersion.major}.json`;
-    logger.debug(
-      `Updating symlink "${majorVersionLink}" ${
-        existingLinkedMajorVersion
-          ? `from version "${semVerToString(existingLinkedMajorVersion)}" `
-          : ''
-      }to "${newVersion}"`
-    );
+    logger.debug(`Symlink "${majorVersionLink}"`, {
+      before:
+        existingLinkedMajorVersion &&
+        semVerToString(existingLinkedMajorVersion),
+      after: newVersion,
+    });
     forceSymlink(baseVersionName, path.join(packageDir, majorVersionLink));
   }
 
@@ -96,13 +94,12 @@ export function createSymlinks(
     versionGreaterOrEqualThan(parsedNewVersion, existingLinkedMinorVersion)
   ) {
     const minorVersionLink = `${parsedNewVersion.major}.${parsedNewVersion.minor}.json`;
-    logger.debug(
-      `Updating symlink "${minorVersionLink}" ${
-        existingLinkedMinorVersion
-          ? `from version "${semVerToString(existingLinkedMinorVersion)}" `
-          : ''
-      }to "${newVersion}"`
-    );
+    logger.debug(`Symlink "${minorVersionLink}"`, {
+      before:
+        existingLinkedMinorVersion &&
+        semVerToString(existingLinkedMinorVersion),
+      after: newVersion,
+    });
     forceSymlink(baseVersionName, path.join(packageDir, minorVersionLink));
   }
 }
@@ -113,6 +110,7 @@ function getExistingSymlinkedVersion(symlinkPath: string): SemVer | null {
     fs.lstatSync(symlinkPath);
   } catch {
     // this means the symlink doesn't exist
+    return null;
   }
   const linkedFile = fs.readlinkSync(symlinkPath);
   return parseVersion(path.basename(linkedFile));
