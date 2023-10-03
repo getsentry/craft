@@ -7,6 +7,7 @@ import {
   isValidVersion,
   parseVersion,
   SemVer,
+  semVerToString,
   versionGreaterOrEqualThan,
 } from '../version';
 
@@ -201,4 +202,30 @@ describe('getPackageVersion', () => {
     const version = getPackage().version;
     expect(isValidVersion(version)).toBe(true);
   });
+});
+
+describe('semVerToString', () => {
+  test.each([
+    ['basic', { major: 1, minor: 2, patch: 3 }, '1.2.3'],
+    [
+      'with pre-release',
+      { major: 1, minor: 2, patch: 3, pre: 'beta.1' },
+      '1.2.3-beta.1',
+    ],
+    [
+      'with build metadata',
+      { major: 1, minor: 2, patch: 3, build: 'linux' },
+      '1.2.3+linux',
+    ],
+    [
+      'with pre-release and build metadata',
+      { major: 1, minor: 2, patch: 3, pre: 'beta.1', build: 'linux' },
+      '1.2.3-beta.1+linux',
+    ],
+  ])(
+    'converts a SemVer object (%s) to a string',
+    (_, semver, expectedString) => {
+      expect(semVerToString(semver)).toBe(expectedString);
+    }
+  );
 });
