@@ -155,3 +155,12 @@ export function getPackageVersion(): string {
 
   return buildInfo ? `${version} (${buildInfo})` : version;
 }
+
+/**
+ * Returns the stringified version of the passed SemVer object.
+ */
+export function semVerToString(s: SemVer) {
+  return `${s.major}.${s.minor}.${s.patch}${s.pre ? `-${s.pre}` : ''}${
+    s.build ? `+${s.build}` : ''
+  }`;
+}

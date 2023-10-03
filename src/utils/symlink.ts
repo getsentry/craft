@@ -3,7 +3,12 @@ import * as path from 'path';
 
 import { logger } from '../logger';
 import { ConfigurationError } from './errors';
-import { parseVersion, versionGreaterOrEqualThan } from './version';
+import {
+  SemVer,
+  parseVersion,
+  semVerToString,
+  versionGreaterOrEqualThan,
+} from './version';
 
 /**
  * Creates a symlink, overwriting the existing one
@@ -21,8 +26,9 @@ function forceSymlink(target: string, newFile: string): void {
 /**
  * Create symbolic links to the new version file
  *
- * "latest.json" and "{major}.json" links are not updated if the new version is "older" (e.g., it's
- * a patch release for an older major version).
+ * "latest.json", "{major}.json" and "{minor}.json" links are respectively not
+ * updated if the new version is "older" (e.g., it's a patch release for an
+ * older major version) than the currently linked versions.
  *
  * @param versionFilePath Path to the new version file
  * @param newVersion The new version
@@ -39,35 +45,80 @@ export function createSymlinks(
   }
   const parsedOldVersion =
     (oldVersion ? parseVersion(oldVersion) : undefined) || undefined;
+
   const baseVersionName = path.basename(versionFilePath);
   const packageDir = path.dirname(versionFilePath);
 
-  // link latest.json and {major}.json, but only if the new version is "newer"
   if (
-    parsedOldVersion &&
-    !versionGreaterOrEqualThan(parsedNewVersion, parsedOldVersion)
+    !parsedOldVersion ||
+    versionGreaterOrEqualThan(parsedNewVersion, parsedOldVersion)
   ) {
-    logger.warn(
-      `Not updating the latest version file: current version is "${oldVersion}", new version is "${newVersion}"`
-    );
-    logger.warn(
-      `Not updating the major version file: current version is "${oldVersion}", new version is "${newVersion}"`
-    );
-  } else {
     logger.debug(
-      `Changing symlink for "latest.json" from version "${oldVersion}" to "${newVersion}"`
+      `${parsedOldVersion ? 'Updating' : 'Adding'} symlink for "latest.json" ${
+        parsedOldVersion ? `from ${oldVersion} ` : ''
+      }to "${newVersion}"`
     );
     forceSymlink(baseVersionName, path.join(packageDir, 'latest.json'));
+  }
 
+  // Read possibly existing symlinks for major and minor versions of the new version
+  const newVersionMajorSymlinkedVersion = getExistingSymlinkedVersion(
+    path.join(packageDir, `${parsedNewVersion.major}.json`)
+  );
+  const newVersionMinorSymlinkedVersion = getExistingSymlinkedVersion(
+    path.join(
+      packageDir,
+      `${parsedNewVersion.major}.${parsedNewVersion.minor}.json`
+    )
+  );
 
-    logger.debug(
-      `Changing symlink for "{major}.json" from version "${oldVersion}" to "${newVersion}"`
-    );
+  // link {major}.json if there's no link yet for that major
+  // or if the new version is newer than the currently linked one
+  if (
+    !newVersionMajorSymlinkedVersion ||
+    versionGreaterOrEqualThan(parsedNewVersion, newVersionMajorSymlinkedVersion)
+  ) {
     const majorVersionLink = `${parsedNewVersion.major}.json`;
+    logger.debug(
+      `${
+        newVersionMajorSymlinkedVersion ? 'Updating' : 'Adding'
+      } symlink for "${majorVersionLink}" ${
+        newVersionMajorSymlinkedVersion
+          ? `from version "${semVerToString(newVersionMajorSymlinkedVersion)}" `
+          : ''
+      }to "${newVersion}"`
+    );
     forceSymlink(baseVersionName, path.join(packageDir, majorVersionLink));
   }
 
-  // link minor
-  const minorVersionLink = `${parsedNewVersion.major}.${parsedNewVersion.minor}.json`;
-  forceSymlink(baseVersionName, path.join(packageDir, minorVersionLink));
+  // link {minor}.json if there's no link yet for that minor
+  // or if the new version is newer than the currently linked one
+  if (
+    !newVersionMinorSymlinkedVersion ||
+    versionGreaterOrEqualThan(parsedNewVersion, newVersionMinorSymlinkedVersion)
+  ) {
+    const minorVersionLink = `${parsedNewVersion.major}.${parsedNewVersion.minor}.json`;
+    logger.debug(
+      `${
+        newVersionMinorSymlinkedVersion ? 'Updating' : 'Adding'
+      } symlink for "${minorVersionLink}" ${
+        newVersionMinorSymlinkedVersion
+          ? `from version "${semVerToString(newVersionMinorSymlinkedVersion)}" `
+          : ''
+      }to "${newVersion}"`
+    );
+    forceSymlink(baseVersionName, path.join(packageDir, minorVersionLink));
+  }
+}
+
+function getExistingSymlinkedVersion(symlinkPath: string): SemVer | null {
+  try {
+    // using lstat instead of exists because broken symlinks return false for exists
+    fs.lstatSync(symlinkPath);
+    const linkedFile = fs.readlinkSync(symlinkPath);
+    return parseVersion(path.basename(linkedFile));
+  } catch {
+    // this means the symlink doesn't exist
+  }
+  return null;
 }
