@@ -5,6 +5,7 @@ import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { BaseTarget } from './base';
 import childProcess from 'child_process';
+import { isDryRun } from 'src/utils/helpers';
 
 interface GitRepositoryTargetConfig {
   archive: string;
@@ -98,21 +99,29 @@ export class GitRepositoryTarget extends BaseTarget {
         await git.raw('add', '--all');
 
         this.logger.info(`Creating commit...`);
-        await git.commit(`release: ${version}`);
+        if (!isDryRun()) {
+          await git.commit(`release: ${version}`);
+        }
 
         if (createTag) {
           this.logger.info(`Adding a tag "${version}"...`);
-          await git.addTag(version);
+          if (!isDryRun()) {
+            await git.addTag(version);
+          }
         } else {
           this.logger.info(`Not adding a tag because it was disabled.`);
         }
 
         this.logger.info(`Pushing changes to repository...`);
-        await git.raw('push', '--force');
+        if (!isDryRun()) {
+          await git.raw('push', '--force');
+        }
 
         if (createTag) {
           this.logger.info(`Pushing tag...`);
-          await git.pushTags();
+          if (!isDryRun()) {
+            await git.pushTags();
+          }
         }
       },
       true,
