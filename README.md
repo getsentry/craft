@@ -57,7 +57,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Symbol Collector (`symbol-collector`)](#symbol-collector-symbol-collector)
   - [pub.dev (`pub-dev`)](#pubdev-pub-dev)
   - [Hex (`hex`)](#hex-hex)
-  - [Git Repository (`git-repository`)](#git-repository-git-repository)
+  - [Commit on Git Repository (`commit-on-git-repository`)](#git-repository-commit-on-git-repository)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Post-release Script: Conventions](#post-release-script-conventions)
@@ -1194,7 +1194,7 @@ targets:
   - name: hex
 ```
 
-### Git Repository (`git-repository`)
+### Git Repository (`commit-on-git-repository`)
 
 Takes a tarball and pushes the contents to a git repository.
 
@@ -1212,7 +1212,7 @@ Takes a tarball and pushes the contents to a git repository.
 
 ```yaml
 targets:
-  - name: git-repository
+  - name: commit-on-git-repository
     archive: /^sentry-deno-\d.*\.tgz$/
     repositoryUrl: git@github.com:getsentry/sentry-deno.git
     stripComponents: 1

@@ -18,9 +18,9 @@ interface GitRepositoryTargetConfig {
 /**
  * Target responsible for pushing code to a git repository.
  */
-export class GitRepositoryTarget extends BaseTarget {
+export class CommitOnGitRepositoryTarget extends BaseTarget {
   /** Target name */
-  public readonly name: string = 'git-repository';
+  public readonly name: string = 'commit-on-git-repository';
 
   public constructor(
     config: TargetConfig,
