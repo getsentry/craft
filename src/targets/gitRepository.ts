@@ -44,10 +44,10 @@ export class GitRepositoryTarget extends BaseTarget {
       stripComponents,
     } = this.getGitRepositoryTargetConfig();
 
-    this.logger.debug('Finding archive...');
+    this.logger.info(`Finding archive with regexp "${archive}"...`);
 
     const archives = await this.getArtifactsForRevision(revision, {
-      includeNames: new RegExp(archive),
+      includeNames: archive,
     });
 
     if (archives.length === 0) {
