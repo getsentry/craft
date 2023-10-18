@@ -1202,7 +1202,7 @@ Takes a tarball and pushes the contents to a git repository.
 
 | Option            | Description                                                                                                                                                                    |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `archive`         | Regular expression to match a `.tgz` file. The content of the found file will be pushed to the git repository. Needs to match exactly one file.                                |
+| `archive`         | Regular expression to match a `.tgz` file in the build artifacts. The content of the found file will be pushed to the git repository. Needs to match exactly one file.         |
 | `repositoryUrl`   | Url to the git remote git repository.                                                                                                                                          |
 | `branch`          | Which repository branch to push to.                                                                                                                                            |
 | `stripComponents` | **optional**. How many leading path elements should be removed when unpacking the tarball. Default: 0 (see `tar --strip-components` option)                                    |
