@@ -5,7 +5,8 @@ import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { BaseTarget } from './base';
 import childProcess from 'child_process';
-import { isDryRun } from 'src/utils/helpers';
+import type { Consola } from 'consola';
+import { isDryRun } from '../utils/helpers';
 
 interface GitRepositoryTargetConfig {
   archive: string;
@@ -68,65 +69,15 @@ export class CommitOnGitRepositoryTarget extends BaseTarget {
 
     this.logger.info('Downloading archive complete');
 
-    await withTempDir(
-      async directory => {
-        const git = simpleGit(directory);
-
-        this.logger.info(`Cloning ${repositoryUrl} into ${directory}...`);
-        await git.clone(repositoryUrl, directory);
-
-        this.logger.info(`Checking out branch "${branch}"...`);
-        await git.checkout(branch);
-
-        this.logger.info(`Remove previous files...`);
-        await git.raw('rm', '-r', '.');
-
-        if (stripComponents && stripComponents > 0) {
-          this.logger.info(
-            `Defined --strip-components depth as ${stripComponents}`
-          );
-        }
-        this.logger.info(`Unpack tarball archive at "${archivePath}"...`);
-        const stripComponentsArg =
-          stripComponents && stripComponents > 0
-            ? ` --strip-components ${stripComponents}`
-            : '';
-        childProcess.execSync(`tar -zxvf ${archivePath}${stripComponentsArg}`, {
-          cwd: directory,
-        });
-
-        this.logger.info(`Staging files...`);
-        await git.raw('add', '--all');
-
-        this.logger.info(`Creating commit...`);
-        if (!isDryRun()) {
-          await git.commit(`release: ${version}`);
-        }
-
-        if (createTag) {
-          this.logger.info(`Adding a tag "${version}"...`);
-          if (!isDryRun()) {
-            await git.addTag(version);
-          }
-        } else {
-          this.logger.info(`Not adding a tag because it was disabled.`);
-        }
-
-        this.logger.info(`Pushing changes to repository...`);
-        if (!isDryRun()) {
-          await git.raw('push', '--force');
-        }
-
-        if (createTag) {
-          this.logger.info(`Pushing tag...`);
-          if (!isDryRun()) {
-            await git.pushTags();
-          }
-        }
-      },
-      true,
-      'craft-git-repository-target-'
-    );
+    await pushArchiveToGitRepository({
+      archivePath,
+      branch,
+      createTag,
+      repositoryUrl,
+      stripComponents,
+      version,
+      logger: this.logger,
+    });
   }
 
   private getGitRepositoryTargetConfig(): GitRepositoryTargetConfig {
@@ -156,4 +107,83 @@ export class CommitOnGitRepositoryTarget extends BaseTarget {
       stripComponents: this.config['stripComponents'],
     };
   }
+}
+
+/**
+ * Just a function that we can test
+ */
+export async function pushArchiveToGitRepository({
+  repositoryUrl,
+  branch,
+  stripComponents,
+  archivePath,
+  version,
+  createTag,
+  logger,
+}: {
+  repositoryUrl: string;
+  branch: string;
+  stripComponents: number | undefined;
+  archivePath: string;
+  version: string;
+  createTag: boolean;
+  logger?: Consola;
+}) {
+  await withTempDir(
+    async directory => {
+      const git = simpleGit(directory);
+
+      logger?.info(`Cloning ${repositoryUrl} into ${directory}...`);
+      await git.clone(repositoryUrl, directory);
+
+      logger?.info(`Checking out branch "${branch}"...`);
+      await git.checkout(branch);
+
+      logger?.info(`Remove previous files...`);
+      await git.raw('rm', '-r', '.');
+
+      if (stripComponents && stripComponents > 0) {
+        logger?.info(`Defined --strip-components depth as ${stripComponents}`);
+      }
+      logger?.info(`Unpack tarball archive at "${archivePath}"...`);
+      const stripComponentsArg =
+        stripComponents && stripComponents > 0
+          ? ` --strip-components ${stripComponents}`
+          : '';
+      childProcess.execSync(`tar -zxvf ${archivePath}${stripComponentsArg}`, {
+        cwd: directory,
+      });
+
+      logger?.info(`Staging files...`);
+      await git.raw('add', '--all');
+
+      logger?.info(`Creating commit...`);
+      if (!isDryRun()) {
+        await git.commit(`release: ${version}`);
+      }
+
+      if (createTag) {
+        logger?.info(`Adding a tag "${version}"...`);
+        if (!isDryRun()) {
+          await git.addTag(version);
+        }
+      } else {
+        logger?.info(`Not adding a tag because it was disabled.`);
+      }
+
+      logger?.info(`Pushing changes to repository...`);
+      if (!isDryRun()) {
+        await git.raw('push', '--force');
+      }
+
+      if (createTag) {
+        logger?.info(`Pushing tag...`);
+        if (!isDryRun()) {
+          await git.pushTags();
+        }
+      }
+    },
+    true,
+    'craft-git-repository-target-'
+  );
 }
