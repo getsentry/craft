@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.0
+
+### Various fixes & improvements
+
+- feat: Add `commit-on-git-repository` target (#492) by @lforst
+- build(deps): bump semver from 6.3.0 to 6.3.1 (#470) by @dependabot
+- build(deps): bump @babel/traverse from 7.22.5 to 7.23.2 (#494) by @dependabot
+- ref: remove volta from CI (#493) by @asottile-sentry
+- fix: Handle `{major}.json` and `{minor}.json`  symlinks when publishing older versions (#483) by @cleptric
+- Bump symbol collector 1.12.0 (#491) by @bruno-garcia
+
 ## 1.4.4
 
 ### Various fixes & improvements
