@@ -1194,7 +1194,7 @@ targets:
   - name: hex
 ```
 
-### Git Repository (`commit-on-git-repository`)
+### Commit on Git Repository (`commit-on-git-repository`)
 
 Takes a tarball and pushes the contents to a git repository.
 
