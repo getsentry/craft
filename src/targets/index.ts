@@ -18,6 +18,7 @@ import { MavenTarget } from './maven';
 import { SymbolCollector } from './symbolCollector';
 import { PubDevTarget } from './pubDev';
 import { HexTarget } from './hex';
+import { CommitOnGitRepositoryTarget } from './commitOnGitRepository';
 
 export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   brew: BrewTarget,
@@ -39,6 +40,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   'symbol-collector': SymbolCollector,
   'pub-dev': PubDevTarget,
   hex: HexTarget,
+  'commit-on-git-repository': CommitOnGitRepositoryTarget,
 };
 
 /** Targets that are treated specially */

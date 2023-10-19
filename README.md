@@ -57,6 +57,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
   - [Symbol Collector (`symbol-collector`)](#symbol-collector-symbol-collector)
   - [pub.dev (`pub-dev`)](#pubdev-pub-dev)
   - [Hex (`hex`)](#hex-hex)
+  - [Commit on Git Repository (`commit-on-git-repository`)](#git-repository-commit-on-git-repository)
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Post-release Script: Conventions](#post-release-script-conventions)
@@ -1049,14 +1050,14 @@ Note: in order to see the output of the commands, set the [logging level](#loggi
 
 **Configuration**
 
-| Option                | Description                                                          |
-| --------------------- | -------------------------------------------------------------------- |
-| `mavenCliPath`        | Path to the Maven CLI. It must be executable by the calling process. |
-| `mavenSettingsPath`   | Path to the Maven `settings.xml` file.                               |
-| `mavenRepoId`         | ID of the Maven server in the `settings.xml`.                        |
-| `mavenRepoUrl`        | URL of the Maven repository.                                         |
-| `android`             | Android configuration, see below.                                    |
-| `kmp` | Kotlin Multiplatform configuration, see below.                       |
+| Option              | Description                                                          |
+| ------------------- | -------------------------------------------------------------------- |
+| `mavenCliPath`      | Path to the Maven CLI. It must be executable by the calling process. |
+| `mavenSettingsPath` | Path to the Maven `settings.xml` file.                               |
+| `mavenRepoId`       | ID of the Maven server in the `settings.xml`.                        |
+| `mavenRepoUrl`      | URL of the Maven repository.                                         |
+| `android`           | Android configuration, see below.                                    |
+| `kmp`               | Kotlin Multiplatform configuration, see below.                       |
 
 The Kotlin Multiplatform configuration is optional and `false` by default.
 If your project isn't related to Android, you don't need this configuration and
@@ -1094,6 +1095,7 @@ targets:
 ```
 
 **Example (with Kotlin Multiplatform config)**
+
 ```yaml
 targets:
   - name: maven
@@ -1177,7 +1179,7 @@ Pushes a package to the Elixir / Erlang package manager [Hex](https://hex.pm).
 `mix` (bundled with the `elixir` language) must be installed on the system.
 
 | Name          | Description                                               |
-| ---------     | --------------------------------------------------------- |
+| ------------- | --------------------------------------------------------- |
 | `HEX_API_KEY` | API Key obtained from hex.pm account                      |
 | `MIX_BIN`     | **optional**. Path to "mix" executable. Defaults to `mix` |
 
@@ -1190,6 +1192,32 @@ _none_
 ```yaml
 targets:
   - name: hex
+```
+
+### Commit on Git Repository (`commit-on-git-repository`)
+
+Takes a tarball and pushes the unpacked contents to a git repository.
+
+**Configuration**
+
+| Option            | Description                                                                                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `archive`         | Regular expression to match a `.tgz` file in the build artifacts. The content of the found file will be pushed to the git repository. Needs to match exactly one file.         |
+| `repositoryUrl`   | Url to the git remote git repository.                                                                                                                                          |
+| `branch`          | Which repository branch to push to.                                                                                                                                            |
+| `stripComponents` | **optional**. How many leading path elements should be removed when unpacking the tarball. Default: 0 (see `tar --strip-components` option)                                    |
+| `createTag`       | **optional**. Whether to attach a tag to the created commit. The content of the tag is gonna be equal to the release version passed to craft ("NEW-VERSION"). Default: `false` |
+
+**Example**
+
+```yaml
+targets:
+  - name: commit-on-git-repository
+    archive: /^sentry-deno-\d.*\.tgz$/
+    repositoryUrl: git@github.com:getsentry/sentry-deno.git
+    stripComponents: 1
+    branch: main
+    createTag: true
 ```
 
 ## Integrating Your Project with `craft`
