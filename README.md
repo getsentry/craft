@@ -1196,7 +1196,7 @@ targets:
 
 ### Commit on Git Repository (`commit-on-git-repository`)
 
-Takes a tarball and pushes the contents to a git repository.
+Takes a tarball and pushes the unpacked contents to a git repository.
 
 **Configuration**
 
