@@ -1,4 +1,11 @@
 import { pushArchiveToGitRepository } from '../commitOnGitRepository';
+import childProcess from 'child_process';
+
+const execSyncSpy = jest.spyOn(childProcess, 'execSync');
+
+execSyncSpy.mockImplementationOnce(() => {
+  return Buffer.from('noop');
+});
 
 const mockClone = jest.fn();
 const mockCheckout = jest.fn();
@@ -6,9 +13,6 @@ const mockRaw = jest.fn();
 const mockCommit = jest.fn();
 const mockAddTag = jest.fn();
 const mockPushTags = jest.fn();
-
-// eslint-disable-next-line no-var
-var mockExecSync: jest.Mock;
 
 jest.mock('simple-git', () => () => ({
   clone: mockClone,
@@ -18,10 +22,6 @@ jest.mock('simple-git', () => () => ({
   addTag: mockAddTag,
   pushTags: mockPushTags,
 }));
-jest.mock('child_process', () => {
-  mockExecSync = jest.fn();
-  return { execSync: mockExecSync };
-});
 
 test('Basic commit-on-git-repository functionality', async () => {
   await pushArchiveToGitRepository({
@@ -39,7 +39,7 @@ test('Basic commit-on-git-repository functionality', async () => {
   );
   expect(mockCheckout).toHaveBeenCalledWith('main');
   expect(mockRaw).toHaveBeenCalledWith('rm', '-r', '.');
-  expect(mockExecSync).toHaveBeenCalledWith(
+  expect(execSyncSpy).toHaveBeenCalledWith(
     'tar -zxvf /tmp/my-archive.tgz --strip-components 1',
     expect.objectContaining({ cwd: expect.any(String) })
   );
