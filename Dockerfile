@@ -43,6 +43,8 @@ RUN apt-get -qq update \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
+COPY Gemfile Gemfile.lock ./
+
 RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
   && dpkg -i /tmp/packages-microsoft-prod.deb \
   && rm /tmp/packages-microsoft-prod.deb \

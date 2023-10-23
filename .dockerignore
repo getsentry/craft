@@ -7,3 +7,5 @@
 !/scripts
 !/src
 !/yarn.lock
+!/Gemfile
+!/Gemfile.lock
