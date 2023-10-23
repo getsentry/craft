@@ -3,16 +3,11 @@ import childProcess from 'child_process';
 
 const execSyncSpy = jest.spyOn(childProcess, 'execSync');
 
-execSyncSpy.mockImplementationOnce(() => {
-  return Buffer.from('noop');
-});
-
 const mockClone = jest.fn();
 const mockCheckout = jest.fn();
 const mockRaw = jest.fn();
 const mockCommit = jest.fn();
 const mockAddTag = jest.fn();
-const mockPushTags = jest.fn();
 
 jest.mock('simple-git', () => () => ({
   clone: mockClone,
@@ -20,21 +15,24 @@ jest.mock('simple-git', () => () => ({
   raw: mockRaw,
   commit: mockCommit,
   addTag: mockAddTag,
-  pushTags: mockPushTags,
 }));
 
 test('Basic commit-on-git-repository functionality', async () => {
+  execSyncSpy.mockImplementationOnce(() => {
+    return Buffer.from('noop');
+  });
+
   await pushArchiveToGitRepository({
     archivePath: '/tmp/my-archive.tgz',
     branch: 'main',
     createTag: true,
-    repositoryUrl: 'git@github.com:getsentry/craft-test-repo.git',
+    repositoryUrl: 'https://github.com/getsentry/sentry-deno',
     stripComponents: 1,
     version: '1.2.3',
   });
 
   expect(mockClone).toHaveBeenCalledWith(
-    'git@github.com:getsentry/craft-test-repo.git',
+    'https://github.com/getsentry/sentry-deno',
     expect.any(String)
   );
   expect(mockCheckout).toHaveBeenCalledWith('main');
@@ -46,6 +44,60 @@ test('Basic commit-on-git-repository functionality', async () => {
   expect(mockRaw).toHaveBeenCalledWith('add', '--all');
   expect(mockCommit).toHaveBeenCalledWith('release: 1.2.3');
   expect(mockAddTag).toHaveBeenCalledWith('1.2.3');
-  expect(mockRaw).toHaveBeenCalledWith('push', '--force');
-  expect(mockPushTags).toHaveBeenCalled();
+  expect(mockRaw).toHaveBeenCalledWith(
+    'push',
+    'https://github.com/getsentry/sentry-deno',
+    '--force'
+  );
+  expect(mockRaw).toHaveBeenCalledWith(
+    'push',
+    'https://github.com/getsentry/sentry-deno',
+    '--tags'
+  );
+});
+
+describe('With authentication', () => {
+  let oldToken: string | undefined;
+
+  beforeEach(() => {
+    oldToken = process.env['GITHUB_API_TOKEN'];
+  });
+
+  afterEach(() => {
+    process.env['GITHUB_API_TOKEN'] = oldToken;
+  });
+
+  test('adds GitHub pat to repository url', async () => {
+    execSyncSpy.mockImplementationOnce(() => {
+      return Buffer.from('noop');
+    });
+
+    process.env['GITHUB_API_TOKEN'] = 'test-token';
+
+    await pushArchiveToGitRepository({
+      archivePath: '/tmp/my-archive.tgz',
+      branch: 'main',
+      createTag: true,
+      repositoryUrl: 'https://github.com/getsentry/sentry-deno',
+      stripComponents: 1,
+      version: '1.2.3',
+    });
+
+    expect(mockClone).toHaveBeenCalledWith(
+      'https://test-token@github.com/getsentry/sentry-deno',
+      expect.any(String)
+    );
+
+    expect(mockRaw).toHaveBeenCalledWith(
+      'push',
+      'https://test-token@github.com/getsentry/sentry-deno',
+      '--force'
+    );
+
+    expect(mockRaw).toHaveBeenCalledWith(
+      'push',
+      'https://test-token@github.com/getsentry/sentry-deno',
+      '--tags'
+    );
+  });
 });

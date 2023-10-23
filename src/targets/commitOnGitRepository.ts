@@ -7,6 +7,7 @@ import { BaseTarget } from './base';
 import childProcess from 'child_process';
 import type { Consola } from 'consola';
 import { isDryRun } from '../utils/helpers';
+import { URL } from 'url';
 
 interface GitRepositoryTargetConfig {
   archive: string;
@@ -134,7 +135,25 @@ export async function pushArchiveToGitRepository({
       const git = simpleGit(directory);
 
       logger?.info(`Cloning ${repositoryUrl} into ${directory}...`);
-      await git.clone(repositoryUrl, directory);
+
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(repositoryUrl);
+      } catch (e) {
+        logger?.error(
+          `Error while parsing \`repositoryUrl\`. Make sure this is a valid URL using the http or https protocol!`
+        );
+        throw e;
+      }
+
+      if (parsedUrl.host === 'github.com' && process.env.GITHUB_API_TOKEN) {
+        logger?.info('Using provided github PAT token for authentication.');
+        parsedUrl.username = process.env.GITHUB_API_TOKEN;
+      }
+
+      const authenticatedUrl = parsedUrl.toString();
+
+      await git.clone(authenticatedUrl, directory);
 
       logger?.info(`Checking out branch "${branch}"...`);
       await git.checkout(branch);
@@ -173,13 +192,13 @@ export async function pushArchiveToGitRepository({
 
       logger?.info(`Pushing changes to repository...`);
       if (!isDryRun()) {
-        await git.raw('push', '--force');
+        await git.raw('push', authenticatedUrl, '--force');
       }
 
       if (createTag) {
         logger?.info(`Pushing tag...`);
         if (!isDryRun()) {
-          await git.pushTags();
+          await git.raw('push', authenticatedUrl, '--tags');
         }
       }
     },
