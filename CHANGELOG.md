@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.0
+
+### Various fixes & improvements
+
+- feat(commit-on-git-repository): Allow for authentication in github (#495) by @lforst
+
 ## 1.5.0
 
 ### Various fixes & improvements
