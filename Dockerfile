@@ -61,7 +61,7 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsof
   && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s --  --profile minimal -y \
   && cargo --version \
   && cargo install cargo-hack \
-  && gem install cocoapods --no-document \
+  && gem install cocoapods --no-document -v 1.12.0 \
   # Install https://github.com/getsentry/symbol-collector
   && symbol_collector_url=$(curl -s https://api.github.com/repos/getsentry/symbol-collector/releases/tags/1.12.0 | \
   jq -r '.assets[].browser_download_url | select(endswith("symbolcollector-console-linux-x64.zip"))') \
