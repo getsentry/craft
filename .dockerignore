@@ -1,11 +1,11 @@
 # Ignore everything
 *
 
+!/Gemfile
+!/Gemfile.lock
 !/LICENSE
 !/README.md
 !/package.json
 !/scripts
 !/src
 !/yarn.lock
-!/Gemfile
-!/Gemfile.lock
