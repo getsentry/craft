@@ -136,8 +136,15 @@ export async function pushArchiveToGitRepository({
 
       logger?.info(`Cloning ${repositoryUrl} into ${directory}...`);
 
-      // We can assume that the provided url is a valid URL (otherwise parsing will crash)
-      const parsedUrl = new URL(repositoryUrl);
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(repositoryUrl);
+      } catch (e) {
+        logger?.error(
+          `Error while parsing \`repositoryUrl\`. Make sure this is a valid URL using the http or https protocol!`
+        );
+        throw e;
+      }
 
       if (parsedUrl.host === 'github.com' && process.env.GITHUB_API_TOKEN) {
         logger?.info('Using provided github PAT token for authentication.');
