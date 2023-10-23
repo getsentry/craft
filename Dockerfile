@@ -2,7 +2,7 @@ FROM node:14-buster-slim as builder
 
 WORKDIR /usr/local/lib
 
-COPY package.json yarn.lock ./
+COPY package.json yarn.lock Gemfile Gemfile.lock ./
 RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
   && yarn install --frozen-lockfile --quiet \
   && rm -r "$YARN_CACHE_FOLDER"
@@ -61,16 +61,14 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsof
   && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s --  --profile minimal -y \
   && cargo --version \
   && cargo install cargo-hack \
-  && gem install cocoapods --no-document -v 1.13.0 \
+  && bundle install \
   # Install https://github.com/getsentry/symbol-collector
   && symbol_collector_url=$(curl -s https://api.github.com/repos/getsentry/symbol-collector/releases/tags/1.12.0 | \
   jq -r '.assets[].browser_download_url | select(endswith("symbolcollector-console-linux-x64.zip"))') \
   && curl -sL $symbol_collector_url -o "/tmp/sym-collector.zip" \
   && unzip /tmp/sym-collector.zip -d /usr/local/bin/ \
   && rm /tmp/sym-collector.zip \
-  && chmod +x /usr/local/bin/SymbolCollector.Console \
-  && gem uninstall activesupport -v 7.1.1 \
-  && gem install activesupport -v 7.0.8
+  && chmod +x /usr/local/bin/SymbolCollector.Console
 
 # https://docs.flutter.dev/get-started/install/linux#install-flutter-manually
 RUN curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.10.0-stable.tar.xz -o /opt/flutter.tar.xz \
