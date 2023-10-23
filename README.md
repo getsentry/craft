@@ -1198,12 +1198,18 @@ targets:
 
 Takes a tarball and pushes the unpacked contents to a git repository.
 
+**Environment**
+
+| Name               | Description                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------ |
+| `GITHUB_API_TOKEN` | GitHub PAT that will be used for authentication when a the `repositoryUrl` host is `github.com`. |
+
 **Configuration**
 
 | Option            | Description                                                                                                                                                                    |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `archive`         | Regular expression to match a `.tgz` file in the build artifacts. The content of the found file will be pushed to the git repository. Needs to match exactly one file.         |
-| `repositoryUrl`   | Url to the git remote git repository.                                                                                                                                          |
+| `repositoryUrl`   | Url to the git remote git repository. Must use http or https protocol! (no `git@...`)                                                                                          |
 | `branch`          | Which repository branch to push to.                                                                                                                                            |
 | `stripComponents` | **optional**. How many leading path elements should be removed when unpacking the tarball. Default: 0 (see `tar --strip-components` option)                                    |
 | `createTag`       | **optional**. Whether to attach a tag to the created commit. The content of the tag is gonna be equal to the release version passed to craft ("NEW-VERSION"). Default: `false` |
@@ -1214,7 +1220,7 @@ Takes a tarball and pushes the unpacked contents to a git repository.
 targets:
   - name: commit-on-git-repository
     archive: /^sentry-deno-\d.*\.tgz$/
-    repositoryUrl: git@github.com:getsentry/sentry-deno.git
+    repositoryUrl: https://github.com/getsentry/sentry-deno
     stripComponents: 1
     branch: main
     createTag: true
