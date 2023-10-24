@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.1
+
+### Various fixes & improvements
+
+- ref: Pin cocoapods version  (#496) by @brustolin
+
 ## 1.6.0
 
 ### Various fixes & improvements
