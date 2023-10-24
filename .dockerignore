@@ -1,6 +1,8 @@
 # Ignore everything
 *
 
+!/Gemfile
+!/Gemfile.lock
 !/LICENSE
 !/README.md
 !/package.json
