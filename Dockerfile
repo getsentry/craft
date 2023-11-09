@@ -54,7 +54,6 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsof
   && echo 'deb https://packages.erlang-solutions.com/debian bullseye contrib' >> /etc/apt/sources.list \
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
-    dotnet-sdk-7.0 \
     docker-ce-cli \
     erlang \
     elixir \
@@ -76,7 +75,9 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsof
 RUN curl -fSL --output dotnet.tar.gz https://dotnetcli.azureedge.net/dotnet/Sdk/8.0.100-rc.2.23502.2/dotnet-sdk-8.0.100-rc.2.23502.2-linux-x64.tar.gz \
   && dotnet_sha512='45f09e7b031f4cf5b4dcead240fe47e2e3731d97d22aa96d3a02a087322658606cc22792053c3784c44f15d7c9bad0ac9dbda90def7b4e197f2955dca9a5bb6c' \
   && echo "$dotnet_sha512  dotnet.tar.gz" | sha512sum -c - \
-  && tar -oxzf dotnet.tar.gz -C /usr/share/dotnet ./packs ./sdk ./sdk-manifests ./templates ./LICENSE.txt ./ThirdPartyNotices.txt \
+  && mkdir -p /usr/share/dotnet \
+  && tar -oxzf dotnet.tar.gz -C /usr/share/dotnet \
+  && ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet \
   && rm dotnet.tar.gz \
   # Trigger first run experience by running arbitrary cmd
   && dotnet help
