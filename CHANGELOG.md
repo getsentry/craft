@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.0
+
+### Various fixes & improvements
+
+- feat: use dotnet 8 SDK (#501) by @vaind
+- Bump CocoaPods from 1.13.0 to 1.14.2 (#497) by @philipphofmann
+
 ## 1.6.1
 
 ### Various fixes & improvements
