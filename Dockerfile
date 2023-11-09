@@ -55,10 +55,12 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsof
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
     dotnet-sdk-7.0 \
-    dotnet-sdk-8.0.100-rc2 \
     docker-ce-cli \
     erlang \
     elixir \
+  && curl -L https://aka.ms/install-dotnet-preview -o install-dotnet-preview.sh \
+  && chmod +x install-dotnet-preview.sh \
+  && ./install-dotnet-preview.sh \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* \
   && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s --  --profile minimal -y \
