@@ -27,19 +27,19 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get -qq update \
   && apt-get install -y --no-install-recommends \
-  apt-transport-https \
-  build-essential \
-  curl \
-  dirmngr \
-  gnupg \
-  git \
-  python3-packaging \
-  ruby-full \
-  twine \
-  jq \
-  unzip \
-  openjdk-11-jdk \
-  maven \
+    apt-transport-https \
+    build-essential \
+    curl \
+    dirmngr \
+    gnupg \
+    git \
+    python3-packaging \
+    ruby-full \
+    twine \
+    jq \
+    unzip \
+    openjdk-11-jdk \
+    maven \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
@@ -54,9 +54,9 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsof
   && echo 'deb https://packages.erlang-solutions.com/debian bullseye contrib' >> /etc/apt/sources.list \
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
-  docker-ce-cli \
-  erlang \
-  elixir \
+    docker-ce-cli \
+    erlang \
+    elixir \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* \
   && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s --  --profile minimal -y \
@@ -73,7 +73,7 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsof
 
 # Install .NET SDK
 ENV DOTNET_SDK_VERSION=8.0.100-rc.2.23502.2
-RUN curl -fSL --output dotnet.tar.gz https://dotnetcli.azureedge.net/dotnet/Sdk/$(DOTNET_SDK_VERSION)/dotnet-sdk-$(DOTNET_SDK_VERSION)-linux-x64.tar.gz \
+RUN curl -fSL --output dotnet.tar.gz "https://dotnetcli.azureedge.net/dotnet/Sdk/$DOTNET_SDK_VERSION/dotnet-sdk-$DOTNET_SDK_VERSION-linux-x64.tar.gz" \
   && dotnet_sha512='45f09e7b031f4cf5b4dcead240fe47e2e3731d97d22aa96d3a02a087322658606cc22792053c3784c44f15d7c9bad0ac9dbda90def7b4e197f2955dca9a5bb6c' \
   && echo "$dotnet_sha512  dotnet.tar.gz" | sha512sum -c - \
   && mkdir -p /usr/share/dotnet \
