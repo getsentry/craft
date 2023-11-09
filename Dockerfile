@@ -10,7 +10,7 @@ RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
 COPY . .
 
 RUN \
-    NODE_ENV=production \
+   NODE_ENV=production \
   NODE_PATH=/usr/local/lib/node_modules \
   PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/lib/node_modules/.bin" \
   yarn --modules-folder /usr/local/lib/node_modules build
