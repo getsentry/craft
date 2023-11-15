@@ -60,7 +60,7 @@ describe('UPM Target', () => {
 
     test('publish', () => {
       return expect(
-        upmTarget.publish('version', 'revision')
+        upmTarget.publish('version', 'revision', true)
       ).resolves.not.toThrow();
     });
   });
