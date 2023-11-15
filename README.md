@@ -322,6 +322,19 @@ for a release is `{releaseBranchPrefix}/{version}`. The prefix defaults to
 releaseBranchPrefix: publish
 ```
 
+### Latest Branch Name
+
+If configured, only tag releases as "latest" when merging into this branch.
+This can be useful to make sure that releases from e.g. a `v1` branch do not get tagged as "latest".
+Note that not all targets may use this.
+
+```yaml
+latestTargetBranch: main
+```
+
+If you specific `minVersion: '1.8.0'` or above, this will default to use the default branch.
+If your `minVersion` is older, the previous behavior (of always tagging as latest, for any branch) will continue to be used.
+
 ### Changelog Policies
 
 `craft` can help you to maintain change logs for your projects. At the moment,

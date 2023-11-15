@@ -106,6 +106,7 @@ export class GitHubTarget extends BaseTarget {
   public async createDraftRelease(
     version: string,
     revision: string,
+    isLatest: boolean,
     changes?: Changeset
   ): Promise<GitHubRelease> {
     const tag = versionToTag(version, this.githubConfig.tagPrefix);
@@ -130,6 +131,7 @@ export class GitHubTarget extends BaseTarget {
       repo: this.githubConfig.repo,
       tag_name: tag,
       target_commitish: revision,
+      make_latest: isLatest && !isPreview ? 'true' : 'false',
       ...changes,
     });
     return data;
@@ -259,7 +261,7 @@ export class GitHubTarget extends BaseTarget {
     release: GitHubRelease,
     path: string,
     contentType?: string,
-    retries = 3,
+    retries = 3
   ): Promise<{ url: string; size: number }> {
     const contentTypeProcessed = contentType || DEFAULT_CONTENT_TYPE;
     const stats = statSync(path);
@@ -369,8 +371,13 @@ export class GitHubTarget extends BaseTarget {
    *
    * @param version New version to be released
    * @param revision Git commit SHA to be published
+   * @param isLatest If this release should be marked as latest
    */
-  public async publish(version: string, revision: string): Promise<any> {
+  public async publish(
+    version: string,
+    revision: string,
+    isLatest: boolean
+  ): Promise<any> {
     if (this.githubConfig.tagOnly) {
       this.logger.info(
         `Not creating a GitHub release because "tagOnly" flag was set.`
@@ -395,6 +402,7 @@ export class GitHubTarget extends BaseTarget {
     const draftRelease = await this.createDraftRelease(
       version,
       revision,
+      isLatest,
       changelog
     );
 

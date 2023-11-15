@@ -54,6 +54,8 @@ interface NpmPublishOptions {
   otp?: string;
   /** New version to publish */
   version: string;
+  /** If defined, set this tag instead of "latest" */
+  tag?: string;
 }
 
 /**
@@ -178,14 +180,8 @@ export class NpmTarget extends BaseTarget {
       args.push(`--access=${this.npmConfig.access}`);
     }
 
-    // In case we have a prerelease, there should never be a reason to publish
-    // it with the latest tag in npm.
-    if (isPreviewRelease(options.version)) {
-      this.logger.warn('Detected pre-release version for npm package!');
-      this.logger.warn(
-        'Adding tag "next" to not make it "latest" in registry.'
-      );
-      args.push('--tag=next');
+    if (options.tag) {
+      args.push(`--tag=${options.tag}`);
     }
 
     return withTempFile(filePath => {
@@ -219,7 +215,11 @@ export class NpmTarget extends BaseTarget {
    * @param version New version to be released
    * @param revision Git commit SHA to be published
    */
-  public async publish(version: string, revision: string): Promise<any> {
+  public async publish(
+    version: string,
+    revision: string,
+    isLatest: boolean
+  ): Promise<any> {
     this.logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames: DEFAULT_PACKAGE_REGEX,
@@ -233,6 +233,18 @@ export class NpmTarget extends BaseTarget {
     const publishOptions: NpmPublishOptions = { version };
     if (!isDryRun() && this.npmConfig.useOtp) {
       publishOptions.otp = await this.requestOtp();
+    }
+
+    // In case we have a prerelease, there should never be a reason to publish
+    // it with the latest tag in npm.
+    if (isPreviewRelease(version)) {
+      this.logger.warn('Detected pre-release version for npm package!');
+      this.logger.warn(
+        'Adding tag "next" to not make it "latest" in registry.'
+      );
+      publishOptions.tag = 'next';
+    } else if (!isLatest) {
+      publishOptions.tag = 'old';
     }
 
     await Promise.all(

@@ -92,8 +92,13 @@ export class UpmTarget extends BaseTarget {
    *
    * @param version New version to be released
    * @param revision Git commit SHA to be published
+   * @param isLatest If this release should be marked as latest
    */
-  public async publish(version: string, revision: string): Promise<any> {
+  public async publish(
+    version: string,
+    revision: string,
+    isLatest: boolean
+  ): Promise<any> {
     this.logger.info('Fetching artifact...');
     const packageFile = await this.fetchArtifact(revision);
     if (!packageFile) {
@@ -147,6 +152,7 @@ export class UpmTarget extends BaseTarget {
           const draftRelease = await this.githubTarget.createDraftRelease(
             version,
             targetRevision,
+            isLatest,
             changes
           );
           await this.githubTarget.publishRelease(draftRelease);

@@ -60,11 +60,12 @@ export class BaseTarget {
    *
    * @param version New version to be released
    * @param revision Git commit SHA to be published
+   * @param isLatest If this release should be marked as "latest"
    */
   public async publish(
     _version: string,
-
-    _revision: string
+    _revision: string,
+    _isLatest: boolean
   ): Promise<void> {
     throw new Error('Not implemented');
     return;

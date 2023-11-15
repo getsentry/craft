@@ -31,7 +31,7 @@ import {
   hasExecutable,
   spawnProcess,
 } from '../utils/system';
-import { isValidVersion } from '../utils/version';
+import { isValidVersion, parseVersion } from '../utils/version';
 import { BaseStatusProvider } from '../status_providers/base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { SimpleGit } from 'simple-git';
@@ -160,7 +160,8 @@ function checkVersion(argv: Arguments<any>, _opt: any): any {
 async function publishToTarget(
   target: BaseTarget,
   version: string,
-  revision: string
+  revision: string,
+  isLatest: boolean
 ): Promise<void> {
   const publishMessage = `=== Publishing to target: ${chalk.bold.cyan(
     target.id
@@ -170,7 +171,7 @@ async function publishToTarget(
   logger.info(delim);
   logger.info(publishMessage);
   logger.info(delim);
-  await target.publish(version, revision);
+  await target.publish(version, revision, isLatest);
 }
 
 /**
@@ -527,12 +528,27 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     logger.info(' ');
     await promptConfirmation();
 
+    // Check if latest target & merge target match,
+    // to determine if we should tag this release as "latest"
+    const latestTarget =
+      config.latestTargetBranch ||
+      getDefaultLatestTargetBranch(git, argv.remote, config.minVersion);
+    const mergeTarget =
+      argv.mergeTarget || (await getDefaultBranch(git, argv.remote));
+    const isLatest = !latestTarget || latestTarget === mergeTarget;
+
+    if (!isLatest) {
+      logger.info(
+        `Not tagging as "latest" because merge target is: ${mergeTarget}, not ${latestTarget}`
+      );
+    }
+
     await withTempDir(async (downloadDirectory: string) => {
       artifactProvider.setDownloadDirectory(downloadDirectory);
 
       // Publish to all targets
       for (const target of targetList) {
-        await publishToTarget(target, newVersion, revision);
+        await publishToTarget(target, newVersion, revision, isLatest);
         publishState.published[BaseTarget.getId(target.config)] = true;
         if (!isDryRun()) {
           writeFileSync(publishStateFile, JSON.stringify(publishState));
@@ -606,3 +622,24 @@ export const handler = async (args: {
     handleGlobalError(e);
   }
 };
+
+function getDefaultLatestTargetBranch(
+  git: SimpleGit,
+  remote: string,
+  minVersion?: string
+): Promise<string> | undefined {
+  // If running this on an older min version, we stick to the old behavior where we always mark as latest
+  if (!minVersion) {
+    return undefined;
+  }
+  const parsedMinVersion = parseVersion(minVersion);
+  if (
+    !parsedMinVersion ||
+    parsedMinVersion.major < 1 ||
+    parsedMinVersion.minor < 8
+  ) {
+    return undefined;
+  }
+
+  return getDefaultBranch(git, remote);
+}

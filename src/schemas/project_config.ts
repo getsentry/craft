@@ -13,6 +13,7 @@ export interface CraftProjectConfig {
   preReleaseCommand?: string;
   postReleaseCommand?: string;
   releaseBranchPrefix?: string;
+  latestTargetBranch?: string;
   changelog?: string;
   changelogPolicy?: ChangelogPolicy;
   minVersion?: string;

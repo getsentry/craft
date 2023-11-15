@@ -35,6 +35,7 @@ const projectConfigJsonSchema = {
     preReleaseCommand: { type: 'string' },
     postReleaseCommand: { type: 'string' },
     releaseBranchPrefix: { type: 'string' },
+    latestTargetBranch: { type: 'string' },
     changelog: { type: 'string' },
     changelogPolicy: {
       title: 'ChangelogPolicy',
