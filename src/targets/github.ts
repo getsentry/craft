@@ -15,7 +15,12 @@ import {
 } from '../utils/changelog';
 import { getGitHubClient } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
-import { isPreviewRelease, versionToTag } from '../utils/version';
+import {
+  isPreviewRelease,
+  parseVersion,
+  versionGreaterOrEqualThan,
+  versionToTag,
+} from '../utils/version';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { logger } from '../logger';
@@ -122,6 +127,15 @@ export class GitHubTarget extends BaseTarget {
       };
     }
 
+    const { data: latestRelease } = await this.github.repos.getLatestRelease({
+      owner: this.githubConfig.owner,
+      repo: this.githubConfig.repo,
+    });
+
+    const isLatest = isPreview
+      ? false
+      : isLatestRelease(latestRelease, version);
+
     const { data } = await this.github.repos.createRelease({
       draft: true,
       name: tag,
@@ -129,6 +143,7 @@ export class GitHubTarget extends BaseTarget {
       prerelease: isPreview,
       repo: this.githubConfig.repo,
       tag_name: tag,
+      make_latest: isLatest ? 'true' : 'false',
       target_commitish: revision,
       ...changes,
     });
@@ -259,7 +274,7 @@ export class GitHubTarget extends BaseTarget {
     release: GitHubRelease,
     path: string,
     contentType?: string,
-    retries = 3,
+    retries = 3
   ): Promise<{ url: string; size: number }> {
     const contentTypeProcessed = contentType || DEFAULT_CONTENT_TYPE;
     const stats = statSync(path);
@@ -406,4 +421,15 @@ export class GitHubTarget extends BaseTarget {
 
     await this.publishRelease(draftRelease);
   }
+}
+
+export function isLatestRelease(
+  githubRelease: { tag_name: string } | undefined,
+  version: string
+) {
+  const latestVersion = githubRelease && parseVersion(githubRelease.tag_name);
+  const versionToPublish = parseVersion(version);
+  return latestVersion && versionToPublish
+    ? versionGreaterOrEqualThan(versionToPublish, latestVersion)
+    : true; // By default, we tag as latest
 }
