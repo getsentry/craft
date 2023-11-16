@@ -291,8 +291,7 @@ export async function getLatestVersion(
         `//registry.npmjs.org/:_authToken=\${${NPM_TOKEN_ENV_VAR}}`
       );
 
-      // Disable output buffering because NPM/Yarn can ask us for one-time passwords
-      return spawnProcess(bin, args, spawnOptions, {});
+      return spawnProcess(bin, args, spawnOptions);
     });
 
     if (!response) {
