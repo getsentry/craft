@@ -54,7 +54,7 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsof
   && echo 'deb https://packages.erlang-solutions.com/debian bullseye contrib' >> /etc/apt/sources.list \
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
-    dotnet-sdk-7.0 \
+    dotnet-sdk-8.0 \
     docker-ce-cli \
     erlang \
     elixir \
