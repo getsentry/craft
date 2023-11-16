@@ -570,7 +570,7 @@ The `npm` utility must be installed on the system.
 | Option             | Description                                                                                                                     |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
 | `access`           | **optional**. Visibility for scoped packages: `restricted` (default) or `public`                                                |
-| `checkPackageName` | **optional**. If defined, check this package on the registry to get the current latest version to compare for the `latest` tag. |
+| `checkPackageName` | **optional**. If defined, check this package on the registry to get the current latest version to compare for the `latest` tag. The package(s) to be published will only be tagged with `latest` if the new version is greater than the checked package's version|
 
 **Example**
 
