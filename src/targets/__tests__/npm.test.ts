@@ -1,20 +1,12 @@
 import { parseVersion } from '../../utils/version';
 import { getPublishTag, getLatestVersion } from '../npm';
 
-function setNpmToken() {
-  process.env.NPM_TOKEN = 'test-token';
-}
-
 const defaultNpmConfig = {
   useYarn: false,
   token: 'xxx',
 };
 
 describe('getLatestVersion', () => {
-  beforeEach(() => {
-    setNpmToken();
-  });
-
   it('returns undefined for unexisting checkPackageName', async () => {
     const actual = await getLatestVersion(
       'sentry-xx-this-does-not-exist',
@@ -35,10 +27,6 @@ describe('getLatestVersion', () => {
 });
 
 describe('getPublishTag', () => {
-  beforeEach(() => {
-    setNpmToken();
-  });
-
   it('returns undefined without a checkPackageName', async () => {
     const logger = {
       warn: jest.fn(),

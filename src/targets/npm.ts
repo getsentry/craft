@@ -306,6 +306,8 @@ export async function getLatestVersion(
 }
 /**
  * Get the tag to use for publishing to npm.
+ * If this returns `undefined`, we'll use the default behavior from NPM
+ * (which is to set the `latest` tag).
  */
 export async function getPublishTag(
   version: string,
