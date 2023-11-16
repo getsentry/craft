@@ -567,9 +567,10 @@ The `npm` utility must be installed on the system.
 
 **Configuration**
 
-| Option   | Description                                                                      |
-| -------- | -------------------------------------------------------------------------------- |
-| `access` | **optional**. Visibility for scoped packages: `restricted` (default) or `public` |
+| Option             | Description                                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `access`           | **optional**. Visibility for scoped packages: `restricted` (default) or `public`                                                |
+| `checkPackageName` | **optional**. If defined, check this package on the registry to get the current latest version to compare for the `latest` tag. |
 
 **Example**
 
