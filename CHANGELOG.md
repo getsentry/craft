@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.8.0
+
+### Various fixes & improvements
+
+- feat(npm): Allow to configure `checkPackageName` for npm target (#504) by @mydea
+- Use mainline .NET 8 SDK (#505) by @bruno-garcia
+- feat(github): Only set `latest` when new version > old version (#503) by @mydea
+
 ## 1.7.0
 
 ### Various fixes & improvements
