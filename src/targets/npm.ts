@@ -5,7 +5,11 @@ import { TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { isDryRun } from '../utils/helpers';
 import { hasExecutable, spawnProcess } from '../utils/system';
-import { isPreviewRelease, parseVersion } from '../utils/version';
+import {
+  isPreviewRelease,
+  parseVersion,
+  versionGreaterOrEqualThan,
+} from '../utils/version';
 import { BaseTarget } from './base';
 import {
   BaseArtifactProvider,
@@ -36,6 +40,12 @@ export enum NpmPackageAccess {
   RESTRICTED = 'restricted',
 }
 
+export interface NpmTargetConfig extends TargetConfig {
+  access?: NpmPackageAccess;
+  /** If defined, lookup this package name on the registry to get the current latest version. */
+  checkPackageName?: string;
+}
+
 /** NPM target configuration options */
 export interface NpmTargetOptions {
   /** Package access specifier */
@@ -54,6 +64,8 @@ interface NpmPublishOptions {
   otp?: string;
   /** New version to publish */
   version: string;
+  /** A tag to use for the publish. If not set, defaults to "latest" */
+  tag?: string;
 }
 
 /**
@@ -66,7 +78,7 @@ export class NpmTarget extends BaseTarget {
   public readonly npmConfig: NpmTargetOptions;
 
   public constructor(
-    config: TargetConfig,
+    config: NpmTargetConfig,
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);
@@ -178,14 +190,8 @@ export class NpmTarget extends BaseTarget {
       args.push(`--access=${this.npmConfig.access}`);
     }
 
-    // In case we have a prerelease, there should never be a reason to publish
-    // it with the latest tag in npm.
-    if (isPreviewRelease(options.version)) {
-      this.logger.warn('Detected pre-release version for npm package!');
-      this.logger.warn(
-        'Adding tag "next" to not make it "latest" in registry.'
-      );
-      args.push('--tag=next');
+    if (options.tag) {
+      args.push(`--tag=${options.tag}`);
     }
 
     return withTempFile(filePath => {
@@ -235,6 +241,17 @@ export class NpmTarget extends BaseTarget {
       publishOptions.otp = await this.requestOtp();
     }
 
+    const tag = await getPublishTag(
+      version,
+      this.config.checkPackageName,
+      this.npmConfig,
+      this.logger,
+      publishOptions.otp
+    );
+    if (tag) {
+      publishOptions.tag = tag;
+    }
+
     await Promise.all(
       packageFiles.map(async (file: RemoteArtifact) => {
         const path = await this.artifactProvider.downloadArtifact(file);
@@ -245,4 +262,97 @@ export class NpmTarget extends BaseTarget {
 
     this.logger.info('NPM release complete');
   }
+}
+
+/**
+ * Get the latest version for the given package.
+ */
+export async function getLatestVersion(
+  packageName: string,
+  npmConfig: NpmTargetOptions,
+  otp?: NpmPublishOptions['otp']
+): Promise<string | undefined> {
+  const args = ['info', packageName, 'version'];
+  const bin = NPM_BIN;
+
+  try {
+    const response = await withTempFile(filePath => {
+      // Pass OTP if configured
+      const spawnOptions: SpawnOptions = {};
+      spawnOptions.env = { ...process.env };
+      if (otp) {
+        spawnOptions.env.NPM_CONFIG_OTP = otp;
+      }
+      spawnOptions.env[NPM_TOKEN_ENV_VAR] = npmConfig.token;
+      // NOTE(byk): Use npm_config_userconfig instead of --userconfig for yarn compat
+      spawnOptions.env.npm_config_userconfig = filePath;
+      writeFileSync(
+        filePath,
+        `//registry.npmjs.org/:_authToken=\${${NPM_TOKEN_ENV_VAR}}`
+      );
+
+      return spawnProcess(bin, args, spawnOptions);
+    });
+
+    if (!response) {
+      return undefined;
+    }
+
+    return response.toString().trim();
+  } catch {
+    return undefined;
+  }
+}
+/**
+ * Get the tag to use for publishing to npm.
+ * If this returns `undefined`, we'll use the default behavior from NPM
+ * (which is to set the `latest` tag).
+ */
+export async function getPublishTag(
+  version: string,
+  checkPackageName: string | undefined,
+  npmConfig: NpmTargetOptions,
+  logger: NpmTarget['logger'],
+  otp?: NpmPublishOptions['otp']
+): Promise<string | undefined> {
+  if (isPreviewRelease(version)) {
+    logger.warn('Detected pre-release version for npm package!');
+    logger.warn('Adding tag "next" to not make it "latest" in registry.');
+    return 'next';
+  }
+
+  // If no checkPackageName is given, we return undefined
+  if (!checkPackageName) {
+    return undefined;
+  }
+
+  const latestVersion = await getLatestVersion(
+    checkPackageName,
+    npmConfig,
+    otp
+  );
+  const parsedLatestVersion = latestVersion && parseVersion(latestVersion);
+  const parsedNewVersion = parseVersion(version);
+
+  if (!parsedLatestVersion) {
+    logger.warn(
+      `Could not fetch current version for package ${checkPackageName}`
+    );
+    return undefined;
+  }
+
+  // If we are publishing a version that is older than the currently latest version,
+  // We tag it with "old" instead of "latest"
+  if (
+    parsedNewVersion &&
+    !versionGreaterOrEqualThan(parsedNewVersion, parsedLatestVersion)
+  ) {
+    logger.warn(
+      `Detected older version than currently published version (${latestVersion}) for ${checkPackageName}`
+    );
+    logger.warn('Adding tag "old" to not make it "latest" in registry.');
+    return 'old';
+  }
+
+  return undefined;
 }
