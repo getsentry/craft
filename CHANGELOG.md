@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.1
+
+### Various fixes & improvements
+
+- install net7 in addition to net8 (#506) by @bruno-garcia
+
 ## 1.8.0
 
 ### Various fixes & improvements
