@@ -55,6 +55,7 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsof
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
     dotnet-sdk-8.0 \
+    dotnet-sdk-7.0 \
     docker-ce-cli \
     erlang \
     elixir \
