@@ -514,7 +514,12 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   if (preReleaseCommandRan) {
     // Commit the pending changes
     await commitNewVersion(git, newVersion);
-  } else {
+  }
+  // If changelog is set but preReleaseCommand is empty string, there may be commits we care about
+  else if (!argv.noChangelog && config.preReleaseCommand && config.preReleaseCommand.length === 0) {
+    await commitNewVersion(git, newVersion);
+  }
+  else {
     logger.debug('Not committing anything since preReleaseCommand is empty.');
   }
 
