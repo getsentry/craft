@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.2
+
+### Various fixes & improvements
+
+- ref: handle comparison of two numeric pre releases (#510) by @asottile-sentry
+
 ## 1.8.1
 
 ### Various fixes & improvements
