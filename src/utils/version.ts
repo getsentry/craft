@@ -81,20 +81,17 @@ export function parseVersion(text: string): SemVer | null {
 export function versionGreaterOrEqualThan(v1: SemVer, v2: SemVer): boolean {
   if (v1.major !== v2.major) {
     return v1.major > v2.major;
-  }
-  if (v1.minor !== v2.minor) {
+  } else if (v1.minor !== v2.minor) {
     return v1.minor > v2.minor;
-  }
-  if (v1.patch !== v2.patch) {
+  } else if (v1.patch !== v2.patch) {
     return v1.patch > v2.patch;
-  }
-  if (!v1.pre && v2.pre) {
+  } else if (!v1.pre && v2.pre) {
     return true;
-  }
-  if (v1.pre && !v2.pre) {
+  } else if (v1.pre && !v2.pre) {
     return false;
-  }
-  if (v1.build || v2.build || v1.pre || v2.pre) {
+  } else if (v1.pre && v2.pre && v1.pre !== v2.pre && /^\d+$/.test(v1.pre) && /^\d+$/.test(v2.pre)) {
+    return v1.pre > v2.pre;
+  } else if (v1.build || v2.build || v1.pre || v2.pre) {
     throw new Error(
       `Cannot compare the two versions: "${JSON.stringify(
         v1
