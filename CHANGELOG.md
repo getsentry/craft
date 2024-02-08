@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.0
+
+### Various fixes & improvements
+
+- build: Bump Dockerfile base image to node:20-bookworm (#511) by @loewenheim
+
 ## 1.8.2
 
 ### Various fixes & improvements
