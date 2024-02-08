@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.1
+
+### Various fixes & improvements
+
+- upgrade nock (#512) by @asottile-sentry
+
 ## 1.9.0
 
 ### Various fixes & improvements
