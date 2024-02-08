@@ -15,7 +15,7 @@ RUN \
   PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/lib/node_modules/.bin" \
   yarn --modules-folder /usr/local/lib/node_modules build
 
-FROM node:14-bullseye
+FROM node:20-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive \
   DOTNET_CLI_TELEMETRY_OPTOUT=1 \
@@ -38,18 +38,18 @@ RUN apt-get -qq update \
     twine \
     jq \
     unzip \
-    openjdk-11-jdk \
+    openjdk-17-jdk \
     maven \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
 COPY Gemfile Gemfile.lock ./
 
-RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
+RUN curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
   && dpkg -i /tmp/packages-microsoft-prod.deb \
   && rm /tmp/packages-microsoft-prod.deb \
   && curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - \
-  && echo 'deb [arch=amd64] https://download.docker.com/linux/debian buster stable' >> /etc/apt/sources.list \
+  && echo 'deb [arch=amd64] https://download.docker.com/linux/debian bookworm stable' >> /etc/apt/sources.list \
   && curl -fsSL https://packages.erlang-solutions.com/debian/erlang_solutions.asc | apt-key add - \
   && echo 'deb https://packages.erlang-solutions.com/debian bullseye contrib' >> /etc/apt/sources.list \
   && apt-get update -qq \
