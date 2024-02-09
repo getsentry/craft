@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.0
+
+### Various fixes & improvements
+
+- Revert "build: Bump Dockerfile base image to node:20-bookworm (#511)" (#513) by @loewenheim
+
 ## 1.9.1
 
 ### Various fixes & improvements
