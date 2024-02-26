@@ -705,11 +705,10 @@ By default, `craft` publishes all packages with `.nupkg` extension.
 
 The `dotnet` tool must be available on the system.
 
-| Name               | Description                                                      |
-| ------------------ | ---------------------------------------------------------------- |
-| `NUGET_API_TOKEN`  | NuGet personal API token (<https://www.nuget.org/account/apikeys>) |
-| `NUGET_DOTNET_BIN` | **optional**. Path to .NET Core. Defaults to `dotnet`            |
-| `POWERSHELL_BIN`   | **optional**. Path to .NET Core. Defaults to `dotnet`            |
+| Name               | Description                                                       |
+| ------------------ | ----------------------------------------------------------------- |
+| `NUGET_API_TOKEN`  | NuGet personal [API token](https://www.nuget.org/account/apikeys) |
+| `NUGET_DOTNET_BIN` | **optional**. Path to .NET Core. Defaults to `dotnet`             |
 
 **Configuration**
 
