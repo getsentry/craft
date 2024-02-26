@@ -707,8 +707,9 @@ The `dotnet` tool must be available on the system.
 
 | Name               | Description                                                      |
 | ------------------ | ---------------------------------------------------------------- |
-| `NUGET_API_TOKEN`  | NuGet personal API token (https://www.nuget.org/account/apikeys) |
+| `NUGET_API_TOKEN`  | NuGet personal API token (<https://www.nuget.org/account/apikeys>) |
 | `NUGET_DOTNET_BIN` | **optional**. Path to .NET Core. Defaults to `dotnet`            |
+| `POWERSHELL_BIN`   | **optional**. Path to .NET Core. Defaults to `dotnet`            |
 
 **Configuration**
 
@@ -1225,6 +1226,38 @@ targets:
     stripComponents: 1
     branch: main
     createTag: true
+```
+
+### PowerShellGet (`powershell`)
+
+Uploads a module to [PowerShell Gallery](https://www.powershellgallery.com/) or another repository
+supported by [PowerShellGet](https://learn.microsoft.com/en-us/powershell/module/powershellget)'s `Publish-Module`.
+
+The action looks for an artifact named `<module>.zip` and extracts it to a temporary directory.
+The extracted directory is then published as a module.
+
+#### Environment
+
+The `pwsh` executable [must be installed](https://github.com/powershell/powershell#get-powershell) on the system.
+
+| Name                 | Description                                          | Default   |
+| -------------------- | ---------------------------------------------------- | --------- |
+| `POWERSHELL_API_KEY` | **required** PowerShell Gallery API key              |           |
+| `POWERSHELL_BIN`     | **optional** Path to PowerShell binary               | `pwsh`    |
+
+#### Configuration
+
+| Option               | Description                                          | Default   |
+| -------------------- | ---------------------------------------------------- | --------- |
+| `module`             | **required** Module name.                            |           |
+| `repository`         | **optional** Repository to publish the package to.   | PSGallery |
+
+#### Example
+
+```yaml
+targets:
+  - name: powershell
+    module: Sentry
 ```
 
 ## Integrating Your Project with `craft`
