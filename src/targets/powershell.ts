@@ -5,6 +5,7 @@ import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { checkExecutableIsPresent, extractZipArchive, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
+import { isDryRun } from 'src/utils/helpers';
 
 /** Command to launch PowerShell */
 export const POWERSHELL_BIN = process.env.POWERSHELL_BIN || 'pwsh';
@@ -104,7 +105,12 @@ export class PowerShellTarget extends BaseTarget {
       const pkgName = basename(artifact.filename, '.zip');
       const distDir = join(dir, pkgName);
 
-      await this.spawnPwsh(`Publish-Module -Name '${this.psConfig.module}' -Path '${distDir}' -Repository ${this.psConfig.repository} -NuGetApiKey ${this.psConfig.apiKey}`)
+      await this.spawnPwsh('Publish-Module' +
+        ` -Name '${this.psConfig.module}'` +
+        ` -Path '${distDir}'` +
+        ` -Repository ${this.psConfig.repository}` +
+        ` -NuGetApiKey ${this.psConfig.apiKey}` +
+        (isDryRun() ? ' -WhatIf' : ''))
     });
 
     // await this.uploadAsset(path);
