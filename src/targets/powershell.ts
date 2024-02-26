@@ -113,7 +113,6 @@ export class PowerShellTarget extends BaseTarget {
         (isDryRun() ? ' -WhatIf' : ''))
     });
 
-    // await this.uploadAsset(path);
     this.logger.info(`PowerShell module upload complete: $`);
   }
 }
