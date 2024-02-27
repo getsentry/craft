@@ -80,7 +80,8 @@ export class PowerShellTarget extends BaseTarget {
     await this.spawnPwsh('Get-Command -Name Publish-Module');
 
     // Escape the given module artifact name to avoid regex issues.
-    const moduleArtifactRegex = `${this.psConfig.module}.zip`.replace(/[/\-\\^$*+?.()|[\]{}]/g, '\\$&');
+    let moduleArtifactRegex = `${this.psConfig.module}`.replace(/[/\-\\^$*+?.()|[\]{}]/g, '\\$&');
+    moduleArtifactRegex = `^${moduleArtifactRegex}$`
 
     this.logger.debug(`Looking for artifact matching ${moduleArtifactRegex}`);
     const packageFiles = await this.getArtifactsForRevision(revision, {
