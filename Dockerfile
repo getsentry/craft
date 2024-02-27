@@ -78,6 +78,13 @@ RUN curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/sta
   && tar xf /opt/flutter.tar.xz -C /opt \
   && rm /opt/flutter.tar.xz
 
+# https://learn.microsoft.com/en-us/powershell/scripting/install/install-debian
+RUN curl -fsSL https://github.com/PowerShell/PowerShell/releases/download/v7.4.1/powershell_7.4.1-1.deb_amd64.deb -o /opt/powershell.deb \
+  && dpkg -i /opt/powershell.deb \
+  && apt-get install -f \
+  && apt-get clean \
+  && rm /opt/powershell.deb
+
 # craft does `git` things against mounted directories as root
 RUN git config --global --add safe.directory '*'
 
