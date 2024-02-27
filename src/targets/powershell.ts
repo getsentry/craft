@@ -81,7 +81,7 @@ export class PowerShellTarget extends BaseTarget {
 
     // Escape the given module artifact name to avoid regex issues.
     let moduleArtifactRegex = `${this.psConfig.module}`.replace(/[/\-\\^$*+?.()|[\]{}]/g, '\\$&');
-    moduleArtifactRegex = `^${moduleArtifactRegex}$`
+    moduleArtifactRegex = `^${moduleArtifactRegex}\\.zip$`
 
     this.logger.debug(`Looking for artifact matching ${moduleArtifactRegex}`);
     const packageFiles = await this.getArtifactsForRevision(revision, {
