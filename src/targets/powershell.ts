@@ -1,11 +1,11 @@
-import { basename, join } from 'path';
+import { join } from 'path';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
-import { checkExecutableIsPresent, extractZipArchive, spawnProcess } from '../utils/system';
+import { isDryRun } from '../utils/helpers';
+import { SpawnProcessOptions, checkExecutableIsPresent, extractZipArchive, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
-import { isDryRun } from 'src/utils/helpers';
 
 /** Command to launch PowerShell */
 export const POWERSHELL_BIN = process.env.POWERSHELL_BIN || 'pwsh';
@@ -60,8 +60,13 @@ export class PowerShellTarget extends BaseTarget {
   /**
      * Executes a PowerShell command.
      */
-  private async spawnPwsh(command: string): Promise<Buffer | undefined> {
-    return spawnProcess(POWERSHELL_BIN, ['-Command', command]);
+  private async spawnPwsh(
+    command: string,
+    spawnProcessOptions: SpawnProcessOptions = {}
+  ): Promise<Buffer | undefined> {
+    command = `$ErrorActionPreference = 'Stop'\n` + command;
+    this.logger.trace("Executing PowerShell command:", command);
+    return spawnProcess(POWERSHELL_BIN, ['-Command', command], {}, spawnProcessOptions);
   }
 
   /**
@@ -71,17 +76,23 @@ export class PowerShellTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(_version: string, revision: string): Promise<any> {
+    const defaultSpawnOptions = { enableInDryRunMode: true, showStdout: true }
     // Emit the PowerShell executable for informational purposes.
     this.logger.info(`PowerShell (${POWERSHELL_BIN}) info:`);
-    await spawnProcess(POWERSHELL_BIN, ['--version']);
+    await spawnProcess(POWERSHELL_BIN, ['--version'], {}, defaultSpawnOptions);
 
     // Also check the command and its its module version in case there are issues:
     this.logger.info('Publish-Module command info:');
-    await this.spawnPwsh('Get-Command -Name Publish-Module');
+    await this.spawnPwsh(`
+      $info = Get-Command -Name Publish-Module
+      "Module name: $($info.ModuleName)"
+      "Module version: $($info.Module.Version)"
+      "Module path: $($info.Module.Path)"
+    `, defaultSpawnOptions);
 
     // Escape the given module artifact name to avoid regex issues.
     let moduleArtifactRegex = `${this.psConfig.module}`.replace(/[/\-\\^$*+?.()|[\]{}]/g, '\\$&');
-    moduleArtifactRegex = `^${moduleArtifactRegex}\\.zip$`
+    moduleArtifactRegex = `/^${moduleArtifactRegex}\\.zip$/`
 
     this.logger.debug(`Looking for artifact matching ${moduleArtifactRegex}`);
     const packageFiles = await this.getArtifactsForRevision(revision, {
@@ -101,17 +112,16 @@ export class PowerShellTarget extends BaseTarget {
 
     this.logger.info(`Extracting artifact "${artifact.filename}"`)
     await withTempDir(async dir => {
-      await extractZipArchive(zipPath, dir);
-      // All artifacts downloaded from GitHub are ZIP files.
-      const pkgName = basename(artifact.filename, '.zip');
-      const distDir = join(dir, pkgName);
+      const moduleDir = join(dir, this.psConfig.module);
+      await extractZipArchive(zipPath, moduleDir);
 
-      await this.spawnPwsh('Publish-Module' +
-        ` -Name '${this.psConfig.module}'` +
-        ` -Path '${distDir}'` +
-        ` -Repository ${this.psConfig.repository}` +
-        ` -NuGetApiKey ${this.psConfig.apiKey}` +
-        (isDryRun() ? ' -WhatIf' : ''))
+      this.logger.info(`Publishing PowerShell module "${this.psConfig.module}" to ${this.psConfig.repository}`)
+      await this.spawnPwsh(`
+        Publish-Module  -Path '${moduleDir}' \`
+                        -Repository ${this.psConfig.repository} \`
+                        -NuGetApiKey ${this.psConfig.apiKey} \`
+                        -WhatIf:$${isDryRun()}
+      `, defaultSpawnOptions)
     });
 
     this.logger.info(`PowerShell module upload complete: $`);
