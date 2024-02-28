@@ -37,26 +37,14 @@ export class PowerShellTarget extends BaseTarget {
     artifactProvider: BaseArtifactProvider
   ) {
     super(config, artifactProvider);
-    this.psConfig = this.getPowerShellConfig();
+    this.psConfig = {
+      apiKey: process.env.POWERSHELL_API_KEY || '',
+      repository: this.config.repository || DEFAULT_POWERSHELL_REPOSITORY,
+      module: this.config.module || '',
+    };
     checkExecutableIsPresent(POWERSHELL_BIN);
   }
 
-  /**
-   * Extracts target options from the raw configuration
-   */
-  protected getPowerShellConfig(): PowerShellTargetOptions {
-    if (!process.env.POWERSHELL_API_KEY) {
-      throw new ConfigurationError(
-        `Cannot perform PowerShell release: missing credentials.
-         Please use POWERSHELL_API_KEY environment variable.`
-      );
-    }
-    return {
-      apiKey: process.env.POWERSHELL_API_KEY,
-      repository: this.config.repository || DEFAULT_POWERSHELL_REPOSITORY,
-      module: this.config.module,
-    };
-  }
   /**
      * Executes a PowerShell command.
      */
@@ -70,12 +58,36 @@ export class PowerShellTarget extends BaseTarget {
   }
 
   /**
-   * Publishes a package tarball to the PowerShell repository
-   *
-   * @param version New version to be released
-   * @param revision Git commit SHA to be published
+   * Checks if the required project configuration parameters are available.
+   * The required parameters are `layerName` and `compatibleRuntimes`.
+   * There is also an optional parameter `includeNames`.
+   */
+  private checkProjectConfig(): void {
+    const missingConfigOptions = [];
+    if (this.psConfig.apiKey.length === 0) {
+      missingConfigOptions.push('apiKey');
+    }
+    if (this.psConfig.repository.length === 0) {
+      missingConfigOptions.push('repository');
+    }
+    if (this.psConfig.module.length === 0) {
+      missingConfigOptions.push('module');
+    }
+    if (missingConfigOptions.length > 0) {
+      throw new ConfigurationError(
+        'Missing project configuration parameter(s): ' + missingConfigOptions
+      );
+    }
+  }
+
+  /**
+   * Publishes a module to a PowerShell repository.
+   * @param _version ignored; the version must be set in the module manifest.
+   * @param revision Git commit SHA to be published.
    */
   public async publish(_version: string, revision: string): Promise<any> {
+    this.checkProjectConfig();
+
     const defaultSpawnOptions = { enableInDryRunMode: true, showStdout: true }
     // Emit the PowerShell executable for informational purposes.
     this.logger.info(`PowerShell (${POWERSHELL_BIN}) info:`);
