@@ -65,7 +65,6 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsof
   && cargo --version \
   && cargo install cargo-hack \
   && gem install -g --no-document \
-  && gem cleanup all \
   # Install https://github.com/getsentry/symbol-collector
   && symbol_collector_url=$(curl -s https://api.github.com/repos/getsentry/symbol-collector/releases/tags/1.12.0 | \
   jq -r '.assets[].browser_download_url | select(endswith("symbolcollector-console-linux-x64.zip"))') \
