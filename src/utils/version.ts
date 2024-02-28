@@ -89,8 +89,6 @@ export function versionGreaterOrEqualThan(v1: SemVer, v2: SemVer): boolean {
     return true;
   } else if (v1.pre && !v2.pre) {
     return false;
-  } else if (v1.pre && v2.pre && v1.pre === v2.pre) {
-    return v1.build === v2.build;
   } else if (v1.pre && v2.pre && v1.pre !== v2.pre && /^\d+$/.test(v1.pre) && /^\d+$/.test(v2.pre)) {
     return v1.pre > v2.pre;
   } else if (v1.build || v2.build || v1.pre || v2.pre) {
@@ -159,6 +157,7 @@ export function getPackageVersion(): string {
  * Returns the stringified version of the passed SemVer object.
  */
 export function semVerToString(s: SemVer) {
-  return `${s.major}.${s.minor}.${s.patch}${s.pre ? `-${s.pre}` : ''}${s.build ? `+${s.build}` : ''
-    }`;
+  return `${s.major}.${s.minor}.${s.patch}${s.pre ? `-${s.pre}` : ''}${
+    s.build ? `+${s.build}` : ''
+  }`;
 }

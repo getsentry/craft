@@ -195,25 +195,6 @@ describe('versionGreaterOrEqualThan', () => {
     expect(() => versionGreaterOrEqualThan(v1, v2)).toThrowError();
     expect(() => versionGreaterOrEqualThan(v2, v1)).toThrowError();
   });
-
-  test('can compare pre parts that are the same', () => {
-    let v1 = parseVersion('1.2.3-dev.0')!;
-    let v2 = parseVersion('1.2.3-dev.0')!;
-    expect(versionGreaterOrEqualThan(v1, v2)).toBe(true);
-    expect(versionGreaterOrEqualThan(v2, v1)).toBe(true);
-
-    v1 = parseVersion('1.2.3-dev.0+A')!;
-    v2 = parseVersion('1.2.3-dev.0+A')!;
-    expect(versionGreaterOrEqualThan(v1, v2)).toBe(true);
-    expect(versionGreaterOrEqualThan(v2, v1)).toBe(true);
-  });
-
-  test('can compare pre parts that are the same but have different builds', () => {
-    const v1 = parseVersion('1.2.3-dev.0+buildA')!;
-    const v2 = parseVersion('1.2.3-dev.0+buildB')!;
-    expect(versionGreaterOrEqualThan(v1, v2)).toBe(false);
-    expect(versionGreaterOrEqualThan(v2, v1)).toBe(false);
-  });
 });
 
 describe('getPackage', () => {
