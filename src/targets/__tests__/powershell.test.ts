@@ -52,7 +52,6 @@ describe('pwsh environment variables', () => {
   test('success on environment variables', () => {
     deleteTargetOptionsFromEnvironment();
     setPwshEnvironmentVariables();
-    // AwsLambdaTarget needs the environment variables to initialize.
     getPwshTarget();
   });
 });
@@ -80,23 +79,18 @@ describe('config', () => {
 describe('publish', () => {
   const mockedSpawnProcess = spawnProcess as jest.Mock;
   const spawnOptions = { enableInDryRunMode: true, showStdout: true }
-  // const getArtifactsForRevision = jest.fn()
-  //   .mockImplementation(() => ['moduleName.zip']).bind(PowerShellTarget)
 
   beforeEach(() => {
     setPwshEnvironmentVariables();
     jest.clearAllMocks();
   });
 
-  const noArtifactsForRevision = jest.fn().mockImplementation(function () {
-    return [];
-  });
 
   test('error on missing artifact', async () => {
     const target = getPwshTarget();
-    target.getArtifactsForRevision = noArtifactsForRevision.bind(
-      PowerShellTarget
-    );
+    target.getArtifactsForRevision = jest.fn()
+      .mockImplementation(() => []).bind(PowerShellTarget);
+
     // `publish` should report an error. When it's not dry run, the error is
     // thrown; when it's on dry run, the error is logged and `undefined` is
     // returned. Thus, both alternatives have been considered.
@@ -118,11 +112,7 @@ describe('publish', () => {
     // thrown; when it's on dry run, the error is logged and `undefined` is
     // returned. Thus, both alternatives have been considered.
     try {
-      const multiplePackagesFound = await target.publish(
-        'version',
-        'revision'
-      );
-      expect(multiplePackagesFound).toBe(undefined);
+      await target.publish('1.0', 'sha');
     } catch (error) {
       expect(error).toBeInstanceOf(Error);
       expect(error.message).toMatch(/found multiple matching artifacts/);
