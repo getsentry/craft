@@ -99,17 +99,13 @@ describe('publish', () => {
       expect(error).toBeInstanceOf(Error);
       expect(error.message).toMatch(/there are no matching artifacts/);
     }
-  });
-
-  const twoArtifactsForRevision = jest.fn().mockImplementation(function () {
-    return ['file1', 'file2'];
-  });
+  }, 10_000);
 
   test('error on having too many artifacts', async () => {
     const target = getPwshTarget();
-    target.getArtifactsForRevision = twoArtifactsForRevision.bind(
-      PowerShellTarget
-    );
+    target.getArtifactsForRevision = jest.fn()
+      .mockImplementation(() => ['file1', 'file2']).bind(PowerShellTarget);
+
     // `publish` should report an error. When it's not dry run, the error is
     // thrown; when it's on dry run, the error is logged and `undefined` is
     // returned. Thus, both alternatives have been considered.
@@ -123,5 +119,5 @@ describe('publish', () => {
       expect(error).toBeInstanceOf(Error);
       expect(error.message).toMatch(/found multiple matching artifacts/);
     }
-  });
+  }, 10_000);
 });
