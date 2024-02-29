@@ -1,8 +1,10 @@
+import { spawnProcess } from '../../utils/system';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { ConfigurationError } from '../../utils/errors';
 import { PowerShellTarget } from '../powershell';
 
 jest.mock('fs');
+jest.mock('../../utils/system');
 
 /** Returns a new PowerShellTarget test instance. */
 function getPwshTarget(): PowerShellTarget {
@@ -76,8 +78,14 @@ describe('config', () => {
 });
 
 describe('publish', () => {
-  beforeAll(() => {
+  const mockedSpawnProcess = spawnProcess as jest.Mock;
+  const spawnOptions = { enableInDryRunMode: true, showStdout: true }
+  // const getArtifactsForRevision = jest.fn()
+  //   .mockImplementation(() => ['moduleName.zip']).bind(PowerShellTarget)
+
+  beforeEach(() => {
     setPwshEnvironmentVariables();
+    jest.clearAllMocks();
   });
 
   const noArtifactsForRevision = jest.fn().mockImplementation(function () {
@@ -99,7 +107,7 @@ describe('publish', () => {
       expect(error).toBeInstanceOf(Error);
       expect(error.message).toMatch(/there are no matching artifacts/);
     }
-  }, 10_000);
+  });
 
   test('error on having too many artifacts', async () => {
     const target = getPwshTarget();
@@ -119,5 +127,43 @@ describe('publish', () => {
       expect(error).toBeInstanceOf(Error);
       expect(error.message).toMatch(/found multiple matching artifacts/);
     }
-  }, 10_000);
+  });
+
+  test('prints pwsh info', async () => {
+    const target = getPwshTarget();
+    try {
+      await target.publish('1.0', 'sha');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect(error.message).toMatch(/there are no matching artifact/);
+    }
+    expect(mockedSpawnProcess).toBeCalledWith('pwsh', ['--version'], {}, spawnOptions);
+    expect(mockedSpawnProcess).toBeCalledWith('pwsh',
+      [
+        '-Command',
+        `$ErrorActionPreference = 'Stop'
+
+      $info = Get-Command -Name Publish-Module
+      \"Module name: $($info.ModuleName)\"
+      \"Module version: $($info.Module.Version)\"
+      \"Module path: $($info.Module.Path)\"
+    `
+      ], {}, spawnOptions);
+  });
+
+  test('publish-module runs with expected args', async () => {
+    const target = getPwshTarget();
+    await target.publishModule('/path/to/module');
+    expect(mockedSpawnProcess).toBeCalledWith('pwsh',
+      [
+        '-Command',
+        `$ErrorActionPreference = 'Stop'
+
+        Publish-Module  -Path '/path/to/module' \`
+                        -Repository 'repositoryName' \`
+                        -NuGetApiKey 'test access key' \`
+                        -WhatIf:$false
+      `
+      ], {}, spawnOptions);
+  });
 });

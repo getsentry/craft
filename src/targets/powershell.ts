@@ -31,6 +31,7 @@ export class PowerShellTarget extends BaseTarget {
   public readonly name: string = 'powershell';
   /** Target options */
   public readonly psConfig: PowerShellTargetOptions;
+  private readonly defaultSpawnOptions = { enableInDryRunMode: true, showStdout: true }
 
   public constructor(
     config: TargetConfig,
@@ -50,7 +51,7 @@ export class PowerShellTarget extends BaseTarget {
      */
   private async spawnPwsh(
     command: string,
-    spawnProcessOptions: SpawnProcessOptions = {}
+    spawnProcessOptions: SpawnProcessOptions = this.defaultSpawnOptions
   ): Promise<Buffer | undefined> {
     command = `$ErrorActionPreference = 'Stop'\n` + command;
     this.logger.trace("Executing PowerShell command:", command);
@@ -88,10 +89,9 @@ export class PowerShellTarget extends BaseTarget {
   public async publish(_version: string, revision: string): Promise<any> {
     this.checkProjectConfig();
 
-    const defaultSpawnOptions = { enableInDryRunMode: true, showStdout: true }
     // Emit the PowerShell executable for informational purposes.
     this.logger.info(`PowerShell (${POWERSHELL_BIN}) info:`);
-    await spawnProcess(POWERSHELL_BIN, ['--version'], {}, defaultSpawnOptions);
+    await spawnProcess(POWERSHELL_BIN, ['--version'], {}, this.defaultSpawnOptions);
 
     // Also check the command and its its module version in case there are issues:
     this.logger.info('Publish-Module command info:');
@@ -100,7 +100,7 @@ export class PowerShellTarget extends BaseTarget {
       "Module name: $($info.ModuleName)"
       "Module version: $($info.Module.Version)"
       "Module path: $($info.Module.Path)"
-    `, defaultSpawnOptions);
+    `);
 
     // Escape the given module artifact name to avoid regex issues.
     let moduleArtifactRegex = `${this.psConfig.module}`.replace(/[/\-\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -126,16 +126,19 @@ export class PowerShellTarget extends BaseTarget {
     await withTempDir(async dir => {
       const moduleDir = join(dir, this.psConfig.module);
       await extractZipArchive(zipPath, moduleDir);
-
-      this.logger.info(`Publishing PowerShell module "${this.psConfig.module}" to ${this.psConfig.repository}`)
-      await this.spawnPwsh(`
-        Publish-Module  -Path '${moduleDir}' \`
-                        -Repository ${this.psConfig.repository} \`
-                        -NuGetApiKey ${this.psConfig.apiKey} \`
-                        -WhatIf:$${isDryRun()}
-      `, defaultSpawnOptions)
+      await this.publishModule(moduleDir);
     });
 
-    this.logger.info(`PowerShell module upload complete: $`);
+    this.logger.info(`PowerShell module upload complete`);
+  }
+
+  public async publishModule(moduleDir: string): Promise<void> {
+    this.logger.info(`Publishing PowerShell module "${this.psConfig.module}" to ${this.psConfig.repository}`)
+    await this.spawnPwsh(`
+        Publish-Module  -Path '${moduleDir}' \`
+                        -Repository '${this.psConfig.repository}' \`
+                        -NuGetApiKey '${this.psConfig.apiKey}' \`
+                        -WhatIf:$${isDryRun()}
+      `);
   }
 }
