@@ -144,9 +144,9 @@ describe('publish', () => {
         `$ErrorActionPreference = 'Stop'
 
       $info = Get-Command -Name Publish-Module
-      \"Module name: $($info.ModuleName)\"
-      \"Module version: $($info.Module.Version)\"
-      \"Module path: $($info.Module.Path)\"
+      "Module name: $($info.ModuleName)"
+      "Module version: $($info.Module.Version)"
+      "Module path: $($info.Module.Path)"
     `
       ], {}, spawnOptions);
   });
