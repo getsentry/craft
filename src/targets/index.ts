@@ -19,6 +19,7 @@ import { SymbolCollector } from './symbolCollector';
 import { PubDevTarget } from './pubDev';
 import { HexTarget } from './hex';
 import { CommitOnGitRepositoryTarget } from './commitOnGitRepository';
+import { PowerShellTarget } from './powershell';
 
 export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   brew: BrewTarget,
@@ -41,6 +42,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   'pub-dev': PubDevTarget,
   hex: HexTarget,
   'commit-on-git-repository': CommitOnGitRepositoryTarget,
+  powershell: PowerShellTarget,
 };
 
 /** Targets that are treated specially */
