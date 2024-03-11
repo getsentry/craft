@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.11.0
+
+### Various fixes & improvements
+
+- feat: powershell target (#515) by @vaind
+- build(deps): bump es5-ext from 0.10.53 to 0.10.63 (#516) by @dependabot
+
 ## 1.10.0
 
 ### Various fixes & improvements
