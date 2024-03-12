@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.11.1
+
+### Various fixes & improvements
+
+- Install/update `twine` from pypi (#522) by @Swatinem
+
 ## 1.11.0
 
 ### Various fixes & improvements
