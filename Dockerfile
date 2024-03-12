@@ -23,7 +23,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
   COCOAPODS_ALLOW_ROOT=1 \
   CARGO_HOME=/root/.cargo \
   RUSTUP_HOME=/root/.rustup \
-  PATH=${PATH}:/root/.cargo/bin:/opt/flutter/bin
+  PATH=${PATH}:/root/.cargo/bin:/opt/flutter/bin:/venv/bin
 
 RUN apt-get -qq update \
   && apt-get install -y --no-install-recommends \
@@ -34,8 +34,8 @@ RUN apt-get -qq update \
     gnupg \
     git \
     python3-packaging \
+    python3-venv \
     ruby-full \
-    twine \
     jq \
     unzip \
     openjdk-11-jdk \
@@ -44,6 +44,8 @@ RUN apt-get -qq update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY Gemfile Gemfile.lock ./
+
+RUN python3 -m venv /venv && pip install twine==4.0.2 pkginfo==1.10.0 --no-cache
 
 RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
   && dpkg -i /tmp/packages-microsoft-prod.deb \
