@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import split from 'split';
 import tar from 'tar';
-import unzipper from 'unzipper';
+import extract from 'extract-zip';
 
 import { logger } from '../logger';
 
@@ -344,11 +344,7 @@ export async function extractZipArchive(
   filePath: string,
   dir: string
 ): Promise<void> {
-  const archive = await unzipper.Open.file(filePath);
-  await archive.extract({
-    path: dir,
-    concurrency: 2,
-  });
+  await extract(filePath, {dir: dir});
 }
 
 /**
