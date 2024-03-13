@@ -1,4 +1,4 @@
-FROM node:14-buster-slim as builder
+FROM node:16-bullseye-slim as builder
 
 WORKDIR /usr/local/lib
 
@@ -15,7 +15,7 @@ RUN \
   PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/lib/node_modules/.bin" \
   yarn --modules-folder /usr/local/lib/node_modules build
 
-FROM node:14-bullseye
+FROM node:16-bullseye
 
 ENV DEBIAN_FRONTEND=noninteractive \
   DOTNET_CLI_TELEMETRY_OPTOUT=1 \
