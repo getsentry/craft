@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.12.0
+
+### Various fixes & improvements
+
+- ref: upgrade to node 16 (#523) by @asottile-sentry
+
 ## 1.11.1
 
 ### Various fixes & improvements
