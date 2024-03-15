@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.13.0
+
+### Various fixes & improvements
+
+- ref: fix unzipping larger files in node 18+ (#524) by @asottile-sentry
+
 ## 1.12.0
 
 ### Various fixes & improvements
