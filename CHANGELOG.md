@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.15.0
+
+### Various fixes & improvements
+
+- ref: upgrade docker to debian bookworm (#526) by @asottile-sentry
+
 ## 1.14.0
 
 ### Various fixes & improvements
