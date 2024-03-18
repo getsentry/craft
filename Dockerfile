@@ -1,4 +1,4 @@
-FROM node:18-bullseye-slim as builder
+FROM node:18-bookworm-slim as builder
 
 WORKDIR /usr/local/lib
 
@@ -15,7 +15,7 @@ RUN \
   PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/lib/node_modules/.bin" \
   yarn --modules-folder /usr/local/lib/node_modules build
 
-FROM node:18-bullseye
+FROM node:18-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive \
   DOTNET_CLI_TELEMETRY_OPTOUT=1 \
@@ -30,6 +30,7 @@ RUN apt-get -qq update \
     apt-transport-https \
     build-essential \
     curl \
+    default-jdk-headless \
     dirmngr \
     gnupg \
     git \
@@ -38,7 +39,6 @@ RUN apt-get -qq update \
     ruby-full \
     jq \
     unzip \
-    openjdk-11-jdk \
     maven \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
@@ -47,11 +47,13 @@ COPY Gemfile Gemfile.lock ./
 
 RUN python3 -m venv /venv && pip install twine==4.0.2 pkginfo==1.10.0 --no-cache
 
-RUN curl -fsSL https://packages.microsoft.com/config/debian/10/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
+RUN : \
+  && . /etc/os-release \
+  && curl -fsSL "https://packages.microsoft.com/config/debian/${VERSION_ID}/packages-microsoft-prod.deb" -o /tmp/packages-microsoft-prod.deb \
   && dpkg -i /tmp/packages-microsoft-prod.deb \
   && rm /tmp/packages-microsoft-prod.deb \
   && curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - \
-  && echo 'deb [arch=amd64] https://download.docker.com/linux/debian buster stable' >> /etc/apt/sources.list \
+  && echo "deb [arch=amd64] https://download.docker.com/linux/debian ${VERSION_CODENAME} stable" >> /etc/apt/sources.list \
   && curl -fsSL https://packages.erlang-solutions.com/debian/erlang_solutions.asc | apt-key add - \
   && echo 'deb https://packages.erlang-solutions.com/debian bullseye contrib' >> /etc/apt/sources.list \
   && apt-get update -qq \
