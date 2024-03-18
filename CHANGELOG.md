@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.14.0
+
+### Various fixes & improvements
+
+- ref: upgrade craft to node 18 (#525) by @asottile-sentry
+
 ## 1.13.0
 
 ### Various fixes & improvements
