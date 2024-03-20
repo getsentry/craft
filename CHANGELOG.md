@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.16.0
+
+### Various fixes & improvements
+
+- ref: upgrade node to 20.x (#527) by @asottile-sentry
+
 ## 1.15.0
 
 ### Various fixes & improvements
