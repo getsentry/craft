@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.17.0
+
+### Various fixes & improvements
+
+- ref: upgrade twine to 5.x (#528) by @asottile-sentry
+
 ## 1.16.0
 
 ### Various fixes & improvements
