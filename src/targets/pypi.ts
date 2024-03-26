@@ -64,15 +64,9 @@ export class PypiTarget extends BaseTarget {
     };
   }
 
-  /**
-   * Uploads an archive to PyPI using twine
-   *
-   * @param path Absolute path to the archive to upload
-   * @returns A promise that resolves when the upload has completed
-   */
-  public async uploadAsset(path: string): Promise<any> {
+  async uploadAssets(paths: string[]): Promise<any> {
     // TODO: Sign the package with "--sign"
-    return spawnProcess(TWINE_BIN, ['upload', path]);
+    return spawnProcess(TWINE_BIN, ['upload', ...paths]);
   }
 
   /**
@@ -95,13 +89,13 @@ export class PypiTarget extends BaseTarget {
       return undefined;
     }
 
-    await Promise.all(
+    const paths = await Promise.all(
       packageFiles.map(async (file: RemoteArtifact) => {
-        const path = await this.artifactProvider.downloadArtifact(file);
         this.logger.info(`Uploading file "${file.filename}" via twine`);
-        return this.uploadAsset(path);
+        return this.artifactProvider.downloadArtifact(file);
       })
     );
+    await this.uploadAssets(paths);
 
     this.logger.info('PyPI release complete');
   }
