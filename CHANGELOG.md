@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.17.1
+
+### Various fixes & improvements
+
+- ref: upload to twine synchronously in a single call (#530) by @asottile-sentry
+
 ## 1.17.0
 
 ### Various fixes & improvements
