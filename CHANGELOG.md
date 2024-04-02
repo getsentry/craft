@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.2
+
+- No documented changes.
+
 ## 1.17.1
 
 ### Various fixes & improvements
