@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.18.0
+
+- feat: Registry target now adds key `created` with current timestamp to json file
+
 ## 1.17.2
 
 - No documented changes.
