@@ -362,7 +362,15 @@ export class RegistryTarget extends BaseTarget {
       );
     }
     // Update the manifest
-    const updatedManifest = { ...packageManifest, version };
+    const updatedManifest: {
+      version: string;
+      createdAt: string;
+      [key: string]: any;
+    } = {
+      ...packageManifest,
+      version,
+      createdAt: new Date().toISOString(),
+    };
 
     // Add file links if it's a generic app (legacy)
     if (registryConfig.type === RegistryPackageType.APP) {
