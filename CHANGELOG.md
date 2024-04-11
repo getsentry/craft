@@ -2,7 +2,7 @@
 
 ## 1.18.0
 
-- feat: Registry target now adds key `created` with current timestamp to json file
+- feat: Registry target now adds key `createdAt` with current timestamp to json file
 
 ## 1.17.2
 
@@ -112,7 +112,7 @@
 
 ### Various fixes & improvements
 
-- ref: Pin cocoapods version  (#496) by @brustolin
+- ref: Pin cocoapods version (#496) by @brustolin
 
 ## 1.6.0
 
@@ -128,14 +128,14 @@
 - build(deps): bump semver from 6.3.0 to 6.3.1 (#470) by @dependabot
 - build(deps): bump @babel/traverse from 7.22.5 to 7.23.2 (#494) by @dependabot
 - ref: remove volta from CI (#493) by @asottile-sentry
-- fix: Handle `{major}.json` and `{minor}.json`  symlinks when publishing older versions (#483) by @cleptric
+- fix: Handle `{major}.json` and `{minor}.json` symlinks when publishing older versions (#483) by @cleptric
 - Bump symbol collector 1.12.0 (#491) by @bruno-garcia
 
 ## 1.4.4
 
 ### Various fixes & improvements
 
-- fix(brew): Replace version in artifact names with '__VERSION__' to access checksums from mustache (#488) by @romtsn
+- fix(brew): Replace version in artifact names with '**VERSION**' to access checksums from mustache (#488) by @romtsn
 
 ## 1.4.3
 
