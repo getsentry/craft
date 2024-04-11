@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.18.0
+
+### Various fixes & improvements
+
+- feat: Add `createdAt` key to json in registry (#532) by @HazAT
+- build(deps-dev): bump tar from 4.4.18 to 6.2.1 (#531) by @dependabot
+
 ## 1.17.2
 
 - No documented changes.
