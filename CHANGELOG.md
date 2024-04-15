@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.19.0
+
+### Various fixes & improvements
+
+- bump symbol collector 1.17.0 (#533) by @bruno-garcia
+
 ## 1.18.0
 
 ### Various fixes & improvements
