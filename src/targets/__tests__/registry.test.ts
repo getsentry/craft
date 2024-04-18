@@ -22,7 +22,7 @@ describe('getUpdatedManifest', () => {
     { owner: 'testSourceOwner', repo: 'testSourceRepo' }
   );
 
-  it('check if createdAt exists', async () => {
+  it('check if created_at exists', async () => {
     const registryConfig: RegistryConfig = {
       type: RegistryPackageType.SDK,
       canonicalName: 'example-package',
@@ -42,7 +42,7 @@ describe('getUpdatedManifest', () => {
       revision
     );
 
-    // check if property createdAt exists
-    expect(updatedManifest).toHaveProperty('createdAt');
+    // check if property created_at exists
+    expect(updatedManifest).toHaveProperty('created_at');
   });
 });
