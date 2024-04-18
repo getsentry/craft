@@ -364,12 +364,12 @@ export class RegistryTarget extends BaseTarget {
     // Update the manifest
     const updatedManifest: {
       version: string;
-      createdAt: string;
+      created_at: string;
       [key: string]: any;
     } = {
       ...packageManifest,
       version,
-      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     };
 
     // Add file links if it's a generic app (legacy)
