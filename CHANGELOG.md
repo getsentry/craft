@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.19.1
+
+### Various fixes & improvements
+
+- ref: Rename createdAt to created_at (#534) by @HazAT
+
 ## 1.19.0
 
 ### Various fixes & improvements
