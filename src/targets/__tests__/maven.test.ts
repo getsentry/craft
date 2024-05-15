@@ -388,11 +388,11 @@ describe('upload', () => {
     expect(cmdArgs[1]).toMatch(new RegExp(`-Dfile=${tmpDirName}.+`));
     expect(cmdArgs[2]).toMatch(
       new RegExp(
-        `-Dfiles=${tmpDirName}.+-javadoc\\.jar,${tmpDirName}.+-sources\\.jar`
+        `-Dfiles=${tmpDirName}.+-javadoc\\.jar,${tmpDirName}.+-sources\\.jar,${tmpDirName}.+\\.module`
       )
     );
-    expect(cmdArgs[3]).toBe(`-Dclassifiers=javadoc,sources`);
-    expect(cmdArgs[4]).toBe(`-Dtypes=jar,jar`);
+    expect(cmdArgs[3]).toBe(`-Dclassifiers=javadoc,sources,`);
+    expect(cmdArgs[4]).toBe(`-Dtypes=jar,jar,module`);
     expect(cmdArgs[5]).toMatch(
       new RegExp(`-DpomFile=${tmpDirName}.+pom-default\\.xml`)
     );

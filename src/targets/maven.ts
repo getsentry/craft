@@ -484,6 +484,7 @@ export class MavenTarget extends BaseTarget {
         javadocFile,
         sourcesFile,
         pomFile,
+        moduleFile,
       } = this.getFilesForMavenPomDist(distDir);
 
       // Maven central is very flaky, so retrying with an exponential delay in
@@ -491,9 +492,9 @@ export class MavenTarget extends BaseTarget {
       await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
         'gpg:sign-and-deploy-file',
         `-Dfile=${targetFile}`,
-        `-Dfiles=${javadocFile},${sourcesFile}`,
-        `-Dclassifiers=javadoc,sources`,
-        `-Dtypes=jar,jar`,
+        `-Dfiles=${javadocFile},${sourcesFile},${moduleFile}`,
+        `-Dclassifiers=javadoc,sources,`,
+        `-Dtypes=jar,jar,module`,
         `-DpomFile=${pomFile}`,
         `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
         `-Durl=${this.mavenConfig.mavenRepoUrl}`,
@@ -518,6 +519,7 @@ export class MavenTarget extends BaseTarget {
       javadocFile: join(distDir, `${moduleName}-javadoc.jar`),
       sourcesFile: join(distDir, `${moduleName}-sources.jar`),
       pomFile: join(distDir, 'pom-default.xml'),
+      moduleFile: join(distDir, `${moduleName}.module`)
     };
   }
 
@@ -557,7 +559,6 @@ export class MavenTarget extends BaseTarget {
 
         files['klibFiles'] = cinteropFiles;
       }
-      files['moduleFile'] = join(distDir, `${moduleName}.module`);
     }
     return files;
   }
