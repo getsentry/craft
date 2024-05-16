@@ -111,7 +111,8 @@ export class GitHubTarget extends BaseTarget {
   public async createDraftRelease(
     version: string,
     revision: string,
-    changes?: Changeset
+    changes?: Changeset,
+    isLatest = true
   ): Promise<GitHubRelease> {
     const tag = versionToTag(version, this.githubConfig.tagPrefix);
     this.logger.info(`Git tag: "${tag}"`);
@@ -126,28 +127,6 @@ export class GitHubTarget extends BaseTarget {
         upload_url: '',
       };
     }
-
-    const { data: latestRelease } = await this.github.repos.getLatestRelease({
-      owner: this.githubConfig.owner,
-      repo: this.githubConfig.repo,
-    });
-
-    const latestReleaseTag = latestRelease?.tag_name;
-    this.logger.info(
-      latestReleaseTag
-        ? `Previous release: ${latestReleaseTag}`
-        : 'No previous release found'
-    );
-
-    const isLatest = isPreview
-      ? false
-      : isLatestRelease(latestReleaseTag, version);
-
-    this.logger.info(
-      isLatest
-        ? 'Tagging release as latest, because new version is greater than old version'
-        : 'Not tagging release as latest, because new version is not greater than old version'
-    );
 
     const { data } = await this.github.repos.createRelease({
       draft: true,
@@ -349,7 +328,7 @@ export class GitHubTarget extends BaseTarget {
    *
    * @param release Release object
    */
-  public async publishRelease(release: GitHubRelease) {
+  public async publishRelease(release: GitHubRelease, isLatest = true) {
     if (isDryRun()) {
       this.logger.info(`[dry-run] Not publishing the draft release`);
       return;
@@ -358,6 +337,7 @@ export class GitHubTarget extends BaseTarget {
     await this.github.repos.updateRelease({
       ...this.githubConfig,
       release_id: release.id,
+      make_latest: isLatest ? 'true' : 'false',
       draft: false,
     });
   }
@@ -420,10 +400,29 @@ export class GitHubTarget extends BaseTarget {
       }))
     );
 
+    const { data: latestRelease } = await this.github.repos.getLatestRelease({
+      owner: this.githubConfig.owner,
+      repo: this.githubConfig.repo,
+    });
+
+    const latestReleaseTag = latestRelease?.tag_name;
+    this.logger.info(
+      latestReleaseTag
+        ? `Previous release: ${latestReleaseTag}`
+        : 'No previous release found'
+    );
+
+    const isPreview =
+      this.githubConfig.previewReleases && isPreviewRelease(version);
+    const isLatest = isPreview
+      ? false
+      : isLatestRelease(latestReleaseTag, version);
+
     const draftRelease = await this.createDraftRelease(
       version,
       revision,
-      changelog
+      changelog,
+      isLatest
     );
 
     await Promise.all(
@@ -432,7 +431,7 @@ export class GitHubTarget extends BaseTarget {
       )
     );
 
-    await this.publishRelease(draftRelease);
+    await this.publishRelease(draftRelease, isLatest);
   }
 }
 
