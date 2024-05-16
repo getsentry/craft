@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.20.0
+
+### Various fixes & improvements
+
+- feat: Publish Gradle module metadata for Maven targets (#535) by @romtsn
+
 ## 1.19.1
 
 ### Various fixes & improvements
