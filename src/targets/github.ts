@@ -132,9 +132,22 @@ export class GitHubTarget extends BaseTarget {
       repo: this.githubConfig.repo,
     });
 
+    const latestReleaseTag = latestRelease?.tag_name;
+    this.logger.info(
+      latestReleaseTag
+        ? `Previous release: ${latestReleaseTag}`
+        : 'No previous release found'
+    );
+
     const isLatest = isPreview
       ? false
-      : isLatestRelease(latestRelease, version);
+      : isLatestRelease(latestReleaseTag, version);
+
+    this.logger.info(
+      isLatest
+        ? 'Tagging release as latest, because new version is greater than old version'
+        : 'Not tagging release as latest, because new version is not greater than old version'
+    );
 
     const { data } = await this.github.repos.createRelease({
       draft: true,
@@ -423,11 +436,8 @@ export class GitHubTarget extends BaseTarget {
   }
 }
 
-export function isLatestRelease(
-  githubRelease: { tag_name: string } | undefined,
-  version: string
-) {
-  const latestVersion = githubRelease && parseVersion(githubRelease.tag_name);
+export function isLatestRelease(previousVersion: string, version: string) {
+  const latestVersion = parseVersion(previousVersion);
   const versionToPublish = parseVersion(version);
   return latestVersion && versionToPublish
     ? versionGreaterOrEqualThan(versionToPublish, latestVersion)
