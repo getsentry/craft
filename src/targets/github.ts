@@ -436,7 +436,14 @@ export class GitHubTarget extends BaseTarget {
   }
 }
 
-export function isLatestRelease(previousVersion: string, version: string) {
+export function isLatestRelease(
+  previousVersion: string | undefined,
+  version: string
+) {
+  if (!previousVersion) {
+    return true;
+  }
+
   const latestVersion = parseVersion(previousVersion);
   const versionToPublish = parseVersion(version);
   return latestVersion && versionToPublish
