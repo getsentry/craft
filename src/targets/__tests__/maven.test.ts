@@ -371,6 +371,7 @@ describe('upload', () => {
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
     mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
+    mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce('pom-default.xml');
 
     await mvnTarget.upload('r3v1s10n');
 
@@ -420,6 +421,7 @@ describe('upload', () => {
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
     mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce('path/to/bomfile');
+    mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce(undefined);
 
     await mvnTarget.upload('r3v1s10n');
 
@@ -445,6 +447,32 @@ describe('upload', () => {
     expect(cmdArgs[5]).toBe(`-Dgpg.passphrase=${DEFAULT_OPTION_VALUE}`);
     expect(cmdArgs[6]).toBe('--settings');
     expect(cmdArgs[7]).toBe(DEFAULT_OPTION_VALUE);
+  });
+
+  test('should skip upload for artifacts without any POM/BOM', async () => {
+    // simple mock to always use the same temporary directory,
+    // instead of creating a new one
+    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+      async cb => {
+        return await cb(tmpDirName);
+      }
+    );
+
+    const mvnTarget = createMavenTarget();
+
+    mvnTarget.getArtifactsForRevision = jest
+      .fn()
+      .mockResolvedValueOnce([{ filename: 'mockArtifact.zip' }]);
+    mvnTarget.artifactProvider.downloadArtifact = jest
+      .fn()
+      .mockResolvedValueOnce('artifact/download/path');
+
+    mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
+    mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce(undefined);
+
+    await mvnTarget.upload('r3v1s10n');
+
+    expect(retrySpawnProcess).toHaveBeenCalledTimes(0);
   });
 });
 

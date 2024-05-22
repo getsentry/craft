@@ -288,11 +288,16 @@ export class MavenTarget extends BaseTarget {
    */
   private async uploadDistribution(distDir: string): Promise<void> {
     const bomFile = await this.getBomFileInDist(distDir);
+    const pomFile = await this.getPomFileInDist(distDir);
+
     if (bomFile) {
       this.logger.debug('Found BOM: ', bomFile);
       await this.uploadBomDistribution(bomFile);
-    } else {
+    } else if (pomFile) {
+      this.logger.debug('Found POM: ', pomFile);
       await this.uploadPomDistribution(distDir);
+    } else {
+      this.logger.warn(`No BOM/POM file found in: ${distDir}, skipping directory`);
     }
   }
 
@@ -341,7 +346,7 @@ export class MavenTarget extends BaseTarget {
     } catch (error) {
       this.logger.warn(
         `Could not determine if path corresponds to a BOM file: ${pomFilepath}\n` +
-          'Error:\n',
+        'Error:\n',
         error
       );
       return false;
@@ -473,6 +478,23 @@ export class MavenTarget extends BaseTarget {
       classifiers,
       types,
     };
+  }
+
+  /**
+   * Returns a file path to pom-default.xml if the file exists
+   * within the distribution directory.
+   */
+  public async getPomFileInDist(distDir: string): Promise<string | undefined> {
+    const pomFilepath = join(distDir, 'pom-default.xml');
+    try {
+      const stat = await fsPromises.stat(pomFilepath);
+      if (stat.isFile()) {
+        return pomFilepath;
+      }
+    } catch (e) {
+      // ignored
+    }
+    return undefined;
   }
 
   private async uploadPomDistribution(distDir: string): Promise<void> {
