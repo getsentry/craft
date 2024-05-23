@@ -497,6 +497,36 @@ export class MavenTarget extends BaseTarget {
     return undefined;
   }
 
+  /**
+   * Returns true if the provided path exists and is a file.
+   */
+  public async fileExists(filePath: string): Promise<boolean> {
+    try {
+      const stat = await fsPromises.stat(filePath);
+      if (stat.isFile()) {
+        return true;
+      }
+    } catch (e) {
+      // ignored
+    }
+    return false;
+  }
+
+  /**
+   * Some maven publications contain a dist/module.json file instead of a
+   * mvn friendly dist/dist.module file.
+   *
+   * In case module.json exists but dist.module doesn't,
+   * this function renames module.json to dist.module,
+   * making it fit for mvn publishing.
+   */
+  public async fixModuleFileName(distDir: string, moduleFile: string): Promise<void> {
+    const fallbackFile = join(distDir, 'module.json');
+    if (!await this.fileExists(moduleFile) && await this.fileExists(fallbackFile)) {
+      await fsPromises.rename(fallbackFile, moduleFile);
+    }
+  }
+
   private async uploadPomDistribution(distDir: string): Promise<void> {
     if (this.mavenConfig.kmp !== false) {
       await this.uploadKmpPomDistribution(distDir);
@@ -508,6 +538,7 @@ export class MavenTarget extends BaseTarget {
         pomFile,
         moduleFile,
       } = this.getFilesForMavenPomDist(distDir);
+      await this.fixModuleFileName(distDir, moduleFile);
 
       // Maven central is very flaky, so retrying with an exponential delay in
       // in case it fails.
@@ -559,6 +590,8 @@ export class MavenTarget extends BaseTarget {
       string,
       string | string[]
     >;
+    await this.fixModuleFileName(distDir, files.moduleFile as string);
+
     const moduleName = parse(distDir).base;
     if (this.mavenConfig.kmp !== false) {
       const isRootDistDir = this.mavenConfig.kmp.rootDistDirRegex.test(
