@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.20.1
+
+### Various fixes & improvements
+
+- fix(maven): Rename module.json to dist.module (#540) by @markushi
+- fix(maven): ignore artifacts which contain no POM/BOM (#538) by @markushi
+
 ## 1.20.0
 
 ### Various fixes & improvements
