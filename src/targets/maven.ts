@@ -273,10 +273,17 @@ export class MavenTarget extends BaseTarget {
     this.logger.debug(`Extracting ${artifact.filename}: `, downloadedPkgPath);
 
     await withTempDir(async dir => {
-      await extractZipArchive(downloadedPkgPath, dir);
       // All artifacts downloaded from GitHub are ZIP files.
       const pkgName = basename(artifact.filename, '.zip');
-      const distDir = join(dir, pkgName);
+
+      // let's extract into a sub-folder to not pollute the top level tmp folder
+      const baseDir = join(dir, pkgName);
+      this.logger.debug(`Extracting ${artifact.filename} to ${baseDir}`);
+
+      await extractZipArchive(downloadedPkgPath, baseDir);
+
+      // as per convention maven .zip files contain a top level folder
+      const distDir = join(baseDir, pkgName);
       await this.uploadDistribution(distDir);
     });
   }
@@ -306,6 +313,10 @@ export class MavenTarget extends BaseTarget {
    * `undefined` if there isn't any.
    */
   private async getBomFileInDist(distDir: string): Promise<string | undefined> {
+    if (!await this.folderExists(distDir)) {
+      return undefined;
+    }
+
     const pomFilepath = join(distDir, POM_DEFAULT_FILENAME);
     if (await this.isBomFile(pomFilepath)) {
       return pomFilepath;
@@ -338,6 +349,9 @@ export class MavenTarget extends BaseTarget {
    * @returns true if the POM is a BOM.
    */
   public async isBomFile(pomFilepath: string): Promise<boolean> {
+    if (!await this.fileExists(pomFilepath)) {
+      return false;
+    }
     try {
       const fileContents = await fsPromises.readFile(pomFilepath, {
         encoding: 'utf8',
@@ -486,15 +500,41 @@ export class MavenTarget extends BaseTarget {
    */
   public async getPomFileInDist(distDir: string): Promise<string | undefined> {
     const pomFilepath = join(distDir, 'pom-default.xml');
+    const exists = await this.fileExists(pomFilepath);
+    if (exists) {
+      return pomFilepath;
+    }
+    return undefined;
+  }
+
+  /**
+   * Returns true if the provided path exists and is a file.
+   */
+  public async fileExists(filePath: string): Promise<boolean> {
     try {
-      const stat = await fsPromises.stat(pomFilepath);
+      const stat = await fsPromises.stat(filePath);
       if (stat.isFile()) {
-        return pomFilepath;
+        return true;
       }
     } catch (e) {
       // ignored
     }
-    return undefined;
+    return false;
+  }
+
+  /**
+   * Returns true if the provided path exists and is a folder.
+   */
+  public async folderExists(filePath: string): Promise<boolean> {
+    try {
+      const stat = await fsPromises.stat(filePath);
+      if (stat.isDirectory()) {
+        return true;
+      }
+    } catch (e) {
+      // ignored
+    }
+    return false;
   }
 
   private async uploadPomDistribution(distDir: string): Promise<void> {
@@ -699,8 +739,7 @@ export class MavenTarget extends BaseTarget {
       }
 
       this.logger.info(
-        `Nexus repository still not closed. Waiting for ${
-          NEXUS_RETRY_DELAY / 1000
+        `Nexus repository still not closed. Waiting for ${NEXUS_RETRY_DELAY / 1000
         }s to try again.`
       );
     }

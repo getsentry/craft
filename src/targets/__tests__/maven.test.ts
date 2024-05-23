@@ -422,6 +422,8 @@ describe('upload', () => {
       .mockResolvedValueOnce('artifact/download/path');
     mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce('path/to/bomfile');
     mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce(undefined);
+    mvnTarget.folderExists = jest.fn().mockResolvedValueOnce(true);
+    mvnTarget.fileExists = jest.fn().mockResolvedValueOnce(true);
 
     await mvnTarget.upload('r3v1s10n');
 
