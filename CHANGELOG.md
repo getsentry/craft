@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.20.2
+
+### Various fixes & improvements
+
+- Upgrade Flutter from 3.10.0 to 3.13.0 (#543) by @buenaflor
+- build(deps): bump braces from 3.0.2 to 3.0.3 (#542) by @dependabot
+
 ## 1.20.1
 
 ### Various fixes & improvements
