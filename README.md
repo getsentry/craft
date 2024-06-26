@@ -1274,12 +1274,12 @@ Here is how you can integrate your GitHub project with `craft`:
          - 'release/**'
    ```
 
-2. Use the official `actions/upload-artifact@v2` action to upload your assets.
+2. Use the official `actions/upload-artifact` action to upload your assets.
    Here is an example config (step) of an archive job:
 
    ```yaml
    - name: Archive Artifacts
-     uses: actions/upload-artifact@v2
+     uses: actions/upload-artifact@v4
      with:
        name: ${{ github.sha }}
        path: |
