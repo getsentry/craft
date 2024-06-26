@@ -1157,8 +1157,9 @@ For this target to work correctly, either `dart` must be installed on the system
 
 | Option        | Description                                                                                                                                                                                     |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dartCliPath` | **optional** Path to the Dart CLI. It must be executable by the calling process. Defaults to `dart`.                                                                                            |
-| `packages`    | **optional** List of directories to be released, relative to the root. Useful when a single repository contains multiple packages. When skipped, root directory is assumed as the only package. |
+| `dartCliPath`    | **optional** Path to the Dart CLI. It must be executable by the calling process. Defaults to `dart`.                                                                                            |
+| `packages`       | **optional** List of directories to be released, relative to the root. Useful when a single repository contains multiple packages. When skipped, root directory is assumed as the only package. |
+| `skipValidation` | **optional** Whether to skip validation, which is useful if there are known issues but you need to make a release anyway. |
 
 **Example**
 
