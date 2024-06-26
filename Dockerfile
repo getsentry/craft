@@ -78,7 +78,7 @@ RUN : \
   && chmod +x /usr/local/bin/SymbolCollector.Console
 
 # https://docs.flutter.dev/get-started/install/linux#install-flutter-manually
-RUN curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.13.0-stable.tar.xz -o /opt/flutter.tar.xz \
+RUN curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.22.0-stable.tar.xz -o /opt/flutter.tar.xz \
   && tar xf /opt/flutter.tar.xz -C /opt \
   && rm /opt/flutter.tar.xz
 
