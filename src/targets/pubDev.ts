@@ -24,6 +24,8 @@ export interface PubDevTargetOptions {
   dartCliPath: string;
   /** List of directories to be released. Useful when a single repository contains multiple packages. */
   packages: string[];
+  /** Whether to skip validation */
+  skipValidation: boolean;
 }
 
 /**
@@ -69,6 +71,7 @@ export class PubDevTarget extends BaseTarget {
         ? Object.keys(this.config.packages)
         : ['.'],
       ...this.getTargetSecrets(),
+      skipValidation: this.config.skipValidation ?? false,
     };
 
     this.checkRequiredSoftware(config);
@@ -210,6 +213,10 @@ export class PubDevTarget extends BaseTarget {
           `Cannot remove dependency_overrides key from pubspec.yaml: ${e}`
         );
       }
+    }
+
+    if (this.pubDevConfig.skipValidation) {
+      args.push('--skip-validation');
     }
 
     await spawnProcess(

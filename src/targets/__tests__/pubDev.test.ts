@@ -99,6 +99,7 @@ describe('PubDev target configuration', () => {
       PUBDEV_REFRESH_TOKEN: DEFAULT_OPTION_VALUE,
       dartCliPath: 'dart',
       packages: ['.'],
+      skipValidation: false,
     });
   });
 
@@ -114,6 +115,7 @@ describe('PubDev target configuration', () => {
         dos: undefined,
         tres: undefined,
       },
+      skipValidation: true
     });
 
     expect(target.pubDevConfig).toStrictEqual({
@@ -121,6 +123,7 @@ describe('PubDev target configuration', () => {
       PUBDEV_REFRESH_TOKEN: 'refresh',
       dartCliPath: '/custom/path/dart',
       packages: ['uno', 'dos', 'tres'],
+      skipValidation: true,
     });
   });
 });
@@ -383,6 +386,25 @@ dependency_overrides:
     expect(spawnProcessMock).toHaveBeenCalledWith(
       'dart',
       ['pub', 'publish', '--force'],
+      {
+        cwd: `${TMP_DIR}/${pkg}`,
+      },
+      { showStdout: true }
+    );
+  });
+
+  test('should call `dart` cli with skip-validation if requesteed', async () => {
+    const pkg = 'uno';
+    const target = createPubDevTarget({ skipValidation: true });
+    await target.publishPackage(TMP_DIR, pkg);
+
+    const spawnProcessMock = spawnProcess as jest.MockedFunction<
+      typeof spawnProcess
+    >;
+
+    expect(spawnProcessMock).toHaveBeenCalledWith(
+      'dart',
+      ['pub', 'publish', '--force', '--skip-validation'],
       {
         cwd: `${TMP_DIR}/${pkg}`,
       },
