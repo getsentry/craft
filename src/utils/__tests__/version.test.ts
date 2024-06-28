@@ -183,12 +183,10 @@ describe('versionGreaterOrEqualThan', () => {
   });
 
   test('can compare pre parts', () => {
-    const v1 = parseVersion('1.2.3-1');
-    const v2 = parseVersion('1.2.3-2');
-    expect(v1).not.toBeNull();
-    expect(v2).not.toBeNull();
-    expect(versionGreaterOrEqualThan(v1 as SemVer, v2 as SemVer)).toBe(false);
-    expect(versionGreaterOrEqualThan(v2 as SemVer, v1 as SemVer)).toBe(true);
+    const v1 = parseVersion('1.2.3-1') as SemVer;
+    const v2 = parseVersion('1.2.3-2') as SemVer;
+    expect(versionGreaterOrEqualThan(v1, v2)).toBe(false);
+    expect(versionGreaterOrEqualThan(v2, v1)).toBe(true);
   });
 
   test('throws an exception if there are build parts', () => {
