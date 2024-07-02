@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.21.0
+
+### Various fixes & improvements
+
+- feat: add skipValidation to dart publishing (#544) by @vaind
+- chore: update flutter to the latest version (#545) by @vaind
+
 ## 1.20.2
 
 ### Various fixes & improvements
