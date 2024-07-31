@@ -58,6 +58,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
    * @param revision
    * @returns The artifact or null.
    */
+  // deprecated, see https://github.com/getsentry/craft/issues/552
   protected async searchForRevisionArtifact(revision: string, getRevisionDate: lazyRequestCallback<string>): Promise<ArtifactItem|null>  {
     const { repoName: repo, repoOwner: owner } = this.config;
     const per_page = 100;
@@ -87,6 +88,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
       const foundArtifact = artifacts.find(
         artifact => artifact.name === revision
       );
+
       if (foundArtifact) {
         this.logger.trace(`Found artifact on page ${page}:`, foundArtifact);
         return foundArtifact;
@@ -113,6 +115,72 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
   }
 
   /**
+   * Searches for the artifact with the given revision, paging
+   * through results if necessary.
+   *
+   * @param revision
+   * @returns The artifacts or null.
+   */
+  protected async searchForRevisionArtifacts(revision: string, getRevisionDate: lazyRequestCallback<string>): Promise<ArtifactItem|null>  {
+    const { repoName: repo, repoOwner: owner } = this.config;
+    const per_page = 100;
+
+    this.logger.debug(
+      `Searching GitHub artifacts for ${owner}/${repo}, revision ${revision}`
+    );
+
+    let checkNextPage = true;
+
+    const foundArtifacts = [];
+
+    for (let page = 0; checkNextPage; page++) {
+      // https://docs.github.com/en/free-pro-team@latest/rest/reference/actions#artifacts
+      const artifactResponse = await this.github.actions.listArtifactsForRepo({
+        owner: owner,
+        repo: repo,
+        per_page,
+        page,
+      });
+
+      const { artifacts, total_count } = artifactResponse.data;
+      this.logger.trace(`All available artifacts on page ${page}:`, artifacts);
+
+      // We need to find the most recent archive where name matches the revision.
+      // XXX(BYK): we assume the artifacts are listed in descending date order on
+      // this endpoint.
+      // There is no public documentation on this but the observed data and
+      // common-sense logic suggests that this is a reasonably safe assumption.
+
+      foundArtifacts.concat(artifacts.filter(
+        artifact => artifact.name.startsWith(`craft-${revision}-`)
+      ));
+
+      if (total_count <= per_page * (page + 1)) {
+        this.logger.debug(`No more pages remaining`);
+        break;
+      }
+
+      // does this need to be pluraled too?
+      const revisionDate = await getRevisionDate();
+
+      // XXX(BYK): The assumption here is that the artifact created_at date
+      // should always be greater than or equal to the associated revision date
+      // ** AND **
+      // the descending date order. See the note above
+      const lastArtifact = artifacts[artifacts.length - 1];
+      checkNextPage =
+        lastArtifact.created_at == null ||
+        lastArtifact.created_at >= revisionDate;
+    }
+
+    if (foundArtifacts) {
+      return foundArtifacts;
+    }
+
+    return null;
+  }
+
+  /**
    * Tries to find the artifact with the given revision, retrying if
    * necessary.
    *
@@ -121,7 +189,42 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
    */
   protected async getRevisionArtifact(
     revision: string
-  ): Promise<ArtifactItem> {
+  ): Promise<ArtifactItem|null> {
+    const { repoName: repo, repoOwner: owner } = this.config;
+    let artifact;
+    const getRevisionDate = lazyRequest<string>(async () => {
+      return (await this.github.git.getCommit({
+        owner,
+        repo,
+        commit_sha: revision,
+      })).data.committer.date;
+    })
+
+    for (let tries = 0; tries < MAX_TRIES; tries++) {
+      this.logger.info(
+        `Fetching GitHub artifacts for ${owner}/${repo}, revision ${revision} (attempt ${tries + 1} of ${MAX_TRIES})`
+      );
+
+      artifacts = await this.searchForRevisionArtifacts(revision, getRevisionDate);
+      if (artifacts) {
+        return artifacts;
+      }
+
+      // There may be a race condition between artifacts being uploaded
+      // and the GitHub API having the info to return.
+      // Wait before retries to give GitHub a chance to propagate changes.
+      if (tries + 1 < MAX_TRIES) {
+        this.logger.info(`Waiting ${ARTIFACTS_POLLING_INTERVAL / MILLISECONDS} seconds for artifacts to become available via GitHub API...`);
+        await sleep(ARTIFACTS_POLLING_INTERVAL);
+      }
+    }
+
+    return null;
+  }
+
+  protected async getRevisionArtifacts(
+    revision: string
+  ): Promise<ArtifactItem[]> {
     const { repoName: repo, repoOwner: owner } = this.config;
     let artifact;
     const getRevisionDate = lazyRequest<string>(async () => {
@@ -224,15 +327,32 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
   protected async doListArtifactsForRevision(
     revision: string
   ): Promise<RemoteArtifact[]> {
+    const artifacts: RemoteArtifact[] = [];
+    const foundArtifacts: RemoteArtifact[] = [];
+
+    // if not foundArtifact then we should attempt to await this.getRevisionArtifacts(revision);
+    // then iterate through multiple archive URLS
+
     const foundArtifact = await this.getRevisionArtifact(revision);
 
-    this.logger.debug(`Requesting archive URL from GitHub...`);
+    // is this how you compare null?
+    if (foundArtifact) {
+      foundArtifacts.append(foundArtifact)
+    } else {
+      foundArtifacts = await this.getRevisionArtifacts(revision);
+    }
 
-    const archiveUrl = await this.getArchiveDownloadUrl(foundArtifact);
+    for (foundArtifact in foundArtifacts) {
+      this.logger.debug(`Requesting archive URL from GitHub...`);
 
-    this.logger.debug(`Downloading ZIP from GitHub artifacts...`);
+      const archiveUrl = await this.getArchiveDownloadUrl(foundArtifact);
 
-    return await this.downloadAndUnpackArtifacts(archiveUrl);
+      this.logger.debug(`Downloading ZIP from GitHub artifacts...`);
+
+      artifacts.append( await this.downloadAndUnpackArtifacts(archiveUrl) );
+    }
+
+    return await artifacts
   }
 }
 
