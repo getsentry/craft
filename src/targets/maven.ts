@@ -91,10 +91,6 @@ export class MavenTarget extends BaseTarget {
   ) {
     super(config, artifactProvider);
     this.mavenConfig = this.getMavenConfig();
-
-    if (process.env.GPG_PRIVATE_KEY) {
-      await importGPGKey(process.env.GPG_PRIVATE_KEY);
-    }
   }
 
   /**
@@ -236,6 +232,9 @@ export class MavenTarget extends BaseTarget {
    * @param revision Git commit SHA to be published.
    */
   public async publish(_version: string, revison: string): Promise<void> {
+    if (process.env.GPG_PRIVATE_KEY) {
+      await importGPGKey(process.env.GPG_PRIVATE_KEY);
+    }
     await this.upload(revison);
     await this.closeAndReleaseRepository();
   }
@@ -297,7 +296,9 @@ export class MavenTarget extends BaseTarget {
       this.logger.debug('Found POM: ', pomFile);
       await this.uploadPomDistribution(distDir);
     } else {
-      this.logger.warn(`No BOM/POM file found in: ${distDir}, skipping directory`);
+      this.logger.warn(
+        `No BOM/POM file found in: ${distDir}, skipping directory`
+      );
     }
   }
 
@@ -346,7 +347,7 @@ export class MavenTarget extends BaseTarget {
     } catch (error) {
       this.logger.warn(
         `Could not determine if path corresponds to a BOM file: ${pomFilepath}\n` +
-        'Error:\n',
+          'Error:\n',
         error
       );
       return false;
@@ -520,9 +521,15 @@ export class MavenTarget extends BaseTarget {
    * this function renames module.json to dist.module,
    * making it fit for mvn publishing.
    */
-  public async fixModuleFileName(distDir: string, moduleFile: string): Promise<void> {
+  public async fixModuleFileName(
+    distDir: string,
+    moduleFile: string
+  ): Promise<void> {
     const fallbackFile = join(distDir, 'module.json');
-    if (!await this.fileExists(moduleFile) && await this.fileExists(fallbackFile)) {
+    if (
+      !(await this.fileExists(moduleFile)) &&
+      (await this.fileExists(fallbackFile))
+    ) {
       await fsPromises.rename(fallbackFile, moduleFile);
     }
   }
@@ -572,7 +579,7 @@ export class MavenTarget extends BaseTarget {
       javadocFile: join(distDir, `${moduleName}-javadoc.jar`),
       sourcesFile: join(distDir, `${moduleName}-sources.jar`),
       pomFile: join(distDir, 'pom-default.xml'),
-      moduleFile: join(distDir, `${moduleName}.module`)
+      moduleFile: join(distDir, `${moduleName}.module`),
     };
   }
 
