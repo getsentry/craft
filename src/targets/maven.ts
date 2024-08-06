@@ -93,7 +93,7 @@ export class MavenTarget extends BaseTarget {
     this.mavenConfig = this.getMavenConfig();
 
     if (process.env.GPG_PRIVATE_KEY) {
-      importGPGKey(process.env.GPG_PRIVATE_KEY);
+      await importGPGKey(process.env.GPG_PRIVATE_KEY);
     }
   }
 
