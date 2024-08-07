@@ -296,9 +296,7 @@ export class MavenTarget extends BaseTarget {
       this.logger.debug('Found POM: ', pomFile);
       await this.uploadPomDistribution(distDir);
     } else {
-      this.logger.warn(
-        `No BOM/POM file found in: ${distDir}, skipping directory`
-      );
+      this.logger.warn(`No BOM/POM file found in: ${distDir}, skipping directory`);
     }
   }
 
@@ -347,7 +345,7 @@ export class MavenTarget extends BaseTarget {
     } catch (error) {
       this.logger.warn(
         `Could not determine if path corresponds to a BOM file: ${pomFilepath}\n` +
-          'Error:\n',
+        'Error:\n',
         error
       );
       return false;
@@ -521,15 +519,9 @@ export class MavenTarget extends BaseTarget {
    * this function renames module.json to dist.module,
    * making it fit for mvn publishing.
    */
-  public async fixModuleFileName(
-    distDir: string,
-    moduleFile: string
-  ): Promise<void> {
+  public async fixModuleFileName(distDir: string, moduleFile: string): Promise<void> {
     const fallbackFile = join(distDir, 'module.json');
-    if (
-      !(await this.fileExists(moduleFile)) &&
-      (await this.fileExists(fallbackFile))
-    ) {
+    if (!await this.fileExists(moduleFile) && await this.fileExists(fallbackFile)) {
       await fsPromises.rename(fallbackFile, moduleFile);
     }
   }
@@ -579,7 +571,7 @@ export class MavenTarget extends BaseTarget {
       javadocFile: join(distDir, `${moduleName}-javadoc.jar`),
       sourcesFile: join(distDir, `${moduleName}-sources.jar`),
       pomFile: join(distDir, 'pom-default.xml'),
-      moduleFile: join(distDir, `${moduleName}.module`),
+      moduleFile: join(distDir, `${moduleName}.module`)
     };
   }
 
