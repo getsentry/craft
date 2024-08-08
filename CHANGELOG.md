@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.22.0
+
+### Various fixes & improvements
+
+- fix(maven): move `importGPGKey` function call from constructor to `publish` (#553) by @buenaflor
+- all-repos: update actions/upload-artifact to v4 (#551) by @joshuarli
+- build(deps-dev): bump fast-xml-parser from 4.2.5 to 4.4.1 (#550) by @dependabot
+- fix(readme): markdown on a long description for skipValidation (#548) by @vaind
+
 ## 1.21.0
 
 ### Various fixes & improvements
