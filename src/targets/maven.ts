@@ -91,10 +91,6 @@ export class MavenTarget extends BaseTarget {
   ) {
     super(config, artifactProvider);
     this.mavenConfig = this.getMavenConfig();
-
-    if (process.env.GPG_PRIVATE_KEY) {
-      importGPGKey(process.env.GPG_PRIVATE_KEY);
-    }
   }
 
   /**
@@ -236,6 +232,9 @@ export class MavenTarget extends BaseTarget {
    * @param revision Git commit SHA to be published.
    */
   public async publish(_version: string, revison: string): Promise<void> {
+    if (process.env.GPG_PRIVATE_KEY) {
+      await importGPGKey(process.env.GPG_PRIVATE_KEY);
+    }
     await this.upload(revison);
     await this.closeAndReleaseRepository();
   }

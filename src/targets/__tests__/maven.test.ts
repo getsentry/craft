@@ -260,10 +260,16 @@ describe('Maven target configuration', () => {
     expect(typeof mvnTarget.config.kmp.appleDistDirRegex).toBe('string');
   });
 
-  test('import GPG private key if one is present in the environment', () => {
+  test('import GPG private key if one is present in the environment', async () => {
     setTargetSecretsInEnv();
     process.env.GPG_PRIVATE_KEY = DEFAULT_OPTION_VALUE;
-    createMavenTarget(getFullTargetConfig());
+    const callOrder: string[] = [];
+    const mvnTarget = createMavenTarget(getFullTargetConfig());
+    mvnTarget.upload = jest.fn(async () => void callOrder.push('upload'));
+    mvnTarget.closeAndReleaseRepository = jest.fn(
+      async () => void callOrder.push('closeAndReleaseRepository')
+    );
+    await mvnTarget.publish('1.0.0', 'r3v1s10n');
     expect(importGPGKey).toHaveBeenCalledWith(DEFAULT_OPTION_VALUE);
   });
 });
