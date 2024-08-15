@@ -526,7 +526,7 @@ contains any one of `preview`, `pre`, `rc`, `dev`,`alpha`, `beta`, `unstable`,
 
 | Name           | Description                                                        |
 | -------------- | ------------------------------------------------------------------ |
-| `GITHUB_TOKEN` | Personal GitHub API token (see https://github.com/settings/tokens) |
+| `GITHUB_TOKEN` | Personal GitHub API token (see <https://github.com/settings/tokens>) |
 
 **Configuration**
 
@@ -617,7 +617,7 @@ like [getsentry/pypi]
 
 | Name           | Description                                                        |
 | -------------- | ------------------------------------------------------------------ |
-| `GITHUB_TOKEN` | Personal GitHub API token (see https://github.com/settings/tokens) |
+| `GITHUB_TOKEN` | Personal GitHub API token (see <https://github.com/settings/tokens>) |
 
 **Configuration**
 
@@ -829,7 +829,7 @@ targets:
 
 ### Sentry Release Registry (`registry`)
 
-The target will update the Sentry release registry repo(https://github.com/getsentry/sentry-release-registry/) with the latest version of the
+The target will update the Sentry release registry repo(<https://github.com/getsentry/sentry-release-registry/>) with the latest version of the
 project `craft` is used with. The release registry repository will be checked out
 locally, and then the new version file will be created there, along with the necessary
 symbolic links.
