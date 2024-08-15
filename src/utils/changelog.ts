@@ -1,4 +1,4 @@
-import { SimpleGit } from 'simple-git';
+import type { SimpleGit } from 'simple-git';
 import { logger } from '../logger';
 
 import { getGlobalGitHubConfig } from '../config';
@@ -12,6 +12,7 @@ import { getVersion } from './version';
 export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
 export const DEFAULT_UNRELEASED_TITLE = 'Unreleased';
 export const SKIP_CHANGELOG_MAGIC_WORD = '#skip-changelog';
+export const BODY_IN_CHANGELOG_MAGIC_WORD = '#body-in-changelog';
 const DEFAULT_CHANGESET_BODY = '- No documented changes.';
 const VERSION_HEADER_LEVEL = 2;
 const SUBSECTION_HEADER_LEVEL = VERSION_HEADER_LEVEL + 1;
@@ -214,8 +215,10 @@ interface Commit {
   author?: string;
   hash: string;
   title: string;
+  body: string;
   hasPRinTitle: boolean;
   pr: string | null;
+  prBody?: string | null;
   milestone: string | null;
 }
 
@@ -224,7 +227,7 @@ interface Milestone {
   description: string | null;
   state: 'OPEN' | 'CLOSED';
 }
-type MilestoneWithPRs = Milestone & {
+type MilestoneWithPRs = Partial<Milestone> & {
   prs: PullRequest[];
 };
 
@@ -242,6 +245,17 @@ function formatCommit(commit: Commit): string {
   if (commit.author) {
     text = `${text} by @${commit.author}`;
   }
+  let body = '';
+  if (commit.prBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
+    body = commit.prBody;
+  } else if (commit.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
+    body = commit.body;
+  }
+  body = body.replace(BODY_IN_CHANGELOG_MAGIC_WORD, '');
+  if (body) {
+    text += `\n  ${body}`;
+  }
+
   return text;
 }
 
@@ -270,12 +284,14 @@ export async function generateChangesetFromGit(
       continue;
     }
 
-    const commit = (commits[hash] = {
+    const commit = {
       hash: hash,
       title: gitCommit.title,
+      body: gitCommit.body,
       hasPRinTitle: Boolean(gitCommit.pr),
       ...githubCommit,
-    });
+    };
+    commits[hash] = commit;
 
     if (!githubCommit) {
       missing.push(commit);
@@ -283,7 +299,9 @@ export async function generateChangesetFromGit(
     if (!commit.milestone) {
       leftovers.push(commit);
     } else {
-      const milestone = milestones[commit.milestone] || { prs: [] };
+      const milestone = milestones[commit.milestone] || {
+        prs: [] as PullRequest[],
+      };
       // We _know_ the PR exists as milestones are attached to PRs
       milestone.prs.push({
         author: commit.author as string,
@@ -296,7 +314,7 @@ export async function generateChangesetFromGit(
 
   if (missing.length > 0) {
     logger.warn(
-      `The following commits were not found on GitHub:`,
+      'The following commits were not found on GitHub:',
       missing.map(commit => `${commit.hash.slice(0, 8)} ${commit.title}`)
     );
   }

@@ -5,7 +5,7 @@ import { getGitHubClient } from '../githubApi';
 jest.mock('../git');
 import { getChangesSince } from '../git';
 
-import { SimpleGit } from 'simple-git';
+import type { SimpleGit } from 'simple-git';
 
 import {
   findChangeset,
@@ -13,6 +13,7 @@ import {
   prependChangeset,
   generateChangesetFromGit,
   SKIP_CHANGELOG_MAGIC_WORD,
+  BODY_IN_CHANGELOG_MAGIC_WORD,
 } from '../changelog';
 
 describe('findChangeset', () => {
@@ -702,6 +703,103 @@ describe('generateChangesetFromGit', () => {
         '',
         '### Various fixes & improvements',
         '',
+        '- Fix the clacking sound on gear changes (#950) by @alice',
+      ].join('\n'),
+    ],
+    [
+      `should expand commits & prs with the magic ${BODY_IN_CHANGELOG_MAGIC_WORD}`,
+      [
+        {
+          hash: 'abcdef1234567890',
+          title: 'Upgraded the kernel',
+          body: SKIP_CHANGELOG_MAGIC_WORD,
+        },
+        {
+          hash: 'bcdef1234567890a',
+          title: 'Upgraded the manifold (#123)',
+          body: '',
+          pr: {
+            local: '123',
+            remote: {
+              number: '123',
+              author: { login: 'alice' },
+              milestone: '1',
+            },
+          },
+        },
+        {
+          hash: 'cdef1234567890ab',
+          title: 'Refactored the crankshaft',
+          body: '',
+          pr: {
+            remote: {
+              number: '456',
+              author: { login: 'bob' },
+              body: `This is important and we'll include the __body__ for attention. ${BODY_IN_CHANGELOG_MAGIC_WORD}`,
+              milestone: '1',
+            },
+          },
+        },
+        {
+          hash: 'def1234567890abc',
+          title: 'Upgrade the HUD (#789)',
+          body: '',
+          pr: {
+            local: '789',
+            remote: {
+              number: '789',
+              author: { login: 'charlie' },
+              milestone: '5',
+            },
+          },
+        },
+        {
+          hash: 'ef1234567890abcd',
+          title: 'Upgrade the steering wheel (#900)',
+          body: `Some very important update ${BODY_IN_CHANGELOG_MAGIC_WORD}`,
+          pr: { local: '900' },
+        },
+        {
+          hash: 'f1234567890abcde',
+          title: 'Fix the clacking sound on gear changes (#950)',
+          body: '',
+          pr: {
+            local: '950',
+            remote: { number: '950', author: { login: 'alice' } },
+          },
+        },
+      ],
+      {
+        '1': {
+          title: 'Better drivetrain',
+          description:
+            'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
+          state: 'CLOSED',
+        },
+        '5': {
+          title: 'Better driver experience',
+          description:
+            'We are working on making your driving experience more pleasant and safer.',
+          state: 'OPEN',
+        },
+      },
+      [
+        '### Better drivetrain',
+        '',
+        'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
+        '',
+        'By: @alice (#123), @bob (#456)',
+        '',
+        '### Better driver experience (ongoing)',
+        '',
+        'We are working on making your driving experience more pleasant and safer.',
+        '',
+        'By: @charlie (#789)',
+        '',
+        '### Various fixes & improvements',
+        '',
+        '- Upgrade the steering wheel (#900)',
+        '  Some very important update ',
         '- Fix the clacking sound on gear changes (#950) by @alice',
       ].join('\n'),
     ],
