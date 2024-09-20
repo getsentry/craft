@@ -86,7 +86,7 @@ export class DockerTarget extends BaseTarget {
    * Pushes the the source image into local
    * @param revision Image tag, usually the git revision
    */
-  public async pull(revision: string): Promise<any> {
+  async pull(revision: string): Promise<any> {
     this.logger.debug('Pulling source image...');
     const sourceImage = renderTemplateSafe(this.dockerConfig.sourceTemplate, {
       ...this.dockerConfig,
@@ -105,7 +105,7 @@ export class DockerTarget extends BaseTarget {
    * @param sourceRevision The tag/revision for the source image
    * @param version The release version for the target image
    */
-  public async push(sourceRevision: string, version: string): Promise<any> {
+  async push(sourceRevision: string, version: string): Promise<any> {
     const sourceImage = renderTemplateSafe(this.dockerConfig.sourceTemplate, {
       ...this.dockerConfig,
       revision: sourceRevision,
@@ -125,6 +125,40 @@ export class DockerTarget extends BaseTarget {
   }
 
   /**
+   * Checks whether Docker BuildKit is installed.
+   */
+  async hasBuildKit(): Promise<boolean> {
+    return spawnProcess(DOCKER_BIN, ['buildx', 'version']).then(() => true).catch(() => false);
+  }
+
+  /**
+   * Copies an existing local or remote docker image to a new destination.
+   *
+   * Requires BuildKit / `docker buildx` to be installed.
+   *
+   * @param sourceRevision The tag/revision for the source image
+   * @param version The release version for the target image
+   */
+  async copy(sourceRevision: string, version: string): Promise<any> {
+    const sourceImage = renderTemplateSafe(this.dockerConfig.sourceTemplate, {
+      ...this.dockerConfig,
+      revision: sourceRevision,
+    });
+    const targetImage = renderTemplateSafe(this.dockerConfig.targetTemplate, {
+      ...this.dockerConfig,
+      version,
+    });
+
+    this.logger.debug(`Copying image from ${sourceImage} to ${targetImage}...`);
+    return spawnProcess(
+      DOCKER_BIN,
+      ['buildx', 'imagetools', 'create', '--tag', targetImage, sourceImage],
+      {},
+      { showStdout: true }
+    );
+  }
+
+  /**
    * Pushes a source image to Docker Hub
    *
    * @param version The new version
@@ -132,8 +166,14 @@ export class DockerTarget extends BaseTarget {
    */
   public async publish(version: string, revision: string): Promise<any> {
     await this.login();
-    await this.pull(revision);
-    await this.push(revision, version);
+
+    if (await this.hasBuildKit()) {
+      await this.copy(revision, version);
+    } else {
+      // Fall back to slow/old pull and push method.
+      await this.pull(revision);
+      await this.push(revision, version);
+    }
 
     this.logger.info('Docker release complete');
   }
