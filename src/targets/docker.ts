@@ -83,29 +83,14 @@ export class DockerTarget extends BaseTarget {
   }
 
   /**
-   * Pushes the the source image into local
-   * @param revision Image tag, usually the git revision
-   */
-  public async pull(revision: string): Promise<any> {
-    this.logger.debug('Pulling source image...');
-    const sourceImage = renderTemplateSafe(this.dockerConfig.sourceTemplate, {
-      ...this.dockerConfig,
-      revision,
-    });
-    return spawnProcess(
-      DOCKER_BIN,
-      ['pull', sourceImage],
-      {},
-      { enableInDryRunMode: true }
-    );
-  }
-
-  /**
-   * Pushes the locally tagged source image to Docker Hub
+   * Copies an existing local or remote docker image to a new destination.
+   *
+   * Requires BuildKit / `docker buildx` to be installed.
+   *
    * @param sourceRevision The tag/revision for the source image
    * @param version The release version for the target image
    */
-  public async push(sourceRevision: string, version: string): Promise<any> {
+  async copy(sourceRevision: string, version: string): Promise<any> {
     const sourceImage = renderTemplateSafe(this.dockerConfig.sourceTemplate, {
       ...this.dockerConfig,
       revision: sourceRevision,
@@ -114,11 +99,11 @@ export class DockerTarget extends BaseTarget {
       ...this.dockerConfig,
       version,
     });
-    this.logger.debug('Tagging target image...');
-    await spawnProcess(DOCKER_BIN, ['tag', sourceImage, targetImage]);
+
+    this.logger.debug(`Copying image from ${sourceImage} to ${targetImage}...`);
     return spawnProcess(
       DOCKER_BIN,
-      ['push', targetImage],
+      ['buildx', 'imagetools', 'create', '--tag', targetImage, sourceImage],
       {},
       { showStdout: true }
     );
@@ -132,8 +117,7 @@ export class DockerTarget extends BaseTarget {
    */
   public async publish(version: string, revision: string): Promise<any> {
     await this.login();
-    await this.pull(revision);
-    await this.push(revision, version);
+    await this.copy(revision, version);
 
     this.logger.info('Docker release complete');
   }
