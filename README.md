@@ -904,17 +904,16 @@ targets:
 
 ### Docker (`docker`)
 
-Pulls an existing source image tagged with the revision SHA, and then pushed it
-to a new target tagged with the released version. No release
-assets are required for this target except for the source image at the provided
-source image location so it would be a good idea to add a status check that
-ensures the source image exists, otherwise `craft publish` will fail at the
-`docker pull` step, causing an interrupted publish. This is an issue for other,
-non-idempotent targets, not for the Docker target.
+Copies an existing source image tagged with the revision SHA to a new target
+tagged with the released version. No release assets are required for this target
+except for the source image at the provided source image location so it would be
+a good idea to add a status check that ensures the source image exists, otherwise
+`craft publish` will fail at the copy step, causing an interrupted publish.
+This is an issue for other, non-idempotent targets, not for the Docker target.
 
 **Environment**
 
-`docker` executable (or something equivalent) must be installed on the system.
+`docker` executable (or something equivalent) with BuildKit must be installed on the system.
 
 | Name              | Description                                |
 | ----------------- | ------------------------------------------ |
