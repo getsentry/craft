@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.0
+
+### Various fixes & improvements
+
+- ref(docker): Use docker buildx (BuildKit) to publish docker images (#556) by @Dav1dde
+- build(deps): bump micromatch from 4.0.5 to 4.0.8 (#555) by @dependabot
+- feat: Add #body-in-changelog option to PR/commit bodies (#554) by @BYK
+
 ## 1.22.0
 
 ### Various fixes & improvements
