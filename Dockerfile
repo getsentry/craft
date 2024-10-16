@@ -61,6 +61,7 @@ RUN : \
     dotnet-sdk-8.0 \
     dotnet-sdk-7.0 \
     docker-ce-cli \
+    docker-buildx-plugin \
     erlang \
     elixir \
   && apt-get clean \
