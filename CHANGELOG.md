@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0
+
+### Various fixes & improvements
+
+- fix(docker): install buildx (#558) by @joshuarli
+
 ## 2.0.0
 
 ### Various fixes & improvements
