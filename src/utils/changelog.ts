@@ -472,7 +472,7 @@ async function getPRAndMilestoneFromCommit(
         hash.slice(1),
         pr
           ? {
-              author: pr.author.login,
+              author: pr.author?.login ?? null,
               pr: pr.number,
               prBody: pr.body,
               milestone: pr.milestone?.number ?? null,
