@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.1
+
+### Various fixes & improvements
+
+- fix: Add optional to type chain (#560) by @brian-lou
+
 ## 2.1.0
 
 ### Various fixes & improvements
