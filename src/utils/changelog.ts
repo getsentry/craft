@@ -380,7 +380,7 @@ interface CommitInfo {
     nodes: Array<{
       number: string;
       body: string;
-      author: {
+      author?: {
         login: string;
       };
       milestone: {
@@ -472,7 +472,7 @@ async function getPRAndMilestoneFromCommit(
         hash.slice(1),
         pr
           ? {
-              author: pr.author?.login ?? null,
+              author: pr.author?.login,
               pr: pr.number,
               prBody: pr.body,
               milestone: pr.milestone?.number ?? null,
