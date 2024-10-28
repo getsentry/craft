@@ -290,7 +290,7 @@ describe('generateChangesetFromGit', () => {
     pr?: {
       local?: string;
       remote?: {
-        author: { login: string };
+        author?: { login: string };
         number: string;
         body?: string;
         milestone?: string;
@@ -388,6 +388,19 @@ describe('generateChangesetFromGit', () => {
       ],
       {},
       '### Various fixes & improvements\n\n- Upgraded the kernel (#123) by @sentry',
+    ],
+    [
+      'Does not error when PR author is null',
+      [
+        {
+          hash: 'abcdef1234567890',
+          title: 'Upgraded the kernel',
+          body: '',
+          pr: { remote: { number: '123' } },
+        },
+      ],
+      {},
+      '### Various fixes & improvements\n\n- Upgraded the kernel (#123)',
     ],
     [
       'handle multiple commits properly',
