@@ -42,6 +42,10 @@ describe('isValidVersion', () => {
     expect(isValidVersion('1.2.3rc1')).toBe(true);
   });
 
+  test('accepts valid Python-style post release version', () => {
+    expect(isValidVersion('1.2.3-1')).toBe(true);
+  });
+
   test('does not accept leading "v"', () => {
     expect(isValidVersion('v1.2.3')).toBe(false);
   });
@@ -110,6 +114,15 @@ describe('parseVersion', () => {
     });
   });
 
+  test('parses a Python-style post release version', () => {
+    expect(parseVersion('1.2.3-1')).toEqual({
+      major: 1,
+      minor: 2,
+      patch: 3,
+      pre: '1',
+    });
+  });
+
   test('does not parse an invalid version', () => {
     expect(parseVersion('v1.2')).toBeNull();
   });
@@ -120,9 +133,12 @@ describe('parseVersion', () => {
 });
 
 describe('isPreviewRelease', () => {
-  test('accepts semver preview release', () => {
-    expect(isPreviewRelease('2.3.4-preview1')).toBe(true);
-  });
+  test.each(['preview', 'pre', 'alpha.0', 'beta', 'rc.1', 'dev'])(
+    'accepts semver preview release',
+    previewSuffix => {
+      expect(isPreviewRelease(`2.3.4-${previewSuffix}1`)).toBe(true);
+    }
+  );
 
   test('accepts Python-style preview release', () => {
     expect(isPreviewRelease('2.3.4rc0')).toBe(true);
@@ -134,6 +150,10 @@ describe('isPreviewRelease', () => {
 
   test('does not accept non-release strings', () => {
     expect(isPreviewRelease('4-preview')).toBe(false);
+  });
+
+  test('does not accept Python-style post release', () => {
+    expect(isPreviewRelease('1.2.3-1')).toBe(false);
   });
 });
 
