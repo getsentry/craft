@@ -120,12 +120,19 @@ describe('parseVersion', () => {
 });
 
 describe('isPreviewRelease', () => {
-  test('accepts semver preview release', () => {
-    expect(isPreviewRelease('2.3.4-preview1')).toBe(true);
-  });
+  test.each(['preview', 'pre', 'alpha.0', 'beta', 'rc.1', 'dev'])(
+    'accepts semver preview release',
+    previewSuffix => {
+      expect(isPreviewRelease(`2.3.4-${previewSuffix}1`)).toBe(true);
+    }
+  );
 
   test('accepts Python-style preview release', () => {
     expect(isPreviewRelease('2.3.4rc0')).toBe(true);
+  });
+
+  test('accepts dump preview release', () => {
+    expect(isPreviewRelease('2.3.4-dump1')).toBe(true);
   });
 
   test('does not accept non-preview release', () => {
