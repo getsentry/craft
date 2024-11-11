@@ -119,6 +119,8 @@ describe('parseVersion', () => {
       major: 1,
       minor: 2,
       patch: 3,
+      // we misinterpret the post release number as `pre` but this is fine as we
+      // have specific checks for what we consider a preview release
       pre: '1',
     });
   });
