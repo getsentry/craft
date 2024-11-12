@@ -112,6 +112,66 @@ Options:
   -h, --help     Show help                                             [boolean]
 ```
 
+
+### Version naming conventions
+
+Craft currently supports [semantic versioning (semver)](https://semver.org)-like versions for the `NEW-VERSION` argument passed to its `prepare` and `publish` commands. This means, releases made with craft need to follow a general pattern as follows:
+
+```txt
+<major>.<minor>.<patch>(-<prerelease>)?(-<build>)?
+```
+
+- The `<major>`, `<minor>` and `<patch>` numbers are required
+- The `<prerelease>` and `<build>` identifiers are optional
+
+#### Preview releases (`<prerelease>`)
+
+Preview or pre-release identifiers **must** include one of the following identifiers
+
+```txt
+preview|pre|rc|dev|alpha|beta|unstable|a|b
+```
+
+and may additionally include incremental pre-release version numbers.
+Adding identifiers other than the ones listed above result in Craft either rejecting the release (if not parse-able) or the release being treated by individual targets as a stable release.
+
+Examples:
+
+```txt
+1.0.0-preview
+1.0.0-alpha.0
+1.0.0-beta.1
+1.0.0-rc.20
+1.0.0-a
+
+// invalid or incorrectly treated
+1.0.0-foo
+1.0.0-canary.0
+```
+
+#### Special Case: Python Post Releases
+
+
+Python has the concept of post releases, which craft handles implicitly. A post release is indicated by a `-\d+` suffix to the semver version, for example: `1.0.0-1`.
+Given that we only consider certain identifiers as [pre-releases](#preview-releases-prerelease), post releases are considered stable releases.
+
+### Build identifiers (`<build>`)
+
+Craft supports adding a build identifier to your version, for example if you release the same package version for different platforms or architectures.
+You can also combine build and pre-release identifiers but in this case, the pre-release identifier has to come first.
+
+Examples:
+
+```txt
+// valid
+1.0.0+x86_64
+1.0.0-rc.1+x86_64
+
+// invalid or incorrectly treated
+1.0.0+rc.1+x86_64
+1.0.0+x86_64-beta.0
+```
+
 ## Caveats
 
 - When interacting with remote GitHub repositories, `craft` uses the
@@ -519,8 +579,7 @@ changelog. Otherwise, defaults to the tag name and tag's commit message.
 
 If `previewReleases` is set to `true` (which is the default), the release
 created on GitHub will be marked as a pre-release version if the release name
-contains any one of `preview`, `pre`, `rc`, `dev`,`alpha`, `beta`, `unstable`,
-`a`, or `b`.
+contains any one of [pre-release identifiers](#preview-releases-prerelease).
 
 **Environment**
 
