@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.2.0
+
+### Various fixes & improvements
+
+- build(deps): bump cross-spawn from 7.0.3 to 7.0.5 (#566) by @dependabot
+- Install .NET 9 SDK (#564) by @bruno-garcia
+- Bump CocoaPods from 1.14.2 to 1.16.2 (#565) by @philipphofmann
+- doc(readme): Add section about release naming conventions (#563) by @Lms24
+- test(utils): Add additional tests for version helper functions (#562) by @Lms24
+
 ## 2.1.1
 
 ### Various fixes & improvements
