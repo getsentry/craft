@@ -127,10 +127,17 @@ export class GitHubTarget extends BaseTarget {
       };
     }
 
-    const { data: latestRelease } = await this.github.repos.getLatestRelease({
-      owner: this.githubConfig.owner,
-      repo: this.githubConfig.repo,
-    });
+    let latestRelease: { tag_name: string } | undefined = undefined;
+    try {
+      latestRelease = (
+        await this.github.repos.getLatestRelease({
+          owner: this.githubConfig.owner,
+          repo: this.githubConfig.repo,
+        })
+      ).data;
+    } catch {
+      // no release yet
+    }
 
     const isLatest = isPreview
       ? false
