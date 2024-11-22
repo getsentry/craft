@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.1
+
+### Various fixes & improvements
+
+- Rollback CocoaPods from 1.14.2 to 1.16.2 (#569) by @philipphofmann
+
 ## 2.2.0
 
 ### Various fixes & improvements
