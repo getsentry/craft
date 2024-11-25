@@ -60,7 +60,6 @@ RUN : \
   && apt-get install -y --no-install-recommends \
     dotnet-sdk-9.0 \
     dotnet-sdk-8.0 \
-    dotnet-sdk-7.0 \
     docker-ce-cli \
     docker-buildx-plugin \
     erlang \
