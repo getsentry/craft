@@ -34,10 +34,11 @@ RUN apt-get -qq update \
     dirmngr \
     gnupg \
     git \
+    jq \
     python3-packaging \
     python3-venv \
+    rsync \
     ruby-full \
-    jq \
     unzip \
     maven \
   && apt-get clean \
