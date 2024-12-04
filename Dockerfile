@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim as builder
+FROM node:22-bookworm-slim as builder
 
 WORKDIR /usr/local/lib
 
