@@ -89,7 +89,7 @@
   "scripts": {
     "build:fat": "yarn run compile-config-schema && tsc -p tsconfig.build.json",
     "build:watch": "yarn run compile-config-schema && tsc -p tsconfig.build.json --watch",
-    "build": "yarn compile-config-schema && esbuild src/index.ts --sourcemap --bundle --platform=node --target=node22.12 --outfile=dist/craft --minify",
+    "build": "yarn compile-config-schema && esbuild src/index.ts --sourcemap --bundle --platform=node --target=node20 --outfile=dist/craft --minify",
     "precli": "yarn build",
     "cli": "node -r source-map-support/register dist/craft",
     "clean": "rimraf dist coverage",
