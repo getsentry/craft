@@ -27,19 +27,19 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get -qq update \
   && apt-get install -y --no-install-recommends \
-  apt-transport-https \
-  build-essential \
-  curl \
-  default-jdk-headless \
-  dirmngr \
-  gnupg \
-  git \
-  python3-packaging \
-  python3-venv \
-  ruby-full \
-  jq \
-  unzip \
-  maven \
+    apt-transport-https \
+    build-essential \
+    curl \
+    default-jdk-headless \
+    dirmngr \
+    gnupg \
+    git \
+    python3-packaging \
+    python3-venv \
+    ruby-full \
+    jq \
+    unzip \
+    maven \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
@@ -61,12 +61,12 @@ RUN : \
   && echo "deb https://binaries2.erlang-solutions.com/debian bullseye-elixir-1.15 contrib" >> /etc/apt/sources.list \
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
-  dotnet-sdk-9.0 \
-  dotnet-sdk-8.0 \
-  docker-ce-cli \
-  docker-buildx-plugin \
-  erlang \
-  elixir \
+    dotnet-sdk-9.0 \
+    dotnet-sdk-8.0 \
+    docker-ce-cli \
+    docker-buildx-plugin \
+    erlang \
+    elixir \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* \
   && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s --  --profile minimal -y \
