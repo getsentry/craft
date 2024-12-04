@@ -89,20 +89,24 @@ export class SentryPypiTarget extends BaseTarget {
       );
 
       const contents = fs.readFileSync(path.join(directory, 'packages.ini'), {
-        encoding: 'UTF-8',
+        encoding: 'utf-8',
       });
       const tree = ((await spawnProcess(
         'git',
         ['-C', directory, 'rev-parse', 'HEAD:'],
         {},
         { enableInDryRunMode: true }
-      )) as Buffer).toString('UTF-8').trim();
+      )) as Buffer)
+        .toString('utf-8')
+        .trim();
       const commit = ((await spawnProcess(
         'git',
         ['-C', directory, 'rev-parse', 'HEAD'],
         {},
         { enableInDryRunMode: true }
-      )) as Buffer).toString('UTF-8').trim();
+      )) as Buffer)
+        .toString('utf-8')
+        .trim();
       return [contents, tree, commit];
     });
 

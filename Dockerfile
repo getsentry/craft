@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim as builder
+FROM node:22-bookworm-slim as builder
 
 WORKDIR /usr/local/lib
 
@@ -10,12 +10,12 @@ RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
 COPY . .
 
 RUN \
-   NODE_ENV=production \
+  NODE_ENV=production \
   NODE_PATH=/usr/local/lib/node_modules \
   PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/lib/node_modules/.bin" \
   yarn --modules-folder /usr/local/lib/node_modules build
 
-FROM node:20-bookworm
+FROM node:22-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive \
   DOTNET_CLI_TELEMETRY_OPTOUT=1 \
