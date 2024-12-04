@@ -21,6 +21,7 @@ jobs:
           private-key: ${{ secrets.SENTRY_RELEASE_BOT_PRIVATE_KEY }}
       - uses: actions/checkout@v3
         with:
+          # Fetch all commits so we can determine previous version
           token: ${{ steps.token.outputs.token }}
           fetch-depth: 0
       - name: Prepare release
