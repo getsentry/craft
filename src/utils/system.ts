@@ -214,7 +214,7 @@ export async function calculateChecksum(
   const hash = createHash(algorithm);
 
   return new Promise<string>((resolve, reject) => {
-    stream.on('data', data => hash.update(data, 'utf8'));
+    stream.on('data', data => hash.update(data));
     stream.on('end', () => resolve(formatDigest(hash, format)));
     stream.on('error', reject);
   });
