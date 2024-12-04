@@ -54,8 +54,11 @@ RUN : \
   && rm /tmp/packages-microsoft-prod.deb \
   && curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - \
   && echo "deb [arch=amd64] https://download.docker.com/linux/debian ${VERSION_CODENAME} stable" >> /etc/apt/sources.list \
-  && curl -fsSL https://packages.erlang-solutions.com/debian/erlang_solutions.asc | apt-key add - \
-  && echo 'deb https://packages.erlang-solutions.com/debian bullseye contrib' >> /etc/apt/sources.list \
+  # Note we use the Erlang Solutions-provided binaries as the ones in Debian were too old
+  # This may have changed and we may want to revert back to official Debian packages
+  # See https://www.erlang-solutions.com/downloads/#
+  && curl -fsSL https://binaries2.erlang-solutions.com/GPG-KEY-pmanager.asc | apt-key add - \
+  && echo "deb https://binaries2.erlang-solutions.com/debian bullseye-elixir-1.15 contrib" >> /etc/apt/sources.list \
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
   dotnet-sdk-9.0 \
