@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.3.0
+
+### Various fixes & improvements
+
+- feat(aws-lambda): Add `lambda:ListLayerVersions` permission to layer (#579) by @andreiborza
+- Replace release bot with GH app (#574) by @Jeffreyhung
+- ref: Upgrade Node to v22.12 (#576) by @BYK
+- feat: Add rsync to Docker image (#575) by @BYK
+- fix(docker): Use proper Erlang binaries for our builds (#577) by @BYK
+- remove dotnet 7 (#572) by @bruno-garcia
+- chore: Comment why we can't use cocoapods 1.16.2 (#570) by @philipphofmann
+
 ## 2.2.1
 
 ### Various fixes & improvements
