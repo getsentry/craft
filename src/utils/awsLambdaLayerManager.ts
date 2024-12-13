@@ -83,13 +83,6 @@ export class AwsLambdaLayerManager {
       Action: 'lambda:GetLayerVersion',
       Principal: '*',
     });
-    await lambda.addLayerVersionPermission({
-      LayerName: this.layerName,
-      VersionNumber: publishedLayer.Version,
-      StatementId: 'public',
-      Action: 'lambda:ListLayerVersions',
-      Principal: '*',
-    });
 
     if (this.verboseInfo) {
       logger.info(`Published layer in ${region} for ${this.runtime.name}:
