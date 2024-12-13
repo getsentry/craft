@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.1
+
+### Various fixes & improvements
+
+- fix(aws-lambda): Remove `lambda:ListLayerVersions` permission as it breaks publishing (#580) by @andreiborza
+
 ## 2.3.0
 
 ### Various fixes & improvements
