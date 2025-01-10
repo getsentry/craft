@@ -127,10 +127,21 @@ export class GitHubTarget extends BaseTarget {
       };
     }
 
-    const { data: latestRelease } = await this.github.repos.getLatestRelease({
-      owner: this.githubConfig.owner,
-      repo: this.githubConfig.repo,
-    });
+    let latestRelease: { tag_name: string } | undefined;
+    try {
+      latestRelease = (
+        await this.github.repos.getLatestRelease({
+          owner: this.githubConfig.owner,
+          repo: this.githubConfig.repo,
+        })
+      ).data;
+    } catch (error) {
+      // if the error is a 404 error, it means that no release exists yet
+      // all other errors should be rethrown
+      if (error.status !== 404) {
+        throw error;
+      }
+    }
 
     const isLatest = isPreview
       ? false
