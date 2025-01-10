@@ -111,8 +111,7 @@ export class GitHubTarget extends BaseTarget {
   public async createDraftRelease(
     version: string,
     revision: string,
-    changes?: Changeset,
-    options: { makeLatest: boolean } = { makeLatest: true }
+    changes?: Changeset
   ): Promise<GitHubRelease> {
     const tag = versionToTag(version, this.githubConfig.tagPrefix);
     this.logger.info(`Git tag: "${tag}"`);
@@ -135,7 +134,6 @@ export class GitHubTarget extends BaseTarget {
       prerelease: isPreview,
       repo: this.githubConfig.repo,
       tag_name: tag,
-      make_latest: options.makeLatest ? 'true' : 'false',
       target_commitish: revision,
       ...changes,
     });
@@ -435,10 +433,7 @@ export class GitHubTarget extends BaseTarget {
     const draftRelease = await this.createDraftRelease(
       version,
       revision,
-      changelog,
-      {
-        makeLatest,
-      }
+      changelog
     );
 
     await Promise.all(
