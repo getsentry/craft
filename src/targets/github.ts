@@ -127,7 +127,7 @@ export class GitHubTarget extends BaseTarget {
       };
     }
 
-    let latestRelease: { tag_name: string } | undefined = undefined;
+    let latestRelease: { tag_name: string } | undefined;
     try {
       latestRelease = (
         await this.github.repos.getLatestRelease({
