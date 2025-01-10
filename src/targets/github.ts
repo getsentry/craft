@@ -112,7 +112,7 @@ export class GitHubTarget extends BaseTarget {
     version: string,
     revision: string,
     changes?: Changeset,
-    isLatest = true
+    options: { makeLatest: boolean } = { makeLatest: true }
   ): Promise<GitHubRelease> {
     const tag = versionToTag(version, this.githubConfig.tagPrefix);
     this.logger.info(`Git tag: "${tag}"`);
@@ -135,7 +135,7 @@ export class GitHubTarget extends BaseTarget {
       prerelease: isPreview,
       repo: this.githubConfig.repo,
       tag_name: tag,
-      make_latest: isLatest ? 'true' : 'false',
+      make_latest: options.makeLatest ? 'true' : 'false',
       target_commitish: revision,
       ...changes,
     });
@@ -328,7 +328,10 @@ export class GitHubTarget extends BaseTarget {
    *
    * @param release Release object
    */
-  public async publishRelease(release: GitHubRelease, isLatest = true) {
+  public async publishRelease(
+    release: GitHubRelease,
+    options: { makeLatest: boolean } = { makeLatest: true }
+  ) {
     if (isDryRun()) {
       this.logger.info(`[dry-run] Not publishing the draft release`);
       return;
@@ -337,7 +340,7 @@ export class GitHubTarget extends BaseTarget {
     await this.github.repos.updateRelease({
       ...this.githubConfig,
       release_id: release.id,
-      make_latest: isLatest ? 'true' : 'false',
+      make_latest: options.makeLatest ? 'true' : 'false',
       draft: false,
     });
   }
@@ -425,7 +428,7 @@ export class GitHubTarget extends BaseTarget {
 
     const isPreview =
       this.githubConfig.previewReleases && isPreviewRelease(version);
-    const isLatest = isPreview
+    const makeLatest = isPreview
       ? false
       : isLatestRelease(latestRelease, version);
 
@@ -433,7 +436,9 @@ export class GitHubTarget extends BaseTarget {
       version,
       revision,
       changelog,
-      isLatest
+      {
+        makeLatest,
+      }
     );
 
     await Promise.all(
@@ -442,7 +447,7 @@ export class GitHubTarget extends BaseTarget {
       )
     );
 
-    await this.publishRelease(draftRelease, isLatest);
+    await this.publishRelease(draftRelease, { makeLatest });
   }
 }
 
