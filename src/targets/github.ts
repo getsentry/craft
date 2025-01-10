@@ -425,6 +425,7 @@ export class GitHubTarget extends BaseTarget {
         : 'No previous release found'
     );
 
+    // Preview versions should never be marked as latest
     const isPreview =
       this.githubConfig.previewReleases && isPreviewRelease(version);
     const makeLatest = isPreview
