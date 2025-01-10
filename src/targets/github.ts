@@ -338,6 +338,7 @@ export class GitHubTarget extends BaseTarget {
     await this.github.repos.updateRelease({
       ...this.githubConfig,
       release_id: release.id,
+      // This is a string on purpose - see https://docs.github.com/en/rest/releases/releases?apiVersion=2022-11-28#create-a-release
       make_latest: options.makeLatest ? 'true' : 'false',
       draft: false,
     });
