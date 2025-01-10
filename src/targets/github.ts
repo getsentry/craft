@@ -135,8 +135,12 @@ export class GitHubTarget extends BaseTarget {
           repo: this.githubConfig.repo,
         })
       ).data;
-    } catch {
-      // no release yet
+    } catch (error) {
+      // if the error is a 404 error, it means that no release exists yet
+      // all other errors should be rethrown
+      if (error.status !== 404) {
+        throw error;
+      }
     }
 
     const isLatest = isPreview
