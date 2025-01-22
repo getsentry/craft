@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.3.2
+
+### Various fixes & improvements
+
+- remove hardcoded 'previewRelease: false' (#582) by @bitsandfoxes
+- fix(github): Fix making github releases latest or not (#536) by @mydea
+- fix(github): Guard against missing release (#567) by @mydea
+
 ## 2.3.1
 
 ### Various fixes & improvements
