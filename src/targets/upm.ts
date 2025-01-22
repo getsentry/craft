@@ -18,6 +18,7 @@ import { reportError } from '../utils/errors';
 import { extractZipArchive } from '../utils/system';
 import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
+import { isPreviewRelease } from '../utils/version';
 import { NoneArtifactProvider } from '../artifact_providers/none';
 
 /** Name of the artifact that contains the UPM package */
@@ -143,12 +144,14 @@ export class UpmTarget extends BaseTarget {
         } else {
           await git.push(['origin', 'main']);
           const changes = await this.githubTarget.getChangelog(version);
+          const isPrerelease = isPreviewRelease(version);
           const draftRelease = await this.githubTarget.createDraftRelease(
             version,
             targetRevision,
             changes
           );
-          await this.githubTarget.publishRelease(draftRelease);
+          await this.githubTarget.publishRelease(draftRelease,
+            { makeLatest: !isPrerelease });
         }
       },
       true,
