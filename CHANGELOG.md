@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.3
+
+### Various fixes & improvements
+
+- don't make pre-release 'latest' (#583) by @bitsandfoxes
+
 ## 2.3.2
 
 ### Various fixes & improvements
