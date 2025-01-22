@@ -46,7 +46,6 @@ export class UpmTarget extends BaseTarget {
     const githubTargetConfig = {
       name: 'github',
       tagPrefix: config.tagPrefix,
-      previewReleases: false,
       owner: config.releaseRepoOwner,
       repo: config.releaseRepoName,
     };
