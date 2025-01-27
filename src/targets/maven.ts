@@ -518,12 +518,16 @@ export class MavenTarget extends BaseTarget {
    * In case module.json exists but dist.module doesn't,
    * this function renames module.json to dist.module,
    * making it fit for mvn publishing.
+   *
+   * @returns true if the module.json file exists and was renamed, false otherwise
    */
-  public async fixModuleFileName(distDir: string, moduleFile: string): Promise<void> {
+  public async fixModuleFileName(distDir: string, moduleFile: string): Promise<boolean> {
     const fallbackFile = join(distDir, 'module.json');
     if (!await this.fileExists(moduleFile) && await this.fileExists(fallbackFile)) {
       await fsPromises.rename(fallbackFile, moduleFile);
+      return true;
     }
+    return false;
   }
 
   private async uploadPomDistribution(distDir: string): Promise<void> {
@@ -537,16 +541,16 @@ export class MavenTarget extends BaseTarget {
         pomFile,
         moduleFile,
       } = this.getFilesForMavenPomDist(distDir);
-      await this.fixModuleFileName(distDir, moduleFile);
+      const hasModule = await this.fixModuleFileName(distDir, moduleFile);
 
       // Maven central is very flaky, so retrying with an exponential delay in
       // in case it fails.
       await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
         'gpg:sign-and-deploy-file',
         `-Dfile=${targetFile}`,
-        `-Dfiles=${javadocFile},${sourcesFile},${moduleFile}`,
-        `-Dclassifiers=javadoc,sources,`,
-        `-Dtypes=jar,jar,module`,
+        `-Dfiles=${javadocFile},${sourcesFile}${hasModule ? ',' + moduleFile : ''}`,
+        `-Dclassifiers=javadoc,sources${hasModule ? ',' : ''}`,
+        `-Dtypes=jar,jar${hasModule ? ',module' : ''}`,
         `-DpomFile=${pomFile}`,
         `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
         `-Durl=${this.mavenConfig.mavenRepoUrl}`,
