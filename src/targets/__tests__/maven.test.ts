@@ -428,7 +428,7 @@ describe('upload', () => {
       .mockResolvedValueOnce('artifact/download/path');
     mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
     mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce('pom-default.xml');
-    mvnTarget.fixModuleFileName = jest.fn().mockResolvedValueOnce(true);
+    mvnTarget.fileExists = jest.fn().mockResolvedValue(true);
 
     await mvnTarget.upload('r3v1s10n');
 
