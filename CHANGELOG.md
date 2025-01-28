@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.4
+
+### Various fixes & improvements
+
+- fix(maven): Do not try to publish `.module` file when does not exist (#584) by @romtsn
+
 ## 2.3.3
 
 ### Various fixes & improvements
