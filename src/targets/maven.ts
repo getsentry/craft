@@ -538,15 +538,16 @@ export class MavenTarget extends BaseTarget {
         moduleFile,
       } = this.getFilesForMavenPomDist(distDir);
       await this.fixModuleFileName(distDir, moduleFile);
+      const hasModule = await this.fileExists(moduleFile);
 
       // Maven central is very flaky, so retrying with an exponential delay in
       // in case it fails.
       await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
         'gpg:sign-and-deploy-file',
         `-Dfile=${targetFile}`,
-        `-Dfiles=${javadocFile},${sourcesFile},${moduleFile}`,
-        `-Dclassifiers=javadoc,sources,`,
-        `-Dtypes=jar,jar,module`,
+        `-Dfiles=${javadocFile},${sourcesFile}${hasModule ? ',' + moduleFile : ''}`,
+        `-Dclassifiers=javadoc,sources${hasModule ? ',' : ''}`,
+        `-Dtypes=jar,jar${hasModule ? ',module' : ''}`,
         `-DpomFile=${pomFile}`,
         `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
         `-Durl=${this.mavenConfig.mavenRepoUrl}`,

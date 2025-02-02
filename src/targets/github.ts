@@ -127,15 +127,6 @@ export class GitHubTarget extends BaseTarget {
       };
     }
 
-    const { data: latestRelease } = await this.github.repos.getLatestRelease({
-      owner: this.githubConfig.owner,
-      repo: this.githubConfig.repo,
-    });
-
-    const isLatest = isPreview
-      ? false
-      : isLatestRelease(latestRelease, version);
-
     const { data } = await this.github.repos.createRelease({
       draft: true,
       name: tag,
@@ -143,7 +134,6 @@ export class GitHubTarget extends BaseTarget {
       prerelease: isPreview,
       repo: this.githubConfig.repo,
       tag_name: tag,
-      make_latest: isLatest ? 'true' : 'false',
       target_commitish: revision,
       ...changes,
     });
@@ -336,7 +326,10 @@ export class GitHubTarget extends BaseTarget {
    *
    * @param release Release object
    */
-  public async publishRelease(release: GitHubRelease) {
+  public async publishRelease(
+    release: GitHubRelease,
+    options: { makeLatest: boolean } = { makeLatest: true }
+  ) {
     if (isDryRun()) {
       this.logger.info(`[dry-run] Not publishing the draft release`);
       return;
@@ -345,6 +338,8 @@ export class GitHubTarget extends BaseTarget {
     await this.github.repos.updateRelease({
       ...this.githubConfig,
       release_id: release.id,
+      // This is a string on purpose - see https://docs.github.com/en/rest/releases/releases?apiVersion=2022-11-28#create-a-release
+      make_latest: options.makeLatest ? 'true' : 'false',
       draft: false,
     });
   }
@@ -407,6 +402,36 @@ export class GitHubTarget extends BaseTarget {
       }))
     );
 
+    let latestRelease: { tag_name: string } | undefined = undefined;
+    try {
+      latestRelease = (
+        await this.github.repos.getLatestRelease({
+          owner: this.githubConfig.owner,
+          repo: this.githubConfig.repo,
+        })
+      ).data;
+    } catch (error) {
+      // if the error is a 404 error, it means that no release exists yet
+      // all other errors should be rethrown
+      if (error.status !== 404) {
+        throw error;
+      }
+    }
+
+    const latestReleaseTag = latestRelease?.tag_name;
+    this.logger.info(
+      latestReleaseTag
+        ? `Previous release: ${latestReleaseTag}`
+        : 'No previous release found'
+    );
+
+    // Preview versions should never be marked as latest
+    const isPreview =
+      this.githubConfig.previewReleases && isPreviewRelease(version);
+    const makeLatest = isPreview
+      ? false
+      : isLatestRelease(latestRelease, version);
+
     const draftRelease = await this.createDraftRelease(
       version,
       revision,
@@ -419,7 +444,7 @@ export class GitHubTarget extends BaseTarget {
       )
     );
 
-    await this.publishRelease(draftRelease);
+    await this.publishRelease(draftRelease, { makeLatest });
   }
 }
 

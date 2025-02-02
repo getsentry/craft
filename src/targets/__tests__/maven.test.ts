@@ -360,7 +360,7 @@ describe('transform KMP artifacts', () => {
 describe('upload', () => {
   const tmpDirName = 'tmpDir';
 
-  test('upload POM', async () => {
+  test('upload POM for Maven', async () => {
     // simple mock to always use the same temporary directory,
     // instead of creating a new one
     (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
@@ -378,6 +378,57 @@ describe('upload', () => {
       .mockResolvedValueOnce('artifact/download/path');
     mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
     mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce('pom-default.xml');
+
+    await mvnTarget.upload('r3v1s10n');
+
+    expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
+    const callArgs = (retrySpawnProcess as jest.MockedFunction<
+      typeof retrySpawnProcess
+    >).mock.calls[0];
+
+    expect(callArgs).toHaveLength(2);
+    expect(callArgs[0]).toEqual(DEFAULT_OPTION_VALUE);
+
+    const cmdArgs = callArgs[1] as string[];
+    expect(cmdArgs).toHaveLength(11);
+    expect(cmdArgs[0]).toBe('gpg:sign-and-deploy-file');
+    expect(cmdArgs[1]).toMatch(new RegExp(`-Dfile=${tmpDirName}.+`));
+    expect(cmdArgs[2]).toMatch(
+      new RegExp(
+        `-Dfiles=${tmpDirName}.+-javadoc\\.jar,${tmpDirName}.+-sources\\.jar`
+      )
+    );
+    expect(cmdArgs[3]).toBe(`-Dclassifiers=javadoc,sources`);
+    expect(cmdArgs[4]).toBe(`-Dtypes=jar,jar`);
+    expect(cmdArgs[5]).toMatch(
+      new RegExp(`-DpomFile=${tmpDirName}.+pom-default\\.xml`)
+    );
+    expect(cmdArgs[6]).toBe(`-DrepositoryId=${DEFAULT_OPTION_VALUE}`);
+    expect(cmdArgs[7]).toBe(`-Durl=${DEFAULT_OPTION_VALUE}`);
+    expect(cmdArgs[8]).toBe(`-Dgpg.passphrase=${DEFAULT_OPTION_VALUE}`);
+    expect(cmdArgs[9]).toBe('--settings');
+    expect(cmdArgs[10]).toBe(DEFAULT_OPTION_VALUE);
+  });
+
+  test('upload POM for Gradle', async () => {
+    // simple mock to always use the same temporary directory,
+    // instead of creating a new one
+    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+      async cb => {
+        return await cb(tmpDirName);
+      }
+    );
+
+    const mvnTarget = createMavenTarget();
+    mvnTarget.getArtifactsForRevision = jest
+      .fn()
+      .mockResolvedValueOnce([{ filename: 'mockArtifact.zip' }]);
+    mvnTarget.artifactProvider.downloadArtifact = jest
+      .fn()
+      .mockResolvedValueOnce('artifact/download/path');
+    mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
+    mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce('pom-default.xml');
+    mvnTarget.fileExists = jest.fn().mockResolvedValue(true);
 
     await mvnTarget.upload('r3v1s10n');
 
