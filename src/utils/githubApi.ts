@@ -31,20 +31,9 @@ export class GitHubRemote {
   ) {
     this.owner = owner;
     this.repo = repo;
-    if (apiToken) {
-      this.setAuth(apiToken);
-    }
     this.url = `/${this.owner}/${this.repo}/`;
   }
 
-  /**
-   * Sets authentication arguments: GitHubAPI token
-   *
-   * @param apiToken GitHub API token
-   */
-  public setAuth(apiToken: string): void {
-    this.apiToken = apiToken;
-  }
 
   /**
    * Returns an HTTP-based git remote
