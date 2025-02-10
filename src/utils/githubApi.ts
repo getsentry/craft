@@ -12,10 +12,6 @@ export class GitHubRemote {
   public readonly owner: string;
   /** GitHub repository name */
   public readonly repo: string;
-  /** GitHub username */
-  protected username?: string;
-  /** GitHub personal authentication token */
-  protected apiToken?: string;
   /** GitHub hostname */
   protected readonly GITHUB_HOSTNAME: string = 'github.com';
   /** Protocol prefix */
@@ -26,8 +22,6 @@ export class GitHubRemote {
   public constructor(
     owner: string,
     repo: string,
-    username?: string,
-    apiToken?: string
   ) {
     this.owner = owner;
     this.repo = repo;
