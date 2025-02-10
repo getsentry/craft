@@ -1,8 +1,7 @@
 import { Octokit } from '@octokit/rest';
 import simpleGit from 'simple-git';
 import {
-  getAuthUsername,
-  getGitHubApiToken,
+  getGitHubAuthHeader,
   getGitHubClient,
   GitHubRemote,
 } from '../utils/githubApi';
@@ -107,12 +106,9 @@ export class UpmTarget extends BaseTarget {
       packageFile
     );
 
-    const username = await getAuthUsername(this.github);
     const remote = new GitHubRemote(
       this.config.releaseRepoOwner,
       this.config.releaseRepoName,
-      username,
-      getGitHubApiToken()
     );
     const remoteAddr = remote.getRemoteString();
     this.logger.debug(`Target release repository: ${remoteAddr}`);
@@ -120,8 +116,10 @@ export class UpmTarget extends BaseTarget {
     await withTempDir(
       async directory => {
         const git = simpleGit(directory);
+        /** Add the GitHub token to the git auth header */
+        await git.raw(getGitHubAuthHeader());
         this.logger.info(`Cloning ${remoteAddr} to ${directory}...`);
-        await git.clone(remote.getRemoteStringWithAuth(), directory);
+        await git.clone(remote.getRemoteString(), directory);
 
         this.logger.info('Clearing the repository.');
         await git.rm(['-r', '-f', '.']);
