@@ -31,20 +31,18 @@ export class GitHubRemote {
   ) {
     this.owner = owner;
     this.repo = repo;
-    if (username && apiToken) {
-      this.setAuth(username, apiToken);
+    if (apiToken) {
+      this.setAuth(apiToken);
     }
     this.url = `/${this.owner}/${this.repo}/`;
   }
 
   /**
-   * Sets authentication arguments: username and personal API token
+   * Sets authentication arguments: GitHubAPI token
    *
-   * @param username GitHub username
    * @param apiToken GitHub API token
    */
-  public setAuth(username: string, apiToken: string): void {
-    this.username = username;
+  public setAuth(apiToken: string): void {
     this.apiToken = apiToken;
   }
 
@@ -55,19 +53,6 @@ export class GitHubRemote {
    */
   public getRemoteString(): string {
     return this.PROTOCOL_PREFIX + this.GITHUB_HOSTNAME + this.url;
-  }
-
-  /**
-   * Returns an HTTP-based git remote with embedded HTTP basic auth
-   *
-   * It MAY contain sensitive information (e.g. API tokens)
-   */
-  public getRemoteStringWithAuth(): string {
-    const authData =
-      this.username && this.apiToken
-        ? `${this.username}:${this.apiToken}@`
-        : '';
-    return this.PROTOCOL_PREFIX + authData + this.GITHUB_HOSTNAME + this.url;
   }
 }
 
@@ -85,6 +70,20 @@ export function getGitHubApiToken(): string {
     );
   }
   return githubApiToken;
+}
+
+/**
+ * Returns the GitHub auth header
+ *
+ * @returns GitHub auth header
+ */
+export function getGitHubAuthHeader(): Array<string> {
+  return [
+    'config',
+    '--global',
+    'http.extraheader',
+    'AUTHORIZATION: bearer ' + getGitHubApiToken()
+  ];
 }
 
 const _GitHubClientCache: Record<string, Octokit> = {};
@@ -121,21 +120,6 @@ export function getGitHubClient(token = ''): Octokit {
   }
 
   return _GitHubClientCache[githubApiToken];
-}
-
-/**
- * Gets the currently authenticated GitHub user from the client
- *
- * @param github GitHub client
- * @returns GitHub username
- */
-export async function getAuthUsername(github: Octokit): Promise<string> {
-  const userData = await github.users.getAuthenticated({});
-  const username = (userData.data || {}).login;
-  if (!username) {
-    throw new Error('Cannot reliably detect GitHub username, aborting');
-  }
-  return username;
 }
 
 /**
