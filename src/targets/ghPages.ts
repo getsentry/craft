@@ -8,7 +8,6 @@ import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
-  getGitHubApiToken,
   getGitHubClient,
   GitHubRemote,
   getGitHubAuthHeader,

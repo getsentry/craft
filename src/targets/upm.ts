@@ -1,7 +1,6 @@
 import { Octokit } from '@octokit/rest';
 import simpleGit from 'simple-git';
 import {
-  getGitHubApiToken,
   getGitHubAuthHeader,
   getGitHubClient,
   GitHubRemote,
