@@ -8,10 +8,10 @@ import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
-  getAuthUsername,
   getGitHubApiToken,
   getGitHubClient,
   GitHubRemote,
+  getGitHubAuthHeader,
 } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
 import { extractZipArchive } from '../utils/system';
@@ -148,11 +148,13 @@ export class GhPagesTarget extends BaseTarget {
     archivePath: string,
     version: string
   ): Promise<void> {
+    const git = simpleGit(directory);
+    /** Add the GitHub token to the git auth header */
+    await git.raw(getGitHubAuthHeader());
     this.logger.info(
       `Cloning "${remote.getRemoteString()}" to "${directory}"...`
     );
-    await simpleGit().clone(remote.getRemoteStringWithAuth(), directory);
-    const git = simpleGit(directory);
+    await git.clone(remote.getRemoteString(), directory);
     this.logger.debug(`Checking out branch: "${branch}"`);
     try {
       await git.checkout([branch]);
@@ -219,12 +221,9 @@ export class GhPagesTarget extends BaseTarget {
       packageFiles[0]
     );
 
-    const username = await getAuthUsername(this.github);
-
     const remote = new GitHubRemote(
       githubOwner,
       githubRepo,
-      username,
       getGitHubApiToken()
     );
 
