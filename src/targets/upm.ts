@@ -110,7 +110,6 @@ export class UpmTarget extends BaseTarget {
     const remote = new GitHubRemote(
       this.config.releaseRepoOwner,
       this.config.releaseRepoName,
-      getGitHubApiToken()
     );
     const remoteAddr = remote.getRemoteString();
     this.logger.debug(`Target release repository: ${remoteAddr}`);

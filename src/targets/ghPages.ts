@@ -224,7 +224,6 @@ export class GhPagesTarget extends BaseTarget {
     const remote = new GitHubRemote(
       githubOwner,
       githubRepo,
-      getGitHubApiToken()
     );
 
     await withTempDir(
