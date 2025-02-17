@@ -4,10 +4,9 @@ import * as path from 'path';
 import { Octokit } from '@octokit/rest';
 import simpleGit from 'simple-git';
 import {
-  getAuthUsername,
-  getGitHubApiToken,
   getGitHubClient,
   GitHubRemote,
+  getGitHubAuthHeader,
 } from '../utils/githubApi';
 
 import { TargetConfig } from '../schemas/project_config';
@@ -139,16 +138,16 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     this.logger.trace('AWS regions: ', awsRegions);
 
     const remote = this.awsLambdaConfig.registryRemote;
-    const username = await getAuthUsername(this.github);
-    remote.setAuth(username, getGitHubApiToken());
 
     await withTempDir(
       async directory => {
         const git = simpleGit(directory);
+        /** Add the GitHub token to the git auth header */
+        await git.raw(getGitHubAuthHeader());
         this.logger.info(
           `Cloning ${remote.getRemoteString()} to ${directory}...`
         );
-        await git.clone(remote.getRemoteStringWithAuth(), directory);
+        await git.clone(remote.getRemoteString(), directory);
 
         if (!isDryRun()) {
           await this.publishRuntimes(
