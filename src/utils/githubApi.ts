@@ -52,7 +52,7 @@ export class GitHubRemote {
   public getRemoteStringWithAuth(): string {
     const authData =
       this.apiToken
-        ? `dummyusername:${this.apiToken}@`
+        ? `placeholderusername:${this.apiToken}@`
         : '';
     return this.PROTOCOL_PREFIX + authData + this.GITHUB_HOSTNAME + this.url;
   }
