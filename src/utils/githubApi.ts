@@ -45,7 +45,7 @@ export class GitHubRemote {
   /**
    * Returns an HTTP-based git remote with embedded HTTP basic auth
    *
-   * Using dummy username as it does not matter for cloning
+   * Using placeholder username as it does not matter for cloning
    *
    * It MAY contain sensitive information (e.g. API tokens)
    */
