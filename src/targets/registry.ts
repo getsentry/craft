@@ -427,7 +427,6 @@ export class RegistryTarget extends BaseTarget {
     const remote = this.remote;
 
     const git = simpleGit(directory);
-    /** Add the GitHub token to the git auth header */
     this.logger.info(
       `Cloning "${remote.getRemoteString()}" to "${directory}"...`
     );

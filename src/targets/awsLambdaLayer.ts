@@ -141,7 +141,6 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     await withTempDir(
       async directory => {
         const git = simpleGit(directory);
-        /** Add the GitHub token to the git auth header */
         this.logger.info(
           `Cloning ${remote.getRemoteString()} to ${directory}...`
         );
