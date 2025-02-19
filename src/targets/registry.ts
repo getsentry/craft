@@ -6,7 +6,6 @@ import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
-  getGitHubAuthHeader,
   getGitHubClient,
   GitHubRemote,
 } from '../utils/githubApi';
@@ -429,11 +428,10 @@ export class RegistryTarget extends BaseTarget {
 
     const git = simpleGit(directory);
     /** Add the GitHub token to the git auth header */
-    await git.raw(getGitHubAuthHeader());
     this.logger.info(
       `Cloning "${remote.getRemoteString()}" to "${directory}"...`
     );
-    await git.clone(remote.getRemoteString(), directory, [
+    await git.clone(remote.getRemoteStringWithAuth(), directory, [
       '--filter=tree:0',
       '--single-branch',
     ]);

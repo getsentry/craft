@@ -10,7 +10,6 @@ import { withTempDir } from '../utils/files';
 import {
   getGitHubClient,
   GitHubRemote,
-  getGitHubAuthHeader,
 } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
 import { extractZipArchive } from '../utils/system';
@@ -147,13 +146,11 @@ export class GhPagesTarget extends BaseTarget {
     archivePath: string,
     version: string
   ): Promise<void> {
-    const git = simpleGit(directory);
-    /** Add the GitHub token to the git auth header */
-    await git.raw(getGitHubAuthHeader());
     this.logger.info(
       `Cloning "${remote.getRemoteString()}" to "${directory}"...`
     );
-    await git.clone(remote.getRemoteString(), directory);
+    await simpleGit().clone(remote.getRemoteStringWithAuth(), directory);
+    const git = simpleGit(directory);
     this.logger.debug(`Checking out branch: "${branch}"`);
     try {
       await git.checkout([branch]);

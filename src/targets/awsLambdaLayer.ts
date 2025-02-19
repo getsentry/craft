@@ -6,7 +6,6 @@ import simpleGit from 'simple-git';
 import {
   getGitHubClient,
   GitHubRemote,
-  getGitHubAuthHeader,
 } from '../utils/githubApi';
 
 import { TargetConfig } from '../schemas/project_config';
@@ -143,11 +142,10 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       async directory => {
         const git = simpleGit(directory);
         /** Add the GitHub token to the git auth header */
-        await git.raw(getGitHubAuthHeader());
         this.logger.info(
           `Cloning ${remote.getRemoteString()} to ${directory}...`
         );
-        await git.clone(remote.getRemoteString(), directory);
+        await git.clone(remote.getRemoteStringWithAuth(), directory);
 
         if (!isDryRun()) {
           await this.publishRuntimes(

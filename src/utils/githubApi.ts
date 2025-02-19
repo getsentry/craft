@@ -12,6 +12,8 @@ export class GitHubRemote {
   public readonly owner: string;
   /** GitHub repository name */
   public readonly repo: string;
+  /** GitHub personal authentication token */
+  protected apiToken?: string;
   /** GitHub hostname */
   protected readonly GITHUB_HOSTNAME: string = 'github.com';
   /** Protocol prefix */
@@ -22,9 +24,11 @@ export class GitHubRemote {
   public constructor(
     owner: string,
     repo: string,
+    apiToken?: string
   ) {
     this.owner = owner;
     this.repo = repo;
+    this.apiToken = apiToken;
     this.url = `/${this.owner}/${this.repo}/`;
   }
 
@@ -36,6 +40,21 @@ export class GitHubRemote {
    */
   public getRemoteString(): string {
     return this.PROTOCOL_PREFIX + this.GITHUB_HOSTNAME + this.url;
+  }
+
+  /**
+   * Returns an HTTP-based git remote with embedded HTTP basic auth
+   *
+   * Using dummy username as it does not matter for cloning
+   *
+   * It MAY contain sensitive information (e.g. API tokens)
+   */
+  public getRemoteStringWithAuth(): string {
+    const authData =
+      this.apiToken
+        ? `dummyusername:${this.apiToken}@`
+        : '';
+    return this.PROTOCOL_PREFIX + authData + this.GITHUB_HOSTNAME + this.url;
   }
 }
 
@@ -53,20 +72,6 @@ export function getGitHubApiToken(): string {
     );
   }
   return githubApiToken;
-}
-
-/**
- * Returns the GitHub auth header
- *
- * @returns GitHub auth header
- */
-export function getGitHubAuthHeader(): Array<string> {
-  return [
-    'config',
-    '--global',
-    'http.extraheader',
-    'AUTHORIZATION: bearer ' + getGitHubApiToken()
-  ];
 }
 
 const _GitHubClientCache: Record<string, Octokit> = {};
