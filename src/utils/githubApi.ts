@@ -12,8 +12,6 @@ export class GitHubRemote {
   public readonly owner: string;
   /** GitHub repository name */
   public readonly repo: string;
-  /** GitHub username */
-  protected username?: string;
   /** GitHub personal authentication token */
   protected apiToken?: string;
   /** GitHub hostname */
@@ -26,27 +24,14 @@ export class GitHubRemote {
   public constructor(
     owner: string,
     repo: string,
-    username?: string,
     apiToken?: string
   ) {
     this.owner = owner;
     this.repo = repo;
-    if (username && apiToken) {
-      this.setAuth(username, apiToken);
-    }
+    this.apiToken = apiToken;
     this.url = `/${this.owner}/${this.repo}/`;
   }
 
-  /**
-   * Sets authentication arguments: username and personal API token
-   *
-   * @param username GitHub username
-   * @param apiToken GitHub API token
-   */
-  public setAuth(username: string, apiToken: string): void {
-    this.username = username;
-    this.apiToken = apiToken;
-  }
 
   /**
    * Returns an HTTP-based git remote
@@ -60,12 +45,14 @@ export class GitHubRemote {
   /**
    * Returns an HTTP-based git remote with embedded HTTP basic auth
    *
+   * Using placeholder username as it does not matter for cloning
+   *
    * It MAY contain sensitive information (e.g. API tokens)
    */
   public getRemoteStringWithAuth(): string {
     const authData =
-      this.username && this.apiToken
-        ? `${this.username}:${this.apiToken}@`
+      this.apiToken
+        ? `placeholderusername:${this.apiToken}@`
         : '';
     return this.PROTOCOL_PREFIX + authData + this.GITHUB_HOSTNAME + this.url;
   }
@@ -121,21 +108,6 @@ export function getGitHubClient(token = ''): Octokit {
   }
 
   return _GitHubClientCache[githubApiToken];
-}
-
-/**
- * Gets the currently authenticated GitHub user from the client
- *
- * @param github GitHub client
- * @returns GitHub username
- */
-export async function getAuthUsername(github: Octokit): Promise<string> {
-  const userData = await github.users.getAuthenticated({});
-  const username = (userData.data || {}).login;
-  if (!username) {
-    throw new Error('Cannot reliably detect GitHub username, aborting');
-  }
-  return username;
 }
 
 /**

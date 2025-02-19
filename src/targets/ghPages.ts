@@ -8,8 +8,6 @@ import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
-  getAuthUsername,
-  getGitHubApiToken,
   getGitHubClient,
   GitHubRemote,
 } from '../utils/githubApi';
@@ -219,13 +217,9 @@ export class GhPagesTarget extends BaseTarget {
       packageFiles[0]
     );
 
-    const username = await getAuthUsername(this.github);
-
     const remote = new GitHubRemote(
       githubOwner,
       githubRepo,
-      username,
-      getGitHubApiToken()
     );
 
     await withTempDir(
