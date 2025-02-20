@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.4.1
+
+### Various fixes & improvements
+
+- fix(): GitHub username not found when pushing to registry (#589) by @Jeffreyhung
+
 ## 2.3.8
 
 ### Various fixes & improvements
