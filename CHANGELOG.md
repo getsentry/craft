@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.2
+
+- No documented changes.
+
 ## 2.4.1
 
 ### Various fixes & improvements
