@@ -4,7 +4,6 @@ import * as path from 'path';
 import { Octokit } from '@octokit/rest';
 import simpleGit from 'simple-git';
 import {
-  getAuthUsername,
   getGitHubApiToken,
   getGitHubClient,
   GitHubRemote,
@@ -139,8 +138,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     this.logger.trace('AWS regions: ', awsRegions);
 
     const remote = this.awsLambdaConfig.registryRemote;
-    const username = await getAuthUsername(this.github);
-    remote.setAuth(username, getGitHubApiToken());
+    remote.setAuth(getGitHubApiToken());
 
     await withTempDir(
       async directory => {
