@@ -126,8 +126,6 @@ export function getGitHubClient(token = ''): Octokit {
 /**
  * Gets the currently authenticated GitHub user from the client
  *
- * Returns a placeholder username if no user is tied to the token
- *
  * @param github GitHub client
  * @returns GitHub username
  */
@@ -135,11 +133,10 @@ export async function getAuthUsername(github: Octokit): Promise<string> {
   const userData = await github.users.getAuthenticated({});
   const username = (userData.data || {}).login;
   if (!username) {
-    return 'placeholderusername';
+    throw new Error('Cannot reliably detect GitHub username, aborting');
   }
   return username;
 }
-
 
 /**
  * Loads a file from the context's repository

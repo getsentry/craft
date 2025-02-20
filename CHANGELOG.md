@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.3.8
+
+### Various fixes & improvements
+
+- release: 2.3.7 (621b97be) by @getsentry-bot
+- Revert "fix:(GitHub Auth): Deprecate getAuthUsername (#585)" (#590) by @Jeffreyhung
+
+## 2.3.7
+
+### Various fixes & improvements
+
+- Revert "fix:(GitHub Auth): Deprecate getAuthUsername (#585)" (#590) by @Jeffreyhung
+
 ## 2.3.5
 
 ### Various fixes & improvements

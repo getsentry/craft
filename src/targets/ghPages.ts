@@ -220,6 +220,7 @@ export class GhPagesTarget extends BaseTarget {
     );
 
     const username = await getAuthUsername(this.github);
+
     const remote = new GitHubRemote(
       githubOwner,
       githubRepo,
