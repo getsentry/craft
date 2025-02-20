@@ -1,7 +1,6 @@
 import { Octokit } from '@octokit/rest';
 import simpleGit from 'simple-git';
 import {
-  getAuthUsername,
   getGitHubApiToken,
   getGitHubClient,
   GitHubRemote,
@@ -107,11 +106,9 @@ export class UpmTarget extends BaseTarget {
       packageFile
     );
 
-    const username = await getAuthUsername(this.github);
     const remote = new GitHubRemote(
       this.config.releaseRepoOwner,
       this.config.releaseRepoName,
-      username,
       getGitHubApiToken()
     );
     const remoteAddr = remote.getRemoteString();
