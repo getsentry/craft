@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.5
+
+### Various fixes & improvements
+
+- fix:(GitHub Auth): Deprecate getAuthUsername (#585) by @Jeffreyhung
+- build(deps-dev): bump esbuild from 0.24.0 to 0.25.0 (#586) by @dependabot
+
 ## 2.3.4
 
 ### Various fixes & improvements
