@@ -133,7 +133,9 @@ export async function getAuthUsername(github: Octokit): Promise<string> {
   const userData = await github.users.getAuthenticated({});
   const username = (userData.data || {}).login;
   if (!username) {
-    throw new Error('Cannot reliably detect GitHub username, aborting');
+    // If no user is tied to the token, return a placeholder username
+    // The value should not matter as long as it's not empty
+    return 'placeholderusername';
   }
   return username;
 }
