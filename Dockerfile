@@ -55,9 +55,9 @@ RUN : \
   && rm /tmp/packages-microsoft-prod.deb \
   && curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - \
   && echo "deb [arch=amd64] https://download.docker.com/linux/debian ${VERSION_CODENAME} stable" >> /etc/apt/sources.list \
-  # Note we use the Erlang Solutions-provided binaries as the ones in Debian were too old
-  # This may have changed and we may want to revert back to official Debian packages
-  # See https://www.erlang-solutions.com/downloads/#
+  # We are using RabbitMQ's Erlang repository to get the latest Erlang version
+  # https://www.rabbitmq.com/docs/install-debian
+  # https://github.com/rabbitmq/erlang-debian-package
   ## Team RabbitMQ's main signing key
   && curl -1sLf "https://keys.openpgp.org/vks/v1/by-fingerprint/0A9AF2115F4687BD29803A206B73A36E6026DFCA" | gpg --dearmor | tee /usr/share/keyrings/com.rabbitmq.team.gpg > /dev/null \
   ## Community mirror of Cloudsmith: modern Erlang repository
