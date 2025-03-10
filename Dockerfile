@@ -27,20 +27,20 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get -qq update \
   && apt-get install -y --no-install-recommends \
-  apt-transport-https \
-  build-essential \
-  curl \
-  default-jdk-headless \
-  dirmngr \
-  gnupg \
-  git \
-  jq \
-  python3-packaging \
-  python3-venv \
-  rsync \
-  ruby-full \
-  unzip \
-  maven \
+    apt-transport-https \
+    build-essential \
+    curl \
+    default-jdk-headless \
+    dirmngr \
+    gnupg \
+    git \
+    jq \
+    python3-packaging \
+    python3-venv \
+    rsync \
+    ruby-full \
+    unzip \
+    maven \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
@@ -67,12 +67,12 @@ RUN : \
   && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/rabbitmq.E495BB49CC4BBE5B.gpg] https://ppa2.rabbitmq.com/rabbitmq/rabbitmq-erlang/deb/debian bookworm main" >> /etc/apt/sources.list.d/erlang.list \
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
-  dotnet-sdk-9.0 \
-  dotnet-sdk-8.0 \
-  docker-ce-cli \
-  docker-buildx-plugin \
-  erlang \
-  elixir \
+    dotnet-sdk-9.0 \
+    dotnet-sdk-8.0 \
+    docker-ce-cli \
+    docker-buildx-plugin \
+    erlang \
+    elixir \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* \
   && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s --  --profile minimal -y \
