@@ -46,7 +46,7 @@ RUN apt-get -qq update \
 
 COPY Gemfile Gemfile.lock ./
 
-RUN python3 -m venv /venv && pip install twine==5.0.0 pkginfo==1.10.0 --no-cache
+RUN python3 -m venv /venv && pip install twine==6.1.0 pkginfo==1.12.1.2 --no-cache
 
 RUN : \
   && . /etc/os-release \
