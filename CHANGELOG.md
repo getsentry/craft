@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.0
+
+### Various fixes & improvements
+
+- ref: Bump twine (#593) by @untitaker
+
 ## 2.4.2
 
 - No documented changes.
