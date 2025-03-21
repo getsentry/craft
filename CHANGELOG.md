@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.1
+
+### Various fixes & improvements
+
+- feat: Install most recent Erlang from RabbitMQ packages (#592) by @BYK
+
 ## 2.5.0
 
 ### Various fixes & improvements
