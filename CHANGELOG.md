@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.0
+
+### Various fixes & improvements
+
+- chore: Update CocoaPods from 1.14.2 to 1.16.2 (#594) by @philipphofmann
+
 ## 2.5.1
 
 ### Various fixes & improvements
