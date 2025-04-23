@@ -67,7 +67,7 @@ RUN : \
   && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/rabbitmq.E495BB49CC4BBE5B.gpg] https://ppa2.rabbitmq.com/rabbitmq/rabbitmq-erlang/deb/debian bookworm main" >> /etc/apt/sources.list.d/erlang.list \
   && apt-get update -qq \
   && apt-get install -y --no-install-recommends \
-    dotnet-sdk-9.0 \
+    dotnet-sdk-9.0=9.0.203 \
     dotnet-sdk-8.0 \
     docker-ce-cli \
     docker-buildx-plugin \
