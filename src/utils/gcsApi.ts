@@ -26,9 +26,9 @@ export interface GCSBucketConfig {
   /** Bucket name */
   bucketName: string;
   /** ID of the project containing the bucket   */
-  projectId: string;
-  /** CGS credentials */
-  credentials: { client_email: string; private_key: string };
+  projectId?: string;
+  /** GCS credentials - if not provided, will use Application Default Credentials */
+  credentials?: { client_email: string; private_key: string };
   /** Maximum number of retries after unsuccessful request */
   maxRetries?: number;
 }
@@ -51,15 +51,14 @@ export interface BucketPath {
 interface GCSCreds {
   /** ID of the GCS project containing the bucket */
   project_id: string;
-  /** Email address used to identify the service account accessing the bucket */
-  client_email: string;
-  /** API key for service account */
-  private_key: string;
+  /** Credentials object for GCS client */
+  credentials: { client_email: string; private_key: string };
 }
 
 /**
  * Pulls GCS redentials out of the environment, where they can be stored either
- * as a path to a JSON file or as a JSON string.
+ * as a path to a JSON file or as a JSON string. If no credentials are provided,
+ * returns null to indicate that Application Default Credentials should be used.
  *
  * @param jsonVar Current name (and legacy name, if app.) of env var pointing to
  * a JSON string containing GCS credentials
@@ -68,40 +67,28 @@ interface GCSCreds {
  * @param logger Optional custom logger to use when logging messages to the
  * console
  *
- * @returns An object containing the credentials
+ * @returns An object containing the credentials, or null if no credentials were provided
  */
 export function getGCSCredsFromEnv(
   jsonVar: RequiredConfigVar,
   filepathVar: RequiredConfigVar
-): GCSCreds {
-  // make sure we have at least one of the necessary variables
-  try {
-    checkEnvForPrerequisite(jsonVar, filepathVar);
-  } catch (e) {
-    // ditch e and create a new error in order to override the default
-    // `checkEnvForPrerequisite` error message and type
-    const errorMsg =
-      `GCS credentials not found! Please provide the path to the credentials ` +
-      `file via environment variable ${filepathVar.name}, or specify the ` +
-      `credentials as a JSON string in ${jsonVar.name}.`;
-    throw new ConfigurationError(errorMsg);
-  }
-
+): GCSCreds | null {
+  // Check if either credential source is provided
   const gcsCredsJson = process.env[jsonVar.name];
   const gcsCredsPath = process.env[filepathVar.name];
+
+  // If no credentials are provided, return null to indicate ADC should be used
+  if (!gcsCredsJson && !gcsCredsPath) {
+    logger.debug('No GCS credentials provided, will use Application Default Credentials');
+    return null;
+  }
 
   let configRaw;
 
   if (gcsCredsJson) {
     logger.debug(`Using configuration from ${jsonVar.name}`);
     configRaw = gcsCredsJson;
-  }
-
-  // we know from the `checkEnvForPrerequisite` check earlier that one or the
-  // other of the necessary env variables is defined, so if the JSON one isn't,
-  // the filepath one must be (but we assert it anyway, to make the compiler
-  // happy)
-  else if (gcsCredsPath) {
+  } else if (gcsCredsPath) {
     logger.debug(`Using configuration located at ${filepathVar.name}`);
     if (!fs.existsSync(gcsCredsPath)) {
       reportError(`File does not exist: \`${gcsCredsPath}\`!`);
@@ -123,7 +110,10 @@ export function getGCSCredsFromEnv(
   }
 
   const { project_id, client_email, private_key } = parsedCofig;
-  return { project_id, client_email, private_key };
+  return {
+    project_id,
+    credentials: { client_email, private_key }
+  };
 }
 
 /**

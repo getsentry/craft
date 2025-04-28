@@ -60,7 +60,7 @@ export class GcsTarget extends BaseTarget {
    * Parses and checks configuration for the GCS target
    */
   protected getGCSTargetConfig(): GCSTargetConfig {
-    const { project_id, client_email, private_key } = getGCSCredsFromEnv(
+    const creds = getGCSCredsFromEnv(
       {
         name: 'CRAFT_GCS_TARGET_CREDS_JSON',
         legacyName: 'CRAFT_GCS_CREDENTIALS_JSON',
@@ -83,9 +83,9 @@ export class GcsTarget extends BaseTarget {
 
     return {
       bucketName,
-      credentials: { client_email, private_key },
+      credentials: creds?.credentials,
       pathTemplates,
-      projectId: project_id,
+      projectId: creds?.project_id,
     };
   }
 
