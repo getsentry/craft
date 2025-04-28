@@ -10,8 +10,8 @@ import {
 import { isDryRun } from './helpers';
 
 import { logger } from '../logger';
-import { reportError, ConfigurationError } from './errors';
-import { checkEnvForPrerequisite, RequiredConfigVar } from './env';
+import { reportError } from './errors';
+import { RequiredConfigVar } from './env';
 import { detectContentType } from './files';
 import { RemoteArtifact } from '../artifact_providers/base';
 import { formatJson } from './strings';
