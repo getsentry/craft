@@ -72,45 +72,51 @@ describe('gcsApi module', () => {
     it('pulls JSON creds from env', () => {
       process.env.DOG_CREDS_JSON = gcsCredsJSON;
 
-      const { project_id, client_email, private_key } = getGCSCredsFromEnv(
+      const creds = getGCSCredsFromEnv(
         { name: 'DOG_CREDS_JSON' },
         { name: 'DOG_CREDS_PATH' }
       );
 
-      expect(project_id).toEqual('o-u-t-s-i-d-e');
-      expect(client_email).toEqual('might_huntress@dogs.com');
-      expect(private_key).toEqual('DoGsArEgReAtSoMeSeCrEtStUfFhErE');
+      expect(creds).toMatchObject({
+        project_id: 'o-u-t-s-i-d-e',
+        credentials: {
+          client_email: 'might_huntress@dogs.com',
+          private_key: 'DoGsArEgReAtSoMeSeCrEtStUfFhErE',
+        },
+      });
     });
 
     it('pulls filepath creds from env', async () => {
       // ensure that the assertions below actually happen, since they in an async
       // function
-      expect.assertions(3);
+      expect.assertions(1);
 
       await withTempFile(tempFilepath => {
         fs.writeFileSync(tempFilepath, gcsCredsJSON);
         process.env.DOG_CREDS_PATH = tempFilepath;
 
-        const { project_id, client_email, private_key } = getGCSCredsFromEnv(
+        const creds = getGCSCredsFromEnv(
           { name: 'DOG_CREDS_JSON' },
           { name: 'DOG_CREDS_PATH' }
         );
 
-        expect(project_id).toEqual('o-u-t-s-i-d-e');
-        expect(client_email).toEqual('might_huntress@dogs.com');
-        expect(private_key).toEqual('DoGsArEgReAtSoMeSeCrEtStUfFhErE');
+        expect(creds).toMatchObject({
+          project_id: 'o-u-t-s-i-d-e',
+          credentials: {
+            client_email: 'might_huntress@dogs.com',
+            private_key: 'DoGsArEgReAtSoMeSeCrEtStUfFhErE',
+          },
+        });
       });
     });
 
-    it('errors if neither JSON creds nor creds filepath provided', () => {
+    it('returns null if neither JSON creds nor creds filepath provided', () => {
       // skip defining variables
 
-      expect(() => {
-        getGCSCredsFromEnv(
-          { name: 'DOG_CREDS_JSON' },
-          { name: 'DOG_CREDS_PATH' }
-        );
-      }).toThrowError('GCS credentials not found!');
+      expect(getGCSCredsFromEnv(
+        { name: 'DOG_CREDS_JSON' },
+        { name: 'DOG_CREDS_PATH' }
+      )).toBeNull();
     });
 
     it('errors if given bogus JSON', () => {
