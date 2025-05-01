@@ -96,21 +96,23 @@ describe('gcsApi module', () => {
           { name: 'DOG_CREDS_PATH' }
         );
 
-        expect(creds?.project_id).toEqual('o-u-t-s-i-d-e');
-        expect(creds?.credentials.client_email).toEqual('might_huntress@dogs.com');
-        expect(creds?.credentials.private_key).toEqual('DoGsArEgReAtSoMeSeCrEtStUfFhErE');
+        expect(creds).toMatchObject({
+          project_id: 'o-u-t-s-i-d-e',
+	        credentials: {
+	          client_email: 'might_huntress@dogs.com',
+		        private_key: 'DoGsArEgReAtSoMeSeCrEtStUfFhErE',
+		      },
+		    });
       });
     });
 
     it('returns null if neither JSON creds nor creds filepath provided', () => {
       // skip defining variables
 
-      const creds = getGCSCredsFromEnv(
+      expect(getGCSCredsFromEnv(
         { name: 'DOG_CREDS_JSON' },
         { name: 'DOG_CREDS_PATH' }
-      );
-
-      expect(creds).toBeNull();
+      )).toBeNull();
     });
 
     it('errors if given bogus JSON', () => {
