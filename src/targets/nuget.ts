@@ -75,9 +75,9 @@ export class NugetTarget extends BaseTarget {
       '--source',
       this.nugetConfig.serverUrl,
     ];
-    // Run this outside the repository folder to avoid global.json constraints
-    // (we don't need specific dotnet/workload versions to upload to nuget)
-    const spawnOptions = { cwd: '/tmp/' };
+    // Run outside the repository folder to avoid global.json constraints
+    // (we don't need specific dotnet/workload versions just to upload to nuget)
+    const spawnOptions = { cwd: '/' };
     return spawnProcess(NUGET_DOTNET_BIN, args, spawnOptions);
   }
 
