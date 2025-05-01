@@ -77,15 +77,19 @@ describe('gcsApi module', () => {
         { name: 'DOG_CREDS_PATH' }
       );
 
-      expect(creds?.project_id).toEqual('o-u-t-s-i-d-e');
-      expect(creds?.credentials.client_email).toEqual('might_huntress@dogs.com');
-      expect(creds?.credentials.private_key).toEqual('DoGsArEgReAtSoMeSeCrEtStUfFhErE');
+      expect(creds).toMatchObject({
+        project_id: 'o-u-t-s-i-d-e',
+        credentials: {
+          client_email: 'might_huntress@dogs.com',
+          private_key: 'DoGsArEgReAtSoMeSeCrEtStUfFhErE',
+        },
+      });
     });
 
     it('pulls filepath creds from env', async () => {
       // ensure that the assertions below actually happen, since they in an async
       // function
-      expect.assertions(3);
+      expect.assertions(1);
 
       await withTempFile(tempFilepath => {
         fs.writeFileSync(tempFilepath, gcsCredsJSON);
@@ -98,11 +102,11 @@ describe('gcsApi module', () => {
 
         expect(creds).toMatchObject({
           project_id: 'o-u-t-s-i-d-e',
-	        credentials: {
-	          client_email: 'might_huntress@dogs.com',
-		        private_key: 'DoGsArEgReAtSoMeSeCrEtStUfFhErE',
-		      },
-		    });
+          credentials: {
+            client_email: 'might_huntress@dogs.com',
+            private_key: 'DoGsArEgReAtSoMeSeCrEtStUfFhErE',
+          },
+        });
       });
     });
 
