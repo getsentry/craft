@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.7.0
+
+### Various fixes & improvements
+
+- fix: Avoid global.json when running `dotnet push` (#601) by @jamescrosswell
+- feat: support Google ADC for `gcs` artifact provider and target (#600) by @oioki
+- docs: Add contribution guidelines (#599) by @BYK
+- updated test (#596) by @bitsandfoxes
+
 ## 2.6.0
 
 ### Various fixes & improvements
