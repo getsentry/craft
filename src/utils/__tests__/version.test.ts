@@ -205,8 +205,8 @@ describe('versionGreaterOrEqualThan', () => {
   });
 
   test('can compare pre parts', () => {
-    const v1 = parseVersion('1.2.3-1')!;
-    const v2 = parseVersion('1.2.3-2')!;
+    const v1 = parseVersion('1.2.3-1') as SemVer;
+    const v2 = parseVersion('1.2.3-2') as SemVer;
     expect(versionGreaterOrEqualThan(v1, v2)).toBe(false);
     expect(versionGreaterOrEqualThan(v2, v1)).toBe(true);
   });
