@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.7.1
+
+### Various fixes & improvements
+
+- fix(aws): make reading/writing of aws manifest consistent with other packages (#603) by @sl0thentr0py
+
 ## 2.7.0
 
 ### Various fixes & improvements
