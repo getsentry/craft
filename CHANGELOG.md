@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.7.2
+
+### Various fixes & improvements
+
+- chore(maven): Update base url to support publishing to central portal (#605) by @romtsn
+
 ## 2.7.1
 
 ### Various fixes & improvements
