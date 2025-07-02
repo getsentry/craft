@@ -553,6 +553,7 @@ export class MavenTarget extends BaseTarget {
         `-DpomFile=${pomFile}`,
         `-DrepositoryId=${this.mavenConfig.mavenRepoId}`,
         `-Durl=${this.mavenConfig.mavenRepoUrl}`,
+        `-Dgpg.passphrase=${this.mavenConfig.GPG_PASSPHRASE}`,
         `--settings`,
         `${this.mavenConfig.mavenSettingsPath}`,
       ]);
