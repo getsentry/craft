@@ -8,6 +8,7 @@ import {
   POM_DEFAULT_FILENAME,
   targetOptions,
   targetSecrets,
+  CENTRAL_API_BASE_URL,
 } from '../maven';
 import { retrySpawnProcess, sleep } from '../../utils/async';
 import { withTempDir } from '../../utils/files';
@@ -104,13 +105,12 @@ function createMavenTarget(
 }
 
 function getRepositoryInfo(
-  type: NexusRepository['type'],
-  transitioning: NexusRepository['transitioning']
+  state: NexusRepository['state'],
 ): NexusRepository {
   return {
-    type,
+    state,
     repositoryId: 'sentry-java',
-    transitioning,
+    deploymentId: '1234',
   };
 }
 
@@ -537,7 +537,7 @@ describe('closeAndReleaseRepository', () => {
   test('should throw if repository is not opened', async () => {
     const mvnTarget = createMavenTarget();
     mvnTarget.getRepository = jest.fn(() =>
-      Promise.resolve(getRepositoryInfo('closed', false))
+      Promise.resolve(getRepositoryInfo('closed'))
     );
     await expect(mvnTarget.closeAndReleaseRepository()).rejects.toThrow();
   });
@@ -545,7 +545,7 @@ describe('closeAndReleaseRepository', () => {
   test('should call closeRepository and releaseRepository with fetched repository ID', async () => {
     const mvnTarget = createMavenTarget();
     mvnTarget.getRepository = jest.fn(() =>
-      Promise.resolve(getRepositoryInfo('open', false))
+      Promise.resolve(getRepositoryInfo('open'))
     );
     const callOrder: string[] = [];
     mvnTarget.closeRepository = jest.fn(async () => {
@@ -567,7 +567,7 @@ describe('closeAndReleaseRepository', () => {
   test('should not release repostiory if it was not closed properly', async () => {
     const mvnTarget = createMavenTarget();
     mvnTarget.getRepository = jest.fn(() =>
-      Promise.resolve(getRepositoryInfo('open', false))
+      Promise.resolve(getRepositoryInfo('open'))
     );
     mvnTarget.closeRepository = jest.fn(() => Promise.reject());
     mvnTarget.releaseRepository = jest.fn(() => Promise.resolve(true));
@@ -586,13 +586,13 @@ describe('closeAndReleaseRepository', () => {
 
 describe('getRepository', () => {
   const url = new URL(NEXUS_API_BASE_URL);
-  const repositoryInfo = getRepositoryInfo('open', false);
+  const repositoryInfo = getRepositoryInfo('open');
 
   test('should return the repository if server responds correctly', async () => {
     nock(url.origin)
-      .get(`${url.pathname}/profile_repositories`)
+      .get('/manual/search/repositories')
       .reply(200, {
-        data: [repositoryInfo],
+        repositories: [{key: 'sentry-java', state: 'open', portal_deployment_id: '1234'}],
       });
 
     const mvnTarget = createMavenTarget();
@@ -602,8 +602,8 @@ describe('getRepository', () => {
   });
 
   test('should throw if server returns no active repositories', async () => {
-    nock(url.origin).get(`${url.pathname}/profile_repositories`).reply(200, {
-      data: [],
+    nock(url.origin).get('/manual/search/repositories').reply(200, {
+      repositories: [],
     });
 
     const mvnTarget = createMavenTarget();
@@ -614,9 +614,9 @@ describe('getRepository', () => {
 
   test('should throw if server returns more than one active repository', async () => {
     nock(url.origin)
-      .get(`${url.pathname}/profile_repositories`)
+      .get('/manual/search/repositories')
       .reply(200, {
-        data: [repositoryInfo, repositoryInfo],
+        repositories: [repositoryInfo, repositoryInfo],
       });
 
     const mvnTarget = createMavenTarget();
@@ -628,7 +628,7 @@ describe('getRepository', () => {
   });
 
   test('should throw if server doesnt accept the request', async () => {
-    nock(url.origin).get(`${url.pathname}/profile_repositories`).reply(500);
+    nock(url.origin).get('/manual/search/repositories').reply(500);
 
     const mvnTarget = createMavenTarget();
     await expect(mvnTarget.getRepository()).rejects.toThrow(
@@ -643,14 +643,14 @@ describe('closeRepository', () => {
 
   test('should return true if server responds correctly', async () => {
     nock(url.origin)
-      .post(`${url.pathname}/bulk/close`, {
-        data: { stagedRepositoryIds: [repositoryId] },
+      .post('/service/local/staging/bulk/close', {
+        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
       })
       .reply(200);
 
     const mvnTarget = createMavenTarget();
     mvnTarget.getRepository = jest.fn(() =>
-      Promise.resolve(getRepositoryInfo('closed', false))
+      Promise.resolve(getRepositoryInfo('closed'))
     );
 
     await expect(mvnTarget.closeRepository(repositoryId)).resolves.toBe(true);
@@ -658,8 +658,8 @@ describe('closeRepository', () => {
 
   test('should throw if server doesnt accept the request', async () => {
     nock(url.origin)
-      .post(`${url.pathname}/bulk/close`, {
-        data: { stagedRepositoryIds: [repositoryId] },
+      .post('/service/local/staging/bulk/close', {
+        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
       })
       .reply(500);
 
@@ -673,8 +673,8 @@ describe('closeRepository', () => {
 
   test('should wait for the status of repository to be changed', async () => {
     nock(url.origin)
-      .post(`${url.pathname}/bulk/close`, {
-        data: { stagedRepositoryIds: [repositoryId] },
+      .post('/service/local/staging/bulk/close', {
+        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
       })
       .reply(200);
 
@@ -682,38 +682,13 @@ describe('closeRepository', () => {
     mvnTarget.getRepository = jest
       .fn()
       .mockImplementationOnce(() =>
-        Promise.resolve(getRepositoryInfo('open', false))
+        Promise.resolve(getRepositoryInfo('open'))
       )
       .mockImplementationOnce(() =>
-        Promise.resolve(getRepositoryInfo('open', false))
+        Promise.resolve(getRepositoryInfo('open'))
       )
       .mockImplementationOnce(() =>
-        Promise.resolve(getRepositoryInfo('closed', false))
-      );
-
-    await expect(mvnTarget.closeRepository(repositoryId)).resolves.toBe(true);
-    expect(sleep).toHaveBeenCalledTimes(3);
-    expect(mvnTarget.getRepository).toHaveBeenCalledTimes(3);
-  });
-
-  test('should wait for the repository to not be in transitioning state', async () => {
-    nock(url.origin)
-      .post(`${url.pathname}/bulk/close`, {
-        data: { stagedRepositoryIds: [repositoryId] },
-      })
-      .reply(200);
-
-    const mvnTarget = createMavenTarget();
-    mvnTarget.getRepository = jest
-      .fn()
-      .mockImplementationOnce(() =>
-        Promise.resolve(getRepositoryInfo('closed', true))
-      )
-      .mockImplementationOnce(() =>
-        Promise.resolve(getRepositoryInfo('closed', true))
-      )
-      .mockImplementationOnce(() =>
-        Promise.resolve(getRepositoryInfo('closed', false))
+        Promise.resolve(getRepositoryInfo('closed'))
       );
 
     await expect(mvnTarget.closeRepository(repositoryId)).resolves.toBe(true);
@@ -723,14 +698,14 @@ describe('closeRepository', () => {
 
   test('should throw when status change deadline is reached', async () => {
     nock(url.origin)
-      .post(`${url.pathname}/bulk/close`, {
-        data: { stagedRepositoryIds: [repositoryId] },
+      .post('/service/local/staging/bulk/close', {
+        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
       })
       .reply(200);
 
     const mvnTarget = createMavenTarget();
     mvnTarget.getRepository = jest.fn(() =>
-      Promise.resolve(getRepositoryInfo('open', false))
+      Promise.resolve(getRepositoryInfo('open'))
     );
 
     // Deadline is 60min, so we fake pooling start time and initial read to 1min
@@ -751,31 +726,107 @@ describe('closeRepository', () => {
 
 describe('releaseRepository', () => {
   const url = new URL(NEXUS_API_BASE_URL);
+  const centralUrl = new URL(CENTRAL_API_BASE_URL);
   const repositoryId = 'sentry-java';
+  const deploymentId = '1234';
 
   test('should return true if server responds correctly', async () => {
     nock(url.origin)
-      .post(`${url.pathname}/bulk/promote`, {
-        data: { stagedRepositoryIds: [repositoryId] },
+      .post('/service/local/staging/bulk/promote', {
+        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
       })
       .reply(200);
 
+    nock(centralUrl.origin)
+      .post(`${centralUrl.pathname}/publisher/status?id=${deploymentId}`)
+      .reply(200, {
+        deploymentState: 'PUBLISHED'
+      });
+
     const mvnTarget = createMavenTarget();
+    mvnTarget.getRepository = jest.fn(() =>
+      Promise.resolve(getRepositoryInfo('closed'))
+    );
     await expect(mvnTarget.releaseRepository(repositoryId)).resolves.toBe(true);
   });
 
   test('should throw if server doesnt accept the request', async () => {
     nock(url.origin)
-      .post(`${url.pathname}/bulk/promote`, {
-        data: { stagedRepositoryIds: [repositoryId] },
+      .post('/service/local/staging/bulk/promote', {
+        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
       })
       .reply(500);
 
     const mvnTarget = createMavenTarget();
+    mvnTarget.getRepository = jest.fn(() =>
+      Promise.resolve(getRepositoryInfo('closed'))
+    );
     await expect(mvnTarget.releaseRepository(repositoryId)).rejects.toThrow(
       new Error(
         'Unable to release repository sentry-java: 500, Internal Server Error'
       )
     );
+  });
+
+  test('should wait for the status of deployment to be changed', async () => {
+    nock(url.origin)
+      .post('/service/local/staging/bulk/promote', {
+        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
+      })
+      .reply(200);
+
+    const mvnTarget = createMavenTarget();
+    mvnTarget.getRepository = jest.fn(() =>
+      Promise.resolve(getRepositoryInfo('closed'))
+    );
+
+    nock(centralUrl.origin)
+      .post(`${centralUrl.pathname}/publisher/status?id=${deploymentId}`)
+      .reply(200, {
+        deploymentState: 'VALIDATED'
+      })
+      .post(`${centralUrl.pathname}/publisher/status?id=${deploymentId}`)
+      .reply(200, {
+        deploymentState: 'PUBLISHING'
+      })
+      .post(`${centralUrl.pathname}/publisher/status?id=${deploymentId}`)
+      .reply(200, {
+        deploymentState: 'PUBLISHED'
+      });
+
+    await expect(mvnTarget.releaseRepository(repositoryId)).resolves.toBe(true);
+  });
+
+  test('should throw if deadline is reached', async () => {
+    nock(url.origin)
+      .post('/service/local/staging/bulk/promote', {
+        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
+      })
+      .reply(200);
+
+    const mvnTarget = createMavenTarget();
+    mvnTarget.getRepository = jest.fn(() =>
+      Promise.resolve(getRepositoryInfo('closed'))
+    );
+
+    nock(centralUrl.origin)
+    .post(`${centralUrl.pathname}/publisher/status?id=${deploymentId}`)
+    .reply(200, {
+      deploymentState: 'PUBLISHING'
+    })
+
+   // Deadline is 60min, so we fake pooling start time and initial read to 1min
+    // and second iteration to something over 60min
+    jest
+      .spyOn(Date, 'now')
+      .mockImplementationOnce(() => 1 * 60 * 1000)
+      .mockImplementationOnce(() => 1 * 60 * 1000)
+      .mockImplementationOnce(() => 62 * 60 * 1000);
+
+    await expect(mvnTarget.releaseRepository(repositoryId)).rejects.toThrow(
+      new Error('Deadline for Central repository status change reached.')
+    );
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(mvnTarget.getRepository).toHaveBeenCalledTimes(1);
   });
 });
