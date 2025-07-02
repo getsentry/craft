@@ -66,7 +66,7 @@ export class NugetTarget extends BaseTarget {
    * @returns A promise that resolves when the upload has completed
    */
   public async uploadAsset(path: string): Promise<any> {
-    return spawnProcess(NUGET_DOTNET_BIN, [
+    const args = [
       'nuget',
       'push',
       path,
@@ -74,7 +74,11 @@ export class NugetTarget extends BaseTarget {
       '${NUGET_API_TOKEN}',
       '--source',
       this.nugetConfig.serverUrl,
-    ]);
+    ];
+    // Run outside the repository folder to avoid global.json constraints
+    // (we don't need specific dotnet/workload versions just to upload to nuget)
+    const spawnOptions = { cwd: '/' };
+    return spawnProcess(NUGET_DOTNET_BIN, args, spawnOptions);
   }
 
   /**

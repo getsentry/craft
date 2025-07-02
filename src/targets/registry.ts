@@ -6,7 +6,6 @@ import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
-  getAuthUsername,
   getGitHubApiToken,
   getGitHubClient,
   GitHubRemote,
@@ -427,8 +426,7 @@ export class RegistryTarget extends BaseTarget {
 
   private async cloneRegistry(directory: string): Promise<SimpleGit> {
     const remote = this.remote;
-    const username = await getAuthUsername(this.github);
-    remote.setAuth(username, getGitHubApiToken());
+    remote.setAuth(getGitHubApiToken());
 
     const git = simpleGit(directory);
     this.logger.info(

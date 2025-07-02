@@ -4,7 +4,6 @@ import * as path from 'path';
 import { Octokit } from '@octokit/rest';
 import simpleGit from 'simple-git';
 import {
-  getAuthUsername,
   getGitHubApiToken,
   getGitHubClient,
   GitHubRemote,
@@ -139,8 +138,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     this.logger.trace('AWS regions: ', awsRegions);
 
     const remote = this.awsLambdaConfig.registryRemote;
-    const username = await getAuthUsername(this.github);
-    remote.setAuth(username, getGitHubApiToken());
+    remote.setAuth(getGitHubApiToken());
 
     await withTempDir(
       async directory => {
@@ -318,13 +316,12 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
         if (!fs.existsSync(baseFilepath)) {
           this.logger.warn(`The ${runtime.name} base file is missing.`);
-          fs.writeFileSync(newVersionFilepath, JSON.stringify(runtimeData));
+          const manifestString = JSON.stringify(runtimeData, undefined, 2) + '\n';
+          fs.writeFileSync(newVersionFilepath, manifestString);
         } else {
-          const baseData = JSON.parse(fs.readFileSync(baseFilepath).toString());
-          fs.writeFileSync(
-            newVersionFilepath,
-            JSON.stringify({ ...baseData, ...runtimeData })
-          );
+          const baseData = JSON.parse(fs.readFileSync(baseFilepath, { encoding: 'utf-8' }).toString());
+          const manifestString = JSON.stringify({ ...baseData, ...runtimeData }, undefined, 2) + '\n';
+          fs.writeFileSync(newVersionFilepath, manifestString);
         }
 
         this.createVersionSymlinks(runtimeBaseDir, version, newVersionFilepath);
