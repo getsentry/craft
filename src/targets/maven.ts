@@ -21,14 +21,16 @@ const BOM_FILE_KEY_REGEXP = new RegExp('<packaging>pom</packaging>');
 
 // TODO: Make it configurable to allow for sentry-clj releases?
 export const NEXUS_API_BASE_URL =
-  'https://ossrh-staging-api.central.sonatype.com/service/local/staging';
+  'https://ossrh-staging-api.central.sonatype.com';
+export const CENTRAL_API_BASE_URL = 'https://central.sonatype.com/api/v1';
 const NEXUS_RETRY_DELAY = 10 * 1000; // 10s
-const NEXUS_RETRY_DEADLINE = 60 * 60 * 1000; // 60min
+const SONATYPE_RETRY_DEADLINE = 60 * 60 * 1000; // 60min
+const CENTRAL_RETRY_DELAY = 60 * 1000; // 1min
 
 export type NexusRepository = {
   repositoryId: string;
-  type: 'open' | 'closed';
-  transitioning: boolean;
+  state: 'open' | 'closed' | 'released';
+  deploymentId: string;
 };
 
 export const targetSecrets = [
@@ -661,9 +663,9 @@ export class MavenTarget extends BaseTarget {
   // retry every so often and query it for the new state of repository.
   // Based on: https://github.com/vanniktech/gradle-maven-publish-plugin/ implementation.
   public async closeAndReleaseRepository(): Promise<void> {
-    const { repositoryId, type } = await this.getRepository();
+    const { repositoryId, state } = await this.getRepository();
 
-    if (type !== 'open') {
+    if (state !== 'open') {
       throw new Error(
         'No open repositories available. Go to Nexus Repository Manager to see what happened.'
       );
@@ -674,7 +676,7 @@ export class MavenTarget extends BaseTarget {
   }
 
   public async getRepository(): Promise<NexusRepository> {
-    const response = await fetch(`${NEXUS_API_BASE_URL}/profile_repositories`, {
+    const response = await fetch(`${NEXUS_API_BASE_URL}/manual/search/repositories`, {
       headers: this.getNexusRequestHeaders(),
     });
 
@@ -685,7 +687,7 @@ export class MavenTarget extends BaseTarget {
     }
 
     const body = await response.json();
-    const repositories = body.data;
+    const repositories = body.repositories;
 
     if (repositories.length === 0) {
       throw new Error(`No available repositories. Nothing to publish.`);
@@ -697,15 +699,23 @@ export class MavenTarget extends BaseTarget {
       );
     }
 
-    return repositories[0];
+    // the key is in the form of "username/ip_address/repository_id"
+    const repo = repositories[0];
+    let repoId = repositories[0].key;
+    if (repoId && repoId.includes('/')) {
+      const parts = repoId.split('/');
+      repoId = parts[parts.length - 1] || repoId;
+    }
+    return { repositoryId: repoId, state: repo.state, deploymentId: repo.portal_deployment_id };
   }
 
   public async closeRepository(repositoryId: string): Promise<boolean> {
-    const response = await fetch(`${NEXUS_API_BASE_URL}/bulk/close`, {
+    // closing means uploading the repository to portal
+    const response = await fetch(`${NEXUS_API_BASE_URL}/service/local/staging/bulk/close`, {
       headers: this.getNexusRequestHeaders(),
       method: 'POST',
       body: JSON.stringify({
-        data: { stagedRepositoryIds: [repositoryId] },
+        data: { stagedRepositoryIds: [repositoryId], "description": "", "autoDropAfterRelease": true },
       }),
     });
 
@@ -718,33 +728,36 @@ export class MavenTarget extends BaseTarget {
     const poolingStartTime = Date.now();
 
     while (true) {
-      if (Date.now() - poolingStartTime > NEXUS_RETRY_DEADLINE) {
+      if (Date.now() - poolingStartTime > SONATYPE_RETRY_DEADLINE) {
         throw new Error('Deadline for Nexus repository status change reached.');
       }
 
       await sleep(NEXUS_RETRY_DELAY);
 
-      const { type, transitioning } = await this.getRepository();
+      const { state } = await this.getRepository();
 
-      if (type === 'closed' && !transitioning) {
+      if (state === 'closed') {
         this.logger.info(`Nexus repository close correctly.`);
         return true;
       }
 
       this.logger.info(
-        `Nexus repository still not closed. Waiting for ${
-          NEXUS_RETRY_DELAY / 1000
+        `Nexus repository still not closed. Waiting for ${NEXUS_RETRY_DELAY / 1000
         }s to try again.`
       );
     }
   }
 
   public async releaseRepository(repositoryId: string): Promise<boolean> {
-    const response = await fetch(`${NEXUS_API_BASE_URL}/bulk/promote`, {
+    // first we need to get the deployment id from the repository
+    const { deploymentId } = await this.getRepository();
+
+    // then we need to promote the repository (=publish it)
+    const response = await fetch(`${NEXUS_API_BASE_URL}/service/local/staging/bulk/promote`, {
       headers: this.getNexusRequestHeaders(),
       method: 'POST',
       body: JSON.stringify({
-        data: { stagedRepositoryIds: [repositoryId] },
+        data: { stagedRepositoryIds: [repositoryId], "description": "", "autoDropAfterRelease": true },
       }),
     });
 
@@ -754,8 +767,31 @@ export class MavenTarget extends BaseTarget {
       );
     }
 
-    this.logger.info(`Nexus repository closed correctly.`);
-    return true;
+    const poolingStartTime = Date.now();
+
+    while (true) {
+      if (Date.now() - poolingStartTime > SONATYPE_RETRY_DEADLINE) {
+        throw new Error('Deadline for Central repository status change reached.');
+      }
+
+      await sleep(CENTRAL_RETRY_DELAY);
+
+      // then we need to check if the repository is published with the deployment id
+      const response = await fetch(`${CENTRAL_API_BASE_URL}/publisher/status?id=${deploymentId}`, {
+        method: 'POST',
+        headers: this.getNexusRequestHeaders(),
+      });
+
+      if (response.ok && (await response.json()).deploymentState === 'PUBLISHED') {
+        this.logger.info(`Central repository published correctly.`);
+        return true;
+      }
+
+      this.logger.info(
+        `Central repository still not published. Waiting for ${CENTRAL_RETRY_DELAY / 1000
+        }s to try again.`
+      );
+    }
   }
 
   private getNexusRequestHeaders(): Record<string, string> {
