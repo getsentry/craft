@@ -1011,13 +1011,34 @@ describe('checkIfPublished', () => {
     };
 
     nock(centralUrl.origin)
-      .get(`${centralUrl.pathname}/publisher/published?namespace=io.sentry&name=sentry&version=${version}`)
+      .get(`${centralUrl.pathname}/publisher/published?namespace=io.sentry&name=sentry-android-core&version=${version}`)
       .reply(200, {
         published: true
       });
 
     const mvnTarget = createMavenTarget();
     const result = await mvnTarget.checkIfPublished(version, complexArtifact);
+    expect(result).toBe(true);
+  });
+
+  test('should handle simple artifact name with single dash', async () => {
+    const simpleArtifact = {
+      filename: 'sentry-8.17.0.zip',
+      storedFile: {
+        downloadFilepath: 'path/to/artifact',
+        filename: 'sentry-8.17.0.zip',
+        size: 1024
+      }
+    };
+
+    nock(centralUrl.origin)
+      .get(`${centralUrl.pathname}/publisher/published?namespace=io.sentry&name=sentry&version=${version}`)
+      .reply(200, {
+        published: true
+      });
+
+    const mvnTarget = createMavenTarget();
+    const result = await mvnTarget.checkIfPublished(version, simpleArtifact);
     expect(result).toBe(true);
   });
 
@@ -1032,7 +1053,7 @@ describe('checkIfPublished', () => {
     };
 
     nock(centralUrl.origin)
-      .get(`${centralUrl.pathname}/publisher/published?namespace=io.sentry&name=sentry&version=${version}`)
+      .get(`${centralUrl.pathname}/publisher/published?namespace=io.sentry&name=sentry-kotlin-multiplatform&version=${version}`)
       .reply(200, {
         published: true
       });

@@ -50,21 +50,21 @@ type OptionsType = typeof targetOptions[number];
 
 type AndroidFields = {
   android:
-    | false
-    | {
-        distDirRegex: RegExp;
-        fileReplaceeRegex: RegExp;
-        fileReplacerStr: string;
-      };
+  | false
+  | {
+    distDirRegex: RegExp;
+    fileReplaceeRegex: RegExp;
+    fileReplacerStr: string;
+  };
 };
 
 type KotlinMultiplatformFields = {
   kmp:
-    | false
-    | {
-        appleDistDirRegex: RegExp;
-        rootDistDirRegex: RegExp;
-      };
+  | false
+  | {
+    appleDistDirRegex: RegExp;
+    rootDistDirRegex: RegExp;
+  };
 };
 
 type TargetSettingType = SecretsType | OptionsType;
@@ -140,7 +140,7 @@ export class MavenTarget extends BaseTarget {
       if (!this.config[setting]) {
         throw new ConfigurationError(
           `Required configuration ${setting} not found in configuration file. ` +
-            `See the documentation for more details.`
+          `See the documentation for more details.`
         );
       }
       return {
@@ -188,7 +188,7 @@ export class MavenTarget extends BaseTarget {
     if (!this.config.android) {
       throw new ConfigurationError(
         'Required Android configuration was not found in the configuration file. ' +
-          'See the documentation for more details'
+        'See the documentation for more details'
       );
     }
 
@@ -273,7 +273,11 @@ export class MavenTarget extends BaseTarget {
   }
 
   public async checkIfPublished(version: string, artifact: RemoteArtifact): Promise<boolean> {
-    const artifactName = artifact.filename.split('-')[0]; // sentry-8.17.0.zip -> sentry
+    // Extract artifact name by removing the version part
+    // e.g., "sentry-android-core-8.17.0.zip" -> "sentry-android-core"
+    const parts = artifact.filename.split('-');
+    const artifactName = parts.slice(0, -1).join('-');
+
     const response = await fetch(`${CENTRAL_API_BASE_URL}/publisher/published?namespace=io.sentry&name=${artifactName}&version=${version}`, {
       headers: this.getNexusRequestHeaders(),
     });
