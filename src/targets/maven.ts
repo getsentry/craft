@@ -50,21 +50,21 @@ type OptionsType = typeof targetOptions[number];
 
 type AndroidFields = {
   android:
-  | false
-  | {
-    distDirRegex: RegExp;
-    fileReplaceeRegex: RegExp;
-    fileReplacerStr: string;
-  };
+    | false
+    | {
+        distDirRegex: RegExp;
+        fileReplaceeRegex: RegExp;
+        fileReplacerStr: string;
+      };
 };
 
 type KotlinMultiplatformFields = {
   kmp:
-  | false
-  | {
-    appleDistDirRegex: RegExp;
-    rootDistDirRegex: RegExp;
-  };
+    | false
+    | {
+        appleDistDirRegex: RegExp;
+        rootDistDirRegex: RegExp;
+      };
 };
 
 type TargetSettingType = SecretsType | OptionsType;
@@ -140,7 +140,7 @@ export class MavenTarget extends BaseTarget {
       if (!this.config[setting]) {
         throw new ConfigurationError(
           `Required configuration ${setting} not found in configuration file. ` +
-          `See the documentation for more details.`
+            `See the documentation for more details.`
         );
       }
       return {
