@@ -188,7 +188,7 @@ export class MavenTarget extends BaseTarget {
     if (!this.config.android) {
       throw new ConfigurationError(
         'Required Android configuration was not found in the configuration file. ' +
-        'See the documentation for more details'
+          'See the documentation for more details'
       );
     }
 
