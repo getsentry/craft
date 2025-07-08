@@ -265,7 +265,10 @@ describe('Maven target configuration', () => {
     process.env.GPG_PRIVATE_KEY = DEFAULT_OPTION_VALUE;
     const callOrder: string[] = [];
     const mvnTarget = createMavenTarget(getFullTargetConfig());
-    mvnTarget.upload = jest.fn(async () => void callOrder.push('upload'));
+    mvnTarget.upload = jest.fn(async () => {
+      callOrder.push('upload');
+      return true;
+    });
     mvnTarget.closeAndReleaseRepository = jest.fn(
       async () => void callOrder.push('closeAndReleaseRepository')
     );
@@ -278,16 +281,46 @@ describe('publish', () => {
   test('main flow', async () => {
     const callOrder: string[] = [];
     const mvnTarget = createMavenTarget();
-    mvnTarget.upload = jest.fn(async () => void callOrder.push('upload'));
+    mvnTarget.upload = jest.fn(async () => {
+      callOrder.push('upload');
+      return true;
+    });
     mvnTarget.closeAndReleaseRepository = jest.fn(
       async () => void callOrder.push('closeAndReleaseRepository')
     );
     const revision = 'r3v1s10n';
-    await mvnTarget.publish('1.0.0', revision);
+    const version = '1.0.0';
+    await mvnTarget.publish(version, revision);
     expect(mvnTarget.upload).toHaveBeenCalledTimes(1);
-    expect(mvnTarget.upload).toHaveBeenCalledWith(revision);
+    expect(mvnTarget.upload).toHaveBeenCalledWith(version, revision);
     expect(mvnTarget.closeAndReleaseRepository).toHaveBeenCalledTimes(1);
     expect(callOrder).toStrictEqual(['upload', 'closeAndReleaseRepository']);
+  });
+
+  test('should skip close and release when no artifacts are uploaded', async () => {
+    const mvnTarget = createMavenTarget();
+    mvnTarget.upload = jest.fn().mockResolvedValue(false); // No artifacts uploaded
+    mvnTarget.closeAndReleaseRepository = jest.fn();
+
+    const revision = 'r3v1s10n';
+    await mvnTarget.publish('1.0.0', revision);
+
+    expect(mvnTarget.upload).toHaveBeenCalledTimes(1);
+    expect(mvnTarget.upload).toHaveBeenCalledWith('1.0.0', revision);
+    expect(mvnTarget.closeAndReleaseRepository).not.toHaveBeenCalled();
+  });
+
+  test('should proceed with close and release when artifacts are uploaded', async () => {
+    const mvnTarget = createMavenTarget();
+    mvnTarget.upload = jest.fn().mockResolvedValue(true); // Some artifacts uploaded
+    mvnTarget.closeAndReleaseRepository = jest.fn();
+
+    const revision = 'r3v1s10n';
+    await mvnTarget.publish('1.0.0', revision);
+
+    expect(mvnTarget.upload).toHaveBeenCalledTimes(1);
+    expect(mvnTarget.upload).toHaveBeenCalledWith('1.0.0', revision);
+    expect(mvnTarget.closeAndReleaseRepository).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -359,6 +392,8 @@ describe('transform KMP artifacts', () => {
 
 describe('upload', () => {
   const tmpDirName = 'tmpDir';
+  const version = '8.17.0';
+  const revision = 'r3v1s10n';
 
   test('upload POM for Maven', async () => {
     // simple mock to always use the same temporary directory,
@@ -378,8 +413,9 @@ describe('upload', () => {
       .mockResolvedValueOnce('artifact/download/path');
     mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
     mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce('pom-default.xml');
+    mvnTarget.checkIfPublished = jest.fn().mockResolvedValueOnce(false);
 
-    await mvnTarget.upload('r3v1s10n');
+    await mvnTarget.upload(version, revision);
 
     expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
     const callArgs = (retrySpawnProcess as jest.MockedFunction<
@@ -429,8 +465,9 @@ describe('upload', () => {
     mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
     mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce('pom-default.xml');
     mvnTarget.fileExists = jest.fn().mockResolvedValue(true);
+    mvnTarget.checkIfPublished = jest.fn().mockResolvedValueOnce(false);
 
-    await mvnTarget.upload('r3v1s10n');
+    await mvnTarget.upload(version, revision);
 
     expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
     const callArgs = (retrySpawnProcess as jest.MockedFunction<
@@ -479,8 +516,9 @@ describe('upload', () => {
       .mockResolvedValueOnce('artifact/download/path');
     mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce('path/to/bomfile');
     mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce(undefined);
+    mvnTarget.checkIfPublished = jest.fn().mockResolvedValueOnce(false);
 
-    await mvnTarget.upload('r3v1s10n');
+    await mvnTarget.upload(version, revision);
 
     expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
     const callArgs = (retrySpawnProcess as jest.MockedFunction<
@@ -526,10 +564,69 @@ describe('upload', () => {
 
     mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
     mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce(undefined);
+    mvnTarget.checkIfPublished = jest.fn().mockResolvedValueOnce(false);
 
-    await mvnTarget.upload('r3v1s10n');
+    await mvnTarget.upload(version, revision);
 
     expect(retrySpawnProcess).toHaveBeenCalledTimes(0);
+  });
+
+  test('should skip upload for already published artifacts', async () => {
+    const mvnTarget = createMavenTarget();
+    const artifact = { filename: 'sentry-8.17.0.zip' };
+
+    mvnTarget.getArtifactsForRevision = jest
+      .fn()
+      .mockResolvedValueOnce([artifact]);
+    mvnTarget.checkIfPublished = jest.fn().mockResolvedValueOnce(true);
+    mvnTarget.uploadArtifact = jest.fn();
+
+    const result = await mvnTarget.upload(version, revision);
+
+    expect(mvnTarget.checkIfPublished).toHaveBeenCalledWith(version, artifact);
+    expect(mvnTarget.uploadArtifact).not.toHaveBeenCalled();
+    expect(result).toBe(false);
+  });
+
+  test('should upload artifacts that are not published', async () => {
+    const mvnTarget = createMavenTarget();
+    const artifact = { filename: 'sentry-8.17.0.zip' };
+
+    mvnTarget.getArtifactsForRevision = jest
+      .fn()
+      .mockResolvedValueOnce([artifact]);
+    mvnTarget.checkIfPublished = jest.fn().mockResolvedValueOnce(false);
+    mvnTarget.uploadArtifact = jest.fn();
+
+    const result = await mvnTarget.upload(version, revision);
+
+    expect(mvnTarget.checkIfPublished).toHaveBeenCalledWith(version, artifact);
+    expect(mvnTarget.uploadArtifact).toHaveBeenCalledWith(artifact);
+    expect(result).toBe(true);
+  });
+
+  test('should handle mixed published and unpublished artifacts', async () => {
+    const mvnTarget = createMavenTarget();
+    const publishedArtifact = { filename: 'sentry-published-8.17.0.zip' };
+    const unpublishedArtifact = { filename: 'sentry-unpublished-8.17.0.zip' };
+
+    mvnTarget.getArtifactsForRevision = jest
+      .fn()
+      .mockResolvedValueOnce([publishedArtifact, unpublishedArtifact]);
+    mvnTarget.checkIfPublished = jest
+      .fn()
+      .mockResolvedValueOnce(true)  // first artifact is published
+      .mockResolvedValueOnce(false); // second artifact is not published
+    mvnTarget.uploadArtifact = jest.fn();
+
+    const result = await mvnTarget.upload(version, revision);
+
+    expect(mvnTarget.checkIfPublished).toHaveBeenCalledTimes(2);
+    expect(mvnTarget.checkIfPublished).toHaveBeenCalledWith(version, publishedArtifact);
+    expect(mvnTarget.checkIfPublished).toHaveBeenCalledWith(version, unpublishedArtifact);
+    expect(mvnTarget.uploadArtifact).toHaveBeenCalledTimes(1);
+    expect(mvnTarget.uploadArtifact).toHaveBeenCalledWith(unpublishedArtifact);
+    expect(result).toBe(true);
   });
 });
 
@@ -592,7 +689,7 @@ describe('getRepository', () => {
     nock(url.origin)
       .get('/manual/search/repositories')
       .reply(200, {
-        repositories: [{key: 'sentry-java', state: 'open', portal_deployment_id: '1234'}],
+        repositories: [{ key: 'sentry-java', state: 'open', portal_deployment_id: '1234' }],
       });
 
     const mvnTarget = createMavenTarget();
@@ -810,12 +907,12 @@ describe('releaseRepository', () => {
     );
 
     nock(centralUrl.origin)
-    .post(`${centralUrl.pathname}/publisher/status?id=${deploymentId}`)
-    .reply(200, {
-      deploymentState: 'PUBLISHING'
-    })
+      .post(`${centralUrl.pathname}/publisher/status?id=${deploymentId}`)
+      .reply(200, {
+        deploymentState: 'PUBLISHING'
+      })
 
-   // Deadline is 60min, so we fake pooling start time and initial read to 1min
+    // Deadline is 60min, so we fake pooling start time and initial read to 1min
     // and second iteration to something over 60min
     jest
       .spyOn(Date, 'now')
@@ -828,5 +925,120 @@ describe('releaseRepository', () => {
     );
     expect(sleep).toHaveBeenCalledTimes(1);
     expect(mvnTarget.getRepository).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('checkIfPublished', () => {
+  const centralUrl = new URL(CENTRAL_API_BASE_URL);
+  const version = '8.17.0';
+  const artifact = {
+    filename: 'sentry-8.17.0.zip',
+    storedFile: {
+      downloadFilepath: 'path/to/artifact',
+      filename: 'sentry-8.17.0.zip',
+      size: 1024
+    }
+  };
+
+  test('should return true when artifact is published', async () => {
+    nock(centralUrl.origin)
+      .get(`${centralUrl.pathname}/publisher/published?namespace=io.sentry&name=sentry&version=${version}`)
+      .reply(200, {
+        published: true
+      });
+
+    const mvnTarget = createMavenTarget();
+    const result = await mvnTarget.checkIfPublished(version, artifact);
+    expect(result).toBe(true);
+  });
+
+  test('should return false when artifact is not published', async () => {
+    nock(centralUrl.origin)
+      .get(`${centralUrl.pathname}/publisher/published?namespace=io.sentry&name=sentry&version=${version}`)
+      .reply(200, {
+        published: false
+      });
+
+    const mvnTarget = createMavenTarget();
+    const result = await mvnTarget.checkIfPublished(version, artifact);
+    expect(result).toBe(false);
+  });
+
+  test('should return false when response is not ok', async () => {
+    nock(centralUrl.origin)
+      .get(`${centralUrl.pathname}/publisher/published?namespace=io.sentry&name=sentry&version=${version}`)
+      .reply(404, {
+        published: true
+      });
+
+    const mvnTarget = createMavenTarget();
+    const result = await mvnTarget.checkIfPublished(version, artifact);
+    expect(result).toBe(false);
+  });
+
+  test('should return false when published field is missing', async () => {
+    nock(centralUrl.origin)
+      .get(`${centralUrl.pathname}/publisher/published?namespace=io.sentry&name=sentry&version=${version}`)
+      .reply(200, {
+        status: 'unknown'
+      });
+
+    const mvnTarget = createMavenTarget();
+    const result = await mvnTarget.checkIfPublished(version, artifact);
+    expect(result).toBe(false);
+  });
+
+  test('should return false when published field is not true', async () => {
+    nock(centralUrl.origin)
+      .get(`${centralUrl.pathname}/publisher/published?namespace=io.sentry&name=sentry&version=${version}`)
+      .reply(200, {
+        published: 'yes'
+      });
+
+    const mvnTarget = createMavenTarget();
+    const result = await mvnTarget.checkIfPublished(version, artifact);
+    expect(result).toBe(false);
+  });
+
+  test('should extract artifact name correctly from filename', async () => {
+    const complexArtifact = {
+      filename: 'sentry-android-core-8.17.0.zip',
+      storedFile: {
+        downloadFilepath: 'path/to/artifact',
+        filename: 'sentry-android-core-8.17.0.zip',
+        size: 1024
+      }
+    };
+
+    nock(centralUrl.origin)
+      .get(`${centralUrl.pathname}/publisher/published?namespace=io.sentry&name=sentry&version=${version}`)
+      .reply(200, {
+        published: true
+      });
+
+    const mvnTarget = createMavenTarget();
+    const result = await mvnTarget.checkIfPublished(version, complexArtifact);
+    expect(result).toBe(true);
+  });
+
+  test('should handle artifact name with multiple dashes', async () => {
+    const multiDashArtifact = {
+      filename: 'sentry-kotlin-multiplatform-8.17.0.zip',
+      storedFile: {
+        downloadFilepath: 'path/to/artifact',
+        filename: 'sentry-kotlin-multiplatform-8.17.0.zip',
+        size: 1024
+      }
+    };
+
+    nock(centralUrl.origin)
+      .get(`${centralUrl.pathname}/publisher/published?namespace=io.sentry&name=sentry&version=${version}`)
+      .reply(200, {
+        published: true
+      });
+
+    const mvnTarget = createMavenTarget();
+    const result = await mvnTarget.checkIfPublished(version, multiDashArtifact);
+    expect(result).toBe(true);
   });
 });

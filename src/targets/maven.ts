@@ -237,7 +237,11 @@ export class MavenTarget extends BaseTarget {
     if (process.env.GPG_PRIVATE_KEY) {
       await importGPGKey(process.env.GPG_PRIVATE_KEY);
     }
-    await this.upload(revison);
+    const uploadedAny = await this.upload(_version, revison);
+    if (!uploadedAny) {
+      this.logger.warn('No artifacts were published, skipping close and release repository');
+      return;
+    }
     await this.closeAndReleaseRepository();
   }
 
@@ -246,18 +250,36 @@ export class MavenTarget extends BaseTarget {
    * to make a release, but this doesn't perform any releases; after upload,
    * the flow must finish with `closeAndReleaseRepository`.
    */
-  public async upload(revision: string): Promise<void> {
+  public async upload(version: string, revision: string): Promise<boolean> {
     const artifacts = await this.getArtifactsForRevision(revision, {
       includeNames: this.config.includeNames,
     });
 
+    let uploadedAny = false;
     // We don't want to do this in parallel but in serial, because the gpg-agent
     // runs out of memory. See
     // https://github.com/sbt/sbt-pgp/issues/168
     // https://github.com/gradle/gradle/issues/12167
     for (const artifact of artifacts) {
+      if (await this.checkIfPublished(version, artifact)) {
+        this.logger.debug(`Artifact ${artifact.filename} already published, skipping`);
+        continue;
+      }
       await this.uploadArtifact(artifact);
+      uploadedAny = true;
     }
+
+    return uploadedAny;
+  }
+
+  public async checkIfPublished(version: string, artifact: RemoteArtifact): Promise<boolean> {
+    const artifactName = artifact.filename.split('-')[0]; // sentry-8.17.0.zip -> sentry
+    const response = await fetch(`${CENTRAL_API_BASE_URL}/publisher/published?namespace=io.sentry&name=${artifactName}&version=${version}`, {
+      headers: this.getNexusRequestHeaders(),
+    });
+
+    const body = await response.json();
+    return response.ok && body.published === true;
   }
 
   /**
@@ -266,7 +288,7 @@ export class MavenTarget extends BaseTarget {
    * @param artifact the remote artifact to be uploaded.
    * @param dir directory where the artifact can be extracted.
    */
-  private async uploadArtifact(artifact: RemoteArtifact): Promise<void> {
+  public async uploadArtifact(artifact: RemoteArtifact): Promise<void> {
     this.logger.debug('Downloading:', artifact.filename);
     const downloadedPkgPath = await this.artifactProvider.downloadArtifact(
       artifact
