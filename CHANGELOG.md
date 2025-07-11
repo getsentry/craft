@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.8.0
+
+### Various fixes & improvements
+
+- feat(maven): Add Central repository support (#608) by @romtsn
+- build(deps-dev): bump @octokit/request-error from 2.1.0 to 6.1.7 (#588) by @dependabot
+- gha: image build needs package write (#607) by @mdtro
+- gha: pin action versions to sha and set permissions (#604) by @mdtro
+
+## 2.7.2
+
+### Various fixes & improvements
+
+- chore(maven): Update base url to support publishing to central portal (#605) by @romtsn
+
+## 2.7.1
+
+### Various fixes & improvements
+
+- fix(aws): make reading/writing of aws manifest consistent with other packages (#603) by @sl0thentr0py
+
 ## 2.7.0
 
 ### Various fixes & improvements

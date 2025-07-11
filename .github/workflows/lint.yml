@@ -7,14 +7,16 @@ jobs:
   lint:
     name: Lint fixes
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
         with:
           node-version-file: package.json
-      - uses: actions/cache@v3
+      - uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
         id: cache
         with:
           path: |

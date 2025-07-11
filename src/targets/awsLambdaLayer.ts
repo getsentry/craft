@@ -316,13 +316,12 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
         if (!fs.existsSync(baseFilepath)) {
           this.logger.warn(`The ${runtime.name} base file is missing.`);
-          fs.writeFileSync(newVersionFilepath, JSON.stringify(runtimeData));
+          const manifestString = JSON.stringify(runtimeData, undefined, 2) + '\n';
+          fs.writeFileSync(newVersionFilepath, manifestString);
         } else {
-          const baseData = JSON.parse(fs.readFileSync(baseFilepath).toString());
-          fs.writeFileSync(
-            newVersionFilepath,
-            JSON.stringify({ ...baseData, ...runtimeData })
-          );
+          const baseData = JSON.parse(fs.readFileSync(baseFilepath, { encoding: 'utf-8' }).toString());
+          const manifestString = JSON.stringify({ ...baseData, ...runtimeData }, undefined, 2) + '\n';
+          fs.writeFileSync(newVersionFilepath, manifestString);
         }
 
         this.createVersionSymlinks(runtimeBaseDir, version, newVersionFilepath);
