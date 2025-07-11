@@ -362,6 +362,11 @@ export async function generateChangesetFromGit(
 
   const nLeftovers = leftovers.length;
   if (nLeftovers > 0) {
+    // TODO: read .github/release.yml and its `changelog` section
+    //   if empty, keep using the default `Various fixes & improvements`
+    //   ip not, follow https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes#configuration-options
+    //   to group the leftovers
+
     changelogSections.push(
       markdownHeader(SUBSECTION_HEADER_LEVEL, 'Various fixes & improvements')
     );
