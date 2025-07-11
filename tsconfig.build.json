@@ -1,8 +1,8 @@
 {
   "extends": "@sentry/typescript/tsconfig.json",
   "compilerOptions": {
-    "lib": ["es2020"],
-    "target": "es2020",
+    "lib": ["esnext"],
+    "target": "es2022",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
@@ -10,6 +10,7 @@
     "rootDir": "src",
     "types": ["node"],
     "noImplicitThis": false,
+    "noImplicitUseStrict": false,
     "esModuleInterop": true,
     "importHelpers": true,
     "noEmitHelpers": false,
