@@ -107,7 +107,6 @@ Options:
   -h, --help     Show help                                             [boolean]
 ```
 
-
 ### Version naming conventions
 
 Craft currently supports [semantic versioning (semver)](https://semver.org)-like versions for the `NEW-VERSION` argument passed to its `prepare` and `publish` commands. This means, releases made with craft need to follow a general pattern as follows:
@@ -145,7 +144,6 @@ Examples:
 ```
 
 #### Special Case: Python Post Releases
-
 
 Python has the concept of post releases, which craft handles implicitly. A post release is indicated by a `-\d+` suffix to the semver version, for example: `1.0.0-1`.
 Given that we only consider certain identifiers as [pre-releases](#preview-releases-prerelease), post releases are considered stable releases.
@@ -578,8 +576,8 @@ contains any one of [pre-release identifiers](#preview-releases-prerelease).
 
 **Environment**
 
-| Name           | Description                                                        |
-| -------------- | ------------------------------------------------------------------ |
+| Name           | Description                                                          |
+| -------------- | -------------------------------------------------------------------- |
 | `GITHUB_TOKEN` | Personal GitHub API token (see <https://github.com/settings/tokens>) |
 
 **Configuration**
@@ -621,10 +619,10 @@ The `npm` utility must be installed on the system.
 
 **Configuration**
 
-| Option             | Description                                                                                                                     |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| `access`           | **optional**. Visibility for scoped packages: `restricted` (default) or `public`                                                |
-| `checkPackageName` | **optional**. If defined, check this package on the registry to get the current latest version to compare for the `latest` tag. The package(s) to be published will only be tagged with `latest` if the new version is greater than the checked package's version|
+| Option             | Description                                                                                                                                                                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `access`           | **optional**. Visibility for scoped packages: `restricted` (default) or `public`                                                                                                                                                                                  |
+| `checkPackageName` | **optional**. If defined, check this package on the registry to get the current latest version to compare for the `latest` tag. The package(s) to be published will only be tagged with `latest` if the new version is greater than the checked package's version |
 
 **Example**
 
@@ -669,8 +667,8 @@ like [getsentry/pypi]
 
 **Environment**
 
-| Name           | Description                                                        |
-| -------------- | ------------------------------------------------------------------ |
+| Name           | Description                                                          |
+| -------------- | -------------------------------------------------------------------- |
 | `GITHUB_TOKEN` | Personal GitHub API token (see <https://github.com/settings/tokens>) |
 
 **Configuration**
@@ -1164,6 +1162,7 @@ targets:
     kmp:
       rootDistDirRegex: /sentry-kotlin-multiplatform-[0-9]+.*$/
       appleDistDirRegex: /sentry-kotlin-multiplatform-(macos|ios|tvos|watchos).*/
+      klibDistDirRegex: /sentry-kotlin-multiplatform-(js|wasm-js).*/
 ```
 
 ### Symbol Collector (`symbol-collector`)
@@ -1208,10 +1207,10 @@ For this target to work correctly, either `dart` must be installed on the system
 
 **Configuration**
 
-| Option        | Description                                                                                                                                                                                     |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dartCliPath`    | **optional** Path to the Dart CLI. It must be executable by the calling process. Defaults to `dart`.                                                                                            |
-| `packages`       | **optional** List of directories to be released, relative to the root. Useful when a single repository contains multiple packages. When skipped, root directory is assumed as the only package. |
+| Option           | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dartCliPath`    | **optional** Path to the Dart CLI. It must be executable by the calling process. Defaults to `dart`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `packages`       | **optional** List of directories to be released, relative to the root. Useful when a single repository contains multiple packages. When skipped, root directory is assumed as the only package.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `skipValidation` | **optional** Publishes the package without going through validation steps, such as analyzer & dependency checks. <br /> This is useful in particular situations when package maintainers know why the validation fails and wish to side step the issue. For example, there may be analyzer issues due to not following the current (latest) dart SDK recommendation because the package needs to maintain the package compatibility with an old SDK version. <br /> This option should be used with caution and only after testing and verifying the reported issue shouldn't affect the package. It is advisable to do an alpha pre-release to further reduce the chance of a potential negative impact. |
 
 **Example**
@@ -1293,17 +1292,17 @@ The extracted directory is then published as a module.
 
 The `pwsh` executable [must be installed](https://github.com/powershell/powershell#get-powershell) on the system.
 
-| Name                 | Description                                          | Default   |
-| -------------------- | ---------------------------------------------------- | --------- |
-| `POWERSHELL_API_KEY` | **required** PowerShell Gallery API key              |           |
-| `POWERSHELL_BIN`     | **optional** Path to PowerShell binary               | `pwsh`    |
+| Name                 | Description                             | Default |
+| -------------------- | --------------------------------------- | ------- |
+| `POWERSHELL_API_KEY` | **required** PowerShell Gallery API key |         |
+| `POWERSHELL_BIN`     | **optional** Path to PowerShell binary  | `pwsh`  |
 
 #### Configuration
 
-| Option               | Description                                          | Default   |
-| -------------------- | ---------------------------------------------------- | --------- |
-| `module`             | **required** Module name.                            |           |
-| `repository`         | **optional** Repository to publish the package to.   | PSGallery |
+| Option       | Description                                        | Default   |
+| ------------ | -------------------------------------------------- | --------- |
+| `module`     | **required** Module name.                          |           |
+| `repository` | **optional** Repository to publish the package to. | PSGallery |
 
 #### Example
 
