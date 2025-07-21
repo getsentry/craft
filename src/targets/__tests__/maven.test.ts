@@ -75,6 +75,7 @@ function getFullTargetConfig(): any {
     kmp: {
       rootDistDirRegex: '/distDir/',
       appleDistDirRegex: '/apple-distDir/',
+      klibDistDirRegex: '/klib-distDir/',
     },
   };
 }
@@ -258,6 +259,7 @@ describe('Maven target configuration', () => {
     expect(typeof mvnTarget.config.android.fileReplacerStr).toBe('string');
     expect(typeof mvnTarget.config.kmp.rootDistDirRegex).toBe('string');
     expect(typeof mvnTarget.config.kmp.appleDistDirRegex).toBe('string');
+    expect(typeof mvnTarget.config.kmp.klibDistDirRegex).toBe('string');
   });
 
   test('import GPG private key if one is present in the environment', async () => {
@@ -294,6 +296,38 @@ describe('publish', () => {
 describe('transform KMP artifacts', () => {
   const tmpDirName = 'tmpDir';
 
+  test('transform klib-only target side artifacts', async () => {
+    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+      async cb => {
+        return await cb(tmpDirName);
+      }
+    );
+
+    const mvnTarget = createMavenTarget(getFullTargetConfig());
+    const files: Record<string, string | string[]> = {
+      javadocFile: `${tmpDirName}-javadoc.jar`,
+      sourcesFile: `${tmpDirName}-sources.jar`,
+      klibFiles: [
+        `${tmpDirName}.klib`,
+      ],
+      allFile: '',
+      metadataFile: ``,
+      moduleFile: `${tmpDirName}.module`,
+    };
+    const {
+      sideArtifacts,
+      classifiers,
+      types,
+    } = mvnTarget.transformKmpSideArtifacts(false, false, true, files);
+    expect(sideArtifacts).toEqual(
+      `${files.javadocFile},${files.sourcesFile},${files.klibFiles},${files.moduleFile}`
+    );
+    expect(classifiers).toEqual(
+      'javadoc,sources,,'
+    );
+    expect(types).toEqual('jar,jar,klib,module');
+  });
+
   test('transform apple target side artifacts', async () => {
     (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
@@ -317,7 +351,7 @@ describe('transform KMP artifacts', () => {
       sideArtifacts,
       classifiers,
       types,
-    } = mvnTarget.transformKmpSideArtifacts(false, true, files);
+    } = mvnTarget.transformKmpSideArtifacts(false, true, false, files);
     expect(sideArtifacts).toEqual(
       `${files.javadocFile},${files.sourcesFile},${files.klibFiles},${files.metadataFile},${files.moduleFile}`
     );
@@ -348,7 +382,7 @@ describe('transform KMP artifacts', () => {
       sideArtifacts,
       classifiers,
       types,
-    } = mvnTarget.transformKmpSideArtifacts(true, false, files);
+    } = mvnTarget.transformKmpSideArtifacts(true, false, false, files);
     expect(sideArtifacts).toEqual(
       `${files.javadocFile},${files.sourcesFile},${files.allFile},${files.kotlinToolingMetadataFile},${files.moduleFile}`
     );

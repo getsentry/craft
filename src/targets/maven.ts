@@ -64,6 +64,7 @@ type KotlinMultiplatformFields = {
     | {
         appleDistDirRegex: RegExp;
         rootDistDirRegex: RegExp;
+        klibDistDirRegex: RegExp;
       };
 };
 
@@ -170,10 +171,17 @@ export class MavenTarget extends BaseTarget {
       );
     }
 
+    if (!this.config.kmp.klibDistDirRegex) {
+      throw new ConfigurationError(
+        'Required klib configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.'
+      );
+    }
+
     return {
       kmp: {
         appleDistDirRegex: stringToRegexp(this.config.kmp.appleDistDirRegex),
         rootDistDirRegex: stringToRegexp(this.config.kmp.rootDistDirRegex),
+        klibDistDirRegex: stringToRegexp(this.config.kmp.klibDistDirRegex),
       },
     };
   }
@@ -376,13 +384,16 @@ export class MavenTarget extends BaseTarget {
       const isAppleDistDir = this.mavenConfig.kmp.appleDistDirRegex.test(
         moduleName
       );
+      const isKlibOnly = this.mavenConfig.kmp.klibDistDirRegex.test(
+        moduleName
+      );
       const files = await this.getFilesForKmpMavenPomDist(distDir);
       const { targetFile, pomFile } = files;
       const {
         sideArtifacts,
         classifiers,
         types,
-      } = this.transformKmpSideArtifacts(isRootDistDir, isAppleDistDir, files);
+      } = this.transformKmpSideArtifacts(isRootDistDir, isAppleDistDir, isKlibOnly, files);
 
       await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
         'gpg:sign-and-deploy-file',
@@ -418,6 +429,7 @@ export class MavenTarget extends BaseTarget {
  *
  * @param isRootDistDir boolean indicating whether the distDir is the root distDir
  * @param isAppleDistDir boolean indicating whether the distDir is the Apple distDir
+ * @param isKlibOnly boolean indicating whether the distDir is the klib-only distDir
  * @param files an object containing the input files, as described above
  * @returns a Record with three fields:
  *    - sideArtifacts: a comma-separated string listing the paths to all generated "side artifacts"
@@ -427,6 +439,7 @@ export class MavenTarget extends BaseTarget {
   public transformKmpSideArtifacts(
     isRootDistDir: boolean,
     isAppleDistDir: boolean,
+    isKlibOnly: boolean,
     files: Record<string, string | string[]>
   ): Record<string, string | string[]> {
     const {
@@ -447,25 +460,38 @@ export class MavenTarget extends BaseTarget {
       types += ',jar,json';
       classifiers += ',all,kotlin-tooling-metadata';
     } else if (isAppleDistDir) {
-      if (klibFiles) {
-        sideArtifacts += `,${klibFiles}`;
-
-        // In order to upload cinterop klib files we need to extract the classifier from the file name.
-        // e.g: "sentry-kotlin-multiplatform-iosarm64-0.0.1-cinterop-Sentry.klib",
-        // the classifier is "cinterop-Sentry".
-        for (let i = 0; i < klibFiles.length; i++) {
-          const input = klibFiles[i];
-          const start = input.indexOf('cinterop');
-          const end = input.indexOf('.klib', start);
-          const classifier = input.substring(start, end);
-
-          types += ',klib';
-          classifiers += `,${classifier}`;
-        }
+      if (!Array.isArray(klibFiles)) {
+        throw new ConfigurationError(
+          'klib files in apple distributions must be an array'
+        );
       }
+      sideArtifacts += `,${klibFiles}`;
+
+      // In order to upload cinterop klib files we need to extract the classifier from the file name.
+      // e.g: "sentry-kotlin-multiplatform-iosarm64-0.0.1-cinterop-Sentry.klib",
+      // the classifier is "cinterop-Sentry".
+      for (let i = 0; i < klibFiles.length; i++) {
+        const input = klibFiles[i];
+        const start = input.indexOf('cinterop');
+        const end = input.indexOf('.klib', start);
+        const classifier = input.substring(start, end);
+
+        types += ',klib';
+        classifiers += `,${classifier}`;
+      }
+
       sideArtifacts += `,${metadataFile}`;
       types += ',jar';
       classifiers += ',metadata';
+    } else if (isKlibOnly) {
+      if (!Array.isArray(klibFiles) || klibFiles.length !== 1) {
+        throw new ConfigurationError(
+          'klib files in klib-only distributions must be an array with exactly one element'
+        );
+      }
+      sideArtifacts += `,${klibFiles}`;
+      types += ',klib';
+      classifiers += ',';
     }
 
     // .module files should be available in every KMP artifact
@@ -596,12 +622,12 @@ export class MavenTarget extends BaseTarget {
 
     const moduleName = parse(distDir).base;
     if (this.mavenConfig.kmp !== false) {
-      const isRootDistDir = this.mavenConfig.kmp.rootDistDirRegex.test(
-        moduleName
-      );
-      const isAppleDistDir = this.mavenConfig.kmp.appleDistDirRegex.test(
-        moduleName
-      );
+      const { klibDistDirRegex, appleDistDirRegex, rootDistDirRegex } = this.mavenConfig.kmp;
+
+      const isRootDistDir = rootDistDirRegex.test(moduleName);
+      const isAppleDistDir = appleDistDirRegex.test(moduleName);
+      const isKlibOnly = klibDistDirRegex.test(moduleName);
+
       if (isRootDistDir) {
         files['allFile'] = join(distDir, `${moduleName}-all.jar`);
         files['kotlinToolingMetadataFile'] = join(
@@ -615,6 +641,35 @@ export class MavenTarget extends BaseTarget {
           .map(file => join(distDir, file));
 
         files['klibFiles'] = cinteropFiles;
+      } else if (isKlibOnly) {
+        const dirEntries = await fsPromises.readdir(distDir);
+        const expectedFiles = [
+          `${moduleName}-javadoc.jar`,
+          `${moduleName}.klib`,
+          `${moduleName}-sources.jar`,
+          `${moduleName}.module`,
+          POM_DEFAULT_FILENAME,
+        ];
+
+        const missingFiles = expectedFiles.filter(f => !dirEntries.includes(f));
+        if (missingFiles.length > 0) {
+          throw new ConfigurationError(
+            `Missing expected file: ${missingFiles.join(', ')} in ${distDir}`
+          );
+        }
+
+        const extraFiles = dirEntries.filter(f => !expectedFiles.includes(f));
+        if (extraFiles.length > 0) {
+          throw new ConfigurationError(
+            `Unexpected extra files in ${distDir}: ${extraFiles.join(', ')}`
+          );
+        }
+
+        this.logger.info(
+          `Found klib artifacts for ${moduleName}: [${expectedFiles.join(', ')}]`
+        );
+
+        files['klibFile'] = join(distDir, `${moduleName}.klib`);
       }
     }
     return files;
@@ -649,13 +704,17 @@ export class MavenTarget extends BaseTarget {
       }
     }
     if (this.mavenConfig.kmp !== false) {
-      const isAppleDistDir = this.mavenConfig.kmp.appleDistDirRegex.test(
-        moduleName
-      );
-      if (isAppleDistDir) {
+      const { klibDistDirRegex, appleDistDirRegex } = this.mavenConfig.kmp;
+
+      if (klibDistDirRegex.test(moduleName)) {
+        return `${moduleName}.klib`;
+      }
+
+      if (appleDistDirRegex.test(moduleName)) {
         return `${moduleName}.klib`;
       }
     }
+
     return `${moduleName}.jar`;
   }
 
