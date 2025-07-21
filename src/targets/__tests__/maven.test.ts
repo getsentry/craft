@@ -614,14 +614,11 @@ describe('upload', () => {
     expect(cmdArgs).toHaveLength(11);
     expect(cmdArgs[0]).toBe('gpg:sign-and-deploy-file');
     expect(cmdArgs[1]).toMatch(new RegExp(`-Dfile=${klibDistDir}/sentry-klib-distDir-linuxx64-1.0.0`));
-
     expect(cmdArgs[2]).toBe(
       `-Dfiles=${klibDistDir}/sentry-klib-distDir-linuxx64-1.0.0-javadoc.jar,${klibDistDir}/sentry-klib-distDir-linuxx64-1.0.0-sources.jar,${klibDistDir}/sentry-klib-distDir-linuxx64-1.0.0.klib,${klibDistDir}/sentry-klib-distDir-linuxx64-1.0.0.module`
     );
-
     expect(cmdArgs[3]).toBe(`-Dclassifiers=javadoc,sources,,`);
     expect(cmdArgs[4]).toBe(`-Dtypes=jar,jar,klib,module`);
-
     expect(cmdArgs[5]).toMatch(
       new RegExp(`-DpomFile=${klibDistDir}/pom-default\\.xml`)
     );
