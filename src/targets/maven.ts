@@ -669,7 +669,7 @@ export class MavenTarget extends BaseTarget {
           `Found klib artifacts for ${moduleName}: [${expectedFiles.join(', ')}]`
         );
 
-        files['klibFile'] = join(distDir, `${moduleName}.klib`);
+        files['klibFiles'] = [join(distDir, `${moduleName}.klib`)];
       }
     }
     return files;
