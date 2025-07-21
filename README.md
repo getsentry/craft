@@ -1164,6 +1164,7 @@ targets:
     kmp:
       rootDistDirRegex: /sentry-kotlin-multiplatform-[0-9]+.*$/
       appleDistDirRegex: /sentry-kotlin-multiplatform-(macos|ios|tvos|watchos).*/
+      klibDistDirRegex: /sentry-kotlin-multiplatform-(js|wasm-js).*/
 ```
 
 ### Symbol Collector (`symbol-collector`)
