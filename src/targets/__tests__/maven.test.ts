@@ -297,7 +297,7 @@ describe('publish', () => {
 describe('transform KMP artifacts', () => {
   const tmpDirName = 'tmpDir';
 
-  test('transform klib-only target side artifacts', async () => {
+  test('transform klib distDir target side artifacts', async () => {
     (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
