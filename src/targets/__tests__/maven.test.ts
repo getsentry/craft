@@ -74,7 +74,7 @@ function getFullTargetConfig(): any {
       fileReplacerStr: 'replacer',
     },
     kmp: {
-      rootDistDirRegex: '/^(?!.*klib).*distDir/',  // matches distDir but not klib-distDir
+      rootDistDirRegex: '/root-distDir/',
       appleDistDirRegex: '/apple-distDir/',
       klibDistDirRegex: '/klib-distDir/',
   },
