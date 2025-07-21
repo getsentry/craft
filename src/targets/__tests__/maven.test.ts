@@ -542,8 +542,6 @@ describe('upload', () => {
   });
 
   test('should skip upload for artifacts without any POM/BOM', async () => {
-    // simple mock to always use the same temporary directory,
-    // instead of creating a new one
     (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
@@ -571,8 +569,6 @@ describe('upload', () => {
     const klibDistDirName = 'sentry-klib-distDir-linuxx64-1.0.0'; // matches klib regex
     const klibDistDir = `${tmpDirName}/${klibDistDirName}`;
 
-    // simple mock to always use the same temporary directory,
-    // instead of creating a new one
     (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
