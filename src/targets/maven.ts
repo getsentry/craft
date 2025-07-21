@@ -642,33 +642,6 @@ export class MavenTarget extends BaseTarget {
 
         files['klibFiles'] = cinteropFiles;
       } else if (isKlibDistDir) {
-        const dirEntries = await fsPromises.readdir(distDir);
-        const expectedFiles = [
-          `${moduleName}-javadoc.jar`,
-          `${moduleName}.klib`,
-          `${moduleName}-sources.jar`,
-          `${moduleName}.module`,
-          POM_DEFAULT_FILENAME,
-        ];
-
-        const missingFiles = expectedFiles.filter(f => !dirEntries.includes(f));
-        if (missingFiles.length > 0) {
-          throw new ConfigurationError(
-            `Missing expected file: ${missingFiles.join(', ')} in ${distDir}`
-          );
-        }
-
-        const extraFiles = dirEntries.filter(f => !expectedFiles.includes(f));
-        if (extraFiles.length > 0) {
-          throw new ConfigurationError(
-            `Unexpected extra files in ${distDir}: ${extraFiles.join(', ')}`
-          );
-        }
-
-        this.logger.info(
-          `Found klib artifacts for ${moduleName}: [${expectedFiles.join(', ')}]`
-        );
-
         files['klibFiles'] = [join(distDir, `${moduleName}.klib`)];
       }
     }
