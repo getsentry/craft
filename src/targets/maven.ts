@@ -384,7 +384,7 @@ export class MavenTarget extends BaseTarget {
       const isAppleDistDir = this.mavenConfig.kmp.appleDistDirRegex.test(
         moduleName
       );
-      const isKlibOnly = this.mavenConfig.kmp.klibDistDirRegex.test(
+      const isKlibDistDir = this.mavenConfig.kmp.klibDistDirRegex.test(
         moduleName
       );
       const files = await this.getFilesForKmpMavenPomDist(distDir);
@@ -393,7 +393,7 @@ export class MavenTarget extends BaseTarget {
         sideArtifacts,
         classifiers,
         types,
-      } = this.transformKmpSideArtifacts(isRootDistDir, isAppleDistDir, isKlibOnly, files);
+      } = this.transformKmpSideArtifacts(isRootDistDir, isAppleDistDir, isKlibDistDir, files);
 
       await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
         'gpg:sign-and-deploy-file',
@@ -429,7 +429,7 @@ export class MavenTarget extends BaseTarget {
  *
  * @param isRootDistDir boolean indicating whether the distDir is the root distDir
  * @param isAppleDistDir boolean indicating whether the distDir is the Apple distDir
- * @param isKlibOnly boolean indicating whether the distDir is the klib-only distDir
+ * @param isKlibDistDir boolean indicating whether the distDir is the klib-only distDir
  * @param files an object containing the input files, as described above
  * @returns a Record with three fields:
  *    - sideArtifacts: a comma-separated string listing the paths to all generated "side artifacts"
@@ -439,7 +439,7 @@ export class MavenTarget extends BaseTarget {
   public transformKmpSideArtifacts(
     isRootDistDir: boolean,
     isAppleDistDir: boolean,
-    isKlibOnly: boolean,
+    isKlibDistDir: boolean,
     files: Record<string, string | string[]>
   ): Record<string, string | string[]> {
     const {
@@ -483,7 +483,7 @@ export class MavenTarget extends BaseTarget {
       sideArtifacts += `,${metadataFile}`;
       types += ',jar';
       classifiers += ',metadata';
-    } else if (isKlibOnly) {
+    } else if (isKlibDistDir) {
       if (!Array.isArray(klibFiles) || klibFiles.length !== 1) {
         throw new ConfigurationError(
           'klib files in klib-only distributions must be an array with exactly one element'
@@ -626,7 +626,7 @@ export class MavenTarget extends BaseTarget {
 
       const isRootDistDir = rootDistDirRegex.test(moduleName);
       const isAppleDistDir = appleDistDirRegex.test(moduleName);
-      const isKlibOnly = klibDistDirRegex.test(moduleName);
+      const isKlibDistDir = klibDistDirRegex.test(moduleName);
 
       if (isRootDistDir) {
         files['allFile'] = join(distDir, `${moduleName}-all.jar`);
@@ -641,7 +641,7 @@ export class MavenTarget extends BaseTarget {
           .map(file => join(distDir, file));
 
         files['klibFiles'] = cinteropFiles;
-      } else if (isKlibOnly) {
+      } else if (isKlibDistDir) {
         const dirEntries = await fsPromises.readdir(distDir);
         const expectedFiles = [
           `${moduleName}-javadoc.jar`,
