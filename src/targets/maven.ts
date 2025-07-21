@@ -679,11 +679,7 @@ export class MavenTarget extends BaseTarget {
     if (this.mavenConfig.kmp !== false) {
       const { klibDistDirRegex, appleDistDirRegex } = this.mavenConfig.kmp;
 
-      if (klibDistDirRegex.test(moduleName)) {
-        return `${moduleName}.klib`;
-      }
-
-      if (appleDistDirRegex.test(moduleName)) {
+      if (klibDistDirRegex.test(moduleName) || appleDistDirRegex.test(moduleName)) {
         return `${moduleName}.klib`;
       }
     }
