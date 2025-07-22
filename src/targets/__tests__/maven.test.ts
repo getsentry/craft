@@ -13,6 +13,7 @@ import {
 import { retrySpawnProcess, sleep } from '../../utils/async';
 import { withTempDir } from '../../utils/files';
 import { importGPGKey } from '../../utils/gpg';
+import * as fs from 'fs';
 
 jest.mock('../../utils/files');
 jest.mock('../../utils/gpg');
@@ -73,9 +74,10 @@ function getFullTargetConfig(): any {
       fileReplacerStr: 'replacer',
     },
     kmp: {
-      rootDistDirRegex: '/distDir/',
+      rootDistDirRegex: '/root-distDir/',
       appleDistDirRegex: '/apple-distDir/',
-    },
+      klibDistDirRegex: '/klib-distDir/',
+  },
   };
 }
 
@@ -258,6 +260,7 @@ describe('Maven target configuration', () => {
     expect(typeof mvnTarget.config.android.fileReplacerStr).toBe('string');
     expect(typeof mvnTarget.config.kmp.rootDistDirRegex).toBe('string');
     expect(typeof mvnTarget.config.kmp.appleDistDirRegex).toBe('string');
+    expect(typeof mvnTarget.config.kmp.klibDistDirRegex).toBe('string');
   });
 
   test('import GPG private key if one is present in the environment', async () => {
@@ -294,6 +297,38 @@ describe('publish', () => {
 describe('transform KMP artifacts', () => {
   const tmpDirName = 'tmpDir';
 
+  test('transform klib distDir target side artifacts', async () => {
+    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+      async cb => {
+        return await cb(tmpDirName);
+      }
+    );
+
+    const mvnTarget = createMavenTarget(getFullTargetConfig());
+    const files: Record<string, string | string[]> = {
+      javadocFile: `${tmpDirName}-javadoc.jar`,
+      sourcesFile: `${tmpDirName}-sources.jar`,
+      klibFiles: [
+        `${tmpDirName}.klib`,
+      ],
+      allFile: '',
+      metadataFile: ``,
+      moduleFile: `${tmpDirName}.module`,
+    };
+    const {
+      sideArtifacts,
+      classifiers,
+      types,
+    } = mvnTarget.transformKmpSideArtifacts(false, false, true, files);
+    expect(sideArtifacts).toEqual(
+      `${files.javadocFile},${files.sourcesFile},${files.klibFiles},${files.moduleFile}`
+    );
+    expect(classifiers).toEqual(
+      'javadoc,sources,,'
+    );
+    expect(types).toEqual('jar,jar,klib,module');
+  });
+
   test('transform apple target side artifacts', async () => {
     (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
@@ -317,7 +352,7 @@ describe('transform KMP artifacts', () => {
       sideArtifacts,
       classifiers,
       types,
-    } = mvnTarget.transformKmpSideArtifacts(false, true, files);
+    } = mvnTarget.transformKmpSideArtifacts(false, true, false, files);
     expect(sideArtifacts).toEqual(
       `${files.javadocFile},${files.sourcesFile},${files.klibFiles},${files.metadataFile},${files.moduleFile}`
     );
@@ -348,7 +383,7 @@ describe('transform KMP artifacts', () => {
       sideArtifacts,
       classifiers,
       types,
-    } = mvnTarget.transformKmpSideArtifacts(true, false, files);
+    } = mvnTarget.transformKmpSideArtifacts(true, false, false, files);
     expect(sideArtifacts).toEqual(
       `${files.javadocFile},${files.sourcesFile},${files.allFile},${files.kotlinToolingMetadataFile},${files.moduleFile}`
     );
@@ -507,8 +542,6 @@ describe('upload', () => {
   });
 
   test('should skip upload for artifacts without any POM/BOM', async () => {
-    // simple mock to always use the same temporary directory,
-    // instead of creating a new one
     (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
@@ -530,6 +563,73 @@ describe('upload', () => {
     await mvnTarget.upload('r3v1s10n');
 
     expect(retrySpawnProcess).toHaveBeenCalledTimes(0);
+  });
+
+  test('upload KMP klib-only distribution', async () => {
+    const klibDistDirName = 'sentry-klib-distDir-linuxx64-1.0.0'; // matches klib regex
+    const klibDistDir = `${tmpDirName}/${klibDistDirName}`;
+
+    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+      async cb => {
+        return await cb(tmpDirName);
+      }
+    );
+
+    // Override fs.promises.readdir for this test to return klib files
+    const readdirSpy = jest.spyOn(fs.promises, 'readdir').mockImplementation((dirPath: any) => {
+      if (dirPath.toString().includes(klibDistDirName)) {
+        return Promise.resolve([
+          `${klibDistDirName}-javadoc.jar`,
+          `${klibDistDirName}.klib`,
+          `${klibDistDirName}-sources.jar`,
+          `${klibDistDirName}.module`,
+          POM_DEFAULT_FILENAME,
+        ] as any);
+      }
+      return Promise.resolve([] as any);
+    });
+
+    const mvnTarget = createMavenTarget(getFullTargetConfig());
+    mvnTarget.getArtifactsForRevision = jest
+      .fn()
+      .mockResolvedValueOnce([{ filename: `${klibDistDirName}.zip` }]);
+    mvnTarget.artifactProvider.downloadArtifact = jest
+      .fn()
+      .mockResolvedValueOnce('artifact/download/path');
+    mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
+    mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce('pom-default.xml');
+    mvnTarget.fileExists = jest.fn().mockResolvedValue(true);
+
+    await mvnTarget.upload('r3v1s10n');
+
+    expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
+    const callArgs = (retrySpawnProcess as jest.MockedFunction<
+      typeof retrySpawnProcess
+    >).mock.calls[0];
+
+    expect(callArgs).toHaveLength(2);
+    expect(callArgs[0]).toEqual(DEFAULT_OPTION_VALUE);
+
+    const cmdArgs = callArgs[1] as string[];
+    expect(cmdArgs).toHaveLength(11);
+    expect(cmdArgs[0]).toBe('gpg:sign-and-deploy-file');
+    expect(cmdArgs[1]).toMatch(new RegExp(`-Dfile=${klibDistDir}/${klibDistDirName}`));
+    expect(cmdArgs[2]).toBe(
+      `-Dfiles=${klibDistDir}/${klibDistDirName}-javadoc.jar,${klibDistDir}/${klibDistDirName}-sources.jar,${klibDistDir}/${klibDistDirName}.klib,${klibDistDir}/${klibDistDirName}.module`
+    );
+    expect(cmdArgs[3]).toBe(`-Dclassifiers=javadoc,sources,,`);
+    expect(cmdArgs[4]).toBe(`-Dtypes=jar,jar,klib,module`);
+    expect(cmdArgs[5]).toMatch(
+      new RegExp(`-DpomFile=${klibDistDir}/pom-default\\.xml`)
+    );
+    expect(cmdArgs[6]).toBe(`-DrepositoryId=${DEFAULT_OPTION_VALUE}`);
+    expect(cmdArgs[7]).toBe(`-Durl=${DEFAULT_OPTION_VALUE}`);
+    expect(cmdArgs[8]).toBe(`-Dgpg.passphrase=${DEFAULT_OPTION_VALUE}`);
+    expect(cmdArgs[9]).toBe('--settings');
+    expect(cmdArgs[10]).toBe(DEFAULT_OPTION_VALUE);
+
+    // Restore original mock
+    readdirSpy.mockRestore();
   });
 });
 
