@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.9.0
+
+### Various fixes & improvements
+
+- feat(maven): add new config to process klib distributions differently from root and apple (#612) by @buenaflor
+
 ## 2.8.0
 
 ### Various fixes & improvements
