@@ -17,6 +17,12 @@ export const DEFAULT_NUGET_SERVER_URL = 'https://api.nuget.org/v3/index.json';
 const DEFAULT_NUGET_REGEX = /^.*\d\.\d.*\.nupkg$/;
 const SYMBOLS_NUGET_REGEX = /^.*\d\.\d.*\.snupkg$/;
 
+/**
+ * Spawn options to run dotnet commands outside the repository folder to avoid global.json constraints
+ * (we don't need specific dotnet/workload versions just to upload to nuget)
+ */
+const DOTNET_SPAWN_OPTIONS = { cwd: '/' };
+
 /** Nuget target configuration options */
 export interface NugetTargetOptions {
   /** Nuget API token */
@@ -75,10 +81,7 @@ export class NugetTarget extends BaseTarget {
       '--source',
       this.nugetConfig.serverUrl,
     ];
-    // Run outside the repository folder to avoid global.json constraints
-    // (we don't need specific dotnet/workload versions just to upload to nuget)
-    const spawnOptions = { cwd: '/' };
-    return spawnProcess(NUGET_DOTNET_BIN, args, spawnOptions);
+    return spawnProcess(NUGET_DOTNET_BIN, args, DOTNET_SPAWN_OPTIONS);
   }
 
   /**
@@ -104,12 +107,12 @@ export class NugetTarget extends BaseTarget {
 
     // Emit the .NET version for informational purposes.
     this.logger.info('.NET Version:');
-    await spawnProcess(NUGET_DOTNET_BIN, ['--version']);
+    await spawnProcess(NUGET_DOTNET_BIN, ['--version'], DOTNET_SPAWN_OPTIONS);
 
     // Also emit the nuget version, which is informative and works around a bug.
     // See https://github.com/NuGet/Home/issues/12159#issuecomment-1278360511
     this.logger.info('Nuget Version:');
-    await spawnProcess(NUGET_DOTNET_BIN, ['nuget', '--version']);
+    await spawnProcess(NUGET_DOTNET_BIN, ['nuget', '--version'], DOTNET_SPAWN_OPTIONS);
 
     await Promise.all(
       packageFiles.map(async (file: RemoteArtifact) => {
