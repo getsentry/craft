@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.9.1
+
+### Various fixes & improvements
+
+- fix: Avoid `global.json` when running all `dotnet` commands (#614) by @Flash0ver
+- build(deps): bump form-data from 3.0.1 to 3.0.4 (#613) by @dependabot
+
 ## 2.9.0
 
 ### Various fixes & improvements
