@@ -242,17 +242,25 @@ export async function runPreReleaseCommand(
     // Not running pre-release command
     logger.warn('Not running the pre-release command: no command specified');
     return false;
-  } else if (preReleaseCommand) {
+  }
+
+  // This is a workaround for the case when the old version is empty, which
+  // should only happen when the project is new and has no version yet.
+  // Instead of using an empty string, we use "0.0.0" as the old version to
+  // avoid breaking the pre-release command as most scripts expect a non-empty
+  // version string.
+  const nonEmptyOldVersion = oldVersion || '0.0.0';
+  if (preReleaseCommand) {
     [sysCommand, ...args] = shellQuote.parse(preReleaseCommand) as string[];
   } else {
     sysCommand = '/bin/bash';
     args = [DEFAULT_BUMP_VERSION_PATH];
   }
-  args = [...args, oldVersion, newVersion];
-  logger.info(`Running the pre-release command...`);
+  args = [...args, nonEmptyOldVersion, newVersion];
+  logger.info('Running the pre-release command...');
   const additionalEnv = {
     CRAFT_NEW_VERSION: newVersion,
-    CRAFT_OLD_VERSION: oldVersion,
+    CRAFT_OLD_VERSION: nonEmptyOldVersion,
   };
   await spawnProcess(sysCommand, args, {
     env: { ...process.env, ...additionalEnv },
@@ -354,7 +362,9 @@ async function prepareChangelog(
       `Changelog policy is set to "${changelogPolicy}", nothing to do.`
     );
     return;
-  } else if (
+  }
+
+  if (
     changelogPolicy !== ChangelogPolicy.Auto &&
     changelogPolicy !== ChangelogPolicy.Simple
   ) {
