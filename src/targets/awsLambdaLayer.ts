@@ -251,7 +251,8 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           this.config.layerName,
           this.config.license,
           artifactBuffer,
-          awsRegions
+          awsRegions,
+          version
         );
 
         let publishedLayers = [];
@@ -316,11 +317,16 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
         if (!fs.existsSync(baseFilepath)) {
           this.logger.warn(`The ${runtime.name} base file is missing.`);
-          const manifestString = JSON.stringify(runtimeData, undefined, 2) + '\n';
+          const manifestString =
+            JSON.stringify(runtimeData, undefined, 2) + '\n';
           fs.writeFileSync(newVersionFilepath, manifestString);
         } else {
-          const baseData = JSON.parse(fs.readFileSync(baseFilepath, { encoding: 'utf-8' }).toString());
-          const manifestString = JSON.stringify({ ...baseData, ...runtimeData }, undefined, 2) + '\n';
+          const baseData = JSON.parse(
+            fs.readFileSync(baseFilepath, { encoding: 'utf-8' }).toString()
+          );
+          const manifestString =
+            JSON.stringify({ ...baseData, ...runtimeData }, undefined, 2) +
+            '\n';
           fs.writeFileSync(newVersionFilepath, manifestString);
         }
 
