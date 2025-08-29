@@ -14,7 +14,8 @@ function getTestAwsLambdaLayerManager(): awsManager.AwsLambdaLayerManager {
     'test layer name',
     'test license',
     Buffer.alloc(0),
-    AWS_TEST_REGIONS
+    AWS_TEST_REGIONS,
+    '0.0.0'
   );
 }
 

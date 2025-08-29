@@ -45,19 +45,23 @@ export class AwsLambdaLayerManager {
   private artifactBuffer: Buffer;
   /** Controls if published layers are logged. */
   public verboseInfo = true;
+  /** Version of the SDK. */
+  private sdkVersion: string;
 
   public constructor(
     runtime: CompatibleRuntime,
     layerName: string,
     license: string,
     artifactBuffer: Buffer,
-    awsRegions: string[]
+    awsRegions: string[],
+    sdkVersion: string
   ) {
     this.runtime = runtime;
     this.layerName = layerName;
     this.license = license;
     this.artifactBuffer = artifactBuffer;
     this.awsRegions = awsRegions;
+    this.sdkVersion = sdkVersion;
   }
 
   /**
@@ -75,6 +79,7 @@ export class AwsLambdaLayerManager {
       LayerName: this.layerName,
       CompatibleRuntimes: this.runtime.versions,
       LicenseInfo: this.license,
+      Description: `Sentry AWS Serverless SDK v${this.sdkVersion}`,
     });
     await lambda.addLayerVersionPermission({
       LayerName: this.layerName,
@@ -156,7 +161,8 @@ export async function getRegionsFromAws(): Promise<string[]> {
     );
   }
   const data = await response.text();
-  return new XMLParser().parse(data)
+  return new XMLParser()
+    .parse(data)
     .DescribeRegionsResponse.regionInfo.item.map(
       (region: Region) => region.regionName
     )
