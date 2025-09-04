@@ -3,7 +3,6 @@ import simpleGit, { SimpleGit } from 'simple-git';
 import { getConfigFileDir } from '../config';
 import { ConfigurationError } from './errors';
 import { logger } from '../logger';
-import { captureException } from '@sentry/node';
 
 export interface GitChange {
   hash: string;
@@ -34,19 +33,16 @@ export async function getDefaultBranch(
   );
 }
 
-export async function getLatestTag(
-  git: SimpleGit
-): Promise<string | undefined> {
+export async function getLatestTag(git: SimpleGit): Promise<string> {
   // This part is courtesy of https://stackoverflow.com/a/7261049/90297
   try {
     return (await git.raw('describe', '--tags', '--abbrev=0')).trim();
   } catch (e) {
-    captureException(e);
     logger.error(
       "Couldn't get the latest tag! If you're releasing for the first time, check if your repo contains any tags. If not, add one manually and try again."
     );
-    logger.debug(e);
-    return undefined;
+    // handle this error in the global error handler
+    throw e;
   }
 }
 
