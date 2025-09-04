@@ -498,6 +498,9 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   // TL;DR - WARNING:
   // The order matters here, do not move this command above createReleaseBranch!
   const oldVersion = await getLatestTag(git);
+  if (!oldVersion) {
+    process.exit(1);
+  }
 
   // Check & update the changelog
   await prepareChangelog(
