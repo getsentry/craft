@@ -39,7 +39,7 @@ export async function getLatestTag(git: SimpleGit): Promise<string> {
     return (await git.raw('describe', '--tags', '--abbrev=0')).trim();
   } catch (e) {
     logger.error(
-      "Couldn't get the latest tag! If you're releasing for the first time, check if your repo contains any tags. If not, add one manually and try again."
+      'Couldn\'t get the latest tag! If you\'re releasing for the first time, check if your repo contains any tags. If not, add one manually and try again: `git tag 0.0.0 "$(git log -1 --reverse --format=%h)"'
     );
     // handle this error in the global error handler
     throw e;
