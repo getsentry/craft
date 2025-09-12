@@ -808,13 +808,13 @@ describe('closeRepository', () => {
       Promise.resolve(getRepositoryInfo('open'))
     );
 
-    // Deadline is 60min, so we fake pooling start time and initial read to 1min
-    // and second iteration to something over 60min
+    // Deadline is 2h, so we fake pooling start time and initial read to 1min
+    // and second iteration to something over 2h
     jest
       .spyOn(Date, 'now')
       .mockImplementationOnce(() => 1 * 60 * 1000)
       .mockImplementationOnce(() => 1 * 60 * 1000)
-      .mockImplementationOnce(() => 62 * 60 * 1000);
+      .mockImplementationOnce(() => 122 * 60 * 1000);
 
     await expect(mvnTarget.closeRepository(repositoryId)).rejects.toThrow(
       new Error('Deadline for Nexus repository status change reached.')
@@ -915,13 +915,13 @@ describe('releaseRepository', () => {
       deploymentState: 'PUBLISHING'
     })
 
-   // Deadline is 60min, so we fake pooling start time and initial read to 1min
-    // and second iteration to something over 60min
+   // Deadline is 2h, so we fake pooling start time and initial read to 1min
+    // and second iteration to something over 2h
     jest
       .spyOn(Date, 'now')
       .mockImplementationOnce(() => 1 * 60 * 1000)
       .mockImplementationOnce(() => 1 * 60 * 1000)
-      .mockImplementationOnce(() => 62 * 60 * 1000);
+      .mockImplementationOnce(() => 122 * 60 * 1000);
 
     await expect(mvnTarget.releaseRepository(repositoryId)).rejects.toThrow(
       new Error('Deadline for Central repository status change reached.')

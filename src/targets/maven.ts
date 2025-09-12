@@ -24,7 +24,7 @@ export const NEXUS_API_BASE_URL =
   'https://ossrh-staging-api.central.sonatype.com';
 export const CENTRAL_API_BASE_URL = 'https://central.sonatype.com/api/v1';
 const NEXUS_RETRY_DELAY = 10 * 1000; // 10s
-const SONATYPE_RETRY_DEADLINE = 60 * 60 * 1000; // 60min
+const SONATYPE_RETRY_DEADLINE = 120 * 60 * 1000; // 2h
 const CENTRAL_RETRY_DELAY = 60 * 1000; // 1min
 
 export type NexusRepository = {
