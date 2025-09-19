@@ -23,7 +23,7 @@ export class GCSArtifactProvider extends BaseArtifactProvider {
 
   public constructor(config: ArtifactProviderConfig) {
     super(config);
-    const { project_id, client_email, private_key } = getGCSCredsFromEnv(
+    const creds = getGCSCredsFromEnv(
       {
         name: 'CRAFT_GCS_STORE_CREDS_JSON',
       },
@@ -41,8 +41,8 @@ export class GCSArtifactProvider extends BaseArtifactProvider {
 
     this.gcsClient = new CraftGCSClient({
       bucketName: config.bucket,
-      credentials: { client_email, private_key },
-      projectId: project_id,
+      credentials: creds?.credentials,
+      projectId: creds?.project_id,
     });
   }
 

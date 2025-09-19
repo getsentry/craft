@@ -1,5 +1,96 @@
 # Changelog
 
+## 2.9.1
+
+### Various fixes & improvements
+
+- fix: Avoid `global.json` when running all `dotnet` commands (#614) by @Flash0ver
+- build(deps): bump form-data from 3.0.1 to 3.0.4 (#613) by @dependabot
+
+## 2.9.0
+
+### Various fixes & improvements
+
+- feat(maven): add new config to process klib distributions differently from root and apple (#612) by @buenaflor
+
+## 2.8.0
+
+### Various fixes & improvements
+
+- feat(maven): Add Central repository support (#608) by @romtsn
+- build(deps-dev): bump @octokit/request-error from 2.1.0 to 6.1.7 (#588) by @dependabot
+- gha: image build needs package write (#607) by @mdtro
+- gha: pin action versions to sha and set permissions (#604) by @mdtro
+
+## 2.7.2
+
+### Various fixes & improvements
+
+- chore(maven): Update base url to support publishing to central portal (#605) by @romtsn
+
+## 2.7.1
+
+### Various fixes & improvements
+
+- fix(aws): make reading/writing of aws manifest consistent with other packages (#603) by @sl0thentr0py
+
+## 2.7.0
+
+### Various fixes & improvements
+
+- fix: Avoid global.json when running `dotnet push` (#601) by @jamescrosswell
+- feat: support Google ADC for `gcs` artifact provider and target (#600) by @oioki
+- docs: Add contribution guidelines (#599) by @BYK
+- updated test (#596) by @bitsandfoxes
+
+## 2.6.0
+
+### Various fixes & improvements
+
+- chore: Update CocoaPods from 1.14.2 to 1.16.2 (#594) by @philipphofmann
+
+## 2.5.1
+
+### Various fixes & improvements
+
+- feat: Install most recent Erlang from RabbitMQ packages (#592) by @BYK
+
+## 2.5.0
+
+### Various fixes & improvements
+
+- ref: Bump twine (#593) by @untitaker
+
+## 2.4.2
+
+- No documented changes.
+
+## 2.4.1
+
+### Various fixes & improvements
+
+- fix(): GitHub username not found when pushing to registry (#589) by @Jeffreyhung
+
+## 2.3.8
+
+### Various fixes & improvements
+
+- release: 2.3.7 (621b97be) by @getsentry-bot
+- Revert "fix:(GitHub Auth): Deprecate getAuthUsername (#585)" (#590) by @Jeffreyhung
+
+## 2.3.7
+
+### Various fixes & improvements
+
+- Revert "fix:(GitHub Auth): Deprecate getAuthUsername (#585)" (#590) by @Jeffreyhung
+
+## 2.3.5
+
+### Various fixes & improvements
+
+- fix:(GitHub Auth): Deprecate getAuthUsername (#585) by @Jeffreyhung
+- build(deps-dev): bump esbuild from 0.24.0 to 0.25.0 (#586) by @dependabot
+
 ## 2.3.4
 
 ### Various fixes & improvements

@@ -61,11 +61,6 @@ then enforces a specific workflow for managing release branches, changelogs, art
 - [Integrating Your Project with `craft`](#integrating-your-project-with-craft)
 - [Pre-release (Version-bumping) Script: Conventions](#pre-release-version-bumping-script-conventions)
 - [Post-release Script: Conventions](#post-release-script-conventions)
-- [Development](#development)
-  - [Logging Level](#logging-level)
-  - [Dry-run Mode](#dry-run-mode)
-  - [Sentry Support](#sentry-support)
-  - [Releasing](#releasing)
 
 ## Installation
 
@@ -1169,6 +1164,7 @@ targets:
     kmp:
       rootDistDirRegex: /sentry-kotlin-multiplatform-[0-9]+.*$/
       appleDistDirRegex: /sentry-kotlin-multiplatform-(macos|ios|tvos|watchos).*/
+      klibDistDirRegex: /sentry-kotlin-multiplatform-(js|wasm-js).*/
 ```
 
 ### Symbol Collector (`symbol-collector`)
@@ -1426,40 +1422,3 @@ git checkout master
 # Only commit if there are changes, make sure to `pull --rebase` before pushing to avoid conflicts
 git diff --quiet || git commit -anm 'meta: Bump new development version' && git pull --rebase && git push
 ```
-
-## Development
-
-### Logging Level
-
-Logging level for `craft` can be configured via setting the `CRAFT_LOG_LEVEL`
-environment variable or using the `--log-level` CLI flag.
-
-Accepted values are: `Fatal`, `Error`, `Warn`, `Log`, `Info`, `Success`,
-`Debug`, `Trace`, `Silent`, `Verbose`
-
-### Dry-run Mode
-
-Dry-run mode can be enabled via setting the `CRAFT_DRY_RUN` environment variable
-to any truthy value (any value other than `undefined`, `null`, `""`, `0`,
-`false`, and `no`). One may also use the `--dry-run` CLI flag.
-
-In dry-run mode no destructive actions will be performed (creating remote
-branches, pushing tags, committing files, etc.)
-
-### Sentry Support
-
-Errors you encounter while using Craft can be sent to Sentry. To use this
-feature, add `CRAFT_SENTRY_DSN` variable to your environment (or "craft"
-configuration file) that contains a Sentry project's DSN.
-
-For example:
-
-```shell
-export CRAFT_SENTRY_DSN='https://1234@sentry.io/2345'
-```
-
-### Releasing
-
-`craft` obviously uses `craft` for preparing and publishing new releases!
-
-[_Did you mean **recursion**?_](#craft-prepare-preparing-a-new-release)

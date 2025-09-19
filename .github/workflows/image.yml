@@ -8,55 +8,58 @@ on:
 jobs:
   image:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
-    - uses: actions/checkout@v3
-    - name: builder-image
-      run: |
-        set -euxo pipefail
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+      - name: builder-image
+        run: |
+          set -euxo pipefail
 
-        img=ghcr.io/getsentry/craft-builder:latest
-        args=()
-        if docker pull -q "$img"; then
-          args+=(--cache-from "$img")
-        fi
-        docker buildx build \
-          "${args[@]}" \
-          --build-arg BUILDKIT_INLINE_CACHE=1 \
-          --target builder \
-          --tag "$img" \
-          .
-    - name: image
-      run: |
-        set -euxo pipefail
+          img=ghcr.io/getsentry/craft-builder:latest
+          args=()
+          if docker pull -q "$img"; then
+            args+=(--cache-from "$img")
+          fi
+          docker buildx build \
+            "${args[@]}" \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --target builder \
+            --tag "$img" \
+            .
+      - name: image
+        run: |
+          set -euxo pipefail
 
-        img=ghcr.io/getsentry/craft:latest
-        args=()
-        if docker pull -q "$img"; then
-          args+=(--cache-from "$img")
-        fi
-        docker buildx build \
-          "${args[@]}" \
-          --build-arg "SOURCE_COMMIT=$GITHUB_SHA" \
-          --build-arg BUILDKIT_INLINE_CACHE=1 \
-          --tag "$img" \
-          .
-    - name: docker login
-      run: docker login --username "$DOCKER_USER" --password-stdin ghcr.io <<< "$DOCKER_PASS"
-      env:
-        DOCKER_USER: ${{ github.actor }}
-        DOCKER_PASS: ${{ secrets.GITHUB_TOKEN }}
-      if: github.event_name != 'pull_request'
-    - name: docker push
-      run: |
-        set -euxo pipefail
+          img=ghcr.io/getsentry/craft:latest
+          args=()
+          if docker pull -q "$img"; then
+            args+=(--cache-from "$img")
+          fi
+          docker buildx build \
+            "${args[@]}" \
+            --build-arg "SOURCE_COMMIT=$GITHUB_SHA" \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --tag "$img" \
+            .
+      - name: docker login
+        run: docker login --username "$DOCKER_USER" --password-stdin ghcr.io <<< "$DOCKER_PASS"
+        env:
+          DOCKER_USER: ${{ github.actor }}
+          DOCKER_PASS: ${{ secrets.GITHUB_TOKEN }}
+        if: github.event_name != 'pull_request'
+      - name: docker push
+        run: |
+          set -euxo pipefail
 
-        craft_builder=ghcr.io/getsentry/craft-builder:latest
-        craft_latest=ghcr.io/getsentry/craft:latest
-        craft_versioned="ghcr.io/getsentry/craft:${GITHUB_SHA}"
+          craft_builder=ghcr.io/getsentry/craft-builder:latest
+          craft_latest=ghcr.io/getsentry/craft:latest
+          craft_versioned="ghcr.io/getsentry/craft:${GITHUB_SHA}"
 
-        docker push "$craft_builder"
+          docker push "$craft_builder"
 
-        docker tag "$craft_latest" "$craft_versioned"
-        docker push "$craft_versioned"
-        docker push "$craft_latest"
-      if: github.event_name != 'pull_request'
+          docker tag "$craft_latest" "$craft_versioned"
+          docker push "$craft_versioned"
+          docker push "$craft_latest"
+        if: github.event_name != 'pull_request'

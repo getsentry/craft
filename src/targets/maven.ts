@@ -21,14 +21,16 @@ const BOM_FILE_KEY_REGEXP = new RegExp('<packaging>pom</packaging>');
 
 // TODO: Make it configurable to allow for sentry-clj releases?
 export const NEXUS_API_BASE_URL =
-  'https://oss.sonatype.org/service/local/staging';
+  'https://ossrh-staging-api.central.sonatype.com';
+export const CENTRAL_API_BASE_URL = 'https://central.sonatype.com/api/v1';
 const NEXUS_RETRY_DELAY = 10 * 1000; // 10s
-const NEXUS_RETRY_DEADLINE = 60 * 60 * 1000; // 60min
+const SONATYPE_RETRY_DEADLINE = 120 * 60 * 1000; // 2h
+const CENTRAL_RETRY_DELAY = 60 * 1000; // 1min
 
 export type NexusRepository = {
   repositoryId: string;
-  type: 'open' | 'closed';
-  transitioning: boolean;
+  state: 'open' | 'closed' | 'released';
+  deploymentId: string;
 };
 
 export const targetSecrets = [
@@ -62,6 +64,7 @@ type KotlinMultiplatformFields = {
     | {
         appleDistDirRegex: RegExp;
         rootDistDirRegex: RegExp;
+        klibDistDirRegex: RegExp;
       };
 };
 
@@ -168,10 +171,17 @@ export class MavenTarget extends BaseTarget {
       );
     }
 
+    if (!this.config.kmp.klibDistDirRegex) {
+      throw new ConfigurationError(
+        'Required klib configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.'
+      );
+    }
+
     return {
       kmp: {
         appleDistDirRegex: stringToRegexp(this.config.kmp.appleDistDirRegex),
         rootDistDirRegex: stringToRegexp(this.config.kmp.rootDistDirRegex),
+        klibDistDirRegex: stringToRegexp(this.config.kmp.klibDistDirRegex),
       },
     };
   }
@@ -374,13 +384,16 @@ export class MavenTarget extends BaseTarget {
       const isAppleDistDir = this.mavenConfig.kmp.appleDistDirRegex.test(
         moduleName
       );
+      const isKlibDistDir = this.mavenConfig.kmp.klibDistDirRegex.test(
+        moduleName
+      );
       const files = await this.getFilesForKmpMavenPomDist(distDir);
       const { targetFile, pomFile } = files;
       const {
         sideArtifacts,
         classifiers,
         types,
-      } = this.transformKmpSideArtifacts(isRootDistDir, isAppleDistDir, files);
+      } = this.transformKmpSideArtifacts(isRootDistDir, isAppleDistDir, isKlibDistDir, files);
 
       await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
         'gpg:sign-and-deploy-file',
@@ -416,6 +429,7 @@ export class MavenTarget extends BaseTarget {
  *
  * @param isRootDistDir boolean indicating whether the distDir is the root distDir
  * @param isAppleDistDir boolean indicating whether the distDir is the Apple distDir
+ * @param isKlibDistDir boolean indicating whether the distDir is the klib-only distDir
  * @param files an object containing the input files, as described above
  * @returns a Record with three fields:
  *    - sideArtifacts: a comma-separated string listing the paths to all generated "side artifacts"
@@ -425,6 +439,7 @@ export class MavenTarget extends BaseTarget {
   public transformKmpSideArtifacts(
     isRootDistDir: boolean,
     isAppleDistDir: boolean,
+    isKlibDistDir: boolean,
     files: Record<string, string | string[]>
   ): Record<string, string | string[]> {
     const {
@@ -445,25 +460,38 @@ export class MavenTarget extends BaseTarget {
       types += ',jar,json';
       classifiers += ',all,kotlin-tooling-metadata';
     } else if (isAppleDistDir) {
-      if (klibFiles) {
-        sideArtifacts += `,${klibFiles}`;
-
-        // In order to upload cinterop klib files we need to extract the classifier from the file name.
-        // e.g: "sentry-kotlin-multiplatform-iosarm64-0.0.1-cinterop-Sentry.klib",
-        // the classifier is "cinterop-Sentry".
-        for (let i = 0; i < klibFiles.length; i++) {
-          const input = klibFiles[i];
-          const start = input.indexOf('cinterop');
-          const end = input.indexOf('.klib', start);
-          const classifier = input.substring(start, end);
-
-          types += ',klib';
-          classifiers += `,${classifier}`;
-        }
+      if (!Array.isArray(klibFiles)) {
+        throw new ConfigurationError(
+          'klib files in apple distributions must be an array'
+        );
       }
+      sideArtifacts += `,${klibFiles}`;
+
+      // In order to upload cinterop klib files we need to extract the classifier from the file name.
+      // e.g: "sentry-kotlin-multiplatform-iosarm64-0.0.1-cinterop-Sentry.klib",
+      // the classifier is "cinterop-Sentry".
+      for (let i = 0; i < klibFiles.length; i++) {
+        const input = klibFiles[i];
+        const start = input.indexOf('cinterop');
+        const end = input.indexOf('.klib', start);
+        const classifier = input.substring(start, end);
+
+        types += ',klib';
+        classifiers += `,${classifier}`;
+      }
+
       sideArtifacts += `,${metadataFile}`;
       types += ',jar';
       classifiers += ',metadata';
+    } else if (isKlibDistDir) {
+      if (!Array.isArray(klibFiles) || klibFiles.length !== 1) {
+        throw new ConfigurationError(
+          'klib files in klib-only distributions must be an array with exactly one element'
+        );
+      }
+      sideArtifacts += `,${klibFiles}`;
+      types += ',klib';
+      classifiers += ',';
     }
 
     // .module files should be available in every KMP artifact
@@ -594,12 +622,12 @@ export class MavenTarget extends BaseTarget {
 
     const moduleName = parse(distDir).base;
     if (this.mavenConfig.kmp !== false) {
-      const isRootDistDir = this.mavenConfig.kmp.rootDistDirRegex.test(
-        moduleName
-      );
-      const isAppleDistDir = this.mavenConfig.kmp.appleDistDirRegex.test(
-        moduleName
-      );
+      const { klibDistDirRegex, appleDistDirRegex, rootDistDirRegex } = this.mavenConfig.kmp;
+
+      const isRootDistDir = rootDistDirRegex.test(moduleName);
+      const isAppleDistDir = appleDistDirRegex.test(moduleName);
+      const isKlibDistDir = klibDistDirRegex.test(moduleName);
+
       if (isRootDistDir) {
         files['allFile'] = join(distDir, `${moduleName}-all.jar`);
         files['kotlinToolingMetadataFile'] = join(
@@ -613,6 +641,8 @@ export class MavenTarget extends BaseTarget {
           .map(file => join(distDir, file));
 
         files['klibFiles'] = cinteropFiles;
+      } else if (isKlibDistDir) {
+        files['klibFiles'] = [join(distDir, `${moduleName}.klib`)];
       }
     }
     return files;
@@ -647,13 +677,13 @@ export class MavenTarget extends BaseTarget {
       }
     }
     if (this.mavenConfig.kmp !== false) {
-      const isAppleDistDir = this.mavenConfig.kmp.appleDistDirRegex.test(
-        moduleName
-      );
-      if (isAppleDistDir) {
+      const { klibDistDirRegex, appleDistDirRegex } = this.mavenConfig.kmp;
+
+      if (klibDistDirRegex.test(moduleName) || appleDistDirRegex.test(moduleName)) {
         return `${moduleName}.klib`;
       }
     }
+
     return `${moduleName}.jar`;
   }
 
@@ -661,9 +691,9 @@ export class MavenTarget extends BaseTarget {
   // retry every so often and query it for the new state of repository.
   // Based on: https://github.com/vanniktech/gradle-maven-publish-plugin/ implementation.
   public async closeAndReleaseRepository(): Promise<void> {
-    const { repositoryId, type } = await this.getRepository();
+    const { repositoryId, state } = await this.getRepository();
 
-    if (type !== 'open') {
+    if (state !== 'open') {
       throw new Error(
         'No open repositories available. Go to Nexus Repository Manager to see what happened.'
       );
@@ -674,7 +704,7 @@ export class MavenTarget extends BaseTarget {
   }
 
   public async getRepository(): Promise<NexusRepository> {
-    const response = await fetch(`${NEXUS_API_BASE_URL}/profile_repositories`, {
+    const response = await fetch(`${NEXUS_API_BASE_URL}/manual/search/repositories`, {
       headers: this.getNexusRequestHeaders(),
     });
 
@@ -685,7 +715,7 @@ export class MavenTarget extends BaseTarget {
     }
 
     const body = await response.json();
-    const repositories = body.data;
+    const repositories = body.repositories;
 
     if (repositories.length === 0) {
       throw new Error(`No available repositories. Nothing to publish.`);
@@ -697,15 +727,23 @@ export class MavenTarget extends BaseTarget {
       );
     }
 
-    return repositories[0];
+    // the key is in the form of "username/ip_address/repository_id"
+    const repo = repositories[0];
+    let repoId = repositories[0].key;
+    if (repoId && repoId.includes('/')) {
+      const parts = repoId.split('/');
+      repoId = parts[parts.length - 1] || repoId;
+    }
+    return { repositoryId: repoId, state: repo.state, deploymentId: repo.portal_deployment_id };
   }
 
   public async closeRepository(repositoryId: string): Promise<boolean> {
-    const response = await fetch(`${NEXUS_API_BASE_URL}/bulk/close`, {
+    // closing means uploading the repository to portal
+    const response = await fetch(`${NEXUS_API_BASE_URL}/service/local/staging/bulk/close`, {
       headers: this.getNexusRequestHeaders(),
       method: 'POST',
       body: JSON.stringify({
-        data: { stagedRepositoryIds: [repositoryId] },
+        data: { stagedRepositoryIds: [repositoryId], "description": "", "autoDropAfterRelease": true },
       }),
     });
 
@@ -718,33 +756,36 @@ export class MavenTarget extends BaseTarget {
     const poolingStartTime = Date.now();
 
     while (true) {
-      if (Date.now() - poolingStartTime > NEXUS_RETRY_DEADLINE) {
+      if (Date.now() - poolingStartTime > SONATYPE_RETRY_DEADLINE) {
         throw new Error('Deadline for Nexus repository status change reached.');
       }
 
       await sleep(NEXUS_RETRY_DELAY);
 
-      const { type, transitioning } = await this.getRepository();
+      const { state } = await this.getRepository();
 
-      if (type === 'closed' && !transitioning) {
+      if (state === 'closed') {
         this.logger.info(`Nexus repository close correctly.`);
         return true;
       }
 
       this.logger.info(
-        `Nexus repository still not closed. Waiting for ${
-          NEXUS_RETRY_DELAY / 1000
+        `Nexus repository still not closed. Waiting for ${NEXUS_RETRY_DELAY / 1000
         }s to try again.`
       );
     }
   }
 
   public async releaseRepository(repositoryId: string): Promise<boolean> {
-    const response = await fetch(`${NEXUS_API_BASE_URL}/bulk/promote`, {
+    // first we need to get the deployment id from the repository
+    const { deploymentId } = await this.getRepository();
+
+    // then we need to promote the repository (=publish it)
+    const response = await fetch(`${NEXUS_API_BASE_URL}/service/local/staging/bulk/promote`, {
       headers: this.getNexusRequestHeaders(),
       method: 'POST',
       body: JSON.stringify({
-        data: { stagedRepositoryIds: [repositoryId] },
+        data: { stagedRepositoryIds: [repositoryId], "description": "", "autoDropAfterRelease": true },
       }),
     });
 
@@ -754,8 +795,31 @@ export class MavenTarget extends BaseTarget {
       );
     }
 
-    this.logger.info(`Nexus repository closed correctly.`);
-    return true;
+    const poolingStartTime = Date.now();
+
+    while (true) {
+      if (Date.now() - poolingStartTime > SONATYPE_RETRY_DEADLINE) {
+        throw new Error('Deadline for Central repository status change reached.');
+      }
+
+      await sleep(CENTRAL_RETRY_DELAY);
+
+      // then we need to check if the repository is published with the deployment id
+      const response = await fetch(`${CENTRAL_API_BASE_URL}/publisher/status?id=${deploymentId}`, {
+        method: 'POST',
+        headers: this.getNexusRequestHeaders(),
+      });
+
+      if (response.ok && (await response.json()).deploymentState === 'PUBLISHED') {
+        this.logger.info(`Central repository published correctly.`);
+        return true;
+      }
+
+      this.logger.info(
+        `Central repository still not published. Waiting for ${CENTRAL_RETRY_DELAY / 1000
+        }s to try again.`
+      );
+    }
   }
 
   private getNexusRequestHeaders(): Record<string, string> {
