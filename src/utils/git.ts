@@ -43,7 +43,9 @@ export async function getLatestTag(git: SimpleGit): Promise<string> {
     // If there are no tags, return an empty string
     if (
       err instanceof Error &&
-      err.message.startsWith('fatal: No names found')
+      (
+        err.message.startsWith('fatal: No names found') ||
+        err.message.startsWith('Nothing to describe'))
     ) {
       return '';
     }

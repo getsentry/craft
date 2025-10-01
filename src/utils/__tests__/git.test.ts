@@ -16,7 +16,7 @@ describe('getLatestTag', () => {
   it('moves on with empty string when no tags are found', async () => {
     loggerModule.setLevel(loggerModule.LogLevel.Debug);
 
-    const error = new Error('Nothing to describe');
+    const error = new Error('fatal: No names found');
     const git = {
       raw: jest.fn().mockRejectedValue(error),
     } as any;
