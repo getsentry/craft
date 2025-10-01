@@ -1,4 +1,4 @@
-import simpleGit, { SimpleGit } from 'simple-git';
+import simpleGit, { type SimpleGit, type LogOptions, type Options } from 'simple-git';
 
 import { getConfigFileDir } from '../config';
 import { ConfigurationError } from './errors';
@@ -20,6 +20,8 @@ export interface GitChange {
 // https://docs.github.com/en/rest/commits/commits#list-pull-requests-associated-with-a-commit
 export const PRExtractor = /(?<=\(#)\d+(?=\)$)/;
 
+export const defaultInitialTag = '0.0.0';
+
 export async function getDefaultBranch(
   git: SimpleGit,
   remoteName: string
@@ -34,15 +36,20 @@ export async function getDefaultBranch(
 }
 
 export async function getLatestTag(git: SimpleGit): Promise<string> {
-  // This part is courtesy of https://stackoverflow.com/a/7261049/90297
   try {
+    // This part is courtesy of https://stackoverflow.com/a/7261049/90297
     return (await git.raw('describe', '--tags', '--abbrev=0')).trim();
-  } catch (e) {
-    logger.error(
-      'Couldn\'t get the latest tag! If you\'re releasing for the first time, check if your repo contains any tags. If not, add one manually and try again: `git tag 0.0.0 "$(git log -1 --reverse --format=%h)"'
-    );
-    // handle this error in the global error handler
-    throw e;
+  } catch (err) {
+    // If there are no tags, return an empty string
+    if (
+      err instanceof Error &&
+      (
+        err.message.startsWith('fatal: No names found') ||
+        err.message.startsWith('Nothing to describe'))
+    ) {
+      return '';
+    }
+    throw err;
   }
 }
 
@@ -50,8 +57,7 @@ export async function getChangesSince(
   git: SimpleGit,
   rev: string
 ): Promise<GitChange[]> {
-  const { all: commits } = await git.log({
-    from: rev,
+  const gitLogArgs: Options | LogOptions = {
     to: 'HEAD',
     // The symmetric option defaults to true, giving us all the different commits
     // reachable from both `from` and `to` whereas what we are interested in is only the ones
@@ -65,7 +71,12 @@ export async function getChangesSince(
     // this should still return all commits for individual repos when run from
     // the repo root.
     file: '.',
-  });
+  };
+
+  if (rev) {
+    gitLogArgs.from = rev;
+  }
+  const { all: commits } = await git.log(gitLogArgs);
   return commits.map(commit => ({
     hash: commit.hash,
     title: commit.message,
@@ -79,7 +90,7 @@ export function stripRemoteName(
   remoteName: string
 ): string {
   const branchName = branch || '';
-  const remotePrefix = remoteName + '/';
+  const remotePrefix = `${remoteName}/`;
   if (branchName.startsWith(remotePrefix)) {
     return branchName.slice(remotePrefix.length);
   }
@@ -90,7 +101,7 @@ export async function getGitClient(): Promise<SimpleGit> {
   const configFileDir = getConfigFileDir() || '.';
   // Move to the directory where the config file is located
   process.chdir(configFileDir);
-  logger.debug(`Working directory:`, process.cwd());
+  logger.debug("Working directory:", process.cwd());
 
   const git = simpleGit(configFileDir);
   const isRepo = await git.checkIsRepo();
