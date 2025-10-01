@@ -79,6 +79,7 @@ export class NugetTarget extends BaseTarget {
       '--api-key',
       '${NUGET_API_TOKEN}',
       '--source',
+      '--skip-duplicate',
       this.nugetConfig.serverUrl,
     ];
     return spawnProcess(NUGET_DOTNET_BIN, args, DOTNET_SPAWN_OPTIONS);
