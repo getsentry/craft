@@ -753,8 +753,7 @@ targets:
 ### NuGet (`nuget`)
 
 Uploads packages to [NuGet](https://www.nuget.org/) via [.NET Core](https://github.com/dotnet/core).
-By default, `craft` publishes all packages with `.nupkg` extension by using `dotnet nuget publish --skip-duplicate`
-so re-running `craft` means it will not fail, but instead continue to publish any package it failed.
+Normally, `craft` targets raise an exception when trying to release a version that already exists. *This target diverges from the norm and allows re-entrant publishing* as it can publish multiple packages at once and the processes might get interrupted. This behavior allows us to finalize half-finished releases without having to publish a new version and play cat & mouse with the flaky upstream package repository.
 
 **Environment**
 
