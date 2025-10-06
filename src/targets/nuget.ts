@@ -79,6 +79,11 @@ export class NugetTarget extends BaseTarget {
       '--api-key',
       '${NUGET_API_TOKEN}',
       '--source',
+      // Warning: `--skip-duplicate` means we will NOT error when a version
+      //          already exists. This is unlike any other target in Craft but
+      //          became needed here as NuGet repo is quite flaky and we need to
+      //          publish many packages at once without another way to resume a
+      //          broken release.
       '--skip-duplicate',
       this.nugetConfig.serverUrl,
     ];
