@@ -52,6 +52,10 @@ function markdownHeader(level: number, text: string): string {
   return `${prefix} ${escapeMarkdownPound(text)}`;
 }
 
+function escapeLeadingUnderscores(text: string): string {
+  return text.replace(/(^| )_/, '$1\\_');
+}
+
 /**
  * Extracts a specific changeset from a markdown document
  *
@@ -235,7 +239,7 @@ type MilestoneWithPRs = Partial<Milestone> & {
 // avoid collisions.
 const SHORT_SHA_LENGTH = 8;
 function formatCommit(commit: Commit): string {
-  let text = `- ${commit.title}`;
+  let text = `- ${escapeLeadingUnderscores(commit.title)}`;
   if (!commit.hasPRinTitle) {
     const link = commit.pr
       ? `#${commit.pr}`
