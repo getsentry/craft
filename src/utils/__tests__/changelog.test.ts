@@ -572,6 +572,19 @@ describe('generateChangesetFromGit', () => {
       ].join('\n'),
     ],
     [
+      'should escape leading underscores in changelog entries',
+      [
+        {
+          hash: 'abcdef1234567890',
+          title: 'Serialized _meta (#123)',
+          body: '',
+          pr: { local: '123' },
+        },
+      ],
+      {},
+      '### Various fixes & improvements\n\n- Serialized \\_meta (#123)',
+    ],
+    [
       'should omit milestone body if it is empty or null',
       [
         {
