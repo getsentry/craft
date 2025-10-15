@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.10.0
+
+### Various fixes & improvements
+
+- fix(changelog): escape leading underscores in titles (#620) by @mjq
+- fix: Don't fail when there are no releases (#602) by @BYK
+- feat: dotnet publish re-entrant (#571) by @bruno-garcia
+- chore(maven): Bump retry deadline to 2 hours (#618) by @romtsn
+- ref: Log descriptive error message when no tags are found during release preparation (#617) by @Lms24
+- feat(aws-lambda): Add description including SDK version to layer metadata (#616) by @msonnb
+- build(deps-dev): bump tmp from 0.1.0 to 0.2.4 (#615) by @dependabot
+
 ## 2.9.1
 
 ### Various fixes & improvements
