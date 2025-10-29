@@ -78,13 +78,13 @@ export class NugetTarget extends BaseTarget {
       path,
       '--api-key',
       '${NUGET_API_TOKEN}',
-      '--source',
       // Warning: `--skip-duplicate` means we will NOT error when a version
       //          already exists. This is unlike any other target in Craft but
       //          became needed here as NuGet repo is quite flaky and we need to
       //          publish many packages at once without another way to resume a
       //          broken release.
       '--skip-duplicate',
+      '--source',
       this.nugetConfig.serverUrl,
     ];
     return spawnProcess(NUGET_DOTNET_BIN, args, DOTNET_SPAWN_OPTIONS);
