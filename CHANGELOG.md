@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.10.1
+
+### Various fixes & improvements
+
+- Fixed argument order in NuGet publish (#622) by @jamescrosswell
+
 ## 2.10.0
 
 ### Various fixes & improvements
