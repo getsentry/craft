@@ -4,7 +4,11 @@ jest.mock('../githubApi.ts');
 import { getGitHubClient } from '../githubApi';
 jest.mock('../git');
 import { getChangesSince } from '../git';
+jest.mock('fs');
+jest.mock('../config');
+import * as config from '../config';
 
+import { readFileSync } from 'fs';
 import type { SimpleGit } from 'simple-git';
 
 import {
@@ -15,6 +19,9 @@ import {
   SKIP_CHANGELOG_MAGIC_WORD,
   BODY_IN_CHANGELOG_MAGIC_WORD,
 } from '../changelog';
+
+const getConfigFileDirMock = jest.spyOn(config, 'getConfigFileDir');
+const readFileSyncMock = readFileSync as jest.MockedFunction<typeof readFileSync>;
 
 describe('findChangeset', () => {
   const sampleChangeset = {
@@ -280,6 +287,10 @@ describe('generateChangesetFromGit', () => {
       typeof getGitHubClient
       // @ts-ignore we only need to mock a subset
     >).mockReturnValue({ graphql: mockClient });
+    getConfigFileDirMock.mockReturnValue(undefined);
+    readFileSyncMock.mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
   });
 
   interface TestCommit {
@@ -293,19 +304,14 @@ describe('generateChangesetFromGit', () => {
         author?: { login: string };
         number: string;
         body?: string;
-        milestone?: string;
+        labels?: string[];
       };
     };
   }
 
-  interface TestMilestone {
-    title: string;
-    description: string | null;
-  }
-
   function setup(
     commits: TestCommit[],
-    milestones: Record<string, TestMilestone> = {}
+    releaseConfig?: string | null
   ): void {
     mockGetChangesSince.mockResolvedValueOnce(
       commits.map(commit => ({
@@ -329,9 +335,11 @@ describe('generateChangesetFromGit', () => {
                       author: pr.remote.author,
                       number: pr.remote.number,
                       body: pr.remote.body || '',
-                      milestone: pr.remote.milestone
-                        ? { number: pr.remote.milestone }
-                        : null,
+                      labels: {
+                        nodes: (pr.remote.labels || []).map(label => ({
+                          name: label,
+                        })),
+                      },
                     },
                   ]
                 : [],
@@ -341,16 +349,19 @@ describe('generateChangesetFromGit', () => {
       ),
     });
 
-    mockClient.mockResolvedValueOnce({
-      repository: Object.keys(milestones).reduce((obj, key) => {
-        obj[`M${key}`] = milestones[key];
-        return obj;
-      }, {} as Record<string, TestMilestone>),
-    });
+    // Mock release config file reading
+    if (releaseConfig !== undefined) {
+      if (releaseConfig === null) {
+        getConfigFileDirMock.mockReturnValue(undefined);
+      } else {
+        getConfigFileDirMock.mockReturnValue('/workspace');
+        readFileSyncMock.mockReturnValue(releaseConfig);
+      }
+    }
   }
 
   it.each([
-    ['empty changeset', [], {}, ''],
+    ['empty changeset', [], null, ''],
     [
       'short commit SHA for local commits w/o pull requests',
       [
@@ -360,8 +371,8 @@ describe('generateChangesetFromGit', () => {
           body: '',
         },
       ],
-      {},
-      '### Various fixes & improvements\n\n- Upgraded the kernel (abcdef12)',
+      null,
+      '### Other\n\n- Upgraded the kernel (abcdef12)',
     ],
     [
       'use pull request number when available locally',
@@ -373,8 +384,8 @@ describe('generateChangesetFromGit', () => {
           pr: { local: '123' },
         },
       ],
-      {},
-      '### Various fixes & improvements\n\n- Upgraded the kernel (#123)',
+      null,
+      '### Other\n\n- Upgraded the kernel (#123)',
     ],
     [
       'use pull request number when available remotely',
@@ -386,8 +397,8 @@ describe('generateChangesetFromGit', () => {
           pr: { remote: { number: '123', author: { login: 'sentry' } } },
         },
       ],
-      {},
-      '### Various fixes & improvements\n\n- Upgraded the kernel (#123) by @sentry',
+      null,
+      '### Other\n\n- Upgraded the kernel (#123) by @sentry',
     ],
     [
       'Does not error when PR author is null',
@@ -399,8 +410,8 @@ describe('generateChangesetFromGit', () => {
           pr: { remote: { number: '123' } },
         },
       ],
-      {},
-      '### Various fixes & improvements\n\n- Upgraded the kernel (#123)',
+      null,
+      '### Other\n\n- Upgraded the kernel (#123)',
     ],
     [
       'handle multiple commits properly',
@@ -432,9 +443,9 @@ describe('generateChangesetFromGit', () => {
           pr: { remote: { number: '458', author: { login: 'bob' } } },
         },
       ],
-      {},
+      null,
       [
-        '### Various fixes & improvements',
+        '### Other',
         '',
         '- Upgraded the kernel (abcdef12)',
         '- Upgraded the manifold (#123) by @alice',
@@ -444,13 +455,8 @@ describe('generateChangesetFromGit', () => {
       ].join('\n'),
     ],
     [
-      'group prs under milestones',
+      'group prs under categories',
       [
-        {
-          hash: 'abcdef1234567890',
-          title: 'Upgraded the kernel',
-          body: '',
-        },
         {
           hash: 'bcdef1234567890a',
           title: 'Upgraded the manifold (#123)',
@@ -460,7 +466,7 @@ describe('generateChangesetFromGit', () => {
             remote: {
               number: '123',
               author: { login: 'alice' },
-              milestone: '1',
+              labels: ['drivetrain'],
             },
           },
         },
@@ -469,7 +475,7 @@ describe('generateChangesetFromGit', () => {
           title: 'Refactored the crankshaft',
           body: '',
           pr: {
-            remote: { number: '456', author: { login: 'bob' }, milestone: '1' },
+            remote: { number: '456', author: { login: 'bob' }, labels: ['drivetrain'] },
           },
         },
         {
@@ -481,7 +487,7 @@ describe('generateChangesetFromGit', () => {
             remote: {
               number: '789',
               author: { login: 'charlie' },
-              milestone: '5',
+              labels: ['driver-experience'],
             },
           },
         },
@@ -494,7 +500,7 @@ describe('generateChangesetFromGit', () => {
             remote: {
               number: '900',
               author: { login: 'charlie' },
-              milestone: '5',
+              labels: ['driver-experience'],
             },
           },
         },
@@ -508,38 +514,30 @@ describe('generateChangesetFromGit', () => {
           },
         },
       ],
-      {
-        '1': {
-          title: 'Better drivetrain',
-          description:
-            'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
-          state: 'CLOSED',
-        },
-        '5': {
-          title: 'Better driver experience',
-          description: '',
-          state: 'OPEN',
-        },
-      },
+      `changelog:
+  categories:
+    - title: Better drivetrain
+      labels:
+        - drivetrain
+    - title: Better driver experience
+      labels:
+        - driver-experience`,
       [
         '### Better drivetrain',
         '',
-        'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
-        '',
         'By: @alice (#123), @bob (#456)',
         '',
-        '### Better driver experience (ongoing)',
+        '### Better driver experience',
         '',
         'By: @charlie (#789, #900)',
         '',
-        '### Various fixes & improvements',
+        '### Other',
         '',
-        '- Upgraded the kernel (abcdef12)',
         '- Fix the clacking sound on gear changes (#950) by @bob',
       ].join('\n'),
     ],
     [
-      'should escape # signs on milestone titles',
+      'should escape # signs on category titles',
       [
         {
           hash: 'abcdef1234567890',
@@ -550,23 +548,18 @@ describe('generateChangesetFromGit', () => {
             remote: {
               number: '123',
               author: { login: 'sentry' },
-              milestone: '1',
+              labels: ['drivetrain'],
             },
           },
         },
       ],
-      {
-        '1': {
-          title: 'Drivetrain #1 in town',
-          description:
-            'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
-          state: 'CLOSED',
-        },
-      },
+      `changelog:
+  categories:
+    - title: Drivetrain #1 in town
+      labels:
+        - drivetrain`,
       [
         '### Drivetrain &#35;1 in town',
-        '',
-        'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
         '',
         'By: @sentry (#123)',
       ].join('\n'),
@@ -581,70 +574,12 @@ describe('generateChangesetFromGit', () => {
           pr: { local: '123' },
         },
       ],
-      {},
-      '### Various fixes & improvements\n\n- Serialized \\_meta (#123)',
-    ],
-    [
-      'should omit milestone body if it is empty or null',
-      [
-        {
-          hash: 'abcdef1234567890',
-          title: 'Upgraded the kernel',
-          body: '',
-          pr: {
-            local: '123',
-            remote: {
-              number: '123',
-              author: { login: 'sentry' },
-              milestone: '1',
-            },
-          },
-        },
-
-        {
-          hash: 'bcdef123456789a',
-          title: 'Upgraded the manifold (#456)',
-          body: '',
-          pr: {
-            local: '456',
-            remote: {
-              number: '456',
-              author: { login: 'alice' },
-              milestone: '2',
-            },
-          },
-        },
-      ],
-      {
-        '1': {
-          title: 'Better drivetrain',
-          description: '',
-          state: 'CLOSED',
-        },
-        '2': {
-          title: 'Better Engine',
-          description: null,
-          state: 'CLOSED',
-        },
-      },
-      [
-        '### Better drivetrain',
-        '',
-        'By: @sentry (#123)',
-        '',
-        '### Better Engine',
-        '',
-        'By: @alice (#456)',
-      ].join('\n'),
+      null,
+      '### Other\n\n- Serialized \\_meta (#123)',
     ],
     [
       `should skip commits & prs with the magic ${SKIP_CHANGELOG_MAGIC_WORD}`,
       [
-        {
-          hash: 'abcdef1234567890',
-          title: 'Upgraded the kernel',
-          body: SKIP_CHANGELOG_MAGIC_WORD,
-        },
         {
           hash: 'bcdef1234567890a',
           title: 'Upgraded the manifold (#123)',
@@ -654,7 +589,7 @@ describe('generateChangesetFromGit', () => {
             remote: {
               number: '123',
               author: { login: 'alice' },
-              milestone: '1',
+              labels: ['drivetrain'],
             },
           },
         },
@@ -667,7 +602,7 @@ describe('generateChangesetFromGit', () => {
               number: '456',
               author: { login: 'bob' },
               body: `This is important but we'll ${SKIP_CHANGELOG_MAGIC_WORD} for internal.`,
-              milestone: '1',
+              labels: ['drivetrain'],
             },
           },
         },
@@ -680,15 +615,9 @@ describe('generateChangesetFromGit', () => {
             remote: {
               number: '789',
               author: { login: 'charlie' },
-              milestone: '5',
+              labels: ['driver-experience'],
             },
           },
-        },
-        {
-          hash: 'ef1234567890abcd',
-          title: 'Upgrade the steering wheel (#900)',
-          body: `Some very important update but ${SKIP_CHANGELOG_MAGIC_WORD}`,
-          pr: { local: '900' },
         },
         {
           hash: 'f1234567890abcde',
@@ -700,34 +629,24 @@ describe('generateChangesetFromGit', () => {
           },
         },
       ],
-      {
-        '1': {
-          title: 'Better drivetrain',
-          description:
-            'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
-          state: 'CLOSED',
-        },
-        '5': {
-          title: 'Better driver experience',
-          description:
-            'We are working on making your driving experience more pleasant and safer.',
-          state: 'OPEN',
-        },
-      },
+      `changelog:
+  categories:
+    - title: Better drivetrain
+      labels:
+        - drivetrain
+    - title: Better driver experience
+      labels:
+        - driver-experience`,
       [
         '### Better drivetrain',
         '',
-        'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
-        '',
         'By: @alice (#123)',
         '',
-        '### Better driver experience (ongoing)',
-        '',
-        'We are working on making your driving experience more pleasant and safer.',
+        '### Better driver experience',
         '',
         'By: @charlie (#789)',
         '',
-        '### Various fixes & improvements',
+        '### Other',
         '',
         '- Fix the clacking sound on gear changes (#950) by @alice',
       ].join('\n'),
@@ -735,11 +654,6 @@ describe('generateChangesetFromGit', () => {
     [
       `should expand commits & prs with the magic ${BODY_IN_CHANGELOG_MAGIC_WORD}`,
       [
-        {
-          hash: 'abcdef1234567890',
-          title: 'Upgraded the kernel',
-          body: SKIP_CHANGELOG_MAGIC_WORD,
-        },
         {
           hash: 'bcdef1234567890a',
           title: 'Upgraded the manifold (#123)',
@@ -749,7 +663,7 @@ describe('generateChangesetFromGit', () => {
             remote: {
               number: '123',
               author: { login: 'alice' },
-              milestone: '1',
+              labels: ['drivetrain'],
             },
           },
         },
@@ -762,7 +676,7 @@ describe('generateChangesetFromGit', () => {
               number: '456',
               author: { login: 'bob' },
               body: `This is important and we'll include the __body__ for attention. ${BODY_IN_CHANGELOG_MAGIC_WORD}`,
-              milestone: '1',
+              labels: ['drivetrain'],
             },
           },
         },
@@ -775,7 +689,7 @@ describe('generateChangesetFromGit', () => {
             remote: {
               number: '789',
               author: { login: 'charlie' },
-              milestone: '5',
+              labels: ['driver-experience'],
             },
           },
         },
@@ -795,34 +709,24 @@ describe('generateChangesetFromGit', () => {
           },
         },
       ],
-      {
-        '1': {
-          title: 'Better drivetrain',
-          description:
-            'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
-          state: 'CLOSED',
-        },
-        '5': {
-          title: 'Better driver experience',
-          description:
-            'We are working on making your driving experience more pleasant and safer.',
-          state: 'OPEN',
-        },
-      },
+      `changelog:
+  categories:
+    - title: Better drivetrain
+      labels:
+        - drivetrain
+    - title: Better driver experience
+      labels:
+        - driver-experience`,
       [
         '### Better drivetrain',
         '',
-        'We have upgraded the drivetrain for a smoother and more performant driving experience. Enjoy!',
-        '',
         'By: @alice (#123), @bob (#456)',
         '',
-        '### Better driver experience (ongoing)',
-        '',
-        'We are working on making your driving experience more pleasant and safer.',
+        '### Better driver experience',
         '',
         'By: @charlie (#789)',
         '',
-        '### Various fixes & improvements',
+        '### Other',
         '',
         '- Upgrade the steering wheel (#900)',
         '  Some very important update ',
@@ -834,12 +738,197 @@ describe('generateChangesetFromGit', () => {
     async (
       _name: string,
       commits: TestCommit[],
-      milestones: Record<string, TestMilestone>,
+      releaseConfig: string | null,
       output: string
     ) => {
-      setup(commits, milestones);
+      setup(commits, releaseConfig);
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(changes).toBe(output);
     }
   );
+
+  describe('category matching', () => {
+    it('should match PRs to categories based on labels', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'Feature PR (#1)',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: ['feature'],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'Bug fix PR (#2)',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: ['bug'],
+              },
+            },
+          },
+        ],
+        `changelog:
+  categories:
+    - title: Features
+      labels:
+        - feature
+    - title: Bug Fixes
+      labels:
+        - bug`
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(changes).toContain('### Features');
+      expect(changes).toContain('### Bug Fixes');
+      expect(changes).toContain('@alice (#1)');
+      expect(changes).toContain('@bob (#2)');
+    });
+
+    it('should apply global exclusions', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'Internal PR (#1)',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: ['internal'],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'Public PR (#2)',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: ['feature'],
+              },
+            },
+          },
+        ],
+        `changelog:
+  exclude:
+    labels:
+      - internal
+  categories:
+    - title: Features
+      labels:
+        - feature`
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(changes).not.toContain('#1');
+      expect(changes).toContain('#2');
+    });
+
+    it('should apply category-level exclusions', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'Feature PR (#1)',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: ['feature', 'skip-release'],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'Another Feature PR (#2)',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: ['feature'],
+              },
+            },
+          },
+        ],
+        `changelog:
+  categories:
+    - title: Features
+      labels:
+        - feature
+      exclude:
+        labels:
+          - skip-release`
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(changes).not.toContain('#1');
+      expect(changes).toContain('#2');
+    });
+
+    it('should support wildcard category matching', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'Any PR (#1)',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: ['random-label'],
+              },
+            },
+          },
+        ],
+        `changelog:
+  categories:
+    - title: All Changes
+      labels:
+        - '*'`
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(changes).toContain('### All Changes');
+      expect(changes).toContain('@alice (#1)');
+    });
+
+    it('should fallback to Other when no config exists', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'Some PR (#1)',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: ['feature'],
+              },
+            },
+          },
+        ],
+        null
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(changes).toContain('### Other');
+      expect(changes).toContain('#1');
+    });
+  });
 });
