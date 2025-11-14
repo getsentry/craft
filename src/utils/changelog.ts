@@ -468,15 +468,19 @@ export async function generateChangesetFromGit(
         title: categoryTitle,
         prs: [] as PullRequest[],
       };
-      // We _know_ the PR exists if we have a category match
+      // If we have both PR and author, add to category PRs list
+      // Otherwise, add to leftovers (e.g., PR without author, or commit without PR)
       if (commit.pr && commit.author) {
         category.prs.push({
           author: commit.author,
           number: commit.pr,
           body: commit.prBody ?? '',
         });
+        categories[categoryTitle] = category;
+      } else {
+        // Matched category but missing PR or author, add to leftovers
+        leftovers.push(commit);
       }
-      categories[categoryTitle] = category;
     }
   }
 
@@ -491,6 +495,11 @@ export async function generateChangesetFromGit(
   // Generate sections for each category
   for (const categoryTitle of Object.keys(categories)) {
     const category = categories[categoryTitle];
+    // Skip categories with no PRs
+    if (category.prs.length === 0) {
+      continue;
+    }
+
     changelogSections.push(
       markdownHeader(SUBSECTION_HEADER_LEVEL, category.title)
     );

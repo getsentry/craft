@@ -289,7 +289,9 @@ describe('generateChangesetFromGit', () => {
     >).mockReturnValue({ graphql: mockClient });
     getConfigFileDirMock.mockReturnValue(undefined);
     readFileSyncMock.mockImplementation(() => {
-      throw new Error('ENOENT');
+      const error: any = new Error('ENOENT');
+      error.code = 'ENOENT';
+      throw error;
     });
   });
 
@@ -353,6 +355,11 @@ describe('generateChangesetFromGit', () => {
     if (releaseConfig !== undefined) {
       if (releaseConfig === null) {
         getConfigFileDirMock.mockReturnValue(undefined);
+        readFileSyncMock.mockImplementation(() => {
+          const error: any = new Error('ENOENT');
+          error.code = 'ENOENT';
+          throw error;
+        });
       } else {
         getConfigFileDirMock.mockReturnValue('/workspace');
         readFileSyncMock.mockReturnValue(releaseConfig);
