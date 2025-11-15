@@ -316,12 +316,67 @@ function shouldExcludePR(
 }
 
 /**
+ * Checks if a PR is excluded at the category level
+ * Category-level exclusions completely remove the PR from the changelog
+ */
+function isCategoryLevelExcluded(
+  labels: string[],
+  author: string | undefined,
+  config: ReleaseConfig | null
+): boolean {
+  if (!config?.changelog?.categories) {
+    return false;
+  }
+
+  for (const category of config.changelog.categories) {
+    // Check if PR matches category labels
+    if (!category.labels || category.labels.length === 0) {
+      continue;
+    }
+
+    let matchesCategory = false;
+    for (const categoryLabel of category.labels) {
+      if (categoryLabel === '*') {
+        matchesCategory = true;
+        break;
+      }
+      if (labels.includes(categoryLabel)) {
+        matchesCategory = true;
+        break;
+      }
+    }
+
+    if (!matchesCategory) {
+      continue;
+    }
+
+    // Check if excluded at this category level
+    if (category.exclude) {
+      if (category.exclude.labels) {
+        for (const excludeLabel of category.exclude.labels) {
+          if (labels.includes(excludeLabel)) {
+            return true; // Excluded at category level
+          }
+        }
+      }
+
+      if (category.exclude.authors && author) {
+        if (category.exclude.authors.includes(author)) {
+          return true; // Excluded at category level
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
  * Matches a PR's labels to a category from release config
  * @returns Category title or null if no match
  */
 function matchPRToCategory(
   labels: string[],
-  author: string | undefined,
   config: ReleaseConfig | null
 ): string | null {
   if (!config?.changelog?.categories) {
@@ -337,7 +392,6 @@ function matchPRToCategory(
     let matchesCategory = false;
     for (const categoryLabel of category.labels) {
       if (categoryLabel === '*') {
-        // Wildcard matches all labels
         matchesCategory = true;
         break;
       }
@@ -351,25 +405,8 @@ function matchPRToCategory(
       continue;
     }
 
-    // Apply category-level exclusions
-    if (category.exclude) {
-      // Check category-level label exclusions
-      if (category.exclude.labels) {
-        for (const excludeLabel of category.exclude.labels) {
-          if (labels.includes(excludeLabel)) {
-            return null; // Excluded at category level
-          }
-        }
-      }
-
-      // Check category-level author exclusions
-      if (category.exclude.authors && author) {
-        if (category.exclude.authors.includes(author)) {
-          return null; // Excluded at category level
-        }
-      }
-    }
-
+    // Don't check category-level exclusions here - they're handled separately
+    // by isCategoryLevelExcluded() to completely exclude the PR
     return category.title;
   }
 
@@ -440,10 +477,16 @@ export async function generateChangesetFromGit(
       continue;
     }
 
+    // Apply category-level exclusions (these completely hide the PR)
+    if (isCategoryLevelExcluded(labels, author, releaseConfig)) {
+      continue;
+    }
+
     // Match PR to category
-    const categoryTitle = matchPRToCategory(labels, author, releaseConfig);
+    const categoryTitle = matchPRToCategory(labels, releaseConfig);
 
     const commit: Commit = {
+      author: author,
       hash: hash,
       title: gitCommit.title,
       body: gitCommit.body,

@@ -11,6 +11,7 @@ import { BaseTarget } from './base';
 import {
   BaseArtifactProvider,
   MAX_DOWNLOAD_CONCURRENCY,
+  RemoteArtifact,
 } from '../artifact_providers/base';
 
 /**
@@ -162,7 +163,7 @@ export class BrewTarget extends BaseTarget {
 
     const checksums: any = {};
 
-    await mapLimit(filesList, MAX_DOWNLOAD_CONCURRENCY, async file => {
+    await mapLimit(filesList, MAX_DOWNLOAD_CONCURRENCY, async (file: RemoteArtifact) => {
       const key = file.filename.replace(version, '__VERSION__');
       checksums[key] = await this.artifactProvider.getChecksum(
         file,

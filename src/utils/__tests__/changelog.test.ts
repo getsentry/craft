@@ -582,7 +582,7 @@ describe('generateChangesetFromGit', () => {
       ],
       `changelog:
   categories:
-    - title: Drivetrain #1 in town
+    - title: "Drivetrain #1 in town"
       labels:
         - drivetrain`,
       [
