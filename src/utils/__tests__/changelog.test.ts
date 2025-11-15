@@ -4,9 +4,16 @@ jest.mock('../githubApi.ts');
 import { getGitHubClient } from '../githubApi';
 jest.mock('../git');
 import { getChangesSince } from '../git';
-jest.mock('fs');
-jest.mock('../config');
-import * as config from '../config';
+jest.mock('fs', () => ({
+  ...jest.requireActual('fs'),
+  readFileSync: jest.fn(),
+}));
+jest.mock('../../config', () => ({
+  ...jest.requireActual('../../config'),
+  getConfigFileDir: jest.fn(),
+  getGlobalGitHubConfig: jest.fn(),
+}));
+import * as config from '../../config';
 
 import { readFileSync } from 'fs';
 import type { SimpleGit } from 'simple-git';
@@ -20,7 +27,8 @@ import {
   BODY_IN_CHANGELOG_MAGIC_WORD,
 } from '../changelog';
 
-const getConfigFileDirMock = jest.spyOn(config, 'getConfigFileDir');
+const getConfigFileDirMock = config.getConfigFileDir as jest.MockedFunction<typeof config.getConfigFileDir>;
+const getGlobalGitHubConfigMock = config.getGlobalGitHubConfig as jest.MockedFunction<typeof config.getGlobalGitHubConfig>;
 const readFileSyncMock = readFileSync as jest.MockedFunction<typeof readFileSync>;
 
 describe('findChangeset', () => {
@@ -287,7 +295,12 @@ describe('generateChangesetFromGit', () => {
       typeof getGitHubClient
       // @ts-ignore we only need to mock a subset
     >).mockReturnValue({ graphql: mockClient });
+    // Default: no config file
     getConfigFileDirMock.mockReturnValue(undefined);
+    getGlobalGitHubConfigMock.mockResolvedValue({
+      repo: 'test-repo',
+      owner: 'test-owner',
+    });
     readFileSyncMock.mockImplementation(() => {
       const error: any = new Error('ENOENT');
       error.code = 'ENOENT';
@@ -362,7 +375,14 @@ describe('generateChangesetFromGit', () => {
         });
       } else {
         getConfigFileDirMock.mockReturnValue('/workspace');
-        readFileSyncMock.mockReturnValue(releaseConfig);
+        readFileSyncMock.mockImplementation((path: any) => {
+          if (typeof path === 'string' && path.includes('.github/release.yml')) {
+            return releaseConfig;
+          }
+          const error: any = new Error('ENOENT');
+          error.code = 'ENOENT';
+          throw error;
+        });
       }
     }
   }
@@ -756,11 +776,20 @@ describe('generateChangesetFromGit', () => {
 
   describe('category matching', () => {
     it('should match PRs to categories based on labels', async () => {
+      const releaseConfigYaml = `changelog:
+  categories:
+    - title: Features
+      labels:
+        - feature
+    - title: Bug Fixes
+      labels:
+        - bug`;
+      
       setup(
         [
           {
             hash: 'abc123',
-            title: 'Feature PR (#1)',
+            title: 'Feature PR',
             body: '',
             pr: {
               remote: {
@@ -772,7 +801,7 @@ describe('generateChangesetFromGit', () => {
           },
           {
             hash: 'def456',
-            title: 'Bug fix PR (#2)',
+            title: 'Bug fix PR',
             body: '',
             pr: {
               remote: {
@@ -783,17 +812,20 @@ describe('generateChangesetFromGit', () => {
             },
           },
         ],
-        `changelog:
-  categories:
-    - title: Features
-      labels:
-        - feature
-    - title: Bug Fixes
-      labels:
-        - bug`
+        releaseConfigYaml
       );
 
+      // Verify mocks are set up before calling generateChangesetFromGit
+      expect(getConfigFileDirMock).toBeDefined();
+      expect(readFileSyncMock).toBeDefined();
+      
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      
+      // Verify getConfigFileDir was called
+      expect(getConfigFileDirMock).toHaveBeenCalled();
+      // Verify readFileSync was called to read the config
+      expect(readFileSyncMock).toHaveBeenCalled();
+      
       expect(changes).toContain('### Features');
       expect(changes).toContain('### Bug Fixes');
       expect(changes).toContain('@alice (#1)');
