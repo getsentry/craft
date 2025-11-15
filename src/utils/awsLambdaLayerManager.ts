@@ -1,7 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import aws4 from 'aws4';
 import fetch from 'node-fetch';
-import { Lambda } from '@aws-sdk/client-lambda';
+import { Lambda, Runtime } from '@aws-sdk/client-lambda';
 import { logger } from '../logger';
 
 /** Prefix of the canonical name. */
@@ -77,7 +77,7 @@ export class AwsLambdaLayerManager {
         ZipFile: this.artifactBuffer,
       },
       LayerName: this.layerName,
-      CompatibleRuntimes: this.runtime.versions,
+      CompatibleRuntimes: this.runtime.versions as Runtime[],
       LicenseInfo: this.license,
       Description: `Sentry AWS Serverless SDK v${this.sdkVersion}`,
     });
@@ -154,7 +154,7 @@ export async function getRegionsFromAws(): Promise<string[]> {
   });
 
   const url = `https://${hostname}${path}`;
-  const response = await fetch(url, { headers });
+  const response = await fetch(url, { headers: headers as Record<string, string> });
   if (!response.ok) {
     throw new Error(
       `Unexpected HTTP response from ${url}: ${response.status} (${response.statusText})`
