@@ -10,6 +10,7 @@
     "rootDir": "src",
     "types": ["node"],
     "noImplicitThis": false,
+    "noImplicitUseStrict": false,
     "esModuleInterop": true,
     "importHelpers": true,
     "noEmitHelpers": false,
