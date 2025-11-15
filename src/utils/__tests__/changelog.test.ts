@@ -788,7 +788,7 @@ describe('generateChangesetFromGit', () => {
     - title: Bug Fixes
       labels:
         - bug`;
-      
+
       setup(
         [
           {
@@ -822,14 +822,14 @@ describe('generateChangesetFromGit', () => {
       // Verify mocks are set up before calling generateChangesetFromGit
       expect(getConfigFileDirMock).toBeDefined();
       expect(readFileSyncMock).toBeDefined();
-      
+
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
-      
+
       // Verify getConfigFileDir was called
       expect(getConfigFileDirMock).toHaveBeenCalled();
       // Verify readFileSync was called to read the config
       expect(readFileSyncMock).toHaveBeenCalled();
-      
+
       expect(changes).toContain('### Features');
       expect(changes).toContain('### Bug Fixes');
       expect(changes).toContain('Feature PR by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)');
@@ -842,7 +842,7 @@ describe('generateChangesetFromGit', () => {
           {
             hash: 'abc123',
             title: 'Internal PR (#1)',
-            body: '',
+yarn            body: '',
             pr: {
               remote: {
                 number: '1',
