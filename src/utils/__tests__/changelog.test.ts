@@ -552,11 +552,13 @@ describe('generateChangesetFromGit', () => {
       [
         '### Better drivetrain',
         '',
-        'By: @alice (#123), @bob (#456)',
+        '- Upgraded the manifold (#123) by @alice in [#123](https://github.com/test-owner/test-repo/pull/123)',
+        '- Refactored the crankshaft by @bob in [#456](https://github.com/test-owner/test-repo/pull/456)',
         '',
         '### Better driver experience',
         '',
-        'By: @charlie (#789, #900)',
+        '- Upgrade the HUD (#789) by @charlie in [#789](https://github.com/test-owner/test-repo/pull/789)',
+        '- Upgrade the steering wheel (#900) by @charlie in [#900](https://github.com/test-owner/test-repo/pull/900)',
         '',
         '### Other',
         '',
@@ -588,7 +590,7 @@ describe('generateChangesetFromGit', () => {
       [
         '### Drivetrain &#35;1 in town',
         '',
-        'By: @sentry (#123)',
+        '- Upgraded the kernel by @sentry in [#123](https://github.com/test-owner/test-repo/pull/123)',
       ].join('\n'),
     ],
     [
@@ -667,11 +669,11 @@ describe('generateChangesetFromGit', () => {
       [
         '### Better drivetrain',
         '',
-        'By: @alice (#123)',
+        '- Upgraded the manifold (#123) by @alice in [#123](https://github.com/test-owner/test-repo/pull/123)',
         '',
         '### Better driver experience',
         '',
-        'By: @charlie (#789)',
+        '- Upgrade the HUD (#789) by @charlie in [#789](https://github.com/test-owner/test-repo/pull/789)',
         '',
         '### Other',
         '',
@@ -747,11 +749,13 @@ describe('generateChangesetFromGit', () => {
       [
         '### Better drivetrain',
         '',
-        'By: @alice (#123), @bob (#456)',
+        '- Upgraded the manifold (#123) by @alice in [#123](https://github.com/test-owner/test-repo/pull/123)',
+        '- Refactored the crankshaft by @bob in [#456](https://github.com/test-owner/test-repo/pull/456)',
+        '  This is important and we\'ll include the __body__ for attention.',
         '',
         '### Better driver experience',
         '',
-        'By: @charlie (#789)',
+        '- Upgrade the HUD (#789) by @charlie in [#789](https://github.com/test-owner/test-repo/pull/789)',
         '',
         '### Other',
         '',
@@ -828,8 +832,8 @@ describe('generateChangesetFromGit', () => {
       
       expect(changes).toContain('### Features');
       expect(changes).toContain('### Bug Fixes');
-      expect(changes).toContain('@alice (#1)');
-      expect(changes).toContain('@bob (#2)');
+      expect(changes).toContain('Feature PR by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)');
+      expect(changes).toContain('Bug fix PR by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)');
     });
 
     it('should apply global exclusions', async () => {
@@ -943,7 +947,7 @@ describe('generateChangesetFromGit', () => {
 
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(changes).toContain('### All Changes');
-      expect(changes).toContain('@alice (#1)');
+      expect(changes).toContain('Any PR (#1) by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)');
     });
 
     it('should fallback to Other when no config exists', async () => {

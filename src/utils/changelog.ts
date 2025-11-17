@@ -216,6 +216,7 @@ interface PullRequest {
   author: string;
   number: string;
   body: string;
+  title: string;
 }
 
 interface Commit {
@@ -518,6 +519,7 @@ export async function generateChangesetFromGit(
           author: commit.author,
           number: commit.pr,
           body: commit.prBody ?? '',
+          title: commit.title,
         });
         categories[categoryTitle] = category;
       } else {
@@ -535,6 +537,10 @@ export async function generateChangesetFromGit(
   }
 
   const changelogSections = [];
+  // Get GitHub config for PR links
+  const { repo, owner } = await getGlobalGitHubConfig();
+  const prLinkBase = `https://github.com/${owner}/${repo}/pull`;
+
   // Generate sections for each category
   for (const categoryTitle of Object.keys(categories)) {
     const category = categories[categoryTitle];
@@ -547,21 +553,25 @@ export async function generateChangesetFromGit(
       markdownHeader(SUBSECTION_HEADER_LEVEL, category.title)
     );
 
-    const authors: Record<string, PullRequest[]> = {};
-    for (const pr of category.prs) {
-      const authorPRs = authors[pr.author] || [];
-      authorPRs.push(pr);
-      authors[pr.author] = authorPRs;
-    }
+    // Format each PR according to GitHub's automated release notes format:
+    // - <PR Title> by @<author> in [#<PR no>](<link to PR>)
+    const prEntries = category.prs.map(pr => {
+      const prLink = `${prLinkBase}/${pr.number}`;
+      const prTitle = escapeLeadingUnderscores(pr.title);
+      let entry = `- ${prTitle} by @${pr.author} in [#${pr.number}](${prLink})`;
+      
+      // Include PR body if it contains the magic word
+      if (pr.body?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
+        const body = pr.body.replace(BODY_IN_CHANGELOG_MAGIC_WORD, '').trim();
+        if (body) {
+          entry += `\n  ${body}`;
+        }
+      }
+      
+      return entry;
+    });
 
-    changelogSections.push(
-      `By: ${Object.entries(authors)
-        .map(
-          ([author, prs]) =>
-            `@${author} (${prs.map(({ number }) => `#${number}`).join(', ')})`
-        )
-        .join(', ')}`
-    );
+    changelogSections.push(prEntries.join('\n'));
   }
 
   // Handle leftovers (PRs that don't match any category)
