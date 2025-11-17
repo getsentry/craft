@@ -269,7 +269,7 @@ interface NormalizedReleaseConfig {
 
 interface NormalizedCategory {
   title: string;
-  labels: string[]; // Normalized: always an array, empty if undefined in config
+  labels: string[];
   exclude: {
     labels: Set<string>;
     authors: Set<string>;
@@ -324,7 +324,6 @@ function normalizeReleaseConfig(config: ReleaseConfig | null): NormalizedRelease
     },
   };
 
-  // Normalize global exclusions - use empty sets if not present
   if (config.changelog.exclude) {
     if (config.changelog.exclude.labels && config.changelog.exclude.labels.length > 0) {
       normalized.changelog.exclude.labels = new Set(config.changelog.exclude.labels);
@@ -334,12 +333,10 @@ function normalizeReleaseConfig(config: ReleaseConfig | null): NormalizedRelease
     }
   }
 
-  // Normalize categories - use empty array if not present
   if (config.changelog.categories) {
     normalized.changelog.categories = config.changelog.categories.map(category => {
       const normalizedCategory: NormalizedCategory = {
         title: category.title,
-        // Normalize labels: always an array, empty if undefined
         labels: category.labels && category.labels.length > 0 ? category.labels : [],
         exclude: {
           labels: new Set<string>(),
@@ -347,7 +344,6 @@ function normalizeReleaseConfig(config: ReleaseConfig | null): NormalizedRelease
         },
       };
 
-      // Normalize category-level exclusions - use empty sets if not present
       if (category.exclude) {
         if (category.exclude.labels && category.exclude.labels.length > 0) {
           normalizedCategory.exclude.labels = new Set(category.exclude.labels);
@@ -378,7 +374,6 @@ function shouldExcludePR(
 
   const { exclude } = config.changelog;
 
-  // Check label exclusions using Set intersection
   if (exclude.labels.size > 0) {
     for (const excludeLabel of exclude.labels) {
       if (labels.has(excludeLabel)) {
@@ -387,7 +382,6 @@ function shouldExcludePR(
     }
   }
 
-  // Check author exclusions using Set lookup
   if (exclude.authors.size > 0 && author) {
     if (exclude.authors.has(author)) {
       return true;
@@ -412,17 +406,14 @@ function matchPRToCategory(
     return null;
   }
 
-  // Separate wildcard category to check last
   const regularCategories: NormalizedCategory[] = [];
   let wildcardCategory: NormalizedCategory | null = null;
 
   for (const category of config.changelog.categories) {
-    // Normalized categories always have labels array (empty if undefined in config)
     if (category.labels.length === 0) {
       continue;
     }
 
-    // Check for wildcard category (should be checked last)
     if (category.labels.includes('*')) {
       wildcardCategory = category;
       continue;
@@ -431,57 +422,41 @@ function matchPRToCategory(
     regularCategories.push(category);
   }
 
-  // Check regular categories first
   categoryLoop: for (const category of regularCategories) {
-    // Check if PR matches category labels
     const matchesCategory = category.labels.some(label => labels.has(label));
 
     if (!matchesCategory) {
       continue;
     }
 
-    // Check category-level exclusions (these exclude from THIS category only)
-    // Exclude is always present (empty sets if not configured)
-    // Check label exclusions
     if (category.exclude.labels.size > 0) {
       for (const excludeLabel of category.exclude.labels) {
         if (labels.has(excludeLabel)) {
-          // Excluded from this category, continue to next category
           continue categoryLoop;
         }
       }
     }
 
-    // Check author exclusions
     if (category.exclude.authors.size > 0 && author) {
       if (category.exclude.authors.has(author)) {
-        // Excluded from this category, continue to next category
         continue categoryLoop;
       }
     }
 
-    // Matched and not excluded from this category
     return category.title;
   }
 
-  // Check wildcard category last (as per GitHub spec)
   if (wildcardCategory) {
-    // Check category-level exclusions for wildcard category
-    // Exclude is always present (empty sets if not configured)
-    // Check label exclusions
     if (wildcardCategory.exclude.labels.size > 0) {
       for (const excludeLabel of wildcardCategory.exclude.labels) {
         if (labels.has(excludeLabel)) {
-          // Excluded from wildcard category
           return null;
         }
       }
     }
 
-    // Check author exclusions
     if (wildcardCategory.exclude.authors.size > 0 && author) {
       if (wildcardCategory.exclude.authors.has(author)) {
-        // Excluded from wildcard category
         return null;
       }
     }
@@ -553,12 +528,10 @@ export async function generateChangesetFromGit(
     const labels = new Set(labelsArray);
     const author = githubCommit?.author;
 
-    // Apply global exclusions first (these completely hide the PR)
     if (shouldExcludePR(labels, author, releaseConfig)) {
       continue;
     }
 
-    // Match PR to category (category-level exclusions are handled inside matchPRToCategory)
     const categoryTitle = matchPRToCategory(labels, author, releaseConfig);
 
     const commit: Commit = {
@@ -579,12 +552,8 @@ export async function generateChangesetFromGit(
     }
 
     if (!categoryTitle) {
-      // No category matched, add to leftovers
       leftovers.push(commit);
     } else {
-      // Add to category
-      // Note: PRs should always have both PR number and author when matched to a category,
-      // but we handle the edge case gracefully by adding to leftovers
       if (!commit.pr || !commit.author) {
         leftovers.push(commit);
       } else {
@@ -614,13 +583,10 @@ export async function generateChangesetFromGit(
   }
 
   const changelogSections = [];
-  // Get GitHub config for PR links
   const { repo, owner } = await getGlobalGitHubConfig();
   const prLinkBase = `https://github.com/${owner}/${repo}/pull`;
 
-  // Generate sections for each category
   for (const [, category] of categories.entries()) {
-    // Skip categories with no PRs
     if (category.prs.length === 0) {
       continue;
     }
@@ -629,14 +595,11 @@ export async function generateChangesetFromGit(
       markdownHeader(SUBSECTION_HEADER_LEVEL, category.title)
     );
 
-    // Format each PR according to GitHub's automated release notes format:
-    // - <PR Title> by @<author> in [#<PR no>](<link to PR>)
     const prEntries = category.prs.map(pr => {
       const prLink = `${prLinkBase}/${pr.number}`;
       const prTitle = escapeLeadingUnderscores(pr.title);
       let entry = `- ${prTitle} by @${pr.author} in [#${pr.number}](${prLink})`;
       
-      // Include PR body if it contains the magic word
       if (pr.body?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
         const body = pr.body.replace(BODY_IN_CHANGELOG_MAGIC_WORD, '').trim();
         if (body) {
@@ -650,7 +613,6 @@ export async function generateChangesetFromGit(
     changelogSections.push(prEntries.join('\n'));
   }
 
-  // Handle leftovers (PRs that don't match any category)
   const nLeftovers = leftovers.length;
   if (nLeftovers > 0) {
     changelogSections.push(
