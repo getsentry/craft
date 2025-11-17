@@ -253,6 +253,28 @@ interface ReleaseConfig {
   };
 }
 
+/**
+ * Normalized release config with Sets for efficient lookups
+ */
+interface NormalizedReleaseConfig {
+  changelog: {
+    exclude?: {
+      labels?: Set<string>;
+      authors?: Set<string>;
+    };
+    categories?: NormalizedCategory[];
+  };
+}
+
+interface NormalizedCategory {
+  title: string;
+  labels: string[]; // Normalized: always an array, empty if undefined in config
+  exclude?: {
+    labels?: Set<string>;
+    authors?: Set<string>;
+  };
+}
+
 type CategoryWithPRs = {
   title: string;
   prs: PullRequest[];
@@ -284,12 +306,66 @@ function readReleaseConfig(): ReleaseConfig | null {
 }
 
 /**
+ * Normalizes the release config by converting arrays to Sets and normalizing empty arrays
+ */
+function normalizeReleaseConfig(config: ReleaseConfig | null): NormalizedReleaseConfig | null {
+  if (!config?.changelog) {
+    return null;
+  }
+
+  const normalized: NormalizedReleaseConfig = {
+    changelog: {
+      exclude: undefined,
+      categories: undefined,
+    },
+  };
+
+  // Normalize global exclusions
+  if (config.changelog.exclude) {
+    normalized.changelog.exclude = {};
+    if (config.changelog.exclude.labels && config.changelog.exclude.labels.length > 0) {
+      normalized.changelog.exclude.labels = new Set(config.changelog.exclude.labels);
+    }
+    if (config.changelog.exclude.authors && config.changelog.exclude.authors.length > 0) {
+      normalized.changelog.exclude.authors = new Set(config.changelog.exclude.authors);
+    }
+  }
+
+  // Normalize categories
+  if (config.changelog.categories) {
+    normalized.changelog.categories = config.changelog.categories.map(category => {
+      const normalizedCategory: NormalizedCategory = {
+        title: category.title,
+        // Normalize labels: always an array, empty if undefined
+        labels: category.labels && category.labels.length > 0 ? category.labels : [],
+        exclude: undefined,
+      };
+
+      // Normalize category-level exclusions
+      if (category.exclude) {
+        normalizedCategory.exclude = {};
+        if (category.exclude.labels && category.exclude.labels.length > 0) {
+          normalizedCategory.exclude.labels = new Set(category.exclude.labels);
+        }
+        if (category.exclude.authors && category.exclude.authors.length > 0) {
+          normalizedCategory.exclude.authors = new Set(category.exclude.authors);
+        }
+      }
+
+      return normalizedCategory;
+    });
+  }
+
+  return normalized;
+}
+
+/**
  * Checks if a PR should be excluded globally based on release config
  */
 function shouldExcludePR(
-  labels: string[],
+  labels: Set<string>,
   author: string | undefined,
-  config: ReleaseConfig | null
+  config: NormalizedReleaseConfig | null
 ): boolean {
   if (!config?.changelog?.exclude) {
     return false;
@@ -297,18 +373,18 @@ function shouldExcludePR(
 
   const { exclude } = config.changelog;
 
-  // Check label exclusions
-  if (exclude.labels) {
+  // Check label exclusions using Set intersection
+  if (exclude.labels && exclude.labels.size > 0) {
     for (const excludeLabel of exclude.labels) {
-      if (labels.includes(excludeLabel)) {
+      if (labels.has(excludeLabel)) {
         return true;
       }
     }
   }
 
-  // Check author exclusions
-  if (exclude.authors && author) {
-    if (exclude.authors.includes(author)) {
+  // Check author exclusions using Set lookup
+  if (exclude.authors && exclude.authors.size > 0 && author) {
+    if (exclude.authors.has(author)) {
       return true;
     }
   }
@@ -316,99 +392,98 @@ function shouldExcludePR(
   return false;
 }
 
-/**
- * Checks if a PR is excluded at the category level
- * Category-level exclusions completely remove the PR from the changelog
- */
-function isCategoryLevelExcluded(
-  labels: string[],
-  author: string | undefined,
-  config: ReleaseConfig | null
-): boolean {
-  if (!config?.changelog?.categories) {
-    return false;
-  }
-
-  for (const category of config.changelog.categories) {
-    // Check if PR matches category labels
-    if (!category.labels || category.labels.length === 0) {
-      continue;
-    }
-
-    let matchesCategory = false;
-    for (const categoryLabel of category.labels) {
-      if (categoryLabel === '*') {
-        matchesCategory = true;
-        break;
-      }
-      if (labels.includes(categoryLabel)) {
-        matchesCategory = true;
-        break;
-      }
-    }
-
-    if (!matchesCategory) {
-      continue;
-    }
-
-    // Check if excluded at this category level
-    if (category.exclude) {
-      if (category.exclude.labels) {
-        for (const excludeLabel of category.exclude.labels) {
-          if (labels.includes(excludeLabel)) {
-            return true; // Excluded at category level
-          }
-        }
-      }
-
-      if (category.exclude.authors && author) {
-        if (category.exclude.authors.includes(author)) {
-          return true; // Excluded at category level
-        }
-      }
-    }
-  }
-
-  return false;
-}
 
 /**
  * Matches a PR's labels to a category from release config
- * @returns Category title or null if no match
+ * Category-level exclusions are checked here - they exclude the PR from this specific category only
+ * @returns Category title or null if no match or excluded from this category
  */
 function matchPRToCategory(
-  labels: string[],
-  config: ReleaseConfig | null
+  labels: Set<string>,
+  author: string | undefined,
+  config: NormalizedReleaseConfig | null
 ): string | null {
   if (!config?.changelog?.categories) {
     return null;
   }
 
+  // Separate wildcard category to check last
+  const regularCategories: NormalizedCategory[] = [];
+  let wildcardCategory: NormalizedCategory | null = null;
+
   for (const category of config.changelog.categories) {
-    // Check if PR matches category labels
-    if (!category.labels || category.labels.length === 0) {
+    // Normalized categories always have labels array (empty if undefined in config)
+    if (category.labels.length === 0) {
       continue;
     }
 
-    let matchesCategory = false;
-    for (const categoryLabel of category.labels) {
-      if (categoryLabel === '*') {
-        matchesCategory = true;
-        break;
-      }
-      if (labels.includes(categoryLabel)) {
-        matchesCategory = true;
-        break;
-      }
+    // Check for wildcard category (should be checked last)
+    if (category.labels.includes('*')) {
+      wildcardCategory = category;
+      continue;
     }
+
+    regularCategories.push(category);
+  }
+
+  // Check regular categories first
+  categoryLoop: for (const category of regularCategories) {
+    // Check if PR matches category labels
+    const matchesCategory = category.labels.some(label => labels.has(label));
 
     if (!matchesCategory) {
       continue;
     }
 
-    // Don't check category-level exclusions here - they're handled separately
-    // by isCategoryLevelExcluded() to completely exclude the PR
+    // Check category-level exclusions (these exclude from THIS category only)
+    if (category.exclude) {
+      // Check label exclusions
+      if (category.exclude.labels && category.exclude.labels.size > 0) {
+        for (const excludeLabel of category.exclude.labels) {
+          if (labels.has(excludeLabel)) {
+            // Excluded from this category, continue to next category
+            continue categoryLoop;
+          }
+        }
+      }
+
+      // Check author exclusions
+      if (category.exclude.authors && category.exclude.authors.size > 0 && author) {
+        if (category.exclude.authors.has(author)) {
+          // Excluded from this category, continue to next category
+          continue categoryLoop;
+        }
+      }
+    }
+
+    // Matched and not excluded from this category
     return category.title;
+  }
+
+  // Check wildcard category last (as per GitHub spec)
+  if (wildcardCategory) {
+    // Check category-level exclusions for wildcard category
+    if (wildcardCategory.exclude) {
+      // Check label exclusions
+      if (wildcardCategory.exclude.labels && wildcardCategory.exclude.labels.size > 0) {
+        for (const excludeLabel of wildcardCategory.exclude.labels) {
+          if (labels.has(excludeLabel)) {
+            // Excluded from wildcard category
+            return null;
+          }
+        }
+      }
+
+      // Check author exclusions
+      if (wildcardCategory.exclude.authors && wildcardCategory.exclude.authors.size > 0 && author) {
+        if (wildcardCategory.exclude.authors.has(author)) {
+          // Excluded from wildcard category
+          return null;
+        }
+      }
+    }
+
+    return wildcardCategory.title;
   }
 
   return null;
@@ -447,7 +522,8 @@ export async function generateChangesetFromGit(
   rev: string,
   maxLeftovers: number = MAX_LEFTOVERS
 ): Promise<string> {
-  const releaseConfig = readReleaseConfig();
+  const rawConfig = readReleaseConfig();
+  const releaseConfig = normalizeReleaseConfig(rawConfig);
 
   const gitCommits = (await getChangesSince(git, rev)).filter(
     ({ body }) => !body.includes(SKIP_CHANGELOG_MAGIC_WORD)
@@ -457,7 +533,7 @@ export async function generateChangesetFromGit(
     gitCommits.map(({ hash }) => hash)
   );
 
-  const categories: Record</*category title*/ string, CategoryWithPRs> = {};
+  const categories = new Map<string, CategoryWithPRs>();
   const commits: Record</*hash*/ string, Commit> = {};
   const leftovers: Commit[] = [];
   const missing: Commit[] = [];
@@ -470,21 +546,17 @@ export async function generateChangesetFromGit(
       continue;
     }
 
-    const labels = githubCommit?.labels ?? [];
+    const labelsArray = githubCommit?.labels ?? [];
+    const labels = new Set(labelsArray);
     const author = githubCommit?.author;
 
-    // Apply global exclusions
+    // Apply global exclusions first (these completely hide the PR)
     if (shouldExcludePR(labels, author, releaseConfig)) {
       continue;
     }
 
-    // Apply category-level exclusions (these completely hide the PR)
-    if (isCategoryLevelExcluded(labels, author, releaseConfig)) {
-      continue;
-    }
-
-    // Match PR to category
-    const categoryTitle = matchPRToCategory(labels, releaseConfig);
+    // Match PR to category (category-level exclusions are handled inside matchPRToCategory)
+    const categoryTitle = matchPRToCategory(labels, author, releaseConfig);
 
     const commit: Commit = {
       author: author,
@@ -494,7 +566,7 @@ export async function generateChangesetFromGit(
       hasPRinTitle: Boolean(gitCommit.pr),
       pr: githubCommit?.pr ?? null,
       prBody: githubCommit?.prBody ?? null,
-      labels: labels,
+      labels: labelsArray,
       category: categoryTitle,
     };
     commits[hash] = commit;
@@ -508,23 +580,25 @@ export async function generateChangesetFromGit(
       leftovers.push(commit);
     } else {
       // Add to category
-      const category = categories[categoryTitle] || {
-        title: categoryTitle,
-        prs: [] as PullRequest[],
-      };
-      // If we have both PR and author, add to category PRs list
-      // Otherwise, add to leftovers (e.g., PR without author, or commit without PR)
-      if (commit.pr && commit.author) {
+      // Note: PRs should always have both PR number and author when matched to a category,
+      // but we handle the edge case gracefully by adding to leftovers
+      if (!commit.pr || !commit.author) {
+        leftovers.push(commit);
+      } else {
+        let category = categories.get(categoryTitle);
+        if (!category) {
+          category = {
+            title: categoryTitle,
+            prs: [] as PullRequest[],
+          };
+          categories.set(categoryTitle, category);
+        }
         category.prs.push({
           author: commit.author,
           number: commit.pr,
           body: commit.prBody ?? '',
           title: commit.title,
         });
-        categories[categoryTitle] = category;
-      } else {
-        // Matched category but missing PR or author, add to leftovers
-        leftovers.push(commit);
       }
     }
   }
@@ -542,8 +616,7 @@ export async function generateChangesetFromGit(
   const prLinkBase = `https://github.com/${owner}/${repo}/pull`;
 
   // Generate sections for each category
-  for (const categoryTitle of Object.keys(categories)) {
-    const category = categories[categoryTitle];
+  for (const [, category] of categories.entries()) {
     // Skip categories with no PRs
     if (category.prs.length === 0) {
       continue;

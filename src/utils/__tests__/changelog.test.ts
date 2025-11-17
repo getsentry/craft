@@ -918,8 +918,12 @@ describe('generateChangesetFromGit', () => {
       );
 
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
-      expect(changes).not.toContain('#1');
+      // PR #1 is excluded from Features category but should appear in Other
+      // (category-level exclusions only exclude from that specific category)
+      expect(changes).toContain('#1');
+      expect(changes).not.toContain('Feature PR (#1) by @alice in [#1]');
       expect(changes).toContain('#2');
+      expect(changes).toContain('### Features');
     });
 
     it('should support wildcard category matching', async () => {
