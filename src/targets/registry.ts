@@ -322,7 +322,7 @@ export class RegistryTarget extends BaseTarget {
     );
 
     const files: { [key: string]: any } = {};
-    await mapLimit(artifacts, MAX_DOWNLOAD_CONCURRENCY, async artifact => {
+    await mapLimit(artifacts, MAX_DOWNLOAD_CONCURRENCY, async (artifact: RemoteArtifact) => {
       const fileData = await this.getArtifactData(
         registryConfig,
         artifact,

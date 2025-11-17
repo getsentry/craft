@@ -29,6 +29,7 @@ import {
 /*************** mocks and other setup ***************/
 
 jest.mock('../../logger');
+jest.mock('fs');
 
 const mockGCSUpload = jest.fn();
 const mockGCSDownload = jest.fn();
@@ -41,8 +42,6 @@ jest.mock('@google-cloud/storage', () => ({
   })),
   Storage: jest.fn(() => ({})),
 }));
-
-const syncExistsSpy = jest.spyOn(fs, 'existsSync');
 
 const cleanEnv = { ...process.env };
 
@@ -134,7 +133,7 @@ describe('gcsApi module', () => {
       process.env.DOG_CREDS_PATH = './iDontExist.json';
 
       // make sure it won't find the file
-      syncExistsSpy.mockReturnValueOnce(false);
+      (fs.existsSync as jest.Mock).mockReturnValueOnce(false);
 
       expect(() => {
         getGCSCredsFromEnv(
@@ -293,7 +292,7 @@ describe('gcsApi module', () => {
         expect.assertions(1);
 
         // make sure it won't find the directory
-        syncExistsSpy.mockReturnValueOnce(false);
+        (fs.existsSync as jest.Mock).mockReturnValueOnce(false);
 
         await expect(
           client.downloadArtifact(
