@@ -255,23 +255,24 @@ interface ReleaseConfig {
 
 /**
  * Normalized release config with Sets for efficient lookups
+ * All fields are non-optional - use empty sets/arrays when not present
  */
 interface NormalizedReleaseConfig {
   changelog: {
-    exclude?: {
-      labels?: Set<string>;
-      authors?: Set<string>;
+    exclude: {
+      labels: Set<string>;
+      authors: Set<string>;
     };
-    categories?: NormalizedCategory[];
+    categories: NormalizedCategory[];
   };
 }
 
 interface NormalizedCategory {
   title: string;
   labels: string[]; // Normalized: always an array, empty if undefined in config
-  exclude?: {
-    labels?: Set<string>;
-    authors?: Set<string>;
+  exclude: {
+    labels: Set<string>;
+    authors: Set<string>;
   };
 }
 
@@ -315,14 +316,16 @@ function normalizeReleaseConfig(config: ReleaseConfig | null): NormalizedRelease
 
   const normalized: NormalizedReleaseConfig = {
     changelog: {
-      exclude: undefined,
-      categories: undefined,
+      exclude: {
+        labels: new Set<string>(),
+        authors: new Set<string>(),
+      },
+      categories: [],
     },
   };
 
-  // Normalize global exclusions
+  // Normalize global exclusions - use empty sets if not present
   if (config.changelog.exclude) {
-    normalized.changelog.exclude = {};
     if (config.changelog.exclude.labels && config.changelog.exclude.labels.length > 0) {
       normalized.changelog.exclude.labels = new Set(config.changelog.exclude.labels);
     }
@@ -331,19 +334,21 @@ function normalizeReleaseConfig(config: ReleaseConfig | null): NormalizedRelease
     }
   }
 
-  // Normalize categories
+  // Normalize categories - use empty array if not present
   if (config.changelog.categories) {
     normalized.changelog.categories = config.changelog.categories.map(category => {
       const normalizedCategory: NormalizedCategory = {
         title: category.title,
         // Normalize labels: always an array, empty if undefined
         labels: category.labels && category.labels.length > 0 ? category.labels : [],
-        exclude: undefined,
+        exclude: {
+          labels: new Set<string>(),
+          authors: new Set<string>(),
+        },
       };
 
-      // Normalize category-level exclusions
+      // Normalize category-level exclusions - use empty sets if not present
       if (category.exclude) {
-        normalizedCategory.exclude = {};
         if (category.exclude.labels && category.exclude.labels.length > 0) {
           normalizedCategory.exclude.labels = new Set(category.exclude.labels);
         }
@@ -367,14 +372,14 @@ function shouldExcludePR(
   author: string | undefined,
   config: NormalizedReleaseConfig | null
 ): boolean {
-  if (!config?.changelog?.exclude) {
+  if (!config?.changelog) {
     return false;
   }
 
   const { exclude } = config.changelog;
 
   // Check label exclusions using Set intersection
-  if (exclude.labels && exclude.labels.size > 0) {
+  if (exclude.labels.size > 0) {
     for (const excludeLabel of exclude.labels) {
       if (labels.has(excludeLabel)) {
         return true;
@@ -383,7 +388,7 @@ function shouldExcludePR(
   }
 
   // Check author exclusions using Set lookup
-  if (exclude.authors && exclude.authors.size > 0 && author) {
+  if (exclude.authors.size > 0 && author) {
     if (exclude.authors.has(author)) {
       return true;
     }
@@ -403,7 +408,7 @@ function matchPRToCategory(
   author: string | undefined,
   config: NormalizedReleaseConfig | null
 ): string | null {
-  if (!config?.changelog?.categories) {
+  if (!config?.changelog || config.changelog.categories.length === 0) {
     return null;
   }
 
@@ -436,23 +441,22 @@ function matchPRToCategory(
     }
 
     // Check category-level exclusions (these exclude from THIS category only)
-    if (category.exclude) {
-      // Check label exclusions
-      if (category.exclude.labels && category.exclude.labels.size > 0) {
-        for (const excludeLabel of category.exclude.labels) {
-          if (labels.has(excludeLabel)) {
-            // Excluded from this category, continue to next category
-            continue categoryLoop;
-          }
-        }
-      }
-
-      // Check author exclusions
-      if (category.exclude.authors && category.exclude.authors.size > 0 && author) {
-        if (category.exclude.authors.has(author)) {
+    // Exclude is always present (empty sets if not configured)
+    // Check label exclusions
+    if (category.exclude.labels.size > 0) {
+      for (const excludeLabel of category.exclude.labels) {
+        if (labels.has(excludeLabel)) {
           // Excluded from this category, continue to next category
           continue categoryLoop;
         }
+      }
+    }
+
+    // Check author exclusions
+    if (category.exclude.authors.size > 0 && author) {
+      if (category.exclude.authors.has(author)) {
+        // Excluded from this category, continue to next category
+        continue categoryLoop;
       }
     }
 
@@ -463,23 +467,22 @@ function matchPRToCategory(
   // Check wildcard category last (as per GitHub spec)
   if (wildcardCategory) {
     // Check category-level exclusions for wildcard category
-    if (wildcardCategory.exclude) {
-      // Check label exclusions
-      if (wildcardCategory.exclude.labels && wildcardCategory.exclude.labels.size > 0) {
-        for (const excludeLabel of wildcardCategory.exclude.labels) {
-          if (labels.has(excludeLabel)) {
-            // Excluded from wildcard category
-            return null;
-          }
-        }
-      }
-
-      // Check author exclusions
-      if (wildcardCategory.exclude.authors && wildcardCategory.exclude.authors.size > 0 && author) {
-        if (wildcardCategory.exclude.authors.has(author)) {
+    // Exclude is always present (empty sets if not configured)
+    // Check label exclusions
+    if (wildcardCategory.exclude.labels.size > 0) {
+      for (const excludeLabel of wildcardCategory.exclude.labels) {
+        if (labels.has(excludeLabel)) {
           // Excluded from wildcard category
           return null;
         }
+      }
+    }
+
+    // Check author exclusions
+    if (wildcardCategory.exclude.authors.size > 0 && author) {
+      if (wildcardCategory.exclude.authors.has(author)) {
+        // Excluded from wildcard category
+        return null;
       }
     }
 
