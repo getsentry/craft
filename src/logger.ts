@@ -1,4 +1,4 @@
-import { addBreadcrumb, Severity } from '@sentry/node';
+import { addBreadcrumb, SeverityLevel } from '@sentry/node';
 import Table from 'cli-table';
 import consola, {
   BasicReporter,
@@ -27,7 +27,7 @@ class SentryBreadcrumbReporter extends BasicReporter {
   public log(logObj: ConsolaReporterLogObject) {
     const breadcrumb = {
       message: this.formatLogObj(logObj),
-      level: logObj.type as Severity,
+      level: logObj.type as SeverityLevel,
     };
     addBreadcrumb(breadcrumb);
   }
