@@ -440,10 +440,8 @@ function matchPRToCategory(
   }
 
   if (wildcardCategory) {
-    for (const excludeLabel of wildcardCategory.exclude.labels) {
-      if (labels.has(excludeLabel)) {
-        return null;
-      }
+    if (wildcardCategory.exclude.labels.intersection(labels).size > 0) {
+      return null;
     }
 
     if (author && wildcardCategory.exclude.authors.has(author)) {
@@ -604,9 +602,12 @@ export async function generateChangesetFromGit(
 
   const nLeftovers = leftovers.length;
   if (nLeftovers > 0) {
-    changelogSections.push(
-      markdownHeader(SUBSECTION_HEADER_LEVEL, 'Other')
-    );
+    // Only add "Other" section header if there are other category sections
+    if (changelogSections.length > 0) {
+      changelogSections.push(
+        markdownHeader(SUBSECTION_HEADER_LEVEL, 'Other')
+      );
+    }
     changelogSections.push(
       leftovers.slice(0, maxLeftovers).map(formatCommit).join('\n')
     );

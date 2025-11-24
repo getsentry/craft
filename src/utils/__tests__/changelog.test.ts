@@ -399,7 +399,7 @@ describe('generateChangesetFromGit', () => {
         },
       ],
       null,
-      '### Other\n\n- Upgraded the kernel (abcdef12)',
+      '- Upgraded the kernel (abcdef12)',
     ],
     [
       'use pull request number when available locally',
@@ -412,7 +412,7 @@ describe('generateChangesetFromGit', () => {
         },
       ],
       null,
-      '### Other\n\n- Upgraded the kernel (#123)',
+      '- Upgraded the kernel (#123)',
     ],
     [
       'use pull request number when available remotely',
@@ -425,7 +425,7 @@ describe('generateChangesetFromGit', () => {
         },
       ],
       null,
-      '### Other\n\n- Upgraded the kernel (#123) by @sentry',
+      '- Upgraded the kernel (#123) by @sentry',
     ],
     [
       'Does not error when PR author is null',
@@ -438,7 +438,7 @@ describe('generateChangesetFromGit', () => {
         },
       ],
       null,
-      '### Other\n\n- Upgraded the kernel (#123)',
+      '- Upgraded the kernel (#123)',
     ],
     [
       'handle multiple commits properly',
@@ -472,8 +472,6 @@ describe('generateChangesetFromGit', () => {
       ],
       null,
       [
-        '### Other',
-        '',
         '- Upgraded the kernel (abcdef12)',
         '- Upgraded the manifold (#123) by @alice',
         '- Refactored the crankshaft (#456) by @bob',
@@ -604,8 +602,10 @@ describe('generateChangesetFromGit', () => {
         },
       ],
       null,
-      '### Other\n\n- Serialized \\_meta (#123)',
+      '- Serialized \\_meta (#123)',
     ],
+    // NOTE: #skip-changelog is now redundant as we can skip PRs with certain labels
+    // via .github/release.yml configuration (changelog.exclude.labels)
     [
       `should skip commits & prs with the magic ${SKIP_CHANGELOG_MAGIC_WORD}`,
       [
@@ -974,8 +974,10 @@ describe('generateChangesetFromGit', () => {
       );
 
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
-      expect(changes).toContain('### Other');
+      // When no config exists, PRs show up without category headers
+      expect(changes).not.toContain('### Other');
       expect(changes).toContain('#1');
+      expect(changes).toContain('alice');
     });
   });
 });
