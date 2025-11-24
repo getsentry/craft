@@ -112,10 +112,12 @@ describe('gcsApi module', () => {
     it('returns null if neither JSON creds nor creds filepath provided', () => {
       // skip defining variables
 
-      expect(getGCSCredsFromEnv(
-        { name: 'DOG_CREDS_JSON' },
-        { name: 'DOG_CREDS_PATH' }
-      )).toBeNull();
+      expect(
+        getGCSCredsFromEnv(
+          { name: 'DOG_CREDS_JSON' },
+          { name: 'DOG_CREDS_PATH' }
+        )
+      ).toBeNull();
     });
 
     it('errors if given bogus JSON', () => {

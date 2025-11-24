@@ -1,13 +1,21 @@
 jest.mock('../../utils/githubApi.ts');
-import { getGitHubClient} from '../../utils/githubApi';
-import { GitHubArtifactProvider, ArtifactItem, lazyRequest, lazyRequestCallback} from '../github';
+import { getGitHubClient } from '../../utils/githubApi';
+import {
+  GitHubArtifactProvider,
+  ArtifactItem,
+  lazyRequest,
+  lazyRequestCallback,
+} from '../github';
 import { sleep } from '../../utils/async';
 
 class TestGitHubArtifactProvider extends GitHubArtifactProvider {
   public testGetRevisionArtifact(revision: string): Promise<ArtifactItem> {
     return this.getRevisionArtifact(revision);
   }
-  public testSearchForRevisionArtifact(revision: string, getRevisionDate: lazyRequestCallback<string>): Promise<ArtifactItem|null> {
+  public testSearchForRevisionArtifact(
+    revision: string,
+    getRevisionDate: lazyRequestCallback<string>
+  ): Promise<ArtifactItem | null> {
     return this.searchForRevisionArtifact(revision, getRevisionDate);
   }
 }
@@ -18,11 +26,11 @@ describe('GitHub Artifact Provider', () => {
   let githubArtifactProvider: TestGitHubArtifactProvider;
   let mockClient: {
     actions: {
-      listArtifactsForRepo: jest.Mock,
-    },
+      listArtifactsForRepo: jest.Mock;
+    };
     git: {
-      getCommit: jest.Mock,
-    },
+      getCommit: jest.Mock;
+    };
   };
   let mockedSleep;
 
@@ -46,7 +54,7 @@ describe('GitHub Artifact Provider', () => {
 
     mockedSleep = sleep as jest.Mock;
     mockedSleep.mockImplementation(() => {
-      return new Promise((resolve) => setTimeout(resolve, 10));
+      return new Promise(resolve => setTimeout(resolve, 10));
     });
   });
 
@@ -89,6 +97,7 @@ describe('GitHub Artifact Provider', () => {
         },
       });
       await expect(
+        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testGetRevisionArtifact(
           '1b843f2cbb20fdda99ef749e29e75e43e6e43b38'
         )
@@ -113,55 +122,58 @@ describe('GitHub Artifact Provider', () => {
         status: 200,
         data: {
           committer: {
-            date: "2021-05-12T21:45:04Z",
+            date: '2021-05-12T21:45:04Z',
           },
         },
-      })
-      mockClient.actions.listArtifactsForRepo.mockResolvedValueOnce({
-        status: 200,
-        data: {
-          // NOTE: 101 here will force pagination to be handled.
-          total_count: 101,
-          artifacts: [
-            {
-              id: 60232691,
-              node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
-              name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
-              size_in_bytes: 6511029,
-              url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
-              archive_download_url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
-              expired: false,
-              created_at: '2021-05-12T21:45:04Z',
-              updated_at: '2021-05-12T21:45:07Z',
-              expires_at: '2021-08-10T21:45:00Z',
-            },
-          ],
-        },
-      }).mockResolvedValueOnce({
-        status: 200,
-        data: {
-          total_count: 101,
-          artifacts: [
-            {
-              id: 60233710,
-              node_id: 'MDg6QXJ0aWZhY3Q2MDIzMzcxMA==',
-              name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
-              size_in_bytes: 6511029,
-              url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
-              archive_download_url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip',
-              expired: false,
-              created_at: '2021-05-12T21:50:35Z',
-              updated_at: '2021-05-12T21:50:38Z',
-              expires_at: '2021-08-10T21:50:31Z',
-            },
-          ],
-        },
       });
+      mockClient.actions.listArtifactsForRepo
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            // NOTE: 101 here will force pagination to be handled.
+            total_count: 101,
+            artifacts: [
+              {
+                id: 60232691,
+                node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
+                name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
+                size_in_bytes: 6511029,
+                url:
+                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
+                archive_download_url:
+                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
+                expired: false,
+                created_at: '2021-05-12T21:45:04Z',
+                updated_at: '2021-05-12T21:45:07Z',
+                expires_at: '2021-08-10T21:45:00Z',
+              },
+            ],
+          },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            total_count: 101,
+            artifacts: [
+              {
+                id: 60233710,
+                node_id: 'MDg6QXJ0aWZhY3Q2MDIzMzcxMA==',
+                name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+                size_in_bytes: 6511029,
+                url:
+                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
+                archive_download_url:
+                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip',
+                expired: false,
+                created_at: '2021-05-12T21:50:35Z',
+                updated_at: '2021-05-12T21:50:38Z',
+                expires_at: '2021-08-10T21:50:31Z',
+              },
+            ],
+          },
+        });
       await expect(
+        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testGetRevisionArtifact(
           '1b843f2cbb20fdda99ef749e29e75e43e6e43b38'
         )
@@ -220,6 +232,7 @@ describe('GitHub Artifact Provider', () => {
         },
       });
       await expect(
+        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testGetRevisionArtifact(
           '1b843f2cbb20fdda99ef749e29e75e43e6e43b38'
         )
@@ -249,6 +262,7 @@ describe('GitHub Artifact Provider', () => {
       });
 
       await expect(
+        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testGetRevisionArtifact(
           '1b843f2cbb20fdda99ef749e29e75e43e6e43b38'
         )
@@ -298,6 +312,7 @@ describe('GitHub Artifact Provider', () => {
         },
       });
       await expect(
+        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testGetRevisionArtifact(
           '3c2e87573d3bd16f61cf08fece0638cc47a4fc22'
         )
@@ -310,54 +325,59 @@ describe('GitHub Artifact Provider', () => {
 
   describe('searchForRevisionArtifact', () => {
     test('it should get the artifact from second page', async () => {
-      mockClient.actions.listArtifactsForRepo.mockResolvedValueOnce({
-        status: 200,
-        data: {
-          // NOTE: 101 here will force pagination to be handled.
-          total_count: 101,
-          artifacts: [
-            {
-              id: 60232691,
-              node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
-              name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
-              size_in_bytes: 6511029,
-              url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
-              archive_download_url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
-              expired: false,
-              created_at: '2021-05-12T21:45:04Z',
-              updated_at: '2021-05-12T21:45:07Z',
-              expires_at: '2021-08-10T21:45:00Z',
-            },
-          ],
-        },
-      }).mockResolvedValueOnce({
-        status: 200,
-        data: {
-          total_count: 101,
-          artifacts: [
-            {
-              id: 60233710,
-              node_id: 'MDg6QXJ0aWZhY3Q2MDIzMzcxMA==',
-              name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
-              size_in_bytes: 6511029,
-              url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
-              archive_download_url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip',
-              expired: false,
-              created_at: '2021-05-12T21:50:35Z',
-              updated_at: '2021-05-12T21:50:38Z',
-              expires_at: '2021-08-10T21:50:31Z',
-            },
-          ],
-        },
-      });
+      mockClient.actions.listArtifactsForRepo
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            // NOTE: 101 here will force pagination to be handled.
+            total_count: 101,
+            artifacts: [
+              {
+                id: 60232691,
+                node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
+                name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
+                size_in_bytes: 6511029,
+                url:
+                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
+                archive_download_url:
+                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
+                expired: false,
+                created_at: '2021-05-12T21:45:04Z',
+                updated_at: '2021-05-12T21:45:07Z',
+                expires_at: '2021-08-10T21:45:00Z',
+              },
+            ],
+          },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            total_count: 101,
+            artifacts: [
+              {
+                id: 60233710,
+                node_id: 'MDg6QXJ0aWZhY3Q2MDIzMzcxMA==',
+                name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+                size_in_bytes: 6511029,
+                url:
+                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
+                archive_download_url:
+                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip',
+                expired: false,
+                created_at: '2021-05-12T21:50:35Z',
+                updated_at: '2021-05-12T21:50:38Z',
+                expires_at: '2021-08-10T21:50:31Z',
+              },
+            ],
+          },
+        });
 
-      const getRevisionDateCallback = jest.fn().mockResolvedValueOnce("2020-05-12T21:45:04Z");
+      const getRevisionDateCallback = jest
+        .fn()
+        .mockResolvedValueOnce('2020-05-12T21:45:04Z');
 
       await expect(
+        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testSearchForRevisionArtifact(
           '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
           lazyRequest<string>(() => {
@@ -383,75 +403,81 @@ describe('GitHub Artifact Provider', () => {
     });
 
     test('it should return null if all pages are processed', async () => {
-      mockClient.actions.listArtifactsForRepo.mockResolvedValueOnce({
-        status: 200,
-        data: {
-          // NOTE: 201 here will force pagination to be handled.
-          total_count: 201,
-          artifacts: [
-            {
-              id: 60232691,
-              node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
-              name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
-              size_in_bytes: 6511029,
-              url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
-              archive_download_url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
-              expired: false,
-              created_at: '2021-05-12T21:45:04Z',
-              updated_at: '2021-05-12T21:45:07Z',
-              expires_at: '2021-08-10T21:45:00Z',
-            },
-          ],
-        },
-      }).mockResolvedValueOnce({
-        status: 200,
-        data: {
-          total_count: 201,
-          artifacts: [
-            {
-              id: 60232691,
-              node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
-              name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
-              size_in_bytes: 6511029,
-              url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
-              archive_download_url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
-              expired: false,
-              created_at: '2021-05-12T21:45:04Z',
-              updated_at: '2021-05-12T21:45:07Z',
-              expires_at: '2021-08-10T21:45:00Z',
-            },
-          ],
-        },
-      }).mockResolvedValueOnce({
-        status: 200,
-        data: {
-          total_count: 201,
-          artifacts: [
-            {
-              id: 60232691,
-              node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
-              name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
-              size_in_bytes: 6511029,
-              url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
-              archive_download_url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
-              expired: false,
-              created_at: '2021-05-12T21:45:04Z',
-              updated_at: '2021-05-12T21:45:07Z',
-              expires_at: '2021-08-10T21:45:00Z',
-            },
-          ],
-        },
-      });
+      mockClient.actions.listArtifactsForRepo
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            // NOTE: 201 here will force pagination to be handled.
+            total_count: 201,
+            artifacts: [
+              {
+                id: 60232691,
+                node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
+                name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
+                size_in_bytes: 6511029,
+                url:
+                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
+                archive_download_url:
+                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
+                expired: false,
+                created_at: '2021-05-12T21:45:04Z',
+                updated_at: '2021-05-12T21:45:07Z',
+                expires_at: '2021-08-10T21:45:00Z',
+              },
+            ],
+          },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            total_count: 201,
+            artifacts: [
+              {
+                id: 60232691,
+                node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
+                name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
+                size_in_bytes: 6511029,
+                url:
+                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
+                archive_download_url:
+                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
+                expired: false,
+                created_at: '2021-05-12T21:45:04Z',
+                updated_at: '2021-05-12T21:45:07Z',
+                expires_at: '2021-08-10T21:45:00Z',
+              },
+            ],
+          },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            total_count: 201,
+            artifacts: [
+              {
+                id: 60232691,
+                node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
+                name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
+                size_in_bytes: 6511029,
+                url:
+                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
+                archive_download_url:
+                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
+                expired: false,
+                created_at: '2021-05-12T21:45:04Z',
+                updated_at: '2021-05-12T21:45:07Z',
+                expires_at: '2021-08-10T21:45:00Z',
+              },
+            ],
+          },
+        });
 
-      const getRevisionDateCallback = jest.fn().mockResolvedValueOnce("2020-05-12T21:45:04Z");
+      const getRevisionDateCallback = jest
+        .fn()
+        .mockResolvedValueOnce('2020-05-12T21:45:04Z');
 
       await expect(
+        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testSearchForRevisionArtifact(
           '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
           lazyRequest<string>(getRevisionDateCallback)
@@ -486,9 +512,12 @@ describe('GitHub Artifact Provider', () => {
         },
       });
 
-      const getRevisionDateCallback = jest.fn().mockResolvedValueOnce( "2021-05-12T21:45:04Z");
+      const getRevisionDateCallback = jest
+        .fn()
+        .mockResolvedValueOnce('2021-05-12T21:45:04Z');
 
       await expect(
+        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testSearchForRevisionArtifact(
           '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
           lazyRequest<string>(() => {

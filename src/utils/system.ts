@@ -344,7 +344,7 @@ export async function extractZipArchive(
   filePath: string,
   dir: string
 ): Promise<void> {
-  await extract(filePath, {dir: dir});
+  await extract(filePath, { dir: dir });
 }
 
 /**

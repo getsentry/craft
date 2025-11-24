@@ -147,8 +147,9 @@ export class UpmTarget extends BaseTarget {
             targetRevision,
             changes
           );
-          await this.githubTarget.publishRelease(draftRelease,
-            { makeLatest: !isPrerelease });
+          await this.githubTarget.publishRelease(draftRelease, {
+            makeLatest: !isPrerelease,
+          });
         }
       },
       true,
