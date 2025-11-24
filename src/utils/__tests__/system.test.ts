@@ -177,24 +177,194 @@ describe('isExecutableInPath', () => {
 });
 
 describe('extractZipArchive', () => {
-    // zip with `t.txt` and `5000` iterations of `f'{string.ascii_letters}\n'}`
-    test('it can extract a larger zip', async () => {
-        await withTempDir(async tmpdir => {
-            const zip = `${tmpdir}/out.zip`;
+  // zip with `t.txt` and `5000` iterations of `f'{string.ascii_letters}\n'}`
+  test('it can extract a larger zip', async () => {
+    await withTempDir(async tmpdir => {
+      const zip = `${tmpdir}/out.zip`;
 
-            const zipf = await fs.promises.open(zip, 'w');
-            await zipf.writeFile(Buffer.from([80, 75, 3, 4, 10, 0, 0, 0, 0, 0, 99, 150, 109, 88, 220, 199, 60, 159, 40, 11, 4, 0, 40, 11, 4, 0, 5, 0, 28, 0, 116, 46, 116, 120, 116, 85, 84, 9, 0, 3, 153, 245, 241, 101, 140, 245, 241, 101, 117, 120, 11, 0, 1, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0]));
-            for (let i = 0; i < 5000; i += 1) {
-                await zipf.writeFile('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\n');
-            }
-            await zipf.writeFile(Buffer.from([80, 75, 1, 2, 30, 3, 10, 0, 0, 0, 0, 0, 99, 150, 109, 88, 220, 199, 60, 159, 40, 11, 4, 0, 40, 11, 4, 0, 5, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 164, 129, 0, 0, 0, 0, 116, 46, 116, 120, 116, 85, 84, 5, 0, 3, 153, 245, 241, 101, 117, 120, 11, 0, 1, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0, 80, 75, 5, 6, 0, 0, 0, 0, 1, 0, 1, 0, 75, 0, 0, 0, 103, 11, 4, 0, 0, 0]));
-            await zipf.close();
+      const zipf = await fs.promises.open(zip, 'w');
+      await zipf.writeFile(
+        Buffer.from([
+          80,
+          75,
+          3,
+          4,
+          10,
+          0,
+          0,
+          0,
+          0,
+          0,
+          99,
+          150,
+          109,
+          88,
+          220,
+          199,
+          60,
+          159,
+          40,
+          11,
+          4,
+          0,
+          40,
+          11,
+          4,
+          0,
+          5,
+          0,
+          28,
+          0,
+          116,
+          46,
+          116,
+          120,
+          116,
+          85,
+          84,
+          9,
+          0,
+          3,
+          153,
+          245,
+          241,
+          101,
+          140,
+          245,
+          241,
+          101,
+          117,
+          120,
+          11,
+          0,
+          1,
+          4,
+          0,
+          0,
+          0,
+          0,
+          4,
+          0,
+          0,
+          0,
+          0,
+        ])
+      );
+      for (let i = 0; i < 5000; i += 1) {
+        await zipf.writeFile(
+          'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\n'
+        );
+      }
+      await zipf.writeFile(
+        Buffer.from([
+          80,
+          75,
+          1,
+          2,
+          30,
+          3,
+          10,
+          0,
+          0,
+          0,
+          0,
+          0,
+          99,
+          150,
+          109,
+          88,
+          220,
+          199,
+          60,
+          159,
+          40,
+          11,
+          4,
+          0,
+          40,
+          11,
+          4,
+          0,
+          5,
+          0,
+          24,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          164,
+          129,
+          0,
+          0,
+          0,
+          0,
+          116,
+          46,
+          116,
+          120,
+          116,
+          85,
+          84,
+          5,
+          0,
+          3,
+          153,
+          245,
+          241,
+          101,
+          117,
+          120,
+          11,
+          0,
+          1,
+          4,
+          0,
+          0,
+          0,
+          0,
+          4,
+          0,
+          0,
+          0,
+          0,
+          80,
+          75,
+          5,
+          6,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          1,
+          0,
+          75,
+          0,
+          0,
+          0,
+          103,
+          11,
+          4,
+          0,
+          0,
+          0,
+        ])
+      );
+      await zipf.close();
 
-            await extractZipArchive(zip, `${tmpdir}/out`);
+      await extractZipArchive(zip, `${tmpdir}/out`);
 
-            // should not have corrupted our file
-            const checksum = await calculateChecksum(`${tmpdir}/out/t.txt`);
-            expect(checksum).toBe('7687e11d941faf48d4cf1692c2473a599ad0d7030e1e5c639a31b2f59cd646ba');
-        });
+      // should not have corrupted our file
+      const checksum = await calculateChecksum(`${tmpdir}/out/t.txt`);
+      expect(checksum).toBe(
+        '7687e11d941faf48d4cf1692c2473a599ad0d7030e1e5c639a31b2f59cd646ba'
+      );
     });
+  });
 });

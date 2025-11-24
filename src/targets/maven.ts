@@ -306,7 +306,9 @@ export class MavenTarget extends BaseTarget {
       this.logger.debug('Found POM: ', pomFile);
       await this.uploadPomDistribution(distDir);
     } else {
-      this.logger.warn(`No BOM/POM file found in: ${distDir}, skipping directory`);
+      this.logger.warn(
+        `No BOM/POM file found in: ${distDir}, skipping directory`
+      );
     }
   }
 
@@ -355,7 +357,7 @@ export class MavenTarget extends BaseTarget {
     } catch (error) {
       this.logger.warn(
         `Could not determine if path corresponds to a BOM file: ${pomFilepath}\n` +
-        'Error:\n',
+          'Error:\n',
         error
       );
       return false;
@@ -393,7 +395,12 @@ export class MavenTarget extends BaseTarget {
         sideArtifacts,
         classifiers,
         types,
-      } = this.transformKmpSideArtifacts(isRootDistDir, isAppleDistDir, isKlibDistDir, files);
+      } = this.transformKmpSideArtifacts(
+        isRootDistDir,
+        isAppleDistDir,
+        isKlibDistDir,
+        files
+      );
 
       await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
         'gpg:sign-and-deploy-file',
@@ -547,9 +554,15 @@ export class MavenTarget extends BaseTarget {
    * this function renames module.json to dist.module,
    * making it fit for mvn publishing.
    */
-  public async fixModuleFileName(distDir: string, moduleFile: string): Promise<void> {
+  public async fixModuleFileName(
+    distDir: string,
+    moduleFile: string
+  ): Promise<void> {
     const fallbackFile = join(distDir, 'module.json');
-    if (!await this.fileExists(moduleFile) && await this.fileExists(fallbackFile)) {
+    if (
+      !(await this.fileExists(moduleFile)) &&
+      (await this.fileExists(fallbackFile))
+    ) {
       await fsPromises.rename(fallbackFile, moduleFile);
     }
   }
@@ -573,7 +586,9 @@ export class MavenTarget extends BaseTarget {
       await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
         'gpg:sign-and-deploy-file',
         `-Dfile=${targetFile}`,
-        `-Dfiles=${javadocFile},${sourcesFile}${hasModule ? ',' + moduleFile : ''}`,
+        `-Dfiles=${javadocFile},${sourcesFile}${
+          hasModule ? ',' + moduleFile : ''
+        }`,
         `-Dclassifiers=javadoc,sources${hasModule ? ',' : ''}`,
         `-Dtypes=jar,jar${hasModule ? ',module' : ''}`,
         `-DpomFile=${pomFile}`,
@@ -600,7 +615,7 @@ export class MavenTarget extends BaseTarget {
       javadocFile: join(distDir, `${moduleName}-javadoc.jar`),
       sourcesFile: join(distDir, `${moduleName}-sources.jar`),
       pomFile: join(distDir, 'pom-default.xml'),
-      moduleFile: join(distDir, `${moduleName}.module`)
+      moduleFile: join(distDir, `${moduleName}.module`),
     };
   }
 
@@ -622,7 +637,11 @@ export class MavenTarget extends BaseTarget {
 
     const moduleName = parse(distDir).base;
     if (this.mavenConfig.kmp !== false) {
-      const { klibDistDirRegex, appleDistDirRegex, rootDistDirRegex } = this.mavenConfig.kmp;
+      const {
+        klibDistDirRegex,
+        appleDistDirRegex,
+        rootDistDirRegex,
+      } = this.mavenConfig.kmp;
 
       const isRootDistDir = rootDistDirRegex.test(moduleName);
       const isAppleDistDir = appleDistDirRegex.test(moduleName);
@@ -679,7 +698,10 @@ export class MavenTarget extends BaseTarget {
     if (this.mavenConfig.kmp !== false) {
       const { klibDistDirRegex, appleDistDirRegex } = this.mavenConfig.kmp;
 
-      if (klibDistDirRegex.test(moduleName) || appleDistDirRegex.test(moduleName)) {
+      if (
+        klibDistDirRegex.test(moduleName) ||
+        appleDistDirRegex.test(moduleName)
+      ) {
         return `${moduleName}.klib`;
       }
     }
@@ -704,9 +726,12 @@ export class MavenTarget extends BaseTarget {
   }
 
   public async getRepository(): Promise<NexusRepository> {
-    const response = await fetch(`${NEXUS_API_BASE_URL}/manual/search/repositories`, {
-      headers: this.getNexusRequestHeaders(),
-    });
+    const response = await fetch(
+      `${NEXUS_API_BASE_URL}/manual/search/repositories`,
+      {
+        headers: this.getNexusRequestHeaders(),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(
@@ -734,18 +759,29 @@ export class MavenTarget extends BaseTarget {
       const parts = repoId.split('/');
       repoId = parts[parts.length - 1] || repoId;
     }
-    return { repositoryId: repoId, state: repo.state, deploymentId: repo.portal_deployment_id };
+    return {
+      repositoryId: repoId,
+      state: repo.state,
+      deploymentId: repo.portal_deployment_id,
+    };
   }
 
   public async closeRepository(repositoryId: string): Promise<boolean> {
     // closing means uploading the repository to portal
-    const response = await fetch(`${NEXUS_API_BASE_URL}/service/local/staging/bulk/close`, {
-      headers: this.getNexusRequestHeaders(),
-      method: 'POST',
-      body: JSON.stringify({
-        data: { stagedRepositoryIds: [repositoryId], "description": "", "autoDropAfterRelease": true },
-      }),
-    });
+    const response = await fetch(
+      `${NEXUS_API_BASE_URL}/service/local/staging/bulk/close`,
+      {
+        headers: this.getNexusRequestHeaders(),
+        method: 'POST',
+        body: JSON.stringify({
+          data: {
+            stagedRepositoryIds: [repositoryId],
+            description: '',
+            autoDropAfterRelease: true,
+          },
+        }),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(
@@ -770,7 +806,8 @@ export class MavenTarget extends BaseTarget {
       }
 
       this.logger.info(
-        `Nexus repository still not closed. Waiting for ${NEXUS_RETRY_DELAY / 1000
+        `Nexus repository still not closed. Waiting for ${
+          NEXUS_RETRY_DELAY / 1000
         }s to try again.`
       );
     }
@@ -781,13 +818,20 @@ export class MavenTarget extends BaseTarget {
     const { deploymentId } = await this.getRepository();
 
     // then we need to promote the repository (=publish it)
-    const response = await fetch(`${NEXUS_API_BASE_URL}/service/local/staging/bulk/promote`, {
-      headers: this.getNexusRequestHeaders(),
-      method: 'POST',
-      body: JSON.stringify({
-        data: { stagedRepositoryIds: [repositoryId], "description": "", "autoDropAfterRelease": true },
-      }),
-    });
+    const response = await fetch(
+      `${NEXUS_API_BASE_URL}/service/local/staging/bulk/promote`,
+      {
+        headers: this.getNexusRequestHeaders(),
+        method: 'POST',
+        body: JSON.stringify({
+          data: {
+            stagedRepositoryIds: [repositoryId],
+            description: '',
+            autoDropAfterRelease: true,
+          },
+        }),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(
@@ -799,24 +843,33 @@ export class MavenTarget extends BaseTarget {
 
     while (true) {
       if (Date.now() - poolingStartTime > SONATYPE_RETRY_DEADLINE) {
-        throw new Error('Deadline for Central repository status change reached.');
+        throw new Error(
+          'Deadline for Central repository status change reached.'
+        );
       }
 
       await sleep(CENTRAL_RETRY_DELAY);
 
       // then we need to check if the repository is published with the deployment id
-      const response = await fetch(`${CENTRAL_API_BASE_URL}/publisher/status?id=${deploymentId}`, {
-        method: 'POST',
-        headers: this.getNexusRequestHeaders(),
-      });
+      const response = await fetch(
+        `${CENTRAL_API_BASE_URL}/publisher/status?id=${deploymentId}`,
+        {
+          method: 'POST',
+          headers: this.getNexusRequestHeaders(),
+        }
+      );
 
-      if (response.ok && (await response.json()).deploymentState === 'PUBLISHED') {
+      if (
+        response.ok &&
+        (await response.json()).deploymentState === 'PUBLISHED'
+      ) {
         this.logger.info(`Central repository published correctly.`);
         return true;
       }
 
       this.logger.info(
-        `Central repository still not published. Waiting for ${CENTRAL_RETRY_DELAY / 1000
+        `Central repository still not published. Waiting for ${
+          CENTRAL_RETRY_DELAY / 1000
         }s to try again.`
       );
     }

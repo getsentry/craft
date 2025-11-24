@@ -4,7 +4,12 @@ import { TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
-import { SpawnProcessOptions, checkExecutableIsPresent, extractZipArchive, spawnProcess } from '../utils/system';
+import {
+  SpawnProcessOptions,
+  checkExecutableIsPresent,
+  extractZipArchive,
+  spawnProcess,
+} from '../utils/system';
 import { BaseTarget } from './base';
 
 /** Command to launch PowerShell */
@@ -31,7 +36,10 @@ export class PowerShellTarget extends BaseTarget {
   public readonly name: string = 'powershell';
   /** Target options */
   public readonly psConfig: PowerShellTargetOptions;
-  private readonly defaultSpawnOptions = { enableInDryRunMode: true, showStdout: true }
+  private readonly defaultSpawnOptions = {
+    enableInDryRunMode: true,
+    showStdout: true,
+  };
 
   public constructor(
     config: TargetConfig,
@@ -47,15 +55,20 @@ export class PowerShellTarget extends BaseTarget {
   }
 
   /**
-     * Executes a PowerShell command.
-     */
+   * Executes a PowerShell command.
+   */
   private async spawnPwsh(
     command: string,
     spawnProcessOptions: SpawnProcessOptions = this.defaultSpawnOptions
   ): Promise<Buffer | undefined> {
     command = `$ErrorActionPreference = 'Stop'\n` + command;
-    this.logger.trace("Executing PowerShell command:", command);
-    return spawnProcess(POWERSHELL_BIN, ['-Command', command], {}, spawnProcessOptions);
+    this.logger.trace('Executing PowerShell command:', command);
+    return spawnProcess(
+      POWERSHELL_BIN,
+      ['-Command', command],
+      {},
+      spawnProcessOptions
+    );
   }
 
   /**
@@ -91,7 +104,12 @@ export class PowerShellTarget extends BaseTarget {
 
     // Emit the PowerShell executable for informational purposes.
     this.logger.info(`PowerShell (${POWERSHELL_BIN}) info:`);
-    await spawnProcess(POWERSHELL_BIN, ['--version'], {}, this.defaultSpawnOptions);
+    await spawnProcess(
+      POWERSHELL_BIN,
+      ['--version'],
+      {},
+      this.defaultSpawnOptions
+    );
 
     // Also check the command and its its module version in case there are issues:
     this.logger.info('Publish-Module command info:');
@@ -103,8 +121,11 @@ export class PowerShellTarget extends BaseTarget {
     `);
 
     // Escape the given module artifact name to avoid regex issues.
-    let moduleArtifactRegex = `${this.psConfig.module}`.replace(/[/\-\\^$*+?.()|[\]{}]/g, '\\$&');
-    moduleArtifactRegex = `/^${moduleArtifactRegex}\\.zip$/`
+    let moduleArtifactRegex = `${this.psConfig.module}`.replace(
+      /[/\-\\^$*+?.()|[\]{}]/g,
+      '\\$&'
+    );
+    moduleArtifactRegex = `/^${moduleArtifactRegex}\\.zip$/`;
 
     this.logger.debug(`Looking for artifact matching ${moduleArtifactRegex}`);
     const packageFiles = await this.getArtifactsForRevision(revision, {
@@ -122,7 +143,7 @@ export class PowerShellTarget extends BaseTarget {
     const artifact = packageFiles[0];
     const zipPath = await this.artifactProvider.downloadArtifact(artifact);
 
-    this.logger.info(`Extracting artifact "${artifact.filename}"`)
+    this.logger.info(`Extracting artifact "${artifact.filename}"`);
     await withTempDir(async dir => {
       const moduleDir = join(dir, this.psConfig.module);
       await extractZipArchive(zipPath, moduleDir);
@@ -133,7 +154,9 @@ export class PowerShellTarget extends BaseTarget {
   }
 
   public async publishModule(moduleDir: string): Promise<void> {
-    this.logger.info(`Publishing PowerShell module "${this.psConfig.module}" to ${this.psConfig.repository}`)
+    this.logger.info(
+      `Publishing PowerShell module "${this.psConfig.module}" to ${this.psConfig.repository}`
+    );
     await this.spawnPwsh(`
         Publish-Module  -Path '${moduleDir}' \`
                         -Repository '${this.psConfig.repository}' \`

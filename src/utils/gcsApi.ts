@@ -79,7 +79,9 @@ export function getGCSCredsFromEnv(
 
   // If no credentials are provided, return null to indicate ADC should be used
   if (!gcsCredsJson && !gcsCredsPath) {
-    logger.debug('No GCS credentials provided, will use Application Default Credentials');
+    logger.debug(
+      'No GCS credentials provided, will use Application Default Credentials'
+    );
     return null;
   }
 
@@ -112,7 +114,7 @@ export function getGCSCredsFromEnv(
   const { project_id, client_email, private_key } = parsedCofig;
   return {
     project_id,
-    credentials: { client_email, private_key }
+    credentials: { client_email, private_key },
   };
 }
 

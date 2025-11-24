@@ -115,7 +115,7 @@ describe('PubDev target configuration', () => {
         dos: undefined,
         tres: undefined,
       },
-      skipValidation: true
+      skipValidation: true,
     });
 
     expect(target.pubDevConfig).toStrictEqual({

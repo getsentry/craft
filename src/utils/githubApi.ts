@@ -23,11 +23,7 @@ export class GitHubRemote {
   /** Url in the form of /OWNER/REPO/ */
   protected readonly url: string;
 
-  public constructor(
-    owner: string,
-    repo: string,
-    apiToken?: string
-  ) {
+  public constructor(owner: string, repo: string, apiToken?: string) {
     this.owner = owner;
     this.repo = repo;
     if (apiToken) {

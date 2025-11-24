@@ -118,7 +118,11 @@ export class NugetTarget extends BaseTarget {
     // Also emit the nuget version, which is informative and works around a bug.
     // See https://github.com/NuGet/Home/issues/12159#issuecomment-1278360511
     this.logger.info('Nuget Version:');
-    await spawnProcess(NUGET_DOTNET_BIN, ['nuget', '--version'], DOTNET_SPAWN_OPTIONS);
+    await spawnProcess(
+      NUGET_DOTNET_BIN,
+      ['nuget', '--version'],
+      DOTNET_SPAWN_OPTIONS
+    );
 
     await Promise.all(
       packageFiles.map(async (file: RemoteArtifact) => {
@@ -140,7 +144,9 @@ export class NugetTarget extends BaseTarget {
 
         this.logger.info(
           `Uploading file "${file.filename}" via "dotnet nuget"` +
-          (symbolFile ? `, including symbol file "${symbolFile.filename}"` : '')
+            (symbolFile
+              ? `, including symbol file "${symbolFile.filename}"`
+              : '')
         );
         return this.uploadAsset(path);
       })

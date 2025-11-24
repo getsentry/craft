@@ -56,32 +56,42 @@ describe('runPreReleaseCommand', () => {
 
 describe('checkVersionOrPart', () => {
   test('return true for valid version', () => {
-    const validVersions = [
-      '2.3.3',
-      '0.0.1',
-    ];
+    const validVersions = ['2.3.3', '0.0.1'];
     for (const v of validVersions) {
       expect(
-        checkVersionOrPart({
-          newVersion: v,
-        }, null)
+        checkVersionOrPart(
+          {
+            newVersion: v,
+          },
+          null
+        )
       ).toBe(true);
     }
   });
 
   test('throw an error for invalid version', () => {
     const invalidVersions = [
-      { v: 'invalid-2.3.3', e: 'Invalid version or version part specified: "invalid-2.3.3"' },
-      { v: 'v2.3.3', e: 'Invalid version or version part specified: "v2.3.3". Removing the "v" prefix will likely fix the issue' },
+      {
+        v: 'invalid-2.3.3',
+        e: 'Invalid version or version part specified: "invalid-2.3.3"',
+      },
+      {
+        v: 'v2.3.3',
+        e:
+          'Invalid version or version part specified: "v2.3.3". Removing the "v" prefix will likely fix the issue',
+      },
       { v: 'major', e: 'Version part is not supported yet' },
       { v: 'minor', e: 'Version part is not supported yet' },
       { v: 'patch', e: 'Version part is not supported yet' },
     ];
     for (const t of invalidVersions) {
       const fn = () => {
-        checkVersionOrPart({
-          newVersion: t.v,
-        }, null);
+        checkVersionOrPart(
+          {
+            newVersion: t.v,
+          },
+          null
+        );
       };
       expect(fn).toThrow(t.e);
     }
