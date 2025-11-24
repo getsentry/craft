@@ -440,8 +440,11 @@ function matchPRToCategory(
   }
 
   if (wildcardCategory) {
-    if (wildcardCategory.exclude.labels.intersection(labels).size > 0) {
-      return null;
+    // Check if any excluded label is present in the PR's labels
+    for (const excludeLabel of wildcardCategory.exclude.labels) {
+      if (labels.has(excludeLabel)) {
+        return null;
+      }
     }
 
     if (author && wildcardCategory.exclude.authors.has(author)) {
