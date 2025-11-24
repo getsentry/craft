@@ -20,7 +20,7 @@ describe('pypi', () => {
   });
 
   test('it uploads all artifacts in a single twine call', async () => {
-    const target = new PypiTarget({name: 'pypi'}, new NoneArtifactProvider());
+    const target = new PypiTarget({ name: 'pypi' }, new NoneArtifactProvider());
     target.getArtifactsForRevision = jest
       .fn()
       .mockResolvedValueOnce([
@@ -29,7 +29,10 @@ describe('pypi', () => {
         { filename: 'pkg-1.tar.gz' },
       ]);
     target.artifactProvider.downloadArtifact = jest.fn(
-      async (artifact: RemoteArtifact, _downloadDirectory?: string | undefined) => `downloaded/path/${artifact.filename}`
+      async (
+        artifact: RemoteArtifact,
+        _downloadDirectory?: string | undefined
+      ) => `downloaded/path/${artifact.filename}`
     );
     const upload = jest.fn();
     target.uploadAssets = upload;

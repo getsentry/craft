@@ -77,7 +77,7 @@ function getFullTargetConfig(): any {
       rootDistDirRegex: '/root-distDir/',
       appleDistDirRegex: '/apple-distDir/',
       klibDistDirRegex: '/klib-distDir/',
-  },
+    },
   };
 }
 
@@ -106,9 +106,7 @@ function createMavenTarget(
   return new MavenTarget(mergedConfig, new NoneArtifactProvider());
 }
 
-function getRepositoryInfo(
-  state: NexusRepository['state'],
-): NexusRepository {
+function getRepositoryInfo(state: NexusRepository['state']): NexusRepository {
   return {
     state,
     repositoryId: 'sentry-java',
@@ -308,9 +306,7 @@ describe('transform KMP artifacts', () => {
     const files: Record<string, string | string[]> = {
       javadocFile: `${tmpDirName}-javadoc.jar`,
       sourcesFile: `${tmpDirName}-sources.jar`,
-      klibFiles: [
-        `${tmpDirName}.klib`,
-      ],
+      klibFiles: [`${tmpDirName}.klib`],
       allFile: '',
       metadataFile: ``,
       moduleFile: `${tmpDirName}.module`,
@@ -323,9 +319,7 @@ describe('transform KMP artifacts', () => {
     expect(sideArtifacts).toEqual(
       `${files.javadocFile},${files.sourcesFile},${files.klibFiles},${files.moduleFile}`
     );
-    expect(classifiers).toEqual(
-      'javadoc,sources,,'
-    );
+    expect(classifiers).toEqual('javadoc,sources,,');
     expect(types).toEqual('jar,jar,klib,module');
   });
 
@@ -412,7 +406,9 @@ describe('upload', () => {
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
     mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
-    mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce('pom-default.xml');
+    mvnTarget.getPomFileInDist = jest
+      .fn()
+      .mockResolvedValueOnce('pom-default.xml');
 
     await mvnTarget.upload('r3v1s10n');
 
@@ -462,7 +458,9 @@ describe('upload', () => {
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
     mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
-    mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce('pom-default.xml');
+    mvnTarget.getPomFileInDist = jest
+      .fn()
+      .mockResolvedValueOnce('pom-default.xml');
     mvnTarget.fileExists = jest.fn().mockResolvedValue(true);
 
     await mvnTarget.upload('r3v1s10n');
@@ -576,18 +574,20 @@ describe('upload', () => {
     );
 
     // Override fs.promises.readdir for this test to return klib files
-    const readdirSpy = jest.spyOn(fs.promises, 'readdir').mockImplementation((dirPath: any) => {
-      if (dirPath.toString().includes(klibDistDirName)) {
-        return Promise.resolve([
-          `${klibDistDirName}-javadoc.jar`,
-          `${klibDistDirName}.klib`,
-          `${klibDistDirName}-sources.jar`,
-          `${klibDistDirName}.module`,
-          POM_DEFAULT_FILENAME,
-        ] as any);
-      }
-      return Promise.resolve([] as any);
-    });
+    const readdirSpy = jest
+      .spyOn(fs.promises, 'readdir')
+      .mockImplementation((dirPath: any) => {
+        if (dirPath.toString().includes(klibDistDirName)) {
+          return Promise.resolve([
+            `${klibDistDirName}-javadoc.jar`,
+            `${klibDistDirName}.klib`,
+            `${klibDistDirName}-sources.jar`,
+            `${klibDistDirName}.module`,
+            POM_DEFAULT_FILENAME,
+          ] as any);
+        }
+        return Promise.resolve([] as any);
+      });
 
     const mvnTarget = createMavenTarget(getFullTargetConfig());
     mvnTarget.getArtifactsForRevision = jest
@@ -597,7 +597,9 @@ describe('upload', () => {
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
     mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
-    mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce('pom-default.xml');
+    mvnTarget.getPomFileInDist = jest
+      .fn()
+      .mockResolvedValueOnce('pom-default.xml');
     mvnTarget.fileExists = jest.fn().mockResolvedValue(true);
 
     await mvnTarget.upload('r3v1s10n');
@@ -613,7 +615,9 @@ describe('upload', () => {
     const cmdArgs = callArgs[1] as string[];
     expect(cmdArgs).toHaveLength(11);
     expect(cmdArgs[0]).toBe('gpg:sign-and-deploy-file');
-    expect(cmdArgs[1]).toMatch(new RegExp(`-Dfile=${klibDistDir}/${klibDistDirName}`));
+    expect(cmdArgs[1]).toMatch(
+      new RegExp(`-Dfile=${klibDistDir}/${klibDistDirName}`)
+    );
     expect(cmdArgs[2]).toBe(
       `-Dfiles=${klibDistDir}/${klibDistDirName}-javadoc.jar,${klibDistDir}/${klibDistDirName}-sources.jar,${klibDistDir}/${klibDistDirName}.klib,${klibDistDir}/${klibDistDirName}.module`
     );
@@ -692,7 +696,9 @@ describe('getRepository', () => {
     nock(url.origin)
       .get('/manual/search/repositories')
       .reply(200, {
-        repositories: [{key: 'sentry-java', state: 'open', portal_deployment_id: '1234'}],
+        repositories: [
+          { key: 'sentry-java', state: 'open', portal_deployment_id: '1234' },
+        ],
       });
 
     const mvnTarget = createMavenTarget();
@@ -744,7 +750,11 @@ describe('closeRepository', () => {
   test('should return true if server responds correctly', async () => {
     nock(url.origin)
       .post('/service/local/staging/bulk/close', {
-        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
+        data: {
+          stagedRepositoryIds: [repositoryId],
+          description: '',
+          autoDropAfterRelease: true,
+        },
       })
       .reply(200);
 
@@ -759,7 +769,11 @@ describe('closeRepository', () => {
   test('should throw if server doesnt accept the request', async () => {
     nock(url.origin)
       .post('/service/local/staging/bulk/close', {
-        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
+        data: {
+          stagedRepositoryIds: [repositoryId],
+          description: '',
+          autoDropAfterRelease: true,
+        },
       })
       .reply(500);
 
@@ -774,19 +788,19 @@ describe('closeRepository', () => {
   test('should wait for the status of repository to be changed', async () => {
     nock(url.origin)
       .post('/service/local/staging/bulk/close', {
-        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
+        data: {
+          stagedRepositoryIds: [repositoryId],
+          description: '',
+          autoDropAfterRelease: true,
+        },
       })
       .reply(200);
 
     const mvnTarget = createMavenTarget();
     mvnTarget.getRepository = jest
       .fn()
-      .mockImplementationOnce(() =>
-        Promise.resolve(getRepositoryInfo('open'))
-      )
-      .mockImplementationOnce(() =>
-        Promise.resolve(getRepositoryInfo('open'))
-      )
+      .mockImplementationOnce(() => Promise.resolve(getRepositoryInfo('open')))
+      .mockImplementationOnce(() => Promise.resolve(getRepositoryInfo('open')))
       .mockImplementationOnce(() =>
         Promise.resolve(getRepositoryInfo('closed'))
       );
@@ -799,7 +813,11 @@ describe('closeRepository', () => {
   test('should throw when status change deadline is reached', async () => {
     nock(url.origin)
       .post('/service/local/staging/bulk/close', {
-        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
+        data: {
+          stagedRepositoryIds: [repositoryId],
+          description: '',
+          autoDropAfterRelease: true,
+        },
       })
       .reply(200);
 
@@ -833,14 +851,18 @@ describe('releaseRepository', () => {
   test('should return true if server responds correctly', async () => {
     nock(url.origin)
       .post('/service/local/staging/bulk/promote', {
-        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
+        data: {
+          stagedRepositoryIds: [repositoryId],
+          description: '',
+          autoDropAfterRelease: true,
+        },
       })
       .reply(200);
 
     nock(centralUrl.origin)
       .post(`${centralUrl.pathname}/publisher/status?id=${deploymentId}`)
       .reply(200, {
-        deploymentState: 'PUBLISHED'
+        deploymentState: 'PUBLISHED',
       });
 
     const mvnTarget = createMavenTarget();
@@ -853,7 +875,11 @@ describe('releaseRepository', () => {
   test('should throw if server doesnt accept the request', async () => {
     nock(url.origin)
       .post('/service/local/staging/bulk/promote', {
-        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
+        data: {
+          stagedRepositoryIds: [repositoryId],
+          description: '',
+          autoDropAfterRelease: true,
+        },
       })
       .reply(500);
 
@@ -871,7 +897,11 @@ describe('releaseRepository', () => {
   test('should wait for the status of deployment to be changed', async () => {
     nock(url.origin)
       .post('/service/local/staging/bulk/promote', {
-        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
+        data: {
+          stagedRepositoryIds: [repositoryId],
+          description: '',
+          autoDropAfterRelease: true,
+        },
       })
       .reply(200);
 
@@ -883,15 +913,15 @@ describe('releaseRepository', () => {
     nock(centralUrl.origin)
       .post(`${centralUrl.pathname}/publisher/status?id=${deploymentId}`)
       .reply(200, {
-        deploymentState: 'VALIDATED'
+        deploymentState: 'VALIDATED',
       })
       .post(`${centralUrl.pathname}/publisher/status?id=${deploymentId}`)
       .reply(200, {
-        deploymentState: 'PUBLISHING'
+        deploymentState: 'PUBLISHING',
       })
       .post(`${centralUrl.pathname}/publisher/status?id=${deploymentId}`)
       .reply(200, {
-        deploymentState: 'PUBLISHED'
+        deploymentState: 'PUBLISHED',
       });
 
     await expect(mvnTarget.releaseRepository(repositoryId)).resolves.toBe(true);
@@ -900,7 +930,11 @@ describe('releaseRepository', () => {
   test('should throw if deadline is reached', async () => {
     nock(url.origin)
       .post('/service/local/staging/bulk/promote', {
-        data: { stagedRepositoryIds: [repositoryId], description: '', autoDropAfterRelease: true },
+        data: {
+          stagedRepositoryIds: [repositoryId],
+          description: '',
+          autoDropAfterRelease: true,
+        },
       })
       .reply(200);
 
@@ -910,12 +944,12 @@ describe('releaseRepository', () => {
     );
 
     nock(centralUrl.origin)
-    .post(`${centralUrl.pathname}/publisher/status?id=${deploymentId}`)
-    .reply(200, {
-      deploymentState: 'PUBLISHING'
-    })
+      .post(`${centralUrl.pathname}/publisher/status?id=${deploymentId}`)
+      .reply(200, {
+        deploymentState: 'PUBLISHING',
+      });
 
-   // Deadline is 2h, so we fake pooling start time and initial read to 1min
+    // Deadline is 2h, so we fake pooling start time and initial read to 1min
     // and second iteration to something over 2h
     jest
       .spyOn(Date, 'now')

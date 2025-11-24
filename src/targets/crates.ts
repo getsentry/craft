@@ -281,7 +281,9 @@ export class CratesTarget extends BaseTarget {
           await spawnProcess(CARGO_BIN, args, { env });
         } catch (err) {
           if (err instanceof Error && err.message.includes(REPUBLISH_ERROR)) {
-            this.logger.info(`Skipping ${crate.name}, version ${crate.version} already published`);
+            this.logger.info(
+              `Skipping ${crate.name}, version ${crate.version} already published`
+            );
           } else {
             throw err;
           }

@@ -71,25 +71,27 @@ describe('config', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(ConfigurationError);
       expect(error.message).toBe(
-        'Missing project configuration parameter(s): apiKey,repository,module');
+        'Missing project configuration parameter(s): apiKey,repository,module'
+      );
     }
   });
 });
 
 describe('publish', () => {
   const mockedSpawnProcess = spawnProcess as jest.Mock;
-  const spawnOptions = { enableInDryRunMode: true, showStdout: true }
+  const spawnOptions = { enableInDryRunMode: true, showStdout: true };
 
   beforeEach(() => {
     setPwshEnvironmentVariables();
     jest.clearAllMocks();
   });
 
-
   test('error on missing artifact', async () => {
     const target = getPwshTarget();
-    target.getArtifactsForRevision = jest.fn()
-      .mockImplementation(() => []).bind(PowerShellTarget);
+    target.getArtifactsForRevision = jest
+      .fn()
+      .mockImplementation(() => [])
+      .bind(PowerShellTarget);
 
     // `publish` should report an error. When it's not dry run, the error is
     // thrown; when it's on dry run, the error is logged and `undefined` is
@@ -105,8 +107,10 @@ describe('publish', () => {
 
   test('error on having too many artifacts', async () => {
     const target = getPwshTarget();
-    target.getArtifactsForRevision = jest.fn()
-      .mockImplementation(() => ['file1', 'file2']).bind(PowerShellTarget);
+    target.getArtifactsForRevision = jest
+      .fn()
+      .mockImplementation(() => ['file1', 'file2'])
+      .bind(PowerShellTarget);
 
     // `publish` should report an error. When it's not dry run, the error is
     // thrown; when it's on dry run, the error is logged and `undefined` is
@@ -127,8 +131,14 @@ describe('publish', () => {
       expect(error).toBeInstanceOf(Error);
       expect(error.message).toMatch(/there are no matching artifact/);
     }
-    expect(mockedSpawnProcess).toBeCalledWith('pwsh', ['--version'], {}, spawnOptions);
-    expect(mockedSpawnProcess).toBeCalledWith('pwsh',
+    expect(mockedSpawnProcess).toBeCalledWith(
+      'pwsh',
+      ['--version'],
+      {},
+      spawnOptions
+    );
+    expect(mockedSpawnProcess).toBeCalledWith(
+      'pwsh',
       [
         '-Command',
         `$ErrorActionPreference = 'Stop'
@@ -137,14 +147,18 @@ describe('publish', () => {
       "Module name: $($info.ModuleName)"
       "Module version: $($info.Module.Version)"
       "Module path: $($info.Module.Path)"
-    `
-      ], {}, spawnOptions);
+    `,
+      ],
+      {},
+      spawnOptions
+    );
   });
 
   test('publish-module runs with expected args', async () => {
     const target = getPwshTarget();
     await target.publishModule('/path/to/module');
-    expect(mockedSpawnProcess).toBeCalledWith('pwsh',
+    expect(mockedSpawnProcess).toBeCalledWith(
+      'pwsh',
       [
         '-Command',
         `$ErrorActionPreference = 'Stop'
@@ -153,7 +167,10 @@ describe('publish', () => {
                         -Repository 'repositoryName' \`
                         -NuGetApiKey 'test access key' \`
                         -WhatIf:$false
-      `
-      ], {}, spawnOptions);
+      `,
+      ],
+      {},
+      spawnOptions
+    );
   });
 });
