@@ -374,18 +374,14 @@ function shouldExcludePR(
 
   const { exclude } = config.changelog;
 
-  if (exclude.labels.size > 0) {
-    for (const excludeLabel of exclude.labels) {
-      if (labels.has(excludeLabel)) {
-        return true;
-      }
+  for (const excludeLabel of exclude.labels) {
+    if (labels.has(excludeLabel)) {
+      return true;
     }
   }
 
-  if (exclude.authors.size > 0 && author) {
-    if (exclude.authors.has(author)) {
-      return true;
-    }
+  if (author && exclude.authors.has(author)) {
+    return true;
   }
 
   return false;
@@ -394,7 +390,8 @@ function shouldExcludePR(
 
 /**
  * Matches a PR's labels to a category from release config
- * Category-level exclusions are checked here - they exclude the PR from this specific category only
+ * Category-level exclusions are checked here - they exclude the PR from matching this specific category,
+ * allowing it to potentially match other categories or fall through to "Other"
  * @returns Category title or null if no match or excluded from this category
  */
 function matchPRToCategory(
@@ -429,36 +426,28 @@ function matchPRToCategory(
       continue;
     }
 
-    if (category.exclude.labels.size > 0) {
-      for (const excludeLabel of category.exclude.labels) {
-        if (labels.has(excludeLabel)) {
-          continue categoryLoop;
-        }
+    for (const excludeLabel of category.exclude.labels) {
+      if (labels.has(excludeLabel)) {
+        continue categoryLoop;
       }
     }
 
-    if (category.exclude.authors.size > 0 && author) {
-      if (category.exclude.authors.has(author)) {
-        continue categoryLoop;
-      }
+    if (author && category.exclude.authors.has(author)) {
+      continue categoryLoop;
     }
 
     return category.title;
   }
 
   if (wildcardCategory) {
-    if (wildcardCategory.exclude.labels.size > 0) {
-      for (const excludeLabel of wildcardCategory.exclude.labels) {
-        if (labels.has(excludeLabel)) {
-          return null;
-        }
+    for (const excludeLabel of wildcardCategory.exclude.labels) {
+      if (labels.has(excludeLabel)) {
+        return null;
       }
     }
 
-    if (wildcardCategory.exclude.authors.size > 0 && author) {
-      if (wildcardCategory.exclude.authors.has(author)) {
-        return null;
-      }
+    if (author && wildcardCategory.exclude.authors.has(author)) {
+      return null;
     }
 
     return wildcardCategory.title;
