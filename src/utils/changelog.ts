@@ -587,16 +587,21 @@ export async function generateChangesetFromGit(
 
     const prEntries = category.prs.map(pr => {
       const prLink = `${prLinkBase}/${pr.number}`;
-      const prTitle = escapeLeadingUnderscores(pr.title);
+      // Strip PR number suffix like "(#123)" since we already include the PR link
+      const prSuffix = `(#${pr.number})`;
+      const title = pr.title.endsWith(prSuffix)
+        ? pr.title.slice(0, -prSuffix.length).trimEnd()
+        : pr.title;
+      const prTitle = escapeLeadingUnderscores(title);
       let entry = `- ${prTitle} by @${pr.author} in [#${pr.number}](${prLink})`;
-      
+
       if (pr.body?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
         const body = pr.body.replace(BODY_IN_CHANGELOG_MAGIC_WORD, '').trim();
         if (body) {
           entry += `\n  ${body}`;
         }
       }
-      
+
       return entry;
     });
 
@@ -607,9 +612,7 @@ export async function generateChangesetFromGit(
   if (nLeftovers > 0) {
     // Only add "Other" section header if there are other category sections
     if (changelogSections.length > 0) {
-      changelogSections.push(
-        markdownHeader(SUBSECTION_HEADER_LEVEL, 'Other')
-      );
+      changelogSections.push(markdownHeader(SUBSECTION_HEADER_LEVEL, 'Other'));
     }
     changelogSections.push(
       leftovers.slice(0, maxLeftovers).map(formatCommit).join('\n')
@@ -741,4 +744,3 @@ async function getPRAndLabelsFromCommit(
     })
   );
 }
-
