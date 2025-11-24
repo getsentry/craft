@@ -842,7 +842,7 @@ describe('generateChangesetFromGit', () => {
           {
             hash: 'abc123',
             title: 'Internal PR (#1)',
-yarn            body: '',
+            body: '',
             pr: {
               remote: {
                 number: '1',
