@@ -1049,5 +1049,30 @@ describe('generateChangesetFromGit', () => {
         'Feature PR without author in [#1](https://github.com/test-owner/test-repo/pull/1)'
       );
     });
+
+    it('should handle malformed release config gracefully (non-array categories)', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'Some PR (#1)',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: ['feature'],
+              },
+            },
+          },
+        ],
+        `changelog:
+  categories: "this is a string, not an array"`
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      // Should not crash, and PR should appear in output (no categories applied)
+      expect(changes).toContain('#1');
+    });
   });
 });

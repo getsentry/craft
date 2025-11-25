@@ -350,7 +350,7 @@ function normalizeReleaseConfig(
     }
   }
 
-  if (config.changelog.categories) {
+  if (Array.isArray(config.changelog.categories)) {
     normalized.changelog.categories = config.changelog.categories.map(
       category => {
         const normalizedCategory: NormalizedCategory = {
