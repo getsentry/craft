@@ -226,6 +226,7 @@ interface Commit {
   body: string;
   hasPRinTitle: boolean;
   pr: string | null;
+  prTitle?: string | null;
   prBody?: string | null;
   labels: string[];
   category: string | null;
@@ -301,7 +302,10 @@ function readReleaseConfig(): ReleaseConfig | null {
       // File doesn't exist, return null
       return null;
     }
-    logger.warn(`Failed to read release config from ${releaseConfigPath}:`, error);
+    logger.warn(
+      `Failed to read release config from ${releaseConfigPath}:`,
+      error
+    );
     return null;
   }
 }
@@ -309,7 +313,9 @@ function readReleaseConfig(): ReleaseConfig | null {
 /**
  * Normalizes the release config by converting arrays to Sets and normalizing empty arrays
  */
-function normalizeReleaseConfig(config: ReleaseConfig | null): NormalizedReleaseConfig | null {
+function normalizeReleaseConfig(
+  config: ReleaseConfig | null
+): NormalizedReleaseConfig | null {
   if (!config?.changelog) {
     return null;
   }
@@ -325,36 +331,55 @@ function normalizeReleaseConfig(config: ReleaseConfig | null): NormalizedRelease
   };
 
   if (config.changelog.exclude) {
-    if (config.changelog.exclude.labels && config.changelog.exclude.labels.length > 0) {
-      normalized.changelog.exclude.labels = new Set(config.changelog.exclude.labels);
+    if (
+      config.changelog.exclude.labels &&
+      config.changelog.exclude.labels.length > 0
+    ) {
+      normalized.changelog.exclude.labels = new Set(
+        config.changelog.exclude.labels
+      );
     }
-    if (config.changelog.exclude.authors && config.changelog.exclude.authors.length > 0) {
-      normalized.changelog.exclude.authors = new Set(config.changelog.exclude.authors);
+    if (
+      config.changelog.exclude.authors &&
+      config.changelog.exclude.authors.length > 0
+    ) {
+      normalized.changelog.exclude.authors = new Set(
+        config.changelog.exclude.authors
+      );
     }
   }
 
   if (config.changelog.categories) {
-    normalized.changelog.categories = config.changelog.categories.map(category => {
-      const normalizedCategory: NormalizedCategory = {
-        title: category.title,
-        labels: category.labels && category.labels.length > 0 ? category.labels : [],
-        exclude: {
-          labels: new Set<string>(),
-          authors: new Set<string>(),
-        },
-      };
+    normalized.changelog.categories = config.changelog.categories.map(
+      category => {
+        const normalizedCategory: NormalizedCategory = {
+          title: category.title,
+          labels:
+            category.labels && category.labels.length > 0
+              ? category.labels
+              : [],
+          exclude: {
+            labels: new Set<string>(),
+            authors: new Set<string>(),
+          },
+        };
 
-      if (category.exclude) {
-        if (category.exclude.labels && category.exclude.labels.length > 0) {
-          normalizedCategory.exclude.labels = new Set(category.exclude.labels);
+        if (category.exclude) {
+          if (category.exclude.labels && category.exclude.labels.length > 0) {
+            normalizedCategory.exclude.labels = new Set(
+              category.exclude.labels
+            );
+          }
+          if (category.exclude.authors && category.exclude.authors.length > 0) {
+            normalizedCategory.exclude.authors = new Set(
+              category.exclude.authors
+            );
+          }
         }
-        if (category.exclude.authors && category.exclude.authors.length > 0) {
-          normalizedCategory.exclude.authors = new Set(category.exclude.authors);
-        }
+
+        return normalizedCategory;
       }
-
-      return normalizedCategory;
-    });
+    );
   }
 
   return normalized;
@@ -386,7 +411,6 @@ function shouldExcludePR(
 
   return false;
 }
-
 
 /**
  * Matches a PR's labels to a category from release config
@@ -461,7 +485,7 @@ function matchPRToCategory(
 // avoid collisions.
 const SHORT_SHA_LENGTH = 8;
 function formatCommit(commit: Commit): string {
-  let text = `- ${escapeLeadingUnderscores(commit.title)}`;
+  let text = `- ${escapeLeadingUnderscores(commit.prTitle ?? commit.title)}`;
   if (!commit.hasPRinTitle) {
     const link = commit.pr
       ? `#${commit.pr}`
@@ -531,6 +555,7 @@ export async function generateChangesetFromGit(
       body: gitCommit.body,
       hasPRinTitle: Boolean(gitCommit.pr),
       pr: githubCommit?.pr ?? null,
+      prTitle: githubCommit?.prTitle ?? null,
       prBody: githubCommit?.prBody ?? null,
       labels: labelsArray,
       category: categoryTitle,
@@ -559,7 +584,7 @@ export async function generateChangesetFromGit(
           author: commit.author,
           number: commit.pr,
           body: commit.prBody ?? '',
-          title: commit.title,
+          title: commit.prTitle ?? commit.title,
         });
       }
     }
@@ -632,6 +657,7 @@ interface CommitInfo {
   associatedPullRequests: {
     nodes: Array<{
       number: string;
+      title: string;
       body: string;
       author?: {
         login: string;
@@ -653,14 +679,13 @@ interface CommitInfoResult {
   repository: CommitInfoMap;
 }
 
-async function getPRAndLabelsFromCommit(
-  hashes: string[]
-): Promise<
+async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
   Record<
     /* hash */ string,
     {
       author?: string;
       pr: string | null;
+      prTitle: string | null;
       prBody: string | null;
       labels: string[];
     }
@@ -703,6 +728,7 @@ async function getPRAndLabelsFromCommit(
             login
           }
           number
+          title
           body
           labels(first: 50) {
             nodes {
@@ -731,12 +757,14 @@ async function getPRAndLabelsFromCommit(
           ? {
               author: pr.author?.login,
               pr: pr.number,
+              prTitle: pr.title,
               prBody: pr.body,
               labels: pr.labels?.nodes?.map(label => label.name) ?? [],
             }
           : {
               author: commit?.author.user?.login,
               pr: null,
+              prTitle: null,
               prBody: null,
               labels: [],
             },

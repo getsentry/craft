@@ -318,6 +318,7 @@ describe('generateChangesetFromGit', () => {
       remote?: {
         author?: { login: string };
         number: string;
+        title?: string;
         body?: string;
         labels?: string[];
       };
@@ -339,7 +340,7 @@ describe('generateChangesetFromGit', () => {
 
     mockClient.mockResolvedValueOnce({
       repository: Object.fromEntries(
-        commits.map(({ hash, author, pr }: TestCommit) => [
+        commits.map(({ hash, author, title, pr }: TestCommit) => [
           `C${hash}`,
           {
             author: { user: author },
@@ -349,6 +350,7 @@ describe('generateChangesetFromGit', () => {
                     {
                       author: pr.remote.author,
                       number: pr.remote.number,
+                      title: pr.remote.title ?? title,
                       body: pr.remote.body || '',
                       labels: {
                         nodes: (pr.remote.labels || []).map(label => ({
@@ -439,6 +441,25 @@ describe('generateChangesetFromGit', () => {
       ],
       null,
       '- Upgraded the kernel (#123)',
+    ],
+    [
+      'use PR title from GitHub instead of commit message',
+      [
+        {
+          hash: 'abcdef1234567890',
+          title: 'fix: quick fix for issue', // commit message
+          body: '',
+          pr: {
+            remote: {
+              number: '123',
+              title: 'feat: A much better PR title with more context', // actual PR title
+              author: { login: 'sentry' },
+            },
+          },
+        },
+      ],
+      null,
+      '- feat: A much better PR title with more context (#123) by @sentry',
     ],
     [
       'handle multiple commits properly',
