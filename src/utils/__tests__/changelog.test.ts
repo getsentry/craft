@@ -1018,5 +1018,36 @@ describe('generateChangesetFromGit', () => {
       expect(changes).toContain('#1');
       expect(changes).toContain('alice');
     });
+
+    it('should categorize PRs without author in their designated category', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'Feature PR without author',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                // No author - simulates deleted GitHub user
+                labels: ['feature'],
+              },
+            },
+          },
+        ],
+        `changelog:
+  categories:
+    - title: Features
+      labels:
+        - feature`
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(changes).toContain('### Features');
+      expect(changes).not.toContain('### Other');
+      expect(changes).toContain(
+        'Feature PR without author in [#1](https://github.com/test-owner/test-repo/pull/1)'
+      );
+    });
   });
 });

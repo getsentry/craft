@@ -213,7 +213,7 @@ export function prependChangeset(
 }
 
 interface PullRequest {
-  author: string;
+  author?: string;
   number: string;
   hash: string;
   body: string;
@@ -605,7 +605,7 @@ export async function generateChangesetFromGit(
     if (!categoryTitle) {
       leftovers.push(commit);
     } else {
-      if (!commit.pr || !commit.author) {
+      if (!commit.pr) {
         leftovers.push(commit);
       } else {
         let category = categories.get(categoryTitle);
