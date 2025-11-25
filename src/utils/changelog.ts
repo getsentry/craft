@@ -215,6 +215,7 @@ export function prependChangeset(
 interface PullRequest {
   author: string;
   number: string;
+  hash: string;
   body: string;
   title: string;
 }
@@ -484,26 +485,60 @@ function matchPRToCategory(
 // This is set to 8 since GitHub and GitLab prefer that over the default 7 to
 // avoid collisions.
 const SHORT_SHA_LENGTH = 8;
-function formatCommit(commit: Commit): string {
-  let text = `- ${escapeLeadingUnderscores(commit.prTitle ?? commit.title)}`;
-  if (!commit.hasPRinTitle) {
-    const link = commit.pr
-      ? `#${commit.pr}`
-      : commit.hash.slice(0, SHORT_SHA_LENGTH);
-    text = `${text} (${link})`;
+
+interface ChangelogEntry {
+  title: string;
+  author?: string;
+  prNumber?: string;
+  hash: string;
+  body?: string;
+  /** Base URL for the repository, e.g. https://github.com/owner/repo */
+  repoUrl: string;
+}
+
+/**
+ * Formats a single changelog entry with consistent full markdown link format.
+ * Format: `- Title by @author in [#123](pr-url)` or `- Title in [abcdef12](commit-url)`
+ */
+function formatChangelogEntry(entry: ChangelogEntry): string {
+  let title = entry.title;
+
+  // Strip PR number suffix like "(#123)" since we add the link separately
+  if (entry.prNumber) {
+    const prSuffix = `(#${entry.prNumber})`;
+    if (title.endsWith(prSuffix)) {
+      title = title.slice(0, -prSuffix.length).trimEnd();
+    }
   }
-  if (commit.author) {
-    text = `${text} by @${commit.author}`;
+  title = escapeLeadingUnderscores(title);
+
+  let text = `- ${title}`;
+
+  if (entry.prNumber) {
+    // Full markdown link format for PRs
+    const prLink = `${entry.repoUrl}/pull/${entry.prNumber}`;
+    if (entry.author) {
+      text += ` by @${entry.author} in [#${entry.prNumber}](${prLink})`;
+    } else {
+      text += ` in [#${entry.prNumber}](${prLink})`;
+    }
+  } else {
+    // Commits without PRs: link to commit
+    const shortHash = entry.hash.slice(0, SHORT_SHA_LENGTH);
+    const commitLink = `${entry.repoUrl}/commit/${entry.hash}`;
+    if (entry.author) {
+      text += ` by @${entry.author} in [${shortHash}](${commitLink})`;
+    } else {
+      text += ` in [${shortHash}](${commitLink})`;
+    }
   }
-  let body = '';
-  if (commit.prBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
-    body = commit.prBody;
-  } else if (commit.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
-    body = commit.body;
-  }
-  body = body.replace(BODY_IN_CHANGELOG_MAGIC_WORD, '');
-  if (body) {
-    text += `\n  ${body}`;
+
+  // Add body if magic word is present
+  if (entry.body?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
+    const body = entry.body.replace(BODY_IN_CHANGELOG_MAGIC_WORD, '').trim();
+    if (body) {
+      text += `\n  ${body}`;
+    }
   }
 
   return text;
@@ -554,7 +589,8 @@ export async function generateChangesetFromGit(
       title: gitCommit.title,
       body: gitCommit.body,
       hasPRinTitle: Boolean(gitCommit.pr),
-      pr: githubCommit?.pr ?? null,
+      // Use GitHub PR number, falling back to locally parsed PR from title
+      pr: githubCommit?.pr ?? gitCommit.pr ?? null,
       prTitle: githubCommit?.prTitle ?? null,
       prBody: githubCommit?.prBody ?? null,
       labels: labelsArray,
@@ -583,6 +619,7 @@ export async function generateChangesetFromGit(
         category.prs.push({
           author: commit.author,
           number: commit.pr,
+          hash: commit.hash,
           body: commit.prBody ?? '',
           title: commit.prTitle ?? commit.title,
         });
@@ -599,7 +636,7 @@ export async function generateChangesetFromGit(
 
   const changelogSections = [];
   const { repo, owner } = await getGlobalGitHubConfig();
-  const prLinkBase = `https://github.com/${owner}/${repo}/pull`;
+  const repoUrl = `https://github.com/${owner}/${repo}`;
 
   for (const [, category] of categories.entries()) {
     if (category.prs.length === 0) {
@@ -610,25 +647,16 @@ export async function generateChangesetFromGit(
       markdownHeader(SUBSECTION_HEADER_LEVEL, category.title)
     );
 
-    const prEntries = category.prs.map(pr => {
-      const prLink = `${prLinkBase}/${pr.number}`;
-      // Strip PR number suffix like "(#123)" since we already include the PR link
-      const prSuffix = `(#${pr.number})`;
-      const title = pr.title.endsWith(prSuffix)
-        ? pr.title.slice(0, -prSuffix.length).trimEnd()
-        : pr.title;
-      const prTitle = escapeLeadingUnderscores(title);
-      let entry = `- ${prTitle} by @${pr.author} in [#${pr.number}](${prLink})`;
-
-      if (pr.body?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
-        const body = pr.body.replace(BODY_IN_CHANGELOG_MAGIC_WORD, '').trim();
-        if (body) {
-          entry += `\n  ${body}`;
-        }
-      }
-
-      return entry;
-    });
+    const prEntries = category.prs.map(pr =>
+      formatChangelogEntry({
+        title: pr.title,
+        author: pr.author,
+        prNumber: pr.number,
+        hash: pr.hash,
+        body: pr.body,
+        repoUrl,
+      })
+    );
 
     changelogSections.push(prEntries.join('\n'));
   }
@@ -640,7 +668,24 @@ export async function generateChangesetFromGit(
       changelogSections.push(markdownHeader(SUBSECTION_HEADER_LEVEL, 'Other'));
     }
     changelogSections.push(
-      leftovers.slice(0, maxLeftovers).map(formatCommit).join('\n')
+      leftovers
+        .slice(0, maxLeftovers)
+        .map(commit =>
+          formatChangelogEntry({
+            title: commit.prTitle ?? commit.title,
+            author: commit.author,
+            prNumber: commit.pr ?? undefined,
+            hash: commit.hash,
+            repoUrl,
+            // Check both prBody and commit body for the magic word
+            body: commit.prBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)
+              ? commit.prBody
+              : commit.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)
+              ? commit.body
+              : undefined,
+          })
+        )
+        .join('\n')
     );
     if (nLeftovers > maxLeftovers) {
       changelogSections.push(`_Plus ${nLeftovers - maxLeftovers} more_`);

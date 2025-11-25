@@ -401,7 +401,7 @@ describe('generateChangesetFromGit', () => {
         },
       ],
       null,
-      '- Upgraded the kernel (abcdef12)',
+      '- Upgraded the kernel in [abcdef12](https://github.com/test-owner/test-repo/commit/abcdef1234567890)',
     ],
     [
       'use pull request number when available locally',
@@ -414,7 +414,8 @@ describe('generateChangesetFromGit', () => {
         },
       ],
       null,
-      '- Upgraded the kernel (#123)',
+      // Local PR: links to the PR (strips duplicate PR number from title)
+      '- Upgraded the kernel in [#123](https://github.com/test-owner/test-repo/pull/123)',
     ],
     [
       'use pull request number when available remotely',
@@ -427,7 +428,7 @@ describe('generateChangesetFromGit', () => {
         },
       ],
       null,
-      '- Upgraded the kernel (#123) by @sentry',
+      '- Upgraded the kernel by @sentry in [#123](https://github.com/test-owner/test-repo/pull/123)',
     ],
     [
       'Does not error when PR author is null',
@@ -440,7 +441,7 @@ describe('generateChangesetFromGit', () => {
         },
       ],
       null,
-      '- Upgraded the kernel (#123)',
+      '- Upgraded the kernel in [#123](https://github.com/test-owner/test-repo/pull/123)',
     ],
     [
       'use PR title from GitHub instead of commit message',
@@ -459,7 +460,7 @@ describe('generateChangesetFromGit', () => {
         },
       ],
       null,
-      '- feat: A much better PR title with more context (#123) by @sentry',
+      '- feat: A much better PR title with more context by @sentry in [#123](https://github.com/test-owner/test-repo/pull/123)',
     ],
     [
       'handle multiple commits properly',
@@ -493,9 +494,9 @@ describe('generateChangesetFromGit', () => {
       ],
       null,
       [
-        '- Upgraded the kernel (abcdef12)',
-        '- Upgraded the manifold (#123) by @alice',
-        '- Refactored the crankshaft (#456) by @bob',
+        '- Upgraded the kernel in [abcdef12](https://github.com/test-owner/test-repo/commit/abcdef1234567890)',
+        '- Upgraded the manifold by @alice in [#123](https://github.com/test-owner/test-repo/pull/123)',
+        '- Refactored the crankshaft by @bob in [#456](https://github.com/test-owner/test-repo/pull/456)',
         '',
         '_Plus 1 more_',
       ].join('\n'),
@@ -521,7 +522,11 @@ describe('generateChangesetFromGit', () => {
           title: 'Refactored the crankshaft',
           body: '',
           pr: {
-            remote: { number: '456', author: { login: 'bob' }, labels: ['drivetrain'] },
+            remote: {
+              number: '456',
+              author: { login: 'bob' },
+              labels: ['drivetrain'],
+            },
           },
         },
         {
@@ -581,7 +586,7 @@ describe('generateChangesetFromGit', () => {
         '',
         '### Other',
         '',
-        '- Fix the clacking sound on gear changes (#950) by @bob',
+        '- Fix the clacking sound on gear changes by @bob in [#950](https://github.com/test-owner/test-repo/pull/950)',
       ].join('\n'),
     ],
     [
@@ -623,7 +628,8 @@ describe('generateChangesetFromGit', () => {
         },
       ],
       null,
-      '- Serialized \\_meta (#123)',
+      // Local PR: links to the PR (strips duplicate PR number from title)
+      '- Serialized \\_meta in [#123](https://github.com/test-owner/test-repo/pull/123)',
     ],
     // NOTE: #skip-changelog is now redundant as we can skip PRs with certain labels
     // via .github/release.yml configuration (changelog.exclude.labels)
@@ -698,7 +704,7 @@ describe('generateChangesetFromGit', () => {
         '',
         '### Other',
         '',
-        '- Fix the clacking sound on gear changes (#950) by @alice',
+        '- Fix the clacking sound on gear changes by @alice in [#950](https://github.com/test-owner/test-repo/pull/950)',
       ].join('\n'),
     ],
     [
@@ -772,7 +778,7 @@ describe('generateChangesetFromGit', () => {
         '',
         '- Upgraded the manifold by @alice in [#123](https://github.com/test-owner/test-repo/pull/123)',
         '- Refactored the crankshaft by @bob in [#456](https://github.com/test-owner/test-repo/pull/456)',
-        '  This is important and we\'ll include the __body__ for attention.',
+        "  This is important and we'll include the __body__ for attention.",
         '',
         '### Better driver experience',
         '',
@@ -780,9 +786,10 @@ describe('generateChangesetFromGit', () => {
         '',
         '### Other',
         '',
-        '- Upgrade the steering wheel (#900)',
-        '  Some very important update ',
-        '- Fix the clacking sound on gear changes (#950) by @alice',
+        // Local PR: links to the PR (strips duplicate PR number from title)
+        '- Upgrade the steering wheel in [#900](https://github.com/test-owner/test-repo/pull/900)',
+        '  Some very important update',
+        '- Fix the clacking sound on gear changes by @alice in [#950](https://github.com/test-owner/test-repo/pull/950)',
       ].join('\n'),
     ],
   ])(
@@ -853,8 +860,12 @@ describe('generateChangesetFromGit', () => {
 
       expect(changes).toContain('### Features');
       expect(changes).toContain('### Bug Fixes');
-      expect(changes).toContain('Feature PR by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)');
-      expect(changes).toContain('Bug fix PR by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)');
+      expect(changes).toContain(
+        'Feature PR by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)'
+      );
+      expect(changes).toContain(
+        'Bug fix PR by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)'
+      );
     });
 
     it('should apply global exclusions', async () => {
@@ -942,7 +953,12 @@ describe('generateChangesetFromGit', () => {
       // PR #1 is excluded from Features category but should appear in Other
       // (category-level exclusions only exclude from that specific category)
       expect(changes).toContain('#1');
-      expect(changes).not.toContain('Feature PR by @alice in [#1]');
+      // PR #1 should NOT be in the Features section
+      const featuresSection = changes.split('### Other')[0];
+      expect(featuresSection).not.toContain('Feature PR by @alice');
+      // But it should be in the Other section
+      const otherSection = changes.split('### Other')[1];
+      expect(otherSection).toContain('Feature PR by @alice in [#1]');
       expect(changes).toContain('#2');
       expect(changes).toContain('### Features');
     });
@@ -972,7 +988,9 @@ describe('generateChangesetFromGit', () => {
 
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(changes).toContain('### All Changes');
-      expect(changes).toContain('Any PR by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)');
+      expect(changes).toContain(
+        'Any PR by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)'
+      );
     });
 
     it('should fallback to Other when no config exists', async () => {
