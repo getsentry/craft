@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.11.0
+
+### Various fixes & improvements
+
+- build(deps): bump parse-path and git-url-parse (#633) by @dependabot
+- build(deps): bump glob from 11.0.3 to 13.0.0 (#631) by @dependabot
+- build(deps): bump cookie and @sentry/node (#630) by @dependabot
+- feat(changelog): Group items by labels, like GitHub (#628) by @BYK
+- chore: Upgrade sentry/node to latest (#627) by @BYK
+- build(deps): bump js-yaml from 3.13.1 to 4.1.1 (#626) by @dependabot
+- build(deps-dev): bump js-yaml from 4.1.0 to 4.1.1 (#624) by @dependabot
+
 ## 2.10.1
 
 ### Various fixes & improvements
