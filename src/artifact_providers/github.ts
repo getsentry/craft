@@ -183,10 +183,10 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
           `Unexpected HTTP response from ${url}: ${response.status} (${response.statusText})`
         );
       }
-      await new Promise((resolve, reject) =>
+      await new Promise<void>((resolve, reject) =>
         response.body
           .pipe(fs.createWriteStream(tempFilepath))
-          .on('finish', resolve)
+          .on('finish', () => resolve())
           .on('error', reject)
       );
       this.logger.info(`Finished downloading.`);

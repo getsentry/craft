@@ -1,7 +1,10 @@
 import type { SimpleGit } from 'simple-git';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { load } from 'js-yaml';
 import { logger } from '../logger';
 
-import { getGlobalGitHubConfig } from '../config';
+import { getConfigFileDir, getGlobalGitHubConfig } from '../config';
 import { getChangesSince } from './git';
 import { getGitHubClient } from './githubApi';
 import { getVersion } from './version';
@@ -210,9 +213,11 @@ export function prependChangeset(
 }
 
 interface PullRequest {
-  author: string;
+  author?: string;
   number: string;
+  hash: string;
   body: string;
+  title: string;
 }
 
 interface Commit {
@@ -222,42 +227,318 @@ interface Commit {
   body: string;
   hasPRinTitle: boolean;
   pr: string | null;
+  prTitle?: string | null;
   prBody?: string | null;
-  milestone: string | null;
+  labels: string[];
+  category: string | null;
 }
 
-interface Milestone {
+/**
+ * Release configuration structure matching GitHub's release.yml format
+ */
+interface ReleaseConfigCategory {
   title: string;
-  description: string | null;
-  state: 'OPEN' | 'CLOSED';
+  labels?: string[];
+  exclude?: {
+    labels?: string[];
+    authors?: string[];
+  };
 }
-type MilestoneWithPRs = Partial<Milestone> & {
+
+interface ReleaseConfig {
+  changelog?: {
+    exclude?: {
+      labels?: string[];
+      authors?: string[];
+    };
+    categories?: ReleaseConfigCategory[];
+  };
+}
+
+/**
+ * Normalized release config with Sets for efficient lookups
+ * All fields are non-optional - use empty sets/arrays when not present
+ */
+interface NormalizedReleaseConfig {
+  changelog: {
+    exclude: {
+      labels: Set<string>;
+      authors: Set<string>;
+    };
+    categories: NormalizedCategory[];
+  };
+}
+
+interface NormalizedCategory {
+  title: string;
+  labels: string[];
+  exclude: {
+    labels: Set<string>;
+    authors: Set<string>;
+  };
+}
+
+type CategoryWithPRs = {
+  title: string;
   prs: PullRequest[];
 };
+
+/**
+ * Reads and parses .github/release.yml from the repository root
+ * @returns Parsed release configuration or null if file doesn't exist
+ */
+function readReleaseConfig(): ReleaseConfig | null {
+  const configFileDir = getConfigFileDir();
+  if (!configFileDir) {
+    return null;
+  }
+
+  const releaseConfigPath = join(configFileDir, '.github', 'release.yml');
+  try {
+    const fileContents = readFileSync(releaseConfigPath, 'utf8');
+    const config = load(fileContents) as ReleaseConfig;
+    return config;
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      // File doesn't exist, return null
+      return null;
+    }
+    logger.warn(
+      `Failed to read release config from ${releaseConfigPath}:`,
+      error
+    );
+    return null;
+  }
+}
+
+/**
+ * Normalizes the release config by converting arrays to Sets and normalizing empty arrays
+ */
+function normalizeReleaseConfig(
+  config: ReleaseConfig | null
+): NormalizedReleaseConfig | null {
+  if (!config?.changelog) {
+    return null;
+  }
+
+  const normalized: NormalizedReleaseConfig = {
+    changelog: {
+      exclude: {
+        labels: new Set<string>(),
+        authors: new Set<string>(),
+      },
+      categories: [],
+    },
+  };
+
+  if (config.changelog.exclude) {
+    if (
+      config.changelog.exclude.labels &&
+      config.changelog.exclude.labels.length > 0
+    ) {
+      normalized.changelog.exclude.labels = new Set(
+        config.changelog.exclude.labels
+      );
+    }
+    if (
+      config.changelog.exclude.authors &&
+      config.changelog.exclude.authors.length > 0
+    ) {
+      normalized.changelog.exclude.authors = new Set(
+        config.changelog.exclude.authors
+      );
+    }
+  }
+
+  if (Array.isArray(config.changelog.categories)) {
+    normalized.changelog.categories = config.changelog.categories.map(
+      category => {
+        const normalizedCategory: NormalizedCategory = {
+          title: category.title,
+          labels:
+            category.labels && category.labels.length > 0
+              ? category.labels
+              : [],
+          exclude: {
+            labels: new Set<string>(),
+            authors: new Set<string>(),
+          },
+        };
+
+        if (category.exclude) {
+          if (category.exclude.labels && category.exclude.labels.length > 0) {
+            normalizedCategory.exclude.labels = new Set(
+              category.exclude.labels
+            );
+          }
+          if (category.exclude.authors && category.exclude.authors.length > 0) {
+            normalizedCategory.exclude.authors = new Set(
+              category.exclude.authors
+            );
+          }
+        }
+
+        return normalizedCategory;
+      }
+    );
+  }
+
+  return normalized;
+}
+
+/**
+ * Checks if a PR should be excluded globally based on release config
+ */
+function shouldExcludePR(
+  labels: Set<string>,
+  author: string | undefined,
+  config: NormalizedReleaseConfig | null
+): boolean {
+  if (!config?.changelog) {
+    return false;
+  }
+
+  const { exclude } = config.changelog;
+
+  for (const excludeLabel of exclude.labels) {
+    if (labels.has(excludeLabel)) {
+      return true;
+    }
+  }
+
+  if (author && exclude.authors.has(author)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Matches a PR's labels to a category from release config
+ * Category-level exclusions are checked here - they exclude the PR from matching this specific category,
+ * allowing it to potentially match other categories or fall through to "Other"
+ * @returns Category title or null if no match or excluded from this category
+ */
+function matchPRToCategory(
+  labels: Set<string>,
+  author: string | undefined,
+  config: NormalizedReleaseConfig | null
+): string | null {
+  if (!config?.changelog || config.changelog.categories.length === 0) {
+    return null;
+  }
+
+  const regularCategories: NormalizedCategory[] = [];
+  let wildcardCategory: NormalizedCategory | null = null;
+
+  for (const category of config.changelog.categories) {
+    if (category.labels.length === 0) {
+      continue;
+    }
+
+    if (category.labels.includes('*')) {
+      wildcardCategory = category;
+      continue;
+    }
+
+    regularCategories.push(category);
+  }
+
+  categoryLoop: for (const category of regularCategories) {
+    const matchesCategory = category.labels.some(label => labels.has(label));
+
+    if (!matchesCategory) {
+      continue;
+    }
+
+    for (const excludeLabel of category.exclude.labels) {
+      if (labels.has(excludeLabel)) {
+        continue categoryLoop;
+      }
+    }
+
+    if (author && category.exclude.authors.has(author)) {
+      continue categoryLoop;
+    }
+
+    return category.title;
+  }
+
+  if (wildcardCategory) {
+    // Check if any excluded label is present in the PR's labels
+    for (const excludeLabel of wildcardCategory.exclude.labels) {
+      if (labels.has(excludeLabel)) {
+        return null;
+      }
+    }
+
+    if (author && wildcardCategory.exclude.authors.has(author)) {
+      return null;
+    }
+
+    return wildcardCategory.title;
+  }
+
+  return null;
+}
 
 // This is set to 8 since GitHub and GitLab prefer that over the default 7 to
 // avoid collisions.
 const SHORT_SHA_LENGTH = 8;
-function formatCommit(commit: Commit): string {
-  let text = `- ${escapeLeadingUnderscores(commit.title)}`;
-  if (!commit.hasPRinTitle) {
-    const link = commit.pr
-      ? `#${commit.pr}`
-      : commit.hash.slice(0, SHORT_SHA_LENGTH);
-    text = `${text} (${link})`;
+
+interface ChangelogEntry {
+  title: string;
+  author?: string;
+  prNumber?: string;
+  hash: string;
+  body?: string;
+  /** Base URL for the repository, e.g. https://github.com/owner/repo */
+  repoUrl: string;
+}
+
+/**
+ * Formats a single changelog entry with consistent full markdown link format.
+ * Format: `- Title by @author in [#123](pr-url)` or `- Title in [abcdef12](commit-url)`
+ */
+function formatChangelogEntry(entry: ChangelogEntry): string {
+  let title = entry.title;
+
+  // Strip PR number suffix like "(#123)" since we add the link separately
+  if (entry.prNumber) {
+    const prSuffix = `(#${entry.prNumber})`;
+    if (title.endsWith(prSuffix)) {
+      title = title.slice(0, -prSuffix.length).trimEnd();
+    }
   }
-  if (commit.author) {
-    text = `${text} by @${commit.author}`;
+  title = escapeLeadingUnderscores(title);
+
+  let text = `- ${title}`;
+
+  if (entry.prNumber) {
+    // Full markdown link format for PRs
+    const prLink = `${entry.repoUrl}/pull/${entry.prNumber}`;
+    if (entry.author) {
+      text += ` by @${entry.author} in [#${entry.prNumber}](${prLink})`;
+    } else {
+      text += ` in [#${entry.prNumber}](${prLink})`;
+    }
+  } else {
+    // Commits without PRs: link to commit
+    const shortHash = entry.hash.slice(0, SHORT_SHA_LENGTH);
+    const commitLink = `${entry.repoUrl}/commit/${entry.hash}`;
+    if (entry.author) {
+      text += ` by @${entry.author} in [${shortHash}](${commitLink})`;
+    } else {
+      text += ` in [${shortHash}](${commitLink})`;
+    }
   }
-  let body = '';
-  if (commit.prBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
-    body = commit.prBody;
-  } else if (commit.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
-    body = commit.body;
-  }
-  body = body.replace(BODY_IN_CHANGELOG_MAGIC_WORD, '');
-  if (body) {
-    text += `\n  ${body}`;
+
+  // Add body if magic word is present
+  if (entry.body?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
+    const body = entry.body.replace(BODY_IN_CHANGELOG_MAGIC_WORD, '').trim();
+    if (body) {
+      text += `\n  ${body}`;
+    }
   }
 
   return text;
@@ -268,18 +549,22 @@ export async function generateChangesetFromGit(
   rev: string,
   maxLeftovers: number = MAX_LEFTOVERS
 ): Promise<string> {
+  const rawConfig = readReleaseConfig();
+  const releaseConfig = normalizeReleaseConfig(rawConfig);
+
   const gitCommits = (await getChangesSince(git, rev)).filter(
     ({ body }) => !body.includes(SKIP_CHANGELOG_MAGIC_WORD)
   );
 
-  const githubCommits = await getPRAndMilestoneFromCommit(
+  const githubCommits = await getPRAndLabelsFromCommit(
     gitCommits.map(({ hash }) => hash)
   );
 
-  const milestones: Record</*milestone #*/ string, MilestoneWithPRs> = {};
+  const categories = new Map<string, CategoryWithPRs>();
   const commits: Record</*hash*/ string, Commit> = {};
   const leftovers: Commit[] = [];
   const missing: Commit[] = [];
+
   for (const gitCommit of gitCommits) {
     const hash = gitCommit.hash;
 
@@ -288,31 +573,57 @@ export async function generateChangesetFromGit(
       continue;
     }
 
-    const commit = {
+    const labelsArray = githubCommit?.labels ?? [];
+    const labels = new Set(labelsArray);
+    const author = githubCommit?.author;
+
+    if (shouldExcludePR(labels, author, releaseConfig)) {
+      continue;
+    }
+
+    const categoryTitle = matchPRToCategory(labels, author, releaseConfig);
+
+    const commit: Commit = {
+      author: author,
       hash: hash,
       title: gitCommit.title,
       body: gitCommit.body,
       hasPRinTitle: Boolean(gitCommit.pr),
-      ...githubCommit,
+      // Use GitHub PR number, falling back to locally parsed PR from title
+      pr: githubCommit?.pr ?? gitCommit.pr ?? null,
+      prTitle: githubCommit?.prTitle ?? null,
+      prBody: githubCommit?.prBody ?? null,
+      labels: labelsArray,
+      category: categoryTitle,
     };
     commits[hash] = commit;
 
     if (!githubCommit) {
       missing.push(commit);
     }
-    if (!commit.milestone) {
+
+    if (!categoryTitle) {
       leftovers.push(commit);
     } else {
-      const milestone = milestones[commit.milestone] || {
-        prs: [] as PullRequest[],
-      };
-      // We _know_ the PR exists as milestones are attached to PRs
-      milestone.prs.push({
-        author: commit.author as string,
-        number: commit.pr as string,
-        body: commit.prBody as string,
-      });
-      milestones[commit.milestone] = milestone;
+      if (!commit.pr) {
+        leftovers.push(commit);
+      } else {
+        let category = categories.get(categoryTitle);
+        if (!category) {
+          category = {
+            title: categoryTitle,
+            prs: [] as PullRequest[],
+          };
+          categories.set(categoryTitle, category);
+        }
+        category.prs.push({
+          author: commit.author,
+          number: commit.pr,
+          hash: commit.hash,
+          body: commit.prBody ?? '',
+          title: commit.prTitle ?? commit.title,
+        });
+      }
     }
   }
 
@@ -323,50 +634,58 @@ export async function generateChangesetFromGit(
     );
   }
 
-  const milestonesInfo = await getMilestoneInfo(Object.keys(milestones));
-
   const changelogSections = [];
-  for (const milestoneNum of Object.keys(milestones)) {
-    const milestone = milestonesInfo[milestoneNum];
-    if (milestone == null) {
-      // XXX(BYK): This case should never happen in real life
-      throw new Error(`Cannot get information for milestone #${milestoneNum}`);
+  const { repo, owner } = await getGlobalGitHubConfig();
+  const repoUrl = `https://github.com/${owner}/${repo}`;
+
+  for (const [, category] of categories.entries()) {
+    if (category.prs.length === 0) {
+      continue;
     }
 
     changelogSections.push(
-      markdownHeader(
-        SUBSECTION_HEADER_LEVEL,
-        `${milestone.title}${milestone.state === 'OPEN' ? ' (ongoing)' : ''}`
-      )
+      markdownHeader(SUBSECTION_HEADER_LEVEL, category.title)
     );
-    if (milestone.description) {
-      changelogSections.push(escapeMarkdownPound(milestone.description));
-    }
-    const authors: Record<string, PullRequest[]> = {};
 
-    for (const pr of milestones[milestoneNum].prs) {
-      const authorPRs = authors[pr.author] || [];
-      authorPRs.push(pr);
-      authors[pr.author] = authorPRs;
-    }
-
-    changelogSections.push(
-      `By: ${Object.entries(authors)
-        .map(
-          ([author, prs]) =>
-            `@${author} (${prs.map(({ number }) => `#${number}`).join(', ')})`
-        )
-        .join(', ')}`
+    const prEntries = category.prs.map(pr =>
+      formatChangelogEntry({
+        title: pr.title,
+        author: pr.author,
+        prNumber: pr.number,
+        hash: pr.hash,
+        body: pr.body,
+        repoUrl,
+      })
     );
+
+    changelogSections.push(prEntries.join('\n'));
   }
 
   const nLeftovers = leftovers.length;
   if (nLeftovers > 0) {
+    // Only add "Other" section header if there are other category sections
+    if (changelogSections.length > 0) {
+      changelogSections.push(markdownHeader(SUBSECTION_HEADER_LEVEL, 'Other'));
+    }
     changelogSections.push(
-      markdownHeader(SUBSECTION_HEADER_LEVEL, 'Various fixes & improvements')
-    );
-    changelogSections.push(
-      leftovers.slice(0, maxLeftovers).map(formatCommit).join('\n')
+      leftovers
+        .slice(0, maxLeftovers)
+        .map(commit =>
+          formatChangelogEntry({
+            title: commit.prTitle ?? commit.title,
+            author: commit.author,
+            prNumber: commit.pr ?? undefined,
+            hash: commit.hash,
+            repoUrl,
+            // Check both prBody and commit body for the magic word
+            body: commit.prBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)
+              ? commit.prBody
+              : commit.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)
+              ? commit.body
+              : undefined,
+          })
+        )
+        .join('\n')
     );
     if (nLeftovers > maxLeftovers) {
       changelogSections.push(`_Plus ${nLeftovers - maxLeftovers} more_`);
@@ -383,12 +702,15 @@ interface CommitInfo {
   associatedPullRequests: {
     nodes: Array<{
       number: string;
+      title: string;
       body: string;
       author?: {
         login: string;
       };
-      milestone: {
-        number: string;
+      labels: {
+        nodes: Array<{
+          name: string;
+        }>;
       };
     }>;
   };
@@ -402,16 +724,15 @@ interface CommitInfoResult {
   repository: CommitInfoMap;
 }
 
-async function getPRAndMilestoneFromCommit(
-  hashes: string[]
-): Promise<
+async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
   Record<
     /* hash */ string,
     {
       author?: string;
       pr: string | null;
+      prTitle: string | null;
       prBody: string | null;
-      milestone: string | null;
+      labels: string[];
     }
   >
 > {
@@ -452,9 +773,12 @@ async function getPRAndMilestoneFromCommit(
             login
           }
           number
+          title
           body
-          milestone {
-            number
+          labels(first: 50) {
+            nodes {
+              name
+            }
           }
         }
       }
@@ -478,70 +802,18 @@ async function getPRAndMilestoneFromCommit(
           ? {
               author: pr.author?.login,
               pr: pr.number,
+              prTitle: pr.title,
               prBody: pr.body,
-              milestone: pr.milestone?.number ?? null,
+              labels: pr.labels?.nodes?.map(label => label.name) ?? [],
             }
           : {
               author: commit?.author.user?.login,
               pr: null,
+              prTitle: null,
               prBody: null,
-              milestone: null,
+              labels: [],
             },
       ];
     })
-  );
-}
-
-interface MilestonesDetailsResult {
-  repository: {
-    [number: string]: {
-      title: string;
-      description: string;
-      state: 'OPEN' | 'CLOSED';
-    };
-  };
-}
-
-async function getMilestoneInfo(
-  milestones: string[]
-): Promise<Record<string, Milestone>> {
-  if (milestones.length === 0) {
-    return {};
-  }
-
-  const milestoneQuery = milestones
-    .map(
-      number =>
-        // We need to prefix the milestone number (with `M` here) when using it
-        // as an alias as aliases cannot start with a number.
-        `M${number}: milestone(number: ${number}) {...MilestoneFragment}`
-    )
-    .join('\n');
-
-  const { repo, owner } = await getGlobalGitHubConfig();
-  const graphqlQuery = `{
-      repository(name: "${repo}", owner: "${owner}") {
-        ${milestoneQuery}
-      }
-    }
-
-    fragment MilestoneFragment on Milestone {
-      title
-      description
-      state
-    }
-  `;
-  logger.trace('Running graphql query:', graphqlQuery);
-  const milestoneInfo = ((await getGitHubClient().graphql(
-    graphqlQuery
-  )) as MilestonesDetailsResult).repository;
-  logger.trace('Query result:', milestoneInfo);
-
-  return Object.fromEntries(
-    Object.entries(milestoneInfo).map(([number, milestone]) => [
-      // Strip the prefix on the hash we used to workaround in GraphQL
-      number.slice(1),
-      milestone,
-    ])
   );
 }
