@@ -173,7 +173,10 @@ export class NpmTarget extends BaseTarget {
     path: string,
     options: NpmPublishOptions
   ): Promise<any> {
-    const args = ['publish'];
+    // NOTE: --ignore-scripts prevents execution of lifecycle scripts (prepublish,
+    // prepublishOnly, prepack, postpack, publish, postpublish) which could run
+    // arbitrary code during the publish process.
+    const args = ['publish', '--ignore-scripts'];
     let bin: string;
 
     if (this.npmConfig.useYarn) {

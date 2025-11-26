@@ -17,6 +17,12 @@ const MIX_BIN = process.env.MIX_BIN || DEFAULT_MIX_BIN;
 /**
  * Target responsible for publishing releases to Hex, the Elixir/Erlang package manager.
  * https://hex.pm
+ *
+ * NOTE: This target runs `mix deps.get` and `mix hex.publish` which compile the project
+ * as part of normal Elixir/Mix tooling behavior. Unlike npm's lifecycle scripts, these
+ * are not arbitrary user-defined scripts but standard build tooling operations required
+ * for publishing. There is no `--ignore-scripts` equivalent as Elixir does not have the
+ * concept of user-defined publish lifecycle hooks.
  */
 export class HexTarget extends BaseTarget {
   /** Target name */
