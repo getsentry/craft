@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.11.1
+
+### Bug Fixes 🐛
+
+- fix(npm): Disable scripts during publish by @BYK in [#634](https://github.com/getsentry/craft/pull/634)
+
 ## 2.11.0
 
 ### Various fixes & improvements
