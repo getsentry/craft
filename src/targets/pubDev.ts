@@ -36,6 +36,12 @@ export type PubDevTargetConfig = PubDevTargetOptions &
 
 /**
  * Target responsible for uploading files to pub.dev.
+ *
+ * NOTE: This target runs `dart pub publish` which performs analysis and validation
+ * as part of normal Dart tooling behavior. Unlike npm's lifecycle scripts, these
+ * are not arbitrary user-defined scripts but standard build tooling operations required
+ * for publishing. There is no `--ignore-scripts` equivalent as Dart does not have the
+ * concept of user-defined publish lifecycle hooks.
  */
 export class PubDevTarget extends BaseTarget {
   /** Target name */
