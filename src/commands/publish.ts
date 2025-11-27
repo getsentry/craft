@@ -413,6 +413,7 @@ export async function runPostReleaseCommand(
     env: {
       CRAFT_NEW_VERSION: newVersion,
       CRAFT_OLD_VERSION: '',
+      PATH: process.env.PATH,
       GITHUB_TOKEN: process.env.GITHUB_TOKEN,
     },
   });
