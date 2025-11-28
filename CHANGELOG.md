@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.11.2
+
+- fix(publish): Limit env vars for post-release script by @BYK in [#636](https://github.com/getsentry/craft/pull/636)
+
 ## 2.11.1
 
 ### Bug Fixes 🐛
