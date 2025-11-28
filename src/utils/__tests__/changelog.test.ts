@@ -461,7 +461,7 @@ describe('generateChangesetFromGit', () => {
       ],
       null,
       // Default config matches "feat:" prefix, so it goes to "New Features" category
-      '### New Features\n\n- feat: A much better PR title with more context by @sentry in [#123](https://github.com/test-owner/test-repo/pull/123)',
+      '### New Features ✨\n\n- feat: A much better PR title with more context by @sentry in [#123](https://github.com/test-owner/test-repo/pull/123)',
     ],
     [
       'handle multiple commits properly',
