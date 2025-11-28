@@ -264,23 +264,23 @@ const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
   changelog: {
     categories: [
       {
-        title: 'Breaking Changes',
+        title: 'Breaking Changes 🛠',
         commit_log_patterns: ['^\\w+(\\(\\w+\\))?!:'],
       },
       {
-        title: 'Build / dependencies / internal',
+        title: 'Build / dependencies / internal 🔧',
         commit_log_patterns: ['^(?:build|ref|chore|ci)(?:\\(\\w+\\))?:'],
       },
       {
-        title: 'Bug Fixes',
+        title: 'Bug Fixes 🐛',
         commit_log_patterns: ['^fix(?:\\(\\w+\\))?:'],
       },
       {
-        title: 'Documentation',
+        title: 'Documentation 📚',
         commit_log_patterns: ['^docs?(?:\\(\\w+\\))?:'],
       },
       {
-        title: 'New Features',
+        title: 'New Features ✨',
         commit_log_patterns: ['^feat(?:\\(\\w+\\))?:'],
       },
     ],
