@@ -409,12 +409,13 @@ export async function runPostReleaseCommand(
   }
   args = [...args, '', newVersion];
   logger.info(`Running the post-release command...`);
-  const additionalEnv = {
-    CRAFT_NEW_VERSION: newVersion,
-    CRAFT_OLD_VERSION: '',
-  };
   await spawnProcess(sysCommand as string, args as string[], {
-    env: { ...process.env, ...additionalEnv },
+    env: {
+      CRAFT_NEW_VERSION: newVersion,
+      CRAFT_OLD_VERSION: '',
+      PATH: process.env.PATH,
+      GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+    },
   });
   return true;
 }

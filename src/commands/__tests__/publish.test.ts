@@ -20,14 +20,15 @@ describe('runPostReleaseCommand', () => {
 
       await runPostReleaseCommand(newVersion);
 
-      expect(mockedSpawnProcess).toBeCalledWith(
+      expect(mockedSpawnProcess).toHaveBeenCalledWith(
         '/bin/bash',
         [pathJoin('scripts', 'post-release.sh'), '', newVersion],
         {
           env: {
-            ...process.env,
             CRAFT_NEW_VERSION: newVersion,
             CRAFT_OLD_VERSION: '',
+            PATH: process.env.PATH,
+            GITHUB_TOKEN: process.env.GITHUB_TOKEN,
           },
         }
       );
@@ -39,7 +40,7 @@ describe('runPostReleaseCommand', () => {
 
       await runPostReleaseCommand(newVersion);
 
-      expect(mockedSpawnProcess).not.toBeCalled();
+      expect(mockedSpawnProcess).not.toHaveBeenCalled();
     });
   });
 
@@ -51,14 +52,15 @@ describe('runPostReleaseCommand', () => {
       'python ./increase_version.py "argument 1"'
     );
 
-    expect(mockedSpawnProcess).toBeCalledWith(
+    expect(mockedSpawnProcess).toHaveBeenCalledWith(
       'python',
       ['./increase_version.py', 'argument 1', '', newVersion],
       {
         env: {
-          ...process.env,
           CRAFT_NEW_VERSION: newVersion,
           CRAFT_OLD_VERSION: '',
+          PATH: process.env.PATH,
+          GITHUB_TOKEN: process.env.GITHUB_TOKEN,
         },
       }
     );
