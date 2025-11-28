@@ -460,7 +460,8 @@ describe('generateChangesetFromGit', () => {
         },
       ],
       null,
-      '- feat: A much better PR title with more context by @sentry in [#123](https://github.com/test-owner/test-repo/pull/123)',
+      // Default config matches "feat:" prefix, so it goes to "New Features" category
+      '### New Features\n\n- feat: A much better PR title with more context by @sentry in [#123](https://github.com/test-owner/test-repo/pull/123)',
     ],
     [
       'handle multiple commits properly',
@@ -993,18 +994,30 @@ describe('generateChangesetFromGit', () => {
       );
     });
 
-    it('should fallback to Other when no config exists', async () => {
+    it('should use default conventional commits config when no config exists', async () => {
       setup(
         [
           {
             hash: 'abc123',
-            title: 'Some PR (#1)',
+            title: 'feat: Add new feature (#1)',
             body: '',
             pr: {
               remote: {
                 number: '1',
                 author: { login: 'alice' },
-                labels: ['feature'],
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'fix: Bug fix (#2)',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
               },
             },
           },
@@ -1013,10 +1026,11 @@ describe('generateChangesetFromGit', () => {
       );
 
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
-      // When no config exists, PRs show up without category headers
-      expect(changes).not.toContain('### Other');
+      // When no config exists, default conventional commits patterns are used
+      expect(changes).toContain('### New Features');
+      expect(changes).toContain('### Bug Fixes');
       expect(changes).toContain('#1');
-      expect(changes).toContain('alice');
+      expect(changes).toContain('#2');
     });
 
     it('should categorize PRs without author in their designated category', async () => {
@@ -1073,6 +1087,407 @@ describe('generateChangesetFromGit', () => {
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       // Should not crash, and PR should appear in output (no categories applied)
       expect(changes).toContain('#1');
+    });
+  });
+
+  describe('commit_log_patterns matching', () => {
+    it('should match PRs to categories based on commit_log_patterns', async () => {
+      const releaseConfigYaml = `changelog:
+  categories:
+    - title: Features
+      commit_log_patterns:
+        - "^feat:"
+    - title: Bug Fixes
+      commit_log_patterns:
+        - "^fix:"`;
+
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: add new feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'fix: resolve bug',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        releaseConfigYaml
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+
+      expect(changes).toContain('### Features');
+      expect(changes).toContain('### Bug Fixes');
+      expect(changes).toContain(
+        'feat: add new feature by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)'
+      );
+      expect(changes).toContain(
+        'fix: resolve bug by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)'
+      );
+    });
+
+    it('should give labels precedence over commit_log_patterns', async () => {
+      const releaseConfigYaml = `changelog:
+  categories:
+    - title: Labeled Features
+      labels:
+        - feature
+    - title: Pattern Features
+      commit_log_patterns:
+        - "^feat:"`;
+
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: labeled feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: ['feature'],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat: unlabeled feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        releaseConfigYaml
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+
+      expect(changes).toContain('### Labeled Features');
+      expect(changes).toContain('### Pattern Features');
+      // PR with label should be in Labeled Features (labels take precedence)
+      const labeledSection = changes.split('### Pattern Features')[0];
+      expect(labeledSection).toContain('feat: labeled feature by @alice');
+      // PR without label should be in Pattern Features
+      const patternSection = changes.split('### Pattern Features')[1];
+      expect(patternSection).toContain('feat: unlabeled feature by @bob');
+    });
+
+    it('should use default conventional commits config when no release.yml exists', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: new feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'fix: bug fix',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'docs: update readme',
+            body: '',
+            pr: {
+              remote: {
+                number: '3',
+                author: { login: 'charlie' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'jkl012',
+            title: 'chore: update deps',
+            body: '',
+            pr: {
+              remote: {
+                number: '4',
+                author: { login: 'dave' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'mno345',
+            title: 'feat(scope)!: breaking change',
+            body: '',
+            pr: {
+              remote: {
+                number: '5',
+                author: { login: 'eve' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        null // No release.yml - should use default config
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+
+      expect(changes).toContain('### New Features');
+      expect(changes).toContain('### Bug Fixes');
+      expect(changes).toContain('### Documentation');
+      expect(changes).toContain('### Build / dependencies / internal');
+      expect(changes).toContain('### Breaking Changes');
+    });
+
+    it('should handle invalid regex patterns gracefully', async () => {
+      const releaseConfigYaml = `changelog:
+  categories:
+    - title: Features
+      commit_log_patterns:
+        - "^feat:"
+        - "[invalid(regex"`;
+
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: new feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        releaseConfigYaml
+      );
+
+      // Should not crash, and valid pattern should still work
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(changes).toContain('### Features');
+      expect(changes).toContain('feat: new feature');
+    });
+
+    it('should support combined labels and commit_log_patterns in same category', async () => {
+      const releaseConfigYaml = `changelog:
+  categories:
+    - title: Features
+      labels:
+        - enhancement
+      commit_log_patterns:
+        - "^feat:"`;
+
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'add cool thing',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: ['enhancement'],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat: another cool thing',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        releaseConfigYaml
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+
+      expect(changes).toContain('### Features');
+      expect(changes).not.toContain('### Other');
+      // Both PRs should be in Features
+      expect(changes).toContain('add cool thing by @alice');
+      expect(changes).toContain('feat: another cool thing by @bob');
+    });
+
+    it('should apply category exclusions to pattern-matched PRs', async () => {
+      const releaseConfigYaml = `changelog:
+  categories:
+    - title: Features
+      commit_log_patterns:
+        - "^feat:"
+      exclude:
+        labels:
+          - skip-release`;
+
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: feature to skip',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: ['skip-release'],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat: normal feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        releaseConfigYaml
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+
+      expect(changes).toContain('### Features');
+      // PR #1 should be excluded from Features (but appear in Other)
+      expect(changes).toContain('### Other');
+      const featuresSection = changes.split('### Other')[0];
+      expect(featuresSection).not.toContain('feat: feature to skip');
+      expect(featuresSection).toContain('feat: normal feature');
+    });
+
+    it('should match pattern case-insensitively', async () => {
+      const releaseConfigYaml = `changelog:
+  categories:
+    - title: Features
+      commit_log_patterns:
+        - "^feat:"`;
+
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'FEAT: uppercase feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'Feat: mixed case feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        releaseConfigYaml
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+
+      expect(changes).toContain('### Features');
+      expect(changes).not.toContain('### Other');
+      expect(changes).toContain('FEAT: uppercase feature');
+      expect(changes).toContain('Feat: mixed case feature');
+    });
+
+    it('should match PR title from commit log pattern with scope', async () => {
+      const releaseConfigYaml = `changelog:
+  categories:
+    - title: Features
+      commit_log_patterns:
+        - "^feat(\\\\(\\\\w+\\\\))?:"`;
+
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat(api): add endpoint',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat: no scope',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        releaseConfigYaml
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+
+      expect(changes).toContain('### Features');
+      expect(changes).toContain('feat(api): add endpoint');
+      expect(changes).toContain('feat: no scope');
     });
   });
 });
