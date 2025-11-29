@@ -464,9 +464,11 @@ function isCategoryExcluded(
   labels: Set<string>,
   author: string | undefined
 ): boolean {
-  for (const excludeLabel of category.exclude.labels) {
-    if (labels.has(excludeLabel)) {
-      return true;
+  if (labels.size > 0) {
+    for (const excludeLabel of category.exclude.labels) {
+      if (labels.has(excludeLabel)) {
+        return true;
+      }
     }
   }
 
