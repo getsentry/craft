@@ -392,13 +392,53 @@ In `auto` mode, `craft prepare` will use the following logic:
    version
 3. Else, create a new section for the version and populate it with the changes
    since the last version. It uses `.github/release.yml` configuration to
-   categorize PRs by labels. PRs are matched to categories based on their
-   labels, and any PRs that don't match a category are listed under the "Other"
-   section. The system supports custom categories, exclusions (both global and
-   per-category), and wildcard matching. If `.github/release.yml` doesn't exist
-   or has no `changelog` section, all PRs are listed under "Other". Check out
-   [GitHub's release notes documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes#configuration-options)
-   for the configuration format.
+   categorize PRs by labels or commit title patterns. PRs are matched to
+   categories based on their labels first; if no label matches, the commit/PR
+   title is checked against `commit_log_patterns`. Any PRs that don't match a
+   category are listed under the "Other" section. The system supports custom
+   categories, exclusions (both global and per-category), and wildcard matching.
+   Check out [GitHub's release notes documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes#configuration-options)
+   for the base configuration format.
+
+**Default Conventional Commits Configuration**
+
+If `.github/release.yml` doesn't exist or has no `changelog` section, craft uses
+a default configuration based on [Conventional Commits](https://www.conventionalcommits.org/):
+
+| Category                        | Pattern                              |
+| ------------------------------- | ------------------------------------ |
+| Breaking Changes                | `^\w+(\(\w+\))?!:` (e.g., `feat!:`)  |
+| Build / dependencies / internal | `^(build\|ref\|chore\|ci)(\(\w+\))?:`|
+| Bug Fixes                       | `^fix(\(\w+\))?:`                    |
+| Documentation                   | `^docs?(\(\w+\))?:`                  |
+| New Features                    | `^feat(\(\w+\))?:`                   |
+
+**Commit Log Patterns**
+
+In addition to GitHub labels, you can match commits to categories using
+`commit_log_patterns`. This is an array of JavaScript regex strings that are
+matched against the PR title (or commit message if no PR exists). Labels always
+take precedence over patterns.
+
+```yaml
+# .github/release.yml
+changelog:
+  categories:
+    - title: Features
+      labels:
+        - enhancement
+      commit_log_patterns:
+        - "^feat(\\(\\w+\\))?:"
+    - title: Bug Fixes
+      labels:
+        - bug
+      commit_log_patterns:
+        - "^fix(\\(\\w+\\))?:"
+```
+
+Patterns are matched case-insensitively. You can use both `labels` and
+`commit_log_patterns` in the same category - PRs will be matched by label first,
+then by pattern if no label matches.
 
 **Configuration**
 

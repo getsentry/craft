@@ -239,6 +239,7 @@ interface Commit {
 interface ReleaseConfigCategory {
   title: string;
   labels?: string[];
+  commit_log_patterns?: string[];
   exclude?: {
     labels?: string[];
     authors?: string[];
@@ -254,6 +255,37 @@ interface ReleaseConfig {
     categories?: ReleaseConfigCategory[];
   };
 }
+
+/**
+ * Default release configuration based on conventional commits
+ * Used when .github/release.yml doesn't exist
+ */
+const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
+  changelog: {
+    categories: [
+      {
+        title: 'Breaking Changes 🛠',
+        commit_log_patterns: ['^\\w+(\\(\\w+\\))?!:'],
+      },
+      {
+        title: 'Build / dependencies / internal 🔧',
+        commit_log_patterns: ['^(?:build|ref|chore|ci)(?:\\(\\w+\\))?:'],
+      },
+      {
+        title: 'Bug Fixes 🐛',
+        commit_log_patterns: ['^fix(?:\\(\\w+\\))?:'],
+      },
+      {
+        title: 'Documentation 📚',
+        commit_log_patterns: ['^docs?(?:\\(\\w+\\))?:'],
+      },
+      {
+        title: 'New Features ✨',
+        commit_log_patterns: ['^feat(?:\\(\\w+\\))?:'],
+      },
+    ],
+  },
+};
 
 /**
  * Normalized release config with Sets for efficient lookups
@@ -272,6 +304,7 @@ interface NormalizedReleaseConfig {
 interface NormalizedCategory {
   title: string;
   labels: string[];
+  commitLogPatterns: RegExp[];
   exclude: {
     labels: Set<string>;
     authors: Set<string>;
@@ -285,12 +318,12 @@ type CategoryWithPRs = {
 
 /**
  * Reads and parses .github/release.yml from the repository root
- * @returns Parsed release configuration or null if file doesn't exist
+ * @returns Parsed release configuration, or the default config if file doesn't exist
  */
-function readReleaseConfig(): ReleaseConfig | null {
+function readReleaseConfig(): ReleaseConfig {
   const configFileDir = getConfigFileDir();
   if (!configFileDir) {
-    return null;
+    return DEFAULT_RELEASE_CONFIG;
   }
 
   const releaseConfigPath = join(configFileDir, '.github', 'release.yml');
@@ -300,22 +333,22 @@ function readReleaseConfig(): ReleaseConfig | null {
     return config;
   } catch (error: any) {
     if (error.code === 'ENOENT') {
-      // File doesn't exist, return null
-      return null;
+      // File doesn't exist, return default config
+      return DEFAULT_RELEASE_CONFIG;
     }
     logger.warn(
       `Failed to read release config from ${releaseConfigPath}:`,
       error
     );
-    return null;
+    return DEFAULT_RELEASE_CONFIG;
   }
 }
 
 /**
- * Normalizes the release config by converting arrays to Sets and normalizing empty arrays
+ * Normalizes the release config by converting arrays to Sets and compiling regex patterns
  */
 function normalizeReleaseConfig(
-  config: ReleaseConfig | null
+  config: ReleaseConfig
 ): NormalizedReleaseConfig | null {
   if (!config?.changelog) {
     return null;
@@ -359,6 +392,16 @@ function normalizeReleaseConfig(
             category.labels && category.labels.length > 0
               ? category.labels
               : [],
+          commitLogPatterns: (category.commit_log_patterns || [])
+            .map(pattern => {
+              try {
+                return new RegExp(pattern, 'i');
+              } catch {
+                logger.warn(`Invalid regex pattern in release config: ${pattern}`);
+                return null;
+              }
+            })
+            .filter((r): r is RegExp => r !== null),
           exclude: {
             labels: new Set<string>(),
             authors: new Set<string>(),
@@ -414,7 +457,31 @@ function shouldExcludePR(
 }
 
 /**
- * Matches a PR's labels to a category from release config
+ * Checks if a category excludes the given PR based on labels and author
+ */
+function isCategoryExcluded(
+  category: NormalizedCategory,
+  labels: Set<string>,
+  author: string | undefined
+): boolean {
+  if (labels.size > 0) {
+    for (const excludeLabel of category.exclude.labels) {
+      if (labels.has(excludeLabel)) {
+        return true;
+      }
+    }
+  }
+
+  if (author && category.exclude.authors.has(author)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Matches a PR's labels or commit title to a category from release config
+ * Labels take precedence over commit log pattern matching.
  * Category-level exclusions are checked here - they exclude the PR from matching this specific category,
  * allowing it to potentially match other categories or fall through to "Other"
  * @returns Category title or null if no match or excluded from this category
@@ -422,6 +489,7 @@ function shouldExcludePR(
 function matchPRToCategory(
   labels: Set<string>,
   author: string | undefined,
+  title: string,
   config: NormalizedReleaseConfig | null
 ): string | null {
   if (!config?.changelog || config.changelog.categories.length === 0) {
@@ -432,7 +500,8 @@ function matchPRToCategory(
   let wildcardCategory: NormalizedCategory | null = null;
 
   for (const category of config.changelog.categories) {
-    if (category.labels.length === 0) {
+    // A category is valid if it has labels OR commit_log_patterns
+    if (category.labels.length === 0 && category.commitLogPatterns.length === 0) {
       continue;
     }
 
@@ -444,38 +513,28 @@ function matchPRToCategory(
     regularCategories.push(category);
   }
 
-  categoryLoop: for (const category of regularCategories) {
-    const matchesCategory = category.labels.some(label => labels.has(label));
-
-    if (!matchesCategory) {
-      continue;
-    }
-
-    for (const excludeLabel of category.exclude.labels) {
-      if (labels.has(excludeLabel)) {
-        continue categoryLoop;
+  // First pass: try label matching (skip if no labels)
+  if (labels.size > 0) {
+    for (const category of regularCategories) {
+      const matchesCategory = category.labels.some(label => labels.has(label));
+      if (matchesCategory && !isCategoryExcluded(category, labels, author)) {
+        return category.title;
       }
     }
+  }
 
-    if (author && category.exclude.authors.has(author)) {
-      continue categoryLoop;
+  // Second pass: try commit_log_patterns matching
+  for (const category of regularCategories) {
+    const matchesPattern = category.commitLogPatterns.some(re => re.test(title));
+    if (matchesPattern && !isCategoryExcluded(category, labels, author)) {
+      return category.title;
     }
-
-    return category.title;
   }
 
   if (wildcardCategory) {
-    // Check if any excluded label is present in the PR's labels
-    for (const excludeLabel of wildcardCategory.exclude.labels) {
-      if (labels.has(excludeLabel)) {
-        return null;
-      }
-    }
-
-    if (author && wildcardCategory.exclude.authors.has(author)) {
+    if (isCategoryExcluded(wildcardCategory, labels, author)) {
       return null;
     }
-
     return wildcardCategory.title;
   }
 
@@ -581,7 +640,9 @@ export async function generateChangesetFromGit(
       continue;
     }
 
-    const categoryTitle = matchPRToCategory(labels, author, releaseConfig);
+    // Use PR title if available, otherwise use commit title for pattern matching
+    const titleForMatching = githubCommit?.prTitle ?? gitCommit.title;
+    const categoryTitle = matchPRToCategory(labels, author, titleForMatching, releaseConfig);
 
     const commit: Commit = {
       author: author,
