@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.12.0
+
+- ref: s/commit_log_patterns/commit_patterns by @BYK in [#638](https://github.com/getsentry/craft/pull/638)
+- feat(changelog): Add commit log based categorization by @BYK in [#637](https://github.com/getsentry/craft/pull/637)
+
 ## 2.11.2
 
 - fix(publish): Limit env vars for post-release script by @BYK in [#636](https://github.com/getsentry/craft/pull/636)
