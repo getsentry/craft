@@ -706,7 +706,20 @@ export async function generateChangesetFromGit(
   const { repo, owner } = await getGlobalGitHubConfig();
   const repoUrl = `https://github.com/${owner}/${repo}`;
 
-  for (const [, category] of categories.entries()) {
+  // Sort categories by the order defined in release config
+  const categoryOrder =
+    releaseConfig?.changelog.categories.map(c => c.title) ?? [];
+  const sortedCategories = [...categories.entries()].sort((a, b) => {
+    const aIndex = categoryOrder.indexOf(a[1].title);
+    const bIndex = categoryOrder.indexOf(b[1].title);
+    // Categories in config come first, sorted by config order
+    // Categories not in config go to the end (maintain insertion order)
+    const aOrder = aIndex === -1 ? Infinity : aIndex;
+    const bOrder = bIndex === -1 ? Infinity : bIndex;
+    return aOrder - bOrder;
+  });
+
+  for (const [, category] of sortedCategories) {
     if (category.prs.length === 0) {
       continue;
     }

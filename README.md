@@ -440,6 +440,15 @@ Patterns are matched case-insensitively. You can use both `labels` and
 `commit_patterns` in the same category - PRs will be matched by label first,
 then by pattern if no label matches.
 
+**Section Ordering**
+
+Changelog sections are sorted according to the order in which categories are
+defined in `.github/release.yml`. For example, if your config lists categories
+as `Features`, `Bug Fixes`, `Documentation`, the generated changelog will
+display sections in that exact order, regardless of which type of PR was
+encountered first in the git history. The "Other" section (for uncategorized
+changes) always appears last.
+
 **Configuration**
 
 | Option            | Description                                                                                |
