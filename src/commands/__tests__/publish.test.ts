@@ -29,6 +29,11 @@ describe('runPostReleaseCommand', () => {
             CRAFT_OLD_VERSION: '',
             PATH: process.env.PATH,
             GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+            HOME: process.env.HOME,
+            USER: process.env.USER,
+            GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME,
+            GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME,
+            EMAIL: process.env.EMAIL,
           },
         }
       );
@@ -61,6 +66,11 @@ describe('runPostReleaseCommand', () => {
           CRAFT_OLD_VERSION: '',
           PATH: process.env.PATH,
           GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+          HOME: process.env.HOME,
+          USER: process.env.USER,
+          GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME,
+          GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME,
+          EMAIL: process.env.EMAIL,
         },
       }
     );

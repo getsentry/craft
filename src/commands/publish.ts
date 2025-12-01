@@ -40,6 +40,20 @@ import { getGitClient, getDefaultBranch } from '../utils/git';
 /** Default path to post-release script, relative to project root */
 const DEFAULT_POST_RELEASE_SCRIPT_PATH = join('scripts', 'post-release.sh');
 
+/**
+ * Environment variables to pass through to the post-release command.
+ * HOME is needed so Git can find ~/.gitconfig with safe.directory settings,
+ * which fixes "fatal: detected dubious ownership in repository" errors.
+ * The git identity vars help with commit operations in post-release scripts.
+ */
+const ALLOWED_ENV_VARS = [
+  'HOME',
+  'USER',
+  'GIT_COMMITTER_NAME',
+  'GIT_AUTHOR_NAME',
+  'EMAIL',
+] as const;
+
 export const command = ['publish NEW-VERSION'];
 export const aliases = ['pp', 'publish'];
 export const description = '🛫 Publish artifacts';
@@ -415,6 +429,9 @@ export async function runPostReleaseCommand(
       CRAFT_OLD_VERSION: '',
       PATH: process.env.PATH,
       GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+      ...Object.fromEntries(
+        ALLOWED_ENV_VARS.map(key => [key, process.env[key]])
+      ),
     },
   });
   return true;
