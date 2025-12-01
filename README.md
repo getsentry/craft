@@ -394,7 +394,7 @@ In `auto` mode, `craft prepare` will use the following logic:
    since the last version. It uses `.github/release.yml` configuration to
    categorize PRs by labels or commit title patterns. PRs are matched to
    categories based on their labels first; if no label matches, the commit/PR
-   title is checked against `commit_log_patterns`. Any PRs that don't match a
+   title is checked against `commit_patterns`. Any PRs that don't match a
    category are listed under the "Other" section. The system supports custom
    categories, exclusions (both global and per-category), and wildcard matching.
    Check out [GitHub's release notes documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes#configuration-options)
@@ -416,7 +416,7 @@ a default configuration based on [Conventional Commits](https://www.conventional
 **Commit Log Patterns**
 
 In addition to GitHub labels, you can match commits to categories using
-`commit_log_patterns`. This is an array of JavaScript regex strings that are
+`commit_patterns`. This is an array of JavaScript regex strings that are
 matched against the PR title (or commit message if no PR exists). Labels always
 take precedence over patterns.
 
@@ -427,17 +427,17 @@ changelog:
     - title: Features
       labels:
         - enhancement
-      commit_log_patterns:
+      commit_patterns:
         - "^feat(\\(\\w+\\))?:"
     - title: Bug Fixes
       labels:
         - bug
-      commit_log_patterns:
+      commit_patterns:
         - "^fix(\\(\\w+\\))?:"
 ```
 
 Patterns are matched case-insensitively. You can use both `labels` and
-`commit_log_patterns` in the same category - PRs will be matched by label first,
+`commit_patterns` in the same category - PRs will be matched by label first,
 then by pattern if no label matches.
 
 **Configuration**
