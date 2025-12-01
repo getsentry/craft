@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.12.1
+
+### Bug Fixes 🐛
+
+- fix: $HOME and some others should be passed in env by @BYK in [#639](https://github.com/getsentry/craft/pull/639)
+
 ## 2.12.0
 
 - ref: s/commit_log_patterns/commit_patterns by @BYK in [#638](https://github.com/getsentry/craft/pull/638)
