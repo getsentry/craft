@@ -239,7 +239,7 @@ interface Commit {
 interface ReleaseConfigCategory {
   title: string;
   labels?: string[];
-  commit_log_patterns?: string[];
+  commit_patterns?: string[];
   exclude?: {
     labels?: string[];
     authors?: string[];
@@ -265,23 +265,23 @@ const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
     categories: [
       {
         title: 'Breaking Changes 🛠',
-        commit_log_patterns: ['^\\w+(\\(\\w+\\))?!:'],
+        commit_patterns: ['^\\w+(\\(\\w+\\))?!:'],
       },
       {
         title: 'Build / dependencies / internal 🔧',
-        commit_log_patterns: ['^(?:build|ref|chore|ci)(?:\\(\\w+\\))?:'],
+        commit_patterns: ['^(?:build|ref|chore|ci)(?:\\(\\w+\\))?:'],
       },
       {
         title: 'Bug Fixes 🐛',
-        commit_log_patterns: ['^fix(?:\\(\\w+\\))?:'],
+        commit_patterns: ['^fix(?:\\(\\w+\\))?:'],
       },
       {
         title: 'Documentation 📚',
-        commit_log_patterns: ['^docs?(?:\\(\\w+\\))?:'],
+        commit_patterns: ['^docs?(?:\\(\\w+\\))?:'],
       },
       {
         title: 'New Features ✨',
-        commit_log_patterns: ['^feat(?:\\(\\w+\\))?:'],
+        commit_patterns: ['^feat(?:\\(\\w+\\))?:'],
       },
     ],
   },
@@ -392,12 +392,14 @@ function normalizeReleaseConfig(
             category.labels && category.labels.length > 0
               ? category.labels
               : [],
-          commitLogPatterns: (category.commit_log_patterns || [])
+          commitLogPatterns: (category.commit_patterns || [])
             .map(pattern => {
               try {
                 return new RegExp(pattern, 'i');
               } catch {
-                logger.warn(`Invalid regex pattern in release config: ${pattern}`);
+                logger.warn(
+                  `Invalid regex pattern in release config: ${pattern}`
+                );
                 return null;
               }
             })
@@ -500,8 +502,11 @@ function matchPRToCategory(
   let wildcardCategory: NormalizedCategory | null = null;
 
   for (const category of config.changelog.categories) {
-    // A category is valid if it has labels OR commit_log_patterns
-    if (category.labels.length === 0 && category.commitLogPatterns.length === 0) {
+    // A category is valid if it has labels OR commit_patterns
+    if (
+      category.labels.length === 0 &&
+      category.commitLogPatterns.length === 0
+    ) {
       continue;
     }
 
@@ -523,9 +528,11 @@ function matchPRToCategory(
     }
   }
 
-  // Second pass: try commit_log_patterns matching
+  // Second pass: try commit_patterns matching
   for (const category of regularCategories) {
-    const matchesPattern = category.commitLogPatterns.some(re => re.test(title));
+    const matchesPattern = category.commitLogPatterns.some(re =>
+      re.test(title)
+    );
     if (matchesPattern && !isCategoryExcluded(category, labels, author)) {
       return category.title;
     }

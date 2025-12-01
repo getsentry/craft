@@ -1090,15 +1090,15 @@ describe('generateChangesetFromGit', () => {
     });
   });
 
-  describe('commit_log_patterns matching', () => {
-    it('should match PRs to categories based on commit_log_patterns', async () => {
+  describe('commit_patterns matching', () => {
+    it('should match PRs to categories based on commit_patterns', async () => {
       const releaseConfigYaml = `changelog:
   categories:
     - title: Features
-      commit_log_patterns:
+      commit_patterns:
         - "^feat:"
     - title: Bug Fixes
-      commit_log_patterns:
+      commit_patterns:
         - "^fix:"`;
 
       setup(
@@ -1143,14 +1143,14 @@ describe('generateChangesetFromGit', () => {
       );
     });
 
-    it('should give labels precedence over commit_log_patterns', async () => {
+    it('should give labels precedence over commit_patterns', async () => {
       const releaseConfigYaml = `changelog:
   categories:
     - title: Labeled Features
       labels:
         - feature
     - title: Pattern Features
-      commit_log_patterns:
+      commit_patterns:
         - "^feat:"`;
 
       setup(
@@ -1275,7 +1275,7 @@ describe('generateChangesetFromGit', () => {
       const releaseConfigYaml = `changelog:
   categories:
     - title: Features
-      commit_log_patterns:
+      commit_patterns:
         - "^feat:"
         - "[invalid(regex"`;
 
@@ -1303,13 +1303,13 @@ describe('generateChangesetFromGit', () => {
       expect(changes).toContain('feat: new feature');
     });
 
-    it('should support combined labels and commit_log_patterns in same category', async () => {
+    it('should support combined labels and commit_patterns in same category', async () => {
       const releaseConfigYaml = `changelog:
   categories:
     - title: Features
       labels:
         - enhancement
-      commit_log_patterns:
+      commit_patterns:
         - "^feat:"`;
 
       setup(
@@ -1355,7 +1355,7 @@ describe('generateChangesetFromGit', () => {
       const releaseConfigYaml = `changelog:
   categories:
     - title: Features
-      commit_log_patterns:
+      commit_patterns:
         - "^feat:"
       exclude:
         labels:
@@ -1405,7 +1405,7 @@ describe('generateChangesetFromGit', () => {
       const releaseConfigYaml = `changelog:
   categories:
     - title: Features
-      commit_log_patterns:
+      commit_patterns:
         - "^feat:"`;
 
       setup(
@@ -1450,7 +1450,7 @@ describe('generateChangesetFromGit', () => {
       const releaseConfigYaml = `changelog:
   categories:
     - title: Features
-      commit_log_patterns:
+      commit_patterns:
         - "^feat(\\\\(\\\\w+\\\\))?:"`;
 
       setup(
