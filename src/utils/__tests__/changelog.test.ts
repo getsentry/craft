@@ -1541,6 +1541,8 @@ describe('generateChangesetFromGit', () => {
       expect(changes).toContain('fix(my-component): resolve issue');
       expect(changes).toContain('feat(some-other-scope): add feature');
       expect(changes).toContain('docs(multi-part-scope): update docs');
+      // Should NOT appear in Other section - all commits should be categorized
+      expect(changes).not.toContain('### Other');
     });
 
     it('should match refactor and meta types in internal category', async () => {
