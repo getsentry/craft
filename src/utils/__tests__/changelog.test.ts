@@ -1489,5 +1489,149 @@ describe('generateChangesetFromGit', () => {
       expect(changes).toContain('feat(api): add endpoint');
       expect(changes).toContain('feat: no scope');
     });
+
+    it('should match conventional commit scopes with dashes', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'fix(my-component): resolve issue',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat(some-other-scope): add feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'docs(multi-part-scope): update docs',
+            body: '',
+            pr: {
+              remote: {
+                number: '3',
+                author: { login: 'charlie' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        null // Use default config
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+
+      expect(changes).toContain('### Bug Fixes');
+      expect(changes).toContain('### New Features');
+      expect(changes).toContain('### Documentation');
+      expect(changes).toContain('fix(my-component): resolve issue');
+      expect(changes).toContain('feat(some-other-scope): add feature');
+      expect(changes).toContain('docs(multi-part-scope): update docs');
+    });
+
+    it('should match refactor and meta types in internal category', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'refactor: clean up code',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'meta: update project config',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'refactor(utils): restructure helpers',
+            body: '',
+            pr: {
+              remote: {
+                number: '3',
+                author: { login: 'charlie' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        null // Use default config
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+
+      expect(changes).toContain('### Build / dependencies / internal');
+      expect(changes).toContain('refactor: clean up code');
+      expect(changes).toContain('meta: update project config');
+      expect(changes).toContain('refactor(utils): restructure helpers');
+      // Should NOT appear in Other section
+      expect(changes).not.toContain('### Other');
+    });
+
+    it('should match breaking changes with scopes containing dashes', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat(my-api)!: breaking api change',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'fix!: breaking fix',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        null // Use default config
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+
+      expect(changes).toContain('### Breaking Changes');
+      expect(changes).toContain('feat(my-api)!: breaking api change');
+      expect(changes).toContain('fix!: breaking fix');
+    });
   });
 });

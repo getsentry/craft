@@ -265,23 +265,23 @@ const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
     categories: [
       {
         title: 'Breaking Changes 🛠',
-        commit_patterns: ['^\\w+(\\(\\w+\\))?!:'],
+        commit_patterns: ['^\\w+(?:\\([^)]+\\))?!:'],
       },
       {
         title: 'Build / dependencies / internal 🔧',
-        commit_patterns: ['^(?:build|ref|chore|ci)(?:\\(\\w+\\))?:'],
+        commit_patterns: ['^(?:build|refactor|meta|chore|ci)\\b'],
       },
       {
         title: 'Bug Fixes 🐛',
-        commit_patterns: ['^fix(?:\\(\\w+\\))?:'],
+        commit_patterns: ['^fix\\b'],
       },
       {
         title: 'Documentation 📚',
-        commit_patterns: ['^docs?(?:\\(\\w+\\))?:'],
+        commit_patterns: ['^docs?\\b'],
       },
       {
         title: 'New Features ✨',
-        commit_patterns: ['^feat(?:\\(\\w+\\))?:'],
+        commit_patterns: ['^feat\\b'],
       },
     ],
   },
