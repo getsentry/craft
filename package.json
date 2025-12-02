@@ -27,7 +27,7 @@
     "@google-cloud/storage": "^5.7.0",
     "@octokit/plugin-retry": "^3.0.9",
     "@octokit/request-error": "^6.1.7",
-    "@octokit/rest": "^18.10.0",
+    "@octokit/rest": "^22.0.1",
     "@sentry/node": "^10.27.0",
     "@sentry/typescript": "^5.20.1",
     "@types/async": "^3.0.1",
