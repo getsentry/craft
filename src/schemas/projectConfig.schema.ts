@@ -155,6 +155,32 @@ const projectConfigJsonSchema = {
       properties: {
         access: {
           type: 'string',
+          description: 'NPM access level (public or restricted)',
+        },
+        checkPackageName: {
+          type: 'string',
+          description:
+            'Package name to check for latest version on the registry',
+        },
+        workspaces: {
+          type: 'boolean',
+          description:
+            'Enable workspace discovery to auto-generate npm targets for all workspace packages',
+        },
+        includeWorkspaces: {
+          type: 'string',
+          description:
+            'Regex pattern to filter which workspace packages to include',
+        },
+        excludeWorkspaces: {
+          type: 'string',
+          description:
+            'Regex pattern to filter which workspace packages to exclude',
+        },
+        artifactTemplate: {
+          type: 'string',
+          description:
+            'Template for artifact filenames. Variables: {{name}}, {{simpleName}}, {{version}}',
         },
       },
       additionalProperties: false,

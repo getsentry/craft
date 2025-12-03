@@ -44,6 +44,29 @@ export interface NpmTargetConfig extends TargetConfig {
   access?: NpmPackageAccess;
   /** If defined, lookup this package name on the registry to get the current latest version. */
   checkPackageName?: string;
+  /**
+   * Enable workspace discovery to auto-generate npm targets for all workspace packages.
+   * When enabled, this target will be expanded into multiple targets, one per workspace package.
+   */
+  workspaces?: boolean;
+  /**
+   * Regex pattern to filter which workspace packages to include.
+   * Only packages matching this pattern will be published.
+   * Example: /^@sentry\//
+   */
+  includeWorkspaces?: string;
+  /**
+   * Regex pattern to filter which workspace packages to exclude.
+   * Packages matching this pattern will not be published.
+   * Example: /^@sentry-internal\//
+   */
+  excludeWorkspaces?: string;
+  /**
+   * Template for generating artifact filenames from package names.
+   * Variables: {{name}} (full package name), {{simpleName}} (without @scope/), {{version}}
+   * Default convention: @sentry/browser -> sentry-browser-{version}.tgz
+   */
+  artifactTemplate?: string;
 }
 
 /** NPM target configuration options */
