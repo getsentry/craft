@@ -1,9 +1,16 @@
-import { existsSync, readFileSync } from 'fs';
+import { readFileSync } from 'fs';
 import * as path from 'path';
 import { load } from 'js-yaml';
 import { glob } from 'glob';
 
 import { logger } from '../logger';
+
+/**
+ * Check if an error is a "file not found" error
+ */
+function isNotFoundError(err: unknown): boolean {
+  return err instanceof Error && 'code' in err && err.code === 'ENOENT';
+}
 
 /** Information about a workspace package */
 export interface WorkspacePackage {
@@ -35,13 +42,12 @@ function readPackageJson(
   packagePath: string
 ): { name?: string; workspaces?: string[] | { packages?: string[] }; private?: boolean } | null {
   const packageJsonPath = path.join(packagePath, 'package.json');
-  if (!existsSync(packageJsonPath)) {
-    return null;
-  }
   try {
     return JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
   } catch (err) {
-    logger.warn(`Failed to parse ${packageJsonPath}:`, err);
+    if (!isNotFoundError(err)) {
+      logger.warn(`Failed to parse ${packageJsonPath}:`, err);
+    }
     return null;
   }
 }
@@ -95,6 +101,18 @@ async function resolveWorkspaceGlobs(
 }
 
 /**
+ * Check if a file exists by trying to read it
+ */
+function fileExists(filePath: string): boolean {
+  try {
+    readFileSync(filePath);
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+/**
  * Discover npm/yarn workspaces from package.json
  */
 async function discoverNpmYarnWorkspaces(
@@ -111,8 +129,7 @@ async function discoverNpmYarnWorkspaces(
   }
 
   // Detect if it's yarn or npm based on lock files
-  const yarnLockExists = existsSync(path.join(rootDir, 'yarn.lock'));
-  const type = yarnLockExists ? 'yarn' : 'npm';
+  const type = fileExists(path.join(rootDir, 'yarn.lock')) ? 'yarn' : 'npm';
 
   const packages = await resolveWorkspaceGlobs(rootDir, workspacesGlobs);
 
@@ -130,16 +147,15 @@ async function discoverPnpmWorkspaces(
   rootDir: string
 ): Promise<WorkspaceDiscoveryResult | null> {
   const pnpmWorkspacePath = path.join(rootDir, 'pnpm-workspace.yaml');
-  if (!existsSync(pnpmWorkspacePath)) {
-    return null;
-  }
 
   let config: PnpmWorkspaceConfig;
   try {
     const content = readFileSync(pnpmWorkspacePath, 'utf-8');
     config = load(content) as PnpmWorkspaceConfig;
   } catch (err) {
-    logger.warn(`Failed to parse ${pnpmWorkspacePath}:`, err);
+    if (!isNotFoundError(err)) {
+      logger.warn(`Failed to parse ${pnpmWorkspacePath}:`, err);
+    }
     return null;
   }
 

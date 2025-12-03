@@ -3,6 +3,7 @@ import prompts from 'prompts';
 
 import { TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
+import { stringToRegexp } from '../utils/filters';
 import { isDryRun } from '../utils/helpers';
 import { hasExecutable, spawnProcess } from '../utils/system';
 import {
@@ -10,6 +11,12 @@ import {
   parseVersion,
   versionGreaterOrEqualThan,
 } from '../utils/version';
+import {
+  discoverWorkspaces,
+  filterWorkspacePackages,
+  packageNameToArtifactPattern,
+  packageNameToArtifactFromTemplate,
+} from '../utils/workspaces';
 import { BaseTarget } from './base';
 import {
   BaseArtifactProvider,
@@ -17,6 +24,7 @@ import {
 } from '../artifact_providers/base';
 import { withTempFile } from '../utils/files';
 import { writeFileSync } from 'fs';
+import { logger } from '../logger';
 
 /** Command to launch "npm" */
 export const NPM_BIN = process.env.NPM_BIN || 'npm';
@@ -99,6 +107,97 @@ export class NpmTarget extends BaseTarget {
   public readonly name: string = 'npm';
   /** Target options */
   public readonly npmConfig: NpmTargetOptions;
+
+  /**
+   * Expand an npm target config into multiple targets if workspaces is enabled.
+   * This static method is called during config loading to expand workspace targets.
+   *
+   * @param config The npm target config
+   * @param rootDir The root directory of the project
+   * @returns Array of expanded target configs, or the original config in an array
+   */
+  public static async expand(
+    config: NpmTargetConfig,
+    rootDir: string
+  ): Promise<TargetConfig[]> {
+    // If workspaces is not enabled, return the config as-is
+    if (!config.workspaces) {
+      return [config];
+    }
+
+    const result = await discoverWorkspaces(rootDir);
+
+    if (result.type === 'none' || result.packages.length === 0) {
+      logger.warn(
+        'npm target has workspaces enabled but no workspace packages were found'
+      );
+      return [];
+    }
+
+    logger.info(
+      `Discovered ${result.packages.length} ${result.type} workspace packages`
+    );
+
+    // Filter packages based on include/exclude patterns
+    let includePattern: RegExp | undefined;
+    let excludePattern: RegExp | undefined;
+
+    if (config.includeWorkspaces) {
+      includePattern = stringToRegexp(config.includeWorkspaces);
+    }
+    if (config.excludeWorkspaces) {
+      excludePattern = stringToRegexp(config.excludeWorkspaces);
+    }
+
+    const filteredPackages = filterWorkspacePackages(
+      result.packages,
+      includePattern,
+      excludePattern
+    );
+
+    // Also filter out private packages by default (they shouldn't be published)
+    const publishablePackages = filteredPackages.filter(pkg => !pkg.private);
+
+    if (publishablePackages.length === 0) {
+      logger.warn('No publishable workspace packages found after filtering');
+      return [];
+    }
+
+    logger.debug(
+      `Expanding npm workspace target to ${publishablePackages.length} packages: ${publishablePackages.map(p => p.name).join(', ')}`
+    );
+
+    // Generate a target config for each package
+    return publishablePackages.map(pkg => {
+      // Generate the artifact pattern
+      let includeNames: string;
+      if (config.artifactTemplate) {
+        includeNames = packageNameToArtifactFromTemplate(
+          pkg.name,
+          config.artifactTemplate
+        );
+      } else {
+        includeNames = packageNameToArtifactPattern(pkg.name);
+      }
+
+      // Create the expanded target config
+      const expandedTarget: TargetConfig = {
+        name: 'npm',
+        id: pkg.name,
+        includeNames,
+      };
+
+      // Copy over common npm target options
+      if (config.access) {
+        expandedTarget.access = config.access;
+      }
+      if (config.checkPackageName) {
+        expandedTarget.checkPackageName = config.checkPackageName;
+      }
+
+      return expandedTarget;
+    });
+  }
 
   public constructor(
     config: NpmTargetConfig,

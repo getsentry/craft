@@ -15,19 +15,12 @@ import {
   TargetConfig,
 } from './schemas/project_config';
 import { ConfigurationError } from './utils/errors';
-import { stringToRegexp } from './utils/filters';
 import {
   getPackageVersion,
   parseVersion,
   versionGreaterOrEqualThan,
 } from './utils/version';
-import {
-  discoverWorkspaces,
-  filterWorkspacePackages,
-  packageNameToArtifactPattern,
-  packageNameToArtifactFromTemplate,
-} from './utils/workspaces';
-import { NpmTargetConfig } from './targets/npm';
+import { getTargetByName } from './targets';
 import { BaseArtifactProvider } from './artifact_providers/base';
 import { GitHubArtifactProvider } from './artifact_providers/github';
 import { NoneArtifactProvider } from './artifact_providers/none';
@@ -336,103 +329,31 @@ export async function getStatusProviderFromConfig(): Promise<BaseStatusProvider>
 }
 
 /**
- * Check if a target config is an npm target with workspaces enabled
+ * Type for target classes that support expansion
  */
-function isNpmWorkspaceTarget(target: TargetConfig): target is NpmTargetConfig {
-  return target.name === 'npm' && !!(target as NpmTargetConfig).workspaces;
+interface ExpandableTargetClass {
+  expand(config: TargetConfig, rootDir: string): Promise<TargetConfig[]>;
 }
 
 /**
- * Expand an npm workspace target into multiple individual targets
- *
- * @param target The npm target config with workspaces enabled
- * @param rootDir The root directory of the project
- * @returns Array of expanded target configs, one per workspace package
+ * Check if a target class has an expand method
  */
-async function expandSingleWorkspaceTarget(
-  target: NpmTargetConfig,
-  rootDir: string
-): Promise<TargetConfig[]> {
-  const result = await discoverWorkspaces(rootDir);
-
-  if (result.type === 'none' || result.packages.length === 0) {
-    logger.warn(
-      'npm target has workspaces enabled but no workspace packages were found'
-    );
-    return [];
-  }
-
-  logger.info(
-    `Discovered ${result.packages.length} ${result.type} workspace packages`
+function isExpandableTarget(
+  targetClass: unknown
+): targetClass is ExpandableTargetClass {
+  return (
+    typeof targetClass === 'function' &&
+    'expand' in targetClass &&
+    typeof targetClass.expand === 'function'
   );
-
-  // Filter packages based on include/exclude patterns
-  let includePattern: RegExp | undefined;
-  let excludePattern: RegExp | undefined;
-
-  if (target.includeWorkspaces) {
-    includePattern = stringToRegexp(target.includeWorkspaces);
-  }
-  if (target.excludeWorkspaces) {
-    excludePattern = stringToRegexp(target.excludeWorkspaces);
-  }
-
-  const filteredPackages = filterWorkspacePackages(
-    result.packages,
-    includePattern,
-    excludePattern
-  );
-
-  // Also filter out private packages by default (they shouldn't be published)
-  const publishablePackages = filteredPackages.filter(pkg => !pkg.private);
-
-  if (publishablePackages.length === 0) {
-    logger.warn('No publishable workspace packages found after filtering');
-    return [];
-  }
-
-  logger.debug(
-    `Expanding npm workspace target to ${publishablePackages.length} packages: ${publishablePackages.map(p => p.name).join(', ')}`
-  );
-
-  // Generate a target config for each package
-  return publishablePackages.map(pkg => {
-    // Generate the artifact pattern
-    let includeNames: string;
-    if (target.artifactTemplate) {
-      includeNames = packageNameToArtifactFromTemplate(
-        pkg.name,
-        target.artifactTemplate
-      );
-    } else {
-      includeNames = packageNameToArtifactPattern(pkg.name);
-    }
-
-    // Create the expanded target config
-    const expandedTarget: TargetConfig = {
-      name: 'npm',
-      id: pkg.name,
-      includeNames,
-    };
-
-    // Copy over common npm target options
-    if (target.access) {
-      expandedTarget.access = target.access;
-    }
-    if (target.checkPackageName) {
-      expandedTarget.checkPackageName = target.checkPackageName;
-    }
-
-    return expandedTarget;
-  });
 }
 
 /**
- * Expand all npm workspace targets in the target list
+ * Expand all expandable targets in the target list
  *
- * This function takes a list of target configs and expands any npm targets
- * that have `workspaces: true` into multiple individual targets, one per
- * workspace package.
+ * This function takes a list of target configs and expands any targets
+ * whose target class has an `expand` static method. This allows targets
+ * to implement their own expansion logic (e.g., npm workspace expansion).
  *
  * @param targets The original list of target configs
  * @returns The expanded list of target configs
@@ -444,11 +365,10 @@ export async function expandWorkspaceTargets(
   const expandedTargets: TargetConfig[] = [];
 
   for (const target of targets) {
-    if (isNpmWorkspaceTarget(target)) {
-      const expanded = await expandSingleWorkspaceTarget(
-        target as NpmTargetConfig,
-        rootDir
-      );
+    const targetClass = getTargetByName(target.name);
+
+    if (targetClass && isExpandableTarget(targetClass)) {
+      const expanded = await targetClass.expand(target, rootDir);
       expandedTargets.push(...expanded);
     } else {
       expandedTargets.push(target);
