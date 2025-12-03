@@ -20,7 +20,8 @@ import {
   parseVersion,
   versionGreaterOrEqualThan,
 } from './utils/version';
-import { getTargetByName } from './targets';
+// Note: We import getTargetByName lazily in expandWorkspaceTargets to avoid
+// circular dependency: config -> targets -> registry -> utils/registry -> symlink -> version -> config
 import { BaseArtifactProvider } from './artifact_providers/base';
 import { GitHubArtifactProvider } from './artifact_providers/github';
 import { NoneArtifactProvider } from './artifact_providers/none';
@@ -361,6 +362,10 @@ function isExpandableTarget(
 export async function expandWorkspaceTargets(
   targets: TargetConfig[]
 ): Promise<TargetConfig[]> {
+  // Lazy import to avoid circular dependency
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { getTargetByName } = require('./targets');
+
   const rootDir = getConfigFileDir() || process.cwd();
   const expandedTargets: TargetConfig[] = [];
 
