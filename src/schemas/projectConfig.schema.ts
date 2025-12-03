@@ -35,10 +35,27 @@ const projectConfigJsonSchema = {
     preReleaseCommand: { type: 'string' },
     postReleaseCommand: { type: 'string' },
     releaseBranchPrefix: { type: 'string' },
-    changelog: { type: 'string' },
+    changelog: {
+      oneOf: [
+        { type: 'string' },
+        {
+          type: 'object',
+          properties: {
+            filePath: { type: 'string' },
+            policy: {
+              type: 'string',
+              enum: ['auto', 'simple', 'none'],
+            },
+            scopeGrouping: { type: 'boolean' },
+          },
+          additionalProperties: false,
+        },
+      ],
+    },
     changelogPolicy: {
       title: 'ChangelogPolicy',
-      description: 'Different policies for changelog management',
+      description:
+        'DEPRECATED: Use changelog.policy instead. Different policies for changelog management',
       type: 'string',
       enum: ['auto', 'simple', 'none'],
       tsEnumNames: ['Auto', 'Simple', 'None'],

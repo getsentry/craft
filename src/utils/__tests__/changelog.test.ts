@@ -1916,7 +1916,7 @@ describe('generateChangesetFromGit', () => {
       return markdown.slice(startIndex, endIndex).trim();
     }
 
-    it('should group PRs by scope within categories', async () => {
+    it('should group PRs by scope within categories when scope has multiple entries', async () => {
       setup(
         [
           {
@@ -1933,7 +1933,7 @@ describe('generateChangesetFromGit', () => {
           },
           {
             hash: 'def456',
-            title: 'feat(ui): add button',
+            title: 'feat(ui): add button 1',
             body: '',
             pr: {
               remote: {
@@ -1955,23 +1955,36 @@ describe('generateChangesetFromGit', () => {
               },
             },
           },
+          {
+            hash: 'jkl012',
+            title: 'feat(ui): add button 2',
+            body: '',
+            pr: {
+              remote: {
+                number: '4',
+                author: { login: 'dave' },
+                labels: [],
+              },
+            },
+          },
         ],
         null // Use default config
       );
 
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
 
-      // Verify Api scope contains both api PRs
+      // Verify Api scope header exists (has 2 entries)
       const apiSection = getSectionContent(changes, /#### Api\n/);
       expect(apiSection).not.toBeNull();
       expect(apiSection).toContain('feat(api): add endpoint');
       expect(apiSection).toContain('feat(api): add another endpoint');
-      expect(apiSection).not.toContain('feat(ui): add button');
+      expect(apiSection).not.toContain('feat(ui):');
 
-      // Verify Ui scope contains ui PR
+      // Ui scope has 2 entries, so header should be shown
       const uiSection = getSectionContent(changes, /#### Ui\n/);
       expect(uiSection).not.toBeNull();
-      expect(uiSection).toContain('feat(ui): add button');
+      expect(uiSection).toContain('feat(ui): add button 1');
+      expect(uiSection).toContain('feat(ui): add button 2');
       expect(uiSection).not.toContain('feat(api):');
     });
 
@@ -1992,12 +2005,24 @@ describe('generateChangesetFromGit', () => {
           },
           {
             hash: 'def456',
-            title: 'feat: add feature without scope',
+            title: 'feat(api): add another endpoint',
             body: '',
             pr: {
               remote: {
                 number: '2',
                 author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'feat: add feature without scope',
+            body: '',
+            pr: {
+              remote: {
+                number: '3',
+                author: { login: 'charlie' },
                 labels: [],
               },
             },
@@ -2008,7 +2033,7 @@ describe('generateChangesetFromGit', () => {
 
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
 
-      // Should have Api scope header
+      // Should have Api scope header (has 2 entries)
       expect(changes).toContain('#### Api');
 
       // Scopeless entry should appear after all scope headers (at the bottom)
@@ -2033,6 +2058,48 @@ describe('generateChangesetFromGit', () => {
       // Verify Api scope entry comes before scopeless entry
       const apiEntryIndex = changes.indexOf('feat(api): add endpoint');
       expect(apiEntryIndex).toBeLessThan(scopelessIndex);
+    });
+
+    it('should skip scope header for scopes with only one entry', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat(api): add endpoint',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat(ui): single ui feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        null
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+
+      // Neither scope should have a header (both have only 1 entry)
+      expect(changes).not.toContain('#### Api');
+      expect(changes).not.toContain('#### Ui');
+
+      // But both PRs should still appear in the output
+      expect(changes).toContain('feat(api): add endpoint');
+      expect(changes).toContain('feat(ui): single ui feature');
     });
 
     it('should merge scopes with different casing', async () => {
@@ -2097,7 +2164,7 @@ describe('generateChangesetFromGit', () => {
         [
           {
             hash: 'abc123',
-            title: 'feat(zulu): z feature',
+            title: 'feat(zulu): z feature 1',
             body: '',
             pr: {
               remote: {
@@ -2109,7 +2176,7 @@ describe('generateChangesetFromGit', () => {
           },
           {
             hash: 'def456',
-            title: 'feat(alpha): a feature',
+            title: 'feat(zulu): z feature 2',
             body: '',
             pr: {
               remote: {
@@ -2121,12 +2188,48 @@ describe('generateChangesetFromGit', () => {
           },
           {
             hash: 'ghi789',
-            title: 'feat(beta): b feature',
+            title: 'feat(alpha): a feature 1',
             body: '',
             pr: {
               remote: {
                 number: '3',
                 author: { login: 'charlie' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'jkl012',
+            title: 'feat(alpha): a feature 2',
+            body: '',
+            pr: {
+              remote: {
+                number: '4',
+                author: { login: 'dave' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'mno345',
+            title: 'feat(beta): b feature 1',
+            body: '',
+            pr: {
+              remote: {
+                number: '5',
+                author: { login: 'eve' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'pqr678',
+            title: 'feat(beta): b feature 2',
+            body: '',
+            pr: {
+              remote: {
+                number: '6',
+                author: { login: 'frank' },
                 labels: [],
               },
             },
@@ -2146,7 +2249,8 @@ describe('generateChangesetFromGit', () => {
 
       // Also verify each section contains the correct PR
       const alphaSection = getSectionContent(changes, /#### Alpha\n/);
-      expect(alphaSection).toContain('feat(alpha): a feature');
+      expect(alphaSection).toContain('feat(alpha): a feature 1');
+      expect(alphaSection).toContain('feat(alpha): a feature 2');
       expect(alphaSection).not.toContain('feat(beta)');
       expect(alphaSection).not.toContain('feat(zulu)');
     });
@@ -2156,7 +2260,7 @@ describe('generateChangesetFromGit', () => {
         [
           {
             hash: 'abc123',
-            title: 'feat(my-component): feature with dashes',
+            title: 'feat(my-component): feature with dashes 1',
             body: '',
             pr: {
               remote: {
@@ -2168,12 +2272,36 @@ describe('generateChangesetFromGit', () => {
           },
           {
             hash: 'def456',
-            title: 'feat(another_component): feature with underscores',
+            title: 'feat(my-component): feature with dashes 2',
             body: '',
             pr: {
               remote: {
                 number: '2',
                 author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'feat(another_component): feature with underscores 1',
+            body: '',
+            pr: {
+              remote: {
+                number: '3',
+                author: { login: 'charlie' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'jkl012',
+            title: 'feat(another_component): feature with underscores 2',
+            body: '',
+            pr: {
+              remote: {
+                number: '4',
+                author: { login: 'dave' },
                 labels: [],
               },
             },
@@ -2184,7 +2312,7 @@ describe('generateChangesetFromGit', () => {
 
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
 
-      // Verify scope headers are formatted correctly
+      // Verify scope headers are formatted correctly (each has 2 entries)
       expect(changes).toContain('#### Another Component');
       expect(changes).toContain('#### My Component');
 
@@ -2193,7 +2321,8 @@ describe('generateChangesetFromGit', () => {
         changes,
         /#### My Component\n/
       );
-      expect(myComponentSection).toContain('feat(my-component): feature with dashes');
+      expect(myComponentSection).toContain('feat(my-component): feature with dashes 1');
+      expect(myComponentSection).toContain('feat(my-component): feature with dashes 2');
       expect(myComponentSection).not.toContain('feat(another_component)');
 
       const anotherComponentSection = getSectionContent(
@@ -2201,7 +2330,10 @@ describe('generateChangesetFromGit', () => {
         /#### Another Component\n/
       );
       expect(anotherComponentSection).toContain(
-        'feat(another_component): feature with underscores'
+        'feat(another_component): feature with underscores 1'
+      );
+      expect(anotherComponentSection).toContain(
+        'feat(another_component): feature with underscores 2'
       );
       expect(anotherComponentSection).not.toContain('feat(my-component)');
     });
@@ -2223,12 +2355,36 @@ describe('generateChangesetFromGit', () => {
           },
           {
             hash: 'def456',
-            title: 'feat(ui): add button',
+            title: 'feat(api): add another endpoint',
             body: '',
             pr: {
               remote: {
                 number: '2',
                 author: { login: 'bob' },
+                labels: ['enhancement'],
+              },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'feat(ui): add button',
+            body: '',
+            pr: {
+              remote: {
+                number: '3',
+                author: { login: 'charlie' },
+                labels: ['enhancement'],
+              },
+            },
+          },
+          {
+            hash: 'jkl012',
+            title: 'feat(ui): add dialog',
+            body: '',
+            pr: {
+              remote: {
+                number: '4',
+                author: { login: 'dave' },
                 labels: ['enhancement'],
               },
             },
@@ -2245,15 +2401,17 @@ describe('generateChangesetFromGit', () => {
 
       expect(changes).toContain('### Features');
 
-      // Verify PRs are grouped under correct scopes
+      // Verify PRs are grouped under correct scopes (each scope has 2 entries)
       const apiSection = getSectionContent(changes, /#### Api\n/);
       expect(apiSection).not.toBeNull();
       expect(apiSection).toContain('feat(api): add endpoint');
+      expect(apiSection).toContain('feat(api): add another endpoint');
       expect(apiSection).not.toContain('feat(ui)');
 
       const uiSection = getSectionContent(changes, /#### Ui\n/);
       expect(uiSection).not.toBeNull();
       expect(uiSection).toContain('feat(ui): add button');
+      expect(uiSection).toContain('feat(ui): add dialog');
       expect(uiSection).not.toContain('feat(api)');
     });
 
@@ -2274,7 +2432,80 @@ describe('generateChangesetFromGit', () => {
           },
           {
             hash: 'def456',
+            title: 'feat(api)!: another breaking api change',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'ghi789',
             title: 'fix(core)!: breaking core fix',
+            body: '',
+            pr: {
+              remote: {
+                number: '3',
+                author: { login: 'charlie' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'jkl012',
+            title: 'fix(core)!: another breaking core fix',
+            body: '',
+            pr: {
+              remote: {
+                number: '4',
+                author: { login: 'dave' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        null
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+
+      expect(changes).toContain('### Breaking Changes');
+
+      // Verify PRs are grouped under correct scopes (each scope has 2 entries)
+      const apiSection = getSectionContent(changes, /#### Api\n/);
+      expect(apiSection).not.toBeNull();
+      expect(apiSection).toContain('feat(api)!: breaking api change');
+      expect(apiSection).toContain('feat(api)!: another breaking api change');
+      expect(apiSection).not.toContain('fix(core)');
+
+      const coreSection = getSectionContent(changes, /#### Core\n/);
+      expect(coreSection).not.toBeNull();
+      expect(coreSection).toContain('fix(core)!: breaking core fix');
+      expect(coreSection).toContain('fix(core)!: another breaking core fix');
+      expect(coreSection).not.toContain('feat(api)');
+    });
+
+    it('should merge scopes with dashes and underscores as equivalent', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat(my-component): feature with dashes',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat(my_component): feature with underscores',
             body: '',
             pr: {
               remote: {
@@ -2290,18 +2521,15 @@ describe('generateChangesetFromGit', () => {
 
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
 
-      expect(changes).toContain('### Breaking Changes');
+      // Should only have one "My Component" header (merged via normalization)
+      const myComponentMatches = changes.match(/#### My Component/gi);
+      expect(myComponentMatches).toHaveLength(1);
 
-      // Verify PRs are grouped under correct scopes
-      const apiSection = getSectionContent(changes, /#### Api\n/);
-      expect(apiSection).not.toBeNull();
-      expect(apiSection).toContain('feat(api)!: breaking api change');
-      expect(apiSection).not.toContain('fix(core)');
-
-      const coreSection = getSectionContent(changes, /#### Core\n/);
-      expect(coreSection).not.toBeNull();
-      expect(coreSection).toContain('fix(core)!: breaking core fix');
-      expect(coreSection).not.toContain('feat(api)');
+      // Both PRs should appear under the same scope section
+      const myComponentSection = getSectionContent(changes, /#### My Component\n/);
+      expect(myComponentSection).not.toBeNull();
+      expect(myComponentSection).toContain('feat(my-component): feature with dashes');
+      expect(myComponentSection).toContain('feat(my_component): feature with underscores');
     });
   });
 });
@@ -2311,13 +2539,14 @@ describe('extractScope', () => {
     ['feat(api): add endpoint', 'api'],
     ['fix(ui): fix button', 'ui'],
     ['feat(my-component): add feature', 'my-component'],
-    ['feat(my_component): add feature', 'my_component'],
+    ['feat(my_component): add feature', 'my-component'], // underscores normalized to dashes
     ['feat(API): uppercase scope', 'api'],
     ['feat(MyComponent): mixed case', 'mycomponent'],
     ['feat(scope)!: breaking change', 'scope'],
     ['fix(core)!: another breaking', 'core'],
     ['docs(readme): update docs', 'readme'],
     ['chore(deps): update dependencies', 'deps'],
+    ['feat(my-long_scope): mixed separators', 'my-long-scope'], // underscores normalized to dashes
   ])('should extract scope from "%s" as "%s"', (title, expected) => {
     expect(extractScope(title)).toBe(expected);
   });

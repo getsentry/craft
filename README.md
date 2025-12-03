@@ -461,9 +461,12 @@ For example, `feat(my-component): add feature` will appear under a
 
 Scopes are normalized to lowercase for grouping purposes, so `feat(API):` and
 `feat(api):` will be grouped together under the same `#### Api` header.
+Additionally, dashes and underscores are treated as equivalent, so `feat(my-component):`
+and `feat(my_component):` will also be grouped together.
 
-Entries without a scope (e.g., `feat: add feature`) are listed at the bottom of
-each category section without a sub-header.
+Scope headers are only shown for scopes with more than one entry (single-entry
+scope headers aren't useful). Entries without a scope (e.g., `feat: add feature`)
+are listed at the bottom of each category section without a sub-header.
 
 **Example output with scope grouping:**
 
@@ -484,16 +487,28 @@ each category section without a sub-header.
 
 **Configuration**
 
-| Option            | Description                                                                                |
-| ----------------- | ------------------------------------------------------------------------------------------ |
-| `changelog`       | **optional**. Path to the changelog file. Defaults to `CHANGELOG.md`                       |
-| `changelogPolicy` | **optional**. Changelog management mode (`none`, `simple`, or `auto`). Defaults to `none`. |
+The `changelog` option can be either a string (file path) or an object with more options:
 
-**Example (`simple`):**
+| Option                    | Description                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------ |
+| `changelog`               | **optional**. Path to changelog file (string) OR configuration object (see below)          |
+| `changelog.filePath`      | **optional**. Path to the changelog file. Defaults to `CHANGELOG.md`                       |
+| `changelog.policy`        | **optional**. Changelog management mode (`none`, `simple`, or `auto`). Defaults to `none`. |
+| `changelog.scopeGrouping` | **optional**. Enable scope-based grouping within categories. Defaults to `true`.           |
+| `changelogPolicy`         | **deprecated**. Use `changelog.policy` instead.                                            |
+
+**Example (`simple` with file path only):**
 
 ```yaml
 changelog: CHANGES
-changelogPolicy: simple
+```
+
+**Example (`simple` with custom file path):**
+
+```yaml
+changelog:
+  filePath: CHANGES.md
+  policy: simple
 ```
 
 **Valid changelog example:**
@@ -511,8 +526,16 @@ changelogPolicy: simple
 **Example (`auto`):**
 
 ```yaml
-changelog: CHANGES
-changelogPolicy: auto
+changelog:
+  policy: auto
+```
+
+**Example (disable scope grouping):**
+
+```yaml
+changelog:
+  policy: auto
+  scopeGrouping: false
 ```
 
 **Changelog with staged changes example:**

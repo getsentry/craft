@@ -13,7 +13,13 @@ export interface CraftProjectConfig {
   preReleaseCommand?: string;
   postReleaseCommand?: string;
   releaseBranchPrefix?: string;
-  changelog?: string;
+  changelog?:
+    | string
+    | {
+        filePath?: string;
+        policy?: 'auto' | 'simple' | 'none';
+        scopeGrouping?: boolean;
+      };
   changelogPolicy?: ChangelogPolicy;
   minVersion?: string;
   requireNames?: string[];
@@ -58,7 +64,7 @@ export interface BaseArtifactProvider {
 }
 
 /**
- * Different policies for changelog management
+ * DEPRECATED: Use changelog.policy instead. Different policies for changelog management
  */
 export const enum ChangelogPolicy {
   Auto = 'auto',

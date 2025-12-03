@@ -4,7 +4,11 @@ import { join } from 'path';
 import { load } from 'js-yaml';
 import { logger } from '../logger';
 
-import { getConfigFileDir, getGlobalGitHubConfig } from '../config';
+import {
+  getConfigFileDir,
+  getGlobalGitHubConfig,
+  getChangelogConfig,
+} from '../config';
 import { getChangesSince } from './git';
 import { getGitHubClient } from './githubApi';
 import { getVersion } from './version';
@@ -63,14 +67,15 @@ function escapeLeadingUnderscores(text: string): string {
 /**
  * Extracts the scope from a conventional commit title.
  * For example: "feat(api): add endpoint" returns "api"
- * Returns normalized (lowercase) scope or null if no scope found.
+ * Returns normalized scope (lowercase, dashes and underscores unified) or null if no scope found.
  */
 export function extractScope(title: string): string | null {
   // Match conventional commit format: type(scope): message
   // Also handles breaking change indicator: type(scope)!: message
   const match = title.match(/^\w+\(([^)]+)\)!?:/);
   if (match && match[1]) {
-    return match[1].toLowerCase();
+    // Normalize: lowercase and replace dashes/underscores with a common separator
+    return match[1].toLowerCase().replace(/[-_]/g, '-');
   }
   return null;
 }
@@ -676,7 +681,12 @@ export async function generateChangesetFromGit(
 
     // Use PR title if available, otherwise use commit title for pattern matching
     const titleForMatching = githubCommit?.prTitle ?? gitCommit.title;
-    const categoryTitle = matchPRToCategory(labels, author, titleForMatching, releaseConfig);
+    const categoryTitle = matchPRToCategory(
+      labels,
+      author,
+      titleForMatching,
+      releaseConfig
+    );
 
     const commit: Commit = {
       author: author,
@@ -745,6 +755,15 @@ export async function generateChangesetFromGit(
   const { repo, owner } = await getGlobalGitHubConfig();
   const repoUrl = `https://github.com/${owner}/${repo}`;
 
+  // Get changelog config for scope grouping setting
+  let scopeGroupingEnabled = true;
+  try {
+    const changelogConfig = getChangelogConfig();
+    scopeGroupingEnabled = changelogConfig.scopeGrouping;
+  } catch {
+    // If config can't be read (e.g., no .craft.yml), use default
+  }
+
   // Sort categories by the order defined in release config
   const categoryOrder =
     releaseConfig?.changelog.categories.map(c => c.title) ?? [];
@@ -780,8 +799,11 @@ export async function generateChangesetFromGit(
     });
 
     for (const [scope, prs] of sortedScopes) {
-      // Add scope header if scope exists
-      if (scope !== null) {
+      // Add scope header if:
+      // - scope grouping is enabled AND
+      // - scope exists (not null) AND
+      // - there's more than one entry in this scope (single entry headers aren't useful)
+      if (scopeGroupingEnabled && scope !== null && prs.length > 1) {
         changelogSections.push(
           markdownHeader(SCOPE_HEADER_LEVEL, formatScopeTitle(scope))
         );

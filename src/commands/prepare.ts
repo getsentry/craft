@@ -510,12 +510,23 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   const oldVersion = await getLatestTag(git);
 
   // Check & update the changelog
+  // Extract changelog path from config (can be string or object)
+  const changelogPath =
+    typeof config.changelog === 'string'
+      ? config.changelog
+      : config.changelog?.filePath;
+  // Get policy from new format or legacy changelogPolicy
+  const changelogPolicy = (
+    typeof config.changelog === 'object' && config.changelog?.policy
+      ? config.changelog.policy
+      : config.changelogPolicy
+  ) as ChangelogPolicy | undefined;
   await prepareChangelog(
     git,
     oldVersion,
     newVersion,
-    argv.noChangelog ? ChangelogPolicy.None : config.changelogPolicy,
-    config.changelog
+    argv.noChangelog ? ChangelogPolicy.None : changelogPolicy,
+    changelogPath
   );
 
   // Run a pre-release script (e.g. for version bumping)
