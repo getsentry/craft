@@ -1636,4 +1636,258 @@ describe('generateChangesetFromGit', () => {
       expect(changes).toContain('fix!: breaking fix');
     });
   });
+
+  describe('section ordering', () => {
+    it('should sort sections by config order regardless of PR encounter order', async () => {
+      // Config defines order: Features, Bug Fixes, Documentation
+      // But PRs are encountered in order: Bug Fix, Documentation, Feature
+      const releaseConfigYaml = `changelog:
+  categories:
+    - title: Features
+      labels:
+        - feature
+    - title: Bug Fixes
+      labels:
+        - bug
+    - title: Documentation
+      labels:
+        - docs`;
+
+      setup(
+        [
+          // First PR encountered is a bug fix
+          {
+            hash: 'abc123',
+            title: 'Fix critical bug',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: ['bug'],
+              },
+            },
+          },
+          // Second PR is documentation
+          {
+            hash: 'def456',
+            title: 'Update README',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: ['docs'],
+              },
+            },
+          },
+          // Third PR is a feature
+          {
+            hash: 'ghi789',
+            title: 'Add new feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '3',
+                author: { login: 'charlie' },
+                labels: ['feature'],
+              },
+            },
+          },
+        ],
+        releaseConfigYaml
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+
+      // Sections should appear in config order, not encounter order
+      const featuresIndex = changes.indexOf('### Features');
+      const bugFixesIndex = changes.indexOf('### Bug Fixes');
+      const docsIndex = changes.indexOf('### Documentation');
+
+      expect(featuresIndex).toBeGreaterThan(-1);
+      expect(bugFixesIndex).toBeGreaterThan(-1);
+      expect(docsIndex).toBeGreaterThan(-1);
+
+      // Features should come before Bug Fixes, which should come before Documentation
+      expect(featuresIndex).toBeLessThan(bugFixesIndex);
+      expect(bugFixesIndex).toBeLessThan(docsIndex);
+    });
+
+    it('should maintain stable ordering with multiple PRs per category', async () => {
+      const releaseConfigYaml = `changelog:
+  categories:
+    - title: Features
+      labels:
+        - feature
+    - title: Bug Fixes
+      labels:
+        - bug`;
+
+      setup(
+        [
+          // Mix of bug fixes and features, bug fixes encountered first
+          {
+            hash: 'abc123',
+            title: 'First bug fix',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: ['bug'],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'First feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: ['feature'],
+              },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'Second bug fix',
+            body: '',
+            pr: {
+              remote: {
+                number: '3',
+                author: { login: 'charlie' },
+                labels: ['bug'],
+              },
+            },
+          },
+          {
+            hash: 'jkl012',
+            title: 'Second feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '4',
+                author: { login: 'dave' },
+                labels: ['feature'],
+              },
+            },
+          },
+        ],
+        releaseConfigYaml
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+
+      // Features should still come before Bug Fixes per config order
+      const featuresIndex = changes.indexOf('### Features');
+      const bugFixesIndex = changes.indexOf('### Bug Fixes');
+
+      expect(featuresIndex).toBeGreaterThan(-1);
+      expect(bugFixesIndex).toBeGreaterThan(-1);
+      expect(featuresIndex).toBeLessThan(bugFixesIndex);
+
+      // Both features should be in Features section
+      expect(changes).toContain('First feature');
+      expect(changes).toContain('Second feature');
+      // Both bug fixes should be in Bug Fixes section
+      expect(changes).toContain('First bug fix');
+      expect(changes).toContain('Second bug fix');
+    });
+
+    it('should maintain default conventional commits order', async () => {
+      // No config - uses default conventional commits categories
+      // Order should be: Breaking Changes, Build/deps, Bug Fixes, Documentation, New Features
+      setup(
+        [
+          // Encounter order: feat, fix, breaking, docs, chore
+          {
+            hash: 'abc123',
+            title: 'feat: new feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'fix: bug fix',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'feat!: breaking change',
+            body: '',
+            pr: {
+              remote: {
+                number: '3',
+                author: { login: 'charlie' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'jkl012',
+            title: 'docs: update docs',
+            body: '',
+            pr: {
+              remote: {
+                number: '4',
+                author: { login: 'dave' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'mno345',
+            title: 'chore: update deps',
+            body: '',
+            pr: {
+              remote: {
+                number: '5',
+                author: { login: 'eve' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        null // No config - use defaults
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+
+      // Default order from DEFAULT_RELEASE_CONFIG:
+      // Breaking Changes, Build/deps, Bug Fixes, Documentation, New Features
+      const breakingIndex = changes.indexOf('### Breaking Changes');
+      const buildIndex = changes.indexOf('### Build / dependencies / internal');
+      const bugFixesIndex = changes.indexOf('### Bug Fixes');
+      const docsIndex = changes.indexOf('### Documentation');
+      const featuresIndex = changes.indexOf('### New Features');
+
+      expect(breakingIndex).toBeGreaterThan(-1);
+      expect(buildIndex).toBeGreaterThan(-1);
+      expect(bugFixesIndex).toBeGreaterThan(-1);
+      expect(docsIndex).toBeGreaterThan(-1);
+      expect(featuresIndex).toBeGreaterThan(-1);
+
+      // Verify order matches default config order
+      expect(breakingIndex).toBeLessThan(buildIndex);
+      expect(featuresIndex).toBeLessThan(bugFixesIndex);
+      expect(bugFixesIndex).toBeLessThan(docsIndex);
+      expect(docsIndex).toBeLessThan(buildIndex);
+    });
+  });
 });
