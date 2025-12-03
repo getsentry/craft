@@ -1885,9 +1885,9 @@ describe('generateChangesetFromGit', () => {
 
       // Verify order matches default config order
       expect(breakingIndex).toBeLessThan(buildIndex);
-      expect(buildIndex).toBeLessThan(bugFixesIndex);
+      expect(featuresIndex).toBeLessThan(bugFixesIndex);
       expect(bugFixesIndex).toBeLessThan(docsIndex);
-      expect(docsIndex).toBeLessThan(featuresIndex);
+      expect(docsIndex).toBeLessThan(buildIndex);
     });
   });
 });

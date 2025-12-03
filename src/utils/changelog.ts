@@ -268,8 +268,8 @@ const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
         commit_patterns: ['^\\w+(?:\\([^)]+\\))?!:'],
       },
       {
-        title: 'Build / dependencies / internal 🔧',
-        commit_patterns: ['^(?:build|refactor|meta|chore|ci)\\b'],
+        title: 'New Features ✨',
+        commit_patterns: ['^feat\\b'],
       },
       {
         title: 'Bug Fixes 🐛',
@@ -280,8 +280,8 @@ const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
         commit_patterns: ['^docs?\\b'],
       },
       {
-        title: 'New Features ✨',
-        commit_patterns: ['^feat\\b'],
+        title: 'Build / dependencies / internal 🔧',
+        commit_patterns: ['^(?:build|refactor|meta|chore|ci)\\b'],
       },
     ],
   },
