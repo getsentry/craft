@@ -1894,6 +1894,28 @@ describe('generateChangesetFromGit', () => {
   });
 
   describe('scope grouping', () => {
+    /**
+     * Helper to extract content between two headers (or to end of string).
+     * Returns the content after the start header and before the next header of same or higher level.
+     */
+    function getSectionContent(
+      markdown: string,
+      headerPattern: RegExp
+    ): string | null {
+      const match = markdown.match(headerPattern);
+      if (!match) return null;
+
+      const startIndex = match.index! + match[0].length;
+      // Find the next header (### or ####)
+      const restOfContent = markdown.slice(startIndex);
+      const nextHeaderMatch = restOfContent.match(/^#{3,4} /m);
+      const endIndex = nextHeaderMatch
+        ? startIndex + nextHeaderMatch.index!
+        : markdown.length;
+
+      return markdown.slice(startIndex, endIndex).trim();
+    }
+
     it('should group PRs by scope within categories', async () => {
       setup(
         [
@@ -1939,14 +1961,18 @@ describe('generateChangesetFromGit', () => {
 
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
 
-      // Should have scope headers
-      expect(changes).toContain('#### Api');
-      expect(changes).toContain('#### Ui');
+      // Verify Api scope contains both api PRs
+      const apiSection = getSectionContent(changes, /#### Api\n/);
+      expect(apiSection).not.toBeNull();
+      expect(apiSection).toContain('feat(api): add endpoint');
+      expect(apiSection).toContain('feat(api): add another endpoint');
+      expect(apiSection).not.toContain('feat(ui): add button');
 
-      // Api scope should contain both api PRs
-      expect(changes).toContain('feat(api): add endpoint');
-      expect(changes).toContain('feat(api): add another endpoint');
-      expect(changes).toContain('feat(ui): add button');
+      // Verify Ui scope contains ui PR
+      const uiSection = getSectionContent(changes, /#### Ui\n/);
+      expect(uiSection).not.toBeNull();
+      expect(uiSection).toContain('feat(ui): add button');
+      expect(uiSection).not.toContain('feat(api):');
     });
 
     it('should place scopeless entries at the bottom without sub-header', async () => {
@@ -1985,10 +2011,28 @@ describe('generateChangesetFromGit', () => {
       // Should have Api scope header
       expect(changes).toContain('#### Api');
 
-      // Scopeless entry should appear after scoped entries
-      const apiIndex = changes.indexOf('#### Api');
+      // Scopeless entry should appear after all scope headers (at the bottom)
+      const lastScopeHeaderIndex = changes.lastIndexOf('#### ');
       const scopelessIndex = changes.indexOf('feat: add feature without scope');
-      expect(scopelessIndex).toBeGreaterThan(apiIndex);
+      expect(scopelessIndex).toBeGreaterThan(lastScopeHeaderIndex);
+
+      // Verify the scopeless entry doesn't have its own #### header before it
+      // by checking that the line immediately before it is not a scope header
+      const lines = changes.split('\n');
+      const scopelessLineIndex = lines.findIndex(line =>
+        line.includes('feat: add feature without scope')
+      );
+      // Find the closest non-empty line before the scopeless entry
+      let prevLineIndex = scopelessLineIndex - 1;
+      while (prevLineIndex >= 0 && lines[prevLineIndex].trim() === '') {
+        prevLineIndex--;
+      }
+      // The previous non-empty line should not be a #### header
+      expect(lines[prevLineIndex]).not.toMatch(/^#### /);
+
+      // Verify Api scope entry comes before scopeless entry
+      const apiEntryIndex = changes.indexOf('feat(api): add endpoint');
+      expect(apiEntryIndex).toBeLessThan(scopelessIndex);
     });
 
     it('should merge scopes with different casing', async () => {
@@ -2037,13 +2081,15 @@ describe('generateChangesetFromGit', () => {
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
 
       // Should only have one Api header (all merged)
-      const apiMatches = changes.match(/#### Api/g);
+      const apiMatches = changes.match(/#### Api/gi);
       expect(apiMatches).toHaveLength(1);
 
-      // All three PRs should be under the same scope
-      expect(changes).toContain('feat(API): uppercase scope');
-      expect(changes).toContain('feat(api): lowercase scope');
-      expect(changes).toContain('feat(Api): mixed case scope');
+      // All three PRs should be under the same Api scope section
+      const apiSection = getSectionContent(changes, /#### Api\n/);
+      expect(apiSection).not.toBeNull();
+      expect(apiSection).toContain('feat(API): uppercase scope');
+      expect(apiSection).toContain('feat(api): lowercase scope');
+      expect(apiSection).toContain('feat(Api): mixed case scope');
     });
 
     it('should sort scope groups alphabetically', async () => {
@@ -2097,6 +2143,12 @@ describe('generateChangesetFromGit', () => {
 
       expect(alphaIndex).toBeLessThan(betaIndex);
       expect(betaIndex).toBeLessThan(zuluIndex);
+
+      // Also verify each section contains the correct PR
+      const alphaSection = getSectionContent(changes, /#### Alpha\n/);
+      expect(alphaSection).toContain('feat(alpha): a feature');
+      expect(alphaSection).not.toContain('feat(beta)');
+      expect(alphaSection).not.toContain('feat(zulu)');
     });
 
     it('should format scope with dashes and underscores as title case', async () => {
@@ -2132,8 +2184,26 @@ describe('generateChangesetFromGit', () => {
 
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
 
-      expect(changes).toContain('#### My Component');
+      // Verify scope headers are formatted correctly
       expect(changes).toContain('#### Another Component');
+      expect(changes).toContain('#### My Component');
+
+      // Verify PRs are under correct scope sections
+      const myComponentSection = getSectionContent(
+        changes,
+        /#### My Component\n/
+      );
+      expect(myComponentSection).toContain('feat(my-component): feature with dashes');
+      expect(myComponentSection).not.toContain('feat(another_component)');
+
+      const anotherComponentSection = getSectionContent(
+        changes,
+        /#### Another Component\n/
+      );
+      expect(anotherComponentSection).toContain(
+        'feat(another_component): feature with underscores'
+      );
+      expect(anotherComponentSection).not.toContain('feat(my-component)');
     });
 
     it('should apply scope grouping to label-categorized PRs', async () => {
@@ -2174,8 +2244,17 @@ describe('generateChangesetFromGit', () => {
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
 
       expect(changes).toContain('### Features');
-      expect(changes).toContain('#### Api');
-      expect(changes).toContain('#### Ui');
+
+      // Verify PRs are grouped under correct scopes
+      const apiSection = getSectionContent(changes, /#### Api\n/);
+      expect(apiSection).not.toBeNull();
+      expect(apiSection).toContain('feat(api): add endpoint');
+      expect(apiSection).not.toContain('feat(ui)');
+
+      const uiSection = getSectionContent(changes, /#### Ui\n/);
+      expect(uiSection).not.toBeNull();
+      expect(uiSection).toContain('feat(ui): add button');
+      expect(uiSection).not.toContain('feat(api)');
     });
 
     it('should handle breaking changes with scopes', async () => {
@@ -2212,8 +2291,17 @@ describe('generateChangesetFromGit', () => {
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
 
       expect(changes).toContain('### Breaking Changes');
-      expect(changes).toContain('#### Api');
-      expect(changes).toContain('#### Core');
+
+      // Verify PRs are grouped under correct scopes
+      const apiSection = getSectionContent(changes, /#### Api\n/);
+      expect(apiSection).not.toBeNull();
+      expect(apiSection).toContain('feat(api)!: breaking api change');
+      expect(apiSection).not.toContain('fix(core)');
+
+      const coreSection = getSectionContent(changes, /#### Core\n/);
+      expect(coreSection).not.toBeNull();
+      expect(coreSection).toContain('fix(core)!: breaking core fix');
+      expect(coreSection).not.toContain('feat(api)');
     });
   });
 });
