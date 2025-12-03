@@ -19,6 +19,7 @@ export const BODY_IN_CHANGELOG_MAGIC_WORD = '#body-in-changelog';
 const DEFAULT_CHANGESET_BODY = '- No documented changes.';
 const VERSION_HEADER_LEVEL = 2;
 const SUBSECTION_HEADER_LEVEL = VERSION_HEADER_LEVEL + 1;
+const SCOPE_HEADER_LEVEL = SUBSECTION_HEADER_LEVEL + 1;
 const MAX_COMMITS_PER_QUERY = 50;
 const MAX_LEFTOVERS = 24;
 
@@ -57,6 +58,32 @@ function markdownHeader(level: number, text: string): string {
 
 function escapeLeadingUnderscores(text: string): string {
   return text.replace(/(^| )_/, '$1\\_');
+}
+
+/**
+ * Extracts the scope from a conventional commit title.
+ * For example: "feat(api): add endpoint" returns "api"
+ * Returns normalized (lowercase) scope or null if no scope found.
+ */
+export function extractScope(title: string): string | null {
+  // Match conventional commit format: type(scope): message
+  // Also handles breaking change indicator: type(scope)!: message
+  const match = title.match(/^\w+\(([^)]+)\)!?:/);
+  if (match && match[1]) {
+    return match[1].toLowerCase();
+  }
+  return null;
+}
+
+/**
+ * Formats a scope name to title case for display.
+ * Converts dashes and underscores to spaces, capitalizes first letter of each word.
+ * For example: "my-component" becomes "My Component"
+ */
+export function formatScopeTitle(scope: string): string {
+  return scope
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, char => char.toUpperCase());
 }
 
 /**
@@ -313,7 +340,7 @@ interface NormalizedCategory {
 
 type CategoryWithPRs = {
   title: string;
-  prs: PullRequest[];
+  scopeGroups: Map<string | null, PullRequest[]>;
 };
 
 /**
@@ -680,16 +707,28 @@ export async function generateChangesetFromGit(
         if (!category) {
           category = {
             title: categoryTitle,
-            prs: [] as PullRequest[],
+            scopeGroups: new Map<string | null, PullRequest[]>(),
           };
           categories.set(categoryTitle, category);
         }
-        category.prs.push({
+
+        // Extract and normalize scope from PR title
+        const prTitle = commit.prTitle ?? commit.title;
+        const scope = extractScope(prTitle);
+
+        // Get or create the scope group
+        let scopeGroup = category.scopeGroups.get(scope);
+        if (!scopeGroup) {
+          scopeGroup = [];
+          category.scopeGroups.set(scope, scopeGroup);
+        }
+
+        scopeGroup.push({
           author: commit.author,
           number: commit.pr,
           hash: commit.hash,
           body: commit.prBody ?? '',
-          title: commit.prTitle ?? commit.title,
+          title: prTitle,
         });
       }
     }
@@ -720,7 +759,7 @@ export async function generateChangesetFromGit(
   });
 
   for (const [, category] of sortedCategories) {
-    if (category.prs.length === 0) {
+    if (category.scopeGroups.size === 0) {
       continue;
     }
 
@@ -728,18 +767,39 @@ export async function generateChangesetFromGit(
       markdownHeader(SUBSECTION_HEADER_LEVEL, category.title)
     );
 
-    const prEntries = category.prs.map(pr =>
-      formatChangelogEntry({
-        title: pr.title,
-        author: pr.author,
-        prNumber: pr.number,
-        hash: pr.hash,
-        body: pr.body,
-        repoUrl,
-      })
-    );
+    // Sort scope groups: scoped entries first (alphabetically), scopeless (null) last
+    const sortedScopes = [...category.scopeGroups.entries()].sort((a, b) => {
+      const [scopeA] = a;
+      const [scopeB] = b;
+      // null (no scope) goes last
+      if (scopeA === null && scopeB === null) return 0;
+      if (scopeA === null) return 1;
+      if (scopeB === null) return -1;
+      // Sort alphabetically
+      return scopeA.localeCompare(scopeB);
+    });
 
-    changelogSections.push(prEntries.join('\n'));
+    for (const [scope, prs] of sortedScopes) {
+      // Add scope header if scope exists
+      if (scope !== null) {
+        changelogSections.push(
+          markdownHeader(SCOPE_HEADER_LEVEL, formatScopeTitle(scope))
+        );
+      }
+
+      const prEntries = prs.map(pr =>
+        formatChangelogEntry({
+          title: pr.title,
+          author: pr.author,
+          prNumber: pr.number,
+          hash: pr.hash,
+          body: pr.body,
+          repoUrl,
+        })
+      );
+
+      changelogSections.push(prEntries.join('\n'));
+    }
   }
 
   const nLeftovers = leftovers.length;

@@ -449,6 +449,39 @@ display sections in that exact order, regardless of which type of PR was
 encountered first in the git history. The "Other" section (for uncategorized
 changes) always appears last.
 
+**Scope Grouping**
+
+When using [Conventional Commits](https://www.conventionalcommits.org/) with
+scopes (e.g., `feat(api): add endpoint`), changes within each category are
+automatically grouped by scope. Scope names are formatted as title case
+sub-headers (level 4, `####`), with dashes and underscores converted to spaces.
+
+For example, `feat(my-component): add feature` will appear under a
+`#### My Component` sub-header within the Features category.
+
+Scopes are normalized to lowercase for grouping purposes, so `feat(API):` and
+`feat(api):` will be grouped together under the same `#### Api` header.
+
+Entries without a scope (e.g., `feat: add feature`) are listed at the bottom of
+each category section without a sub-header.
+
+**Example output with scope grouping:**
+
+```text
+### New Features
+
+#### Api
+
+- feat(api): add user endpoint by @alice in [#1](https://github.com/...)
+- feat(api): add auth endpoint by @bob in [#2](https://github.com/...)
+
+#### Ui
+
+- feat(ui): add dashboard by @charlie in [#3](https://github.com/...)
+
+- feat: general improvement by @dave in [#4](https://github.com/...)
+```
+
 **Configuration**
 
 | Option            | Description                                                                                |
