@@ -81,7 +81,11 @@ export class GitHubTarget extends BaseTarget {
     this.githubRepo = githubRepo;
     const owner = config.owner || githubRepo.owner;
     const repo = config.repo || githubRepo.repo;
-    const changelog = getConfiguration().changelog || DEFAULT_CHANGELOG_PATH;
+    const configChangelog = getConfiguration().changelog;
+    const changelog =
+      typeof configChangelog === 'string'
+        ? configChangelog
+        : configChangelog?.filePath || DEFAULT_CHANGELOG_PATH;
 
     this.githubConfig = {
       owner,

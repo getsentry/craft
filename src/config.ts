@@ -13,6 +13,7 @@ import {
   ArtifactProviderName,
   StatusProviderName,
   TargetConfig,
+  ChangelogPolicy,
 } from './schemas/project_config';
 import { ConfigurationError } from './utils/errors';
 import {
@@ -327,6 +328,68 @@ export async function getStatusProviderFromConfig(): Promise<BaseStatusProvider>
       throw new ConfigurationError('Invalid status provider');
     }
   }
+}
+
+/**
+ * Normalized changelog configuration with all fields resolved
+ */
+export interface NormalizedChangelogConfig {
+  /** Path to the changelog file */
+  filePath: string;
+  /** Changelog management policy */
+  policy: ChangelogPolicy;
+  /** Whether to group entries by conventional commit scope */
+  scopeGrouping: boolean;
+}
+
+const DEFAULT_CHANGELOG_FILE_PATH = 'CHANGELOG.md';
+
+/**
+ * Returns the normalized changelog configuration from .craft.yml
+ *
+ * Handles both legacy `changelogPolicy` and new `changelog` object format.
+ * Emits deprecation warning when using `changelogPolicy`.
+ */
+export function getChangelogConfig(): NormalizedChangelogConfig {
+  const config = getConfiguration();
+
+  // Default values
+  let filePath = DEFAULT_CHANGELOG_FILE_PATH;
+  let policy = ChangelogPolicy.None;
+  let scopeGrouping = true;
+
+  // Handle legacy changelogPolicy (deprecated)
+  if (config.changelogPolicy !== undefined) {
+    logger.warn(
+      'The "changelogPolicy" option is deprecated. Please use "changelog.policy" instead.'
+    );
+    policy = config.changelogPolicy;
+  }
+
+  // Handle changelog config
+  if (config.changelog !== undefined) {
+    if (typeof config.changelog === 'string') {
+      // Legacy string format - just the file path
+      filePath = config.changelog;
+    } else {
+      // New object format
+      if (config.changelog.filePath !== undefined) {
+        filePath = config.changelog.filePath;
+      }
+      if (config.changelog.policy !== undefined) {
+        policy = config.changelog.policy as ChangelogPolicy;
+      }
+      if (config.changelog.scopeGrouping !== undefined) {
+        scopeGrouping = config.changelog.scopeGrouping;
+      }
+    }
+  }
+
+  return {
+    filePath,
+    policy,
+    scopeGrouping,
+  };
 }
 
 /**

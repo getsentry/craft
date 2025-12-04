@@ -449,18 +449,66 @@ display sections in that exact order, regardless of which type of PR was
 encountered first in the git history. The "Other" section (for uncategorized
 changes) always appears last.
 
+**Scope Grouping**
+
+When using [Conventional Commits](https://www.conventionalcommits.org/) with
+scopes (e.g., `feat(api): add endpoint`), changes within each category are
+automatically grouped by scope. Scope names are formatted as title case
+sub-headers (level 4, `####`), with dashes and underscores converted to spaces.
+
+For example, `feat(my-component): add feature` will appear under a
+`#### My Component` sub-header within the Features category.
+
+Scopes are normalized to lowercase for grouping purposes, so `feat(API):` and
+`feat(api):` will be grouped together under the same `#### Api` header.
+Additionally, dashes and underscores are treated as equivalent, so `feat(my-component):`
+and `feat(my_component):` will also be grouped together.
+
+Scope headers are only shown for scopes with more than one entry (single-entry
+scope headers aren't useful). Entries without a scope (e.g., `feat: add feature`)
+are listed at the bottom of each category section without a sub-header.
+
+**Example output with scope grouping:**
+
+```text
+### New Features
+
+#### Api
+
+- feat(api): add user endpoint by @alice in [#1](https://github.com/...)
+- feat(api): add auth endpoint by @bob in [#2](https://github.com/...)
+
+#### Ui
+
+- feat(ui): add dashboard by @charlie in [#3](https://github.com/...)
+
+- feat: general improvement by @dave in [#4](https://github.com/...)
+```
+
 **Configuration**
 
-| Option            | Description                                                                                |
-| ----------------- | ------------------------------------------------------------------------------------------ |
-| `changelog`       | **optional**. Path to the changelog file. Defaults to `CHANGELOG.md`                       |
-| `changelogPolicy` | **optional**. Changelog management mode (`none`, `simple`, or `auto`). Defaults to `none`. |
+The `changelog` option can be either a string (file path) or an object with more options:
 
-**Example (`simple`):**
+| Option                    | Description                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------ |
+| `changelog`               | **optional**. Path to changelog file (string) OR configuration object (see below)          |
+| `changelog.filePath`      | **optional**. Path to the changelog file. Defaults to `CHANGELOG.md`                       |
+| `changelog.policy`        | **optional**. Changelog management mode (`none`, `simple`, or `auto`). Defaults to `none`. |
+| `changelog.scopeGrouping` | **optional**. Enable scope-based grouping within categories. Defaults to `true`.           |
+| `changelogPolicy`         | **deprecated**. Use `changelog.policy` instead.                                            |
+
+**Example (`simple` with file path only):**
 
 ```yaml
 changelog: CHANGES
-changelogPolicy: simple
+```
+
+**Example (`simple` with custom file path):**
+
+```yaml
+changelog:
+  filePath: CHANGES.md
+  policy: simple
 ```
 
 **Valid changelog example:**
@@ -478,8 +526,16 @@ changelogPolicy: simple
 **Example (`auto`):**
 
 ```yaml
-changelog: CHANGES
-changelogPolicy: auto
+changelog:
+  policy: auto
+```
+
+**Example (disable scope grouping):**
+
+```yaml
+changelog:
+  policy: auto
+  scopeGrouping: false
 ```
 
 **Changelog with staged changes example:**
