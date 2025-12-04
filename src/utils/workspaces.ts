@@ -351,7 +351,8 @@ export function filterWorkspacePackages(
  * Topologically sort workspace packages based on their dependencies.
  * Packages with no dependencies come first, then packages that depend on them, etc.
  *
- * Uses Kahn's algorithm for topological sorting.
+ * Computes depth for each package (depth = 1 + max depth of dependencies)
+ * and sorts by depth ascending.
  *
  * @param packages List of workspace packages
  * @returns Sorted list of packages (dependencies before dependents)
@@ -360,73 +361,56 @@ export function filterWorkspacePackages(
 export function topologicalSortPackages(
   packages: WorkspacePackage[]
 ): WorkspacePackage[] {
-  // Build a map of package name to package
-  const packageMap = new Map<string, WorkspacePackage>();
+  // Map package name to its workspace dependencies
+  const depsMap = new Map<string, string[]>();
   for (const pkg of packages) {
-    packageMap.set(pkg.name, pkg);
+    depsMap.set(pkg.name, pkg.workspaceDependencies);
   }
 
-  // Only consider dependencies that are in our package list
-  const packageNames = new Set(packages.map(p => p.name));
+  // Compute depth for each package using memoization
+  // Depth = 1 + max(depth of dependencies), or 0 if no dependencies
+  const depths = new Map<string, number>();
+  const computing = new Set<string>(); // Tracks recursion stack for cycle detection
 
-  // Build the in-degree map (how many dependencies each package has within the workspace)
-  const inDegree = new Map<string, number>();
-  // Build the reverse adjacency list (which packages depend on this package)
-  const dependents = new Map<string, string[]>();
+  function computeDepth(name: string): number {
+    const cached = depths.get(name);
+    if (cached !== undefined) {
+      return cached;
+    }
 
-  for (const pkg of packages) {
-    inDegree.set(pkg.name, 0);
-    dependents.set(pkg.name, []);
-  }
+    if (computing.has(name)) {
+      const cyclePackages = Array.from(computing);
+      throw new Error(
+        `Circular dependency detected among workspace packages: ${cyclePackages.join(', ')}`
+      );
+    }
 
-  // Count in-degrees and build dependents list
-  for (const pkg of packages) {
-    for (const dep of pkg.workspaceDependencies) {
-      if (packageNames.has(dep)) {
-        inDegree.set(pkg.name, (inDegree.get(pkg.name) || 0) + 1);
-        dependents.get(dep)?.push(pkg.name);
+    computing.add(name);
+
+    let maxDepDepth = -1;
+    for (const dep of depsMap.get(name) || []) {
+      // Only consider dependencies that are in our package list
+      if (depsMap.has(dep)) {
+        maxDepDepth = Math.max(maxDepDepth, computeDepth(dep));
       }
     }
+
+    computing.delete(name);
+
+    const depth = maxDepDepth + 1;
+    depths.set(name, depth);
+    return depth;
   }
 
-  // Kahn's algorithm: start with packages that have no dependencies
-  const queue: string[] = [];
-  for (const [name, degree] of inDegree) {
-    if (degree === 0) {
-      queue.push(name);
-    }
+  // Compute depths for all packages
+  for (const name of depsMap.keys()) {
+    computeDepth(name);
   }
 
-  const sorted: WorkspacePackage[] = [];
-
-  while (queue.length > 0) {
-    const name = queue.shift();
-    if (!name) break; // Should never happen, but satisfies TypeScript
-    const pkg = packageMap.get(name);
-    if (!pkg) continue; // Should never happen, but satisfies TypeScript
-    sorted.push(pkg);
-
-    // Reduce in-degree for all packages that depend on this one
-    for (const dependent of dependents.get(name) || []) {
-      const newDegree = (inDegree.get(dependent) || 0) - 1;
-      inDegree.set(dependent, newDegree);
-      if (newDegree === 0) {
-        queue.push(dependent);
-      }
-    }
-  }
-
-  // Check for circular dependencies
-  if (sorted.length !== packages.length) {
-    const remaining = packages
-      .filter(p => !sorted.some(s => s.name === p.name))
-      .map(p => p.name);
-    throw new Error(
-      `Circular dependency detected among workspace packages: ${remaining.join(
-        ', '
-      )}`
-    );
-  }
-
-  return sorted;
+  // Sort by depth (packages with lower depth come first)
+  return [...packages].sort((a, b) => {
+    const depthA = depths.get(a.name) ?? 0;
+    const depthB = depths.get(b.name) ?? 0;
+    return depthA - depthB;
+  });
 }
