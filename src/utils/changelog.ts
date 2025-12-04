@@ -92,17 +92,33 @@ export function formatScopeTitle(scope: string): string {
 }
 
 /**
- * Extracts the "Changelog Entry" section from a PR description.
+ * Represents a single changelog entry item, which may have nested sub-items
+ */
+export interface ChangelogEntryItem {
+  /** The main text of the changelog entry */
+  text: string;
+  /** Optional nested content (e.g., sub-bullets) to be indented under this entry */
+  nestedContent?: string;
+}
+
+/**
+ * Extracts the "Changelog Entry" section from a PR description and parses it into structured entries.
  * This allows PR authors to override the default changelog entry (which is the PR title)
  * with custom text that's more user-facing and detailed.
  * 
  * Looks for a markdown heading (either ### or ##) with the text "Changelog Entry"
  * and extracts the content until the next heading of the same or higher level.
  * 
+ * Parsing rules:
+ * - Multiple top-level bullets (-, *, +) become separate changelog entries
+ * - Plain text (no bullets) becomes a single entry
+ * - Nested bullets are preserved as nested content under their parent entry
+ * - Only content within the "Changelog Entry" section is included
+ * 
  * @param prBody The PR description/body text
- * @returns The extracted changelog entry text, or null if no "Changelog Entry" section is found
+ * @returns Array of changelog entry items, or null if no "Changelog Entry" section is found
  */
-export function extractChangelogEntry(prBody: string | null | undefined): string | null {
+export function extractChangelogEntry(prBody: string | null | undefined): ChangelogEntryItem[] | null {
   if (!prBody) {
     return null;
   }
@@ -128,7 +144,92 @@ export function extractChangelogEntry(prBody: string | null | undefined): string
   const content = restOfBody.slice(0, endIndex).trim();
   
   // Return null if the section is empty
-  return content || null;
+  if (!content) {
+    return null;
+  }
+
+  // Parse the content into structured entries
+  return parseChangelogContent(content);
+}
+
+/**
+ * Parses changelog content into structured entries.
+ * Handles multiple top-level bullets and nested content.
+ */
+function parseChangelogContent(content: string): ChangelogEntryItem[] {
+  // First, check if the content has any bullet points at all
+  const hasTopLevelBullets = /^(\s{0,3})[-*+]\s+/m.test(content);
+  const hasIndentedBullets = /^(\s{4,}|\t+)[-*+]\s+/m.test(content);
+  
+  // If no bullets found at all, treat entire content as a single entry
+  if (!hasTopLevelBullets && !hasIndentedBullets) {
+    return [{
+      text: content.trim(),
+    }];
+  }
+
+  const lines = content.split('\n');
+  const entries: ChangelogEntryItem[] = [];
+  let currentEntry: ChangelogEntryItem | null = null;
+  let nestedLines: string[] = [];
+
+  for (const line of lines) {
+    // Match top-level bullets (-, *, or + at the start of line, possibly with leading spaces)
+    const topLevelBulletMatch = line.match(/^(\s{0,3})[-*+]\s+(.+)$/);
+    
+    if (topLevelBulletMatch) {
+      // Save previous entry if exists
+      if (currentEntry) {
+        if (nestedLines.length > 0) {
+          currentEntry.nestedContent = nestedLines.join('\n');
+          nestedLines = [];
+        }
+        entries.push(currentEntry);
+      }
+      
+      // Start new entry
+      currentEntry = {
+        text: topLevelBulletMatch[2].trim(),
+      };
+    } else if (currentEntry) {
+      // Check if this is a nested bullet (more than 3 spaces of indentation, or tab)
+      const nestedMatch = line.match(/^(\s{4,}|\t+)[-*+]\s+(.+)$/);
+      if (nestedMatch) {
+        nestedLines.push(`  ${nestedMatch[2].trim()}`);
+      } else if (line.trim()) {
+        // Non-empty line that's not a bullet - could be continuation text or nested content
+        // Add to nested content if it has any indentation or follows other nested content
+        if (nestedLines.length > 0 || line.match(/^\s+/)) {
+          nestedLines.push(line.trimEnd());
+        }
+      }
+    } else {
+      // No current entry yet - check if this is a paragraph that might have nested bullets after it
+      if (line.trim() && !line.match(/^(\s{4,}|\t+)[-*+]\s+/)) {
+        // Non-indented, non-bullet line - start a new entry
+        currentEntry = {
+          text: line.trim(),
+        };
+      }
+    }
+  }
+
+  // Save the last entry
+  if (currentEntry) {
+    if (nestedLines.length > 0) {
+      currentEntry.nestedContent = nestedLines.join('\n');
+    }
+    entries.push(currentEntry);
+  }
+
+  // If we have indented bullets but no entries, treat entire content as a single entry
+  if (entries.length === 0 && content.trim()) {
+    return [{
+      text: content.trim(),
+    }];
+  }
+
+  return entries;
 }
 
 /**
@@ -671,11 +772,23 @@ function formatChangelogEntry(entry: ChangelogEntry): string {
     }
   }
 
-  // Add body if magic word is present
-  if (entry.body?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
-    const body = entry.body.replace(BODY_IN_CHANGELOG_MAGIC_WORD, '').trim();
-    if (body) {
-      text += `\n  ${body}`;
+  // Add body content
+  // Two cases: 1) legacy magic word behavior, 2) nested content from structured changelog entries
+  if (entry.body) {
+    if (entry.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
+      // Legacy behavior: extract and format body with magic word
+      const body = entry.body.replace(BODY_IN_CHANGELOG_MAGIC_WORD, '').trim();
+      if (body) {
+        text += `\n  ${body}`;
+      }
+    } else if (entry.body.trim()) {
+      // New behavior: nested content from parsed changelog entries
+      // Don't trim() before splitting to preserve indentation on all lines
+      const lines = entry.body.split('\n');
+      for (const line of lines) {
+        // Each line already has the proper indentation from parsing
+        text += `\n${line}`;
+      }
     }
   }
 
@@ -773,17 +886,30 @@ export async function generateChangesetFromGit(
           category.scopeGroups.set(scope, scopeGroup);
         }
 
-        // Check for a custom changelog entry in the PR body
-        const customChangelogEntry = extractChangelogEntry(commit.prBody);
-        const changelogTitle = customChangelogEntry ?? prTitle;
-
-        scopeGroup.push({
-          author: commit.author,
-          number: commit.pr,
-          hash: commit.hash,
-          body: commit.prBody ?? '',
-          title: changelogTitle,
-        });
+        // Check for custom changelog entries in the PR body
+        const customChangelogEntries = extractChangelogEntry(commit.prBody);
+        
+        if (customChangelogEntries) {
+          // If there are multiple changelog entries, add each as a separate item
+          for (const entry of customChangelogEntries) {
+            scopeGroup.push({
+              author: commit.author,
+              number: commit.pr,
+              hash: commit.hash,
+              body: entry.nestedContent ?? '',
+              title: entry.text,
+            });
+          }
+        } else {
+          // No custom entry, use PR title as before
+          scopeGroup.push({
+            author: commit.author,
+            number: commit.pr,
+            hash: commit.hash,
+            body: commit.prBody ?? '',
+            title: prTitle,
+          });
+        }
       }
     }
   }
@@ -874,16 +1000,30 @@ export async function generateChangesetFromGit(
     if (changelogSections.length > 0) {
       changelogSections.push(markdownHeader(SUBSECTION_HEADER_LEVEL, 'Other'));
     }
-    changelogSections.push(
-      leftovers
-        .slice(0, maxLeftovers)
-        .map(commit => {
-          // Check for a custom changelog entry in the PR body
-          const customChangelogEntry = extractChangelogEntry(commit.prBody);
-          const changelogTitle = customChangelogEntry ?? commit.prTitle ?? commit.title;
-          
-          return formatChangelogEntry({
-            title: changelogTitle,
+    const leftoverEntries: string[] = [];
+    for (const commit of leftovers.slice(0, maxLeftovers)) {
+      // Check for custom changelog entries in the PR body
+      const customChangelogEntries = extractChangelogEntry(commit.prBody);
+      
+      if (customChangelogEntries) {
+        // If there are multiple changelog entries, add each as a separate line
+        for (const entry of customChangelogEntries) {
+          leftoverEntries.push(
+            formatChangelogEntry({
+              title: entry.text,
+              author: commit.author,
+              prNumber: commit.pr ?? undefined,
+              hash: commit.hash,
+              repoUrl,
+              body: entry.nestedContent,
+            })
+          );
+        }
+      } else {
+        // No custom entry, use PR title or commit title as before
+        leftoverEntries.push(
+          formatChangelogEntry({
+            title: commit.prTitle ?? commit.title,
             author: commit.author,
             prNumber: commit.pr ?? undefined,
             hash: commit.hash,
@@ -894,10 +1034,11 @@ export async function generateChangesetFromGit(
               : commit.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)
               ? commit.body
               : undefined,
-          });
-        })
-        .join('\n')
-    );
+          })
+        );
+      }
+    }
+    changelogSections.push(leftoverEntries.join('\n'));
     if (nLeftovers > maxLeftovers) {
       changelogSections.push(`_Plus ${nLeftovers - maxLeftovers} more_`);
     }

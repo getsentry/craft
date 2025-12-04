@@ -2794,7 +2794,7 @@ Update all dependencies to their latest versions for improved security`,
       expect(changes).not.toContain('Update dependencies');
     });
 
-    it('should handle multi-line custom changelog entries', async () => {
+    it('should handle multi-line custom changelog entries with nested bullets', async () => {
       setup(
         [
           {
@@ -2807,10 +2807,10 @@ Update all dependencies to their latest versions for improved security`,
                 author: { login: 'alice' },
                 body: `### Changelog Entry
 
-Add comprehensive user authentication system with the following features:
-- OAuth2 support
-- Two-factor authentication
-- Session management`,
+- Add comprehensive user authentication system
+    - OAuth2 support
+    - Two-factor authentication
+    - Session management`,
                 labels: [],
               },
             },
@@ -2822,11 +2822,83 @@ Add comprehensive user authentication system with the following features:
       const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
 
       expect(changes).toContain(
-        'Add comprehensive user authentication system with the following features:'
+        'Add comprehensive user authentication system by @alice in [#1]'
       );
-      expect(changes).toContain('- OAuth2 support');
-      expect(changes).toContain('- Two-factor authentication');
-      expect(changes).toContain('- Session management');
+      expect(changes).toContain('  OAuth2 support');
+      expect(changes).toContain('  Two-factor authentication');
+      expect(changes).toContain('  Session management');
+    });
+
+    it('should create multiple changelog entries from multiple bullets in PR', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: Multiple features',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                body: `### Changelog Entry
+
+- Add OAuth2 authentication
+- Add two-factor authentication
+- Add session management`,
+                labels: [],
+              },
+            },
+          },
+        ],
+        null
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+
+      // Should have 3 separate changelog entries from the same PR
+      expect(changes).toContain('Add OAuth2 authentication by @alice in [#1]');
+      expect(changes).toContain('Add two-factor authentication by @alice in [#1]');
+      expect(changes).toContain('Add session management by @alice in [#1]');
+    });
+
+    it('should handle multiple bullets with nested content in changelog entries', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: Big update',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                body: `### Changelog Entry
+
+- Add authentication
+    - OAuth2
+    - 2FA
+- Add user profiles
+    - Avatar upload
+    - Bio editing`,
+                labels: [],
+              },
+            },
+          },
+        ],
+        null
+      );
+
+      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+
+      // First entry with nested content
+      expect(changes).toContain('Add authentication by @alice in [#1]');
+      expect(changes).toContain('  OAuth2');
+      expect(changes).toContain('  2FA');
+      
+      // Second entry with nested content
+      expect(changes).toContain('Add user profiles by @alice in [#1]');
+      expect(changes).toContain('  Avatar upload');
+      expect(changes).toContain('  Bio editing');
     });
 
     it('should ignore empty changelog entry sections', async () => {
@@ -2906,7 +2978,7 @@ describe('formatScopeTitle', () => {
 });
 
 describe('extractChangelogEntry', () => {
-  it('should extract content from "### Changelog Entry" section', () => {
+  it('should extract content from "### Changelog Entry" section as single entry', () => {
     const prBody = `### Description
 
 This PR adds a new feature.
@@ -2919,9 +2991,10 @@ Add a new function called \`foo\` which prints "Hello, world!"
 
 Closes #123`;
     
-    expect(extractChangelogEntry(prBody)).toBe(
-      'Add a new function called `foo` which prints "Hello, world!"'
-    );
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('Add a new function called `foo` which prints "Hello, world!"');
+    expect(result![0].nestedContent).toBeUndefined();
   });
 
   it('should extract content from "## Changelog Entry" section', () => {
@@ -2937,9 +3010,9 @@ Add a new function called \`foo\` which prints "Hello, world!"
 
 Closes #123`;
     
-    expect(extractChangelogEntry(prBody)).toBe(
-      'Add a new function called `foo` which prints "Hello, world!"'
-    );
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('Add a new function called `foo` which prints "Hello, world!"');
   });
 
   it('should handle changelog entry at the end of PR body', () => {
@@ -2951,9 +3024,9 @@ This PR adds a new feature.
 
 This is the last section with no sections after it.`;
     
-    expect(extractChangelogEntry(prBody)).toBe(
-      'This is the last section with no sections after it.'
-    );
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('This is the last section with no sections after it.');
   });
 
   it('should be case-insensitive', () => {
@@ -2969,10 +3042,12 @@ Custom changelog text here
 
 Closes #123`;
     
-    expect(extractChangelogEntry(prBody)).toBe('Custom changelog text here');
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('Custom changelog text here');
   });
 
-  it('should handle multiple lines in changelog entry', () => {
+  it('should handle multiple lines in plain text as single entry', () => {
     const prBody = `### Description
 
 Description here
@@ -2987,21 +3062,25 @@ spans several lines.
 
 Closes #123`;
     
-    expect(extractChangelogEntry(prBody)).toBe(
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe(
       'This is a multi-line\nchangelog entry that\nspans several lines.'
     );
   });
 
-  it('should handle changelog entry with markdown formatting', () => {
+  it('should handle multiple top-level bullets as separate entries', () => {
     const prBody = `### Changelog Entry
 
 - Add **bold** feature
 - Add *italic* feature
 - Add \`code\` feature`;
     
-    expect(extractChangelogEntry(prBody)).toBe(
-      '- Add **bold** feature\n- Add *italic* feature\n- Add `code` feature'
-    );
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(3);
+    expect(result![0].text).toBe('Add **bold** feature');
+    expect(result![1].text).toBe('Add *italic* feature');
+    expect(result![2].text).toBe('Add `code` feature');
   });
 
   it('should return null when no changelog entry section exists', () => {
@@ -3045,7 +3124,9 @@ Closes #123`;
 
 ### Issues`;
     
-    expect(extractChangelogEntry(prBody)).toBe('This has leading whitespace');
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('This has leading whitespace');
   });
 
   it('should handle changelog entry header with trailing hashes', () => {
@@ -3059,7 +3140,9 @@ Custom changelog text
 
 ### Issues`;
     
-    expect(extractChangelogEntry(prBody)).toBe('Custom changelog text');
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('Custom changelog text');
   });
 
   it('should not match "Changelog Entry" in regular text', () => {
@@ -3087,6 +3170,87 @@ This should not be included.
 
 Neither should this.`;
     
-    expect(extractChangelogEntry(prBody)).toBe('This is the changelog.');
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('This is the changelog.');
+  });
+
+  it('should handle nested bullets under a top-level bullet', () => {
+    const prBody = `### Changelog Entry
+
+- Add authentication system
+    - OAuth2 support
+    - Two-factor authentication
+    - Session management`;
+    
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('Add authentication system');
+    expect(result![0].nestedContent).toBe(
+      '  OAuth2 support\n  Two-factor authentication\n  Session management'
+    );
+  });
+
+  it('should handle multiple top-level bullets with nested content', () => {
+    const prBody = `### Changelog Entry
+
+- Add authentication system
+    - OAuth2 support
+    - Two-factor authentication
+- Add user profile page
+    - Avatar upload
+    - Bio editing
+- Add settings panel`;
+    
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(3);
+    expect(result![0].text).toBe('Add authentication system');
+    expect(result![0].nestedContent).toBe('  OAuth2 support\n  Two-factor authentication');
+    expect(result![1].text).toBe('Add user profile page');
+    expect(result![1].nestedContent).toBe('  Avatar upload\n  Bio editing');
+    expect(result![2].text).toBe('Add settings panel');
+    expect(result![2].nestedContent).toBeUndefined();
+  });
+
+  it('should handle paragraph followed by nested bullets', () => {
+    const prBody = `### Changelog Entry
+
+Comprehensive authentication system with the following features:
+    - OAuth2 support
+    - Two-factor authentication
+    - Session management`;
+    
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('Comprehensive authentication system with the following features:');
+    expect(result![0].nestedContent).toBeDefined();
+    expect(result![0].nestedContent).toContain('OAuth2 support');
+  });
+
+  it('should only include content within the Changelog Entry section', () => {
+    const prBody = `### Description
+
+This should not be included.
+
+### Changelog Entry
+
+- Add feature A
+- Add feature B
+
+### Issues
+
+This should also not be included.
+
+Closes #123`;
+    
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(2);
+    expect(result![0].text).toBe('Add feature A');
+    expect(result![1].text).toBe('Add feature B');
+    // Make sure content from other sections isn't included
+    const allText = result!.map(e => e.text + (e.nestedContent || '')).join('');
+    expect(allText).not.toContain('This should not be included');
+    expect(allText).not.toContain('This should also not be included');
+    expect(allText).not.toContain('Closes #123');
   });
 });

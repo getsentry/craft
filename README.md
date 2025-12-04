@@ -426,7 +426,46 @@ Closes #123
 
 The text under "Changelog Entry" will be used verbatim in the changelog instead
 of the PR title. If no such section is present, the PR title is used as usual.
-Multi-line entries and markdown formatting are supported.
+
+**Advanced Features:**
+
+1. **Multiple Entries**: If you use multiple top-level bullet points in the
+   "Changelog Entry" section, each bullet will become a separate changelog entry:
+
+   ```markdown
+   ### Changelog Entry
+   
+   - Add OAuth2 authentication
+   - Add two-factor authentication
+   - Add session management
+   ```
+
+2. **Nested Content**: Indented bullets (4+ spaces or tabs) are preserved as
+   nested content under their parent entry:
+
+   ```markdown
+   ### Changelog Entry
+   
+   - Add authentication system
+       - OAuth2 support
+       - Two-factor authentication
+       - Session management
+   ```
+
+   This will generate:
+   ```markdown
+   - Add authentication system by @user in [#123](url)
+     - OAuth2 support
+     - Two-factor authentication
+     - Session management
+   ```
+
+3. **Plain Text**: If no bullets are used, the entire content is treated as a
+   single changelog entry. Multi-line text is supported.
+
+4. **Content Isolation**: Only content within the "Changelog Entry" section is
+   included in the changelog. Other sections (Description, Issues, etc.) are
+   ignored.
 
 **Default Conventional Commits Configuration**
 
