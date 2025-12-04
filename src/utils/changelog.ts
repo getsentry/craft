@@ -92,6 +92,46 @@ export function formatScopeTitle(scope: string): string {
 }
 
 /**
+ * Extracts the "Changelog Entry" section from a PR description.
+ * This allows PR authors to override the default changelog entry (which is the PR title)
+ * with custom text that's more user-facing and detailed.
+ * 
+ * Looks for a markdown heading (either ### or ##) with the text "Changelog Entry"
+ * and extracts the content until the next heading of the same or higher level.
+ * 
+ * @param prBody The PR description/body text
+ * @returns The extracted changelog entry text, or null if no "Changelog Entry" section is found
+ */
+export function extractChangelogEntry(prBody: string | null | undefined): string | null {
+  if (!prBody) {
+    return null;
+  }
+
+  // Match markdown headings (## or ###) followed by "Changelog Entry" (case-insensitive)
+  // This matches both with and without the # at the end (e.g., "## Changelog Entry ##" or "## Changelog Entry")
+  const headerRegex = /^#{2,3}\s+Changelog Entry\s*(?:#{2,3})?\s*$/im;
+  const match = prBody.match(headerRegex);
+  
+  if (!match || match.index === undefined) {
+    return null;
+  }
+
+  // Find the start of the content (after the heading line)
+  const startIndex = match.index + match[0].length;
+  const restOfBody = prBody.slice(startIndex);
+
+  // Find the next heading of level 2 or 3 (## or ###)
+  const nextHeaderMatch = restOfBody.match(/^#{2,3}\s+/m);
+  const endIndex = nextHeaderMatch?.index ?? restOfBody.length;
+
+  // Extract and trim the content
+  const content = restOfBody.slice(0, endIndex).trim();
+  
+  // Return null if the section is empty
+  return content || null;
+}
+
+/**
  * Extracts a specific changeset from a markdown document
  *
  * The changes are bounded by a header preceding the changes and an optional
@@ -733,12 +773,16 @@ export async function generateChangesetFromGit(
           category.scopeGroups.set(scope, scopeGroup);
         }
 
+        // Check for a custom changelog entry in the PR body
+        const customChangelogEntry = extractChangelogEntry(commit.prBody);
+        const changelogTitle = customChangelogEntry ?? prTitle;
+
         scopeGroup.push({
           author: commit.author,
           number: commit.pr,
           hash: commit.hash,
           body: commit.prBody ?? '',
-          title: prTitle,
+          title: changelogTitle,
         });
       }
     }
@@ -833,9 +877,13 @@ export async function generateChangesetFromGit(
     changelogSections.push(
       leftovers
         .slice(0, maxLeftovers)
-        .map(commit =>
-          formatChangelogEntry({
-            title: commit.prTitle ?? commit.title,
+        .map(commit => {
+          // Check for a custom changelog entry in the PR body
+          const customChangelogEntry = extractChangelogEntry(commit.prBody);
+          const changelogTitle = customChangelogEntry ?? commit.prTitle ?? commit.title;
+          
+          return formatChangelogEntry({
+            title: changelogTitle,
             author: commit.author,
             prNumber: commit.pr ?? undefined,
             hash: commit.hash,
@@ -846,8 +894,8 @@ export async function generateChangesetFromGit(
               : commit.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)
               ? commit.body
               : undefined,
-          })
-        )
+          });
+        })
         .join('\n')
     );
     if (nLeftovers > maxLeftovers) {

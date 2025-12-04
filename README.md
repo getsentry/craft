@@ -400,6 +400,34 @@ In `auto` mode, `craft prepare` will use the following logic:
    Check out [GitHub's release notes documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes#configuration-options)
    for the base configuration format.
 
+**Custom Changelog Entries from PR Descriptions**
+
+By default, the changelog entry for a PR is generated from its title. However,
+PR authors can override this by adding a "Changelog Entry" section to the PR
+description. This allows for more detailed, user-facing changelog entries without
+cluttering the PR title.
+
+To use this feature, add a markdown heading (level 2 or 3) titled "Changelog Entry"
+to your PR description, followed by the desired changelog text:
+
+```markdown
+### Description
+
+Add `foo` function, and add unit tests to thoroughly check all edge cases.
+
+### Changelog Entry
+
+Add a new function called `foo` which prints "Hello, world!"
+
+### Issues
+
+Closes #123
+```
+
+The text under "Changelog Entry" will be used verbatim in the changelog instead
+of the PR title. If no such section is present, the PR title is used as usual.
+Multi-line entries and markdown formatting are supported.
+
 **Default Conventional Commits Configuration**
 
 If `.github/release.yml` doesn't exist or has no `changelog` section, craft uses
