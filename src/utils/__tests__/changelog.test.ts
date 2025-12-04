@@ -2993,8 +2993,11 @@ Closes #123`;
     
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
-    expect(result![0].text).toBe('Add a new function called `foo` which prints "Hello, world!"');
-    expect(result![0].nestedContent).toBeUndefined();
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result[0].text).toBe('Add a new function called `foo` which prints "Hello, world!"');
+      expect(result[0].nestedContent).toBeUndefined();
+    }
   });
 
   it('should extract content from "## Changelog Entry" section', () => {
@@ -3012,7 +3015,10 @@ Closes #123`;
     
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
-    expect(result![0].text).toBe('Add a new function called `foo` which prints "Hello, world!"');
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result[0].text).toBe('Add a new function called `foo` which prints "Hello, world!"');
+    }
   });
 
   it('should handle changelog entry at the end of PR body', () => {
@@ -3026,7 +3032,10 @@ This is the last section with no sections after it.`;
     
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
-    expect(result![0].text).toBe('This is the last section with no sections after it.');
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result[0].text).toBe('This is the last section with no sections after it.');
+    }
   });
 
   it('should be case-insensitive', () => {
@@ -3044,7 +3053,10 @@ Closes #123`;
     
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
-    expect(result![0].text).toBe('Custom changelog text here');
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result[0].text).toBe('Custom changelog text here');
+    }
   });
 
   it('should handle multiple lines in plain text as single entry', () => {
@@ -3064,9 +3076,12 @@ Closes #123`;
     
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
-    expect(result![0].text).toBe(
-      'This is a multi-line\nchangelog entry that\nspans several lines.'
-    );
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result[0].text).toBe(
+        'This is a multi-line\nchangelog entry that\nspans several lines.'
+      );
+    }
   });
 
   it('should handle multiple top-level bullets as separate entries', () => {
@@ -3078,9 +3093,12 @@ Closes #123`;
     
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(3);
-    expect(result![0].text).toBe('Add **bold** feature');
-    expect(result![1].text).toBe('Add *italic* feature');
-    expect(result![2].text).toBe('Add `code` feature');
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result[0].text).toBe('Add **bold** feature');
+      expect(result[1].text).toBe('Add *italic* feature');
+      expect(result[2].text).toBe('Add `code` feature');
+    }
   });
 
   it('should return null when no changelog entry section exists', () => {
@@ -3126,7 +3144,10 @@ Closes #123`;
     
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
-    expect(result![0].text).toBe('This has leading whitespace');
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result[0].text).toBe('This has leading whitespace');
+    }
   });
 
   it('should handle changelog entry header with trailing hashes', () => {
@@ -3142,7 +3163,10 @@ Custom changelog text
     
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
-    expect(result![0].text).toBe('Custom changelog text');
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result[0].text).toBe('Custom changelog text');
+    }
   });
 
   it('should not match "Changelog Entry" in regular text', () => {
@@ -3172,7 +3196,10 @@ Neither should this.`;
     
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
-    expect(result![0].text).toBe('This is the changelog.');
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result[0].text).toBe('This is the changelog.');
+    }
   });
 
   it('should handle nested bullets under a top-level bullet', () => {
@@ -3185,10 +3212,13 @@ Neither should this.`;
     
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
-    expect(result![0].text).toBe('Add authentication system');
-    expect(result![0].nestedContent).toBe(
-      '  OAuth2 support\n  Two-factor authentication\n  Session management'
-    );
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result[0].text).toBe('Add authentication system');
+      expect(result[0].nestedContent).toBe(
+        '  OAuth2 support\n  Two-factor authentication\n  Session management'
+      );
+    }
   });
 
   it('should handle multiple top-level bullets with nested content', () => {
@@ -3204,12 +3234,15 @@ Neither should this.`;
     
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(3);
-    expect(result![0].text).toBe('Add authentication system');
-    expect(result![0].nestedContent).toBe('  OAuth2 support\n  Two-factor authentication');
-    expect(result![1].text).toBe('Add user profile page');
-    expect(result![1].nestedContent).toBe('  Avatar upload\n  Bio editing');
-    expect(result![2].text).toBe('Add settings panel');
-    expect(result![2].nestedContent).toBeUndefined();
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result[0].text).toBe('Add authentication system');
+      expect(result[0].nestedContent).toBe('  OAuth2 support\n  Two-factor authentication');
+      expect(result[1].text).toBe('Add user profile page');
+      expect(result[1].nestedContent).toBe('  Avatar upload\n  Bio editing');
+      expect(result[2].text).toBe('Add settings panel');
+      expect(result[2].nestedContent).toBeUndefined();
+    }
   });
 
   it('should handle paragraph followed by nested bullets', () => {
@@ -3222,9 +3255,12 @@ Comprehensive authentication system with the following features:
     
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
-    expect(result![0].text).toBe('Comprehensive authentication system with the following features:');
-    expect(result![0].nestedContent).toBeDefined();
-    expect(result![0].nestedContent).toContain('OAuth2 support');
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result[0].text).toBe('Comprehensive authentication system with the following features:');
+      expect(result[0].nestedContent).toBeDefined();
+      expect(result[0].nestedContent).toContain('OAuth2 support');
+    }
   });
 
   it('should only include content within the Changelog Entry section', () => {
@@ -3245,12 +3281,15 @@ Closes #123`;
     
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(2);
-    expect(result![0].text).toBe('Add feature A');
-    expect(result![1].text).toBe('Add feature B');
-    // Make sure content from other sections isn't included
-    const allText = result!.map(e => e.text + (e.nestedContent || '')).join('');
-    expect(allText).not.toContain('This should not be included');
-    expect(allText).not.toContain('This should also not be included');
-    expect(allText).not.toContain('Closes #123');
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result[0].text).toBe('Add feature A');
+      expect(result[1].text).toBe('Add feature B');
+      // Make sure content from other sections isn't included
+      const allText = result.map(e => e.text + (e.nestedContent || '')).join('');
+      expect(allText).not.toContain('This should not be included');
+      expect(allText).not.toContain('This should also not be included');
+      expect(allText).not.toContain('Closes #123');
+    }
   });
 });
