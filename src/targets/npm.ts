@@ -16,6 +16,7 @@ import {
   filterWorkspacePackages,
   packageNameToArtifactPattern,
   packageNameToArtifactFromTemplate,
+  topologicalSortPackages,
 } from '../utils/workspaces';
 import { BaseTarget } from './base';
 import {
@@ -163,12 +164,19 @@ export class NpmTarget extends BaseTarget {
       return [];
     }
 
+    // Sort packages by dependency order (dependencies first, then dependents)
+    const sortedPackages = topologicalSortPackages(publishablePackages);
+
     logger.debug(
-      `Expanding npm workspace target to ${publishablePackages.length} packages: ${publishablePackages.map(p => p.name).join(', ')}`
+      `Expanding npm workspace target to ${
+        sortedPackages.length
+      } packages (dependency order): ${sortedPackages
+        .map(p => p.name)
+        .join(', ')}`
     );
 
     // Generate a target config for each package
-    return publishablePackages.map(pkg => {
+    return sortedPackages.map(pkg => {
       // Generate the artifact pattern
       let includeNames: string;
       if (config.artifactTemplate) {

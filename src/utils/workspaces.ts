@@ -20,6 +20,8 @@ export interface WorkspacePackage {
   location: string;
   /** Whether the package is private */
   private: boolean;
+  /** Dependencies that are also workspace packages */
+  workspaceDependencies: string[];
 }
 
 /** Result of workspace discovery */
@@ -35,12 +37,21 @@ interface PnpmWorkspaceConfig {
   packages?: string[];
 }
 
+/** Parsed package.json structure */
+interface PackageJson {
+  name?: string;
+  workspaces?: string[] | { packages?: string[] };
+  private?: boolean;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+}
+
 /**
  * Read and parse a package.json file
  */
-function readPackageJson(
-  packagePath: string
-): { name?: string; workspaces?: string[] | { packages?: string[] }; private?: boolean } | null {
+function readPackageJson(packagePath: string): PackageJson | null {
   const packageJsonPath = path.join(packagePath, 'package.json');
   try {
     return JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
@@ -50,6 +61,27 @@ function readPackageJson(
     }
     return null;
   }
+}
+
+/**
+ * Get all dependency names from a package.json
+ * Includes dependencies, peerDependencies, and optionalDependencies
+ * (not devDependencies as those don't need to be published first)
+ */
+function getAllDependencyNames(packageJson: PackageJson): string[] {
+  const deps = new Set<string>();
+
+  for (const dep of Object.keys(packageJson.dependencies || {})) {
+    deps.add(dep);
+  }
+  for (const dep of Object.keys(packageJson.peerDependencies || {})) {
+    deps.add(dep);
+  }
+  for (const dep of Object.keys(packageJson.optionalDependencies || {})) {
+    deps.add(dep);
+  }
+
+  return Array.from(deps);
 }
 
 /**
@@ -75,7 +107,13 @@ async function resolveWorkspaceGlobs(
   rootDir: string,
   patterns: string[]
 ): Promise<WorkspacePackage[]> {
-  const packages: WorkspacePackage[] = [];
+  // First pass: collect all packages and their raw dependencies
+  const packagesWithDeps: Array<{
+    name: string;
+    location: string;
+    private: boolean;
+    allDeps: string[];
+  }> = [];
 
   for (const pattern of patterns) {
     // Use glob to find matching directories
@@ -88,14 +126,27 @@ async function resolveWorkspaceGlobs(
     for (const match of matches) {
       const packageJson = readPackageJson(match);
       if (packageJson && packageJson.name) {
-        packages.push({
+        packagesWithDeps.push({
           name: packageJson.name,
           location: match,
           private: packageJson.private ?? false,
+          allDeps: getAllDependencyNames(packageJson),
         });
       }
     }
   }
+
+  // Second pass: resolve which dependencies are workspace packages
+  const workspacePackageNames = new Set(packagesWithDeps.map(p => p.name));
+
+  const packages: WorkspacePackage[] = packagesWithDeps.map(pkg => ({
+    name: pkg.name,
+    location: pkg.location,
+    private: pkg.private,
+    workspaceDependencies: pkg.allDeps.filter(dep =>
+      workspacePackageNames.has(dep)
+    ),
+  }));
 
   return packages;
 }
@@ -134,7 +185,9 @@ async function discoverNpmYarnWorkspaces(
   const packages = await resolveWorkspaceGlobs(rootDir, workspacesGlobs);
 
   logger.debug(
-    `Discovered ${packages.length} ${type} workspace packages from ${workspacesGlobs.join(', ')}`
+    `Discovered ${
+      packages.length
+    } ${type} workspace packages from ${workspacesGlobs.join(', ')}`
   );
 
   return { type, packages };
@@ -167,7 +220,9 @@ async function discoverPnpmWorkspaces(
   const packages = await resolveWorkspaceGlobs(rootDir, patterns);
 
   logger.debug(
-    `Discovered ${packages.length} pnpm workspace packages from ${patterns.join(', ')}`
+    `Discovered ${packages.length} pnpm workspace packages from ${patterns.join(
+      ', '
+    )}`
   );
 
   return { type: 'pnpm', packages };
@@ -266,8 +321,14 @@ export function packageNameToArtifactFromTemplate(
   // If version is the default regex pattern, use it as-is; otherwise escape it
   const versionValue = version === '\\d.*' ? version : escapeRegex(version);
   result = result
-    .replace(new RegExp(escapeRegex(NAME_PLACEHOLDER), 'g'), escapeRegex(packageName))
-    .replace(new RegExp(escapeRegex(SIMPLE_PLACEHOLDER), 'g'), escapeRegex(simpleName))
+    .replace(
+      new RegExp(escapeRegex(NAME_PLACEHOLDER), 'g'),
+      escapeRegex(packageName)
+    )
+    .replace(
+      new RegExp(escapeRegex(SIMPLE_PLACEHOLDER), 'g'),
+      escapeRegex(simpleName)
+    )
     .replace(new RegExp(escapeRegex(VERSION_PLACEHOLDER), 'g'), versionValue);
 
   return `/^${result}$/`;
@@ -297,4 +358,88 @@ export function filterWorkspacePackages(
     }
     return true;
   });
+}
+
+/**
+ * Topologically sort workspace packages based on their dependencies.
+ * Packages with no dependencies come first, then packages that depend on them, etc.
+ *
+ * Uses Kahn's algorithm for topological sorting.
+ *
+ * @param packages List of workspace packages
+ * @returns Sorted list of packages (dependencies before dependents)
+ * @throws Error if there's a circular dependency
+ */
+export function topologicalSortPackages(
+  packages: WorkspacePackage[]
+): WorkspacePackage[] {
+  // Build a map of package name to package
+  const packageMap = new Map<string, WorkspacePackage>();
+  for (const pkg of packages) {
+    packageMap.set(pkg.name, pkg);
+  }
+
+  // Only consider dependencies that are in our package list
+  const packageNames = new Set(packages.map(p => p.name));
+
+  // Build the in-degree map (how many dependencies each package has within the workspace)
+  const inDegree = new Map<string, number>();
+  // Build the reverse adjacency list (which packages depend on this package)
+  const dependents = new Map<string, string[]>();
+
+  for (const pkg of packages) {
+    inDegree.set(pkg.name, 0);
+    dependents.set(pkg.name, []);
+  }
+
+  // Count in-degrees and build dependents list
+  for (const pkg of packages) {
+    for (const dep of pkg.workspaceDependencies) {
+      if (packageNames.has(dep)) {
+        inDegree.set(pkg.name, (inDegree.get(pkg.name) || 0) + 1);
+        dependents.get(dep)?.push(pkg.name);
+      }
+    }
+  }
+
+  // Kahn's algorithm: start with packages that have no dependencies
+  const queue: string[] = [];
+  for (const [name, degree] of inDegree) {
+    if (degree === 0) {
+      queue.push(name);
+    }
+  }
+
+  const sorted: WorkspacePackage[] = [];
+
+  while (queue.length > 0) {
+    const name = queue.shift();
+    if (!name) break; // Should never happen, but satisfies TypeScript
+    const pkg = packageMap.get(name);
+    if (!pkg) continue; // Should never happen, but satisfies TypeScript
+    sorted.push(pkg);
+
+    // Reduce in-degree for all packages that depend on this one
+    for (const dependent of dependents.get(name) || []) {
+      const newDegree = (inDegree.get(dependent) || 0) - 1;
+      inDegree.set(dependent, newDegree);
+      if (newDegree === 0) {
+        queue.push(dependent);
+      }
+    }
+  }
+
+  // Check for circular dependencies
+  if (sorted.length !== packages.length) {
+    const remaining = packages
+      .filter(p => !sorted.some(s => s.name === p.name))
+      .map(p => p.name);
+    throw new Error(
+      `Circular dependency detected among workspace packages: ${remaining.join(
+        ', '
+      )}`
+    );
+  }
+
+  return sorted;
 }
