@@ -59,8 +59,8 @@ describe('discoverWorkspaces', () => {
 
 describe('filterWorkspacePackages', () => {
   const testPackages: WorkspacePackage[] = [
-    { name: '@sentry/browser', location: '/path/browser', private: false, workspaceDependencies: [] },
-    { name: '@sentry/node', location: '/path/node', private: false, workspaceDependencies: [] },
+    { name: '@sentry/browser', location: '/path/browser', private: false, workspaceDependencies: ['@sentry-internal/utils'] },
+    { name: '@sentry/node', location: '/path/node', private: false, workspaceDependencies: ['@sentry-internal/utils'] },
     { name: '@sentry-internal/utils', location: '/path/utils', private: false, workspaceDependencies: [] },
     { name: '@other/package', location: '/path/other', private: false, workspaceDependencies: [] },
   ];

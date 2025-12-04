@@ -107,16 +107,11 @@ async function resolveWorkspaceGlobs(
   rootDir: string,
   patterns: string[]
 ): Promise<WorkspacePackage[]> {
-  // First pass: collect all packages and their raw dependencies
-  const packagesWithDeps: Array<{
-    name: string;
-    location: string;
-    private: boolean;
-    allDeps: string[];
-  }> = [];
+  // First: collect all workspace package names and locations
+  const workspaceLocations: Array<{ location: string; packageJson: PackageJson }> = [];
+  const workspaceNames = new Set<string>();
 
   for (const pattern of patterns) {
-    // Use glob to find matching directories
     const matches = await glob(pattern, {
       cwd: rootDir,
       absolute: true,
@@ -125,30 +120,22 @@ async function resolveWorkspaceGlobs(
 
     for (const match of matches) {
       const packageJson = readPackageJson(match);
-      if (packageJson && packageJson.name) {
-        packagesWithDeps.push({
-          name: packageJson.name,
-          location: match,
-          private: packageJson.private ?? false,
-          allDeps: getAllDependencyNames(packageJson),
-        });
+      if (packageJson?.name) {
+        workspaceLocations.push({ location: match, packageJson });
+        workspaceNames.add(packageJson.name);
       }
     }
   }
 
-  // Second pass: resolve which dependencies are workspace packages
-  const workspacePackageNames = new Set(packagesWithDeps.map(p => p.name));
-
-  const packages: WorkspacePackage[] = packagesWithDeps.map(pkg => ({
-    name: pkg.name,
-    location: pkg.location,
-    private: pkg.private,
-    workspaceDependencies: pkg.allDeps.filter(dep =>
-      workspacePackageNames.has(dep)
+  // Now resolve dependencies in a single pass, filtering against known workspace names
+  return workspaceLocations.map(({ location, packageJson }) => ({
+    name: packageJson.name as string,
+    location,
+    private: packageJson.private ?? false,
+    workspaceDependencies: getAllDependencyNames(packageJson).filter(dep =>
+      workspaceNames.has(dep)
     ),
   }));
-
-  return packages;
 }
 
 /**

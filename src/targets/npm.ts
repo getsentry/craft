@@ -158,6 +158,22 @@ export class NpmTarget extends BaseTarget {
 
     // Also filter out private packages by default (they shouldn't be published)
     const publishablePackages = filteredPackages.filter(pkg => !pkg.private);
+    const privatePackageNames = new Set(
+      filteredPackages.filter(pkg => pkg.private).map(pkg => pkg.name)
+    );
+
+    // Validate: public packages should not depend on private workspace packages
+    for (const pkg of publishablePackages) {
+      const privateDeps = pkg.workspaceDependencies.filter(dep =>
+        privatePackageNames.has(dep)
+      );
+      if (privateDeps.length > 0) {
+        throw new ConfigurationError(
+          `Public package "${pkg.name}" depends on private workspace package(s): ${privateDeps.join(', ')}. ` +
+            `Private packages cannot be published to npm, so this dependency cannot be resolved by consumers.`
+        );
+      }
+    }
 
     if (publishablePackages.length === 0) {
       logger.warn('No publishable workspace packages found after filtering');
