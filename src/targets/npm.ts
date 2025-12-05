@@ -134,11 +134,6 @@ export class NpmTarget extends BaseTarget {
       );
       return [];
     }
-
-    logger.info(
-      `Discovered ${result.packages.length} ${result.type} workspace packages`
-    );
-
     // Filter packages based on include/exclude patterns
     let includePattern: RegExp | undefined;
     let excludePattern: RegExp | undefined;
@@ -192,6 +187,12 @@ export class NpmTarget extends BaseTarget {
       logger.warn('No publishable workspace packages found after filtering');
       return [];
     }
+
+    logger.info(
+      `Discovered ${publishablePackages.length} publishable ${result.type} workspace packages`
+    );
+
+
 
     // Sort packages by dependency order (dependencies first, then dependents)
     const sortedPackages = topologicalSortPackages(publishablePackages);
