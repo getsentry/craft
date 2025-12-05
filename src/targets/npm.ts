@@ -61,13 +61,13 @@ export interface NpmTargetConfig extends TargetConfig {
   /**
    * Regex pattern to filter which workspace packages to include.
    * Only packages matching this pattern will be published.
-   * Example: /^@sentry\//
+   * Example: '/^@sentry\\//'
    */
   includeWorkspaces?: string;
   /**
    * Regex pattern to filter which workspace packages to exclude.
    * Packages matching this pattern will not be published.
-   * Example: /^@sentry-internal\//
+   * Example: '/^@sentry-internal\\//'
    */
   excludeWorkspaces?: string;
   /**
@@ -169,8 +169,21 @@ export class NpmTarget extends BaseTarget {
       );
       if (privateDeps.length > 0) {
         throw new ConfigurationError(
-          `Public package "${pkg.name}" depends on private workspace package(s): ${privateDeps.join(', ')}. ` +
+          `Public package "${
+            pkg.name
+          }" depends on private workspace package(s): ${privateDeps.join(
+            ', '
+          )}. ` +
             `Private packages cannot be published to npm, so this dependency cannot be resolved by consumers.`
+        );
+      }
+
+      // Warn about scoped packages without publishConfig.access: 'public'
+      const isScoped = pkg.name.startsWith('@');
+      if (isScoped && !pkg.hasPublicAccess) {
+        logger.warn(
+          `Scoped package "${pkg.name}" does not have publishConfig.access set to 'public'. ` +
+            `This may cause npm publish to fail for public packages.`
         );
       }
     }

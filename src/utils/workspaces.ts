@@ -20,6 +20,8 @@ export interface WorkspacePackage {
   location: string;
   /** Whether the package is private */
   private: boolean;
+  /** Whether the package has publishConfig.access set to 'public' */
+  hasPublicAccess: boolean;
   /** Dependencies that are also workspace packages */
   workspaceDependencies: string[];
 }
@@ -42,6 +44,9 @@ interface PackageJson {
   name?: string;
   workspaces?: string[] | { packages?: string[] };
   private?: boolean;
+  publishConfig?: {
+    access?: 'public' | 'restricted';
+  };
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
@@ -132,6 +137,7 @@ async function resolveWorkspaceGlobs(
     name: packageJson.name as string,
     location,
     private: packageJson.private ?? false,
+    hasPublicAccess: packageJson.publishConfig?.access === 'public',
     workspaceDependencies: getAllDependencyNames(packageJson).filter(dep =>
       workspaceNames.has(dep)
     ),
