@@ -225,7 +225,12 @@ export class NpmTarget extends BaseTarget {
         includeNames,
       };
 
-      // Copy over common npm target options
+      // Copy over common target options
+      if (config.excludeNames) {
+        expandedTarget.excludeNames = config.excludeNames;
+      }
+
+      // Copy over npm-specific target options
       if (config.access) {
         expandedTarget.access = config.access;
       }

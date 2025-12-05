@@ -1,4 +1,9 @@
-import { getPublishTag, getLatestVersion, NpmTarget } from '../npm';
+import {
+  getPublishTag,
+  getLatestVersion,
+  NpmTarget,
+  NpmPackageAccess,
+} from '../npm';
 import * as system from '../../utils/system';
 import * as workspaces from '../../utils/workspaces';
 
@@ -285,5 +290,47 @@ describe('NpmTarget.expand', () => {
     // Should only include the public package
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('@sentry/browser');
+  });
+
+  it('propagates excludeNames and other options to expanded targets', async () => {
+    discoverWorkspacesMock = jest
+      .spyOn(workspaces, 'discoverWorkspaces')
+      .mockResolvedValue({
+        type: 'npm',
+        packages: [
+          {
+            name: '@sentry/browser',
+            location: '/root/packages/browser',
+            private: false,
+            hasPublicAccess: true,
+            workspaceDependencies: [],
+          },
+          {
+            name: '@sentry/node',
+            location: '/root/packages/node',
+            private: false,
+            hasPublicAccess: true,
+            workspaceDependencies: [],
+          },
+        ],
+      });
+
+    const config = {
+      name: 'npm',
+      workspaces: true,
+      excludeNames: '/.*-debug\\.tgz$/',
+      access: NpmPackageAccess.PUBLIC,
+      checkPackageName: '@sentry/browser',
+    };
+    const result = await NpmTarget.expand(config, '/root');
+
+    expect(result).toHaveLength(2);
+
+    // Both expanded targets should have the propagated options
+    for (const target of result) {
+      expect(target.excludeNames).toBe('/.*-debug\\.tgz$/');
+      expect(target.access).toBe(NpmPackageAccess.PUBLIC);
+      expect(target.checkPackageName).toBe('@sentry/browser');
+    }
   });
 });
