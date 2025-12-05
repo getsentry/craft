@@ -7,6 +7,17 @@ import consola, {
   LogLevel,
 } from 'consola';
 
+/** Reporter that writes all output to stderr (so JSON on stdout isn't polluted) */
+class StderrReporter extends BasicReporter {
+  public log(logObj: ConsolaReporterLogObject) {
+    const output = this.formatLogObj(logObj);
+    process.stderr.write(output + '\n');
+  }
+}
+
+// Redirect all console output to stderr so it doesn't interfere with JSON output on stdout
+consola.setReporters([new StderrReporter()]);
+
 /**
  * Format a list as a table
  *

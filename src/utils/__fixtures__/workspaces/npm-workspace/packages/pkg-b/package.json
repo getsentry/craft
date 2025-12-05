@@ -1,0 +1,8 @@
+{
+  "name": "@test/pkg-b",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@test/pkg-a": "^1.0.0"
+  }
+}

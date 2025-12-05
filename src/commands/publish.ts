@@ -16,6 +16,7 @@ import {
   getArtifactProviderFromConfig,
   DEFAULT_RELEASE_BRANCH_NAME,
   getGlobalGitHubConfig,
+  expandWorkspaceTargets,
 } from '../config';
 import { formatTable, logger } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
@@ -501,7 +502,8 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     }
   }
 
-  let targetConfigList = config.targets || [];
+  // Expand any npm workspace targets into individual package targets
+  let targetConfigList = await expandWorkspaceTargets(config.targets || []);
 
   logger.info(`Looking for publish state file for ${newVersion}...`);
   const publishStateFile = `.craft-publish-${newVersion}.json`;

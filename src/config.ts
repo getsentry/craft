@@ -12,6 +12,7 @@ import {
   GitHubGlobalConfig,
   ArtifactProviderName,
   StatusProviderName,
+  TargetConfig,
   ChangelogPolicy,
 } from './schemas/project_config';
 import { ConfigurationError } from './utils/errors';
@@ -20,6 +21,8 @@ import {
   parseVersion,
   versionGreaterOrEqualThan,
 } from './utils/version';
+// Note: We import getTargetByName lazily in expandWorkspaceTargets to avoid
+// circular dependency: config -> targets -> registry -> utils/registry -> symlink -> version -> config
 import { BaseArtifactProvider } from './artifact_providers/base';
 import { GitHubArtifactProvider } from './artifact_providers/github';
 import { NoneArtifactProvider } from './artifact_providers/none';
@@ -387,4 +390,58 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
     policy,
     scopeGrouping,
   };
+}
+
+/**
+ * Type for target classes that support expansion
+ */
+interface ExpandableTargetClass {
+  expand(config: TargetConfig, rootDir: string): Promise<TargetConfig[]>;
+}
+
+/**
+ * Check if a target class has an expand method
+ */
+function isExpandableTarget(
+  targetClass: unknown
+): targetClass is ExpandableTargetClass {
+  return (
+    typeof targetClass === 'function' &&
+    'expand' in targetClass &&
+    typeof targetClass.expand === 'function'
+  );
+}
+
+/**
+ * Expand all expandable targets in the target list
+ *
+ * This function takes a list of target configs and expands any targets
+ * whose target class has an `expand` static method. This allows targets
+ * to implement their own expansion logic (e.g., npm workspace expansion).
+ *
+ * @param targets The original list of target configs
+ * @returns The expanded list of target configs
+ */
+export async function expandWorkspaceTargets(
+  targets: TargetConfig[]
+): Promise<TargetConfig[]> {
+  // Lazy import to avoid circular dependency
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { getTargetByName } = require('./targets');
+
+  const rootDir = getConfigFileDir() || process.cwd();
+  const expandedTargets: TargetConfig[] = [];
+
+  for (const target of targets) {
+    const targetClass = getTargetByName(target.name);
+
+    if (targetClass && isExpandableTarget(targetClass)) {
+      const expanded = await targetClass.expand(target, rootDir);
+      expandedTargets.push(...expanded);
+    } else {
+      expandedTargets.push(target);
+    }
+  }
+
+  return expandedTargets;
 }
