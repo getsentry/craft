@@ -400,6 +400,73 @@ In `auto` mode, `craft prepare` will use the following logic:
    Check out [GitHub's release notes documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes#configuration-options)
    for the base configuration format.
 
+**Custom Changelog Entries from PR Descriptions**
+
+By default, the changelog entry for a PR is generated from its title. However,
+PR authors can override this by adding a "Changelog Entry" section to the PR
+description. This allows for more detailed, user-facing changelog entries without
+cluttering the PR title.
+
+To use this feature, add a markdown heading (level 2 or 3) titled "Changelog Entry"
+to your PR description, followed by the desired changelog text:
+
+```markdown
+### Description
+
+Add `foo` function, and add unit tests to thoroughly check all edge cases.
+
+### Changelog Entry
+
+Add a new function called `foo` which prints "Hello, world!"
+
+### Issues
+
+Closes #123
+```
+
+The text under "Changelog Entry" will be used verbatim in the changelog instead
+of the PR title. If no such section is present, the PR title is used as usual.
+
+**Advanced Features:**
+
+1. **Multiple Entries**: If you use multiple top-level bullet points in the
+   "Changelog Entry" section, each bullet will become a separate changelog entry:
+
+   ```markdown
+   ### Changelog Entry
+   
+   - Add OAuth2 authentication
+   - Add two-factor authentication
+   - Add session management
+   ```
+
+2. **Nested Content**: Indented bullets (4+ spaces or tabs) are preserved as
+   nested content under their parent entry:
+
+   ```markdown
+   ### Changelog Entry
+   
+   - Add authentication system
+       - OAuth2 support
+       - Two-factor authentication
+       - Session management
+   ```
+
+   This will generate:
+   ```markdown
+   - Add authentication system by @user in [#123](url)
+     - OAuth2 support
+     - Two-factor authentication
+     - Session management
+   ```
+
+3. **Plain Text**: If no bullets are used, the entire content is treated as a
+   single changelog entry. Multi-line text is supported.
+
+4. **Content Isolation**: Only content within the "Changelog Entry" section is
+   included in the changelog. Other sections (Description, Issues, etc.) are
+   ignored.
+
 **Default Conventional Commits Configuration**
 
 If `.github/release.yml` doesn't exist or has no `changelog` section, craft uses
