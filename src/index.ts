@@ -65,7 +65,7 @@ function fixGlobalBooleanFlags(argv: string[]): string[] {
 /**
  * Main entrypoint
  */
-function main(): void {
+async function main(): Promise<void> {
   printVersion();
 
   readEnvironmentConfig();
@@ -74,7 +74,7 @@ function main(): void {
 
   const argv = fixGlobalBooleanFlags(process.argv.slice(2));
 
-  yargs()
+  await yargs()
     .parserConfiguration({
       'boolean-negation': false,
     })
