@@ -294,6 +294,9 @@ interface ReleaseConfig {
  */
 const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
   changelog: {
+    exclude: {
+      labels: ['skip-changelog'],
+    },
     categories: [
       {
         title: 'Breaking Changes 🛠',
