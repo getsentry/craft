@@ -69,6 +69,17 @@ describe('checkVersionOrPart', () => {
     }
   });
 
+  test('return true for auto version', () => {
+    expect(
+      checkVersionOrPart(
+        {
+          newVersion: 'auto',
+        },
+        null
+      )
+    ).toBe(true);
+  });
+
   test('throw an error for invalid version', () => {
     const invalidVersions = [
       {

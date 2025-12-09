@@ -203,6 +203,34 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
 }
 
 /**
+ * Checks if the project's minVersion configuration meets a required minimum.
+ *
+ * This is used to gate features that require a certain version of craft.
+ * For example, auto-versioning requires minVersion >= 2.14.0.
+ *
+ * @param requiredVersion The minimum version required for the feature
+ * @returns true if the project's minVersion is >= requiredVersion, false otherwise
+ */
+export function requiresMinVersion(requiredVersion: string): boolean {
+  const config = getConfiguration();
+  const minVersionRaw = config.minVersion;
+
+  if (!minVersionRaw) {
+    // If no minVersion is configured, the feature is not available
+    return false;
+  }
+
+  const configuredMinVersion = parseVersion(minVersionRaw);
+  const required = parseVersion(requiredVersion);
+
+  if (!configuredMinVersion || !required) {
+    return false;
+  }
+
+  return versionGreaterOrEqualThan(configuredMinVersion, required);
+}
+
+/**
  * Return the parsed global GitHub configuration
  */
 let _globalGitHubConfigCache: GitHubGlobalConfig | null;

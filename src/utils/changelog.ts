@@ -266,19 +266,26 @@ interface Commit {
 }
 
 /**
+ * Valid semver bump types for auto-versioning
+ */
+export type SemverBumpType = 'major' | 'minor' | 'patch';
+
+/**
  * Release configuration structure matching GitHub's release.yml format
  */
-interface ReleaseConfigCategory {
+export interface ReleaseConfigCategory {
   title: string;
   labels?: string[];
   commit_patterns?: string[];
+  /** Semver bump type when commits match this category (for auto-versioning) */
+  semver?: SemverBumpType;
   exclude?: {
     labels?: string[];
     authors?: string[];
   };
 }
 
-interface ReleaseConfig {
+export interface ReleaseConfig {
   changelog?: {
     exclude?: {
       labels?: string[];
@@ -292,28 +299,33 @@ interface ReleaseConfig {
  * Default release configuration based on conventional commits
  * Used when .github/release.yml doesn't exist
  */
-const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
+export const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
   changelog: {
     categories: [
       {
         title: 'Breaking Changes 🛠',
         commit_patterns: ['^\\w+(?:\\([^)]+\\))?!:'],
+        semver: 'major',
       },
       {
         title: 'New Features ✨',
         commit_patterns: ['^feat\\b'],
+        semver: 'minor',
       },
       {
         title: 'Bug Fixes 🐛',
         commit_patterns: ['^fix\\b'],
+        semver: 'patch',
       },
       {
         title: 'Documentation 📚',
         commit_patterns: ['^docs?\\b'],
+        semver: 'patch',
       },
       {
         title: 'Build / dependencies / internal 🔧',
         commit_patterns: ['^(?:build|refactor|meta|chore|ci)\\b'],
+        semver: 'patch',
       },
     ],
   },
@@ -323,7 +335,7 @@ const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
  * Normalized release config with Sets for efficient lookups
  * All fields are non-optional - use empty sets/arrays when not present
  */
-interface NormalizedReleaseConfig {
+export interface NormalizedReleaseConfig {
   changelog: {
     exclude: {
       labels: Set<string>;
@@ -333,10 +345,12 @@ interface NormalizedReleaseConfig {
   };
 }
 
-interface NormalizedCategory {
+export interface NormalizedCategory {
   title: string;
   labels: string[];
   commitLogPatterns: RegExp[];
+  /** Semver bump type when commits match this category (for auto-versioning) */
+  semver?: SemverBumpType;
   exclude: {
     labels: Set<string>;
     authors: Set<string>;
@@ -352,7 +366,7 @@ type CategoryWithPRs = {
  * Reads and parses .github/release.yml from the repository root
  * @returns Parsed release configuration, or the default config if file doesn't exist
  */
-function readReleaseConfig(): ReleaseConfig {
+export function readReleaseConfig(): ReleaseConfig {
   const configFileDir = getConfigFileDir();
   if (!configFileDir) {
     return DEFAULT_RELEASE_CONFIG;
@@ -379,7 +393,7 @@ function readReleaseConfig(): ReleaseConfig {
 /**
  * Normalizes the release config by converting arrays to Sets and compiling regex patterns
  */
-function normalizeReleaseConfig(
+export function normalizeReleaseConfig(
   config: ReleaseConfig
 ): NormalizedReleaseConfig | null {
   if (!config?.changelog) {
@@ -436,6 +450,7 @@ function normalizeReleaseConfig(
               }
             })
             .filter((r): r is RegExp => r !== null),
+          semver: category.semver,
           exclude: {
             labels: new Set<string>(),
             authors: new Set<string>(),
@@ -466,7 +481,7 @@ function normalizeReleaseConfig(
 /**
  * Checks if a PR should be excluded globally based on release config
  */
-function shouldExcludePR(
+export function shouldExcludePR(
   labels: Set<string>,
   author: string | undefined,
   config: NormalizedReleaseConfig | null
@@ -493,7 +508,7 @@ function shouldExcludePR(
 /**
  * Checks if a category excludes the given PR based on labels and author
  */
-function isCategoryExcluded(
+export function isCategoryExcluded(
   category: NormalizedCategory,
   labels: Set<string>,
   author: string | undefined
@@ -887,7 +902,7 @@ interface CommitInfoResult {
   repository: CommitInfoMap;
 }
 
-async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
+export async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
   Record<
     /* hash */ string,
     {

@@ -8,6 +8,7 @@ import {
   getConfiguration,
   DEFAULT_RELEASE_BRANCH_NAME,
   getGlobalGitHubConfig,
+  requiresMinVersion,
 } from '../config';
 import { logger } from '../logger';
 import { ChangelogPolicy } from '../schemas/project_config';
@@ -26,6 +27,7 @@ import {
   reportError,
 } from '../utils/errors';
 import { getGitClient, getDefaultBranch, getLatestTag } from '../utils/git';
+import { getAutoVersion } from '../utils/autoVersion';
 import { isDryRun, promptConfirmation } from '../utils/helpers';
 import { formatJson } from '../utils/strings';
 import { spawnProcess } from '../utils/system';
@@ -40,10 +42,14 @@ export const description = '🚢 Prepare a new release branch';
 /** Default path to bump-version script, relative to project root */
 const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
 
+/** Minimum craft version required for auto-versioning */
+const AUTO_VERSION_MIN_VERSION = '2.14.0';
+
 export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
     .positional('NEW-VERSION', {
-      description: 'The new version you want to release',
+      description:
+        'The new version you want to release, or "auto" to determine automatically from conventional commits (requires minVersion >= 2.14.0 in .craft.yml)',
       type: 'string',
     })
     .option('rev', {
@@ -106,14 +112,20 @@ const SLEEP_BEFORE_PUBLISH_SECONDS = 30;
 /**
  * Checks the provided version argument for validity
  *
- * We check that the argument is either a valid version string, or a valid
- * semantic version part.
+ * We check that the argument is either a valid version string, 'auto' for
+ * automatic version detection, or a valid semantic version part.
  *
  * @param argv Parsed yargs arguments
  * @param _opt A list of options and aliases
  */
 export function checkVersionOrPart(argv: Arguments<any>, _opt: any): boolean {
   const version = argv.newVersion;
+
+  // Allow 'auto' for automatic version detection
+  if (version === 'auto') {
+    return true;
+  }
+
   if (['major', 'minor', 'patch'].indexOf(version) > -1) {
     throw Error('Version part is not supported yet');
   } else if (isValidVersion(version)) {
@@ -469,7 +481,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   // Get repo configuration
   const config = getConfiguration();
   const githubConfig = await getGlobalGitHubConfig();
-  const newVersion = argv.newVersion;
+  let newVersion = argv.newVersion;
 
   const git = await getGitClient();
 
@@ -483,6 +495,18 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   } else {
     // Check that we're in an acceptable state for the release
     checkGitStatus(repoStatus, rev);
+  }
+
+  // Handle automatic version detection
+  if (newVersion === 'auto') {
+    if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
+      throw new ConfigurationError(
+        `Auto-versioning requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
+          'Please update your configuration or specify the version explicitly.'
+      );
+    }
+
+    newVersion = await getAutoVersion(git, rev);
   }
 
   logger.info(`Releasing version ${newVersion} from ${rev}`);
