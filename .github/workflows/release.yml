@@ -33,7 +33,7 @@ jobs:
           token: ${{ steps.token.outputs.token }}
           fetch-depth: 0
       - name: Prepare release
-        uses: getsentry/action-prepare-release@3cea80dc3938c0baf5ec4ce752ecb311f8780cdc # v1
+        uses: getsentry/action-prepare-release@02d36892ed56570c6d1630f1c668eb7f42234606 # v1
         env:
           GITHUB_TOKEN: ${{ steps.token.outputs.token }}
         with:
