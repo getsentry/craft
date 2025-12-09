@@ -74,7 +74,7 @@ function main(): void {
 
   const argv = fixGlobalBooleanFlags(process.argv.slice(2));
 
-  yargs
+  yargs()
     .parserConfiguration({
       'boolean-negation': false,
     })
