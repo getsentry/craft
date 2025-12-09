@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.13.1
+
+### Build / dependencies / internal 🔧
+
+- ci: Fix release input desc and concurrency by @BYK in [#653](https://github.com/getsentry/craft/pull/653)
+
+### Bug Fixes 🐛
+
+- fix: Fix startup issue with yargs by @BYK in [#651](https://github.com/getsentry/craft/pull/651)
+
+### Documentation 📚
+
+- docs: Add AGENTS.md by @BYK in [#652](https://github.com/getsentry/craft/pull/652)
+
 ## 2.13.0
 
 ### New Features ✨
