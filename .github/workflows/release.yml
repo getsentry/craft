@@ -2,6 +2,10 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
+      craft_version:
+        description: Craft version to release
+        required: true
+        default: "latest"
       version:
         description: Version to release
         required: false
@@ -33,3 +37,4 @@ jobs:
         with:
           version: ${{ github.event.inputs.version }}
           force: ${{ github.event.inputs.force }}
+          craft_version: ${{ github.event.inputs.craft_version }}
