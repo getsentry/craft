@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.13.0
+
+### New Features ✨
+
+- feat(npm): Add workspaces support by @BYK in [#645](https://github.com/getsentry/craft/pull/645)
+- feat(changelog): Add grouping by scope by @BYK in [#644](https://github.com/getsentry/craft/pull/644)
+- feat(changelog): Add section ordering by @BYK in [#640](https://github.com/getsentry/craft/pull/640)
+
+### Build / dependencies / internal 🔧
+
+- build(deps): bump jws from 4.0.0 to 4.0.1 by @dependabot in [#650](https://github.com/getsentry/craft/pull/650)
+
+### Bug Fixes 🐛
+
+- fix(changelog): default matcher should match scopes with dashes by @BYK in [#641](https://github.com/getsentry/craft/pull/641)
+
+### Other
+
+- build(deps-dev): bump @octokit/request-error from 6.1.8 to 7.0.0 by @dependabot in [#643](https://github.com/getsentry/craft/pull/643)
+
 ## 2.12.1
 
 ### Bug Fixes 🐛
