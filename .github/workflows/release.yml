@@ -1,17 +1,19 @@
 name: Release
+concurrency: ${{ github.workflow }}-${{ github.ref }}
 on:
   workflow_dispatch:
     inputs:
-      craft_version:
-        description: Craft version to release
-        required: true
-        default: "latest"
       version:
         description: Version to release
-        required: false
+        required: true
       force:
         description: Force a release even when there are release-blockers (optional)
         required: false
+      craft_version:
+        description: Craft version to use for the release
+        required: true
+        default: "latest"
+
 jobs:
   release:
     runs-on: ubuntu-latest
