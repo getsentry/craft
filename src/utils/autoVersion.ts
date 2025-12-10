@@ -12,43 +12,20 @@ import {
   SKIP_CHANGELOG_MAGIC_WORD,
   type NormalizedReleaseConfig,
   type NormalizedCategory,
-  type SemverBumpType,
 } from './changelog';
 
 /**
- * Enum representing version bump types with numeric values for comparison.
- * Higher values indicate more significant changes.
- * Using numeric values allows for easy max comparison and early exit.
+ * Version bump types ordered by priority (highest to lowest).
+ * Used for both validation and determining the highest bump type.
  */
-export enum BumpType {
-  Patch = 1,
-  Minor = 2,
-  Major = 3,
-}
+export const BUMP_TYPES = ['major', 'minor', 'patch'] as const;
+export type BumpType = (typeof BUMP_TYPES)[number];
 
 /**
- * Maps semver bump type strings to BumpType enum values
- */
-const SEMVER_TO_BUMP_TYPE: Record<SemverBumpType, BumpType> = {
-  patch: BumpType.Patch,
-  minor: BumpType.Minor,
-  major: BumpType.Major,
-};
-
-/**
- * Maps BumpType enum values back to semver release type strings
- */
-const BUMP_TYPE_TO_SEMVER: Record<BumpType, semver.ReleaseType> = {
-  [BumpType.Patch]: 'patch',
-  [BumpType.Minor]: 'minor',
-  [BumpType.Major]: 'major',
-};
-
-/**
- * Matches a commit/PR to a category and returns the category's semver bump type.
+ * Matches a commit/PR to a category and returns the category.
  * Labels take precedence over commit log pattern matching.
  *
- * @returns The matched category with its semver bump type, or null if no match
+ * @returns The matched category, or null if no match
  */
 function matchCommitToCategory(
   labels: Set<string>,
@@ -122,7 +99,8 @@ export interface BumpAnalysisResult {
 
 /**
  * Analyzes commits to determine the highest version bump type needed.
- * Uses early exit optimization - returns immediately when Major bump is found.
+ * Checks bump types in priority order (major > minor > patch) and returns
+ * the first one found.
  *
  * @param git The SimpleGit instance
  * @param rev The revision (tag) to start from
@@ -153,8 +131,8 @@ export async function analyzeCommitsForBump(
     gitCommits.map(({ hash }) => hash)
   );
 
-  let maxBumpType: BumpType | null = null;
-  let matchedCommits = 0;
+  // Collect all bump types found in commits
+  const foundBumpTypes = new Set<BumpType>();
 
   for (const gitCommit of gitCommits) {
     const hash = gitCommit.hash;
@@ -183,30 +161,33 @@ export async function analyzeCommitsForBump(
       releaseConfig
     );
 
-    // Only count commits that match a category with a semver field
+    // Collect bump type if category has one
     if (matchedCategory?.semver) {
-      matchedCommits++;
-      const bumpType = SEMVER_TO_BUMP_TYPE[matchedCategory.semver];
+      foundBumpTypes.add(matchedCategory.semver);
 
-      // Update max if this is higher
-      if (maxBumpType === null || bumpType > maxBumpType) {
-        maxBumpType = bumpType;
-
-        // Early exit: if we found a major bump, no need to continue
-        if (maxBumpType === BumpType.Major) {
-          logger.debug(
-            `Found major bump trigger in commit ${hash.slice(0, 8)}: "${titleForMatching}"`
-          );
-          break;
-        }
+      // Early exit: if we found major, no need to continue
+      if (matchedCategory.semver === 'major') {
+        logger.debug(
+          `Found major bump trigger in commit ${hash.slice(0, 8)}: "${titleForMatching}"`
+        );
+        break;
       }
     }
   }
 
+  // Find highest priority bump type (BUMP_TYPES is ordered major > minor > patch)
+  let bumpType: BumpType | null = null;
+  for (const type of BUMP_TYPES) {
+    if (foundBumpTypes.has(type)) {
+      bumpType = type;
+      break;
+    }
+  }
+
   return {
-    bumpType: maxBumpType,
+    bumpType,
     totalCommits: gitCommits.length,
-    matchedCommits,
+    matchedCommits: foundBumpTypes.size > 0 ? foundBumpTypes.size : 0,
   };
 }
 
@@ -225,12 +206,11 @@ export function calculateNextVersion(
   // Handle empty/missing current version (new project)
   const versionToBump = currentVersion || '0.0.0';
 
-  const releaseType = BUMP_TYPE_TO_SEMVER[bumpType];
-  const newVersion = semver.inc(versionToBump, releaseType);
+  const newVersion = semver.inc(versionToBump, bumpType);
 
   if (!newVersion) {
     throw new Error(
-      `Failed to increment version "${versionToBump}" with bump type "${releaseType}"`
+      `Failed to increment version "${versionToBump}" with bump type "${bumpType}"`
     );
   }
 
@@ -270,9 +250,8 @@ export async function getAutoBumpType(
     );
   }
 
-  const bumpTypeName = BUMP_TYPE_TO_SEMVER[analysis.bumpType];
   logger.info(
-    `Auto-version: determined ${bumpTypeName} bump ` +
+    `Auto-version: determined ${analysis.bumpType} bump ` +
       `(${analysis.matchedCommits}/${analysis.totalCommits} commits matched)`
   );
 

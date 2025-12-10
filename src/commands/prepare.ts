@@ -30,7 +30,8 @@ import { getGitClient, getDefaultBranch, getLatestTag } from '../utils/git';
 import {
   getAutoBumpType,
   calculateNextVersion,
-  BumpType,
+  BUMP_TYPES,
+  type BumpType,
 } from '../utils/autoVersion';
 import { isDryRun, promptConfirmation } from '../utils/helpers';
 import { formatJson } from '../utils/strings';
@@ -115,10 +116,6 @@ interface PrepareOptions {
  */
 const SLEEP_BEFORE_PUBLISH_SECONDS = 30;
 
-/** Valid version bump types */
-const VERSION_BUMP_TYPES = ['major', 'minor', 'patch'] as const;
-type VersionBumpType = (typeof VERSION_BUMP_TYPES)[number];
-
 /**
  * Checks the provided version argument for validity
  *
@@ -138,7 +135,7 @@ export function checkVersionOrPart(argv: Arguments<any>, _opt: any): boolean {
   }
 
   // Allow version bump types (major, minor, patch)
-  if (VERSION_BUMP_TYPES.includes(version as VersionBumpType)) {
+  if (BUMP_TYPES.includes(version as BumpType)) {
     return true;
   }
 
@@ -512,9 +509,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   }
 
   // Handle automatic version detection or version bump types
-  const isVersionBumpType = VERSION_BUMP_TYPES.includes(
-    newVersion as VersionBumpType
-  );
+  const isVersionBumpType = BUMP_TYPES.includes(newVersion as BumpType);
 
   if (newVersion === 'auto' || isVersionBumpType) {
     if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
@@ -527,18 +522,13 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       );
     }
 
-    // Determine bump type - either from arg or from commit analysis
-    const bumpTypeMap: Record<VersionBumpType, BumpType> = {
-      major: BumpType.Major,
-      minor: BumpType.Minor,
-      patch: BumpType.Patch,
-    };
-
     const latestTag = await getLatestTag(git);
-    const bumpType =
+
+    // Determine bump type - either from arg or from commit analysis
+    const bumpType: BumpType =
       newVersion === 'auto'
         ? await getAutoBumpType(git, latestTag)
-        : bumpTypeMap[newVersion as VersionBumpType];
+        : (newVersion as BumpType);
 
     // Calculate new version from latest tag
     const currentVersion =
@@ -548,7 +538,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
     newVersion = calculateNextVersion(currentVersion, bumpType);
     logger.info(
-      `Version bump: ${currentVersion || '(none)'} -> ${newVersion} (${argv.newVersion} bump)`
+      `Version bump: ${currentVersion || '(none)'} -> ${newVersion} (${bumpType} bump)`
     );
   }
 

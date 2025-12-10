@@ -19,7 +19,7 @@ import * as config from '../../config';
 import { getChangesSince } from '../git';
 import { getGitHubClient } from '../githubApi';
 import {
-  BumpType,
+  BUMP_TYPES,
   analyzeCommitsForBump,
   calculateNextVersion,
   getAutoBumpType,
@@ -39,38 +39,42 @@ const getChangesSinceMock = getChangesSince as jest.MockedFunction<
   typeof getChangesSince
 >;
 
-describe('BumpType enum', () => {
-  test('Major > Minor > Patch for comparison', () => {
-    expect(BumpType.Major).toBeGreaterThan(BumpType.Minor);
-    expect(BumpType.Minor).toBeGreaterThan(BumpType.Patch);
-    expect(BumpType.Major).toBeGreaterThan(BumpType.Patch);
+describe('BUMP_TYPES', () => {
+  test('ordered by priority: major > minor > patch', () => {
+    expect(BUMP_TYPES).toEqual(['major', 'minor', 'patch']);
+  });
+
+  test('major has lowest index (highest priority)', () => {
+    expect(BUMP_TYPES.indexOf('major')).toBe(0);
+    expect(BUMP_TYPES.indexOf('minor')).toBe(1);
+    expect(BUMP_TYPES.indexOf('patch')).toBe(2);
   });
 });
 
 describe('calculateNextVersion', () => {
   test('increments major version', () => {
-    expect(calculateNextVersion('1.2.3', BumpType.Major)).toBe('2.0.0');
+    expect(calculateNextVersion('1.2.3', 'major')).toBe('2.0.0');
   });
 
   test('increments minor version', () => {
-    expect(calculateNextVersion('1.2.3', BumpType.Minor)).toBe('1.3.0');
+    expect(calculateNextVersion('1.2.3', 'minor')).toBe('1.3.0');
   });
 
   test('increments patch version', () => {
-    expect(calculateNextVersion('1.2.3', BumpType.Patch)).toBe('1.2.4');
+    expect(calculateNextVersion('1.2.3', 'patch')).toBe('1.2.4');
   });
 
   test('handles empty version as 0.0.0', () => {
-    expect(calculateNextVersion('', BumpType.Patch)).toBe('0.0.1');
-    expect(calculateNextVersion('', BumpType.Minor)).toBe('0.1.0');
-    expect(calculateNextVersion('', BumpType.Major)).toBe('1.0.0');
+    expect(calculateNextVersion('', 'patch')).toBe('0.0.1');
+    expect(calculateNextVersion('', 'minor')).toBe('0.1.0');
+    expect(calculateNextVersion('', 'major')).toBe('1.0.0');
   });
 
   test('handles prerelease versions', () => {
     // Semver patch on prerelease "releases" it (removes prerelease suffix)
-    expect(calculateNextVersion('1.2.3-beta.1', BumpType.Patch)).toBe('1.2.3');
+    expect(calculateNextVersion('1.2.3-beta.1', 'patch')).toBe('1.2.3');
     // Minor bump on prerelease increments minor and removes prerelease
-    expect(calculateNextVersion('1.2.3-rc.0', BumpType.Minor)).toBe('1.3.0');
+    expect(calculateNextVersion('1.2.3-rc.0', 'minor')).toBe('1.3.0');
   });
 });
 
@@ -122,7 +126,7 @@ describe('analyzeCommitsForBump', () => {
 
     const result = await analyzeCommitsForBump(mockGit, 'v1.0.0');
 
-    expect(result.bumpType).toBe(BumpType.Major);
+    expect(result.bumpType).toBe('major');
     expect(result.matchedCommits).toBe(1);
   });
 
@@ -148,7 +152,7 @@ describe('analyzeCommitsForBump', () => {
 
     const result = await analyzeCommitsForBump(mockGit, 'v1.0.0');
 
-    expect(result.bumpType).toBe(BumpType.Major);
+    expect(result.bumpType).toBe('major');
   });
 
   test('returns minor bump for features', async () => {
@@ -168,7 +172,7 @@ describe('analyzeCommitsForBump', () => {
 
     const result = await analyzeCommitsForBump(mockGit, 'v1.0.0');
 
-    expect(result.bumpType).toBe(BumpType.Minor);
+    expect(result.bumpType).toBe('minor');
   });
 
   test('returns patch bump for fixes', async () => {
@@ -188,7 +192,7 @@ describe('analyzeCommitsForBump', () => {
 
     const result = await analyzeCommitsForBump(mockGit, 'v1.0.0');
 
-    expect(result.bumpType).toBe(BumpType.Patch);
+    expect(result.bumpType).toBe('patch');
   });
 
   test('returns patch bump for docs', async () => {
@@ -208,7 +212,7 @@ describe('analyzeCommitsForBump', () => {
 
     const result = await analyzeCommitsForBump(mockGit, 'v1.0.0');
 
-    expect(result.bumpType).toBe(BumpType.Patch);
+    expect(result.bumpType).toBe('patch');
   });
 
   test('returns patch bump for chore', async () => {
@@ -228,7 +232,7 @@ describe('analyzeCommitsForBump', () => {
 
     const result = await analyzeCommitsForBump(mockGit, 'v1.0.0');
 
-    expect(result.bumpType).toBe(BumpType.Patch);
+    expect(result.bumpType).toBe('patch');
   });
 
   test('returns highest bump type when mixed commits (major wins)', async () => {
@@ -258,8 +262,7 @@ describe('analyzeCommitsForBump', () => {
 
     const result = await analyzeCommitsForBump(mockGit, 'v1.0.0');
 
-    expect(result.bumpType).toBe(BumpType.Major);
-    expect(result.matchedCommits).toBe(3);
+    expect(result.bumpType).toBe('major');
   });
 
   test('returns minor when no major but has features', async () => {
@@ -289,8 +292,7 @@ describe('analyzeCommitsForBump', () => {
 
     const result = await analyzeCommitsForBump(mockGit, 'v1.0.0');
 
-    expect(result.bumpType).toBe(BumpType.Minor);
-    expect(result.matchedCommits).toBe(3);
+    expect(result.bumpType).toBe('minor');
   });
 
   test('skips commits with skip-changelog magic word', async () => {
@@ -317,7 +319,7 @@ describe('analyzeCommitsForBump', () => {
     const result = await analyzeCommitsForBump(mockGit, 'v1.0.0');
 
     // Should be patch because the major commit was skipped
-    expect(result.bumpType).toBe(BumpType.Patch);
+    expect(result.bumpType).toBe('patch');
     expect(result.totalCommits).toBe(1);
   });
 
@@ -374,7 +376,7 @@ describe('analyzeCommitsForBump', () => {
 
     const result = await analyzeCommitsForBump(mockGit, 'v1.0.0');
 
-    expect(result.bumpType).toBe(BumpType.Major);
+    expect(result.bumpType).toBe('major');
     // Due to early exit, matchedCommits should be 1 (just the major)
     expect(result.matchedCommits).toBe(1);
   });
@@ -410,7 +412,7 @@ changelog:
 
     const result = await analyzeCommitsForBump(mockGit, 'v1.0.0');
 
-    expect(result.bumpType).toBe(BumpType.Minor);
+    expect(result.bumpType).toBe('minor');
   });
 
   test('returns null for categories without semver field', async () => {
@@ -480,7 +482,7 @@ describe('getAutoBumpType', () => {
 
     const bumpType = await getAutoBumpType(mockGit, 'v1.0.0');
 
-    expect(bumpType).toBe(BumpType.Minor);
+    expect(bumpType).toBe('minor');
   });
 
   test('throws error when no commits found', async () => {
@@ -533,7 +535,7 @@ describe('getAutoBumpType', () => {
 
     const bumpType = await getAutoBumpType(mockGit, 'v2.0.0');
 
-    expect(bumpType).toBe(BumpType.Patch);
+    expect(bumpType).toBe('patch');
   });
 
   test('returns major bump type for breaking changes', async () => {
@@ -553,6 +555,6 @@ describe('getAutoBumpType', () => {
 
     const bumpType = await getAutoBumpType(mockGit, '');
 
-    expect(bumpType).toBe(BumpType.Major);
+    expect(bumpType).toBe('major');
   });
 });
