@@ -12,6 +12,32 @@ const DEFAULT_DOCKER_BIN = 'docker';
  */
 const DOCKER_BIN = process.env.DOCKER_BIN || DEFAULT_DOCKER_BIN;
 
+/**
+ * Extracts the registry host from a Docker image path.
+ *
+ * @param imagePath Docker image path (e.g., "ghcr.io/user/image" or "user/image")
+ * @returns The registry host if present (e.g., "ghcr.io"), undefined for Docker Hub
+ */
+export function extractRegistry(imagePath: string): string | undefined {
+  const parts = imagePath.split('/');
+  // Registry hosts contain dots (ghcr.io, gcr.io, us.gcr.io, etc.)
+  // or colons for ports (localhost:5000)
+  if (parts.length >= 2 && (parts[0].includes('.') || parts[0].includes(':'))) {
+    return parts[0];
+  }
+  return undefined;
+}
+
+/**
+ * Converts a registry hostname to an environment variable prefix.
+ *
+ * @param registry Registry hostname (e.g., "ghcr.io", "us.gcr.io")
+ * @returns Environment variable prefix (e.g., "GHCR_IO", "US_GCR_IO")
+ */
+export function registryToEnvPrefix(registry: string): string {
+  return registry.toUpperCase().replace(/[.\-:]/g, '_');
+}
+
 /** Options for "docker" target */
 export interface DockerTargetOptions {
   username: string;
@@ -24,10 +50,15 @@ export interface DockerTargetOptions {
   targetTemplate: string;
   /** Target image path, like `getsentry/craft` */
   target: string;
+  /** Registry host for docker login (e.g., "ghcr.io"). Auto-detected from target if not specified. */
+  registry?: string;
 }
 
 /**
- * Target responsible for publishing releases on Docker Hub (https://hub.docker.com)
+ * Target responsible for publishing releases to Docker registries.
+ *
+ * Supports multiple registries including Docker Hub, GitHub Container Registry (ghcr.io),
+ * Google Container Registry (gcr.io), and other OCI-compliant registries.
  */
 export class DockerTarget extends BaseTarget {
   /** Target name */
@@ -45,13 +76,73 @@ export class DockerTarget extends BaseTarget {
   }
 
   /**
-   * Extracts Docker target options from the environment
+   * Extracts Docker target options from the environment.
+   *
+   * Credential resolution follows two modes:
+   *
+   * Mode A (explicit env vars): If usernameVar or passwordVar is configured,
+   * both must be specified and the env vars must exist. No fallback for security.
+   *
+   * Mode B (automatic resolution): Tries in order:
+   * 1. Registry-derived env vars: DOCKER_<REGISTRY>_USERNAME / DOCKER_<REGISTRY>_PASSWORD
+   * 2. Built-in defaults for known registries (GHCR: GITHUB_ACTOR / GITHUB_TOKEN)
+   * 3. Default: DOCKER_USERNAME / DOCKER_PASSWORD
    */
   public getDockerConfig(): DockerTargetOptions {
-    if (!process.env.DOCKER_USERNAME || !process.env.DOCKER_PASSWORD) {
+    const registry =
+      this.config.registry ?? extractRegistry(this.config.target);
+
+    let username: string | undefined;
+    let password: string | undefined;
+
+    // Mode A: Explicit env var override - no fallback for security
+    if (this.config.usernameVar || this.config.passwordVar) {
+      if (!this.config.usernameVar || !this.config.passwordVar) {
+        throw new ConfigurationError(
+          'Both usernameVar and passwordVar must be specified together'
+        );
+      }
+      username = process.env[this.config.usernameVar];
+      password = process.env[this.config.passwordVar];
+
+      if (!username || !password) {
+        throw new ConfigurationError(
+          `Missing credentials: ${this.config.usernameVar} and/or ${this.config.passwordVar} environment variable(s) not set`
+        );
+      }
+    } else {
+      // Mode B: Automatic resolution with fallback chain
+
+      // 1. Registry-derived env vars
+      if (registry) {
+        const prefix = `DOCKER_${registryToEnvPrefix(registry)}_`;
+        username = process.env[`${prefix}USERNAME`];
+        password = process.env[`${prefix}PASSWORD`];
+      }
+
+      // 2. Built-in defaults for known registries
+      if (!username || !password) {
+        if (registry === 'ghcr.io') {
+          // GHCR defaults: use GitHub Actions built-in env vars
+          // GITHUB_ACTOR and GITHUB_TOKEN are available by default in GitHub Actions
+          // See: https://docs.github.com/en/actions/reference/workflows-and-actions/variables
+          username = username ?? process.env.GITHUB_ACTOR;
+          password = password ?? process.env.GITHUB_TOKEN;
+        }
+      }
+
+      // 3. Fallback to defaults
+      username = username ?? process.env.DOCKER_USERNAME;
+      password = password ?? process.env.DOCKER_PASSWORD;
+    }
+
+    if (!username || !password) {
+      const registryHint = registry
+        ? `DOCKER_${registryToEnvPrefix(registry)}_USERNAME/PASSWORD or `
+        : '';
       throw new ConfigurationError(
         `Cannot perform Docker release: missing credentials.
-         Please use DOCKER_USERNAME and DOCKER_PASSWORD environment variables.`.replace(
+Please use ${registryHint}DOCKER_USERNAME and DOCKER_PASSWORD environment variables.`.replace(
           /^\s+/gm,
           ''
         )
@@ -59,12 +150,13 @@ export class DockerTarget extends BaseTarget {
     }
 
     return {
-      password: process.env.DOCKER_PASSWORD,
+      password,
       source: this.config.source,
       target: this.config.target,
       sourceTemplate: this.config.sourceFormat || '{{{source}}}:{{{revision}}}',
       targetTemplate: this.config.targetFormat || '{{{target}}}:{{{version}}}',
-      username: process.env.DOCKER_USERNAME,
+      username,
+      registry,
     };
   }
 
@@ -74,12 +166,13 @@ export class DockerTarget extends BaseTarget {
    * NOTE: This may change the globally logged in Docker user on the system
    */
   public async login(): Promise<any> {
-    const { username, password } = this.dockerConfig;
-    return spawnProcess(DOCKER_BIN, [
-      'login',
-      `--username=${username}`,
-      `--password=${password}`,
-    ]);
+    const { username, password, registry } = this.dockerConfig;
+    const args = ['login', `--username=${username}`, '--password-stdin'];
+    if (registry) {
+      args.push(registry);
+    }
+    // Pass password via stdin for security (avoids exposure in ps/process list)
+    return spawnProcess(DOCKER_BIN, args, {}, { stdin: password });
   }
 
   /**
@@ -110,7 +203,7 @@ export class DockerTarget extends BaseTarget {
   }
 
   /**
-   * Pushes a source image to Docker Hub
+   * Publishes a source image to the target registry
    *
    * @param version The new version
    * @param revision The SHA revision of the new version

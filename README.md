@@ -1064,44 +1064,101 @@ targets:
 ### Docker (`docker`)
 
 Copies an existing source image tagged with the revision SHA to a new target
-tagged with the released version. No release assets are required for this target
-except for the source image at the provided source image location so it would be
-a good idea to add a status check that ensures the source image exists, otherwise
-`craft publish` will fail at the copy step, causing an interrupted publish.
-This is an issue for other, non-idempotent targets, not for the Docker target.
+tagged with the released version. Supports multiple registries including Docker Hub,
+GitHub Container Registry (ghcr.io), Google Container Registry (gcr.io), and other
+OCI-compliant registries.
+
+No release assets are required for this target except for the source image at the
+provided source image location so it would be a good idea to add a status check
+that ensures the source image exists, otherwise `craft publish` will fail at the
+copy step, causing an interrupted publish. This is an issue for other, non-idempotent
+targets, not for the Docker target.
 
 **Environment**
 
 `docker` executable (or something equivalent) with BuildKit must be installed on the system.
 
-| Name              | Description                                |
-| ----------------- | ------------------------------------------ |
-| `DOCKER_USERNAME` | The username for the Docker registry.      |
-| `DOCKER_PASSWORD` | The personal access token for the account. |
-| `DOCKER_BIN`      | **optional**. Path to `docker` executable. |
+Credentials are resolved in the following order:
+
+1. **Explicit env var override**: If `usernameVar` and `passwordVar` are configured,
+   only those environment variables are used (no fallback).
+2. **Registry-derived env vars**: Based on the target registry, e.g., `DOCKER_GHCR_IO_USERNAME`
+   and `DOCKER_GHCR_IO_PASSWORD` for `ghcr.io`.
+3. **Built-in defaults**: For `ghcr.io`, uses `GITHUB_ACTOR` and `GITHUB_TOKEN` which are
+   automatically available in GitHub Actions.
+4. **Default**: `DOCKER_USERNAME` and `DOCKER_PASSWORD`.
+
+| Name                            | Description                                                                               |
+| ------------------------------- | ----------------------------------------------------------------------------------------- |
+| `DOCKER_USERNAME`               | Default username for Docker registries.                                                   |
+| `DOCKER_PASSWORD`               | Default password/token for Docker registries.                                             |
+| `DOCKER_<REGISTRY>_USERNAME`    | Registry-specific username (e.g., `DOCKER_GHCR_IO_USERNAME` for `ghcr.io`).               |
+| `DOCKER_<REGISTRY>_PASSWORD`    | Registry-specific password (e.g., `DOCKER_GHCR_IO_PASSWORD` for `ghcr.io`).               |
+| `GITHUB_ACTOR`                  | Used as default username for `ghcr.io` (available in GitHub Actions).                    |
+| `GITHUB_TOKEN`                  | Used as default password for `ghcr.io` (available in GitHub Actions).                    |
+| `DOCKER_BIN`                    | **optional**. Path to `docker` executable.                                                |
 
 **Configuration**
 
-| Option         | Description                                                              |
-| -------------- | ------------------------------------------------------------------------ |
-| `source`       | Path to the source Docker image to be pulled                             |
-| `sourceFormat` | Format for the source image name. Default: `{{{source}}}:{{{revision}}}` |
-| `target`       | Path to the target Docker image to be pushed                             |
-| `targetFormat` | Format for the target image name. Default: `{{{target}}}:{{{version}}}`  |
+| Option         | Description                                                                       |
+| -------------- | --------------------------------------------------------------------------------- |
+| `source`       | Path to the source Docker image to be pulled                                      |
+| `sourceFormat` | Format for the source image name. Default: `{{{source}}}:{{{revision}}}`          |
+| `target`       | Path to the target Docker image to be pushed                                      |
+| `targetFormat` | Format for the target image name. Default: `{{{target}}}:{{{version}}}`           |
+| `registry`     | **optional**. Override the registry for login (auto-detected from `target`)       |
+| `usernameVar`  | **optional**. Env var name for username (must be used with `passwordVar`)         |
+| `passwordVar`  | **optional**. Env var name for password (must be used with `usernameVar`)         |
 
-**Example**
+**Examples**
+
+Publishing to Docker Hub (default):
 
 ```yaml
 targets:
   - name: docker
-    source: us.gcr.io/sentryio/craft
+    source: ghcr.io/getsentry/craft
     target: getsentry/craft
-# Optional but strongly recommended
-statusProvider:
-  name: github
-  config:
-    contexts:
-      - Travis CI - Branch # or whatever builds and pushes your source image
+```
+
+Publishing to GitHub Container Registry (zero-config in GitHub Actions):
+
+```yaml
+targets:
+  # Uses GITHUB_ACTOR and GITHUB_TOKEN automatically
+  - name: docker
+    source: ghcr.io/getsentry/craft
+    target: ghcr.io/getsentry/craft
+```
+
+Publishing to multiple registries:
+
+```yaml
+targets:
+  # Docker Hub
+  - name: docker
+    source: ghcr.io/getsentry/craft
+    target: getsentry/craft
+    # Uses DOCKER_USERNAME / DOCKER_PASSWORD
+
+  # GHCR (auto-detected, zero-config in GitHub Actions)
+  - name: docker
+    source: ghcr.io/getsentry/craft
+    target: ghcr.io/getsentry/craft
+    # Uses DOCKER_GHCR_IO_* or GITHUB_ACTOR/GITHUB_TOKEN
+
+  # GCR with shared credentials across regions
+  - name: docker
+    source: ghcr.io/getsentry/craft
+    target: us.gcr.io/my-project/craft
+    registry: gcr.io  # Use DOCKER_GCR_IO_* instead of DOCKER_US_GCR_IO_*
+
+  # Custom registry with explicit env vars
+  - name: docker
+    source: ghcr.io/getsentry/craft
+    target: custom.registry.io/image
+    usernameVar: MY_REGISTRY_USER
+    passwordVar: MY_REGISTRY_PASS
 ```
 
 ### Ruby Gems Index (`gem`)
