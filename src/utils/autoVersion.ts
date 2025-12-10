@@ -13,6 +13,14 @@ import {
 export { BUMP_TYPES, type BumpType, type ChangelogResult };
 
 /**
+ * Validated changelog result with guaranteed non-null bumpType.
+ * Returned by getChangelogWithBumpType after validation.
+ */
+export interface ValidatedChangelogResult extends ChangelogResult {
+  bumpType: BumpType; // Override to be non-null
+}
+
+/**
  * Calculates the next version by applying the bump type to the current version.
  *
  * @param currentVersion The current version string (e.g., "1.2.3")
@@ -44,13 +52,13 @@ export function calculateNextVersion(
  *
  * @param git The SimpleGit instance
  * @param rev The revision (tag) to analyze from
- * @returns The changelog result containing both changelog and bump type
- * @throws Error if no commits match categories with semver fields
+ * @returns The changelog result with validated non-null bumpType
+ * @throws Error if no commits found or none match categories with semver fields
  */
 export async function getChangelogWithBumpType(
   git: SimpleGit,
   rev: string
-): Promise<ChangelogResult> {
+): Promise<ValidatedChangelogResult> {
   logger.info(
     `Analyzing commits since ${rev || '(beginning of history)'} for auto-versioning...`
   );
@@ -77,5 +85,6 @@ export async function getChangelogWithBumpType(
       `(${result.matchedCommitsWithSemver}/${result.totalCommits} commits matched)`
   );
 
-  return result;
+  // TypeScript knows bumpType is non-null here due to the check above
+  return result as ValidatedChangelogResult;
 }

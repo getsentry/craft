@@ -18,11 +18,7 @@ import type { SimpleGit } from 'simple-git';
 import * as config from '../../config';
 import { getChangesSince } from '../git';
 import { getGitHubClient } from '../githubApi';
-import {
-  BUMP_TYPES,
-  calculateNextVersion,
-  getChangelogWithBumpType,
-} from '../autoVersion';
+import { calculateNextVersion, getChangelogWithBumpType } from '../autoVersion';
 
 const getConfigFileDirMock = config.getConfigFileDir as jest.MockedFunction<
   typeof config.getConfigFileDir
@@ -37,18 +33,6 @@ const readFileSyncMock = readFileSync as jest.MockedFunction<
 const getChangesSinceMock = getChangesSince as jest.MockedFunction<
   typeof getChangesSince
 >;
-
-describe('BUMP_TYPES', () => {
-  test('ordered by priority: major > minor > patch', () => {
-    expect(BUMP_TYPES).toEqual(['major', 'minor', 'patch']);
-  });
-
-  test('major has lowest index (highest priority)', () => {
-    expect(BUMP_TYPES.indexOf('major')).toBe(0);
-    expect(BUMP_TYPES.indexOf('minor')).toBe(1);
-    expect(BUMP_TYPES.indexOf('patch')).toBe(2);
-  });
-});
 
 describe('calculateNextVersion', () => {
   test('increments major version', () => {

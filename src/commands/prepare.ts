@@ -20,7 +20,6 @@ import {
   removeChangeset,
   prependChangeset,
   generateChangesetFromGit,
-  type ChangelogResult,
 } from '../utils/changelog';
 import {
   ConfigurationError,
@@ -136,7 +135,7 @@ export function checkVersionOrPart(argv: Arguments<any>, _opt: any): boolean {
   }
 
   // Allow version bump types (major, minor, patch)
-  if (BUMP_TYPES.includes(version as BumpType)) {
+  if (version in BUMP_TYPES) {
     return true;
   }
 
@@ -373,15 +372,13 @@ async function execPublish(remote: string, newVersion: string): Promise<never> {
  * @param newVersion The new version we are releasing
  * @param changelogPolicy One of the changelog policies, such as "none", "simple", etc.
  * @param changelogPath Path to the changelog file
- * @param cachedChangelog Optional pre-computed changelog result (to avoid duplicate work)
  */
 async function prepareChangelog(
   git: SimpleGit,
   oldVersion: string,
   newVersion: string,
   changelogPolicy: ChangelogPolicy = ChangelogPolicy.None,
-  changelogPath: string = DEFAULT_CHANGELOG_PATH,
-  cachedChangelog?: ChangelogResult
+  changelogPath: string = DEFAULT_CHANGELOG_PATH
 ): Promise<void> {
   if (changelogPolicy === ChangelogPolicy.None) {
     logger.debug(
@@ -429,13 +426,9 @@ async function prepareChangelog(
       }
       if (!changeset.body) {
         replaceSection = changeset.name;
-        // Use cached changelog if available, otherwise generate it
-        if (cachedChangelog) {
-          changeset.body = cachedChangelog.changelog;
-        } else {
-          const result = await generateChangesetFromGit(git, oldVersion);
-          changeset.body = result.changelog;
-        }
+        // generateChangesetFromGit is memoized, so this won't duplicate API calls
+        const result = await generateChangesetFromGit(git, oldVersion);
+        changeset.body = result.changelog;
       }
       if (changeset.name === DEFAULT_UNRELEASED_TITLE) {
         replaceSection = changeset.name;
@@ -518,9 +511,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   }
 
   // Handle automatic version detection or version bump types
-  const isVersionBumpType = BUMP_TYPES.includes(newVersion as BumpType);
-  // Cache changelog result when using auto-versioning (to avoid duplicate GitHub API calls)
-  let cachedChangelogResult: ChangelogResult | undefined;
+  const isVersionBumpType = newVersion in BUMP_TYPES;
 
   if (newVersion === 'auto' || isVersionBumpType) {
     if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
@@ -535,15 +526,13 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
     const latestTag = await getLatestTag(git);
 
-    // For 'auto', analyze commits to determine both bump type AND generate changelog
-    // This avoids duplicate GitHub API calls later when preparing the changelog
-    let bumpType: BumpType;
-    if (newVersion === 'auto') {
-      cachedChangelogResult = await getChangelogWithBumpType(git, latestTag);
-      bumpType = cachedChangelogResult.bumpType!; // Already validated non-null by getChangelogWithBumpType
-    } else {
-      bumpType = newVersion as BumpType;
-    }
+    // Determine bump type - either from arg or from commit analysis
+    // Note: getChangelogWithBumpType is memoized, so calling it here and later
+    // in prepareChangelog won't result in duplicate GitHub API calls
+    const bumpType: BumpType =
+      newVersion === 'auto'
+        ? (await getChangelogWithBumpType(git, latestTag)).bumpType
+        : (newVersion as BumpType);
 
     // Calculate new version from latest tag
     const currentVersion =
@@ -552,9 +541,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
         : '0.0.0';
 
     newVersion = calculateNextVersion(currentVersion, bumpType);
-    logger.info(
-      `Version bump: ${currentVersion || '(none)'} -> ${newVersion} (${bumpType} bump)`
-    );
+    logger.info(`Version bump: ${currentVersion} -> ${newVersion} (${bumpType} bump)`);
   }
 
   logger.info(`Releasing version ${newVersion} from ${rev}`);
@@ -598,8 +585,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     oldVersion,
     newVersion,
     argv.noChangelog ? ChangelogPolicy.None : changelogPolicy,
-    changelogPath,
-    cachedChangelogResult
+    changelogPath
   );
 
   // Run a pre-release script (e.g. for version bumping)

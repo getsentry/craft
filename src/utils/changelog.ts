@@ -14,11 +14,15 @@ import { getGitHubClient } from './githubApi';
 import { getVersion } from './version';
 
 /**
- * Version bump types ordered by priority (highest to lowest).
+ * Version bump type priorities (lower number = higher priority).
  * Used for determining the highest bump type from commits.
  */
-export const BUMP_TYPES = ['major', 'minor', 'patch'] as const;
-export type BumpType = (typeof BUMP_TYPES)[number];
+export const BUMP_TYPES = {
+  major: 0,
+  minor: 1,
+  patch: 2,
+} as const;
+export type BumpType = keyof typeof BUMP_TYPES;
 
 /**
  * Path to the changelog file in the target repository
@@ -679,10 +683,40 @@ export interface ChangelogResult {
   matchedCommitsWithSemver: number;
 }
 
+// Memoization cache for generateChangesetFromGit
+// Caches the promise to coalesce concurrent calls
+let changesetCache: {
+  key: string;
+  promise: Promise<ChangelogResult>;
+} | null = null;
+
+function getChangesetCacheKey(rev: string, maxLeftovers: number): string {
+  return `${rev}:${maxLeftovers}`;
+}
+
 export async function generateChangesetFromGit(
   git: SimpleGit,
   rev: string,
   maxLeftovers: number = MAX_LEFTOVERS
+): Promise<ChangelogResult> {
+  const cacheKey = getChangesetCacheKey(rev, maxLeftovers);
+
+  // Return cached promise if available (coalesces concurrent calls)
+  if (changesetCache && changesetCache.key === cacheKey) {
+    return changesetCache.promise;
+  }
+
+  // Create and cache the promise
+  const promise = generateChangesetFromGitImpl(git, rev, maxLeftovers);
+  changesetCache = { key: cacheKey, promise };
+
+  return promise;
+}
+
+async function generateChangesetFromGitImpl(
+  git: SimpleGit,
+  rev: string,
+  maxLeftovers: number
 ): Promise<ChangelogResult> {
   const rawConfig = readReleaseConfig();
   const releaseConfig = normalizeReleaseConfig(rawConfig);
@@ -700,8 +734,9 @@ export async function generateChangesetFromGit(
   const leftovers: Commit[] = [];
   const missing: Commit[] = [];
 
-  // Track bump types for auto-versioning
-  const foundBumpTypes = new Set<BumpType>();
+  // Track bump type for auto-versioning (lower priority value = higher bump)
+  let bumpPriority: number | null = null;
+  let matchedCommitsWithSemver = 0;
 
   for (const gitCommit of gitCommits) {
     const hash = gitCommit.hash;
@@ -731,7 +766,9 @@ export async function generateChangesetFromGit(
 
     // Track bump type if category has semver field
     if (matchedCategory?.semver) {
-      foundBumpTypes.add(matchedCategory.semver);
+      matchedCommitsWithSemver++;
+      const priority = BUMP_TYPES[matchedCategory.semver];
+      bumpPriority = Math.min(bumpPriority ?? priority, priority);
     }
 
     const commit: Commit = {
@@ -790,14 +827,13 @@ export async function generateChangesetFromGit(
     }
   }
 
-  // Determine highest priority bump type (BUMP_TYPES is ordered major > minor > patch)
-  let bumpType: BumpType | null = null;
-  for (const type of BUMP_TYPES) {
-    if (foundBumpTypes.has(type)) {
-      bumpType = type;
-      break;
-    }
-  }
+  // Convert priority back to bump type
+  const bumpType: BumpType | null =
+    bumpPriority === null
+      ? null
+      : (Object.entries(BUMP_TYPES).find(
+          ([, priority]) => priority === bumpPriority
+        )?.[0] as BumpType) ?? null;
 
   if (missing.length > 0) {
     logger.warn(
@@ -914,7 +950,7 @@ export async function generateChangesetFromGit(
     changelog: changelogSections.join('\n\n'),
     bumpType,
     totalCommits: gitCommits.length,
-    matchedCommitsWithSemver: foundBumpTypes.size,
+    matchedCommitsWithSemver,
   };
 }
 
