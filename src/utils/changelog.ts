@@ -14,15 +14,19 @@ import { getGitHubClient } from './githubApi';
 import { getVersion } from './version';
 
 /**
+ * Version bump types.
+ */
+export type BumpType = 'major' | 'minor' | 'patch';
+
+/**
  * Version bump type priorities (lower number = higher priority).
  * Used for determining the highest bump type from commits.
  */
-export const BUMP_TYPES = {
-  major: 0,
-  minor: 1,
-  patch: 2,
-} as const;
-export type BumpType = keyof typeof BUMP_TYPES;
+export const BUMP_TYPES: Map<BumpType, number> = new Map([
+  ['major', 0],
+  ['minor', 1],
+  ['patch', 2],
+]);
 
 /**
  * Path to the changelog file in the target repository
@@ -694,6 +698,14 @@ function getChangesetCacheKey(rev: string, maxLeftovers: number): string {
   return `${rev}:${maxLeftovers}`;
 }
 
+/**
+ * Clears the memoization cache for generateChangesetFromGit.
+ * Primarily used for testing.
+ */
+export function clearChangesetCache(): void {
+  changesetCache = null;
+}
+
 export async function generateChangesetFromGit(
   git: SimpleGit,
   rev: string,
@@ -766,9 +778,11 @@ async function generateChangesetFromGitImpl(
 
     // Track bump type if category has semver field
     if (matchedCategory?.semver) {
-      matchedCommitsWithSemver++;
-      const priority = BUMP_TYPES[matchedCategory.semver];
-      bumpPriority = Math.min(bumpPriority ?? priority, priority);
+      const priority = BUMP_TYPES.get(matchedCategory.semver);
+      if (priority !== undefined) {
+        matchedCommitsWithSemver++;
+        bumpPriority = Math.min(bumpPriority ?? priority, priority);
+      }
     }
 
     const commit: Commit = {
@@ -828,12 +842,15 @@ async function generateChangesetFromGitImpl(
   }
 
   // Convert priority back to bump type
-  const bumpType: BumpType | null =
-    bumpPriority === null
-      ? null
-      : (Object.entries(BUMP_TYPES).find(
-          ([, priority]) => priority === bumpPriority
-        )?.[0] as BumpType) ?? null;
+  let bumpType: BumpType | null = null;
+  if (bumpPriority !== null) {
+    for (const [type, priority] of BUMP_TYPES) {
+      if (priority === bumpPriority) {
+        bumpType = type;
+        break;
+      }
+    }
+  }
 
   if (missing.length > 0) {
     logger.warn(

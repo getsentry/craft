@@ -19,6 +19,7 @@ import * as config from '../../config';
 import { getChangesSince } from '../git';
 import { getGitHubClient } from '../githubApi';
 import { calculateNextVersion, getChangelogWithBumpType } from '../autoVersion';
+import { clearChangesetCache } from '../changelog';
 
 const getConfigFileDirMock = config.getConfigFileDir as jest.MockedFunction<
   typeof config.getConfigFileDir
@@ -66,6 +67,7 @@ describe('getChangelogWithBumpType', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    clearChangesetCache(); // Clear memoization cache between tests
     getConfigFileDirMock.mockReturnValue('/test/repo');
     readFileSyncMock.mockImplementation(() => {
       const error: NodeJS.ErrnoException = new Error('ENOENT');

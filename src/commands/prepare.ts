@@ -135,7 +135,7 @@ export function checkVersionOrPart(argv: Arguments<any>, _opt: any): boolean {
   }
 
   // Allow version bump types (major, minor, patch)
-  if (version in BUMP_TYPES) {
+  if (BUMP_TYPES.has(version)) {
     return true;
   }
 
@@ -511,7 +511,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   }
 
   // Handle automatic version detection or version bump types
-  const isVersionBumpType = newVersion in BUMP_TYPES;
+  const isVersionBumpType = BUMP_TYPES.has(newVersion);
 
   if (newVersion === 'auto' || isVersionBumpType) {
     if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
