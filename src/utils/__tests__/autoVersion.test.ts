@@ -16,13 +16,13 @@ import { readFileSync } from 'fs';
 import type { SimpleGit } from 'simple-git';
 
 import * as config from '../../config';
-import { getChangesSince, getLatestTag } from '../git';
+import { getChangesSince } from '../git';
 import { getGitHubClient } from '../githubApi';
 import {
   BumpType,
   analyzeCommitsForBump,
   calculateNextVersion,
-  getAutoVersion,
+  getAutoBumpType,
 } from '../autoVersion';
 
 const getConfigFileDirMock = config.getConfigFileDir as jest.MockedFunction<
@@ -37,9 +37,6 @@ const readFileSyncMock = readFileSync as jest.MockedFunction<
 >;
 const getChangesSinceMock = getChangesSince as jest.MockedFunction<
   typeof getChangesSince
->;
-const getLatestTagMock = getLatestTag as jest.MockedFunction<
-  typeof getLatestTag
 >;
 
 describe('BumpType enum', () => {
@@ -449,7 +446,7 @@ changelog:
   });
 });
 
-describe('getAutoVersion', () => {
+describe('getAutoBumpType', () => {
   const mockGit = {} as SimpleGit;
 
   beforeEach(() => {
@@ -466,8 +463,7 @@ describe('getAutoVersion', () => {
     });
   });
 
-  test('calculates next version based on commits', async () => {
-    getLatestTagMock.mockResolvedValue('v1.0.0');
+  test('returns minor bump type for feature commits', async () => {
     getChangesSinceMock.mockResolvedValue([
       { hash: 'abc123', title: 'feat: new feature', body: '', pr: null },
     ]);
@@ -482,22 +478,20 @@ describe('getAutoVersion', () => {
       }),
     });
 
-    const version = await getAutoVersion(mockGit);
+    const bumpType = await getAutoBumpType(mockGit, 'v1.0.0');
 
-    expect(version).toBe('1.1.0');
+    expect(bumpType).toBe(BumpType.Minor);
   });
 
   test('throws error when no commits found', async () => {
-    getLatestTagMock.mockResolvedValue('v1.0.0');
     getChangesSinceMock.mockResolvedValue([]);
 
-    await expect(getAutoVersion(mockGit)).rejects.toThrow(
+    await expect(getAutoBumpType(mockGit, 'v1.0.0')).rejects.toThrow(
       'Cannot determine version automatically: no commits found since the last release.'
     );
   });
 
   test('throws error when no commits match semver categories', async () => {
-    getLatestTagMock.mockResolvedValue('v1.0.0');
     getChangesSinceMock.mockResolvedValue([
       {
         hash: 'abc123',
@@ -517,33 +511,12 @@ describe('getAutoVersion', () => {
       }),
     });
 
-    await expect(getAutoVersion(mockGit)).rejects.toThrow(
+    await expect(getAutoBumpType(mockGit, 'v1.0.0')).rejects.toThrow(
       'Cannot determine version automatically'
     );
   });
 
-  test('handles new project with no tags', async () => {
-    getLatestTagMock.mockResolvedValue('');
-    getChangesSinceMock.mockResolvedValue([
-      { hash: 'abc123', title: 'feat: initial feature', body: '', pr: null },
-    ]);
-    (getGitHubClient as jest.Mock).mockReturnValue({
-      graphql: jest.fn().mockResolvedValue({
-        repository: {
-          Cabc123: {
-            author: { user: { login: 'testuser' } },
-            associatedPullRequests: { nodes: [] },
-          },
-        },
-      }),
-    });
-
-    const version = await getAutoVersion(mockGit);
-
-    expect(version).toBe('0.1.0');
-  });
-
-  test('uses specified revision instead of latest tag', async () => {
+  test('returns patch bump type for fix commits', async () => {
     getChangesSinceMock.mockResolvedValue([
       { hash: 'abc123', title: 'fix: bug fix', body: '', pr: null },
     ]);
@@ -558,9 +531,28 @@ describe('getAutoVersion', () => {
       }),
     });
 
-    const version = await getAutoVersion(mockGit, 'v2.0.0');
+    const bumpType = await getAutoBumpType(mockGit, 'v2.0.0');
 
-    expect(version).toBe('2.0.1');
-    expect(getLatestTagMock).not.toHaveBeenCalled();
+    expect(bumpType).toBe(BumpType.Patch);
+  });
+
+  test('returns major bump type for breaking changes', async () => {
+    getChangesSinceMock.mockResolvedValue([
+      { hash: 'abc123', title: 'feat!: breaking change', body: '', pr: null },
+    ]);
+    (getGitHubClient as jest.Mock).mockReturnValue({
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          Cabc123: {
+            author: { user: { login: 'testuser' } },
+            associatedPullRequests: { nodes: [] },
+          },
+        },
+      }),
+    });
+
+    const bumpType = await getAutoBumpType(mockGit, '');
+
+    expect(bumpType).toBe(BumpType.Major);
   });
 });

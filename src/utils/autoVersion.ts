@@ -2,7 +2,7 @@ import * as semver from 'semver';
 import type { SimpleGit } from 'simple-git';
 
 import { logger } from '../logger';
-import { getChangesSince, getLatestTag } from './git';
+import { getChangesSince } from './git';
 import {
   readReleaseConfig,
   normalizeReleaseConfig,
@@ -14,7 +14,6 @@ import {
   type NormalizedCategory,
   type SemverBumpType,
 } from './changelog';
-import { getVersion } from './version';
 
 /**
  * Enum representing version bump types with numeric values for comparison.
@@ -239,25 +238,22 @@ export function calculateNextVersion(
 }
 
 /**
- * Automatically determines the next version based on conventional commits.
+ * Automatically determines the version bump type based on conventional commits.
  *
  * @param git The SimpleGit instance
- * @param rev Optional specific revision to analyze from (defaults to latest tag)
- * @returns The calculated next version string
+ * @param rev The revision (tag) to analyze from
+ * @returns The determined bump type
  * @throws Error if no commits match categories with semver fields
  */
-export async function getAutoVersion(
+export async function getAutoBumpType(
   git: SimpleGit,
-  rev?: string
-): Promise<string> {
-  // Get the starting point - either specified rev or latest tag
-  const startRev = rev ?? (await getLatestTag(git));
-
+  rev: string
+): Promise<BumpType> {
   logger.info(
-    `Analyzing commits since ${startRev || '(beginning of history)'} for auto-versioning...`
+    `Analyzing commits since ${rev || '(beginning of history)'} for auto-versioning...`
   );
 
-  const analysis = await analyzeCommitsForBump(git, startRev);
+  const analysis = await analyzeCommitsForBump(git, rev);
 
   if (analysis.totalCommits === 0) {
     throw new Error(
@@ -274,15 +270,11 @@ export async function getAutoVersion(
     );
   }
 
-  // Get current version from the tag
-  const currentVersion = getVersion(startRev) || '0.0.0';
-  const newVersion = calculateNextVersion(currentVersion, analysis.bumpType);
-
   const bumpTypeName = BUMP_TYPE_TO_SEMVER[analysis.bumpType];
   logger.info(
-    `Auto-version: ${currentVersion} -> ${newVersion} (${bumpTypeName} bump, ` +
-      `${analysis.matchedCommits}/${analysis.totalCommits} commits matched)`
+    `Auto-version: determined ${bumpTypeName} bump ` +
+      `(${analysis.matchedCommits}/${analysis.totalCommits} commits matched)`
   );
 
-  return newVersion;
+  return analysis.bumpType;
 }

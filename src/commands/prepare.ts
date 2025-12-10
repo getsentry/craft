@@ -28,7 +28,7 @@ import {
 } from '../utils/errors';
 import { getGitClient, getDefaultBranch, getLatestTag } from '../utils/git';
 import {
-  getAutoVersion,
+  getAutoBumpType,
   calculateNextVersion,
   BumpType,
 } from '../utils/autoVersion';
@@ -527,28 +527,29 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       );
     }
 
-    if (newVersion === 'auto') {
-      newVersion = await getAutoVersion(git, rev);
-    } else {
-      // Handle explicit version bump type (major, minor, patch)
-      const latestTag = await getLatestTag(git);
-      const currentVersion =
-        latestTag && latestTag.replace(/^v/, '').match(/^\d/)
-          ? latestTag.replace(/^v/, '')
-          : '0.0.0';
+    // Determine bump type - either from arg or from commit analysis
+    const bumpTypeMap: Record<VersionBumpType, BumpType> = {
+      major: BumpType.Major,
+      minor: BumpType.Minor,
+      patch: BumpType.Patch,
+    };
 
-      const bumpTypeMap: Record<VersionBumpType, BumpType> = {
-        major: BumpType.Major,
-        minor: BumpType.Minor,
-        patch: BumpType.Patch,
-      };
-      const bumpType = bumpTypeMap[newVersion as VersionBumpType];
-      newVersion = calculateNextVersion(currentVersion, bumpType);
+    const latestTag = await getLatestTag(git);
+    const bumpType =
+      newVersion === 'auto'
+        ? await getAutoBumpType(git, latestTag)
+        : bumpTypeMap[newVersion as VersionBumpType];
 
-      logger.info(
-        `Version bump: ${currentVersion || '(none)'} -> ${newVersion} (${argv.newVersion} bump)`
-      );
-    }
+    // Calculate new version from latest tag
+    const currentVersion =
+      latestTag && latestTag.replace(/^v/, '').match(/^\d/)
+        ? latestTag.replace(/^v/, '')
+        : '0.0.0';
+
+    newVersion = calculateNextVersion(currentVersion, bumpType);
+    logger.info(
+      `Version bump: ${currentVersion || '(none)'} -> ${newVersion} (${argv.newVersion} bump)`
+    );
   }
 
   logger.info(`Releasing version ${newVersion} from ${rev}`);
