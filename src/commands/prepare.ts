@@ -27,7 +27,11 @@ import {
   reportError,
 } from '../utils/errors';
 import { getGitClient, getDefaultBranch, getLatestTag } from '../utils/git';
-import { getAutoVersion } from '../utils/autoVersion';
+import {
+  getAutoVersion,
+  calculateNextVersion,
+  BumpType,
+} from '../utils/autoVersion';
 import { isDryRun, promptConfirmation } from '../utils/helpers';
 import { formatJson } from '../utils/strings';
 import { spawnProcess } from '../utils/system';
@@ -49,7 +53,9 @@ export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
     .positional('NEW-VERSION', {
       description:
-        'The new version you want to release, or "auto" to determine automatically from conventional commits (requires minVersion >= 2.14.0 in .craft.yml)',
+        'The new version to release. Can be: a semver string (e.g., "1.2.3"), ' +
+        'a bump type ("major", "minor", or "patch"), or "auto" to determine automatically ' +
+        'from conventional commits. Bump types and "auto" require minVersion >= 2.14.0 in .craft.yml',
       type: 'string',
     })
     .option('rev', {
@@ -109,11 +115,16 @@ interface PrepareOptions {
  */
 const SLEEP_BEFORE_PUBLISH_SECONDS = 30;
 
+/** Valid version bump types */
+const VERSION_BUMP_TYPES = ['major', 'minor', 'patch'] as const;
+type VersionBumpType = (typeof VERSION_BUMP_TYPES)[number];
+
 /**
  * Checks the provided version argument for validity
  *
  * We check that the argument is either a valid version string, 'auto' for
- * automatic version detection, or a valid semantic version part.
+ * automatic version detection, a version bump type (major/minor/patch), or
+ * a valid semantic version.
  *
  * @param argv Parsed yargs arguments
  * @param _opt A list of options and aliases
@@ -126,9 +137,12 @@ export function checkVersionOrPart(argv: Arguments<any>, _opt: any): boolean {
     return true;
   }
 
-  if (['major', 'minor', 'patch'].indexOf(version) > -1) {
-    throw Error('Version part is not supported yet');
-  } else if (isValidVersion(version)) {
+  // Allow version bump types (major, minor, patch)
+  if (VERSION_BUMP_TYPES.includes(version as VersionBumpType)) {
+    return true;
+  }
+
+  if (isValidVersion(version)) {
     return true;
   } else {
     let errMsg = `Invalid version or version part specified: "${version}"`;
@@ -497,16 +511,44 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     checkGitStatus(repoStatus, rev);
   }
 
-  // Handle automatic version detection
-  if (newVersion === 'auto') {
+  // Handle automatic version detection or version bump types
+  const isVersionBumpType = VERSION_BUMP_TYPES.includes(
+    newVersion as VersionBumpType
+  );
+
+  if (newVersion === 'auto' || isVersionBumpType) {
     if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
+      const featureName = isVersionBumpType
+        ? 'Version bump types'
+        : 'Auto-versioning';
       throw new ConfigurationError(
-        `Auto-versioning requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
+        `${featureName} requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
           'Please update your configuration or specify the version explicitly.'
       );
     }
 
-    newVersion = await getAutoVersion(git, rev);
+    if (newVersion === 'auto') {
+      newVersion = await getAutoVersion(git, rev);
+    } else {
+      // Handle explicit version bump type (major, minor, patch)
+      const latestTag = await getLatestTag(git);
+      const currentVersion =
+        latestTag && latestTag.replace(/^v/, '').match(/^\d/)
+          ? latestTag.replace(/^v/, '')
+          : '0.0.0';
+
+      const bumpTypeMap: Record<VersionBumpType, BumpType> = {
+        major: BumpType.Major,
+        minor: BumpType.Minor,
+        patch: BumpType.Patch,
+      };
+      const bumpType = bumpTypeMap[newVersion as VersionBumpType];
+      newVersion = calculateNextVersion(currentVersion, bumpType);
+
+      logger.info(
+        `Version bump: ${currentVersion || '(none)'} -> ${newVersion} (${argv.newVersion} bump)`
+      );
+    }
   }
 
   logger.info(`Releasing version ${newVersion} from ${rev}`);
