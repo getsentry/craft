@@ -20,6 +20,7 @@ import {
   removeChangeset,
   prependChangeset,
   generateChangesetFromGit,
+  type ChangelogResult,
 } from '../utils/changelog';
 import {
   ConfigurationError,
@@ -28,7 +29,7 @@ import {
 } from '../utils/errors';
 import { getGitClient, getDefaultBranch, getLatestTag } from '../utils/git';
 import {
-  getAutoBumpType,
+  getChangelogWithBumpType,
   calculateNextVersion,
   BUMP_TYPES,
   type BumpType,
@@ -372,13 +373,15 @@ async function execPublish(remote: string, newVersion: string): Promise<never> {
  * @param newVersion The new version we are releasing
  * @param changelogPolicy One of the changelog policies, such as "none", "simple", etc.
  * @param changelogPath Path to the changelog file
+ * @param cachedChangelog Optional pre-computed changelog result (to avoid duplicate work)
  */
 async function prepareChangelog(
   git: SimpleGit,
   oldVersion: string,
   newVersion: string,
   changelogPolicy: ChangelogPolicy = ChangelogPolicy.None,
-  changelogPath: string = DEFAULT_CHANGELOG_PATH
+  changelogPath: string = DEFAULT_CHANGELOG_PATH,
+  cachedChangelog?: ChangelogResult
 ): Promise<void> {
   if (changelogPolicy === ChangelogPolicy.None) {
     logger.debug(
@@ -426,7 +429,13 @@ async function prepareChangelog(
       }
       if (!changeset.body) {
         replaceSection = changeset.name;
-        changeset.body = await generateChangesetFromGit(git, oldVersion);
+        // Use cached changelog if available, otherwise generate it
+        if (cachedChangelog) {
+          changeset.body = cachedChangelog.changelog;
+        } else {
+          const result = await generateChangesetFromGit(git, oldVersion);
+          changeset.body = result.changelog;
+        }
       }
       if (changeset.name === DEFAULT_UNRELEASED_TITLE) {
         replaceSection = changeset.name;
@@ -510,6 +519,8 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
   // Handle automatic version detection or version bump types
   const isVersionBumpType = BUMP_TYPES.includes(newVersion as BumpType);
+  // Cache changelog result when using auto-versioning (to avoid duplicate GitHub API calls)
+  let cachedChangelogResult: ChangelogResult | undefined;
 
   if (newVersion === 'auto' || isVersionBumpType) {
     if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
@@ -524,11 +535,15 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
     const latestTag = await getLatestTag(git);
 
-    // Determine bump type - either from arg or from commit analysis
-    const bumpType: BumpType =
-      newVersion === 'auto'
-        ? await getAutoBumpType(git, latestTag)
-        : (newVersion as BumpType);
+    // For 'auto', analyze commits to determine both bump type AND generate changelog
+    // This avoids duplicate GitHub API calls later when preparing the changelog
+    let bumpType: BumpType;
+    if (newVersion === 'auto') {
+      cachedChangelogResult = await getChangelogWithBumpType(git, latestTag);
+      bumpType = cachedChangelogResult.bumpType!; // Already validated non-null by getChangelogWithBumpType
+    } else {
+      bumpType = newVersion as BumpType;
+    }
 
     // Calculate new version from latest tag
     const currentVersion =
@@ -583,7 +598,8 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     oldVersion,
     newVersion,
     argv.noChangelog ? ChangelogPolicy.None : changelogPolicy,
-    changelogPath
+    changelogPath,
+    cachedChangelogResult
   );
 
   // Run a pre-release script (e.g. for version bumping)

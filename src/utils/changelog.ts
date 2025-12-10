@@ -14,6 +14,13 @@ import { getGitHubClient } from './githubApi';
 import { getVersion } from './version';
 
 /**
+ * Version bump types ordered by priority (highest to lowest).
+ * Used for determining the highest bump type from commits.
+ */
+export const BUMP_TYPES = ['major', 'minor', 'patch'] as const;
+export type BumpType = (typeof BUMP_TYPES)[number];
+
+/**
  * Path to the changelog file in the target repository
  */
 export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
@@ -529,18 +536,18 @@ export function isCategoryExcluded(
 }
 
 /**
- * Matches a PR's labels or commit title to a category from release config
+ * Matches a PR's labels or commit title to a category from release config.
  * Labels take precedence over commit log pattern matching.
  * Category-level exclusions are checked here - they exclude the PR from matching this specific category,
  * allowing it to potentially match other categories or fall through to "Other"
- * @returns Category title or null if no match or excluded from this category
+ * @returns The matched category or null if no match or excluded from all categories
  */
-function matchPRToCategory(
+export function matchCommitToCategory(
   labels: Set<string>,
   author: string | undefined,
   title: string,
   config: NormalizedReleaseConfig | null
-): string | null {
+): NormalizedCategory | null {
   if (!config?.changelog || config.changelog.categories.length === 0) {
     return null;
   }
@@ -570,7 +577,7 @@ function matchPRToCategory(
     for (const category of regularCategories) {
       const matchesCategory = category.labels.some(label => labels.has(label));
       if (matchesCategory && !isCategoryExcluded(category, labels, author)) {
-        return category.title;
+        return category;
       }
     }
   }
@@ -581,7 +588,7 @@ function matchPRToCategory(
       re.test(title)
     );
     if (matchesPattern && !isCategoryExcluded(category, labels, author)) {
-      return category.title;
+      return category;
     }
   }
 
@@ -589,7 +596,7 @@ function matchPRToCategory(
     if (isCategoryExcluded(wildcardCategory, labels, author)) {
       return null;
     }
-    return wildcardCategory.title;
+    return wildcardCategory;
   }
 
   return null;
@@ -657,11 +664,26 @@ function formatChangelogEntry(entry: ChangelogEntry): string {
   return text;
 }
 
+/**
+ * Result of changelog generation, includes both the formatted changelog
+ * and the determined version bump type based on commit categories.
+ */
+export interface ChangelogResult {
+  /** The formatted changelog string */
+  changelog: string;
+  /** The highest version bump type found, or null if no commits matched categories with semver */
+  bumpType: BumpType | null;
+  /** Number of commits analyzed */
+  totalCommits: number;
+  /** Number of commits that matched a category with a semver field */
+  matchedCommitsWithSemver: number;
+}
+
 export async function generateChangesetFromGit(
   git: SimpleGit,
   rev: string,
   maxLeftovers: number = MAX_LEFTOVERS
-): Promise<string> {
+): Promise<ChangelogResult> {
   const rawConfig = readReleaseConfig();
   const releaseConfig = normalizeReleaseConfig(rawConfig);
 
@@ -677,6 +699,9 @@ export async function generateChangesetFromGit(
   const commits: Record</*hash*/ string, Commit> = {};
   const leftovers: Commit[] = [];
   const missing: Commit[] = [];
+
+  // Track bump types for auto-versioning
+  const foundBumpTypes = new Set<BumpType>();
 
   for (const gitCommit of gitCommits) {
     const hash = gitCommit.hash;
@@ -696,12 +721,18 @@ export async function generateChangesetFromGit(
 
     // Use PR title if available, otherwise use commit title for pattern matching
     const titleForMatching = githubCommit?.prTitle ?? gitCommit.title;
-    const categoryTitle = matchPRToCategory(
+    const matchedCategory = matchCommitToCategory(
       labels,
       author,
       titleForMatching,
       releaseConfig
     );
+    const categoryTitle = matchedCategory?.title ?? null;
+
+    // Track bump type if category has semver field
+    if (matchedCategory?.semver) {
+      foundBumpTypes.add(matchedCategory.semver);
+    }
 
     const commit: Commit = {
       author: author,
@@ -756,6 +787,15 @@ export async function generateChangesetFromGit(
           title: prTitle,
         });
       }
+    }
+  }
+
+  // Determine highest priority bump type (BUMP_TYPES is ordered major > minor > patch)
+  let bumpType: BumpType | null = null;
+  for (const type of BUMP_TYPES) {
+    if (foundBumpTypes.has(type)) {
+      bumpType = type;
+      break;
     }
   }
 
@@ -870,7 +910,12 @@ export async function generateChangesetFromGit(
     }
   }
 
-  return changelogSections.join('\n\n');
+  return {
+    changelog: changelogSections.join('\n\n'),
+    bumpType,
+    totalCommits: gitCommits.length,
+    matchedCommitsWithSemver: foundBumpTypes.size,
+  };
 }
 
 interface CommitInfo {
