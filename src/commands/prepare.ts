@@ -30,7 +30,8 @@ import { getGitClient, getDefaultBranch, getLatestTag } from '../utils/git';
 import {
   getChangelogWithBumpType,
   calculateNextVersion,
-  BUMP_TYPES,
+  validateBumpType,
+  isBumpType,
   type BumpType,
 } from '../utils/autoVersion';
 import { isDryRun, promptConfirmation } from '../utils/helpers';
@@ -135,7 +136,7 @@ export function checkVersionOrPart(argv: Arguments<any>, _opt: any): boolean {
   }
 
   // Allow version bump types (major, minor, patch)
-  if (BUMP_TYPES.has(version)) {
+  if (isBumpType(version)) {
     return true;
   }
 
@@ -511,7 +512,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   }
 
   // Handle automatic version detection or version bump types
-  const isVersionBumpType = BUMP_TYPES.has(newVersion);
+  const isVersionBumpType = isBumpType(newVersion);
 
   if (newVersion === 'auto' || isVersionBumpType) {
     if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
@@ -527,12 +528,16 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     const latestTag = await getLatestTag(git);
 
     // Determine bump type - either from arg or from commit analysis
-    // Note: getChangelogWithBumpType is memoized, so calling it here and later
-    // in prepareChangelog won't result in duplicate GitHub API calls
-    const bumpType: BumpType =
-      newVersion === 'auto'
-        ? (await getChangelogWithBumpType(git, latestTag)).bumpType
-        : (newVersion as BumpType);
+    // Note: generateChangesetFromGit is memoized, so calling getChangelogWithBumpType
+    // here and later in prepareChangelog won't result in duplicate GitHub API calls
+    let bumpType: BumpType;
+    if (newVersion === 'auto') {
+      const changelogResult = await getChangelogWithBumpType(git, latestTag);
+      validateBumpType(changelogResult); // Throws if no valid bump type
+      bumpType = changelogResult.bumpType;
+    } else {
+      bumpType = newVersion as BumpType;
+    }
 
     // Calculate new version from latest tag
     const currentVersion =

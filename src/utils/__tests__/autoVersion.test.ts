@@ -18,7 +18,11 @@ import type { SimpleGit } from 'simple-git';
 import * as config from '../../config';
 import { getChangesSince } from '../git';
 import { getGitHubClient } from '../githubApi';
-import { calculateNextVersion, getChangelogWithBumpType } from '../autoVersion';
+import {
+  calculateNextVersion,
+  getChangelogWithBumpType,
+  validateBumpType,
+} from '../autoVersion';
 import { clearChangesetCache } from '../changelog';
 
 const getConfigFileDirMock = config.getConfigFileDir as jest.MockedFunction<
@@ -59,6 +63,45 @@ describe('calculateNextVersion', () => {
     expect(calculateNextVersion('1.2.3-beta.1', 'patch')).toBe('1.2.3');
     // Minor bump on prerelease increments minor and removes prerelease
     expect(calculateNextVersion('1.2.3-rc.0', 'minor')).toBe('1.3.0');
+  });
+});
+
+describe('validateBumpType', () => {
+  test('throws error when no commits found', () => {
+    const result = {
+      changelog: '',
+      bumpType: null,
+      totalCommits: 0,
+      matchedCommitsWithSemver: 0,
+    };
+
+    expect(() => validateBumpType(result)).toThrow(
+      'Cannot determine version automatically: no commits found since the last release.'
+    );
+  });
+
+  test('throws error when no commits match semver categories', () => {
+    const result = {
+      changelog: '',
+      bumpType: null,
+      totalCommits: 5,
+      matchedCommitsWithSemver: 0,
+    };
+
+    expect(() => validateBumpType(result)).toThrow(
+      'Cannot determine version automatically'
+    );
+  });
+
+  test('does not throw when bumpType is present', () => {
+    const result = {
+      changelog: '### Features\n- feat: new feature',
+      bumpType: 'minor' as const,
+      totalCommits: 1,
+      matchedCommitsWithSemver: 1,
+    };
+
+    expect(() => validateBumpType(result)).not.toThrow();
   });
 });
 
@@ -111,15 +154,16 @@ describe('getChangelogWithBumpType', () => {
     expect(result.totalCommits).toBe(1);
   });
 
-  test('throws error when no commits found', async () => {
+  test('returns null bumpType when no commits found', async () => {
     getChangesSinceMock.mockResolvedValue([]);
 
-    await expect(getChangelogWithBumpType(mockGit, 'v1.0.0')).rejects.toThrow(
-      'Cannot determine version automatically: no commits found since the last release.'
-    );
+    const result = await getChangelogWithBumpType(mockGit, 'v1.0.0');
+
+    expect(result.bumpType).toBeNull();
+    expect(result.totalCommits).toBe(0);
   });
 
-  test('throws error when no commits match semver categories', async () => {
+  test('returns null bumpType when no commits match semver categories', async () => {
     getChangesSinceMock.mockResolvedValue([
       {
         hash: 'abc123',
@@ -139,9 +183,11 @@ describe('getChangelogWithBumpType', () => {
       }),
     });
 
-    await expect(getChangelogWithBumpType(mockGit, 'v1.0.0')).rejects.toThrow(
-      'Cannot determine version automatically'
-    );
+    const result = await getChangelogWithBumpType(mockGit, 'v1.0.0');
+
+    expect(result.bumpType).toBeNull();
+    expect(result.totalCommits).toBe(1);
+    expect(result.matchedCommitsWithSemver).toBe(0);
   });
 
   test('returns patch bump type for fix commits', async () => {

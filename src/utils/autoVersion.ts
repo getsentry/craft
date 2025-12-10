@@ -5,20 +5,13 @@ import { logger } from '../logger';
 import {
   generateChangesetFromGit,
   BUMP_TYPES,
+  isBumpType,
   type BumpType,
   type ChangelogResult,
 } from './changelog';
 
 // Re-export for convenience
-export { BUMP_TYPES, type BumpType, type ChangelogResult };
-
-/**
- * Validated changelog result with guaranteed non-null bumpType.
- * Returned by getChangelogWithBumpType after validation.
- */
-export interface ValidatedChangelogResult extends ChangelogResult {
-  bumpType: BumpType; // Override to be non-null
-}
+export { BUMP_TYPES, isBumpType, type BumpType, type ChangelogResult };
 
 /**
  * Calculates the next version by applying the bump type to the current version.
@@ -47,24 +40,40 @@ export function calculateNextVersion(
 }
 
 /**
- * Automatically determines the version bump type based on conventional commits.
- * This reuses the changelog generation logic to avoid duplicate work.
+ * Generates changelog and determines version bump type from commits.
+ * This is a convenience wrapper around generateChangesetFromGit that logs progress.
  *
  * @param git The SimpleGit instance
  * @param rev The revision (tag) to analyze from
- * @returns The changelog result with validated non-null bumpType
- * @throws Error if no commits found or none match categories with semver fields
+ * @returns The changelog result (bumpType may be null if no matching commits)
  */
 export async function getChangelogWithBumpType(
   git: SimpleGit,
   rev: string
-): Promise<ValidatedChangelogResult> {
+): Promise<ChangelogResult> {
   logger.info(
     `Analyzing commits since ${rev || '(beginning of history)'} for auto-versioning...`
   );
 
   const result = await generateChangesetFromGit(git, rev);
 
+  if (result.bumpType) {
+    logger.info(
+      `Auto-version: determined ${result.bumpType} bump ` +
+        `(${result.matchedCommitsWithSemver}/${result.totalCommits} commits matched)`
+    );
+  }
+
+  return result;
+}
+
+/**
+ * Validates that a changelog result has the required bump type for auto-versioning.
+ *
+ * @param result The changelog result to validate
+ * @throws Error if no commits found or none match categories with semver fields
+ */
+export function validateBumpType(result: ChangelogResult): asserts result is ChangelogResult & { bumpType: BumpType } {
   if (result.totalCommits === 0) {
     throw new Error(
       'Cannot determine version automatically: no commits found since the last release.'
@@ -79,12 +88,4 @@ export async function getChangelogWithBumpType(
         'or specify the version explicitly.'
     );
   }
-
-  logger.info(
-    `Auto-version: determined ${result.bumpType} bump ` +
-      `(${result.matchedCommitsWithSemver}/${result.totalCommits} commits matched)`
-  );
-
-  // TypeScript knows bumpType is non-null here due to the check above
-  return result as ValidatedChangelogResult;
 }

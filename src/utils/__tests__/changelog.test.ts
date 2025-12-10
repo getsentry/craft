@@ -25,6 +25,7 @@ import {
   generateChangesetFromGit,
   extractScope,
   formatScopeTitle,
+  clearChangesetCache,
   SKIP_CHANGELOG_MAGIC_WORD,
   BODY_IN_CHANGELOG_MAGIC_WORD,
 } from '../changelog';
@@ -331,6 +332,9 @@ describe('generateChangesetFromGit', () => {
     commits: TestCommit[],
     releaseConfig?: string | null
   ): void {
+    // Clear memoization cache to ensure fresh results
+    clearChangesetCache();
+
     mockGetChangesSince.mockResolvedValueOnce(
       commits.map(commit => ({
         hash: commit.hash,

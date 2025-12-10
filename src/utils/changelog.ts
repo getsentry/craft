@@ -29,6 +29,13 @@ export const BUMP_TYPES: Map<BumpType, number> = new Map([
 ]);
 
 /**
+ * Type guard to check if a string is a valid BumpType.
+ */
+export function isBumpType(value: string): value is BumpType {
+  return BUMP_TYPES.has(value as BumpType);
+}
+
+/**
  * Path to the changelog file in the target repository
  */
 export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
@@ -688,11 +695,8 @@ export interface ChangelogResult {
 }
 
 // Memoization cache for generateChangesetFromGit
-// Caches the promise to coalesce concurrent calls
-let changesetCache: {
-  key: string;
-  promise: Promise<ChangelogResult>;
-} | null = null;
+// Caches promises to coalesce concurrent calls with the same arguments
+const changesetCache = new Map<string, Promise<ChangelogResult>>();
 
 function getChangesetCacheKey(rev: string, maxLeftovers: number): string {
   return `${rev}:${maxLeftovers}`;
@@ -703,7 +707,7 @@ function getChangesetCacheKey(rev: string, maxLeftovers: number): string {
  * Primarily used for testing.
  */
 export function clearChangesetCache(): void {
-  changesetCache = null;
+  changesetCache.clear();
 }
 
 export async function generateChangesetFromGit(
@@ -714,13 +718,14 @@ export async function generateChangesetFromGit(
   const cacheKey = getChangesetCacheKey(rev, maxLeftovers);
 
   // Return cached promise if available (coalesces concurrent calls)
-  if (changesetCache && changesetCache.key === cacheKey) {
-    return changesetCache.promise;
+  const cached = changesetCache.get(cacheKey);
+  if (cached) {
+    return cached;
   }
 
   // Create and cache the promise
   const promise = generateChangesetFromGitImpl(git, rev, maxLeftovers);
-  changesetCache = { key: cacheKey, promise };
+  changesetCache.set(cacheKey, promise);
 
   return promise;
 }
