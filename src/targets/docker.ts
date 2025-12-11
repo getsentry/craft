@@ -12,6 +12,9 @@ const DEFAULT_DOCKER_BIN = 'docker';
  */
 const DOCKER_BIN = process.env.DOCKER_BIN || DEFAULT_DOCKER_BIN;
 
+/** Docker Hub registry hostnames that should be treated as the default registry */
+const DOCKER_HUB_REGISTRIES = ['docker.io', 'index.docker.io', 'registry-1.docker.io'];
+
 /**
  * Extracts the registry host from a Docker image path.
  *
@@ -23,7 +26,12 @@ export function extractRegistry(imagePath: string): string | undefined {
   // Registry hosts contain dots (ghcr.io, gcr.io, us.gcr.io, etc.)
   // or colons for ports (localhost:5000)
   if (parts.length >= 2 && (parts[0].includes('.') || parts[0].includes(':'))) {
-    return parts[0];
+    const registry = parts[0];
+    // Treat Docker Hub registries as the default (return undefined)
+    if (DOCKER_HUB_REGISTRIES.includes(registry)) {
+      return undefined;
+    }
+    return registry;
   }
   return undefined;
 }

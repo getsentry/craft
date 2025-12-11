@@ -39,7 +39,16 @@ describe('extractRegistry', () => {
     expect(extractRegistry('registry.example.com/image')).toBe(
       'registry.example.com'
     );
-    expect(extractRegistry('docker.io/library/nginx')).toBe('docker.io');
+  });
+
+  it('treats docker.io variants as Docker Hub (returns undefined)', () => {
+    // docker.io is the canonical Docker Hub registry
+    expect(extractRegistry('docker.io/library/nginx')).toBeUndefined();
+    expect(extractRegistry('docker.io/getsentry/craft')).toBeUndefined();
+    // index.docker.io is the legacy Docker Hub registry
+    expect(extractRegistry('index.docker.io/library/nginx')).toBeUndefined();
+    // registry-1.docker.io is another Docker Hub alias
+    expect(extractRegistry('registry-1.docker.io/user/image')).toBeUndefined();
   });
 
   it('extracts registries with ports', () => {
@@ -220,6 +229,42 @@ describe('DockerTarget', () => {
             name: 'docker',
             source: 'ghcr.io/org/image',
             target: 'getsentry/craft',
+          },
+          new NoneArtifactProvider()
+        );
+
+        expect(target.dockerConfig.username).toBe('dockerhub-user');
+        expect(target.dockerConfig.password).toBe('dockerhub-pass');
+        expect(target.dockerConfig.registry).toBeUndefined();
+      });
+
+      it('treats docker.io as Docker Hub and uses default credentials', () => {
+        process.env.DOCKER_USERNAME = 'dockerhub-user';
+        process.env.DOCKER_PASSWORD = 'dockerhub-pass';
+
+        const target = new DockerTarget(
+          {
+            name: 'docker',
+            source: 'ghcr.io/org/image',
+            target: 'docker.io/getsentry/craft',
+          },
+          new NoneArtifactProvider()
+        );
+
+        expect(target.dockerConfig.username).toBe('dockerhub-user');
+        expect(target.dockerConfig.password).toBe('dockerhub-pass');
+        expect(target.dockerConfig.registry).toBeUndefined();
+      });
+
+      it('treats index.docker.io as Docker Hub and uses default credentials', () => {
+        process.env.DOCKER_USERNAME = 'dockerhub-user';
+        process.env.DOCKER_PASSWORD = 'dockerhub-pass';
+
+        const target = new DockerTarget(
+          {
+            name: 'docker',
+            source: 'ghcr.io/org/image',
+            target: 'index.docker.io/getsentry/craft',
           },
           new NoneArtifactProvider()
         );
