@@ -236,13 +236,56 @@ that CI triggered by pushing this branch will result in release artifacts
 being built and uploaded to the artifact provider you wish to use during the
 subsequent `publish` step.
 
+**Version Specification**
+
+The `NEW-VERSION` argument can be specified in three ways:
+
+1. **Explicit version** (e.g., `1.2.3`): Release with the specified version
+2. **Bump type** (`major`, `minor`, or `patch`): Automatically increment the latest tag
+3. **Auto** (`auto`): Analyze commits since the last tag and determine bump type from conventional commit patterns
+
+The bump type and auto options require `minVersion: '2.14.0'` or higher in `.craft.yml`.
+
+**Auto-versioning Details**
+
+When using `auto`, craft analyzes commits since the last tag and matches them against
+categories in `.github/release.yml` (or the default conventional commits config).
+Each category can have a `semver` field (`major`, `minor`, or `patch`) that determines
+the version bump. The highest bump type across all matched commits is used:
+
+- Breaking changes (e.g., `feat!:`, `fix!:`) trigger a **major** bump
+- New features (`feat:`) trigger a **minor** bump  
+- Bug fixes, docs, chores trigger a **patch** bump
+
+Example `.github/release.yml` with semver fields:
+
+```yaml
+changelog:
+  categories:
+    - title: Breaking Changes
+      commit_patterns:
+        - '^\w+(\(\w+\))?!:'
+      semver: major
+    - title: Features
+      commit_patterns:
+        - '^feat(\(\w+\))?:'
+      semver: minor
+    - title: Bug Fixes
+      commit_patterns:
+        - '^fix(\(\w+\))?:'
+      semver: patch
+```
+
 ```shell
 craft prepare NEW-VERSION
 
 🚢 Prepare a new release branch
 
 Positionals:
-  NEW-VERSION  The new version you want to release           [string] [required]
+  NEW-VERSION  The new version to release. Can be: a semver string (e.g.,
+               "1.2.3"), a bump type ("major", "minor", or "patch"), or "auto"
+               to determine automatically from conventional commits.
+                                                             [string] [required]
 
 Options:
   --no-input       Suppresses all user prompts                  [default: false]

@@ -8,6 +8,7 @@ import {
   getConfiguration,
   DEFAULT_RELEASE_BRANCH_NAME,
   getGlobalGitHubConfig,
+  requiresMinVersion,
 } from '../config';
 import { logger } from '../logger';
 import { ChangelogPolicy } from '../schemas/project_config';
@@ -26,6 +27,13 @@ import {
   reportError,
 } from '../utils/errors';
 import { getGitClient, getDefaultBranch, getLatestTag } from '../utils/git';
+import {
+  getChangelogWithBumpType,
+  calculateNextVersion,
+  validateBumpType,
+  isBumpType,
+  type BumpType,
+} from '../utils/autoVersion';
 import { isDryRun, promptConfirmation } from '../utils/helpers';
 import { formatJson } from '../utils/strings';
 import { spawnProcess } from '../utils/system';
@@ -40,10 +48,16 @@ export const description = '🚢 Prepare a new release branch';
 /** Default path to bump-version script, relative to project root */
 const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
 
+/** Minimum craft version required for auto-versioning */
+const AUTO_VERSION_MIN_VERSION = '2.14.0';
+
 export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
     .positional('NEW-VERSION', {
-      description: 'The new version you want to release',
+      description:
+        'The new version to release. Can be: a semver string (e.g., "1.2.3"), ' +
+        'a bump type ("major", "minor", or "patch"), or "auto" to determine automatically ' +
+        'from conventional commits. Bump types and "auto" require minVersion >= 2.14.0 in .craft.yml',
       type: 'string',
     })
     .option('rev', {
@@ -106,17 +120,27 @@ const SLEEP_BEFORE_PUBLISH_SECONDS = 30;
 /**
  * Checks the provided version argument for validity
  *
- * We check that the argument is either a valid version string, or a valid
- * semantic version part.
+ * We check that the argument is either a valid version string, 'auto' for
+ * automatic version detection, a version bump type (major/minor/patch), or
+ * a valid semantic version.
  *
  * @param argv Parsed yargs arguments
  * @param _opt A list of options and aliases
  */
 export function checkVersionOrPart(argv: Arguments<any>, _opt: any): boolean {
   const version = argv.newVersion;
-  if (['major', 'minor', 'patch'].indexOf(version) > -1) {
-    throw Error('Version part is not supported yet');
-  } else if (isValidVersion(version)) {
+
+  // Allow 'auto' for automatic version detection
+  if (version === 'auto') {
+    return true;
+  }
+
+  // Allow version bump types (major, minor, patch)
+  if (isBumpType(version)) {
+    return true;
+  }
+
+  if (isValidVersion(version)) {
     return true;
   } else {
     let errMsg = `Invalid version or version part specified: "${version}"`;
@@ -403,7 +427,9 @@ async function prepareChangelog(
       }
       if (!changeset.body) {
         replaceSection = changeset.name;
-        changeset.body = await generateChangesetFromGit(git, oldVersion);
+        // generateChangesetFromGit is memoized, so this won't duplicate API calls
+        const result = await generateChangesetFromGit(git, oldVersion);
+        changeset.body = result.changelog;
       }
       if (changeset.name === DEFAULT_UNRELEASED_TITLE) {
         replaceSection = changeset.name;
@@ -469,7 +495,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   // Get repo configuration
   const config = getConfiguration();
   const githubConfig = await getGlobalGitHubConfig();
-  const newVersion = argv.newVersion;
+  let newVersion = argv.newVersion;
 
   const git = await getGitClient();
 
@@ -483,6 +509,44 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   } else {
     // Check that we're in an acceptable state for the release
     checkGitStatus(repoStatus, rev);
+  }
+
+  // Handle automatic version detection or version bump types
+  const isVersionBumpType = isBumpType(newVersion);
+
+  if (newVersion === 'auto' || isVersionBumpType) {
+    if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
+      const featureName = isVersionBumpType
+        ? 'Version bump types'
+        : 'Auto-versioning';
+      throw new ConfigurationError(
+        `${featureName} requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
+          'Please update your configuration or specify the version explicitly.'
+      );
+    }
+
+    const latestTag = await getLatestTag(git);
+
+    // Determine bump type - either from arg or from commit analysis
+    // Note: generateChangesetFromGit is memoized, so calling getChangelogWithBumpType
+    // here and later in prepareChangelog won't result in duplicate GitHub API calls
+    let bumpType: BumpType;
+    if (newVersion === 'auto') {
+      const changelogResult = await getChangelogWithBumpType(git, latestTag);
+      validateBumpType(changelogResult); // Throws if no valid bump type
+      bumpType = changelogResult.bumpType;
+    } else {
+      bumpType = newVersion as BumpType;
+    }
+
+    // Calculate new version from latest tag
+    const currentVersion =
+      latestTag && latestTag.replace(/^v/, '').match(/^\d/)
+        ? latestTag.replace(/^v/, '')
+        : '0.0.0';
+
+    newVersion = calculateNextVersion(currentVersion, bumpType);
+    logger.info(`Version bump: ${currentVersion} -> ${newVersion} (${bumpType} bump)`);
   }
 
   logger.info(`Releasing version ${newVersion} from ${rev}`);

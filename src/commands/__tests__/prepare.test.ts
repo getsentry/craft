@@ -69,6 +69,31 @@ describe('checkVersionOrPart', () => {
     }
   });
 
+  test('return true for auto version', () => {
+    expect(
+      checkVersionOrPart(
+        {
+          newVersion: 'auto',
+        },
+        null
+      )
+    ).toBe(true);
+  });
+
+  test('return true for version bump types', () => {
+    const bumpTypes = ['major', 'minor', 'patch'];
+    for (const bumpType of bumpTypes) {
+      expect(
+        checkVersionOrPart(
+          {
+            newVersion: bumpType,
+          },
+          null
+        )
+      ).toBe(true);
+    }
+  });
+
   test('throw an error for invalid version', () => {
     const invalidVersions = [
       {
@@ -80,9 +105,6 @@ describe('checkVersionOrPart', () => {
         e:
           'Invalid version or version part specified: "v2.3.3". Removing the "v" prefix will likely fix the issue',
       },
-      { v: 'major', e: 'Version part is not supported yet' },
-      { v: 'minor', e: 'Version part is not supported yet' },
-      { v: 'patch', e: 'Version part is not supported yet' },
     ];
     for (const t of invalidVersions) {
       const fn = () => {

@@ -14,6 +14,28 @@ import { getGitHubClient } from './githubApi';
 import { getVersion } from './version';
 
 /**
+ * Version bump types.
+ */
+export type BumpType = 'major' | 'minor' | 'patch';
+
+/**
+ * Version bump type priorities (lower number = higher priority).
+ * Used for determining the highest bump type from commits.
+ */
+export const BUMP_TYPES: Map<BumpType, number> = new Map([
+  ['major', 0],
+  ['minor', 1],
+  ['patch', 2],
+]);
+
+/**
+ * Type guard to check if a string is a valid BumpType.
+ */
+export function isBumpType(value: string): value is BumpType {
+  return BUMP_TYPES.has(value as BumpType);
+}
+
+/**
  * Path to the changelog file in the target repository
  */
 export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
@@ -266,19 +288,26 @@ interface Commit {
 }
 
 /**
+ * Valid semver bump types for auto-versioning
+ */
+export type SemverBumpType = 'major' | 'minor' | 'patch';
+
+/**
  * Release configuration structure matching GitHub's release.yml format
  */
-interface ReleaseConfigCategory {
+export interface ReleaseConfigCategory {
   title: string;
   labels?: string[];
   commit_patterns?: string[];
+  /** Semver bump type when commits match this category (for auto-versioning) */
+  semver?: SemverBumpType;
   exclude?: {
     labels?: string[];
     authors?: string[];
   };
 }
 
-interface ReleaseConfig {
+export interface ReleaseConfig {
   changelog?: {
     exclude?: {
       labels?: string[];
@@ -292,7 +321,7 @@ interface ReleaseConfig {
  * Default release configuration based on conventional commits
  * Used when .github/release.yml doesn't exist
  */
-const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
+export const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
   changelog: {
     exclude: {
       labels: ['skip-changelog'],
@@ -301,22 +330,27 @@ const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
       {
         title: 'Breaking Changes 🛠',
         commit_patterns: ['^\\w+(?:\\([^)]+\\))?!:'],
+        semver: 'major',
       },
       {
         title: 'New Features ✨',
         commit_patterns: ['^feat\\b'],
+        semver: 'minor',
       },
       {
         title: 'Bug Fixes 🐛',
         commit_patterns: ['^fix\\b'],
+        semver: 'patch',
       },
       {
         title: 'Documentation 📚',
         commit_patterns: ['^docs?\\b'],
+        semver: 'patch',
       },
       {
         title: 'Build / dependencies / internal 🔧',
         commit_patterns: ['^(?:build|refactor|meta|chore|ci)\\b'],
+        semver: 'patch',
       },
     ],
   },
@@ -326,7 +360,7 @@ const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
  * Normalized release config with Sets for efficient lookups
  * All fields are non-optional - use empty sets/arrays when not present
  */
-interface NormalizedReleaseConfig {
+export interface NormalizedReleaseConfig {
   changelog: {
     exclude: {
       labels: Set<string>;
@@ -336,10 +370,12 @@ interface NormalizedReleaseConfig {
   };
 }
 
-interface NormalizedCategory {
+export interface NormalizedCategory {
   title: string;
   labels: string[];
   commitLogPatterns: RegExp[];
+  /** Semver bump type when commits match this category (for auto-versioning) */
+  semver?: SemverBumpType;
   exclude: {
     labels: Set<string>;
     authors: Set<string>;
@@ -355,7 +391,7 @@ type CategoryWithPRs = {
  * Reads and parses .github/release.yml from the repository root
  * @returns Parsed release configuration, or the default config if file doesn't exist
  */
-function readReleaseConfig(): ReleaseConfig {
+export function readReleaseConfig(): ReleaseConfig {
   const configFileDir = getConfigFileDir();
   if (!configFileDir) {
     return DEFAULT_RELEASE_CONFIG;
@@ -382,7 +418,7 @@ function readReleaseConfig(): ReleaseConfig {
 /**
  * Normalizes the release config by converting arrays to Sets and compiling regex patterns
  */
-function normalizeReleaseConfig(
+export function normalizeReleaseConfig(
   config: ReleaseConfig
 ): NormalizedReleaseConfig | null {
   if (!config?.changelog) {
@@ -439,6 +475,7 @@ function normalizeReleaseConfig(
               }
             })
             .filter((r): r is RegExp => r !== null),
+          semver: category.semver,
           exclude: {
             labels: new Set<string>(),
             authors: new Set<string>(),
@@ -469,7 +506,7 @@ function normalizeReleaseConfig(
 /**
  * Checks if a PR should be excluded globally based on release config
  */
-function shouldExcludePR(
+export function shouldExcludePR(
   labels: Set<string>,
   author: string | undefined,
   config: NormalizedReleaseConfig | null
@@ -496,7 +533,7 @@ function shouldExcludePR(
 /**
  * Checks if a category excludes the given PR based on labels and author
  */
-function isCategoryExcluded(
+export function isCategoryExcluded(
   category: NormalizedCategory,
   labels: Set<string>,
   author: string | undefined
@@ -517,18 +554,18 @@ function isCategoryExcluded(
 }
 
 /**
- * Matches a PR's labels or commit title to a category from release config
+ * Matches a PR's labels or commit title to a category from release config.
  * Labels take precedence over commit log pattern matching.
  * Category-level exclusions are checked here - they exclude the PR from matching this specific category,
  * allowing it to potentially match other categories or fall through to "Other"
- * @returns Category title or null if no match or excluded from this category
+ * @returns The matched category or null if no match or excluded from all categories
  */
-function matchPRToCategory(
+export function matchCommitToCategory(
   labels: Set<string>,
   author: string | undefined,
   title: string,
   config: NormalizedReleaseConfig | null
-): string | null {
+): NormalizedCategory | null {
   if (!config?.changelog || config.changelog.categories.length === 0) {
     return null;
   }
@@ -558,7 +595,7 @@ function matchPRToCategory(
     for (const category of regularCategories) {
       const matchesCategory = category.labels.some(label => labels.has(label));
       if (matchesCategory && !isCategoryExcluded(category, labels, author)) {
-        return category.title;
+        return category;
       }
     }
   }
@@ -569,7 +606,7 @@ function matchPRToCategory(
       re.test(title)
     );
     if (matchesPattern && !isCategoryExcluded(category, labels, author)) {
-      return category.title;
+      return category;
     }
   }
 
@@ -577,7 +614,7 @@ function matchPRToCategory(
     if (isCategoryExcluded(wildcardCategory, labels, author)) {
       return null;
     }
-    return wildcardCategory.title;
+    return wildcardCategory;
   }
 
   return null;
@@ -645,11 +682,62 @@ function formatChangelogEntry(entry: ChangelogEntry): string {
   return text;
 }
 
+/**
+ * Result of changelog generation, includes both the formatted changelog
+ * and the determined version bump type based on commit categories.
+ */
+export interface ChangelogResult {
+  /** The formatted changelog string */
+  changelog: string;
+  /** The highest version bump type found, or null if no commits matched categories with semver */
+  bumpType: BumpType | null;
+  /** Number of commits analyzed */
+  totalCommits: number;
+  /** Number of commits that matched a category with a semver field */
+  matchedCommitsWithSemver: number;
+}
+
+// Memoization cache for generateChangesetFromGit
+// Caches promises to coalesce concurrent calls with the same arguments
+const changesetCache = new Map<string, Promise<ChangelogResult>>();
+
+function getChangesetCacheKey(rev: string, maxLeftovers: number): string {
+  return `${rev}:${maxLeftovers}`;
+}
+
+/**
+ * Clears the memoization cache for generateChangesetFromGit.
+ * Primarily used for testing.
+ */
+export function clearChangesetCache(): void {
+  changesetCache.clear();
+}
+
 export async function generateChangesetFromGit(
   git: SimpleGit,
   rev: string,
   maxLeftovers: number = MAX_LEFTOVERS
-): Promise<string> {
+): Promise<ChangelogResult> {
+  const cacheKey = getChangesetCacheKey(rev, maxLeftovers);
+
+  // Return cached promise if available (coalesces concurrent calls)
+  const cached = changesetCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  // Create and cache the promise
+  const promise = generateChangesetFromGitImpl(git, rev, maxLeftovers);
+  changesetCache.set(cacheKey, promise);
+
+  return promise;
+}
+
+async function generateChangesetFromGitImpl(
+  git: SimpleGit,
+  rev: string,
+  maxLeftovers: number
+): Promise<ChangelogResult> {
   const rawConfig = readReleaseConfig();
   const releaseConfig = normalizeReleaseConfig(rawConfig);
 
@@ -665,6 +753,10 @@ export async function generateChangesetFromGit(
   const commits: Record</*hash*/ string, Commit> = {};
   const leftovers: Commit[] = [];
   const missing: Commit[] = [];
+
+  // Track bump type for auto-versioning (lower priority value = higher bump)
+  let bumpPriority: number | null = null;
+  let matchedCommitsWithSemver = 0;
 
   for (const gitCommit of gitCommits) {
     const hash = gitCommit.hash;
@@ -684,12 +776,22 @@ export async function generateChangesetFromGit(
 
     // Use PR title if available, otherwise use commit title for pattern matching
     const titleForMatching = githubCommit?.prTitle ?? gitCommit.title;
-    const categoryTitle = matchPRToCategory(
+    const matchedCategory = matchCommitToCategory(
       labels,
       author,
       titleForMatching,
       releaseConfig
     );
+    const categoryTitle = matchedCategory?.title ?? null;
+
+    // Track bump type if category has semver field
+    if (matchedCategory?.semver) {
+      const priority = BUMP_TYPES.get(matchedCategory.semver);
+      if (priority !== undefined) {
+        matchedCommitsWithSemver++;
+        bumpPriority = Math.min(bumpPriority ?? priority, priority);
+      }
+    }
 
     const commit: Commit = {
       author: author,
@@ -743,6 +845,17 @@ export async function generateChangesetFromGit(
           body: commit.prBody ?? '',
           title: prTitle,
         });
+      }
+    }
+  }
+
+  // Convert priority back to bump type
+  let bumpType: BumpType | null = null;
+  if (bumpPriority !== null) {
+    for (const [type, priority] of BUMP_TYPES) {
+      if (priority === bumpPriority) {
+        bumpType = type;
+        break;
       }
     }
   }
@@ -858,7 +971,12 @@ export async function generateChangesetFromGit(
     }
   }
 
-  return changelogSections.join('\n\n');
+  return {
+    changelog: changelogSections.join('\n\n'),
+    bumpType,
+    totalCommits: gitCommits.length,
+    matchedCommitsWithSemver,
+  };
 }
 
 interface CommitInfo {
@@ -890,7 +1008,7 @@ interface CommitInfoResult {
   repository: CommitInfoMap;
 }
 
-async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
+export async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
   Record<
     /* hash */ string,
     {
