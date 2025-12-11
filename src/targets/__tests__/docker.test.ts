@@ -105,7 +105,7 @@ describe('DockerTarget', () => {
     process.env = { ...oldEnv };
   });
 
-  describe('credential resolution', () => {
+  describe('target credential resolution', () => {
     describe('Mode A: explicit usernameVar/passwordVar', () => {
       it('uses explicit env vars when both are specified', () => {
         process.env.MY_USER = 'custom-user';
@@ -122,8 +122,8 @@ describe('DockerTarget', () => {
           new NoneArtifactProvider()
         );
 
-        expect(target.dockerConfig.username).toBe('custom-user');
-        expect(target.dockerConfig.password).toBe('custom-pass');
+        expect(target.dockerConfig.targetCredentials.username).toBe('custom-user');
+        expect(target.dockerConfig.targetCredentials.password).toBe('custom-pass');
       });
 
       it('throws if only usernameVar is specified', () => {
@@ -199,8 +199,8 @@ describe('DockerTarget', () => {
           new NoneArtifactProvider()
         );
 
-        expect(target.dockerConfig.username).toBe('ghcr-user');
-        expect(target.dockerConfig.password).toBe('ghcr-pass');
+        expect(target.dockerConfig.targetCredentials.username).toBe('ghcr-user');
+        expect(target.dockerConfig.targetCredentials.password).toBe('ghcr-pass');
       });
 
       it('falls back to GHCR defaults (GITHUB_ACTOR/GITHUB_TOKEN) for ghcr.io', () => {
@@ -216,8 +216,8 @@ describe('DockerTarget', () => {
           new NoneArtifactProvider()
         );
 
-        expect(target.dockerConfig.username).toBe('github-actor');
-        expect(target.dockerConfig.password).toBe('github-token');
+        expect(target.dockerConfig.targetCredentials.username).toBe('github-actor');
+        expect(target.dockerConfig.targetCredentials.password).toBe('github-token');
       });
 
       it('uses default DOCKER_* env vars for Docker Hub', () => {
@@ -233,9 +233,9 @@ describe('DockerTarget', () => {
           new NoneArtifactProvider()
         );
 
-        expect(target.dockerConfig.username).toBe('dockerhub-user');
-        expect(target.dockerConfig.password).toBe('dockerhub-pass');
-        expect(target.dockerConfig.registry).toBeUndefined();
+        expect(target.dockerConfig.targetCredentials.username).toBe('dockerhub-user');
+        expect(target.dockerConfig.targetCredentials.password).toBe('dockerhub-pass');
+        expect(target.dockerConfig.targetCredentials.registry).toBeUndefined();
       });
 
       it('treats docker.io as Docker Hub and uses default credentials', () => {
@@ -251,9 +251,9 @@ describe('DockerTarget', () => {
           new NoneArtifactProvider()
         );
 
-        expect(target.dockerConfig.username).toBe('dockerhub-user');
-        expect(target.dockerConfig.password).toBe('dockerhub-pass');
-        expect(target.dockerConfig.registry).toBeUndefined();
+        expect(target.dockerConfig.targetCredentials.username).toBe('dockerhub-user');
+        expect(target.dockerConfig.targetCredentials.password).toBe('dockerhub-pass');
+        expect(target.dockerConfig.targetCredentials.registry).toBeUndefined();
       });
 
       it('treats index.docker.io as Docker Hub and uses default credentials', () => {
@@ -269,9 +269,9 @@ describe('DockerTarget', () => {
           new NoneArtifactProvider()
         );
 
-        expect(target.dockerConfig.username).toBe('dockerhub-user');
-        expect(target.dockerConfig.password).toBe('dockerhub-pass');
-        expect(target.dockerConfig.registry).toBeUndefined();
+        expect(target.dockerConfig.targetCredentials.username).toBe('dockerhub-user');
+        expect(target.dockerConfig.targetCredentials.password).toBe('dockerhub-pass');
+        expect(target.dockerConfig.targetCredentials.registry).toBeUndefined();
       });
 
       it('falls back to DOCKER_* when registry-specific vars are not set', () => {
@@ -287,8 +287,8 @@ describe('DockerTarget', () => {
           new NoneArtifactProvider()
         );
 
-        expect(target.dockerConfig.username).toBe('default-user');
-        expect(target.dockerConfig.password).toBe('default-pass');
+        expect(target.dockerConfig.targetCredentials.username).toBe('default-user');
+        expect(target.dockerConfig.targetCredentials.password).toBe('default-pass');
       });
 
       it('throws when no credentials are available', () => {
@@ -335,10 +335,134 @@ describe('DockerTarget', () => {
           new NoneArtifactProvider()
         );
 
-        expect(target.dockerConfig.registry).toBe('gcr.io');
-        expect(target.dockerConfig.username).toBe('gcr-user');
-        expect(target.dockerConfig.password).toBe('gcr-pass');
+        expect(target.dockerConfig.targetCredentials.registry).toBe('gcr.io');
+        expect(target.dockerConfig.targetCredentials.username).toBe('gcr-user');
+        expect(target.dockerConfig.targetCredentials.password).toBe('gcr-pass');
       });
+    });
+  });
+
+  describe('source credential resolution', () => {
+    it('resolves source credentials when source registry differs from target', () => {
+      process.env.DOCKER_GHCR_IO_USERNAME = 'ghcr-user';
+      process.env.DOCKER_GHCR_IO_PASSWORD = 'ghcr-pass';
+      process.env.DOCKER_USERNAME = 'dockerhub-user';
+      process.env.DOCKER_PASSWORD = 'dockerhub-pass';
+
+      const target = new DockerTarget(
+        {
+          name: 'docker',
+          source: 'ghcr.io/org/image',
+          target: 'getsentry/craft',
+        },
+        new NoneArtifactProvider()
+      );
+
+      // Target should use Docker Hub credentials
+      expect(target.dockerConfig.targetCredentials.username).toBe('dockerhub-user');
+      expect(target.dockerConfig.targetCredentials.password).toBe('dockerhub-pass');
+      expect(target.dockerConfig.targetCredentials.registry).toBeUndefined();
+
+      // Source should use GHCR credentials
+      expect(target.dockerConfig.sourceCredentials).toBeDefined();
+      expect(target.dockerConfig.sourceCredentials?.username).toBe('ghcr-user');
+      expect(target.dockerConfig.sourceCredentials?.password).toBe('ghcr-pass');
+      expect(target.dockerConfig.sourceCredentials?.registry).toBe('ghcr.io');
+    });
+
+    it('does not set source credentials when source and target registries are the same', () => {
+      process.env.DOCKER_GHCR_IO_USERNAME = 'ghcr-user';
+      process.env.DOCKER_GHCR_IO_PASSWORD = 'ghcr-pass';
+
+      const target = new DockerTarget(
+        {
+          name: 'docker',
+          source: 'ghcr.io/org/source-image',
+          target: 'ghcr.io/org/target-image',
+        },
+        new NoneArtifactProvider()
+      );
+
+      expect(target.dockerConfig.sourceCredentials).toBeUndefined();
+    });
+
+    it('uses explicit sourceUsernameVar/sourcePasswordVar for source credentials', () => {
+      process.env.MY_SOURCE_USER = 'source-user';
+      process.env.MY_SOURCE_PASS = 'source-pass';
+      process.env.DOCKER_USERNAME = 'dockerhub-user';
+      process.env.DOCKER_PASSWORD = 'dockerhub-pass';
+
+      const target = new DockerTarget(
+        {
+          name: 'docker',
+          source: 'ghcr.io/org/image',
+          target: 'getsentry/craft',
+          sourceUsernameVar: 'MY_SOURCE_USER',
+          sourcePasswordVar: 'MY_SOURCE_PASS',
+        },
+        new NoneArtifactProvider()
+      );
+
+      expect(target.dockerConfig.sourceCredentials?.username).toBe('source-user');
+      expect(target.dockerConfig.sourceCredentials?.password).toBe('source-pass');
+    });
+
+    it('throws if only sourceUsernameVar is specified', () => {
+      process.env.MY_SOURCE_USER = 'source-user';
+      process.env.DOCKER_USERNAME = 'dockerhub-user';
+      process.env.DOCKER_PASSWORD = 'dockerhub-pass';
+
+      expect(
+        () =>
+          new DockerTarget(
+            {
+              name: 'docker',
+              source: 'ghcr.io/org/image',
+              target: 'getsentry/craft',
+              sourceUsernameVar: 'MY_SOURCE_USER',
+            },
+            new NoneArtifactProvider()
+          )
+      ).toThrow('Both usernameVar and passwordVar must be specified together');
+    });
+
+    it('does not require source credentials if source is assumed public', () => {
+      process.env.DOCKER_USERNAME = 'dockerhub-user';
+      process.env.DOCKER_PASSWORD = 'dockerhub-pass';
+      // No GHCR credentials set - source assumed to be public
+
+      const target = new DockerTarget(
+        {
+          name: 'docker',
+          source: 'ghcr.io/org/public-image',
+          target: 'getsentry/craft',
+        },
+        new NoneArtifactProvider()
+      );
+
+      // Should not throw, source credentials are optional
+      expect(target.dockerConfig.sourceCredentials).toBeUndefined();
+    });
+
+    it('uses sourceRegistry config override', () => {
+      process.env.DOCKER_GCR_IO_USERNAME = 'gcr-user';
+      process.env.DOCKER_GCR_IO_PASSWORD = 'gcr-pass';
+      process.env.DOCKER_USERNAME = 'dockerhub-user';
+      process.env.DOCKER_PASSWORD = 'dockerhub-pass';
+
+      const target = new DockerTarget(
+        {
+          name: 'docker',
+          source: 'us.gcr.io/project/image',
+          target: 'getsentry/craft',
+          sourceRegistry: 'gcr.io', // Use gcr.io creds for us.gcr.io
+        },
+        new NoneArtifactProvider()
+      );
+
+      expect(target.dockerConfig.sourceCredentials?.registry).toBe('gcr.io');
+      expect(target.dockerConfig.sourceCredentials?.username).toBe('gcr-user');
+      expect(target.dockerConfig.sourceCredentials?.password).toBe('gcr-pass');
     });
   });
 
@@ -409,6 +533,96 @@ describe('DockerTarget', () => {
       expect(callArgs[1]).not.toContain('--password=secret-password');
       expect(callArgs[1]).toContain('--password-stdin');
       expect(callArgs[3]).toEqual({ stdin: 'secret-password' });
+    });
+
+    it('logs into both source and target registries for cross-registry publishing', async () => {
+      process.env.DOCKER_GHCR_IO_USERNAME = 'ghcr-user';
+      process.env.DOCKER_GHCR_IO_PASSWORD = 'ghcr-pass';
+      process.env.DOCKER_USERNAME = 'dockerhub-user';
+      process.env.DOCKER_PASSWORD = 'dockerhub-pass';
+
+      const target = new DockerTarget(
+        {
+          name: 'docker',
+          source: 'ghcr.io/org/image',
+          target: 'getsentry/craft',
+        },
+        new NoneArtifactProvider()
+      );
+
+      await target.login();
+
+      // Should login to both registries
+      expect(system.spawnProcess).toHaveBeenCalledTimes(2);
+
+      // First call: login to source (GHCR)
+      expect(system.spawnProcess).toHaveBeenNthCalledWith(
+        1,
+        'docker',
+        ['login', '--username=ghcr-user', '--password-stdin', 'ghcr.io'],
+        {},
+        { stdin: 'ghcr-pass' }
+      );
+
+      // Second call: login to target (Docker Hub)
+      expect(system.spawnProcess).toHaveBeenNthCalledWith(
+        2,
+        'docker',
+        ['login', '--username=dockerhub-user', '--password-stdin'],
+        {},
+        { stdin: 'dockerhub-pass' }
+      );
+    });
+
+    it('only logs into target when source has no credentials (public source)', async () => {
+      process.env.DOCKER_USERNAME = 'dockerhub-user';
+      process.env.DOCKER_PASSWORD = 'dockerhub-pass';
+      // No GHCR credentials - source is public
+
+      const target = new DockerTarget(
+        {
+          name: 'docker',
+          source: 'ghcr.io/org/public-image',
+          target: 'getsentry/craft',
+        },
+        new NoneArtifactProvider()
+      );
+
+      await target.login();
+
+      // Should only login to Docker Hub
+      expect(system.spawnProcess).toHaveBeenCalledTimes(1);
+      expect(system.spawnProcess).toHaveBeenCalledWith(
+        'docker',
+        ['login', '--username=dockerhub-user', '--password-stdin'],
+        {},
+        { stdin: 'dockerhub-pass' }
+      );
+    });
+
+    it('only logs in once when source and target are same registry', async () => {
+      process.env.DOCKER_GHCR_IO_USERNAME = 'ghcr-user';
+      process.env.DOCKER_GHCR_IO_PASSWORD = 'ghcr-pass';
+
+      const target = new DockerTarget(
+        {
+          name: 'docker',
+          source: 'ghcr.io/org/source-image',
+          target: 'ghcr.io/org/target-image',
+        },
+        new NoneArtifactProvider()
+      );
+
+      await target.login();
+
+      // Should only login once
+      expect(system.spawnProcess).toHaveBeenCalledTimes(1);
+      expect(system.spawnProcess).toHaveBeenCalledWith(
+        'docker',
+        ['login', '--username=ghcr-user', '--password-stdin', 'ghcr.io'],
+        {},
+        { stdin: 'ghcr-pass' }
+      );
     });
   });
 });

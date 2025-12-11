@@ -1078,7 +1078,7 @@ targets, not for the Docker target.
 
 `docker` executable (or something equivalent) with BuildKit must be installed on the system.
 
-Credentials are resolved in the following order:
+**Target Registry Credentials** are resolved in the following order:
 
 1. **Explicit env var override**: If `usernameVar` and `passwordVar` are configured,
    only those environment variables are used (no fallback).
@@ -1088,27 +1088,36 @@ Credentials are resolved in the following order:
    automatically available in GitHub Actions.
 4. **Default**: `DOCKER_USERNAME` and `DOCKER_PASSWORD`.
 
+**Source Registry Credentials** (for cross-registry publishing) are resolved similarly but
+without falling back to `DOCKER_USERNAME`/`DOCKER_PASSWORD`. If the source registry differs
+from the target and requires authentication, set `DOCKER_<SOURCE_REGISTRY>_USERNAME/PASSWORD`
+or use `sourceUsernameVar`/`sourcePasswordVar`. If no source credentials are found, the
+source is assumed to be public.
+
 | Name                            | Description                                                                               |
 | ------------------------------- | ----------------------------------------------------------------------------------------- |
-| `DOCKER_USERNAME`               | Default username for Docker registries.                                                   |
-| `DOCKER_PASSWORD`               | Default password/token for Docker registries.                                             |
+| `DOCKER_USERNAME`               | Default username for target Docker registry.                                              |
+| `DOCKER_PASSWORD`               | Default password/token for target Docker registry.                                        |
 | `DOCKER_<REGISTRY>_USERNAME`    | Registry-specific username (e.g., `DOCKER_GHCR_IO_USERNAME` for `ghcr.io`).               |
 | `DOCKER_<REGISTRY>_PASSWORD`    | Registry-specific password (e.g., `DOCKER_GHCR_IO_PASSWORD` for `ghcr.io`).               |
-| `GITHUB_ACTOR`                  | Used as default username for `ghcr.io` (available in GitHub Actions).                    |
-| `GITHUB_TOKEN`                  | Used as default password for `ghcr.io` (available in GitHub Actions).                    |
+| `GITHUB_ACTOR`                  | Used as default username for `ghcr.io` (available in GitHub Actions).                     |
+| `GITHUB_TOKEN`                  | Used as default password for `ghcr.io` (available in GitHub Actions).                     |
 | `DOCKER_BIN`                    | **optional**. Path to `docker` executable.                                                |
 
 **Configuration**
 
-| Option         | Description                                                                       |
-| -------------- | --------------------------------------------------------------------------------- |
-| `source`       | Path to the source Docker image to be pulled                                      |
-| `sourceFormat` | Format for the source image name. Default: `{{{source}}}:{{{revision}}}`          |
-| `target`       | Path to the target Docker image to be pushed                                      |
-| `targetFormat` | Format for the target image name. Default: `{{{target}}}:{{{version}}}`           |
-| `registry`     | **optional**. Override the registry for login (auto-detected from `target`)       |
-| `usernameVar`  | **optional**. Env var name for username (must be used with `passwordVar`)         |
-| `passwordVar`  | **optional**. Env var name for password (must be used with `usernameVar`)         |
+| Option              | Description                                                                       |
+| ------------------- | --------------------------------------------------------------------------------- |
+| `source`            | Path to the source Docker image to be pulled                                      |
+| `sourceFormat`      | Format for the source image name. Default: `{{{source}}}:{{{revision}}}`          |
+| `sourceRegistry`    | **optional**. Override the source registry (auto-detected from `source`)          |
+| `sourceUsernameVar` | **optional**. Env var name for source username (must be used with `sourcePasswordVar`) |
+| `sourcePasswordVar` | **optional**. Env var name for source password (must be used with `sourceUsernameVar`) |
+| `target`            | Path to the target Docker image to be pushed                                      |
+| `targetFormat`      | Format for the target image name. Default: `{{{target}}}:{{{version}}}`           |
+| `registry`          | **optional**. Override the target registry for login (auto-detected from `target`) |
+| `usernameVar`       | **optional**. Env var name for target username (must be used with `passwordVar`)  |
+| `passwordVar`       | **optional**. Env var name for target password (must be used with `usernameVar`)  |
 
 **Examples**
 
@@ -1159,6 +1168,24 @@ targets:
     target: custom.registry.io/image
     usernameVar: MY_REGISTRY_USER
     passwordVar: MY_REGISTRY_PASS
+```
+
+Cross-registry publishing (private source to different target):
+
+```yaml
+targets:
+  # Pull from private GHCR, push to Docker Hub
+  # Requires DOCKER_GHCR_IO_* for source and DOCKER_USERNAME/PASSWORD for target
+  - name: docker
+    source: ghcr.io/myorg/private-image
+    target: getsentry/craft
+
+  # With explicit source credentials
+  - name: docker
+    source: private.registry.io/image
+    target: getsentry/craft
+    sourceUsernameVar: PRIVATE_REGISTRY_USER
+    sourcePasswordVar: PRIVATE_REGISTRY_PASS
 ```
 
 ### Ruby Gems Index (`gem`)

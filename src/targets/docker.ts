@@ -46,10 +46,15 @@ export function registryToEnvPrefix(registry: string): string {
   return registry.toUpperCase().replace(/[.\-:]/g, '_');
 }
 
-/** Options for "docker" target */
-export interface DockerTargetOptions {
+/** Credentials for a Docker registry */
+export interface RegistryCredentials {
   username: string;
   password: string;
+  registry?: string;
+}
+
+/** Options for "docker" target */
+export interface DockerTargetOptions {
   /** Source image path, like `us.gcr.io/sentryio/craft` */
   source: string;
   /** Full name template for the source image path, defaults to `{{{source}}}:{{{revision}}}` */
@@ -58,8 +63,10 @@ export interface DockerTargetOptions {
   targetTemplate: string;
   /** Target image path, like `getsentry/craft` */
   target: string;
-  /** Registry host for docker login (e.g., "ghcr.io"). Auto-detected from target if not specified. */
-  registry?: string;
+  /** Credentials for the target registry */
+  targetCredentials: RegistryCredentials;
+  /** Credentials for the source registry (if different from target and requires auth) */
+  sourceCredentials?: RegistryCredentials;
 }
 
 /**
@@ -84,39 +91,52 @@ export class DockerTarget extends BaseTarget {
   }
 
   /**
-   * Extracts Docker target options from the environment.
+   * Resolves credentials for a registry.
    *
    * Credential resolution follows two modes:
    *
-   * Mode A (explicit env vars): If usernameVar or passwordVar is configured,
-   * both must be specified and the env vars must exist. No fallback for security.
+   * Mode A (explicit env vars): If usernameVar and passwordVar are provided,
+   * only those env vars are used. Throws if either is missing.
    *
    * Mode B (automatic resolution): Tries in order:
    * 1. Registry-derived env vars: DOCKER_<REGISTRY>_USERNAME / DOCKER_<REGISTRY>_PASSWORD
    * 2. Built-in defaults for known registries (GHCR: GITHUB_ACTOR / GITHUB_TOKEN)
-   * 3. Default: DOCKER_USERNAME / DOCKER_PASSWORD
+   * 3. Default: DOCKER_USERNAME / DOCKER_PASSWORD (only if useDefaultFallback is true)
+   *
+   * @param registry The registry host (e.g., "ghcr.io"), undefined for Docker Hub
+   * @param usernameVar Optional explicit env var name for username
+   * @param passwordVar Optional explicit env var name for password
+   * @param required Whether credentials are required (throws if missing)
+   * @param useDefaultFallback Whether to fall back to DOCKER_USERNAME/PASSWORD defaults
+   * @returns Credentials if found, undefined if not required and not found
    */
-  public getDockerConfig(): DockerTargetOptions {
-    const registry =
-      this.config.registry ?? extractRegistry(this.config.target);
-
+  private resolveCredentials(
+    registry: string | undefined,
+    usernameVar?: string,
+    passwordVar?: string,
+    required = true,
+    useDefaultFallback = true
+  ): RegistryCredentials | undefined {
     let username: string | undefined;
     let password: string | undefined;
 
     // Mode A: Explicit env var override - no fallback for security
-    if (this.config.usernameVar || this.config.passwordVar) {
-      if (!this.config.usernameVar || !this.config.passwordVar) {
+    if (usernameVar || passwordVar) {
+      if (!usernameVar || !passwordVar) {
         throw new ConfigurationError(
           'Both usernameVar and passwordVar must be specified together'
         );
       }
-      username = process.env[this.config.usernameVar];
-      password = process.env[this.config.passwordVar];
+      username = process.env[usernameVar];
+      password = process.env[passwordVar];
 
       if (!username || !password) {
-        throw new ConfigurationError(
-          `Missing credentials: ${this.config.usernameVar} and/or ${this.config.passwordVar} environment variable(s) not set`
-        );
+        if (required) {
+          throw new ConfigurationError(
+            `Missing credentials: ${usernameVar} and/or ${passwordVar} environment variable(s) not set`
+          );
+        }
+        return undefined;
       }
     } else {
       // Mode B: Automatic resolution with fallback chain
@@ -139,48 +159,110 @@ export class DockerTarget extends BaseTarget {
         }
       }
 
-      // 3. Fallback to defaults
-      username = username ?? process.env.DOCKER_USERNAME;
-      password = password ?? process.env.DOCKER_PASSWORD;
+      // 3. Fallback to defaults (only for target registry, not for source)
+      if (useDefaultFallback) {
+        username = username ?? process.env.DOCKER_USERNAME;
+        password = password ?? process.env.DOCKER_PASSWORD;
+      }
     }
 
     if (!username || !password) {
-      const registryHint = registry
-        ? `DOCKER_${registryToEnvPrefix(registry)}_USERNAME/PASSWORD or `
-        : '';
-      throw new ConfigurationError(
-        `Cannot perform Docker release: missing credentials.
+      if (required) {
+        const registryHint = registry
+          ? `DOCKER_${registryToEnvPrefix(registry)}_USERNAME/PASSWORD or `
+          : '';
+        throw new ConfigurationError(
+          `Cannot perform Docker release: missing credentials.
 Please use ${registryHint}DOCKER_USERNAME and DOCKER_PASSWORD environment variables.`.replace(
-          /^\s+/gm,
-          ''
-        )
+            /^\s+/gm,
+            ''
+          )
+        );
+      }
+      return undefined;
+    }
+
+    return { username, password, registry };
+  }
+
+  /**
+   * Extracts Docker target options from the environment.
+   */
+  public getDockerConfig(): DockerTargetOptions {
+    const targetRegistry =
+      this.config.registry ?? extractRegistry(this.config.target);
+    const sourceRegistry =
+      this.config.sourceRegistry ?? extractRegistry(this.config.source);
+
+    // Resolve target credentials (required)
+    const targetCredentials = this.resolveCredentials(
+      targetRegistry,
+      this.config.usernameVar,
+      this.config.passwordVar,
+      true
+    )!;
+
+    // Resolve source credentials if source registry differs from target
+    // Source credentials are optional - if not found, we assume the source is public
+    // We don't fall back to default DOCKER_* credentials for source (those are for target)
+    let sourceCredentials: RegistryCredentials | undefined;
+    if (sourceRegistry !== targetRegistry) {
+      sourceCredentials = this.resolveCredentials(
+        sourceRegistry,
+        this.config.sourceUsernameVar,
+        this.config.sourcePasswordVar,
+        // Only required if explicit source env vars are specified
+        !!(this.config.sourceUsernameVar || this.config.sourcePasswordVar),
+        // Don't fall back to DOCKER_USERNAME/PASSWORD for source
+        false
       );
     }
 
     return {
-      password,
       source: this.config.source,
       target: this.config.target,
       sourceTemplate: this.config.sourceFormat || '{{{source}}}:{{{revision}}}',
       targetTemplate: this.config.targetFormat || '{{{target}}}:{{{version}}}',
-      username,
-      registry,
+      targetCredentials,
+      sourceCredentials,
     };
   }
 
   /**
-   * Logs into docker client with the provided username and password in config
+   * Logs into a Docker registry with the provided credentials.
    *
    * NOTE: This may change the globally logged in Docker user on the system
+   *
+   * @param credentials The registry credentials to use
    */
-  public async login(): Promise<any> {
-    const { username, password, registry } = this.dockerConfig;
+  private async loginToRegistry(credentials: RegistryCredentials): Promise<void> {
+    const { username, password, registry } = credentials;
     const args = ['login', `--username=${username}`, '--password-stdin'];
     if (registry) {
       args.push(registry);
     }
+    const registryName = registry || 'Docker Hub';
+    this.logger.debug(`Logging into ${registryName}...`);
     // Pass password via stdin for security (avoids exposure in ps/process list)
-    return spawnProcess(DOCKER_BIN, args, {}, { stdin: password });
+    await spawnProcess(DOCKER_BIN, args, {}, { stdin: password });
+  }
+
+  /**
+   * Logs into all required Docker registries (source and target).
+   *
+   * If the source registry differs from target and has credentials configured,
+   * logs into both. Otherwise, only logs into the target registry.
+   */
+  public async login(): Promise<void> {
+    const { sourceCredentials, targetCredentials } = this.dockerConfig;
+
+    // Login to source registry first (if different from target and has credentials)
+    if (sourceCredentials) {
+      await this.loginToRegistry(sourceCredentials);
+    }
+
+    // Login to target registry
+    await this.loginToRegistry(targetCredentials);
   }
 
   /**
@@ -216,7 +298,7 @@ Please use ${registryHint}DOCKER_USERNAME and DOCKER_PASSWORD environment variab
    * @param version The new version
    * @param revision The SHA revision of the new version
    */
-  public async publish(version: string, revision: string): Promise<any> {
+  public async publish(version: string, revision: string): Promise<void> {
     await this.login();
     await this.copy(revision, version);
 
