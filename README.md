@@ -1106,18 +1106,38 @@ source is assumed to be public.
 
 **Configuration**
 
+Both `source` and `target` can be specified as a string (image path) or an object with additional options:
+
+| Option   | Description                                                                       |
+| -------- | --------------------------------------------------------------------------------- |
+| `source` | Source image: string `"ghcr.io/org/image"` or object (see below)                  |
+| `target` | Target image: string `"getsentry/craft"` or object (see below)                    |
+
+When `source` or `target` is an object:
+
+| Property      | Description                                                                |
+| ------------- | -------------------------------------------------------------------------- |
+| `image`       | Docker image path (e.g., `ghcr.io/org/image`)                              |
+| `registry`    | **optional**. Override the registry (auto-detected from `image`)           |
+| `format`      | **optional**. Format template. Default: `{{{source}}}:{{{revision}}}` for source, `{{{target}}}:{{{version}}}` for target |
+| `usernameVar` | **optional**. Env var name for username (must be used with `passwordVar`)  |
+| `passwordVar` | **optional**. Env var name for password (must be used with `usernameVar`)  |
+| `skipLogin`   | **optional**. Skip `docker login` for this registry. Use when auth is configured externally (e.g., gcloud workload identity). |
+
+**Legacy options** (for backwards compatibility, prefer object format above):
+
 | Option              | Description                                                                       |
 | ------------------- | --------------------------------------------------------------------------------- |
-| `source`            | Path to the source Docker image to be pulled                                      |
-| `sourceFormat`      | Format for the source image name. Default: `{{{source}}}:{{{revision}}}`          |
-| `sourceRegistry`    | **optional**. Override the source registry (auto-detected from `source`)          |
-| `sourceUsernameVar` | **optional**. Env var name for source username (must be used with `sourcePasswordVar`) |
-| `sourcePasswordVar` | **optional**. Env var name for source password (must be used with `sourceUsernameVar`) |
-| `target`            | Path to the target Docker image to be pushed                                      |
-| `targetFormat`      | Format for the target image name. Default: `{{{target}}}:{{{version}}}`           |
-| `registry`          | **optional**. Override the target registry for login (auto-detected from `target`) |
-| `usernameVar`       | **optional**. Env var name for target username (must be used with `passwordVar`)  |
-| `passwordVar`       | **optional**. Env var name for target password (must be used with `usernameVar`)  |
+| `sourceFormat`      | Format for the source image name (use `source.format` instead)                    |
+| `sourceRegistry`    | Override the source registry (use `source.registry` instead)                      |
+| `sourceUsernameVar` | Env var name for source username (use `source.usernameVar` instead)               |
+| `sourcePasswordVar` | Env var name for source password (use `source.passwordVar` instead)               |
+| `targetFormat`      | Format for the target image name (use `target.format` instead)                    |
+| `registry`          | Override the target registry (use `target.registry` instead)                      |
+| `usernameVar`       | Env var name for target username (use `target.usernameVar` instead)               |
+| `passwordVar`       | Env var name for target password (use `target.passwordVar` instead)               |
+| `skipLogin`         | Skip login for target registry (use `target.skipLogin` instead)                   |
+| `sourceSkipLogin`   | Skip login for source registry (use `source.skipLogin` instead)                   |
 
 **Examples**
 
@@ -1180,12 +1200,63 @@ targets:
     source: ghcr.io/myorg/private-image
     target: getsentry/craft
 
-  # With explicit source credentials
+  # Using object format with explicit source credentials
   - name: docker
-    source: private.registry.io/image
+    source:
+      image: private.registry.io/image
+      usernameVar: PRIVATE_REGISTRY_USER
+      passwordVar: PRIVATE_REGISTRY_PASS
     target: getsentry/craft
-    sourceUsernameVar: PRIVATE_REGISTRY_USER
-    sourcePasswordVar: PRIVATE_REGISTRY_PASS
+```
+
+Using nested object format (recommended for complex configs):
+
+```yaml
+targets:
+  - name: docker
+    source:
+      image: ghcr.io/myorg/source-image
+      format: "{{{source}}}:sha-{{{revision}}}"
+    target:
+      image: us.gcr.io/my-project/craft
+      registry: gcr.io  # Share creds across GCR regions
+      format: "{{{target}}}:v{{{version}}}"
+```
+
+Publishing to Google Cloud registries (GCR/Artifact Registry):
+
+Craft automatically detects Google Cloud registries (`gcr.io`, `*.gcr.io`, `*-docker.pkg.dev`) and configures Docker authentication using `gcloud auth configure-docker` when:
+- gcloud credentials are available (via `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_GHA_CREDS_PATH`, or default ADC location)
+- The `gcloud` CLI is installed
+
+This works seamlessly with [google-github-actions/auth](https://github.com/google-github-actions/auth):
+
+```yaml
+# GitHub Actions workflow
+- uses: google-github-actions/auth@v2
+  with:
+    workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+    service_account: ${{ vars.SERVICE_ACCOUNT }}
+
+# Craft automatically runs: gcloud auth configure-docker us-docker.pkg.dev
+- run: craft publish ...
+
+# .craft.yml - no credentials needed!
+targets:
+  - name: docker
+    source: ghcr.io/myorg/image
+    target: us-docker.pkg.dev/my-project/repo/image
+```
+
+If you need to skip automatic detection (e.g., auth already configured), use `skipLogin`:
+
+```yaml
+targets:
+  - name: docker
+    source: ghcr.io/myorg/image
+    target:
+      image: us-docker.pkg.dev/my-project/repo/image
+      skipLogin: true  # Skip all auth, already configured
 ```
 
 ### Ruby Gems Index (`gem`)
