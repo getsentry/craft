@@ -1,5 +1,5 @@
-import * as fs from 'fs';
-import * as os from 'os';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 
 import {
   DockerTarget,
@@ -18,8 +18,8 @@ jest.mock('../../utils/system', () => ({
   spawnProcess: jest.fn().mockResolvedValue(Buffer.from('')),
 }));
 
-jest.mock('fs');
-jest.mock('os');
+jest.mock('node:fs');
+jest.mock('node:os');
 
 describe('normalizeImageRef', () => {
   it('normalizes string source to object with image property', () => {

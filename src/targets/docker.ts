@@ -1,6 +1,6 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 import { TargetConfig } from '../schemas/project_config';
 import { BaseArtifactProvider } from '../artifact_providers/base';
@@ -58,19 +58,19 @@ export function hasGcloudCredentials(): boolean {
   ];
 
   for (const credPath of credPaths) {
-    if (credPath && fs.existsSync(credPath)) {
+    if (credPath && existsSync(credPath)) {
       return true;
     }
   }
 
   // Check default Application Default Credentials location
-  const defaultAdcPath = path.join(
-    os.homedir(),
+  const defaultAdcPath = join(
+    homedir(),
     '.config',
     'gcloud',
     'application_default_credentials.json'
   );
-  if (fs.existsSync(defaultAdcPath)) {
+  if (existsSync(defaultAdcPath)) {
     return true;
   }
 
@@ -348,12 +348,12 @@ export class DockerTarget extends BaseTarget {
         const registryHint = registry
           ? `DOCKER_${registryToEnvPrefix(registry)}_USERNAME/PASSWORD or `
           : '';
-        throw new ConfigurationError(
-          `Cannot perform Docker release: missing credentials.
+      throw new ConfigurationError(
+        `Cannot perform Docker release: missing credentials.
 Please use ${registryHint}DOCKER_USERNAME and DOCKER_PASSWORD environment variables.`.replace(
-            /^\s+/gm,
-            ''
-          )
+          /^\s+/gm,
+          ''
+        )
         );
       }
       return undefined;
