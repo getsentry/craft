@@ -106,6 +106,8 @@ export interface SpawnProcessOptions {
   showStdout?: boolean;
   /** Force the process to run in dry-run mode */
   enableInDryRunMode?: boolean;
+  /** Data to write to stdin (process will receive 'pipe' for stdin instead of 'inherit') */
+  stdin?: string;
 }
 
 /**
@@ -159,12 +161,22 @@ export async function spawnProcess(
         replaceEnvVariable(arg, { ...process.env, ...options.env })
       );
 
-      // Allow child to accept input
-      options.stdio = ['inherit', 'pipe', 'pipe'];
+      // Allow child to accept input (use 'pipe' for stdin if we need to write to it)
+      options.stdio = [
+        spawnProcessOptions.stdin !== undefined ? 'pipe' : 'inherit',
+        'pipe',
+        'pipe',
+      ];
       child = spawn(command, processedArgs, options);
 
       if (!child.stdout || !child.stderr) {
         throw new Error('Invalid standard output or error for child process');
+      }
+
+      // Write stdin data if provided
+      if (spawnProcessOptions.stdin !== undefined && child.stdin) {
+        child.stdin.write(spawnProcessOptions.stdin);
+        child.stdin.end();
       }
       child.on('exit', code => (code === 0 ? succeed() : fail({ code })));
       child.on('error', fail);
