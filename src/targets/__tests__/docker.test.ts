@@ -139,6 +139,20 @@ describe('normalizeImageRef', () => {
       passwordVar: undefined,
     });
   });
+
+  it('throws ConfigurationError when source is missing', () => {
+    const config = { target: 'getsentry/craft' };
+    expect(() => normalizeImageRef(config, 'source')).toThrow(
+      "Docker target requires a 'source' property. Please specify the source image."
+    );
+  });
+
+  it('throws ConfigurationError when target is missing', () => {
+    const config = { source: 'ghcr.io/org/image' };
+    expect(() => normalizeImageRef(config, 'target')).toThrow(
+      "Docker target requires a 'target' property. Please specify the target image."
+    );
+  });
 });
 
 describe('extractRegistry', () => {

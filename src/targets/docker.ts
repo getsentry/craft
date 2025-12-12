@@ -191,6 +191,14 @@ export function normalizeImageRef(
   type: 'source' | 'target'
 ): ImageRefConfig {
   const ref = config[type] as ImageRef;
+
+  // Validate that the required field is present
+  if (ref === undefined || ref === null) {
+    throw new ConfigurationError(
+      `Docker target requires a '${type}' property. Please specify the ${type} image.`
+    );
+  }
+
   const keys = LEGACY_KEYS[type];
 
   // Get legacy values from config
