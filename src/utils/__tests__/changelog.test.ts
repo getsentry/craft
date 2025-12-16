@@ -2015,7 +2015,7 @@ describe('generateChangesetFromGit', () => {
       expect(uiSection).not.toContain('feat(api):');
     });
 
-    it('should place scopeless entries at the bottom without sub-header', async () => {
+    it('should place scopeless entries at the bottom under "Other" header when scoped entries exist', async () => {
       setup(
         [
           {
@@ -2064,28 +2064,61 @@ describe('generateChangesetFromGit', () => {
       // Should have Api scope header (has 2 entries)
       expect(changes).toContain('#### Api');
 
-      // Scopeless entry should appear after all scope headers (at the bottom)
-      const lastScopeHeaderIndex = changes.lastIndexOf('#### ');
-      const scopelessIndex = changes.indexOf('feat: add feature without scope');
-      expect(scopelessIndex).toBeGreaterThan(lastScopeHeaderIndex);
+      // Should have an "Other" header for scopeless entries (since Api has a header)
+      expect(changes).toContain('#### Other');
 
-      // Verify the scopeless entry doesn't have its own #### header before it
-      // by checking that the line immediately before it is not a scope header
-      const lines = changes.split('\n');
-      const scopelessLineIndex = lines.findIndex(line =>
-        line.includes('feat: add feature without scope')
-      );
-      // Find the closest non-empty line before the scopeless entry
-      let prevLineIndex = scopelessLineIndex - 1;
-      while (prevLineIndex >= 0 && lines[prevLineIndex].trim() === '') {
-        prevLineIndex--;
-      }
-      // The previous non-empty line should not be a #### header
-      expect(lines[prevLineIndex]).not.toMatch(/^#### /);
+      // Scopeless entry should appear after the "Other" header
+      const otherHeaderIndex = changes.indexOf('#### Other');
+      const scopelessIndex = changes.indexOf('feat: add feature without scope');
+      expect(scopelessIndex).toBeGreaterThan(otherHeaderIndex);
 
       // Verify Api scope entry comes before scopeless entry
       const apiEntryIndex = changes.indexOf('feat(api): add endpoint');
       expect(apiEntryIndex).toBeLessThan(scopelessIndex);
+    });
+
+    it('should not add "Other" header when no scoped entries have headers', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat(api): single api feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat: feature without scope',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        null
+      );
+
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
+
+      // Neither scope should have a header (both have only 1 entry)
+      expect(changes).not.toContain('#### Api');
+      // No "Other" header should be added since there are no other scope headers
+      expect(changes).not.toContain('#### Other');
+
+      // But both PRs should still appear in the output
+      expect(changes).toContain('feat(api): single api feature');
+      expect(changes).toContain('feat: feature without scope');
     });
 
     it('should skip scope header for scopes with only one entry', async () => {

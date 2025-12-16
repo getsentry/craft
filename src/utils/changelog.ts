@@ -914,15 +914,25 @@ async function generateChangesetFromGitImpl(
       return scopeA.localeCompare(scopeB);
     });
 
+    // Check if any scope has multiple entries (would get a header)
+    const hasScopeHeaders = [...category.scopeGroups.entries()].some(
+      ([s, entries]) => s !== null && entries.length > 1
+    );
+
     for (const [scope, prs] of sortedScopes) {
       // Add scope header if:
       // - scope grouping is enabled AND
       // - scope exists (not null) AND
       // - there's more than one entry in this scope (single entry headers aren't useful)
+      // OR
+      // - scope is null (scopeless) AND there are other scope headers (to visually separate)
       if (scopeGroupingEnabled && scope !== null && prs.length > 1) {
         changelogSections.push(
           markdownHeader(SCOPE_HEADER_LEVEL, formatScopeTitle(scope))
         );
+      } else if (scopeGroupingEnabled && scope === null && hasScopeHeaders) {
+        // Add "Other" header for scopeless commits when there are other scope headers
+        changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, 'Other'));
       }
 
       const prEntries = prs.map(pr =>
