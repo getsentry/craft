@@ -3,10 +3,13 @@ import { spawnProcess } from '../../utils/system';
 import { runPreReleaseCommand, checkVersionOrPart, uploadPreReleaseTargets } from '../prepare';
 import * as config from '../../config';
 import { BaseTarget } from '../../targets/base';
+import { getTargetByName } from '../../targets';
 
 jest.mock('../../utils/system');
 jest.mock('../../config');
 jest.mock('../../targets');
+
+const mockedGetTargetByName = getTargetByName as jest.Mock;
 
 describe('runPreReleaseCommand', () => {
   const oldVersion = '2.3.3';
@@ -170,8 +173,7 @@ describe('uploadPreReleaseTargets', () => {
     const mockedExpandWorkspaceTargets = jest.spyOn(config, 'expandWorkspaceTargets').mockResolvedValue([{ name: 'test-target' }] as any);
 
     // Mock the target constructor
-    const { getTargetByName } = require('../../targets');
-    getTargetByName.mockReturnValue(jest.fn(() => mockTarget));
+    mockedGetTargetByName.mockReturnValue(jest.fn(() => mockTarget));
 
     await uploadPreReleaseTargets(newVersion, revision);
 
