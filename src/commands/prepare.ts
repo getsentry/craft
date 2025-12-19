@@ -9,10 +9,14 @@ import {
   DEFAULT_RELEASE_BRANCH_NAME,
   getGlobalGitHubConfig,
   requiresMinVersion,
+  getArtifactProviderFromConfig,
+  expandWorkspaceTargets,
 } from '../config';
 import { logger } from '../logger';
 import { ChangelogPolicy } from '../schemas/project_config';
 import { sleep } from '../utils/async';
+import { getTargetByName } from '../targets';
+import { BaseTarget } from '../targets/base';
 import {
   DEFAULT_CHANGELOG_PATH,
   DEFAULT_UNRELEASED_TITLE,
@@ -290,6 +294,69 @@ export async function runPreReleaseCommand(
     env: { ...process.env, ...additionalEnv },
   });
   return true;
+}
+
+/**
+ * Upload artifacts to pre-release targets
+ *
+ * Pre-release targets are uploaded after the pre-release command runs,
+ * allowing artifacts to be made available before the release branch is pushed.
+ * This is useful for repositories that need artifacts to be uploaded and
+ * available for release branch checks.
+ *
+ * @param newVersion Version being released
+ * @param revision Git commit SHA being released
+ */
+export async function uploadPreReleaseTargets(
+  newVersion: string,
+  revision: string
+): Promise<void> {
+  const config = getConfiguration();
+
+  if (!config.preReleaseTargets || config.preReleaseTargets.length === 0) {
+    logger.debug('No pre-release targets configured, skipping upload');
+    return;
+  }
+
+  logger.info('Uploading artifacts to pre-release targets...');
+
+  const artifactProvider = await getArtifactProviderFromConfig();
+  const githubConfig = await getGlobalGitHubConfig();
+
+  // Expand workspace targets if needed
+  const expandedTargets = await expandWorkspaceTargets(
+    config.preReleaseTargets
+  );
+
+  // Create target instances
+  const targetInstances: BaseTarget[] = expandedTargets.map(targetConfig => {
+    const TargetClass = getTargetByName(targetConfig.name);
+    if (!TargetClass) {
+      throw new ConfigurationError(
+        `Unknown target: "${targetConfig.name}". Check your preReleaseTargets configuration.`
+      );
+    }
+    return new TargetClass(targetConfig, artifactProvider, githubConfig);
+  });
+
+  // Upload to each target
+  for (const target of targetInstances) {
+    try {
+      logger.info(`Uploading to pre-release target: ${target.id}`);
+      if (!isDryRun()) {
+        await target.publish(newVersion, revision);
+      } else {
+        logger.info('[dry-run] Not uploading to pre-release target');
+      }
+    } catch (error: any) {
+      logger.error(
+        `Failed to upload to pre-release target ${target.id}: ${error.message}`
+      );
+      throw error;
+    }
+  }
+
+  logger.success('Pre-release target uploads completed');
 }
 
 /**
@@ -599,6 +666,9 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     newVersion,
     config.preReleaseCommand
   );
+
+  // Upload artifacts to pre-release targets (after preReleaseCommand, before commit)
+  await uploadPreReleaseTargets(newVersion, rev);
 
   if (preReleaseCommandRan) {
     // Commit the pending changes

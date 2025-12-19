@@ -29,6 +29,7 @@ then enforces a specific workflow for managing release branches, changelogs, art
 - [Configuration File: `.craft.yml`](#configuration-file-craftyml)
   - [GitHub project](#github-project)
   - [Pre-release Command](#pre-release-command)
+  - [Pre-release Targets](#pre-release-targets)
   - [Post-release Command](#post-release-command)
   - [Release Branch Name](#release-branch-name)
   - [Changelog Policies](#changelog-policies)
@@ -107,7 +108,6 @@ Options:
   -h, --help     Show help                                             [boolean]
 ```
 
-
 ### Version naming conventions
 
 Craft currently supports [semantic versioning (semver)](https://semver.org)-like versions for the `NEW-VERSION` argument passed to its `prepare` and `publish` commands. This means, releases made with craft need to follow a general pattern as follows:
@@ -145,7 +145,6 @@ Examples:
 ```
 
 #### Special Case: Python Post Releases
-
 
 Python has the concept of post releases, which craft handles implicitly. A post release is indicated by a `-\d+` suffix to the semver version, for example: `1.0.0-1`.
 Given that we only consider certain identifiers as [pre-releases](#preview-releases-prerelease), post releases are considered stable releases.
@@ -254,7 +253,7 @@ Each category can have a `semver` field (`major`, `minor`, or `patch`) that dete
 the version bump. The highest bump type across all matched commits is used:
 
 - Breaking changes (e.g., `feat!:`, `fix!:`) trigger a **major** bump
-- New features (`feat:`) trigger a **minor** bump  
+- New features (`feat:`) trigger a **minor** bump
 - Bug fixes, docs, chores trigger a **patch** bump
 
 Example `.github/release.yml` with semver fields:
@@ -398,6 +397,27 @@ for more details.
 preReleaseCommand: bash scripts/bump-version.sh
 ```
 
+### Pre-release Targets
+
+Pre-release targets are a special set of targets that upload artifacts during the `prepare` phase, after the `preReleaseCommand` runs but before the release branch is committed and pushed.
+
+This is useful for repositories that require artifacts to be uploaded and available before the release branch checks run. For example, if your CI checks on the release branch need to verify that artifacts were properly uploaded to a storage service or registry.
+
+```yaml
+preReleaseTargets:
+  - name: gcs
+    bucket: my-release-bucket
+    includeNames: '*.tar.gz'
+  - name: github
+    # Upload artifacts to GitHub releases during prepare phase
+```
+
+Pre-release targets support the same configuration options as regular targets (defined under `targets`).
+The key difference is **when** they run:
+
+- **preReleaseTargets**: Upload during `craft prepare`, after `preReleaseCommand`, before commit
+- **targets**: Upload during `craft publish`, after the release branch is merged
+
 ### Post-release Command
 
 This command will run after a successful `publish`. By default, it is set to
@@ -448,13 +468,13 @@ In `auto` mode, `craft prepare` will use the following logic:
 If `.github/release.yml` doesn't exist or has no `changelog` section, craft uses
 a default configuration based on [Conventional Commits](https://www.conventionalcommits.org/):
 
-| Category                        | Pattern                              |
-| ------------------------------- | ------------------------------------ |
-| Breaking Changes                | `^\w+(\(\w+\))?!:` (e.g., `feat!:`)  |
-| Build / dependencies / internal | `^(build\|ref\|chore\|ci)(\(\w+\))?:`|
-| Bug Fixes                       | `^fix(\(\w+\))?:`                    |
-| Documentation                   | `^docs?(\(\w+\))?:`                  |
-| New Features                    | `^feat(\(\w+\))?:`                   |
+| Category                        | Pattern                               |
+| ------------------------------- | ------------------------------------- |
+| Breaking Changes                | `^\w+(\(\w+\))?!:` (e.g., `feat!:`)   |
+| Build / dependencies / internal | `^(build\|ref\|chore\|ci)(\(\w+\))?:` |
+| Bug Fixes                       | `^fix(\(\w+\))?:`                     |
+| Documentation                   | `^docs?(\(\w+\))?:`                   |
+| New Features                    | `^feat(\(\w+\))?:`                    |
 
 **Commit Log Patterns**
 
@@ -726,8 +746,8 @@ contains any one of [pre-release identifiers](#preview-releases-prerelease).
 
 **Environment**
 
-| Name           | Description                                                        |
-| -------------- | ------------------------------------------------------------------ |
+| Name           | Description                                                          |
+| -------------- | -------------------------------------------------------------------- |
 | `GITHUB_TOKEN` | Personal GitHub API token (see <https://github.com/settings/tokens>) |
 
 **Configuration**
@@ -769,10 +789,10 @@ The `npm` utility must be installed on the system.
 
 **Configuration**
 
-| Option             | Description                                                                                                                     |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| `access`           | **optional**. Visibility for scoped packages: `restricted` (default) or `public`                                                |
-| `checkPackageName` | **optional**. If defined, check this package on the registry to get the current latest version to compare for the `latest` tag. The package(s) to be published will only be tagged with `latest` if the new version is greater than the checked package's version|
+| Option             | Description                                                                                                                                                                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `access`           | **optional**. Visibility for scoped packages: `restricted` (default) or `public`                                                                                                                                                                                  |
+| `checkPackageName` | **optional**. If defined, check this package on the registry to get the current latest version to compare for the `latest` tag. The package(s) to be published will only be tagged with `latest` if the new version is greater than the checked package's version |
 
 **Example**
 
@@ -817,8 +837,8 @@ like [getsentry/pypi]
 
 **Environment**
 
-| Name           | Description                                                        |
-| -------------- | ------------------------------------------------------------------ |
+| Name           | Description                                                          |
+| -------------- | -------------------------------------------------------------------- |
 | `GITHUB_TOKEN` | Personal GitHub API token (see <https://github.com/settings/tokens>) |
 
 **Configuration**
@@ -901,7 +921,7 @@ targets:
 ### NuGet (`nuget`)
 
 Uploads packages to [NuGet](https://www.nuget.org/) via [.NET Core](https://github.com/dotnet/core).
-Normally, `craft` targets raise an exception when trying to release a version that already exists. *This target diverges from the norm and allows re-entrant publishing* as it can publish multiple packages at once and the processes might get interrupted. This behavior allows us to finalize half-finished releases without having to publish a new version and play cat & mouse with the flaky upstream package repository.
+Normally, `craft` targets raise an exception when trying to release a version that already exists. _This target diverges from the norm and allows re-entrant publishing_ as it can publish multiple packages at once and the processes might get interrupted. This behavior allows us to finalize half-finished releases without having to publish a new version and play cat & mouse with the flaky upstream package repository.
 
 **Environment**
 
@@ -1137,50 +1157,50 @@ from the target and requires authentication, set `DOCKER_<SOURCE_REGISTRY>_USERN
 or use `sourceUsernameVar`/`sourcePasswordVar`. If no source credentials are found, the
 source is assumed to be public.
 
-| Name                            | Description                                                                               |
-| ------------------------------- | ----------------------------------------------------------------------------------------- |
-| `DOCKER_USERNAME`               | Default username for target Docker registry.                                              |
-| `DOCKER_PASSWORD`               | Default password/token for target Docker registry.                                        |
-| `DOCKER_<REGISTRY>_USERNAME`    | Registry-specific username (e.g., `DOCKER_GHCR_IO_USERNAME` for `ghcr.io`).               |
-| `DOCKER_<REGISTRY>_PASSWORD`    | Registry-specific password (e.g., `DOCKER_GHCR_IO_PASSWORD` for `ghcr.io`).               |
-| `GITHUB_ACTOR`                  | Used as default username for `ghcr.io` (available in GitHub Actions).                     |
-| `GITHUB_TOKEN`                  | Used as default password for `ghcr.io` (available in GitHub Actions).                     |
-| `DOCKER_BIN`                    | **optional**. Path to `docker` executable.                                                |
+| Name                         | Description                                                                 |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| `DOCKER_USERNAME`            | Default username for target Docker registry.                                |
+| `DOCKER_PASSWORD`            | Default password/token for target Docker registry.                          |
+| `DOCKER_<REGISTRY>_USERNAME` | Registry-specific username (e.g., `DOCKER_GHCR_IO_USERNAME` for `ghcr.io`). |
+| `DOCKER_<REGISTRY>_PASSWORD` | Registry-specific password (e.g., `DOCKER_GHCR_IO_PASSWORD` for `ghcr.io`). |
+| `GITHUB_ACTOR`               | Used as default username for `ghcr.io` (available in GitHub Actions).       |
+| `GITHUB_TOKEN`               | Used as default password for `ghcr.io` (available in GitHub Actions).       |
+| `DOCKER_BIN`                 | **optional**. Path to `docker` executable.                                  |
 
 **Configuration**
 
 Both `source` and `target` can be specified as a string (image path) or an object with additional options:
 
-| Option   | Description                                                                       |
-| -------- | --------------------------------------------------------------------------------- |
-| `source` | Source image: string `"ghcr.io/org/image"` or object (see below)                  |
-| `target` | Target image: string `"getsentry/craft"` or object (see below)                    |
+| Option   | Description                                                      |
+| -------- | ---------------------------------------------------------------- |
+| `source` | Source image: string `"ghcr.io/org/image"` or object (see below) |
+| `target` | Target image: string `"getsentry/craft"` or object (see below)   |
 
 When `source` or `target` is an object:
 
-| Property      | Description                                                                |
-| ------------- | -------------------------------------------------------------------------- |
-| `image`       | Docker image path (e.g., `ghcr.io/org/image`)                              |
-| `registry`    | **optional**. Override the registry (auto-detected from `image`)           |
-| `format`      | **optional**. Format template. Default: `{{{source}}}:{{{revision}}}` for source, `{{{target}}}:{{{version}}}` for target |
-| `usernameVar` | **optional**. Env var name for username (must be used with `passwordVar`)  |
-| `passwordVar` | **optional**. Env var name for password (must be used with `usernameVar`)  |
+| Property      | Description                                                                                                                   |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `image`       | Docker image path (e.g., `ghcr.io/org/image`)                                                                                 |
+| `registry`    | **optional**. Override the registry (auto-detected from `image`)                                                              |
+| `format`      | **optional**. Format template. Default: `{{{source}}}:{{{revision}}}` for source, `{{{target}}}:{{{version}}}` for target     |
+| `usernameVar` | **optional**. Env var name for username (must be used with `passwordVar`)                                                     |
+| `passwordVar` | **optional**. Env var name for password (must be used with `usernameVar`)                                                     |
 | `skipLogin`   | **optional**. Skip `docker login` for this registry. Use when auth is configured externally (e.g., gcloud workload identity). |
 
 **Legacy options** (for backwards compatibility, prefer object format above):
 
-| Option              | Description                                                                       |
-| ------------------- | --------------------------------------------------------------------------------- |
-| `sourceFormat`      | Format for the source image name (use `source.format` instead)                    |
-| `sourceRegistry`    | Override the source registry (use `source.registry` instead)                      |
-| `sourceUsernameVar` | Env var name for source username (use `source.usernameVar` instead)               |
-| `sourcePasswordVar` | Env var name for source password (use `source.passwordVar` instead)               |
-| `targetFormat`      | Format for the target image name (use `target.format` instead)                    |
-| `registry`          | Override the target registry (use `target.registry` instead)                      |
-| `usernameVar`       | Env var name for target username (use `target.usernameVar` instead)               |
-| `passwordVar`       | Env var name for target password (use `target.passwordVar` instead)               |
-| `skipLogin`         | Skip login for target registry (use `target.skipLogin` instead)                   |
-| `sourceSkipLogin`   | Skip login for source registry (use `source.skipLogin` instead)                   |
+| Option              | Description                                                         |
+| ------------------- | ------------------------------------------------------------------- |
+| `sourceFormat`      | Format for the source image name (use `source.format` instead)      |
+| `sourceRegistry`    | Override the source registry (use `source.registry` instead)        |
+| `sourceUsernameVar` | Env var name for source username (use `source.usernameVar` instead) |
+| `sourcePasswordVar` | Env var name for source password (use `source.passwordVar` instead) |
+| `targetFormat`      | Format for the target image name (use `target.format` instead)      |
+| `registry`          | Override the target registry (use `target.registry` instead)        |
+| `usernameVar`       | Env var name for target username (use `target.usernameVar` instead) |
+| `passwordVar`       | Env var name for target password (use `target.passwordVar` instead) |
+| `skipLogin`         | Skip login for target registry (use `target.skipLogin` instead)     |
+| `sourceSkipLogin`   | Skip login for source registry (use `source.skipLogin` instead)     |
 
 **Examples**
 
@@ -1223,7 +1243,7 @@ targets:
   - name: docker
     source: ghcr.io/getsentry/craft
     target: us.gcr.io/my-project/craft
-    registry: gcr.io  # Use DOCKER_GCR_IO_* instead of DOCKER_US_GCR_IO_*
+    registry: gcr.io # Use DOCKER_GCR_IO_* instead of DOCKER_US_GCR_IO_*
 
   # Custom registry with explicit env vars
   - name: docker
@@ -1259,16 +1279,17 @@ targets:
   - name: docker
     source:
       image: ghcr.io/myorg/source-image
-      format: "{{{source}}}:sha-{{{revision}}}"
+      format: '{{{source}}}:sha-{{{revision}}}'
     target:
       image: us.gcr.io/my-project/craft
-      registry: gcr.io  # Share creds across GCR regions
-      format: "{{{target}}}:v{{{version}}}"
+      registry: gcr.io # Share creds across GCR regions
+      format: '{{{target}}}:v{{{version}}}'
 ```
 
 Publishing to Google Cloud registries (GCR/Artifact Registry):
 
 Craft automatically detects Google Cloud registries (`gcr.io`, `*.gcr.io`, `*-docker.pkg.dev`) and configures Docker authentication using `gcloud auth configure-docker` when:
+
 - gcloud credentials are available (via `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_GHA_CREDS_PATH`, or default ADC location)
 - The `gcloud` CLI is installed
 
@@ -1299,7 +1320,7 @@ targets:
     source: ghcr.io/myorg/image
     target:
       image: us-docker.pkg.dev/my-project/repo/image
-      skipLogin: true  # Skip all auth, already configured
+      skipLogin: true # Skip all auth, already configured
 ```
 
 ### Ruby Gems Index (`gem`)
@@ -1512,10 +1533,10 @@ For this target to work correctly, either `dart` must be installed on the system
 
 **Configuration**
 
-| Option        | Description                                                                                                                                                                                     |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dartCliPath`    | **optional** Path to the Dart CLI. It must be executable by the calling process. Defaults to `dart`.                                                                                            |
-| `packages`       | **optional** List of directories to be released, relative to the root. Useful when a single repository contains multiple packages. When skipped, root directory is assumed as the only package. |
+| Option           | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dartCliPath`    | **optional** Path to the Dart CLI. It must be executable by the calling process. Defaults to `dart`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `packages`       | **optional** List of directories to be released, relative to the root. Useful when a single repository contains multiple packages. When skipped, root directory is assumed as the only package.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `skipValidation` | **optional** Publishes the package without going through validation steps, such as analyzer & dependency checks. <br /> This is useful in particular situations when package maintainers know why the validation fails and wish to side step the issue. For example, there may be analyzer issues due to not following the current (latest) dart SDK recommendation because the package needs to maintain the package compatibility with an old SDK version. <br /> This option should be used with caution and only after testing and verifying the reported issue shouldn't affect the package. It is advisable to do an alpha pre-release to further reduce the chance of a potential negative impact. |
 
 **Example**
@@ -1597,17 +1618,17 @@ The extracted directory is then published as a module.
 
 The `pwsh` executable [must be installed](https://github.com/powershell/powershell#get-powershell) on the system.
 
-| Name                 | Description                                          | Default   |
-| -------------------- | ---------------------------------------------------- | --------- |
-| `POWERSHELL_API_KEY` | **required** PowerShell Gallery API key              |           |
-| `POWERSHELL_BIN`     | **optional** Path to PowerShell binary               | `pwsh`    |
+| Name                 | Description                             | Default |
+| -------------------- | --------------------------------------- | ------- |
+| `POWERSHELL_API_KEY` | **required** PowerShell Gallery API key |         |
+| `POWERSHELL_BIN`     | **optional** Path to PowerShell binary  | `pwsh`  |
 
 #### Configuration
 
-| Option               | Description                                          | Default   |
-| -------------------- | ---------------------------------------------------- | --------- |
-| `module`             | **required** Module name.                            |           |
-| `repository`         | **optional** Repository to publish the package to.   | PSGallery |
+| Option       | Description                                        | Default   |
+| ------------ | -------------------------------------------------- | --------- |
+| `module`     | **required** Module name.                          |           |
+| `repository` | **optional** Repository to publish the package to. | PSGallery |
 
 #### Example
 

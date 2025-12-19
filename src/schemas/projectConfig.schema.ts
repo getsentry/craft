@@ -32,6 +32,10 @@ const projectConfigJsonSchema = {
       type: 'array',
       items: { $ref: '#/definitions/targetConfig' },
     },
+    preReleaseTargets: {
+      type: 'array',
+      items: { $ref: '#/definitions/targetConfig' },
+    },
     preReleaseCommand: { type: 'string' },
     postReleaseCommand: { type: 'string' },
     releaseBranchPrefix: { type: 'string' },

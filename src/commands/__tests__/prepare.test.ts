@@ -1,8 +1,12 @@
 import { join as pathJoin } from 'path';
 import { spawnProcess } from '../../utils/system';
-import { runPreReleaseCommand, checkVersionOrPart } from '../prepare';
+import { runPreReleaseCommand, checkVersionOrPart, uploadPreReleaseTargets } from '../prepare';
+import * as config from '../../config';
+import { BaseTarget } from '../../targets/base';
 
 jest.mock('../../utils/system');
+jest.mock('../../config');
+jest.mock('../../targets');
 
 describe('runPreReleaseCommand', () => {
   const oldVersion = '2.3.3';
@@ -117,5 +121,69 @@ describe('checkVersionOrPart', () => {
       };
       expect(fn).toThrow(t.e);
     }
+  });
+});
+
+describe('uploadPreReleaseTargets', () => {
+  const newVersion = '2.3.4';
+  const revision = 'abc123def456';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('skips when no preReleaseTargets configured', async () => {
+    const mockedGetConfiguration = jest.spyOn(config, 'getConfiguration').mockReturnValue({
+      preReleaseTargets: undefined,
+    } as any);
+
+    await uploadPreReleaseTargets(newVersion, revision);
+
+    expect(mockedGetConfiguration).toHaveBeenCalled();
+    mockedGetConfiguration.mockRestore();
+  });
+
+  test('skips when preReleaseTargets is empty array', async () => {
+    const mockedGetConfiguration = jest.spyOn(config, 'getConfiguration').mockReturnValue({
+      preReleaseTargets: [],
+    } as any);
+
+    await uploadPreReleaseTargets(newVersion, revision);
+
+    expect(mockedGetConfiguration).toHaveBeenCalled();
+    mockedGetConfiguration.mockRestore();
+  });
+
+  test('uploads to configured pre-release targets', async () => {
+    const mockPublish = jest.fn();
+    const mockTarget = {
+      id: 'test-target',
+      publish: mockPublish,
+    } as any as BaseTarget;
+
+    const mockedGetConfiguration = jest.spyOn(config, 'getConfiguration').mockReturnValue({
+      preReleaseTargets: [{ name: 'test-target' }],
+    } as any);
+
+    const mockedGetArtifactProvider = jest.spyOn(config, 'getArtifactProviderFromConfig').mockResolvedValue({} as any);
+    const mockedGetGlobalGitHubConfig = jest.spyOn(config, 'getGlobalGitHubConfig').mockResolvedValue({} as any);
+    const mockedExpandWorkspaceTargets = jest.spyOn(config, 'expandWorkspaceTargets').mockResolvedValue([{ name: 'test-target' }] as any);
+
+    // Mock the target constructor
+    const { getTargetByName } = require('../../targets');
+    getTargetByName.mockReturnValue(jest.fn(() => mockTarget));
+
+    await uploadPreReleaseTargets(newVersion, revision);
+
+    expect(mockedGetConfiguration).toHaveBeenCalled();
+    expect(mockedGetArtifactProvider).toHaveBeenCalled();
+    expect(mockedGetGlobalGitHubConfig).toHaveBeenCalled();
+    expect(mockedExpandWorkspaceTargets).toHaveBeenCalled();
+    expect(mockPublish).toHaveBeenCalledWith(newVersion, revision);
+
+    mockedGetConfiguration.mockRestore();
+    mockedGetArtifactProvider.mockRestore();
+    mockedGetGlobalGitHubConfig.mockRestore();
+    mockedExpandWorkspaceTargets.mockRestore();
   });
 });
