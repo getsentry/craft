@@ -239,10 +239,19 @@ describe('isGoogleCloudRegistry', () => {
     expect(isGoogleCloudRegistry('asia.gcr.io')).toBe(true);
   });
 
-  it('returns true for Artifact Registry (pkg.dev)', () => {
+  it('returns true for Artifact Registry multi-region (pkg.dev)', () => {
     expect(isGoogleCloudRegistry('us-docker.pkg.dev')).toBe(true);
     expect(isGoogleCloudRegistry('europe-docker.pkg.dev')).toBe(true);
     expect(isGoogleCloudRegistry('asia-docker.pkg.dev')).toBe(true);
+  });
+
+  it('returns true for Artifact Registry regional endpoints (pkg.dev)', () => {
+    expect(isGoogleCloudRegistry('us-west1-docker.pkg.dev')).toBe(true);
+    expect(isGoogleCloudRegistry('us-central1-docker.pkg.dev')).toBe(true);
+    expect(isGoogleCloudRegistry('us-east4-docker.pkg.dev')).toBe(true);
+    expect(isGoogleCloudRegistry('europe-west1-docker.pkg.dev')).toBe(true);
+    expect(isGoogleCloudRegistry('asia-east1-docker.pkg.dev')).toBe(true);
+    expect(isGoogleCloudRegistry('australia-southeast1-docker.pkg.dev')).toBe(true);
   });
 
   it('returns false for non-Google registries', () => {
