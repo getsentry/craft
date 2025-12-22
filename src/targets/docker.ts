@@ -28,7 +28,7 @@ const GCR_REGISTRY_PATTERNS = [
   /^gcr\.io$/,
   /^[a-z]+-gcr\.io$/, // us-gcr.io, eu-gcr.io, asia-gcr.io, etc.
   /^[a-z]+\.gcr\.io$/, // us.gcr.io, eu.gcr.io, asia.gcr.io, etc.
-  /^[a-z]+-docker\.pkg\.dev$/, // us-docker.pkg.dev, europe-docker.pkg.dev, etc.
+  /^[a-z][a-z0-9-]*-docker\.pkg\.dev$/, // us-docker.pkg.dev, us-west1-docker.pkg.dev, europe-west1-docker.pkg.dev, etc.
 ];
 
 /**
