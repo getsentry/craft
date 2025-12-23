@@ -775,7 +775,10 @@ async function generateChangesetFromGitImpl(
     }
 
     // Use PR title if available, otherwise use commit title for pattern matching
-    const titleForMatching = githubCommit?.prTitle ?? gitCommit.title;
+    // Trim to handle any leading/trailing whitespace that could break pattern matching
+    const titleForMatching = (
+      githubCommit?.prTitle ?? gitCommit.title
+    ).trim();
     const matchedCategory = matchCommitToCategory(
       labels,
       author,
@@ -828,7 +831,8 @@ async function generateChangesetFromGitImpl(
         }
 
         // Extract and normalize scope from PR title
-        const prTitle = commit.prTitle ?? commit.title;
+        // Trim to handle any leading/trailing whitespace
+        const prTitle = (commit.prTitle ?? commit.title).trim();
         const scope = extractScope(prTitle);
 
         // Get or create the scope group
@@ -919,22 +923,10 @@ async function generateChangesetFromGitImpl(
       ([s, entries]) => s !== null && entries.length > 1
     );
 
-    for (const [scope, prs] of sortedScopes) {
-      // Add scope header if:
-      // - scope grouping is enabled AND
-      // - scope exists (not null) AND
-      // - there's more than one entry in this scope (single entry headers aren't useful)
-      // OR
-      // - scope is null (scopeless) AND there are other scope headers (to visually separate)
-      if (scopeGroupingEnabled && scope !== null && prs.length > 1) {
-        changelogSections.push(
-          markdownHeader(SCOPE_HEADER_LEVEL, formatScopeTitle(scope))
-        );
-      } else if (scopeGroupingEnabled && scope === null && hasScopeHeaders) {
-        // Add "Other" header for scopeless commits when there are other scope headers
-        changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, 'Other'));
-      }
+    // Collect entries without headers to combine them into a single section
+    const entriesWithoutHeaders: string[] = [];
 
+    for (const [scope, prs] of sortedScopes) {
       const prEntries = prs.map(pr =>
         formatChangelogEntry({
           title: pr.title,
@@ -946,7 +938,31 @@ async function generateChangesetFromGitImpl(
         })
       );
 
-      changelogSections.push(prEntries.join('\n'));
+      // Determine scope header:
+      // - Scoped entries with multiple PRs get formatted scope title
+      // - Scopeless entries get "Other" header when other scope headers exist
+      // - Otherwise no header (entries collected for later)
+      let scopeHeader: string | null = null;
+      if (scopeGroupingEnabled) {
+        if (scope !== null && prs.length > 1) {
+          scopeHeader = formatScopeTitle(scope);
+        } else if (scope === null && hasScopeHeaders) {
+          scopeHeader = 'Other';
+        }
+      }
+
+      if (scopeHeader) {
+        changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, scopeHeader));
+        changelogSections.push(prEntries.join('\n'));
+      } else {
+        // No header for this scope group - collect entries to combine later
+        entriesWithoutHeaders.push(...prEntries);
+      }
+    }
+
+    // Push all entries without headers as a single section to avoid extra newlines
+    if (entriesWithoutHeaders.length > 0) {
+      changelogSections.push(entriesWithoutHeaders.join('\n'));
     }
   }
 
@@ -961,7 +977,7 @@ async function generateChangesetFromGitImpl(
         .slice(0, maxLeftovers)
         .map(commit =>
           formatChangelogEntry({
-            title: commit.prTitle ?? commit.title,
+            title: (commit.prTitle ?? commit.title).trim(),
             author: commit.author,
             prNumber: commit.pr ?? undefined,
             hash: commit.hash,
