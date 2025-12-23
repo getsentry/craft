@@ -34,7 +34,11 @@ import {
   isBumpType,
   type BumpType,
 } from '../utils/autoVersion';
-import { isDryRun, promptConfirmation } from '../utils/helpers';
+import {
+  isDryRun,
+  promptConfirmation,
+  setGitHubActionsOutput,
+} from '../utils/helpers';
 import { formatJson } from '../utils/strings';
 import { spawnProcess } from '../utils/system';
 import { isValidVersion } from '../utils/version';
@@ -548,6 +552,9 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     newVersion = calculateNextVersion(currentVersion, bumpType);
     logger.info(`Version bump: ${currentVersion} -> ${newVersion} (${bumpType} bump)`);
   }
+
+  // Emit resolved version for GitHub Actions
+  setGitHubActionsOutput('version', newVersion);
 
   logger.info(`Releasing version ${newVersion} from ${rev}`);
   if (!argv.rev && rev !== defaultBranch) {
