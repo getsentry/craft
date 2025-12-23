@@ -520,6 +520,118 @@ async function switchToDefaultBranch(
   }
 }
 
+interface ResolveVersionOptions {
+  /** The raw version input from CLI (may be undefined, 'auto', 'calver', bump type, or semver) */
+  versionArg?: string;
+  /** Override for CalVer offset (days to go back) */
+  calverOffset?: number;
+}
+
+/**
+ * Resolves the final semver version string from various input types.
+ *
+ * Handles:
+ * - No input: uses versioning.policy from config
+ * - 'calver': calculates calendar version
+ * - 'auto': analyzes commits to determine bump type
+ * - 'major'/'minor'/'patch': applies bump to latest tag
+ * - Explicit semver: returns as-is
+ *
+ * @param git Local git client
+ * @param options Version resolution options
+ * @returns The resolved semver version string
+ */
+async function resolveVersion(
+  git: SimpleGit,
+  options: ResolveVersionOptions
+): Promise<string> {
+  const config = getConfiguration();
+  let version = options.versionArg;
+
+  // If no version specified, use the versioning policy from config
+  if (!version) {
+    const policy = getVersioningPolicy();
+    logger.debug(`No version specified, using versioning policy: ${policy}`);
+
+    if (policy === VersioningPolicy.Manual) {
+      throw new ConfigurationError(
+        'Version is required. Either specify a version argument or set ' +
+          'versioning.policy to "auto" or "calver" in .craft.yml'
+      );
+    }
+
+    // Use the policy as the version type
+    version = policy;
+  }
+
+  // Handle CalVer versioning
+  if (version === 'calver') {
+    if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
+      throw new ConfigurationError(
+        `CalVer versioning requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
+          'Please update your configuration or specify the version explicitly.'
+      );
+    }
+
+    // Build CalVer config with overrides
+    const calverOffset =
+      options.calverOffset ??
+      (process.env.CRAFT_CALVER_OFFSET
+        ? parseInt(process.env.CRAFT_CALVER_OFFSET, 10)
+        : undefined) ??
+      config.versioning?.calver?.offset ??
+      DEFAULT_CALVER_CONFIG.offset;
+
+    const calverFormat =
+      config.versioning?.calver?.format ?? DEFAULT_CALVER_CONFIG.format;
+
+    return calculateCalVer(git, {
+      offset: calverOffset,
+      format: calverFormat,
+    });
+  }
+
+  // Handle automatic version detection or version bump types
+  if (version === 'auto' || isBumpType(version)) {
+    if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
+      const featureName = isBumpType(version)
+        ? 'Version bump types'
+        : 'Auto-versioning';
+      throw new ConfigurationError(
+        `${featureName} requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
+          'Please update your configuration or specify the version explicitly.'
+      );
+    }
+
+    const latestTag = await getLatestTag(git);
+
+    // Determine bump type - either from arg or from commit analysis
+    let bumpType: BumpType;
+    if (version === 'auto') {
+      const changelogResult = await getChangelogWithBumpType(git, latestTag);
+      validateBumpType(changelogResult);
+      bumpType = changelogResult.bumpType;
+    } else {
+      bumpType = version as BumpType;
+    }
+
+    // Calculate new version from latest tag
+    const currentVersion =
+      latestTag && latestTag.replace(/^v/, '').match(/^\d/)
+        ? latestTag.replace(/^v/, '')
+        : '0.0.0';
+
+    const newVersion = calculateNextVersion(currentVersion, bumpType);
+    logger.info(
+      `Version bump: ${currentVersion} -> ${newVersion} (${bumpType} bump)`
+    );
+    return newVersion;
+  }
+
+  // Explicit semver version - return as-is
+  return version;
+}
+
 /**
  * Body of 'prepare' command
  *
@@ -547,7 +659,6 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   // Get repo configuration
   const config = getConfiguration();
   const githubConfig = await getGlobalGitHubConfig();
-  let newVersion = argv.newVersion;
 
   const defaultBranch = await getDefaultBranch(git, argv.remote);
   logger.debug(`Default branch for the repo:`, defaultBranch);
@@ -561,86 +672,11 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     checkGitStatus(repoStatus, rev);
   }
 
-  // If no version specified, use the versioning policy from config
-  if (!newVersion) {
-    const policy = getVersioningPolicy();
-    logger.debug(`No version specified, using versioning policy: ${policy}`);
-
-    if (policy === VersioningPolicy.Manual) {
-      throw new ConfigurationError(
-        'Version is required. Either specify a version argument or set ' +
-          'versioning.policy to "auto" or "calver" in .craft.yml'
-      );
-    }
-
-    // Use the policy as the version type
-    newVersion = policy;
-  }
-
-  // Handle CalVer versioning
-  if (newVersion === 'calver') {
-    if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
-      throw new ConfigurationError(
-        `CalVer versioning requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
-          'Please update your configuration or specify the version explicitly.'
-      );
-    }
-
-    // Build CalVer config with overrides
-    const calverOffset =
-      argv.calverOffset ??
-      (process.env.CRAFT_CALVER_OFFSET
-        ? parseInt(process.env.CRAFT_CALVER_OFFSET, 10)
-        : undefined) ??
-      config.versioning?.calver?.offset ??
-      DEFAULT_CALVER_CONFIG.offset;
-
-    const calverFormat =
-      config.versioning?.calver?.format ?? DEFAULT_CALVER_CONFIG.format;
-
-    newVersion = await calculateCalVer(git, {
-      offset: calverOffset,
-      format: calverFormat,
-    });
-  }
-
-  // Handle automatic version detection or version bump types
-  const isVersionBumpType = isBumpType(newVersion);
-
-  if (newVersion === 'auto' || isVersionBumpType) {
-    if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
-      const featureName = isVersionBumpType
-        ? 'Version bump types'
-        : 'Auto-versioning';
-      throw new ConfigurationError(
-        `${featureName} requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
-          'Please update your configuration or specify the version explicitly.'
-      );
-    }
-
-    const latestTag = await getLatestTag(git);
-
-    // Determine bump type - either from arg or from commit analysis
-    // Note: generateChangesetFromGit is memoized, so calling getChangelogWithBumpType
-    // here and later in prepareChangelog won't result in duplicate GitHub API calls
-    let bumpType: BumpType;
-    if (newVersion === 'auto') {
-      const changelogResult = await getChangelogWithBumpType(git, latestTag);
-      validateBumpType(changelogResult); // Throws if no valid bump type
-      bumpType = changelogResult.bumpType;
-    } else {
-      bumpType = newVersion as BumpType;
-    }
-
-    // Calculate new version from latest tag
-    const currentVersion =
-      latestTag && latestTag.replace(/^v/, '').match(/^\d/)
-        ? latestTag.replace(/^v/, '')
-        : '0.0.0';
-
-    newVersion = calculateNextVersion(currentVersion, bumpType);
-    logger.info(`Version bump: ${currentVersion} -> ${newVersion} (${bumpType} bump)`);
-  }
+  // Resolve version from input, policy, or automatic detection
+  const newVersion = await resolveVersion(git, {
+    versionArg: argv.newVersion,
+    calverOffset: argv.calverOffset,
+  });
 
   // Emit resolved version for GitHub Actions
   setGitHubActionsOutput('version', newVersion);
