@@ -1,5 +1,6 @@
 minVersion: '2.14.0'
-changelog: auto
+changelog:
+  policy: auto
 preReleaseCommand: >-
   node -p "
     const {execSync} = require('child_process');
