@@ -1660,6 +1660,65 @@ describe('generateChangesetFromGit', () => {
       expect(changes).toContain('feat(my-api)!: breaking api change');
       expect(changes).toContain('fix!: breaking fix');
     });
+
+    it('should trim leading and trailing whitespace from PR titles before pattern matching', async () => {
+      const releaseConfigYaml = `changelog:
+  categories:
+    - title: Features
+      commit_patterns:
+        - "^feat:"
+    - title: Bug Fixes
+      commit_patterns:
+        - "^fix:"`;
+
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: ' feat: feature with leading space',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+                title: ' feat: feature with leading space', // PR title from GitHub has leading space
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'fix: bug fix with trailing space ',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+                title: 'fix: bug fix with trailing space ', // PR title from GitHub has trailing space
+              },
+            },
+          },
+        ],
+        releaseConfigYaml
+      );
+
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
+
+      // Both should be properly categorized despite whitespace
+      expect(changes).toContain('### Features');
+      expect(changes).toContain('### Bug Fixes');
+      // Titles should be trimmed in output (no leading/trailing spaces)
+      expect(changes).toContain(
+        'feat: feature with leading space by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)'
+      );
+      expect(changes).toContain(
+        'fix: bug fix with trailing space by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)'
+      );
+      // Should NOT go to Other section
+      expect(changes).not.toContain('### Other');
+    });
   });
 
   describe('section ordering', () => {
@@ -2119,6 +2178,68 @@ describe('generateChangesetFromGit', () => {
       // But both PRs should still appear in the output
       expect(changes).toContain('feat(api): single api feature');
       expect(changes).toContain('feat: feature without scope');
+    });
+
+    it('should not add extra newlines between entries without scope headers', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat(docker): add docker feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat: add feature without scope 1',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'feat: add feature without scope 2',
+            body: '',
+            pr: {
+              remote: {
+                number: '3',
+                author: { login: 'charlie' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        null
+      );
+
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
+
+      // All three should appear without extra blank lines between them
+      // (no scope headers since docker only has 1 entry and scopeless don't trigger headers)
+      expect(changes).not.toContain('#### Docker');
+      expect(changes).not.toContain('#### Other');
+
+      // Verify no double newlines between entries (which would indicate separate sections)
+      const featuresSection = getSectionContent(changes, /### New Features[^\n]*\n/);
+      expect(featuresSection).not.toBeNull();
+      // There should be no blank lines between the three entries
+      expect(featuresSection).not.toMatch(/\n\n-/);
+      // All entries should be present
+      expect(featuresSection).toContain('feat(docker): add docker feature');
+      expect(featuresSection).toContain('feat: add feature without scope 1');
+      expect(featuresSection).toContain('feat: add feature without scope 2');
     });
 
     it('should skip scope header for scopes with only one entry', async () => {
