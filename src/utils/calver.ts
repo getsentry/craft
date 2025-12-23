@@ -1,5 +1,6 @@
 import type { SimpleGit } from 'simple-git';
 
+import { getGitTagPrefix } from '../config';
 import { logger } from '../logger';
 
 /**
@@ -73,14 +74,19 @@ export async function calculateCalVer(
   logger.debug(`CalVer: using date ${date.toISOString()}, date part: ${datePart}`);
 
   // Find existing tags and determine next patch version
+  // Account for git tag prefix (e.g., 'v') when searching
+  const gitTagPrefix = getGitTagPrefix();
+  const searchPrefix = `${gitTagPrefix}${datePart}.`;
+
+  logger.debug(`CalVer: searching for tags with prefix: ${searchPrefix}`);
+
   const tags = await git.tags();
   let patch = 0;
 
   // Find the highest patch version for this date part
-  const tagPrefix = `${datePart}.`;
   for (const tag of tags.all) {
-    if (tag.startsWith(tagPrefix)) {
-      const patchStr = tag.slice(tagPrefix.length);
+    if (tag.startsWith(searchPrefix)) {
+      const patchStr = tag.slice(searchPrefix.length);
       const patchNum = parseInt(patchStr, 10);
       if (!isNaN(patchNum) && patchNum >= patch) {
         patch = patchNum + 1;
