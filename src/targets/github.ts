@@ -18,6 +18,7 @@ import { isDryRun } from '../utils/helpers';
 import {
   isPreviewRelease,
   parseVersion,
+  SemVer,
   versionGreaterOrEqualThan,
   versionToTag,
 } from '../utils/version';
@@ -42,6 +43,12 @@ export interface GitHubTargetConfig extends GitHubGlobalConfig {
   previewReleases: boolean;
   /** Do not create a full GitHub release, only push a git tag */
   tagOnly: boolean;
+  /**
+   * Floating tags to create/update when publishing a release.
+   * Supports placeholders: {major}, {minor}, {patch}
+   * Example: "v{major}" creates a "v2" tag for version "2.15.0"
+   */
+  floatingTags: string[];
 }
 
 /**
@@ -96,6 +103,7 @@ export class GitHubTarget extends BaseTarget {
         !!this.config.previewReleases,
       tagPrefix: this.config.tagPrefix || '',
       tagOnly: !!this.config.tagOnly,
+      floatingTags: this.config.floatingTags || [],
     };
     this.github = getGitHubClient();
   }
@@ -377,6 +385,86 @@ export class GitHubTarget extends BaseTarget {
   }
 
   /**
+   * Resolves a floating tag pattern by replacing placeholders with version components.
+   *
+   * @param pattern The pattern string (e.g., "v{major}")
+   * @param parsedVersion The parsed semantic version
+   * @returns The resolved tag name (e.g., "v2")
+   */
+  protected resolveFloatingTag(pattern: string, parsedVersion: SemVer): string {
+    return pattern
+      .replace('{major}', String(parsedVersion.major))
+      .replace('{minor}', String(parsedVersion.minor))
+      .replace('{patch}', String(parsedVersion.patch));
+  }
+
+  /**
+   * Creates or updates floating tags for the release.
+   *
+   * Floating tags (like "v2") point to the latest release in a major version line.
+   * They are force-updated if they already exist.
+   *
+   * @param version The version being released
+   * @param revision Git commit SHA to point the tags to
+   */
+  protected async updateFloatingTags(
+    version: string,
+    revision: string
+  ): Promise<void> {
+    const floatingTags = this.githubConfig.floatingTags;
+    if (!floatingTags || floatingTags.length === 0) {
+      return;
+    }
+
+    const parsedVersion = parseVersion(version);
+    if (!parsedVersion) {
+      this.logger.warn(
+        `Cannot parse version "${version}" for floating tags, skipping`
+      );
+      return;
+    }
+
+    for (const pattern of floatingTags) {
+      const tag = this.resolveFloatingTag(pattern, parsedVersion);
+      const tagRef = `refs/tags/${tag}`;
+
+      if (isDryRun()) {
+        this.logger.info(
+          `[dry-run] Not updating floating tag: "${tag}" (from pattern "${pattern}")`
+        );
+        continue;
+      }
+
+      this.logger.info(`Updating floating tag: "${tag}"...`);
+
+      try {
+        // Try to update existing tag
+        await this.github.rest.git.updateRef({
+          owner: this.githubConfig.owner,
+          repo: this.githubConfig.repo,
+          ref: `tags/${tag}`,
+          sha: revision,
+          force: true,
+        });
+        this.logger.debug(`Updated existing floating tag: "${tag}"`);
+      } catch (error) {
+        // Tag doesn't exist, create it
+        if (error.status === 422) {
+          await this.github.rest.git.createRef({
+            owner: this.githubConfig.owner,
+            repo: this.githubConfig.repo,
+            ref: tagRef,
+            sha: revision,
+          });
+          this.logger.debug(`Created new floating tag: "${tag}"`);
+        } else {
+          throw error;
+        }
+      }
+    }
+  }
+
+  /**
    * Creates a new GitHub release and publish all available artifacts.
    *
    * It also creates a tag if it doesn't exist
@@ -389,7 +477,9 @@ export class GitHubTarget extends BaseTarget {
       this.logger.info(
         `Not creating a GitHub release because "tagOnly" flag was set.`
       );
-      return this.createGitTag(version, revision);
+      await this.createGitTag(version, revision);
+      await this.updateFloatingTags(version, revision);
+      return;
     }
 
     const config = getConfiguration();
@@ -449,6 +539,9 @@ export class GitHubTarget extends BaseTarget {
     );
 
     await this.publishRelease(draftRelease, { makeLatest });
+
+    // Update floating tags (e.g., v2 for version 2.15.0)
+    await this.updateFloatingTags(version, revision);
   }
 }
 

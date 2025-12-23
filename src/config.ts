@@ -163,6 +163,21 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
 }
 
 /**
+ * Loads and caches configuration from a YAML string.
+ *
+ * This is used by --config-from to load config from a remote branch.
+ *
+ * @param configContent The raw YAML configuration content
+ */
+export function loadConfigurationFromString(configContent: string): CraftProjectConfig {
+  logger.debug('Loading configuration from provided content...');
+  const rawConfig = load(configContent) as Record<string, any>;
+  _configCache = validateConfiguration(rawConfig);
+  checkMinimalConfigVersion(_configCache);
+  return _configCache;
+}
+
+/**
  * Checks that the current "craft" version is compatible with the configuration
  *
  * "minVersion" configuration parameter specifies the minimal version of "craft"

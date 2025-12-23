@@ -9,6 +9,8 @@ import {
   DEFAULT_RELEASE_BRANCH_NAME,
   getGlobalGitHubConfig,
   requiresMinVersion,
+  loadConfigurationFromString,
+  CONFIG_FILE_NAME,
 } from '../config';
 import { logger } from '../logger';
 import { ChangelogPolicy } from '../schemas/project_config';
@@ -95,6 +97,10 @@ export const builder: CommandBuilder = (yargs: Argv) =>
       description: 'The git remote to use when pushing',
       type: 'string',
     })
+    .option('config-from', {
+      description: 'Load .craft.yml from the specified remote branch instead of local file',
+      type: 'string',
+    })
     .check(checkVersionOrPart);
 
 /** Command line options. */
@@ -113,6 +119,8 @@ interface PrepareOptions {
   noPush: boolean;
   /** Run publish right after */
   publish: boolean;
+  /** Load config from specified remote branch */
+  configFrom?: string;
 }
 
 /**
@@ -496,12 +504,28 @@ async function switchToDefaultBranch(
  * @param argv Command-line arguments
  */
 export async function prepareMain(argv: PrepareOptions): Promise<any> {
+  const git = await getGitClient();
+
+  // Handle --config-from: load config from remote branch
+  if (argv.configFrom) {
+    logger.info(`Loading configuration from remote branch: ${argv.configFrom}`);
+    await git.fetch([argv.remote, argv.configFrom]);
+    try {
+      const configContent = await git.show([
+        `${argv.remote}/${argv.configFrom}:${CONFIG_FILE_NAME}`,
+      ]);
+      loadConfigurationFromString(configContent);
+    } catch (error) {
+      throw new ConfigurationError(
+        `Failed to load ${CONFIG_FILE_NAME} from branch "${argv.configFrom}": ${error.message}`
+      );
+    }
+  }
+
   // Get repo configuration
   const config = getConfiguration();
   const githubConfig = await getGlobalGitHubConfig();
   let newVersion = argv.newVersion;
-
-  const git = await getGitClient();
 
   const defaultBranch = await getDefaultBranch(git, argv.remote);
   logger.debug(`Default branch for the repo:`, defaultBranch);
@@ -616,6 +640,12 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
   // Push the release branch
   await pushReleaseBranch(git, branchName, argv.remote, !argv.noPush);
+
+  // Emit GitHub Actions outputs for downstream steps
+  const releaseSha = await git.revparse(['HEAD']);
+  setGitHubActionsOutput('branch', branchName);
+  setGitHubActionsOutput('sha', releaseSha);
+  setGitHubActionsOutput('previous_tag', oldVersion || '');
 
   logger.info(
     `View diff at: https://github.com/${githubConfig.owner}/${githubConfig.repo}/compare/${branchName}`

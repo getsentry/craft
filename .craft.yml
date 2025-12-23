@@ -42,4 +42,6 @@ targets:
     target: getsentry/craft
     targetFormat: '{{{target}}}:latest'
   - name: github
+    floatingTags:
+      - 'v{major}'
   - name: gh-pages
