@@ -349,7 +349,7 @@ export const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
       },
       {
         title: 'Build / dependencies / internal 🔧',
-        commit_patterns: ['^(?:build|refactor|meta|chore|ci)\\b'],
+        commit_patterns: ['^(?:build|refactor|meta|chore|ci|ref|perf)\\b'],
         semver: 'patch',
       },
     ],
