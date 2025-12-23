@@ -938,20 +938,21 @@ async function generateChangesetFromGitImpl(
         })
       );
 
-      // Add scope header if:
-      // - scope grouping is enabled AND
-      // - scope exists (not null) AND
-      // - there's more than one entry in this scope (single entry headers aren't useful)
-      // OR
-      // - scope is null (scopeless) AND there are other scope headers (to visually separate)
-      if (scopeGroupingEnabled && scope !== null && prs.length > 1) {
-        changelogSections.push(
-          markdownHeader(SCOPE_HEADER_LEVEL, formatScopeTitle(scope))
-        );
-        changelogSections.push(prEntries.join('\n'));
-      } else if (scopeGroupingEnabled && scope === null && hasScopeHeaders) {
-        // Add "Other" header for scopeless commits when there are other scope headers
-        changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, 'Other'));
+      // Determine scope header:
+      // - Scoped entries with multiple PRs get formatted scope title
+      // - Scopeless entries get "Other" header when other scope headers exist
+      // - Otherwise no header (entries collected for later)
+      let scopeHeader: string | null = null;
+      if (scopeGroupingEnabled) {
+        if (scope !== null && prs.length > 1) {
+          scopeHeader = formatScopeTitle(scope);
+        } else if (scope === null && hasScopeHeaders) {
+          scopeHeader = 'Other';
+        }
+      }
+
+      if (scopeHeader) {
+        changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, scopeHeader));
         changelogSections.push(prEntries.join('\n'));
       } else {
         // No header for this scope group - collect entries to combine later
