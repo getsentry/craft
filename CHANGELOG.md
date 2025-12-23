@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.14.0
+
+### New Features ✨
+
+- feat(docker): Add support for multiple registries by @BYK in [#657](https://github.com/getsentry/craft/pull/657)
+
+- feat: Add automatic version bumping based on conventional commits by @BYK in [#656](https://github.com/getsentry/craft/pull/656)
+- feat: Add `skip-changelog` label by default by @BYK in [#655](https://github.com/getsentry/craft/pull/655)
+
+### Bug Fixes 🐛
+
+- fix(changelog): Unscoped entries should be grouped under "other"  by @BYK in [#659](https://github.com/getsentry/craft/pull/659)
+
+### Build / dependencies / internal 🔧
+
+- ci: Update action-prepare-release to v1.6.5 by @BYK in [#654](https://github.com/getsentry/craft/pull/654)
+
+### Other
+
+-  fix(docker): Support regional Artifact Registry endpoints in isGoogleCloudRegistry by @BYK in [#661](https://github.com/getsentry/craft/pull/661)
+
 ## 2.13.1
 
 ### Build / dependencies / internal 🔧
