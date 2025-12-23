@@ -643,13 +643,13 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   // Handle --config-from: load config from remote branch
   if (argv.configFrom) {
     logger.info(`Loading configuration from remote branch: ${argv.configFrom}`);
-    await git.fetch([argv.remote, argv.configFrom]);
     try {
+      await git.fetch([argv.remote, argv.configFrom]);
       const configContent = await git.show([
         `${argv.remote}/${argv.configFrom}:${CONFIG_FILE_NAME}`,
       ]);
       loadConfigurationFromString(configContent);
-    } catch (error) {
+    } catch (error: any) {
       throw new ConfigurationError(
         `Failed to load ${CONFIG_FILE_NAME} from branch "${argv.configFrom}": ${error.message}`
       );
