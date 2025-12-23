@@ -1,3 +1,5 @@
+import { appendFileSync } from 'fs';
+
 import prompts from 'prompts';
 import { logger, LogLevel, setLevel } from '../logger';
 
@@ -58,4 +60,15 @@ export async function promptConfirmation(): Promise<void> {
 
 export function hasInput(): boolean {
   return !GLOBAL_FLAGS['no-input'];
+}
+
+/**
+ * Sets a GitHub Actions output variable.
+ * No-op when not running in GitHub Actions.
+ */
+export function setGitHubActionsOutput(name: string, value: string): void {
+  const outputFile = process.env.GITHUB_OUTPUT;
+  if (outputFile) {
+    appendFileSync(outputFile, `${name}=${value}\n`);
+  }
 }
