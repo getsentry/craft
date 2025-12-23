@@ -11,9 +11,11 @@ import {
   requiresMinVersion,
   loadConfigurationFromString,
   CONFIG_FILE_NAME,
+  getVersioningPolicy,
 } from '../config';
 import { logger } from '../logger';
-import { ChangelogPolicy } from '../schemas/project_config';
+import { ChangelogPolicy, VersioningPolicy } from '../schemas/project_config';
+import { calculateCalVer, DEFAULT_CALVER_CONFIG } from '../utils/calver';
 import { sleep } from '../utils/async';
 import {
   DEFAULT_CHANGELOG_PATH,
@@ -62,8 +64,9 @@ export const builder: CommandBuilder = (yargs: Argv) =>
     .positional('NEW-VERSION', {
       description:
         'The new version to release. Can be: a semver string (e.g., "1.2.3"), ' +
-        'a bump type ("major", "minor", or "patch"), or "auto" to determine automatically ' +
-        'from conventional commits. Bump types and "auto" require minVersion >= 2.14.0 in .craft.yml',
+        'a bump type ("major", "minor", or "patch"), "auto" to determine automatically ' +
+        'from conventional commits, or "calver" for calendar versioning. ' +
+        'If omitted, uses the versioning.policy from .craft.yml',
       type: 'string',
     })
     .option('rev', {
@@ -101,12 +104,16 @@ export const builder: CommandBuilder = (yargs: Argv) =>
       description: 'Load .craft.yml from the specified remote branch instead of local file',
       type: 'string',
     })
+    .option('calver-offset', {
+      description: 'Days to go back for CalVer date calculation (overrides config)',
+      type: 'number',
+    })
     .check(checkVersionOrPart);
 
 /** Command line options. */
 interface PrepareOptions {
-  /** The new version to release */
-  newVersion: string;
+  /** The new version to release (optional if versioning.policy is configured) */
+  newVersion?: string;
   /** The base revision to release */
   rev: string;
   /** The git remote to use when pushing */
@@ -121,6 +128,8 @@ interface PrepareOptions {
   publish: boolean;
   /** Load config from specified remote branch */
   configFrom?: string;
+  /** Override CalVer offset (days to go back) */
+  calverOffset?: number;
 }
 
 /**
@@ -133,8 +142,9 @@ const SLEEP_BEFORE_PUBLISH_SECONDS = 30;
  * Checks the provided version argument for validity
  *
  * We check that the argument is either a valid version string, 'auto' for
- * automatic version detection, a version bump type (major/minor/patch), or
- * a valid semantic version.
+ * automatic version detection, 'calver' for calendar versioning, a version
+ * bump type (major/minor/patch), or a valid semantic version.
+ * Empty/undefined is also allowed (will use versioning.policy from config).
  *
  * @param argv Parsed yargs arguments
  * @param _opt A list of options and aliases
@@ -142,8 +152,18 @@ const SLEEP_BEFORE_PUBLISH_SECONDS = 30;
 export function checkVersionOrPart(argv: Arguments<any>, _opt: any): boolean {
   const version = argv.newVersion;
 
+  // Allow empty version (will use versioning.policy from config)
+  if (!version) {
+    return true;
+  }
+
   // Allow 'auto' for automatic version detection
   if (version === 'auto') {
+    return true;
+  }
+
+  // Allow 'calver' for calendar versioning
+  if (version === 'calver') {
     return true;
   }
 
@@ -385,6 +405,7 @@ async function execPublish(remote: string, newVersion: string): Promise<never> {
  * @param newVersion The new version we are releasing
  * @param changelogPolicy One of the changelog policies, such as "none", "simple", etc.
  * @param changelogPath Path to the changelog file
+ * @returns The changelog body for this version, or undefined if no changelog
  */
 async function prepareChangelog(
   git: SimpleGit,
@@ -392,12 +413,12 @@ async function prepareChangelog(
   newVersion: string,
   changelogPolicy: ChangelogPolicy = ChangelogPolicy.None,
   changelogPath: string = DEFAULT_CHANGELOG_PATH
-): Promise<void> {
+): Promise<string | undefined> {
   if (changelogPolicy === ChangelogPolicy.None) {
     logger.debug(
       `Changelog policy is set to "${changelogPolicy}", nothing to do.`
     );
-    return;
+    return undefined;
   }
 
   if (
@@ -474,6 +495,7 @@ async function prepareChangelog(
 
   logger.debug('Changelog entry found:', changeset.name);
   logger.trace(changeset.body);
+  return changeset?.body;
 }
 
 /**
@@ -537,6 +559,49 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   } else {
     // Check that we're in an acceptable state for the release
     checkGitStatus(repoStatus, rev);
+  }
+
+  // If no version specified, use the versioning policy from config
+  if (!newVersion) {
+    const policy = getVersioningPolicy();
+    logger.debug(`No version specified, using versioning policy: ${policy}`);
+
+    if (policy === VersioningPolicy.Manual) {
+      throw new ConfigurationError(
+        'Version is required. Either specify a version argument or set ' +
+          'versioning.policy to "auto" or "calver" in .craft.yml'
+      );
+    }
+
+    // Use the policy as the version type
+    newVersion = policy;
+  }
+
+  // Handle CalVer versioning
+  if (newVersion === 'calver') {
+    if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
+      throw new ConfigurationError(
+        `CalVer versioning requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
+          'Please update your configuration or specify the version explicitly.'
+      );
+    }
+
+    // Build CalVer config with overrides
+    const calverOffset =
+      argv.calverOffset ??
+      (process.env.CRAFT_CALVER_OFFSET
+        ? parseInt(process.env.CRAFT_CALVER_OFFSET, 10)
+        : undefined) ??
+      config.versioning?.calver?.offset ??
+      DEFAULT_CALVER_CONFIG.offset;
+
+    const calverFormat =
+      config.versioning?.calver?.format ?? DEFAULT_CALVER_CONFIG.format;
+
+    newVersion = await calculateCalVer(git, {
+      offset: calverOffset,
+      format: calverFormat,
+    });
   }
 
   // Handle automatic version detection or version bump types
@@ -616,7 +681,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       ? config.changelog.policy
       : config.changelogPolicy
   ) as ChangelogPolicy | undefined;
-  await prepareChangelog(
+  const changelogBody = await prepareChangelog(
     git,
     oldVersion,
     newVersion,
@@ -646,6 +711,9 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   setGitHubActionsOutput('branch', branchName);
   setGitHubActionsOutput('sha', releaseSha);
   setGitHubActionsOutput('previous_tag', oldVersion || '');
+  if (changelogBody) {
+    setGitHubActionsOutput('changelog', changelogBody);
+  }
 
   logger.info(
     `View diff at: https://github.com/${githubConfig.owner}/${githubConfig.repo}/compare/${branchName}`

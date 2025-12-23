@@ -64,11 +64,23 @@ export function hasInput(): boolean {
 
 /**
  * Sets a GitHub Actions output variable.
+ * Automatically uses heredoc-style delimiter syntax for multiline values.
  * No-op when not running in GitHub Actions.
  */
 export function setGitHubActionsOutput(name: string, value: string): void {
   const outputFile = process.env.GITHUB_OUTPUT;
-  if (outputFile) {
+  if (!outputFile) {
+    return;
+  }
+
+  if (value.includes('\n')) {
+    // Use heredoc-style delimiter for multiline values
+    const delimiter = `EOF_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    appendFileSync(
+      outputFile,
+      `${name}<<${delimiter}\n${value}\n${delimiter}\n`
+    );
+  } else {
     appendFileSync(outputFile, `${name}=${value}\n`);
   }
 }
