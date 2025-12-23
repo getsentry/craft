@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.14.1
+
+### Bug Fixes 🐛
+
+#### Changelog
+
+- fix(changelog): Fix whitespace related issues by @BYK in [#664](https://github.com/getsentry/craft/pull/664)
+- fix(changelog): Add ref and perf to internal changes prefixes by @BYK in [#662](https://github.com/getsentry/craft/pull/662)
+
+### Build / dependencies / internal 🔧
+
+- ci(deps): Upgrade action-prepare-release to latest by @BYK in [#663](https://github.com/getsentry/craft/pull/663)
+
+- ci(release): Add support for auto versioning by @BYK in [#665](https://github.com/getsentry/craft/pull/665)
+
 ## 2.14.0
 
 ### New Features ✨
