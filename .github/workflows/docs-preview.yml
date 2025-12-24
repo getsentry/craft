@@ -1,0 +1,39 @@
+name: Docs Preview
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - '.github/workflows/docs-preview.yml'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build Docs for Preview
+        working-directory: docs
+        env:
+          # Override base path for PR preview
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          npm install
+          # Build with PR-specific base path
+          npx astro build --base "/craft/pr-preview/pr-$PR_NUMBER/"
+
+      - name: Deploy Preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: docs/dist/
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
+          action: auto
