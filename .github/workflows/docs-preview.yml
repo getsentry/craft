@@ -29,19 +29,8 @@ jobs:
           npm install
           npm run build
 
-      - name: Ensure .nojekyll exists at gh-pages root
-        run: |
-          git fetch origin gh-pages:gh-pages || true
-          git checkout gh-pages
-          if [ ! -f .nojekyll ]; then
-            touch .nojekyll
-            git add .nojekyll
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git commit -m "Add .nojekyll to enable serving _astro folder"
-            git push origin gh-pages
-          fi
-          git checkout -
+      - name: Copy .nojekyll to build output
+        run: cp .nojekyll docs/dist/
 
       - name: Deploy Preview
         uses: rossjrw/pr-preview-action@v1

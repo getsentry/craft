@@ -67,7 +67,9 @@ jobs:
           npm install
           npm run build
       - name: Package Docs
-        run: zip -r gh-pages.zip docs/dist/
+        run: |
+          cp .nojekyll docs/dist/
+          zip -r gh-pages.zip docs/dist/
       - name: Archive Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
