@@ -26,8 +26,8 @@ jobs:
           # Override base path for PR preview
           DOCS_BASE_PATH: /craft/pr-preview/pr-${{ github.event.pull_request.number }}
         run: |
-          npm install
-          npm run build
+          yarn install --frozen-lockfile
+          yarn build
 
       - name: Ensure .nojekyll at gh-pages root
         run: |

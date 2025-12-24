@@ -100,8 +100,8 @@
     "test": "jest",
     "test:watch": "jest --watch --notify",
     "compile-config-schema": "node ./scripts/config-json-schema-to-ts.js",
-    "docs:dev": "cd docs && npm run dev",
-    "docs:build": "cd docs && npm run build"
+    "docs:dev": "cd docs && yarn dev",
+    "docs:build": "cd docs && yarn build"
   },
   "volta": {
     "node": "22.12.0",
