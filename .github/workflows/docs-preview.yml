@@ -29,8 +29,22 @@ jobs:
           npm install
           npm run build
 
-      - name: Copy .nojekyll to build output
-        run: cp .nojekyll docs/dist/
+      - name: Ensure .nojekyll at gh-pages root
+        run: |
+          git fetch origin gh-pages:gh-pages 2>/dev/null || true
+          if git show gh-pages:.nojekyll &>/dev/null; then
+            echo ".nojekyll already exists at gh-pages root"
+          else
+            echo "Adding .nojekyll to gh-pages root"
+            git checkout gh-pages
+            touch .nojekyll
+            git add .nojekyll
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -m "Add .nojekyll to disable Jekyll processing"
+            git push origin gh-pages
+            git checkout -
+          fi
 
       - name: Deploy Preview
         uses: rossjrw/pr-preview-action@v1
