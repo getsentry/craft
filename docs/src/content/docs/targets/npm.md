@@ -29,8 +29,55 @@ targets:
     access: public
 ```
 
+## Workspaces Support
+
+Craft supports automatic discovery and publishing of NPM/Yarn workspace packages. When enabled, the npm target automatically expands into multiple targets—one per workspace package—published in dependency order.
+
+### Workspace Configuration
+
+| Option | Description |
+|--------|-------------|
+| `workspaces` | Enable workspace discovery. Default: `false` |
+| `includeWorkspaces` | Regex pattern to filter which packages to include (e.g., `/^@sentry\//`) |
+| `excludeWorkspaces` | Regex pattern to filter which packages to exclude (e.g., `/^@sentry-internal\//`) |
+| `artifactTemplate` | Template for artifact filenames. Variables: `{{name}}`, `{{simpleName}}`, `{{version}}` |
+
+### Workspace Example
+
+```yaml
+targets:
+  - name: npm
+    access: public
+    workspaces: true
+    includeWorkspaces: /^@sentry\//
+    excludeWorkspaces: /^@sentry-internal\//
+```
+
+### Workspace Features
+
+- **Auto-discovery**: Detects packages from `package.json` workspaces field (npm/yarn workspaces)
+- **Dependency ordering**: Publishes packages in topological order (dependencies before dependents)
+- **Private package filtering**: Automatically excludes packages marked as `private: true`
+- **Validation**: Errors if public packages depend on private workspace packages
+- **Scoped package warnings**: Warns if scoped packages don't have `publishConfig.access: 'public'`
+
+### Artifact Naming
+
+By default, Craft expects artifacts named like:
+- `@sentry/browser` → `sentry-browser-{version}.tgz`
+
+Use `artifactTemplate` for custom naming:
+
+```yaml
+targets:
+  - name: npm
+    workspaces: true
+    artifactTemplate: "{{simpleName}}-{{version}}.tgz"
+```
+
 ## Notes
 
 - The `npm` utility must be installed on the system
 - If `npm` is not found, Craft falls back to `yarn publish`
 - For scoped packages (`@org/package`), set `access: public` to publish publicly
+- Pre-release versions are automatically tagged as `next` instead of `latest`
