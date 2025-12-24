@@ -187,7 +187,7 @@ targets:
     onlyIfPresent: /^sentry-browser-.*\.tgz$/
 ```
 
-See [Target Configurations](/craft/targets/) for details on each target.
+See [Target Configurations](./targets/) for details on each target.
 
 ### Per-target Options
 

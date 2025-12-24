@@ -9,26 +9,26 @@ Targets define where Craft publishes your release artifacts. Configure them in `
 
 | Target | Description |
 |--------|-------------|
-| [GitHub](/craft/targets/github/) | Create GitHub releases and tags |
-| [NPM](/craft/targets/npm/) | Publish to NPM registry |
-| [PyPI](/craft/targets/pypi/) | Publish to Python Package Index |
-| [Crates](/craft/targets/crates/) | Publish Rust crates |
-| [NuGet](/craft/targets/nuget/) | Publish .NET packages |
-| [Docker](/craft/targets/docker/) | Tag and push Docker images |
-| [Homebrew](/craft/targets/brew/) | Update Homebrew formulas |
-| [GCS](/craft/targets/gcs/) | Upload to Google Cloud Storage |
-| [GitHub Pages](/craft/targets/gh-pages/) | Deploy static sites |
-| [CocoaPods](/craft/targets/cocoapods/) | Publish iOS/macOS pods |
-| [Ruby Gems](/craft/targets/gem/) | Publish Ruby gems |
-| [Maven](/craft/targets/maven/) | Publish to Maven Central |
-| [Hex](/craft/targets/hex/) | Publish Elixir packages |
-| [pub.dev](/craft/targets/pub-dev/) | Publish Dart/Flutter packages |
-| [AWS Lambda Layer](/craft/targets/aws-lambda-layer/) | Publish Lambda layers |
-| [Registry](/craft/targets/registry/) | Update Sentry release registry |
-| [UPM](/craft/targets/upm/) | Publish Unity packages |
-| [Symbol Collector](/craft/targets/symbol-collector/) | Upload native symbols |
-| [PowerShell](/craft/targets/powershell/) | Publish PowerShell modules |
-| [Commit on Git Repository](/craft/targets/commit-on-git-repository/) | Push to a git repository |
+| [GitHub](./github/) | Create GitHub releases and tags |
+| [NPM](./npm/) | Publish to NPM registry |
+| [PyPI](./pypi/) | Publish to Python Package Index |
+| [Crates](./crates/) | Publish Rust crates |
+| [NuGet](./nuget/) | Publish .NET packages |
+| [Docker](./docker/) | Tag and push Docker images |
+| [Homebrew](./brew/) | Update Homebrew formulas |
+| [GCS](./gcs/) | Upload to Google Cloud Storage |
+| [GitHub Pages](./gh-pages/) | Deploy static sites |
+| [CocoaPods](./cocoapods/) | Publish iOS/macOS pods |
+| [Ruby Gems](./gem/) | Publish Ruby gems |
+| [Maven](./maven/) | Publish to Maven Central |
+| [Hex](./hex/) | Publish Elixir packages |
+| [pub.dev](./pub-dev/) | Publish Dart/Flutter packages |
+| [AWS Lambda Layer](./aws-lambda-layer/) | Publish Lambda layers |
+| [Registry](./registry/) | Update Sentry release registry |
+| [UPM](./upm/) | Publish Unity packages |
+| [Symbol Collector](./symbol-collector/) | Upload native symbols |
+| [PowerShell](./powershell/) | Publish PowerShell modules |
+| [Commit on Git Repository](./commit-on-git-repository/) | Push to a git repository |
 
 ## Basic Configuration
 
