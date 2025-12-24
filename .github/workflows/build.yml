@@ -5,6 +5,7 @@ on:
       - master
       - release/**
   pull_request:
+  workflow_call:
 
 concurrency:
   group: ${{ github.ref_name || github.sha }}

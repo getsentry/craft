@@ -14,6 +14,7 @@ import {
   StatusProviderName,
   TargetConfig,
   ChangelogPolicy,
+  VersioningPolicy,
 } from './schemas/project_config';
 import { ConfigurationError } from './utils/errors';
 import {
@@ -163,6 +164,21 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
 }
 
 /**
+ * Loads and caches configuration from a YAML string.
+ *
+ * This is used by --config-from to load config from a remote branch.
+ *
+ * @param configContent The raw YAML configuration content
+ */
+export function loadConfigurationFromString(configContent: string): CraftProjectConfig {
+  logger.debug('Loading configuration from provided content...');
+  const rawConfig = load(configContent) as Record<string, any>;
+  _configCache = validateConfiguration(rawConfig);
+  checkMinimalConfigVersion(_configCache);
+  return _configCache;
+}
+
+/**
  * Checks that the current "craft" version is compatible with the configuration
  *
  * "minVersion" configuration parameter specifies the minimal version of "craft"
@@ -228,6 +244,38 @@ export function requiresMinVersion(requiredVersion: string): boolean {
   }
 
   return versionGreaterOrEqualThan(configuredMinVersion, required);
+}
+
+/** Minimum craft version required for auto-versioning and CalVer */
+const AUTO_VERSION_MIN_VERSION = '2.14.0';
+
+/**
+ * Returns the effective versioning policy for the project.
+ *
+ * The policy determines how versions are resolved when no explicit version
+ * is provided to `craft prepare`:
+ * - 'auto': Analyze commits to determine the bump type
+ * - 'manual': Require an explicit version argument
+ * - 'calver': Use calendar versioning
+ *
+ * If not explicitly configured, defaults to:
+ * - 'auto' if minVersion >= 2.14.0
+ * - 'manual' otherwise (for backward compatibility)
+ *
+ * @returns The versioning policy
+ */
+export function getVersioningPolicy(): VersioningPolicy {
+  const config = getConfiguration();
+
+  // Use explicitly configured policy if available
+  if (config.versioning?.policy) {
+    return config.versioning.policy;
+  }
+
+  // Default based on minVersion
+  return requiresMinVersion(AUTO_VERSION_MIN_VERSION)
+    ? VersioningPolicy.Auto
+    : VersioningPolicy.Manual;
 }
 
 /**

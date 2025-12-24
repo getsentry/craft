@@ -106,6 +106,43 @@ const projectConfigJsonSchema = {
       additionalProperties: false,
       required: ['name'],
     },
+    versioning: {
+      title: 'VersioningConfig',
+      description: 'Version resolution configuration',
+      type: 'object',
+      properties: {
+        policy: {
+          title: 'VersioningPolicy',
+          description:
+            'Default versioning policy when no version argument is provided. ' +
+            'auto: analyze commits to determine bump type, ' +
+            'manual: require explicit version, ' +
+            'calver: use calendar versioning',
+          type: 'string',
+          enum: ['auto', 'manual', 'calver'],
+          tsEnumNames: ['Auto', 'Manual', 'CalVer'],
+        },
+        calver: {
+          title: 'CalVerConfig',
+          description: 'Calendar versioning configuration',
+          type: 'object',
+          properties: {
+            offset: {
+              type: 'number',
+              description: 'Days to go back for date calculation (default: 14)',
+            },
+            format: {
+              type: 'string',
+              description:
+                'strftime-like format for date part (default: %y.%-m). ' +
+                'Supports: %y (2-digit year), %m (zero-padded month), %-m (month without padding)',
+            },
+          },
+          additionalProperties: false,
+        },
+      },
+      additionalProperties: false,
+    },
   },
   additionalProperties: false,
 

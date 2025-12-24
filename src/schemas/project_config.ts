@@ -25,6 +25,7 @@ export interface CraftProjectConfig {
   requireNames?: string[];
   statusProvider?: BaseStatusProvider;
   artifactProvider?: BaseArtifactProvider;
+  versioning?: VersioningConfig;
 }
 /**
  * Global (non-target!) GitHub configuration for the project
@@ -62,6 +63,26 @@ export interface BaseArtifactProvider {
     [k: string]: any;
   };
 }
+/**
+ * Version resolution configuration
+ */
+export interface VersioningConfig {
+  policy?: VersioningPolicy;
+  calver?: CalVerConfig;
+}
+/**
+ * Calendar versioning configuration
+ */
+export interface CalVerConfig {
+  /**
+   * Days to go back for date calculation (default: 14)
+   */
+  offset?: number;
+  /**
+   * strftime-like format for date part (default: %y.%-m). Supports: %y (2-digit year), %m (zero-padded month), %-m (month without padding)
+   */
+  format?: string;
+}
 
 /**
  * DEPRECATED: Use changelog.policy instead. Different policies for changelog management
@@ -84,4 +105,12 @@ export const enum ArtifactProviderName {
   GCS = 'gcs',
   GitHub = 'github',
   None = 'none',
+}
+/**
+ * Default versioning policy when no version argument is provided. auto: analyze commits to determine bump type, manual: require explicit version, calver: use calendar versioning
+ */
+export const enum VersioningPolicy {
+  Auto = 'auto',
+  Manual = 'manual',
+  CalVer = 'calver',
 }
