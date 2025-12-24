@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.15.0
+
+### New Features ✨
+
+#### Github
+
+- feat(github): Integrate action-prepare-release into Craft repo by @BYK in [#667](https://github.com/getsentry/craft/pull/667)
+- feat(github): Emit resolved version to GITHUB_OUTPUTS on prepare by @BYK in [#666](https://github.com/getsentry/craft/pull/666)
+
 ## 2.14.1
 
 ### Bug Fixes 🐛
