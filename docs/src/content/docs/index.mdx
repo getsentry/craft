@@ -24,6 +24,9 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
   <Card title="Automated Releases" icon="rocket">
     Prepare and publish releases with a single command. Craft handles version bumping, changelog management, and artifact publishing.
   </Card>
+  <Card title="Auto Versioning" icon="star">
+    Automatically determine version bumps from conventional commits. Just run `craft prepare auto` and let Craft figure out the rest.
+  </Card>
   <Card title="Multiple Targets" icon="list-format">
     Publish to GitHub, NPM, PyPI, Docker, NuGet, Crates.io, and many more registries from a single configuration.
   </Card>
@@ -38,10 +41,16 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 ## Quick Example
 
 ```bash
-# Prepare a new release
+# Auto-determine version from conventional commits
+craft prepare auto
+
+# Or specify a bump type
+craft prepare minor
+
+# Or use an explicit version
 craft prepare 1.2.3
 
-# Publish the release to all configured targets
+# Then publish to all configured targets
 craft publish 1.2.3
 ```
 

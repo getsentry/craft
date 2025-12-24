@@ -134,6 +134,40 @@ changelog:
 | `changelog.policy` | Mode: `none`, `simple`, or `auto`. Default: `none` |
 | `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true` |
 
+## Versioning
+
+Configure default versioning behavior:
+
+```yaml
+versioning:
+  policy: auto  # auto, manual, or calver
+```
+
+### Versioning Policies
+
+| Policy | Description |
+|--------|-------------|
+| `auto` | Analyze commits to determine version bump (default when using `craft prepare auto`) |
+| `manual` | Require explicit version argument |
+| `calver` | Use calendar-based versioning |
+
+### Calendar Versioning (CalVer)
+
+For projects using calendar-based versions:
+
+```yaml
+versioning:
+  policy: calver
+  calver:
+    format: "%y.%-m"  # e.g., 24.12 for December 2024
+    offset: 14        # Days to look back for date calculation
+```
+
+Format supports:
+- `%y` - 2-digit year
+- `%m` - Zero-padded month
+- `%-m` - Month without padding
+
 ## Minimal Version
 
 Require a minimum Craft version:

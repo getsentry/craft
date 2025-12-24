@@ -76,7 +76,8 @@ RUN : \
   && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s --  --profile minimal -y \
   && cargo --version \
   && cargo install cargo-hack \
-  && gem install cocoapods --no-document \
+  # Pin CocoaPods version to avoid bugs like https://github.com/CocoaPods/CocoaPods/issues/12081
+  && gem install cocoapods -v 1.16.2 --no-document \
   # Install https://github.com/getsentry/symbol-collector
   && symbol_collector_url=$(curl -s https://api.github.com/repos/getsentry/symbol-collector/releases/tags/1.17.0 | \
   jq -r '.assets[].browser_download_url | select(endswith("symbolcollector-console-linux-x64.zip"))') \
