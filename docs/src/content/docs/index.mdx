@@ -1,0 +1,58 @@
+---
+title: Craft
+description: Universal Release Tool (And More)
+template: splash
+hero:
+  tagline: A command line tool that helps to automate and pipeline package releases.
+  image:
+    file: ../../assets/logo.svg
+  actions:
+    - text: Get Started
+      link: /craft/getting-started/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/getsentry/craft
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Features
+
+<CardGrid stagger>
+  <Card title="Automated Releases" icon="rocket">
+    Prepare and publish releases with a single command. Craft handles version bumping, changelog management, and artifact publishing.
+  </Card>
+  <Card title="Multiple Targets" icon="list-format">
+    Publish to GitHub, NPM, PyPI, Docker, NuGet, Crates.io, and many more registries from a single configuration.
+  </Card>
+  <Card title="Changelog Management" icon="document">
+    Automatic changelog generation using conventional commits or manual changelog policies.
+  </Card>
+  <Card title="CI/CD Integration" icon="setting">
+    Works seamlessly with GitHub Actions and other CI systems. Fetch artifacts and publish them to your targets.
+  </Card>
+</CardGrid>
+
+## Quick Example
+
+```bash
+# Prepare a new release
+craft prepare 1.2.3
+
+# Publish the release to all configured targets
+craft publish 1.2.3
+```
+
+## Why Craft?
+
+Craft enforces a specific workflow for managing release branches, changelogs, and artifact publishing. It:
+
+- Creates release branches automatically
+- Validates changelog entries
+- Runs version-bumping scripts
+- Waits for CI to complete
+- Downloads build artifacts
+- Publishes to configured targets
+- Merges release branches back to main

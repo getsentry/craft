@@ -4,6 +4,7 @@ module.exports = {
     es2017: true,
     node: true,
   },
+  ignorePatterns: ['docs/**'],
   parser: '@typescript-eslint/parser',
   plugins: ['@typescript-eslint'],
   extends: [

@@ -61,8 +61,13 @@ jobs:
         run: ./dist/craft --help
       - name: NPM Pack
         run: npm pack
-      - name: Docs
-        run: cd docs && zip -r ../gh-pages _site/
+      - name: Build Docs
+        working-directory: docs
+        run: |
+          npm install
+          npm run build
+      - name: Package Docs
+        run: zip -r gh-pages.zip docs/dist/
       - name: Archive Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
