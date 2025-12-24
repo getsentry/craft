@@ -1,9 +1,12 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
+// Allow base path override via environment variable for PR previews
+const base = process.env.DOCS_BASE_PATH || '/craft';
+
 export default defineConfig({
   site: 'https://getsentry.github.io',
-  base: '/craft',
+  base: base,
   integrations: [
     starlight({
       title: 'Craft',

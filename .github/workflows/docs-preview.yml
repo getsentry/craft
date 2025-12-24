@@ -24,11 +24,10 @@ jobs:
         working-directory: docs
         env:
           # Override base path for PR preview
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          DOCS_BASE_PATH: /craft/pr-preview/pr-${{ github.event.pull_request.number }}
         run: |
           npm install
-          # Build with PR-specific base path
-          npx astro build --base "/craft/pr-preview/pr-$PR_NUMBER/"
+          npm run build
 
       - name: Deploy Preview
         uses: rossjrw/pr-preview-action@v1
