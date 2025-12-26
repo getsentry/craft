@@ -316,8 +316,6 @@ interface PullRequest {
   hash: string;
   body: string;
   title: string;
-  /** Whether this PR should be highlighted (from current unmerged PR) */
-  highlight?: boolean;
 }
 
 interface Commit {
@@ -754,6 +752,26 @@ export interface ChangelogResult {
   matchedCommitsWithSemver: number;
 }
 
+/**
+ * Raw changelog data before serialization to markdown.
+ * This intermediate representation allows manipulation of entries
+ * before final formatting.
+ */
+export interface RawChangelogData {
+  /** Categories with their PR entries, keyed by category title */
+  categories: Map<string, CategoryWithPRs>;
+  /** Commits that didn't match any category */
+  leftovers: Commit[];
+  /** The highest version bump type found */
+  bumpType: BumpType | null;
+  /** Number of commits analyzed */
+  totalCommits: number;
+  /** Number of commits that matched a category with a semver field */
+  matchedCommitsWithSemver: number;
+  /** Release config for serialization */
+  releaseConfig: NormalizedReleaseConfig | null;
+}
+
 // Memoization cache for generateChangesetFromGit
 // Caches promises to coalesce concurrent calls with the same arguments
 const changesetCache = new Map<string, Promise<ChangelogResult>>();
@@ -791,51 +809,68 @@ export async function generateChangesetFromGit(
 }
 
 /**
- * Generates a changelog from git history with optional current PR injection.
- * When currentPRNumber is provided:
- * - PR info is fetched from GitHub API (including base branch)
- * - Merge base is computed from the PR's base branch
- * - Changelog is generated up to merge base (excludes PR commits)
- * - The PR is added to the changelog entries with highlighting
- * This function does not use caching since options can vary.
+ * Generates a changelog preview for a PR, showing how it will appear in the changelog.
+ * This function:
+ * 1. Fetches PR info from GitHub API (including base branch)
+ * 2. Computes merge base from the PR's base branch
+ * 3. Generates raw changelog data up to merge base (excludes PR commits)
+ * 4. Injects the current PR into the raw data
+ * 5. Serializes to markdown with the current PR highlighted
  *
  * @param git Local git client
  * @param rev Base revision (tag or SHA) to generate changelog from
- * @param currentPRNumber Optional PR number to fetch from GitHub and include (highlighted)
+ * @param currentPRNumber PR number to fetch from GitHub and include (highlighted)
  * @returns The changelog result with formatted markdown
  */
 export async function generateChangelogWithHighlight(
   git: SimpleGit,
   rev: string,
-  currentPRNumber?: number
+  currentPRNumber: number
 ): Promise<ChangelogResult> {
-  // If a PR number is provided, fetch PR info first to get base branch
-  let until: string | undefined;
-  let prInfo: CurrentPRInfo | undefined;
+  // Step 1: Fetch PR info from GitHub
+  const prInfo = await fetchPRInfo(currentPRNumber);
 
-  if (currentPRNumber) {
-    prInfo = await fetchPRInfo(currentPRNumber);
+  // Step 2: Fetch the base branch and compute merge base
+  await git.fetch('origin', prInfo.baseRef);
+  const until = (
+    await git.raw(['merge-base', 'HEAD', `origin/${prInfo.baseRef}`])
+  ).trim();
+  logger.debug(
+    `Computed merge base from PR base branch "${prInfo.baseRef}": ${until}`
+  );
 
-    // Fetch the base branch and compute merge base
-    await git.fetch('origin', prInfo.baseRef);
-    until = (
-      await git.raw(['merge-base', 'HEAD', `origin/${prInfo.baseRef}`])
-    ).trim();
-    logger.debug(
-      `Computed merge base from PR base branch "${prInfo.baseRef}": ${until}`
-    );
-  }
+  // Step 3: Generate raw changelog data up to merge base (excludes PR commits)
+  const rawData = await generateRawChangelog(git, rev, until);
 
-  return generateChangesetFromGitImpl(git, rev, MAX_LEFTOVERS, prInfo, until);
+  // Step 4: Inject the current PR into the raw data
+  injectCurrentPR(rawData, prInfo);
+
+  // Step 5: Serialize to markdown with highlighting for the current PR
+  const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS, String(currentPRNumber));
+
+  return {
+    changelog,
+    bumpType: rawData.bumpType,
+    totalCommits: rawData.totalCommits,
+    matchedCommitsWithSemver: rawData.matchedCommitsWithSemver,
+  };
 }
 
-async function generateChangesetFromGitImpl(
+/**
+ * Generates raw changelog data from git history.
+ * This returns an intermediate representation that can be manipulated
+ * before serialization to markdown.
+ *
+ * @param git Local git client
+ * @param rev Base revision (tag or SHA) to generate changelog from
+ * @param until Optional end revision (defaults to HEAD)
+ * @returns Raw changelog data structure
+ */
+async function generateRawChangelog(
   git: SimpleGit,
   rev: string,
-  maxLeftovers: number,
-  currentPRInfo?: CurrentPRInfo,
   until?: string
-): Promise<ChangelogResult> {
+): Promise<RawChangelogData> {
   const rawConfig = readReleaseConfig();
   const releaseConfig = normalizeReleaseConfig(rawConfig);
 
@@ -848,7 +883,6 @@ async function generateChangesetFromGitImpl(
   );
 
   const categories = new Map<string, CategoryWithPRs>();
-  const commits: Record</*hash*/ string, Commit> = {};
   const leftovers: Commit[] = [];
   const missing: Commit[] = [];
 
@@ -905,7 +939,6 @@ async function generateChangesetFromGitImpl(
       labels: labelsArray,
       category: categoryTitle,
     };
-    commits[hash] = commit;
 
     if (!githubCommit) {
       missing.push(commit);
@@ -949,74 +982,6 @@ async function generateChangesetFromGitImpl(
     }
   }
 
-  // Inject current (unmerged) PR if provided
-  if (currentPRInfo) {
-    // Check if PR should be excluded
-    const prLabels = new Set(currentPRInfo.labels);
-    if (
-      !currentPRInfo.body.includes(SKIP_CHANGELOG_MAGIC_WORD) &&
-      !shouldExcludePR(prLabels, currentPRInfo.author, releaseConfig)
-    ) {
-      // Match PR to category using same logic as commits
-      const matchedCategory = matchCommitToCategory(
-        prLabels,
-        currentPRInfo.author,
-        currentPRInfo.title.trim(),
-        releaseConfig
-      );
-      const categoryTitle = matchedCategory?.title ?? null;
-
-      if (categoryTitle) {
-        let category = categories.get(categoryTitle);
-        if (!category) {
-          category = {
-            title: categoryTitle,
-            scopeGroups: new Map<string | null, PullRequest[]>(),
-          };
-          categories.set(categoryTitle, category);
-        }
-
-        const scope = extractScope(currentPRInfo.title.trim());
-        let scopeGroup = category.scopeGroups.get(scope);
-        if (!scopeGroup) {
-          scopeGroup = [];
-          category.scopeGroups.set(scope, scopeGroup);
-        }
-
-        // Add current PR with highlight flag
-        scopeGroup.push({
-          author: currentPRInfo.author,
-          number: String(currentPRInfo.number),
-          hash: '', // No commit hash for unmerged PR
-          body: currentPRInfo.body,
-          title: currentPRInfo.title.trim(),
-          highlight: true,
-        });
-
-        logger.debug(
-          `Injected current PR #${currentPRInfo.number} into category "${categoryTitle}"`
-        );
-      } else {
-        // PR doesn't match any category, add to leftovers section
-        leftovers.unshift({
-          author: currentPRInfo.author,
-          hash: '',
-          title: currentPRInfo.title.trim(),
-          body: currentPRInfo.body,
-          hasPRinTitle: false,
-          pr: String(currentPRInfo.number),
-          prTitle: currentPRInfo.title,
-          prBody: currentPRInfo.body,
-          labels: currentPRInfo.labels,
-          category: null,
-        });
-        logger.debug(
-          `Current PR #${currentPRInfo.number} doesn't match any category, added to leftovers`
-        );
-      }
-    }
-  }
-
   // Convert priority back to bump type
   let bumpType: BumpType | null = null;
   if (bumpPriority !== null) {
@@ -1035,7 +1000,110 @@ async function generateChangesetFromGitImpl(
     );
   }
 
-  const changelogSections = [];
+  return {
+    categories,
+    leftovers,
+    bumpType,
+    totalCommits: gitCommits.length,
+    matchedCommitsWithSemver,
+    releaseConfig,
+  };
+}
+
+/**
+ * Injects a PR into raw changelog data.
+ * The PR is added to the appropriate category based on labels/patterns,
+ * or to leftovers if no category matches.
+ *
+ * @param rawData The raw changelog data to modify (mutated in place)
+ * @param prInfo The PR info to inject
+ */
+function injectCurrentPR(rawData: RawChangelogData, prInfo: CurrentPRInfo): void {
+  const { categories, leftovers, releaseConfig } = rawData;
+
+  // Check if PR should be excluded
+  const prLabels = new Set(prInfo.labels);
+  if (
+    prInfo.body.includes(SKIP_CHANGELOG_MAGIC_WORD) ||
+    shouldExcludePR(prLabels, prInfo.author, releaseConfig)
+  ) {
+    return;
+  }
+
+  // Match PR to category using same logic as commits
+  const matchedCategory = matchCommitToCategory(
+    prLabels,
+    prInfo.author,
+    prInfo.title.trim(),
+    releaseConfig
+  );
+  const categoryTitle = matchedCategory?.title ?? null;
+
+  if (categoryTitle) {
+    let category = categories.get(categoryTitle);
+    if (!category) {
+      category = {
+        title: categoryTitle,
+        scopeGroups: new Map<string | null, PullRequest[]>(),
+      };
+      categories.set(categoryTitle, category);
+    }
+
+    const scope = extractScope(prInfo.title.trim());
+    let scopeGroup = category.scopeGroups.get(scope);
+    if (!scopeGroup) {
+      scopeGroup = [];
+      category.scopeGroups.set(scope, scopeGroup);
+    }
+
+    // Add current PR
+    scopeGroup.push({
+      author: prInfo.author,
+      number: String(prInfo.number),
+      hash: '', // No commit hash for unmerged PR
+      body: prInfo.body,
+      title: prInfo.title.trim(),
+    });
+
+    logger.debug(
+      `Injected current PR #${prInfo.number} into category "${categoryTitle}"`
+    );
+  } else {
+    // PR doesn't match any category, add to leftovers section
+    leftovers.unshift({
+      author: prInfo.author,
+      hash: '',
+      title: prInfo.title.trim(),
+      body: prInfo.body,
+      hasPRinTitle: false,
+      pr: String(prInfo.number),
+      prTitle: prInfo.title,
+      prBody: prInfo.body,
+      labels: prInfo.labels,
+      category: null,
+    });
+    logger.debug(
+      `Current PR #${prInfo.number} doesn't match any category, added to leftovers`
+    );
+  }
+}
+
+/**
+ * Serializes raw changelog data to markdown format.
+ *
+ * @param rawData The raw changelog data to serialize
+ * @param maxLeftovers Maximum number of leftover entries to include
+ * @param highlightPR Optional PR number to highlight (rendered as blockquote)
+ * @returns Formatted markdown changelog string
+ */
+async function serializeChangelog(
+  rawData: RawChangelogData,
+  maxLeftovers: number,
+  highlightPR?: string
+): Promise<string> {
+  const { categories, leftovers, releaseConfig } = rawData;
+
+  const changelogSections: string[] = [];
   const { repo, owner } = await getGlobalGitHubConfig();
   const repoUrl = `https://github.com/${owner}/${repo}`;
 
@@ -1050,7 +1118,7 @@ async function generateChangesetFromGitImpl(
 
   // Sort categories by the order defined in release config
   const categoryOrder =
-    releaseConfig?.changelog.categories.map(c => c.title) ?? [];
+    releaseConfig?.changelog?.categories?.map(c => c.title) ?? [];
   const sortedCategories = [...categories.entries()].sort((a, b) => {
     const aIndex = categoryOrder.indexOf(a[1].title);
     const bIndex = categoryOrder.indexOf(b[1].title);
@@ -1099,7 +1167,7 @@ async function generateChangesetFromGitImpl(
           hash: pr.hash,
           body: pr.body,
           repoUrl,
-          highlight: pr.highlight,
+          highlight: highlightPR === pr.number,
         })
       );
 
@@ -1154,7 +1222,7 @@ async function generateChangesetFromGitImpl(
               ? commit.body
               : undefined,
             // Highlight if this is the current PR
-            highlight: currentPRInfo != null && commit.pr === String(currentPRInfo.number),
+            highlight: highlightPR != null && commit.pr === highlightPR,
           })
         )
         .join('\n')
@@ -1164,11 +1232,26 @@ async function generateChangesetFromGitImpl(
     }
   }
 
+  return changelogSections.join('\n\n');
+}
+
+/**
+ * Implementation of changelog generation that uses the new architecture.
+ * Generates raw data, then serializes to markdown.
+ */
+async function generateChangesetFromGitImpl(
+  git: SimpleGit,
+  rev: string,
+  maxLeftovers: number
+): Promise<ChangelogResult> {
+  const rawData = await generateRawChangelog(git, rev);
+  const changelog = await serializeChangelog(rawData, maxLeftovers);
+
   return {
-    changelog: changelogSections.join('\n\n'),
-    bumpType,
-    totalCommits: gitCommits.length,
-    matchedCommitsWithSemver,
+    changelog,
+    bumpType: rawData.bumpType,
+    totalCommits: rawData.totalCommits,
+    matchedCommitsWithSemver: rawData.matchedCommitsWithSemver,
   };
 }
 

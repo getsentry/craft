@@ -2,7 +2,10 @@ import { Argv, CommandBuilder } from 'yargs';
 
 import { logger } from '../logger';
 import { getGitClient, getLatestTag } from '../utils/git';
-import { generateChangelogWithHighlight } from '../utils/changelog';
+import {
+  generateChangesetFromGit,
+  generateChangelogWithHighlight,
+} from '../utils/changelog';
 import { handleGlobalError } from '../utils/errors';
 
 export const command = ['changelog'];
@@ -47,8 +50,10 @@ export async function changelogMain(argv: ChangelogOptions): Promise<void> {
     }
   }
 
-  // Generate changelog with optional current PR
-  const result = await generateChangelogWithHighlight(git, since, argv.pr);
+  // Generate changelog - use different function depending on whether PR is specified
+  const result = argv.pr
+    ? await generateChangelogWithHighlight(git, since, argv.pr)
+    : await generateChangesetFromGit(git, since);
 
   if (!result.changelog) {
     console.log('No changelog entries found.');
