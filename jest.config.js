@@ -6,4 +6,7 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(dot-prop|configstore)/)',
   ],
+  moduleNameMapper: {
+    '^marked$': '<rootDir>/node_modules/marked/lib/marked.umd.js',
+  },
 };

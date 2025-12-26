@@ -3539,7 +3539,32 @@ Neither should this.`;
     }
   });
 
-  it('should handle paragraph followed by nested bullets', () => {
+  it('should handle paragraph followed by proper list', () => {
+    // In valid markdown, a list needs a blank line after a paragraph
+    const prBody = `### Changelog Entry
+
+Comprehensive authentication system with the following features:
+
+- OAuth2 support
+- Two-factor authentication
+- Session management`;
+
+    const result = extractChangelogEntry(prBody);
+    expect(result).not.toBeNull();
+    expect(result).toHaveLength(4); // 1 paragraph + 3 list items
+    if (result) {
+      expect(result[0].text).toBe(
+        'Comprehensive authentication system with the following features:'
+      );
+      expect(result[1].text).toBe('OAuth2 support');
+      expect(result[2].text).toBe('Two-factor authentication');
+      expect(result[3].text).toBe('Session management');
+    }
+  });
+
+  it('should treat indented bullets after paragraph as paragraph text (markdown behavior)', () => {
+    // In markdown, indented bullets after a paragraph without blank line
+    // are NOT a list - they're part of the paragraph text
     const prBody = `### Changelog Entry
 
 Comprehensive authentication system with the following features:
@@ -3548,14 +3573,12 @@ Comprehensive authentication system with the following features:
     - Session management`;
 
     const result = extractChangelogEntry(prBody);
-    expect(result).toHaveLength(1);
     expect(result).not.toBeNull();
+    expect(result).toHaveLength(1);
     if (result) {
-      expect(result[0].text).toBe(
-        'Comprehensive authentication system with the following features:'
-      );
-      expect(result[0].nestedContent).toBeDefined();
-      expect(result[0].nestedContent).toContain('OAuth2 support');
+      // The entire text (including the "- " prefixes) is joined as one paragraph
+      expect(result[0].text).toContain('Comprehensive authentication system');
+      expect(result[0].text).toContain('OAuth2 support');
     }
   });
 

@@ -106,5 +106,8 @@
   "volta": {
     "node": "22.12.0",
     "yarn": "1.22.19"
+  },
+  "dependencies": {
+    "marked": "^17.0.1"
   }
 }

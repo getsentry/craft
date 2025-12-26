@@ -2,6 +2,7 @@ import type { SimpleGit } from 'simple-git';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { load } from 'js-yaml';
+import { marked, type Token, type Tokens } from 'marked';
 import { logger } from '../logger';
 
 import {
@@ -109,9 +110,9 @@ export interface Changeset {
 }
 
 /**
- * A changeset location based on RegExpExecArrays
+ * A changeset location based on regex matching
  */
-export interface ChangesetLoc {
+interface ChangesetLoc {
   start: RegExpExecArray;
   end: RegExpExecArray | null;
   padding: string;
@@ -189,124 +190,123 @@ export function extractChangelogEntry(prBody: string | null | undefined): Change
     return null;
   }
 
-  // Normalize line endings (CRLF -> LF) to ensure consistent regex matching
-  const normalizedBody = prBody.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  // Use marked's lexer to properly parse the markdown
+  const tokens = marked.lexer(prBody);
 
-  // Match markdown headings (## or ###) followed by "Changelog Entry" (case-insensitive)
-  // This matches both with and without the # at the end (e.g., "## Changelog Entry ##" or "## Changelog Entry")
-  const headerRegex = /^#{2,3}\s+Changelog Entry\s*(?:#{2,3})?\s*$/im;
-  const match = normalizedBody.match(headerRegex);
+  // Find the "Changelog Entry" heading (level 2 or 3, case-insensitive)
+  const headingIndex = tokens.findIndex(
+    (t): t is Tokens.Heading =>
+      t.type === 'heading' &&
+      (t.depth === 2 || t.depth === 3) &&
+      t.text.toLowerCase() === 'changelog entry'
+  );
 
-  if (!match || match.index === undefined) {
+  if (headingIndex === -1) {
     return null;
   }
 
-  // Find the start of the content (after the heading line)
-  const startIndex = match.index + match[0].length;
-  const restOfBody = normalizedBody.slice(startIndex);
+  // Collect tokens between this heading and the next heading of same or higher level
+  const headingDepth = (tokens[headingIndex] as Tokens.Heading).depth;
+  const contentTokens: Token[] = [];
 
-  // Find the next heading of level 2 or 3 (## or ###)
-  const nextHeaderMatch = restOfBody.match(/^#{2,3}\s+/m);
-  const endIndex = nextHeaderMatch?.index ?? restOfBody.length;
+  for (let i = headingIndex + 1; i < tokens.length; i++) {
+    const token = tokens[i];
+    // Stop at next heading of same or higher level
+    if (token.type === 'heading' && (token as Tokens.Heading).depth <= headingDepth) {
+      break;
+    }
+    contentTokens.push(token);
+  }
 
-  // Extract and trim the content
-  const content = restOfBody.slice(0, endIndex).trim();
-
-  // Return null if the section is empty
-  if (!content) {
+  // If no content tokens, return null
+  if (contentTokens.length === 0) {
     return null;
   }
 
-  // Parse the content into structured entries
-  return parseChangelogContent(content);
+  // Process the content tokens into changelog entries
+  return parseTokensToEntries(contentTokens);
 }
 
 /**
- * Parses changelog content into structured entries.
- * Handles multiple top-level bullets and nested content.
+ * Recursively extracts nested content from a list item's tokens.
  */
-function parseChangelogContent(content: string): ChangelogEntryItem[] {
-  // First, check if the content has any bullet points at all
-  const hasTopLevelBullets = /^(\s{0,3})[-*+]\s+/m.test(content);
-  const hasIndentedBullets = /^(\s{4,}|\t+)[-*+]\s+/m.test(content);
+function extractNestedContent(tokens: Token[]): string {
+  const nestedLines: string[] = [];
 
-  // If no bullets found at all, treat entire content as a single entry
-  // Join multiple lines with spaces to avoid broken markdown
-  if (!hasTopLevelBullets && !hasIndentedBullets) {
-    // Join lines with spaces, collapsing multiple whitespace
-    const singleLine = content
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .join(' ');
-    return [{
-      text: singleLine,
-    }];
+  for (const token of tokens) {
+    if (token.type === 'list') {
+      const listToken = token as Tokens.List;
+      for (const item of listToken.items) {
+        // Get the text of this nested item
+        const itemText = getListItemText(item);
+        nestedLines.push(`  - ${itemText}`);
+
+        // Recursively get any deeper nested content
+        const deeperNested = extractNestedContent(item.tokens);
+        if (deeperNested) {
+          // Indent deeper nested content further
+          const indentedDeeper = deeperNested
+            .split('\n')
+            .map(line => '  ' + line)
+            .join('\n');
+          nestedLines.push(indentedDeeper);
+        }
+      }
+    }
   }
 
-  const lines = content.split('\n');
+  return nestedLines.join('\n');
+}
+
+/**
+ * Gets the text content of a list item, excluding nested lists.
+ */
+function getListItemText(item: Tokens.ListItem): string {
+  // The item.text contains the raw text, but we want just the first line
+  // (before any nested lists)
+  const firstToken = item.tokens.find(t => t.type === 'text' || t.type === 'paragraph');
+  if (firstToken && 'text' in firstToken) {
+    return firstToken.text.split('\n')[0].trim();
+  }
+  return item.text.split('\n')[0].trim();
+}
+
+/**
+ * Parses content tokens into structured changelog entries.
+ */
+function parseTokensToEntries(tokens: Token[]): ChangelogEntryItem[] | null {
   const entries: ChangelogEntryItem[] = [];
-  let currentEntry: ChangelogEntryItem | null = null;
-  let nestedLines: string[] = [];
 
-  for (const line of lines) {
-    // Match top-level bullets (-, *, or + at the start of line, possibly with leading spaces)
-    const topLevelBulletMatch = line.match(/^(\s{0,3})[-*+]\s+(.+)$/);
+  for (const token of tokens) {
+    if (token.type === 'list') {
+      // Each top-level list item becomes a changelog entry
+      const listToken = token as Tokens.List;
+      for (const item of listToken.items) {
+        const text = getListItemText(item);
+        const nestedContent = extractNestedContent(item.tokens);
 
-    if (topLevelBulletMatch) {
-      // Save previous entry if exists
-      if (currentEntry) {
-        if (nestedLines.length > 0) {
-          currentEntry.nestedContent = nestedLines.join('\n');
-          nestedLines = [];
-        }
-        entries.push(currentEntry);
+        entries.push({
+          text,
+          ...(nestedContent ? { nestedContent } : {}),
+        });
       }
+    } else if (token.type === 'paragraph') {
+      // Paragraph text becomes a single entry
+      // Join multiple lines with spaces to avoid broken markdown
+      const paragraphToken = token as Tokens.Paragraph;
+      const text = paragraphToken.text
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+        .join(' ');
 
-      // Start new entry
-      currentEntry = {
-        text: topLevelBulletMatch[2].trim(),
-      };
-    } else if (currentEntry) {
-      // Check if this is a nested bullet (more than 3 spaces of indentation, or tab)
-      const nestedMatch = line.match(/^(\s{4,}|\t+)[-*+]\s+(.+)$/);
-      if (nestedMatch) {
-        // Preserve the bullet marker for nested items
-        nestedLines.push(`  - ${nestedMatch[2].trim()}`);
-      } else if (line.trim()) {
-        // Non-empty line that's not a bullet - could be continuation text or nested content
-        // Add to nested content if it has any indentation or follows other nested content
-        if (nestedLines.length > 0 || line.match(/^\s+/)) {
-          nestedLines.push(line.trimEnd());
-        }
-      }
-    } else {
-      // No current entry yet - check if this is a paragraph that might have nested bullets after it
-      if (line.trim() && !line.match(/^(\s{4,}|\t+)[-*+]\s+/)) {
-        // Non-indented, non-bullet line - start a new entry
-        currentEntry = {
-          text: line.trim(),
-        };
+      if (text) {
+        entries.push({ text });
       }
     }
   }
 
-  // Save the last entry
-  if (currentEntry) {
-    if (nestedLines.length > 0) {
-      currentEntry.nestedContent = nestedLines.join('\n');
-    }
-    entries.push(currentEntry);
-  }
-
-  // If we have indented bullets but no entries, treat entire content as a single entry
-  if (entries.length === 0 && content.trim()) {
-    return [{
-      text: content.trim(),
-    }];
-  }
-
-  return entries;
+  return entries.length > 0 ? entries : null;
 }
 
 /**
@@ -339,9 +339,9 @@ function extractChangeset(markdown: string, location: ChangesetLoc): Changeset {
  * @param markdown The full changelog markdown
  * @param predicate A callback that takes the found title and returns true if
  *                  this is a match, false otherwise
- * @returns A ChangesetLoc object where "start" has the matche for the header,
+ * @returns A ChangesetLoc object where "start" has the match for the header,
  *          and "end" has the match for the next header so the contents
- *          inbetween can be extracted
+ *          in between can be extracted
  */
 function locateChangeset(
   markdown: string,
