@@ -1,4 +1,4 @@
-t---
+---
 title: Configuration
 description: Complete reference for .craft.yml configuration
 ---
