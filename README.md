@@ -134,7 +134,7 @@ jobs:
 | `sha` | The commit SHA on the release branch |
 | `changelog` | The changelog for this release |
 
-### Changelog Preview Action
+### Changelog Preview (Reusable Workflow)
 
 Posts a preview comment on PRs showing how they'll appear in the changelog:
 
@@ -142,28 +142,19 @@ Posts a preview comment on PRs showing how they'll appear in the changelog:
 name: Changelog Preview
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
-
-permissions:
-  pull-requests: write
+    types: [opened, synchronize, reopened, edited, labeled]
 
 jobs:
-  preview:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: getsentry/craft/changelog-preview@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  changelog-preview:
+    uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
+    secrets: inherit
 ```
 
-The action will:
+The workflow will:
 - Generate the upcoming changelog including the PR's changes
 - Highlight entries from the PR using blockquote style (left border)
 - Post a comment on the PR with the preview
-- Automatically update the comment when the PR is updated
+- Automatically update when you update the PR (push, edit title/description, or change labels)
 
 ## Contributing
 

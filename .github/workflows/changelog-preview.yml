@@ -11,8 +11,9 @@ on:
         default: 'latest'
 
   # Also run on PRs in this repository (for dogfooding)
+  # Includes 'edited' and 'labeled' to update when PR title/description/labels change
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited, labeled]
 
 permissions:
   pull-requests: write
@@ -26,33 +27,9 @@ jobs:
           fetch-depth: 0
 
       - name: Install Craft
-        shell: bash
-        env:
-          CRAFT_VERSION: ${{ inputs.craft-version || 'latest' }}
-        run: |
-          if [[ "$CRAFT_VERSION" == "latest" ]]; then
-            CRAFT_URL=$(curl -s "https://api.github.com/repos/getsentry/craft/releases/latest" \
-              | jq -r '.assets[] | select(.name == "craft") | .browser_download_url')
-          else
-            CRAFT_URL="https://github.com/getsentry/craft/releases/download/${CRAFT_VERSION}/craft"
-          fi
-          echo "Installing Craft from: ${CRAFT_URL}"
-          sudo curl -sL -o /usr/local/bin/craft "$CRAFT_URL"
-          sudo chmod +x /usr/local/bin/craft
-
-      # For getsentry/craft repo: build from source to test unreleased changes
-      - name: Setup Node.js (for dogfooding)
-        if: github.repository == 'getsentry/craft'
-        uses: actions/setup-node@v4
+        uses: getsentry/craft/install@master
         with:
-          node-version: '22'
-
-      - name: Build Craft from source (dogfooding)
-        if: github.repository == 'getsentry/craft'
-        run: |
-          yarn install --frozen-lockfile
-          yarn build
-          sudo install -m 755 dist/craft /usr/local/bin/craft
+          craft-version: ${{ inputs.craft-version || 'latest' }}
 
       - name: Generate Changelog Preview
         shell: bash
@@ -72,8 +49,9 @@ jobs:
             CHANGELOG="_No changelog entries will be generated from this PR._"
           fi
 
-          # Build comment body with hidden marker for updates
-          COMMENT_BODY="<!-- craft-changelog-preview -->
+          # Build comment body
+          read -r -d '' COMMENT_BODY << 'EOF' || true
+          <!-- craft-changelog-preview -->
           ## 📋 Changelog Preview
 
           This is how your changes will appear in the changelog.
@@ -81,14 +59,14 @@ jobs:
 
           ---
 
+          EOF
+
+          COMMENT_BODY="${COMMENT_BODY}
           ${CHANGELOG}
 
           ---
 
-          <sub>🤖 This preview updates automatically when you push changes.</sub>"
-
-          # Save to file for the comment step (handles multiline properly)
-          echo "$COMMENT_BODY" > /tmp/changelog-comment.md
+          <sub>🤖 This preview updates automatically when you update the PR.</sub>"
 
           # Find existing comment with our marker
           COMMENT_ID=$(gh api \
@@ -100,10 +78,10 @@ jobs:
             echo "Updating existing comment $COMMENT_ID..."
             gh api -X PATCH \
               "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" \
-              -F body=@/tmp/changelog-comment.md
+              -f body="$COMMENT_BODY"
           else
             echo "Creating new comment..."
             gh api -X POST \
               "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-              -F body=@/tmp/changelog-comment.md
+              -f body="$COMMENT_BODY"
           fi
