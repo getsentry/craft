@@ -228,9 +228,16 @@ function parseChangelogContent(content: string): ChangelogEntryItem[] {
   const hasIndentedBullets = /^(\s{4,}|\t+)[-*+]\s+/m.test(content);
 
   // If no bullets found at all, treat entire content as a single entry
+  // Join multiple lines with spaces to avoid broken markdown
   if (!hasTopLevelBullets && !hasIndentedBullets) {
+    // Join lines with spaces, collapsing multiple whitespace
+    const singleLine = content
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .join(' ');
     return [{
-      text: content.trim(),
+      text: singleLine,
     }];
   }
 

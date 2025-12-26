@@ -176,7 +176,8 @@ of the PR title. If no such section is present, the PR title is used as usual.
    ```
 
 3. **Plain Text**: If no bullets are used, the entire content is treated as a
-   single changelog entry. Multi-line text is supported.
+   single changelog entry. Multi-line text is automatically joined with spaces
+   to ensure valid markdown output.
 
 4. **Content Isolation**: Only content within the "Changelog Entry" section is
    included in the changelog. Other sections (Description, Issues, etc.) are

@@ -3154,6 +3154,43 @@ Closes #123`,
       // Should fall back to PR title when changelog entry is empty
       expect(changes).toContain('feat: Add feature');
     });
+
+    it('should handle multi-line plain text as single-line entry to avoid broken markdown', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'chore: Update dependencies',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                body: `### Changelog Entry
+
+This is a multi-line
+changelog entry that
+spans several lines.`,
+                labels: [],
+              },
+            },
+          },
+        ],
+        null
+      );
+
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
+
+      // The entry should start with "- " and have author/link on the same line
+      // It should NOT have broken formatting like:
+      // - This is a multi-line
+      // changelog entry that
+      // spans several lines. by @alice in [#1](...)
+      expect(changes).toMatch(/^- .+by @alice in \[#1\]/m);
+      // The title should be joined or formatted properly
+      expect(changes).not.toContain('\nchangelog entry that');
+    });
   });
 });
 
@@ -3289,7 +3326,7 @@ Closes #123`;
     }
   });
 
-  it('should handle multiple lines in plain text as single entry', () => {
+  it('should handle multiple lines in plain text as single entry joined with spaces', () => {
     const prBody = `### Description
 
 Description here
@@ -3308,8 +3345,9 @@ Closes #123`;
     expect(result).toHaveLength(1);
     expect(result).not.toBeNull();
     if (result) {
+      // Multi-line plain text is joined with spaces to avoid broken markdown
       expect(result[0].text).toBe(
-        'This is a multi-line\nchangelog entry that\nspans several lines.'
+        'This is a multi-line changelog entry that spans several lines.'
       );
     }
   });
