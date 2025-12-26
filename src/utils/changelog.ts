@@ -762,14 +762,28 @@ export interface RawChangelogData {
   categories: Map<string, CategoryWithPRs>;
   /** Commits that didn't match any category */
   leftovers: Commit[];
+  /** Release config for serialization */
+  releaseConfig: NormalizedReleaseConfig | null;
+}
+
+/**
+ * Statistics from changelog generation, used for auto-versioning.
+ */
+interface ChangelogStats {
   /** The highest version bump type found */
   bumpType: BumpType | null;
   /** Number of commits analyzed */
   totalCommits: number;
   /** Number of commits that matched a category with a semver field */
   matchedCommitsWithSemver: number;
-  /** Release config for serialization */
-  releaseConfig: NormalizedReleaseConfig | null;
+}
+
+/**
+ * Result from raw changelog generation, includes both data and stats.
+ */
+interface RawChangelogResult {
+  data: RawChangelogData;
+  stats: ChangelogStats;
 }
 
 // Memoization cache for generateChangesetFromGit
@@ -838,7 +852,7 @@ export async function generateChangelogWithHighlight(
   // Step 3: Generate raw changelog data up to base branch tip
   // This includes all commits on the base branch, which is what the
   // final changelog will contain when this PR is merged
-  const rawData = await generateRawChangelog(git, rev, baseRef);
+  const { data: rawData, stats } = await generateRawChangelog(git, rev, baseRef);
 
   // Step 4: Inject the current PR into the raw data
   injectCurrentPR(rawData, prInfo);
@@ -848,9 +862,7 @@ export async function generateChangelogWithHighlight(
 
   return {
     changelog,
-    bumpType: rawData.bumpType,
-    totalCommits: rawData.totalCommits,
-    matchedCommitsWithSemver: rawData.matchedCommitsWithSemver,
+    ...stats,
   };
 }
 
@@ -868,7 +880,7 @@ async function generateRawChangelog(
   git: SimpleGit,
   rev: string,
   until?: string
-): Promise<RawChangelogData> {
+): Promise<RawChangelogResult> {
   const rawConfig = readReleaseConfig();
   const releaseConfig = normalizeReleaseConfig(rawConfig);
 
@@ -999,12 +1011,16 @@ async function generateRawChangelog(
   }
 
   return {
-    categories,
-    leftovers,
-    bumpType,
-    totalCommits: gitCommits.length,
-    matchedCommitsWithSemver,
-    releaseConfig,
+    data: {
+      categories,
+      leftovers,
+      releaseConfig,
+    },
+    stats: {
+      bumpType,
+      totalCommits: gitCommits.length,
+      matchedCommitsWithSemver,
+    },
   };
 }
 
@@ -1242,14 +1258,12 @@ async function generateChangesetFromGitImpl(
   rev: string,
   maxLeftovers: number
 ): Promise<ChangelogResult> {
-  const rawData = await generateRawChangelog(git, rev);
+  const { data: rawData, stats } = await generateRawChangelog(git, rev);
   const changelog = await serializeChangelog(rawData, maxLeftovers);
 
   return {
     changelog,
-    bumpType: rawData.bumpType,
-    totalCommits: rawData.totalCommits,
-    matchedCommitsWithSemver: rawData.matchedCommitsWithSemver,
+    ...stats,
   };
 }
 
