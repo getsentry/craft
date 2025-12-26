@@ -123,12 +123,13 @@ jobs:
 
 ### How It Works
 
-1. **Generates the changelog** - Runs `craft changelog --pr <number>` to generate the upcoming changelog
+1. **Generates the changelog** - Runs `craft changelog --pr <number> --format json` to generate the upcoming changelog with metadata
 2. **Fetches PR info** - Gets PR title, body, labels, and base branch from GitHub API
-3. **Computes merge base** - Determines the merge base to exclude unmerged PR commits
-4. **Highlights PR entries** - The current PR is rendered with blockquote style (displayed with a left border in GitHub)
-5. **Posts a comment** - Creates or updates a comment on the PR with the changelog preview
-6. **Auto-updates** - The comment is automatically updated when you update the PR (push commits, edit title/description, or change labels)
+3. **Categorizes the PR** - Matches the PR to changelog categories based on labels and commit patterns
+4. **Suggests version bump** - Based on matched categories with semver fields (major/minor/patch)
+5. **Highlights PR entries** - The current PR is rendered with blockquote style (displayed with a left border in GitHub)
+6. **Posts a comment** - Creates or updates a comment on the PR with the changelog preview
+7. **Auto-updates** - The comment is automatically updated when you update the PR (push commits, edit title/description, or change labels)
 
 ### Example Comment
 
@@ -139,6 +140,8 @@ The workflow posts a comment like this:
 
 This is how your changes will appear in the changelog.
 Entries from this PR are highlighted with a left border (blockquote style).
+
+**Suggested version bump:** 🟡 **Minor** (new features)
 
 ---
 

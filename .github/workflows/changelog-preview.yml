@@ -42,14 +42,25 @@ jobs:
         run: |
           PR_NUMBER="${{ github.event.pull_request.number }}"
 
-          # Generate changelog with current PR injected and highlighted
-          # Craft fetches PR info from GitHub API, computes merge base from PR's base branch
-          echo "Running craft changelog --pr $PR_NUMBER..."
-          CHANGELOG=$(craft changelog --pr "$PR_NUMBER" 2>/dev/null || echo "")
+          # Generate changelog with current PR injected and highlighted (JSON format)
+          echo "Running craft changelog --pr $PR_NUMBER --format json..."
+          RESULT=$(craft changelog --pr "$PR_NUMBER" --format json 2>/dev/null || echo '{"changelog":"","bumpType":null}')
+
+          # Extract fields from JSON
+          CHANGELOG=$(echo "$RESULT" | jq -r '.changelog // ""')
+          BUMP_TYPE=$(echo "$RESULT" | jq -r '.bumpType // "none"')
 
           if [[ -z "$CHANGELOG" ]]; then
             CHANGELOG="_No changelog entries will be generated from this PR._"
           fi
+
+          # Format bump type for display
+          case "$BUMP_TYPE" in
+            major) BUMP_BADGE="🔴 **Major** (breaking changes)" ;;
+            minor) BUMP_BADGE="🟡 **Minor** (new features)" ;;
+            patch) BUMP_BADGE="🟢 **Patch** (bug fixes)" ;;
+            *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
+          esac
 
           # Build comment body
           read -r -d '' COMMENT_BODY << 'EOF' || true
@@ -59,11 +70,13 @@ jobs:
           This is how your changes will appear in the changelog.
           Entries from this PR are highlighted with a left border (blockquote style).
 
-          ---
-
           EOF
 
           COMMENT_BODY="${COMMENT_BODY}
+          **Suggested version bump:** ${BUMP_BADGE}
+
+          ---
+
           ${CHANGELOG}
 
           ---
