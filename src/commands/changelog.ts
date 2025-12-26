@@ -11,12 +11,17 @@ import { handleGlobalError } from '../utils/errors';
 export const command = ['changelog'];
 export const description = 'Generate changelog from git history';
 
+/** Output format options */
+type OutputFormat = 'text' | 'json';
+
 /** Command line options */
 interface ChangelogOptions {
   /** Base revision to generate changelog from (defaults to latest tag) */
   since?: string;
   /** PR number for the current (unmerged) PR */
   pr?: number;
+  /** Output format: text (default) or json */
+  format?: OutputFormat;
 }
 
 export const builder: CommandBuilder = (yargs: Argv) =>
@@ -29,8 +34,15 @@ export const builder: CommandBuilder = (yargs: Argv) =>
     })
     .option('pr', {
       description:
-        'PR number for the current (unmerged) PR. The PR info will be fetched from GitHub API, merge base computed from base branch, and the PR included in the changelog with highlighting.',
+        'PR number for the current (unmerged) PR. The PR info will be fetched from GitHub API and the PR included in the changelog with highlighting.',
       type: 'number',
+    })
+    .option('format', {
+      alias: 'f',
+      description: 'Output format: text (default) or json',
+      type: 'string',
+      choices: ['text', 'json'] as const,
+      default: 'text',
     });
 
 /**
@@ -55,13 +67,22 @@ export async function changelogMain(argv: ChangelogOptions): Promise<void> {
     ? await generateChangelogWithHighlight(git, since, argv.pr)
     : await generateChangesetFromGit(git, since);
 
-  if (!result.changelog) {
-    console.log('No changelog entries found.');
-    return;
+  // Output based on format
+  if (argv.format === 'json') {
+    const output = {
+      changelog: result.changelog || '',
+      bumpType: result.bumpType,
+      totalCommits: result.totalCommits,
+      matchedCommitsWithSemver: result.matchedCommitsWithSemver,
+    };
+    console.log(JSON.stringify(output, null, 2));
+  } else {
+    if (!result.changelog) {
+      console.log('No changelog entries found.');
+      return;
+    }
+    console.log(result.changelog);
   }
-
-  // Output to stdout
-  console.log(result.changelog);
 }
 
 export const handler = async (args: {

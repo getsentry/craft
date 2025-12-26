@@ -316,6 +316,8 @@ interface PullRequest {
   hash: string;
   body: string;
   title: string;
+  /** Whether this entry should be highlighted in output */
+  highlight?: boolean;
 }
 
 interface Commit {
@@ -329,6 +331,25 @@ interface Commit {
   prBody?: string | null;
   labels: string[];
   category: string | null;
+  /** Whether this entry should be highlighted in output */
+  highlight?: boolean;
+}
+
+/**
+ * Raw commit/PR info before categorization.
+ * This is the input to the categorization step.
+ */
+interface RawCommitInfo {
+  hash: string;
+  title: string;
+  body: string;
+  author?: string;
+  pr?: string;
+  prTitle?: string;
+  prBody?: string;
+  labels: string[];
+  /** Whether this entry should be highlighted in output */
+  highlight?: boolean;
 }
 
 /**
@@ -826,10 +847,10 @@ export async function generateChangesetFromGit(
  * Generates a changelog preview for a PR, showing how it will appear in the changelog.
  * This function:
  * 1. Fetches PR info from GitHub API (including base branch)
- * 2. Computes merge base from the PR's base branch
- * 3. Generates raw changelog data up to merge base (excludes PR commits)
- * 4. Injects the current PR into the raw data
- * 5. Serializes to markdown with the current PR highlighted
+ * 2. Fetches all commit/PR info up to base branch
+ * 3. Adds the current PR to the list with highlight flag
+ * 4. Runs categorization on the combined list
+ * 5. Serializes to markdown
  *
  * @param git Local git client
  * @param rev Base revision (tag or SHA) to generate changelog from
@@ -849,75 +870,28 @@ export async function generateChangelogWithHighlight(
   const baseRef = `origin/${prInfo.baseRef}`;
   logger.debug(`Using PR base branch "${prInfo.baseRef}" for changelog`);
 
-  // Step 3: Generate raw changelog data up to base branch tip
-  // This includes all commits on the base branch, which is what the
-  // final changelog will contain when this PR is merged
-  const { data: rawData, stats } = await generateRawChangelog(git, rev, baseRef);
+  // Step 3: Fetch raw commit info up to base branch
+  const rawCommits = await fetchRawCommitInfo(git, rev, baseRef);
 
-  // Step 4: Inject the current PR into the raw data (if not excluded)
-  const { categories, leftovers, releaseConfig } = rawData;
-  const prLabels = new Set(prInfo.labels);
-  if (
-    !prInfo.body.includes(SKIP_CHANGELOG_MAGIC_WORD) &&
-    !shouldExcludePR(prLabels, prInfo.author, releaseConfig)
-  ) {
-    const matchedCategory = matchCommitToCategory(
-      prLabels,
-      prInfo.author,
-      prInfo.title.trim(),
-      releaseConfig
-    );
-    const categoryTitle = matchedCategory?.title ?? null;
+  // Step 4: Add current PR to the list with highlight flag (at the beginning)
+  const currentPRCommit: RawCommitInfo = {
+    hash: '',
+    title: prInfo.title.trim(),
+    body: prInfo.body,
+    author: prInfo.author,
+    pr: String(prInfo.number),
+    prTitle: prInfo.title,
+    prBody: prInfo.body,
+    labels: prInfo.labels,
+    highlight: true,
+  };
+  const allCommits = [currentPRCommit, ...rawCommits];
 
-    if (categoryTitle) {
-      let category = categories.get(categoryTitle);
-      if (!category) {
-        category = {
-          title: categoryTitle,
-          scopeGroups: new Map<string | null, PullRequest[]>(),
-        };
-        categories.set(categoryTitle, category);
-      }
+  // Step 5: Run categorization on combined list
+  const { data: rawData, stats } = categorizeCommits(allCommits);
 
-      const scope = extractScope(prInfo.title.trim());
-      let scopeGroup = category.scopeGroups.get(scope);
-      if (!scopeGroup) {
-        scopeGroup = [];
-        category.scopeGroups.set(scope, scopeGroup);
-      }
-
-      scopeGroup.push({
-        author: prInfo.author,
-        number: String(prInfo.number),
-        hash: '',
-        body: prInfo.body,
-        title: prInfo.title.trim(),
-      });
-
-      logger.debug(
-        `Injected current PR #${prInfo.number} into category "${categoryTitle}"`
-      );
-    } else {
-      leftovers.unshift({
-        author: prInfo.author,
-        hash: '',
-        title: prInfo.title.trim(),
-        body: prInfo.body,
-        hasPRinTitle: false,
-        pr: String(prInfo.number),
-        prTitle: prInfo.title,
-        prBody: prInfo.body,
-        labels: prInfo.labels,
-        category: null,
-      });
-      logger.debug(
-        `Current PR #${prInfo.number} doesn't match any category, added to leftovers`
-      );
-    }
-  }
-
-  // Step 5: Serialize to markdown with highlighting for the current PR
-  const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS, String(currentPRNumber));
+  // Step 6: Serialize to markdown
+  const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS);
 
   return {
     changelog,
@@ -926,23 +900,19 @@ export async function generateChangelogWithHighlight(
 }
 
 /**
- * Generates raw changelog data from git history.
- * This returns an intermediate representation that can be manipulated
- * before serialization to markdown.
+ * Fetches raw commit/PR info from git history and GitHub.
+ * This is the first step - just gathering data, no categorization.
  *
  * @param git Local git client
- * @param rev Base revision (tag or SHA) to generate changelog from
+ * @param rev Base revision (tag or SHA) to start from
  * @param until Optional end revision (defaults to HEAD)
- * @returns Raw changelog data structure
+ * @returns Array of raw commit info
  */
-async function generateRawChangelog(
+async function fetchRawCommitInfo(
   git: SimpleGit,
   rev: string,
   until?: string
-): Promise<RawChangelogResult> {
-  const rawConfig = readReleaseConfig();
-  const releaseConfig = normalizeReleaseConfig(rawConfig);
-
+): Promise<RawCommitInfo[]> {
   const gitCommits = (await getChangesSince(git, rev, until)).filter(
     ({ body }) => !body.includes(SKIP_CHANGELOG_MAGIC_WORD)
   );
@@ -951,36 +921,62 @@ async function generateRawChangelog(
     gitCommits.map(({ hash }) => hash)
   );
 
+  const result: RawCommitInfo[] = [];
+
+  for (const gitCommit of gitCommits) {
+    const githubCommit = githubCommits[gitCommit.hash];
+
+    // Skip if PR body has skip marker
+    if (githubCommit?.prBody?.includes(SKIP_CHANGELOG_MAGIC_WORD)) {
+      continue;
+    }
+
+    result.push({
+      hash: gitCommit.hash,
+      title: gitCommit.title,
+      body: gitCommit.body,
+      author: githubCommit?.author,
+      pr: githubCommit?.pr ?? gitCommit.pr ?? undefined,
+      prTitle: githubCommit?.prTitle ?? undefined,
+      prBody: githubCommit?.prBody ?? undefined,
+      labels: githubCommit?.labels ?? [],
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Categorizes raw commits into changelog structure.
+ * This is the second step - grouping by category and scope.
+ *
+ * @param rawCommits Array of raw commit info to categorize
+ * @returns Categorized changelog data and stats
+ */
+function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
+  const rawConfig = readReleaseConfig();
+  const releaseConfig = normalizeReleaseConfig(rawConfig);
+
   const categories = new Map<string, CategoryWithPRs>();
   const leftovers: Commit[] = [];
-  const missing: Commit[] = [];
+  const missing: RawCommitInfo[] = [];
 
   // Track bump type for auto-versioning (lower priority value = higher bump)
   let bumpPriority: number | null = null;
   let matchedCommitsWithSemver = 0;
 
-  for (const gitCommit of gitCommits) {
-    const hash = gitCommit.hash;
+  for (const raw of rawCommits) {
+    const labels = new Set(raw.labels);
 
-    const githubCommit = githubCommits[hash];
-    if (githubCommit?.prBody?.includes(SKIP_CHANGELOG_MAGIC_WORD)) {
-      continue;
-    }
-
-    const labelsArray = githubCommit?.labels ?? [];
-    const labels = new Set(labelsArray);
-    const author = githubCommit?.author;
-
-    if (shouldExcludePR(labels, author, releaseConfig)) {
+    if (shouldExcludePR(labels, raw.author, releaseConfig)) {
       continue;
     }
 
     // Use PR title if available, otherwise use commit title for pattern matching
-    // Trim to handle any leading/trailing whitespace that could break pattern matching
-    const titleForMatching = (githubCommit?.prTitle ?? gitCommit.title).trim();
+    const titleForMatching = (raw.prTitle ?? raw.title).trim();
     const matchedCategory = matchCommitToCategory(
       labels,
-      author,
+      raw.author,
       titleForMatching,
       releaseConfig
     );
@@ -995,59 +991,54 @@ async function generateRawChangelog(
       }
     }
 
-    const commit: Commit = {
-      author: author,
-      hash: hash,
-      title: gitCommit.title,
-      body: gitCommit.body,
-      hasPRinTitle: Boolean(gitCommit.pr),
-      // Use GitHub PR number, falling back to locally parsed PR from title
-      pr: githubCommit?.pr ?? gitCommit.pr ?? null,
-      prTitle: githubCommit?.prTitle ?? null,
-      prBody: githubCommit?.prBody ?? null,
-      labels: labelsArray,
-      category: categoryTitle,
-    };
-
-    if (!githubCommit) {
-      missing.push(commit);
+    // Track commits not found on GitHub (for warning)
+    if (!raw.pr && raw.hash) {
+      missing.push(raw);
     }
 
-    if (!categoryTitle) {
-      leftovers.push(commit);
+    if (!categoryTitle || !raw.pr) {
+      // No category match or no PR - goes to leftovers
+      leftovers.push({
+        author: raw.author,
+        hash: raw.hash,
+        title: raw.title,
+        body: raw.body,
+        hasPRinTitle: Boolean(raw.pr),
+        pr: raw.pr ?? null,
+        prTitle: raw.prTitle ?? null,
+        prBody: raw.prBody ?? null,
+        labels: raw.labels,
+        category: categoryTitle,
+        highlight: raw.highlight,
+      });
     } else {
-      if (!commit.pr) {
-        leftovers.push(commit);
-      } else {
-        let category = categories.get(categoryTitle);
-        if (!category) {
-          category = {
-            title: categoryTitle,
-            scopeGroups: new Map<string | null, PullRequest[]>(),
-          };
-          categories.set(categoryTitle, category);
-        }
-
-        // Extract and normalize scope from PR title
-        // Trim to handle any leading/trailing whitespace
-        const prTitle = (commit.prTitle ?? commit.title).trim();
-        const scope = extractScope(prTitle);
-
-        // Get or create the scope group
-        let scopeGroup = category.scopeGroups.get(scope);
-        if (!scopeGroup) {
-          scopeGroup = [];
-          category.scopeGroups.set(scope, scopeGroup);
-        }
-
-        scopeGroup.push({
-          author: commit.author,
-          number: commit.pr,
-          hash: commit.hash,
-          body: commit.prBody ?? '',
-          title: prTitle,
-        });
+      // Has category and PR - add to category
+      let category = categories.get(categoryTitle);
+      if (!category) {
+        category = {
+          title: categoryTitle,
+          scopeGroups: new Map<string | null, PullRequest[]>(),
+        };
+        categories.set(categoryTitle, category);
       }
+
+      const prTitle = (raw.prTitle ?? raw.title).trim();
+      const scope = extractScope(prTitle);
+
+      let scopeGroup = category.scopeGroups.get(scope);
+      if (!scopeGroup) {
+        scopeGroup = [];
+        category.scopeGroups.set(scope, scopeGroup);
+      }
+
+      scopeGroup.push({
+        author: raw.author,
+        number: raw.pr,
+        hash: raw.hash,
+        body: raw.prBody ?? '',
+        title: prTitle,
+        highlight: raw.highlight,
+      });
     }
   }
 
@@ -1065,7 +1056,7 @@ async function generateRawChangelog(
   if (missing.length > 0) {
     logger.warn(
       'The following commits were not found on GitHub:',
-      missing.map(commit => `${commit.hash.slice(0, 8)} ${commit.title}`)
+      missing.map(c => `${c.hash.slice(0, 8)} ${c.title}`)
     );
   }
 
@@ -1077,24 +1068,41 @@ async function generateRawChangelog(
     },
     stats: {
       bumpType,
-      totalCommits: gitCommits.length,
+      totalCommits: rawCommits.length,
       matchedCommitsWithSemver,
     },
   };
 }
 
 /**
+ * Generates raw changelog data from git history.
+ * Convenience function that fetches commits and categorizes them.
+ *
+ * @param git Local git client
+ * @param rev Base revision (tag or SHA) to generate changelog from
+ * @param until Optional end revision (defaults to HEAD)
+ * @returns Raw changelog data structure
+ */
+async function generateRawChangelog(
+  git: SimpleGit,
+  rev: string,
+  until?: string
+): Promise<RawChangelogResult> {
+  const rawCommits = await fetchRawCommitInfo(git, rev, until);
+  return categorizeCommits(rawCommits);
+}
+
+/**
  * Serializes raw changelog data to markdown format.
+ * Entries with `highlight: true` are rendered as blockquotes.
  *
  * @param rawData The raw changelog data to serialize
  * @param maxLeftovers Maximum number of leftover entries to include
- * @param highlightPR Optional PR number to highlight (rendered as blockquote)
  * @returns Formatted markdown changelog string
  */
 async function serializeChangelog(
   rawData: RawChangelogData,
-  maxLeftovers: number,
-  highlightPR?: string
+  maxLeftovers: number
 ): Promise<string> {
   const { categories, leftovers, releaseConfig } = rawData;
 
@@ -1162,7 +1170,7 @@ async function serializeChangelog(
           hash: pr.hash,
           body: pr.body,
           repoUrl,
-          highlight: highlightPR === pr.number,
+          highlight: pr.highlight,
         })
       );
 
@@ -1216,8 +1224,7 @@ async function serializeChangelog(
               : commit.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)
               ? commit.body
               : undefined,
-            // Highlight if this is the current PR
-            highlight: highlightPR != null && commit.pr === highlightPR,
+            highlight: commit.highlight,
           })
         )
         .join('\n')
