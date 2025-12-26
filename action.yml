@@ -1,0 +1,208 @@
+name: "Craft Prepare Release"
+description: "Prepare a new release using Craft"
+
+inputs:
+  version:
+    description: >
+      Version to release. Can be a semver string (e.g., "1.2.3"),
+      a bump type ("major", "minor", "patch"), or "auto" for automatic detection.
+    required: false
+  merge_target:
+    description: Target branch to merge into. Uses the default branch as a fallback.
+    required: false
+  force:
+    description: Force a release even when there are release-blockers
+    required: false
+    default: "false"
+  blocker_label:
+    description: Label that blocks releases
+    required: false
+    default: "release-blocker"
+  publish_repo:
+    description: Repository for publish issues (owner/repo format)
+    required: false
+  git_user_name:
+    description: Git committer name
+    required: false
+  git_user_email:
+    description: Git committer email
+    required: false
+  path:
+    description: The path that Craft will run inside
+    required: false
+    default: "."
+  craft_config_from_merge_target:
+    description: Use the craft config from the merge target branch
+    required: false
+    default: "false"
+
+outputs:
+  version:
+    description: The resolved version being released
+    value: ${{ steps.craft.outputs.version }}
+  branch:
+    description: The release branch name
+    value: ${{ steps.craft.outputs.branch }}
+  sha:
+    description: The commit SHA on the release branch
+    value: ${{ steps.craft.outputs.sha }}
+  previous_tag:
+    description: The tag before this release (for diff links)
+    value: ${{ steps.craft.outputs.previous_tag }}
+  changelog:
+    description: The changelog for this release
+    value: ${{ steps.craft.outputs.changelog }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: killswitch
+      name: Check release blockers
+      shell: bash
+      run: |
+        if [[ '${{ inputs.force }}' != 'true' ]] && gh issue list -l '${{ inputs.blocker_label }}' -s open | grep -q '^[0-9]\+[[:space:]]'; then
+          echo "::error::Open release-blocking issues found (label: ${{ inputs.blocker_label }}), cancelling release..."
+          gh api -X POST repos/:owner/:repo/actions/runs/$GITHUB_RUN_ID/cancel
+        fi
+
+    - name: Set git user
+      shell: bash
+      run: |
+        # Use provided values or fall back to triggering actor
+        GIT_USER_NAME='${{ inputs.git_user_name }}'
+        GIT_USER_EMAIL='${{ inputs.git_user_email }}'
+
+        if [[ -z "$GIT_USER_NAME" ]]; then
+          GIT_USER_NAME="${GITHUB_ACTOR}"
+        fi
+        if [[ -z "$GIT_USER_EMAIL" ]]; then
+          GIT_USER_EMAIL="${GITHUB_ACTOR_ID}+${GITHUB_ACTOR}@users.noreply.github.com"
+        fi
+
+        echo "GIT_COMMITTER_NAME=${GIT_USER_NAME}" >> $GITHUB_ENV
+        echo "GIT_AUTHOR_NAME=${GIT_USER_NAME}" >> $GITHUB_ENV
+        echo "EMAIL=${GIT_USER_EMAIL}" >> $GITHUB_ENV
+
+    - name: Install Craft
+      uses: ./install
+
+    - name: Craft Prepare
+      id: craft
+      shell: bash
+      env:
+        CRAFT_LOG_LEVEL: Debug
+      working-directory: ${{ inputs.path }}
+      run: |
+        # Ensure we have origin/HEAD set
+        git remote set-head origin --auto
+
+        # Build command with optional flags
+        CRAFT_ARGS=""
+        if [[ '${{ inputs.craft_config_from_merge_target }}' == 'true' && -n '${{ inputs.merge_target }}' ]]; then
+          CRAFT_ARGS="--config-from ${{ inputs.merge_target }}"
+        fi
+
+        # Version is optional - if not provided, Craft uses versioning.policy from config
+        VERSION_ARG=""
+        if [[ -n '${{ inputs.version }}' ]]; then
+          VERSION_ARG="${{ inputs.version }}"
+        fi
+
+        craft prepare $VERSION_ARG $CRAFT_ARGS
+
+    - name: Read Craft Targets
+      id: craft-targets
+      shell: bash
+      working-directory: ${{ inputs.path }}
+      env:
+        CRAFT_LOG_LEVEL: Warn
+      run: |
+        targets=$(craft targets | jq -r '.[]|" - [ ] \(.)"')
+
+        # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#multiline-strings
+        echo "targets<<EOF" >> "$GITHUB_OUTPUT"
+        echo "$targets" >> "$GITHUB_OUTPUT"
+        echo "EOF" >> "$GITHUB_OUTPUT"
+
+    - name: Request publish
+      shell: bash
+      run: |
+        if [[ '${{ inputs.path }}' == '.' ]]; then
+          subdirectory=''
+        else
+          subdirectory='/${{ inputs.path }}'
+        fi
+
+        if [[ -n '${{ inputs.merge_target }}' ]]; then
+          merge_target='${{ inputs.merge_target }}'
+        else
+          merge_target='(default)'
+        fi
+
+        # Use resolved version from Craft output
+        RESOLVED_VERSION="${{ steps.craft.outputs.version }}"
+        if [[ -z "$RESOLVED_VERSION" ]]; then
+          echo "::error::Craft did not output a version. This is unexpected."
+          exit 1
+        fi
+
+        title="publish: ${GITHUB_REPOSITORY}${subdirectory}@${RESOLVED_VERSION}"
+
+        # Determine publish repo
+        PUBLISH_REPO='${{ inputs.publish_repo }}'
+        if [[ -z "$PUBLISH_REPO" ]]; then
+          PUBLISH_REPO="${GITHUB_REPOSITORY_OWNER}/publish"
+        fi
+
+        # Check if issue already exists
+        # GitHub only allows search with the "in" operator and this issue search can
+        # return non-exact matches. We extract the titles and check with grep -xF
+        if gh -R "$PUBLISH_REPO" issue list -S "'$title' in:title" --json title -q '.[] | .title' | grep -qxF -- "$title"; then
+          echo "There's already an open publish request, skipped issue creation."
+          exit 0
+        fi
+
+        # Use Craft outputs for git info
+        RELEASE_BRANCH="${{ steps.craft.outputs.branch }}"
+        RELEASE_SHA="${{ steps.craft.outputs.sha }}"
+        PREVIOUS_TAG="${{ steps.craft.outputs.previous_tag }}"
+
+        # Fall back to HEAD if no previous tag
+        if [[ -z "$PREVIOUS_TAG" ]]; then
+          PREVIOUS_TAG="HEAD"
+        fi
+
+        # Build changelog section if available
+        CHANGELOG='${{ steps.craft.outputs.changelog }}'
+        if [[ -n "$CHANGELOG" ]]; then
+          CHANGELOG_SECTION="
+        ---
+
+        <details>
+        <summary>📋 Changelog</summary>
+
+        ${CHANGELOG}
+
+        </details>"
+        else
+          CHANGELOG_SECTION=""
+        fi
+
+        body="Requested by: @${GITHUB_ACTOR}
+
+        Merge target: ${merge_target}
+
+        Quick links:
+        - [View changes](https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS_TAG}...${RELEASE_BRANCH})
+        - [View check runs](https://github.com/${GITHUB_REPOSITORY}/commit/${RELEASE_SHA}/checks/)
+
+        Assign the **accepted** label to this issue to approve the release.
+        To retract the release, the person requesting it must leave a comment containing \`#retract\` on a line by itself under this issue.
+
+        ### Targets
+
+        ${{ steps.craft-targets.outputs.targets }}
+
+        Checked targets will be skipped (either already published or user-requested skip). Uncheck to retry a target.
+        ${CHANGELOG_SECTION}"
+        gh issue create -R "$PUBLISH_REPO" --title "$title" --body "$body"

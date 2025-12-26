@@ -26,6 +26,7 @@ import {
   extractScope,
   formatScopeTitle,
   extractChangelogEntry,
+  clearChangesetCache,
   SKIP_CHANGELOG_MAGIC_WORD,
   BODY_IN_CHANGELOG_MAGIC_WORD,
 } from '../changelog';
@@ -332,6 +333,9 @@ describe('generateChangesetFromGit', () => {
     commits: TestCommit[],
     releaseConfig?: string | null
   ): void {
+    // Clear memoization cache to ensure fresh results
+    clearChangesetCache();
+
     mockGetChangesSince.mockResolvedValueOnce(
       commits.map(commit => ({
         hash: commit.hash,
@@ -805,7 +809,8 @@ describe('generateChangesetFromGit', () => {
       output: string
     ) => {
       setup(commits, releaseConfig);
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
       expect(changes).toBe(output);
     }
   );
@@ -855,7 +860,8 @@ describe('generateChangesetFromGit', () => {
       expect(getConfigFileDirMock).toBeDefined();
       expect(readFileSyncMock).toBeDefined();
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
 
       // Verify getConfigFileDir was called
       expect(getConfigFileDirMock).toHaveBeenCalled();
@@ -910,7 +916,8 @@ describe('generateChangesetFromGit', () => {
         - feature`
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
       expect(changes).not.toContain('#1');
       expect(changes).toContain('#2');
     });
@@ -953,7 +960,8 @@ describe('generateChangesetFromGit', () => {
           - skip-release`
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
       // PR #1 is excluded from Features category but should appear in Other
       // (category-level exclusions only exclude from that specific category)
       expect(changes).toContain('#1');
@@ -990,7 +998,8 @@ describe('generateChangesetFromGit', () => {
         - '*'`
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
       expect(changes).toContain('### All Changes');
       expect(changes).toContain(
         'Any PR by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)'
@@ -1028,7 +1037,8 @@ describe('generateChangesetFromGit', () => {
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
       // When no config exists, default conventional commits patterns are used
       expect(changes).toContain('### New Features');
       expect(changes).toContain('### Bug Fixes');
@@ -1059,7 +1069,8 @@ describe('generateChangesetFromGit', () => {
         - feature`
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
       expect(changes).toContain('### Features');
       expect(changes).not.toContain('### Other');
       expect(changes).toContain(
@@ -1087,7 +1098,8 @@ describe('generateChangesetFromGit', () => {
   categories: "this is a string, not an array"`
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
       // Should not crash, and PR should appear in output (no categories applied)
       expect(changes).toContain('#1');
     });
@@ -1134,7 +1146,8 @@ describe('generateChangesetFromGit', () => {
         releaseConfigYaml
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
 
       expect(changes).toContain('### Features');
       expect(changes).toContain('### Bug Fixes');
@@ -1186,7 +1199,8 @@ describe('generateChangesetFromGit', () => {
         releaseConfigYaml
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
 
       expect(changes).toContain('### Labeled Features');
       expect(changes).toContain('### Pattern Features');
@@ -1265,7 +1279,8 @@ describe('generateChangesetFromGit', () => {
         null // No release.yml - should use default config
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       expect(changes).toContain('### New Features');
       expect(changes).toContain('### Bug Fixes');
@@ -1301,7 +1316,8 @@ describe('generateChangesetFromGit', () => {
       );
 
       // Should not crash, and valid pattern should still work
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
       expect(changes).toContain('### Features');
       expect(changes).toContain('feat: new feature');
     });
@@ -1345,7 +1361,8 @@ describe('generateChangesetFromGit', () => {
         releaseConfigYaml
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
 
       expect(changes).toContain('### Features');
       expect(changes).not.toContain('### Other');
@@ -1394,7 +1411,8 @@ describe('generateChangesetFromGit', () => {
         releaseConfigYaml
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
 
       expect(changes).toContain('### Features');
       // PR #1 should be excluded from Features (but appear in Other)
@@ -1441,7 +1459,8 @@ describe('generateChangesetFromGit', () => {
         releaseConfigYaml
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
 
       expect(changes).toContain('### Features');
       expect(changes).not.toContain('### Other');
@@ -1486,7 +1505,8 @@ describe('generateChangesetFromGit', () => {
         releaseConfigYaml
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
 
       expect(changes).toContain('### Features');
       expect(changes).toContain('feat(api): add endpoint');
@@ -1536,7 +1556,8 @@ describe('generateChangesetFromGit', () => {
         null // Use default config
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       expect(changes).toContain('### Bug Fixes');
       expect(changes).toContain('### New Features');
@@ -1591,7 +1612,8 @@ describe('generateChangesetFromGit', () => {
         null // Use default config
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       expect(changes).toContain('### Build / dependencies / internal');
       expect(changes).toContain('refactor: clean up code');
@@ -1632,11 +1654,71 @@ describe('generateChangesetFromGit', () => {
         null // Use default config
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       expect(changes).toContain('### Breaking Changes');
       expect(changes).toContain('feat(my-api)!: breaking api change');
       expect(changes).toContain('fix!: breaking fix');
+    });
+
+    it('should trim leading and trailing whitespace from PR titles before pattern matching', async () => {
+      const releaseConfigYaml = `changelog:
+  categories:
+    - title: Features
+      commit_patterns:
+        - "^feat:"
+    - title: Bug Fixes
+      commit_patterns:
+        - "^fix:"`;
+
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: ' feat: feature with leading space',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+                title: ' feat: feature with leading space', // PR title from GitHub has leading space
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'fix: bug fix with trailing space ',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+                title: 'fix: bug fix with trailing space ', // PR title from GitHub has trailing space
+              },
+            },
+          },
+        ],
+        releaseConfigYaml
+      );
+
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      const changes = result.changelog;
+
+      // Both should be properly categorized despite whitespace
+      expect(changes).toContain('### Features');
+      expect(changes).toContain('### Bug Fixes');
+      // Titles should be trimmed in output (no leading/trailing spaces)
+      expect(changes).toContain(
+        'feat: feature with leading space by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)'
+      );
+      expect(changes).toContain(
+        'fix: bug fix with trailing space by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)'
+      );
+      // Should NOT go to Other section
+      expect(changes).not.toContain('### Other');
     });
   });
 
@@ -1701,7 +1783,8 @@ describe('generateChangesetFromGit', () => {
         releaseConfigYaml
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       // Sections should appear in config order, not encounter order
       const featuresIndex = changes.indexOf('### Features');
@@ -1782,7 +1865,8 @@ describe('generateChangesetFromGit', () => {
         releaseConfigYaml
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       // Features should still come before Bug Fixes per config order
       const featuresIndex = changes.indexOf('### Features');
@@ -1870,7 +1954,8 @@ describe('generateChangesetFromGit', () => {
         null // No config - use defaults
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       // Default order from DEFAULT_RELEASE_CONFIG:
       // Breaking Changes, Build/deps, Bug Fixes, Documentation, New Features
@@ -1972,7 +2057,8 @@ describe('generateChangesetFromGit', () => {
         null // Use default config
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       // Verify Api scope header exists (has 2 entries)
       const apiSection = getSectionContent(changes, /#### Api\n/);
@@ -1989,7 +2075,7 @@ describe('generateChangesetFromGit', () => {
       expect(uiSection).not.toContain('feat(api):');
     });
 
-    it('should place scopeless entries at the bottom without sub-header', async () => {
+    it('should place scopeless entries at the bottom under "Other" header when scoped entries exist', async () => {
       setup(
         [
           {
@@ -2032,33 +2118,129 @@ describe('generateChangesetFromGit', () => {
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       // Should have Api scope header (has 2 entries)
       expect(changes).toContain('#### Api');
 
-      // Scopeless entry should appear after all scope headers (at the bottom)
-      const lastScopeHeaderIndex = changes.lastIndexOf('#### ');
-      const scopelessIndex = changes.indexOf('feat: add feature without scope');
-      expect(scopelessIndex).toBeGreaterThan(lastScopeHeaderIndex);
+      // Should have an "Other" header for scopeless entries (since Api has a header)
+      expect(changes).toContain('#### Other');
 
-      // Verify the scopeless entry doesn't have its own #### header before it
-      // by checking that the line immediately before it is not a scope header
-      const lines = changes.split('\n');
-      const scopelessLineIndex = lines.findIndex(line =>
-        line.includes('feat: add feature without scope')
-      );
-      // Find the closest non-empty line before the scopeless entry
-      let prevLineIndex = scopelessLineIndex - 1;
-      while (prevLineIndex >= 0 && lines[prevLineIndex].trim() === '') {
-        prevLineIndex--;
-      }
-      // The previous non-empty line should not be a #### header
-      expect(lines[prevLineIndex]).not.toMatch(/^#### /);
+      // Scopeless entry should appear after the "Other" header
+      const otherHeaderIndex = changes.indexOf('#### Other');
+      const scopelessIndex = changes.indexOf('feat: add feature without scope');
+      expect(scopelessIndex).toBeGreaterThan(otherHeaderIndex);
 
       // Verify Api scope entry comes before scopeless entry
       const apiEntryIndex = changes.indexOf('feat(api): add endpoint');
       expect(apiEntryIndex).toBeLessThan(scopelessIndex);
+    });
+
+    it('should not add "Other" header when no scoped entries have headers', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat(api): single api feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat: feature without scope',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        null
+      );
+
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
+
+      // Neither scope should have a header (both have only 1 entry)
+      expect(changes).not.toContain('#### Api');
+      // No "Other" header should be added since there are no other scope headers
+      expect(changes).not.toContain('#### Other');
+
+      // But both PRs should still appear in the output
+      expect(changes).toContain('feat(api): single api feature');
+      expect(changes).toContain('feat: feature without scope');
+    });
+
+    it('should not add extra newlines between entries without scope headers', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat(docker): add docker feature',
+            body: '',
+            pr: {
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat: add feature without scope 1',
+            body: '',
+            pr: {
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: [],
+              },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'feat: add feature without scope 2',
+            body: '',
+            pr: {
+              remote: {
+                number: '3',
+                author: { login: 'charlie' },
+                labels: [],
+              },
+            },
+          },
+        ],
+        null
+      );
+
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
+
+      // All three should appear without extra blank lines between them
+      // (no scope headers since docker only has 1 entry and scopeless don't trigger headers)
+      expect(changes).not.toContain('#### Docker');
+      expect(changes).not.toContain('#### Other');
+
+      // Verify no double newlines between entries (which would indicate separate sections)
+      const featuresSection = getSectionContent(changes, /### New Features[^\n]*\n/);
+      expect(featuresSection).not.toBeNull();
+      // There should be no blank lines between the three entries
+      expect(featuresSection).not.toMatch(/\n\n-/);
+      // All entries should be present
+      expect(featuresSection).toContain('feat(docker): add docker feature');
+      expect(featuresSection).toContain('feat: add feature without scope 1');
+      expect(featuresSection).toContain('feat: add feature without scope 2');
     });
 
     it('should skip scope header for scopes with only one entry', async () => {
@@ -2092,7 +2274,8 @@ describe('generateChangesetFromGit', () => {
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       // Neither scope should have a header (both have only 1 entry)
       expect(changes).not.toContain('#### Api');
@@ -2146,7 +2329,8 @@ describe('generateChangesetFromGit', () => {
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       // Should only have one Api header (all merged)
       const apiMatches = changes.match(/#### Api/gi);
@@ -2239,7 +2423,8 @@ describe('generateChangesetFromGit', () => {
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       const alphaIndex = changes.indexOf('#### Alpha');
       const betaIndex = changes.indexOf('#### Beta');
@@ -2311,7 +2496,8 @@ describe('generateChangesetFromGit', () => {
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       // Verify scope headers are formatted correctly (each has 2 entries)
       expect(changes).toContain('#### Another Component');
@@ -2398,7 +2584,8 @@ describe('generateChangesetFromGit', () => {
         - enhancement`
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       expect(changes).toContain('### Features');
 
@@ -2471,7 +2658,8 @@ describe('generateChangesetFromGit', () => {
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       expect(changes).toContain('### Breaking Changes');
 
@@ -2520,7 +2708,8 @@ describe('generateChangesetFromGit', () => {
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       // Should only have one "My Component" header (merged via normalization)
       const myComponentMatches = changes.match(/#### My Component/gi);
@@ -2565,7 +2754,8 @@ Closes #123`,
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       // Should use the custom changelog entry, not the PR title
       expect(changes).toContain(
@@ -2600,7 +2790,8 @@ Closes #456`,
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       // Should use PR title when no custom changelog entry exists
       expect(changes).toContain('feat: Add bar function');
@@ -2656,7 +2847,8 @@ Custom entry for bug fix C`,
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       expect(changes).toContain('Custom entry for feature A');
       expect(changes).toContain('feat: Add feature B');
@@ -2705,7 +2897,8 @@ Custom entry for bug fix C`,
         - bug`
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       expect(changes).toContain('### Features');
       expect(changes).toContain('### Bug Fixes');
@@ -2756,7 +2949,8 @@ Add endpoint for data export`,
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       // Should still group by scope even with custom changelog entries
       expect(changes).toContain('#### Api');
@@ -2786,7 +2980,8 @@ Update all dependencies to their latest versions for improved security`,
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       expect(changes).toContain(
         'Update all dependencies to their latest versions for improved security'
@@ -2819,7 +3014,8 @@ Update all dependencies to their latest versions for improved security`,
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       expect(changes).toContain(
         'Add comprehensive user authentication system by @alice in [#1]'
@@ -2853,7 +3049,8 @@ Update all dependencies to their latest versions for improved security`,
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       // Should have 3 separate changelog entries from the same PR
       expect(changes).toContain('Add OAuth2 authentication by @alice in [#1]');
@@ -2888,7 +3085,8 @@ Update all dependencies to their latest versions for improved security`,
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       // First entry with nested content
       expect(changes).toContain('Add authentication by @alice in [#1]');
@@ -2925,7 +3123,8 @@ Closes #123`,
         null
       );
 
-      const changes = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const changes = result.changelog;
 
       // Should fall back to PR title when changelog entry is empty
       expect(changes).toContain('feat: Add feature');

@@ -8,9 +8,14 @@ import {
   getConfiguration,
   DEFAULT_RELEASE_BRANCH_NAME,
   getGlobalGitHubConfig,
+  requiresMinVersion,
+  loadConfigurationFromString,
+  CONFIG_FILE_NAME,
+  getVersioningPolicy,
 } from '../config';
 import { logger } from '../logger';
-import { ChangelogPolicy } from '../schemas/project_config';
+import { ChangelogPolicy, VersioningPolicy } from '../schemas/project_config';
+import { calculateCalVer, DEFAULT_CALVER_CONFIG } from '../utils/calver';
 import { sleep } from '../utils/async';
 import {
   DEFAULT_CHANGELOG_PATH,
@@ -26,7 +31,18 @@ import {
   reportError,
 } from '../utils/errors';
 import { getGitClient, getDefaultBranch, getLatestTag } from '../utils/git';
-import { isDryRun, promptConfirmation } from '../utils/helpers';
+import {
+  getChangelogWithBumpType,
+  calculateNextVersion,
+  validateBumpType,
+  isBumpType,
+  type BumpType,
+} from '../utils/autoVersion';
+import {
+  isDryRun,
+  promptConfirmation,
+  setGitHubActionsOutput,
+} from '../utils/helpers';
 import { formatJson } from '../utils/strings';
 import { spawnProcess } from '../utils/system';
 import { isValidVersion } from '../utils/version';
@@ -40,10 +56,17 @@ export const description = '🚢 Prepare a new release branch';
 /** Default path to bump-version script, relative to project root */
 const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
 
+/** Minimum craft version required for auto-versioning */
+const AUTO_VERSION_MIN_VERSION = '2.14.0';
+
 export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
     .positional('NEW-VERSION', {
-      description: 'The new version you want to release',
+      description:
+        'The new version to release. Can be: a semver string (e.g., "1.2.3"), ' +
+        'a bump type ("major", "minor", or "patch"), "auto" to determine automatically ' +
+        'from conventional commits, or "calver" for calendar versioning. ' +
+        'If omitted, uses the versioning.policy from .craft.yml',
       type: 'string',
     })
     .option('rev', {
@@ -77,12 +100,20 @@ export const builder: CommandBuilder = (yargs: Argv) =>
       description: 'The git remote to use when pushing',
       type: 'string',
     })
+    .option('config-from', {
+      description: 'Load .craft.yml from the specified remote branch instead of local file',
+      type: 'string',
+    })
+    .option('calver-offset', {
+      description: 'Days to go back for CalVer date calculation (overrides config)',
+      type: 'number',
+    })
     .check(checkVersionOrPart);
 
 /** Command line options. */
 interface PrepareOptions {
-  /** The new version to release */
-  newVersion: string;
+  /** The new version to release (optional if versioning.policy is configured) */
+  newVersion?: string;
   /** The base revision to release */
   rev: string;
   /** The git remote to use when pushing */
@@ -95,6 +126,10 @@ interface PrepareOptions {
   noPush: boolean;
   /** Run publish right after */
   publish: boolean;
+  /** Load config from specified remote branch */
+  configFrom?: string;
+  /** Override CalVer offset (days to go back) */
+  calverOffset?: number;
 }
 
 /**
@@ -106,17 +141,38 @@ const SLEEP_BEFORE_PUBLISH_SECONDS = 30;
 /**
  * Checks the provided version argument for validity
  *
- * We check that the argument is either a valid version string, or a valid
- * semantic version part.
+ * We check that the argument is either a valid version string, 'auto' for
+ * automatic version detection, 'calver' for calendar versioning, a version
+ * bump type (major/minor/patch), or a valid semantic version.
+ * Empty/undefined is also allowed (will use versioning.policy from config).
  *
  * @param argv Parsed yargs arguments
  * @param _opt A list of options and aliases
  */
 export function checkVersionOrPart(argv: Arguments<any>, _opt: any): boolean {
   const version = argv.newVersion;
-  if (['major', 'minor', 'patch'].indexOf(version) > -1) {
-    throw Error('Version part is not supported yet');
-  } else if (isValidVersion(version)) {
+
+  // Allow empty version (will use versioning.policy from config)
+  if (!version) {
+    return true;
+  }
+
+  // Allow 'auto' for automatic version detection
+  if (version === 'auto') {
+    return true;
+  }
+
+  // Allow 'calver' for calendar versioning
+  if (version === 'calver') {
+    return true;
+  }
+
+  // Allow version bump types (major, minor, patch)
+  if (isBumpType(version)) {
+    return true;
+  }
+
+  if (isValidVersion(version)) {
     return true;
   } else {
     let errMsg = `Invalid version or version part specified: "${version}"`;
@@ -349,6 +405,7 @@ async function execPublish(remote: string, newVersion: string): Promise<never> {
  * @param newVersion The new version we are releasing
  * @param changelogPolicy One of the changelog policies, such as "none", "simple", etc.
  * @param changelogPath Path to the changelog file
+ * @returns The changelog body for this version, or undefined if no changelog
  */
 async function prepareChangelog(
   git: SimpleGit,
@@ -356,12 +413,12 @@ async function prepareChangelog(
   newVersion: string,
   changelogPolicy: ChangelogPolicy = ChangelogPolicy.None,
   changelogPath: string = DEFAULT_CHANGELOG_PATH
-): Promise<void> {
+): Promise<string | undefined> {
   if (changelogPolicy === ChangelogPolicy.None) {
     logger.debug(
       `Changelog policy is set to "${changelogPolicy}", nothing to do.`
     );
-    return;
+    return undefined;
   }
 
   if (
@@ -403,7 +460,9 @@ async function prepareChangelog(
       }
       if (!changeset.body) {
         replaceSection = changeset.name;
-        changeset.body = await generateChangesetFromGit(git, oldVersion);
+        // generateChangesetFromGit is memoized, so this won't duplicate API calls
+        const result = await generateChangesetFromGit(git, oldVersion);
+        changeset.body = result.changelog;
       }
       if (changeset.name === DEFAULT_UNRELEASED_TITLE) {
         replaceSection = changeset.name;
@@ -436,6 +495,7 @@ async function prepareChangelog(
 
   logger.debug('Changelog entry found:', changeset.name);
   logger.trace(changeset.body);
+  return changeset?.body;
 }
 
 /**
@@ -460,18 +520,145 @@ async function switchToDefaultBranch(
   }
 }
 
+interface ResolveVersionOptions {
+  /** The raw version input from CLI (may be undefined, 'auto', 'calver', bump type, or semver) */
+  versionArg?: string;
+  /** Override for CalVer offset (days to go back) */
+  calverOffset?: number;
+}
+
+/**
+ * Resolves the final semver version string from various input types.
+ *
+ * Handles:
+ * - No input: uses versioning.policy from config
+ * - 'calver': calculates calendar version
+ * - 'auto': analyzes commits to determine bump type
+ * - 'major'/'minor'/'patch': applies bump to latest tag
+ * - Explicit semver: returns as-is
+ *
+ * @param git Local git client
+ * @param options Version resolution options
+ * @returns The resolved semver version string
+ */
+async function resolveVersion(
+  git: SimpleGit,
+  options: ResolveVersionOptions
+): Promise<string> {
+  const config = getConfiguration();
+  let version = options.versionArg;
+
+  // If no version specified, use the versioning policy from config
+  if (!version) {
+    const policy = getVersioningPolicy();
+    logger.debug(`No version specified, using versioning policy: ${policy}`);
+
+    if (policy === VersioningPolicy.Manual) {
+      throw new ConfigurationError(
+        'Version is required. Either specify a version argument or set ' +
+          'versioning.policy to "auto" or "calver" in .craft.yml'
+      );
+    }
+
+    // Use the policy as the version type
+    version = policy;
+  }
+
+  // Handle CalVer versioning
+  if (version === 'calver') {
+    if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
+      throw new ConfigurationError(
+        `CalVer versioning requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
+          'Please update your configuration or specify the version explicitly.'
+      );
+    }
+
+    // Build CalVer config with overrides
+    const calverOffset =
+      options.calverOffset ??
+      (process.env.CRAFT_CALVER_OFFSET
+        ? parseInt(process.env.CRAFT_CALVER_OFFSET, 10)
+        : undefined) ??
+      config.versioning?.calver?.offset ??
+      DEFAULT_CALVER_CONFIG.offset;
+
+    const calverFormat =
+      config.versioning?.calver?.format ?? DEFAULT_CALVER_CONFIG.format;
+
+    return calculateCalVer(git, {
+      offset: calverOffset,
+      format: calverFormat,
+    });
+  }
+
+  // Handle automatic version detection or version bump types
+  if (version === 'auto' || isBumpType(version)) {
+    if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
+      const featureName = isBumpType(version)
+        ? 'Version bump types'
+        : 'Auto-versioning';
+      throw new ConfigurationError(
+        `${featureName} requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
+          'Please update your configuration or specify the version explicitly.'
+      );
+    }
+
+    const latestTag = await getLatestTag(git);
+
+    // Determine bump type - either from arg or from commit analysis
+    let bumpType: BumpType;
+    if (version === 'auto') {
+      const changelogResult = await getChangelogWithBumpType(git, latestTag);
+      validateBumpType(changelogResult);
+      bumpType = changelogResult.bumpType;
+    } else {
+      bumpType = version as BumpType;
+    }
+
+    // Calculate new version from latest tag
+    const currentVersion =
+      latestTag && latestTag.replace(/^v/, '').match(/^\d/)
+        ? latestTag.replace(/^v/, '')
+        : '0.0.0';
+
+    const newVersion = calculateNextVersion(currentVersion, bumpType);
+    logger.info(
+      `Version bump: ${currentVersion} -> ${newVersion} (${bumpType} bump)`
+    );
+    return newVersion;
+  }
+
+  // Explicit semver version - return as-is
+  return version;
+}
+
 /**
  * Body of 'prepare' command
  *
  * @param argv Command-line arguments
  */
 export async function prepareMain(argv: PrepareOptions): Promise<any> {
+  const git = await getGitClient();
+
+  // Handle --config-from: load config from remote branch
+  if (argv.configFrom) {
+    logger.info(`Loading configuration from remote branch: ${argv.configFrom}`);
+    try {
+      await git.fetch([argv.remote, argv.configFrom]);
+      const configContent = await git.show([
+        `${argv.remote}/${argv.configFrom}:${CONFIG_FILE_NAME}`,
+      ]);
+      loadConfigurationFromString(configContent);
+    } catch (error: any) {
+      throw new ConfigurationError(
+        `Failed to load ${CONFIG_FILE_NAME} from branch "${argv.configFrom}": ${error.message}`
+      );
+    }
+  }
+
   // Get repo configuration
   const config = getConfiguration();
   const githubConfig = await getGlobalGitHubConfig();
-  const newVersion = argv.newVersion;
-
-  const git = await getGitClient();
 
   const defaultBranch = await getDefaultBranch(git, argv.remote);
   logger.debug(`Default branch for the repo:`, defaultBranch);
@@ -484,6 +671,15 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     // Check that we're in an acceptable state for the release
     checkGitStatus(repoStatus, rev);
   }
+
+  // Resolve version from input, policy, or automatic detection
+  const newVersion = await resolveVersion(git, {
+    versionArg: argv.newVersion,
+    calverOffset: argv.calverOffset,
+  });
+
+  // Emit resolved version for GitHub Actions
+  setGitHubActionsOutput('version', newVersion);
 
   logger.info(`Releasing version ${newVersion} from ${rev}`);
   if (!argv.rev && rev !== defaultBranch) {
@@ -521,7 +717,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       ? config.changelog.policy
       : config.changelogPolicy
   ) as ChangelogPolicy | undefined;
-  await prepareChangelog(
+  const changelogBody = await prepareChangelog(
     git,
     oldVersion,
     newVersion,
@@ -545,6 +741,15 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
   // Push the release branch
   await pushReleaseBranch(git, branchName, argv.remote, !argv.noPush);
+
+  // Emit GitHub Actions outputs for downstream steps
+  const releaseSha = await git.revparse(['HEAD']);
+  setGitHubActionsOutput('branch', branchName);
+  setGitHubActionsOutput('sha', releaseSha);
+  setGitHubActionsOutput('previous_tag', oldVersion || '');
+  if (changelogBody) {
+    setGitHubActionsOutput('changelog', changelogBody);
+  }
 
   logger.info(
     `View diff at: https://github.com/${githubConfig.owner}/${githubConfig.repo}/compare/${branchName}`

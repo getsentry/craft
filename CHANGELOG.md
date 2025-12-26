@@ -1,5 +1,84 @@
 # Changelog
 
+## 2.15.0
+
+### New Features ✨
+
+#### Github
+
+- feat(github): Integrate action-prepare-release into Craft repo by @BYK in [#667](https://github.com/getsentry/craft/pull/667)
+- feat(github): Emit resolved version to GITHUB_OUTPUTS on prepare by @BYK in [#666](https://github.com/getsentry/craft/pull/666)
+
+## 2.14.1
+
+### Bug Fixes 🐛
+
+#### Changelog
+
+- fix(changelog): Fix whitespace related issues by @BYK in [#664](https://github.com/getsentry/craft/pull/664)
+- fix(changelog): Add ref and perf to internal changes prefixes by @BYK in [#662](https://github.com/getsentry/craft/pull/662)
+
+### Build / dependencies / internal 🔧
+
+- ci(deps): Upgrade action-prepare-release to latest by @BYK in [#663](https://github.com/getsentry/craft/pull/663)
+
+- ci(release): Add support for auto versioning by @BYK in [#665](https://github.com/getsentry/craft/pull/665)
+
+## 2.14.0
+
+### New Features ✨
+
+- feat(docker): Add support for multiple registries by @BYK in [#657](https://github.com/getsentry/craft/pull/657)
+
+- feat: Add automatic version bumping based on conventional commits by @BYK in [#656](https://github.com/getsentry/craft/pull/656)
+- feat: Add `skip-changelog` label by default by @BYK in [#655](https://github.com/getsentry/craft/pull/655)
+
+### Bug Fixes 🐛
+
+- fix(changelog): Unscoped entries should be grouped under "other"  by @BYK in [#659](https://github.com/getsentry/craft/pull/659)
+
+### Build / dependencies / internal 🔧
+
+- ci: Update action-prepare-release to v1.6.5 by @BYK in [#654](https://github.com/getsentry/craft/pull/654)
+
+### Other
+
+-  fix(docker): Support regional Artifact Registry endpoints in isGoogleCloudRegistry by @BYK in [#661](https://github.com/getsentry/craft/pull/661)
+
+## 2.13.1
+
+### Build / dependencies / internal 🔧
+
+- ci: Fix release input desc and concurrency by @BYK in [#653](https://github.com/getsentry/craft/pull/653)
+
+### Bug Fixes 🐛
+
+- fix: Fix startup issue with yargs by @BYK in [#651](https://github.com/getsentry/craft/pull/651)
+
+### Documentation 📚
+
+- docs: Add AGENTS.md by @BYK in [#652](https://github.com/getsentry/craft/pull/652)
+
+## 2.13.0
+
+### New Features ✨
+
+- feat(npm): Add workspaces support by @BYK in [#645](https://github.com/getsentry/craft/pull/645)
+- feat(changelog): Add grouping by scope by @BYK in [#644](https://github.com/getsentry/craft/pull/644)
+- feat(changelog): Add section ordering by @BYK in [#640](https://github.com/getsentry/craft/pull/640)
+
+### Build / dependencies / internal 🔧
+
+- build(deps): bump jws from 4.0.0 to 4.0.1 by @dependabot in [#650](https://github.com/getsentry/craft/pull/650)
+
+### Bug Fixes 🐛
+
+- fix(changelog): default matcher should match scopes with dashes by @BYK in [#641](https://github.com/getsentry/craft/pull/641)
+
+### Other
+
+- build(deps-dev): bump @octokit/request-error from 6.1.8 to 7.0.0 by @dependabot in [#643](https://github.com/getsentry/craft/pull/643)
+
 ## 2.12.1
 
 ### Bug Fixes 🐛
