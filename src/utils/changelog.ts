@@ -271,7 +271,8 @@ function parseChangelogContent(content: string): ChangelogEntryItem[] {
       // Check if this is a nested bullet (more than 3 spaces of indentation, or tab)
       const nestedMatch = line.match(/^(\s{4,}|\t+)[-*+]\s+(.+)$/);
       if (nestedMatch) {
-        nestedLines.push(`  ${nestedMatch[2].trim()}`);
+        // Preserve the bullet marker for nested items
+        nestedLines.push(`  - ${nestedMatch[2].trim()}`);
       } else if (line.trim()) {
         // Non-empty line that's not a bullet - could be continuation text or nested content
         // Add to nested content if it has any indentation or follows other nested content

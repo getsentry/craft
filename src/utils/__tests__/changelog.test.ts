@@ -3043,9 +3043,10 @@ Update all dependencies to their latest versions for improved security`,
       expect(changes).toContain(
         'Add comprehensive user authentication system by @alice in [#1]'
       );
-      expect(changes).toContain('  OAuth2 support');
-      expect(changes).toContain('  Two-factor authentication');
-      expect(changes).toContain('  Session management');
+      // Nested bullets preserve the bullet marker
+      expect(changes).toContain('  - OAuth2 support');
+      expect(changes).toContain('  - Two-factor authentication');
+      expect(changes).toContain('  - Session management');
     });
 
     it('should create multiple changelog entries from multiple bullets in PR', async () => {
@@ -3113,15 +3114,15 @@ Update all dependencies to their latest versions for improved security`,
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       const changes = result.changelog;
 
-      // First entry with nested content
+      // First entry with nested content (bullets preserved)
       expect(changes).toContain('Add authentication by @alice in [#1]');
-      expect(changes).toContain('  OAuth2');
-      expect(changes).toContain('  2FA');
+      expect(changes).toContain('  - OAuth2');
+      expect(changes).toContain('  - 2FA');
 
-      // Second entry with nested content
+      // Second entry with nested content (bullets preserved)
       expect(changes).toContain('Add user profiles by @alice in [#1]');
-      expect(changes).toContain('  Avatar upload');
-      expect(changes).toContain('  Bio editing');
+      expect(changes).toContain('  - Avatar upload');
+      expect(changes).toContain('  - Bio editing');
     });
 
     it('should ignore empty changelog entry sections', async () => {
@@ -3504,8 +3505,9 @@ Neither should this.`;
     expect(result).not.toBeNull();
     if (result) {
       expect(result[0].text).toBe('Add authentication system');
+      // Nested bullets preserve the bullet marker
       expect(result[0].nestedContent).toBe(
-        '  OAuth2 support\n  Two-factor authentication\n  Session management'
+        '  - OAuth2 support\n  - Two-factor authentication\n  - Session management'
       );
     }
   });
@@ -3526,11 +3528,12 @@ Neither should this.`;
     expect(result).not.toBeNull();
     if (result) {
       expect(result[0].text).toBe('Add authentication system');
+      // Nested bullets preserve the bullet marker
       expect(result[0].nestedContent).toBe(
-        '  OAuth2 support\n  Two-factor authentication'
+        '  - OAuth2 support\n  - Two-factor authentication'
       );
       expect(result[1].text).toBe('Add user profile page');
-      expect(result[1].nestedContent).toBe('  Avatar upload\n  Bio editing');
+      expect(result[1].nestedContent).toBe('  - Avatar upload\n  - Bio editing');
       expect(result[2].text).toBe('Add settings panel');
       expect(result[2].nestedContent).toBeUndefined();
     }

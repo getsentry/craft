@@ -175,6 +175,8 @@ of the PR title. If no such section is present, the PR title is used as usual.
      - Session management
    ```
 
+   Note: Nested items do NOT get author/PR attribution - only the top-level entry does.
+
 3. **Plain Text**: If no bullets are used, the entire content is treated as a
    single changelog entry. Multi-line text is automatically joined with spaces
    to ensure valid markdown output.
