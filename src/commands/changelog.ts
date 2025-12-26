@@ -12,8 +12,6 @@ export const description = 'Generate changelog from git history';
 interface ChangelogOptions {
   /** Base revision to generate changelog from (defaults to latest tag) */
   since?: string;
-  /** End revision to generate changelog to (defaults to HEAD) */
-  until?: string;
   /** PR number for the current (unmerged) PR */
   pr?: number;
 }
@@ -26,15 +24,9 @@ export const builder: CommandBuilder = (yargs: Argv) =>
         'Base revision (tag or SHA) to generate changelog from. Defaults to latest tag.',
       type: 'string',
     })
-    .option('until', {
-      alias: 'u',
-      description:
-        'End revision to generate changelog to. Defaults to HEAD. Use with --pr to exclude PR commits.',
-      type: 'string',
-    })
     .option('pr', {
       description:
-        'PR number for the current (unmerged) PR. The PR info will be fetched from GitHub API and included in the changelog with highlighting.',
+        'PR number for the current (unmerged) PR. The PR info will be fetched from GitHub API, merge base computed from base branch, and the PR included in the changelog with highlighting.',
       type: 'number',
     });
 
@@ -55,15 +47,9 @@ export async function changelogMain(argv: ChangelogOptions): Promise<void> {
     }
   }
 
-  // Use --until if provided (for PR preview, excludes PR commits)
-  const until = argv.until;
-  if (until) {
-    logger.debug(`Generating changelog up to: ${until}`);
-  }
-
   // Generate changelog with optional current PR
   const currentPRNumber = argv.pr ? String(argv.pr) : undefined;
-  const result = await generateChangelogWithHighlight(git, since, currentPRNumber, until);
+  const result = await generateChangelogWithHighlight(git, since, currentPRNumber);
 
   if (!result.changelog) {
     console.log('No changelog entries found.');

@@ -33,20 +33,11 @@ jobs:
           CRAFT_LOG_LEVEL: Warn
         run: |
           PR_NUMBER="${{ github.event.pull_request.number }}"
-          BASE_REF="${{ github.event.pull_request.base.ref }}"
 
-          # Fetch base branch to compute merge base
-          git fetch origin "$BASE_REF"
-
-          # Find the merge base (where PR branched from base)
-          MERGE_BASE=$(git merge-base HEAD "origin/$BASE_REF")
-          echo "Merge base: $MERGE_BASE"
-
-          # Generate changelog:
-          # - From latest tag (default) to merge base (excludes PR commits)
-          # - Then inject current PR info from GitHub API
-          echo "Running craft changelog --until $MERGE_BASE --pr $PR_NUMBER..."
-          CHANGELOG=$(craft changelog --until "$MERGE_BASE" --pr "$PR_NUMBER" 2>/dev/null || echo "")
+          # Generate changelog with current PR injected and highlighted
+          # Craft fetches PR info from GitHub API, computes merge base from PR's base branch
+          echo "Running craft changelog --pr $PR_NUMBER..."
+          CHANGELOG=$(craft changelog --pr "$PR_NUMBER" 2>/dev/null || echo "")
 
           if [[ -z "$CHANGELOG" ]]; then
             CHANGELOG="_No changelog entries will be generated from this PR._"

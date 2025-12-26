@@ -20,6 +20,8 @@ export interface CurrentPRInfo {
   body: string;
   author: string;
   labels: string[];
+  /** Base branch ref (e.g., "master") for computing merge base */
+  baseRef: string;
 }
 
 /**
@@ -51,6 +53,7 @@ async function fetchPRInfo(prNumber: string): Promise<CurrentPRInfo | null> {
       body: pr.body ?? '',
       author: pr.user?.login ?? '',
       labels: labels.map(l => l.name),
+      baseRef: pr.base.ref,
     };
   } catch (error) {
     logger.warn(`Failed to fetch PR #${prNumber}:`, error);
@@ -794,31 +797,52 @@ export async function generateChangesetFromGit(
 /**
  * Generates a changelog from git history with optional current PR injection.
  * When currentPRNumber is provided:
- * - PR info is fetched from GitHub API
- * - The PR is added to the changelog entries
- * - The PR entry is highlighted (rendered as blockquote)
+ * - PR info is fetched from GitHub API (including base branch)
+ * - Merge base is computed from the PR's base branch
+ * - Changelog is generated up to merge base (excludes PR commits)
+ * - The PR is added to the changelog entries with highlighting
  * This function does not use caching since options can vary.
  *
  * @param git Local git client
  * @param rev Base revision (tag or SHA) to generate changelog from
  * @param currentPRNumber Optional PR number to fetch from GitHub and include (highlighted)
- * @param until Optional end revision (defaults to HEAD). Use to exclude PR commits.
  * @returns The changelog result with formatted markdown
  */
 export async function generateChangelogWithHighlight(
   git: SimpleGit,
   rev: string,
-  currentPRNumber?: string,
-  until?: string
+  currentPRNumber?: string
 ): Promise<ChangelogResult> {
-  return generateChangesetFromGitImpl(git, rev, MAX_LEFTOVERS, currentPRNumber, until);
+  // If a PR number is provided, fetch PR info first to get base branch
+  let until: string | undefined;
+  let prInfo: CurrentPRInfo | null = null;
+
+  if (currentPRNumber) {
+    prInfo = await fetchPRInfo(currentPRNumber);
+    if (prInfo) {
+      // Fetch the base branch and compute merge base
+      try {
+        await git.fetch('origin', prInfo.baseRef);
+        until = (
+          await git.raw(['merge-base', 'HEAD', `origin/${prInfo.baseRef}`])
+        ).trim();
+        logger.debug(
+          `Computed merge base from PR base branch "${prInfo.baseRef}": ${until}`
+        );
+      } catch (error) {
+        logger.warn(`Failed to compute merge base for PR #${currentPRNumber}:`, error);
+      }
+    }
+  }
+
+  return generateChangesetFromGitImpl(git, rev, MAX_LEFTOVERS, prInfo, until);
 }
 
 async function generateChangesetFromGitImpl(
   git: SimpleGit,
   rev: string,
   maxLeftovers: number,
-  currentPR?: string,
+  currentPRInfo?: CurrentPRInfo | null,
   until?: string
 ): Promise<ChangelogResult> {
   const rawConfig = readReleaseConfig();
@@ -935,72 +959,69 @@ async function generateChangesetFromGitImpl(
   }
 
   // Inject current (unmerged) PR if provided
-  if (currentPR) {
-    const prInfo = await fetchPRInfo(currentPR);
-    if (prInfo) {
-      // Check if PR should be excluded
-      const prLabels = new Set(prInfo.labels);
-      if (
-        !prInfo.body.includes(SKIP_CHANGELOG_MAGIC_WORD) &&
-        !shouldExcludePR(prLabels, prInfo.author, releaseConfig)
-      ) {
-        // Match PR to category using same logic as commits
-        const matchedCategory = matchCommitToCategory(
-          prLabels,
-          prInfo.author,
-          prInfo.title.trim(),
-          releaseConfig
-        );
-        const categoryTitle = matchedCategory?.title ?? null;
+  if (currentPRInfo) {
+    // Check if PR should be excluded
+    const prLabels = new Set(currentPRInfo.labels);
+    if (
+      !currentPRInfo.body.includes(SKIP_CHANGELOG_MAGIC_WORD) &&
+      !shouldExcludePR(prLabels, currentPRInfo.author, releaseConfig)
+    ) {
+      // Match PR to category using same logic as commits
+      const matchedCategory = matchCommitToCategory(
+        prLabels,
+        currentPRInfo.author,
+        currentPRInfo.title.trim(),
+        releaseConfig
+      );
+      const categoryTitle = matchedCategory?.title ?? null;
 
-        if (categoryTitle) {
-          let category = categories.get(categoryTitle);
-          if (!category) {
-            category = {
-              title: categoryTitle,
-              scopeGroups: new Map<string | null, PullRequest[]>(),
-            };
-            categories.set(categoryTitle, category);
-          }
-
-          const scope = extractScope(prInfo.title.trim());
-          let scopeGroup = category.scopeGroups.get(scope);
-          if (!scopeGroup) {
-            scopeGroup = [];
-            category.scopeGroups.set(scope, scopeGroup);
-          }
-
-          // Add current PR with highlight flag
-          scopeGroup.push({
-            author: prInfo.author,
-            number: prInfo.number,
-            hash: '', // No commit hash for unmerged PR
-            body: prInfo.body,
-            title: prInfo.title.trim(),
-            highlight: true,
-          });
-
-          logger.debug(
-            `Injected current PR #${prInfo.number} into category "${categoryTitle}"`
-          );
-        } else {
-          // PR doesn't match any category, add to leftovers section
-          leftovers.unshift({
-            author: prInfo.author,
-            hash: '',
-            title: prInfo.title.trim(),
-            body: prInfo.body,
-            hasPRinTitle: false,
-            pr: prInfo.number,
-            prTitle: prInfo.title,
-            prBody: prInfo.body,
-            labels: prInfo.labels,
-            category: null,
-          });
-          logger.debug(
-            `Current PR #${prInfo.number} doesn't match any category, added to leftovers`
-          );
+      if (categoryTitle) {
+        let category = categories.get(categoryTitle);
+        if (!category) {
+          category = {
+            title: categoryTitle,
+            scopeGroups: new Map<string | null, PullRequest[]>(),
+          };
+          categories.set(categoryTitle, category);
         }
+
+        const scope = extractScope(currentPRInfo.title.trim());
+        let scopeGroup = category.scopeGroups.get(scope);
+        if (!scopeGroup) {
+          scopeGroup = [];
+          category.scopeGroups.set(scope, scopeGroup);
+        }
+
+        // Add current PR with highlight flag
+        scopeGroup.push({
+          author: currentPRInfo.author,
+          number: currentPRInfo.number,
+          hash: '', // No commit hash for unmerged PR
+          body: currentPRInfo.body,
+          title: currentPRInfo.title.trim(),
+          highlight: true,
+        });
+
+        logger.debug(
+          `Injected current PR #${currentPRInfo.number} into category "${categoryTitle}"`
+        );
+      } else {
+        // PR doesn't match any category, add to leftovers section
+        leftovers.unshift({
+          author: currentPRInfo.author,
+          hash: '',
+          title: currentPRInfo.title.trim(),
+          body: currentPRInfo.body,
+          hasPRinTitle: false,
+          pr: currentPRInfo.number,
+          prTitle: currentPRInfo.title,
+          prBody: currentPRInfo.body,
+          labels: currentPRInfo.labels,
+          category: null,
+        });
+        logger.debug(
+          `Current PR #${currentPRInfo.number} doesn't match any category, added to leftovers`
+        );
       }
     }
   }
@@ -1142,7 +1163,7 @@ async function generateChangesetFromGitImpl(
               ? commit.body
               : undefined,
             // Highlight if this is the current PR
-            highlight: currentPR !== undefined && commit.pr === currentPR,
+            highlight: currentPRInfo != null && commit.pr === currentPRInfo.number,
           })
         )
         .join('\n')
