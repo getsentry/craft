@@ -74,6 +74,7 @@ export async function changelogMain(argv: ChangelogOptions): Promise<void> {
       bumpType: result.bumpType,
       totalCommits: result.totalCommits,
       matchedCommitsWithSemver: result.matchedCommitsWithSemver,
+      prSkipped: result.prSkipped ?? false,
     };
     console.log(JSON.stringify(output, null, 2));
   } else {

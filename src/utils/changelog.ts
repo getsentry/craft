@@ -571,11 +571,29 @@ export function normalizeReleaseConfig(
 /**
  * Checks if a PR should be excluded globally based on release config
  */
+/**
+ * Checks if a PR should be excluded globally based on:
+ * 1. The #skip-changelog magic word in the body (commit body or PR body)
+ * 2. Excluded labels from release config
+ * 3. Excluded authors from release config
+ *
+ * @param labels Set of labels on the PR
+ * @param author Author of the PR
+ * @param config Normalized release config
+ * @param body Optional body text to check for magic word
+ * @returns true if the PR should be excluded
+ */
 export function shouldExcludePR(
   labels: Set<string>,
   author: string | undefined,
-  config: NormalizedReleaseConfig | null
+  config: NormalizedReleaseConfig | null,
+  body?: string
 ): boolean {
+  // Check for magic word in body
+  if (body?.includes(SKIP_CHANGELOG_MAGIC_WORD)) {
+    return true;
+  }
+
   if (!config?.changelog) {
     return false;
   }
@@ -593,6 +611,44 @@ export function shouldExcludePR(
   }
 
   return false;
+}
+
+/**
+ * Checks if the current PR should be skipped from the changelog entirely.
+ * Convenience wrapper around shouldExcludePR that loads config automatically.
+ *
+ * @param prInfo The current PR info
+ * @returns true if the PR should be skipped
+ */
+export function shouldSkipCurrentPR(prInfo: CurrentPRInfo): boolean {
+  const rawConfig = readReleaseConfig();
+  const releaseConfig = normalizeReleaseConfig(rawConfig);
+  const labels = new Set(prInfo.labels);
+
+  return shouldExcludePR(labels, prInfo.author, releaseConfig, prInfo.body);
+}
+
+/**
+ * Determines the version bump type for a PR based on its labels and title.
+ * This is used to determine the release version even for PRs that are
+ * excluded from the changelog (e.g., via #skip-changelog).
+ *
+ * @param prInfo The current PR info
+ * @returns The bump type (major, minor, patch) or null if no match
+ */
+export function getBumpTypeForPR(prInfo: CurrentPRInfo): BumpType | null {
+  const rawConfig = readReleaseConfig();
+  const releaseConfig = normalizeReleaseConfig(rawConfig);
+  const labels = new Set(prInfo.labels);
+
+  const matchedCategory = matchCommitToCategory(
+    labels,
+    prInfo.author,
+    prInfo.title.trim(),
+    releaseConfig
+  );
+
+  return matchedCategory?.semver ?? null;
 }
 
 /**
@@ -771,6 +827,8 @@ export interface ChangelogResult {
   totalCommits: number;
   /** Number of commits that matched a category with a semver field */
   matchedCommitsWithSemver: number;
+  /** Whether the current PR was skipped (only set when using --pr flag) */
+  prSkipped?: boolean;
 }
 
 /**
@@ -865,15 +923,29 @@ export async function generateChangelogWithHighlight(
   // Step 1: Fetch PR info from GitHub
   const prInfo = await fetchPRInfo(currentPRNumber);
 
-  // Step 2: Fetch the base branch to get current state
+  // Step 2: Check if PR should be skipped - bypass changelog generation but still determine bump type
+  if (shouldSkipCurrentPR(prInfo)) {
+    // Even skipped PRs contribute to version bumping based on their title
+    const bumpType = getBumpTypeForPR(prInfo);
+
+    return {
+      changelog: '',
+      bumpType,
+      totalCommits: 1,
+      matchedCommitsWithSemver: bumpType ? 1 : 0,
+      prSkipped: true,
+    };
+  }
+
+  // Step 3: Fetch the base branch to get current state
   await git.fetch('origin', prInfo.baseRef);
   const baseRef = `origin/${prInfo.baseRef}`;
   logger.debug(`Using PR base branch "${prInfo.baseRef}" for changelog`);
 
-  // Step 3: Fetch raw commit info up to base branch
+  // Step 4: Fetch raw commit info up to base branch
   const rawCommits = await fetchRawCommitInfo(git, rev, baseRef);
 
-  // Step 4: Add current PR to the list with highlight flag (at the beginning)
+  // Step 5: Add current PR to the list with highlight flag (at the beginning)
   const currentPRCommit: RawCommitInfo = {
     hash: '',
     title: prInfo.title.trim(),
@@ -887,14 +959,15 @@ export async function generateChangelogWithHighlight(
   };
   const allCommits = [currentPRCommit, ...rawCommits];
 
-  // Step 5: Run categorization on combined list
+  // Step 6: Run categorization on combined list
   const { data: rawData, stats } = categorizeCommits(allCommits);
 
-  // Step 6: Serialize to markdown
+  // Step 7: Serialize to markdown
   const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS);
 
   return {
     changelog,
+    prSkipped: false,
     ...stats,
   };
 }
@@ -913,6 +986,7 @@ async function fetchRawCommitInfo(
   rev: string,
   until?: string
 ): Promise<RawCommitInfo[]> {
+  // Early filter: skip commits with magic word in commit body (optimization to avoid GitHub API calls)
   const gitCommits = (await getChangesSince(git, rev, until)).filter(
     ({ body }) => !body.includes(SKIP_CHANGELOG_MAGIC_WORD)
   );
@@ -921,17 +995,10 @@ async function fetchRawCommitInfo(
     gitCommits.map(({ hash }) => hash)
   );
 
-  const result: RawCommitInfo[] = [];
-
-  for (const gitCommit of gitCommits) {
+  // Note: PR body magic word check is handled by shouldExcludePR in categorizeCommits
+  return gitCommits.map(gitCommit => {
     const githubCommit = githubCommits[gitCommit.hash];
-
-    // Skip if PR body has skip marker
-    if (githubCommit?.prBody?.includes(SKIP_CHANGELOG_MAGIC_WORD)) {
-      continue;
-    }
-
-    result.push({
+    return {
       hash: gitCommit.hash,
       title: gitCommit.title,
       body: gitCommit.body,
@@ -940,10 +1007,8 @@ async function fetchRawCommitInfo(
       prTitle: githubCommit?.prTitle ?? undefined,
       prBody: githubCommit?.prBody ?? undefined,
       labels: githubCommit?.labels ?? [],
-    });
-  }
-
-  return result;
+    };
+  });
 }
 
 /**
@@ -967,8 +1032,10 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
 
   for (const raw of rawCommits) {
     const labels = new Set(raw.labels);
+    // Use PR body if available, otherwise use commit body for skip-changelog check
+    const bodyToCheck = raw.prBody ?? raw.body;
 
-    if (shouldExcludePR(labels, raw.author, releaseConfig)) {
+    if (shouldExcludePR(labels, raw.author, releaseConfig, bodyToCheck)) {
       continue;
     }
 
