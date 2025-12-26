@@ -46,7 +46,7 @@ jobs:
           # - From latest tag (default) to merge base (excludes PR commits)
           # - Then inject current PR info from GitHub API
           echo "Running craft changelog --until $MERGE_BASE --pr $PR_NUMBER..."
-          CHANGELOG=$(craft changelog --until "$MERGE_BASE" --pr "$PR_NUMBER" 2>&1 || echo "")
+          CHANGELOG=$(craft changelog --until "$MERGE_BASE" --pr "$PR_NUMBER" 2>/dev/null || echo "")
 
           if [[ -z "$CHANGELOG" ]]; then
             CHANGELOG="_No changelog entries will be generated from this PR._"
