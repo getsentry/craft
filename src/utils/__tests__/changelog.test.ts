@@ -304,7 +304,7 @@ describe('generateChangesetFromGit', () => {
         typeof getGitHubClient
         // @ts-ignore we only need to mock a subset
       >
-    ).mockReturnValue({ graphql: mockClient });
+    ).mockReturnValue({ graphql: mockClient } as any);
     // Default: no config file
     getConfigFileDirMock.mockReturnValue(undefined);
     getGlobalGitHubConfigMock.mockResolvedValue({

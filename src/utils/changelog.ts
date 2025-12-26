@@ -495,12 +495,12 @@ function createPREntriesFromRaw(
     }));
   }
 
-  // For default entries, check prBody first, then fallbackBody for magic word
-  let body = raw.prBody ?? '';
-  if (fallbackBody && !raw.prBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
-    if (fallbackBody.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
-      body = fallbackBody;
-    }
+  // For default entries, only include body if it contains the magic word
+  let body = '';
+  if (raw.prBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
+    body = raw.prBody;
+  } else if (fallbackBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
+    body = fallbackBody;
   }
 
   return [
