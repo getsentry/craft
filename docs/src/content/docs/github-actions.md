@@ -141,7 +141,9 @@ The workflow posts a comment like this:
 This is how your changes will appear in the changelog.
 Entries from this PR are highlighted with a left border (blockquote style).
 
-**Suggested version bump:** 🟡 **Minor** (new features)
+### Suggested Version Bump
+
+🟡 **Minor** (new features)
 
 ---
 

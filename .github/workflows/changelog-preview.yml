@@ -73,7 +73,9 @@ jobs:
           EOF
 
           COMMENT_BODY="${COMMENT_BODY}
-          **Suggested version bump:** ${BUMP_BADGE}
+          ### Suggested Version Bump
+
+          ${BUMP_BADGE}
 
           ---
 
