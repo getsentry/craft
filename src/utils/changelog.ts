@@ -830,17 +830,15 @@ export async function generateChangelogWithHighlight(
   // Step 1: Fetch PR info from GitHub
   const prInfo = await fetchPRInfo(currentPRNumber);
 
-  // Step 2: Fetch the base branch and compute merge base
+  // Step 2: Fetch the base branch to get current state
   await git.fetch('origin', prInfo.baseRef);
-  const until = (
-    await git.raw(['merge-base', 'HEAD', `origin/${prInfo.baseRef}`])
-  ).trim();
-  logger.debug(
-    `Computed merge base from PR base branch "${prInfo.baseRef}": ${until}`
-  );
+  const baseRef = `origin/${prInfo.baseRef}`;
+  logger.debug(`Using PR base branch "${prInfo.baseRef}" for changelog`);
 
-  // Step 3: Generate raw changelog data up to merge base (excludes PR commits)
-  const rawData = await generateRawChangelog(git, rev, until);
+  // Step 3: Generate raw changelog data up to base branch tip
+  // This includes all commits on the base branch, which is what the
+  // final changelog will contain when this PR is merged
+  const rawData = await generateRawChangelog(git, rev, baseRef);
 
   // Step 4: Inject the current PR into the raw data
   injectCurrentPR(rawData, prInfo);
