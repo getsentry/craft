@@ -3872,3 +3872,346 @@ describe('getBumpTypeForPR', () => {
     expect(getBumpTypeForPR(prInfo)).toBe('patch');
   });
 });
+
+describe('body inclusion behavior', () => {
+  let mockClient: jest.Mock;
+  const mockGetChangesSince = getChangesSince as jest.MockedFunction<
+    typeof getChangesSince
+  >;
+  const dummyGit = {} as SimpleGit;
+
+  interface TestCommit {
+    author?: string;
+    hash: string;
+    title: string;
+    body: string;
+    pr?: {
+      local?: string;
+      remote?: {
+        author?: { login: string };
+        number: string;
+        body?: string;
+        labels?: string[];
+      };
+    };
+  }
+
+  function setup(commits: TestCommit[], releaseConfigYaml: string | null) {
+    jest.resetAllMocks();
+    clearChangesetCache();
+    mockClient = jest.fn();
+    (
+      getGitHubClient as jest.MockedFunction<
+        typeof getGitHubClient
+        // @ts-ignore we only need to mock a subset
+      >
+    ).mockReturnValue({ graphql: mockClient } as any);
+    getGlobalGitHubConfigMock.mockResolvedValue({
+      repo: 'test-repo',
+      owner: 'test-owner',
+    });
+
+    // Mock getChangesSince
+    mockGetChangesSince.mockResolvedValueOnce(
+      commits.map(commit => ({
+        hash: commit.hash,
+        title: commit.title,
+        body: commit.body,
+        pr: commit.pr?.local || null,
+      }))
+    );
+
+    // Mock GitHub API response
+    mockClient.mockResolvedValueOnce({
+      repository: Object.fromEntries(
+        commits.map(({ hash, author, title, pr }: TestCommit) => [
+          `C${hash}`,
+          {
+            author: { user: author },
+            associatedPullRequests: {
+              nodes: pr?.remote
+                ? [
+                    {
+                      author: pr.remote.author,
+                      number: pr.remote.number,
+                      title: title,
+                      body: pr.remote.body || '',
+                      labels: {
+                        nodes: (pr.remote.labels || []).map(label => ({
+                          name: label,
+                        })),
+                      },
+                    },
+                  ]
+                : [],
+            },
+          },
+        ])
+      ),
+    });
+
+    // Mock release config
+    if (releaseConfigYaml === null) {
+      getConfigFileDirMock.mockReturnValue(undefined);
+      readFileSyncMock.mockImplementation(() => {
+        const error: any = new Error('ENOENT');
+        error.code = 'ENOENT';
+        throw error;
+      });
+    } else {
+      getConfigFileDirMock.mockReturnValue('/workspace');
+      readFileSyncMock.mockImplementation((path: any) => {
+        if (
+          typeof path === 'string' &&
+          path.includes('.github/release.yml')
+        ) {
+          return releaseConfigYaml;
+        }
+        const error: any = new Error('ENOENT');
+        error.code = 'ENOENT';
+        throw error;
+      });
+    }
+  }
+
+  it('should NOT include PR body without magic word in categorized commits', async () => {
+    const releaseConfig = `changelog:
+  categories:
+    - title: Features
+      labels:
+        - feature`;
+
+    setup(
+      [
+        {
+          hash: 'abc123',
+          title: 'Add new feature (#1)',
+          body: '',
+          pr: {
+            local: '1',
+            remote: {
+              number: '1',
+              author: { login: 'alice' },
+              body: 'This is a PR body WITHOUT the magic word.',
+              labels: ['feature'],
+            },
+          },
+        },
+      ],
+      releaseConfig
+    );
+
+    const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+    // Body should NOT appear in output (no indented line after the title)
+    expect(result.changelog).not.toContain(
+      'This is a PR body WITHOUT the magic word'
+    );
+    expect(result.changelog).toContain('Add new feature');
+  });
+
+  it('should include PR body WITH magic word in categorized commits', async () => {
+    const releaseConfig = `changelog:
+  categories:
+    - title: Features
+      labels:
+        - feature`;
+
+    setup(
+      [
+        {
+          hash: 'abc123',
+          title: 'Add new feature (#1)',
+          body: '',
+          pr: {
+            local: '1',
+            remote: {
+              number: '1',
+              author: { login: 'alice' },
+              body: `This is important context. ${BODY_IN_CHANGELOG_MAGIC_WORD}`,
+              labels: ['feature'],
+            },
+          },
+        },
+      ],
+      releaseConfig
+    );
+
+    const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+    expect(result.changelog).toContain('This is important context.');
+  });
+
+  it('should NOT include PR body without magic word in uncategorized commits', async () => {
+    const releaseConfig = `changelog:
+  categories:
+    - title: Features
+      labels:
+        - feature`;
+
+    setup(
+      [
+        {
+          hash: 'abc123',
+          title: 'Some uncategorized change (#1)',
+          body: '',
+          pr: {
+            local: '1',
+            remote: {
+              number: '1',
+              author: { login: 'alice' },
+              body: 'This PR body should NOT appear.',
+              labels: [], // No matching labels -> goes to "Other"
+            },
+          },
+        },
+      ],
+      releaseConfig
+    );
+
+    const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+    expect(result.changelog).not.toContain('This PR body should NOT appear');
+    expect(result.changelog).toContain('Some uncategorized change');
+  });
+
+  it('should use commit body as fallback for magic word in categorized commits', async () => {
+    const releaseConfig = `changelog:
+  categories:
+    - title: Features
+      labels:
+        - feature`;
+
+    setup(
+      [
+        {
+          hash: 'abc123',
+          title: 'Add new feature (#1)',
+          body: `Important commit context ${BODY_IN_CHANGELOG_MAGIC_WORD}`,
+          pr: {
+            local: '1',
+            remote: {
+              number: '1',
+              author: { login: 'alice' },
+              body: 'PR body without magic word',
+              labels: ['feature'],
+            },
+          },
+        },
+      ],
+      releaseConfig
+    );
+
+    const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+    // The commit body with magic word should be included as fallback
+    expect(result.changelog).toContain('Important commit context');
+  });
+
+  it('should use commit body as fallback for magic word in uncategorized commits', async () => {
+    const releaseConfig = `changelog:
+  categories:
+    - title: Features
+      labels:
+        - feature`;
+
+    setup(
+      [
+        {
+          hash: 'abc123',
+          title: 'Some change (#1)',
+          body: `Commit body with context ${BODY_IN_CHANGELOG_MAGIC_WORD}`,
+          pr: {
+            local: '1',
+            remote: {
+              number: '1',
+              author: { login: 'alice' },
+              body: 'PR body without magic word',
+              labels: [], // Goes to "Other"
+            },
+          },
+        },
+      ],
+      releaseConfig
+    );
+
+    const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+    expect(result.changelog).toContain('Commit body with context');
+  });
+
+  it('should prefer PR body over commit body when both have magic word', async () => {
+    const releaseConfig = `changelog:
+  categories:
+    - title: Features
+      labels:
+        - feature`;
+
+    setup(
+      [
+        {
+          hash: 'abc123',
+          title: 'Add new feature (#1)',
+          body: `Commit body content ${BODY_IN_CHANGELOG_MAGIC_WORD}`,
+          pr: {
+            local: '1',
+            remote: {
+              number: '1',
+              author: { login: 'alice' },
+              body: `PR body content ${BODY_IN_CHANGELOG_MAGIC_WORD}`,
+              labels: ['feature'],
+            },
+          },
+        },
+      ],
+      releaseConfig
+    );
+
+    const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+    // PR body should take precedence
+    expect(result.changelog).toContain('PR body content');
+    expect(result.changelog).not.toContain('Commit body content');
+  });
+
+  it('should behave consistently between categorized and uncategorized commits with commit body magic word', async () => {
+    const releaseConfig = `changelog:
+  categories:
+    - title: Features
+      labels:
+        - feature`;
+
+    setup(
+      [
+        {
+          hash: 'abc123',
+          title: 'Categorized change (#1)',
+          body: `Categorized commit body ${BODY_IN_CHANGELOG_MAGIC_WORD}`,
+          pr: {
+            local: '1',
+            remote: {
+              number: '1',
+              author: { login: 'alice' },
+              body: 'PR body no magic',
+              labels: ['feature'],
+            },
+          },
+        },
+        {
+          hash: 'def456',
+          title: 'Uncategorized change (#2)',
+          body: `Uncategorized commit body ${BODY_IN_CHANGELOG_MAGIC_WORD}`,
+          pr: {
+            local: '2',
+            remote: {
+              number: '2',
+              author: { login: 'bob' },
+              body: 'PR body no magic',
+              labels: [], // Goes to "Other"
+            },
+          },
+        },
+      ],
+      releaseConfig
+    );
+
+    const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+    // BOTH should include their commit body since the magic word is present
+    expect(result.changelog).toContain('Categorized commit body');
+    expect(result.changelog).toContain('Uncategorized commit body');
+  });
+});
