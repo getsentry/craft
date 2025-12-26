@@ -1,0 +1,71 @@
+name: "Install Craft"
+description: "Install Craft CLI (from build artifact for dogfooding, build from source, or from release)"
+
+inputs:
+  craft-version:
+    description: 'Version of Craft to install (tag or "latest"). Only used when installing from release.'
+    required: false
+    default: 'latest'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Download Craft from build artifact
+      id: artifact
+      if: github.repository == 'getsentry/craft'
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+      continue-on-error: true
+      with:
+        name: ${{ github.sha }}
+        path: /tmp/craft-artifact
+
+    - name: Install Craft from artifact
+      if: steps.artifact.outcome == 'success'
+      shell: bash
+      run: |
+        echo "Installing Craft from build artifact..."
+        sudo install -m 755 /tmp/craft-artifact/dist/craft /usr/local/bin/craft
+
+    # For getsentry/craft repo: build from source if no artifact available
+    - name: Setup Node.js (for building from source)
+      if: github.repository == 'getsentry/craft' && steps.artifact.outcome != 'success'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Build Craft from source
+      id: build
+      if: github.repository == 'getsentry/craft' && steps.artifact.outcome != 'success'
+      shell: bash
+      run: |
+        echo "Building Craft from source..."
+        yarn install --frozen-lockfile
+        yarn build
+        sudo install -m 755 dist/craft /usr/local/bin/craft
+
+    - name: Install Craft from release
+      if: steps.artifact.outcome != 'success' && steps.build.outcome != 'success'
+      shell: bash
+      env:
+        CRAFT_VERSION: ${{ inputs.craft-version }}
+      run: |
+        if [[ "$CRAFT_VERSION" == "latest" || -z "$CRAFT_VERSION" ]]; then
+          # Try action ref first (e.g., v2, 2.15.0)
+          ACTION_REF="${{ github.action_ref }}"
+          CRAFT_URL="https://github.com/getsentry/craft/releases/download/${ACTION_REF}/craft"
+
+          echo "Trying to download Craft from: ${CRAFT_URL}"
+
+          # Fallback to latest if ref doesn't have a release
+          if ! curl -sfI "$CRAFT_URL" >/dev/null 2>&1; then
+            echo "Release not found for ref '${ACTION_REF}', falling back to latest..."
+            CRAFT_URL=$(curl -s "https://api.github.com/repos/getsentry/craft/releases/latest" \
+              | jq -r '.assets[] | select(.name == "craft") | .browser_download_url')
+          fi
+        else
+          CRAFT_URL="https://github.com/getsentry/craft/releases/download/${CRAFT_VERSION}/craft"
+        fi
+
+        echo "Installing Craft from: ${CRAFT_URL}"
+        sudo curl -sL -o /usr/local/bin/craft "$CRAFT_URL"
+        sudo chmod +x /usr/local/bin/craft

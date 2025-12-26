@@ -5,6 +5,11 @@ on:
       - master
       - release/**
   pull_request:
+  workflow_call:
+
+concurrency:
+  group: ${{ github.ref_name || github.sha }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -52,10 +57,19 @@ jobs:
         run: yarn install --frozen-lockfile
       - name: Build
         run: yarn build --define:process.env.CRAFT_BUILD_SHA='"'${{ github.sha }}'"'
+      - name: Smoke Test
+        run: ./dist/craft --help
       - name: NPM Pack
         run: npm pack
-      - name: Docs
-        run: cd docs && zip -r ../gh-pages _site/
+      - name: Build Docs
+        working-directory: docs
+        run: |
+          yarn install --frozen-lockfile
+          yarn build
+      - name: Package Docs
+        run: |
+          cp .nojekyll docs/dist/
+          cd docs/dist && zip -r ../../gh-pages.zip .
       - name: Archive Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

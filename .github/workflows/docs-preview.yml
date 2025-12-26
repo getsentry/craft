@@ -1,0 +1,69 @@
+name: Docs Preview
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - '.github/workflows/docs-preview.yml'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build Docs for Preview
+        working-directory: docs
+        env:
+          # Override base path for PR preview
+          DOCS_BASE_PATH: /craft/pr-preview/pr-${{ github.event.pull_request.number }}
+        run: |
+          yarn install --frozen-lockfile
+          yarn build
+
+      - name: Ensure .nojekyll at gh-pages root
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Try to fetch the gh-pages branch
+          if git fetch origin gh-pages:gh-pages 2>/dev/null; then
+            # Branch exists remotely, check if .nojekyll is present
+            if git show gh-pages:.nojekyll &>/dev/null; then
+              echo ".nojekyll already exists at gh-pages root"
+            else
+              echo "Adding .nojekyll to existing gh-pages branch"
+              git checkout gh-pages
+              touch .nojekyll
+              git add .nojekyll
+              git commit -m "Add .nojekyll to disable Jekyll processing"
+              git push origin gh-pages
+              git checkout -
+            fi
+          else
+            # Branch doesn't exist, create it as an orphan branch
+            echo "Creating gh-pages branch with .nojekyll"
+            git checkout --orphan gh-pages
+            git rm -rf .
+            touch .nojekyll
+            git add .nojekyll
+            git commit -m "Initialize gh-pages with .nojekyll"
+            git push origin gh-pages
+            git checkout -
+          fi
+
+      - name: Deploy Preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: docs/dist/
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
+          action: auto

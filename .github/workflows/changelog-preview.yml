@@ -1,0 +1,105 @@
+name: Changelog Preview
+
+on:
+  # Allow this workflow to be called from other repositories
+  workflow_call:
+    inputs:
+      craft-version:
+        description: 'Version of Craft to use (tag or "latest")'
+        required: false
+        type: string
+        default: 'latest'
+
+  # Also run on PRs in this repository (for dogfooding)
+  # Includes 'edited' and 'labeled' to update when PR title/description/labels change
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Install Craft using the shared install action
+      # TODO: Change to @v2 or @master after this PR is merged
+      - name: Install Craft
+        uses: getsentry/craft/install@pull/669/head
+        with:
+          craft-version: ${{ inputs.craft-version || 'latest' }}
+
+      - name: Generate Changelog Preview
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CRAFT_LOG_LEVEL: Warn
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+
+          # Generate changelog with current PR injected and highlighted (JSON format)
+          echo "Running craft changelog --pr $PR_NUMBER --format json..."
+          RESULT=$(craft changelog --pr "$PR_NUMBER" --format json 2>/dev/null || echo '{"changelog":"","bumpType":null}')
+
+          # Extract fields from JSON
+          CHANGELOG=$(echo "$RESULT" | jq -r '.changelog // ""')
+          BUMP_TYPE=$(echo "$RESULT" | jq -r '.bumpType // "none"')
+
+          if [[ -z "$CHANGELOG" ]]; then
+            CHANGELOG="_No changelog entries will be generated from this PR._"
+          fi
+
+          # Format bump type for display
+          case "$BUMP_TYPE" in
+            major) BUMP_BADGE="🔴 **Major** (breaking changes)" ;;
+            minor) BUMP_BADGE="🟡 **Minor** (new features)" ;;
+            patch) BUMP_BADGE="🟢 **Patch** (bug fixes)" ;;
+            *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
+          esac
+
+          # Build comment body using a temp file (safer than heredoc)
+          COMMENT_FILE=$(mktemp)
+          cat > "$COMMENT_FILE" << CRAFT_CHANGELOG_COMMENT_END
+          <!-- craft-changelog-preview -->
+          ## Suggested Version Bump
+
+          ${BUMP_BADGE}
+
+          ## 📋 Changelog Preview
+
+          This is how your changes will appear in the changelog.
+          Entries from this PR are highlighted with a left border (blockquote style).
+
+          ---
+
+          ${CHANGELOG}
+
+          ---
+
+          <sub>🤖 This preview updates automatically when you update the PR.</sub>
+          CRAFT_CHANGELOG_COMMENT_END
+
+          # Find existing comment with our marker
+          COMMENT_ID=$(gh api \
+            "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+            --jq '.[] | select(.body | contains("<!-- craft-changelog-preview -->")) | .id' \
+            | head -1)
+
+          if [[ -n "$COMMENT_ID" ]]; then
+            echo "Updating existing comment $COMMENT_ID..."
+            gh api -X PATCH \
+              "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" \
+              -F body=@"$COMMENT_FILE"
+          else
+            echo "Creating new comment..."
+            gh api -X POST \
+              "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+              -F body=@"$COMMENT_FILE"
+          fi
+
+          rm -f "$COMMENT_FILE"

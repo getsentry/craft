@@ -1,15 +1,25 @@
 name: Release
+concurrency: ${{ github.workflow }}-${{ github.ref }}
 on:
   workflow_dispatch:
     inputs:
       version:
         description: Version to release
-        required: false
+        required: true
+        default: "auto"
       force:
         description: Force a release even when there are release-blockers (optional)
         required: false
+
 jobs:
+  build:
+    name: Build
+    uses: ./.github/workflows/build.yml
+    permissions:
+      contents: read
+
   release:
+    needs: build
     runs-on: ubuntu-latest
     name: 'Release a new version'
     permissions:
@@ -27,7 +37,7 @@ jobs:
           token: ${{ steps.token.outputs.token }}
           fetch-depth: 0
       - name: Prepare release
-        uses: getsentry/action-prepare-release@3cea80dc3938c0baf5ec4ce752ecb311f8780cdc # v1
+        uses: ./
         env:
           GITHUB_TOKEN: ${{ steps.token.outputs.token }}
         with:

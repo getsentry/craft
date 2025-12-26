@@ -106,6 +106,43 @@ const projectConfigJsonSchema = {
       additionalProperties: false,
       required: ['name'],
     },
+    versioning: {
+      title: 'VersioningConfig',
+      description: 'Version resolution configuration',
+      type: 'object',
+      properties: {
+        policy: {
+          title: 'VersioningPolicy',
+          description:
+            'Default versioning policy when no version argument is provided. ' +
+            'auto: analyze commits to determine bump type, ' +
+            'manual: require explicit version, ' +
+            'calver: use calendar versioning',
+          type: 'string',
+          enum: ['auto', 'manual', 'calver'],
+          tsEnumNames: ['Auto', 'Manual', 'CalVer'],
+        },
+        calver: {
+          title: 'CalVerConfig',
+          description: 'Calendar versioning configuration',
+          type: 'object',
+          properties: {
+            offset: {
+              type: 'number',
+              description: 'Days to go back for date calculation (default: 14)',
+            },
+            format: {
+              type: 'string',
+              description:
+                'strftime-like format for date part (default: %y.%-m). ' +
+                'Supports: %y (2-digit year), %m (zero-padded month), %-m (month without padding)',
+            },
+          },
+          additionalProperties: false,
+        },
+      },
+      additionalProperties: false,
+    },
   },
   additionalProperties: false,
 
@@ -172,6 +209,32 @@ const projectConfigJsonSchema = {
       properties: {
         access: {
           type: 'string',
+          description: 'NPM access level (public or restricted)',
+        },
+        checkPackageName: {
+          type: 'string',
+          description:
+            'Package name to check for latest version on the registry',
+        },
+        workspaces: {
+          type: 'boolean',
+          description:
+            'Enable workspace discovery to auto-generate npm targets for all workspace packages',
+        },
+        includeWorkspaces: {
+          type: 'string',
+          description:
+            'Regex pattern to filter which workspace packages to include',
+        },
+        excludeWorkspaces: {
+          type: 'string',
+          description:
+            'Regex pattern to filter which workspace packages to exclude',
+        },
+        artifactTemplate: {
+          type: 'string',
+          description:
+            'Template for artifact filenames. Variables: {{name}}, {{simpleName}}, {{version}}',
         },
       },
       additionalProperties: false,

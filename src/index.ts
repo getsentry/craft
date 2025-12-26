@@ -14,6 +14,7 @@ import * as publish from './commands/publish';
 import * as targets from './commands/targets';
 import * as config from './commands/config';
 import * as artifacts from './commands/artifacts';
+import * as changelog from './commands/changelog';
 
 function printVersion(): void {
   if (!process.argv.includes('-v') && !process.argv.includes('--version')) {
@@ -65,7 +66,7 @@ function fixGlobalBooleanFlags(argv: string[]): string[] {
 /**
  * Main entrypoint
  */
-function main(): void {
+async function main(): Promise<void> {
   printVersion();
 
   readEnvironmentConfig();
@@ -74,7 +75,7 @@ function main(): void {
 
   const argv = fixGlobalBooleanFlags(process.argv.slice(2));
 
-  yargs
+  await yargs()
     .parserConfiguration({
       'boolean-negation': false,
     })
@@ -84,6 +85,7 @@ function main(): void {
     .command(targets)
     .command(config)
     .command(artifacts)
+    .command(changelog)
     .demandCommand()
     .version(getPackageVersion())
     .alias('v', 'version')

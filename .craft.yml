@@ -1,5 +1,6 @@
-minVersion: '0.30.0'
-changelogPolicy: auto
+minVersion: '2.14.0'
+changelog:
+  policy: auto
 preReleaseCommand: >-
   node -p "
     const {execSync} = require('child_process');
@@ -42,4 +43,6 @@ targets:
     target: getsentry/craft
     targetFormat: '{{{target}}}:latest'
   - name: github
+    floatingTags:
+      - 'v{major}'
   - name: gh-pages

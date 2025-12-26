@@ -12,7 +12,9 @@ import {
   GitHubGlobalConfig,
   ArtifactProviderName,
   StatusProviderName,
+  TargetConfig,
   ChangelogPolicy,
+  VersioningPolicy,
 } from './schemas/project_config';
 import { ConfigurationError } from './utils/errors';
 import {
@@ -20,6 +22,8 @@ import {
   parseVersion,
   versionGreaterOrEqualThan,
 } from './utils/version';
+// Note: We import getTargetByName lazily in expandWorkspaceTargets to avoid
+// circular dependency: config -> targets -> registry -> utils/registry -> symlink -> version -> config
 import { BaseArtifactProvider } from './artifact_providers/base';
 import { GitHubArtifactProvider } from './artifact_providers/github';
 import { NoneArtifactProvider } from './artifact_providers/none';
@@ -160,6 +164,21 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
 }
 
 /**
+ * Loads and caches configuration from a YAML string.
+ *
+ * This is used by --config-from to load config from a remote branch.
+ *
+ * @param configContent The raw YAML configuration content
+ */
+export function loadConfigurationFromString(configContent: string): CraftProjectConfig {
+  logger.debug('Loading configuration from provided content...');
+  const rawConfig = load(configContent) as Record<string, any>;
+  _configCache = validateConfiguration(rawConfig);
+  checkMinimalConfigVersion(_configCache);
+  return _configCache;
+}
+
+/**
  * Checks that the current "craft" version is compatible with the configuration
  *
  * "minVersion" configuration parameter specifies the minimal version of "craft"
@@ -197,6 +216,66 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
       `Incompatible "craft" versions. Current version: ${currentVersionRaw},  minimal version: ${minVersionRaw} (taken from .craft.yml).`
     );
   }
+}
+
+/**
+ * Checks if the project's minVersion configuration meets a required minimum.
+ *
+ * This is used to gate features that require a certain version of craft.
+ * For example, auto-versioning requires minVersion >= 2.14.0.
+ *
+ * @param requiredVersion The minimum version required for the feature
+ * @returns true if the project's minVersion is >= requiredVersion, false otherwise
+ */
+export function requiresMinVersion(requiredVersion: string): boolean {
+  const config = getConfiguration();
+  const minVersionRaw = config.minVersion;
+
+  if (!minVersionRaw) {
+    // If no minVersion is configured, the feature is not available
+    return false;
+  }
+
+  const configuredMinVersion = parseVersion(minVersionRaw);
+  const required = parseVersion(requiredVersion);
+
+  if (!configuredMinVersion || !required) {
+    return false;
+  }
+
+  return versionGreaterOrEqualThan(configuredMinVersion, required);
+}
+
+/** Minimum craft version required for auto-versioning and CalVer */
+const AUTO_VERSION_MIN_VERSION = '2.14.0';
+
+/**
+ * Returns the effective versioning policy for the project.
+ *
+ * The policy determines how versions are resolved when no explicit version
+ * is provided to `craft prepare`:
+ * - 'auto': Analyze commits to determine the bump type
+ * - 'manual': Require an explicit version argument
+ * - 'calver': Use calendar versioning
+ *
+ * If not explicitly configured, defaults to:
+ * - 'auto' if minVersion >= 2.14.0
+ * - 'manual' otherwise (for backward compatibility)
+ *
+ * @returns The versioning policy
+ */
+export function getVersioningPolicy(): VersioningPolicy {
+  const config = getConfiguration();
+
+  // Use explicitly configured policy if available
+  if (config.versioning?.policy) {
+    return config.versioning.policy;
+  }
+
+  // Default based on minVersion
+  return requiresMinVersion(AUTO_VERSION_MIN_VERSION)
+    ? VersioningPolicy.Auto
+    : VersioningPolicy.Manual;
 }
 
 /**
@@ -387,4 +466,58 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
     policy,
     scopeGrouping,
   };
+}
+
+/**
+ * Type for target classes that support expansion
+ */
+interface ExpandableTargetClass {
+  expand(config: TargetConfig, rootDir: string): Promise<TargetConfig[]>;
+}
+
+/**
+ * Check if a target class has an expand method
+ */
+function isExpandableTarget(
+  targetClass: unknown
+): targetClass is ExpandableTargetClass {
+  return (
+    typeof targetClass === 'function' &&
+    'expand' in targetClass &&
+    typeof targetClass.expand === 'function'
+  );
+}
+
+/**
+ * Expand all expandable targets in the target list
+ *
+ * This function takes a list of target configs and expands any targets
+ * whose target class has an `expand` static method. This allows targets
+ * to implement their own expansion logic (e.g., npm workspace expansion).
+ *
+ * @param targets The original list of target configs
+ * @returns The expanded list of target configs
+ */
+export async function expandWorkspaceTargets(
+  targets: TargetConfig[]
+): Promise<TargetConfig[]> {
+  // Lazy import to avoid circular dependency
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { getTargetByName } = require('./targets');
+
+  const rootDir = getConfigFileDir() || process.cwd();
+  const expandedTargets: TargetConfig[] = [];
+
+  for (const target of targets) {
+    const targetClass = getTargetByName(target.name);
+
+    if (targetClass && isExpandableTarget(targetClass)) {
+      const expanded = await targetClass.expand(target, rootDir);
+      expandedTargets.push(...expanded);
+    } else {
+      expandedTargets.push(target);
+    }
+  }
+
+  return expandedTargets;
 }
