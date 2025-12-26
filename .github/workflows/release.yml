@@ -1,6 +1,8 @@
 name: Release
 concurrency: ${{ github.workflow }}-${{ github.ref }}
+
 on:
+  # For Craft's own releases (dogfooding)
   workflow_dispatch:
     inputs:
       version:
@@ -11,35 +13,130 @@ on:
         description: Force a release even when there are release-blockers (optional)
         required: false
 
+  # For external repos to call this workflow
+  workflow_call:
+    inputs:
+      version:
+        description: Version to release (semver, bump type, or "auto")
+        type: string
+        required: false
+      force:
+        description: Force a release even when there are release-blockers
+        type: string
+        required: false
+        default: "false"
+      merge_target:
+        description: Target branch to merge into
+        type: string
+        required: false
+      blocker_label:
+        description: Label that blocks releases
+        type: string
+        required: false
+        default: "release-blocker"
+      publish_repo:
+        description: Repository for publish issues (owner/repo format)
+        type: string
+        required: false
+      git_user_name:
+        description: Git committer name
+        type: string
+        required: false
+      git_user_email:
+        description: Git committer email
+        type: string
+        required: false
+      path:
+        description: The path that Craft will run inside
+        type: string
+        required: false
+        default: "."
+      craft_config_from_merge_target:
+        description: Use the craft config from the merge target branch
+        type: string
+        required: false
+        default: "false"
+    outputs:
+      version:
+        description: The resolved version being released
+        value: ${{ jobs.release.outputs.version }}
+      branch:
+        description: The release branch name
+        value: ${{ jobs.release.outputs.branch }}
+      sha:
+        description: The commit SHA on the release branch
+        value: ${{ jobs.release.outputs.sha }}
+      previous_tag:
+        description: The tag before this release (for diff links)
+        value: ${{ jobs.release.outputs.previous_tag }}
+      changelog:
+        description: The changelog for this release
+        value: ${{ jobs.release.outputs.changelog }}
+
 jobs:
+  # Build job only for Craft's own releases (dogfooding)
   build:
+    if: github.event_name == 'workflow_dispatch'
     name: Build
     uses: ./.github/workflows/build.yml
     permissions:
       contents: read
 
   release:
-    needs: build
+    needs: [build]
+    # Run if build succeeded OR was skipped (workflow_call case)
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-latest
     name: 'Release a new version'
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.craft-local.outputs.version || steps.craft-action.outputs.version }}
+      branch: ${{ steps.craft-local.outputs.branch || steps.craft-action.outputs.branch }}
+      sha: ${{ steps.craft-local.outputs.sha || steps.craft-action.outputs.sha }}
+      previous_tag: ${{ steps.craft-local.outputs.previous_tag || steps.craft-action.outputs.previous_tag }}
+      changelog: ${{ steps.craft-local.outputs.changelog || steps.craft-action.outputs.changelog }}
     steps:
+      # For Craft repo: use the release bot token
       - name: Get auth token
         id: token
+        if: github.event_name == 'workflow_dispatch' && github.repository == 'getsentry/craft'
         uses: actions/create-github-app-token@5d869da34e18e7287c1daad50e0b8ea0f506ce69 # v1.11.0
         with:
           app-id: ${{ vars.SENTRY_RELEASE_BOT_CLIENT_ID }}
           private-key: ${{ secrets.SENTRY_RELEASE_BOT_PRIVATE_KEY }}
-      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      - uses: actions/checkout@v4
         with:
-          # Fetch all commits so we can determine previous version
-          token: ${{ steps.token.outputs.token }}
+          # Use release bot token for Craft repo, inherited token for external repos
+          token: ${{ steps.token.outputs.token || github.token }}
           fetch-depth: 0
-      - name: Prepare release
+
+      # For Craft's own releases: use local action (dogfooding)
+      - name: Prepare release (dogfooding)
+        if: github.event_name == 'workflow_dispatch'
+        id: craft-local
         uses: ./
         env:
           GITHUB_TOKEN: ${{ steps.token.outputs.token }}
         with:
           version: ${{ github.event.inputs.version }}
           force: ${{ github.event.inputs.force }}
+
+      # For external repos: use published action
+      - name: Prepare release
+        if: github.event_name == 'workflow_call'
+        id: craft-action
+        uses: getsentry/craft@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          version: ${{ inputs.version }}
+          force: ${{ inputs.force }}
+          merge_target: ${{ inputs.merge_target }}
+          blocker_label: ${{ inputs.blocker_label }}
+          publish_repo: ${{ inputs.publish_repo }}
+          git_user_name: ${{ inputs.git_user_name }}
+          git_user_email: ${{ inputs.git_user_email }}
+          path: ${{ inputs.path }}
+          craft_config_from_merge_target: ${{ inputs.craft_config_from_merge_target }}
