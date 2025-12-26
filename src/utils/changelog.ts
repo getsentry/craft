@@ -854,8 +854,67 @@ export async function generateChangelogWithHighlight(
   // final changelog will contain when this PR is merged
   const { data: rawData, stats } = await generateRawChangelog(git, rev, baseRef);
 
-  // Step 4: Inject the current PR into the raw data
-  injectCurrentPR(rawData, prInfo);
+  // Step 4: Inject the current PR into the raw data (if not excluded)
+  const { categories, leftovers, releaseConfig } = rawData;
+  const prLabels = new Set(prInfo.labels);
+  if (
+    !prInfo.body.includes(SKIP_CHANGELOG_MAGIC_WORD) &&
+    !shouldExcludePR(prLabels, prInfo.author, releaseConfig)
+  ) {
+    const matchedCategory = matchCommitToCategory(
+      prLabels,
+      prInfo.author,
+      prInfo.title.trim(),
+      releaseConfig
+    );
+    const categoryTitle = matchedCategory?.title ?? null;
+
+    if (categoryTitle) {
+      let category = categories.get(categoryTitle);
+      if (!category) {
+        category = {
+          title: categoryTitle,
+          scopeGroups: new Map<string | null, PullRequest[]>(),
+        };
+        categories.set(categoryTitle, category);
+      }
+
+      const scope = extractScope(prInfo.title.trim());
+      let scopeGroup = category.scopeGroups.get(scope);
+      if (!scopeGroup) {
+        scopeGroup = [];
+        category.scopeGroups.set(scope, scopeGroup);
+      }
+
+      scopeGroup.push({
+        author: prInfo.author,
+        number: String(prInfo.number),
+        hash: '',
+        body: prInfo.body,
+        title: prInfo.title.trim(),
+      });
+
+      logger.debug(
+        `Injected current PR #${prInfo.number} into category "${categoryTitle}"`
+      );
+    } else {
+      leftovers.unshift({
+        author: prInfo.author,
+        hash: '',
+        title: prInfo.title.trim(),
+        body: prInfo.body,
+        hasPRinTitle: false,
+        pr: String(prInfo.number),
+        prTitle: prInfo.title,
+        prBody: prInfo.body,
+        labels: prInfo.labels,
+        category: null,
+      });
+      logger.debug(
+        `Current PR #${prInfo.number} doesn't match any category, added to leftovers`
+      );
+    }
+  }
 
   // Step 5: Serialize to markdown with highlighting for the current PR
   const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS, String(currentPRNumber));
@@ -1022,84 +1081,6 @@ async function generateRawChangelog(
       matchedCommitsWithSemver,
     },
   };
-}
-
-/**
- * Injects a PR into raw changelog data.
- * The PR is added to the appropriate category based on labels/patterns,
- * or to leftovers if no category matches.
- *
- * @param rawData The raw changelog data to modify (mutated in place)
- * @param prInfo The PR info to inject
- */
-function injectCurrentPR(rawData: RawChangelogData, prInfo: CurrentPRInfo): void {
-  const { categories, leftovers, releaseConfig } = rawData;
-
-  // Check if PR should be excluded
-  const prLabels = new Set(prInfo.labels);
-  if (
-    prInfo.body.includes(SKIP_CHANGELOG_MAGIC_WORD) ||
-    shouldExcludePR(prLabels, prInfo.author, releaseConfig)
-  ) {
-    return;
-  }
-
-  // Match PR to category using same logic as commits
-  const matchedCategory = matchCommitToCategory(
-    prLabels,
-    prInfo.author,
-    prInfo.title.trim(),
-    releaseConfig
-  );
-  const categoryTitle = matchedCategory?.title ?? null;
-
-  if (categoryTitle) {
-    let category = categories.get(categoryTitle);
-    if (!category) {
-      category = {
-        title: categoryTitle,
-        scopeGroups: new Map<string | null, PullRequest[]>(),
-      };
-      categories.set(categoryTitle, category);
-    }
-
-    const scope = extractScope(prInfo.title.trim());
-    let scopeGroup = category.scopeGroups.get(scope);
-    if (!scopeGroup) {
-      scopeGroup = [];
-      category.scopeGroups.set(scope, scopeGroup);
-    }
-
-    // Add current PR
-    scopeGroup.push({
-      author: prInfo.author,
-      number: String(prInfo.number),
-      hash: '', // No commit hash for unmerged PR
-      body: prInfo.body,
-      title: prInfo.title.trim(),
-    });
-
-    logger.debug(
-      `Injected current PR #${prInfo.number} into category "${categoryTitle}"`
-    );
-  } else {
-    // PR doesn't match any category, add to leftovers section
-    leftovers.unshift({
-      author: prInfo.author,
-      hash: '',
-      title: prInfo.title.trim(),
-      body: prInfo.body,
-      hasPRinTitle: false,
-      pr: String(prInfo.number),
-      prTitle: prInfo.title,
-      prBody: prInfo.body,
-      labels: prInfo.labels,
-      category: null,
-    });
-    logger.debug(
-      `Current PR #${prInfo.number} doesn't match any category, added to leftovers`
-    );
-  }
 }
 
 /**
