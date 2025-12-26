@@ -29,7 +29,7 @@ jobs:
       # Install Craft using the shared install action
       # TODO: Change to @v2 or @master after this PR is merged
       - name: Install Craft
-        uses: getsentry/craft/install@pull/669/head
+        uses: getsentry/craft/install@${{ inputs.craft-version || 'master' }}
         with:
           craft-version: ${{ inputs.craft-version || 'latest' }}
 
