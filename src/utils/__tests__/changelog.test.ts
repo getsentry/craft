@@ -26,6 +26,7 @@ import {
   extractScope,
   formatScopeTitle,
   clearChangesetCache,
+  shouldExcludePR,
   shouldSkipCurrentPR,
   SKIP_CHANGELOG_MAGIC_WORD,
   BODY_IN_CHANGELOG_MAGIC_WORD,
@@ -2766,6 +2767,34 @@ describe('formatScopeTitle', () => {
     ['mycomponent', 'Mycomponent'],
   ])('should format "%s" as "%s"', (scope, expected) => {
     expect(formatScopeTitle(scope)).toBe(expected);
+  });
+});
+
+describe('shouldExcludePR', () => {
+  it('should return true when body contains #skip-changelog', () => {
+    const labels = new Set<string>();
+    expect(shouldExcludePR(labels, 'user', null, 'Some text #skip-changelog here')).toBe(true);
+  });
+
+  it('should return false when body does not contain magic word', () => {
+    const labels = new Set<string>();
+    expect(shouldExcludePR(labels, 'user', null, 'Normal body text')).toBe(false);
+  });
+
+  it('should return false when body is undefined', () => {
+    const labels = new Set<string>();
+    expect(shouldExcludePR(labels, 'user', null, undefined)).toBe(false);
+  });
+
+  it('should return false when body is empty', () => {
+    const labels = new Set<string>();
+    expect(shouldExcludePR(labels, 'user', null, '')).toBe(false);
+  });
+
+  it('should check body before config (early exit)', () => {
+    // Even with no config, magic word should cause exclusion
+    const labels = new Set(['feature']);
+    expect(shouldExcludePR(labels, 'user', null, '#skip-changelog')).toBe(true);
   });
 });
 
