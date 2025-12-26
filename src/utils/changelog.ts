@@ -1303,7 +1303,7 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
       }
 
       // Create PR entries (handles custom changelog entries if present)
-      const prEntries = createPREntriesFromRaw(raw, prTitle);
+      const prEntries = createPREntriesFromRaw(raw, prTitle, raw.body);
       scopeGroup.push(...prEntries);
     }
   }
