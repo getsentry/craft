@@ -31,17 +31,31 @@ jobs:
 
       - name: Ensure .nojekyll at gh-pages root
         run: |
-          git fetch origin gh-pages:gh-pages 2>/dev/null || true
-          if git show gh-pages:.nojekyll &>/dev/null; then
-            echo ".nojekyll already exists at gh-pages root"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Try to fetch the gh-pages branch
+          if git fetch origin gh-pages:gh-pages 2>/dev/null; then
+            # Branch exists remotely, check if .nojekyll is present
+            if git show gh-pages:.nojekyll &>/dev/null; then
+              echo ".nojekyll already exists at gh-pages root"
+            else
+              echo "Adding .nojekyll to existing gh-pages branch"
+              git checkout gh-pages
+              touch .nojekyll
+              git add .nojekyll
+              git commit -m "Add .nojekyll to disable Jekyll processing"
+              git push origin gh-pages
+              git checkout -
+            fi
           else
-            echo "Adding .nojekyll to gh-pages root"
-            git checkout gh-pages
+            # Branch doesn't exist, create it as an orphan branch
+            echo "Creating gh-pages branch with .nojekyll"
+            git checkout --orphan gh-pages
+            git rm -rf .
             touch .nojekyll
             git add .nojekyll
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git commit -m "Add .nojekyll to disable Jekyll processing"
+            git commit -m "Initialize gh-pages with .nojekyll"
             git push origin gh-pages
             git checkout -
           fi
