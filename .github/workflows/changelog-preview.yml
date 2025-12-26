@@ -15,8 +15,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Use local install action (since it's not on master yet)
-      - uses: ./install
+      # Build craft from source (since changelog command isn't released yet)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build Craft
+        run: |
+          yarn install --frozen-lockfile
+          yarn build
+          sudo install -m 755 dist/craft /usr/local/bin/craft
 
       - name: Generate Changelog Preview
         shell: bash
@@ -29,11 +36,11 @@ jobs:
 
           # Fetch base branch for comparison
           git fetch origin "$BASE_REF" --depth=1
-          
+
           # Debug: show commits between base and HEAD
           echo "Commits in this PR:"
           git log --oneline "origin/$BASE_REF..HEAD" -- . || echo "No commits found"
-          
+
           # Generate changelog with PR commits highlighted
           echo "Running craft changelog..."
           CHANGELOG=$(craft changelog --base "origin/$BASE_REF" || echo "")
