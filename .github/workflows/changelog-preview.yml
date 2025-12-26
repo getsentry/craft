@@ -8,7 +8,6 @@ on:
         description: 'Version of Craft to use (tag or "latest")'
         required: false
         type: string
-        default: 'latest'
 
   # Also run on PRs in this repository (for dogfooding)
   # Includes 'edited' and 'labeled' to update when PR title/description/labels change
