@@ -3369,6 +3369,27 @@ Closes #123`;
     }
   });
 
+  it('should handle CRLF line endings (Windows)', () => {
+    // Simulate Windows line endings from GitHub PR body
+    const prBody =
+      '## Changelog Entry\r\n' +
+      '\r\n' +
+      ' - Add first feature\r\n' +
+      ' - Add second feature\r\n' +
+      ' - Add third feature\r\n' +
+      '\r\n' +
+      '## Description\r\n';
+
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(3);
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result[0].text).toBe('Add first feature');
+      expect(result[1].text).toBe('Add second feature');
+      expect(result[2].text).toBe('Add third feature');
+    }
+  });
+
   it('should return null when no changelog entry section exists', () => {
     const prBody = `### Description
 

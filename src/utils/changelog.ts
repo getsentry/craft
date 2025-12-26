@@ -189,10 +189,13 @@ export function extractChangelogEntry(prBody: string | null | undefined): Change
     return null;
   }
 
+  // Normalize line endings (CRLF -> LF) to ensure consistent regex matching
+  const normalizedBody = prBody.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
   // Match markdown headings (## or ###) followed by "Changelog Entry" (case-insensitive)
   // This matches both with and without the # at the end (e.g., "## Changelog Entry ##" or "## Changelog Entry")
   const headerRegex = /^#{2,3}\s+Changelog Entry\s*(?:#{2,3})?\s*$/im;
-  const match = prBody.match(headerRegex);
+  const match = normalizedBody.match(headerRegex);
 
   if (!match || match.index === undefined) {
     return null;
@@ -200,7 +203,7 @@ export function extractChangelogEntry(prBody: string | null | undefined): Change
 
   // Find the start of the content (after the heading line)
   const startIndex = match.index + match[0].length;
-  const restOfBody = prBody.slice(startIndex);
+  const restOfBody = normalizedBody.slice(startIndex);
 
   // Find the next heading of level 2 or 3 (## or ###)
   const nextHeaderMatch = restOfBody.match(/^#{2,3}\s+/m);
