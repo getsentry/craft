@@ -171,16 +171,16 @@ export interface ChangelogEntryItem {
  * Extracts the "Changelog Entry" section from a PR description and parses it into structured entries.
  * This allows PR authors to override the default changelog entry (which is the PR title)
  * with custom text that's more user-facing and detailed.
- * 
+ *
  * Looks for a markdown heading (either ### or ##) with the text "Changelog Entry"
  * and extracts the content until the next heading of the same or higher level.
- * 
+ *
  * Parsing rules:
  * - Multiple top-level bullets (-, *, +) become separate changelog entries
  * - Plain text (no bullets) becomes a single entry
  * - Nested bullets are preserved as nested content under their parent entry
  * - Only content within the "Changelog Entry" section is included
- * 
+ *
  * @param prBody The PR description/body text
  * @returns Array of changelog entry items, or null if no "Changelog Entry" section is found
  */
@@ -193,7 +193,7 @@ export function extractChangelogEntry(prBody: string | null | undefined): Change
   // This matches both with and without the # at the end (e.g., "## Changelog Entry ##" or "## Changelog Entry")
   const headerRegex = /^#{2,3}\s+Changelog Entry\s*(?:#{2,3})?\s*$/im;
   const match = prBody.match(headerRegex);
-  
+
   if (!match || match.index === undefined) {
     return null;
   }
@@ -208,7 +208,7 @@ export function extractChangelogEntry(prBody: string | null | undefined): Change
 
   // Extract and trim the content
   const content = restOfBody.slice(0, endIndex).trim();
-  
+
   // Return null if the section is empty
   if (!content) {
     return null;
@@ -226,7 +226,7 @@ function parseChangelogContent(content: string): ChangelogEntryItem[] {
   // First, check if the content has any bullet points at all
   const hasTopLevelBullets = /^(\s{0,3})[-*+]\s+/m.test(content);
   const hasIndentedBullets = /^(\s{4,}|\t+)[-*+]\s+/m.test(content);
-  
+
   // If no bullets found at all, treat entire content as a single entry
   if (!hasTopLevelBullets && !hasIndentedBullets) {
     return [{
@@ -242,7 +242,7 @@ function parseChangelogContent(content: string): ChangelogEntryItem[] {
   for (const line of lines) {
     // Match top-level bullets (-, *, or + at the start of line, possibly with leading spaces)
     const topLevelBulletMatch = line.match(/^(\s{0,3})[-*+]\s+(.+)$/);
-    
+
     if (topLevelBulletMatch) {
       // Save previous entry if exists
       if (currentEntry) {
@@ -252,7 +252,7 @@ function parseChangelogContent(content: string): ChangelogEntryItem[] {
         }
         entries.push(currentEntry);
       }
-      
+
       // Start new entry
       currentEntry = {
         text: topLevelBulletMatch[2].trim(),
@@ -459,6 +459,60 @@ interface PullRequest {
   title: string;
   /** Whether this entry should be highlighted in output */
   highlight?: boolean;
+}
+
+/**
+ * Creates PullRequest entries from raw commit info, handling custom changelog entries.
+ * If the PR body contains a "Changelog Entry" section, each entry becomes a separate PR entry.
+ * Otherwise, a single entry is created using the PR title.
+ *
+ * @param raw Raw commit/PR info
+ * @param defaultTitle The default title to use if no custom entries (usually PR title)
+ * @param fallbackBody Optional fallback body to check for magic word (used for leftovers)
+ * @returns Array of PullRequest entries
+ */
+function createPREntriesFromRaw(
+  raw: {
+    author?: string;
+    pr?: string;
+    hash: string;
+    prBody?: string | null;
+    highlight?: boolean;
+  },
+  defaultTitle: string,
+  fallbackBody?: string
+): PullRequest[] {
+  const customEntries = extractChangelogEntry(raw.prBody);
+
+  if (customEntries) {
+    return customEntries.map(entry => ({
+      author: raw.author,
+      number: raw.pr ?? '',
+      hash: raw.hash,
+      body: entry.nestedContent ?? '',
+      title: entry.text,
+      highlight: raw.highlight,
+    }));
+  }
+
+  // For default entries, check prBody first, then fallbackBody for magic word
+  let body = raw.prBody ?? '';
+  if (fallbackBody && !raw.prBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
+    if (fallbackBody.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
+      body = fallbackBody;
+    }
+  }
+
+  return [
+    {
+      author: raw.author,
+      number: raw.pr ?? '',
+      hash: raw.hash,
+      body,
+      title: defaultTitle,
+      highlight: raw.highlight,
+    },
+  ];
 }
 
 interface Commit {
@@ -710,13 +764,28 @@ export function normalizeReleaseConfig(
 }
 
 /**
- * Checks if a PR should be excluded globally based on release config
+ * Checks if a PR should be excluded globally based on:
+ * 1. The #skip-changelog magic word in the body (commit body or PR body)
+ * 2. Excluded labels from release config
+ * 3. Excluded authors from release config
+ *
+ * @param labels Set of labels on the PR
+ * @param author Author of the PR
+ * @param config Normalized release config
+ * @param body Optional body text to check for magic word
+ * @returns true if the PR should be excluded
  */
 export function shouldExcludePR(
   labels: Set<string>,
   author: string | undefined,
-  config: NormalizedReleaseConfig | null
+  config: NormalizedReleaseConfig | null,
+  body?: string
 ): boolean {
+  // Check for magic word in body
+  if (body?.includes(SKIP_CHANGELOG_MAGIC_WORD)) {
+    return true;
+  }
+
   if (!config?.changelog) {
     return false;
   }
@@ -734,6 +803,44 @@ export function shouldExcludePR(
   }
 
   return false;
+}
+
+/**
+ * Checks if the current PR should be skipped from the changelog entirely.
+ * Convenience wrapper around shouldExcludePR that loads config automatically.
+ *
+ * @param prInfo The current PR info
+ * @returns true if the PR should be skipped
+ */
+export function shouldSkipCurrentPR(prInfo: CurrentPRInfo): boolean {
+  const rawConfig = readReleaseConfig();
+  const releaseConfig = normalizeReleaseConfig(rawConfig);
+  const labels = new Set(prInfo.labels);
+
+  return shouldExcludePR(labels, prInfo.author, releaseConfig, prInfo.body);
+}
+
+/**
+ * Determines the version bump type for a PR based on its labels and title.
+ * This is used to determine the release version even for PRs that are
+ * excluded from the changelog (e.g., via #skip-changelog).
+ *
+ * @param prInfo The current PR info
+ * @returns The bump type (major, minor, patch) or null if no match
+ */
+export function getBumpTypeForPR(prInfo: CurrentPRInfo): BumpType | null {
+  const rawConfig = readReleaseConfig();
+  const releaseConfig = normalizeReleaseConfig(rawConfig);
+  const labels = new Set(prInfo.labels);
+
+  const matchedCategory = matchCommitToCategory(
+    labels,
+    prInfo.author,
+    prInfo.title.trim(),
+    releaseConfig
+  );
+
+  return matchedCategory?.semver ?? null;
 }
 
 /**
@@ -924,6 +1031,8 @@ export interface ChangelogResult {
   totalCommits: number;
   /** Number of commits that matched a category with a semver field */
   matchedCommitsWithSemver: number;
+  /** Whether the current PR was skipped (only set when using --pr flag) */
+  prSkipped?: boolean;
 }
 
 /**
@@ -1018,15 +1127,29 @@ export async function generateChangelogWithHighlight(
   // Step 1: Fetch PR info from GitHub
   const prInfo = await fetchPRInfo(currentPRNumber);
 
-  // Step 2: Fetch the base branch to get current state
+  // Step 2: Check if PR should be skipped - bypass changelog generation but still determine bump type
+  if (shouldSkipCurrentPR(prInfo)) {
+    // Even skipped PRs contribute to version bumping based on their title
+    const bumpType = getBumpTypeForPR(prInfo);
+
+    return {
+      changelog: '',
+      bumpType,
+      totalCommits: 1,
+      matchedCommitsWithSemver: bumpType ? 1 : 0,
+      prSkipped: true,
+    };
+  }
+
+  // Step 3: Fetch the base branch to get current state
   await git.fetch('origin', prInfo.baseRef);
   const baseRef = `origin/${prInfo.baseRef}`;
   logger.debug(`Using PR base branch "${prInfo.baseRef}" for changelog`);
 
-  // Step 3: Fetch raw commit info up to base branch
+  // Step 4: Fetch raw commit info up to base branch
   const rawCommits = await fetchRawCommitInfo(git, rev, baseRef);
 
-  // Step 4: Add current PR to the list with highlight flag (at the beginning)
+  // Step 5: Add current PR to the list with highlight flag (at the beginning)
   const currentPRCommit: RawCommitInfo = {
     hash: '',
     title: prInfo.title.trim(),
@@ -1040,14 +1163,15 @@ export async function generateChangelogWithHighlight(
   };
   const allCommits = [currentPRCommit, ...rawCommits];
 
-  // Step 5: Run categorization on combined list
+  // Step 6: Run categorization on combined list
   const { data: rawData, stats } = categorizeCommits(allCommits);
 
-  // Step 6: Serialize to markdown
+  // Step 7: Serialize to markdown
   const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS);
 
   return {
     changelog,
+    prSkipped: false,
     ...stats,
   };
 }
@@ -1066,6 +1190,7 @@ async function fetchRawCommitInfo(
   rev: string,
   until?: string
 ): Promise<RawCommitInfo[]> {
+  // Early filter: skip commits with magic word in commit body (optimization to avoid GitHub API calls)
   const gitCommits = (await getChangesSince(git, rev, until)).filter(
     ({ body }) => !body.includes(SKIP_CHANGELOG_MAGIC_WORD)
   );
@@ -1074,17 +1199,10 @@ async function fetchRawCommitInfo(
     gitCommits.map(({ hash }) => hash)
   );
 
-  const result: RawCommitInfo[] = [];
-
-  for (const gitCommit of gitCommits) {
+  // Note: PR body magic word check is handled by shouldExcludePR in categorizeCommits
+  return gitCommits.map(gitCommit => {
     const githubCommit = githubCommits[gitCommit.hash];
-
-    // Skip if PR body has skip marker
-    if (githubCommit?.prBody?.includes(SKIP_CHANGELOG_MAGIC_WORD)) {
-      continue;
-    }
-
-    result.push({
+    return {
       hash: gitCommit.hash,
       title: gitCommit.title,
       body: gitCommit.body,
@@ -1093,10 +1211,8 @@ async function fetchRawCommitInfo(
       prTitle: githubCommit?.prTitle ?? undefined,
       prBody: githubCommit?.prBody ?? undefined,
       labels: githubCommit?.labels ?? [],
-    });
-  }
-
-  return result;
+    };
+  });
 }
 
 /**
@@ -1120,8 +1236,10 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
 
   for (const raw of rawCommits) {
     const labels = new Set(raw.labels);
+    // Use PR body if available, otherwise use commit body for skip-changelog check
+    const bodyToCheck = raw.prBody ?? raw.body;
 
-    if (shouldExcludePR(labels, raw.author, releaseConfig)) {
+    if (shouldExcludePR(labels, raw.author, releaseConfig, bodyToCheck)) {
       continue;
     }
 
@@ -1184,32 +1302,9 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
         category.scopeGroups.set(scope, scopeGroup);
       }
 
-      // Check for custom changelog entries in the PR body
-      const customChangelogEntries = extractChangelogEntry(raw.prBody);
-
-      if (customChangelogEntries) {
-        // If there are multiple changelog entries, add each as a separate item
-        for (const entry of customChangelogEntries) {
-          scopeGroup.push({
-            author: raw.author,
-            number: raw.pr,
-            hash: raw.hash,
-            body: entry.nestedContent ?? '',
-            title: entry.text,
-            highlight: raw.highlight,
-          });
-        }
-      } else {
-        // No custom entry, use PR title as before
-        scopeGroup.push({
-          author: raw.author,
-          number: raw.pr,
-          hash: raw.hash,
-          body: raw.prBody ?? '',
-          title: prTitle,
-          highlight: raw.highlight,
-        });
-      }
+      // Create PR entries (handles custom changelog entries if present)
+      const prEntries = createPREntriesFromRaw(raw, prTitle);
+      scopeGroup.push(...prEntries);
     }
   }
 
@@ -1381,39 +1476,29 @@ async function serializeChangelog(
     }
     const leftoverEntries: string[] = [];
     for (const commit of leftovers.slice(0, maxLeftovers)) {
-      // Check for custom changelog entries in the PR body
-      const customChangelogEntries = extractChangelogEntry(commit.prBody);
-      
-      if (customChangelogEntries) {
-        // If there are multiple changelog entries, add each as a separate line
-        for (const entry of customChangelogEntries) {
-          leftoverEntries.push(
-            formatChangelogEntry({
-              title: entry.text,
-              author: commit.author,
-              prNumber: commit.pr ?? undefined,
-              hash: commit.hash,
-              repoUrl,
-              body: entry.nestedContent,
-            })
-          );
-        }
-      } else {
-        // No custom entry, use PR title or commit title as before
+      // Create PR entries (handles custom changelog entries if present)
+      const prEntries = createPREntriesFromRaw(
+        {
+          author: commit.author,
+          pr: commit.pr ?? undefined,
+          hash: commit.hash,
+          prBody: commit.prBody,
+          highlight: commit.highlight,
+        },
+        (commit.prTitle ?? commit.title).trim(),
+        commit.body // fallback for magic word check
+      );
+
+      for (const pr of prEntries) {
         leftoverEntries.push(
           formatChangelogEntry({
-            title: (commit.prTitle ?? commit.title).trim(),
-            author: commit.author,
-            prNumber: commit.pr ?? undefined,
-            hash: commit.hash,
+            title: pr.title,
+            author: pr.author,
+            prNumber: pr.number || undefined,
+            hash: pr.hash,
             repoUrl,
-            // Check both prBody and commit body for the magic word
-            body: commit.prBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)
-              ? commit.prBody
-              : commit.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)
-              ? commit.body
-              : undefined,
-            highlight: commit.highlight,
+            body: pr.body || undefined,
+            highlight: pr.highlight,
           })
         );
       }
