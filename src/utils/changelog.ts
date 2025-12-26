@@ -13,6 +13,51 @@ import { getChangesSince } from './git';
 import { getGitHubClient } from './githubApi';
 import { getVersion } from './version';
 
+/** Information about the current (unmerged) PR to inject into changelog */
+export interface CurrentPRInfo {
+  number: string;
+  title: string;
+  body: string;
+  author: string;
+  labels: string[];
+}
+
+/**
+ * Fetches PR details from GitHub API by PR number.
+ *
+ * @param prNumber The PR number to fetch
+ * @returns PR info or null if not found
+ */
+async function fetchPRInfo(prNumber: string): Promise<CurrentPRInfo | null> {
+  try {
+    const { repo, owner } = await getGlobalGitHubConfig();
+    const github = getGitHubClient();
+
+    const { data: pr } = await github.pulls.get({
+      owner,
+      repo,
+      pull_number: parseInt(prNumber, 10),
+    });
+
+    const { data: labels } = await github.issues.listLabelsOnIssue({
+      owner,
+      repo,
+      issue_number: parseInt(prNumber, 10),
+    });
+
+    return {
+      number: prNumber,
+      title: pr.title,
+      body: pr.body ?? '',
+      author: pr.user?.login ?? '',
+      labels: labels.map(l => l.name),
+    };
+  } catch (error) {
+    logger.warn(`Failed to fetch PR #${prNumber}:`, error);
+    return null;
+  }
+}
+
 /**
  * Version bump types.
  */
@@ -272,6 +317,8 @@ interface PullRequest {
   hash: string;
   body: string;
   title: string;
+  /** Whether this PR should be highlighted (from current unmerged PR) */
+  highlight?: boolean;
 }
 
 interface Commit {
@@ -745,33 +792,39 @@ export async function generateChangesetFromGit(
 }
 
 /**
- * Generates a changelog from git history with optional commit highlighting.
- * When highlightCommits is provided, entries from those commits are rendered as blockquotes.
- * This function does not use caching since highlight options can vary.
+ * Generates a changelog from git history with optional current PR injection.
+ * When currentPRNumber is provided:
+ * - PR info is fetched from GitHub API
+ * - The PR is added to the changelog entries
+ * - The PR entry is highlighted (rendered as blockquote)
+ * This function does not use caching since options can vary.
  *
  * @param git Local git client
  * @param rev Base revision (tag or SHA) to generate changelog from
- * @param highlightCommits Optional set of commit hashes to highlight in the output
+ * @param currentPRNumber Optional PR number to fetch from GitHub and include (highlighted)
+ * @param until Optional end revision (defaults to HEAD). Use to exclude PR commits.
  * @returns The changelog result with formatted markdown
  */
 export async function generateChangelogWithHighlight(
   git: SimpleGit,
   rev: string,
-  highlightCommits?: Set<string>
+  currentPRNumber?: string,
+  until?: string
 ): Promise<ChangelogResult> {
-  return generateChangesetFromGitImpl(git, rev, MAX_LEFTOVERS, highlightCommits);
+  return generateChangesetFromGitImpl(git, rev, MAX_LEFTOVERS, currentPRNumber, until);
 }
 
 async function generateChangesetFromGitImpl(
   git: SimpleGit,
   rev: string,
   maxLeftovers: number,
-  highlightCommits?: Set<string>
+  currentPR?: string,
+  until?: string
 ): Promise<ChangelogResult> {
   const rawConfig = readReleaseConfig();
   const releaseConfig = normalizeReleaseConfig(rawConfig);
 
-  const gitCommits = (await getChangesSince(git, rev)).filter(
+  const gitCommits = (await getChangesSince(git, rev, until)).filter(
     ({ body }) => !body.includes(SKIP_CHANGELOG_MAGIC_WORD)
   );
 
@@ -881,6 +934,77 @@ async function generateChangesetFromGitImpl(
     }
   }
 
+  // Inject current (unmerged) PR if provided
+  if (currentPR) {
+    const prInfo = await fetchPRInfo(currentPR);
+    if (prInfo) {
+      // Check if PR should be excluded
+      const prLabels = new Set(prInfo.labels);
+      if (
+        !prInfo.body.includes(SKIP_CHANGELOG_MAGIC_WORD) &&
+        !shouldExcludePR(prLabels, prInfo.author, releaseConfig)
+      ) {
+        // Match PR to category using same logic as commits
+        const matchedCategory = matchCommitToCategory(
+          prLabels,
+          prInfo.author,
+          prInfo.title.trim(),
+          releaseConfig
+        );
+        const categoryTitle = matchedCategory?.title ?? null;
+
+        if (categoryTitle) {
+          let category = categories.get(categoryTitle);
+          if (!category) {
+            category = {
+              title: categoryTitle,
+              scopeGroups: new Map<string | null, PullRequest[]>(),
+            };
+            categories.set(categoryTitle, category);
+          }
+
+          const scope = extractScope(prInfo.title.trim());
+          let scopeGroup = category.scopeGroups.get(scope);
+          if (!scopeGroup) {
+            scopeGroup = [];
+            category.scopeGroups.set(scope, scopeGroup);
+          }
+
+          // Add current PR with highlight flag
+          scopeGroup.push({
+            author: prInfo.author,
+            number: prInfo.number,
+            hash: '', // No commit hash for unmerged PR
+            body: prInfo.body,
+            title: prInfo.title.trim(),
+            highlight: true,
+          });
+
+          logger.debug(
+            `Injected current PR #${prInfo.number} into category "${categoryTitle}"`
+          );
+        } else {
+          // PR doesn't match any category, add to leftovers section
+          leftovers.unshift({
+            author: prInfo.author,
+            hash: '',
+            title: prInfo.title.trim(),
+            body: prInfo.body,
+            hasPRinTitle: false,
+            pr: prInfo.number,
+            prTitle: prInfo.title,
+            prBody: prInfo.body,
+            labels: prInfo.labels,
+            category: null,
+          });
+          logger.debug(
+            `Current PR #${prInfo.number} doesn't match any category, added to leftovers`
+          );
+        }
+      }
+    }
+  }
+
   // Convert priority back to bump type
   let bumpType: BumpType | null = null;
   if (bumpPriority !== null) {
@@ -963,7 +1087,7 @@ async function generateChangesetFromGitImpl(
           hash: pr.hash,
           body: pr.body,
           repoUrl,
-          highlight: highlightCommits?.has(pr.hash) ?? false,
+          highlight: pr.highlight,
         })
       );
 
@@ -1017,7 +1141,8 @@ async function generateChangesetFromGitImpl(
               : commit.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)
               ? commit.body
               : undefined,
-            highlight: highlightCommits?.has(commit.hash) ?? false,
+            // Highlight if this is the current PR
+            highlight: currentPR !== undefined && commit.pr === currentPR,
           })
         )
         .join('\n')

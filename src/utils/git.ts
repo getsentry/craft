@@ -55,10 +55,11 @@ export async function getLatestTag(git: SimpleGit): Promise<string> {
 
 export async function getChangesSince(
   git: SimpleGit,
-  rev: string
+  rev: string,
+  until?: string
 ): Promise<GitChange[]> {
   const gitLogArgs: Options | LogOptions = {
-    to: 'HEAD',
+    to: until || 'HEAD',
     // The symmetric option defaults to true, giving us all the different commits
     // reachable from both `from` and `to` whereas what we are interested in is only the ones
     // reachable from `to` and _not_ from `from` so we get a "changelog" kind of list.
