@@ -745,28 +745,28 @@ export async function generateChangesetFromGit(
 }
 
 /**
- * Generates a changelog from git history with optional PR highlighting.
- * When highlightPR is provided, entries from that PR are rendered as blockquotes.
+ * Generates a changelog from git history with optional commit highlighting.
+ * When highlightCommits is provided, entries from those commits are rendered as blockquotes.
  * This function does not use caching since highlight options can vary.
  *
  * @param git Local git client
  * @param rev Base revision (tag or SHA) to generate changelog from
- * @param highlightPR Optional PR number to highlight in the output
+ * @param highlightCommits Optional set of commit hashes to highlight in the output
  * @returns The changelog result with formatted markdown
  */
 export async function generateChangelogWithHighlight(
   git: SimpleGit,
   rev: string,
-  highlightPR?: string
+  highlightCommits?: Set<string>
 ): Promise<ChangelogResult> {
-  return generateChangesetFromGitImpl(git, rev, MAX_LEFTOVERS, highlightPR);
+  return generateChangesetFromGitImpl(git, rev, MAX_LEFTOVERS, highlightCommits);
 }
 
 async function generateChangesetFromGitImpl(
   git: SimpleGit,
   rev: string,
   maxLeftovers: number,
-  highlightPR?: string
+  highlightCommits?: Set<string>
 ): Promise<ChangelogResult> {
   const rawConfig = readReleaseConfig();
   const releaseConfig = normalizeReleaseConfig(rawConfig);
@@ -963,7 +963,7 @@ async function generateChangesetFromGitImpl(
           hash: pr.hash,
           body: pr.body,
           repoUrl,
-          highlight: highlightPR !== undefined && pr.number === highlightPR,
+          highlight: highlightCommits?.has(pr.hash) ?? false,
         })
       );
 
@@ -1017,7 +1017,7 @@ async function generateChangesetFromGitImpl(
               : commit.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)
               ? commit.body
               : undefined,
-            highlight: highlightPR !== undefined && commit.pr === highlightPR,
+            highlight: highlightCommits?.has(commit.hash) ?? false,
           })
         )
         .join('\n')

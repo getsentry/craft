@@ -25,9 +25,13 @@ jobs:
           CRAFT_LOG_LEVEL: Warn
         run: |
           PR_NUMBER="${{ github.event.pull_request.number }}"
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
 
-          # Generate changelog with PR highlighting
-          CHANGELOG=$(craft changelog --pr "$PR_NUMBER" 2>/dev/null || echo "")
+          # Fetch base branch for comparison
+          git fetch origin "$BASE_REF" --depth=1 2>/dev/null || true
+
+          # Generate changelog with PR commits highlighted
+          CHANGELOG=$(craft changelog --base "origin/$BASE_REF" 2>/dev/null || echo "")
 
           if [[ -z "$CHANGELOG" ]]; then
             CHANGELOG="_No changelog entries will be generated from this PR._"
@@ -68,4 +72,3 @@ jobs:
               "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
               -F body=@/tmp/changelog-comment.md
           fi
-

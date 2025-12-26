@@ -12,8 +12,8 @@ export const description = 'Generate changelog from git history';
 interface ChangelogOptions {
   /** Base revision to generate changelog from (defaults to latest tag) */
   since?: string;
-  /** PR number to highlight in the output */
-  pr?: number;
+  /** Base branch/ref for PR comparison (to identify which commits to highlight) */
+  base?: string;
 }
 
 export const builder: CommandBuilder = (yargs: Argv) =>
@@ -24,10 +24,11 @@ export const builder: CommandBuilder = (yargs: Argv) =>
         'Base revision (tag or SHA) to generate changelog from. Defaults to latest tag.',
       type: 'string',
     })
-    .option('pr', {
+    .option('base', {
+      alias: 'b',
       description:
-        'PR number to highlight in the output. Entries from this PR will be rendered as blockquotes.',
-      type: 'number',
+        'Base branch/ref for highlighting PR commits. Commits between --base and HEAD will be highlighted.',
+      type: 'string',
     });
 
 /**
@@ -36,7 +37,7 @@ export const builder: CommandBuilder = (yargs: Argv) =>
 export async function changelogMain(argv: ChangelogOptions): Promise<void> {
   const git = await getGitClient();
 
-  // Determine base revision
+  // Determine base revision for changelog generation
   let since = argv.since;
   if (!since) {
     since = await getLatestTag(git);
@@ -47,9 +48,30 @@ export async function changelogMain(argv: ChangelogOptions): Promise<void> {
     }
   }
 
-  // Generate changelog with optional PR highlighting
-  const highlightPR = argv.pr ? String(argv.pr) : undefined;
-  const result = await generateChangelogWithHighlight(git, since, highlightPR);
+  // Get commits to highlight (commits in HEAD but not in base)
+  let highlightCommits: Set<string> | undefined;
+  if (argv.base) {
+    try {
+      // Get commits that are in HEAD but not in base (i.e., PR-specific commits)
+      const logOutput = await git.raw([
+        'log',
+        '--format=%H',
+        `${argv.base}..HEAD`,
+        '--',
+        '.',
+      ]);
+      const commits = logOutput.trim().split('\n').filter(Boolean);
+      if (commits.length > 0) {
+        highlightCommits = new Set(commits);
+        logger.debug(`Found ${commits.length} commits to highlight from PR`);
+      }
+    } catch (error) {
+      logger.warn(`Failed to get PR commits from base "${argv.base}":`, error);
+    }
+  }
+
+  // Generate changelog with optional commit highlighting
+  const result = await generateChangelogWithHighlight(git, since, highlightCommits);
 
   if (!result.changelog) {
     console.log('No changelog entries found.');

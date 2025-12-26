@@ -15,9 +15,13 @@ runs:
         CRAFT_LOG_LEVEL: Warn
       run: |
         PR_NUMBER="${{ github.event.pull_request.number }}"
-
-        # Generate changelog with PR highlighting
-        CHANGELOG=$(craft changelog --pr "$PR_NUMBER" 2>/dev/null || echo "")
+        BASE_REF="${{ github.event.pull_request.base.ref }}"
+        
+        # Fetch base branch for comparison
+        git fetch origin "$BASE_REF" --depth=1 2>/dev/null || true
+        
+        # Generate changelog with PR commits highlighted
+        CHANGELOG=$(craft changelog --base "origin/$BASE_REF" 2>/dev/null || echo "")
 
         if [[ -z "$CHANGELOG" ]]; then
           CHANGELOG="_No changelog entries will be generated from this PR._"
