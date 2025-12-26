@@ -1,0 +1,60 @@
+name: "Craft Changelog Preview"
+description: "Preview how a PR will appear in the changelog"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Craft
+      uses: getsentry/craft/install@master
+
+    - name: Generate Changelog Preview
+      id: changelog
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        CRAFT_LOG_LEVEL: Warn
+      run: |
+        PR_NUMBER="${{ github.event.pull_request.number }}"
+
+        # Generate changelog with PR highlighting
+        CHANGELOG=$(craft changelog --pr "$PR_NUMBER" 2>/dev/null || echo "")
+
+        if [[ -z "$CHANGELOG" ]]; then
+          CHANGELOG="_No changelog entries will be generated from this PR._"
+        fi
+
+        # Build comment body with hidden marker for updates
+        COMMENT_BODY="<!-- craft-changelog-preview -->
+        ## 📋 Changelog Preview
+
+        This is how your changes will appear in the changelog.
+        Entries from this PR are highlighted with a left border (blockquote style).
+
+        ---
+
+        ${CHANGELOG}
+
+        ---
+
+        <sub>🤖 This preview updates automatically when you push changes.</sub>"
+
+        # Save to file for the comment step (handles multiline properly)
+        echo "$COMMENT_BODY" > /tmp/changelog-comment.md
+
+        # Find existing comment with our marker
+        COMMENT_ID=$(gh api \
+          "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+          --jq '.[] | select(.body | contains("<!-- craft-changelog-preview -->")) | .id' \
+          | head -1)
+
+        if [[ -n "$COMMENT_ID" ]]; then
+          echo "Updating existing comment $COMMENT_ID..."
+          gh api -X PATCH \
+            "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" \
+            -F body=@/tmp/changelog-comment.md
+        else
+          echo "Creating new comment..."
+          gh api -X POST \
+            "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+            -F body=@/tmp/changelog-comment.md
+        fi

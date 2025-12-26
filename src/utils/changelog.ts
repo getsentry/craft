@@ -632,11 +632,14 @@ interface ChangelogEntry {
   body?: string;
   /** Base URL for the repository, e.g. https://github.com/owner/repo */
   repoUrl: string;
+  /** Whether this entry should be highlighted (rendered as blockquote) */
+  highlight?: boolean;
 }
 
 /**
  * Formats a single changelog entry with consistent full markdown link format.
  * Format: `- Title by @author in [#123](pr-url)` or `- Title in [abcdef12](commit-url)`
+ * When highlight is true, the entry is prefixed with `> ` (blockquote).
  */
 function formatChangelogEntry(entry: ChangelogEntry): string {
   let title = entry.title;
@@ -677,6 +680,14 @@ function formatChangelogEntry(entry: ChangelogEntry): string {
     if (body) {
       text += `\n  ${body}`;
     }
+  }
+
+  // Apply blockquote highlighting if requested
+  if (entry.highlight) {
+    text = text
+      .split('\n')
+      .map(line => `> ${line}`)
+      .join('\n');
   }
 
   return text;
@@ -733,10 +744,29 @@ export async function generateChangesetFromGit(
   return promise;
 }
 
+/**
+ * Generates a changelog from git history with optional PR highlighting.
+ * When highlightPR is provided, entries from that PR are rendered as blockquotes.
+ * This function does not use caching since highlight options can vary.
+ *
+ * @param git Local git client
+ * @param rev Base revision (tag or SHA) to generate changelog from
+ * @param highlightPR Optional PR number to highlight in the output
+ * @returns The changelog result with formatted markdown
+ */
+export async function generateChangelogWithHighlight(
+  git: SimpleGit,
+  rev: string,
+  highlightPR?: string
+): Promise<ChangelogResult> {
+  return generateChangesetFromGitImpl(git, rev, MAX_LEFTOVERS, highlightPR);
+}
+
 async function generateChangesetFromGitImpl(
   git: SimpleGit,
   rev: string,
-  maxLeftovers: number
+  maxLeftovers: number,
+  highlightPR?: string
 ): Promise<ChangelogResult> {
   const rawConfig = readReleaseConfig();
   const releaseConfig = normalizeReleaseConfig(rawConfig);
@@ -776,9 +806,7 @@ async function generateChangesetFromGitImpl(
 
     // Use PR title if available, otherwise use commit title for pattern matching
     // Trim to handle any leading/trailing whitespace that could break pattern matching
-    const titleForMatching = (
-      githubCommit?.prTitle ?? gitCommit.title
-    ).trim();
+    const titleForMatching = (githubCommit?.prTitle ?? gitCommit.title).trim();
     const matchedCategory = matchCommitToCategory(
       labels,
       author,
@@ -935,6 +963,7 @@ async function generateChangesetFromGitImpl(
           hash: pr.hash,
           body: pr.body,
           repoUrl,
+          highlight: highlightPR !== undefined && pr.number === highlightPR,
         })
       );
 
@@ -988,6 +1017,7 @@ async function generateChangesetFromGitImpl(
               : commit.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)
               ? commit.body
               : undefined,
+            highlight: highlightPR !== undefined && commit.pr === highlightPR,
           })
         )
         .join('\n')

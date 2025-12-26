@@ -23,6 +23,7 @@ export default defineConfig({
             { label: 'Introduction', slug: '' },
             { label: 'Installation', slug: 'getting-started' },
             { label: 'Configuration', slug: 'configuration' },
+            { label: 'GitHub Actions', slug: 'github-actions' },
           ],
         },
         {
