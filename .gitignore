@@ -2,6 +2,11 @@ coverage/
 dist/
 node_modules/
 
+# Docs build artifacts
+docs/dist/
+docs/node_modules/
+docs/.astro/
+
 yarn-error.log
 npm-debug.log
 
