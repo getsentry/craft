@@ -26,9 +26,8 @@ jobs:
           fetch-depth: 0
 
       # Install Craft using the shared install action
-      # TODO: Change to @v2 or @master after this PR is merged
       - name: Install Craft
-        uses: getsentry/craft/install@${{ inputs.craft-version || 'master' }}
+        uses: getsentry/craft/install@master
         with:
           craft-version: ${{ inputs.craft-version || 'latest' }}
 
