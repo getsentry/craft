@@ -28,6 +28,7 @@ import {
   clearChangesetCache,
   shouldExcludePR,
   shouldSkipCurrentPR,
+  getBumpTypeForPR,
   SKIP_CHANGELOG_MAGIC_WORD,
   BODY_IN_CHANGELOG_MAGIC_WORD,
   CurrentPRInfo,
@@ -2933,5 +2934,106 @@ describe('shouldSkipCurrentPR', () => {
     });
 
     expect(shouldSkipCurrentPR(prInfo)).toBe(true);
+  });
+});
+
+describe('getBumpTypeForPR', () => {
+  const basePRInfo: CurrentPRInfo = {
+    number: 123,
+    title: 'Test PR',
+    body: '',
+    author: 'testuser',
+    labels: [],
+    baseRef: 'main',
+  };
+
+  beforeEach(() => {
+    clearChangesetCache();
+    getConfigFileDirMock.mockReturnValue('/test');
+  });
+
+  it('should return minor for feat: prefix with default config', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      title: 'feat: Add new feature',
+    };
+    // No release config - uses default conventional commits
+    readFileSyncMock.mockImplementation(() => {
+      throw { code: 'ENOENT' };
+    });
+
+    expect(getBumpTypeForPR(prInfo)).toBe('minor');
+  });
+
+  it('should return patch for fix: prefix with default config', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      title: 'fix: Fix a bug',
+    };
+    readFileSyncMock.mockImplementation(() => {
+      throw { code: 'ENOENT' };
+    });
+
+    expect(getBumpTypeForPR(prInfo)).toBe('patch');
+  });
+
+  it('should return major for breaking change with default config', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      title: 'feat!: Breaking change',
+    };
+    readFileSyncMock.mockImplementation(() => {
+      throw { code: 'ENOENT' };
+    });
+
+    expect(getBumpTypeForPR(prInfo)).toBe('major');
+  });
+
+  it('should return null for unmatched title', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      title: 'Random commit message',
+    };
+    readFileSyncMock.mockImplementation(() => {
+      throw { code: 'ENOENT' };
+    });
+
+    expect(getBumpTypeForPR(prInfo)).toBeNull();
+  });
+
+  it('should match by label when config has label-based categories', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      title: 'Some random title',
+      labels: ['feature'],
+    };
+    readFileSyncMock.mockImplementation((path: any) => {
+      if (typeof path === 'string' && path.includes('release.yml')) {
+        return `changelog:
+  categories:
+    - title: Features
+      labels:
+        - feature
+      semver: minor`;
+      }
+      throw { code: 'ENOENT' };
+    });
+
+    expect(getBumpTypeForPR(prInfo)).toBe('minor');
+  });
+
+  it('should work for skipped PRs (still determines bump type)', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      title: 'feat: New feature',
+      body: '#skip-changelog',
+    };
+    readFileSyncMock.mockImplementation(() => {
+      throw { code: 'ENOENT' };
+    });
+
+    // PR is skipped but should still have a bump type
+    expect(shouldSkipCurrentPR(prInfo)).toBe(true);
+    expect(getBumpTypeForPR(prInfo)).toBe('minor');
   });
 });

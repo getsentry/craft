@@ -629,6 +629,29 @@ export function shouldSkipCurrentPR(prInfo: CurrentPRInfo): boolean {
 }
 
 /**
+ * Determines the version bump type for a PR based on its labels and title.
+ * This is used to determine the release version even for PRs that are
+ * excluded from the changelog (e.g., via #skip-changelog).
+ *
+ * @param prInfo The current PR info
+ * @returns The bump type (major, minor, patch) or null if no match
+ */
+export function getBumpTypeForPR(prInfo: CurrentPRInfo): BumpType | null {
+  const rawConfig = readReleaseConfig();
+  const releaseConfig = normalizeReleaseConfig(rawConfig);
+  const labels = new Set(prInfo.labels);
+
+  const matchedCategory = matchCommitToCategory(
+    labels,
+    prInfo.author,
+    prInfo.title.trim(),
+    releaseConfig
+  );
+
+  return matchedCategory?.semver ?? null;
+}
+
+/**
  * Checks if a category excludes the given PR based on labels and author
  */
 export function isCategoryExcluded(
@@ -903,21 +926,13 @@ export async function generateChangelogWithHighlight(
   // Step 2: Check if PR should be skipped - bypass changelog generation but still determine bump type
   if (shouldSkipCurrentPR(prInfo)) {
     // Even skipped PRs contribute to version bumping based on their title
-    const rawConfig = readReleaseConfig();
-    const releaseConfig = normalizeReleaseConfig(rawConfig);
-    const labels = new Set(prInfo.labels);
-    const matchedCategory = matchCommitToCategory(
-      labels,
-      prInfo.author,
-      prInfo.title.trim(),
-      releaseConfig
-    );
+    const bumpType = getBumpTypeForPR(prInfo);
 
     return {
       changelog: '',
-      bumpType: matchedCategory?.semver ?? null,
+      bumpType,
       totalCommits: 1,
-      matchedCommitsWithSemver: matchedCategory?.semver ? 1 : 0,
+      matchedCommitsWithSemver: bumpType ? 1 : 0,
       prSkipped: true,
     };
   }
