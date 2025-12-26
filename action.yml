@@ -84,7 +84,7 @@ runs:
         echo "EMAIL=${GIT_USER_EMAIL}" >> $GITHUB_ENV
 
     - name: Install Craft
-      uses: getsentry/craft/install@master
+      uses: ./install
 
     - name: Craft Prepare
       id: craft

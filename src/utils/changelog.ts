@@ -15,7 +15,7 @@ import { getVersion } from './version';
 
 /** Information about the current (unmerged) PR to inject into changelog */
 export interface CurrentPRInfo {
-  number: string;
+  number: number;
   title: string;
   body: string;
   author: string;
@@ -28,37 +28,33 @@ export interface CurrentPRInfo {
  * Fetches PR details from GitHub API by PR number.
  *
  * @param prNumber The PR number to fetch
- * @returns PR info or null if not found
+ * @returns PR info
+ * @throws Error if PR cannot be fetched
  */
-async function fetchPRInfo(prNumber: string): Promise<CurrentPRInfo | null> {
-  try {
-    const { repo, owner } = await getGlobalGitHubConfig();
-    const github = getGitHubClient();
+async function fetchPRInfo(prNumber: number): Promise<CurrentPRInfo> {
+  const { repo, owner } = await getGlobalGitHubConfig();
+  const github = getGitHubClient();
 
-    const { data: pr } = await github.pulls.get({
-      owner,
-      repo,
-      pull_number: parseInt(prNumber, 10),
-    });
+  const { data: pr } = await github.pulls.get({
+    owner,
+    repo,
+    pull_number: prNumber,
+  });
 
-    const { data: labels } = await github.issues.listLabelsOnIssue({
-      owner,
-      repo,
-      issue_number: parseInt(prNumber, 10),
-    });
+  const { data: labels } = await github.issues.listLabelsOnIssue({
+    owner,
+    repo,
+    issue_number: prNumber,
+  });
 
-    return {
-      number: prNumber,
-      title: pr.title,
-      body: pr.body ?? '',
-      author: pr.user?.login ?? '',
-      labels: labels.map(l => l.name),
-      baseRef: pr.base.ref,
-    };
-  } catch (error) {
-    logger.warn(`Failed to fetch PR #${prNumber}:`, error);
-    return null;
-  }
+  return {
+    number: prNumber,
+    title: pr.title,
+    body: pr.body ?? '',
+    author: pr.user?.login ?? '',
+    labels: labels.map(l => l.name),
+    baseRef: pr.base.ref,
+  };
 }
 
 /**
@@ -811,28 +807,23 @@ export async function generateChangesetFromGit(
 export async function generateChangelogWithHighlight(
   git: SimpleGit,
   rev: string,
-  currentPRNumber?: string
+  currentPRNumber?: number
 ): Promise<ChangelogResult> {
   // If a PR number is provided, fetch PR info first to get base branch
   let until: string | undefined;
-  let prInfo: CurrentPRInfo | null = null;
+  let prInfo: CurrentPRInfo | undefined;
 
   if (currentPRNumber) {
     prInfo = await fetchPRInfo(currentPRNumber);
-    if (prInfo) {
-      // Fetch the base branch and compute merge base
-      try {
-        await git.fetch('origin', prInfo.baseRef);
-        until = (
-          await git.raw(['merge-base', 'HEAD', `origin/${prInfo.baseRef}`])
-        ).trim();
-        logger.debug(
-          `Computed merge base from PR base branch "${prInfo.baseRef}": ${until}`
-        );
-      } catch (error) {
-        logger.warn(`Failed to compute merge base for PR #${currentPRNumber}:`, error);
-      }
-    }
+
+    // Fetch the base branch and compute merge base
+    await git.fetch('origin', prInfo.baseRef);
+    until = (
+      await git.raw(['merge-base', 'HEAD', `origin/${prInfo.baseRef}`])
+    ).trim();
+    logger.debug(
+      `Computed merge base from PR base branch "${prInfo.baseRef}": ${until}`
+    );
   }
 
   return generateChangesetFromGitImpl(git, rev, MAX_LEFTOVERS, prInfo, until);
@@ -842,7 +833,7 @@ async function generateChangesetFromGitImpl(
   git: SimpleGit,
   rev: string,
   maxLeftovers: number,
-  currentPRInfo?: CurrentPRInfo | null,
+  currentPRInfo?: CurrentPRInfo,
   until?: string
 ): Promise<ChangelogResult> {
   const rawConfig = readReleaseConfig();
@@ -995,7 +986,7 @@ async function generateChangesetFromGitImpl(
         // Add current PR with highlight flag
         scopeGroup.push({
           author: currentPRInfo.author,
-          number: currentPRInfo.number,
+          number: String(currentPRInfo.number),
           hash: '', // No commit hash for unmerged PR
           body: currentPRInfo.body,
           title: currentPRInfo.title.trim(),
@@ -1013,7 +1004,7 @@ async function generateChangesetFromGitImpl(
           title: currentPRInfo.title.trim(),
           body: currentPRInfo.body,
           hasPRinTitle: false,
-          pr: currentPRInfo.number,
+          pr: String(currentPRInfo.number),
           prTitle: currentPRInfo.title,
           prBody: currentPRInfo.body,
           labels: currentPRInfo.labels,
@@ -1163,7 +1154,7 @@ async function generateChangesetFromGitImpl(
               ? commit.body
               : undefined,
             // Highlight if this is the current PR
-            highlight: currentPRInfo != null && commit.pr === currentPRInfo.number,
+            highlight: currentPRInfo != null && commit.pr === String(currentPRInfo.number),
           })
         )
         .join('\n')

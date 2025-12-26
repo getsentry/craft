@@ -48,8 +48,7 @@ export async function changelogMain(argv: ChangelogOptions): Promise<void> {
   }
 
   // Generate changelog with optional current PR
-  const currentPRNumber = argv.pr ? String(argv.pr) : undefined;
-  const result = await generateChangelogWithHighlight(git, since, currentPRNumber);
+  const result = await generateChangelogWithHighlight(git, since, argv.pr);
 
   if (!result.changelog) {
     console.log('No changelog entries found.');
