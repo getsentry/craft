@@ -3036,4 +3036,80 @@ describe('getBumpTypeForPR', () => {
     expect(shouldSkipCurrentPR(prInfo)).toBe(true);
     expect(getBumpTypeForPR(prInfo)).toBe('minor');
   });
+
+  it('should return minor for feat with scope', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      title: 'feat(api): Add new endpoint',
+    };
+    readFileSyncMock.mockImplementation(() => {
+      throw { code: 'ENOENT' };
+    });
+
+    expect(getBumpTypeForPR(prInfo)).toBe('minor');
+  });
+
+  it('should return patch for fix with scope', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      title: 'fix(core): Fix memory leak',
+    };
+    readFileSyncMock.mockImplementation(() => {
+      throw { code: 'ENOENT' };
+    });
+
+    expect(getBumpTypeForPR(prInfo)).toBe('patch');
+  });
+
+  it('should return patch for docs: prefix in default config', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      title: 'docs: Update README',
+    };
+    readFileSyncMock.mockImplementation(() => {
+      throw { code: 'ENOENT' };
+    });
+
+    // docs category in default config has patch semver
+    expect(getBumpTypeForPR(prInfo)).toBe('patch');
+  });
+
+  it('should return patch for chore: prefix in default config', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      title: 'chore: Update dependencies',
+    };
+    readFileSyncMock.mockImplementation(() => {
+      throw { code: 'ENOENT' };
+    });
+
+    // chore is in the build/internal category with patch semver
+    expect(getBumpTypeForPR(prInfo)).toBe('patch');
+  });
+
+  it('should prefer label over title pattern when both match', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      title: 'feat: This looks like a feature',
+      labels: ['bug'], // Label says bug, title says feat
+    };
+    readFileSyncMock.mockImplementation((path: any) => {
+      if (typeof path === 'string' && path.includes('release.yml')) {
+        return `changelog:
+  categories:
+    - title: Bug Fixes
+      labels:
+        - bug
+      semver: patch
+    - title: Features
+      labels:
+        - feature
+      semver: minor`;
+      }
+      throw { code: 'ENOENT' };
+    });
+
+    // Label takes precedence, so should be patch (bug) not minor (feat)
+    expect(getBumpTypeForPR(prInfo)).toBe('patch');
+  });
 });
