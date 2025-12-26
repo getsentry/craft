@@ -1,6 +1,20 @@
 name: Changelog Preview
 
 on:
+  # Allow this workflow to be called from other repositories
+  workflow_call:
+    inputs:
+      craft-version:
+        description: 'Version of Craft to use (tag or "latest")'
+        required: false
+        type: string
+        default: 'latest'
+    secrets:
+      GITHUB_TOKEN:
+        description: 'GitHub token for API access'
+        required: true
+
+  # Also run on PRs in this repository (for dogfooding)
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -15,12 +29,29 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Build craft from source (since changelog command isn't released yet)
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Build Craft
+      - name: Install Craft
+        shell: bash
+        env:
+          CRAFT_VERSION: ${{ inputs.craft-version || 'latest' }}
         run: |
+          if [[ "$CRAFT_VERSION" == "latest" ]]; then
+            CRAFT_URL=$(curl -s "https://api.github.com/repos/getsentry/craft/releases/latest" \
+              | jq -r '.assets[] | select(.name == "craft") | .browser_download_url')
+          else
+            CRAFT_URL="https://github.com/getsentry/craft/releases/download/${CRAFT_VERSION}/craft"
+          fi
+          echo "Installing Craft from: ${CRAFT_URL}"
+          sudo curl -sL -o /usr/local/bin/craft "$CRAFT_URL"
+          sudo chmod +x /usr/local/bin/craft
+
+      # For getsentry/craft repo: build from source to test unreleased changes
+      - name: Build Craft from source (dogfooding)
+        if: github.repository == 'getsentry/craft'
+        run: |
+          # Check if yarn is available, install if not
+          if ! command -v yarn &> /dev/null; then
+            npm install -g yarn
+          fi
           yarn install --frozen-lockfile
           yarn build
           sudo install -m 755 dist/craft /usr/local/bin/craft
