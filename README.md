@@ -43,6 +43,7 @@ craft publish 1.2.3
 - **Changelog Management** - Auto-generate changelogs from commits or validate manual entries
 - **Workspace Support** - Handle monorepos with NPM/Yarn workspaces
 - **CI Integration** - Wait for CI to pass, download artifacts, and publish
+- **GitHub Actions** - Built-in actions for release preparation and changelog previews
 
 ## Configuration
 
@@ -82,6 +83,78 @@ See the [configuration reference](https://getsentry.github.io/craft/configuratio
 | `powershell` | PowerShell Gallery |
 
 See the [targets documentation](https://getsentry.github.io/craft/targets/) for configuration details.
+
+## GitHub Actions
+
+Craft provides GitHub Actions for automating releases and previewing changelog entries.
+
+### Prepare Release Action
+
+Automates the `craft prepare` workflow in GitHub Actions:
+
+```yaml
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (or "auto")'
+        required: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: getsentry/craft@v2
+        with:
+          version: ${{ github.event.inputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+**Inputs:**
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `version` | Version to release (semver, "auto", "major", "minor", "patch") | Uses `versioning.policy` from config |
+| `merge_target` | Target branch to merge into | Default branch |
+| `force` | Force release even with blockers | `false` |
+| `blocker_label` | Label that blocks releases | `release-blocker` |
+| `publish_repo` | Repository for publish issues | `{owner}/publish` |
+
+**Outputs:**
+
+| Output | Description |
+|--------|-------------|
+| `version` | The resolved version being released |
+| `branch` | The release branch name |
+| `sha` | The commit SHA on the release branch |
+| `changelog` | The changelog for this release |
+
+### Changelog Preview (Reusable Workflow)
+
+Posts a preview comment on PRs showing how they'll appear in the changelog:
+
+```yaml
+name: Changelog Preview
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled]
+
+jobs:
+  changelog-preview:
+    uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
+    secrets: inherit
+```
+
+The workflow will:
+- Generate the upcoming changelog including the PR's changes
+- Highlight entries from the PR using blockquote style (left border)
+- Post a comment on the PR with the preview
+- Automatically update when you update the PR (push, edit title/description, or change labels)
 
 ## Contributing
 
