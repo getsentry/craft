@@ -47,8 +47,11 @@ jobs:
           # Extract fields from JSON
           CHANGELOG=$(echo "$RESULT" | jq -r '.changelog // ""')
           BUMP_TYPE=$(echo "$RESULT" | jq -r '.bumpType // "none"')
+          PR_SKIPPED=$(echo "$RESULT" | jq -r '.prSkipped // false')
 
-          if [[ -z "$CHANGELOG" ]]; then
+          if [[ "$PR_SKIPPED" == "true" ]]; then
+            CHANGELOG="_This PR will not appear in the changelog._"
+          elif [[ -z "$CHANGELOG" ]]; then
             CHANGELOG="_No changelog entries will be generated from this PR._"
           fi
 

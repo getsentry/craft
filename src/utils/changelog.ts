@@ -596,6 +596,30 @@ export function shouldExcludePR(
 }
 
 /**
+ * Checks if the current PR should be skipped from the changelog entirely.
+ * This checks:
+ * 1. The #skip-changelog magic word in the PR body
+ * 2. Excluded labels from release config (e.g., skip-changelog label)
+ * 3. Excluded authors from release config
+ *
+ * @param prInfo The current PR info
+ * @returns true if the PR should be skipped
+ */
+export function shouldSkipCurrentPR(prInfo: CurrentPRInfo): boolean {
+  // Check for magic word in body
+  if (prInfo.body.includes(SKIP_CHANGELOG_MAGIC_WORD)) {
+    return true;
+  }
+
+  // Check release config exclusions (labels, authors)
+  const rawConfig = readReleaseConfig();
+  const releaseConfig = normalizeReleaseConfig(rawConfig);
+  const labels = new Set(prInfo.labels);
+
+  return shouldExcludePR(labels, prInfo.author, releaseConfig);
+}
+
+/**
  * Checks if a category excludes the given PR based on labels and author
  */
 export function isCategoryExcluded(
@@ -771,6 +795,8 @@ export interface ChangelogResult {
   totalCommits: number;
   /** Number of commits that matched a category with a semver field */
   matchedCommitsWithSemver: number;
+  /** Whether the current PR was skipped (only set when using --pr flag) */
+  prSkipped?: boolean;
 }
 
 /**
@@ -865,15 +891,26 @@ export async function generateChangelogWithHighlight(
   // Step 1: Fetch PR info from GitHub
   const prInfo = await fetchPRInfo(currentPRNumber);
 
-  // Step 2: Fetch the base branch to get current state
+  // Step 2: Check if PR should be skipped - bypass all work if so
+  if (shouldSkipCurrentPR(prInfo)) {
+    return {
+      changelog: '',
+      bumpType: null,
+      totalCommits: 0,
+      matchedCommitsWithSemver: 0,
+      prSkipped: true,
+    };
+  }
+
+  // Step 3: Fetch the base branch to get current state
   await git.fetch('origin', prInfo.baseRef);
   const baseRef = `origin/${prInfo.baseRef}`;
   logger.debug(`Using PR base branch "${prInfo.baseRef}" for changelog`);
 
-  // Step 3: Fetch raw commit info up to base branch
+  // Step 4: Fetch raw commit info up to base branch
   const rawCommits = await fetchRawCommitInfo(git, rev, baseRef);
 
-  // Step 4: Add current PR to the list with highlight flag (at the beginning)
+  // Step 5: Add current PR to the list with highlight flag (at the beginning)
   const currentPRCommit: RawCommitInfo = {
     hash: '',
     title: prInfo.title.trim(),
@@ -887,14 +924,15 @@ export async function generateChangelogWithHighlight(
   };
   const allCommits = [currentPRCommit, ...rawCommits];
 
-  // Step 5: Run categorization on combined list
+  // Step 6: Run categorization on combined list
   const { data: rawData, stats } = categorizeCommits(allCommits);
 
-  // Step 6: Serialize to markdown
+  // Step 7: Serialize to markdown
   const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS);
 
   return {
     changelog,
+    prSkipped: false,
     ...stats,
   };
 }

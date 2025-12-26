@@ -26,8 +26,10 @@ import {
   extractScope,
   formatScopeTitle,
   clearChangesetCache,
+  shouldSkipCurrentPR,
   SKIP_CHANGELOG_MAGIC_WORD,
   BODY_IN_CHANGELOG_MAGIC_WORD,
+  CurrentPRInfo,
 } from '../changelog';
 
 const getConfigFileDirMock = config.getConfigFileDir as jest.MockedFunction<typeof config.getConfigFileDir>;
@@ -2764,5 +2766,143 @@ describe('formatScopeTitle', () => {
     ['mycomponent', 'Mycomponent'],
   ])('should format "%s" as "%s"', (scope, expected) => {
     expect(formatScopeTitle(scope)).toBe(expected);
+  });
+});
+
+describe('shouldSkipCurrentPR', () => {
+  const basePRInfo: CurrentPRInfo = {
+    number: 123,
+    title: 'Test PR',
+    body: '',
+    author: 'testuser',
+    labels: [],
+    baseRef: 'main',
+  };
+
+  beforeEach(() => {
+    clearChangesetCache();
+    getConfigFileDirMock.mockReturnValue('/test');
+  });
+
+  it('should return true when PR body contains #skip-changelog', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      body: 'This is a PR description\n\n#skip-changelog',
+    };
+    readFileSyncMock.mockImplementation(() => {
+      throw { code: 'ENOENT' };
+    });
+
+    expect(shouldSkipCurrentPR(prInfo)).toBe(true);
+  });
+
+  it('should return true when PR body contains #skip-changelog inline', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      body: 'This is internal work #skip-changelog for now',
+    };
+    readFileSyncMock.mockImplementation(() => {
+      throw { code: 'ENOENT' };
+    });
+
+    expect(shouldSkipCurrentPR(prInfo)).toBe(true);
+  });
+
+  it('should return false when PR body does not contain skip marker', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      body: 'This is a regular PR description',
+    };
+    readFileSyncMock.mockImplementation(() => {
+      throw { code: 'ENOENT' };
+    });
+
+    expect(shouldSkipCurrentPR(prInfo)).toBe(false);
+  });
+
+  it('should return true when PR has an excluded label from config', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      body: 'Normal description',
+      labels: ['skip-changelog'],
+    };
+    readFileSyncMock.mockImplementation((path: any) => {
+      if (typeof path === 'string' && path.includes('release.yml')) {
+        return `changelog:
+  exclude:
+    labels:
+      - skip-changelog
+  categories:
+    - title: Features
+      labels:
+        - feature`;
+      }
+      throw { code: 'ENOENT' };
+    });
+
+    expect(shouldSkipCurrentPR(prInfo)).toBe(true);
+  });
+
+  it('should return true when PR author is excluded in config', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      body: 'Normal description',
+      author: 'dependabot[bot]',
+    };
+    readFileSyncMock.mockImplementation((path: any) => {
+      if (typeof path === 'string' && path.includes('release.yml')) {
+        return `changelog:
+  exclude:
+    authors:
+      - dependabot[bot]
+  categories:
+    - title: Features
+      labels:
+        - feature`;
+      }
+      throw { code: 'ENOENT' };
+    });
+
+    expect(shouldSkipCurrentPR(prInfo)).toBe(true);
+  });
+
+  it('should return false when PR does not match any exclusion criteria', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      body: 'Normal description',
+      labels: ['feature'],
+      author: 'regularuser',
+    };
+    readFileSyncMock.mockImplementation((path: any) => {
+      if (typeof path === 'string' && path.includes('release.yml')) {
+        return `changelog:
+  exclude:
+    labels:
+      - skip-changelog
+    authors:
+      - dependabot[bot]
+  categories:
+    - title: Features
+      labels:
+        - feature`;
+      }
+      throw { code: 'ENOENT' };
+    });
+
+    expect(shouldSkipCurrentPR(prInfo)).toBe(false);
+  });
+
+  it('should prioritize magic word over config (skip even without config)', () => {
+    const prInfo: CurrentPRInfo = {
+      ...basePRInfo,
+      body: 'Description with #skip-changelog',
+      labels: ['feature'],
+    };
+    // No release config
+    readFileSyncMock.mockImplementation(() => {
+      throw { code: 'ENOENT' };
+    });
+
+    expect(shouldSkipCurrentPR(prInfo)).toBe(true);
   });
 });
