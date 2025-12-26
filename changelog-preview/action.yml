@@ -16,10 +16,10 @@ runs:
       run: |
         PR_NUMBER="${{ github.event.pull_request.number }}"
         BASE_REF="${{ github.event.pull_request.base.ref }}"
-        
+
         # Fetch base branch for comparison
         git fetch origin "$BASE_REF" --depth=1 2>/dev/null || true
-        
+
         # Generate changelog with PR commits highlighted
         CHANGELOG=$(craft changelog --base "origin/$BASE_REF" 2>/dev/null || echo "")
 

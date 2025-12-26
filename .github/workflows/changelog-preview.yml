@@ -28,10 +28,15 @@ jobs:
           BASE_REF="${{ github.event.pull_request.base.ref }}"
 
           # Fetch base branch for comparison
-          git fetch origin "$BASE_REF" --depth=1 2>/dev/null || true
-
+          git fetch origin "$BASE_REF" --depth=1
+          
+          # Debug: show commits between base and HEAD
+          echo "Commits in this PR:"
+          git log --oneline "origin/$BASE_REF..HEAD" -- . || echo "No commits found"
+          
           # Generate changelog with PR commits highlighted
-          CHANGELOG=$(craft changelog --base "origin/$BASE_REF" 2>/dev/null || echo "")
+          echo "Running craft changelog..."
+          CHANGELOG=$(craft changelog --base "origin/$BASE_REF" || echo "")
 
           if [[ -z "$CHANGELOG" ]]; then
             CHANGELOG="_No changelog entries will be generated from this PR._"
