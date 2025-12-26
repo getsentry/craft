@@ -62,20 +62,18 @@ jobs:
             *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
           esac
 
-          # Build comment body
-          read -r -d '' COMMENT_BODY << 'EOF' || true
+          # Build comment body using a temp file (safer than heredoc)
+          COMMENT_FILE=$(mktemp)
+          cat > "$COMMENT_FILE" << CRAFT_CHANGELOG_COMMENT_END
           <!-- craft-changelog-preview -->
+          ## Suggested Version Bump
+
+          ${BUMP_BADGE}
+
           ## 📋 Changelog Preview
 
           This is how your changes will appear in the changelog.
           Entries from this PR are highlighted with a left border (blockquote style).
-
-          EOF
-
-          COMMENT_BODY="${COMMENT_BODY}
-          ### Suggested Version Bump
-
-          ${BUMP_BADGE}
 
           ---
 
@@ -83,7 +81,8 @@ jobs:
 
           ---
 
-          <sub>🤖 This preview updates automatically when you update the PR.</sub>"
+          <sub>🤖 This preview updates automatically when you update the PR.</sub>
+          CRAFT_CHANGELOG_COMMENT_END
 
           # Find existing comment with our marker
           COMMENT_ID=$(gh api \
@@ -95,10 +94,12 @@ jobs:
             echo "Updating existing comment $COMMENT_ID..."
             gh api -X PATCH \
               "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" \
-              -f body="$COMMENT_BODY"
+              -F body=@"$COMMENT_FILE"
           else
             echo "Creating new comment..."
             gh api -X POST \
               "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-              -f body="$COMMENT_BODY"
+              -F body=@"$COMMENT_FILE"
           fi
+
+          rm -f "$COMMENT_FILE"

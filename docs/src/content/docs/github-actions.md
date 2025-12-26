@@ -136,14 +136,14 @@ jobs:
 The workflow posts a comment like this:
 
 ```markdown
+## Suggested Version Bump
+
+🟡 **Minor** (new features)
+
 ## 📋 Changelog Preview
 
 This is how your changes will appear in the changelog.
 Entries from this PR are highlighted with a left border (blockquote style).
-
-### Suggested Version Bump
-
-🟡 **Minor** (new features)
 
 ---
 
