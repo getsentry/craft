@@ -299,10 +299,12 @@ describe('generateChangesetFromGit', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     mockClient = jest.fn();
-    (getGitHubClient as jest.MockedFunction<
-      typeof getGitHubClient
-      // @ts-ignore we only need to mock a subset
-    >).mockReturnValue({ graphql: mockClient });
+    (
+      getGitHubClient as jest.MockedFunction<
+        typeof getGitHubClient
+        // @ts-ignore we only need to mock a subset
+      >
+    ).mockReturnValue({ graphql: mockClient });
     // Default: no config file
     getConfigFileDirMock.mockReturnValue(undefined);
     getGlobalGitHubConfigMock.mockResolvedValue({
@@ -333,10 +335,7 @@ describe('generateChangesetFromGit', () => {
     };
   }
 
-  function setup(
-    commits: TestCommit[],
-    releaseConfig?: string | null
-  ): void {
+  function setup(commits: TestCommit[], releaseConfig?: string | null): void {
     // Clear memoization cache to ensure fresh results
     clearChangesetCache();
 
@@ -389,7 +388,10 @@ describe('generateChangesetFromGit', () => {
       } else {
         getConfigFileDirMock.mockReturnValue('/workspace');
         readFileSyncMock.mockImplementation((path: any) => {
-          if (typeof path === 'string' && path.includes('.github/release.yml')) {
+          if (
+            typeof path === 'string' &&
+            path.includes('.github/release.yml')
+          ) {
             return releaseConfig;
           }
           const error: any = new Error('ENOENT');
@@ -1999,9 +2001,10 @@ describe('generateChangesetFromGit', () => {
       // Find the next header (### or ####)
       const restOfContent = markdown.slice(startIndex);
       const nextHeaderMatch = restOfContent.match(/^#{3,4} /m);
-      const endIndex = nextHeaderMatch && nextHeaderMatch.index !== undefined
-        ? startIndex + nextHeaderMatch.index
-        : markdown.length;
+      const endIndex =
+        nextHeaderMatch && nextHeaderMatch.index !== undefined
+          ? startIndex + nextHeaderMatch.index
+          : markdown.length;
 
       return markdown.slice(startIndex, endIndex).trim();
     }
@@ -2237,7 +2240,10 @@ describe('generateChangesetFromGit', () => {
       expect(changes).not.toContain('#### Other');
 
       // Verify no double newlines between entries (which would indicate separate sections)
-      const featuresSection = getSectionContent(changes, /### New Features[^\n]*\n/);
+      const featuresSection = getSectionContent(
+        changes,
+        /### New Features[^\n]*\n/
+      );
       expect(featuresSection).not.toBeNull();
       // There should be no blank lines between the three entries
       expect(featuresSection).not.toMatch(/\n\n-/);
@@ -2512,8 +2518,12 @@ describe('generateChangesetFromGit', () => {
         changes,
         /#### My Component\n/
       );
-      expect(myComponentSection).toContain('feat(my-component): feature with dashes 1');
-      expect(myComponentSection).toContain('feat(my-component): feature with dashes 2');
+      expect(myComponentSection).toContain(
+        'feat(my-component): feature with dashes 1'
+      );
+      expect(myComponentSection).toContain(
+        'feat(my-component): feature with dashes 2'
+      );
       expect(myComponentSection).not.toContain('feat(another_component)');
 
       const anotherComponentSection = getSectionContent(
@@ -2720,10 +2730,17 @@ describe('generateChangesetFromGit', () => {
       expect(myComponentMatches).toHaveLength(1);
 
       // Both PRs should appear under the same scope section
-      const myComponentSection = getSectionContent(changes, /#### My Component\n/);
+      const myComponentSection = getSectionContent(
+        changes,
+        /#### My Component\n/
+      );
       expect(myComponentSection).not.toBeNull();
-      expect(myComponentSection).toContain('feat(my-component): feature with dashes');
-      expect(myComponentSection).toContain('feat(my_component): feature with underscores');
+      expect(myComponentSection).toContain(
+        'feat(my-component): feature with dashes'
+      );
+      expect(myComponentSection).toContain(
+        'feat(my_component): feature with underscores'
+      );
     });
   });
 
@@ -2958,7 +2975,9 @@ Add endpoint for data export`,
 
       // Should still group by scope even with custom changelog entries
       expect(changes).toContain('#### Api');
-      expect(changes).toContain('Add powerful new endpoint for user management');
+      expect(changes).toContain(
+        'Add powerful new endpoint for user management'
+      );
       expect(changes).toContain('Add endpoint for data export');
     });
 
@@ -3058,7 +3077,9 @@ Update all dependencies to their latest versions for improved security`,
 
       // Should have 3 separate changelog entries from the same PR
       expect(changes).toContain('Add OAuth2 authentication by @alice in [#1]');
-      expect(changes).toContain('Add two-factor authentication by @alice in [#1]');
+      expect(changes).toContain(
+        'Add two-factor authentication by @alice in [#1]'
+      );
       expect(changes).toContain('Add session management by @alice in [#1]');
     });
 
@@ -3096,7 +3117,7 @@ Update all dependencies to their latest versions for improved security`,
       expect(changes).toContain('Add authentication by @alice in [#1]');
       expect(changes).toContain('  OAuth2');
       expect(changes).toContain('  2FA');
-      
+
       // Second entry with nested content
       expect(changes).toContain('Add user profiles by @alice in [#1]');
       expect(changes).toContain('  Avatar upload');
@@ -3193,12 +3214,14 @@ Add a new function called \`foo\` which prints "Hello, world!"
 ### Issues
 
 Closes #123`;
-    
+
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
     expect(result).not.toBeNull();
     if (result) {
-      expect(result[0].text).toBe('Add a new function called `foo` which prints "Hello, world!"');
+      expect(result[0].text).toBe(
+        'Add a new function called `foo` which prints "Hello, world!"'
+      );
       expect(result[0].nestedContent).toBeUndefined();
     }
   });
@@ -3215,12 +3238,14 @@ Add a new function called \`foo\` which prints "Hello, world!"
 ## Issues
 
 Closes #123`;
-    
+
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
     expect(result).not.toBeNull();
     if (result) {
-      expect(result[0].text).toBe('Add a new function called `foo` which prints "Hello, world!"');
+      expect(result[0].text).toBe(
+        'Add a new function called `foo` which prints "Hello, world!"'
+      );
     }
   });
 
@@ -3232,12 +3257,14 @@ This PR adds a new feature.
 ### Changelog Entry
 
 This is the last section with no sections after it.`;
-    
+
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
     expect(result).not.toBeNull();
     if (result) {
-      expect(result[0].text).toBe('This is the last section with no sections after it.');
+      expect(result[0].text).toBe(
+        'This is the last section with no sections after it.'
+      );
     }
   });
 
@@ -3253,7 +3280,7 @@ Custom changelog text here
 ### Issues
 
 Closes #123`;
-    
+
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
     expect(result).not.toBeNull();
@@ -3276,7 +3303,7 @@ spans several lines.
 ### Issues
 
 Closes #123`;
-    
+
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
     expect(result).not.toBeNull();
@@ -3293,7 +3320,7 @@ Closes #123`;
 - Add **bold** feature
 - Add *italic* feature
 - Add \`code\` feature`;
-    
+
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(3);
     expect(result).not.toBeNull();
@@ -3312,7 +3339,7 @@ This PR adds a new feature.
 ### Issues
 
 Closes #123`;
-    
+
     expect(extractChangelogEntry(prBody)).toBeNull();
   });
 
@@ -3334,17 +3361,17 @@ This PR adds a new feature.
 ### Issues
 
 Closes #123`;
-    
+
     expect(extractChangelogEntry(prBody)).toBeNull();
   });
 
   it('should handle changelog entry with trailing/leading whitespace', () => {
     const prBody = `### Changelog Entry
 
-  This has leading whitespace  
+  This has leading whitespace
 
 ### Issues`;
-    
+
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
     expect(result).not.toBeNull();
@@ -3363,7 +3390,7 @@ This PR adds a new feature.
 Custom changelog text
 
 ### Issues`;
-    
+
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
     expect(result).not.toBeNull();
@@ -3380,7 +3407,7 @@ This PR adds Changelog Entry functionality.
 ### Issues
 
 Closes #123`;
-    
+
     expect(extractChangelogEntry(prBody)).toBeNull();
   });
 
@@ -3396,7 +3423,7 @@ This should not be included.
 ### More Sections
 
 Neither should this.`;
-    
+
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
     expect(result).not.toBeNull();
@@ -3412,7 +3439,7 @@ Neither should this.`;
     - OAuth2 support
     - Two-factor authentication
     - Session management`;
-    
+
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
     expect(result).not.toBeNull();
@@ -3434,13 +3461,15 @@ Neither should this.`;
     - Avatar upload
     - Bio editing
 - Add settings panel`;
-    
+
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(3);
     expect(result).not.toBeNull();
     if (result) {
       expect(result[0].text).toBe('Add authentication system');
-      expect(result[0].nestedContent).toBe('  OAuth2 support\n  Two-factor authentication');
+      expect(result[0].nestedContent).toBe(
+        '  OAuth2 support\n  Two-factor authentication'
+      );
       expect(result[1].text).toBe('Add user profile page');
       expect(result[1].nestedContent).toBe('  Avatar upload\n  Bio editing');
       expect(result[2].text).toBe('Add settings panel');
@@ -3455,12 +3484,14 @@ Comprehensive authentication system with the following features:
     - OAuth2 support
     - Two-factor authentication
     - Session management`;
-    
+
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(1);
     expect(result).not.toBeNull();
     if (result) {
-      expect(result[0].text).toBe('Comprehensive authentication system with the following features:');
+      expect(result[0].text).toBe(
+        'Comprehensive authentication system with the following features:'
+      );
       expect(result[0].nestedContent).toBeDefined();
       expect(result[0].nestedContent).toContain('OAuth2 support');
     }
@@ -3481,7 +3512,7 @@ This should not be included.
 This should also not be included.
 
 Closes #123`;
-    
+
     const result = extractChangelogEntry(prBody);
     expect(result).toHaveLength(2);
     expect(result).not.toBeNull();
@@ -3489,7 +3520,9 @@ Closes #123`;
       expect(result[0].text).toBe('Add feature A');
       expect(result[1].text).toBe('Add feature B');
       // Make sure content from other sections isn't included
-      const allText = result.map(e => e.text + (e.nestedContent || '')).join('');
+      const allText = result
+        .map(e => e.text + (e.nestedContent || ''))
+        .join('');
       expect(allText).not.toContain('This should not be included');
       expect(allText).not.toContain('This should also not be included');
       expect(allText).not.toContain('Closes #123');

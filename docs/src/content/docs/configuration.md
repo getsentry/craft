@@ -1,4 +1,4 @@
----
+t---
 title: Configuration
 description: Complete reference for .craft.yml configuration
 ---
@@ -149,7 +149,7 @@ of the PR title. If no such section is present, the PR title is used as usual.
 
    ```markdown
    ### Changelog Entry
-   
+
    - Add OAuth2 authentication
    - Add two-factor authentication
    - Add session management
@@ -160,7 +160,7 @@ of the PR title. If no such section is present, the PR title is used as usual.
 
    ```markdown
    ### Changelog Entry
-   
+
    - Add authentication system
        - OAuth2 support
        - Two-factor authentication
