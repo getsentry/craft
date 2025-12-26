@@ -9,10 +9,6 @@ on:
         required: false
         type: string
         default: 'latest'
-    secrets:
-      GITHUB_TOKEN:
-        description: 'GitHub token for API access'
-        required: true
 
   # Also run on PRs in this repository (for dogfooding)
   pull_request:
