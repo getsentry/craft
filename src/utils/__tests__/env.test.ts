@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 // XXX(BYK): This is to be able to spy on `homedir()` in tests
@@ -14,16 +15,16 @@ import { ConfigurationError } from '../errors';
 import { logger } from '../../logger';
 import { withTempDir } from '../files';
 
-jest.mock('../../logger');
-const homedirMock = jest.spyOn(os, 'homedir');
-const getConfigFileDirMock = jest.spyOn(config, 'getConfigFileDir');
+vi.mock('../../logger');
+const homedirMock = vi.spyOn(os, 'homedir');
+const getConfigFileDirMock = vi.spyOn(config, 'getConfigFileDir');
 
 describe('env utils functions', () => {
   const cleanEnv = { ...process.env };
 
   beforeEach(() => {
     process.env = { ...cleanEnv };
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   describe('checkEnvForPrerequisite', () => {

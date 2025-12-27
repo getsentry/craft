@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import * as fs from 'fs';
 
 import { logger } from '../../logger';
@@ -13,7 +14,7 @@ import {
   spawnProcess,
 } from '../system';
 
-jest.mock('../../logger');
+vi.mock('../../logger');
 
 describe('spawnProcess', () => {
   test('resolves on success with standard output', async () => {
@@ -70,7 +71,7 @@ describe('spawnProcess', () => {
   });
 
   test('does not write to output by default', async () => {
-    const mockedLogInfo = logger.info as jest.Mock;
+    const mockedLogInfo = logger.info as Mock;
 
     await spawnProcess(process.execPath, ['-p', '"test-string"']);
 
@@ -78,7 +79,7 @@ describe('spawnProcess', () => {
   });
 
   test('writes to output if told so', async () => {
-    const mockedLogInfo = logger.info as jest.Mock;
+    const mockedLogInfo = logger.info as Mock;
 
     await spawnProcess(
       process.execPath,
@@ -160,7 +161,7 @@ describe('isExecutableInPath', () => {
   });
 
   test('checks for existing executable using absolute path', () => {
-    expect(hasExecutable(`${process.cwd()}/node_modules/.bin/jest`)).toBe(true);
+    expect(hasExecutable(`${process.cwd()}/node_modules/.bin/vitest`)).toBe(true);
   });
 
   test('checks for non-existing executable using absolute path', () => {
@@ -168,7 +169,7 @@ describe('isExecutableInPath', () => {
   });
 
   test('checks for existing executable using relative path', () => {
-    expect(hasExecutable('./node_modules/.bin/jest')).toBe(true);
+    expect(hasExecutable('./node_modules/.bin/vitest')).toBe(true);
   });
 
   test('checks for non-existing executable using relative path', () => {

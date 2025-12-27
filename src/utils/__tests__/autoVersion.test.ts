@@ -1,16 +1,23 @@
-/* eslint-env jest */
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 
-jest.mock('../githubApi.ts');
-jest.mock('../git');
-jest.mock('fs', () => ({
-  ...jest.requireActual('fs'),
-  readFileSync: jest.fn(),
-}));
-jest.mock('../../config', () => ({
-  ...jest.requireActual('../../config'),
-  getConfigFileDir: jest.fn(),
-  getGlobalGitHubConfig: jest.fn(),
-}));
+
+vi.mock('../githubApi.ts');
+vi.mock('../git');
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
+  return {
+    ...actual,
+    readFileSync: vi.fn(),
+  };
+});
+vi.mock('../../config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config')>();
+  return {
+    ...actual,
+    getConfigFileDir: vi.fn(),
+    getGlobalGitHubConfig: vi.fn(),
+  };
+});
 
 import { readFileSync } from 'fs';
 import type { SimpleGit } from 'simple-git';
@@ -25,17 +32,17 @@ import {
 } from '../autoVersion';
 import { clearChangesetCache } from '../changelog';
 
-const getConfigFileDirMock = config.getConfigFileDir as jest.MockedFunction<
+const getConfigFileDirMock = config.getConfigFileDir as MockedFunction<
   typeof config.getConfigFileDir
 >;
 const getGlobalGitHubConfigMock =
-  config.getGlobalGitHubConfig as jest.MockedFunction<
+  config.getGlobalGitHubConfig as MockedFunction<
     typeof config.getGlobalGitHubConfig
   >;
-const readFileSyncMock = readFileSync as jest.MockedFunction<
+const readFileSyncMock = readFileSync as MockedFunction<
   typeof readFileSync
 >;
-const getChangesSinceMock = getChangesSince as jest.MockedFunction<
+const getChangesSinceMock = getChangesSince as MockedFunction<
   typeof getChangesSince
 >;
 
@@ -109,7 +116,7 @@ describe('getChangelogWithBumpType', () => {
   const mockGit = {} as SimpleGit;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     clearChangesetCache(); // Clear memoization cache between tests
     getConfigFileDirMock.mockReturnValue('/test/repo');
     readFileSyncMock.mockImplementation(() => {
@@ -127,8 +134,8 @@ describe('getChangelogWithBumpType', () => {
     getChangesSinceMock.mockResolvedValue([
       { hash: 'abc123', title: 'feat: new feature', body: '', pr: '123' },
     ]);
-    (getGitHubClient as jest.Mock).mockReturnValue({
-      graphql: jest.fn().mockResolvedValue({
+    (getGitHubClient as Mock).mockReturnValue({
+      graphql: vi.fn().mockResolvedValue({
         repository: {
           Cabc123: {
             author: { user: { login: 'testuser' } },
@@ -172,8 +179,8 @@ describe('getChangelogWithBumpType', () => {
         pr: null,
       },
     ]);
-    (getGitHubClient as jest.Mock).mockReturnValue({
-      graphql: jest.fn().mockResolvedValue({
+    (getGitHubClient as Mock).mockReturnValue({
+      graphql: vi.fn().mockResolvedValue({
         repository: {
           Cabc123: {
             author: { user: { login: 'testuser' } },
@@ -194,8 +201,8 @@ describe('getChangelogWithBumpType', () => {
     getChangesSinceMock.mockResolvedValue([
       { hash: 'abc123', title: 'fix: bug fix', body: '', pr: '456' },
     ]);
-    (getGitHubClient as jest.Mock).mockReturnValue({
-      graphql: jest.fn().mockResolvedValue({
+    (getGitHubClient as Mock).mockReturnValue({
+      graphql: vi.fn().mockResolvedValue({
         repository: {
           Cabc123: {
             author: { user: { login: 'testuser' } },
@@ -223,8 +230,8 @@ describe('getChangelogWithBumpType', () => {
     getChangesSinceMock.mockResolvedValue([
       { hash: 'abc123', title: 'feat!: breaking change', body: '', pr: '789' },
     ]);
-    (getGitHubClient as jest.Mock).mockReturnValue({
-      graphql: jest.fn().mockResolvedValue({
+    (getGitHubClient as Mock).mockReturnValue({
+      graphql: vi.fn().mockResolvedValue({
         repository: {
           Cabc123: {
             author: { user: { login: 'testuser' } },

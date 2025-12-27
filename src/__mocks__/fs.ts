@@ -1,8 +1,12 @@
-const actualFs = jest.requireActual('fs');
+import { vi } from 'vitest';
+import * as actualFs from 'fs';
 
-module.exports = {
+export const existsSync = vi.fn(() => true);
+
+// Re-export everything from the actual fs module
+export * from 'fs';
+// Override existsSync with our mock
+export default {
   ...actualFs,
-  // Don't mock readFileSync - let it use the real implementation
-  // Tests that need to mock it can do so explicitly
-  existsSync: jest.fn(() => true),
+  existsSync,
 };

@@ -1,39 +1,11 @@
+import { describe, test, expect } from 'vitest';
 /**
  * Tests of our ability to read craft config files. (This is NOT general test
  * configuration).
  */
 
-import { readFileSync } from 'fs';
-import { dirname, join } from 'path';
-
-import { compile } from 'json-schema-to-typescript';
-
-import { getProjectConfigSchema, validateConfiguration } from '../config';
-
-const configSchemaDir = join(dirname(__dirname), 'schemas');
-const configGeneratedTypes = join(configSchemaDir, 'project_config.ts');
-
-/**
- * We compile JSON schema to TypeScript interface as part of tests to compare
- * it with the existing file. This is done to be promptly notified about any
- * changes to the JSON schema that are not yet reflected in the TS interface.
- */
-describe('compile-json-schema-to-typescript', () => {
-  test('does not make any changes to the compiled interface', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const projectConfig = require('../schemas/projectConfig.schema');
-    const storedOutput = readFileSync(configGeneratedTypes, {
-      encoding: 'utf8',
-    });
-    const compileOptions = {
-      style: { singleQuote: true, trailingComma: 'es5' } as any,
-    };
-    const generatedOutput = await compile(projectConfig, '', compileOptions);
-
-    expect(generatedOutput).toBeTruthy();
-    expect(generatedOutput).toBe(storedOutput);
-  });
-});
+import { validateConfiguration } from '../config';
+import { CraftProjectConfigSchema } from '../schemas/project_config';
 
 describe('validateConfiguration', () => {
   test('parses minimal configuration', () => {
@@ -42,20 +14,85 @@ describe('validateConfiguration', () => {
     expect(validateConfiguration(data)).toEqual(data);
   });
 
-  test('fails with bad configuration', () => {
-    expect(() => validateConfiguration({ zoom: 1 }))
-      .toThrowErrorMatchingInlineSnapshot(`
-      "Cannot parse configuration file:
-      data should NOT have additional properties"
-    `);
+  test('parses configuration with targets', () => {
+    const data = {
+      github: { owner: 'getsentry', repo: 'craft' },
+      targets: [
+        { name: 'npm' },
+        { name: 'github', tagPrefix: 'v' },
+      ],
+    };
+
+    expect(validateConfiguration(data)).toEqual(data);
+  });
+
+  test('parses configuration with changelog object', () => {
+    const data = {
+      changelog: {
+        filePath: 'CHANGELOG.md',
+        policy: 'auto',
+        scopeGrouping: true,
+      },
+    };
+
+    expect(validateConfiguration(data)).toEqual(data);
+  });
+
+  test('parses configuration with changelog string', () => {
+    const data = {
+      changelog: 'CHANGELOG.md',
+    };
+
+    expect(validateConfiguration(data)).toEqual(data);
+  });
+
+  test('parses configuration with versioning', () => {
+    const data = {
+      versioning: {
+        policy: 'calver',
+        calver: {
+          offset: 14,
+          format: '%y.%-m',
+        },
+      },
+    };
+
+    expect(validateConfiguration(data)).toEqual(data);
+  });
+
+  test('fails with invalid github config', () => {
+    expect(() => validateConfiguration({ github: { owner: 'getsentry' } }))
+      .toThrow(/repo.*Required/);
+  });
+
+  test('fails with invalid minVersion format', () => {
+    expect(() => validateConfiguration({ minVersion: 'invalid' }))
+      .toThrow(/minVersion/);
+  });
+
+  test('fails with invalid changelog policy', () => {
+    expect(() => validateConfiguration({ changelog: { policy: 'invalid' } }))
+      .toThrow(/changelog/);
   });
 });
 
-describe('getProjectConfigSchema', () => {
-  test('returns non-empty object', () => {
-    const projectConfigSchema = getProjectConfigSchema();
+describe('CraftProjectConfigSchema', () => {
+  test('schema validates correct config', () => {
+    const data = {
+      github: { owner: 'getsentry', repo: 'craft' },
+      minVersion: '2.14.0',
+    };
 
-    expect(projectConfigSchema).toHaveProperty('title');
-    expect(projectConfigSchema).toHaveProperty('properties');
+    const result = CraftProjectConfigSchema.safeParse(data);
+    expect(result.success).toBe(true);
+  });
+
+  test('schema rejects invalid minVersion', () => {
+    const data = {
+      minVersion: 'not-a-version',
+    };
+
+    const result = CraftProjectConfigSchema.safeParse(data);
+    expect(result.success).toBe(false);
   });
 });

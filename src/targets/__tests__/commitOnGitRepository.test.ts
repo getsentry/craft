@@ -1,15 +1,16 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { pushArchiveToGitRepository } from '../commitOnGitRepository';
 import childProcess from 'child_process';
 
-const execSyncSpy = jest.spyOn(childProcess, 'execSync');
+const execSyncSpy = vi.spyOn(childProcess, 'execSync');
 
-const mockClone = jest.fn();
-const mockCheckout = jest.fn();
-const mockRaw = jest.fn();
-const mockCommit = jest.fn();
-const mockAddTag = jest.fn();
+const mockClone = vi.fn();
+const mockCheckout = vi.fn();
+const mockRaw = vi.fn();
+const mockCommit = vi.fn();
+const mockAddTag = vi.fn();
 
-jest.mock('simple-git', () => () => ({
+vi.mock('simple-git', () => () => ({
   clone: mockClone,
   checkout: mockCheckout,
   raw: mockRaw,

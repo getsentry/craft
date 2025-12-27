@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 /**
  * Shared mock setup for changelog tests.
  */
@@ -8,11 +9,11 @@ import type { TestCommit } from './changelog';
 export type { TestCommit } from './changelog';
 
 // These will be set up by the test files that import this
-export let mockClient: jest.Mock;
-export let mockGetChangesSince: jest.MockedFunction<any>;
-export let getConfigFileDirMock: jest.MockedFunction<any>;
-export let getGlobalGitHubConfigMock: jest.MockedFunction<any>;
-export let readFileSyncMock: jest.MockedFunction<any>;
+export let mockClient: Mock;
+export let mockGetChangesSince: MockedFunction<any>;
+export let getConfigFileDirMock: MockedFunction<any>;
+export let getGlobalGitHubConfigMock: MockedFunction<any>;
+export let readFileSyncMock: MockedFunction<any>;
 
 export const dummyGit = {} as SimpleGit;
 
@@ -26,16 +27,16 @@ export function initMocks(
   readFileSync: any,
   clearChangesetCache: () => void
 ): void {
-  mockClient = jest.fn();
-  mockGetChangesSince = getChangesSince as jest.MockedFunction<typeof getChangesSince>;
-  getConfigFileDirMock = config.getConfigFileDir as jest.MockedFunction<typeof config.getConfigFileDir>;
-  getGlobalGitHubConfigMock = config.getGlobalGitHubConfig as jest.MockedFunction<typeof config.getGlobalGitHubConfig>;
-  readFileSyncMock = readFileSync as jest.MockedFunction<typeof readFileSync>;
+  mockClient = vi.fn();
+  mockGetChangesSince = getChangesSince as MockedFunction<typeof getChangesSince>;
+  getConfigFileDirMock = config.getConfigFileDir as MockedFunction<typeof config.getConfigFileDir>;
+  getGlobalGitHubConfigMock = config.getGlobalGitHubConfig as MockedFunction<typeof config.getGlobalGitHubConfig>;
+  readFileSyncMock = readFileSync as MockedFunction<typeof readFileSync>;
 
-  jest.resetAllMocks();
+  vi.resetAllMocks();
   clearChangesetCache();
 
-  (getGitHubClient as jest.MockedFunction<typeof getGitHubClient>).mockReturnValue({
+  (getGitHubClient as MockedFunction<typeof getGitHubClient>).mockReturnValue({
     graphql: mockClient,
   } as any);
 

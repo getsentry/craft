@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { getAllTargetNames, getTargetByName } from '..';
 import { GitHubTarget } from '../github';
 

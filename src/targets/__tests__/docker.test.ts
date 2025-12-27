@@ -1,3 +1,4 @@
+import { vi, describe, it, expect, beforeEach, afterEach, afterAll, type Mock, type Mocked } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 
@@ -12,14 +13,17 @@ import {
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import * as system from '../../utils/system';
 
-jest.mock('../../utils/system', () => ({
-  ...jest.requireActual('../../utils/system'),
-  checkExecutableIsPresent: jest.fn(),
-  spawnProcess: jest.fn().mockResolvedValue(Buffer.from('')),
-}));
+vi.mock('../../utils/system', async (importOriginal) => {
+  const actual = await importOriginal<typeof system>();
+  return {
+    ...actual,
+    checkExecutableIsPresent: vi.fn(),
+    spawnProcess: vi.fn().mockResolvedValue(Buffer.from('')),
+  };
+});
 
-jest.mock('node:fs');
-jest.mock('node:os');
+vi.mock('node:fs');
+vi.mock('node:os');
 
 describe('normalizeImageRef', () => {
   it('normalizes string source to object with image property', () => {
@@ -266,13 +270,13 @@ describe('isGoogleCloudRegistry', () => {
 });
 
 describe('hasGcloudCredentials', () => {
-  const mockFs = fs as jest.Mocked<typeof fs>;
-  const mockOs = os as jest.Mocked<typeof os>;
+  const mockFs = fs as Mocked<typeof fs>;
+  const mockOs = os as Mocked<typeof os>;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    mockFs.existsSync.mockReturnValue(false);
-    mockOs.homedir.mockReturnValue('/home/user');
+    vi.clearAllMocks();
+    vi.mocked(mockFs.existsSync).mockReturnValue(false);
+    vi.mocked(mockOs.homedir).mockReturnValue('/home/user');
   });
 
   afterEach(() => {
@@ -283,7 +287,7 @@ describe('hasGcloudCredentials', () => {
 
   it('returns true when GOOGLE_APPLICATION_CREDENTIALS points to existing file', () => {
     process.env.GOOGLE_APPLICATION_CREDENTIALS = '/path/to/creds.json';
-    mockFs.existsSync.mockImplementation(
+    vi.mocked(mockFs.existsSync).mockImplementation(
       (p: fs.PathLike) => p === '/path/to/creds.json'
     );
 
@@ -292,7 +296,7 @@ describe('hasGcloudCredentials', () => {
 
   it('returns true when GOOGLE_GHA_CREDS_PATH points to existing file', () => {
     process.env.GOOGLE_GHA_CREDS_PATH = '/tmp/gha-creds.json';
-    mockFs.existsSync.mockImplementation(
+    vi.mocked(mockFs.existsSync).mockImplementation(
       (p: fs.PathLike) => p === '/tmp/gha-creds.json'
     );
 
@@ -301,7 +305,7 @@ describe('hasGcloudCredentials', () => {
 
   it('returns true when CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE points to existing file', () => {
     process.env.CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE = '/override/creds.json';
-    mockFs.existsSync.mockImplementation(
+    vi.mocked(mockFs.existsSync).mockImplementation(
       (p: fs.PathLike) => p === '/override/creds.json'
     );
 
@@ -309,7 +313,7 @@ describe('hasGcloudCredentials', () => {
   });
 
   it('returns true when default ADC file exists', () => {
-    mockFs.existsSync.mockImplementation(
+    vi.mocked(mockFs.existsSync).mockImplementation(
       (p: fs.PathLike) =>
         p === '/home/user/.config/gcloud/application_default_credentials.json'
     );
@@ -324,13 +328,13 @@ describe('hasGcloudCredentials', () => {
 
 describe('DockerTarget', () => {
   const oldEnv = { ...process.env };
-  const mockFs = fs as jest.Mocked<typeof fs>;
-  const mockOs = os as jest.Mocked<typeof os>;
+  const mockFs = fs as Mocked<typeof fs>;
+  const mockOs = os as Mocked<typeof os>;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    mockFs.existsSync.mockReturnValue(false);
-    mockOs.homedir.mockReturnValue('/home/user');
+    vi.clearAllMocks();
+    vi.mocked(mockFs.existsSync).mockReturnValue(false);
+    vi.mocked(mockOs.homedir).mockReturnValue('/home/user');
     // Clear all Docker-related env vars
     delete process.env.DOCKER_USERNAME;
     delete process.env.DOCKER_PASSWORD;
@@ -925,7 +929,7 @@ describe('DockerTarget', () => {
       await target.login();
 
       // Verify password is passed via stdin, not command line
-      const callArgs = (system.spawnProcess as jest.Mock).mock.calls[0];
+      const callArgs = vi.mocked(system.spawnProcess).mock.calls[0];
       expect(callArgs[1]).not.toContain('--password=secret-password');
       expect(callArgs[1]).toContain('--password-stdin');
       expect(callArgs[3]).toEqual({ stdin: 'secret-password' });
@@ -1095,7 +1099,7 @@ describe('DockerTarget', () => {
     it('auto-configures gcloud for GCR registries when credentials are available', async () => {
       // Set up gcloud credentials
       process.env.GOOGLE_APPLICATION_CREDENTIALS = '/path/to/creds.json';
-      mockFs.existsSync.mockReturnValue(true);
+      vi.mocked(mockFs.existsSync).mockReturnValue(true);
 
       const target = new DockerTarget(
         {
@@ -1119,7 +1123,7 @@ describe('DockerTarget', () => {
 
     it('auto-configures gcloud for Artifact Registry (pkg.dev)', async () => {
       process.env.GOOGLE_APPLICATION_CREDENTIALS = '/path/to/creds.json';
-      mockFs.existsSync.mockReturnValue(true);
+      vi.mocked(mockFs.existsSync).mockReturnValue(true);
 
       const target = new DockerTarget(
         {
@@ -1143,7 +1147,7 @@ describe('DockerTarget', () => {
 
     it('configures multiple GCR registries in one call', async () => {
       process.env.GOOGLE_APPLICATION_CREDENTIALS = '/path/to/creds.json';
-      mockFs.existsSync.mockReturnValue(true);
+      vi.mocked(mockFs.existsSync).mockReturnValue(true);
 
       const target = new DockerTarget(
         {
@@ -1167,7 +1171,7 @@ describe('DockerTarget', () => {
 
     it('skips gcloud configuration when no credentials are available', async () => {
       // No credentials set, fs.existsSync returns false
-      mockFs.existsSync.mockReturnValue(false);
+      vi.mocked(mockFs.existsSync).mockReturnValue(false);
 
       // Use Docker Hub as target (requires DOCKER_USERNAME/PASSWORD)
       process.env.DOCKER_USERNAME = 'user';

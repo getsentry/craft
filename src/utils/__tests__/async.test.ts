@@ -1,23 +1,24 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { setGlobals } from '../../utils/helpers';
 import { filterAsync, forEachChained, withRetry, sleep } from '../async';
 import { logger } from '../../logger';
 
-jest.mock('../../logger');
+vi.mock('../../logger');
 
 import { retrySpawnProcess } from '../async';
 import { spawnProcess } from '../system';
 
-jest.mock('../system', () => {
-  const original = jest.requireActual('../system');
+vi.mock('../system', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../system')>();
   return {
-    ...original,
-    spawnProcess: jest.fn(original.spawnProcess),
+    ...actual,
+    spawnProcess: vi.fn(actual.spawnProcess),
   };
 });
 
 describe('retrySpawnProcess', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('resolves before max retries', async () => {
@@ -90,7 +91,7 @@ describe('filterAsync', () => {
     expect.assertions(1);
 
     const arr = [1];
-    const predicate = jest.fn();
+    const predicate = vi.fn();
 
     await filterAsync(arr, predicate);
     expect(predicate).toHaveBeenCalledWith(1, 0, arr);
@@ -114,7 +115,7 @@ describe('forEachChained', () => {
   test('invokes synchronous actions', async () => {
     expect.assertions(1);
 
-    const fun = jest.fn();
+    const fun = vi.fn();
     const arr = ['a', 'b', 'c'];
     await forEachChained(arr, fun);
 
@@ -128,7 +129,7 @@ describe('forEachChained', () => {
   test('invokes asynchronous actions sequentially', async () => {
     expect.assertions(1);
 
-    const fun = jest.fn();
+    const fun = vi.fn();
     const arr = [500, 300, 100];
 
     fun.mockImplementation(
@@ -256,7 +257,7 @@ describe('withRetry', () => {
       throw new Error('I always fail');
     };
     await expect(withRetry(fn)).rejects.toThrowErrorMatchingInlineSnapshot(
-      `"Max retries reached: 3"`
+      `[RetryError: Max retries reached: 3]`
     );
   });
 
@@ -283,7 +284,7 @@ describe('withRetry', () => {
     };
     await expect(
       withRetry(fn, 5, () => Promise.resolve(false))
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`"Cancelled retry"`);
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`[RetryError: Cancelled retry]`);
   });
 
   test('fails when onRetry throws', async () => {
@@ -297,6 +298,6 @@ describe('withRetry', () => {
     };
     await expect(
       withRetry(fn, 5, () => Promise.reject(new Error('no retries')))
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`"Cancelled retry"`);
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`[RetryError: Cancelled retry]`);
   });
 });

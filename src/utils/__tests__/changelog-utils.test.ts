@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 /**
  * Tests for changelog utility functions.
  * - shouldExcludePR: Checks if a PR should be excluded from changelog

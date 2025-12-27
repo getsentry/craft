@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 /**
  * Tests for changelog file operations: findChangeset, removeChangeset, prependChangeset.
  * These functions work with CHANGELOG.md file content.

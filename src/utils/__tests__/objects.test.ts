@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { clearObjectProperties } from '../objects';
 
 describe('clearObjectProperties', () => {

@@ -1,16 +1,17 @@
+import { vi, describe, test, expect, beforeEach, type Mock } from 'vitest';
 import { join as pathJoin } from 'path';
 import { spawnProcess } from '../../utils/system';
 import { runPreReleaseCommand, checkVersionOrPart } from '../prepare';
 
-jest.mock('../../utils/system');
+vi.mock('../../utils/system');
 
 describe('runPreReleaseCommand', () => {
   const oldVersion = '2.3.3';
   const newVersion = '2.3.4';
-  const mockedSpawnProcess = spawnProcess as jest.Mock;
+  const mockedSpawnProcess = spawnProcess as Mock;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('runs with default command', async () => {

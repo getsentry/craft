@@ -1,13 +1,14 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { Octokit } from '@octokit/rest';
 
 import { getFile } from '../githubApi';
 
 const mockRepos = {
-  getContent: jest.fn(),
+  getContent: vi.fn(),
 };
 
-jest.mock('@octokit/rest', () => ({
-  Octokit: jest.fn().mockImplementation(() => ({ repos: mockRepos })),
+vi.mock('@octokit/rest', () => ({
+  Octokit: vi.fn().mockImplementation(() => ({ repos: mockRepos })),
 }));
 
 describe('getFile', () => {
@@ -15,7 +16,7 @@ describe('getFile', () => {
   const owner = 'owner';
   const repo = 'repo';
 
-  const getContent = (github.repos.getContent as unknown) as jest.Mock;
+  const getContent = (github.repos.getContent as unknown) as Mock;
 
   test('loads and decodes the file', async () => {
     expect.assertions(2);

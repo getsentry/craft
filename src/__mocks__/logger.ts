@@ -1,10 +1,11 @@
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const consola = require('consola');
+import { vi } from 'vitest';
 
-const loggerModule: typeof consola = jest.genMockFromModule('../logger');
-
-loggerModule.logger.withScope = function (): any {
-  return this;
+export const logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  log: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  success: vi.fn(),
+  withScope: vi.fn().mockReturnThis(),
 };
-
-module.exports = loggerModule;
