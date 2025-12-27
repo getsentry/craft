@@ -37,7 +37,7 @@ describe('UPM Target', () => {
     `(
       'error with artifact count $artifacts.length',
       async ({ artifacts, error }) => {
-        upmTarget.getArtifactsForRevision = jest
+        upmTarget.getArtifactsForRevision = vi
           .fn()
           .mockResolvedValueOnce(artifacts);
 
@@ -51,10 +51,10 @@ describe('UPM Target', () => {
   // TODO(byk): Add more tests for this
   describe.skip('publish', () => {
     beforeEach(() => {
-      upmTarget.fetchArtifact = jest
+      upmTarget.fetchArtifact = vi
         .fn()
         .mockResolvedValueOnce({ filename: 'artifact.zip' });
-      upmTarget.artifactProvider.downloadArtifact = jest
+      upmTarget.artifactProvider.downloadArtifact = vi
         .fn()
         .mockResolvedValueOnce('some/test/path');
     });

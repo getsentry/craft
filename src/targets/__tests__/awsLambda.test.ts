@@ -38,7 +38,7 @@ describe('get aws config environment variables', () => {
   const oldEnvVariables = process.env;
 
   beforeEach(() => {
-    jest.resetModules(); // Clear the cache.
+    vi.resetModules(); // Clear the cache.
     process.env = { ...oldEnvVariables }; // Restore environment
   });
 

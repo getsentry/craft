@@ -27,7 +27,7 @@ describe('pwsh environment variables', () => {
   const oldEnvVariables = process.env;
 
   beforeEach(() => {
-    jest.resetModules(); // Clear the cache.
+    vi.resetModules(); // Clear the cache.
     process.env = { ...oldEnvVariables }; // Restore environment
   });
 
@@ -89,7 +89,7 @@ describe('publish', () => {
 
   test('error on missing artifact', async () => {
     const target = getPwshTarget();
-    target.getArtifactsForRevision = jest
+    target.getArtifactsForRevision = vi
       .fn()
       .mockImplementation(() => [])
       .bind(PowerShellTarget);
@@ -108,7 +108,7 @@ describe('publish', () => {
 
   test('error on having too many artifacts', async () => {
     const target = getPwshTarget();
-    target.getArtifactsForRevision = jest
+    target.getArtifactsForRevision = vi
       .fn()
       .mockImplementation(() => ['file1', 'file2'])
       .bind(PowerShellTarget);
