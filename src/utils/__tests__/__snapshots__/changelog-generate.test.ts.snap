@@ -110,6 +110,8 @@ exports[`generateChangesetFromGit scope grouping groups PRs by scope when multip
 - feat(api): add endpoint 1 by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)
 - feat(api): add endpoint 2 by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)
 
+#### Other
+
 - feat(ui): add button by @charlie in [#3](https://github.com/test-owner/test-repo/pull/3)"
 `;
 
