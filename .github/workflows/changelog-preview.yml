@@ -67,7 +67,7 @@ jobs:
           COMMENT_FILE=$(mktemp)
           cat > "$COMMENT_FILE" << CRAFT_CHANGELOG_COMMENT_END
           <!-- craft-changelog-preview -->
-          ## Suggested Version Bump
+          ## Semver Impact of This PR
 
           ${BUMP_BADGE}
 
