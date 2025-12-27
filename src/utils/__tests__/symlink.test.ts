@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { createSymlinks } from '../symlink';
 import { withTempDir } from '../files';
 import { promises as fsPromises } from 'fs';

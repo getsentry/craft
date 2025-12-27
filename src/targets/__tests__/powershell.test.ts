@@ -1,10 +1,11 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { spawnProcess } from '../../utils/system';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { ConfigurationError } from '../../utils/errors';
 import { PowerShellTarget } from '../powershell';
 
-jest.mock('fs');
-jest.mock('../../utils/system');
+vi.mock('fs');
+vi.mock('../../utils/system');
 
 /** Returns a new PowerShellTarget test instance. */
 function getPwshTarget(): PowerShellTarget {
@@ -78,12 +79,12 @@ describe('config', () => {
 });
 
 describe('publish', () => {
-  const mockedSpawnProcess = spawnProcess as jest.Mock;
+  const mockedSpawnProcess = spawnProcess as Mock;
   const spawnOptions = { enableInDryRunMode: true, showStdout: true };
 
   beforeEach(() => {
     setPwshEnvironmentVariables();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('error on missing artifact', async () => {

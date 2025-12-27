@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import {
   getPublishTag,
   getLatestVersion,
@@ -13,7 +14,7 @@ const defaultNpmConfig = {
 };
 
 describe('getLatestVersion', () => {
-  let spawnProcessMock: jest.SpyInstance;
+  let spawnProcessMock: MockInstance;
 
   beforeEach(() => {
     spawnProcessMock = jest
@@ -57,7 +58,7 @@ describe('getLatestVersion', () => {
 });
 
 describe('getPublishTag', () => {
-  let spawnProcessMock: jest.SpyInstance;
+  let spawnProcessMock: MockInstance;
 
   beforeEach(() => {
     spawnProcessMock = jest
@@ -71,7 +72,7 @@ describe('getPublishTag', () => {
 
   it('returns undefined without a checkPackageName', async () => {
     const logger = {
-      warn: jest.fn(),
+      warn: vi.fn(),
     } as any;
     const actual = await getPublishTag(
       '1.0.0',
@@ -86,7 +87,7 @@ describe('getPublishTag', () => {
 
   it('returns undefined for unexisting package name', async () => {
     const logger = {
-      warn: jest.fn(),
+      warn: vi.fn(),
     } as any;
     const actual = await getPublishTag(
       '1.0.0',
@@ -110,7 +111,7 @@ describe('getPublishTag', () => {
       );
 
     const logger = {
-      warn: jest.fn(),
+      warn: vi.fn(),
     } as any;
     const actual = await getPublishTag(
       '1.0.0',
@@ -128,7 +129,7 @@ describe('getPublishTag', () => {
 
   it('returns next for prereleases', async () => {
     const logger = {
-      warn: jest.fn(),
+      warn: vi.fn(),
     } as any;
     const actual = await getPublishTag(
       '1.0.0-alpha.1',
@@ -155,7 +156,7 @@ describe('getPublishTag', () => {
       );
 
     const logger = {
-      warn: jest.fn(),
+      warn: vi.fn(),
     } as any;
 
     const actual = await getPublishTag(
@@ -179,7 +180,7 @@ describe('getPublishTag', () => {
 });
 
 describe('NpmTarget.expand', () => {
-  let discoverWorkspacesMock: jest.SpyInstance;
+  let discoverWorkspacesMock: MockInstance;
 
   afterEach(() => {
     discoverWorkspacesMock?.mockRestore();

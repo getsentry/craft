@@ -1,13 +1,14 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { formatCalVerDate, calculateCalVer, DEFAULT_CALVER_CONFIG } from '../calver';
 
 // Mock the config module to control tagPrefix
-jest.mock('../../config', () => ({
-  getGitTagPrefix: jest.fn(() => ''),
+vi.mock('../../config', () => ({
+  getGitTagPrefix: vi.fn(() => ''),
 }));
 
 import { getGitTagPrefix } from '../../config';
 
-const mockGetGitTagPrefix = getGitTagPrefix as jest.Mock;
+const mockGetGitTagPrefix = getGitTagPrefix as Mock;
 
 describe('formatCalVerDate', () => {
   it('formats %y as 2-digit year', () => {
@@ -69,11 +70,11 @@ describe('formatCalVerDate', () => {
 
 describe('calculateCalVer', () => {
   const mockGit = {
-    tags: jest.fn(),
+    tags: vi.fn(),
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockGetGitTagPrefix.mockReturnValue('');
     // Mock Date to return a fixed date
     jest.useFakeTimers();
