@@ -30,7 +30,6 @@ import {
 /*************** mocks and other setup ***************/
 
 vi.mock('../../logger');
-vi.mock('fs');
 
 const mockGCSUpload = vi.fn();
 const mockGCSDownload = vi.fn();
@@ -136,7 +135,7 @@ describe('gcsApi module', () => {
       process.env.DOG_CREDS_PATH = './iDontExist.json';
 
       // make sure it won't find the file
-      (fs.existsSync as Mock).mockReturnValueOnce(false);
+      const existsSyncSpy = vi.spyOn(fs, 'existsSync').mockReturnValueOnce(false);
 
       expect(() => {
         getGCSCredsFromEnv(
@@ -144,6 +143,8 @@ describe('gcsApi module', () => {
           { name: 'DOG_CREDS_PATH' }
         );
       }).toThrowError('File does not exist: `./iDontExist.json`!');
+
+      existsSyncSpy.mockRestore();
     });
 
     it('errors if necessary field missing', () => {
@@ -295,7 +296,7 @@ describe('gcsApi module', () => {
         expect.assertions(1);
 
         // make sure it won't find the directory
-        (fs.existsSync as Mock).mockReturnValueOnce(false);
+        const existsSyncSpy = vi.spyOn(fs, 'existsSync').mockReturnValueOnce(false);
 
         await expect(
           client.downloadArtifact(
@@ -303,6 +304,8 @@ describe('gcsApi module', () => {
             './iDontExist/'
           )
         ).rejects.toThrowError(`directory does not exist!`);
+
+        existsSyncSpy.mockRestore();
       });
 
       it('errors if GCS download goes sideways', async () => {
