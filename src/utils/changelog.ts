@@ -2,6 +2,7 @@ import type { SimpleGit } from 'simple-git';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { load } from 'js-yaml';
+import { marked, type Token, type Tokens } from 'marked';
 import { logger } from '../logger';
 
 import {
@@ -109,12 +110,19 @@ export interface Changeset {
 }
 
 /**
- * A changeset location based on RegExpExecArrays
+ * A changeset location with position info for slicing
  */
-export interface ChangesetLoc {
-  start: RegExpExecArray;
-  end: RegExpExecArray | null;
-  padding: string;
+interface ChangesetLoc {
+  /** Start index in the original markdown */
+  startIndex: number;
+  /** End index (start of next heading, or end of document) */
+  endIndex: number;
+  /** The heading title text */
+  title: string;
+  /** Length of the raw heading including newlines */
+  headingLength: number;
+  /** Whether this was a setext-style heading */
+  isSetext: boolean;
 }
 
 function escapeMarkdownPound(text: string): string {
@@ -158,63 +166,226 @@ export function formatScopeTitle(scope: string): string {
 }
 
 /**
- * Extracts a specific changeset from a markdown document
+ * Represents a single changelog entry item, which may have nested sub-items
+ */
+export interface ChangelogEntryItem {
+  /** The main text of the changelog entry */
+  text: string;
+  /** Optional nested content (e.g., sub-bullets) to be indented under this entry */
+  nestedContent?: string;
+}
+
+/**
+ * Extracts the "Changelog Entry" section from a PR description and parses it into structured entries.
+ * This allows PR authors to override the default changelog entry (which is the PR title)
+ * with custom text that's more user-facing and detailed.
  *
- * The changes are bounded by a header preceding the changes and an optional
- * header at the end. If the latter is omitted, the markdown document will be
- * read until its end. The title of the changes will be extracted from the
- * given header.
+ * Looks for a markdown heading (either ### or ##) with the text "Changelog Entry"
+ * and extracts the content until the next heading of the same or higher level.
+ *
+ * Parsing rules:
+ * - Multiple top-level bullets (-, *, +) become separate changelog entries
+ * - Plain text (no bullets) becomes a single entry
+ * - Nested bullets are preserved as nested content under their parent entry
+ * - Only content within the "Changelog Entry" section is included
+ *
+ * @param prBody The PR description/body text
+ * @returns Array of changelog entry items, or null if no "Changelog Entry" section is found
+ */
+export function extractChangelogEntry(prBody: string | null | undefined): ChangelogEntryItem[] | null {
+  if (!prBody) {
+    return null;
+  }
+
+  // Use marked's lexer to properly parse the markdown
+  const tokens = marked.lexer(prBody);
+
+  // Find the "Changelog Entry" heading (level 2 or 3, case-insensitive)
+  const headingIndex = tokens.findIndex(
+    (t): t is Tokens.Heading =>
+      t.type === 'heading' &&
+      (t.depth === 2 || t.depth === 3) &&
+      t.text.toLowerCase() === 'changelog entry'
+  );
+
+  if (headingIndex === -1) {
+    return null;
+  }
+
+  // Collect tokens between this heading and the next heading of same or higher level
+  const headingDepth = (tokens[headingIndex] as Tokens.Heading).depth;
+  const contentTokens: Token[] = [];
+
+  for (let i = headingIndex + 1; i < tokens.length; i++) {
+    const token = tokens[i];
+    // Stop at next heading of same or higher level
+    if (token.type === 'heading' && (token as Tokens.Heading).depth <= headingDepth) {
+      break;
+    }
+    contentTokens.push(token);
+  }
+
+  // If no content tokens, return null
+  if (contentTokens.length === 0) {
+    return null;
+  }
+
+  // Process the content tokens into changelog entries
+  return parseTokensToEntries(contentTokens);
+}
+
+/**
+ * Recursively extracts nested content from a list item's tokens.
+ */
+function extractNestedContent(tokens: Token[]): string {
+  const nestedLines: string[] = [];
+
+  for (const token of tokens) {
+    if (token.type === 'list') {
+      const listToken = token as Tokens.List;
+      for (const item of listToken.items) {
+        // Get the text of this nested item
+        const itemText = getListItemText(item);
+        nestedLines.push(`  - ${itemText}`);
+
+        // Recursively get any deeper nested content
+        const deeperNested = extractNestedContent(item.tokens);
+        if (deeperNested) {
+          // Indent deeper nested content further
+          const indentedDeeper = deeperNested
+            .split('\n')
+            .map(line => '  ' + line)
+            .join('\n');
+          nestedLines.push(indentedDeeper);
+        }
+      }
+    }
+  }
+
+  return nestedLines.join('\n');
+}
+
+/**
+ * Gets the text content of a list item, excluding nested lists.
+ */
+function getListItemText(item: Tokens.ListItem): string {
+  // The item.text contains the raw text, but we want just the first line
+  // (before any nested lists)
+  const firstToken = item.tokens.find(t => t.type === 'text' || t.type === 'paragraph');
+  if (firstToken && 'text' in firstToken) {
+    return firstToken.text.split('\n')[0].trim();
+  }
+  return item.text.split('\n')[0].trim();
+}
+
+/**
+ * Parses content tokens into structured changelog entries.
+ */
+function parseTokensToEntries(tokens: Token[]): ChangelogEntryItem[] | null {
+  const entries: ChangelogEntryItem[] = [];
+
+  for (const token of tokens) {
+    if (token.type === 'list') {
+      // Each top-level list item becomes a changelog entry
+      const listToken = token as Tokens.List;
+      for (const item of listToken.items) {
+        const text = getListItemText(item);
+        const nestedContent = extractNestedContent(item.tokens);
+
+        entries.push({
+          text,
+          ...(nestedContent ? { nestedContent } : {}),
+        });
+      }
+    } else if (token.type === 'paragraph') {
+      // Paragraph text becomes a single entry
+      // Join multiple lines with spaces to avoid broken markdown
+      const paragraphToken = token as Tokens.Paragraph;
+      const text = paragraphToken.text
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+        .join(' ');
+
+      if (text) {
+        entries.push({ text });
+      }
+    }
+  }
+
+  return entries.length > 0 ? entries : null;
+}
+
+/**
+ * Extracts a specific changeset from a markdown document using the location info.
  *
  * @param markdown The full changelog markdown
- * @param location The start & end location for the section
- * @returns The extracted changes
+ * @param location The changeset location
+ * @returns The extracted changeset
  */
 function extractChangeset(markdown: string, location: ChangesetLoc): Changeset {
-  const start = location.start.index + location.start[0].length;
-  const end = location.end ? location.end.index : undefined;
-  const body = markdown.substring(start, end).trim();
-  const name = (location.start[2] || location.start[3])
-    .replace(/\(.*\)$/, '')
-    .trim();
+  const bodyStart = location.startIndex + location.headingLength;
+  const body = markdown.substring(bodyStart, location.endIndex).trim();
+  // Remove trailing parenthetical content (e.g., dates) from the title
+  const name = location.title.replace(/\(.*\)$/, '').trim();
   return { name, body };
 }
 
 /**
- * Locates and returns a changeset section with the title passed in header.
- * Supports an optional "predicate" callback used to compare the expected title
- * and the title found in text. Useful for normalizing versions.
+ * Locates a changeset section matching the predicate using marked tokenizer.
+ * Supports both ATX-style (## Header) and Setext-style (Header\n---) headings.
  *
  * @param markdown The full changelog markdown
- * @param predicate A callback that takes the found title and returns true if
- *                  this is a match, false otherwise
- * @returns A ChangesetLoc object where "start" has the matche for the header,
- *          and "end" has the match for the next header so the contents
- *          inbetween can be extracted
+ * @param predicate A callback that takes the found title and returns true if match
+ * @returns A ChangesetLoc object or null if not found
  */
 function locateChangeset(
   markdown: string,
   predicate: (match: string) => boolean
 ): ChangesetLoc | null {
-  const HEADER_REGEX = new RegExp(
-    `^( *)(?:#{${VERSION_HEADER_LEVEL}} +([^\\n]+?) *(?:#{${VERSION_HEADER_LEVEL}})?|([^\\n]+)\\n *(?:-){2,}) *(?:\\n+|$)`,
-    'gm'
-  );
+  const tokens = marked.lexer(markdown);
 
-  for (
-    let match = HEADER_REGEX.exec(markdown);
-    match !== null;
-    match = HEADER_REGEX.exec(markdown)
-  ) {
-    const matchedTitle = match[2] || match[3];
-    if (predicate(matchedTitle)) {
-      const padSize = match?.[1]?.length || 0;
-      return {
-        end: HEADER_REGEX.exec(markdown),
-        start: match,
-        padding: new Array(padSize + 1).join(' '),
-      };
+  // Track position by accumulating raw lengths
+  let pos = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+
+    if (token.type === 'heading' && token.depth === VERSION_HEADER_LEVEL) {
+      const headingToken = token as Tokens.Heading;
+
+      if (predicate(headingToken.text)) {
+        // Find the end position (start of next same-level or higher heading)
+        let endIndex = markdown.length;
+        let searchPos = pos + headingToken.raw.length;
+
+        for (let j = i + 1; j < tokens.length; j++) {
+          const nextToken = tokens[j];
+          if (
+            nextToken.type === 'heading' &&
+            (nextToken as Tokens.Heading).depth <= VERSION_HEADER_LEVEL
+          ) {
+            endIndex = searchPos;
+            break;
+          }
+          searchPos += nextToken.raw.length;
+        }
+
+        // Detect setext-style headings (raw contains \n followed by dashes)
+        const isSetext = /\n\s*-{2,}/.test(headingToken.raw);
+
+        return {
+          startIndex: pos,
+          endIndex,
+          title: headingToken.text,
+          headingLength: headingToken.raw.length,
+          isSetext,
+        };
+      }
     }
+
+    pos += token.raw.length;
   }
+
   return null;
 }
 
@@ -269,9 +440,7 @@ export function removeChangeset(markdown: string, header: string): string {
     return markdown;
   }
 
-  const start = location.start.index;
-  const end = location.end?.index ?? markdown.length;
-  return markdown.slice(0, start) + markdown.slice(end);
+  return markdown.slice(0, location.startIndex) + markdown.slice(location.endIndex);
 }
 
 /**
@@ -290,22 +459,17 @@ export function prependChangeset(
   changeset: Changeset
 ): string {
   // Try to locate the top-most non-empty header, no matter what is inside
-  const { start, padding } = locateChangeset(markdown, Boolean) || {
-    padding: '',
-  };
-  const body = changeset.body || `${padding}${DEFAULT_CHANGESET_BODY}`;
+  const firstHeading = locateChangeset(markdown, Boolean);
+  const body = changeset.body || DEFAULT_CHANGESET_BODY;
   let header;
-  if (start?.[3]) {
+  if (firstHeading?.isSetext) {
     const underline = new Array(changeset.name.length + 1).join('-');
     header = `${changeset.name}\n${underline}`;
   } else {
     header = markdownHeader(VERSION_HEADER_LEVEL, changeset.name);
   }
-  const newSection = `${padding}${header}\n\n${body.replace(
-    /^/gm,
-    padding
-  )}\n\n`;
-  const startIdx = start?.index ?? markdown.length;
+  const newSection = `${header}\n\n${body}\n\n`;
+  const startIdx = firstHeading?.startIndex ?? markdown.length;
 
   return markdown.slice(0, startIdx) + newSection + markdown.slice(startIdx);
 }
@@ -318,6 +482,60 @@ interface PullRequest {
   title: string;
   /** Whether this entry should be highlighted in output */
   highlight?: boolean;
+}
+
+/**
+ * Creates PullRequest entries from raw commit info, handling custom changelog entries.
+ * If the PR body contains a "Changelog Entry" section, each entry becomes a separate PR entry.
+ * Otherwise, a single entry is created using the PR title.
+ *
+ * @param raw Raw commit/PR info
+ * @param defaultTitle The default title to use if no custom entries (usually PR title)
+ * @param fallbackBody Optional fallback body to check for magic word (used for leftovers)
+ * @returns Array of PullRequest entries
+ */
+function createPREntriesFromRaw(
+  raw: {
+    author?: string;
+    pr?: string;
+    hash: string;
+    prBody?: string | null;
+    highlight?: boolean;
+  },
+  defaultTitle: string,
+  fallbackBody?: string
+): PullRequest[] {
+  const customEntries = extractChangelogEntry(raw.prBody);
+
+  if (customEntries) {
+    return customEntries.map(entry => ({
+      author: raw.author,
+      number: raw.pr ?? '',
+      hash: raw.hash,
+      body: entry.nestedContent ?? '',
+      title: entry.text,
+      highlight: raw.highlight,
+    }));
+  }
+
+  // For default entries, only include body if it contains the magic word
+  let body = '';
+  if (raw.prBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
+    body = raw.prBody;
+  } else if (fallbackBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
+    body = fallbackBody;
+  }
+
+  return [
+    {
+      author: raw.author,
+      number: raw.pr ?? '',
+      hash: raw.hash,
+      body,
+      title: defaultTitle,
+      highlight: raw.highlight,
+    },
+  ];
 }
 
 interface Commit {
@@ -569,9 +787,6 @@ export function normalizeReleaseConfig(
 }
 
 /**
- * Checks if a PR should be excluded globally based on release config
- */
-/**
  * Checks if a PR should be excluded globally based on:
  * 1. The #skip-changelog magic word in the body (commit body or PR body)
  * 2. Excluded labels from release config
@@ -795,11 +1010,23 @@ function formatChangelogEntry(entry: ChangelogEntry): string {
     }
   }
 
-  // Add body if magic word is present
-  if (entry.body?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
-    const body = entry.body.replace(BODY_IN_CHANGELOG_MAGIC_WORD, '').trim();
-    if (body) {
-      text += `\n  ${body}`;
+  // Add body content
+  // Two cases: 1) legacy magic word behavior, 2) nested content from structured changelog entries
+  if (entry.body) {
+    if (entry.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
+      // Legacy behavior: extract and format body with magic word
+      const body = entry.body.replace(BODY_IN_CHANGELOG_MAGIC_WORD, '').trim();
+      if (body) {
+        text += `\n  ${body}`;
+      }
+    } else if (entry.body.trim()) {
+      // New behavior: nested content from parsed changelog entries
+      // Don't trim() before splitting to preserve indentation on all lines
+      const lines = entry.body.split('\n');
+      for (const line of lines) {
+        // Each line already has the proper indentation from parsing
+        text += `\n${line}`;
+      }
     }
   }
 
@@ -1098,14 +1325,9 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
         category.scopeGroups.set(scope, scopeGroup);
       }
 
-      scopeGroup.push({
-        author: raw.author,
-        number: raw.pr,
-        hash: raw.hash,
-        body: raw.prBody ?? '',
-        title: prTitle,
-        highlight: raw.highlight,
-      });
+      // Create PR entries (handles custom changelog entries if present)
+      const prEntries = createPREntriesFromRaw(raw, prTitle, raw.body);
+      scopeGroup.push(...prEntries);
     }
   }
 
@@ -1275,27 +1497,36 @@ async function serializeChangelog(
     if (changelogSections.length > 0) {
       changelogSections.push(markdownHeader(SUBSECTION_HEADER_LEVEL, 'Other'));
     }
-    changelogSections.push(
-      leftovers
-        .slice(0, maxLeftovers)
-        .map(commit =>
+    const leftoverEntries: string[] = [];
+    for (const commit of leftovers.slice(0, maxLeftovers)) {
+      // Create PR entries (handles custom changelog entries if present)
+      const prEntries = createPREntriesFromRaw(
+        {
+          author: commit.author,
+          pr: commit.pr ?? undefined,
+          hash: commit.hash,
+          prBody: commit.prBody,
+          highlight: commit.highlight,
+        },
+        (commit.prTitle ?? commit.title).trim(),
+        commit.body // fallback for magic word check
+      );
+
+      for (const pr of prEntries) {
+        leftoverEntries.push(
           formatChangelogEntry({
-            title: (commit.prTitle ?? commit.title).trim(),
-            author: commit.author,
-            prNumber: commit.pr ?? undefined,
-            hash: commit.hash,
+            title: pr.title,
+            author: pr.author,
+            prNumber: pr.number || undefined,
+            hash: pr.hash,
             repoUrl,
-            // Check both prBody and commit body for the magic word
-            body: commit.prBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)
-              ? commit.prBody
-              : commit.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)
-              ? commit.body
-              : undefined,
-            highlight: commit.highlight,
+            body: pr.body || undefined,
+            highlight: pr.highlight,
           })
-        )
-        .join('\n')
-    );
+        );
+      }
+    }
+    changelogSections.push(leftoverEntries.join('\n'));
     if (nLeftovers > maxLeftovers) {
       changelogSections.push(`_Plus ${nLeftovers - maxLeftovers} more_`);
     }

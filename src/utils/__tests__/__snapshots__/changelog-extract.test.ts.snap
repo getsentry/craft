@@ -1,0 +1,104 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`extractChangelogEntry basic extraction extracts from ## Changelog Entry section 1`] = `
+[
+  {
+    "text": "Add a new function called \`foo\` which prints "Hello, world!"",
+  },
+]
+`;
+
+exports[`extractChangelogEntry basic extraction extracts from ### Changelog Entry section 1`] = `
+[
+  {
+    "text": "Add a new function called \`foo\` which prints "Hello, world!"",
+  },
+]
+`;
+
+exports[`extractChangelogEntry basic extraction handles changelog entry at end of body 1`] = `
+[
+  {
+    "text": "This is the last section with no sections after it.",
+  },
+]
+`;
+
+exports[`extractChangelogEntry bullet point handling handles multiple top-level bullets with nested content 1`] = `
+[
+  {
+    "nestedContent": "  - Detail A
+  - Detail B",
+    "text": "First feature",
+  },
+  {
+    "nestedContent": "  - Detail C",
+    "text": "Second feature",
+  },
+]
+`;
+
+exports[`extractChangelogEntry bullet point handling handles nested bullets 1`] = `
+[
+  {
+    "nestedContent": "  - Nested item 1
+  - Nested item 2",
+    "text": "Main entry",
+  },
+]
+`;
+
+exports[`extractChangelogEntry bullet point handling parses multiple bullets as separate entries 1`] = `
+[
+  {
+    "text": "First entry",
+  },
+  {
+    "text": "Second entry",
+  },
+  {
+    "text": "Third entry",
+  },
+]
+`;
+
+exports[`extractChangelogEntry edge cases case-insensitive heading match 1`] = `
+[
+  {
+    "text": "This should still be extracted.",
+  },
+]
+`;
+
+exports[`extractChangelogEntry edge cases handles CRLF line endings 1`] = `
+[
+  {
+    "text": "Entry with CRLF",
+  },
+  {
+    "text": "Another entry",
+  },
+]
+`;
+
+exports[`extractChangelogEntry edge cases treats multi-line plain text as single entry 1`] = `
+[
+  {
+    "text": "This is a multi-line changelog entry that spans several lines.",
+  },
+]
+`;
+
+exports[`extractChangelogEntry paragraph and list combinations handles paragraph followed by list with blank line 1`] = `
+[
+  {
+    "text": "Intro paragraph:",
+  },
+  {
+    "text": "First item",
+  },
+  {
+    "text": "Second item",
+  },
+]
+`;
