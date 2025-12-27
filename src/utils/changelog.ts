@@ -23,6 +23,8 @@ export interface CurrentPRInfo {
   labels: string[];
   /** Base branch ref (e.g., "master") for computing merge base */
   baseRef: string;
+  /** Head commit SHA of the PR branch */
+  headSha: string;
 }
 
 /**
@@ -55,6 +57,7 @@ async function fetchPRInfo(prNumber: number): Promise<CurrentPRInfo> {
     author: pr.user?.login ?? '',
     labels: labels.map(l => l.name),
     baseRef: pr.base.ref,
+    headSha: pr.head.sha,
   };
 }
 
@@ -627,19 +630,20 @@ interface RawCommitInfo {
  * Processes revert commits by canceling out revert/reverted pairs.
  *
  * When a revert commit and its target are both in the list, both are removed
- * (they cancel each other out). Reverts are processed in reverse chronological
- * order (newest first) to correctly handle nested reverts like:
- * - A: original commit
+ * (they cancel each other out). Commits are expected in newest-first order
+ * (as returned by git log), and we process in that order to handle nested
+ * reverts correctly:
+ * - A: original commit (oldest)
  * - B: Revert A
- * - C: Revert B (Revert Revert A)
+ * - C: Revert B (Revert Revert A, newest)
  *
- * Processing C first: C cancels B, leaving A in the changelog.
+ * Processing newest first: C cancels B, leaving A in the changelog.
  *
  * Matching strategy:
  * 1. Primary: Match by SHA from "This reverts commit <sha>" in body
  * 2. Fallback: Match by title extracted from 'Revert "original title"'
  *
- * @param rawCommits Array of commits in chronological order (oldest first)
+ * @param rawCommits Array of commits in newest-first order (git log order)
  * @returns Filtered array with canceled revert pairs removed
  */
 export function processReverts(rawCommits: RawCommitInfo[]): RawCommitInfo[] {
@@ -658,7 +662,9 @@ export function processReverts(rawCommits: RawCommitInfo[]): RawCommitInfo[] {
   const byTitle = new Map<string, RawCommitInfo>();
 
   for (const commit of rawCommits) {
-    byHash.set(commit.hash, commit);
+    if (commit.hash) {
+      byHash.set(commit.hash, commit);
+    }
     const effectiveTitle = (commit.prTitle ?? commit.title).trim();
     // Only set if not already present (first commit with this title wins)
     if (!byTitle.has(effectiveTitle)) {
@@ -666,11 +672,10 @@ export function processReverts(rawCommits: RawCommitInfo[]): RawCommitInfo[] {
     }
   }
 
-  // Process reverts in reverse chronological order (newest first)
-  // This ensures nested reverts are handled correctly
-  const reversedCommits = rawCommits.toReversed();
-
-  for (const commit of reversedCommits) {
+  // Process in original order (newest first).
+  // This ensures the most recent revert is processed first, correctly handling
+  // chains like: A -> Revert A -> Revert Revert A
+  for (const commit of rawCommits) {
     // Skip if already removed
     if (!remaining.has(commit)) {
       continue;
@@ -689,12 +694,16 @@ export function processReverts(rawCommits: RawCommitInfo[]): RawCommitInfo[] {
     // Strategy 1: Match by SHA from commit body
     const revertedSha = extractRevertedSha(effectiveBody);
     if (revertedSha) {
-      // Try exact match first, then prefix match for abbreviated SHAs
+      // Try exact match first
       revertedCommit = byHash.get(revertedSha);
-      if (!revertedCommit) {
+      if (!revertedCommit || !remaining.has(revertedCommit)) {
         // Try prefix match for abbreviated SHAs
+        revertedCommit = undefined;
         for (const [hash, c] of byHash) {
-          if (hash.startsWith(revertedSha) || revertedSha.startsWith(hash)) {
+          if (
+            remaining.has(c) &&
+            (hash.startsWith(revertedSha) || revertedSha.startsWith(hash))
+          ) {
             revertedCommit = c;
             break;
           }
@@ -703,10 +712,13 @@ export function processReverts(rawCommits: RawCommitInfo[]): RawCommitInfo[] {
     }
 
     // Strategy 2: Fallback to title matching
-    if (!revertedCommit) {
+    if (!revertedCommit || !remaining.has(revertedCommit)) {
       const revertedTitle = extractRevertedTitle(effectiveTitle);
       if (revertedTitle) {
-        revertedCommit = byTitle.get(revertedTitle);
+        const candidate = byTitle.get(revertedTitle);
+        if (candidate && remaining.has(candidate)) {
+          revertedCommit = candidate;
+        }
       }
     }
 
@@ -1387,7 +1399,7 @@ export async function generateChangelogWithHighlight(
 
   // Step 5: Add current PR to the list with highlight flag (at the beginning)
   const currentPRCommit: RawCommitInfo = {
-    hash: '',
+    hash: prInfo.headSha,
     title: prInfo.title.trim(),
     body: prInfo.body,
     author: prInfo.author,
@@ -1397,6 +1409,8 @@ export async function generateChangelogWithHighlight(
     labels: prInfo.labels,
     highlight: true,
   };
+  // Prepend current PR to make it newest in the list.
+  // Git log returns commits newest-first, so this maintains that order.
   const allCommits = [currentPRCommit, ...rawCommits];
 
   // Step 6: Process reverts - cancel out revert/reverted pairs
