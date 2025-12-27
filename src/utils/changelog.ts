@@ -23,6 +23,8 @@ export interface CurrentPRInfo {
   labels: string[];
   /** Base branch ref (e.g., "master") for computing merge base */
   baseRef: string;
+  /** Head commit SHA of the PR branch */
+  headSha: string;
 }
 
 /**
@@ -55,6 +57,7 @@ async function fetchPRInfo(prNumber: number): Promise<CurrentPRInfo> {
     author: pr.user?.login ?? '',
     labels: labels.map(l => l.name),
     baseRef: pr.base.ref,
+    headSha: pr.head.sha,
   };
 }
 
@@ -136,6 +139,57 @@ function markdownHeader(level: number, text: string): string {
 
 function escapeLeadingUnderscores(text: string): string {
   return text.replace(/(^| )_/, '$1\\_');
+}
+
+/**
+ * Checks if a commit is a revert commit.
+ * Revert commits are detected by:
+ * 1. Title starting with 'Revert "' (standard GitHub format)
+ * 2. Body containing 'This reverts commit <sha>' (git revert format)
+ *
+ * @param title The commit or PR title
+ * @param body Optional commit or PR body to check
+ * @returns true if this is a revert commit
+ */
+export function isRevertCommit(title: string, body?: string): boolean {
+  // Check title for standard GitHub revert format
+  if (title.startsWith('Revert "')) {
+    return true;
+  }
+  // Check body for git revert magic string
+  if (body && /This reverts commit [a-f0-9]{7,40}/i.test(body)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Extracts the SHA of the reverted commit from a revert commit's body.
+ * Git revert commits typically include "This reverts commit <sha>." in the body.
+ *
+ * @param body The commit body text
+ * @returns The SHA (7-40 chars) if found, or null
+ */
+export function extractRevertedSha(body: string): string | null {
+  const match = body.match(/This reverts commit ([a-f0-9]{7,40})/i);
+  return match?.[1] ?? null;
+}
+
+/**
+ * Extracts the original commit title from a revert commit's title.
+ * Handles the format: Revert "original title" with optional PR suffix (#123).
+ *
+ * @param title The revert commit title
+ * @returns The original title if extractable, or null
+ */
+export function extractRevertedTitle(title: string): string | null {
+  // Match: Revert "..." with optional PR suffix (#123)
+  // The greedy .+ correctly handles nested quotes (e.g., Revert "Revert "feat"")
+  // because it consumes as much as possible while the final " is anchored to the
+  // end of the string (before the optional PR suffix). This means for nested
+  // reverts, .+ captures everything between the first " and the last ".
+  const match = title.match(/^Revert "(.+)"(?:\s*\(#\d+\))?$/);
+  return match?.[1] ?? null;
 }
 
 /**
@@ -482,6 +536,8 @@ interface PullRequest {
   title: string;
   /** Whether this entry should be highlighted in output */
   highlight?: boolean;
+  /** The pattern that matched this PR (for title stripping) */
+  matchedPattern?: RegExp;
 }
 
 /**
@@ -571,6 +627,117 @@ interface RawCommitInfo {
 }
 
 /**
+ * Processes revert commits by canceling out revert/reverted pairs.
+ *
+ * When a revert commit and its target are both in the list, both are removed
+ * (they cancel each other out). Commits are expected in newest-first order
+ * (as returned by git log), and we process in that order to handle nested
+ * reverts correctly:
+ * - A: original commit (oldest)
+ * - B: Revert A
+ * - C: Revert B (Revert Revert A, newest)
+ *
+ * Processing newest first: C cancels B, leaving A in the changelog.
+ *
+ * Matching strategy:
+ * 1. Primary: Match by SHA from "This reverts commit <sha>" in body
+ * 2. Fallback: Match by title extracted from 'Revert "original title"'
+ *
+ * @param rawCommits Array of commits in newest-first order (git log order)
+ * @returns Filtered array with canceled revert pairs removed
+ */
+export function processReverts(rawCommits: RawCommitInfo[]): RawCommitInfo[] {
+  if (rawCommits.length === 0) {
+    return [];
+  }
+
+  // Create a working set of commits (we'll remove canceled pairs)
+  const remaining = new Set(rawCommits);
+
+  // Build lookup maps for efficient matching
+  // SHA map: hash -> commit (for SHA-based matching)
+  const byHash = new Map<string, RawCommitInfo>();
+  // Title map: effective title -> commit (for title-based fallback)
+  // Use PR title if available, otherwise commit title
+  const byTitle = new Map<string, RawCommitInfo>();
+
+  for (const commit of rawCommits) {
+    if (commit.hash) {
+      byHash.set(commit.hash, commit);
+    }
+    const effectiveTitle = (commit.prTitle ?? commit.title).trim();
+    // Only set if not already present (first commit with this title wins)
+    if (!byTitle.has(effectiveTitle)) {
+      byTitle.set(effectiveTitle, commit);
+    }
+  }
+
+  // Process in original order (newest first).
+  // This ensures the most recent revert is processed first, correctly handling
+  // chains like: A -> Revert A -> Revert Revert A
+  for (const commit of rawCommits) {
+    // Skip if already removed
+    if (!remaining.has(commit)) {
+      continue;
+    }
+
+    const effectiveTitle = (commit.prTitle ?? commit.title).trim();
+    const effectiveBody = commit.prBody ?? commit.body;
+
+    if (!isRevertCommit(effectiveTitle, effectiveBody)) {
+      continue;
+    }
+
+    // Try to find the reverted commit
+    let revertedCommit: RawCommitInfo | undefined;
+
+    // Strategy 1: Match by SHA from commit body
+    const revertedSha = extractRevertedSha(effectiveBody);
+    if (revertedSha) {
+      // Try exact match first
+      revertedCommit = byHash.get(revertedSha);
+      if (!revertedCommit || !remaining.has(revertedCommit)) {
+        // Try prefix match for abbreviated SHAs
+        revertedCommit = undefined;
+        for (const [hash, c] of byHash) {
+          if (
+            remaining.has(c) &&
+            (hash.startsWith(revertedSha) || revertedSha.startsWith(hash))
+          ) {
+            revertedCommit = c;
+            break;
+          }
+        }
+      }
+    }
+
+    // Strategy 2: Fallback to title matching
+    if (!revertedCommit || !remaining.has(revertedCommit)) {
+      const revertedTitle = extractRevertedTitle(effectiveTitle);
+      if (revertedTitle) {
+        const candidate = byTitle.get(revertedTitle);
+        if (candidate && remaining.has(candidate)) {
+          revertedCommit = candidate;
+        }
+      }
+    }
+
+    // If we found the reverted commit and it's still in the remaining set,
+    // remove both (they cancel each other out)
+    if (revertedCommit && remaining.has(revertedCommit)) {
+      remaining.delete(commit);
+      remaining.delete(revertedCommit);
+      logger.debug(
+        `Revert cancellation: "${effectiveTitle}" cancels "${(revertedCommit.prTitle ?? revertedCommit.title).trim()}"`
+      );
+    }
+  }
+
+  // Return commits in original order, filtered to only remaining ones
+  return rawCommits.filter(commit => remaining.has(commit));
+}
+
+/**
  * Valid semver bump types for auto-versioning
  */
 export type SemverBumpType = 'major' | 'minor' | 'patch';
@@ -603,6 +770,10 @@ export interface ReleaseConfig {
 /**
  * Default release configuration based on conventional commits
  * Used when .github/release.yml doesn't exist
+ *
+ * Patterns use named capture groups for title stripping:
+ * - (?<type>...) - The prefix to strip from changelog entries
+ * - (?<scope>...) - The scope to preserve when not under a scope header
  */
 export const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
   changelog: {
@@ -612,27 +783,34 @@ export const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
     categories: [
       {
         title: 'Breaking Changes 🛠',
-        commit_patterns: ['^\\w+(?:\\([^)]+\\))?!:'],
+        commit_patterns: ['^(?<type>\\w+(?:\\((?<scope>[^)]+)\\))?!:\\s*)'],
         semver: 'major',
       },
       {
         title: 'New Features ✨',
-        commit_patterns: ['^feat\\b'],
+        commit_patterns: ['^(?<type>feat(?:\\((?<scope>[^)]+)\\))?!?:\\s*)'],
         semver: 'minor',
       },
       {
         title: 'Bug Fixes 🐛',
-        commit_patterns: ['^fix\\b'],
+        commit_patterns: [
+          '^(?<type>fix(?:\\((?<scope>[^)]+)\\))?!?:\\s*)',
+          // Standalone reverts (where original isn't in changelog) are treated as bug fixes
+          // No <type> capture group - we want to keep the full "Revert ..." title
+          '^Revert "',
+        ],
         semver: 'patch',
       },
       {
         title: 'Documentation 📚',
-        commit_patterns: ['^docs?\\b'],
+        commit_patterns: ['^(?<type>docs?(?:\\((?<scope>[^)]+)\\))?!?:\\s*)'],
         semver: 'patch',
       },
       {
         title: 'Build / dependencies / internal 🔧',
-        commit_patterns: ['^(?:build|refactor|meta|chore|ci|ref|perf)\\b'],
+        commit_patterns: [
+          '^(?<type>(?:build|refactor|meta|chore|ci|ref|perf)(?:\\((?<scope>[^)]+)\\))?!?:\\s*)',
+        ],
         semver: 'patch',
       },
     ],
@@ -856,14 +1034,14 @@ export function getBumpTypeForPR(prInfo: CurrentPRInfo): BumpType | null {
   const releaseConfig = normalizeReleaseConfig(rawConfig);
   const labels = new Set(prInfo.labels);
 
-  const matchedCategory = matchCommitToCategory(
+  const match = matchCommitToCategory(
     labels,
     prInfo.author,
     prInfo.title.trim(),
     releaseConfig
   );
 
-  return matchedCategory?.semver ?? null;
+  return match?.category.semver ?? null;
 }
 
 /**
@@ -890,18 +1068,27 @@ export function isCategoryExcluded(
 }
 
 /**
+ * Result of matching a commit to a category.
+ */
+export interface CategoryMatchResult {
+  category: NormalizedCategory;
+  /** The pattern that matched (only set when matched via commit_patterns) */
+  matchedPattern?: RegExp;
+}
+
+/**
  * Matches a PR's labels or commit title to a category from release config.
  * Labels take precedence over commit log pattern matching.
  * Category-level exclusions are checked here - they exclude the PR from matching this specific category,
  * allowing it to potentially match other categories or fall through to "Other"
- * @returns The matched category or null if no match or excluded from all categories
+ * @returns The matched category and pattern, or null if no match or excluded from all categories
  */
 export function matchCommitToCategory(
   labels: Set<string>,
   author: string | undefined,
   title: string,
   config: NormalizedReleaseConfig | null
-): NormalizedCategory | null {
+): CategoryMatchResult | null {
   if (!config?.changelog || config.changelog.categories.length === 0) {
     return null;
   }
@@ -927,22 +1114,26 @@ export function matchCommitToCategory(
   }
 
   // First pass: try label matching (skip if no labels)
+  // Label matches don't return a pattern (no stripping for label-based categorization)
   if (labels.size > 0) {
     for (const category of regularCategories) {
       const matchesCategory = category.labels.some(label => labels.has(label));
       if (matchesCategory && !isCategoryExcluded(category, labels, author)) {
-        return category;
+        return { category };
       }
     }
   }
 
   // Second pass: try commit_patterns matching
+  // Return the matched pattern for title stripping
   for (const category of regularCategories) {
-    const matchesPattern = category.commitLogPatterns.some(re =>
-      re.test(title)
-    );
-    if (matchesPattern && !isCategoryExcluded(category, labels, author)) {
-      return category;
+    for (const pattern of category.commitLogPatterns) {
+      if (pattern.test(title)) {
+        if (!isCategoryExcluded(category, labels, author)) {
+          return { category, matchedPattern: pattern };
+        }
+        break; // This category is excluded, try next category
+      }
     }
   }
 
@@ -950,7 +1141,7 @@ export function matchCommitToCategory(
     if (isCategoryExcluded(wildcardCategory, labels, author)) {
       return null;
     }
-    return wildcardCategory;
+    return { category: wildcardCategory };
   }
 
   return null;
@@ -970,6 +1161,40 @@ interface ChangelogEntry {
   repoUrl: string;
   /** Whether this entry should be highlighted (rendered as blockquote) */
   highlight?: boolean;
+}
+
+/**
+ * Strips the conventional commit type prefix from a title using named capture groups.
+ *
+ * Named groups in the pattern control stripping behavior:
+ * - `(?<type>...)` - The type prefix to strip (e.g., `feat(scope):`)
+ * - `(?<scope>...)` - Scope to preserve when not under a scope header
+ *
+ * @param title The original PR/commit title
+ * @param pattern The matched pattern (may contain named groups)
+ * @param preserveScope Whether to preserve the scope in the output
+ * @returns The stripped title, or the original if no stripping applies
+ */
+export function stripTitle(
+  title: string,
+  pattern: RegExp | undefined,
+  preserveScope: boolean
+): string {
+  if (!pattern) return title;
+
+  const match = pattern.exec(title);
+  if (!match?.groups?.type) return title;
+
+  const remainder = title.slice(match.groups.type.length);
+  if (!remainder) return title; // Don't strip if nothing remains
+
+  const capitalized = remainder.charAt(0).toUpperCase() + remainder.slice(1);
+
+  if (preserveScope && match.groups.scope) {
+    return `(${match.groups.scope}) ${capitalized}`;
+  }
+
+  return capitalized;
 }
 
 /**
@@ -1174,7 +1399,7 @@ export async function generateChangelogWithHighlight(
 
   // Step 5: Add current PR to the list with highlight flag (at the beginning)
   const currentPRCommit: RawCommitInfo = {
-    hash: '',
+    hash: prInfo.headSha,
     title: prInfo.title.trim(),
     body: prInfo.body,
     author: prInfo.author,
@@ -1184,12 +1409,17 @@ export async function generateChangelogWithHighlight(
     labels: prInfo.labels,
     highlight: true,
   };
+  // Prepend current PR to make it newest in the list.
+  // Git log returns commits newest-first, so this maintains that order.
   const allCommits = [currentPRCommit, ...rawCommits];
 
-  // Step 6: Run categorization on combined list
-  const { data: rawData, stats } = categorizeCommits(allCommits);
+  // Step 6: Process reverts - cancel out revert/reverted pairs
+  const filteredCommits = processReverts(allCommits);
 
-  // Step 7: Serialize to markdown
+  // Step 7: Run categorization on filtered list
+  const { data: rawData, stats } = categorizeCommits(filteredCommits);
+
+  // Step 8: Serialize to markdown
   const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS);
 
   return {
@@ -1268,12 +1498,14 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
 
     // Use PR title if available, otherwise use commit title for pattern matching
     const titleForMatching = (raw.prTitle ?? raw.title).trim();
-    const matchedCategory = matchCommitToCategory(
+    const match = matchCommitToCategory(
       labels,
       raw.author,
       titleForMatching,
       releaseConfig
     );
+    const matchedCategory = match?.category ?? null;
+    const matchedPattern = match?.matchedPattern;
     const categoryTitle = matchedCategory?.title ?? null;
 
     // Track bump type if category has semver field
@@ -1327,6 +1559,10 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
 
       // Create PR entries (handles custom changelog entries if present)
       const prEntries = createPREntriesFromRaw(raw, prTitle, raw.body);
+      // Add matched pattern to each entry for title stripping
+      for (const entry of prEntries) {
+        entry.matchedPattern = matchedPattern;
+      }
       scopeGroup.push(...prEntries);
     }
   }
@@ -1378,7 +1614,9 @@ async function generateRawChangelog(
   until?: string
 ): Promise<RawChangelogResult> {
   const rawCommits = await fetchRawCommitInfo(git, rev, until);
-  return categorizeCommits(rawCommits);
+  // Process reverts: cancel out revert/reverted pairs
+  const filteredCommits = processReverts(rawCommits);
+  return categorizeCommits(filteredCommits);
 }
 
 /**
@@ -1442,7 +1680,7 @@ async function serializeChangelog(
       return scopeA.localeCompare(scopeB);
     });
 
-    // Check if any scope has multiple entries (would get a header)
+    // Check if any scope has multiple entries (would get its own header)
     const hasScopeHeaders = [...category.scopeGroups.entries()].some(
       ([s, entries]) => s !== null && entries.length > 1
     );
@@ -1451,9 +1689,24 @@ async function serializeChangelog(
     const entriesWithoutHeaders: string[] = [];
 
     for (const [scope, prs] of sortedScopes) {
+      // Determine scope header:
+      // - Scoped entries with multiple PRs get formatted scope title
+      // - All other entries (single scoped or scopeless) go to entriesWithoutHeaders
+      //   and get an "Other" header if there are scope headers shown
+      let scopeHeader: string | null = null;
+      if (scopeGroupingEnabled) {
+        if (scope !== null && prs.length > 1) {
+          scopeHeader = formatScopeTitle(scope);
+        }
+      }
+
+      // When a scope header is shown, we can strip the scope from titles
+      // When no scope header, preserve the scope for context
+      const showsScopeHeader = scopeHeader !== null && scope !== null;
+
       const prEntries = prs.map(pr =>
         formatChangelogEntry({
-          title: pr.title,
+          title: stripTitle(pr.title, pr.matchedPattern, !showsScopeHeader),
           author: pr.author,
           prNumber: pr.number,
           hash: pr.hash,
@@ -1462,19 +1715,6 @@ async function serializeChangelog(
           highlight: pr.highlight,
         })
       );
-
-      // Determine scope header:
-      // - Scoped entries with multiple PRs get formatted scope title
-      // - Scopeless entries get "Other" header when other scope headers exist
-      // - Otherwise no header (entries collected for later)
-      let scopeHeader: string | null = null;
-      if (scopeGroupingEnabled) {
-        if (scope !== null && prs.length > 1) {
-          scopeHeader = formatScopeTitle(scope);
-        } else if (scope === null && hasScopeHeaders) {
-          scopeHeader = 'Other';
-        }
-      }
 
       if (scopeHeader) {
         changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, scopeHeader));
@@ -1485,8 +1725,12 @@ async function serializeChangelog(
       }
     }
 
-    // Push all entries without headers as a single section to avoid extra newlines
+    // Push all entries without headers as a single section
+    // Add "Other" header if there are scope headers to separate them
     if (entriesWithoutHeaders.length > 0) {
+      if (hasScopeHeaders) {
+        changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, 'Other'));
+      }
       changelogSections.push(entriesWithoutHeaders.join('\n'));
     }
   }

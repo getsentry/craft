@@ -13,6 +13,11 @@ import {
   shouldExcludePR,
   shouldSkipCurrentPR,
   getBumpTypeForPR,
+  stripTitle,
+  isRevertCommit,
+  extractRevertedTitle,
+  extractRevertedSha,
+  processReverts,
   SKIP_CHANGELOG_MAGIC_WORD,
   BODY_IN_CHANGELOG_MAGIC_WORD,
   type CurrentPRInfo,
@@ -85,6 +90,7 @@ describe('shouldSkipCurrentPR', () => {
     author: 'alice',
     labels: [],
     baseRef: 'main',
+    headSha: 'abc123',
   };
 
   it('returns false when PR has no skip magic word', () => {
@@ -107,6 +113,7 @@ describe('getBumpTypeForPR', () => {
     author: 'alice',
     labels: [],
     baseRef: 'main',
+    headSha: 'abc123',
   };
 
   it('returns major for breaking changes', () => {
@@ -142,3 +149,372 @@ describe('magic word constants', () => {
   });
 });
 
+describe('stripTitle', () => {
+  describe('with type named group', () => {
+    const pattern = /^(?<type>feat(?:\((?<scope>[^)]+)\))?!?:\s*)/;
+
+    it('strips the type prefix', () => {
+      expect(stripTitle('feat: add endpoint', pattern, false)).toBe(
+        'Add endpoint'
+      );
+    });
+
+    it('strips type and scope when preserveScope is false', () => {
+      expect(stripTitle('feat(api): add endpoint', pattern, false)).toBe(
+        'Add endpoint'
+      );
+    });
+
+    it('preserves scope when preserveScope is true', () => {
+      expect(stripTitle('feat(api): add endpoint', pattern, true)).toBe(
+        '(api) Add endpoint'
+      );
+    });
+
+    it('capitalizes first letter after stripping', () => {
+      expect(stripTitle('feat: lowercase start', pattern, false)).toBe(
+        'Lowercase start'
+      );
+    });
+
+    it('handles already capitalized content', () => {
+      expect(stripTitle('feat: Already Capitalized', pattern, false)).toBe(
+        'Already Capitalized'
+      );
+    });
+
+    it('does not strip if no type match', () => {
+      expect(stripTitle('random title', pattern, false)).toBe('random title');
+    });
+
+    it('handles breaking change indicator', () => {
+      const breakingPattern = /^(?<type>feat(?:\((?<scope>[^)]+)\))?!:\s*)/;
+      expect(stripTitle('feat!: breaking change', breakingPattern, false)).toBe(
+        'Breaking change'
+      );
+      expect(
+        stripTitle('feat(api)!: breaking api change', breakingPattern, false)
+      ).toBe('Breaking api change');
+    });
+
+    it('does not strip when pattern has no type group', () => {
+      const noGroupPattern = /^feat(?:\([^)]+\))?!?:\s*/;
+      expect(stripTitle('feat: add endpoint', noGroupPattern, false)).toBe(
+        'feat: add endpoint'
+      );
+    });
+  });
+
+  describe('edge cases', () => {
+    const pattern = /^(?<type>feat(?:\((?<scope>[^)]+)\))?!?:\s*)/;
+
+    it('returns original if pattern is undefined', () => {
+      expect(stripTitle('feat: add endpoint', undefined, false)).toBe(
+        'feat: add endpoint'
+      );
+    });
+
+    it('does not strip if nothing remains after stripping', () => {
+      const exactPattern = /^(?<type>feat:\s*)$/;
+      expect(stripTitle('feat: ', exactPattern, false)).toBe('feat: ');
+    });
+
+    it('handles scope with special characters', () => {
+      expect(stripTitle('feat(my-api): add endpoint', pattern, true)).toBe(
+        '(my-api) Add endpoint'
+      );
+      expect(stripTitle('feat(my_api): add endpoint', pattern, true)).toBe(
+        '(my_api) Add endpoint'
+      );
+    });
+
+    it('does not preserve scope when scope is not captured', () => {
+      const noScopePattern = /^(?<type>feat(?:\([^)]+\))?!?:\s*)/;
+      expect(stripTitle('feat(api): add endpoint', noScopePattern, true)).toBe(
+        'Add endpoint'
+      );
+    });
+  });
+
+  describe('with different commit types', () => {
+    it('works with fix type', () => {
+      const pattern = /^(?<type>fix(?:\((?<scope>[^)]+)\))?!?:\s*)/;
+      expect(stripTitle('fix(core): resolve bug', pattern, false)).toBe(
+        'Resolve bug'
+      );
+      expect(stripTitle('fix(core): resolve bug', pattern, true)).toBe(
+        '(core) Resolve bug'
+      );
+    });
+
+    it('works with docs type', () => {
+      const pattern = /^(?<type>docs?(?:\((?<scope>[^)]+)\))?!?:\s*)/;
+      expect(stripTitle('docs(readme): update docs', pattern, false)).toBe(
+        'Update docs'
+      );
+      expect(stripTitle('doc(readme): update docs', pattern, false)).toBe(
+        'Update docs'
+      );
+    });
+
+    it('works with build/chore types', () => {
+      const pattern =
+        /^(?<type>(?:build|refactor|meta|chore|ci|ref|perf)(?:\((?<scope>[^)]+)\))?!?:\s*)/;
+      expect(stripTitle('chore(deps): update deps', pattern, false)).toBe(
+        'Update deps'
+      );
+      expect(stripTitle('build(ci): fix pipeline', pattern, false)).toBe(
+        'Fix pipeline'
+      );
+      expect(stripTitle('refactor(api): simplify logic', pattern, true)).toBe(
+        '(api) Simplify logic'
+      );
+    });
+  });
+});
+
+describe('isRevertCommit', () => {
+  it('returns true for standard revert title format', () => {
+    expect(isRevertCommit('Revert "feat: add feature"')).toBe(true);
+  });
+
+  it('returns false for non-revert title', () => {
+    expect(isRevertCommit('feat: add feature')).toBe(false);
+    expect(isRevertCommit('fix: something')).toBe(false);
+  });
+
+  it('returns true when body contains revert magic string', () => {
+    expect(isRevertCommit('fix: undo feature', 'This reverts commit abc123def.')).toBe(true);
+  });
+
+  it('returns false when neither title nor body indicates revert', () => {
+    expect(isRevertCommit('fix: something', 'Just a regular fix')).toBe(false);
+  });
+
+  it('handles case-insensitive text matching in body', () => {
+    // The "This reverts commit" text is matched case-insensitively
+    // (SHAs in git are always lowercase, so we only test the text part)
+    expect(isRevertCommit('fix: undo', 'THIS REVERTS COMMIT abc123def.')).toBe(true);
+    expect(isRevertCommit('fix: undo', 'this Reverts Commit abc123def.')).toBe(true);
+  });
+});
+
+describe('extractRevertedSha', () => {
+  it('extracts SHA from standard git revert message', () => {
+    expect(extractRevertedSha('This reverts commit abc123def456.')).toBe('abc123def456');
+  });
+
+  it('extracts SHA without trailing period', () => {
+    expect(extractRevertedSha('This reverts commit abc123def456')).toBe('abc123def456');
+  });
+
+  it('extracts SHA from body with additional text', () => {
+    const body = `This reverts commit abc123def456.
+
+The feature caused issues in production.`;
+    expect(extractRevertedSha(body)).toBe('abc123def456');
+  });
+
+  it('returns null when no SHA found', () => {
+    expect(extractRevertedSha('Just a regular commit body')).toBeNull();
+  });
+
+  it('handles abbreviated SHA (7 chars)', () => {
+    expect(extractRevertedSha('This reverts commit abc1234.')).toBe('abc1234');
+  });
+
+  it('handles full SHA (40 chars)', () => {
+    const fullSha = 'abc123def456789012345678901234567890abcd';
+    expect(extractRevertedSha(`This reverts commit ${fullSha}.`)).toBe(fullSha);
+  });
+});
+
+describe('extractRevertedTitle', () => {
+  // The regex uses greedy matching (.+) which correctly handles nested quotes
+  // because the final " is anchored to the end of the string (before optional PR suffix).
+  // This means .+ will consume as much as possible while still allowing
+  // the pattern to match, effectively capturing everything between the first "
+  // after 'Revert ' and the last " before the end/PR suffix.
+
+  it('extracts title from simple revert', () => {
+    expect(extractRevertedTitle('Revert "feat: add feature"')).toBe('feat: add feature');
+  });
+
+  it('extracts title from revert with PR suffix', () => {
+    expect(extractRevertedTitle('Revert "feat: add feature" (#123)')).toBe('feat: add feature');
+  });
+
+  it('extracts title from double revert (nested quotes)', () => {
+    // Revert "Revert "feat: add feature""
+    // The greedy .+ matches: Revert "feat: add feature"
+    expect(extractRevertedTitle('Revert "Revert "feat: add feature""')).toBe(
+      'Revert "feat: add feature"'
+    );
+  });
+
+  it('extracts title from triple revert (deeply nested quotes)', () => {
+    // Revert "Revert "Revert "feat: add feature"""
+    expect(extractRevertedTitle('Revert "Revert "Revert "feat: add feature"""')).toBe(
+      'Revert "Revert "feat: add feature""'
+    );
+  });
+
+  it('extracts title from quadruple revert', () => {
+    // Revert "Revert "Revert "Revert "feat: add feature""""
+    expect(extractRevertedTitle('Revert "Revert "Revert "Revert "feat: add feature""""')).toBe(
+      'Revert "Revert "Revert "feat: add feature"""'
+    );
+  });
+
+  it('extracts title with quotes in the message', () => {
+    // Revert "fix: handle "special" case"
+    expect(extractRevertedTitle('Revert "fix: handle "special" case"')).toBe(
+      'fix: handle "special" case'
+    );
+  });
+
+  it('extracts title from double revert with PR suffix', () => {
+    expect(extractRevertedTitle('Revert "Revert "feat: add feature"" (#456)')).toBe(
+      'Revert "feat: add feature"'
+    );
+  });
+
+  it('returns null for non-revert titles', () => {
+    expect(extractRevertedTitle('feat: add feature')).toBeNull();
+    expect(extractRevertedTitle('Revert without quotes')).toBeNull();
+  });
+
+  it('returns null for malformed revert titles', () => {
+    // Missing closing quote
+    expect(extractRevertedTitle('Revert "feat: add feature')).toBeNull();
+    // Extra text after closing quote (without PR format)
+    expect(extractRevertedTitle('Revert "feat: add feature" extra')).toBeNull();
+  });
+});
+
+describe('processReverts', () => {
+  // Helper to create a minimal RawCommitInfo-like object
+  const commit = (
+    hash: string,
+    title: string,
+    body = '',
+    prTitle?: string,
+    prBody?: string
+  ) => ({
+    hash,
+    title,
+    body,
+    prTitle,
+    prBody,
+    labels: [] as string[],
+  });
+
+  it('returns empty array for empty input', () => {
+    expect(processReverts([])).toEqual([]);
+  });
+
+  it('cancels out revert and original via SHA', () => {
+    // Commits in newest-first order (git log order)
+    const commits = [
+      commit('def456', 'Revert "feat: add feature"', 'This reverts commit abc123.'),
+      commit('abc123', 'feat: add feature'),
+    ];
+    const result = processReverts(commits);
+    expect(result).toEqual([]);
+  });
+
+  it('cancels out revert and original via title fallback', () => {
+    // Commits in newest-first order (git log order)
+    const commits = [
+      commit('def456', 'Revert "feat: add feature"'),
+      commit('abc123', 'feat: add feature'),
+    ];
+    const result = processReverts(commits);
+    expect(result).toEqual([]);
+  });
+
+  it('keeps standalone revert when original not in list', () => {
+    const commits = [
+      commit('def456', 'Revert "feat: old feature"', 'This reverts commit oldsha.'),
+    ];
+    const result = processReverts(commits);
+    expect(result).toHaveLength(1);
+    expect(result[0].hash).toBe('def456');
+  });
+
+  it('handles current PR preview scenario - revert PR cancels existing commit', () => {
+    // Simulates generateChangelogWithHighlight where current PR is prepended (newest).
+    // Commits in newest-first order (git log order, current PR first).
+    const commits = [
+      // Current PR (newest, using headSha)
+      commit(
+        'pr-head-sha',
+        'Revert "feat: add feature"',
+        'This reverts commit abc123.',
+        'Revert "feat: add feature"',
+        'This reverts commit abc123.\n\nReverting due to issues.'
+      ),
+      // Existing commit in base branch (older)
+      commit('abc123', 'feat: add feature'),
+    ];
+    const result = processReverts(commits);
+    // Both should cancel out
+    expect(result).toEqual([]);
+  });
+
+  it('handles current PR preview scenario - revert PR uses title matching', () => {
+    // When PR body doesn't contain SHA, falls back to title matching.
+    // Commits in newest-first order.
+    const commits = [
+      commit(
+        'pr-head-sha',
+        'Revert "feat: add feature"',
+        '',
+        'Revert "feat: add feature"',
+        'Reverting this PR due to issues.'  // No SHA in body
+      ),
+      commit('abc123', 'feat: add feature'),
+    ];
+    const result = processReverts(commits);
+    expect(result).toEqual([]);
+  });
+
+  it('handles current PR preview scenario - non-revert PR unaffected', () => {
+    // Commits in newest-first order
+    const commits = [
+      commit(
+        'pr-head-sha',
+        'feat: new feature',
+        '',
+        'feat: new feature',
+        'Adding a new feature'
+      ),
+      commit('abc123', 'fix: bug fix'),
+    ];
+    const result = processReverts(commits);
+    expect(result).toHaveLength(2);
+  });
+
+  it('handles double revert in preview scenario', () => {
+    // Current PR is Revert Revert, should cancel with existing Revert.
+    // Commits in newest-first order: Current PR (newest) -> B (Revert A) -> A (original, oldest)
+    const commits = [
+      // Current PR - Revert Revert (newest)
+      commit(
+        'pr-head-sha',
+        'Revert "Revert "feat: add feature""',
+        'This reverts commit def456.',
+        'Revert "Revert "feat: add feature""',
+        'This reverts commit def456.'
+      ),
+      // Revert A
+      commit('def456', 'Revert "feat: add feature"', 'This reverts commit abc123.'),
+      // Original commit A (oldest)
+      commit('abc123', 'feat: add feature'),
+    ];
+    const result = processReverts(commits);
+    // Current PR cancels def456, leaving abc123
+    expect(result).toHaveLength(1);
+    expect(result[0].hash).toBe('abc123');
+  });
+});
