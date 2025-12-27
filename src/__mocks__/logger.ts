@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 
 export const logger = {
+  trace: vi.fn(),
   debug: vi.fn(),
   info: vi.fn(),
   log: vi.fn(),

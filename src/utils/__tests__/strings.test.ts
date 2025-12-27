@@ -106,6 +106,7 @@ describe('formatJson', () => {
   test('serializes an error', () => {
     const errorStr = formatJson(Error('oops'));
     expect(errorStr).toContain('Error: oops');
-    expect(errorStr).toContain('at Object');
+    // Stack trace format varies between environments
+    expect(errorStr).toMatch(/at\s+/);
   });
 });
