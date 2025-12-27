@@ -1,0 +1,127 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`generateChangesetFromGit category matching applies global exclusions 1`] = `
+"### Features
+
+- Normal feature by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)"
+`;
+
+exports[`generateChangesetFromGit category matching matches PRs to categories based on labels 1`] = `
+"### Features
+
+- Feature PR by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)
+
+### Bug Fixes
+
+- Bug fix PR by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)"
+`;
+
+exports[`generateChangesetFromGit category matching supports wildcard category matching 1`] = `
+"### Changes
+
+- Any PR by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)"
+`;
+
+exports[`generateChangesetFromGit commit patterns labels take precedence over commit_patterns 1`] = `
+"### Labeled Features
+
+- feat: labeled feature by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)
+
+### Pattern Features
+
+- feat: pattern-only feature by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)"
+`;
+
+exports[`generateChangesetFromGit commit patterns matches PRs based on commit_patterns 1`] = `
+"### Features
+
+- feat: add new feature by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)
+
+### Bug Fixes
+
+- fix: fix bug by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)"
+`;
+
+exports[`generateChangesetFromGit commit patterns uses default conventional commits config when no config exists 1`] = `
+"### New Features ✨
+
+- feat: new feature by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)
+
+### Bug Fixes 🐛
+
+- fix: bug fix by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)
+
+### Documentation 📚
+
+- docs: update readme by @charlie in [#3](https://github.com/test-owner/test-repo/pull/3)"
+`;
+
+exports[`generateChangesetFromGit custom changelog entries handles multiple bullets in changelog entry 1`] = `
+"### New Features ✨
+
+- First entry by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)
+- Second entry by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)
+- Third entry by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)"
+`;
+
+exports[`generateChangesetFromGit custom changelog entries handles nested bullets in changelog entry 1`] = `
+"### New Features ✨
+
+- Main entry by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)
+  - Nested item 1
+  - Nested item 2"
+`;
+
+exports[`generateChangesetFromGit custom changelog entries uses custom entry from PR body 1`] = `
+"### New Features ✨
+
+- Custom changelog entry by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)"
+`;
+
+exports[`generateChangesetFromGit output formatting escapes underscores in titles 1`] = `"- Serialized \\_meta in [#123](https://github.com/test-owner/test-repo/pull/123)"`;
+
+exports[`generateChangesetFromGit output formatting formats local commit with short SHA 1`] = `"- Upgraded the kernel in [abcdef12](https://github.com/test-owner/test-repo/commit/abcdef1234567890)"`;
+
+exports[`generateChangesetFromGit output formatting handles multiple commits 1`] = `
+"- Upgraded the kernel in [abcdef12](https://github.com/test-owner/test-repo/commit/abcdef1234567890)
+- Upgraded the manifold by @alice in [#123](https://github.com/test-owner/test-repo/pull/123)
+- Refactored the crankshaft by @bob in [#456](https://github.com/test-owner/test-repo/pull/456)
+
+_Plus 1 more_"
+`;
+
+exports[`generateChangesetFromGit output formatting handles null PR author gracefully 1`] = `"- Upgraded the kernel in [#123](https://github.com/test-owner/test-repo/pull/123)"`;
+
+exports[`generateChangesetFromGit output formatting uses PR number and author from remote 1`] = `"- Upgraded the kernel by @sentry in [#123](https://github.com/test-owner/test-repo/pull/123)"`;
+
+exports[`generateChangesetFromGit output formatting uses PR number when available locally 1`] = `"- Upgraded the kernel in [#123](https://github.com/test-owner/test-repo/pull/123)"`;
+
+exports[`generateChangesetFromGit output formatting uses PR title from GitHub instead of commit message 1`] = `
+"### New Features ✨
+
+- feat: A much better PR title with more context by @sentry in [#123](https://github.com/test-owner/test-repo/pull/123)"
+`;
+
+exports[`generateChangesetFromGit scope grouping groups PRs by scope when multiple entries exist 1`] = `
+"### Features
+
+#### Api
+
+- feat(api): add endpoint 1 by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)
+- feat(api): add endpoint 2 by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)
+
+- feat(ui): add button by @charlie in [#3](https://github.com/test-owner/test-repo/pull/3)"
+`;
+
+exports[`generateChangesetFromGit scope grouping places scopeless entries at bottom 1`] = `
+"### Features
+
+#### Api
+
+- feat(api): scoped feature 1 by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)
+- feat(api): scoped feature 2 by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)
+
+#### Other
+
+- feat: scopeless feature by @charlie in [#3](https://github.com/test-owner/test-repo/pull/3)"
+`;
