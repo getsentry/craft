@@ -22,7 +22,8 @@ import {
 import { createSymlinks } from '../utils/symlink';
 import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
-import { isPreviewRelease } from '../utils/version';
+import { renderTemplateSafe } from '../utils/strings';
+import { isPreviewRelease, parseVersion } from '../utils/version';
 import { DEFAULT_REGISTRY_REMOTE } from '../utils/registry';
 
 /** Config options for the "aws-lambda-layer" target. */
@@ -100,6 +101,34 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         'Missing project configuration parameter(s): ' + missingConfigOptions
       );
     }
+  }
+
+  /**
+   * Resolves the layer name by interpolating version variables.
+   *
+   * Supports Mustache-style templates with the following variables:
+   * - `{{{version}}}`: Full version string (e.g., "10.2.3")
+   * - `{{{major}}}`: Major version number (e.g., "10")
+   * - `{{{minor}}}`: Minor version number (e.g., "2")
+   * - `{{{patch}}}`: Patch version number (e.g., "3")
+   *
+   * Example: `SentryNodeServerlessSDKv{{{major}}}` becomes `SentryNodeServerlessSDKv10`
+   *
+   * @param version The version string to interpolate
+   * @returns The resolved layer name with variables substituted
+   */
+  public resolveLayerName(version: string): string {
+    const layerNameTemplate = this.config.layerName as string;
+    const parsedVersion = parseVersion(version);
+
+    const context = {
+      version,
+      major: parsedVersion?.major ?? '',
+      minor: parsedVersion?.minor ?? '',
+      patch: parsedVersion?.patch ?? '',
+    };
+
+    return renderTemplateSafe(layerNameTemplate, context);
   }
 
   /**
@@ -243,12 +272,15 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     awsRegions: string[],
     artifactBuffer: Buffer
   ): Promise<void> {
+    const resolvedLayerName = this.resolveLayerName(version);
+    this.logger.debug(`Resolved layer name: ${resolvedLayerName}`);
+
     await Promise.all(
       this.config.compatibleRuntimes.map(async (runtime: CompatibleRuntime) => {
         this.logger.debug(`Publishing runtime ${runtime.name}...`);
         const layerManager = new AwsLambdaLayerManager(
           runtime,
-          this.config.layerName,
+          resolvedLayerName,
           this.config.license,
           artifactBuffer,
           awsRegions,
@@ -302,7 +334,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           canonical: layerManager.getCanonicalName(),
           sdk_version: version,
           account_number: getAccountFromArn(publishedLayers[0].arn),
-          layer_name: this.config.layerName,
+          layer_name: resolvedLayerName,
           regions: regionsVersions,
         };
 
