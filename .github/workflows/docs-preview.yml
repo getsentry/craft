@@ -2,6 +2,7 @@ name: Docs Preview
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, closed]
     paths:
       - 'docs/**'
       - '.github/workflows/docs-preview.yml'
@@ -33,7 +34,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           # Try to fetch the gh-pages branch
           if git fetch origin gh-pages:gh-pages 2>/dev/null; then
             # Branch exists remotely, check if .nojekyll is present
