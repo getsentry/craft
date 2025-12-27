@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -28,19 +29,37 @@ import {
 
 /*************** mocks and other setup ***************/
 
-jest.mock('../../logger');
-jest.mock('fs');
+vi.mock('../../logger');
 
-const mockGCSUpload = jest.fn();
-const mockGCSDownload = jest.fn();
-const mockGCSGetFiles = jest.fn();
-jest.mock('@google-cloud/storage', () => ({
-  Bucket: jest.fn(() => ({
-    file: jest.fn(() => ({ download: mockGCSDownload })),
+// Mock existsSync to be controllable in tests while keeping other fs functions real
+const mockExistsSync = vi.fn<(path: fs.PathLike) => boolean>((path) => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const realFs = require('fs');
+  return realFs.existsSync(path);
+});
+
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
+  return {
+    ...actual,
+    existsSync: (path: fs.PathLike) => mockExistsSync(path),
+    default: {
+      ...actual,
+      existsSync: (path: fs.PathLike) => mockExistsSync(path),
+    },
+  };
+});
+
+const mockGCSUpload = vi.fn();
+const mockGCSDownload = vi.fn();
+const mockGCSGetFiles = vi.fn();
+vi.mock('@google-cloud/storage', () => ({
+  Bucket: vi.fn(() => ({
+    file: vi.fn(() => ({ download: mockGCSDownload })),
     getFiles: mockGCSGetFiles,
     upload: mockGCSUpload,
   })),
-  Storage: jest.fn(() => ({})),
+  Storage: vi.fn(() => ({})),
 }));
 
 const cleanEnv = { ...process.env };
@@ -64,7 +83,7 @@ describe('gcsApi module', () => {
 
     // this clears out calls and results, but preserves mocked return values and
     // mocked implemenations
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('getGCSCredsFromEnv', () => {
@@ -135,7 +154,7 @@ describe('gcsApi module', () => {
       process.env.DOG_CREDS_PATH = './iDontExist.json';
 
       // make sure it won't find the file
-      (fs.existsSync as jest.Mock).mockReturnValueOnce(false);
+      mockExistsSync.mockReturnValueOnce(false);
 
       expect(() => {
         getGCSCredsFromEnv(
@@ -294,7 +313,7 @@ describe('gcsApi module', () => {
         expect.assertions(1);
 
         // make sure it won't find the directory
-        (fs.existsSync as jest.Mock).mockReturnValueOnce(false);
+        mockExistsSync.mockReturnValueOnce(false);
 
         await expect(
           client.downloadArtifact(

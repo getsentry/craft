@@ -1,4 +1,5 @@
-/* eslint-env jest */
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+
 
 import {
   getPackage,
@@ -205,7 +206,7 @@ describe('versionGreaterOrEqualThan', () => {
   });
 
   test('can compare pre parts', () => {
-    /* eslint-disable @typescript-eslint/no-non-null-assertion */
+     
     const v1 = parseVersion('1.2.3-1')!;
     const v2 = parseVersion('1.2.3-2')!;
     expect(versionGreaterOrEqualThan(v1, v2)).toBe(false);

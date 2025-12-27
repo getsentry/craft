@@ -1,26 +1,27 @@
+import { vi, describe, test, expect, beforeEach, afterEach, type Mock, type MockInstance } from 'vitest';
 import { handler } from '../targets';
 
-jest.mock('../../config', () => ({
-  getConfiguration: jest.fn(),
-  expandWorkspaceTargets: jest.fn(),
+vi.mock('../../config', () => ({
+  getConfiguration: vi.fn(),
+  expandWorkspaceTargets: vi.fn(),
 }));
 
-jest.mock('../../targets', () => ({
-  getAllTargetNames: jest.fn(),
+vi.mock('../../targets', () => ({
+  getAllTargetNames: vi.fn(),
 }));
 
 import { getConfiguration, expandWorkspaceTargets } from '../../config';
 import { getAllTargetNames } from '../../targets';
 
 describe('targets command', () => {
-  const mockedGetConfiguration = getConfiguration as jest.Mock;
-  const mockedExpandWorkspaceTargets = expandWorkspaceTargets as jest.Mock;
-  const mockedGetAllTargetNames = getAllTargetNames as jest.Mock;
-  let consoleSpy: jest.SpyInstance;
+  const mockedGetConfiguration = getConfiguration as Mock;
+  const mockedExpandWorkspaceTargets = expandWorkspaceTargets as Mock;
+  const mockedGetAllTargetNames = getAllTargetNames as Mock;
+  let consoleSpy: MockInstance;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    vi.clearAllMocks();
+    consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -41,7 +42,7 @@ describe('targets command', () => {
 
     expect(mockedExpandWorkspaceTargets).toHaveBeenCalledWith(targets);
     expect(consoleSpy).toHaveBeenCalled();
-    const output = JSON.parse(consoleSpy.mock.calls[0][0]);
+    const output = JSON.parse((consoleSpy.mock.calls[0] as string[])[0]);
     expect(output).toEqual(['npm', 'github']);
   });
 
@@ -65,7 +66,7 @@ describe('targets command', () => {
 
     expect(mockedExpandWorkspaceTargets).toHaveBeenCalledWith(originalTargets);
     expect(consoleSpy).toHaveBeenCalled();
-    const output = JSON.parse(consoleSpy.mock.calls[0][0]);
+    const output = JSON.parse((consoleSpy.mock.calls[0] as string[])[0]);
     expect(output).toEqual([
       'npm[@sentry/core]',
       'npm[@sentry/browser]',
@@ -87,7 +88,7 @@ describe('targets command', () => {
     await handler();
 
     expect(consoleSpy).toHaveBeenCalled();
-    const output = JSON.parse(consoleSpy.mock.calls[0][0]);
+    const output = JSON.parse((consoleSpy.mock.calls[0] as string[])[0]);
     expect(output).toEqual(['npm', 'github']);
   });
 
@@ -99,7 +100,7 @@ describe('targets command', () => {
     await handler();
 
     expect(consoleSpy).toHaveBeenCalled();
-    const output = JSON.parse(consoleSpy.mock.calls[0][0]);
+    const output = JSON.parse((consoleSpy.mock.calls[0] as string[])[0]);
     expect(output).toEqual([]);
   });
 
@@ -111,7 +112,7 @@ describe('targets command', () => {
     await handler();
 
     expect(consoleSpy).toHaveBeenCalled();
-    const output = JSON.parse(consoleSpy.mock.calls[0][0]);
+    const output = JSON.parse((consoleSpy.mock.calls[0] as string[])[0]);
     expect(output).toEqual([]);
   });
 });

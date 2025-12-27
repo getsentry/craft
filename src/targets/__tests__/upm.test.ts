@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { setGlobals } from '../../utils/helpers';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { ARTIFACT_NAME, UpmTarget } from '../upm';
@@ -12,7 +13,7 @@ describe('UPM Target', () => {
       GITHUB_TOKEN: 'test github token',
     };
     setGlobals({ 'dry-run': false, 'log-level': 'Info', 'no-input': true });
-    jest.resetAllMocks();
+    vi.resetAllMocks();
 
     upmTarget = new UpmTarget(
       {
@@ -36,7 +37,7 @@ describe('UPM Target', () => {
     `(
       'error with artifact count $artifacts.length',
       async ({ artifacts, error }) => {
-        upmTarget.getArtifactsForRevision = jest
+        upmTarget.getArtifactsForRevision = vi
           .fn()
           .mockResolvedValueOnce(artifacts);
 
@@ -50,10 +51,10 @@ describe('UPM Target', () => {
   // TODO(byk): Add more tests for this
   describe.skip('publish', () => {
     beforeEach(() => {
-      upmTarget.fetchArtifact = jest
+      upmTarget.fetchArtifact = vi
         .fn()
         .mockResolvedValueOnce({ filename: 'artifact.zip' });
-      upmTarget.artifactProvider.downloadArtifact = jest
+      upmTarget.artifactProvider.downloadArtifact = vi
         .fn()
         .mockResolvedValueOnce('some/test/path');
     });

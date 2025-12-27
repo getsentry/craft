@@ -1,7 +1,8 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { CrateDependency, CratePackage, CratesTarget } from '../crates';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 
-jest.mock('../../utils/system');
+vi.mock('../../utils/system');
 
 function cratePackageFactory(name: string): CratePackage {
   return {

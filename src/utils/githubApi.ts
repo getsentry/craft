@@ -109,7 +109,7 @@ export function getGitHubClient(token = ''): Octokit {
       };
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const { retry } = require('@octokit/plugin-retry');
     const octokitWithRetries = Octokit.plugin(retry);
     _GitHubClientCache[githubApiToken] = new octokitWithRetries(attrs);

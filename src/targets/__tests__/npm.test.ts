@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import {
   getPublishTag,
   getLatestVersion,
@@ -13,10 +14,10 @@ const defaultNpmConfig = {
 };
 
 describe('getLatestVersion', () => {
-  let spawnProcessMock: jest.SpyInstance;
+  let spawnProcessMock: MockInstance;
 
   beforeEach(() => {
-    spawnProcessMock = jest
+    spawnProcessMock = vi
       .spyOn(system, 'spawnProcess')
       .mockImplementation(() => Promise.reject('does not exist'));
   });
@@ -40,7 +41,7 @@ describe('getLatestVersion', () => {
   });
 
   it('returns version for valid package name', async () => {
-    spawnProcessMock = jest
+    spawnProcessMock = vi
       .spyOn(system, 'spawnProcess')
       .mockImplementation(() =>
         Promise.resolve(Buffer.from('7.20.0\n', 'utf-8'))
@@ -57,10 +58,10 @@ describe('getLatestVersion', () => {
 });
 
 describe('getPublishTag', () => {
-  let spawnProcessMock: jest.SpyInstance;
+  let spawnProcessMock: MockInstance;
 
   beforeEach(() => {
-    spawnProcessMock = jest
+    spawnProcessMock = vi
       .spyOn(system, 'spawnProcess')
       .mockImplementation(() => Promise.reject('does not exist'));
   });
@@ -71,7 +72,7 @@ describe('getPublishTag', () => {
 
   it('returns undefined without a checkPackageName', async () => {
     const logger = {
-      warn: jest.fn(),
+      warn: vi.fn(),
     } as any;
     const actual = await getPublishTag(
       '1.0.0',
@@ -86,7 +87,7 @@ describe('getPublishTag', () => {
 
   it('returns undefined for unexisting package name', async () => {
     const logger = {
-      warn: jest.fn(),
+      warn: vi.fn(),
     } as any;
     const actual = await getPublishTag(
       '1.0.0',
@@ -103,14 +104,14 @@ describe('getPublishTag', () => {
   });
 
   it('returns undefined for invalid package version', async () => {
-    spawnProcessMock = jest
+    spawnProcessMock = vi
       .spyOn(system, 'spawnProcess')
       .mockImplementation(() =>
         Promise.resolve(Buffer.from('weird-version', 'utf-8'))
       );
 
     const logger = {
-      warn: jest.fn(),
+      warn: vi.fn(),
     } as any;
     const actual = await getPublishTag(
       '1.0.0',
@@ -128,7 +129,7 @@ describe('getPublishTag', () => {
 
   it('returns next for prereleases', async () => {
     const logger = {
-      warn: jest.fn(),
+      warn: vi.fn(),
     } as any;
     const actual = await getPublishTag(
       '1.0.0-alpha.1',
@@ -148,14 +149,14 @@ describe('getPublishTag', () => {
   });
 
   it('returns old for older versions', async () => {
-    spawnProcessMock = jest
+    spawnProcessMock = vi
       .spyOn(system, 'spawnProcess')
       .mockImplementation(() =>
         Promise.resolve(Buffer.from('7.20.0\n', 'utf-8'))
       );
 
     const logger = {
-      warn: jest.fn(),
+      warn: vi.fn(),
     } as any;
 
     const actual = await getPublishTag(
@@ -179,7 +180,7 @@ describe('getPublishTag', () => {
 });
 
 describe('NpmTarget.expand', () => {
-  let discoverWorkspacesMock: jest.SpyInstance;
+  let discoverWorkspacesMock: MockInstance;
 
   afterEach(() => {
     discoverWorkspacesMock?.mockRestore();
@@ -193,7 +194,7 @@ describe('NpmTarget.expand', () => {
   });
 
   it('throws error when public package depends on private workspace package', async () => {
-    discoverWorkspacesMock = jest
+    discoverWorkspacesMock = vi
       .spyOn(workspaces, 'discoverWorkspaces')
       .mockResolvedValue({
         type: 'npm',
@@ -230,7 +231,7 @@ describe('NpmTarget.expand', () => {
   });
 
   it('allows public packages to depend on other public packages', async () => {
-    discoverWorkspacesMock = jest
+    discoverWorkspacesMock = vi
       .spyOn(workspaces, 'discoverWorkspaces')
       .mockResolvedValue({
         type: 'npm',
@@ -262,7 +263,7 @@ describe('NpmTarget.expand', () => {
   });
 
   it('excludes private packages from expanded targets', async () => {
-    discoverWorkspacesMock = jest
+    discoverWorkspacesMock = vi
       .spyOn(workspaces, 'discoverWorkspaces')
       .mockResolvedValue({
         type: 'npm',
@@ -293,7 +294,7 @@ describe('NpmTarget.expand', () => {
   });
 
   it('propagates excludeNames and other options to expanded targets', async () => {
-    discoverWorkspacesMock = jest
+    discoverWorkspacesMock = vi
       .spyOn(workspaces, 'discoverWorkspaces')
       .mockResolvedValue({
         type: 'npm',

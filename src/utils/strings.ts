@@ -81,7 +81,7 @@ export function formatSize(size: number): string {
  *
  * @param obj Object to print out
  */
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+ 
 export function formatJson(obj: any): string {
   const result = JSON.stringify(obj, null, 4);
   if (obj instanceof Error && result === '{}') {

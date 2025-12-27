@@ -1,16 +1,20 @@
+import { vi, describe, test, expect } from 'vitest';
 import { promises as fsPromises } from 'fs';
 import { importGPGKey } from '../gpg';
 import { spawnProcess } from '../system';
 
-jest.mock('../system');
+vi.mock('../system');
 
-jest.mock('fs', () => ({
-  ...jest.requireActual('fs'),
-  promises: {
-    writeFile: jest.fn(() => Promise.resolve()),
-    unlink: jest.fn(),
-  },
-}));
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
+  return {
+    ...actual,
+    promises: {
+      writeFile: vi.fn(() => Promise.resolve()),
+      unlink: vi.fn(),
+    },
+  };
+});
 
 describe('importGPGKey', () => {
   const KEY = 'very_private_key_like_for_real_really_private';

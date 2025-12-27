@@ -1,14 +1,15 @@
 import { existsSync, lstatSync, readFileSync } from 'fs';
 import path from 'path';
 
-import ajv from 'ajv';
 import { load } from 'js-yaml';
 import GitUrlParse from 'git-url-parse';
 import simpleGit from 'simple-git';
+import { ZodError } from 'zod';
 
 import { logger } from './logger';
 import {
   CraftProjectConfig,
+  CraftProjectConfigSchema,
   GitHubGlobalConfig,
   ArtifactProviderName,
   StatusProviderName,
@@ -114,13 +115,6 @@ export function getConfigFileDir(): string | undefined {
 }
 
 /**
- * Reads JSON schema for project configuration
- */
-export function getProjectConfigSchema(): any {
-  return require('./schemas/projectConfig.schema');
-}
-
-/**
  * Parses and validate passed configuration object
  *
  * Throw an error is the object cannot be properly parsed as configuration.
@@ -131,16 +125,18 @@ export function validateConfiguration(
   rawConfig: Record<string, any>
 ): CraftProjectConfig {
   logger.debug('Parsing and validating the configuration file...');
-  const schemaName = 'projectConfig';
-  const projectConfigSchema = getProjectConfigSchema();
-  const ajvValidator = new ajv().addSchema(projectConfigSchema, schemaName);
-  const valid = ajvValidator.validate(schemaName, rawConfig);
-  if (valid) {
-    return rawConfig as CraftProjectConfig;
-  } else {
-    throw new ConfigurationError(
-      `Cannot parse configuration file:\n${ajvValidator.errorsText()}`
-    );
+  try {
+    return CraftProjectConfigSchema.parse(rawConfig);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      const messages = error.errors
+        .map(e => `${e.path.join('.')}: ${e.message}`)
+        .join('\n');
+      throw new ConfigurationError(
+        `Cannot parse configuration file:\n${messages}`
+      );
+    }
+    throw error;
   }
 }
 
@@ -502,7 +498,7 @@ export async function expandWorkspaceTargets(
   targets: TargetConfig[]
 ): Promise<TargetConfig[]> {
   // Lazy import to avoid circular dependency
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+
   const { getTargetByName } = require('./targets');
 
   const rootDir = getConfigFileDir() || process.cwd();

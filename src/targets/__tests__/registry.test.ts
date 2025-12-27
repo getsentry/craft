@@ -1,16 +1,17 @@
-jest.mock('../../utils/githubApi.ts');
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+vi.mock('../../utils/githubApi.ts');
 import { getGitHubClient } from '../../utils/githubApi';
 import { RegistryConfig, RegistryTarget } from '../registry';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { RegistryPackageType } from '../../utils/registry';
 
 describe('getUpdatedManifest', () => {
-  let mockClient: jest.Mock;
+  let mockClient: Mock;
 
   beforeEach(() => {
-    jest.resetAllMocks();
-    mockClient = jest.fn();
-    (getGitHubClient as jest.MockedFunction<
+    vi.resetAllMocks();
+    mockClient = vi.fn();
+    (getGitHubClient as MockedFunction<
       typeof getGitHubClient
       // @ts-ignore we only need to mock a subset
     >).mockReturnValue({ graphql: mockClient });

@@ -1,4 +1,5 @@
-jest.mock('../../utils/githubApi.ts');
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+vi.mock('../../utils/githubApi.ts');
 import { getGitHubClient } from '../../utils/githubApi';
 import {
   GitHubArtifactProvider,
@@ -20,28 +21,28 @@ class TestGitHubArtifactProvider extends GitHubArtifactProvider {
   }
 }
 
-jest.mock('../../utils/async');
+vi.mock('../../utils/async');
 
 describe('GitHub Artifact Provider', () => {
   let githubArtifactProvider: TestGitHubArtifactProvider;
   let mockClient: {
     actions: {
-      listArtifactsForRepo: jest.Mock;
+      listArtifactsForRepo: Mock;
     };
     git: {
-      getCommit: jest.Mock;
+      getCommit: Mock;
     };
   };
   let mockedSleep;
 
   beforeEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
 
     mockClient = {
-      actions: { listArtifactsForRepo: jest.fn() },
-      git: { getCommit: jest.fn() },
+      actions: { listArtifactsForRepo: vi.fn() },
+      git: { getCommit: vi.fn() },
     };
-    (getGitHubClient as jest.MockedFunction<
+    (getGitHubClient as MockedFunction<
       typeof getGitHubClient
       // @ts-ignore we only need to mock a subset
     >).mockReturnValueOnce(mockClient);
@@ -52,7 +53,7 @@ describe('GitHub Artifact Provider', () => {
       repoName: 'craft',
     });
 
-    mockedSleep = sleep as jest.Mock;
+    mockedSleep = sleep as Mock;
     mockedSleep.mockImplementation(() => {
       return new Promise(resolve => setTimeout(resolve, 10));
     });
@@ -267,7 +268,7 @@ describe('GitHub Artifact Provider', () => {
           '1b843f2cbb20fdda99ef749e29e75e43e6e43b38'
         )
       ).rejects.toThrowErrorMatchingInlineSnapshot(
-        `"Can't find any artifacts for revision "1b843f2cbb20fdda99ef749e29e75e43e6e43b38" (tries: 3)"`
+        `[Error: Can't find any artifacts for revision "1b843f2cbb20fdda99ef749e29e75e43e6e43b38" (tries: 3)]`
       );
 
       expect(mockClient.actions.listArtifactsForRepo).toBeCalledTimes(3);
@@ -317,7 +318,7 @@ describe('GitHub Artifact Provider', () => {
           '3c2e87573d3bd16f61cf08fece0638cc47a4fc22'
         )
       ).rejects.toThrowErrorMatchingInlineSnapshot(
-        `"Can't find any artifacts for revision "3c2e87573d3bd16f61cf08fece0638cc47a4fc22" (tries: 3)"`
+        `[Error: Can't find any artifacts for revision "3c2e87573d3bd16f61cf08fece0638cc47a4fc22" (tries: 3)]`
       );
       expect(sleep).toBeCalledTimes(2);
     });
@@ -372,7 +373,7 @@ describe('GitHub Artifact Provider', () => {
           },
         });
 
-      const getRevisionDateCallback = jest
+      const getRevisionDateCallback = vi
         .fn()
         .mockResolvedValueOnce('2020-05-12T21:45:04Z');
 
@@ -472,7 +473,7 @@ describe('GitHub Artifact Provider', () => {
           },
         });
 
-      const getRevisionDateCallback = jest
+      const getRevisionDateCallback = vi
         .fn()
         .mockResolvedValueOnce('2020-05-12T21:45:04Z');
 
@@ -512,7 +513,7 @@ describe('GitHub Artifact Provider', () => {
         },
       });
 
-      const getRevisionDateCallback = jest
+      const getRevisionDateCallback = vi
         .fn()
         .mockResolvedValueOnce('2021-05-12T21:45:04Z');
 
