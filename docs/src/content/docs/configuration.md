@@ -92,11 +92,11 @@ Auto mode uses `.github/release.yml` to categorize PRs by labels or commit patte
 
 | Category | Pattern |
 |----------|---------|
-| Breaking Changes | `^\w+(\(\w+\))?!:` |
-| Build / dependencies | `^(build\|ref\|chore\|ci)(\(\w+\))?:` |
-| Bug Fixes | `^fix(\(\w+\))?:` |
-| Documentation | `^docs?(\(\w+\))?:` |
-| New Features | `^feat(\(\w+\))?:` |
+| Breaking Changes | `^(?<type>\w+(?:\((?<scope>[^)]+)\))?!:\s*)` |
+| New Features | `^(?<type>feat(?:\((?<scope>[^)]+)\))?!?:\s*)` |
+| Bug Fixes | `^(?<type>fix(?:\((?<scope>[^)]+)\))?!?:\s*)` |
+| Documentation | `^(?<type>docs?(?:\((?<scope>[^)]+)\))?!?:\s*)` |
+| Build / dependencies | `^(?<type>(?:build\|refactor\|chore\|ci)(?:\((?<scope>[^)]+)\))?!?:\s*)` |
 
 Example `.github/release.yml`:
 
@@ -107,12 +107,12 @@ changelog:
       labels:
         - enhancement
       commit_patterns:
-        - "^feat(\\(\\w+\\))?:"
+        - "^(?<type>feat(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
     - title: Bug Fixes
       labels:
         - bug
       commit_patterns:
-        - "^fix(\\(\\w+\\))?:"
+        - "^(?<type>fix(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
 ```
 
 ### Custom Changelog Entries from PR Descriptions
@@ -205,14 +205,38 @@ Example output with scope grouping:
 
 #### Api
 
-- feat(api): add user endpoint by @alice in [#1](https://github.com/...)
-- feat(api): add auth endpoint by @bob in [#2](https://github.com/...)
+- Add user endpoint by @alice in [#1](https://github.com/...)
+- Add auth endpoint by @bob in [#2](https://github.com/...)
 
 #### Ui
 
-- feat(ui): add dashboard by @charlie in [#3](https://github.com/...)
+- Add dashboard by @charlie in [#3](https://github.com/...)
 
-- feat: general improvement by @dave in [#4](https://github.com/...)
+- General improvement by @dave in [#4](https://github.com/...)
+```
+
+### Title Stripping (Default Behavior)
+
+By default, conventional commit prefixes are stripped from changelog entries.
+The type (e.g., `feat:`) is removed, and the scope is preserved when entries
+aren't grouped under a scope header.
+
+This behavior is controlled by named capture groups in `commit_patterns`:
+
+- `(?<type>...)` - The type prefix to strip (includes type, scope, and colon)
+- `(?<scope>...)` - Scope to preserve when not under a scope header
+
+| Original Title | Scope Header | Displayed Title |
+|----------------|--------------|-----------------|
+| `feat(api): add endpoint` | Yes (Api) | `Add endpoint` |
+| `feat(api): add endpoint` | No | `(api) Add endpoint` |
+| `feat: add endpoint` | N/A | `Add endpoint` |
+
+To disable stripping, provide custom patterns using non-capturing groups:
+
+```yaml
+commit_patterns:
+  - "^feat(?:\\([^)]+\\))?!?:"  # No named groups = no stripping
 ```
 
 ### Configuration Options

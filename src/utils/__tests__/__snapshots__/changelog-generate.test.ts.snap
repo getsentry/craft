@@ -45,15 +45,15 @@ exports[`generateChangesetFromGit commit patterns matches PRs based on commit_pa
 exports[`generateChangesetFromGit commit patterns uses default conventional commits config when no config exists 1`] = `
 "### New Features ✨
 
-- feat: new feature by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)
+- New feature by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)
 
 ### Bug Fixes 🐛
 
-- fix: bug fix by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)
+- Bug fix by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)
 
 ### Documentation 📚
 
-- docs: update readme by @charlie in [#3](https://github.com/test-owner/test-repo/pull/3)"
+- Update readme by @charlie in [#3](https://github.com/test-owner/test-repo/pull/3)"
 `;
 
 exports[`generateChangesetFromGit custom changelog entries handles multiple bullets in changelog entry 1`] = `
@@ -99,7 +99,7 @@ exports[`generateChangesetFromGit output formatting uses PR number when availabl
 exports[`generateChangesetFromGit output formatting uses PR title from GitHub instead of commit message 1`] = `
 "### New Features ✨
 
-- feat: A much better PR title with more context by @sentry in [#123](https://github.com/test-owner/test-repo/pull/123)"
+- A much better PR title with more context by @sentry in [#123](https://github.com/test-owner/test-repo/pull/123)"
 `;
 
 exports[`generateChangesetFromGit scope grouping groups PRs by scope when multiple entries exist 1`] = `
