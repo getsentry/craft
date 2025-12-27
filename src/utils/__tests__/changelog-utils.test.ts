@@ -90,6 +90,7 @@ describe('shouldSkipCurrentPR', () => {
     author: 'alice',
     labels: [],
     baseRef: 'main',
+    headSha: 'abc123',
   };
 
   it('returns false when PR has no skip magic word', () => {
@@ -112,6 +113,7 @@ describe('getBumpTypeForPR', () => {
     author: 'alice',
     labels: [],
     baseRef: 'main',
+    headSha: 'abc123',
   };
 
   it('returns major for breaking changes', () => {
@@ -412,18 +414,20 @@ describe('processReverts', () => {
   });
 
   it('cancels out revert and original via SHA', () => {
+    // Commits in newest-first order (git log order)
     const commits = [
-      commit('abc123', 'feat: add feature'),
       commit('def456', 'Revert "feat: add feature"', 'This reverts commit abc123.'),
+      commit('abc123', 'feat: add feature'),
     ];
     const result = processReverts(commits);
     expect(result).toEqual([]);
   });
 
   it('cancels out revert and original via title fallback', () => {
+    // Commits in newest-first order (git log order)
     const commits = [
-      commit('abc123', 'feat: add feature'),
       commit('def456', 'Revert "feat: add feature"'),
+      commit('abc123', 'feat: add feature'),
     ];
     const result = processReverts(commits);
     expect(result).toEqual([]);
@@ -439,20 +443,19 @@ describe('processReverts', () => {
   });
 
   it('handles current PR preview scenario - revert PR cancels existing commit', () => {
-    // Simulates generateChangelogWithHighlight where current PR has empty hash
-    // and is a revert of a commit in the existing list.
-    // Commits are in chronological order (oldest first) matching test conventions.
+    // Simulates generateChangelogWithHighlight where current PR is prepended (newest).
+    // Commits in newest-first order (git log order, current PR first).
     const commits = [
-      // Existing commit in base branch (oldest)
-      commit('abc123', 'feat: add feature'),
-      // Current PR (unmerged, no hash) - is a revert (newest)
+      // Current PR (newest, using headSha)
       commit(
-        '',  // empty hash for unmerged PR
+        'pr-head-sha',
         'Revert "feat: add feature"',
         'This reverts commit abc123.',
         'Revert "feat: add feature"',
         'This reverts commit abc123.\n\nReverting due to issues.'
       ),
+      // Existing commit in base branch (older)
+      commit('abc123', 'feat: add feature'),
     ];
     const result = processReverts(commits);
     // Both should cancel out
@@ -460,49 +463,54 @@ describe('processReverts', () => {
   });
 
   it('handles current PR preview scenario - revert PR uses title matching', () => {
-    // When PR body doesn't contain SHA, falls back to title matching
+    // When PR body doesn't contain SHA, falls back to title matching.
+    // Commits in newest-first order.
     const commits = [
-      commit('abc123', 'feat: add feature'),
       commit(
-        '',
+        'pr-head-sha',
         'Revert "feat: add feature"',
         '',
         'Revert "feat: add feature"',
         'Reverting this PR due to issues.'  // No SHA in body
       ),
+      commit('abc123', 'feat: add feature'),
     ];
     const result = processReverts(commits);
     expect(result).toEqual([]);
   });
 
   it('handles current PR preview scenario - non-revert PR unaffected', () => {
+    // Commits in newest-first order
     const commits = [
-      commit('abc123', 'fix: bug fix'),
       commit(
-        '',
+        'pr-head-sha',
         'feat: new feature',
         '',
         'feat: new feature',
         'Adding a new feature'
       ),
+      commit('abc123', 'fix: bug fix'),
     ];
     const result = processReverts(commits);
     expect(result).toHaveLength(2);
   });
 
   it('handles double revert in preview scenario', () => {
-    // Current PR is Revert Revert, should cancel with existing Revert
-    // Commits in chronological order: A (oldest) -> B (Revert A) -> Current PR (Revert B, newest)
+    // Current PR is Revert Revert, should cancel with existing Revert.
+    // Commits in newest-first order: Current PR (newest) -> B (Revert A) -> A (original, oldest)
     const commits = [
-      commit('abc123', 'feat: add feature'),
-      commit('def456', 'Revert "feat: add feature"', 'This reverts commit abc123.'),
+      // Current PR - Revert Revert (newest)
       commit(
-        '',
+        'pr-head-sha',
         'Revert "Revert "feat: add feature""',
         'This reverts commit def456.',
         'Revert "Revert "feat: add feature""',
         'This reverts commit def456.'
       ),
+      // Revert A
+      commit('def456', 'Revert "feat: add feature"', 'This reverts commit abc123.'),
+      // Original commit A (oldest)
+      commit('abc123', 'feat: add feature'),
     ];
     const result = processReverts(commits);
     // Current PR cancels def456, leaving abc123
