@@ -606,5 +606,315 @@ changelog:
       expect(result.changelog).toMatchSnapshot();
     });
   });
-});
 
+  // ============================================================================
+  // Revert commit handling tests
+  // ============================================================================
+
+  describe('revert handling', () => {
+    it('cancels out a simple revert via SHA match', async () => {
+      // Commit A and Revert A should cancel each other out
+      setup([
+        {
+          hash: 'abc123',
+          title: 'feat: add new feature',
+          body: '',
+          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
+        },
+        {
+          hash: 'def456',
+          title: 'Revert "feat: add new feature"',
+          body: 'This reverts commit abc123.',
+          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
+        },
+      ], null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      // Both commits should cancel out, resulting in empty changelog
+      expect(result.changelog).toBe('');
+      expect(result.bumpType).toBeNull();
+    });
+
+    it('cancels out a simple revert via title fallback', async () => {
+      // When no SHA in body, fall back to title matching
+      setup([
+        {
+          hash: 'abc123',
+          title: 'feat: add new feature',
+          body: '',
+          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
+        },
+        {
+          hash: 'def456',
+          title: 'Revert "feat: add new feature"',
+          body: '', // No SHA in body
+          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
+        },
+      ], null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      expect(result.changelog).toBe('');
+      expect(result.bumpType).toBeNull();
+    });
+
+    it('keeps standalone revert when original is not in changelog', async () => {
+      // Revert without corresponding original commit stays as bug fix
+      setup([
+        {
+          hash: 'def456',
+          title: 'Revert "feat: add feature from previous release"',
+          body: 'This reverts commit oldsha123.',
+          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
+        },
+      ], null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      // Revert should appear in Bug Fixes category with full title
+      expect(result.changelog).toContain('Bug Fixes');
+      expect(result.changelog).toContain('Revert "feat: add feature from previous release"');
+      expect(result.bumpType).toBe('patch');
+    });
+
+    it('handles double revert correctly (A -> Revert A -> Revert Revert A)', async () => {
+      // A -> B (Revert A) -> C (Revert B)
+      // Expected: C cancels B, A remains
+      setup([
+        {
+          hash: 'aaa111',
+          title: 'feat: add feature',
+          body: '',
+          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
+        },
+        {
+          hash: 'bbb222',
+          title: 'Revert "feat: add feature"',
+          body: 'This reverts commit aaa111.',
+          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
+        },
+        {
+          hash: 'ccc333',
+          title: 'Revert "Revert "feat: add feature""',
+          body: 'This reverts commit bbb222.',
+          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
+        },
+      ], null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      // B and C cancel out, A remains
+      expect(result.changelog).toContain('New Features');
+      expect(result.changelog).toContain('Add feature');
+      expect(result.changelog).not.toContain('Revert');
+      expect(result.bumpType).toBe('minor');
+    });
+
+    it('handles triple revert correctly (all cancel out)', async () => {
+      // A -> B (Revert A) -> C (Revert B) -> D (Revert C)
+      // Processing newest first:
+      // D cancels C, B cancels A -> nothing remains
+      setup([
+        {
+          hash: 'aaa111',
+          title: 'feat: add feature',
+          body: '',
+          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
+        },
+        {
+          hash: 'bbb222',
+          title: 'Revert "feat: add feature"',
+          body: 'This reverts commit aaa111.',
+          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
+        },
+        {
+          hash: 'ccc333',
+          title: 'Revert "Revert "feat: add feature""',
+          body: 'This reverts commit bbb222.',
+          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
+        },
+        {
+          hash: 'ddd444',
+          title: 'Revert "Revert "Revert "feat: add feature"""',
+          body: 'This reverts commit ccc333.',
+          pr: { local: '4', remote: { number: '4', author: { login: 'dave' } } },
+        },
+      ], null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      // D cancels C, B cancels A -> empty
+      expect(result.changelog).toBe('');
+      expect(result.bumpType).toBeNull();
+    });
+
+    it('handles quadruple revert correctly (original remains)', async () => {
+      // A -> B -> C -> D -> E (each reverts previous)
+      // Processing newest first:
+      // E cancels D, C cancels B, A remains
+      setup([
+        {
+          hash: 'aaa111',
+          title: 'feat: add feature',
+          body: '',
+          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
+        },
+        {
+          hash: 'bbb222',
+          title: 'Revert "feat: add feature"',
+          body: 'This reverts commit aaa111.',
+          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
+        },
+        {
+          hash: 'ccc333',
+          title: 'Revert "Revert "feat: add feature""',
+          body: 'This reverts commit bbb222.',
+          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
+        },
+        {
+          hash: 'ddd444',
+          title: 'Revert "Revert "Revert "feat: add feature"""',
+          body: 'This reverts commit ccc333.',
+          pr: { local: '4', remote: { number: '4', author: { login: 'dave' } } },
+        },
+        {
+          hash: 'eee555',
+          title: 'Revert "Revert "Revert "Revert "feat: add feature""""',
+          body: 'This reverts commit ddd444.',
+          pr: { local: '5', remote: { number: '5', author: { login: 'eve' } } },
+        },
+      ], null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      // E cancels D, C cancels B, A remains
+      expect(result.changelog).toContain('New Features');
+      expect(result.changelog).toContain('Add feature');
+      expect(result.changelog).not.toContain('Revert');
+      expect(result.bumpType).toBe('minor');
+    });
+
+    it('SHA matching takes precedence over title matching', async () => {
+      // Two commits with same title, revert SHA points to first one
+      // Only first one should be canceled, second remains
+      setup([
+        {
+          hash: 'aaa111',
+          title: 'feat: add feature',
+          body: '',
+          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
+        },
+        {
+          hash: 'bbb222',
+          title: 'feat: add feature', // Same title as first
+          body: '',
+          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
+        },
+        {
+          hash: 'ccc333',
+          title: 'Revert "feat: add feature"',
+          body: 'This reverts commit aaa111.', // SHA points to first
+          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
+        },
+      ], null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      // First feat and revert cancel, second feat remains
+      expect(result.changelog).toContain('Add feature');
+      expect(result.changelog).not.toContain('Revert');
+      expect(result.bumpType).toBe('minor');
+    });
+
+    it('handles revert with PR number suffix in title', async () => {
+      // GitHub often includes PR number in title like: Revert "feat: add feature (#1)"
+      setup([
+        {
+          hash: 'abc123',
+          title: 'feat: add feature (#1)',
+          body: '',
+          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
+        },
+        {
+          hash: 'def456',
+          title: 'Revert "feat: add feature (#1)" (#2)',
+          body: 'This reverts commit abc123.',
+          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
+        },
+      ], null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      expect(result.changelog).toBe('');
+    });
+
+    it('uses PR title for matching when available', async () => {
+      // PR title differs from commit title, should use PR title for matching
+      setup([
+        {
+          hash: 'abc123',
+          title: 'wip commit message',
+          body: '',
+          pr: {
+            local: '1',
+            remote: {
+              number: '1',
+              author: { login: 'alice' },
+              title: 'feat: add feature', // PR title is different
+            },
+          },
+        },
+        {
+          hash: 'def456',
+          title: 'Revert "feat: add feature"', // Matches PR title, not commit title
+          body: '',
+          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
+        },
+      ], null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      expect(result.changelog).toBe('');
+    });
+
+    it('extracts SHA from body with additional explanation text', async () => {
+      // Revert body often contains explanation in addition to the "This reverts commit" line
+      setup([
+        {
+          hash: 'abc123def456',
+          title: 'feat: add new feature',
+          body: '',
+          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
+        },
+        {
+          hash: 'def456abc123',
+          title: 'Revert "feat: add new feature"',
+          body: `This reverts commit abc123def456.
+
+The feature caused performance issues in production.
+We need to investigate further before re-enabling.
+
+See incident report: https://example.com/incident/123`,
+          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
+        },
+      ], null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      // Both should cancel out despite the additional text in the body
+      expect(result.changelog).toBe('');
+      expect(result.bumpType).toBeNull();
+    });
+
+    it('detects revert from body when title does not follow standard format', async () => {
+      // Sometimes the title may not follow the "Revert "..."" format,
+      // but the body still contains "This reverts commit <sha>"
+      setup([
+        {
+          hash: 'abc123def456',
+          title: 'feat: add new feature',
+          body: '',
+          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
+        },
+        {
+          hash: 'def456abc123',
+          title: 'fix: undo the new feature due to issues', // Non-standard revert title
+          body: '',
+          pr: {
+            local: '2',
+            remote: {
+              number: '2',
+              author: { login: 'bob' },
+              body: 'This reverts commit abc123def456.\n\nThe feature caused problems.',
+            },
+          },
+        },
+      ], null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      // Both should cancel out because body contains the revert magic string with SHA
+      expect(result.changelog).toBe('');
+      expect(result.bumpType).toBeNull();
+    });
+  });
+});

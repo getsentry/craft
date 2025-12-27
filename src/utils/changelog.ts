@@ -139,6 +139,57 @@ function escapeLeadingUnderscores(text: string): string {
 }
 
 /**
+ * Checks if a commit is a revert commit.
+ * Revert commits are detected by:
+ * 1. Title starting with 'Revert "' (standard GitHub format)
+ * 2. Body containing 'This reverts commit <sha>' (git revert format)
+ *
+ * @param title The commit or PR title
+ * @param body Optional commit or PR body to check
+ * @returns true if this is a revert commit
+ */
+export function isRevertCommit(title: string, body?: string): boolean {
+  // Check title for standard GitHub revert format
+  if (title.startsWith('Revert "')) {
+    return true;
+  }
+  // Check body for git revert magic string
+  if (body && /This reverts commit [a-f0-9]{7,40}/i.test(body)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Extracts the SHA of the reverted commit from a revert commit's body.
+ * Git revert commits typically include "This reverts commit <sha>." in the body.
+ *
+ * @param body The commit body text
+ * @returns The SHA (7-40 chars) if found, or null
+ */
+export function extractRevertedSha(body: string): string | null {
+  const match = body.match(/This reverts commit ([a-f0-9]{7,40})/i);
+  return match?.[1] ?? null;
+}
+
+/**
+ * Extracts the original commit title from a revert commit's title.
+ * Handles the format: Revert "original title" with optional PR suffix (#123).
+ *
+ * @param title The revert commit title
+ * @returns The original title if extractable, or null
+ */
+export function extractRevertedTitle(title: string): string | null {
+  // Match: Revert "..." with optional PR suffix (#123)
+  // The greedy .+ correctly handles nested quotes (e.g., Revert "Revert "feat"")
+  // because it consumes as much as possible while the final " is anchored to the
+  // end of the string (before the optional PR suffix). This means for nested
+  // reverts, .+ captures everything between the first " and the last ".
+  const match = title.match(/^Revert "(.+)"(?:\s*\(#\d+\))?$/);
+  return match?.[1] ?? null;
+}
+
+/**
  * Extracts the scope from a conventional commit title.
  * For example: "feat(api): add endpoint" returns "api"
  * Returns normalized scope (lowercase, dashes and underscores unified) or null if no scope found.
@@ -573,6 +624,108 @@ interface RawCommitInfo {
 }
 
 /**
+ * Processes revert commits by canceling out revert/reverted pairs.
+ *
+ * When a revert commit and its target are both in the list, both are removed
+ * (they cancel each other out). Reverts are processed in reverse chronological
+ * order (newest first) to correctly handle nested reverts like:
+ * - A: original commit
+ * - B: Revert A
+ * - C: Revert B (Revert Revert A)
+ *
+ * Processing C first: C cancels B, leaving A in the changelog.
+ *
+ * Matching strategy:
+ * 1. Primary: Match by SHA from "This reverts commit <sha>" in body
+ * 2. Fallback: Match by title extracted from 'Revert "original title"'
+ *
+ * @param rawCommits Array of commits in chronological order (oldest first)
+ * @returns Filtered array with canceled revert pairs removed
+ */
+export function processReverts(rawCommits: RawCommitInfo[]): RawCommitInfo[] {
+  if (rawCommits.length === 0) {
+    return [];
+  }
+
+  // Create a working set of commits (we'll remove canceled pairs)
+  const remaining = new Set(rawCommits);
+
+  // Build lookup maps for efficient matching
+  // SHA map: hash -> commit (for SHA-based matching)
+  const byHash = new Map<string, RawCommitInfo>();
+  // Title map: effective title -> commit (for title-based fallback)
+  // Use PR title if available, otherwise commit title
+  const byTitle = new Map<string, RawCommitInfo>();
+
+  for (const commit of rawCommits) {
+    byHash.set(commit.hash, commit);
+    const effectiveTitle = (commit.prTitle ?? commit.title).trim();
+    // Only set if not already present (first commit with this title wins)
+    if (!byTitle.has(effectiveTitle)) {
+      byTitle.set(effectiveTitle, commit);
+    }
+  }
+
+  // Process reverts in reverse chronological order (newest first)
+  // This ensures nested reverts are handled correctly
+  const reversedCommits = rawCommits.toReversed();
+
+  for (const commit of reversedCommits) {
+    // Skip if already removed
+    if (!remaining.has(commit)) {
+      continue;
+    }
+
+    const effectiveTitle = (commit.prTitle ?? commit.title).trim();
+    const effectiveBody = commit.prBody ?? commit.body;
+
+    if (!isRevertCommit(effectiveTitle, effectiveBody)) {
+      continue;
+    }
+
+    // Try to find the reverted commit
+    let revertedCommit: RawCommitInfo | undefined;
+
+    // Strategy 1: Match by SHA from commit body
+    const revertedSha = extractRevertedSha(effectiveBody);
+    if (revertedSha) {
+      // Try exact match first, then prefix match for abbreviated SHAs
+      revertedCommit = byHash.get(revertedSha);
+      if (!revertedCommit) {
+        // Try prefix match for abbreviated SHAs
+        for (const [hash, c] of byHash) {
+          if (hash.startsWith(revertedSha) || revertedSha.startsWith(hash)) {
+            revertedCommit = c;
+            break;
+          }
+        }
+      }
+    }
+
+    // Strategy 2: Fallback to title matching
+    if (!revertedCommit) {
+      const revertedTitle = extractRevertedTitle(effectiveTitle);
+      if (revertedTitle) {
+        revertedCommit = byTitle.get(revertedTitle);
+      }
+    }
+
+    // If we found the reverted commit and it's still in the remaining set,
+    // remove both (they cancel each other out)
+    if (revertedCommit && remaining.has(revertedCommit)) {
+      remaining.delete(commit);
+      remaining.delete(revertedCommit);
+      logger.debug(
+        `Revert cancellation: "${effectiveTitle}" cancels "${(revertedCommit.prTitle ?? revertedCommit.title).trim()}"`
+      );
+    }
+  }
+
+  // Return commits in original order, filtered to only remaining ones
+  return rawCommits.filter(commit => remaining.has(commit));
+}
+
+/**
  * Valid semver bump types for auto-versioning
  */
 export type SemverBumpType = 'major' | 'minor' | 'patch';
@@ -628,7 +781,12 @@ export const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
       },
       {
         title: 'Bug Fixes 🐛',
-        commit_patterns: ['^(?<type>fix(?:\\((?<scope>[^)]+)\\))?!?:\\s*)'],
+        commit_patterns: [
+          '^(?<type>fix(?:\\((?<scope>[^)]+)\\))?!?:\\s*)',
+          // Standalone reverts (where original isn't in changelog) are treated as bug fixes
+          // No <type> capture group - we want to keep the full "Revert ..." title
+          '^Revert "',
+        ],
         semver: 'patch',
       },
       {
@@ -1241,10 +1399,13 @@ export async function generateChangelogWithHighlight(
   };
   const allCommits = [currentPRCommit, ...rawCommits];
 
-  // Step 6: Run categorization on combined list
-  const { data: rawData, stats } = categorizeCommits(allCommits);
+  // Step 6: Process reverts - cancel out revert/reverted pairs
+  const filteredCommits = processReverts(allCommits);
 
-  // Step 7: Serialize to markdown
+  // Step 7: Run categorization on filtered list
+  const { data: rawData, stats } = categorizeCommits(filteredCommits);
+
+  // Step 8: Serialize to markdown
   const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS);
 
   return {
@@ -1439,7 +1600,9 @@ async function generateRawChangelog(
   until?: string
 ): Promise<RawChangelogResult> {
   const rawCommits = await fetchRawCommitInfo(git, rev, until);
-  return categorizeCommits(rawCommits);
+  // Process reverts: cancel out revert/reverted pairs
+  const filteredCommits = processReverts(rawCommits);
+  return categorizeCommits(filteredCommits);
 }
 
 /**
