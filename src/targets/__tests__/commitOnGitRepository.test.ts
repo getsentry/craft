@@ -10,12 +10,14 @@ const mockRaw = vi.fn();
 const mockCommit = vi.fn();
 const mockAddTag = vi.fn();
 
-vi.mock('simple-git', () => () => ({
-  clone: mockClone,
-  checkout: mockCheckout,
-  raw: mockRaw,
-  commit: mockCommit,
-  addTag: mockAddTag,
+vi.mock('simple-git', () => ({
+  default: () => ({
+    clone: mockClone,
+    checkout: mockCheckout,
+    raw: mockRaw,
+    commit: mockCommit,
+    addTag: mockAddTag,
+  }),
 }));
 
 test('Basic commit-on-git-repository functionality', async () => {

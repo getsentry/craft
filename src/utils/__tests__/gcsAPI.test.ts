@@ -31,6 +31,25 @@ import {
 
 vi.mock('../../logger');
 
+// Mock existsSync to be controllable in tests while keeping other fs functions real
+const mockExistsSync = vi.fn<(path: fs.PathLike) => boolean>((path) => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const realFs = require('fs');
+  return realFs.existsSync(path);
+});
+
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
+  return {
+    ...actual,
+    existsSync: (path: fs.PathLike) => mockExistsSync(path),
+    default: {
+      ...actual,
+      existsSync: (path: fs.PathLike) => mockExistsSync(path),
+    },
+  };
+});
+
 const mockGCSUpload = vi.fn();
 const mockGCSDownload = vi.fn();
 const mockGCSGetFiles = vi.fn();
@@ -135,7 +154,7 @@ describe('gcsApi module', () => {
       process.env.DOG_CREDS_PATH = './iDontExist.json';
 
       // make sure it won't find the file
-      const existsSyncSpy = vi.spyOn(fs, 'existsSync').mockReturnValueOnce(false);
+      mockExistsSync.mockReturnValueOnce(false);
 
       expect(() => {
         getGCSCredsFromEnv(
@@ -143,8 +162,6 @@ describe('gcsApi module', () => {
           { name: 'DOG_CREDS_PATH' }
         );
       }).toThrowError('File does not exist: `./iDontExist.json`!');
-
-      existsSyncSpy.mockRestore();
     });
 
     it('errors if necessary field missing', () => {
@@ -296,7 +313,7 @@ describe('gcsApi module', () => {
         expect.assertions(1);
 
         // make sure it won't find the directory
-        const existsSyncSpy = vi.spyOn(fs, 'existsSync').mockReturnValueOnce(false);
+        mockExistsSync.mockReturnValueOnce(false);
 
         await expect(
           client.downloadArtifact(
@@ -304,8 +321,6 @@ describe('gcsApi module', () => {
             './iDontExist/'
           )
         ).rejects.toThrowError(`directory does not exist!`);
-
-        existsSyncSpy.mockRestore();
       });
 
       it('errors if GCS download goes sideways', async () => {
