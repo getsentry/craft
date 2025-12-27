@@ -464,6 +464,81 @@ changelog:
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toMatchSnapshot();
     });
+
+    it('shows Other header for single-scope entries when scope groups exist', async () => {
+      setup([
+        {
+          hash: 'abc123',
+          title: 'feat(api): api feature 1',
+          body: '',
+          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
+        },
+        {
+          hash: 'def456',
+          title: 'feat(api): api feature 2',
+          body: '',
+          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
+        },
+        {
+          hash: 'ghi789',
+          title: 'feat(ui): single ui feature',
+          body: '',
+          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
+        },
+      ], SCOPE_CONFIG);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      // Single-scope entry should be under "Other" header
+      expect(result.changelog).toContain('#### Api');
+      expect(result.changelog).toContain('#### Other');
+      expect(result.changelog).toContain('feat(ui): single ui feature');
+    });
+
+    it('does not show Other header when only scopeless entries exist', async () => {
+      setup([
+        {
+          hash: 'abc123',
+          title: 'feat: feature 1',
+          body: '',
+          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
+        },
+        {
+          hash: 'def456',
+          title: 'feat: feature 2',
+          body: '',
+          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
+        },
+      ], SCOPE_CONFIG);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      // No scope headers, so no "Other" header needed
+      expect(result.changelog).not.toContain('#### Api');
+      expect(result.changelog).not.toContain('#### Other');
+      expect(result.changelog).toContain('feat: feature 1');
+      expect(result.changelog).toContain('feat: feature 2');
+    });
+
+    it('does not show Other header when all scopes are single-entry', async () => {
+      setup([
+        {
+          hash: 'abc123',
+          title: 'feat(api): single api feature',
+          body: '',
+          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
+        },
+        {
+          hash: 'def456',
+          title: 'feat(ui): single ui feature',
+          body: '',
+          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
+        },
+      ], SCOPE_CONFIG);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      // No scope gets 2+ entries, so no headers at all
+      expect(result.changelog).not.toContain('#### Api');
+      expect(result.changelog).not.toContain('#### Ui');
+      expect(result.changelog).not.toContain('#### Other');
+      expect(result.changelog).toContain('feat(api): single api feature');
+      expect(result.changelog).toContain('feat(ui): single ui feature');
+    });
   });
 
   // ============================================================================
