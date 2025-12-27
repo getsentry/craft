@@ -20,15 +20,15 @@ describe('spawnProcess', () => {
   test('resolves on success with standard output', async () => {
     expect.assertions(1);
     const stdout =
-      (await spawnProcess(process.execPath, ['-p', '"test"'])) || '';
+      (await spawnProcess(process.execPath, ['-e', 'console.log("test")'])) || '';
     expect(stdout.toString()).toBe('test\n');
   });
 
   test('rejects on non-zero exit code', async () => {
     try {
       expect.assertions(2);
-      await spawnProcess('test', ['']);
-    } catch (e) {
+      await spawnProcess(process.execPath, ['-e', 'process.exit(1)']);
+    } catch (e: any) {
       expect(e.code).toBe(1);
       expect(e.message).toMatch(/code 1/);
     }
@@ -38,7 +38,7 @@ describe('spawnProcess', () => {
     try {
       expect.assertions(1);
       await spawnProcess('this_command_does_not_exist');
-    } catch (e) {
+    } catch (e: any) {
       expect(e.message).toMatch(/ENOENT/);
     }
   });
@@ -46,17 +46,17 @@ describe('spawnProcess', () => {
   test('attaches args on error', async () => {
     try {
       expect.assertions(1);
-      await spawnProcess('test', ['x', 'y']);
-    } catch (e) {
-      expect(e.args).toEqual(['x', 'y']);
+      await spawnProcess(process.execPath, ['-e', 'process.exit(1)']);
+    } catch (e: any) {
+      expect(e.args).toEqual(['-e', 'process.exit(1)']);
     }
   });
 
   test('attaches options on error', async () => {
     try {
       expect.assertions(1);
-      await spawnProcess('test', [], { cwd: '/tmp/' });
-    } catch (e) {
+      await spawnProcess(process.execPath, ['-e', 'process.exit(1)'], { cwd: '/tmp/' });
+    } catch (e: any) {
       expect(e.options.cwd).toEqual('/tmp/');
     }
   });
@@ -64,8 +64,8 @@ describe('spawnProcess', () => {
   test('strips env from options on error', async () => {
     try {
       expect.assertions(1);
-      await spawnProcess('test', [], { env: { x: '123', password: '456' } });
-    } catch (e) {
+      await spawnProcess(process.execPath, ['-e', 'process.exit(1)'], { env: { x: '123', password: '456' } });
+    } catch (e: any) {
       expect(e.options.env).toBeUndefined();
     }
   });
@@ -73,7 +73,7 @@ describe('spawnProcess', () => {
   test('does not write to output by default', async () => {
     const mockedLogInfo = logger.info as Mock;
 
-    await spawnProcess(process.execPath, ['-p', '"test-string"']);
+    await spawnProcess(process.execPath, ['-e', 'console.log("test-string")']);
 
     expect(mockedLogInfo).toHaveBeenCalledTimes(0);
   });
