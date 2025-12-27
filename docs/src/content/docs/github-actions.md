@@ -7,11 +7,63 @@ Craft provides GitHub Actions for automating releases and previewing changelog e
 
 For a real-world example of using Craft's GitHub Actions, see the [getsentry/publish](https://github.com/getsentry/publish) repository.
 
-## Prepare Release Action
+## Prepare Release
 
-The main Craft action automates the `craft prepare` workflow in GitHub Actions. It creates a release branch, updates the changelog, and opens a publish request issue.
+Craft offers two ways to automate releases in GitHub Actions:
 
-### Basic Usage
+| Option | Best For | Flexibility |
+|--------|----------|-------------|
+| **Reusable Workflow** | Quick setup, standard release flow | Low - runs as a complete job |
+| **Composite Action** | Custom workflows, pre/post steps | High - composable with other steps |
+
+### Option 1: Reusable Workflow (Recommended)
+
+The simplest way to set up Craft releases. Call the workflow and let it handle everything:
+
+```yaml
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (or "auto")'
+        required: false
+
+jobs:
+  release:
+    uses: getsentry/craft/.github/workflows/release.yml@v2
+    with:
+      version: ${{ inputs.version }}
+    secrets: inherit
+```
+
+#### Workflow Inputs
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `version` | Version to release. Can be a semver string (e.g., "1.2.3"), a bump type ("major", "minor", "patch"), or "auto" for automatic detection. | Uses `versioning.policy` from config |
+| `merge_target` | Target branch to merge into. | Default branch |
+| `force` | Force a release even when there are release-blockers. | `false` |
+| `blocker_label` | Label that blocks releases. | `release-blocker` |
+| `publish_repo` | Repository for publish issues (owner/repo format). | `{owner}/publish` |
+| `git_user_name` | Git committer name. | GitHub actor |
+| `git_user_email` | Git committer email. | Actor's noreply email |
+| `path` | The path that Craft will run inside. | `.` |
+| `craft_config_from_merge_target` | Use the craft config from the merge target branch. | `false` |
+
+#### Workflow Outputs
+
+| Output | Description |
+|--------|-------------|
+| `version` | The resolved version being released |
+| `branch` | The release branch name |
+| `sha` | The commit SHA on the release branch |
+| `previous_tag` | The tag before this release (for diff links) |
+| `changelog` | The changelog for this release |
+
+### Option 2: Composite Action
+
+Use the action directly when you need to add custom steps before or after the release, or integrate Craft into a more complex workflow:
 
 ```yaml
 name: Release
@@ -29,42 +81,28 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # Custom pre-release steps
+      - run: echo "Running pre-release checks..."
+
       - uses: getsentry/craft@v2
         with:
           version: ${{ github.event.inputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Custom post-release steps
+      - run: echo "Release prepared!"
 ```
 
-### Inputs
-
-| Input | Description | Default |
-|-------|-------------|---------|
-| `version` | Version to release. Can be a semver string (e.g., "1.2.3"), a bump type ("major", "minor", "patch"), or "auto" for automatic detection. | Uses `versioning.policy` from config |
-| `merge_target` | Target branch to merge into. | Default branch |
-| `force` | Force a release even when there are release-blockers. | `false` |
-| `blocker_label` | Label that blocks releases. | `release-blocker` |
-| `publish_repo` | Repository for publish issues (owner/repo format). | `{owner}/publish` |
-| `git_user_name` | Git committer name. | GitHub actor |
-| `git_user_email` | Git committer email. | Actor's noreply email |
-| `path` | The path that Craft will run inside. | `.` |
-| `craft_config_from_merge_target` | Use the craft config from the merge target branch. | `false` |
-
-### Outputs
-
-| Output | Description |
-|--------|-------------|
-| `version` | The resolved version being released |
-| `branch` | The release branch name |
-| `sha` | The commit SHA on the release branch |
-| `previous_tag` | The tag before this release (for diff links) |
-| `changelog` | The changelog for this release |
+The action accepts the same inputs and produces the same outputs as the reusable workflow.
 
 ### Auto-versioning Example
 
-When using auto-versioning, Craft analyzes conventional commits to determine the version bump:
+When using auto-versioning, Craft analyzes conventional commits to determine the version bump. This works with both the workflow and the action:
 
 ```yaml
+# Using the reusable workflow
 name: Auto Release
 on:
   schedule:
@@ -72,16 +110,10 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: getsentry/craft@v2
-        with:
-          version: auto
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    uses: getsentry/craft/.github/workflows/release.yml@v2
+    with:
+      version: auto
+    secrets: inherit
 ```
 
 ## Changelog Preview (Reusable Workflow)
@@ -208,9 +240,9 @@ PRs with the `skip-changelog` label or from excluded authors will not appear in 
 
 ## Tips
 
-### Combining Both Actions
+### Combining Both Workflows
 
-You can use both the changelog preview and release actions together for a complete release workflow. See the [getsentry/publish](https://github.com/getsentry/publish) repository for a real-world example.
+You can use both the changelog preview and release workflows together for a complete release flow:
 
 ```yaml
 # .github/workflows/changelog-preview.yml
@@ -237,14 +269,8 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: getsentry/craft@v2
-        with:
-          version: ${{ github.event.inputs.version || 'auto' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    uses: getsentry/craft/.github/workflows/release.yml@v2
+    with:
+      version: ${{ inputs.version || 'auto' }}
+    secrets: inherit
 ```
