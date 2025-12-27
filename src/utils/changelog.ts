@@ -1503,9 +1503,10 @@ async function serializeChangelog(
       return scopeA.localeCompare(scopeB);
     });
 
-    // Check if any scope has multiple entries (would get a header)
-    const hasScopeHeaders = [...category.scopeGroups.entries()].some(
-      ([s, entries]) => s !== null && entries.length > 1
+    // Check if there are any scoped entries (non-null scopes)
+    // Used to determine if "Other" header should be shown for scopeless entries
+    const hasScopedEntries = [...category.scopeGroups.keys()].some(
+      s => s !== null
     );
 
     // Collect entries without headers to combine them into a single section
@@ -1514,13 +1515,14 @@ async function serializeChangelog(
     for (const [scope, prs] of sortedScopes) {
       // Determine scope header:
       // - Scoped entries with multiple PRs get formatted scope title
-      // - Scopeless entries get "Other" header when other scope headers exist
+      // - Scopeless entries get "Other" header when there are any scoped entries
+      //   (except when scopeless is the only group, then "Other" is meaningless)
       // - Otherwise no header (entries collected for later)
       let scopeHeader: string | null = null;
       if (scopeGroupingEnabled) {
         if (scope !== null && prs.length > 1) {
           scopeHeader = formatScopeTitle(scope);
-        } else if (scope === null && hasScopeHeaders) {
+        } else if (scope === null && hasScopedEntries) {
           scopeHeader = 'Other';
         }
       }
