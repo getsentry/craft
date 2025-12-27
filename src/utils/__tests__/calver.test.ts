@@ -77,12 +77,12 @@ describe('calculateCalVer', () => {
     vi.clearAllMocks();
     mockGetGitTagPrefix.mockReturnValue('');
     // Mock Date to return a fixed date
-    jest.useFakeTimers();
-    jest.setSystemTime(new Date('2024-12-23'));
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2024-12-23'));
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('returns first patch version when no tags exist', async () => {
