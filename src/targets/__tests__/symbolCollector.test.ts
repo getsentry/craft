@@ -58,8 +58,7 @@ describe('target config', () => {
     >) = vi.fn();
 
     expect(getSymbolCollectorInstance).toThrowErrorMatchingInlineSnapshot(
-      `[Error: The required \`batchType\` parameter is missing in the configuration file. See the documentation for more details.]` +
-        'See the documentation for more details."'
+      `[Error: The required \`batchType\` parameter is missing in the configuration file. See the documentation for more details.]`
     );
   });
 
@@ -83,7 +82,7 @@ describe('target config', () => {
 describe('publish', () => {
   test('no artifacts found', () => {
     const symCollector = getSymbolCollectorInstance(customConfig);
-    symCollector.getArtifactsForRevision = jest
+    symCollector.getArtifactsForRevision = vi
       .fn()
       .mockReturnValueOnce(() => []);
     expect(spawnProcess).not.toHaveBeenCalled();
@@ -100,7 +99,7 @@ describe('publish', () => {
     const mockedArtifacts = ['artifact1', 'artifact2', 'artifact3'];
 
     const symCollector = getSymbolCollectorInstance(customConfig);
-    symCollector.getArtifactsForRevision = jest
+    symCollector.getArtifactsForRevision = vi
       .fn()
       .mockReturnValueOnce(mockedArtifacts);
     symCollector.artifactProvider.downloadArtifact = vi.fn();

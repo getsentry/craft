@@ -373,7 +373,7 @@ describe('GitHub Artifact Provider', () => {
           },
         });
 
-      const getRevisionDateCallback = jest
+      const getRevisionDateCallback = vi
         .fn()
         .mockResolvedValueOnce('2020-05-12T21:45:04Z');
 
@@ -473,7 +473,7 @@ describe('GitHub Artifact Provider', () => {
           },
         });
 
-      const getRevisionDateCallback = jest
+      const getRevisionDateCallback = vi
         .fn()
         .mockResolvedValueOnce('2020-05-12T21:45:04Z');
 
@@ -513,7 +513,7 @@ describe('GitHub Artifact Provider', () => {
         },
       });
 
-      const getRevisionDateCallback = jest
+      const getRevisionDateCallback = vi
         .fn()
         .mockResolvedValueOnce('2021-05-12T21:45:04Z');
 

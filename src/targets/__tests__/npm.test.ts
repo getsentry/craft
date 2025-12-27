@@ -17,7 +17,7 @@ describe('getLatestVersion', () => {
   let spawnProcessMock: MockInstance;
 
   beforeEach(() => {
-    spawnProcessMock = jest
+    spawnProcessMock = vi
       .spyOn(system, 'spawnProcess')
       .mockImplementation(() => Promise.reject('does not exist'));
   });
@@ -41,7 +41,7 @@ describe('getLatestVersion', () => {
   });
 
   it('returns version for valid package name', async () => {
-    spawnProcessMock = jest
+    spawnProcessMock = vi
       .spyOn(system, 'spawnProcess')
       .mockImplementation(() =>
         Promise.resolve(Buffer.from('7.20.0\n', 'utf-8'))
@@ -61,7 +61,7 @@ describe('getPublishTag', () => {
   let spawnProcessMock: MockInstance;
 
   beforeEach(() => {
-    spawnProcessMock = jest
+    spawnProcessMock = vi
       .spyOn(system, 'spawnProcess')
       .mockImplementation(() => Promise.reject('does not exist'));
   });
@@ -104,7 +104,7 @@ describe('getPublishTag', () => {
   });
 
   it('returns undefined for invalid package version', async () => {
-    spawnProcessMock = jest
+    spawnProcessMock = vi
       .spyOn(system, 'spawnProcess')
       .mockImplementation(() =>
         Promise.resolve(Buffer.from('weird-version', 'utf-8'))
@@ -149,7 +149,7 @@ describe('getPublishTag', () => {
   });
 
   it('returns old for older versions', async () => {
-    spawnProcessMock = jest
+    spawnProcessMock = vi
       .spyOn(system, 'spawnProcess')
       .mockImplementation(() =>
         Promise.resolve(Buffer.from('7.20.0\n', 'utf-8'))
@@ -194,7 +194,7 @@ describe('NpmTarget.expand', () => {
   });
 
   it('throws error when public package depends on private workspace package', async () => {
-    discoverWorkspacesMock = jest
+    discoverWorkspacesMock = vi
       .spyOn(workspaces, 'discoverWorkspaces')
       .mockResolvedValue({
         type: 'npm',
@@ -231,7 +231,7 @@ describe('NpmTarget.expand', () => {
   });
 
   it('allows public packages to depend on other public packages', async () => {
-    discoverWorkspacesMock = jest
+    discoverWorkspacesMock = vi
       .spyOn(workspaces, 'discoverWorkspaces')
       .mockResolvedValue({
         type: 'npm',
@@ -263,7 +263,7 @@ describe('NpmTarget.expand', () => {
   });
 
   it('excludes private packages from expanded targets', async () => {
-    discoverWorkspacesMock = jest
+    discoverWorkspacesMock = vi
       .spyOn(workspaces, 'discoverWorkspaces')
       .mockResolvedValue({
         type: 'npm',
@@ -294,7 +294,7 @@ describe('NpmTarget.expand', () => {
   });
 
   it('propagates excludeNames and other options to expanded targets', async () => {
-    discoverWorkspacesMock = jest
+    discoverWorkspacesMock = vi
       .spyOn(workspaces, 'discoverWorkspaces')
       .mockResolvedValue({
         type: 'npm',

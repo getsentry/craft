@@ -409,14 +409,14 @@ describe('upload', () => {
     );
 
     const mvnTarget = createMavenTarget();
-    mvnTarget.getArtifactsForRevision = jest
+    mvnTarget.getArtifactsForRevision = vi
       .fn()
       .mockResolvedValueOnce([{ filename: 'mockArtifact.zip' }]);
-    mvnTarget.artifactProvider.downloadArtifact = jest
+    mvnTarget.artifactProvider.downloadArtifact = vi
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
     mvnTarget.isBomFile = vi.fn().mockResolvedValueOnce(false);
-    mvnTarget.getPomFileInDist = jest
+    mvnTarget.getPomFileInDist = vi
       .fn()
       .mockResolvedValueOnce('pom-default.xml');
 
@@ -461,14 +461,14 @@ describe('upload', () => {
     );
 
     const mvnTarget = createMavenTarget();
-    mvnTarget.getArtifactsForRevision = jest
+    mvnTarget.getArtifactsForRevision = vi
       .fn()
       .mockResolvedValueOnce([{ filename: 'mockArtifact.zip' }]);
-    mvnTarget.artifactProvider.downloadArtifact = jest
+    mvnTarget.artifactProvider.downloadArtifact = vi
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
     mvnTarget.isBomFile = vi.fn().mockResolvedValueOnce(false);
-    mvnTarget.getPomFileInDist = jest
+    mvnTarget.getPomFileInDist = vi
       .fn()
       .mockResolvedValueOnce('pom-default.xml');
     mvnTarget.fileExists = vi.fn().mockResolvedValue(true);
@@ -514,10 +514,10 @@ describe('upload', () => {
     );
 
     const mvnTarget = createMavenTarget();
-    mvnTarget.getArtifactsForRevision = jest
+    mvnTarget.getArtifactsForRevision = vi
       .fn()
       .mockResolvedValueOnce([{ filename: 'mockArtifact.zip' }]);
-    mvnTarget.artifactProvider.downloadArtifact = jest
+    mvnTarget.artifactProvider.downloadArtifact = vi
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
     mvnTarget.isBomFile = vi.fn().mockResolvedValueOnce('path/to/bomfile');
@@ -558,10 +558,10 @@ describe('upload', () => {
 
     const mvnTarget = createMavenTarget();
 
-    mvnTarget.getArtifactsForRevision = jest
+    mvnTarget.getArtifactsForRevision = vi
       .fn()
       .mockResolvedValueOnce([{ filename: 'mockArtifact.zip' }]);
-    mvnTarget.artifactProvider.downloadArtifact = jest
+    mvnTarget.artifactProvider.downloadArtifact = vi
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
 
@@ -584,7 +584,7 @@ describe('upload', () => {
     );
 
     // Override fs.promises.readdir for this test to return klib files
-    const readdirSpy = jest
+    const readdirSpy = vi
       .spyOn(fs.promises, 'readdir')
       .mockImplementation((dirPath: any) => {
         if (dirPath.toString().includes(klibDistDirName)) {
@@ -600,14 +600,14 @@ describe('upload', () => {
       });
 
     const mvnTarget = createMavenTarget(getFullTargetConfig());
-    mvnTarget.getArtifactsForRevision = jest
+    mvnTarget.getArtifactsForRevision = vi
       .fn()
       .mockResolvedValueOnce([{ filename: `${klibDistDirName}.zip` }]);
-    mvnTarget.artifactProvider.downloadArtifact = jest
+    mvnTarget.artifactProvider.downloadArtifact = vi
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
     mvnTarget.isBomFile = vi.fn().mockResolvedValueOnce(false);
-    mvnTarget.getPomFileInDist = jest
+    mvnTarget.getPomFileInDist = vi
       .fn()
       .mockResolvedValueOnce('pom-default.xml');
     mvnTarget.fileExists = vi.fn().mockResolvedValue(true);
@@ -807,7 +807,7 @@ describe('closeRepository', () => {
       .reply(200);
 
     const mvnTarget = createMavenTarget();
-    mvnTarget.getRepository = jest
+    mvnTarget.getRepository = vi
       .fn()
       .mockImplementationOnce(() => Promise.resolve(getRepositoryInfo('open')))
       .mockImplementationOnce(() => Promise.resolve(getRepositoryInfo('open')))
@@ -838,7 +838,7 @@ describe('closeRepository', () => {
 
     // Deadline is 2h, so we fake pooling start time and initial read to 1min
     // and second iteration to something over 2h
-    jest
+    vi
       .spyOn(Date, 'now')
       .mockImplementationOnce(() => 1 * 60 * 1000)
       .mockImplementationOnce(() => 1 * 60 * 1000)
@@ -961,7 +961,7 @@ describe('releaseRepository', () => {
 
     // Deadline is 2h, so we fake pooling start time and initial read to 1min
     // and second iteration to something over 2h
-    jest
+    vi
       .spyOn(Date, 'now')
       .mockImplementationOnce(() => 1 * 60 * 1000)
       .mockImplementationOnce(() => 1 * 60 * 1000)
