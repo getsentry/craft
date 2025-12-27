@@ -14,6 +14,10 @@ import {
   shouldSkipCurrentPR,
   getBumpTypeForPR,
   stripTitle,
+  isRevertCommit,
+  extractRevertedTitle,
+  extractRevertedSha,
+  processReverts,
   SKIP_CHANGELOG_MAGIC_WORD,
   BODY_IN_CHANGELOG_MAGIC_WORD,
   type CurrentPRInfo,
@@ -264,5 +268,245 @@ describe('stripTitle', () => {
         '(api) Simplify logic'
       );
     });
+  });
+});
+
+describe('isRevertCommit', () => {
+  it('returns true for standard revert title format', () => {
+    expect(isRevertCommit('Revert "feat: add feature"')).toBe(true);
+  });
+
+  it('returns false for non-revert title', () => {
+    expect(isRevertCommit('feat: add feature')).toBe(false);
+    expect(isRevertCommit('fix: something')).toBe(false);
+  });
+
+  it('returns true when body contains revert magic string', () => {
+    expect(isRevertCommit('fix: undo feature', 'This reverts commit abc123def.')).toBe(true);
+  });
+
+  it('returns false when neither title nor body indicates revert', () => {
+    expect(isRevertCommit('fix: something', 'Just a regular fix')).toBe(false);
+  });
+
+  it('handles case-insensitive text matching in body', () => {
+    // The "This reverts commit" text is matched case-insensitively
+    // (SHAs in git are always lowercase, so we only test the text part)
+    expect(isRevertCommit('fix: undo', 'THIS REVERTS COMMIT abc123def.')).toBe(true);
+    expect(isRevertCommit('fix: undo', 'this Reverts Commit abc123def.')).toBe(true);
+  });
+});
+
+describe('extractRevertedSha', () => {
+  it('extracts SHA from standard git revert message', () => {
+    expect(extractRevertedSha('This reverts commit abc123def456.')).toBe('abc123def456');
+  });
+
+  it('extracts SHA without trailing period', () => {
+    expect(extractRevertedSha('This reverts commit abc123def456')).toBe('abc123def456');
+  });
+
+  it('extracts SHA from body with additional text', () => {
+    const body = `This reverts commit abc123def456.
+
+The feature caused issues in production.`;
+    expect(extractRevertedSha(body)).toBe('abc123def456');
+  });
+
+  it('returns null when no SHA found', () => {
+    expect(extractRevertedSha('Just a regular commit body')).toBeNull();
+  });
+
+  it('handles abbreviated SHA (7 chars)', () => {
+    expect(extractRevertedSha('This reverts commit abc1234.')).toBe('abc1234');
+  });
+
+  it('handles full SHA (40 chars)', () => {
+    const fullSha = 'abc123def456789012345678901234567890abcd';
+    expect(extractRevertedSha(`This reverts commit ${fullSha}.`)).toBe(fullSha);
+  });
+});
+
+describe('extractRevertedTitle', () => {
+  // The regex uses greedy matching (.+) which correctly handles nested quotes
+  // because the final " is anchored to the end of the string (before optional PR suffix).
+  // This means .+ will consume as much as possible while still allowing
+  // the pattern to match, effectively capturing everything between the first "
+  // after 'Revert ' and the last " before the end/PR suffix.
+
+  it('extracts title from simple revert', () => {
+    expect(extractRevertedTitle('Revert "feat: add feature"')).toBe('feat: add feature');
+  });
+
+  it('extracts title from revert with PR suffix', () => {
+    expect(extractRevertedTitle('Revert "feat: add feature" (#123)')).toBe('feat: add feature');
+  });
+
+  it('extracts title from double revert (nested quotes)', () => {
+    // Revert "Revert "feat: add feature""
+    // The greedy .+ matches: Revert "feat: add feature"
+    expect(extractRevertedTitle('Revert "Revert "feat: add feature""')).toBe(
+      'Revert "feat: add feature"'
+    );
+  });
+
+  it('extracts title from triple revert (deeply nested quotes)', () => {
+    // Revert "Revert "Revert "feat: add feature"""
+    expect(extractRevertedTitle('Revert "Revert "Revert "feat: add feature"""')).toBe(
+      'Revert "Revert "feat: add feature""'
+    );
+  });
+
+  it('extracts title from quadruple revert', () => {
+    // Revert "Revert "Revert "Revert "feat: add feature""""
+    expect(extractRevertedTitle('Revert "Revert "Revert "Revert "feat: add feature""""')).toBe(
+      'Revert "Revert "Revert "feat: add feature"""'
+    );
+  });
+
+  it('extracts title with quotes in the message', () => {
+    // Revert "fix: handle "special" case"
+    expect(extractRevertedTitle('Revert "fix: handle "special" case"')).toBe(
+      'fix: handle "special" case'
+    );
+  });
+
+  it('extracts title from double revert with PR suffix', () => {
+    expect(extractRevertedTitle('Revert "Revert "feat: add feature"" (#456)')).toBe(
+      'Revert "feat: add feature"'
+    );
+  });
+
+  it('returns null for non-revert titles', () => {
+    expect(extractRevertedTitle('feat: add feature')).toBeNull();
+    expect(extractRevertedTitle('Revert without quotes')).toBeNull();
+  });
+
+  it('returns null for malformed revert titles', () => {
+    // Missing closing quote
+    expect(extractRevertedTitle('Revert "feat: add feature')).toBeNull();
+    // Extra text after closing quote (without PR format)
+    expect(extractRevertedTitle('Revert "feat: add feature" extra')).toBeNull();
+  });
+});
+
+describe('processReverts', () => {
+  // Helper to create a minimal RawCommitInfo-like object
+  const commit = (
+    hash: string,
+    title: string,
+    body = '',
+    prTitle?: string,
+    prBody?: string
+  ) => ({
+    hash,
+    title,
+    body,
+    prTitle,
+    prBody,
+    labels: [] as string[],
+  });
+
+  it('returns empty array for empty input', () => {
+    expect(processReverts([])).toEqual([]);
+  });
+
+  it('cancels out revert and original via SHA', () => {
+    const commits = [
+      commit('abc123', 'feat: add feature'),
+      commit('def456', 'Revert "feat: add feature"', 'This reverts commit abc123.'),
+    ];
+    const result = processReverts(commits);
+    expect(result).toEqual([]);
+  });
+
+  it('cancels out revert and original via title fallback', () => {
+    const commits = [
+      commit('abc123', 'feat: add feature'),
+      commit('def456', 'Revert "feat: add feature"'),
+    ];
+    const result = processReverts(commits);
+    expect(result).toEqual([]);
+  });
+
+  it('keeps standalone revert when original not in list', () => {
+    const commits = [
+      commit('def456', 'Revert "feat: old feature"', 'This reverts commit oldsha.'),
+    ];
+    const result = processReverts(commits);
+    expect(result).toHaveLength(1);
+    expect(result[0].hash).toBe('def456');
+  });
+
+  it('handles current PR preview scenario - revert PR cancels existing commit', () => {
+    // Simulates generateChangelogWithHighlight where current PR has empty hash
+    // and is a revert of a commit in the existing list.
+    // Commits are in chronological order (oldest first) matching test conventions.
+    const commits = [
+      // Existing commit in base branch (oldest)
+      commit('abc123', 'feat: add feature'),
+      // Current PR (unmerged, no hash) - is a revert (newest)
+      commit(
+        '',  // empty hash for unmerged PR
+        'Revert "feat: add feature"',
+        'This reverts commit abc123.',
+        'Revert "feat: add feature"',
+        'This reverts commit abc123.\n\nReverting due to issues.'
+      ),
+    ];
+    const result = processReverts(commits);
+    // Both should cancel out
+    expect(result).toEqual([]);
+  });
+
+  it('handles current PR preview scenario - revert PR uses title matching', () => {
+    // When PR body doesn't contain SHA, falls back to title matching
+    const commits = [
+      commit('abc123', 'feat: add feature'),
+      commit(
+        '',
+        'Revert "feat: add feature"',
+        '',
+        'Revert "feat: add feature"',
+        'Reverting this PR due to issues.'  // No SHA in body
+      ),
+    ];
+    const result = processReverts(commits);
+    expect(result).toEqual([]);
+  });
+
+  it('handles current PR preview scenario - non-revert PR unaffected', () => {
+    const commits = [
+      commit('abc123', 'fix: bug fix'),
+      commit(
+        '',
+        'feat: new feature',
+        '',
+        'feat: new feature',
+        'Adding a new feature'
+      ),
+    ];
+    const result = processReverts(commits);
+    expect(result).toHaveLength(2);
+  });
+
+  it('handles double revert in preview scenario', () => {
+    // Current PR is Revert Revert, should cancel with existing Revert
+    // Commits in chronological order: A (oldest) -> B (Revert A) -> Current PR (Revert B, newest)
+    const commits = [
+      commit('abc123', 'feat: add feature'),
+      commit('def456', 'Revert "feat: add feature"', 'This reverts commit abc123.'),
+      commit(
+        '',
+        'Revert "Revert "feat: add feature""',
+        'This reverts commit def456.',
+        'Revert "Revert "feat: add feature""',
+        'This reverts commit def456.'
+      ),
+    ];
+    const result = processReverts(commits);
+    // Current PR cancels def456, leaving abc123
+    expect(result).toHaveLength(1);
+    expect(result[0].hash).toBe('abc123');
   });
 });
