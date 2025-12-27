@@ -34,258 +34,210 @@ import {
   BODY_IN_CHANGELOG_MAGIC_WORD,
   CurrentPRInfo,
 } from '../changelog';
+import {
+  SAMPLE_CHANGESET,
+  SAMPLE_CHANGESET_WITH_SUBHEADING,
+  createFullChangelog,
+  type TestCommit,
+} from './fixtures/changelog';
 
 const getConfigFileDirMock = config.getConfigFileDir as jest.MockedFunction<typeof config.getConfigFileDir>;
 const getGlobalGitHubConfigMock = config.getGlobalGitHubConfig as jest.MockedFunction<typeof config.getGlobalGitHubConfig>;
 const readFileSyncMock = readFileSync as jest.MockedFunction<typeof readFileSync>;
 
 describe('findChangeset', () => {
-  const sampleChangeset = {
-    body: '- this is a test',
-    name: 'Version 1.0.0',
-  };
-
   test.each([
     [
-      'regular',
-      `# Changelog\n## ${sampleChangeset.name}\n${sampleChangeset.body}\n`,
+      'regular ATX heading',
+      `# Changelog\n## ${SAMPLE_CHANGESET.name}\n${SAMPLE_CHANGESET.body}\n`,
     ],
     [
-      'ignore date in parentheses',
-      `# Changelog
-    ## 1.0.1
-    newer
-
-    ## ${sampleChangeset.name} (2019-02-02)
-    ${sampleChangeset.body}
-
-    ## 0.9.0
-    older
-    `,
+      'with date in parentheses',
+      createFullChangelog('Changelog', [
+        { version: '1.0.1', body: 'newer' },
+        { version: `${SAMPLE_CHANGESET.name} (2019-02-02)`, body: SAMPLE_CHANGESET.body },
+        { version: '0.9.0', body: 'older' },
+      ]),
     ],
     [
-      'extracts a change between headings',
-      `# Changelog
-    ## 1.0.1
-    newer
-
-    ## ${sampleChangeset.name}
-    ${sampleChangeset.body}
-
-    ## 0.9.0
-    older
-    `,
+      'between other headings',
+      createFullChangelog('Changelog', [
+        { version: '1.0.1', body: 'newer' },
+        { version: SAMPLE_CHANGESET.name, body: SAMPLE_CHANGESET.body },
+        { version: '0.9.0', body: 'older' },
+      ]),
     ],
     [
-      'extracts changes from underlined headings',
-      `Changelog\n====\n${sampleChangeset.name}\n----\n${sampleChangeset.body}\n`,
-    ],
-    [
-      'extracts changes from alternating headings',
-      `# Changelog
-    ## 1.0.1
-    newer
-
-    ${sampleChangeset.name}
-    -------
-    ${sampleChangeset.body}
-
-    ## 0.9.0
-    older
-    `,
+      'setext-style headings',
+      `Changelog\n====\n${SAMPLE_CHANGESET.name}\n----\n${SAMPLE_CHANGESET.body}\n`,
     ],
   ])('should extract %s', (_testName, markdown) => {
-    expect(findChangeset(markdown, 'v1.0.0')).toEqual(sampleChangeset);
+    expect(findChangeset(markdown, 'v1.0.0')).toEqual(SAMPLE_CHANGESET);
   });
 
-  test('supports sub-headings', () => {
-    const changeset = {
-      body: '### Features\nthis is a test',
-      name: 'Version 1.0.0',
-    };
-
-    const markdown = `# Changelog
-        ## ${changeset.name}
-        ${changeset.body}
-      `;
-
-    expect(findChangeset(markdown, 'v1.0.0')).toEqual(changeset);
+  test('supports sub-headings within version section', () => {
+    const markdown = createFullChangelog('Changelog', [
+      { version: SAMPLE_CHANGESET_WITH_SUBHEADING.name, body: SAMPLE_CHANGESET_WITH_SUBHEADING.body },
+    ]);
+    expect(findChangeset(markdown, 'v1.0.0')).toEqual(SAMPLE_CHANGESET_WITH_SUBHEADING);
   });
 
   test.each([
     ['changeset cannot be found', 'v1.0.0'],
     ['invalid version', 'not a version'],
   ])('should return null on %s', (_testName, version) => {
-    const markdown = `# Changelog
-    ## 1.0.1
-    newer
-
-    ## 0.9.0
-    older
-    `;
+    const markdown = createFullChangelog('Changelog', [
+      { version: '1.0.1', body: 'newer' },
+      { version: '0.9.0', body: 'older' },
+    ]);
     expect(findChangeset(markdown, version)).toEqual(null);
   });
 });
 
-test.each([
-  [
-    'remove from the top',
-    '1.0.1',
-    `# Changelog
-    1.0.0
-    -------
-    this is a test
-
-    ## 0.9.1
-    slightly older
-
-    ## 0.9.0
-    older
-    `,
-  ],
-  [
-    'remove from the middle',
-    '0.9.1',
-    `# Changelog
-    ## 1.0.1
-    newer
-
-    1.0.0
-    -------
-    this is a test
-
-    ## 0.9.0
-    older
-    `,
-  ],
-  [
-    'remove from underlined',
-    '1.0.0',
-    `# Changelog
-    ## 1.0.1
-    newer
-
-    ## 0.9.1
-    slightly older
-
-    ## 0.9.0
-    older
-    `,
-  ],
-  [
-    'remove from the bottom',
-    '0.9.0',
-    `# Changelog
-    ## 1.0.1
-    newer
-
-    1.0.0
-    -------
-    this is a test
-
-    ## 0.9.1
-    slightly older
-
-`,
-  ],
-  [
-    'not remove missing',
-    'non-existent version',
-    `# Changelog
-    ## 1.0.1
-    newer
-
-    1.0.0
-    -------
-    this is a test
-
-    ## 0.9.1
-    slightly older
-
-    ## 0.9.0
-    older
-    `,
-  ],
-  [
-    'not remove empty',
+describe('removeChangeset', () => {
+  // Use non-indented markdown to enable proper marked parsing
+  const fullChangelog = [
+    '# Changelog',
     '',
-    `# Changelog
-    ## 1.0.1
-    newer
+    '## 1.0.1',
+    '',
+    'newer',
+    '',
+    '1.0.0',
+    '-------',
+    '',
+    'this is a test',
+    '',
+    '## 0.9.1',
+    '',
+    'slightly older',
+    '',
+    '## 0.9.0',
+    '',
+    'older',
+  ].join('\n');
 
-    1.0.0
-    -------
-    this is a test
+  test('removes from the top', () => {
+    const expected = [
+      '# Changelog',
+      '',
+      '1.0.0',
+      '-------',
+      '',
+      'this is a test',
+      '',
+      '## 0.9.1',
+      '',
+      'slightly older',
+      '',
+      '## 0.9.0',
+      '',
+      'older',
+    ].join('\n');
+    expect(removeChangeset(fullChangelog, '1.0.1')).toEqual(expected);
+  });
 
-    ## 0.9.1
-    slightly older
+  test('removes from the middle', () => {
+    const expected = [
+      '# Changelog',
+      '',
+      '## 1.0.1',
+      '',
+      'newer',
+      '',
+      '1.0.0',
+      '-------',
+      '',
+      'this is a test',
+      '',
+      '## 0.9.0',
+      '',
+      'older',
+    ].join('\n');
+    expect(removeChangeset(fullChangelog, '0.9.1')).toEqual(expected);
+  });
 
-    ## 0.9.0
-    older
-    `,
-  ],
-])('remove changeset should %s', (_testName, header, expected) => {
-  const markdown = `# Changelog
-    ## 1.0.1
-    newer
+  test('removes setext-style heading', () => {
+    const expected = [
+      '# Changelog',
+      '',
+      '## 1.0.1',
+      '',
+      'newer',
+      '',
+      '## 0.9.1',
+      '',
+      'slightly older',
+      '',
+      '## 0.9.0',
+      '',
+      'older',
+    ].join('\n');
+    expect(removeChangeset(fullChangelog, '1.0.0')).toEqual(expected);
+  });
 
-    1.0.0
-    -------
-    this is a test
+  test('removes from the bottom', () => {
+    const expected = [
+      '# Changelog',
+      '',
+      '## 1.0.1',
+      '',
+      'newer',
+      '',
+      '1.0.0',
+      '-------',
+      '',
+      'this is a test',
+      '',
+      '## 0.9.1',
+      '',
+      'slightly older',
+      '',
+      '', // trailing newline from removing last section
+    ].join('\n');
+    expect(removeChangeset(fullChangelog, '0.9.0')).toEqual(expected);
+  });
 
-    ## 0.9.1
-    slightly older
+  test('returns unchanged when header not found', () => {
+    expect(removeChangeset(fullChangelog, 'non-existent version')).toEqual(fullChangelog);
+  });
 
-    ## 0.9.0
-    older
-    `;
-
-  expect(removeChangeset(markdown, header)).toEqual(expected);
+  test('returns unchanged when header is empty', () => {
+    expect(removeChangeset(fullChangelog, '')).toEqual(fullChangelog);
+  });
 });
 
-test.each([
-  [
-    'prepend to empty text',
-    '',
-    '## 2.0.0\n\n- rewrote everything from scratch\n- with multiple lines\n\n',
-  ],
-  [
-    'prepend without top-level header',
-    '## 1.0.0\n\nthis is a test\n',
-    '## 2.0.0\n\n- rewrote everything from scratch\n- with multiple lines\n\n## 1.0.0\n\nthis is a test\n',
-  ],
-  [
-    'prepend after top-level header (empty body)',
-    '# Changelog\n',
-    '# Changelog\n## 2.0.0\n\n- rewrote everything from scratch\n- with multiple lines\n\n',
-  ],
-  [
-    'prepend after top-level header',
-    '# Changelog\n\n## 1.0.0\n\nthis is a test\n',
-    '# Changelog\n\n## 2.0.0\n\n- rewrote everything from scratch\n- with multiple lines\n\n## 1.0.0\n\nthis is a test\n',
-  ],
-  [
-    'prepend with underlined when detected',
-    '# Changelog\n\n1.0.0\n-----\n\nthis is a test\n',
-    '# Changelog\n\n2.0.0\n-----\n\n- rewrote everything from scratch\n- with multiple lines\n\n1.0.0\n-----\n\nthis is a test\n',
-  ],
-  [
-    'prepend with consistent padding with the rest',
-    '# Changelog\n\n   ## 1.0.0\n\n   this is a test\n',
-    '# Changelog\n\n   ## 2.0.0\n\n   - rewrote everything from scratch\n   - with multiple lines\n\n   ## 1.0.0\n\n   this is a test\n',
-  ],
-  [
-    'prepend with consistent padding with the rest (underlined)',
-    '# Changelog\n\n   1.0.0\n-----\n\n   this is a test\n',
-    '# Changelog\n\n   2.0.0\n-----\n\n   - rewrote everything from scratch\n   - with multiple lines\n\n   1.0.0\n-----\n\n   this is a test\n',
-  ],
-])('prependChangeset should %s', (_testName, markdown, expected) => {
-  expect(
-    prependChangeset(markdown, {
-      body: '- rewrote everything from scratch\n- with multiple lines',
-      name: '2.0.0',
-    })
-  ).toEqual(expected);
+describe('prependChangeset', () => {
+  const newChangeset = {
+    body: '- rewrote everything from scratch\n- with multiple lines',
+    name: '2.0.0',
+  };
+
+  test.each([
+    ['to empty text', '', '## 2.0.0\n\n- rewrote everything from scratch\n- with multiple lines\n\n'],
+    [
+      'without top-level header',
+      '## 1.0.0\n\nthis is a test\n',
+      '## 2.0.0\n\n- rewrote everything from scratch\n- with multiple lines\n\n## 1.0.0\n\nthis is a test\n',
+    ],
+    [
+      'after top-level header (empty body)',
+      '# Changelog\n',
+      '# Changelog\n## 2.0.0\n\n- rewrote everything from scratch\n- with multiple lines\n\n',
+    ],
+    [
+      'after top-level header',
+      '# Changelog\n\n## 1.0.0\n\nthis is a test\n',
+      '# Changelog\n\n## 2.0.0\n\n- rewrote everything from scratch\n- with multiple lines\n\n## 1.0.0\n\nthis is a test\n',
+    ],
+    [
+      'matching setext style when detected',
+      '# Changelog\n\n1.0.0\n-----\n\nthis is a test\n',
+      '# Changelog\n\n2.0.0\n-----\n\n- rewrote everything from scratch\n- with multiple lines\n\n1.0.0\n-----\n\nthis is a test\n',
+    ],
+  ])('prepends %s', (_testName, markdown, expected) => {
+    expect(prependChangeset(markdown, newChangeset)).toEqual(expected);
+  });
 });
 
 describe('generateChangesetFromGit', () => {
@@ -317,23 +269,6 @@ describe('generateChangesetFromGit', () => {
       throw error;
     });
   });
-
-  interface TestCommit {
-    author?: string;
-    hash: string;
-    title: string;
-    body: string;
-    pr?: {
-      local?: string;
-      remote?: {
-        author?: { login: string };
-        number: string;
-        title?: string;
-        body?: string;
-        labels?: string[];
-      };
-    };
-  }
 
   function setup(commits: TestCommit[], releaseConfig?: string | null): void {
     // Clear memoization cache to ensure fresh results

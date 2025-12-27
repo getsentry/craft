@@ -110,12 +110,19 @@ export interface Changeset {
 }
 
 /**
- * A changeset location based on regex matching
+ * A changeset location with position info for slicing
  */
 interface ChangesetLoc {
-  start: RegExpExecArray;
-  end: RegExpExecArray | null;
-  padding: string;
+  /** Start index in the original markdown */
+  startIndex: number;
+  /** End index (start of next heading, or end of document) */
+  endIndex: number;
+  /** The heading title text */
+  title: string;
+  /** Length of the raw heading including newlines */
+  headingLength: number;
+  /** Whether this was a setext-style heading */
+  isSetext: boolean;
 }
 
 function escapeMarkdownPound(text: string): string {
@@ -310,63 +317,75 @@ function parseTokensToEntries(tokens: Token[]): ChangelogEntryItem[] | null {
 }
 
 /**
- * Extracts a specific changeset from a markdown document
- *
- * The changes are bounded by a header preceding the changes and an optional
- * header at the end. If the latter is omitted, the markdown document will be
- * read until its end. The title of the changes will be extracted from the
- * given header.
+ * Extracts a specific changeset from a markdown document using the location info.
  *
  * @param markdown The full changelog markdown
- * @param location The start & end location for the section
- * @returns The extracted changes
+ * @param location The changeset location
+ * @returns The extracted changeset
  */
 function extractChangeset(markdown: string, location: ChangesetLoc): Changeset {
-  const start = location.start.index + location.start[0].length;
-  const end = location.end ? location.end.index : undefined;
-  const body = markdown.substring(start, end).trim();
-  const name = (location.start[2] || location.start[3])
-    .replace(/\(.*\)$/, '')
-    .trim();
+  const bodyStart = location.startIndex + location.headingLength;
+  const body = markdown.substring(bodyStart, location.endIndex).trim();
+  // Remove trailing parenthetical content (e.g., dates) from the title
+  const name = location.title.replace(/\(.*\)$/, '').trim();
   return { name, body };
 }
 
 /**
- * Locates and returns a changeset section with the title passed in header.
- * Supports an optional "predicate" callback used to compare the expected title
- * and the title found in text. Useful for normalizing versions.
+ * Locates a changeset section matching the predicate using marked tokenizer.
+ * Supports both ATX-style (## Header) and Setext-style (Header\n---) headings.
  *
  * @param markdown The full changelog markdown
- * @param predicate A callback that takes the found title and returns true if
- *                  this is a match, false otherwise
- * @returns A ChangesetLoc object where "start" has the match for the header,
- *          and "end" has the match for the next header so the contents
- *          in between can be extracted
+ * @param predicate A callback that takes the found title and returns true if match
+ * @returns A ChangesetLoc object or null if not found
  */
 function locateChangeset(
   markdown: string,
   predicate: (match: string) => boolean
 ): ChangesetLoc | null {
-  const HEADER_REGEX = new RegExp(
-    `^( *)(?:#{${VERSION_HEADER_LEVEL}} +([^\\n]+?) *(?:#{${VERSION_HEADER_LEVEL}})?|([^\\n]+)\\n *(?:-){2,}) *(?:\\n+|$)`,
-    'gm'
-  );
+  const tokens = marked.lexer(markdown);
 
-  for (
-    let match = HEADER_REGEX.exec(markdown);
-    match !== null;
-    match = HEADER_REGEX.exec(markdown)
-  ) {
-    const matchedTitle = match[2] || match[3];
-    if (predicate(matchedTitle)) {
-      const padSize = match?.[1]?.length || 0;
-      return {
-        end: HEADER_REGEX.exec(markdown),
-        start: match,
-        padding: new Array(padSize + 1).join(' '),
-      };
+  // Track position by accumulating raw lengths
+  let pos = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+
+    if (token.type === 'heading' && token.depth === VERSION_HEADER_LEVEL) {
+      const headingToken = token as Tokens.Heading;
+
+      if (predicate(headingToken.text)) {
+        // Find the end position (start of next same-level or higher heading)
+        let endIndex = markdown.length;
+        let searchPos = pos + headingToken.raw.length;
+
+        for (let j = i + 1; j < tokens.length; j++) {
+          const nextToken = tokens[j];
+          if (
+            nextToken.type === 'heading' &&
+            (nextToken as Tokens.Heading).depth <= VERSION_HEADER_LEVEL
+          ) {
+            endIndex = searchPos;
+            break;
+          }
+          searchPos += nextToken.raw.length;
+        }
+
+        // Detect setext-style headings (raw contains \n followed by dashes)
+        const isSetext = /\n\s*-{2,}/.test(headingToken.raw);
+
+        return {
+          startIndex: pos,
+          endIndex,
+          title: headingToken.text,
+          headingLength: headingToken.raw.length,
+          isSetext,
+        };
+      }
     }
+
+    pos += token.raw.length;
   }
+
   return null;
 }
 
@@ -421,9 +440,7 @@ export function removeChangeset(markdown: string, header: string): string {
     return markdown;
   }
 
-  const start = location.start.index;
-  const end = location.end?.index ?? markdown.length;
-  return markdown.slice(0, start) + markdown.slice(end);
+  return markdown.slice(0, location.startIndex) + markdown.slice(location.endIndex);
 }
 
 /**
@@ -442,22 +459,17 @@ export function prependChangeset(
   changeset: Changeset
 ): string {
   // Try to locate the top-most non-empty header, no matter what is inside
-  const { start, padding } = locateChangeset(markdown, Boolean) || {
-    padding: '',
-  };
-  const body = changeset.body || `${padding}${DEFAULT_CHANGESET_BODY}`;
+  const firstHeading = locateChangeset(markdown, Boolean);
+  const body = changeset.body || DEFAULT_CHANGESET_BODY;
   let header;
-  if (start?.[3]) {
+  if (firstHeading?.isSetext) {
     const underline = new Array(changeset.name.length + 1).join('-');
     header = `${changeset.name}\n${underline}`;
   } else {
     header = markdownHeader(VERSION_HEADER_LEVEL, changeset.name);
   }
-  const newSection = `${padding}${header}\n\n${body.replace(
-    /^/gm,
-    padding
-  )}\n\n`;
-  const startIdx = start?.index ?? markdown.length;
+  const newSection = `${header}\n\n${body}\n\n`;
+  const startIdx = firstHeading?.startIndex ?? markdown.length;
 
   return markdown.slice(0, startIdx) + newSection + markdown.slice(startIdx);
 }
