@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { URL } from 'url';
 import nock from 'nock';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
@@ -15,35 +16,44 @@ import { withTempDir } from '../../utils/files';
 import { importGPGKey } from '../../utils/gpg';
 import * as fs from 'fs';
 
-jest.mock('../../utils/files');
-jest.mock('../../utils/gpg');
+vi.mock('../../utils/files');
+vi.mock('../../utils/gpg');
 
-jest.mock('fs', () => ({
-  ...jest.requireActual('fs'),
-  promises: {
-    writeFile: jest.fn(() => Promise.resolve()),
-    readFile: jest.fn((file: string) => file),
-    mkdir: jest.fn(() => Promise.resolve()),
-    readdir: async () => Promise.resolve([]), // empty dir
-    unlink: jest.fn(),
-  },
-}));
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
+  return {
+    ...actual,
+    promises: {
+      writeFile: vi.fn(() => Promise.resolve()),
+      readFile: vi.fn((file: string) => file),
+      mkdir: vi.fn(() => Promise.resolve()),
+      readdir: async () => Promise.resolve([]), // empty dir
+      unlink: vi.fn(),
+    },
+  };
+});
 
-jest.mock('../../utils/system', () => ({
-  ...jest.requireActual('../../utils/system'),
-  checkExecutableIsPresent: jest.fn(),
-  extractZipArchive: jest.fn(),
-}));
+vi.mock('../../utils/system', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../utils/system')>();
+  return {
+    ...actual,
+    checkExecutableIsPresent: vi.fn(),
+    extractZipArchive: vi.fn(),
+  };
+});
 
-jest.mock('../../utils/async', () => ({
-  ...jest.requireActual('../../utils/async'),
-  retrySpawnProcess: jest.fn(() => Promise.resolve()),
-  sleep: jest.fn(() =>
-    setTimeout(() => {
-      Promise.resolve();
-    }, 10)
-  ),
-}));
+vi.mock('../../utils/async', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../utils/async')>();
+  return {
+    ...actual,
+    retrySpawnProcess: vi.fn(() => Promise.resolve()),
+    sleep: vi.fn(() =>
+      setTimeout(() => {
+        Promise.resolve();
+      }, 10)
+    ),
+  };
+});
 
 const DEFAULT_OPTION_VALUE = 'my_default_value';
 
@@ -120,20 +130,20 @@ beforeEach(() => {
 
 afterEach(() => {
   removeTargetSecretsFromEnv();
-  jest.resetAllMocks();
+  vi.resetAllMocks();
 });
 
 describe('Maven target configuration', () => {
   test('no env vars and no options', () => {
     removeTargetSecretsFromEnv();
     expect(createMavenTarget).toThrowErrorMatchingInlineSnapshot(
-      `"Required value(s) GPG_PASSPHRASE not found in configuration files or the environment. See the documentation for more details."`
+      `[Error: Required value(s) GPG_PASSPHRASE not found in configuration files or the environment. See the documentation for more details.]`
     );
   });
 
   test('env vars without options', () => {
     expect(() => createMavenTarget({})).toThrowErrorMatchingInlineSnapshot(
-      `"Required configuration mavenCliPath not found in configuration file. See the documentation for more details."`
+      `[Error: Required configuration mavenCliPath not found in configuration file. See the documentation for more details.]`
     );
   });
 
@@ -141,7 +151,7 @@ describe('Maven target configuration', () => {
     const config = getRequiredTargetConfig();
     delete config.android;
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
-      `"Required Android configuration was not found in the configuration file. See the documentation for more details"`
+      `[Error: Required Android configuration was not found in the configuration file. See the documentation for more details]`
     );
   });
 
@@ -155,7 +165,7 @@ describe('Maven target configuration', () => {
     const config = getRequiredTargetConfig();
     config.android = 'yes';
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
-      `"Required Android configuration is incorrect. See the documentation for more details."`
+      `[Error: Required Android configuration is incorrect. See the documentation for more details.]`
     );
   });
 
@@ -163,7 +173,7 @@ describe('Maven target configuration', () => {
     const config = getRequiredTargetConfig();
     config.kmp = 'yes';
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
-      `"Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details."`
+      `[Error: Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.]`
     );
   });
 
@@ -183,7 +193,7 @@ describe('Maven target configuration', () => {
     const config = getFullTargetConfig();
     delete config.android.distDirRegex;
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
-      `"Required Android configuration is incorrect. See the documentation for more details."`
+      `[Error: Required Android configuration is incorrect. See the documentation for more details.]`
     );
   });
 
@@ -192,7 +202,7 @@ describe('Maven target configuration', () => {
     delete config.kmp.rootDistDirRegex;
     config.kmp.anotherParam = 'unused';
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
-      `"Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details."`
+      `[Error: Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.]`
     );
   });
 
@@ -201,7 +211,7 @@ describe('Maven target configuration', () => {
     delete config.kmp.appleDistDirRegex;
     config.kmp.anotherParam = 'unused';
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
-      `"Required apple configuration for Kotlin Multiplatform is incorrect. See the documentation for more details."`
+      `[Error: Required apple configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.]`
     );
   });
 
@@ -210,7 +220,7 @@ describe('Maven target configuration', () => {
     delete config.android.distDirRegex;
     config.android.anotherParam = 'unused';
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
-      `"Required Android configuration is incorrect. See the documentation for more details."`
+      `[Error: Required Android configuration is incorrect. See the documentation for more details.]`
     );
   });
 
@@ -266,8 +276,8 @@ describe('Maven target configuration', () => {
     process.env.GPG_PRIVATE_KEY = DEFAULT_OPTION_VALUE;
     const callOrder: string[] = [];
     const mvnTarget = createMavenTarget(getFullTargetConfig());
-    mvnTarget.upload = jest.fn(async () => void callOrder.push('upload'));
-    mvnTarget.closeAndReleaseRepository = jest.fn(
+    mvnTarget.upload = vi.fn(async () => void callOrder.push('upload'));
+    mvnTarget.closeAndReleaseRepository = vi.fn(
       async () => void callOrder.push('closeAndReleaseRepository')
     );
     await mvnTarget.publish('1.0.0', 'r3v1s10n');
@@ -279,8 +289,8 @@ describe('publish', () => {
   test('main flow', async () => {
     const callOrder: string[] = [];
     const mvnTarget = createMavenTarget();
-    mvnTarget.upload = jest.fn(async () => void callOrder.push('upload'));
-    mvnTarget.closeAndReleaseRepository = jest.fn(
+    mvnTarget.upload = vi.fn(async () => void callOrder.push('upload'));
+    mvnTarget.closeAndReleaseRepository = vi.fn(
       async () => void callOrder.push('closeAndReleaseRepository')
     );
     const revision = 'r3v1s10n';
@@ -296,7 +306,7 @@ describe('transform KMP artifacts', () => {
   const tmpDirName = 'tmpDir';
 
   test('transform klib distDir target side artifacts', async () => {
-    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+    (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
       }
@@ -324,7 +334,7 @@ describe('transform KMP artifacts', () => {
   });
 
   test('transform apple target side artifacts', async () => {
-    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+    (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
       }
@@ -357,7 +367,7 @@ describe('transform KMP artifacts', () => {
   });
 
   test('transform root target side artifacts', async () => {
-    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+    (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
       }
@@ -392,28 +402,28 @@ describe('upload', () => {
   test('upload POM for Maven', async () => {
     // simple mock to always use the same temporary directory,
     // instead of creating a new one
-    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+    (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
       }
     );
 
     const mvnTarget = createMavenTarget();
-    mvnTarget.getArtifactsForRevision = jest
+    mvnTarget.getArtifactsForRevision = vi
       .fn()
       .mockResolvedValueOnce([{ filename: 'mockArtifact.zip' }]);
-    mvnTarget.artifactProvider.downloadArtifact = jest
+    mvnTarget.artifactProvider.downloadArtifact = vi
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
-    mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
-    mvnTarget.getPomFileInDist = jest
+    mvnTarget.isBomFile = vi.fn().mockResolvedValueOnce(false);
+    mvnTarget.getPomFileInDist = vi
       .fn()
       .mockResolvedValueOnce('pom-default.xml');
 
     await mvnTarget.upload('r3v1s10n');
 
     expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
-    const callArgs = (retrySpawnProcess as jest.MockedFunction<
+    const callArgs = (retrySpawnProcess as MockedFunction<
       typeof retrySpawnProcess
     >).mock.calls[0];
 
@@ -444,29 +454,29 @@ describe('upload', () => {
   test('upload POM for Gradle', async () => {
     // simple mock to always use the same temporary directory,
     // instead of creating a new one
-    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+    (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
       }
     );
 
     const mvnTarget = createMavenTarget();
-    mvnTarget.getArtifactsForRevision = jest
+    mvnTarget.getArtifactsForRevision = vi
       .fn()
       .mockResolvedValueOnce([{ filename: 'mockArtifact.zip' }]);
-    mvnTarget.artifactProvider.downloadArtifact = jest
+    mvnTarget.artifactProvider.downloadArtifact = vi
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
-    mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
-    mvnTarget.getPomFileInDist = jest
+    mvnTarget.isBomFile = vi.fn().mockResolvedValueOnce(false);
+    mvnTarget.getPomFileInDist = vi
       .fn()
       .mockResolvedValueOnce('pom-default.xml');
-    mvnTarget.fileExists = jest.fn().mockResolvedValue(true);
+    mvnTarget.fileExists = vi.fn().mockResolvedValue(true);
 
     await mvnTarget.upload('r3v1s10n');
 
     expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
-    const callArgs = (retrySpawnProcess as jest.MockedFunction<
+    const callArgs = (retrySpawnProcess as MockedFunction<
       typeof retrySpawnProcess
     >).mock.calls[0];
 
@@ -497,26 +507,26 @@ describe('upload', () => {
   test('upload BOM', async () => {
     // simple mock to always use the same temporary directory,
     // instead of creating a new one
-    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+    (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
       }
     );
 
     const mvnTarget = createMavenTarget();
-    mvnTarget.getArtifactsForRevision = jest
+    mvnTarget.getArtifactsForRevision = vi
       .fn()
       .mockResolvedValueOnce([{ filename: 'mockArtifact.zip' }]);
-    mvnTarget.artifactProvider.downloadArtifact = jest
+    mvnTarget.artifactProvider.downloadArtifact = vi
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
-    mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce('path/to/bomfile');
-    mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce(undefined);
+    mvnTarget.isBomFile = vi.fn().mockResolvedValueOnce('path/to/bomfile');
+    mvnTarget.getPomFileInDist = vi.fn().mockResolvedValueOnce(undefined);
 
     await mvnTarget.upload('r3v1s10n');
 
     expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
-    const callArgs = (retrySpawnProcess as jest.MockedFunction<
+    const callArgs = (retrySpawnProcess as MockedFunction<
       typeof retrySpawnProcess
     >).mock.calls[0];
 
@@ -540,7 +550,7 @@ describe('upload', () => {
   });
 
   test('should skip upload for artifacts without any POM/BOM', async () => {
-    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+    (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
       }
@@ -548,15 +558,15 @@ describe('upload', () => {
 
     const mvnTarget = createMavenTarget();
 
-    mvnTarget.getArtifactsForRevision = jest
+    mvnTarget.getArtifactsForRevision = vi
       .fn()
       .mockResolvedValueOnce([{ filename: 'mockArtifact.zip' }]);
-    mvnTarget.artifactProvider.downloadArtifact = jest
+    mvnTarget.artifactProvider.downloadArtifact = vi
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
 
-    mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
-    mvnTarget.getPomFileInDist = jest.fn().mockResolvedValueOnce(undefined);
+    mvnTarget.isBomFile = vi.fn().mockResolvedValueOnce(false);
+    mvnTarget.getPomFileInDist = vi.fn().mockResolvedValueOnce(undefined);
 
     await mvnTarget.upload('r3v1s10n');
 
@@ -567,14 +577,14 @@ describe('upload', () => {
     const klibDistDirName = 'sentry-klib-distDir-linuxx64-1.0.0'; // matches klib regex
     const klibDistDir = `${tmpDirName}/${klibDistDirName}`;
 
-    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+    (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
       }
     );
 
     // Override fs.promises.readdir for this test to return klib files
-    const readdirSpy = jest
+    const readdirSpy = vi
       .spyOn(fs.promises, 'readdir')
       .mockImplementation((dirPath: any) => {
         if (dirPath.toString().includes(klibDistDirName)) {
@@ -590,22 +600,22 @@ describe('upload', () => {
       });
 
     const mvnTarget = createMavenTarget(getFullTargetConfig());
-    mvnTarget.getArtifactsForRevision = jest
+    mvnTarget.getArtifactsForRevision = vi
       .fn()
       .mockResolvedValueOnce([{ filename: `${klibDistDirName}.zip` }]);
-    mvnTarget.artifactProvider.downloadArtifact = jest
+    mvnTarget.artifactProvider.downloadArtifact = vi
       .fn()
       .mockResolvedValueOnce('artifact/download/path');
-    mvnTarget.isBomFile = jest.fn().mockResolvedValueOnce(false);
-    mvnTarget.getPomFileInDist = jest
+    mvnTarget.isBomFile = vi.fn().mockResolvedValueOnce(false);
+    mvnTarget.getPomFileInDist = vi
       .fn()
       .mockResolvedValueOnce('pom-default.xml');
-    mvnTarget.fileExists = jest.fn().mockResolvedValue(true);
+    mvnTarget.fileExists = vi.fn().mockResolvedValue(true);
 
     await mvnTarget.upload('r3v1s10n');
 
     expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
-    const callArgs = (retrySpawnProcess as jest.MockedFunction<
+    const callArgs = (retrySpawnProcess as MockedFunction<
       typeof retrySpawnProcess
     >).mock.calls[0];
 
@@ -640,7 +650,7 @@ describe('upload', () => {
 describe('closeAndReleaseRepository', () => {
   test('should throw if repository is not opened', async () => {
     const mvnTarget = createMavenTarget();
-    mvnTarget.getRepository = jest.fn(() =>
+    mvnTarget.getRepository = vi.fn(() =>
       Promise.resolve(getRepositoryInfo('closed'))
     );
     await expect(mvnTarget.closeAndReleaseRepository()).rejects.toThrow();
@@ -648,15 +658,15 @@ describe('closeAndReleaseRepository', () => {
 
   test('should call closeRepository and releaseRepository with fetched repository ID', async () => {
     const mvnTarget = createMavenTarget();
-    mvnTarget.getRepository = jest.fn(() =>
+    mvnTarget.getRepository = vi.fn(() =>
       Promise.resolve(getRepositoryInfo('open'))
     );
     const callOrder: string[] = [];
-    mvnTarget.closeRepository = jest.fn(async () => {
+    mvnTarget.closeRepository = vi.fn(async () => {
       callOrder.push('closeRepository');
       return true;
     });
-    mvnTarget.releaseRepository = jest.fn(async () => {
+    mvnTarget.releaseRepository = vi.fn(async () => {
       callOrder.push('releaseRepository');
       return true;
     });
@@ -670,11 +680,11 @@ describe('closeAndReleaseRepository', () => {
 
   test('should not release repostiory if it was not closed properly', async () => {
     const mvnTarget = createMavenTarget();
-    mvnTarget.getRepository = jest.fn(() =>
+    mvnTarget.getRepository = vi.fn(() =>
       Promise.resolve(getRepositoryInfo('open'))
     );
-    mvnTarget.closeRepository = jest.fn(() => Promise.reject());
-    mvnTarget.releaseRepository = jest.fn(() => Promise.resolve(true));
+    mvnTarget.closeRepository = vi.fn(() => Promise.reject());
+    mvnTarget.releaseRepository = vi.fn(() => Promise.resolve(true));
 
     try {
       await mvnTarget.closeAndReleaseRepository();
@@ -759,7 +769,7 @@ describe('closeRepository', () => {
       .reply(200);
 
     const mvnTarget = createMavenTarget();
-    mvnTarget.getRepository = jest.fn(() =>
+    mvnTarget.getRepository = vi.fn(() =>
       Promise.resolve(getRepositoryInfo('closed'))
     );
 
@@ -797,7 +807,7 @@ describe('closeRepository', () => {
       .reply(200);
 
     const mvnTarget = createMavenTarget();
-    mvnTarget.getRepository = jest
+    mvnTarget.getRepository = vi
       .fn()
       .mockImplementationOnce(() => Promise.resolve(getRepositoryInfo('open')))
       .mockImplementationOnce(() => Promise.resolve(getRepositoryInfo('open')))
@@ -822,13 +832,13 @@ describe('closeRepository', () => {
       .reply(200);
 
     const mvnTarget = createMavenTarget();
-    mvnTarget.getRepository = jest.fn(() =>
+    mvnTarget.getRepository = vi.fn(() =>
       Promise.resolve(getRepositoryInfo('open'))
     );
 
     // Deadline is 2h, so we fake pooling start time and initial read to 1min
     // and second iteration to something over 2h
-    jest
+    vi
       .spyOn(Date, 'now')
       .mockImplementationOnce(() => 1 * 60 * 1000)
       .mockImplementationOnce(() => 1 * 60 * 1000)
@@ -866,7 +876,7 @@ describe('releaseRepository', () => {
       });
 
     const mvnTarget = createMavenTarget();
-    mvnTarget.getRepository = jest.fn(() =>
+    mvnTarget.getRepository = vi.fn(() =>
       Promise.resolve(getRepositoryInfo('closed'))
     );
     await expect(mvnTarget.releaseRepository(repositoryId)).resolves.toBe(true);
@@ -884,7 +894,7 @@ describe('releaseRepository', () => {
       .reply(500);
 
     const mvnTarget = createMavenTarget();
-    mvnTarget.getRepository = jest.fn(() =>
+    mvnTarget.getRepository = vi.fn(() =>
       Promise.resolve(getRepositoryInfo('closed'))
     );
     await expect(mvnTarget.releaseRepository(repositoryId)).rejects.toThrow(
@@ -906,7 +916,7 @@ describe('releaseRepository', () => {
       .reply(200);
 
     const mvnTarget = createMavenTarget();
-    mvnTarget.getRepository = jest.fn(() =>
+    mvnTarget.getRepository = vi.fn(() =>
       Promise.resolve(getRepositoryInfo('closed'))
     );
 
@@ -939,7 +949,7 @@ describe('releaseRepository', () => {
       .reply(200);
 
     const mvnTarget = createMavenTarget();
-    mvnTarget.getRepository = jest.fn(() =>
+    mvnTarget.getRepository = vi.fn(() =>
       Promise.resolve(getRepositoryInfo('closed'))
     );
 
@@ -951,7 +961,7 @@ describe('releaseRepository', () => {
 
     // Deadline is 2h, so we fake pooling start time and initial read to 1min
     // and second iteration to something over 2h
-    jest
+    vi
       .spyOn(Date, 'now')
       .mockImplementationOnce(() => 1 * 60 * 1000)
       .mockImplementationOnce(() => 1 * 60 * 1000)

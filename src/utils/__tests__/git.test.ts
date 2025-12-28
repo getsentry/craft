@@ -1,10 +1,11 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { getLatestTag } from '../git';
 import * as loggerModule from '../../logger';
 
 describe('getLatestTag', () => {
   it('returns latest tag in the repo by calling `git describe`', async () => {
     const git = {
-      raw: jest.fn().mockResolvedValue('1.0.0'),
+      raw: vi.fn().mockResolvedValue('1.0.0'),
     } as any;
 
     const latestTag = await getLatestTag(git);
@@ -18,7 +19,7 @@ describe('getLatestTag', () => {
 
     const error = new Error('fatal: No names found');
     const git = {
-      raw: jest.fn().mockRejectedValue(error),
+      raw: vi.fn().mockRejectedValue(error),
     } as any;
 
     const latestTag = await getLatestTag(git);
