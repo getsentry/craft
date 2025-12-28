@@ -26,8 +26,8 @@ yarn build && ./dist/craft
 ## Code Style
 
 - **TypeScript** is used throughout the codebase.
-- **Prettier** with single quotes and no arrow parens (configured in `.prettierrc.yml`).
-- **ESLint** extends `@typescript-eslint/recommended`.
+- **Prettier** 3.x with single quotes and no arrow parens (configured in `.prettierrc.yml`).
+- **ESLint** 9.x with flat config (`eslint.config.mjs`) using `typescript-eslint`.
 - Unused variables prefixed with `_` are allowed (e.g., `_unusedParam`).
 
 ## Project Structure
@@ -38,7 +38,7 @@ src/
 ├── __tests__/          # Test files (*.test.ts)
 ├── artifact_providers/ # Artifact provider implementations
 ├── commands/           # CLI command implementations
-├── schemas/            # JSON schema and TypeScript types for config
+├── schemas/            # Zod schemas and TypeScript types for config
 ├── status_providers/   # Status provider implementations
 ├── targets/            # Release target implementations
 ├── types/              # Shared TypeScript types
@@ -52,9 +52,10 @@ dist/
 
 ## Testing
 
-- Tests use **Jest** with `ts-jest`.
+- Tests use **Vitest**.
 - Test files are located in `src/__tests__/` and follow the `*.test.ts` naming pattern.
 - Run tests with `yarn test`.
+- Use `vi.fn()`, `vi.mock()`, `vi.spyOn()` for mocking (Vitest's mock API).
 
 ## CI/CD
 

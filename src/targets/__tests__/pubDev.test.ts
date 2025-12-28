@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { promises as fsPromises } from 'fs';
 import { platform } from 'os';
 import simpleGit from 'simple-git';
@@ -6,39 +7,49 @@ import { spawnProcess } from '../../utils/system';
 import { isDryRun } from '../../utils/helpers';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 
-jest.mock('../../utils/helpers');
-jest.mock('../../utils/system');
-jest.mock('../../utils/files', () => ({
-  ...jest.requireActual('../../utils/files'),
-  withTempDir: async (cb: (dir: string) => Promise<void>) => cb(TMP_DIR),
-}));
+const TMP_DIR = '/tmp/dir';
 
-jest.mock('os', () => ({
-  ...jest.requireActual('os'),
-  platform: jest.fn(() => 'darwin'),
-  homedir: jest.fn(() => '/usr'),
-}));
+vi.mock('../../utils/helpers');
+vi.mock('../../utils/system');
+vi.mock('../../utils/files', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../utils/files')>();
+  return {
+    ...actual,
+    withTempDir: async (cb: (dir: string) => Promise<void>) => cb(TMP_DIR),
+  };
+});
 
-jest.mock('fs', () => ({
-  ...jest.requireActual('fs'),
-  promises: {
-    access: jest.fn(() => Promise.resolve()),
-    mkdir: jest.fn(() => Promise.resolve()),
-    writeFile: jest.fn(() => Promise.resolve()),
-    readFile: jest.fn(() => Promise.resolve()),
-  },
-}));
+vi.mock('os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('os')>();
+  return {
+    ...actual,
+    platform: vi.fn(() => 'darwin'),
+    homedir: vi.fn(() => '/usr'),
+  };
+});
 
-jest.mock('simple-git', () => ({
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
+  return {
+    ...actual,
+    promises: {
+      access: vi.fn(() => Promise.resolve()),
+      mkdir: vi.fn(() => Promise.resolve()),
+      writeFile: vi.fn(() => Promise.resolve()),
+      readFile: vi.fn(() => Promise.resolve()),
+    },
+  };
+});
+
+vi.mock('simple-git', () => ({
   __esModule: true, // this property makes default export work
-  default: jest.fn(() => ({
-    clone: jest.fn(async (): Promise<void> => Promise.resolve()),
-    checkout: jest.fn(async (): Promise<void> => Promise.resolve()),
+  default: vi.fn(() => ({
+    clone: vi.fn(async (): Promise<void> => Promise.resolve()),
+    checkout: vi.fn(async (): Promise<void> => Promise.resolve()),
   })),
 }));
 
 const DEFAULT_OPTION_VALUE = 'my_default_value';
-const TMP_DIR = '/tmp/dir';
 
 function setTargetSecretsInEnv(): void {
   for (const option of targetSecrets) {
@@ -71,7 +82,7 @@ beforeEach(() => {
 
 afterEach(() => {
   removeTargetSecretsFromEnv();
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 describe('PubDev target configuration', () => {
@@ -79,12 +90,12 @@ describe('PubDev target configuration', () => {
     removeTargetSecretsFromEnv();
 
     expect(createPubDevTarget).toThrowErrorMatchingInlineSnapshot(
-      `"Required value(s) PUBDEV_ACCESS_TOKEN not found in configuration files or the environment. See the documentation for more details."`
+      `[Error: Required value(s) PUBDEV_ACCESS_TOKEN not found in configuration files or the environment. See the documentation for more details.]`
     );
 
     process.env.PUBDEV_ACCESS_TOKEN = DEFAULT_OPTION_VALUE;
     expect(createPubDevTarget).toThrowErrorMatchingInlineSnapshot(
-      `"Required value(s) PUBDEV_REFRESH_TOKEN not found in configuration files or the environment. See the documentation for more details."`
+      `[Error: Required value(s) PUBDEV_REFRESH_TOKEN not found in configuration files or the environment. See the documentation for more details.]`
     );
 
     process.env.PUBDEV_REFRESH_TOKEN = DEFAULT_OPTION_VALUE;
@@ -133,13 +144,13 @@ describe('publish', () => {
     const revision = 'r3v1s10n';
     const callOrder: string[] = [];
     const target = createPubDevTarget();
-    target.createCredentialsFile = jest.fn(
+    target.createCredentialsFile = vi.fn(
       async () => void callOrder.push('createCredentialsFile')
     );
-    target.cloneRepository = jest.fn(
+    target.cloneRepository = vi.fn(
       async () => void callOrder.push('cloneRepository')
     );
-    target.publishPackage = jest.fn(
+    target.publishPackage = vi.fn(
       async () => void callOrder.push('publishPackage')
     );
 
@@ -169,13 +180,13 @@ describe('publish', () => {
         tres: undefined,
       },
     });
-    target.createCredentialsFile = jest.fn(
+    target.createCredentialsFile = vi.fn(
       async () => void callOrder.push('createCredentialsFile')
     );
-    target.cloneRepository = jest.fn(
+    target.cloneRepository = vi.fn(
       async () => void callOrder.push('cloneRepository')
     );
-    target.publishPackage = jest.fn(
+    target.publishPackage = vi.fn(
       async () => void callOrder.push('publishPackage')
     );
 
@@ -203,17 +214,17 @@ describe('publish', () => {
     const revision = 'r3v1s10n';
     const callOrder: string[] = [];
     const target = createPubDevTarget();
-    target.createCredentialsFile = jest.fn(
+    target.createCredentialsFile = vi.fn(
       async () => void callOrder.push('createCredentialsFile')
     );
-    target.cloneRepository = jest.fn(
+    target.cloneRepository = vi.fn(
       async () => void callOrder.push('cloneRepository')
     );
-    target.publishPackage = jest.fn(
+    target.publishPackage = vi.fn(
       async () => void callOrder.push('publishPackage')
     );
 
-    const isDryRunMock = isDryRun as jest.MockedFunction<typeof isDryRun>;
+    const isDryRunMock = isDryRun as MockedFunction<typeof isDryRun>;
     isDryRunMock.mockImplementationOnce(() => true);
 
     await target.publish('1.0.0', revision);
@@ -227,17 +238,17 @@ describe('publish', () => {
 
 describe('createCredentialsFile', () => {
   test('should not create a file if one is already present', async () => {
-    fsPromises.access = jest.fn(() => Promise.resolve());
+    fsPromises.access = vi.fn(() => Promise.resolve());
     const target = createPubDevTarget();
     await target.createCredentialsFile();
     expect(fsPromises.writeFile).not.toHaveBeenCalled();
   });
 
   test('should create a file if one is not present', async () => {
-    fsPromises.access = jest.fn(() => Promise.reject());
+    fsPromises.access = vi.fn(() => Promise.reject());
     const target = createPubDevTarget();
     await target.createCredentialsFile();
-    const writeFileMock = fsPromises.writeFile as jest.MockedFunction<
+    const writeFileMock = fsPromises.writeFile as MockedFunction<
       typeof fsPromises.writeFile
     >;
     const [path, content] = writeFileMock.mock.calls[0];
@@ -251,8 +262,8 @@ describe('createCredentialsFile', () => {
   });
 
   test('should make sure that directory exists before writing credentials file', async () => {
-    fsPromises.access = jest.fn(() => Promise.reject());
-    (platform as jest.MockedFunction<typeof platform>).mockImplementationOnce(
+    fsPromises.access = vi.fn(() => Promise.reject());
+    (platform as MockedFunction<typeof platform>).mockImplementationOnce(
       () => 'linux'
     );
     const target = createPubDevTarget();
@@ -263,8 +274,8 @@ describe('createCredentialsFile', () => {
   });
 
   test('should choose path based on the platform', async () => {
-    fsPromises.access = jest.fn(() => Promise.reject());
-    (platform as jest.MockedFunction<typeof platform>).mockImplementationOnce(
+    fsPromises.access = vi.fn(() => Promise.reject());
+    (platform as MockedFunction<typeof platform>).mockImplementationOnce(
       () => 'linux'
     );
     const target = createPubDevTarget();
@@ -276,8 +287,8 @@ describe('createCredentialsFile', () => {
   });
 
   test('should throw when run on unsupported platform', async () => {
-    fsPromises.access = jest.fn(() => Promise.reject());
-    (platform as jest.MockedFunction<typeof platform>).mockImplementationOnce(
+    fsPromises.access = vi.fn(() => Promise.reject());
+    (platform as MockedFunction<typeof platform>).mockImplementationOnce(
       () => 'win32'
     );
     const target = createPubDevTarget();
@@ -291,7 +302,7 @@ describe('cloneRepository', () => {
     const target = createPubDevTarget();
     await target.cloneRepository(target.githubRepo, revision, TMP_DIR);
 
-    const simpleGitMock = simpleGit as jest.MockedFunction<typeof simpleGit>;
+    const simpleGitMock = simpleGit as MockedFunction<typeof simpleGit>;
     const simpleGitMockRv = simpleGitMock.mock.results[0].value;
 
     expect(simpleGitMock).toHaveBeenCalledWith(TMP_DIR);
@@ -308,7 +319,7 @@ describe('publishPackage', () => {
     const pkg = 'uno';
     const target = createPubDevTarget();
 
-    const readFileMock = fsPromises.readFile as jest.MockedFunction<
+    const readFileMock = fsPromises.readFile as MockedFunction<
       typeof fsPromises.readFile
     >;
     readFileMock.mockImplementationOnce(() =>
@@ -336,7 +347,7 @@ dependency_overrides:
 
     await target.publishPackage(TMP_DIR, pkg);
 
-    const writeFileMock = fsPromises.writeFile as jest.MockedFunction<
+    const writeFileMock = fsPromises.writeFile as MockedFunction<
       typeof fsPromises.writeFile
     >;
 
@@ -362,12 +373,12 @@ dependency_overrides:
     const pkg = 'uno';
     const target = createPubDevTarget();
 
-    const isDryRunMock = isDryRun as jest.MockedFunction<typeof isDryRun>;
+    const isDryRunMock = isDryRun as MockedFunction<typeof isDryRun>;
     isDryRunMock.mockImplementationOnce(() => true);
 
     await target.publishPackage(TMP_DIR, pkg);
 
-    const writeFileMock = fsPromises.writeFile as jest.MockedFunction<
+    const writeFileMock = fsPromises.writeFile as MockedFunction<
       typeof fsPromises.writeFile
     >;
 
@@ -379,7 +390,7 @@ dependency_overrides:
     const target = createPubDevTarget();
     await target.publishPackage(TMP_DIR, pkg);
 
-    const spawnProcessMock = spawnProcess as jest.MockedFunction<
+    const spawnProcessMock = spawnProcess as MockedFunction<
       typeof spawnProcess
     >;
 
@@ -398,7 +409,7 @@ dependency_overrides:
     const target = createPubDevTarget({ skipValidation: true });
     await target.publishPackage(TMP_DIR, pkg);
 
-    const spawnProcessMock = spawnProcess as jest.MockedFunction<
+    const spawnProcessMock = spawnProcess as MockedFunction<
       typeof spawnProcess
     >;
 
@@ -420,7 +431,7 @@ dependency_overrides:
     });
     await target.publishPackage(TMP_DIR, pkg);
 
-    const spawnProcessMock = spawnProcess as jest.MockedFunction<
+    const spawnProcessMock = spawnProcess as MockedFunction<
       typeof spawnProcess
     >;
 
@@ -438,11 +449,11 @@ dependency_overrides:
     const pkg = 'uno';
     const target = createPubDevTarget();
 
-    const spawnProcessMock = spawnProcess as jest.MockedFunction<
+    const spawnProcessMock = spawnProcess as MockedFunction<
       typeof spawnProcess
     >;
 
-    const isDryRunMock = isDryRun as jest.MockedFunction<typeof isDryRun>;
+    const isDryRunMock = isDryRun as MockedFunction<typeof isDryRun>;
     isDryRunMock.mockImplementationOnce(() => true);
 
     await target.publishPackage(TMP_DIR, pkg);

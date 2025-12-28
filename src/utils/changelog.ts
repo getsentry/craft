@@ -1375,29 +1375,29 @@ export async function generateChangelogWithHighlight(
   // Step 1: Fetch PR info from GitHub
   const prInfo = await fetchPRInfo(currentPRNumber);
 
-  // Step 2: Check if PR should be skipped - bypass changelog generation but still determine bump type
-  if (shouldSkipCurrentPR(prInfo)) {
-    // Even skipped PRs contribute to version bumping based on their title
-    const bumpType = getBumpTypeForPR(prInfo);
+  // Step 2: Calculate bump type for this specific PR (used for both skipped and non-skipped PRs)
+  const prBumpType = getBumpTypeForPR(prInfo);
 
+  // Step 3: Check if PR should be skipped - bypass changelog generation but still return bump type
+  if (shouldSkipCurrentPR(prInfo)) {
     return {
       changelog: '',
-      bumpType,
+      bumpType: prBumpType,
       totalCommits: 1,
-      matchedCommitsWithSemver: bumpType ? 1 : 0,
+      matchedCommitsWithSemver: prBumpType ? 1 : 0,
       prSkipped: true,
     };
   }
 
-  // Step 3: Fetch the base branch to get current state
+  // Step 4: Fetch the base branch to get current state
   await git.fetch('origin', prInfo.baseRef);
   const baseRef = `origin/${prInfo.baseRef}`;
   logger.debug(`Using PR base branch "${prInfo.baseRef}" for changelog`);
 
-  // Step 4: Fetch raw commit info up to base branch
+  // Step 5: Fetch raw commit info up to base branch
   const rawCommits = await fetchRawCommitInfo(git, rev, baseRef);
 
-  // Step 5: Add current PR to the list with highlight flag (at the beginning)
+  // Step 6: Add current PR to the list with highlight flag (at the beginning)
   const currentPRCommit: RawCommitInfo = {
     hash: prInfo.headSha,
     title: prInfo.title.trim(),
@@ -1413,19 +1413,31 @@ export async function generateChangelogWithHighlight(
   // Git log returns commits newest-first, so this maintains that order.
   const allCommits = [currentPRCommit, ...rawCommits];
 
-  // Step 6: Process reverts - cancel out revert/reverted pairs
+  // Step 7: Process reverts - cancel out revert/reverted pairs
   const filteredCommits = processReverts(allCommits);
 
-  // Step 7: Run categorization on filtered list
+  // Step 8: Check if current PR was cancelled by revert processing
+  const currentPRSurvived = filteredCommits.some(c => c.highlight);
+
+  // Step 9: Run categorization on filtered list
   const { data: rawData, stats } = categorizeCommits(filteredCommits);
 
-  // Step 8: Serialize to markdown
+  // Step 10: Serialize to markdown
   const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS);
+
+  // Determine bump type:
+  // - If current PR survived revert processing, use its specific bump type (PR 676 fix)
+  //   This shows "what is this PR's contribution to the version bump"
+  // - If current PR was cancelled (it's a revert that cancelled another commit),
+  //   show the remaining commits' aggregated bump type (the net effect on the release)
+  const bumpType = currentPRSurvived ? prBumpType : stats.bumpType;
 
   return {
     changelog,
     prSkipped: false,
-    ...stats,
+    bumpType,
+    totalCommits: stats.totalCommits,
+    matchedCommitsWithSemver: stats.matchedCommitsWithSemver,
   };
 }
 

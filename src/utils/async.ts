@@ -103,7 +103,7 @@ export async function filterAsync<T>(
 export async function forEachChained<T>(
   array: T[],
   iteratee: (x: T) => any,
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+   
   thisArg?: any
 ): Promise<void> {
   return array.reduce(

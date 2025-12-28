@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 /**
  * Tests for changelog utility functions.
  * - shouldExcludePR: Checks if a PR should be excluded from changelog
@@ -442,79 +443,6 @@ describe('processReverts', () => {
     expect(result[0].hash).toBe('def456');
   });
 
-  it('handles current PR preview scenario - revert PR cancels existing commit', () => {
-    // Simulates generateChangelogWithHighlight where current PR is prepended (newest).
-    // Commits in newest-first order (git log order, current PR first).
-    const commits = [
-      // Current PR (newest, using headSha)
-      commit(
-        'pr-head-sha',
-        'Revert "feat: add feature"',
-        'This reverts commit abc123.',
-        'Revert "feat: add feature"',
-        'This reverts commit abc123.\n\nReverting due to issues.'
-      ),
-      // Existing commit in base branch (older)
-      commit('abc123', 'feat: add feature'),
-    ];
-    const result = processReverts(commits);
-    // Both should cancel out
-    expect(result).toEqual([]);
-  });
-
-  it('handles current PR preview scenario - revert PR uses title matching', () => {
-    // When PR body doesn't contain SHA, falls back to title matching.
-    // Commits in newest-first order.
-    const commits = [
-      commit(
-        'pr-head-sha',
-        'Revert "feat: add feature"',
-        '',
-        'Revert "feat: add feature"',
-        'Reverting this PR due to issues.'  // No SHA in body
-      ),
-      commit('abc123', 'feat: add feature'),
-    ];
-    const result = processReverts(commits);
-    expect(result).toEqual([]);
-  });
-
-  it('handles current PR preview scenario - non-revert PR unaffected', () => {
-    // Commits in newest-first order
-    const commits = [
-      commit(
-        'pr-head-sha',
-        'feat: new feature',
-        '',
-        'feat: new feature',
-        'Adding a new feature'
-      ),
-      commit('abc123', 'fix: bug fix'),
-    ];
-    const result = processReverts(commits);
-    expect(result).toHaveLength(2);
-  });
-
-  it('handles double revert in preview scenario', () => {
-    // Current PR is Revert Revert, should cancel with existing Revert.
-    // Commits in newest-first order: Current PR (newest) -> B (Revert A) -> A (original, oldest)
-    const commits = [
-      // Current PR - Revert Revert (newest)
-      commit(
-        'pr-head-sha',
-        'Revert "Revert "feat: add feature""',
-        'This reverts commit def456.',
-        'Revert "Revert "feat: add feature""',
-        'This reverts commit def456.'
-      ),
-      // Revert A
-      commit('def456', 'Revert "feat: add feature"', 'This reverts commit abc123.'),
-      // Original commit A (oldest)
-      commit('abc123', 'feat: add feature'),
-    ];
-    const result = processReverts(commits);
-    // Current PR cancels def456, leaving abc123
-    expect(result).toHaveLength(1);
-    expect(result[0].hash).toBe('abc123');
-  });
+  // Note: "current PR preview scenario" tests are covered by integration tests
+  // in changelog-generate.test.ts under generateChangelogWithHighlight
 });
