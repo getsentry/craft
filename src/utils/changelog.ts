@@ -482,6 +482,8 @@ interface PullRequest {
   title: string;
   /** Whether this entry should be highlighted in output */
   highlight?: boolean;
+  /** The pattern that matched this PR (for title stripping) */
+  matchedPattern?: RegExp;
 }
 
 /**
@@ -603,6 +605,10 @@ export interface ReleaseConfig {
 /**
  * Default release configuration based on conventional commits
  * Used when .github/release.yml doesn't exist
+ *
+ * Patterns use named capture groups for title stripping:
+ * - (?<type>...) - The prefix to strip from changelog entries
+ * - (?<scope>...) - The scope to preserve when not under a scope header
  */
 export const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
   changelog: {
@@ -612,27 +618,29 @@ export const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
     categories: [
       {
         title: 'Breaking Changes 🛠',
-        commit_patterns: ['^\\w+(?:\\([^)]+\\))?!:'],
+        commit_patterns: ['^(?<type>\\w+(?:\\((?<scope>[^)]+)\\))?!:\\s*)'],
         semver: 'major',
       },
       {
         title: 'New Features ✨',
-        commit_patterns: ['^feat\\b'],
+        commit_patterns: ['^(?<type>feat(?:\\((?<scope>[^)]+)\\))?!?:\\s*)'],
         semver: 'minor',
       },
       {
         title: 'Bug Fixes 🐛',
-        commit_patterns: ['^fix\\b'],
+        commit_patterns: ['^(?<type>fix(?:\\((?<scope>[^)]+)\\))?!?:\\s*)'],
         semver: 'patch',
       },
       {
         title: 'Documentation 📚',
-        commit_patterns: ['^docs?\\b'],
+        commit_patterns: ['^(?<type>docs?(?:\\((?<scope>[^)]+)\\))?!?:\\s*)'],
         semver: 'patch',
       },
       {
         title: 'Build / dependencies / internal 🔧',
-        commit_patterns: ['^(?:build|refactor|meta|chore|ci|ref|perf)\\b'],
+        commit_patterns: [
+          '^(?<type>(?:build|refactor|meta|chore|ci|ref|perf)(?:\\((?<scope>[^)]+)\\))?!?:\\s*)',
+        ],
         semver: 'patch',
       },
     ],
@@ -856,14 +864,14 @@ export function getBumpTypeForPR(prInfo: CurrentPRInfo): BumpType | null {
   const releaseConfig = normalizeReleaseConfig(rawConfig);
   const labels = new Set(prInfo.labels);
 
-  const matchedCategory = matchCommitToCategory(
+  const match = matchCommitToCategory(
     labels,
     prInfo.author,
     prInfo.title.trim(),
     releaseConfig
   );
 
-  return matchedCategory?.semver ?? null;
+  return match?.category.semver ?? null;
 }
 
 /**
@@ -890,18 +898,27 @@ export function isCategoryExcluded(
 }
 
 /**
+ * Result of matching a commit to a category.
+ */
+export interface CategoryMatchResult {
+  category: NormalizedCategory;
+  /** The pattern that matched (only set when matched via commit_patterns) */
+  matchedPattern?: RegExp;
+}
+
+/**
  * Matches a PR's labels or commit title to a category from release config.
  * Labels take precedence over commit log pattern matching.
  * Category-level exclusions are checked here - they exclude the PR from matching this specific category,
  * allowing it to potentially match other categories or fall through to "Other"
- * @returns The matched category or null if no match or excluded from all categories
+ * @returns The matched category and pattern, or null if no match or excluded from all categories
  */
 export function matchCommitToCategory(
   labels: Set<string>,
   author: string | undefined,
   title: string,
   config: NormalizedReleaseConfig | null
-): NormalizedCategory | null {
+): CategoryMatchResult | null {
   if (!config?.changelog || config.changelog.categories.length === 0) {
     return null;
   }
@@ -927,22 +944,26 @@ export function matchCommitToCategory(
   }
 
   // First pass: try label matching (skip if no labels)
+  // Label matches don't return a pattern (no stripping for label-based categorization)
   if (labels.size > 0) {
     for (const category of regularCategories) {
       const matchesCategory = category.labels.some(label => labels.has(label));
       if (matchesCategory && !isCategoryExcluded(category, labels, author)) {
-        return category;
+        return { category };
       }
     }
   }
 
   // Second pass: try commit_patterns matching
+  // Return the matched pattern for title stripping
   for (const category of regularCategories) {
-    const matchesPattern = category.commitLogPatterns.some(re =>
-      re.test(title)
-    );
-    if (matchesPattern && !isCategoryExcluded(category, labels, author)) {
-      return category;
+    for (const pattern of category.commitLogPatterns) {
+      if (pattern.test(title)) {
+        if (!isCategoryExcluded(category, labels, author)) {
+          return { category, matchedPattern: pattern };
+        }
+        break; // This category is excluded, try next category
+      }
     }
   }
 
@@ -950,7 +971,7 @@ export function matchCommitToCategory(
     if (isCategoryExcluded(wildcardCategory, labels, author)) {
       return null;
     }
-    return wildcardCategory;
+    return { category: wildcardCategory };
   }
 
   return null;
@@ -970,6 +991,40 @@ interface ChangelogEntry {
   repoUrl: string;
   /** Whether this entry should be highlighted (rendered as blockquote) */
   highlight?: boolean;
+}
+
+/**
+ * Strips the conventional commit type prefix from a title using named capture groups.
+ *
+ * Named groups in the pattern control stripping behavior:
+ * - `(?<type>...)` - The type prefix to strip (e.g., `feat(scope):`)
+ * - `(?<scope>...)` - Scope to preserve when not under a scope header
+ *
+ * @param title The original PR/commit title
+ * @param pattern The matched pattern (may contain named groups)
+ * @param preserveScope Whether to preserve the scope in the output
+ * @returns The stripped title, or the original if no stripping applies
+ */
+export function stripTitle(
+  title: string,
+  pattern: RegExp | undefined,
+  preserveScope: boolean
+): string {
+  if (!pattern) return title;
+
+  const match = pattern.exec(title);
+  if (!match?.groups?.type) return title;
+
+  const remainder = title.slice(match.groups.type.length);
+  if (!remainder) return title; // Don't strip if nothing remains
+
+  const capitalized = remainder.charAt(0).toUpperCase() + remainder.slice(1);
+
+  if (preserveScope && match.groups.scope) {
+    return `(${match.groups.scope}) ${capitalized}`;
+  }
+
+  return capitalized;
 }
 
 /**
@@ -1268,12 +1323,14 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
 
     // Use PR title if available, otherwise use commit title for pattern matching
     const titleForMatching = (raw.prTitle ?? raw.title).trim();
-    const matchedCategory = matchCommitToCategory(
+    const match = matchCommitToCategory(
       labels,
       raw.author,
       titleForMatching,
       releaseConfig
     );
+    const matchedCategory = match?.category ?? null;
+    const matchedPattern = match?.matchedPattern;
     const categoryTitle = matchedCategory?.title ?? null;
 
     // Track bump type if category has semver field
@@ -1327,6 +1384,10 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
 
       // Create PR entries (handles custom changelog entries if present)
       const prEntries = createPREntriesFromRaw(raw, prTitle, raw.body);
+      // Add matched pattern to each entry for title stripping
+      for (const entry of prEntries) {
+        entry.matchedPattern = matchedPattern;
+      }
       scopeGroup.push(...prEntries);
     }
   }
@@ -1442,7 +1503,7 @@ async function serializeChangelog(
       return scopeA.localeCompare(scopeB);
     });
 
-    // Check if any scope has multiple entries (would get a header)
+    // Check if any scope has multiple entries (would get its own header)
     const hasScopeHeaders = [...category.scopeGroups.entries()].some(
       ([s, entries]) => s !== null && entries.length > 1
     );
@@ -1451,9 +1512,24 @@ async function serializeChangelog(
     const entriesWithoutHeaders: string[] = [];
 
     for (const [scope, prs] of sortedScopes) {
+      // Determine scope header:
+      // - Scoped entries with multiple PRs get formatted scope title
+      // - All other entries (single scoped or scopeless) go to entriesWithoutHeaders
+      //   and get an "Other" header if there are scope headers shown
+      let scopeHeader: string | null = null;
+      if (scopeGroupingEnabled) {
+        if (scope !== null && prs.length > 1) {
+          scopeHeader = formatScopeTitle(scope);
+        }
+      }
+
+      // When a scope header is shown, we can strip the scope from titles
+      // When no scope header, preserve the scope for context
+      const showsScopeHeader = scopeHeader !== null && scope !== null;
+
       const prEntries = prs.map(pr =>
         formatChangelogEntry({
-          title: pr.title,
+          title: stripTitle(pr.title, pr.matchedPattern, !showsScopeHeader),
           author: pr.author,
           prNumber: pr.number,
           hash: pr.hash,
@@ -1462,19 +1538,6 @@ async function serializeChangelog(
           highlight: pr.highlight,
         })
       );
-
-      // Determine scope header:
-      // - Scoped entries with multiple PRs get formatted scope title
-      // - Scopeless entries get "Other" header when other scope headers exist
-      // - Otherwise no header (entries collected for later)
-      let scopeHeader: string | null = null;
-      if (scopeGroupingEnabled) {
-        if (scope !== null && prs.length > 1) {
-          scopeHeader = formatScopeTitle(scope);
-        } else if (scope === null && hasScopeHeaders) {
-          scopeHeader = 'Other';
-        }
-      }
 
       if (scopeHeader) {
         changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, scopeHeader));
@@ -1485,8 +1548,12 @@ async function serializeChangelog(
       }
     }
 
-    // Push all entries without headers as a single section to avoid extra newlines
+    // Push all entries without headers as a single section
+    // Add "Other" header if there are scope headers to separate them
     if (entriesWithoutHeaders.length > 0) {
+      if (hasScopeHeaders) {
+        changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, 'Other'));
+      }
       changelogSections.push(entriesWithoutHeaders.join('\n'));
     }
   }

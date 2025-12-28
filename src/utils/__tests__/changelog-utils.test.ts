@@ -13,6 +13,7 @@ import {
   shouldExcludePR,
   shouldSkipCurrentPR,
   getBumpTypeForPR,
+  stripTitle,
   SKIP_CHANGELOG_MAGIC_WORD,
   BODY_IN_CHANGELOG_MAGIC_WORD,
   type CurrentPRInfo,
@@ -142,3 +143,126 @@ describe('magic word constants', () => {
   });
 });
 
+describe('stripTitle', () => {
+  describe('with type named group', () => {
+    const pattern = /^(?<type>feat(?:\((?<scope>[^)]+)\))?!?:\s*)/;
+
+    it('strips the type prefix', () => {
+      expect(stripTitle('feat: add endpoint', pattern, false)).toBe(
+        'Add endpoint'
+      );
+    });
+
+    it('strips type and scope when preserveScope is false', () => {
+      expect(stripTitle('feat(api): add endpoint', pattern, false)).toBe(
+        'Add endpoint'
+      );
+    });
+
+    it('preserves scope when preserveScope is true', () => {
+      expect(stripTitle('feat(api): add endpoint', pattern, true)).toBe(
+        '(api) Add endpoint'
+      );
+    });
+
+    it('capitalizes first letter after stripping', () => {
+      expect(stripTitle('feat: lowercase start', pattern, false)).toBe(
+        'Lowercase start'
+      );
+    });
+
+    it('handles already capitalized content', () => {
+      expect(stripTitle('feat: Already Capitalized', pattern, false)).toBe(
+        'Already Capitalized'
+      );
+    });
+
+    it('does not strip if no type match', () => {
+      expect(stripTitle('random title', pattern, false)).toBe('random title');
+    });
+
+    it('handles breaking change indicator', () => {
+      const breakingPattern = /^(?<type>feat(?:\((?<scope>[^)]+)\))?!:\s*)/;
+      expect(stripTitle('feat!: breaking change', breakingPattern, false)).toBe(
+        'Breaking change'
+      );
+      expect(
+        stripTitle('feat(api)!: breaking api change', breakingPattern, false)
+      ).toBe('Breaking api change');
+    });
+
+    it('does not strip when pattern has no type group', () => {
+      const noGroupPattern = /^feat(?:\([^)]+\))?!?:\s*/;
+      expect(stripTitle('feat: add endpoint', noGroupPattern, false)).toBe(
+        'feat: add endpoint'
+      );
+    });
+  });
+
+  describe('edge cases', () => {
+    const pattern = /^(?<type>feat(?:\((?<scope>[^)]+)\))?!?:\s*)/;
+
+    it('returns original if pattern is undefined', () => {
+      expect(stripTitle('feat: add endpoint', undefined, false)).toBe(
+        'feat: add endpoint'
+      );
+    });
+
+    it('does not strip if nothing remains after stripping', () => {
+      const exactPattern = /^(?<type>feat:\s*)$/;
+      expect(stripTitle('feat: ', exactPattern, false)).toBe('feat: ');
+    });
+
+    it('handles scope with special characters', () => {
+      expect(stripTitle('feat(my-api): add endpoint', pattern, true)).toBe(
+        '(my-api) Add endpoint'
+      );
+      expect(stripTitle('feat(my_api): add endpoint', pattern, true)).toBe(
+        '(my_api) Add endpoint'
+      );
+    });
+
+    it('does not preserve scope when scope is not captured', () => {
+      const noScopePattern = /^(?<type>feat(?:\([^)]+\))?!?:\s*)/;
+      expect(stripTitle('feat(api): add endpoint', noScopePattern, true)).toBe(
+        'Add endpoint'
+      );
+    });
+  });
+
+  describe('with different commit types', () => {
+    it('works with fix type', () => {
+      const pattern = /^(?<type>fix(?:\((?<scope>[^)]+)\))?!?:\s*)/;
+      expect(stripTitle('fix(core): resolve bug', pattern, false)).toBe(
+        'Resolve bug'
+      );
+      expect(stripTitle('fix(core): resolve bug', pattern, true)).toBe(
+        '(core) Resolve bug'
+      );
+    });
+
+    it('works with docs type', () => {
+      const pattern = /^(?<type>docs?(?:\((?<scope>[^)]+)\))?!?:\s*)/;
+      expect(stripTitle('docs(readme): update docs', pattern, false)).toBe(
+        'Update docs'
+      );
+      expect(stripTitle('doc(readme): update docs', pattern, false)).toBe(
+        'Update docs'
+      );
+    });
+
+    it('works with build/chore types', () => {
+      const pattern =
+        /^(?<type>(?:build|refactor|meta|chore|ci|ref|perf)(?:\((?<scope>[^)]+)\))?!?:\s*)/;
+      expect(stripTitle('chore(deps): update deps', pattern, false)).toBe(
+        'Update deps'
+      );
+      expect(stripTitle('build(ci): fix pipeline', pattern, false)).toBe(
+        'Fix pipeline'
+      );
+      expect(stripTitle('refactor(api): simplify logic', pattern, true)).toBe(
+        '(api) Simplify logic'
+      );
+    });
+  });
+});
