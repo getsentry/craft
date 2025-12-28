@@ -120,6 +120,47 @@ describe('project config parameters', () => {
   });
 });
 
+describe('layer name templating', () => {
+  beforeAll(() => {
+    setAwsEnvironmentVariables();
+  });
+
+  test('layer name without template variables', () => {
+    const awsTarget = getAwsLambdaTarget();
+    awsTarget.config.layerName = 'SentryNodeServerlessSDK';
+    const resolved = awsTarget.resolveLayerName('10.2.3');
+    expect(resolved).toBe('SentryNodeServerlessSDK');
+  });
+
+  test('layer name with major version variable', () => {
+    const awsTarget = getAwsLambdaTarget();
+    awsTarget.config.layerName = 'SentryNodeServerlessSDKv{{{major}}}';
+    const resolved = awsTarget.resolveLayerName('10.2.3');
+    expect(resolved).toBe('SentryNodeServerlessSDKv10');
+  });
+
+  test('layer name with multiple version variables', () => {
+    const awsTarget = getAwsLambdaTarget();
+    awsTarget.config.layerName = 'SentrySDKv{{{major}}}-{{{minor}}}-{{{patch}}}';
+    const resolved = awsTarget.resolveLayerName('10.2.3');
+    expect(resolved).toBe('SentrySDKv10-2-3');
+  });
+
+  test('layer name with full version variable', () => {
+    const awsTarget = getAwsLambdaTarget();
+    awsTarget.config.layerName = 'SentrySDK-{{{version}}}';
+    const resolved = awsTarget.resolveLayerName('10.2.3');
+    expect(resolved).toBe('SentrySDK-10.2.3');
+  });
+
+  test('layer name with prerelease version', () => {
+    const awsTarget = getAwsLambdaTarget();
+    awsTarget.config.layerName = 'SentrySDKv{{{major}}}';
+    const resolved = awsTarget.resolveLayerName('10.2.3-alpha.1');
+    expect(resolved).toBe('SentrySDKv10');
+  });
+});
+
 describe('publish', () => {
   beforeAll(() => {
     setAwsEnvironmentVariables();
