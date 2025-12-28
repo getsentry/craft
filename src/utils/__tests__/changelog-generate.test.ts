@@ -1,23 +1,27 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import {
+  vi,
+  type Mock,
+  type MockInstance,
+  type Mocked,
+  type MockedFunction,
+} from 'vitest';
 /**
  * Tests for generateChangesetFromGit - the main changelog generation function.
  * Uses snapshot testing for output validation to reduce test file size.
  */
 
-
-
 vi.mock('../githubApi.ts');
 import { getGitHubClient } from '../githubApi';
 vi.mock('../git');
 import { getChangesSince } from '../git';
-vi.mock('fs', async (importOriginal) => {
+vi.mock('fs', async importOriginal => {
   const actual = await importOriginal<typeof import('fs')>();
   return {
     ...actual,
     readFileSync: vi.fn(),
   };
 });
-vi.mock('../../config', async (importOriginal) => {
+vi.mock('../../config', async importOriginal => {
   const actual = await importOriginal<typeof import('../../config')>();
   return {
     ...actual,
@@ -29,25 +33,38 @@ import * as config from '../../config';
 import { readFileSync } from 'fs';
 import type { SimpleGit } from 'simple-git';
 
-import { generateChangesetFromGit, generateChangelogWithHighlight, clearChangesetCache } from '../changelog';
+import {
+  generateChangesetFromGit,
+  generateChangelogWithHighlight,
+  clearChangesetCache,
+} from '../changelog';
 import { type TestCommit } from './fixtures/changelog';
 
-const getConfigFileDirMock = config.getConfigFileDir as MockedFunction<typeof config.getConfigFileDir>;
-const getGlobalGitHubConfigMock = config.getGlobalGitHubConfig as MockedFunction<typeof config.getGlobalGitHubConfig>;
+const getConfigFileDirMock = config.getConfigFileDir as MockedFunction<
+  typeof config.getConfigFileDir
+>;
+const getGlobalGitHubConfigMock =
+  config.getGlobalGitHubConfig as MockedFunction<
+    typeof config.getGlobalGitHubConfig
+  >;
 const readFileSyncMock = readFileSync as MockedFunction<typeof readFileSync>;
 
 describe('generateChangesetFromGit', () => {
   let mockClient: Mock;
-  const mockGetChangesSince = getChangesSince as MockedFunction<typeof getChangesSince>;
+  const mockGetChangesSince = getChangesSince as MockedFunction<
+    typeof getChangesSince
+  >;
   const dummyGit = {} as SimpleGit;
 
   beforeEach(() => {
     vi.resetAllMocks();
     clearChangesetCache();
     mockClient = vi.fn();
-    (getGitHubClient as MockedFunction<typeof getGitHubClient>).mockReturnValue({
-      graphql: mockClient,
-    } as any);
+    (getGitHubClient as MockedFunction<typeof getGitHubClient>).mockReturnValue(
+      {
+        graphql: mockClient,
+      } as any,
+    );
     getConfigFileDirMock.mockReturnValue(undefined);
     getGlobalGitHubConfigMock.mockResolvedValue({
       repo: 'test-repo',
@@ -67,7 +84,7 @@ describe('generateChangesetFromGit', () => {
         title: commit.title,
         body: commit.body,
         pr: commit.pr?.local || null,
-      }))
+      })),
     );
 
     mockClient.mockResolvedValueOnce({
@@ -94,7 +111,7 @@ describe('generateChangesetFromGit', () => {
                 : [],
             },
           },
-        ])
+        ]),
       ),
     });
 
@@ -109,7 +126,10 @@ describe('generateChangesetFromGit', () => {
       } else {
         getConfigFileDirMock.mockReturnValue('/workspace');
         readFileSyncMock.mockImplementation((path: any) => {
-          if (typeof path === 'string' && path.includes('.github/release.yml')) {
+          if (
+            typeof path === 'string' &&
+            path.includes('.github/release.yml')
+          ) {
             return releaseConfig;
           }
           const error: any = new Error('ENOENT');
@@ -132,94 +152,128 @@ describe('generateChangesetFromGit', () => {
     });
 
     it('formats local commit with short SHA', async () => {
-      setup([{ hash: 'abcdef1234567890', title: 'Upgraded the kernel', body: '' }], null);
+      setup(
+        [{ hash: 'abcdef1234567890', title: 'Upgraded the kernel', body: '' }],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toMatchSnapshot();
     });
 
     it('uses PR number when available locally', async () => {
-      setup([
-        { hash: 'abcdef1234567890', title: 'Upgraded the kernel (#123)', body: '', pr: { local: '123' } },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'Upgraded the kernel (#123)',
+            body: '',
+            pr: { local: '123' },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toMatchSnapshot();
     });
 
     it('uses PR number and author from remote', async () => {
-      setup([
-        {
-          hash: 'abcdef1234567890',
-          title: 'Upgraded the kernel',
-          body: '',
-          pr: { remote: { number: '123', author: { login: 'sentry' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'Upgraded the kernel',
+            body: '',
+            pr: { remote: { number: '123', author: { login: 'sentry' } } },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toMatchSnapshot();
     });
 
     it('handles null PR author gracefully', async () => {
-      setup([
-        { hash: 'abcdef1234567890', title: 'Upgraded the kernel', body: '', pr: { remote: { number: '123' } } },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'Upgraded the kernel',
+            body: '',
+            pr: { remote: { number: '123' } },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toMatchSnapshot();
     });
 
     it('uses PR title from GitHub instead of commit message', async () => {
-      setup([
-        {
-          hash: 'abcdef1234567890',
-          title: 'fix: quick fix for issue',
-          body: '',
-          pr: {
-            remote: {
-              number: '123',
-              title: 'feat: A much better PR title with more context',
-              author: { login: 'sentry' },
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'fix: quick fix for issue',
+            body: '',
+            pr: {
+              remote: {
+                number: '123',
+                title: 'feat: A much better PR title with more context',
+                author: { login: 'sentry' },
+              },
             },
           },
-        },
-      ], null);
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toMatchSnapshot();
     });
 
     it('handles multiple commits', async () => {
-      setup([
-        { hash: 'abcdef1234567890', title: 'Upgraded the kernel', body: '' },
-        {
-          hash: 'bcdef1234567890a',
-          title: 'Upgraded the manifold (#123)',
-          body: '',
-          pr: { local: '123', remote: { number: '123', author: { login: 'alice' } } },
-        },
-        {
-          hash: 'cdef1234567890ab',
-          title: 'Refactored the crankshaft',
-          body: '',
-          pr: { remote: { number: '456', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'cdef1234567890ad',
-          title: 'Refactored the crankshaft again',
-          body: '',
-          pr: { remote: { number: '458', author: { login: 'bob' } } },
-        },
-      ], null);
+      setup(
+        [
+          { hash: 'abcdef1234567890', title: 'Upgraded the kernel', body: '' },
+          {
+            hash: 'bcdef1234567890a',
+            title: 'Upgraded the manifold (#123)',
+            body: '',
+            pr: {
+              local: '123',
+              remote: { number: '123', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'cdef1234567890ab',
+            title: 'Refactored the crankshaft',
+            body: '',
+            pr: { remote: { number: '456', author: { login: 'bob' } } },
+          },
+          {
+            hash: 'cdef1234567890ad',
+            title: 'Refactored the crankshaft again',
+            body: '',
+            pr: { remote: { number: '458', author: { login: 'bob' } } },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toMatchSnapshot();
     });
 
     it('escapes underscores in titles', async () => {
-      setup([
-        {
-          hash: 'abcdef1234567890',
-          title: 'Serialized _meta',
-          body: '',
-          pr: { remote: { number: '123' } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'Serialized _meta',
+            body: '',
+            pr: { remote: { number: '123' } },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toMatchSnapshot();
     });
@@ -242,20 +296,37 @@ changelog:
 `;
 
     it('matches PRs to categories based on labels', async () => {
-      setup([
-        {
-          hash: 'abc123',
-          title: 'Feature PR',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' }, labels: ['enhancement'] } },
-        },
-        {
-          hash: 'def456',
-          title: 'Bug fix PR',
-          body: '',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' }, labels: ['bug'] } },
-        },
-      ], BASIC_CONFIG);
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'Feature PR',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: ['enhancement'],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'Bug fix PR',
+            body: '',
+            pr: {
+              local: '2',
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: ['bug'],
+              },
+            },
+          },
+        ],
+        BASIC_CONFIG,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toMatchSnapshot();
     });
@@ -273,26 +344,50 @@ changelog:
       labels:
         - enhancement
 `;
-      setup([
-        {
-          hash: 'abc123',
-          title: 'Normal feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' }, labels: ['enhancement'] } },
-        },
-        {
-          hash: 'def456',
-          title: 'Should be excluded by label',
-          body: '',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' }, labels: ['enhancement', 'skip-changelog'] } },
-        },
-        {
-          hash: 'ghi789',
-          title: 'Should be excluded by author',
-          body: '',
-          pr: { local: '3', remote: { number: '3', author: { login: 'dependabot' }, labels: ['enhancement'] } },
-        },
-      ], configWithExclusions);
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'Normal feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: ['enhancement'],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'Should be excluded by label',
+            body: '',
+            pr: {
+              local: '2',
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                labels: ['enhancement', 'skip-changelog'],
+              },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'Should be excluded by author',
+            body: '',
+            pr: {
+              local: '3',
+              remote: {
+                number: '3',
+                author: { login: 'dependabot' },
+                labels: ['enhancement'],
+              },
+            },
+          },
+        ],
+        configWithExclusions,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toMatchSnapshot();
     });
@@ -305,14 +400,24 @@ changelog:
       labels:
         - "*"
 `;
-      setup([
-        {
-          hash: 'abc123',
-          title: 'Any PR',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' }, labels: ['random-label'] } },
-        },
-      ], wildcardConfig);
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'Any PR',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: ['random-label'],
+              },
+            },
+          },
+        ],
+        wildcardConfig,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toMatchSnapshot();
     });
@@ -335,20 +440,29 @@ changelog:
 `;
 
     it('matches PRs based on commit_patterns', async () => {
-      setup([
-        {
-          hash: 'abc123',
-          title: 'feat: add new feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-        {
-          hash: 'def456',
-          title: 'fix: fix bug',
-          body: '',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-      ], PATTERN_CONFIG);
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: add new feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'fix: fix bug',
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+        ],
+        PATTERN_CONFIG,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toMatchSnapshot();
     });
@@ -364,45 +478,70 @@ changelog:
       commit_patterns:
         - "^feat:"
 `;
-      setup([
-        {
-          hash: 'abc123',
-          title: 'feat: labeled feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' }, labels: ['enhancement'] } },
-        },
-        {
-          hash: 'def456',
-          title: 'feat: pattern-only feature',
-          body: '',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-      ], mixedConfig);
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: labeled feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                labels: ['enhancement'],
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat: pattern-only feature',
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+        ],
+        mixedConfig,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toMatchSnapshot();
     });
 
     it('uses default conventional commits config when no config exists', async () => {
-      setup([
-        {
-          hash: 'abc123',
-          title: 'feat: new feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-        {
-          hash: 'def456',
-          title: 'fix: bug fix',
-          body: '',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'ghi789',
-          title: 'docs: update readme',
-          body: '',
-          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: new feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'fix: bug fix',
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'docs: update readme',
+            body: '',
+            pr: {
+              local: '3',
+              remote: { number: '3', author: { login: 'charlie' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toMatchSnapshot();
     });
@@ -423,76 +562,112 @@ changelog:
 `;
 
     it('groups PRs by scope when multiple entries exist', async () => {
-      setup([
-        {
-          hash: 'abc123',
-          title: 'feat(api): add endpoint 1',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-        {
-          hash: 'def456',
-          title: 'feat(api): add endpoint 2',
-          body: '',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'ghi789',
-          title: 'feat(ui): add button',
-          body: '',
-          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
-        },
-      ], SCOPE_CONFIG);
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat(api): add endpoint 1',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat(api): add endpoint 2',
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'feat(ui): add button',
+            body: '',
+            pr: {
+              local: '3',
+              remote: { number: '3', author: { login: 'charlie' } },
+            },
+          },
+        ],
+        SCOPE_CONFIG,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toMatchSnapshot();
     });
 
     it('places scopeless entries at bottom', async () => {
-      setup([
-        {
-          hash: 'abc123',
-          title: 'feat(api): scoped feature 1',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-        {
-          hash: 'def456',
-          title: 'feat(api): scoped feature 2',
-          body: '',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'ghi789',
-          title: 'feat: scopeless feature',
-          body: '',
-          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
-        },
-      ], SCOPE_CONFIG);
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat(api): scoped feature 1',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat(api): scoped feature 2',
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'feat: scopeless feature',
+            body: '',
+            pr: {
+              local: '3',
+              remote: { number: '3', author: { login: 'charlie' } },
+            },
+          },
+        ],
+        SCOPE_CONFIG,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toMatchSnapshot();
     });
 
     it('shows Other header for single-scope entries when scope groups exist', async () => {
-      setup([
-        {
-          hash: 'abc123',
-          title: 'feat(api): api feature 1',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-        {
-          hash: 'def456',
-          title: 'feat(api): api feature 2',
-          body: '',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'ghi789',
-          title: 'feat(ui): single ui feature',
-          body: '',
-          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
-        },
-      ], SCOPE_CONFIG);
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat(api): api feature 1',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat(api): api feature 2',
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'feat(ui): single ui feature',
+            body: '',
+            pr: {
+              local: '3',
+              remote: { number: '3', author: { login: 'charlie' } },
+            },
+          },
+        ],
+        SCOPE_CONFIG,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // Single-scope entry should be under "Other" header
       expect(result.changelog).toContain('#### Api');
@@ -501,20 +676,29 @@ changelog:
     });
 
     it('does not show Other header when only scopeless entries exist', async () => {
-      setup([
-        {
-          hash: 'abc123',
-          title: 'feat: feature 1',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-        {
-          hash: 'def456',
-          title: 'feat: feature 2',
-          body: '',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-      ], SCOPE_CONFIG);
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: feature 1',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat: feature 2',
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+        ],
+        SCOPE_CONFIG,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // No scope headers, so no "Other" header needed
       expect(result.changelog).not.toContain('#### Api');
@@ -524,20 +708,29 @@ changelog:
     });
 
     it('does not show Other header when all scopes are single-entry', async () => {
-      setup([
-        {
-          hash: 'abc123',
-          title: 'feat(api): single api feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-        {
-          hash: 'def456',
-          title: 'feat(ui): single ui feature',
-          body: '',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-      ], SCOPE_CONFIG);
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat(api): single api feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat(ui): single ui feature',
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+        ],
+        SCOPE_CONFIG,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // No scope gets 2+ entries, so no headers at all
       expect(result.changelog).not.toContain('#### Api');
@@ -554,61 +747,70 @@ changelog:
 
   describe('custom changelog entries', () => {
     it('uses custom entry from PR body', async () => {
-      setup([
-        {
-          hash: 'abc123',
-          title: 'feat: original title',
-          body: '',
-          pr: {
-            local: '1',
-            remote: {
-              number: '1',
-              author: { login: 'alice' },
-              body: '## Changelog Entry\n\n- Custom changelog entry',
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: original title',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                body: '## Changelog Entry\n\n- Custom changelog entry',
+              },
             },
           },
-        },
-      ], null);
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toMatchSnapshot();
     });
 
     it('handles multiple bullets in changelog entry', async () => {
-      setup([
-        {
-          hash: 'abc123',
-          title: 'feat: original title',
-          body: '',
-          pr: {
-            local: '1',
-            remote: {
-              number: '1',
-              author: { login: 'alice' },
-              body: '## Changelog Entry\n\n- First entry\n- Second entry\n- Third entry',
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: original title',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                body: '## Changelog Entry\n\n- First entry\n- Second entry\n- Third entry',
+              },
             },
           },
-        },
-      ], null);
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toMatchSnapshot();
     });
 
     it('handles nested bullets in changelog entry', async () => {
-      setup([
-        {
-          hash: 'abc123',
-          title: 'feat: original title',
-          body: '',
-          pr: {
-            local: '1',
-            remote: {
-              number: '1',
-              author: { login: 'alice' },
-              body: '## Changelog Entry\n\n- Main entry\n  - Nested item 1\n  - Nested item 2',
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: original title',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                body: '## Changelog Entry\n\n- Main entry\n  - Nested item 1\n  - Nested item 2',
+              },
             },
           },
-        },
-      ], null);
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toMatchSnapshot();
     });
@@ -616,25 +818,29 @@ changelog:
 });
 
 describe('generateChangelogWithHighlight', () => {
-  let mockGraphqlClient: jest.Mock;
+  let mockGraphqlClient: Mock;
   let mockRestClient: {
-    pulls: { get: jest.Mock };
-    issues: { listLabelsOnIssue: jest.Mock };
+    pulls: { get: Mock };
+    issues: { listLabelsOnIssue: Mock };
   };
-  const mockGetChangesSince = getChangesSince as jest.MockedFunction<typeof getChangesSince>;
+  const mockGetChangesSince = getChangesSince as MockedFunction<
+    typeof getChangesSince
+  >;
 
   beforeEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
     clearChangesetCache();
-    mockGraphqlClient = jest.fn();
+    mockGraphqlClient = vi.fn();
     mockRestClient = {
-      pulls: { get: jest.fn() },
-      issues: { listLabelsOnIssue: jest.fn() },
+      pulls: { get: vi.fn() },
+      issues: { listLabelsOnIssue: vi.fn() },
     };
-    (getGitHubClient as jest.MockedFunction<typeof getGitHubClient>).mockReturnValue({
-      graphql: mockGraphqlClient,
-      ...mockRestClient,
-    } as any);
+    (getGitHubClient as MockedFunction<typeof getGitHubClient>).mockReturnValue(
+      {
+        graphql: mockGraphqlClient,
+        ...mockRestClient,
+      } as any,
+    );
     getConfigFileDirMock.mockReturnValue(undefined);
     getGlobalGitHubConfigMock.mockResolvedValue({
       repo: 'test-repo',
@@ -647,13 +853,16 @@ describe('generateChangelogWithHighlight', () => {
     });
   });
 
-  function setupPRInfo(_prNumber: number, options: {
-    title: string;
-    body?: string;
-    author?: string;
-    labels?: string[];
-    baseRef?: string;
-  }): void {
+  function setupPRInfo(
+    _prNumber: number,
+    options: {
+      title: string;
+      body?: string;
+      author?: string;
+      labels?: string[];
+      baseRef?: string;
+    },
+  ): void {
     mockRestClient.pulls.get.mockResolvedValueOnce({
       data: {
         title: options.title,
@@ -674,7 +883,7 @@ describe('generateChangelogWithHighlight', () => {
         title: commit.title,
         body: commit.body,
         pr: commit.pr?.local || null,
-      }))
+      })),
     );
 
     mockGraphqlClient.mockResolvedValueOnce({
@@ -701,14 +910,14 @@ describe('generateChangelogWithHighlight', () => {
                 : [],
             },
           },
-        ])
+        ]),
       ),
     });
   }
 
   it('returns accurate statistics reflecting all commits processed', async () => {
     const mockGit = {
-      fetch: jest.fn().mockResolvedValue(undefined),
+      fetch: vi.fn().mockResolvedValue(undefined),
     } as unknown as SimpleGit;
 
     // Setup PR info for the current PR (PR #100)
@@ -736,7 +945,10 @@ describe('generateChangelogWithHighlight', () => {
         hash: 'ghi789',
         title: 'docs: update readme',
         body: '',
-        pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
+        pr: {
+          local: '3',
+          remote: { number: '3', author: { login: 'charlie' } },
+        },
       },
     ]);
 
@@ -755,7 +967,7 @@ describe('generateChangelogWithHighlight', () => {
 
   it('returns totalCommits: 1 when PR is skipped', async () => {
     const mockGit = {
-      fetch: jest.fn().mockResolvedValue(undefined),
+      fetch: vi.fn().mockResolvedValue(undefined),
     } as unknown as SimpleGit;
 
     // Setup PR info with skip-changelog label
@@ -773,4 +985,3 @@ describe('generateChangelogWithHighlight', () => {
     expect(result.changelog).toBe('');
   });
 });
-
