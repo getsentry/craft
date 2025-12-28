@@ -1242,18 +1242,19 @@ export async function generateChangelogWithHighlight(
   const allCommits = [currentPRCommit, ...rawCommits];
 
   // Step 7: Run categorization on combined list (for changelog generation only)
-  const { data: rawData } = categorizeCommits(allCommits);
+  const { data: rawData, stats } = categorizeCommits(allCommits);
 
   // Step 8: Serialize to markdown
   const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS);
 
   // Return PR-specific bump type, not the aggregate from all commits
+  // But use accurate statistics from all commits processed for the changelog
   return {
     changelog,
     prSkipped: false,
     bumpType: prBumpType,
-    totalCommits: 1,
-    matchedCommitsWithSemver: prBumpType ? 1 : 0,
+    totalCommits: stats.totalCommits,
+    matchedCommitsWithSemver: stats.matchedCommitsWithSemver,
   };
 }
 

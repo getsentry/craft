@@ -22,7 +22,7 @@ import * as config from '../../config';
 import { readFileSync } from 'fs';
 import type { SimpleGit } from 'simple-git';
 
-import { generateChangesetFromGit, clearChangesetCache } from '../changelog';
+import { generateChangesetFromGit, generateChangelogWithHighlight, clearChangesetCache } from '../changelog';
 import { type TestCommit } from './fixtures/changelog';
 
 const getConfigFileDirMock = config.getConfigFileDir as jest.MockedFunction<typeof config.getConfigFileDir>;
@@ -605,6 +605,165 @@ changelog:
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toMatchSnapshot();
     });
+  });
+});
+
+describe('generateChangelogWithHighlight', () => {
+  let mockGraphqlClient: jest.Mock;
+  let mockRestClient: {
+    pulls: { get: jest.Mock };
+    issues: { listLabelsOnIssue: jest.Mock };
+  };
+  const mockGetChangesSince = getChangesSince as jest.MockedFunction<typeof getChangesSince>;
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    clearChangesetCache();
+    mockGraphqlClient = jest.fn();
+    mockRestClient = {
+      pulls: { get: jest.fn() },
+      issues: { listLabelsOnIssue: jest.fn() },
+    };
+    (getGitHubClient as jest.MockedFunction<typeof getGitHubClient>).mockReturnValue({
+      graphql: mockGraphqlClient,
+      ...mockRestClient,
+    } as any);
+    getConfigFileDirMock.mockReturnValue(undefined);
+    getGlobalGitHubConfigMock.mockResolvedValue({
+      repo: 'test-repo',
+      owner: 'test-owner',
+    });
+    readFileSyncMock.mockImplementation(() => {
+      const error: any = new Error('ENOENT');
+      error.code = 'ENOENT';
+      throw error;
+    });
+  });
+
+  function setupPRInfo(_prNumber: number, options: {
+    title: string;
+    body?: string;
+    author?: string;
+    labels?: string[];
+    baseRef?: string;
+  }): void {
+    mockRestClient.pulls.get.mockResolvedValueOnce({
+      data: {
+        title: options.title,
+        body: options.body ?? '',
+        user: { login: options.author ?? 'test-author' },
+        base: { ref: options.baseRef ?? 'main' },
+      },
+    });
+    mockRestClient.issues.listLabelsOnIssue.mockResolvedValueOnce({
+      data: (options.labels ?? []).map(name => ({ name })),
+    });
+  }
+
+  function setupExistingCommits(commits: TestCommit[]): void {
+    mockGetChangesSince.mockResolvedValueOnce(
+      commits.map(commit => ({
+        hash: commit.hash,
+        title: commit.title,
+        body: commit.body,
+        pr: commit.pr?.local || null,
+      }))
+    );
+
+    mockGraphqlClient.mockResolvedValueOnce({
+      repository: Object.fromEntries(
+        commits.map(({ hash, author, title, pr }: TestCommit) => [
+          `C${hash}`,
+          {
+            author: { user: author },
+            associatedPullRequests: {
+              nodes: pr?.remote
+                ? [
+                    {
+                      author: pr.remote.author,
+                      number: pr.remote.number,
+                      title: pr.remote.title ?? title,
+                      body: pr.remote.body || '',
+                      labels: {
+                        nodes: (pr.remote.labels || []).map(label => ({
+                          name: label,
+                        })),
+                      },
+                    },
+                  ]
+                : [],
+            },
+          },
+        ])
+      ),
+    });
+  }
+
+  it('returns accurate statistics reflecting all commits processed', async () => {
+    const mockGit = {
+      fetch: jest.fn().mockResolvedValue(undefined),
+    } as unknown as SimpleGit;
+
+    // Setup PR info for the current PR (PR #100)
+    setupPRInfo(100, {
+      title: 'feat: new feature from PR',
+      labels: ['enhancement'],
+      baseRef: 'main',
+    });
+
+    // Setup 3 existing commits in the changelog
+    setupExistingCommits([
+      {
+        hash: 'abc123',
+        title: 'feat: existing feature 1',
+        body: '',
+        pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
+      },
+      {
+        hash: 'def456',
+        title: 'fix: existing bug fix',
+        body: '',
+        pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
+      },
+      {
+        hash: 'ghi789',
+        title: 'docs: update readme',
+        body: '',
+        pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
+      },
+    ]);
+
+    const result = await generateChangelogWithHighlight(mockGit, '1.0.0', 100);
+
+    // totalCommits should be 4 (1 current PR + 3 existing commits)
+    expect(result.totalCommits).toBe(4);
+    // matchedCommitsWithSemver should reflect all commits that matched categories with semver
+    // Default config has feat->minor, fix->patch, docs->patch
+    expect(result.matchedCommitsWithSemver).toBeGreaterThan(1);
+    expect(result.prSkipped).toBe(false);
+    // The changelog should contain entries from all commits
+    expect(result.changelog).toContain('New feature from PR');
+    expect(result.changelog).toContain('Existing feature 1');
+  });
+
+  it('returns totalCommits: 1 when PR is skipped', async () => {
+    const mockGit = {
+      fetch: jest.fn().mockResolvedValue(undefined),
+    } as unknown as SimpleGit;
+
+    // Setup PR info with skip-changelog label
+    setupPRInfo(100, {
+      title: 'chore: internal change',
+      labels: ['skip-changelog'],
+      baseRef: 'main',
+    });
+
+    const result = await generateChangelogWithHighlight(mockGit, '1.0.0', 100);
+
+    // When skipped, stats reflect only the PR itself
+    expect(result.totalCommits).toBe(1);
+    expect(result.prSkipped).toBe(true);
+    expect(result.changelog).toBe('');
   });
 });
 
