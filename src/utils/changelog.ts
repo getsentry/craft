@@ -1205,29 +1205,29 @@ export async function generateChangelogWithHighlight(
   // Step 1: Fetch PR info from GitHub
   const prInfo = await fetchPRInfo(currentPRNumber);
 
-  // Step 2: Check if PR should be skipped - bypass changelog generation but still determine bump type
-  if (shouldSkipCurrentPR(prInfo)) {
-    // Even skipped PRs contribute to version bumping based on their title
-    const bumpType = getBumpTypeForPR(prInfo);
+  // Step 2: Calculate bump type for this specific PR (used for both skipped and non-skipped PRs)
+  const prBumpType = getBumpTypeForPR(prInfo);
 
+  // Step 3: Check if PR should be skipped - bypass changelog generation but still return bump type
+  if (shouldSkipCurrentPR(prInfo)) {
     return {
       changelog: '',
-      bumpType,
+      bumpType: prBumpType,
       totalCommits: 1,
-      matchedCommitsWithSemver: bumpType ? 1 : 0,
+      matchedCommitsWithSemver: prBumpType ? 1 : 0,
       prSkipped: true,
     };
   }
 
-  // Step 3: Fetch the base branch to get current state
+  // Step 4: Fetch the base branch to get current state
   await git.fetch('origin', prInfo.baseRef);
   const baseRef = `origin/${prInfo.baseRef}`;
   logger.debug(`Using PR base branch "${prInfo.baseRef}" for changelog`);
 
-  // Step 4: Fetch raw commit info up to base branch
+  // Step 5: Fetch raw commit info up to base branch
   const rawCommits = await fetchRawCommitInfo(git, rev, baseRef);
 
-  // Step 5: Add current PR to the list with highlight flag (at the beginning)
+  // Step 6: Add current PR to the list with highlight flag (at the beginning)
   const currentPRCommit: RawCommitInfo = {
     hash: '',
     title: prInfo.title.trim(),
@@ -1241,16 +1241,20 @@ export async function generateChangelogWithHighlight(
   };
   const allCommits = [currentPRCommit, ...rawCommits];
 
-  // Step 6: Run categorization on combined list
+  // Step 7: Run categorization on combined list (for changelog generation only)
   const { data: rawData, stats } = categorizeCommits(allCommits);
 
-  // Step 7: Serialize to markdown
+  // Step 8: Serialize to markdown
   const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS);
 
+  // Return PR-specific bump type, not the aggregate from all commits
+  // But use accurate statistics from all commits processed for the changelog
   return {
     changelog,
     prSkipped: false,
-    ...stats,
+    bumpType: prBumpType,
+    totalCommits: stats.totalCommits,
+    matchedCommitsWithSemver: stats.matchedCommitsWithSemver,
   };
 }
 
