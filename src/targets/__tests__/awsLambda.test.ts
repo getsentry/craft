@@ -1,8 +1,9 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { ConfigurationError } from '../../utils/errors';
 import { AwsLambdaLayerTarget } from '../awsLambdaLayer';
 
-jest.mock('fs');
+vi.mock('fs');
 
 /** Returns a new AwsLambdaLayerTarget test instance. */
 function getAwsLambdaTarget(): AwsLambdaLayerTarget {
@@ -37,7 +38,7 @@ describe('get aws config environment variables', () => {
   const oldEnvVariables = process.env;
 
   beforeEach(() => {
-    jest.resetModules(); // Clear the cache.
+    vi.resetModules(); // Clear the cache.
     process.env = { ...oldEnvVariables }; // Restore environment
   });
 
@@ -99,7 +100,7 @@ describe('project config parameters', () => {
     const awsTarget = getAwsLambdaTarget();
     setTestingProjectConfig(awsTarget);
     const failingTestErrorMsg = 'failing mock test';
-    const getArtifactsFailingMock = jest.fn().mockImplementation(() => {
+    const getArtifactsFailingMock = vi.fn().mockImplementation(() => {
       throw new Error(failingTestErrorMsg);
     });
     try {
@@ -124,7 +125,7 @@ describe('publish', () => {
     setAwsEnvironmentVariables();
   });
 
-  const noArtifactsForRevision = jest.fn().mockImplementation(function () {
+  const noArtifactsForRevision = vi.fn().mockImplementation(function () {
     return [];
   });
 
@@ -147,7 +148,7 @@ describe('publish', () => {
     }
   });
 
-  const twoArtifactsForRevision = jest.fn().mockImplementation(function () {
+  const twoArtifactsForRevision = vi.fn().mockImplementation(function () {
     return ['file1', 'file2'];
   });
 

@@ -1,11 +1,12 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { MavenTarget } from '../maven';
 import { withTempDir } from '../../utils/files';
 import { promises as fsPromises } from 'fs';
 import { join } from 'path';
 
-jest.mock('../../utils/gpg');
-jest.mock('../../utils/system');
+vi.mock('../../utils/gpg');
+vi.mock('../../utils/system');
 
 const DEFAULT_OPTION_VALUE = 'my_default_value';
 

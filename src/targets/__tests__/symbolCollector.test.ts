@@ -1,16 +1,17 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { withTempDir } from '../../utils/files';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { checkExecutableIsPresent, spawnProcess } from '../../utils/system';
 import { SymbolCollector, SYM_COLLECTOR_BIN_NAME } from '../symbolCollector';
 
-jest.mock('../../utils/files');
-jest.mock('../../utils/system');
-jest.mock('fs', () => {
-  const original = jest.requireActual('fs');
+vi.mock('../../utils/files');
+vi.mock('../../utils/system');
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
   return {
-    ...original,
+    ...actual,
     promises: {
-      mkdir: jest.fn(() => {
+      mkdir: vi.fn(() => {
         /** do nothing */
       }),
     },
@@ -36,14 +37,14 @@ function getSymbolCollectorInstance(
 
 describe('target config', () => {
   test('symbol collector not present in path', () => {
-    (checkExecutableIsPresent as jest.MockedFunction<
+    (checkExecutableIsPresent as MockedFunction<
       typeof checkExecutableIsPresent
     >).mockImplementationOnce(() => {
       throw new Error('Checked for executable');
     });
 
     expect(getSymbolCollectorInstance).toThrowErrorMatchingInlineSnapshot(
-      `"Checked for executable"`
+      `[Error: Checked for executable]`
     );
     expect(checkExecutableIsPresent).toHaveBeenCalledTimes(1);
     expect(checkExecutableIsPresent).toHaveBeenCalledWith(
@@ -52,20 +53,19 @@ describe('target config', () => {
   });
 
   test('config missing', () => {
-    (checkExecutableIsPresent as jest.MockedFunction<
+    (checkExecutableIsPresent as MockedFunction<
       typeof checkExecutableIsPresent
-    >) = jest.fn();
+    >) = vi.fn();
 
     expect(getSymbolCollectorInstance).toThrowErrorMatchingInlineSnapshot(
-      '"The required `batchType` parameter is missing in the configuration file. ' +
-        'See the documentation for more details."'
+      `[Error: The required \`batchType\` parameter is missing in the configuration file. See the documentation for more details.]`
     );
   });
 
   test('symbol collector present and config ok', () => {
-    (checkExecutableIsPresent as jest.MockedFunction<
+    (checkExecutableIsPresent as MockedFunction<
       typeof checkExecutableIsPresent
-    >) = jest.fn();
+    >) = vi.fn();
 
     const symCollector = getSymbolCollectorInstance(customConfig);
     const actualConfig = symCollector.symbolCollectorConfig;
@@ -82,27 +82,27 @@ describe('target config', () => {
 describe('publish', () => {
   test('no artifacts found', () => {
     const symCollector = getSymbolCollectorInstance(customConfig);
-    symCollector.getArtifactsForRevision = jest
+    symCollector.getArtifactsForRevision = vi
       .fn()
       .mockReturnValueOnce(() => []);
     expect(spawnProcess).not.toHaveBeenCalled();
   });
 
   test('with artifacts', async () => {
-    (withTempDir as jest.MockedFunction<typeof withTempDir>).mockImplementation(
+    (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => await cb('tmpDir')
     );
-    (spawnProcess as jest.MockedFunction<
+    (spawnProcess as MockedFunction<
       typeof spawnProcess
     >).mockImplementation(() => Promise.resolve(undefined));
 
     const mockedArtifacts = ['artifact1', 'artifact2', 'artifact3'];
 
     const symCollector = getSymbolCollectorInstance(customConfig);
-    symCollector.getArtifactsForRevision = jest
+    symCollector.getArtifactsForRevision = vi
       .fn()
       .mockReturnValueOnce(mockedArtifacts);
-    symCollector.artifactProvider.downloadArtifact = jest.fn();
+    symCollector.artifactProvider.downloadArtifact = vi.fn();
 
     await symCollector.publish('version', 'revision');
 
@@ -112,7 +112,7 @@ describe('publish', () => {
     ).toHaveBeenCalledTimes(mockedArtifacts.length);
 
     expect(spawnProcess).toHaveBeenCalledTimes(1);
-    const [cmd, args] = (spawnProcess as jest.MockedFunction<
+    const [cmd, args] = (spawnProcess as MockedFunction<
       typeof spawnProcess
     >).mock.calls[0] as string[];
     expect(cmd).toBe(SYM_COLLECTOR_BIN_NAME);

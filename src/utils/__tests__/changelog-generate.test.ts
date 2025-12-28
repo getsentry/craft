@@ -1,23 +1,30 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 /**
  * Tests for generateChangesetFromGit - the main changelog generation function.
  * Uses snapshot testing for output validation to reduce test file size.
  */
 
-/* eslint-env jest */
 
-jest.mock('../githubApi.ts');
+
+vi.mock('../githubApi.ts');
 import { getGitHubClient } from '../githubApi';
-jest.mock('../git');
+vi.mock('../git');
 import { getChangesSince } from '../git';
-jest.mock('fs', () => ({
-  ...jest.requireActual('fs'),
-  readFileSync: jest.fn(),
-}));
-jest.mock('../../config', () => ({
-  ...jest.requireActual('../../config'),
-  getConfigFileDir: jest.fn(),
-  getGlobalGitHubConfig: jest.fn(),
-}));
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
+  return {
+    ...actual,
+    readFileSync: vi.fn(),
+  };
+});
+vi.mock('../../config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config')>();
+  return {
+    ...actual,
+    getConfigFileDir: vi.fn(),
+    getGlobalGitHubConfig: vi.fn(),
+  };
+});
 import * as config from '../../config';
 import { readFileSync } from 'fs';
 import type { SimpleGit } from 'simple-git';
@@ -25,20 +32,20 @@ import type { SimpleGit } from 'simple-git';
 import { generateChangesetFromGit, generateChangelogWithHighlight, clearChangesetCache } from '../changelog';
 import { type TestCommit } from './fixtures/changelog';
 
-const getConfigFileDirMock = config.getConfigFileDir as jest.MockedFunction<typeof config.getConfigFileDir>;
-const getGlobalGitHubConfigMock = config.getGlobalGitHubConfig as jest.MockedFunction<typeof config.getGlobalGitHubConfig>;
-const readFileSyncMock = readFileSync as jest.MockedFunction<typeof readFileSync>;
+const getConfigFileDirMock = config.getConfigFileDir as MockedFunction<typeof config.getConfigFileDir>;
+const getGlobalGitHubConfigMock = config.getGlobalGitHubConfig as MockedFunction<typeof config.getGlobalGitHubConfig>;
+const readFileSyncMock = readFileSync as MockedFunction<typeof readFileSync>;
 
 describe('generateChangesetFromGit', () => {
-  let mockClient: jest.Mock;
-  const mockGetChangesSince = getChangesSince as jest.MockedFunction<typeof getChangesSince>;
+  let mockClient: Mock;
+  const mockGetChangesSince = getChangesSince as MockedFunction<typeof getChangesSince>;
   const dummyGit = {} as SimpleGit;
 
   beforeEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
     clearChangesetCache();
-    mockClient = jest.fn();
-    (getGitHubClient as jest.MockedFunction<typeof getGitHubClient>).mockReturnValue({
+    mockClient = vi.fn();
+    (getGitHubClient as MockedFunction<typeof getGitHubClient>).mockReturnValue({
       graphql: mockClient,
     } as any);
     getConfigFileDirMock.mockReturnValue(undefined);

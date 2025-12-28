@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { stringToRegexp } from '../filters';
 
 describe('stringToRegexp', () => {

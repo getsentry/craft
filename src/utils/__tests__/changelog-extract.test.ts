@@ -1,3 +1,4 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 /**
  * Tests for changelog extraction and parsing functions.
  * - extractScope: Extracts scope from conventional commit titles

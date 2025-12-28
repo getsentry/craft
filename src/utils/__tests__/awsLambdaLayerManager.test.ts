@@ -1,4 +1,21 @@
+import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import * as awsManager from '../awsLambdaLayerManager';
+
+vi.mock('../../logger');
+
+const mockPublishLayerVersion = vi.fn().mockResolvedValue({
+  LayerVersionArn: 'arn:aws:lambda:test-region:123456789:layer:test-layer:1',
+  Version: 1,
+});
+const mockAddLayerVersionPermission = vi.fn().mockResolvedValue({});
+
+vi.mock('@aws-sdk/client-lambda', () => ({
+  Lambda: vi.fn().mockImplementation(() => ({
+    publishLayerVersion: mockPublishLayerVersion,
+    addLayerVersionPermission: mockAddLayerVersionPermission,
+  })),
+  Runtime: {},
+}));
 
 const CANONICAL_SEPARATOR = ':';
 

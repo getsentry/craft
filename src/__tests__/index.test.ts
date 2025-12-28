@@ -1,3 +1,4 @@
+import { vi, describe, test, expect } from 'vitest';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { resolve } from 'path';
@@ -8,9 +9,6 @@ const execFileAsync = promisify(execFile);
 const CLI_ENTRY = resolve(__dirname, '../index.ts');
 
 describe('CLI smoke tests', () => {
-  // Increase timeout for CLI tests as they spawn processes
-  jest.setTimeout(30000);
-
   test('CLI starts and shows help without runtime errors', async () => {
     // This catches issues like:
     // - Missing dependencies
@@ -29,7 +27,7 @@ describe('CLI smoke tests', () => {
     // Ensure no error output (warnings are acceptable)
     expect(stderr).not.toContain('Error');
     expect(stderr).not.toContain('TypeError');
-  });
+  }, 30000);
 
   test('CLI shows version without errors', async () => {
     const { stdout } = await execFileAsync(
@@ -40,7 +38,7 @@ describe('CLI smoke tests', () => {
 
     // Version should be a semver-like string
     expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
-  });
+  }, 30000);
 
   test('CLI exits with error for unknown command', async () => {
     // This ensures yargs command parsing works and async handlers are awaited
@@ -53,7 +51,7 @@ describe('CLI smoke tests', () => {
     ).rejects.toMatchObject({
       code: 1,
     });
-  });
+  }, 30000);
 
   test('async command handler completes properly', async () => {
     // The 'targets' command has an async handler and requires a .craft.yml
@@ -75,5 +73,5 @@ describe('CLI smoke tests', () => {
         /Cannot find configuration file|craft\.yml|config/i
       );
     }
-  });
+  }, 30000);
 });
