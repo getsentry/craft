@@ -127,7 +127,7 @@ jobs:
       - name: Prepare release
         if: github.event_name == 'workflow_call'
         id: craft-action
-        uses: getsentry/craft@93e9ed70a3e7ab719ae14c8647a0e09a9ff52d52
+        uses: getsentry/craft@v2
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
