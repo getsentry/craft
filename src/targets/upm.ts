@@ -147,9 +147,24 @@ export class UpmTarget extends BaseTarget {
             targetRevision,
             changes
           );
-          await this.githubTarget.publishRelease(draftRelease, {
-            makeLatest: !isPrerelease,
-          });
+          try {
+            await this.githubTarget.publishRelease(draftRelease, {
+              makeLatest: !isPrerelease,
+            });
+          } catch (error) {
+            // Clean up the orphaned draft release
+            try {
+              await this.githubTarget.deleteRelease(draftRelease);
+              this.logger.info(
+                `Deleted orphaned draft release: ${draftRelease.tag_name}`
+              );
+            } catch (deleteError) {
+              this.logger.warn(
+                `Failed to delete orphaned draft release: ${deleteError}`
+              );
+            }
+            throw error;
+          }
         }
       },
       true,
