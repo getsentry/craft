@@ -51,32 +51,13 @@ describe('NugetTarget.expand', () => {
     const config = { name: 'nuget', workspaces: true };
     const result = await NugetTarget.expand(config, '/root');
 
-    // Should return targets in dependency order (Core before AspNetCore)
     expect(result).toHaveLength(2);
     expect(result[0].id).toBe('Sentry.Core');
-    expect(result[1].id).toBe('Sentry.AspNetCore');
-  });
-
-  it('generates correct includeNames pattern for each package', async () => {
-    discoverDotnetPackagesMock = vi
-      .spyOn(dotnetWorkspaces, 'discoverDotnetPackages')
-      .mockResolvedValue({
-        solutionPath: '/root/Sentry.sln',
-        packages: [
-          {
-            packageId: 'Sentry.Core',
-            projectPath: '/root/src/Sentry.Core/Sentry.Core.csproj',
-            isPackable: true,
-            projectDependencies: [],
-          },
-        ],
-      });
-
-    const config = { name: 'nuget', workspaces: true };
-    const result = await NugetTarget.expand(config, '/root');
-
-    expect(result).toHaveLength(1);
     expect(result[0].includeNames).toBe('/^Sentry\\.Core\\.\\d.*\\.nupkg$/');
+    expect(result[1].id).toBe('Sentry.AspNetCore');
+    expect(result[1].includeNames).toBe(
+      '/^Sentry\\.AspNetCore\\.\\d.*\\.nupkg$/'
+    );
   });
 
   it('filters packages by includeWorkspaces pattern', async () => {

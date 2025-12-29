@@ -177,57 +177,49 @@ describe('sortDotnetPackages', () => {
 });
 
 describe('packageIdToNugetArtifactPattern', () => {
-  test('converts simple package ID to pattern', () => {
-    const pattern = packageIdToNugetArtifactPattern('Sentry');
-    expect(pattern).toBe('/^Sentry\\.\\d.*\\.nupkg$/');
-  });
-
-  test('escapes dots in package ID', () => {
-    const pattern = packageIdToNugetArtifactPattern('Sentry.AspNetCore');
-    expect(pattern).toBe('/^Sentry\\.AspNetCore\\.\\d.*\\.nupkg$/');
-  });
-
-  test('handles package ID with multiple dots', () => {
-    const pattern = packageIdToNugetArtifactPattern(
-      'Sentry.Extensions.Logging'
+  test('converts package ID to pattern and escapes dots', () => {
+    expect(packageIdToNugetArtifactPattern('Sentry')).toBe(
+      '/^Sentry\\.\\d.*\\.nupkg$/'
     );
-    expect(pattern).toBe('/^Sentry\\.Extensions\\.Logging\\.\\d.*\\.nupkg$/');
+    expect(packageIdToNugetArtifactPattern('Sentry.AspNetCore')).toBe(
+      '/^Sentry\\.AspNetCore\\.\\d.*\\.nupkg$/'
+    );
+    expect(packageIdToNugetArtifactPattern('Sentry.Extensions.Logging')).toBe(
+      '/^Sentry\\.Extensions\\.Logging\\.\\d.*\\.nupkg$/'
+    );
   });
 });
 
 describe('packageIdToNugetArtifactFromTemplate', () => {
-  test('replaces {{packageId}} placeholder', () => {
-    const pattern = packageIdToNugetArtifactFromTemplate(
-      'Sentry.Core',
-      '{{packageId}}.nupkg'
-    );
-    expect(pattern).toBe('/^Sentry\\.Core\\.nupkg$/');
-  });
+  test('replaces placeholders and escapes special characters', () => {
+    // Basic packageId replacement
+    expect(
+      packageIdToNugetArtifactFromTemplate('Sentry.Core', '{{packageId}}.nupkg')
+    ).toBe('/^Sentry\\.Core\\.nupkg$/');
 
-  test('replaces {{version}} with regex pattern', () => {
-    const pattern = packageIdToNugetArtifactFromTemplate(
-      'Sentry.Core',
-      '{{packageId}}.{{version}}.nupkg'
-    );
-    expect(pattern).toBe('/^Sentry\\.Core\\.\\d.*\\.nupkg$/');
-  });
+    // Version with regex pattern
+    expect(
+      packageIdToNugetArtifactFromTemplate(
+        'Sentry.Core',
+        '{{packageId}}.{{version}}.nupkg'
+      )
+    ).toBe('/^Sentry\\.Core\\.\\d.*\\.nupkg$/');
 
-  test('replaces {{version}} with specific version', () => {
-    const pattern = packageIdToNugetArtifactFromTemplate(
-      'Sentry.Core',
-      '{{packageId}}.{{version}}.nupkg',
-      '1.0.0'
-    );
-    expect(pattern).toBe('/^Sentry\\.Core\\.1\\.0\\.0\\.nupkg$/');
-  });
+    // Version with specific value
+    expect(
+      packageIdToNugetArtifactFromTemplate(
+        'Sentry.Core',
+        '{{packageId}}.{{version}}.nupkg',
+        '1.0.0'
+      )
+    ).toBe('/^Sentry\\.Core\\.1\\.0\\.0\\.nupkg$/');
 
-  test('handles complex templates', () => {
-    const pattern = packageIdToNugetArtifactFromTemplate(
-      'Sentry.Core',
-      'packages/{{packageId}}/{{packageId}}.{{version}}.nupkg'
-    );
-    expect(pattern).toBe(
-      '/^packages\\/Sentry\\.Core\\/Sentry\\.Core\\.\\d.*\\.nupkg$/'
-    );
+    // Complex template with paths
+    expect(
+      packageIdToNugetArtifactFromTemplate(
+        'Sentry.Core',
+        'packages/{{packageId}}/{{packageId}}.{{version}}.nupkg'
+      )
+    ).toBe('/^packages\\/Sentry\\.Core\\/Sentry\\.Core\\.\\d.*\\.nupkg$/');
   });
 });
