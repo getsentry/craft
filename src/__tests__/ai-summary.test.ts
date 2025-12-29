@@ -1,5 +1,7 @@
 /**
- * Tests for AI summary functionality using GitHub Models API
+ * Tests for AI summary functionality
+ * - GitHub Models API (primary, abstractive summarization)
+ * - Local Hugging Face model (fallback, extractive summarization)
  */
 
 import { describe, test, expect, beforeEach, vi, afterEach } from 'vitest';
@@ -10,7 +12,8 @@ vi.mock('child_process', () => ({
 }));
 
 // Mock the AI SDK
-let mockGenerateTextResponse = 'Enhanced changelog with new features and bug fixes.';
+let mockGenerateTextResponse =
+  'Enhanced changelog with new features and improvements.';
 let shouldGenerateFail = false;
 
 vi.mock('ai', () => ({
@@ -26,6 +29,20 @@ vi.mock('@github/models', () => ({
   githubModels: vi.fn().mockReturnValue({ modelId: 'mock-model' }),
 }));
 
+// Mock Hugging Face transformers for local fallback
+let mockLocalSummary =
+  'Add support for custom entries. Make release workflow reusable.';
+let shouldLocalFail = false;
+
+vi.mock('@huggingface/transformers', () => ({
+  pipeline: vi.fn().mockImplementation(() => {
+    if (shouldLocalFail) {
+      return Promise.reject(new Error('Local model error'));
+    }
+    return Promise.resolve(async () => [{ summary_text: mockLocalSummary }]);
+  }),
+}));
+
 // Import after mocking
 import {
   summarizeSection,
@@ -34,6 +51,7 @@ import {
   resetPipeline,
   DEFAULT_KICK_IN_THRESHOLD,
   DEFAULT_AI_MODEL,
+  LOCAL_FALLBACK_MODEL,
   getModelInfo,
   type AiSummariesConfig,
 } from '../utils/ai-summary';
@@ -44,7 +62,12 @@ describe('ai-summary', () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
     shouldGenerateFail = false;
-    mockGenerateTextResponse = 'Enhanced changelog with new features and bug fixes.';
+    shouldLocalFail = false;
+    mockGenerateTextResponse =
+      'Enhanced changelog with new features and improvements.';
+    mockLocalSummary =
+      'Add support for custom entries. Make release workflow reusable.';
+    resetPipeline();
   });
 
   afterEach(() => {
@@ -56,19 +79,23 @@ describe('ai-summary', () => {
       expect(DEFAULT_KICK_IN_THRESHOLD).toBe(5);
     });
 
-    test('DEFAULT_AI_MODEL uses GPT-4o-mini', () => {
-      expect(DEFAULT_AI_MODEL).toBe('openai/gpt-4o-mini');
+    test('DEFAULT_AI_MODEL uses Ministral-3b', () => {
+      expect(DEFAULT_AI_MODEL).toBe('mistral-ai/ministral-3b');
+    });
+
+    test('LOCAL_FALLBACK_MODEL uses Falconsai', () => {
+      expect(LOCAL_FALLBACK_MODEL).toBe('Falconsai/text_summarization');
     });
   });
 
   describe('getModelInfo', () => {
     test('returns default model when no config', () => {
-      expect(getModelInfo()).toBe('openai/gpt-4o-mini');
+      expect(getModelInfo()).toBe('mistral-ai/ministral-3b');
     });
 
     test('returns custom model from config', () => {
-      const config: AiSummariesConfig = { model: 'meta/meta-llama-3.1-8b-instruct' };
-      expect(getModelInfo(config)).toBe('meta/meta-llama-3.1-8b-instruct');
+      const config: AiSummariesConfig = { model: 'openai/gpt-4o-mini' };
+      expect(getModelInfo(config)).toBe('openai/gpt-4o-mini');
     });
   });
 
@@ -88,14 +115,18 @@ describe('ai-summary', () => {
     test('returns summary for items above threshold', async () => {
       const items = ['A', 'B', 'C', 'D', 'E', 'F']; // 6 items > threshold
       const result = await summarizeItems(items);
-      expect(result).toBe('Enhanced changelog with new features and bug fixes.');
+      expect(result).toBe(
+        'Enhanced changelog with new features and improvements.',
+      );
     });
 
     test('respects custom kickInThreshold', async () => {
       const items = ['A', 'B', 'C']; // 3 items
       const config: AiSummariesConfig = { kickInThreshold: 2 };
       const result = await summarizeItems(items, config);
-      expect(result).toBe('Enhanced changelog with new features and bug fixes.');
+      expect(result).toBe(
+        'Enhanced changelog with new features and improvements.',
+      );
     });
 
     test('returns null when enabled is false', async () => {
@@ -105,21 +136,37 @@ describe('ai-summary', () => {
       expect(result).toBeNull();
     });
 
-    test('returns null when API fails', async () => {
+    test('falls back to local model when GitHub API fails', async () => {
       shouldGenerateFail = true;
       const items = ['A', 'B', 'C', 'D', 'E', 'F'];
       const result = await summarizeItems(items);
-      expect(result).toBeNull();
+      expect(result).toBe(mockLocalSummary);
     });
 
-    test('returns null when no GitHub token', async () => {
-      // Clear env and mock gh CLI to fail
+    test('falls back to local model when no GitHub token', async () => {
       delete process.env.GITHUB_TOKEN;
       const childProcess = await import('child_process');
       vi.mocked(childProcess.execSync).mockImplementationOnce(() => {
         throw new Error('gh not found');
       });
 
+      const items = ['A', 'B', 'C', 'D', 'E', 'F'];
+      const result = await summarizeItems(items);
+      expect(result).toBe(mockLocalSummary);
+    });
+
+    test('uses local model when explicitly configured', async () => {
+      const items = ['A', 'B', 'C', 'D', 'E', 'F'];
+      const config: AiSummariesConfig = {
+        model: 'local:Falconsai/text_summarization',
+      };
+      const result = await summarizeItems(items, config);
+      expect(result).toBe(mockLocalSummary);
+    });
+
+    test('returns null when both API and local fail', async () => {
+      shouldGenerateFail = true;
+      shouldLocalFail = true;
       const items = ['A', 'B', 'C', 'D', 'E', 'F'];
       const result = await summarizeItems(items);
       expect(result).toBeNull();
@@ -129,7 +176,9 @@ describe('ai-summary', () => {
       process.env.GITHUB_TOKEN = 'env-token';
       const items = ['A', 'B', 'C', 'D', 'E', 'F'];
       const result = await summarizeItems(items);
-      expect(result).toBe('Enhanced changelog with new features and bug fixes.');
+      expect(result).toBe(
+        'Enhanced changelog with new features and improvements.',
+      );
     });
   });
 
@@ -154,31 +203,16 @@ describe('ai-summary', () => {
         - Item 6
       `;
       const result = await summarizeSection(text);
-      expect(result).toBe('Enhanced changelog with new features and bug fixes.');
+      expect(result).toBe(
+        'Enhanced changelog with new features and improvements.',
+      );
     });
   });
 
   describe('isAiSummaryAvailable', () => {
-    test('returns true when GITHUB_TOKEN is set', async () => {
-      process.env.GITHUB_TOKEN = 'test-token';
+    test('returns true (always available with local fallback)', async () => {
       const result = await isAiSummaryAvailable();
       expect(result).toBe(true);
-    });
-
-    test('returns true when gh CLI provides token', async () => {
-      delete process.env.GITHUB_TOKEN;
-      const result = await isAiSummaryAvailable();
-      expect(result).toBe(true);
-    });
-
-    test('returns false when no token available', async () => {
-      delete process.env.GITHUB_TOKEN;
-      const childProcess = await import('child_process');
-      vi.mocked(childProcess.execSync).mockImplementationOnce(() => {
-        throw new Error('gh not found');
-      });
-      const result = await isAiSummaryAvailable();
-      expect(result).toBe(false);
     });
   });
 

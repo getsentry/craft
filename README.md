@@ -44,17 +44,36 @@ craft publish 1.2.3
 - **Workspace Support** - Handle monorepos with NPM/Yarn workspaces
 - **CI Integration** - Wait for CI to pass, download artifacts, and publish
 - **GitHub Actions** - Built-in actions for release preparation and changelog previews
-- **AI Summaries** - Optionally summarize verbose changelog sections using GitHub Models API
+- **AI Summaries** - Summarize verbose changelog sections using AI (GitHub Models or local fallback)
 
 ## AI-Powered Changelog Summaries
 
-Craft can use [GitHub Models](https://github.com/marketplace/models) to summarize changelog sections with many entries into concise descriptions. Uses your existing GitHub token—no additional API keys required.
+Craft can summarize changelog sections with many entries into concise descriptions. Uses [GitHub Models](https://github.com/marketplace/models) by default, with a local fallback when no token is available.
+
+**Before (6 items):**
+```markdown
+### New Features
+- Strip commit patterns from changelog entries
+- Add support for custom changelog entries from PR descriptions
+- Support for multiple entries and nested items
+- Add changelog preview action and CLI command
+- Make release workflow reusable for external repos
+- Add version templating for layer names
+```
+
+**After (AI summary):**
+```markdown
+### New Features
+Enhanced changelog generation with custom entries, preview action, reusable workflow support, and version templating.
+```
+
+### Configuration
 
 ```yaml
 aiSummaries:
   enabled: true
   kickInThreshold: 5  # Only summarize sections with >5 items
-  model: "openai/gpt-4o-mini"  # optional, see available models below
+  model: "mistral-ai/ministral-3b"  # optional, default
 ```
 
 ### Authentication
@@ -63,15 +82,24 @@ The feature uses your GitHub token automatically:
 - From `GITHUB_TOKEN` environment variable, or
 - From `gh auth token` (GitHub CLI)
 
+If no token is available, Craft falls back to a local model ([Falconsai/text_summarization](https://huggingface.co/Falconsai/text_summarization)).
+
 ### Available Models
 
-You can use any model from [GitHub Marketplace Models](https://github.com/marketplace/models):
+**GitHub Models** (requires token):
 
 ```yaml
 aiSummaries:
-  model: "openai/gpt-4o-mini"        # Default, fast and capable
-  model: "openai/gpt-4o"             # More capable, slower
-  model: "meta/meta-llama-3.1-8b-instruct"  # Open source alternative
+  model: "mistral-ai/ministral-3b"   # Default, 71% compression
+  model: "openai/gpt-4o-mini"        # Fast and capable
+  model: "openai/gpt-4o"             # Most capable
+```
+
+**Local models** (no token needed):
+
+```yaml
+aiSummaries:
+  model: "local:Falconsai/text_summarization"  # 60MB, extractive
 ```
 
 ## Configuration

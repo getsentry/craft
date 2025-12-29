@@ -95,7 +95,9 @@
   },
   "dependencies": {
     "@github/models": "^0.0.1-beta.2",
+    "@huggingface/transformers": "^3.8.1",
     "ai": "^6.0.3",
-    "marked": "^17.0.1"
+    "marked": "^17.0.1",
+    "node-llama-cpp": "^3.14.5"
   }
 }

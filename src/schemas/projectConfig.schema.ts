@@ -106,7 +106,7 @@ const projectConfigJsonSchema = {
     aiSummaries: {
       title: 'AiSummariesConfig',
       description:
-        'AI-powered changelog summarization. Uses GitHub Models API to condense long lists of changes into readable prose.',
+        'AI-powered changelog summarization. Uses GitHub Models API by default, falls back to local model.',
       type: 'object',
       properties: {
         enabled: {
@@ -124,7 +124,7 @@ const projectConfigJsonSchema = {
         model: {
           type: 'string',
           description:
-            'GitHub Models model name (default: openai/gpt-4o-mini). See https://github.com/marketplace/models',
+            'Model to use. GitHub Models: "mistral-ai/ministral-3b" (default), "openai/gpt-4o-mini". Local: "local:Falconsai/text_summarization". Falls back to local model if no GITHUB_TOKEN.',
         },
       },
       additionalProperties: false,
