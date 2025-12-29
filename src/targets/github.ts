@@ -62,6 +62,8 @@ interface GitHubRelease {
   tag_name: string;
   /** Upload URL */
   upload_url: string;
+  /** Whether this is a draft release */
+  draft?: boolean;
 }
 
 type ReposListAssetsForReleaseResponseItem = RestEndpointMethodTypes['repos']['listReleaseAssets']['response']['data'][0];
@@ -136,6 +138,7 @@ export class GitHubTarget extends BaseTarget {
         id: 0,
         tag_name: tag,
         upload_url: '',
+        draft: true,
       };
     }
 
@@ -191,6 +194,40 @@ export class GitHubTarget extends BaseTarget {
       (
         await this.github.repos.deleteReleaseAsset({
           asset_id: asset.id,
+          ...this.githubConfig,
+        })
+      ).status === 204
+    );
+  }
+
+  /**
+   * Deletes the provided release if it is a draft
+   *
+   * Used to clean up orphaned draft releases when publish fails.
+   * Refuses to delete non-draft releases as a safety measure.
+   *
+   * @param release Release to delete
+   * @returns true if deleted, false if skipped (dry-run or not a draft)
+   */
+  public async deleteRelease(release: GitHubRelease): Promise<boolean> {
+    this.logger.debug(`Deleting release: "${release.tag_name}"...`);
+
+    if (release.draft === false) {
+      this.logger.warn(
+        `Refusing to delete release "${release.tag_name}" because it is not a draft`
+      );
+      return false;
+    }
+
+    if (isDryRun()) {
+      this.logger.info(`[dry-run] Not deleting release "${release.tag_name}"`);
+      return false;
+    }
+
+    return (
+      (
+        await this.github.repos.deleteRelease({
+          release_id: release.id,
           ...this.githubConfig,
         })
       ).status === 204
@@ -532,13 +569,28 @@ export class GitHubTarget extends BaseTarget {
       changelog
     );
 
-    await Promise.all(
-      localArtifacts.map(({ path, mimeType }) =>
-        this.uploadAsset(draftRelease, path, mimeType)
-      )
-    );
+    try {
+      await Promise.all(
+        localArtifacts.map(({ path, mimeType }) =>
+          this.uploadAsset(draftRelease, path, mimeType)
+        )
+      );
 
-    await this.publishRelease(draftRelease, { makeLatest });
+      await this.publishRelease(draftRelease, { makeLatest });
+    } catch (error) {
+      // Clean up the orphaned draft release
+      try {
+        await this.deleteRelease(draftRelease);
+        this.logger.info(
+          `Deleted orphaned draft release: ${draftRelease.tag_name}`
+        );
+      } catch (deleteError) {
+        this.logger.warn(
+          `Failed to delete orphaned draft release: ${deleteError}`
+        );
+      }
+      throw error;
+    }
 
     // Update floating tags (e.g., v2 for version 2.15.0)
     await this.updateFloatingTags(version, revision);
