@@ -356,9 +356,15 @@ function checkGitStatus(repoStatus: StatusResult, rev: string) {
  * This function will never return: it terminates the process with the
  * corresponding error code after publishing is done.
  *
+ * @param remote The git remote to use when pushing
  * @param newVersion Version to publish
+ * @param noGitChecks If true, skip git status checks
  */
-async function execPublish(remote: string, newVersion: string): Promise<never> {
+async function execPublish(
+  remote: string,
+  newVersion: string,
+  noGitChecks: boolean
+): Promise<never> {
   logger.info('Running the "publish" command...');
   const publishOptions: PublishOptions = {
     remote,
@@ -367,6 +373,7 @@ async function execPublish(remote: string, newVersion: string): Promise<never> {
     keepDownloads: false,
     noMerge: false,
     noStatusCheck: false,
+    noGitChecks,
   };
   logger.info(
     `Sleeping for ${SLEEP_BEFORE_PUBLISH_SECONDS} seconds before publishing...`
@@ -750,7 +757,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
   if (argv.publish) {
     logger.success(`Release branch "${branchName}" has been pushed.`);
-    await execPublish(argv.remote, newVersion);
+    await execPublish(argv.remote, newVersion, argv.noGitChecks);
   } else {
     logger.success(
       'Done. Do not forget to run "craft publish" to publish the artifacts:',
