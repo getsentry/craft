@@ -1,5 +1,6 @@
+import pLimit from 'p-limit';
+
 import { TargetConfig } from '../schemas/project_config';
-import { forEachChained } from '../utils/async';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
@@ -273,33 +274,40 @@ export class NugetTarget extends BaseTarget {
       DOTNET_SPAWN_OPTIONS
     );
 
-    // Publish packages sequentially to avoid reentrancy issues with NuGet.org
-    // When using workspace expansion, packages are already sorted in dependency order
-    await forEachChained(packageFiles, async (file: RemoteArtifact) => {
-      const path = await this.artifactProvider.downloadArtifact(file);
+    // Publish packages with limited concurrency to avoid overwhelming NuGet.org
+    // while still being faster than fully sequential publishing.
+    // When using workspace expansion, packages are already sorted in dependency order.
+    const limit = pLimit(3);
 
-      // If an artifact containing a .snupkg file exists with the same base
-      // name as the .nupkg file, then download it to the same location.
-      // It will be picked up automatically when pushing the .nupkg.
+    await Promise.all(
+      packageFiles.map((file: RemoteArtifact) =>
+        limit(async () => {
+          const path = await this.artifactProvider.downloadArtifact(file);
 
-      // Note, this approach is required vs sending them separately, because
-      // we need to send the .nupkg *first*, and it must succeed before the
-      // .snupkg is sent.
+          // If an artifact containing a .snupkg file exists with the same base
+          // name as the .nupkg file, then download it to the same location.
+          // It will be picked up automatically when pushing the .nupkg.
 
-      const symbolFileName = file.filename.replace('.nupkg', '.snupkg');
-      const symbolFile = symbolFiles.find(f => f.filename === symbolFileName);
-      if (symbolFile) {
-        await this.artifactProvider.downloadArtifact(symbolFile);
-      }
+          // Note, this approach is required vs sending them separately, because
+          // we need to send the .nupkg *first*, and it must succeed before the
+          // .snupkg is sent.
 
-      this.logger.info(
-        `Uploading file "${file.filename}" via "dotnet nuget"` +
-          (symbolFile
-            ? `, including symbol file "${symbolFile.filename}"`
-            : '')
-      );
-      await this.uploadAsset(path);
-    });
+          const symbolFileName = file.filename.replace('.nupkg', '.snupkg');
+          const symbolFile = symbolFiles.find(f => f.filename === symbolFileName);
+          if (symbolFile) {
+            await this.artifactProvider.downloadArtifact(symbolFile);
+          }
+
+          this.logger.info(
+            `Uploading file "${file.filename}" via "dotnet nuget"` +
+              (symbolFile
+                ? `, including symbol file "${symbolFile.filename}"`
+                : '')
+          );
+          await this.uploadAsset(path);
+        })
+      )
+    );
 
     this.logger.info('Nuget release complete');
   }
