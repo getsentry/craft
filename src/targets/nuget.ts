@@ -80,24 +80,16 @@ export interface NugetTargetOptions {
  * Target responsible for publishing releases on Nuget
  */
 export class NugetTarget extends BaseTarget {
-  /** Target name */
   public readonly name: string = 'nuget';
-  /** Target options */
   public readonly nugetConfig: NugetTargetOptions;
 
   /**
    * Expand a nuget target config into multiple targets if workspaces is enabled.
-   * This static method is called during config loading to expand workspace targets.
-   *
-   * @param config The nuget target config
-   * @param rootDir The root directory of the project
-   * @returns Array of expanded target configs, or the original config in an array
    */
   public static async expand(
     config: NugetTargetConfig,
     rootDir: string
   ): Promise<TargetConfig[]> {
-    // If workspaces is not enabled, return the config as-is
     if (!config.workspaces) {
       return [config];
     }
@@ -111,7 +103,6 @@ export class NugetTarget extends BaseTarget {
       return [];
     }
 
-    // Convert to workspace packages for filtering
     const workspacePackages = result.packages.map(pkg => ({
       name: pkg.packageId,
       location: pkg.projectPath,
@@ -120,7 +111,6 @@ export class NugetTarget extends BaseTarget {
       workspaceDependencies: pkg.projectDependencies,
     }));
 
-    // Filter packages based on include/exclude patterns
     let includePattern: RegExp | undefined;
     let excludePattern: RegExp | undefined;
 
@@ -142,13 +132,11 @@ export class NugetTarget extends BaseTarget {
       return [];
     }
 
-    // Map back to DotnetPackage for sorting
     const filteredNames = new Set(filteredWorkspacePackages.map(p => p.name));
     const filteredPackages = result.packages.filter(p =>
       filteredNames.has(p.packageId)
     );
 
-    // Sort packages topologically (dependencies first)
     const sortedPackages = sortDotnetPackages(filteredPackages);
 
     logger.info(
@@ -162,9 +150,7 @@ export class NugetTarget extends BaseTarget {
         .join(', ')}`
     );
 
-    // Generate a target config for each package
     return sortedPackages.map(pkg => {
-      // Generate the artifact pattern
       let includeNames: string;
       if (config.artifactTemplate) {
         includeNames = packageIdToNugetArtifactFromTemplate(
@@ -175,19 +161,15 @@ export class NugetTarget extends BaseTarget {
         includeNames = packageIdToNugetArtifactPattern(pkg.packageId);
       }
 
-      // Create the expanded target config
       const expandedTarget: TargetConfig = {
         name: 'nuget',
         id: pkg.packageId,
         includeNames,
       };
 
-      // Copy over common target options
       if (config.excludeNames) {
         expandedTarget.excludeNames = config.excludeNames;
       }
-
-      // Copy over nuget-specific target options
       if (config.serverUrl) {
         expandedTarget.serverUrl = config.serverUrl;
       }
@@ -223,9 +205,6 @@ export class NugetTarget extends BaseTarget {
 
   /**
    * Uploads an archive to Nuget using "dotnet nuget"
-   *
-   * @param path Absolute path to the archive to upload
-   * @returns A promise that resolves when the upload has completed
    */
   public async uploadAsset(path: string): Promise<any> {
     const args = [
@@ -242,9 +221,6 @@ export class NugetTarget extends BaseTarget {
 
   /**
    * Publishes a package tarball to the Nuget registry
-   *
-   * @param version New version to be released
-   * @param revision Git commit SHA to be published
    */
   public async publish(_version: string, revision: string): Promise<any> {
     this.logger.debug('Fetching artifact list...');
@@ -261,12 +237,10 @@ export class NugetTarget extends BaseTarget {
       );
     }
 
-    // Emit the .NET version for informational purposes.
     this.logger.info('.NET Version:');
     await spawnProcess(NUGET_DOTNET_BIN, ['--version'], DOTNET_SPAWN_OPTIONS);
 
-    // Also emit the nuget version, which is informative and works around a bug.
-    // See https://github.com/NuGet/Home/issues/12159#issuecomment-1278360511
+    // Works around a bug: https://github.com/NuGet/Home/issues/12159#issuecomment-1278360511
     this.logger.info('Nuget Version:');
     await spawnProcess(
       NUGET_DOTNET_BIN,
