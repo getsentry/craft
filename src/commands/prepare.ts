@@ -30,7 +30,7 @@ import {
   handleGlobalError,
   reportError,
 } from '../utils/errors';
-import { getGitClient, getDefaultBranch, getLatestTag } from '../utils/git';
+import { getGitClient, getDefaultBranch, getLatestTag, isRepoDirty } from '../utils/git';
 import {
   getChangelogWithBumpType,
   calculateNextVersion,
@@ -335,14 +335,7 @@ function checkGitStatus(repoStatus: StatusResult, rev: string) {
 
   logger.debug('Repository status:', formatJson(repoStatus));
 
-  if (
-    repoStatus.conflicted.length ||
-    repoStatus.created.length ||
-    repoStatus.deleted.length ||
-    repoStatus.modified.length ||
-    repoStatus.renamed.length ||
-    repoStatus.staged.length
-  ) {
+  if (isRepoDirty(repoStatus)) {
     reportError(
       'Your repository is in a dirty state. ' +
         'Please stash or commit the pending changes.',

@@ -1,4 +1,4 @@
-import simpleGit, { type SimpleGit, type LogOptions, type Options } from 'simple-git';
+import simpleGit, { type SimpleGit, type LogOptions, type Options, type StatusResult } from 'simple-git';
 
 import { getConfigFileDir } from '../config';
 import { ConfigurationError } from './errors';
@@ -110,4 +110,21 @@ export async function getGitClient(): Promise<SimpleGit> {
     throw new ConfigurationError('Not in a git repository!');
   }
   return git;
+}
+
+/**
+ * Checks if the git repository has uncommitted changes
+ *
+ * @param repoStatus Result of git.status()
+ * @returns true if the repository has uncommitted changes
+ */
+export function isRepoDirty(repoStatus: StatusResult): boolean {
+  return !!(
+    repoStatus.conflicted.length ||
+    repoStatus.created.length ||
+    repoStatus.deleted.length ||
+    repoStatus.modified.length ||
+    repoStatus.renamed.length ||
+    repoStatus.staged.length
+  );
 }

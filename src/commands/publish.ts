@@ -36,7 +36,7 @@ import { isValidVersion } from '../utils/version';
 import { BaseStatusProvider } from '../status_providers/base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { SimpleGit } from 'simple-git';
-import { getGitClient, getDefaultBranch } from '../utils/git';
+import { getGitClient, getDefaultBranch, isRepoDirty } from '../utils/git';
 
 /** Default path to post-release script, relative to project root */
 const DEFAULT_POST_RELEASE_SCRIPT_PATH = join('scripts', 'post-release.sh');
@@ -118,6 +118,11 @@ export const builder: CommandBuilder = (yargs: Argv) => {
       description: 'Do not check for build status',
       type: 'boolean',
     })
+    .option('no-git-checks', {
+      default: false,
+      description: 'Ignore local git changes and unsynchronized remotes',
+      type: 'boolean',
+    })
     .check(checkVersion)
     .demandOption('new-version', 'Please specify the version to publish');
 };
@@ -142,6 +147,8 @@ export interface PublishOptions {
   noStatusCheck: boolean;
   /** Do not remove release branch after publishing */
   keepBranch: boolean;
+  /** Do not perform basic git checks */
+  noGitChecks: boolean;
 }
 
 export interface PublishState {
@@ -452,6 +459,20 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   logger.info(`Publishing version: "${newVersion}"`);
 
   const git = await getGitClient();
+
+  // Check for dirty repository state before any git operations
+  if (argv.noGitChecks) {
+    logger.info('Not checking the status of the local repository');
+  } else {
+    const repoStatus = await git.status();
+    if (isRepoDirty(repoStatus)) {
+      reportError(
+        'Your repository is in a dirty state. ' +
+          'Please stash or commit the pending changes.',
+        logger
+      );
+    }
+  }
 
   const rev = argv.rev;
   let checkoutTarget;
