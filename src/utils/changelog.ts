@@ -23,6 +23,8 @@ export interface CurrentPRInfo {
   labels: string[];
   /** Base branch ref (e.g., "master") for computing merge base */
   baseRef: string;
+  /** Head commit SHA of the PR branch */
+  headSha: string;
 }
 
 /**
@@ -55,6 +57,7 @@ async function fetchPRInfo(prNumber: number): Promise<CurrentPRInfo> {
     author: pr.user?.login ?? '',
     labels: labels.map(l => l.name),
     baseRef: pr.base.ref,
+    headSha: pr.head.sha,
   };
 }
 
@@ -136,6 +139,57 @@ function markdownHeader(level: number, text: string): string {
 
 function escapeLeadingUnderscores(text: string): string {
   return text.replace(/(^| )_/, '$1\\_');
+}
+
+/**
+ * Checks if a commit is a revert commit.
+ * Revert commits are detected by:
+ * 1. Title starting with 'Revert "' (standard GitHub format)
+ * 2. Body containing 'This reverts commit <sha>' (git revert format)
+ *
+ * @param title The commit or PR title
+ * @param body Optional commit or PR body to check
+ * @returns true if this is a revert commit
+ */
+export function isRevertCommit(title: string, body?: string): boolean {
+  // Check title for standard GitHub revert format
+  if (title.startsWith('Revert "')) {
+    return true;
+  }
+  // Check body for git revert magic string
+  if (body && /This reverts commit [a-f0-9]{7,40}/i.test(body)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Extracts the SHA of the reverted commit from a revert commit's body.
+ * Git revert commits typically include "This reverts commit <sha>." in the body.
+ *
+ * @param body The commit body text
+ * @returns The SHA (7-40 chars) if found, or null
+ */
+export function extractRevertedSha(body: string): string | null {
+  const match = body.match(/This reverts commit ([a-f0-9]{7,40})/i);
+  return match?.[1] ?? null;
+}
+
+/**
+ * Extracts the original commit title from a revert commit's title.
+ * Handles the format: Revert "original title" with optional PR suffix (#123).
+ *
+ * @param title The revert commit title
+ * @returns The original title if extractable, or null
+ */
+export function extractRevertedTitle(title: string): string | null {
+  // Match: Revert "..." with optional PR suffix (#123)
+  // The greedy .+ correctly handles nested quotes (e.g., Revert "Revert "feat"")
+  // because it consumes as much as possible while the final " is anchored to the
+  // end of the string (before the optional PR suffix). This means for nested
+  // reverts, .+ captures everything between the first " and the last ".
+  const match = title.match(/^Revert "(.+)"(?:\s*\(#\d+\))?$/);
+  return match?.[1] ?? null;
 }
 
 /**
@@ -573,6 +627,117 @@ interface RawCommitInfo {
 }
 
 /**
+ * Processes revert commits by canceling out revert/reverted pairs.
+ *
+ * When a revert commit and its target are both in the list, both are removed
+ * (they cancel each other out). Commits are expected in newest-first order
+ * (as returned by git log), and we process in that order to handle nested
+ * reverts correctly:
+ * - A: original commit (oldest)
+ * - B: Revert A
+ * - C: Revert B (Revert Revert A, newest)
+ *
+ * Processing newest first: C cancels B, leaving A in the changelog.
+ *
+ * Matching strategy:
+ * 1. Primary: Match by SHA from "This reverts commit <sha>" in body
+ * 2. Fallback: Match by title extracted from 'Revert "original title"'
+ *
+ * @param rawCommits Array of commits in newest-first order (git log order)
+ * @returns Filtered array with canceled revert pairs removed
+ */
+export function processReverts(rawCommits: RawCommitInfo[]): RawCommitInfo[] {
+  if (rawCommits.length === 0) {
+    return [];
+  }
+
+  // Create a working set of commits (we'll remove canceled pairs)
+  const remaining = new Set(rawCommits);
+
+  // Build lookup maps for efficient matching
+  // SHA map: hash -> commit (for SHA-based matching)
+  const byHash = new Map<string, RawCommitInfo>();
+  // Title map: effective title -> commit (for title-based fallback)
+  // Use PR title if available, otherwise commit title
+  const byTitle = new Map<string, RawCommitInfo>();
+
+  for (const commit of rawCommits) {
+    if (commit.hash) {
+      byHash.set(commit.hash, commit);
+    }
+    const effectiveTitle = (commit.prTitle ?? commit.title).trim();
+    // Only set if not already present (first commit with this title wins)
+    if (!byTitle.has(effectiveTitle)) {
+      byTitle.set(effectiveTitle, commit);
+    }
+  }
+
+  // Process in original order (newest first).
+  // This ensures the most recent revert is processed first, correctly handling
+  // chains like: A -> Revert A -> Revert Revert A
+  for (const commit of rawCommits) {
+    // Skip if already removed
+    if (!remaining.has(commit)) {
+      continue;
+    }
+
+    const effectiveTitle = (commit.prTitle ?? commit.title).trim();
+    const effectiveBody = commit.prBody ?? commit.body;
+
+    if (!isRevertCommit(effectiveTitle, effectiveBody)) {
+      continue;
+    }
+
+    // Try to find the reverted commit
+    let revertedCommit: RawCommitInfo | undefined;
+
+    // Strategy 1: Match by SHA from commit body
+    const revertedSha = extractRevertedSha(effectiveBody);
+    if (revertedSha) {
+      // Try exact match first
+      revertedCommit = byHash.get(revertedSha);
+      if (!revertedCommit || !remaining.has(revertedCommit)) {
+        // Try prefix match for abbreviated SHAs
+        revertedCommit = undefined;
+        for (const [hash, c] of byHash) {
+          if (
+            remaining.has(c) &&
+            (hash.startsWith(revertedSha) || revertedSha.startsWith(hash))
+          ) {
+            revertedCommit = c;
+            break;
+          }
+        }
+      }
+    }
+
+    // Strategy 2: Fallback to title matching
+    if (!revertedCommit || !remaining.has(revertedCommit)) {
+      const revertedTitle = extractRevertedTitle(effectiveTitle);
+      if (revertedTitle) {
+        const candidate = byTitle.get(revertedTitle);
+        if (candidate && remaining.has(candidate)) {
+          revertedCommit = candidate;
+        }
+      }
+    }
+
+    // If we found the reverted commit and it's still in the remaining set,
+    // remove both (they cancel each other out)
+    if (revertedCommit && remaining.has(revertedCommit)) {
+      remaining.delete(commit);
+      remaining.delete(revertedCommit);
+      logger.debug(
+        `Revert cancellation: "${effectiveTitle}" cancels "${(revertedCommit.prTitle ?? revertedCommit.title).trim()}"`
+      );
+    }
+  }
+
+  // Return commits in original order, filtered to only remaining ones
+  return rawCommits.filter(commit => remaining.has(commit));
+}
+
+/**
  * Valid semver bump types for auto-versioning
  */
 export type SemverBumpType = 'major' | 'minor' | 'patch';
@@ -628,7 +793,12 @@ export const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
       },
       {
         title: 'Bug Fixes 🐛',
-        commit_patterns: ['^(?<type>fix(?:\\((?<scope>[^)]+)\\))?!?:\\s*)'],
+        commit_patterns: [
+          '^(?<type>fix(?:\\((?<scope>[^)]+)\\))?!?:\\s*)',
+          // Standalone reverts (where original isn't in changelog) are treated as bug fixes
+          // No <type> capture group - we want to keep the full "Revert ..." title
+          '^Revert "',
+        ],
         semver: 'patch',
       },
       {
@@ -1229,7 +1399,7 @@ export async function generateChangelogWithHighlight(
 
   // Step 6: Add current PR to the list with highlight flag (at the beginning)
   const currentPRCommit: RawCommitInfo = {
-    hash: '',
+    hash: prInfo.headSha,
     title: prInfo.title.trim(),
     body: prInfo.body,
     author: prInfo.author,
@@ -1239,20 +1409,33 @@ export async function generateChangelogWithHighlight(
     labels: prInfo.labels,
     highlight: true,
   };
+  // Prepend current PR to make it newest in the list.
+  // Git log returns commits newest-first, so this maintains that order.
   const allCommits = [currentPRCommit, ...rawCommits];
 
-  // Step 7: Run categorization on combined list (for changelog generation only)
-  const { data: rawData, stats } = categorizeCommits(allCommits);
+  // Step 7: Process reverts - cancel out revert/reverted pairs
+  const filteredCommits = processReverts(allCommits);
 
-  // Step 8: Serialize to markdown
+  // Step 8: Check if current PR was cancelled by revert processing
+  const currentPRSurvived = filteredCommits.some(c => c.highlight);
+
+  // Step 9: Run categorization on filtered list
+  const { data: rawData, stats } = categorizeCommits(filteredCommits);
+
+  // Step 10: Serialize to markdown
   const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS);
 
-  // Return PR-specific bump type, not the aggregate from all commits
-  // But use accurate statistics from all commits processed for the changelog
+  // Determine bump type:
+  // - If current PR survived revert processing, use its specific bump type (PR 676 fix)
+  //   This shows "what is this PR's contribution to the version bump"
+  // - If current PR was cancelled (it's a revert that cancelled another commit),
+  //   show the remaining commits' aggregated bump type (the net effect on the release)
+  const bumpType = currentPRSurvived ? prBumpType : stats.bumpType;
+
   return {
     changelog,
     prSkipped: false,
-    bumpType: prBumpType,
+    bumpType,
     totalCommits: stats.totalCommits,
     matchedCommitsWithSemver: stats.matchedCommitsWithSemver,
   };
@@ -1443,7 +1626,9 @@ async function generateRawChangelog(
   until?: string
 ): Promise<RawChangelogResult> {
   const rawCommits = await fetchRawCommitInfo(git, rev, until);
-  return categorizeCommits(rawCommits);
+  // Process reverts: cancel out revert/reverted pairs
+  const filteredCommits = processReverts(rawCommits);
+  return categorizeCommits(filteredCommits);
 }
 
 /**
