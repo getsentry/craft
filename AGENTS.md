@@ -67,3 +67,47 @@ dist/
 
 - Project configuration lives in `.craft.yml` at the repository root.
 - The configuration schema is defined in `src/schemas/`.
+
+## Dry-Run Mode
+
+Craft supports a `--dry-run` flag that prevents destructive operations. This is implemented via a centralized abstraction layer.
+
+### How It Works
+
+Instead of checking `isDryRun()` manually in every function, destructive operations are wrapped with dry-run-aware proxies:
+
+- **Git operations**: Use `getGitClient()` from `src/utils/git.ts` or `createGitClient(directory)` for working with specific directories
+- **GitHub API**: Use `getGitHubClient()` from `src/utils/githubApi.ts`
+- **File writes**: Use `dryRunFs` from `src/utils/dryRun.ts`
+- **Other actions**: Use `dryRunExec()` or `dryRunExecSync()` from `src/utils/dryRun.ts`
+
+### ESLint Enforcement
+
+ESLint rules prevent direct usage of raw APIs:
+
+- `no-restricted-imports`: Blocks direct `simple-git` imports
+- `no-restricted-syntax`: Blocks `new Octokit()` instantiation
+
+If you're writing a wrapper module that needs raw access, use:
+
+```typescript
+// eslint-disable-next-line no-restricted-imports -- This is the wrapper module
+import simpleGit from 'simple-git';
+```
+
+### Adding New Destructive Operations
+
+When adding new code that performs destructive operations:
+
+1. **Git**: Get the git client via `getGitClient()` or `createGitClient()` - mutating methods are automatically blocked
+2. **GitHub API**: Get the client via `getGitHubClient()` - `create*`, `update*`, `delete*`, `upload*` methods are automatically blocked
+3. **File writes**: Use `dryRunFs.writeFile()`, `dryRunFs.unlink()`, etc. instead of raw `fs` methods
+4. **Other**: Wrap with `dryRunExec(action, description)` for custom operations
+
+### Special Cases
+
+Some operations need explicit `isDryRun()` checks:
+
+- Commands with their own `--dry-run` flag (e.g., `dart pub publish --dry-run` in pubDev target)
+- Operations that need to return mock data in dry-run mode
+- User experience optimizations (e.g., skipping sleep timers)

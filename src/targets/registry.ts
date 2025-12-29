@@ -1,5 +1,6 @@
 import { mapLimit } from 'async';
 import { Octokit } from '@octokit/rest';
+// eslint-disable-next-line no-restricted-imports -- Need raw simpleGit for initial clone
 import simpleGit, { SimpleGit } from 'simple-git';
 
 import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
@@ -30,7 +31,7 @@ import {
   updateManifestSymlinks,
   RegistryPackageType,
 } from '../utils/registry';
-import { isDryRun } from '../utils/helpers';
+import { createGitClient } from '../utils/git';
 import { filterAsync, withRetry } from '../utils/async';
 
 /** "registry" target options */
@@ -428,15 +429,15 @@ export class RegistryTarget extends BaseTarget {
     const remote = this.remote;
     remote.setAuth(getGitHubApiToken());
 
-    const git = simpleGit(directory);
     this.logger.info(
       `Cloning "${remote.getRemoteString()}" to "${directory}"...`
     );
-    await git.clone(remote.getRemoteStringWithAuth(), directory, [
+    // eslint-disable-next-line no-restricted-syntax -- Clone needs raw simpleGit, wrapped client used after
+    await simpleGit().clone(remote.getRemoteStringWithAuth(), directory, [
       '--filter=tree:0',
       '--single-branch',
     ]);
-    return git;
+    return createGitClient(directory);
   }
 
   public async getValidItems(
@@ -499,24 +500,20 @@ export class RegistryTarget extends BaseTarget {
           )
         );
 
-        // Commit
+        // Commit - git operations are automatically handled by the dry-run proxy
         await localRepo.git
           .add(['.'])
           .commit(
             `craft: release "${this.githubRepo.repo}", version "${version}"`
           );
-        // Push!
-        if (!isDryRun()) {
-          this.logger.info(`Pushing the changes...`);
-          // Ensure we are still up to date with upstream
-          await withRetry(() =>
-            localRepo.git
-              .pull('origin', 'master', ['--rebase'])
-              .push('origin', 'master')
-          );
-        } else {
-          this.logger.info('[dry-run] Not pushing the changes.');
-        }
+        // Push! - git operations are automatically handled by the dry-run proxy
+        this.logger.info(`Pushing the changes...`);
+        // Ensure we are still up to date with upstream
+        await withRetry(() =>
+          localRepo.git
+            .pull('origin', 'master', ['--rebase'])
+            .push('origin', 'master')
+        );
       },
       true,
       'craft-release-registry-'

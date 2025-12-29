@@ -1,12 +1,13 @@
+// eslint-disable-next-line no-restricted-imports -- Need raw simpleGit for initial clone
 import simpleGit from 'simple-git';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
+import { createGitClient } from '../utils/git';
 import { BaseTarget } from './base';
 import childProcess from 'child_process';
 import type { Consola } from 'consola';
-import { isDryRun } from '../utils/helpers';
 import { URL } from 'url';
 
 interface GitRepositoryTargetConfig {
@@ -132,8 +133,6 @@ export async function pushArchiveToGitRepository({
 }) {
   await withTempDir(
     async directory => {
-      const git = simpleGit(directory);
-
       logger?.info(`Cloning ${repositoryUrl} into ${directory}...`);
 
       let parsedUrl;
@@ -153,7 +152,9 @@ export async function pushArchiveToGitRepository({
 
       const authenticatedUrl = parsedUrl.toString();
 
-      await git.clone(authenticatedUrl, directory);
+      // eslint-disable-next-line no-restricted-syntax -- Clone needs raw simpleGit, wrapped client used after
+      await simpleGit().clone(authenticatedUrl, directory);
+      const git = createGitClient(directory);
 
       logger?.info(`Checking out branch "${branch}"...`);
       await git.checkout(branch);
@@ -176,30 +177,23 @@ export async function pushArchiveToGitRepository({
       logger?.info(`Staging files...`);
       await git.raw('add', '--all');
 
+      // Git operations are automatically handled by the dry-run proxy
       logger?.info(`Creating commit...`);
-      if (!isDryRun()) {
-        await git.commit(`release: ${version}`);
-      }
+      await git.commit(`release: ${version}`);
 
       if (createTag) {
         logger?.info(`Adding a tag "${version}"...`);
-        if (!isDryRun()) {
-          await git.addTag(version);
-        }
+        await git.addTag(version);
       } else {
         logger?.info(`Not adding a tag because it was disabled.`);
       }
 
       logger?.info(`Pushing changes to repository...`);
-      if (!isDryRun()) {
-        await git.raw('push', authenticatedUrl, '--force');
-      }
+      await git.raw('push', authenticatedUrl, '--force');
 
       if (createTag) {
         logger?.info(`Pushing tag...`);
-        if (!isDryRun()) {
-          await git.raw('push', authenticatedUrl, '--tags');
-        }
+        await git.raw('push', authenticatedUrl, '--tags');
       }
     },
     true,

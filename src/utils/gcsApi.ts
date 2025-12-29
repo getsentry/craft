@@ -7,10 +7,10 @@ import {
   Storage as GCSStorage,
   UploadOptions as GCSUploadOptions,
 } from '@google-cloud/storage';
-import { isDryRun } from './helpers';
 
 import { logger } from '../logger';
 import { reportError } from './errors';
+import { dryRunExec } from './dryRun';
 import { RequiredConfigVar } from './env';
 import { detectContentType } from './files';
 import { RemoteArtifact } from '../artifact_providers/base';
@@ -207,13 +207,9 @@ export class CraftGCSClient {
       `File \`${filename}\`, upload options: ${formatJson(uploadConfig)}`
     );
 
-    if (!isDryRun()) {
-      logger.debug(
-        `Attempting to upload \`${filename}\` to \`${path.posix.join(
-          this.bucketName,
-          pathInBucket
-        )}\`.`
-      );
+    const destination = path.posix.join(this.bucketName, pathInBucket);
+    await dryRunExec(async () => {
+      logger.debug(`Attempting to upload \`${filename}\` to \`${destination}\`.`);
 
       try {
         await this.bucket.upload(artifactLocalPath, uploadConfig);
@@ -232,9 +228,7 @@ export class CraftGCSClient {
             filename
           )} <path-to-download-location>\`.`
       );
-    } else {
-      logger.info(`[dry-run] Skipping upload for \`${filename}\``);
-    }
+    }, `upload ${filename} to ${destination}`);
   }
 
   /**
@@ -260,7 +254,7 @@ export class CraftGCSClient {
       );
     }
 
-    if (!isDryRun()) {
+    await dryRunExec(async () => {
       logger.debug(
         `Attempting to download \`${destinationFilename}\` to \`${destinationDirectory}\`.`
       );
@@ -275,9 +269,7 @@ export class CraftGCSClient {
       }
 
       logger.debug(`Successfully downloaded \`${destinationFilename}\`.`);
-    } else {
-      logger.info(`[dry-run] Skipping download for \`${destinationFilename}\``);
-    }
+    }, `download ${destinationFilename} to ${destinationDirectory}`);
 
     return path.join(destinationDirectory, destinationFilename);
   }

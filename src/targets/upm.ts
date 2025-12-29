@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/rest';
+// eslint-disable-next-line no-restricted-imports -- Need raw simpleGit for initial clone
 import simpleGit from 'simple-git';
 import {
   getGitHubApiToken,
@@ -16,7 +17,7 @@ import {
 import { reportError } from '../utils/errors';
 import { extractZipArchive } from '../utils/system';
 import { withTempDir } from '../utils/files';
-import { isDryRun } from '../utils/helpers';
+import { createGitClient } from '../utils/git';
 import { isPreviewRelease } from '../utils/version';
 import { NoneArtifactProvider } from '../artifact_providers/none';
 
@@ -116,9 +117,9 @@ export class UpmTarget extends BaseTarget {
 
     await withTempDir(
       async directory => {
-        const git = simpleGit(directory);
-        this.logger.info(`Cloning ${remoteAddr} to ${directory}...`);
-        await git.clone(remote.getRemoteStringWithAuth(), directory);
+        // eslint-disable-next-line no-restricted-syntax -- Clone needs raw simpleGit, wrapped client used after
+        await simpleGit().clone(remote.getRemoteStringWithAuth(), directory);
+        const git = createGitClient(directory);
 
         this.logger.info('Clearing the repository.');
         await git.rm(['-r', '-f', '.']);
@@ -128,6 +129,7 @@ export class UpmTarget extends BaseTarget {
 
         this.logger.info('Adding files to repository.');
         await git.add(['.']);
+        // Git operations are automatically handled by the dry-run proxy
         const commitResult = await git.commit(`release ${version}`);
         if (!commitResult.commit) {
           throw new Error(
@@ -136,35 +138,32 @@ export class UpmTarget extends BaseTarget {
         }
         const targetRevision = await git.revparse([commitResult.commit]);
 
-        if (isDryRun()) {
-          this.logger.info('[dry-run]: git push origin main');
-        } else {
-          await git.push(['origin', 'main']);
-          const changes = await this.githubTarget.getChangelog(version);
-          const isPrerelease = isPreviewRelease(version);
-          const draftRelease = await this.githubTarget.createDraftRelease(
-            version,
-            targetRevision,
-            changes
-          );
+        // Git operations are automatically handled by the dry-run proxy
+        await git.push(['origin', 'main']);
+        const changes = await this.githubTarget.getChangelog(version);
+        const isPrerelease = isPreviewRelease(version);
+        const draftRelease = await this.githubTarget.createDraftRelease(
+          version,
+          targetRevision,
+          changes
+        );
+        try {
+          await this.githubTarget.publishRelease(draftRelease, {
+            makeLatest: !isPrerelease,
+          });
+        } catch (error) {
+          // Clean up the orphaned draft release
           try {
-            await this.githubTarget.publishRelease(draftRelease, {
-              makeLatest: !isPrerelease,
-            });
-          } catch (error) {
-            // Clean up the orphaned draft release
-            try {
-              await this.githubTarget.deleteRelease(draftRelease);
-              this.logger.info(
-                `Deleted orphaned draft release: ${draftRelease.tag_name}`
-              );
-            } catch (deleteError) {
-              this.logger.warn(
-                `Failed to delete orphaned draft release: ${deleteError}`
-              );
-            }
-            throw error;
+            await this.githubTarget.deleteRelease(draftRelease);
+            this.logger.info(
+              `Deleted orphaned draft release: ${draftRelease.tag_name}`
+            );
+          } catch (deleteError) {
+            this.logger.warn(
+              `Failed to delete orphaned draft release: ${deleteError}`
+            );
           }
+          throw error;
         }
       },
       true,

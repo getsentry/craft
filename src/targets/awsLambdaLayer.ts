@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { Octokit } from '@octokit/rest';
+// eslint-disable-next-line no-restricted-imports -- Need raw simpleGit for initial clone
 import simpleGit from 'simple-git';
 import {
   getGitHubApiToken,
@@ -22,6 +23,8 @@ import {
 import { createSymlinks } from '../utils/symlink';
 import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
+import { createGitClient } from '../utils/git';
+import { logDryRun } from '../utils/dryRun';
 import { renderTemplateSafe } from '../utils/strings';
 import { isPreviewRelease, parseVersion } from '../utils/version';
 import { DEFAULT_REGISTRY_REMOTE } from '../utils/registry';
@@ -171,11 +174,12 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
     await withTempDir(
       async directory => {
-        const git = simpleGit(directory);
         this.logger.info(
           `Cloning ${remote.getRemoteString()} to ${directory}...`
         );
-        await git.clone(remote.getRemoteStringWithAuth(), directory);
+        // eslint-disable-next-line no-restricted-syntax -- Clone needs raw simpleGit, wrapped client used after
+        await simpleGit().clone(remote.getRemoteStringWithAuth(), directory);
+        const git = createGitClient(directory);
 
         if (!isDryRun()) {
           await this.publishRuntimes(
@@ -186,9 +190,10 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           );
           this.logger.debug('Finished publishing runtimes.');
         } else {
-          this.logger.info('[dry-run] Not publishing new layers.');
+          logDryRun('publishRuntimes(...)');
         }
 
+        // Git operations are automatically handled by the dry-run proxy
         await git.add(['.']);
         await git.checkout('master');
         const runtimeNames = this.config.compatibleRuntimes.map(
@@ -222,7 +227,9 @@ export class AwsLambdaLayerTarget extends BaseTarget {
    */
   private isPushableToRegistry(version: string): boolean {
     if (isDryRun()) {
-      this.logger.info('[dry-run] Not pushing the branch.');
+      // Skip early - git.push() will also be blocked by the proxy but we want
+      // to skip the whole logic chain
+      logDryRun('git.push()');
       return false;
     }
     if (isPreviewRelease(version) && !this.awsLambdaConfig.linkPrereleases) {

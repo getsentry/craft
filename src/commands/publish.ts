@@ -1,11 +1,8 @@
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 import chalk from 'chalk';
-import {
-  existsSync,
-  readFileSync,
-  writeFileSync,
-  promises as fsPromises,
-} from 'fs';
+import { existsSync, readFileSync } from 'fs';
+
+import { dryRunFs } from '../utils/dryRun';
 import { join } from 'path';
 import shellQuote from 'shell-quote';
 import stringLength from 'string-length';
@@ -25,7 +22,7 @@ import { BaseTarget } from '../targets/base';
 import { handleGlobalError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
-import { isDryRun, promptConfirmation } from '../utils/helpers';
+import { promptConfirmation } from '../utils/helpers';
 import { formatSize } from '../utils/strings';
 import {
   catchKeyboardInterrupt,
@@ -376,25 +373,19 @@ async function handleReleaseBranch(
   await git.checkout(mergeTarget);
 
   logger.debug(`Merging ${branch} into: ${mergeTarget}`);
-  if (!isDryRun()) {
-    await git
-      .pull(remoteName, mergeTarget, ['--rebase'])
-      .merge(['--no-ff', '--no-edit', branch])
-      .push(remoteName, mergeTarget);
-  } else {
-    logger.info('[dry-run] Not merging the release branch');
-  }
+  // Git operations are automatically handled by the dry-run proxy
+  await git
+    .pull(remoteName, mergeTarget, ['--rebase'])
+    .merge(['--no-ff', '--no-edit', branch])
+    .push(remoteName, mergeTarget);
 
   if (keepBranch) {
     logger.info('Not deleting the release branch.');
   } else {
     logger.debug(`Deleting the release branch: ${branch}`);
-    if (!isDryRun()) {
-      await git.branch(['-D', branch]).push([remoteName, '--delete', branch]);
-      logger.info(`Removed the remote branch: "${branch}"`);
-    } else {
-      logger.info('[dry-run] Not deleting the remote branch');
-    }
+    // Git operations are automatically handled by the dry-run proxy
+    await git.branch(['-D', branch]).push([remoteName, '--delete', branch]);
+    logger.info(`Removed the remote branch: "${branch}"`);
   }
 }
 
@@ -575,9 +566,8 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       for (const target of targetList) {
         await publishToTarget(target, newVersion, revision);
         publishState.published[BaseTarget.getId(target.config)] = true;
-        if (!isDryRun()) {
-          writeFileSync(publishStateFile, JSON.stringify(publishState));
-        }
+        // File writes are automatically handled by the dry-run proxy
+        dryRunFs.writeFileSync(publishStateFile, JSON.stringify(publishState));
       }
 
       if (argv.keepDownloads) {
@@ -610,19 +600,16 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       argv.mergeTarget,
       argv.keepBranch
     );
-    if (!isDryRun()) {
-      // XXX(BYK): intentionally DO NOT await unlinking as we do not want
-      // to block (both in terms of waiting for IO and the success of the
-      // operation) finishing the publish flow on the removal of a temporary
-      // file. If unlinking fails, we honestly don't care, at least to fail
-      // the final steps. And it doesn't make sense to wait until this op
-      // finishes then as nothing relies on the removal of this file.
-      fsPromises
-        .unlink(publishStateFile)
-        .catch(err =>
-          logger.trace("Couldn't remove publish state file: ", err)
-        );
-    }
+    // XXX(BYK): intentionally DO NOT await unlinking as we do not want
+    // to block (both in terms of waiting for IO and the success of the
+    // operation) finishing the publish flow on the removal of a temporary
+    // file. If unlinking fails, we honestly don't care, at least to fail
+    // the final steps. And it doesn't make sense to wait until this op
+    // finishes then as nothing relies on the removal of this file.
+    // File operations are automatically handled by the dry-run proxy
+    dryRunFs
+      .unlink(publishStateFile)
+      .catch(err => logger.trace("Couldn't remove publish state file: ", err));
     logger.success(`Version ${newVersion} has been published!`);
   } else {
     const msg = [

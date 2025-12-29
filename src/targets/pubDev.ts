@@ -2,7 +2,7 @@ import { constants, promises as fsPromises } from 'fs';
 import { homedir, platform } from 'os';
 import { join, dirname } from 'path';
 import { load, dump } from 'js-yaml';
-import simpleGit from 'simple-git';
+import { createGitClient } from '../utils/git';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
@@ -11,6 +11,7 @@ import { checkEnvForPrerequisite } from '../utils/env';
 import { withTempDir } from '../utils/files';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { isDryRun } from '../utils/helpers';
+import { logDryRun } from '../utils/dryRun';
 
 export const targetSecrets = [
   'PUBDEV_ACCESS_TOKEN',
@@ -124,7 +125,7 @@ export class PubDevTarget extends BaseTarget {
   public async publish(_version: string, revision: string): Promise<any> {
     // `dart pub publish --dry-run` can be run without any credentials
     if (isDryRun()) {
-      this.logger.info('[dry-run] Skipping credentials file creation.');
+      logDryRun('createCredentialsFile()');
     } else {
       await this.createCredentialsFile();
     }
@@ -188,7 +189,7 @@ export class PubDevTarget extends BaseTarget {
     directory: string
   ): Promise<any> {
     const { owner, repo } = config;
-    const git = simpleGit(directory);
+    const git = createGitClient(directory);
     const url = `https://github.com/${owner}/${repo}.git`;
 
     this.logger.info(`Cloning ${owner}/${repo} into ${directory}`);

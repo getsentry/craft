@@ -1,4 +1,4 @@
-import simpleGit from 'simple-git';
+import { createGitClient } from '../utils/git';
 
 import { BaseTarget } from './base';
 import { withTempDir } from '../utils/files';
@@ -66,7 +66,7 @@ export class HexTarget extends BaseTarget {
     directory: string
   ): Promise<any> {
     const { owner, repo } = config;
-    const git = simpleGit(directory);
+    const git = createGitClient(directory);
     const url = `https://github.com/${owner}/${repo}.git`;
 
     this.logger.info(`Cloning ${owner}/${repo} into ${directory}`);

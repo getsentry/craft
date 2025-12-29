@@ -27,6 +27,25 @@ export default tseslint.config(
       ],
       '@typescript-eslint/no-require-imports': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',
+
+      // Dry-run safety: enforce using wrapped APIs that respect --dry-run flag
+      // Block direct calls to simpleGit() - use getGitClient() or createGitClient() instead
+      // Block direct instantiation of new Octokit() - use getGitHubClient() instead
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'CallExpression[callee.name="simpleGit"]',
+          message:
+            'Use getGitClient() or createGitClient() from src/utils/git.ts for dry-run support. ' +
+            'If this is the wrapper module, disable with: // eslint-disable-next-line no-restricted-syntax',
+        },
+        {
+          selector: 'NewExpression[callee.name="Octokit"]',
+          message:
+            'Use getGitHubClient() from src/utils/githubApi.ts for dry-run support. ' +
+            'If this is the wrapper module, disable with: // eslint-disable-next-line no-restricted-syntax',
+        },
+      ],
     },
   }
 );

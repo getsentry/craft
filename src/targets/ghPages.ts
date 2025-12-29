@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { Octokit } from '@octokit/rest';
+// eslint-disable-next-line no-restricted-imports -- Need raw simpleGit for initial clone
 import simpleGit from 'simple-git';
 
 import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
@@ -12,7 +13,7 @@ import {
   getGitHubClient,
   GitHubRemote,
 } from '../utils/githubApi';
-import { isDryRun } from '../utils/helpers';
+import { createGitClient } from '../utils/git';
 import { extractZipArchive } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
@@ -150,8 +151,9 @@ export class GhPagesTarget extends BaseTarget {
     this.logger.info(
       `Cloning "${remote.getRemoteString()}" to "${directory}"...`
     );
+    // eslint-disable-next-line no-restricted-syntax -- Clone needs raw simpleGit, wrapped client used after
     await simpleGit().clone(remote.getRemoteStringWithAuth(), directory);
-    const git = simpleGit(directory);
+    const git = createGitClient(directory);
     this.logger.debug(`Checking out branch: "${branch}"`);
     try {
       await git.checkout([branch]);
@@ -180,17 +182,13 @@ export class GhPagesTarget extends BaseTarget {
     // Extract the archive
     await this.extractAssets(archivePath, directory);
 
-    // Commit
+    // Commit - git operations are automatically handled by the dry-run proxy
     await git.add(['.']);
     await git.commit(`craft(gh-pages): update, version "${version}"`);
 
-    // Push!
+    // Push! - git operations are automatically handled by the dry-run proxy
     this.logger.info(`Pushing branch "${branch}"...`);
-    if (!isDryRun()) {
-      await git.push('origin', branch, ['--set-upstream']);
-    } else {
-      this.logger.info('[dry-run] Not pushing the branch.');
-    }
+    await git.push('origin', branch, ['--set-upstream']);
   }
 
   /**

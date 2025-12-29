@@ -15,6 +15,7 @@ import {
 } from '../utils/changelog';
 import { getGitHubClient } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
+import { logDryRun } from '../utils/dryRun';
 import {
   isPreviewRelease,
   parseVersion,
@@ -133,7 +134,7 @@ export class GitHubTarget extends BaseTarget {
       this.githubConfig.previewReleases && isPreviewRelease(version);
 
     if (isDryRun()) {
-      this.logger.info(`[dry-run] Not creating the draft release`);
+      logDryRun(`github.repos.createRelease(${tag})`);
       return {
         id: 0,
         tag_name: tag,
@@ -186,7 +187,7 @@ export class GitHubTarget extends BaseTarget {
   ): Promise<boolean> {
     this.logger.debug(`Deleting asset: "${asset.name}"...`);
     if (isDryRun()) {
-      this.logger.info(`[dry-run] Not deleting "${asset.name}"`);
+      logDryRun(`github.repos.deleteReleaseAsset(${asset.name})`);
       return false;
     }
 
@@ -220,7 +221,7 @@ export class GitHubTarget extends BaseTarget {
     }
 
     if (isDryRun()) {
-      this.logger.info(`[dry-run] Not deleting release "${release.tag_name}"`);
+      logDryRun(`github.repos.deleteRelease(${release.tag_name})`);
       return false;
     }
 
@@ -291,7 +292,7 @@ export class GitHubTarget extends BaseTarget {
     const name = basename(path);
 
     if (isDryRun()) {
-      this.logger.info(`[dry-run] Not uploading asset "${name}"`);
+      logDryRun(`github.repos.uploadReleaseAsset(${name})`);
       return;
     }
 
@@ -380,7 +381,7 @@ export class GitHubTarget extends BaseTarget {
     options: { makeLatest: boolean } = { makeLatest: true }
   ) {
     if (isDryRun()) {
-      this.logger.info(`[dry-run] Not publishing the draft release`);
+      logDryRun(`github.repos.updateRelease(${release.tag_name})`);
       return;
     }
 
@@ -409,16 +410,17 @@ export class GitHubTarget extends BaseTarget {
     const tag = versionToTag(version, this.githubConfig.tagPrefix);
     const tagRef = `refs/tags/${tag}`;
     if (isDryRun()) {
-      this.logger.info(`[dry-run] Not pushing the tag reference: "${tagRef}"`);
-    } else {
-      this.logger.info(`Pushing the tag reference: "${tagRef}"...`);
-      await this.github.rest.git.createRef({
-        owner: this.githubConfig.owner,
-        repo: this.githubConfig.repo,
-        ref: tagRef,
-        sha: revision,
-      });
+      logDryRun(`github.git.createRef(${tagRef})`);
+      return;
     }
+
+    this.logger.info(`Pushing the tag reference: "${tagRef}"...`);
+    await this.github.rest.git.createRef({
+      owner: this.githubConfig.owner,
+      repo: this.githubConfig.repo,
+      ref: tagRef,
+      sha: revision,
+    });
   }
 
   /**
@@ -466,9 +468,7 @@ export class GitHubTarget extends BaseTarget {
       const tagRef = `refs/tags/${tag}`;
 
       if (isDryRun()) {
-        this.logger.info(
-          `[dry-run] Not updating floating tag: "${tag}" (from pattern "${pattern}")`
-        );
+        logDryRun(`github.git.updateRef(tags/${tag})`);
         continue;
       }
 
