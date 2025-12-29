@@ -1515,6 +1515,36 @@ describe('generateChangelogWithHighlight', () => {
       // Bump type should be 'patch' (this PR's contribution), NOT 'minor' (from aggregated)
       expect(result.bumpType).toBe('patch');
     });
+
+    it('uses bold formatting instead of @ mentions to avoid pinging', async () => {
+      setup({
+        currentPR: {
+          number: 2,
+          title: 'feat: new feature',
+          body: '',
+          author: 'bob',
+        },
+        existingCommits: [
+          {
+            hash: 'abc123',
+            title: 'fix: bug fix',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+      });
+
+      const result = await generateChangelogWithHighlight(dummyGit, '1.0.0', 2);
+
+      // Authors should use bold formatting, NOT @ mentions
+      expect(result.changelog).toContain('by **bob**');
+      expect(result.changelog).toContain('by **alice**');
+      expect(result.changelog).not.toContain('@bob');
+      expect(result.changelog).not.toContain('@alice');
+    });
   });
 
   describe('skip-changelog handling', () => {

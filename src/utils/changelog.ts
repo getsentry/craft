@@ -1201,8 +1201,12 @@ export function stripTitle(
  * Formats a single changelog entry with consistent full markdown link format.
  * Format: `- Title by @author in [#123](pr-url)` or `- Title in [abcdef12](commit-url)`
  * When highlight is true, the entry is prefixed with `> ` (blockquote).
+ * When disableMentions is true, uses `**author**` instead of `@author` to avoid pinging.
  */
-function formatChangelogEntry(entry: ChangelogEntry): string {
+function formatChangelogEntry(
+  entry: ChangelogEntry,
+  disableMentions = false
+): string {
   let title = entry.title;
 
   // Strip PR number suffix like "(#123)" since we add the link separately
@@ -1216,11 +1220,18 @@ function formatChangelogEntry(entry: ChangelogEntry): string {
 
   let text = `- ${title}`;
 
+  // Format author reference: use bold instead of @ mention when disableMentions is true
+  const authorRef = entry.author
+    ? disableMentions
+      ? `**${entry.author}**`
+      : `@${entry.author}`
+    : null;
+
   if (entry.prNumber) {
     // Full markdown link format for PRs
     const prLink = `${entry.repoUrl}/pull/${entry.prNumber}`;
-    if (entry.author) {
-      text += ` by @${entry.author} in [#${entry.prNumber}](${prLink})`;
+    if (authorRef) {
+      text += ` by ${authorRef} in [#${entry.prNumber}](${prLink})`;
     } else {
       text += ` in [#${entry.prNumber}](${prLink})`;
     }
@@ -1228,8 +1239,8 @@ function formatChangelogEntry(entry: ChangelogEntry): string {
     // Commits without PRs: link to commit
     const shortHash = entry.hash.slice(0, SHORT_SHA_LENGTH);
     const commitLink = `${entry.repoUrl}/commit/${entry.hash}`;
-    if (entry.author) {
-      text += ` by @${entry.author} in [${shortHash}](${commitLink})`;
+    if (authorRef) {
+      text += ` by ${authorRef} in [${shortHash}](${commitLink})`;
     } else {
       text += ` in [${shortHash}](${commitLink})`;
     }
@@ -1422,8 +1433,8 @@ export async function generateChangelogWithHighlight(
   // Step 9: Run categorization on filtered list
   const { data: rawData, stats } = categorizeCommits(filteredCommits);
 
-  // Step 10: Serialize to markdown
-  const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS);
+  // Step 10: Serialize to markdown (disable mentions to avoid pinging in PR preview comments)
+  const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS, true);
 
   // Determine bump type:
   // - If current PR survived revert processing, use its specific bump type (PR 676 fix)
@@ -1637,11 +1648,13 @@ async function generateRawChangelog(
  *
  * @param rawData The raw changelog data to serialize
  * @param maxLeftovers Maximum number of leftover entries to include
+ * @param disableMentions When true, uses bold formatting instead of @ mentions for authors
  * @returns Formatted markdown changelog string
  */
 async function serializeChangelog(
   rawData: RawChangelogData,
-  maxLeftovers: number
+  maxLeftovers: number,
+  disableMentions = false
 ): Promise<string> {
   const { categories, leftovers, releaseConfig } = rawData;
 
@@ -1717,15 +1730,18 @@ async function serializeChangelog(
       const showsScopeHeader = scopeHeader !== null && scope !== null;
 
       const prEntries = prs.map(pr =>
-        formatChangelogEntry({
-          title: stripTitle(pr.title, pr.matchedPattern, !showsScopeHeader),
-          author: pr.author,
-          prNumber: pr.number,
-          hash: pr.hash,
-          body: pr.body,
-          repoUrl,
-          highlight: pr.highlight,
-        })
+        formatChangelogEntry(
+          {
+            title: stripTitle(pr.title, pr.matchedPattern, !showsScopeHeader),
+            author: pr.author,
+            prNumber: pr.number,
+            hash: pr.hash,
+            body: pr.body,
+            repoUrl,
+            highlight: pr.highlight,
+          },
+          disableMentions
+        )
       );
 
       if (scopeHeader) {
@@ -1770,15 +1786,18 @@ async function serializeChangelog(
 
       for (const pr of prEntries) {
         leftoverEntries.push(
-          formatChangelogEntry({
-            title: pr.title,
-            author: pr.author,
-            prNumber: pr.number || undefined,
-            hash: pr.hash,
-            repoUrl,
-            body: pr.body || undefined,
-            highlight: pr.highlight,
-          })
+          formatChangelogEntry(
+            {
+              title: pr.title,
+              author: pr.author,
+              prNumber: pr.number || undefined,
+              hash: pr.hash,
+              repoUrl,
+              body: pr.body || undefined,
+              highlight: pr.highlight,
+            },
+            disableMentions
+          )
         );
       }
     }
