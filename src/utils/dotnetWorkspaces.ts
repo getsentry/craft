@@ -4,7 +4,7 @@ import { glob } from 'glob';
 import { XMLParser } from 'fast-xml-parser';
 
 import { logger } from '../logger';
-import { WorkspacePackage, topologicalSortPackages } from './workspaces';
+import { WorkspacePackage, topologicalSortPackages, escapeRegex } from './workspaces';
 
 /**
  * Check if an error is a "file not found" error
@@ -326,14 +326,6 @@ export function sortDotnetPackages(packages: DotnetPackage[]): DotnetPackage[] {
   return sorted
     .map(wp => packageMap.get(wp.name))
     .filter((p): p is DotnetPackage => p !== undefined);
-}
-
-/**
- * Escape special regex characters in a string.
- * Only escapes characters that have special meaning in regex.
- */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 }
 
 /**
