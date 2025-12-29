@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.16.0
+
+### New Features ✨
+
+#### Changelog
+
+- Strip commit patterns from changelog entries by @BYK in [#674](https://github.com/getsentry/craft/pull/674)
+- Add support for custom changelog entries from PR descriptions by @szokeasaurusrex in [#648](https://github.com/getsentry/craft/pull/648)
+- And with support for multiple entries by @szokeasaurusrex in [#648](https://github.com/getsentry/craft/pull/648)
+  - and nested items
+- Add changelog preview action and CLI command by @BYK in [#669](https://github.com/getsentry/craft/pull/669)
+
+#### Other
+
+- (actions) Make release workflow reusable for external repos by @BYK in [#672](https://github.com/getsentry/craft/pull/672)
+- (aws-lambda) Add version templating for layer names by @BYK in [#678](https://github.com/getsentry/craft/pull/678)
+
+### Bug Fixes 🐛
+
+#### Changelog
+
+- Handle reverts in changelog and version inference by @BYK in [#677](https://github.com/getsentry/craft/pull/677)
+- Use PR-specific bump type in preview by @BYK in [#676](https://github.com/getsentry/craft/pull/676)
+
+### Documentation 📚
+
+- New documentation site! by @BYK in [#668](https://github.com/getsentry/craft/pull/668)
+
 ## 2.15.0
 
 ### New Features ✨
