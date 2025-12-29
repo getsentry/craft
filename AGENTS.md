@@ -78,8 +78,8 @@ Instead of checking `isDryRun()` manually in every function, destructive operati
 
 - **Git operations**: Use `getGitClient()` from `src/utils/git.ts` or `createGitClient(directory)` for working with specific directories
 - **GitHub API**: Use `getGitHubClient()` from `src/utils/githubApi.ts`
-- **File writes**: Use `dryRunFs` from `src/utils/dryRun.ts`
-- **Other actions**: Use `dryRunExec()` or `dryRunExecSync()` from `src/utils/dryRun.ts`
+- **File writes**: Use `safeFs` from `src/utils/dryRun.ts`
+- **Other actions**: Use `safeExec()` or `safeExecSync()` from `src/utils/dryRun.ts`
 
 ### ESLint Enforcement
 
@@ -101,8 +101,8 @@ When adding new code that performs destructive operations:
 
 1. **Git**: Get the git client via `getGitClient()` or `createGitClient()` - mutating methods are automatically blocked
 2. **GitHub API**: Get the client via `getGitHubClient()` - `create*`, `update*`, `delete*`, `upload*` methods are automatically blocked
-3. **File writes**: Use `dryRunFs.writeFile()`, `dryRunFs.unlink()`, etc. instead of raw `fs` methods
-4. **Other**: Wrap with `dryRunExec(action, description)` for custom operations
+3. **File writes**: Use `safeFs.writeFile()`, `safeFs.unlink()`, etc. instead of raw `fs` methods
+4. **Other**: Wrap with `safeExec(action, description)` for custom operations
 
 ### Special Cases
 

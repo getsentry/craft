@@ -30,7 +30,7 @@ import {
   updateManifestSymlinks,
   RegistryPackageType,
 } from '../utils/registry';
-import { createGitClient } from '../utils/git';
+import { cloneRepo } from '../utils/git';
 import { filterAsync, withRetry } from '../utils/async';
 
 /** "registry" target options */
@@ -431,11 +431,10 @@ export class RegistryTarget extends BaseTarget {
     this.logger.info(
       `Cloning "${remote.getRemoteString()}" to "${directory}"...`
     );
-    await createGitClient('.').clone(remote.getRemoteStringWithAuth(), directory, [
+    return cloneRepo(remote.getRemoteStringWithAuth(), directory, [
       '--filter=tree:0',
       '--single-branch',
     ]);
-    return createGitClient(directory);
   }
 
   public async getValidItems(
@@ -498,13 +497,11 @@ export class RegistryTarget extends BaseTarget {
           )
         );
 
-        // Commit - git operations are automatically handled by the dry-run proxy
         await localRepo.git
           .add(['.'])
           .commit(
             `craft: release "${this.githubRepo.repo}", version "${version}"`
           );
-        // Push! - git operations are automatically handled by the dry-run proxy
         this.logger.info(`Pushing the changes...`);
         // Ensure we are still up to date with upstream
         await withRetry(() =>

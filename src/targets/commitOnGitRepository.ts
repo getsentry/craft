@@ -2,7 +2,7 @@ import { BaseArtifactProvider } from '../artifact_providers/base';
 import { TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
-import { createGitClient } from '../utils/git';
+import { cloneRepo, createGitClient } from '../utils/git';
 import { BaseTarget } from './base';
 import childProcess from 'child_process';
 import type { Consola } from 'consola';
@@ -150,8 +150,7 @@ export async function pushArchiveToGitRepository({
 
       const authenticatedUrl = parsedUrl.toString();
 
-      await createGitClient('.').clone(authenticatedUrl, directory);
-      const git = createGitClient(directory);
+      const git = await cloneRepo(authenticatedUrl, directory);
 
       logger?.info(`Checking out branch "${branch}"...`);
       await git.checkout(branch);

@@ -1,6 +1,6 @@
 import { existsSync, promises as fsPromises } from 'fs';
 
-import { dryRunFs } from '../utils/dryRun';
+import { safeFs } from '../utils/dryRun';
 import { join, relative } from 'path';
 import * as shellQuote from 'shell-quote';
 import { SimpleGit, StatusResult } from 'simple-git';
@@ -460,7 +460,7 @@ async function prepareChangelog(
         changelogString = prependChangeset(changelogString, changeset);
       }
 
-      await dryRunFs.writeFile(relativePath, changelogString);
+      await safeFs.writeFile(relativePath, changelogString);
 
       break;
     default:

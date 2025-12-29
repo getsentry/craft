@@ -218,7 +218,7 @@ export function createDryRunOctokit(octokit: Octokit): Octokit {
  * Write operations are blocked and logged in dry-run mode.
  * Read operations always execute normally.
  */
-export const dryRunFs = {
+export const safeFs = {
   /**
    * Write data to a file asynchronously.
    */
@@ -391,7 +391,7 @@ export const dryRunFs = {
  * @param description Human-readable description for dry-run logging
  * @returns The result of the action, or undefined in dry-run mode
  */
-export async function dryRunExec<T>(
+export async function safeExec<T>(
   action: () => Promise<T>,
   description: string
 ): Promise<T | undefined> {
@@ -409,7 +409,7 @@ export async function dryRunExec<T>(
  * @param description Human-readable description for dry-run logging
  * @returns The result of the action, or undefined in dry-run mode
  */
-export function dryRunExecSync<T>(
+export function safeExecSync<T>(
   action: () => T,
   description: string
 ): T | undefined {

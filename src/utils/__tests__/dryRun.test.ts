@@ -24,9 +24,9 @@ vi.mock('../../logger', () => ({
 import {
   createDryRunGit,
   createDryRunOctokit,
-  dryRunFs,
-  dryRunExec,
-  dryRunExecSync,
+  safeFs,
+  safeExec,
+  safeExecSync,
   logDryRun,
 } from '../dryRun';
 import { logger } from '../../logger';
@@ -197,12 +197,12 @@ describe('dryRun utilities', () => {
     });
   });
 
-  describe('dryRunFs', () => {
+  describe('safeFs', () => {
     // We can't easily test actual fs operations, so we test the dry-run behavior
     it('logs instead of writing in dry-run mode', async () => {
       vi.mocked(helpers.isDryRun).mockReturnValue(true);
 
-      await dryRunFs.writeFile('/tmp/test.txt', 'content');
+      await safeFs.writeFile('/tmp/test.txt', 'content');
       expect(logger.info).toHaveBeenCalledWith(
         '[dry-run] Would execute: fs.writeFile(/tmp/test.txt)'
       );
@@ -211,7 +211,7 @@ describe('dryRun utilities', () => {
     it('logs instead of unlinking in dry-run mode', async () => {
       vi.mocked(helpers.isDryRun).mockReturnValue(true);
 
-      await dryRunFs.unlink('/tmp/test.txt');
+      await safeFs.unlink('/tmp/test.txt');
       expect(logger.info).toHaveBeenCalledWith(
         '[dry-run] Would execute: fs.unlink(/tmp/test.txt)'
       );
@@ -220,19 +220,19 @@ describe('dryRun utilities', () => {
     it('logs instead of renaming in dry-run mode', async () => {
       vi.mocked(helpers.isDryRun).mockReturnValue(true);
 
-      await dryRunFs.rename('/tmp/old.txt', '/tmp/new.txt');
+      await safeFs.rename('/tmp/old.txt', '/tmp/new.txt');
       expect(logger.info).toHaveBeenCalledWith(
         '[dry-run] Would execute: fs.rename(/tmp/old.txt, /tmp/new.txt)'
       );
     });
   });
 
-  describe('dryRunExec', () => {
+  describe('safeExec', () => {
     it('executes action in normal mode', async () => {
       vi.mocked(helpers.isDryRun).mockReturnValue(false);
       const action = vi.fn().mockResolvedValue('result');
 
-      const result = await dryRunExec(action, 'test action');
+      const result = await safeExec(action, 'test action');
 
       expect(action).toHaveBeenCalled();
       expect(result).toBe('result');
@@ -242,7 +242,7 @@ describe('dryRun utilities', () => {
       vi.mocked(helpers.isDryRun).mockReturnValue(true);
       const action = vi.fn().mockResolvedValue('result');
 
-      const result = await dryRunExec(action, 'test action');
+      const result = await safeExec(action, 'test action');
 
       expect(action).not.toHaveBeenCalled();
       expect(result).toBeUndefined();
@@ -252,12 +252,12 @@ describe('dryRun utilities', () => {
     });
   });
 
-  describe('dryRunExecSync', () => {
+  describe('safeExecSync', () => {
     it('executes action in normal mode', () => {
       vi.mocked(helpers.isDryRun).mockReturnValue(false);
       const action = vi.fn().mockReturnValue('result');
 
-      const result = dryRunExecSync(action, 'test action');
+      const result = safeExecSync(action, 'test action');
 
       expect(action).toHaveBeenCalled();
       expect(result).toBe('result');
@@ -267,7 +267,7 @@ describe('dryRun utilities', () => {
       vi.mocked(helpers.isDryRun).mockReturnValue(true);
       const action = vi.fn().mockReturnValue('result');
 
-      const result = dryRunExecSync(action, 'test action');
+      const result = safeExecSync(action, 'test action');
 
       expect(action).not.toHaveBeenCalled();
       expect(result).toBeUndefined();

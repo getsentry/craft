@@ -131,6 +131,32 @@ export function createGitClient(directory: string): SimpleGit {
 }
 
 /**
+ * Clones a git repository to a target directory.
+ *
+ * This is a convenience wrapper that handles the common pattern of cloning
+ * a repo and then creating a git client for the cloned directory.
+ *
+ * @param url The repository URL to clone from
+ * @param targetDirectory The directory to clone into
+ * @param options Optional clone options (e.g., ['--filter=tree:0'])
+ * @returns A SimpleGit instance for the cloned repository
+ */
+export async function cloneRepo(
+  url: string,
+  targetDirectory: string,
+  options?: string[]
+): Promise<SimpleGit> {
+  // eslint-disable-next-line no-restricted-syntax -- This is the git wrapper module
+  const git = simpleGit();
+  if (options) {
+    await git.clone(url, targetDirectory, options);
+  } else {
+    await git.clone(url, targetDirectory);
+  }
+  return createGitClient(targetDirectory);
+}
+
+/**
  * Checks if the git repository has uncommitted changes
  *
  * @param repoStatus Result of git.status()

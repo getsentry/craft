@@ -2,7 +2,7 @@ import { Arguments, Argv, CommandBuilder } from 'yargs';
 import chalk from 'chalk';
 import { existsSync, readFileSync } from 'fs';
 
-import { dryRunFs } from '../utils/dryRun';
+import { safeFs } from '../utils/dryRun';
 import { join } from 'path';
 import shellQuote from 'shell-quote';
 import stringLength from 'string-length';
@@ -564,7 +564,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       for (const target of targetList) {
         await publishToTarget(target, newVersion, revision);
         publishState.published[BaseTarget.getId(target.config)] = true;
-        dryRunFs.writeFileSync(publishStateFile, JSON.stringify(publishState));
+        safeFs.writeFileSync(publishStateFile, JSON.stringify(publishState));
       }
 
       if (argv.keepDownloads) {
@@ -603,7 +603,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     // file. If unlinking fails, we honestly don't care, at least to fail
     // the final steps. And it doesn't make sense to wait until this op
     // finishes then as nothing relies on the removal of this file.
-    dryRunFs
+    safeFs
       .unlink(publishStateFile)
       .catch(err => logger.trace("Couldn't remove publish state file: ", err));
     logger.success(`Version ${newVersion} has been published!`);

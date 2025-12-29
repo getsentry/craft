@@ -20,8 +20,8 @@ import {
 } from '../utils/awsLambdaLayerManager';
 import { createSymlinks } from '../utils/symlink';
 import { withTempDir } from '../utils/files';
-import { createGitClient } from '../utils/git';
-import { dryRunExec } from '../utils/dryRun';
+import { cloneRepo, createGitClient } from '../utils/git';
+import { safeExec } from '../utils/dryRun';
 import { renderTemplateSafe } from '../utils/strings';
 import { isPreviewRelease, parseVersion } from '../utils/version';
 import { DEFAULT_REGISTRY_REMOTE } from '../utils/registry';
@@ -174,10 +174,9 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         this.logger.info(
           `Cloning ${remote.getRemoteString()} to ${directory}...`
         );
-        await createGitClient('.').clone(remote.getRemoteStringWithAuth(), directory);
-        const git = createGitClient(directory);
+        const git = await cloneRepo(remote.getRemoteStringWithAuth(), directory);
 
-        await dryRunExec(
+        await safeExec(
           async () => {
             await this.publishRuntimes(
               version,

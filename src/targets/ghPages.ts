@@ -11,7 +11,7 @@ import {
   getGitHubClient,
   GitHubRemote,
 } from '../utils/githubApi';
-import { createGitClient } from '../utils/git';
+import { cloneRepo, createGitClient } from '../utils/git';
 import { extractZipArchive } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
@@ -149,8 +149,7 @@ export class GhPagesTarget extends BaseTarget {
     this.logger.info(
       `Cloning "${remote.getRemoteString()}" to "${directory}"...`
     );
-    await createGitClient('.').clone(remote.getRemoteStringWithAuth(), directory);
-    const git = createGitClient(directory);
+    const git = await cloneRepo(remote.getRemoteStringWithAuth(), directory);
     this.logger.debug(`Checking out branch: "${branch}"`);
     try {
       await git.checkout([branch]);
@@ -179,11 +178,9 @@ export class GhPagesTarget extends BaseTarget {
     // Extract the archive
     await this.extractAssets(archivePath, directory);
 
-    // Commit - git operations are automatically handled by the dry-run proxy
     await git.add(['.']);
     await git.commit(`craft(gh-pages): update, version "${version}"`);
 
-    // Push! - git operations are automatically handled by the dry-run proxy
     this.logger.info(`Pushing branch "${branch}"...`);
     await git.push('origin', branch, ['--set-upstream']);
   }

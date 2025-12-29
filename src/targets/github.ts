@@ -14,8 +14,7 @@ import {
   findChangeset,
 } from '../utils/changelog';
 import { getGitHubClient } from '../utils/githubApi';
-import { isDryRun } from '../utils/helpers';
-import { logDryRun } from '../utils/dryRun';
+import { safeExec } from '../utils/dryRun';
 import {
   isPreviewRelease,
   parseVersion,
@@ -281,23 +280,20 @@ export class GitHubTarget extends BaseTarget {
   ): Promise<string | undefined> {
     const name = basename(path);
 
-    if (isDryRun()) {
-      logDryRun(`github.repos.uploadReleaseAsset(${name})`);
-      return;
-    }
+    return safeExec(async () => {
+      process.stderr.write(
+        `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}\n`
+      );
 
-    process.stderr.write(
-      `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}\n`
-    );
-
-    try {
-      const { url } = await this.handleGitHubUpload(release, path, contentType);
-      process.stderr.write(`✔ Uploaded asset "${name}".\n`);
-      return url;
-    } catch (e) {
-      process.stderr.write(`✖ Cannot upload asset "${name}".\n`);
-      throw e;
-    }
+      try {
+        const { url } = await this.handleGitHubUpload(release, path, contentType);
+        process.stderr.write(`✔ Uploaded asset "${name}".\n`);
+        return url;
+      } catch (e) {
+        process.stderr.write(`✖ Cannot upload asset "${name}".\n`);
+        throw e;
+      }
+    }, `github.repos.uploadReleaseAsset(${name})`);
   }
 
   private async handleGitHubUpload(
@@ -447,37 +443,34 @@ export class GitHubTarget extends BaseTarget {
       const tag = this.resolveFloatingTag(pattern, parsedVersion);
       const tagRef = `refs/tags/${tag}`;
 
-      if (isDryRun()) {
-        logDryRun(`github.git.updateRef(tags/${tag})`);
-        continue;
-      }
+      await safeExec(async () => {
+        this.logger.info(`Updating floating tag: "${tag}"...`);
 
-      this.logger.info(`Updating floating tag: "${tag}"...`);
-
-      try {
-        // Try to update existing tag
-        await this.github.rest.git.updateRef({
-          owner: this.githubConfig.owner,
-          repo: this.githubConfig.repo,
-          ref: `tags/${tag}`,
-          sha: revision,
-          force: true,
-        });
-        this.logger.debug(`Updated existing floating tag: "${tag}"`);
-      } catch (error) {
-        // Tag doesn't exist, create it
-        if (error.status === 422) {
-          await this.github.rest.git.createRef({
+        try {
+          // Try to update existing tag
+          await this.github.rest.git.updateRef({
             owner: this.githubConfig.owner,
             repo: this.githubConfig.repo,
-            ref: tagRef,
+            ref: `tags/${tag}`,
             sha: revision,
+            force: true,
           });
-          this.logger.debug(`Created new floating tag: "${tag}"`);
-        } else {
-          throw error;
+          this.logger.debug(`Updated existing floating tag: "${tag}"`);
+        } catch (error) {
+          // Tag doesn't exist, create it
+          if (error.status === 422) {
+            await this.github.rest.git.createRef({
+              owner: this.githubConfig.owner,
+              repo: this.githubConfig.repo,
+              ref: tagRef,
+              sha: revision,
+            });
+            this.logger.debug(`Created new floating tag: "${tag}"`);
+          } else {
+            throw error;
+          }
         }
-      }
+      }, `github.git.updateRef(tags/${tag})`);
     }
   }
 

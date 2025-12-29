@@ -10,7 +10,7 @@ import {
 
 import { logger } from '../logger';
 import { reportError } from './errors';
-import { dryRunExec } from './dryRun';
+import { safeExec } from './dryRun';
 import { RequiredConfigVar } from './env';
 import { detectContentType } from './files';
 import { RemoteArtifact } from '../artifact_providers/base';
@@ -208,7 +208,7 @@ export class CraftGCSClient {
     );
 
     const destination = path.posix.join(this.bucketName, pathInBucket);
-    await dryRunExec(async () => {
+    await safeExec(async () => {
       logger.debug(`Attempting to upload \`${filename}\` to \`${destination}\`.`);
 
       try {
@@ -254,7 +254,7 @@ export class CraftGCSClient {
       );
     }
 
-    await dryRunExec(async () => {
+    await safeExec(async () => {
       logger.debug(
         `Attempting to download \`${destinationFilename}\` to \`${destinationDirectory}\`.`
       );

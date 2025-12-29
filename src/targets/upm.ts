@@ -15,7 +15,7 @@ import {
 import { reportError } from '../utils/errors';
 import { extractZipArchive } from '../utils/system';
 import { withTempDir } from '../utils/files';
-import { createGitClient } from '../utils/git';
+import { cloneRepo, createGitClient } from '../utils/git';
 import { isPreviewRelease } from '../utils/version';
 import { NoneArtifactProvider } from '../artifact_providers/none';
 
@@ -115,8 +115,7 @@ export class UpmTarget extends BaseTarget {
 
     await withTempDir(
       async directory => {
-        await createGitClient('.').clone(remote.getRemoteStringWithAuth(), directory);
-        const git = createGitClient(directory);
+        const git = await cloneRepo(remote.getRemoteStringWithAuth(), directory);
 
         this.logger.info('Clearing the repository.');
         await git.rm(['-r', '-f', '.']);
