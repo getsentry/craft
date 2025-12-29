@@ -412,6 +412,11 @@ export interface NormalizedChangelogConfig {
   policy: ChangelogPolicy;
   /** Whether to group entries by conventional commit scope */
   scopeGrouping: boolean;
+  /** AI summary configuration */
+  aiSummary: {
+    /** Whether AI summary is enabled */
+    enabled: boolean;
+  };
 }
 
 const DEFAULT_CHANGELOG_FILE_PATH = 'CHANGELOG.md';
@@ -438,6 +443,9 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
     policy = config.changelogPolicy;
   }
 
+  // AI summary - enabled by default when policy is 'auto'
+  let aiSummaryEnabled = false;
+
   // Handle changelog config
   if (config.changelog !== undefined) {
     if (typeof config.changelog === 'string') {
@@ -454,13 +462,26 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
       if (config.changelog.scopeGrouping !== undefined) {
         scopeGrouping = config.changelog.scopeGrouping;
       }
+      if (config.changelog.aiSummary?.enabled !== undefined) {
+        aiSummaryEnabled = config.changelog.aiSummary.enabled;
+      }
     }
+  }
+
+  // Default: AI summary enabled when policy is 'auto' (unless explicitly disabled)
+  if (config.changelog === undefined || typeof config.changelog === 'string') {
+    aiSummaryEnabled = policy === ChangelogPolicy.Auto;
+  } else if (config.changelog.aiSummary?.enabled === undefined) {
+    aiSummaryEnabled = policy === ChangelogPolicy.Auto;
   }
 
   return {
     filePath,
     policy,
     scopeGrouping,
+    aiSummary: {
+      enabled: aiSummaryEnabled,
+    },
   };
 }
 

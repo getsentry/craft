@@ -2,6 +2,55 @@
 # yarn lockfile v1
 
 
+"@ai-sdk/gateway@3.0.2":
+  version "3.0.2"
+  resolved "https://registry.yarnpkg.com/@ai-sdk/gateway/-/gateway-3.0.2.tgz#0a345ae3c7cf6e9533936dcba2fb7a4664131f19"
+  integrity sha512-giJEg9ob45htbu3iautK+2kvplY2JnTj7ir4wZzYSQWvqGatWfBBfDuNCU5wSJt9BCGjymM5ZS9ziD42JGCZBw==
+  dependencies:
+    "@ai-sdk/provider" "3.0.0"
+    "@ai-sdk/provider-utils" "4.0.1"
+    "@vercel/oidc" "3.0.5"
+
+"@ai-sdk/openai-compatible@beta":
+  version "2.0.0-beta.60"
+  resolved "https://registry.yarnpkg.com/@ai-sdk/openai-compatible/-/openai-compatible-2.0.0-beta.60.tgz#dc452ed588ec73842aadb9c25b4d3f2b15fe35bf"
+  integrity sha512-WCs4dzulFbK2qlWGb6em98DVdrAUSlOfBkTfLWnp4hMdJRYwAwzAc6uzQvSjtrZ8FCqiQqiHb2wrueFt9U/RPQ==
+  dependencies:
+    "@ai-sdk/provider" "3.0.0-beta.32"
+    "@ai-sdk/provider-utils" "4.0.0-beta.59"
+
+"@ai-sdk/provider-utils@4.0.0-beta.59", "@ai-sdk/provider-utils@beta":
+  version "4.0.0-beta.59"
+  resolved "https://registry.yarnpkg.com/@ai-sdk/provider-utils/-/provider-utils-4.0.0-beta.59.tgz#3a91f88bfd9d02dd4f24b098e8e309f2f3fde444"
+  integrity sha512-Ide+xB/kMT54cEC0o8vKwtdL+YVzdpOtwYIDo11y7BOU4PYZUtT0F+IpfwxuLx+P1uMCPtz6pNZvCRIgCdVoig==
+  dependencies:
+    "@ai-sdk/provider" "3.0.0-beta.32"
+    "@standard-schema/spec" "^1.1.0"
+    eventsource-parser "^3.0.6"
+
+"@ai-sdk/provider-utils@4.0.1":
+  version "4.0.1"
+  resolved "https://registry.yarnpkg.com/@ai-sdk/provider-utils/-/provider-utils-4.0.1.tgz#6102fe98138021cd7196b2cdc1ce33f7f956426b"
+  integrity sha512-de2v8gH9zj47tRI38oSxhQIewmNc+OZjYIOOaMoVWKL65ERSav2PYYZHPSPCrfOeLMkv+Dyh8Y0QGwkO29wMWQ==
+  dependencies:
+    "@ai-sdk/provider" "3.0.0"
+    "@standard-schema/spec" "^1.1.0"
+    eventsource-parser "^3.0.6"
+
+"@ai-sdk/provider@3.0.0":
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/@ai-sdk/provider/-/provider-3.0.0.tgz#de5b60ae8570177604048e79edf4a032c92851e6"
+  integrity sha512-m9ka3ptkPQbaHHZHqDXDF9C9B5/Mav0KTdky1k2HZ3/nrW2t1AgObxIVPyGDWQNS9FXT/FS6PIoSjpcP/No8rQ==
+  dependencies:
+    json-schema "^0.4.0"
+
+"@ai-sdk/provider@3.0.0-beta.32", "@ai-sdk/provider@beta":
+  version "3.0.0-beta.32"
+  resolved "https://registry.yarnpkg.com/@ai-sdk/provider/-/provider-3.0.0-beta.32.tgz#5b71fc925ece233a9e84ec9e8cdb4ee75561ddfd"
+  integrity sha512-JWYyFAWiGRkB8lkKykPPmV+s2fwjApvOQ7vuf2lNWuPJGOWIBXQy3SBrNxhgPZwkm8QquKuPtB+LILT2PisE4w==
+  dependencies:
+    json-schema "^0.4.0"
+
 "@apm-js-collab/code-transformer@^0.8.0":
   version "0.8.2"
   resolved "https://registry.npmjs.org/@apm-js-collab/code-transformer/-/code-transformer-0.8.2.tgz"
@@ -821,6 +870,15 @@
     reflect-metadata "^0.1.12"
     tslib "^1.8.1"
 
+"@github/models@^0.0.1-beta.2":
+  version "0.0.1-beta.2"
+  resolved "https://registry.yarnpkg.com/@github/models/-/models-0.0.1-beta.2.tgz#618ebcd181438fbd375967e2193e4bcc2db21c7a"
+  integrity sha512-x/FhB/ZE/BUydyBoo+dDtob6ujr5+KG/+chlFF0zJqI4HllMHYGzOsVp0sHGiQGNY67itYijWlycehZ6Dnr2rw==
+  dependencies:
+    "@ai-sdk/openai-compatible" beta
+    "@ai-sdk/provider" beta
+    "@ai-sdk/provider-utils" beta
+
 "@google-cloud/paginator@^5.0.0":
   version "5.0.2"
   resolved "https://registry.yarnpkg.com/@google-cloud/paginator/-/paginator-5.0.2.tgz#86ad773266ce9f3b82955a8f75e22cd012ccc889"
@@ -1053,7 +1111,7 @@
   dependencies:
     "@opentelemetry/api" "^1.3.0"
 
-"@opentelemetry/api@^1.3.0", "@opentelemetry/api@^1.9.0":
+"@opentelemetry/api@1.9.0", "@opentelemetry/api@^1.3.0", "@opentelemetry/api@^1.9.0":
   version "1.9.0"
   resolved "https://registry.npmjs.org/@opentelemetry/api/-/api-1.9.0.tgz"
   integrity sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==
@@ -1950,6 +2008,11 @@
   dependencies:
     tslib "^2.6.2"
 
+"@standard-schema/spec@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@standard-schema/spec/-/spec-1.1.0.tgz#a79b55dbaf8604812f52d140b2c9ab41bc150bb8"
+  integrity sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==
+
 "@tootallnate/once@2":
   version "2.0.0"
   resolved "https://registry.npmjs.org/@tootallnate/once/-/once-2.0.0.tgz"
@@ -2282,6 +2345,11 @@
     "@typescript-eslint/types" "8.50.1"
     eslint-visitor-keys "^4.2.1"
 
+"@vercel/oidc@3.0.5":
+  version "3.0.5"
+  resolved "https://registry.yarnpkg.com/@vercel/oidc/-/oidc-3.0.5.tgz#bd8db7ee777255c686443413492db4d98ef49657"
+  integrity sha512-fnYhv671l+eTTp48gB4zEsTW/YtRgRPnkI2nT7x6qw5rkI1Lq2hTmQIpHPgyThI0znLK+vX2n9XxKdXZ7BUbbw==
+
 "@vitest/expect@3.2.4":
   version "3.2.4"
   resolved "https://registry.yarnpkg.com/@vitest/expect/-/expect-3.2.4.tgz#8362124cd811a5ee11c5768207b9df53d34f2433"
@@ -2376,6 +2444,16 @@ agent-base@^7.1.2:
   version "7.1.4"
   resolved "https://registry.yarnpkg.com/agent-base/-/agent-base-7.1.4.tgz#e3cd76d4c548ee895d3c3fd8dc1f6c5b9032e7a8"
   integrity sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==
+
+ai@^6.0.3:
+  version "6.0.3"
+  resolved "https://registry.yarnpkg.com/ai/-/ai-6.0.3.tgz#6fa7f59a0cac12ca46b3abea5ca1cdf57c3b43bf"
+  integrity sha512-OOo+/C+sEyscoLnbY3w42vjQDICioVNyS+F+ogwq6O5RJL/vgWGuiLzFwuP7oHTeni/MkmX8tIge48GTdaV7QQ==
+  dependencies:
+    "@ai-sdk/gateway" "3.0.2"
+    "@ai-sdk/provider" "3.0.0"
+    "@ai-sdk/provider-utils" "4.0.1"
+    "@opentelemetry/api" "1.9.0"
 
 ajv@^6.12.4:
   version "6.12.6"
@@ -2972,6 +3050,11 @@ event-target-shim@^5.0.0:
   resolved "https://registry.npmjs.org/event-target-shim/-/event-target-shim-5.0.1.tgz"
   integrity sha512-i/2XbnSz/uxRCU6+NdVJgKWDTM427+MqYbkQzD321DuCQJUqOuJKIA0IM2+W2xtYHdKOmZ4dR6fExsd4SXL+WQ==
 
+eventsource-parser@^3.0.6:
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/eventsource-parser/-/eventsource-parser-3.0.6.tgz#292e165e34cacbc936c3c92719ef326d4aeb4e90"
+  integrity sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==
+
 expect-type@^1.2.1:
   version "1.3.0"
   resolved "https://registry.yarnpkg.com/expect-type/-/expect-type-1.3.0.tgz#0d58ed361877a31bbc4dd6cf71bbfef7faf6bd68"
@@ -3472,6 +3555,11 @@ json-schema-traverse@^0.4.1:
   version "0.4.1"
   resolved "https://registry.npmjs.org/json-schema-traverse/-/json-schema-traverse-0.4.1.tgz"
   integrity sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==
+
+json-schema@^0.4.0:
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/json-schema/-/json-schema-0.4.0.tgz#f7de4cf6efab838ebaeb3236474cbba5a1930ab5"
+  integrity sha512-es94M3nTIfsEPisRafak+HDLfHXnKBhV3vU5eqPcS3flIWqcxJWgXHXiey3YrpaNsanY5ei1VoYEbOzijuq9BA==
 
 json-stable-stringify-without-jsonify@^1.0.1:
   version "1.0.1"
@@ -4404,6 +4492,11 @@ vite-node@3.2.4:
     tinyglobby "^0.2.15"
   optionalDependencies:
     fsevents "~2.3.3"
+
+vitest-evals@^0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/vitest-evals/-/vitest-evals-0.5.0.tgz#543f3c59ad7ffe7f05437d85666836ffa1512a9f"
+  integrity sha512-kg8r6NKNBD6jkmyjdO64qduATW6IUG+62atCJj3dLzaRZEG4TIdfFVy64iEh0dSSo1CCpAJi+dJqSN2Y2qv2Sw==
 
 vitest@^3.0.2:
   version "3.2.4"

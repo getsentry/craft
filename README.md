@@ -44,6 +44,35 @@ craft publish 1.2.3
 - **Workspace Support** - Handle monorepos with NPM/Yarn workspaces
 - **CI Integration** - Wait for CI to pass, download artifacts, and publish
 - **GitHub Actions** - Built-in actions for release preparation and changelog previews
+- **AI Summaries** - Optionally summarize verbose changelog sections using GitHub Models API
+
+## AI-Powered Changelog Summaries
+
+Craft can use [GitHub Models](https://github.com/marketplace/models) to summarize changelog sections with many entries into concise descriptions. Uses your existing GitHub token—no additional API keys required.
+
+```yaml
+aiSummaries:
+  enabled: true
+  kickInThreshold: 5  # Only summarize sections with >5 items
+  model: "openai/gpt-4o-mini"  # optional, see available models below
+```
+
+### Authentication
+
+The feature uses your GitHub token automatically:
+- From `GITHUB_TOKEN` environment variable, or
+- From `gh auth token` (GitHub CLI)
+
+### Available Models
+
+You can use any model from [GitHub Marketplace Models](https://github.com/marketplace/models):
+
+```yaml
+aiSummaries:
+  model: "openai/gpt-4o-mini"        # Default, fast and capable
+  model: "openai/gpt-4o"             # More capable, slower
+  model: "meta/meta-llama-3.1-8b-instruct"  # Open source alternative
+```
 
 ## Configuration
 
