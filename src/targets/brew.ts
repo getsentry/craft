@@ -7,6 +7,7 @@ import { getGitHubClient } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
 import { renderTemplateSafe } from '../utils/strings';
 import { HashAlgorithm, HashOutputFormat } from '../utils/system';
+import { isPreviewRelease, parseVersion } from '../utils/version';
 import { BaseTarget } from './base';
 import {
   BaseArtifactProvider,
@@ -112,6 +113,34 @@ export class BrewTarget extends BaseTarget {
   }
 
   /**
+   * Resolves the formula name by interpolating version variables.
+   *
+   * Supports Mustache-style templates with the following variables:
+   * - `{{{version}}}`: Full version string (e.g., "10.2.3")
+   * - `{{{major}}}`: Major version number (e.g., "10")
+   * - `{{{minor}}}`: Minor version number (e.g., "2")
+   * - `{{{patch}}}`: Patch version number (e.g., "3")
+   *
+   * Example: `sentry-cli-v{{{major}}}` becomes `sentry-cli-v10`
+   *
+   * @param version The version string to interpolate
+   * @returns The resolved formula name with variables substituted
+   */
+  public resolveFormulaName(version: string): string {
+    const formulaTemplate = this.brewConfig.formula || this.githubRepo.repo;
+    const parsedVersion = parseVersion(version);
+
+    const context = {
+      version,
+      major: parsedVersion?.major ?? '',
+      minor: parsedVersion?.minor ?? '',
+      patch: parsedVersion?.patch ?? '',
+    };
+
+    return renderTemplateSafe(formulaTemplate, context);
+  }
+
+  /**
    * Resolves the content sha of a formula at the specified location. If the
    * formula does not exist, `undefined` is returned.
    *
@@ -147,11 +176,18 @@ export class BrewTarget extends BaseTarget {
    * @param revision The SHA revision of the new version
    */
   public async publish(version: string, revision: string): Promise<any> {
-    const { formula, path, template, tapRepo } = this.brewConfig;
-    const { owner, repo } = this.githubRepo;
+    // Skip pre-release versions as Homebrew doesn't understand them
+    if (isPreviewRelease(version)) {
+      this.logger.info(
+        'Skipping Homebrew release for pre-release version: ' + version
+      );
+      return undefined;
+    }
 
-    // Get default formula name and location from the config
-    const formulaName = formula || repo;
+    const { path, template, tapRepo } = this.brewConfig;
+
+    // Get formula name (supports mustache templates with version variables)
+    const formulaName = this.resolveFormulaName(version);
     const formulaPath = path
       ? `${path}/${formulaName}.rb`
       : `Formula/${formulaName}.rb`;
@@ -180,7 +216,7 @@ export class BrewTarget extends BaseTarget {
     this.logger.debug(`Homebrew formula for ${formulaName}:\n${data}`);
 
     // Try to find the repository to publish in
-    if (tapRepo.owner !== owner) {
+    if (tapRepo.owner !== this.githubRepo.owner) {
       // TODO: Create a PR if we have no push rights to this repo
       this.logger.warn('Skipping homebrew release: PRs not supported yet');
       return undefined;
@@ -196,7 +232,7 @@ export class BrewTarget extends BaseTarget {
     };
 
     this.logger.info(
-      `Releasing ${owner}/${repo} tag ${version} ` +
+      `Releasing ${this.githubRepo.owner}/${this.githubRepo.repo} tag ${version} ` +
         `to homebrew tap ${tapRepo.owner}/${tapRepo.repo} ` +
         `formula ${formulaName}`
     );
