@@ -2,8 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { Octokit } from '@octokit/rest';
-// eslint-disable-next-line no-restricted-imports -- Need raw simpleGit for initial clone
-import simpleGit from 'simple-git';
 
 import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
@@ -151,8 +149,7 @@ export class GhPagesTarget extends BaseTarget {
     this.logger.info(
       `Cloning "${remote.getRemoteString()}" to "${directory}"...`
     );
-    // eslint-disable-next-line no-restricted-syntax -- Clone needs raw simpleGit, wrapped client used after
-    await simpleGit().clone(remote.getRemoteStringWithAuth(), directory);
+    await createGitClient('.').clone(remote.getRemoteStringWithAuth(), directory);
     const git = createGitClient(directory);
     this.logger.debug(`Checking out branch: "${branch}"`);
     try {

@@ -215,7 +215,6 @@ async function createReleaseBranch(
     reportError(errorMsg, logger);
   }
 
-  // Git operations are automatically handled by the dry-run proxy
   await git.checkoutBranch(branchName, rev);
   logger.info(`Created a new release branch: "${branchName}"`);
   logger.info(`Switched to branch "${branchName}"`);
@@ -238,7 +237,6 @@ async function pushReleaseBranch(
   if (pushFlag) {
     logger.info(`Pushing the release branch "${branchName}"...`);
     // TODO check remote somehow
-    // Git operations are automatically handled by the dry-run proxy
     await git.push(remoteName, branchName, ['--set-upstream']);
   } else {
     logger.info('Not pushing the release branch.');
@@ -267,7 +265,6 @@ async function commitNewVersion(
 
   logger.debug('Committing the release changes...');
   logger.trace(`Commit message: "${message}"`);
-  // Git operations are automatically handled by the dry-run proxy
   await git.commit(message, ['--all']);
 }
 
@@ -463,7 +460,6 @@ async function prepareChangelog(
         changelogString = prependChangeset(changelogString, changeset);
       }
 
-      // File writes are automatically handled by the dry-run proxy
       await dryRunFs.writeFile(relativePath, changelogString);
 
       break;
@@ -495,7 +491,6 @@ async function switchToDefaultBranch(
     return;
   }
   logger.info(`Switching back to the default branch (${defaultBranch})...`);
-  // Git operations are automatically handled by the dry-run proxy
   await git.checkout(defaultBranch);
 }
 

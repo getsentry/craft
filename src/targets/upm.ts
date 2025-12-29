@@ -1,6 +1,4 @@
 import { Octokit } from '@octokit/rest';
-// eslint-disable-next-line no-restricted-imports -- Need raw simpleGit for initial clone
-import simpleGit from 'simple-git';
 import {
   getGitHubApiToken,
   getGitHubClient,
@@ -117,8 +115,7 @@ export class UpmTarget extends BaseTarget {
 
     await withTempDir(
       async directory => {
-        // eslint-disable-next-line no-restricted-syntax -- Clone needs raw simpleGit, wrapped client used after
-        await simpleGit().clone(remote.getRemoteStringWithAuth(), directory);
+        await createGitClient('.').clone(remote.getRemoteStringWithAuth(), directory);
         const git = createGitClient(directory);
 
         this.logger.info('Clearing the repository.');
@@ -129,7 +126,6 @@ export class UpmTarget extends BaseTarget {
 
         this.logger.info('Adding files to repository.');
         await git.add(['.']);
-        // Git operations are automatically handled by the dry-run proxy
         const commitResult = await git.commit(`release ${version}`);
         if (!commitResult.commit) {
           throw new Error(
@@ -138,7 +134,6 @@ export class UpmTarget extends BaseTarget {
         }
         const targetRevision = await git.revparse([commitResult.commit]);
 
-        // Git operations are automatically handled by the dry-run proxy
         await git.push(['origin', 'main']);
         const changes = await this.githubTarget.getChangelog(version);
         const isPrerelease = isPreviewRelease(version);

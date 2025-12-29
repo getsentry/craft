@@ -1,5 +1,3 @@
-// eslint-disable-next-line no-restricted-imports -- Need raw simpleGit for initial clone
-import simpleGit from 'simple-git';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
@@ -152,8 +150,7 @@ export async function pushArchiveToGitRepository({
 
       const authenticatedUrl = parsedUrl.toString();
 
-      // eslint-disable-next-line no-restricted-syntax -- Clone needs raw simpleGit, wrapped client used after
-      await simpleGit().clone(authenticatedUrl, directory);
+      await createGitClient('.').clone(authenticatedUrl, directory);
       const git = createGitClient(directory);
 
       logger?.info(`Checking out branch "${branch}"...`);
@@ -177,7 +174,6 @@ export async function pushArchiveToGitRepository({
       logger?.info(`Staging files...`);
       await git.raw('add', '--all');
 
-      // Git operations are automatically handled by the dry-run proxy
       logger?.info(`Creating commit...`);
       await git.commit(`release: ${version}`);
 

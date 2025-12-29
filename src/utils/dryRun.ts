@@ -37,12 +37,13 @@ const GIT_MUTATING_METHODS = new Set([
   'addTag',
   'rm',
   'add',
-  'clone',
   'pull',
   'reset',
   'revert',
   'stash',
   'tag',
+  // Note: 'clone' is intentionally NOT included - it creates a local copy
+  // which is safe to do in dry-run mode and needed for subsequent operations
 ]);
 
 /**
@@ -60,8 +61,9 @@ const GIT_RAW_MUTATING_COMMANDS = new Set([
   'revert',
   'stash',
   'branch',
-  'clone',
   'pull',
+  // Note: 'clone' is intentionally NOT included - it creates a local copy
+  // which is safe to do in dry-run mode and needed for subsequent operations
 ]);
 
 /**
@@ -171,7 +173,8 @@ function createGitHubNamespaceProxy(
             const pathStr = currentPath.join('.');
             logDryRun(`github.${pathStr}(...)`);
             // Return a mock response for compatibility
-            return Promise.resolve({ data: {} });
+            // status: 0 ensures status-based checks (e.g., === 204) fail gracefully
+            return Promise.resolve({ data: {}, status: 0 });
           }
           return (value as (...a: unknown[]) => unknown).apply(obj, args);
         };

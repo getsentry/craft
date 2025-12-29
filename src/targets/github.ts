@@ -133,16 +133,6 @@ export class GitHubTarget extends BaseTarget {
     const isPreview =
       this.githubConfig.previewReleases && isPreviewRelease(version);
 
-    if (isDryRun()) {
-      logDryRun(`github.repos.createRelease(${tag})`);
-      return {
-        id: 0,
-        tag_name: tag,
-        upload_url: '',
-        draft: true,
-      };
-    }
-
     const { data } = await this.github.repos.createRelease({
       draft: true,
       name: tag,
@@ -153,6 +143,16 @@ export class GitHubTarget extends BaseTarget {
       target_commitish: revision,
       ...changes,
     });
+
+    // In dry-run mode, the proxy returns an empty object - provide mock data
+    if (!data.id) {
+      return {
+        id: 0,
+        tag_name: tag,
+        upload_url: '',
+        draft: true,
+      };
+    }
     return data;
   }
 
@@ -186,11 +186,6 @@ export class GitHubTarget extends BaseTarget {
     asset: ReposListAssetsForReleaseResponseItem
   ): Promise<boolean> {
     this.logger.debug(`Deleting asset: "${asset.name}"...`);
-    if (isDryRun()) {
-      logDryRun(`github.repos.deleteReleaseAsset(${asset.name})`);
-      return false;
-    }
-
     return (
       (
         await this.github.repos.deleteReleaseAsset({
@@ -217,11 +212,6 @@ export class GitHubTarget extends BaseTarget {
       this.logger.warn(
         `Refusing to delete release "${release.tag_name}" because it is not a draft`
       );
-      return false;
-    }
-
-    if (isDryRun()) {
-      logDryRun(`github.repos.deleteRelease(${release.tag_name})`);
       return false;
     }
 
@@ -380,11 +370,6 @@ export class GitHubTarget extends BaseTarget {
     release: GitHubRelease,
     options: { makeLatest: boolean } = { makeLatest: true }
   ) {
-    if (isDryRun()) {
-      logDryRun(`github.repos.updateRelease(${release.tag_name})`);
-      return;
-    }
-
     await this.github.repos.updateRelease({
       ...this.githubConfig,
       release_id: release.id,
@@ -409,11 +394,6 @@ export class GitHubTarget extends BaseTarget {
   ): Promise<any> {
     const tag = versionToTag(version, this.githubConfig.tagPrefix);
     const tagRef = `refs/tags/${tag}`;
-    if (isDryRun()) {
-      logDryRun(`github.git.createRef(${tagRef})`);
-      return;
-    }
-
     this.logger.info(`Pushing the tag reference: "${tagRef}"...`);
     await this.github.rest.git.createRef({
       owner: this.githubConfig.owner,

@@ -1,7 +1,6 @@
 import { mapLimit } from 'async';
 import { Octokit } from '@octokit/rest';
-// eslint-disable-next-line no-restricted-imports -- Need raw simpleGit for initial clone
-import simpleGit, { SimpleGit } from 'simple-git';
+import type { SimpleGit } from 'simple-git';
 
 import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
@@ -432,8 +431,7 @@ export class RegistryTarget extends BaseTarget {
     this.logger.info(
       `Cloning "${remote.getRemoteString()}" to "${directory}"...`
     );
-    // eslint-disable-next-line no-restricted-syntax -- Clone needs raw simpleGit, wrapped client used after
-    await simpleGit().clone(remote.getRemoteStringWithAuth(), directory, [
+    await createGitClient('.').clone(remote.getRemoteStringWithAuth(), directory, [
       '--filter=tree:0',
       '--single-branch',
     ]);

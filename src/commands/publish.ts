@@ -373,7 +373,6 @@ async function handleReleaseBranch(
   await git.checkout(mergeTarget);
 
   logger.debug(`Merging ${branch} into: ${mergeTarget}`);
-  // Git operations are automatically handled by the dry-run proxy
   await git
     .pull(remoteName, mergeTarget, ['--rebase'])
     .merge(['--no-ff', '--no-edit', branch])
@@ -383,7 +382,6 @@ async function handleReleaseBranch(
     logger.info('Not deleting the release branch.');
   } else {
     logger.debug(`Deleting the release branch: ${branch}`);
-    // Git operations are automatically handled by the dry-run proxy
     await git.branch(['-D', branch]).push([remoteName, '--delete', branch]);
     logger.info(`Removed the remote branch: "${branch}"`);
   }
@@ -566,7 +564,6 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       for (const target of targetList) {
         await publishToTarget(target, newVersion, revision);
         publishState.published[BaseTarget.getId(target.config)] = true;
-        // File writes are automatically handled by the dry-run proxy
         dryRunFs.writeFileSync(publishStateFile, JSON.stringify(publishState));
       }
 
@@ -606,7 +603,6 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     // file. If unlinking fails, we honestly don't care, at least to fail
     // the final steps. And it doesn't make sense to wait until this op
     // finishes then as nothing relies on the removal of this file.
-    // File operations are automatically handled by the dry-run proxy
     dryRunFs
       .unlink(publishStateFile)
       .catch(err => logger.trace("Couldn't remove publish state file: ", err));

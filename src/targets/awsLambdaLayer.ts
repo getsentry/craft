@@ -2,8 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { Octokit } from '@octokit/rest';
-// eslint-disable-next-line no-restricted-imports -- Need raw simpleGit for initial clone
-import simpleGit from 'simple-git';
 import {
   getGitHubApiToken,
   getGitHubClient,
@@ -22,9 +20,8 @@ import {
 } from '../utils/awsLambdaLayerManager';
 import { createSymlinks } from '../utils/symlink';
 import { withTempDir } from '../utils/files';
-import { isDryRun } from '../utils/helpers';
 import { createGitClient } from '../utils/git';
-import { logDryRun } from '../utils/dryRun';
+import { dryRunExec } from '../utils/dryRun';
 import { renderTemplateSafe } from '../utils/strings';
 import { isPreviewRelease, parseVersion } from '../utils/version';
 import { DEFAULT_REGISTRY_REMOTE } from '../utils/registry';
@@ -177,23 +174,22 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         this.logger.info(
           `Cloning ${remote.getRemoteString()} to ${directory}...`
         );
-        // eslint-disable-next-line no-restricted-syntax -- Clone needs raw simpleGit, wrapped client used after
-        await simpleGit().clone(remote.getRemoteStringWithAuth(), directory);
+        await createGitClient('.').clone(remote.getRemoteStringWithAuth(), directory);
         const git = createGitClient(directory);
 
-        if (!isDryRun()) {
-          await this.publishRuntimes(
-            version,
-            directory,
-            awsRegions,
-            artifactBuffer
-          );
-          this.logger.debug('Finished publishing runtimes.');
-        } else {
-          logDryRun('publishRuntimes(...)');
-        }
+        await dryRunExec(
+          async () => {
+            await this.publishRuntimes(
+              version,
+              directory,
+              awsRegions,
+              artifactBuffer
+            );
+            this.logger.debug('Finished publishing runtimes.');
+          },
+          'publishRuntimes(...)'
+        );
 
-        // Git operations are automatically handled by the dry-run proxy
         await git.add(['.']);
         await git.checkout('master');
         const runtimeNames = this.config.compatibleRuntimes.map(
@@ -226,12 +222,6 @@ export class AwsLambdaLayerTarget extends BaseTarget {
    * @param linkPrereleases Whether the current release is a prerelease.
    */
   private isPushableToRegistry(version: string): boolean {
-    if (isDryRun()) {
-      // Skip early - git.push() will also be blocked by the proxy but we want
-      // to skip the whole logic chain
-      logDryRun('git.push()');
-      return false;
-    }
     if (isPreviewRelease(version) && !this.awsLambdaConfig.linkPrereleases) {
       // preview release
       this.logger.info(
