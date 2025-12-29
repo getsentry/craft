@@ -329,6 +329,14 @@ export function sortDotnetPackages(packages: DotnetPackage[]): DotnetPackage[] {
 }
 
 /**
+ * Escape special regex characters in a string.
+ * Only escapes characters that have special meaning in regex.
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+}
+
+/**
  * Convert a NuGet package ID to an artifact filename pattern.
  *
  * @param packageId The NuGet package ID (e.g., "Sentry.AspNetCore")
@@ -336,8 +344,8 @@ export function sortDotnetPackages(packages: DotnetPackage[]): DotnetPackage[] {
  */
 export function packageIdToNugetArtifactPattern(packageId: string): string {
   // NuGet package artifacts are named: {PackageId}.{Version}.nupkg
-  // We need to escape dots in the package ID for the regex
-  const escaped = packageId.replace(/\./g, '\\.');
+  // Escape all regex special characters in the package ID
+  const escaped = escapeRegex(packageId);
   return `/^${escaped}\\.\\d.*\\.nupkg$/`;
 }
 
@@ -358,10 +366,6 @@ export function packageIdToNugetArtifactFromTemplate(
   template: string,
   version = '\\d.*'
 ): string {
-  // Escape special regex characters
-  const escapeRegex = (str: string): string =>
-    str.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
-
   const PACKAGE_ID_PLACEHOLDER = '\x00PKGID\x00';
   const VERSION_PLACEHOLDER = '\x00VERSION\x00';
 
