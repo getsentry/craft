@@ -24,6 +24,10 @@ Avoid having multiple `registry` targets—it supports batching multiple apps an
 | `linkPrereleases` | Update for preview releases. Default: `false` |
 | `checksums` | List of checksum configs |
 | `onlyIfPresent` | Only run if matching file exists |
+| `name` | Human-readable name (used when creating new packages) |
+| `packageUrl` | Link to package registry page, e.g., npmjs.com (used when creating new packages) |
+| `mainDocsUrl` | Link to main documentation (used when creating new packages) |
+| `apiDocsUrl` | Link to API documentation (used when creating new packages) |
 
 ### Checksum Configuration
 
@@ -52,3 +56,22 @@ targets:
 
 - **sdk**: Package uploaded to public registries (PyPI, NPM, etc.)
 - **app**: Standalone application with version files in the registry
+
+## Creating New Packages
+
+When you introduce a new package that doesn't yet exist in the release registry, Craft will automatically create the required directory structure and initial manifest. The `repo_url` field is automatically derived from your GitHub repository configuration.
+
+For a complete initial manifest, you can specify additional metadata:
+
+```yaml
+targets:
+  - name: registry
+    sdks:
+      'npm:@sentry/wasm':
+        name: 'Sentry WASM'
+        packageUrl: 'https://www.npmjs.com/package/@sentry/wasm'
+        mainDocsUrl: 'https://docs.sentry.io/platforms/javascript/'
+        urlTemplate: 'https://example.com/{{version}}/{{file}}'
+```
+
+These fields (`name`, `packageUrl`, `mainDocsUrl`, `apiDocsUrl`) are only used when creating a new package for the first time. For existing packages, the manifest data is read from the registry.
