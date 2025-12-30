@@ -63,14 +63,26 @@ Craft can summarize changelog sections with many entries into concise descriptio
 - Add version templating for layer names
 ```
 
-**After (section summary):**
+**After (section summary with expandable details):**
 ```markdown
 ### New Features
-Enhanced changelog generation with custom entries, preview action, reusable workflow support, and version templating.
+Changelog entries now support custom descriptions, multiple items, previews, reusable workflows, and version templating for layers.
+
+<details>
+<summary>Show 6 items</summary>
+
+- Strip commit patterns from changelog entries
+- Add support for custom changelog entries from PR descriptions
+- Support for multiple entries and nested items
+- Add changelog preview action and CLI command
+- Make release workflow reusable for external repos
+- Add version templating for layer names
+
+</details>
 ```
 
 **Top-level summary** (with `topLevel: "always"`):
-> The latest software release introduces significant enhancements to the changelog management process, including the ability to strip commit patterns from entries and support for custom changelog entries derived from pull request descriptions. Users can now benefit from multiple entries and nested items, improving organization and clarity.
+> The software release includes several new features: the ability to strip commit patterns from changelog entries, support for custom changelog entries derived from pull request descriptions, and support for multiple entries and nested items. Additionally, a changelog preview action and CLI command have been added.
 
 ### Example 2: Sentry 25.12.0 (Large Release)
 
@@ -82,8 +94,8 @@ For large releases like [Sentry 25.12.0](https://github.com/getsentry/sentry/rel
 | Agents | 8 | 58 → 24 | **59%** |
 | Seer & Triage | 12 | 80 → 31 | **61%** |
 
-**Top-level summary** (111 words):
-> The latest software release introduces significant enhancements across three key areas: ACI, Agents, and Seer & Triage. Notably, the ACI section now defaults the metric monitor form to display the number of errors, improving user experience and alert management. In the Agents section, users can now render markdown and switch to raw values, alongside improved onboarding for browser JavaScript. Additionally, the Seer & Triage updates streamline support for various repository types and optimize performance. Overall, this release focuses on enhancing usability, improving error tracking, and refining system performance.
+**Top-level summary** (106 words):
+> The latest software release includes several updates across three main areas: ACI, Agents, and Seer & Triage. In the ACI section, the metric monitor form now defaults to the number of errors, and alerts have been updated to include a disabled status and display test notification errors in the UI. The Agents section introduces markdown rendering, the ability to switch to raw values, and a new onboarding process for browser JavaScript. Additionally, the Seer & Triage updates involve changes to support repo type checks, column renaming for broader applicability, and the removal of unnecessary calls.
 
 ### Configuration
 

@@ -49,6 +49,7 @@ import {
   summarizeItems,
   summarizeChangelog,
   shouldGenerateTopLevel,
+  formatSummaryWithDetails,
   isAiSummaryAvailable,
   resetPipeline,
   DEFAULT_KICK_IN_THRESHOLD,
@@ -331,6 +332,67 @@ describe('ai-summary', () => {
       const config: AiSummariesConfig = { topLevel: 'always' };
       const result = await summarizeChangelog(sampleSections, config);
       expect(result).toBe(mockLocalSummary);
+    });
+  });
+
+  describe('formatSummaryWithDetails', () => {
+    const originalItems = [
+      '- Feature A by @user1 in #123',
+      '- Feature B by @user2 in #124',
+      '- Feature C by @user3 in #125',
+    ];
+
+    test('returns original items when no summary', () => {
+      const result = formatSummaryWithDetails(null, originalItems);
+      expect(result).toBe(originalItems.join('\n'));
+    });
+
+    test('returns original items when empty array and summary', () => {
+      const result = formatSummaryWithDetails('Some summary', []);
+      expect(result).toBe('');
+    });
+
+    test('wraps items in details when summary provided', () => {
+      const summary = 'Added three new features for better UX.';
+      const result = formatSummaryWithDetails(summary, originalItems);
+
+      expect(result).toContain(summary);
+      expect(result).toContain('<details>');
+      expect(result).toContain('</details>');
+      expect(result).toContain('<summary>Show 3 items</summary>');
+      expect(result).toContain('- Feature A by @user1 in #123');
+      expect(result).toContain('- Feature B by @user2 in #124');
+      expect(result).toContain('- Feature C by @user3 in #125');
+    });
+
+    test('uses singular "item" for single item', () => {
+      const summary = 'Added a feature.';
+      const result = formatSummaryWithDetails(summary, ['- Feature A']);
+
+      expect(result).toContain('<summary>Show 1 item</summary>');
+    });
+
+    test('places summary before details block', () => {
+      const summary = 'Added three features.';
+      const result = formatSummaryWithDetails(summary, originalItems);
+
+      const summaryIndex = result.indexOf(summary);
+      const detailsIndex = result.indexOf('<details>');
+
+      expect(summaryIndex).toBeLessThan(detailsIndex);
+    });
+
+    test('preserves original item formatting', () => {
+      const items = [
+        '- **Bold** item',
+        '- Item with `code`',
+        '- [Link](https://example.com)',
+      ];
+      const result = formatSummaryWithDetails('Summary text.', items);
+
+      expect(result).toContain('- **Bold** item');
+      expect(result).toContain('- Item with `code`');
+      expect(result).toContain('- [Link](https://example.com)');
     });
   });
 });

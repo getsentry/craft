@@ -108,12 +108,12 @@ async function summarizeWithGitHubModels(
 
   const { text } = await generateText({
     model,
-    prompt: `Summarize these ${items.length} changelog items into ONE sentence of approximately ${targetWords} words. Group related changes and focus on key themes. Do not list each item - synthesize them.
+    prompt: `Summarize these ${items.length} changelog items into ONE neutral, factual sentence of approximately ${targetWords} words. Group related changes by theme. Be informative, not promotional - avoid words like "enhanced", "improved", "significant", or "powerful". Simply state what changed.
 
 Items:
 ${itemsList}
 
-Summary (${targetWords} words max):`,
+Summary (${targetWords} words max, neutral tone):`,
     maxTokens: 60,
     temperature: 0.3,
   });
@@ -263,6 +263,38 @@ export function getModelInfo(config?: AiSummariesConfig): string {
 }
 
 /**
+ * Formats a summary with original items in an expandable details block.
+ * When a summary is provided, it shows the summary followed by a collapsed
+ * details section containing the original items.
+ *
+ * @param summary - The AI-generated summary (or null if summarization was skipped)
+ * @param originalItems - The original changelog items as formatted markdown lines
+ * @returns Formatted markdown with optional details block
+ */
+export function formatSummaryWithDetails(
+  summary: string | null,
+  originalItems: string[]
+): string {
+  if (!summary || originalItems.length === 0) {
+    // No summary - just return original items as-is
+    return originalItems.join('\n');
+  }
+
+  // Summary exists - show it with original items in a collapsible details block
+  const itemCount = originalItems.length;
+  const detailsLabel = `Show ${itemCount} item${itemCount !== 1 ? 's' : ''}`;
+
+  return `${summary}
+
+<details>
+<summary>${detailsLabel}</summary>
+
+${originalItems.join('\n')}
+
+</details>`;
+}
+
+/**
  * Normalizes the topLevel config value to a consistent format.
  */
 function normalizeTopLevel(
@@ -360,14 +392,14 @@ export async function summarizeChangelog(
 
       const { text } = await generateText({
         model,
-        prompt: `Write a brief executive summary (1 paragraph, maximum 5 sentences) of this software release. Focus on the most impactful changes and themes. Be concise and professional.
+        prompt: `Write a brief, neutral summary (1 paragraph, maximum 5 sentences) of this software release. List the main areas of change without promotional language - avoid words like "enhanced", "improved", "significant", "powerful", or "exciting". Simply state what was added, changed, or fixed.
 
 Changelog sections:
 ${sectionSummaries}
 
 Total changes: ${totalItems} items across ${Object.keys(sections).length} sections.
 
-Executive summary:`,
+Summary (neutral, factual tone):`,
         maxTokens: 150,
         temperature: 0.3,
       });
