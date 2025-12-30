@@ -47,6 +47,8 @@ vi.mock('@huggingface/transformers', () => ({
 import {
   summarizeSection,
   summarizeItems,
+  summarizeChangelog,
+  shouldGenerateTopLevel,
   isAiSummaryAvailable,
   resetPipeline,
   DEFAULT_KICK_IN_THRESHOLD,
@@ -219,6 +221,116 @@ describe('ai-summary', () => {
   describe('resetPipeline', () => {
     test('does not throw', () => {
       expect(() => resetPipeline()).not.toThrow();
+    });
+  });
+
+  describe('shouldGenerateTopLevel', () => {
+    test('returns false when enabled is false', () => {
+      const config: AiSummariesConfig = { enabled: false };
+      expect(shouldGenerateTopLevel(10, config)).toBe(false);
+    });
+
+    test('returns true when topLevel is "always"', () => {
+      const config: AiSummariesConfig = { topLevel: 'always' };
+      expect(shouldGenerateTopLevel(1, config)).toBe(true);
+    });
+
+    test('returns true when topLevel is true', () => {
+      const config: AiSummariesConfig = { topLevel: true };
+      expect(shouldGenerateTopLevel(1, config)).toBe(true);
+    });
+
+    test('returns false when topLevel is "never"', () => {
+      const config: AiSummariesConfig = { topLevel: 'never' };
+      expect(shouldGenerateTopLevel(100, config)).toBe(false);
+    });
+
+    test('returns false when topLevel is false', () => {
+      const config: AiSummariesConfig = { topLevel: false };
+      expect(shouldGenerateTopLevel(100, config)).toBe(false);
+    });
+
+    test('defaults to "threshold" behavior', () => {
+      // No topLevel specified, should use threshold
+      expect(shouldGenerateTopLevel(5, {})).toBe(false); // At threshold
+      expect(shouldGenerateTopLevel(6, {})).toBe(true); // Above threshold
+    });
+
+    test('topLevel "threshold" uses kickInThreshold value', () => {
+      const config: AiSummariesConfig = {
+        topLevel: 'threshold',
+        kickInThreshold: 10,
+      };
+      expect(shouldGenerateTopLevel(10, config)).toBe(false); // At threshold
+      expect(shouldGenerateTopLevel(11, config)).toBe(true); // Above threshold
+    });
+  });
+
+  describe('summarizeChangelog', () => {
+    const sampleSections = {
+      'New Features': ['Feature A', 'Feature B', 'Feature C'],
+      'Bug Fixes': ['Fix X', 'Fix Y', 'Fix Z'],
+    };
+
+    test('returns null when enabled is false', async () => {
+      const config: AiSummariesConfig = { enabled: false };
+      const result = await summarizeChangelog(sampleSections, config);
+      expect(result).toBeNull();
+    });
+
+    test('returns null when topLevel is "never"', async () => {
+      const config: AiSummariesConfig = { topLevel: 'never' };
+      const result = await summarizeChangelog(sampleSections, config);
+      expect(result).toBeNull();
+    });
+
+    test('returns null when at or below threshold (default)', async () => {
+      const smallSections = {
+        'New Features': ['Feature A', 'Feature B'],
+        'Bug Fixes': ['Fix X', 'Fix Y', 'Fix Z'],
+      }; // 5 total items = threshold
+      const config: AiSummariesConfig = { topLevel: 'threshold' };
+      const result = await summarizeChangelog(smallSections, config);
+      expect(result).toBeNull();
+    });
+
+    test('returns summary when topLevel is "always"', async () => {
+      const config: AiSummariesConfig = { topLevel: 'always' };
+      const result = await summarizeChangelog(sampleSections, config);
+      expect(result).toBe(
+        'Enhanced changelog with new features and improvements.'
+      );
+    });
+
+    test('returns summary when above threshold', async () => {
+      const largeSections = {
+        'New Features': ['A', 'B', 'C', 'D'],
+        'Bug Fixes': ['X', 'Y', 'Z'],
+      }; // 7 total items > 5 threshold
+      const config: AiSummariesConfig = { topLevel: 'threshold' };
+      const result = await summarizeChangelog(largeSections, config);
+      expect(result).toBe(
+        'Enhanced changelog with new features and improvements.'
+      );
+    });
+
+    test('uses custom threshold', async () => {
+      const config: AiSummariesConfig = {
+        topLevel: 'threshold',
+        kickInThreshold: 2,
+      };
+      const result = await summarizeChangelog(sampleSections, config);
+      // 6 items > 2 threshold
+      expect(result).toBe(
+        'Enhanced changelog with new features and improvements.'
+      );
+    });
+
+    test('falls back to local model on API failure', async () => {
+      shouldGenerateFail = true;
+      const config: AiSummariesConfig = { topLevel: 'always' };
+      const result = await summarizeChangelog(sampleSections, config);
+      expect(result).toBe(mockLocalSummary);
     });
   });
 });

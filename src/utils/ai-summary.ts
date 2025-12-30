@@ -19,6 +19,18 @@ export const DEFAULT_AI_MODEL = 'openai/gpt-4o-mini';
 export const LOCAL_FALLBACK_MODEL = 'Falconsai/text_summarization';
 
 /**
+ * Top-level summary configuration options.
+ * - "always" or true: Always generate top-level summary
+ * - "never" or false: Never generate top-level summary
+ * - "threshold": Only generate if total items exceed kickInThreshold
+ */
+export type TopLevelSummaryOption =
+  | 'always'
+  | 'never'
+  | 'threshold'
+  | boolean;
+
+/**
  * Configuration options for AI summarization.
  * Maps to the `aiSummaries` config block in .craft.yml
  */
@@ -37,9 +49,18 @@ export interface AiSummariesConfig {
    * Model to use for summarization.
    * - GitHub Models: "mistral-ai/ministral-3b", "openai/gpt-4o-mini", etc.
    * - Local: "local:Falconsai/text_summarization"
-   * Default: mistral-ai/ministral-3b (requires GITHUB_TOKEN)
+   * Default: openai/gpt-4o-mini (requires GITHUB_TOKEN)
    */
   model?: string;
+
+  /**
+   * Top-level overall summary configuration.
+   * - "always" or true: Always generate top-level summary
+   * - "never" or false: Never generate top-level summary
+   * - "threshold": Only generate if total items exceed kickInThreshold
+   * Default: "threshold"
+   */
+  topLevel?: TopLevelSummaryOption;
 }
 
 // Cached local summarizer pipeline
@@ -239,4 +260,145 @@ export function resetPipeline(): void {
  */
 export function getModelInfo(config?: AiSummariesConfig): string {
   return config?.model ?? DEFAULT_AI_MODEL;
+}
+
+/**
+ * Normalizes the topLevel config value to a consistent format.
+ */
+function normalizeTopLevel(
+  topLevel: TopLevelSummaryOption | undefined
+): 'always' | 'never' | 'threshold' {
+  if (topLevel === true || topLevel === 'always') {
+    return 'always';
+  }
+  if (topLevel === false || topLevel === 'never') {
+    return 'never';
+  }
+  // Default to 'threshold'
+  return 'threshold';
+}
+
+/**
+ * Checks if a top-level summary should be generated based on config and item count.
+ */
+export function shouldGenerateTopLevel(
+  totalItems: number,
+  config?: AiSummariesConfig
+): boolean {
+  if (config?.enabled === false) {
+    return false;
+  }
+
+  const topLevel = normalizeTopLevel(config?.topLevel);
+
+  switch (topLevel) {
+    case 'always':
+      return true;
+    case 'never':
+      return false;
+    case 'threshold':
+      const threshold = config?.kickInThreshold ?? DEFAULT_KICK_IN_THRESHOLD;
+      return totalItems > threshold;
+  }
+}
+
+/**
+ * Generates a top-level summary for the entire changelog.
+ * Creates a single paragraph with up to 5 sentences summarizing all changes.
+ *
+ * @param sections - Map of section names to their items
+ * @param config - Optional AI summaries configuration
+ * @returns A paragraph summary, or null if disabled/below threshold
+ */
+export async function summarizeChangelog(
+  sections: Record<string, string[]>,
+  config?: AiSummariesConfig
+): Promise<string | null> {
+  // Check if enabled
+  if (config?.enabled === false) {
+    return null;
+  }
+
+  // Count total items
+  const totalItems = Object.values(sections).reduce(
+    (sum, items) => sum + items.length,
+    0
+  );
+
+  // Check if we should generate based on topLevel setting
+  if (!shouldGenerateTopLevel(totalItems, config)) {
+    return null;
+  }
+
+  const requestedModel = config?.model ?? DEFAULT_AI_MODEL;
+  const isLocalModel = requestedModel.startsWith('local:');
+  const modelName = isLocalModel ? requestedModel.slice(6) : requestedModel;
+
+  // Build a structured summary of all sections
+  const sectionSummaries = Object.entries(sections)
+    .filter(([_, items]) => items.length > 0)
+    .map(([name, items]) => `${name}: ${items.slice(0, 5).join('; ')}${items.length > 5 ? ` (+${items.length - 5} more)` : ''}`)
+    .join('\n');
+
+  try {
+    if (isLocalModel) {
+      // Local model - just summarize the section summaries
+      return await summarizeWithLocalModel(
+        sectionSummaries.split('\n'),
+        modelName
+      );
+    }
+
+    const token = await getGitHubToken();
+
+    if (token) {
+      const { generateText } = await import('ai');
+      const { githubModels } = await import('@github/models');
+
+      const model = githubModels(modelName, { apiKey: token });
+
+      const { text } = await generateText({
+        model,
+        prompt: `Write a brief executive summary (1 paragraph, maximum 5 sentences) of this software release. Focus on the most impactful changes and themes. Be concise and professional.
+
+Changelog sections:
+${sectionSummaries}
+
+Total changes: ${totalItems} items across ${Object.keys(sections).length} sections.
+
+Executive summary:`,
+        maxTokens: 150,
+        temperature: 0.3,
+      });
+
+      return text.trim() || null;
+    }
+
+    // Fallback to local model
+    logger.debug('No GitHub token found, falling back to local model');
+    return await summarizeWithLocalModel(
+      sectionSummaries.split('\n'),
+      LOCAL_FALLBACK_MODEL
+    );
+  } catch (error: any) {
+    logger.warn('Top-level summarization failed:', error?.message || error);
+
+    // If GitHub Models failed and not explicitly using local model, try local fallback
+    if (!isLocalModel) {
+      try {
+        logger.debug('Trying local fallback model for top-level summary...');
+        return await summarizeWithLocalModel(
+          sectionSummaries.split('\n'),
+          LOCAL_FALLBACK_MODEL
+        );
+      } catch (fallbackError: any) {
+        logger.warn(
+          'Local fallback also failed:',
+          fallbackError?.message || fallbackError
+        );
+      }
+    }
+
+    return null;
+  }
 }

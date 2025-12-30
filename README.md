@@ -74,6 +74,30 @@ aiSummaries:
   enabled: true
   kickInThreshold: 5  # Only summarize sections with >5 items
   model: "openai/gpt-4o-mini"  # optional, default
+  topLevel: "threshold"  # "always" | "never" | "threshold" | true | false
+```
+
+#### Top-Level Summary
+
+The `topLevel` option controls whether an executive summary is generated for the entire changelog:
+
+- `"always"` or `true`: Always generate a top-level summary paragraph
+- `"never"` or `false`: Never generate a top-level summary
+- `"threshold"` (default): Only generate if total items exceed `kickInThreshold`
+
+```yaml
+# Always include an executive summary
+aiSummaries:
+  topLevel: "always"
+
+# Never include an executive summary
+aiSummaries:
+  topLevel: false
+
+# Only summarize large releases (default behavior)
+aiSummaries:
+  topLevel: "threshold"
+  kickInThreshold: 10  # Only summarize releases with >10 total items
 ```
 
 ### Authentication

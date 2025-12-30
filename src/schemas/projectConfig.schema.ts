@@ -124,7 +124,16 @@ const projectConfigJsonSchema = {
         model: {
           type: 'string',
           description:
-            'Model to use. GitHub Models: "openai/gpt-4o-mini" (default), "openai/gpt-4o-mini". Local: "local:Falconsai/text_summarization". Falls back to local model if no GITHUB_TOKEN.',
+            'Model to use. GitHub Models: "openai/gpt-4o-mini" (default), "openai/gpt-4o". Local: "local:Falconsai/text_summarization". Falls back to local model if no GITHUB_TOKEN.',
+        },
+        topLevel: {
+          oneOf: [
+            { type: 'boolean' },
+            { type: 'string', enum: ['always', 'never', 'threshold'] },
+          ],
+          description:
+            'Top-level summary for entire changelog. "always"/true: always generate, "never"/false: never generate, "threshold": only if total items > kickInThreshold (default: "threshold")',
+          default: 'threshold',
         },
       },
       additionalProperties: false,
