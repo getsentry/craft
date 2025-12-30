@@ -298,7 +298,7 @@ describe('ai-summary', () => {
       const config: AiSummariesConfig = { topLevel: 'always' };
       const result = await summarizeChangelog(sampleSections, config);
       expect(result).toBe(
-        'Enhanced changelog with new features and improvements.'
+        'Enhanced changelog with new features and improvements.',
       );
     });
 
@@ -310,7 +310,7 @@ describe('ai-summary', () => {
       const config: AiSummariesConfig = { topLevel: 'threshold' };
       const result = await summarizeChangelog(largeSections, config);
       expect(result).toBe(
-        'Enhanced changelog with new features and improvements.'
+        'Enhanced changelog with new features and improvements.',
       );
     });
 
@@ -322,7 +322,7 @@ describe('ai-summary', () => {
       const result = await summarizeChangelog(sampleSections, config);
       // 6 items > 2 threshold
       expect(result).toBe(
-        'Enhanced changelog with new features and improvements.'
+        'Enhanced changelog with new features and improvements.',
       );
     });
 
