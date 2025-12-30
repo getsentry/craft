@@ -296,9 +296,10 @@ export function shouldGenerateTopLevel(
       return true;
     case 'never':
       return false;
-    case 'threshold':
+    case 'threshold': {
       const threshold = config?.kickInThreshold ?? DEFAULT_KICK_IN_THRESHOLD;
       return totalItems > threshold;
+    }
   }
 }
 
