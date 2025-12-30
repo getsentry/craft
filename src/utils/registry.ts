@@ -1,4 +1,4 @@
-import { promises as fsPromises, existsSync } from 'fs';
+import { promises as fsPromises, existsSync, mkdirSync } from 'fs';
 import * as path from 'path';
 
 import { logger } from '../logger';
@@ -15,25 +15,105 @@ export enum RegistryPackageType {
   SDK = 'sdk',
 }
 
+/** Initial manifest data for creating new packages in the registry */
+export interface InitialManifestData {
+  /** The package's canonical name (e.g., "npm:@sentry/browser") */
+  canonical: string;
+  /** Link to GitHub repo */
+  repoUrl: string;
+  /** Human-readable name for the package */
+  name?: string;
+  /** Link to package registry (PyPI, npm, etc.) */
+  packageUrl?: string;
+  /** Link to main documentation */
+  mainDocsUrl?: string;
+  /** Link to API documentation */
+  apiDocsUrl?: string;
+}
+
+/**
+ * Creates an initial manifest for a new package in the registry.
+ *
+ * @param initialData Data for the initial manifest
+ * @returns The initial package manifest object
+ */
+function createInitialManifest(initialData: InitialManifestData): {
+  [key: string]: any;
+} {
+  const manifest: { [key: string]: any } = {
+    canonical: initialData.canonical,
+    repo_url: initialData.repoUrl,
+  };
+
+  if (initialData.name) {
+    manifest.name = initialData.name;
+  }
+  if (initialData.packageUrl) {
+    manifest.package_url = initialData.packageUrl;
+  }
+  if (initialData.mainDocsUrl) {
+    manifest.main_docs_url = initialData.mainDocsUrl;
+  }
+  if (initialData.apiDocsUrl) {
+    manifest.api_docs_url = initialData.apiDocsUrl;
+  }
+
+  return manifest;
+}
+
 /**
  * Gets the package manifest version in the given directory.
+ * If the package doesn't exist yet, creates the directory structure and
+ * returns an initial manifest.
  *
  * @param baseDir Base directory for the registry clone
- * @param packageDirPath The package directory.
- * @param version The package version.
+ * @param type The type of the registry package (APP or SDK)
+ * @param canonicalName The package's canonical name
+ * @param version The package version
+ * @param initialManifestData Optional data for creating initial manifest for new packages
  */
 export async function getPackageManifest(
   baseDir: string,
   type: RegistryPackageType,
   canonicalName: string,
-  version: string
+  version: string,
+  initialManifestData?: InitialManifestData
 ): Promise<{ versionFilePath: string; packageManifest: any }> {
   const packageDirPath = getPackageDirPath(type, canonicalName);
-  const versionFilePath = path.join(baseDir, packageDirPath, `${version}.json`);
+  const fullPackageDir = path.join(baseDir, packageDirPath);
+  const versionFilePath = path.join(fullPackageDir, `${version}.json`);
+
   if (existsSync(versionFilePath)) {
     reportError(`Version file for "${version}" already exists. Aborting.`);
   }
-  const packageManifestPath = path.join(baseDir, packageDirPath, 'latest.json');
+
+  const packageManifestPath = path.join(fullPackageDir, 'latest.json');
+
+  // Check if this is a new package (no latest.json exists)
+  if (!existsSync(packageManifestPath)) {
+    if (!initialManifestData) {
+      reportError(
+        `Package "${canonicalName}" does not exist in the registry and no initial manifest data was provided.`
+      );
+    }
+
+    // Create directory structure if it doesn't exist
+    if (!existsSync(fullPackageDir)) {
+      logger.info(
+        `Creating new package directory for "${canonicalName}" at "${packageDirPath}"...`
+      );
+      mkdirSync(fullPackageDir, { recursive: true });
+    }
+
+    logger.info(
+      `Creating initial manifest for new package "${canonicalName}"...`
+    );
+    return {
+      versionFilePath,
+      packageManifest: createInitialManifest(initialManifestData),
+    };
+  }
+
   logger.debug('Reading the current configuration from', packageManifestPath);
   return {
     versionFilePath,
