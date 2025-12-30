@@ -3,6 +3,7 @@ import { resolve } from 'path';
 import {
   discoverDotnetPackages,
   parseSolutionFile,
+  parseSlnxFile,
   parseCsprojFile,
   sortDotnetPackages,
   packageIdToNugetArtifactPattern,
@@ -34,6 +35,31 @@ describe('parseSolutionFile', () => {
   test('returns empty array for non-existent solution file', () => {
     const solutionPath = resolve(fixturesDir, 'does-not-exist.sln');
     const projectPaths = parseSolutionFile(solutionPath);
+
+    expect(projectPaths).toHaveLength(0);
+  });
+});
+
+describe('parseSlnxFile', () => {
+  test('parses slnx file and extracts project paths', () => {
+    const solutionPath = resolve(fixturesDir, 'slnx-solution/Sentry.slnx');
+    const projectPaths = parseSlnxFile(solutionPath);
+
+    expect(projectPaths).toHaveLength(2);
+    expect(projectPaths).toContain(
+      resolve(fixturesDir, 'slnx-solution/src/Sentry.Core/Sentry.Core.csproj')
+    );
+    expect(projectPaths).toContain(
+      resolve(
+        fixturesDir,
+        'slnx-solution/src/Sentry.AspNetCore/Sentry.AspNetCore.csproj'
+      )
+    );
+  });
+
+  test('returns empty array for non-existent slnx file', () => {
+    const solutionPath = resolve(fixturesDir, 'does-not-exist.slnx');
+    const projectPaths = parseSlnxFile(solutionPath);
 
     expect(projectPaths).toHaveLength(0);
   });
@@ -177,15 +203,23 @@ describe('sortDotnetPackages', () => {
 });
 
 describe('packageIdToNugetArtifactPattern', () => {
-  test('converts package ID to pattern and escapes dots', () => {
+  test('converts package ID to pattern matching both .nupkg and .snupkg', () => {
+    const pattern = packageIdToNugetArtifactPattern('Sentry.AspNetCore');
+    expect(pattern).toBe('/^Sentry\\.AspNetCore\\.\\d.*\\.s?nupkg$/');
+
+    // Verify the pattern matches both .nupkg and .snupkg
+    const regex = new RegExp(pattern.slice(1, -1));
+    expect(regex.test('Sentry.AspNetCore.1.0.0.nupkg')).toBe(true);
+    expect(regex.test('Sentry.AspNetCore.1.0.0.snupkg')).toBe(true);
+    expect(regex.test('Other.Package.1.0.0.nupkg')).toBe(false);
+  });
+
+  test('escapes dots in package ID', () => {
     expect(packageIdToNugetArtifactPattern('Sentry')).toBe(
-      '/^Sentry\\.\\d.*\\.nupkg$/'
-    );
-    expect(packageIdToNugetArtifactPattern('Sentry.AspNetCore')).toBe(
-      '/^Sentry\\.AspNetCore\\.\\d.*\\.nupkg$/'
+      '/^Sentry\\.\\d.*\\.s?nupkg$/'
     );
     expect(packageIdToNugetArtifactPattern('Sentry.Extensions.Logging')).toBe(
-      '/^Sentry\\.Extensions\\.Logging\\.\\d.*\\.nupkg$/'
+      '/^Sentry\\.Extensions\\.Logging\\.\\d.*\\.s?nupkg$/'
     );
   });
 });

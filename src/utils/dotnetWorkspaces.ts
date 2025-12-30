@@ -54,6 +54,13 @@ interface CsprojProject {
   };
 }
 
+/** Parsed .slnx structure */
+interface SlnxSolution {
+  Solution?: {
+    Project?: Array<{ '@_Path': string }> | { '@_Path': string };
+  };
+}
+
 /**
  * Parse a .sln file and extract all .csproj project paths.
  * Uses static regex parsing - no code execution.
@@ -88,6 +95,67 @@ export function parseSolutionFile(solutionPath: string): string[] {
     const normalizedPath = relativePath.replace(/\\/g, '/');
     const absolutePath = path.resolve(solutionDir, normalizedPath);
     projectPaths.push(absolutePath);
+  }
+
+  return projectPaths;
+}
+
+/**
+ * Parse a .slnx (XML-based solution) file and extract all .csproj project paths.
+ * Uses XML parsing - no code execution.
+ *
+ * @param solutionPath Absolute path to the .slnx file
+ * @returns Array of absolute paths to .csproj files
+ */
+export function parseSlnxFile(solutionPath: string): string[] {
+  let content: string;
+  try {
+    content = readFileSync(solutionPath, 'utf-8');
+  } catch (err) {
+    if (isNotFoundError(err)) {
+      logger.warn(`Solution file not found: ${solutionPath}`);
+      return [];
+    }
+    throw err;
+  }
+
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '@_',
+  });
+
+  let parsed: SlnxSolution;
+  try {
+    parsed = parser.parse(content);
+  } catch (err) {
+    logger.warn(`Failed to parse slnx file ${solutionPath}:`, err);
+    return [];
+  }
+
+  const solution = parsed.Solution;
+  if (!solution) {
+    logger.warn(
+      `Invalid slnx structure in ${solutionPath}: missing Solution element`
+    );
+    return [];
+  }
+
+  const solutionDir = path.dirname(solutionPath);
+  const projectPaths: string[] = [];
+
+  const projects = solution.Project
+    ? Array.isArray(solution.Project)
+      ? solution.Project
+      : [solution.Project]
+    : [];
+
+  for (const project of projects) {
+    const projectPath = project['@_Path'];
+    if (projectPath && projectPath.endsWith('.csproj')) {
+      const normalizedPath = projectPath.replace(/\\/g, '/');
+      const absolutePath = path.resolve(solutionDir, normalizedPath);
+      projectPaths.push(absolutePath);
+    }
   }
 
   return projectPaths;
@@ -194,38 +262,56 @@ export function parseCsprojFile(projectPath: string): DotnetPackage | null {
 }
 
 /**
- * Find a .sln file in the given directory
+ * Find a solution file (.sln or .slnx) in the given directory.
+ * Prefers .slnx over .sln if both exist.
  *
  * @param rootDir Directory to search in
- * @returns Path to the first .sln file found, or null
+ * @returns Path to the solution file found, or null
  */
 export async function findSolutionFile(
   rootDir: string
 ): Promise<string | null> {
-  const matches = await glob('*.sln', {
+  // Check for .slnx first (newer XML format)
+  const slnxMatches = await glob('*.slnx', {
     cwd: rootDir,
     absolute: true,
   });
 
-  if (matches.length === 0) {
+  if (slnxMatches.length > 0) {
+    if (slnxMatches.length > 1) {
+      logger.warn(
+        `Multiple .slnx files found in ${rootDir}, using first one: ${slnxMatches[0]}`
+      );
+    }
+    return slnxMatches[0];
+  }
+
+  // Fall back to .sln
+  const slnMatches = await glob('*.sln', {
+    cwd: rootDir,
+    absolute: true,
+  });
+
+  if (slnMatches.length === 0) {
     return null;
   }
 
-  if (matches.length > 1) {
+  if (slnMatches.length > 1) {
     logger.warn(
-      `Multiple solution files found in ${rootDir}, using first one: ${matches[0]}`
+      `Multiple .sln files found in ${rootDir}, using first one: ${slnMatches[0]}`
     );
   }
 
-  return matches[0];
+  return slnMatches[0];
 }
 
 /**
  * Discover all NuGet packages in a .NET solution.
+ * Supports both .sln and .slnx solution formats.
  * Uses only static file parsing - no code execution.
  *
  * @param rootDir Root directory of the repository
- * @param solutionPath Optional path to .sln file (relative to rootDir or absolute)
+ * @param solutionPath Optional path to solution file (relative to rootDir or absolute)
  * @returns Discovery result with packages and solution path
  */
 export async function discoverDotnetPackages(
@@ -249,8 +335,10 @@ export async function discoverDotnetPackages(
 
   logger.debug(`Using solution file: ${resolvedSolutionPath}`);
 
-  // Parse solution file to get project paths
-  const projectPaths = parseSolutionFile(resolvedSolutionPath);
+  // Parse solution file to get project paths (use appropriate parser based on extension)
+  const projectPaths = resolvedSolutionPath.endsWith('.slnx')
+    ? parseSlnxFile(resolvedSolutionPath)
+    : parseSolutionFile(resolvedSolutionPath);
   if (projectPaths.length === 0) {
     logger.warn('No projects found in solution file');
     return null;
@@ -330,15 +418,16 @@ export function sortDotnetPackages(packages: DotnetPackage[]): DotnetPackage[] {
 
 /**
  * Convert a NuGet package ID to an artifact filename pattern.
+ * Matches both .nupkg (package) and .snupkg (symbols) files.
  *
  * @param packageId The NuGet package ID (e.g., "Sentry.AspNetCore")
  * @returns A regex pattern string to match the artifact
  */
 export function packageIdToNugetArtifactPattern(packageId: string): string {
   // NuGet package artifacts are named: {PackageId}.{Version}.nupkg
-  // Escape all regex special characters in the package ID
+  // Symbol packages are named: {PackageId}.{Version}.snupkg
   const escaped = escapeRegex(packageId);
-  return `/^${escaped}\\.\\d.*\\.nupkg$/`;
+  return `/^${escaped}\\.\\d.*\\.s?nupkg$/`;
 }
 
 /**

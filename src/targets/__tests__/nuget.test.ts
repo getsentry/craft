@@ -53,10 +53,10 @@ describe('NugetTarget.expand', () => {
 
     expect(result).toHaveLength(2);
     expect(result[0].id).toBe('Sentry.Core');
-    expect(result[0].includeNames).toBe('/^Sentry\\.Core\\.\\d.*\\.nupkg$/');
+    expect(result[0].includeNames).toBe('/^Sentry\\.Core\\.\\d.*\\.s?nupkg$/');
     expect(result[1].id).toBe('Sentry.AspNetCore');
     expect(result[1].includeNames).toBe(
-      '/^Sentry\\.AspNetCore\\.\\d.*\\.nupkg$/'
+      '/^Sentry\\.AspNetCore\\.\\d.*\\.s?nupkg$/'
     );
   });
 
