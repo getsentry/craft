@@ -1,11 +1,20 @@
-#!/usr/bin/env node
 /**
- * Test AI summarization with Sentry 25.12.0 changelog
- * https://github.com/getsentry/sentry/releases/tag/25.12.0
+ * Integration tests for AI summarization with real changelog data.
+ * Uses Sentry 25.12.0 release notes as test data.
+ * @see https://github.com/getsentry/sentry/releases/tag/25.12.0
+ *
+ * Run with: GITHUB_TOKEN=... yarn test ai-summary.integration
  */
+import { describe, expect, test } from 'vitest';
+
+import {
+  DEFAULT_KICK_IN_THRESHOLD,
+  summarizeItems,
+  type AiSummariesConfig,
+} from '../utils/ai-summary';
 
 // Sample sections from Sentry 25.12.0 release
-const sections = {
+const SENTRY_25_12_SECTIONS = {
   'ACI (11 items)': [
     'feat(aci): Metric monitor form should default to number of errors',
     'feat(aci): add disabled alert to error/metric monitors and alerts',
@@ -69,74 +78,68 @@ const sections = {
   ],
 };
 
-async function main() {
-  console.log('🧪 Testing AI Summarization with Sentry 25.12.0 Changelog');
-  console.log('   https://github.com/getsentry/sentry/releases/tag/25.12.0\n');
+const hasGitHubToken = !!process.env.GITHUB_TOKEN;
 
-  // Dynamic import of the TypeScript module
-  const { summarizeItems, DEFAULT_AI_MODEL } = await import(
-    '../src/utils/ai-summary.ts'
-  );
+describe.skipIf(!hasGitHubToken)(
+  'AI Summary Integration - Sentry 25.12.0',
+  () => {
+    const config: AiSummariesConfig = {
+      enabled: true,
+      kickInThreshold: DEFAULT_KICK_IN_THRESHOLD,
+    };
 
-  const config = { enabled: true, kickInThreshold: 5 };
-  console.log(`🤖 Model: ${config.model ?? DEFAULT_AI_MODEL}`);
-  console.log(`⚙️  Config: threshold=${config.kickInThreshold}\n`);
+    test.each(Object.entries(SENTRY_25_12_SECTIONS))(
+      'summarizes %s',
+      async (sectionName, items) => {
+        const result = await summarizeItems(items, config);
+        const inputWords = items.join(' ').split(/\s+/).length;
 
-  const results = {};
+        if (items.length <= DEFAULT_KICK_IN_THRESHOLD) {
+          // Sections with ≤5 items should be skipped
+          expect(result).toBeNull();
+        } else {
+          // Sections with >5 items should be summarized
+          expect(result).toBeTruthy();
+          expect(typeof result).toBe('string');
 
-  for (const [name, items] of Object.entries(sections)) {
-    console.log(`${'='.repeat(60)}`);
-    console.log(`📋 ${name}`);
-    console.log(`${'='.repeat(60)}`);
+          // Should achieve meaningful compression
+          const outputWords = result!.split(/\s+/).length;
+          const compressionRatio = outputWords / inputWords;
 
-    console.log('\n📝 Original items:');
-    items.forEach((item, i) => console.log(`  ${i + 1}. ${item}`));
+          console.log(`\n📋 ${sectionName}`);
+          console.log(`   Input: ${items.length} items, ${inputWords} words`);
+          console.log(
+            `   Output: ${outputWords} words (${Math.round((1 - compressionRatio) * 100)}% compression)`
+          );
+          console.log(`   Summary: "${result}"`);
 
-    const inputWords = items.join(' ').split(/\s+/).length;
-    console.log(`\n📊 Input: ${items.length} items, ${inputWords} words`);
+          // Expect at least 30% compression for large sections
+          expect(compressionRatio).toBeLessThan(0.7);
+        }
+      },
+      { timeout: 30000 }
+    );
 
-    const result = await summarizeItems(items, config);
-
-    if (result) {
-      const outputWords = result.split(/\s+/).length;
-      const compression = Math.round((1 - outputWords / inputWords) * 100);
-      console.log(
-        `\n✨ Summary (${outputWords} words, ${compression}% compression):`
+    test('respects threshold - skips small sections', async () => {
+      const smallSection = SENTRY_25_12_SECTIONS['Autofix (4 items)'];
+      expect(smallSection.length).toBeLessThanOrEqual(
+        DEFAULT_KICK_IN_THRESHOLD
       );
-      console.log(`   "${result}"`);
-    } else {
-      console.log('\n⏭️  Skipped (below threshold or disabled)');
-    }
 
-    results[name] = { items, result };
-    console.log('');
+      const result = await summarizeItems(smallSection, config);
+      expect(result).toBeNull();
+    });
+
+    test('summarizes large sections', async () => {
+      const largeSection = SENTRY_25_12_SECTIONS['ACI (11 items)'];
+      expect(largeSection.length).toBeGreaterThan(DEFAULT_KICK_IN_THRESHOLD);
+
+      const result = await summarizeItems(largeSection, config);
+      expect(result).toBeTruthy();
+      expect(typeof result).toBe('string');
+
+      // Should be prose, not bullet points
+      expect(result).not.toContain('feat(aci)');
+    });
   }
-
-  // Print summary table
-  console.log('\n' + '='.repeat(70));
-  console.log('📊 SUMMARY TABLE');
-  console.log('='.repeat(70));
-  console.log(
-    'Section                     | Items | Words In | Words Out | Compression'
-  );
-  console.log('-'.repeat(70));
-
-  for (const [name, { items, result }] of Object.entries(results)) {
-    const inputWords = items.join(' ').split(/\s+/).length;
-    if (result) {
-      const outputWords = result.split(/\s+/).length;
-      const compression = Math.round((1 - outputWords / inputWords) * 100);
-      console.log(
-        `${name.padEnd(28)}| ${String(items.length).padEnd(6)}| ${String(inputWords).padEnd(9)}| ${String(outputWords).padEnd(10)}| ${compression}%`
-      );
-    } else {
-      console.log(
-        `${name.padEnd(28)}| ${String(items.length).padEnd(6)}| ${String(inputWords).padEnd(9)}| SKIPPED   | -`
-      );
-    }
-  }
-
-  console.log('\n✅ Test complete!');
-}
-
-main().catch(console.error);
+);
