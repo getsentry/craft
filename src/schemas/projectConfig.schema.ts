@@ -124,7 +124,7 @@ const projectConfigJsonSchema = {
         model: {
           type: 'string',
           description:
-            'Model to use. GitHub Models: "mistral-ai/ministral-3b" (default), "openai/gpt-4o-mini". Local: "local:Falconsai/text_summarization". Falls back to local model if no GITHUB_TOKEN.',
+            'Model to use. GitHub Models: "openai/gpt-4o-mini" (default), "openai/gpt-4o-mini". Local: "local:Falconsai/text_summarization". Falls back to local model if no GITHUB_TOKEN.',
         },
       },
       additionalProperties: false,

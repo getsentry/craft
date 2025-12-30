@@ -10,7 +10,7 @@ export const DEFAULT_KICK_IN_THRESHOLD = 5;
  * Default model for summarization via GitHub Models API.
  * Ministral-3b provides the best compression (71%) while being fast.
  */
-export const DEFAULT_AI_MODEL = 'mistral-ai/ministral-3b';
+export const DEFAULT_AI_MODEL = 'openai/gpt-4o-mini';
 
 /**
  * Local fallback model when no GitHub token is available.

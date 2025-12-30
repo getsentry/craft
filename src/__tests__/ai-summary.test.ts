@@ -80,7 +80,7 @@ describe('ai-summary', () => {
     });
 
     test('DEFAULT_AI_MODEL uses Ministral-3b', () => {
-      expect(DEFAULT_AI_MODEL).toBe('mistral-ai/ministral-3b');
+      expect(DEFAULT_AI_MODEL).toBe('openai/gpt-4o-mini');
     });
 
     test('LOCAL_FALLBACK_MODEL uses Falconsai', () => {
@@ -90,7 +90,7 @@ describe('ai-summary', () => {
 
   describe('getModelInfo', () => {
     test('returns default model when no config', () => {
-      expect(getModelInfo()).toBe('mistral-ai/ministral-3b');
+      expect(getModelInfo()).toBe('openai/gpt-4o-mini');
     });
 
     test('returns custom model from config', () => {

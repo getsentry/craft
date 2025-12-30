@@ -73,7 +73,7 @@ Enhanced changelog generation with custom entries, preview action, reusable work
 aiSummaries:
   enabled: true
   kickInThreshold: 5  # Only summarize sections with >5 items
-  model: "mistral-ai/ministral-3b"  # optional, default
+  model: "openai/gpt-4o-mini"  # optional, default
 ```
 
 ### Authentication
@@ -90,7 +90,7 @@ If no token is available, Craft falls back to a local model ([Falconsai/text_sum
 
 ```yaml
 aiSummaries:
-  model: "mistral-ai/ministral-3b"   # Default, 71% compression
+  model: "openai/gpt-4o-mini"   # Default, 71% compression
   model: "openai/gpt-4o-mini"        # Fast and capable
   model: "openai/gpt-4o"             # Most capable
 ```
