@@ -380,6 +380,23 @@ export class RegistryTarget extends BaseTarget {
       created_at: new Date().toISOString(),
     };
 
+    // Apply config fields - these always override existing values when specified
+    // This allows repo maintainers to update metadata in their config
+    const { owner, repo } = this.githubRepo;
+    updatedManifest.repo_url = `https://github.com/${owner}/${repo}`;
+    if (registryConfig.name !== undefined) {
+      updatedManifest.name = registryConfig.name;
+    }
+    if (registryConfig.packageUrl !== undefined) {
+      updatedManifest.package_url = registryConfig.packageUrl;
+    }
+    if (registryConfig.mainDocsUrl !== undefined) {
+      updatedManifest.main_docs_url = registryConfig.mainDocsUrl;
+    }
+    if (registryConfig.apiDocsUrl !== undefined) {
+      updatedManifest.api_docs_url = registryConfig.apiDocsUrl;
+    }
+
     // Add file links if it's a generic app (legacy)
     if (registryConfig.type === RegistryPackageType.APP) {
       await this.addFileLinks(

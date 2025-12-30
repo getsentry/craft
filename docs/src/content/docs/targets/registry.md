@@ -59,9 +59,7 @@ targets:
 
 ## Creating New Packages
 
-When you introduce a new package that doesn't yet exist in the release registry, Craft will automatically create the required directory structure and initial manifest. The `repo_url` field is automatically derived from your GitHub repository configuration.
-
-For a complete initial manifest, you can specify additional metadata:
+When you introduce a new package that doesn't yet exist in the release registry, Craft will automatically create the required directory structure and initial manifest.
 
 ```yaml
 targets:
@@ -74,4 +72,6 @@ targets:
         urlTemplate: 'https://example.com/{{version}}/{{file}}'
 ```
 
-These fields (`name`, `packageUrl`, `mainDocsUrl`, `apiDocsUrl`) are only used when creating a new package for the first time. For existing packages, the manifest data is read from the registry.
+## Manifest Metadata
+
+The `repo_url` field is always derived from your GitHub repository configuration. When specified, the metadata fields (`name`, `packageUrl`, `mainDocsUrl`, `apiDocsUrl`) are applied to every release, allowing you to update package metadata by changing your `.craft.yml` configuration.
