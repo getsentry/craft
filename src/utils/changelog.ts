@@ -1408,21 +1408,29 @@ export async function generateChangelogWithHighlight(
   // Step 5: Fetch raw commit info up to base branch
   const rawCommits = await fetchRawCommitInfo(git, rev, baseRef);
 
-  // Step 6: Add current PR to the list with highlight flag (at the beginning)
-  const currentPRCommit: RawCommitInfo = {
-    hash: prInfo.headSha,
-    title: prInfo.title.trim(),
-    body: prInfo.body,
-    author: prInfo.author,
-    pr: String(prInfo.number),
-    prTitle: prInfo.title,
-    prBody: prInfo.body,
-    labels: prInfo.labels,
-    highlight: true,
-  };
-  // Prepend current PR to make it newest in the list.
-  // Git log returns commits newest-first, so this maintains that order.
-  const allCommits = [currentPRCommit, ...rawCommits];
+  // Step 6: Build combined commit list with current PR highlighted at the beginning.
+  // Filter out the current PR from git history if already merged - this ensures we use
+  // the freshly-fetched PR data (with highlight) instead of potentially stale data
+  // from git history (e.g., if PR title was edited after merge).
+  const currentPRStr = String(currentPRNumber);
+  const allCommits: RawCommitInfo[] = [
+    {
+      hash: prInfo.headSha,
+      title: prInfo.title.trim(),
+      body: prInfo.body,
+      author: prInfo.author,
+      pr: currentPRStr,
+      prTitle: prInfo.title,
+      prBody: prInfo.body,
+      labels: prInfo.labels,
+      highlight: true,
+    },
+  ];
+  for (const commit of rawCommits) {
+    if (commit.pr !== currentPRStr) {
+      allCommits.push(commit);
+    }
+  }
 
   // Step 7: Process reverts - cancel out revert/reverted pairs
   const filteredCommits = processReverts(allCommits);
@@ -1475,20 +1483,38 @@ async function fetchRawCommitInfo(
     gitCommits.map(({ hash }) => hash)
   );
 
+  // Build commit list with deduplication by PR number in a single pass.
+  // Keep first occurrence (newest commit since git log is newest-first).
+  // This handles:
+  // 1. Rebase-merge workflows where multiple commits share the same PR number
+  // 2. Already-merged PRs that appear in git history when generating previews
   // Note: PR body magic word check is handled by shouldExcludePR in categorizeCommits
-  return gitCommits.map(gitCommit => {
+  const seenPRs = new Set<string>();
+  const result: RawCommitInfo[] = [];
+
+  for (const gitCommit of gitCommits) {
     const githubCommit = githubCommits[gitCommit.hash];
-    return {
+    const pr = githubCommit?.pr ?? gitCommit.pr ?? undefined;
+
+    // Deduplicate by PR number, but keep all commits without PR association
+    if (pr) {
+      if (seenPRs.has(pr)) continue;
+      seenPRs.add(pr);
+    }
+
+    result.push({
       hash: gitCommit.hash,
       title: gitCommit.title,
       body: gitCommit.body,
       author: githubCommit?.author,
-      pr: githubCommit?.pr ?? gitCommit.pr ?? undefined,
+      pr,
       prTitle: githubCommit?.prTitle ?? undefined,
       prBody: githubCommit?.prBody ?? undefined,
       labels: githubCommit?.labels ?? [],
-    };
-  });
+    });
+  }
+
+  return result;
 }
 
 /**
