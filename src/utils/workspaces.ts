@@ -252,6 +252,14 @@ export async function discoverWorkspaces(
 }
 
 /**
+ * Escape special regex characters in a string.
+ * Only escapes characters that have special meaning in regex.
+ */
+export function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+}
+
+/**
  * Convert a package name to an artifact filename pattern
  *
  * Default convention:
@@ -264,16 +272,10 @@ export async function discoverWorkspaces(
 export function packageNameToArtifactPattern(packageName: string): string {
   // Remove @ prefix, replace / with -
   const normalized = packageName.replace(/^@/, '').replace(/\//g, '-');
+  // Escape all regex special characters in the normalized name
+  const escaped = escapeRegex(normalized);
   // Create a regex pattern that matches the artifact filename
-  return `/^${normalized}-\\d.*\\.tgz$/`;
-}
-
-/**
- * Escape special regex characters in a string.
- * Only escapes characters that have special meaning in regex.
- */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+  return `/^${escaped}-\\d.*\\.tgz$/`;
 }
 
 /**

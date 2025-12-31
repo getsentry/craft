@@ -3,6 +3,7 @@ import { resolve } from 'path';
 
 import {
   discoverWorkspaces,
+  escapeRegex,
   filterWorkspacePackages,
   packageNameToArtifactPattern,
   packageNameToArtifactFromTemplate,
@@ -262,5 +263,32 @@ describe('topologicalSortPackages', () => {
       '@sentry/node',      // depth 3: depends on node-core
       '@sentry/nextjs',    // depth 4: depends on browser and node
     ]);
+  });
+});
+
+describe('escapeRegex', () => {
+  test('escapes all regex special characters including backslash', () => {
+    // All special regex chars: . * + ? ^ $ { } ( ) | [ ] \ /
+    expect(escapeRegex('.')).toBe('\\.');
+    expect(escapeRegex('*')).toBe('\\*');
+    expect(escapeRegex('+')).toBe('\\+');
+    expect(escapeRegex('?')).toBe('\\?');
+    expect(escapeRegex('^')).toBe('\\^');
+    expect(escapeRegex('$')).toBe('\\$');
+    expect(escapeRegex('{')).toBe('\\{');
+    expect(escapeRegex('}')).toBe('\\}');
+    expect(escapeRegex('(')).toBe('\\(');
+    expect(escapeRegex(')')).toBe('\\)');
+    expect(escapeRegex('|')).toBe('\\|');
+    expect(escapeRegex('[')).toBe('\\[');
+    expect(escapeRegex(']')).toBe('\\]');
+    expect(escapeRegex('\\')).toBe('\\\\');
+    expect(escapeRegex('/')).toBe('\\/');
+  });
+
+  test('handles complex strings with multiple special chars', () => {
+    expect(escapeRegex('file.name(v1).txt')).toBe('file\\.name\\(v1\\)\\.txt');
+    expect(escapeRegex('path\\to\\file')).toBe('path\\\\to\\\\file');
+    expect(escapeRegex('a+b*c?')).toBe('a\\+b\\*c\\?');
   });
 });

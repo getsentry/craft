@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/Sentry.Core/Sentry.Core.csproj" />
+  <Project Path="src/Sentry.AspNetCore/Sentry.AspNetCore.csproj" />
+</Solution>
