@@ -25,9 +25,8 @@ index HASH..HASH 100644
 [dry-run] No actual changes were made to your repository.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Support for loading ES Module in require() is an experimental feature and might change at any time
 [info] Checking the local repository status...
-[info] Releasing version 1.0.1 from main
+[info] Releasing version 1.0.1 from DEFAULT_BRANCH
 [info] Preparing to release the version: 1.0.1
 [info] [dry-run] Creating temporary worktree at /tmp/craft-XXXXX
 [info] Created a new release branch: "release/1.0.1"
@@ -39,9 +38,8 @@ Support for loading ES Module in require() is an experimental feature and might 
 `;
 
 exports[`prepare --dry-run e2e > produces consistent output format > dry-run-output 1`] = `
-"Support for loading ES Module in require() is an experimental feature and might change at any time
-[info] Checking the local repository status...
-[info] Releasing version 1.0.1 from main
+"[info] Checking the local repository status...
+[info] Releasing version 1.0.1 from DEFAULT_BRANCH
 [info] Preparing to release the version: 1.0.1
 [info] [dry-run] Creating temporary worktree at /tmp/craft-XXXXX
 [info] Created a new release branch: "release/1.0.1"

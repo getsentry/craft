@@ -115,12 +115,14 @@ function normalizeOutput(output: string): string {
       .replace(/craft-dry-run-[a-f0-9]+/g, 'craft-dry-run-XXXXX')
       // Normalize line counts that might vary
       .replace(/@@ -\d+,\d+ \+\d+,\d+ @@/g, '@@ -X,Y +X,Y @@')
-      // Remove node warnings
+      // Remove node warnings and experimental warnings
       .replace(/\(node:\d+\)[^\n]*\n/g, '')
-      // Remove 'Use `node --trace-warnings` lines
       .replace(/\(Use `node --trace-warnings.*\n/g, '')
+      .replace(/Support for loading ES Module.*\n/g, '')
       // Normalize PID references
       .replace(/node:\d+/g, 'node:PID')
+      // Normalize branch names (main vs master)
+      .replace(/from (main|master)/g, 'from DEFAULT_BRANCH')
   );
 }
 
@@ -267,6 +269,10 @@ describe('prepare --dry-run e2e', () => {
       // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
       const git = simpleGit(tempDir);
 
+      // Get the current branch name (could be 'main' or 'master')
+      const status = await git.status();
+      const currentBranch = status.current!;
+
       // Create a version bump script
       const scriptsDir = join(tempDir, 'scripts');
       await mkdir(scriptsDir, { recursive: true });
@@ -293,7 +299,7 @@ targets: []
       await writeFile(join(tempDir, '.craft.yml'), craftConfig);
       await git.add('.');
       await git.commit('Add version bump script');
-      await git.push('origin', 'main');
+      await git.push('origin', currentBranch);
 
       // Get original package.json
       const packageJsonBefore = await readFile(
