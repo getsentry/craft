@@ -70,6 +70,22 @@ const GIT_RAW_MUTATING_COMMANDS = new Set([
 const gitProxyCache = new WeakMap<SimpleGit, SimpleGit>();
 
 /**
+ * Mock results for git methods that return data structures (not just for chaining).
+ * Methods not listed here will return the proxy for chaining compatibility.
+ */
+const GIT_MOCK_RESULTS: Record<string, unknown> = {
+  commit: {
+    commit: 'dry-run-commit-hash',
+    author: null,
+    branch: '',
+    root: false,
+    summary: { changes: 0, insertions: 0, deletions: 0 },
+  },
+  push: { pushed: [], remoteMessages: { all: [] } },
+  pull: { files: [], insertions: {}, deletions: {}, summary: { changes: 0, insertions: 0, deletions: 0 } },
+};
+
+/**
  * Creates a dry-run-aware wrapper around a SimpleGit instance.
  *
  * Mutating operations (push, commit, checkout, etc.) are automatically
@@ -115,9 +131,10 @@ export function createDryRunGit(git: SimpleGit): SimpleGit {
               .map(a => (typeof a === 'string' ? a : JSON.stringify(a)))
               .join(' ');
             logDryRun(`git.${prop}(${argsStr})`);
-            // Return a resolved promise for async compatibility
-            // Return the same proxy for chaining (already cached)
-            return Promise.resolve(proxy);
+            // Return a mock result if available (for methods that return data),
+            // otherwise return the proxy for chaining compatibility
+            const mockResult = GIT_MOCK_RESULTS[prop];
+            return Promise.resolve(mockResult ?? proxy);
           }
           return value.apply(target, args);
         };

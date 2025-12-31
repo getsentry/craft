@@ -50,6 +50,8 @@ describe('dryRun utilities', () => {
       push: vi.fn().mockResolvedValue(undefined),
       commit: vi.fn().mockResolvedValue({ commit: 'abc123' }),
       checkout: vi.fn().mockResolvedValue(undefined),
+      pull: vi.fn().mockResolvedValue({ files: [] }),
+      add: vi.fn().mockResolvedValue(undefined),
       status: vi.fn().mockResolvedValue({ current: 'main' }),
       log: vi.fn().mockResolvedValue({ all: [] }),
       raw: vi.fn().mockResolvedValue(''),
@@ -122,36 +124,33 @@ describe('dryRun utilities', () => {
       expect(mockGit.revparse).toHaveBeenCalledWith('HEAD');
     });
 
-    it('supports method chaining in dry-run mode', async () => {
+    it('returns mock results for methods that return data in dry-run mode', async () => {
       vi.mocked(helpers.isDryRun).mockReturnValue(true);
 
-      // Create a mock that supports chaining by returning itself
-      const chainableMockGit = {
-        pull: vi.fn().mockReturnThis(),
-        merge: vi.fn().mockReturnThis(),
-        push: vi.fn().mockReturnThis(),
-        add: vi.fn().mockReturnThis(),
-        commit: vi.fn().mockReturnThis(),
-        status: vi.fn().mockResolvedValue({ current: 'main' }),
-      };
+      const git = createDryRunGit(mockGit as any);
 
-      const git = createDryRunGit(chainableMockGit as any);
+      // commit() should return a mock CommitResult with a commit hash
+      const commitResult = await git.commit('test commit');
+      expect(commitResult).toBeDefined();
+      expect((commitResult as any).commit).toBe('dry-run-commit-hash');
+      expect(mockGit.commit).not.toHaveBeenCalled();
 
-      // Test chaining: pull().merge().push()
-      const result = await git.pull('origin', 'main');
-      // In dry-run mode, mutating methods should return the proxy for chaining
-      expect(result).toBeDefined();
-      // The actual methods should not be called
-      expect(chainableMockGit.pull).not.toHaveBeenCalled();
+      // pull() should return a mock PullResult
+      const pullResult = await git.pull('origin', 'main');
+      expect(pullResult).toBeDefined();
+      expect((pullResult as any).files).toBeDefined();
+      expect(mockGit.pull).not.toHaveBeenCalled();
 
-      // Ensure we can continue chaining
-      const result2 = await (result as any).merge(['--no-ff', 'branch']);
-      expect(result2).toBeDefined();
-      expect(chainableMockGit.merge).not.toHaveBeenCalled();
+      // push() should return a mock PushResult
+      const pushResult = await git.push('origin', 'main');
+      expect(pushResult).toBeDefined();
+      expect((pushResult as any).pushed).toBeDefined();
+      expect(mockGit.push).not.toHaveBeenCalled();
 
-      const result3 = await (result2 as any).push('origin', 'main');
-      expect(result3).toBeDefined();
-      expect(chainableMockGit.push).not.toHaveBeenCalled();
+      // Methods without mock results should return the proxy for chaining
+      const addResult = await git.add(['.']);
+      expect(addResult).toBe(git);
+      expect(mockGit.add).not.toHaveBeenCalled();
 
       // Verify dry-run messages were logged
       expect(logger.info).toHaveBeenCalledWith(
