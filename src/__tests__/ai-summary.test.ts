@@ -1,0 +1,398 @@
+/**
+ * Tests for AI summary functionality
+ * - GitHub Models API (primary, abstractive summarization)
+ * - Local Hugging Face model (fallback, extractive summarization)
+ */
+
+import { describe, test, expect, beforeEach, vi, afterEach } from 'vitest';
+
+// Mock child_process for gh auth token
+vi.mock('child_process', () => ({
+  execSync: vi.fn().mockReturnValue('mock-github-token\n'),
+}));
+
+// Mock the AI SDK
+let mockGenerateTextResponse =
+  'Enhanced changelog with new features and improvements.';
+let shouldGenerateFail = false;
+
+vi.mock('ai', () => ({
+  generateText: vi.fn().mockImplementation(() => {
+    if (shouldGenerateFail) {
+      return Promise.reject(new Error('API error'));
+    }
+    return Promise.resolve({ text: mockGenerateTextResponse });
+  }),
+}));
+
+vi.mock('@github/models', () => ({
+  githubModels: vi.fn().mockReturnValue({ modelId: 'mock-model' }),
+}));
+
+// Mock Hugging Face transformers for local fallback
+let mockLocalSummary =
+  'Add support for custom entries. Make release workflow reusable.';
+let shouldLocalFail = false;
+
+vi.mock('@huggingface/transformers', () => ({
+  pipeline: vi.fn().mockImplementation(() => {
+    if (shouldLocalFail) {
+      return Promise.reject(new Error('Local model error'));
+    }
+    return Promise.resolve(async () => [{ summary_text: mockLocalSummary }]);
+  }),
+}));
+
+// Import after mocking
+import {
+  summarizeSection,
+  summarizeItems,
+  summarizeChangelog,
+  shouldGenerateTopLevel,
+  formatSummaryWithDetails,
+  isAiSummaryAvailable,
+  resetPipeline,
+  DEFAULT_KICK_IN_THRESHOLD,
+  DEFAULT_AI_MODEL,
+  LOCAL_FALLBACK_MODEL,
+  getModelInfo,
+  type AiSummariesConfig,
+} from '../utils/ai-summary';
+
+describe('ai-summary', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    shouldGenerateFail = false;
+    shouldLocalFail = false;
+    mockGenerateTextResponse =
+      'Enhanced changelog with new features and improvements.';
+    mockLocalSummary =
+      'Add support for custom entries. Make release workflow reusable.';
+    resetPipeline();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  describe('constants', () => {
+    test('DEFAULT_KICK_IN_THRESHOLD is 5', () => {
+      expect(DEFAULT_KICK_IN_THRESHOLD).toBe(5);
+    });
+
+    test('DEFAULT_AI_MODEL uses Ministral-3b', () => {
+      expect(DEFAULT_AI_MODEL).toBe('openai/gpt-4o-mini');
+    });
+
+    test('LOCAL_FALLBACK_MODEL uses Falconsai', () => {
+      expect(LOCAL_FALLBACK_MODEL).toBe('Falconsai/text_summarization');
+    });
+  });
+
+  describe('getModelInfo', () => {
+    test('returns default model when no config', () => {
+      expect(getModelInfo()).toBe('openai/gpt-4o-mini');
+    });
+
+    test('returns custom model from config', () => {
+      const config: AiSummariesConfig = { model: 'openai/gpt-4o-mini' };
+      expect(getModelInfo(config)).toBe('openai/gpt-4o-mini');
+    });
+  });
+
+  describe('summarizeItems', () => {
+    test('returns null for empty array', async () => {
+      const result = await summarizeItems([]);
+      expect(result).toBeNull();
+    });
+
+    test('returns null for items at threshold', async () => {
+      const items = ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5'];
+      expect(items.length).toBe(DEFAULT_KICK_IN_THRESHOLD);
+      const result = await summarizeItems(items);
+      expect(result).toBeNull();
+    });
+
+    test('returns summary for items above threshold', async () => {
+      const items = ['A', 'B', 'C', 'D', 'E', 'F']; // 6 items > threshold
+      const result = await summarizeItems(items);
+      expect(result).toBe(
+        'Enhanced changelog with new features and improvements.',
+      );
+    });
+
+    test('respects custom kickInThreshold', async () => {
+      const items = ['A', 'B', 'C']; // 3 items
+      const config: AiSummariesConfig = { kickInThreshold: 2 };
+      const result = await summarizeItems(items, config);
+      expect(result).toBe(
+        'Enhanced changelog with new features and improvements.',
+      );
+    });
+
+    test('returns null when enabled is false', async () => {
+      const items = ['A', 'B', 'C', 'D', 'E', 'F'];
+      const config: AiSummariesConfig = { enabled: false };
+      const result = await summarizeItems(items, config);
+      expect(result).toBeNull();
+    });
+
+    test('falls back to local model when GitHub API fails', async () => {
+      shouldGenerateFail = true;
+      const items = ['A', 'B', 'C', 'D', 'E', 'F'];
+      const result = await summarizeItems(items);
+      expect(result).toBe(mockLocalSummary);
+    });
+
+    test('falls back to local model when no GitHub token', async () => {
+      delete process.env.GITHUB_TOKEN;
+      const childProcess = await import('child_process');
+      vi.mocked(childProcess.execSync).mockImplementationOnce(() => {
+        throw new Error('gh not found');
+      });
+
+      const items = ['A', 'B', 'C', 'D', 'E', 'F'];
+      const result = await summarizeItems(items);
+      expect(result).toBe(mockLocalSummary);
+    });
+
+    test('uses local model when explicitly configured', async () => {
+      const items = ['A', 'B', 'C', 'D', 'E', 'F'];
+      const config: AiSummariesConfig = {
+        model: 'local:Falconsai/text_summarization',
+      };
+      const result = await summarizeItems(items, config);
+      expect(result).toBe(mockLocalSummary);
+    });
+
+    test('returns null when both API and local fail', async () => {
+      shouldGenerateFail = true;
+      shouldLocalFail = true;
+      const items = ['A', 'B', 'C', 'D', 'E', 'F'];
+      const result = await summarizeItems(items);
+      expect(result).toBeNull();
+    });
+
+    test('uses GITHUB_TOKEN from env', async () => {
+      process.env.GITHUB_TOKEN = 'env-token';
+      const items = ['A', 'B', 'C', 'D', 'E', 'F'];
+      const result = await summarizeItems(items);
+      expect(result).toBe(
+        'Enhanced changelog with new features and improvements.',
+      );
+    });
+  });
+
+  describe('summarizeSection (legacy)', () => {
+    test('returns null for empty text', async () => {
+      const result = await summarizeSection('');
+      expect(result).toBeNull();
+    });
+
+    test('returns null for very short text', async () => {
+      const result = await summarizeSection('Short');
+      expect(result).toBeNull();
+    });
+
+    test('extracts items from bullet points', async () => {
+      const text = `
+        - Item 1
+        - Item 2
+        - Item 3
+        - Item 4
+        - Item 5
+        - Item 6
+      `;
+      const result = await summarizeSection(text);
+      expect(result).toBe(
+        'Enhanced changelog with new features and improvements.',
+      );
+    });
+  });
+
+  describe('isAiSummaryAvailable', () => {
+    test('returns true (always available with local fallback)', async () => {
+      const result = await isAiSummaryAvailable();
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('resetPipeline', () => {
+    test('does not throw', () => {
+      expect(() => resetPipeline()).not.toThrow();
+    });
+  });
+
+  describe('shouldGenerateTopLevel', () => {
+    test('returns false when enabled is false', () => {
+      const config: AiSummariesConfig = { enabled: false };
+      expect(shouldGenerateTopLevel(10, config)).toBe(false);
+    });
+
+    test('returns true when topLevel is "always"', () => {
+      const config: AiSummariesConfig = { topLevel: 'always' };
+      expect(shouldGenerateTopLevel(1, config)).toBe(true);
+    });
+
+    test('returns true when topLevel is true', () => {
+      const config: AiSummariesConfig = { topLevel: true };
+      expect(shouldGenerateTopLevel(1, config)).toBe(true);
+    });
+
+    test('returns false when topLevel is "never"', () => {
+      const config: AiSummariesConfig = { topLevel: 'never' };
+      expect(shouldGenerateTopLevel(100, config)).toBe(false);
+    });
+
+    test('returns false when topLevel is false', () => {
+      const config: AiSummariesConfig = { topLevel: false };
+      expect(shouldGenerateTopLevel(100, config)).toBe(false);
+    });
+
+    test('defaults to "threshold" behavior', () => {
+      // No topLevel specified, should use threshold
+      expect(shouldGenerateTopLevel(5, {})).toBe(false); // At threshold
+      expect(shouldGenerateTopLevel(6, {})).toBe(true); // Above threshold
+    });
+
+    test('topLevel "threshold" uses kickInThreshold value', () => {
+      const config: AiSummariesConfig = {
+        topLevel: 'threshold',
+        kickInThreshold: 10,
+      };
+      expect(shouldGenerateTopLevel(10, config)).toBe(false); // At threshold
+      expect(shouldGenerateTopLevel(11, config)).toBe(true); // Above threshold
+    });
+  });
+
+  describe('summarizeChangelog', () => {
+    const sampleSections = {
+      'New Features': ['Feature A', 'Feature B', 'Feature C'],
+      'Bug Fixes': ['Fix X', 'Fix Y', 'Fix Z'],
+    };
+
+    test('returns null when enabled is false', async () => {
+      const config: AiSummariesConfig = { enabled: false };
+      const result = await summarizeChangelog(sampleSections, config);
+      expect(result).toBeNull();
+    });
+
+    test('returns null when topLevel is "never"', async () => {
+      const config: AiSummariesConfig = { topLevel: 'never' };
+      const result = await summarizeChangelog(sampleSections, config);
+      expect(result).toBeNull();
+    });
+
+    test('returns null when at or below threshold (default)', async () => {
+      const smallSections = {
+        'New Features': ['Feature A', 'Feature B'],
+        'Bug Fixes': ['Fix X', 'Fix Y', 'Fix Z'],
+      }; // 5 total items = threshold
+      const config: AiSummariesConfig = { topLevel: 'threshold' };
+      const result = await summarizeChangelog(smallSections, config);
+      expect(result).toBeNull();
+    });
+
+    test('returns summary when topLevel is "always"', async () => {
+      const config: AiSummariesConfig = { topLevel: 'always' };
+      const result = await summarizeChangelog(sampleSections, config);
+      expect(result).toBe(
+        'Enhanced changelog with new features and improvements.',
+      );
+    });
+
+    test('returns summary when above threshold', async () => {
+      const largeSections = {
+        'New Features': ['A', 'B', 'C', 'D'],
+        'Bug Fixes': ['X', 'Y', 'Z'],
+      }; // 7 total items > 5 threshold
+      const config: AiSummariesConfig = { topLevel: 'threshold' };
+      const result = await summarizeChangelog(largeSections, config);
+      expect(result).toBe(
+        'Enhanced changelog with new features and improvements.',
+      );
+    });
+
+    test('uses custom threshold', async () => {
+      const config: AiSummariesConfig = {
+        topLevel: 'threshold',
+        kickInThreshold: 2,
+      };
+      const result = await summarizeChangelog(sampleSections, config);
+      // 6 items > 2 threshold
+      expect(result).toBe(
+        'Enhanced changelog with new features and improvements.',
+      );
+    });
+
+    test('falls back to local model on API failure', async () => {
+      shouldGenerateFail = true;
+      const config: AiSummariesConfig = { topLevel: 'always' };
+      const result = await summarizeChangelog(sampleSections, config);
+      expect(result).toBe(mockLocalSummary);
+    });
+  });
+
+  describe('formatSummaryWithDetails', () => {
+    const originalItems = [
+      '- Feature A by @user1 in #123',
+      '- Feature B by @user2 in #124',
+      '- Feature C by @user3 in #125',
+    ];
+
+    test('returns original items when no summary', () => {
+      const result = formatSummaryWithDetails(null, originalItems);
+      expect(result).toBe(originalItems.join('\n'));
+    });
+
+    test('returns original items when empty array and summary', () => {
+      const result = formatSummaryWithDetails('Some summary', []);
+      expect(result).toBe('');
+    });
+
+    test('wraps items in details when summary provided', () => {
+      const summary = 'Added three new features for better UX.';
+      const result = formatSummaryWithDetails(summary, originalItems);
+
+      expect(result).toContain(summary);
+      expect(result).toContain('<details>');
+      expect(result).toContain('</details>');
+      expect(result).toContain('<summary>Show 3 items</summary>');
+      expect(result).toContain('- Feature A by @user1 in #123');
+      expect(result).toContain('- Feature B by @user2 in #124');
+      expect(result).toContain('- Feature C by @user3 in #125');
+    });
+
+    test('uses singular "item" for single item', () => {
+      const summary = 'Added a feature.';
+      const result = formatSummaryWithDetails(summary, ['- Feature A']);
+
+      expect(result).toContain('<summary>Show 1 item</summary>');
+    });
+
+    test('places summary before details block', () => {
+      const summary = 'Added three features.';
+      const result = formatSummaryWithDetails(summary, originalItems);
+
+      const summaryIndex = result.indexOf(summary);
+      const detailsIndex = result.indexOf('<details>');
+
+      expect(summaryIndex).toBeLessThan(detailsIndex);
+    });
+
+    test('preserves original item formatting', () => {
+      const items = [
+        '- **Bold** item',
+        '- Item with `code`',
+        '- [Link](https://example.com)',
+      ];
+      const result = formatSummaryWithDetails('Summary text.', items);
+
+      expect(result).toContain('- **Bold** item');
+      expect(result).toContain('- Item with `code`');
+      expect(result).toContain('- [Link](https://example.com)');
+    });
+  });
+});

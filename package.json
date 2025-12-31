@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@aws-sdk/client-lambda": "^3.723.0",
+    "@eslint/js": "^9.17.0",
     "@google-cloud/storage": "^7.14.0",
     "@octokit/plugin-retry": "^7.1.2",
     "@octokit/request-error": "^7.0.0",
@@ -35,9 +36,6 @@
     "@types/tar": "^4.0.0",
     "@types/tmp": "^0.0.33",
     "@types/yargs": "^17",
-    "@eslint/js": "^9.17.0",
-    "typescript-eslint": "^8.18.2",
-    "zod": "^3.24.1",
     "async": "3.2.2",
     "aws4": "^1.11.0",
     "chalk": "4.1.1",
@@ -52,7 +50,6 @@
     "git-url-parse": "^16.1.0",
     "glob": "^11.0.0",
     "is-ci": "^2.0.0",
-    "vitest": "^3.0.2",
     "js-yaml": "4.1.1",
     "mkdirp": "^1.0.4",
     "mustache": "3.0.1",
@@ -71,7 +68,11 @@
     "tar": "6.2.1",
     "tmp": "0.2.4",
     "typescript": "^5.7.2",
-    "yargs": "^18"
+    "typescript-eslint": "^8.18.2",
+    "vitest": "^3.0.2",
+    "vitest-evals": "^0.5.0",
+    "yargs": "^18",
+    "zod": "^3.24.1"
   },
   "scripts": {
     "build:fat": "tsc -p tsconfig.build.json",
@@ -84,6 +85,7 @@
     "fix": "yarn lint --fix",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:evals": "vitest run --config vitest.evals.config.ts",
     "docs:dev": "cd docs && yarn dev",
     "docs:build": "cd docs && yarn build"
   },
@@ -92,6 +94,10 @@
     "yarn": "1.22.19"
   },
   "dependencies": {
-    "marked": "^17.0.1"
+    "@github/models": "^0.0.1-beta.2",
+    "@huggingface/transformers": "^3.8.1",
+    "ai": "^6.0.3",
+    "marked": "^17.0.1",
+    "node-llama-cpp": "^3.14.5"
   }
 }

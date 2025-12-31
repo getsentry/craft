@@ -110,6 +110,18 @@ export const VersioningConfigSchema = z.object({
 export type VersioningConfig = z.infer<typeof VersioningConfigSchema>;
 
 /**
+ * AI summary configuration
+ */
+export const AiSummaryConfigSchema = z.object({
+  /**
+   * Whether to enable AI-powered summaries for changelog sections
+   */
+  enabled: z.boolean().optional(),
+});
+
+export type AiSummaryConfig = z.infer<typeof AiSummaryConfigSchema>;
+
+/**
  * Changelog configuration
  */
 export const ChangelogConfigSchema = z.union([
@@ -118,8 +130,11 @@ export const ChangelogConfigSchema = z.union([
     filePath: z.string().optional(),
     policy: z.enum(['auto', 'simple', 'none']).optional(),
     scopeGrouping: z.boolean().optional(),
+    aiSummary: AiSummaryConfigSchema.optional(),
   }),
 ]);
+
+export type ChangelogConfig = z.infer<typeof ChangelogConfigSchema>;
 
 /**
  * Craft project-specific configuration
