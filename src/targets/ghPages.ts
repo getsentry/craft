@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { Octokit } from '@octokit/rest';
-import simpleGit from 'simple-git';
 
 import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
@@ -12,7 +11,7 @@ import {
   getGitHubClient,
   GitHubRemote,
 } from '../utils/githubApi';
-import { isDryRun } from '../utils/helpers';
+import { cloneRepo, createGitClient } from '../utils/git';
 import { extractZipArchive } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
@@ -150,8 +149,7 @@ export class GhPagesTarget extends BaseTarget {
     this.logger.info(
       `Cloning "${remote.getRemoteString()}" to "${directory}"...`
     );
-    await simpleGit().clone(remote.getRemoteStringWithAuth(), directory);
-    const git = simpleGit(directory);
+    const git = await cloneRepo(remote.getRemoteStringWithAuth(), directory);
     this.logger.debug(`Checking out branch: "${branch}"`);
     try {
       await git.checkout([branch]);
@@ -180,17 +178,11 @@ export class GhPagesTarget extends BaseTarget {
     // Extract the archive
     await this.extractAssets(archivePath, directory);
 
-    // Commit
     await git.add(['.']);
     await git.commit(`craft(gh-pages): update, version "${version}"`);
 
-    // Push!
     this.logger.info(`Pushing branch "${branch}"...`);
-    if (!isDryRun()) {
-      await git.push('origin', branch, ['--set-upstream']);
-    } else {
-      this.logger.info('[dry-run] Not pushing the branch.');
-    }
+    await git.push('origin', branch, ['--set-upstream']);
   }
 
   /**

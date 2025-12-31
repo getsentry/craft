@@ -1,6 +1,6 @@
 import { mapLimit } from 'async';
 import { Octokit } from '@octokit/rest';
-import simpleGit, { SimpleGit } from 'simple-git';
+import type { SimpleGit } from 'simple-git';
 
 import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
@@ -31,7 +31,7 @@ import {
   RegistryPackageType,
   InitialManifestData,
 } from '../utils/registry';
-import { isDryRun } from '../utils/helpers';
+import { cloneRepo } from '../utils/git';
 import { filterAsync, withRetry } from '../utils/async';
 
 /** "registry" target options */
@@ -476,15 +476,13 @@ export class RegistryTarget extends BaseTarget {
     const remote = this.remote;
     remote.setAuth(getGitHubApiToken());
 
-    const git = simpleGit(directory);
     this.logger.info(
       `Cloning "${remote.getRemoteString()}" to "${directory}"...`
     );
-    await git.clone(remote.getRemoteStringWithAuth(), directory, [
+    return cloneRepo(remote.getRemoteStringWithAuth(), directory, [
       '--filter=tree:0',
       '--single-branch',
     ]);
-    return git;
   }
 
   public async getValidItems(
@@ -547,24 +545,18 @@ export class RegistryTarget extends BaseTarget {
           )
         );
 
-        // Commit
         await localRepo.git
           .add(['.'])
           .commit(
             `craft: release "${this.githubRepo.repo}", version "${version}"`
           );
-        // Push!
-        if (!isDryRun()) {
-          this.logger.info(`Pushing the changes...`);
-          // Ensure we are still up to date with upstream
-          await withRetry(() =>
-            localRepo.git
-              .pull('origin', 'master', ['--rebase'])
-              .push('origin', 'master')
-          );
-        } else {
-          this.logger.info('[dry-run] Not pushing the changes.');
-        }
+        this.logger.info(`Pushing the changes...`);
+        // Ensure we are still up to date with upstream
+        await withRetry(() =>
+          localRepo.git
+            .pull('origin', 'master', ['--rebase'])
+            .push('origin', 'master')
+        );
       },
       true,
       'craft-release-registry-'

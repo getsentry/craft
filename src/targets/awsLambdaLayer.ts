@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { Octokit } from '@octokit/rest';
-import simpleGit from 'simple-git';
 import {
   getGitHubApiToken,
   getGitHubClient,
@@ -21,7 +20,8 @@ import {
 } from '../utils/awsLambdaLayerManager';
 import { createSymlinks } from '../utils/symlink';
 import { withTempDir } from '../utils/files';
-import { isDryRun } from '../utils/helpers';
+import { cloneRepo, createGitClient } from '../utils/git';
+import { safeExec } from '../utils/dryRun';
 import { renderTemplateSafe } from '../utils/strings';
 import { isPreviewRelease, parseVersion } from '../utils/version';
 import { DEFAULT_REGISTRY_REMOTE } from '../utils/registry';
@@ -171,23 +171,23 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
     await withTempDir(
       async directory => {
-        const git = simpleGit(directory);
         this.logger.info(
           `Cloning ${remote.getRemoteString()} to ${directory}...`
         );
-        await git.clone(remote.getRemoteStringWithAuth(), directory);
+        const git = await cloneRepo(remote.getRemoteStringWithAuth(), directory);
 
-        if (!isDryRun()) {
-          await this.publishRuntimes(
-            version,
-            directory,
-            awsRegions,
-            artifactBuffer
-          );
-          this.logger.debug('Finished publishing runtimes.');
-        } else {
-          this.logger.info('[dry-run] Not publishing new layers.');
-        }
+        await safeExec(
+          async () => {
+            await this.publishRuntimes(
+              version,
+              directory,
+              awsRegions,
+              artifactBuffer
+            );
+            this.logger.debug('Finished publishing runtimes.');
+          },
+          'publishRuntimes(...)'
+        );
 
         await git.add(['.']);
         await git.checkout('master');
@@ -221,10 +221,6 @@ export class AwsLambdaLayerTarget extends BaseTarget {
    * @param linkPrereleases Whether the current release is a prerelease.
    */
   private isPushableToRegistry(version: string): boolean {
-    if (isDryRun()) {
-      this.logger.info('[dry-run] Not pushing the branch.');
-      return false;
-    }
     if (isPreviewRelease(version) && !this.awsLambdaConfig.linkPrereleases) {
       // preview release
       this.logger.info(

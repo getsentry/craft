@@ -1,5 +1,7 @@
 import { existsSync, promises as fsPromises } from 'fs';
 import { join, relative } from 'path';
+
+import { safeFs } from '../utils/dryRun';
 import * as shellQuote from 'shell-quote';
 import { SimpleGit, StatusResult } from 'simple-git';
 import { Arguments, Argv, CommandBuilder } from 'yargs';
@@ -213,13 +215,9 @@ async function createReleaseBranch(
     reportError(errorMsg, logger);
   }
 
-  if (!isDryRun()) {
-    await git.checkoutBranch(branchName, rev);
-    logger.info(`Created a new release branch: "${branchName}"`);
-    logger.info(`Switched to branch "${branchName}"`);
-  } else {
-    logger.info('[dry-run] Not creating a new release branch');
-  }
+  await git.checkoutBranch(branchName, rev);
+  logger.info(`Created a new release branch: "${branchName}"`);
+  logger.info(`Switched to branch "${branchName}"`);
   return branchName;
 }
 
@@ -239,11 +237,7 @@ async function pushReleaseBranch(
   if (pushFlag) {
     logger.info(`Pushing the release branch "${branchName}"...`);
     // TODO check remote somehow
-    if (!isDryRun()) {
-      await git.push(remoteName, branchName, ['--set-upstream']);
-    } else {
-      logger.info('[dry-run] Not pushing the release branch.');
-    }
+    await git.push(remoteName, branchName, ['--set-upstream']);
   } else {
     logger.info('Not pushing the release branch.');
     logger.info(
@@ -271,11 +265,7 @@ async function commitNewVersion(
 
   logger.debug('Committing the release changes...');
   logger.trace(`Commit message: "${message}"`);
-  if (!isDryRun()) {
-    await git.commit(message, ['--all']);
-  } else {
-    logger.info('[dry-run] Not committing the changes.');
-  }
+  await git.commit(message, ['--all']);
 }
 
 /**
@@ -477,12 +467,7 @@ async function prepareChangelog(
         changelogString = prependChangeset(changelogString, changeset);
       }
 
-      if (!isDryRun()) {
-        await fsPromises.writeFile(relativePath, changelogString);
-      } else {
-        logger.info('[dry-run] Not updating changelog file.');
-        logger.trace(`New changelog:\n${changelogString}`);
-      }
+      await safeFs.writeFile(relativePath, changelogString);
 
       break;
     default:
@@ -513,11 +498,7 @@ async function switchToDefaultBranch(
     return;
   }
   logger.info(`Switching back to the default branch (${defaultBranch})...`);
-  if (!isDryRun()) {
-    await git.checkout(defaultBranch);
-  } else {
-    logger.info('[dry-run] Not switching branches.');
-  }
+  await git.checkout(defaultBranch);
 }
 
 interface ResolveVersionOptions {

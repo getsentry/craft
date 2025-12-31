@@ -1,7 +1,9 @@
+// eslint-disable-next-line no-restricted-imports -- This is the wrapper module
 import simpleGit, { type SimpleGit, type LogOptions, type Options, type StatusResult } from 'simple-git';
 
 import { getConfigFileDir } from '../config';
 import { ConfigurationError } from './errors';
+import { createDryRunGit } from './dryRun';
 import { logger } from '../logger';
 
 export interface GitChange {
@@ -104,12 +106,54 @@ export async function getGitClient(): Promise<SimpleGit> {
   process.chdir(configFileDir);
   logger.debug("Working directory:", process.cwd());
 
+  // eslint-disable-next-line no-restricted-syntax -- This is the git wrapper module
   const git = simpleGit(configFileDir);
   const isRepo = await git.checkIsRepo();
   if (!isRepo) {
     throw new ConfigurationError('Not in a git repository!');
   }
-  return git;
+  // Wrap with dry-run-aware proxy
+  return createDryRunGit(git);
+}
+
+/**
+ * Creates a dry-run-aware git client for a specific directory.
+ *
+ * Use this when you need a git client for a directory other than the
+ * config file directory (e.g., for cloned repos in temp directories).
+ *
+ * @param directory The directory to use as the git working directory
+ * @returns A SimpleGit instance wrapped with dry-run support
+ */
+export function createGitClient(directory: string): SimpleGit {
+  // eslint-disable-next-line no-restricted-syntax -- This is the git wrapper module
+  return createDryRunGit(simpleGit(directory));
+}
+
+/**
+ * Clones a git repository to a target directory.
+ *
+ * This is a convenience wrapper that handles the common pattern of cloning
+ * a repo and then creating a git client for the cloned directory.
+ *
+ * @param url The repository URL to clone from
+ * @param targetDirectory The directory to clone into
+ * @param options Optional clone options (e.g., ['--filter=tree:0'])
+ * @returns A SimpleGit instance for the cloned repository
+ */
+export async function cloneRepo(
+  url: string,
+  targetDirectory: string,
+  options?: string[]
+): Promise<SimpleGit> {
+  // eslint-disable-next-line no-restricted-syntax -- This is the git wrapper module
+  const git = simpleGit();
+  if (options) {
+    await git.clone(url, targetDirectory, options);
+  } else {
+    await git.clone(url, targetDirectory);
+  }
+  return createGitClient(targetDirectory);
 }
 
 /**

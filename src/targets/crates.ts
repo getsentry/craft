@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import simpleGit from 'simple-git';
+import { createGitClient } from '../utils/git';
 
 import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { forEachChained, sleep, withRetry } from '../utils/async';
@@ -316,7 +316,7 @@ export class CratesTarget extends BaseTarget {
     directory: string
   ): Promise<any> {
     const { owner, repo } = config;
-    const git = simpleGit(directory);
+    const git = createGitClient(directory);
     const url = `https://github.com/${owner}/${repo}.git`;
 
     this.logger.info(`Cloning ${owner}/${repo} into ${directory}`);

@@ -12,6 +12,7 @@ vi.mock('@octokit/rest', () => ({
 }));
 
 describe('getFile', () => {
+  // eslint-disable-next-line no-restricted-syntax -- Testing with mock Octokit
   const github = new Octokit();
   const owner = 'owner';
   const repo = 'repo';

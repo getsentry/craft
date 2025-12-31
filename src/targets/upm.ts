@@ -1,5 +1,4 @@
 import { Octokit } from '@octokit/rest';
-import simpleGit from 'simple-git';
 import {
   getGitHubApiToken,
   getGitHubClient,
@@ -16,7 +15,7 @@ import {
 import { reportError } from '../utils/errors';
 import { extractZipArchive } from '../utils/system';
 import { withTempDir } from '../utils/files';
-import { isDryRun } from '../utils/helpers';
+import { cloneRepo, createGitClient } from '../utils/git';
 import { isPreviewRelease } from '../utils/version';
 import { NoneArtifactProvider } from '../artifact_providers/none';
 
@@ -116,9 +115,7 @@ export class UpmTarget extends BaseTarget {
 
     await withTempDir(
       async directory => {
-        const git = simpleGit(directory);
-        this.logger.info(`Cloning ${remoteAddr} to ${directory}...`);
-        await git.clone(remote.getRemoteStringWithAuth(), directory);
+        const git = await cloneRepo(remote.getRemoteStringWithAuth(), directory);
 
         this.logger.info('Clearing the repository.');
         await git.rm(['-r', '-f', '.']);
@@ -136,35 +133,31 @@ export class UpmTarget extends BaseTarget {
         }
         const targetRevision = await git.revparse([commitResult.commit]);
 
-        if (isDryRun()) {
-          this.logger.info('[dry-run]: git push origin main');
-        } else {
-          await git.push(['origin', 'main']);
-          const changes = await this.githubTarget.getChangelog(version);
-          const isPrerelease = isPreviewRelease(version);
-          const draftRelease = await this.githubTarget.createDraftRelease(
-            version,
-            targetRevision,
-            changes
-          );
+        await git.push(['origin', 'main']);
+        const changes = await this.githubTarget.getChangelog(version);
+        const isPrerelease = isPreviewRelease(version);
+        const draftRelease = await this.githubTarget.createDraftRelease(
+          version,
+          targetRevision,
+          changes
+        );
+        try {
+          await this.githubTarget.publishRelease(draftRelease, {
+            makeLatest: !isPrerelease,
+          });
+        } catch (error) {
+          // Clean up the orphaned draft release
           try {
-            await this.githubTarget.publishRelease(draftRelease, {
-              makeLatest: !isPrerelease,
-            });
-          } catch (error) {
-            // Clean up the orphaned draft release
-            try {
-              await this.githubTarget.deleteRelease(draftRelease);
-              this.logger.info(
-                `Deleted orphaned draft release: ${draftRelease.tag_name}`
-              );
-            } catch (deleteError) {
-              this.logger.warn(
-                `Failed to delete orphaned draft release: ${deleteError}`
-              );
-            }
-            throw error;
+            await this.githubTarget.deleteRelease(draftRelease);
+            this.logger.info(
+              `Deleted orphaned draft release: ${draftRelease.tag_name}`
+            );
+          } catch (deleteError) {
+            this.logger.warn(
+              `Failed to delete orphaned draft release: ${deleteError}`
+            );
           }
+          throw error;
         }
       },
       true,

@@ -3,6 +3,7 @@ import { Octokit } from '@octokit/rest';
 import { LogLevel, logger } from '../logger';
 
 import { ConfigurationError } from './errors';
+import { createDryRunOctokit } from './dryRun';
 
 /**
  * Abstraction for GitHub remotes
@@ -109,10 +110,11 @@ export function getGitHubClient(token = ''): Octokit {
       };
     }
 
-     
     const { retry } = require('@octokit/plugin-retry');
     const octokitWithRetries = Octokit.plugin(retry);
-    _GitHubClientCache[githubApiToken] = new octokitWithRetries(attrs);
+    const client = new octokitWithRetries(attrs);
+    // Wrap with dry-run-aware proxy
+    _GitHubClientCache[githubApiToken] = createDryRunOctokit(client);
   }
 
   return _GitHubClientCache[githubApiToken];

@@ -150,14 +150,13 @@ describe('GitHubTarget', () => {
         draft: true,
       };
 
-      githubTarget.github.repos.deleteRelease = vi
-        .fn()
-        .mockResolvedValue({ status: 204 });
+      const deleteReleaseSpy = vi.fn().mockResolvedValue({ status: 204 });
+      githubTarget.github.repos.deleteRelease = deleteReleaseSpy;
 
       const result = await githubTarget.deleteRelease(draftRelease);
 
       expect(result).toBe(true);
-      expect(githubTarget.github.repos.deleteRelease).toHaveBeenCalledWith({
+      expect(deleteReleaseSpy).toHaveBeenCalledWith({
         release_id: 123,
         owner: 'testOwner',
         repo: 'testRepo',
@@ -177,14 +176,13 @@ describe('GitHubTarget', () => {
         draft: false,
       };
 
-      githubTarget.github.repos.deleteRelease = vi
-        .fn()
-        .mockResolvedValue({ status: 204 });
+      const deleteReleaseSpy = vi.fn().mockResolvedValue({ status: 204 });
+      githubTarget.github.repos.deleteRelease = deleteReleaseSpy;
 
       const result = await githubTarget.deleteRelease(publishedRelease);
 
       expect(result).toBe(false);
-      expect(githubTarget.github.repos.deleteRelease).not.toHaveBeenCalled();
+      expect(deleteReleaseSpy).not.toHaveBeenCalled();
     });
 
     it('allows deletion when draft status is undefined (backwards compatibility)', async () => {
@@ -194,14 +192,13 @@ describe('GitHubTarget', () => {
         upload_url: 'https://example.com/upload',
       };
 
-      githubTarget.github.repos.deleteRelease = vi
-        .fn()
-        .mockResolvedValue({ status: 204 });
+      const deleteReleaseSpy = vi.fn().mockResolvedValue({ status: 204 });
+      githubTarget.github.repos.deleteRelease = deleteReleaseSpy;
 
       const result = await githubTarget.deleteRelease(releaseWithoutDraftFlag);
 
       expect(result).toBe(true);
-      expect(githubTarget.github.repos.deleteRelease).toHaveBeenCalled();
+      expect(deleteReleaseSpy).toHaveBeenCalled();
     });
 
     it('does not delete in dry-run mode', async () => {
@@ -214,14 +211,13 @@ describe('GitHubTarget', () => {
         draft: true,
       };
 
-      githubTarget.github.repos.deleteRelease = vi
-        .fn()
-        .mockResolvedValue({ status: 204 });
+      const deleteReleaseSpy = vi.fn().mockResolvedValue({ status: 204 });
+      githubTarget.github.repos.deleteRelease = deleteReleaseSpy;
 
       const result = await githubTarget.deleteRelease(draftRelease);
 
       expect(result).toBe(false);
-      expect(githubTarget.github.repos.deleteRelease).not.toHaveBeenCalled();
+      expect(deleteReleaseSpy).not.toHaveBeenCalled();
     });
   });
 });

@@ -4,7 +4,6 @@ import { Octokit } from '@octokit/rest';
 import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { ConfigurationError } from '../utils/errors';
 import { getGitHubClient } from '../utils/githubApi';
-import { isDryRun } from '../utils/helpers';
 import { renderTemplateSafe } from '../utils/strings';
 import { HashAlgorithm, HashOutputFormat } from '../utils/system';
 import { BaseTarget } from './base';
@@ -206,11 +205,7 @@ export class BrewTarget extends BaseTarget {
       `${action} file ${params.owner}/${params.repo}:${params.path} (${params.sha})`
     );
 
-    if (!isDryRun()) {
-      await this.github.repos.createOrUpdateFileContents(params);
-    } else {
-      this.logger.info(`[dry-run] Skipping file action: ${action}`);
-    }
+    await this.github.repos.createOrUpdateFileContents(params);
     this.logger.info('Homebrew release complete');
   }
 }

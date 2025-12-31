@@ -3,7 +3,7 @@ import path from 'path';
 
 import { load } from 'js-yaml';
 import GitUrlParse from 'git-url-parse';
-import simpleGit from 'simple-git';
+import { createGitClient } from './utils/git';
 import { ZodError } from 'zod';
 
 import { logger } from './logger';
@@ -297,7 +297,7 @@ export async function getGlobalGitHubConfig(
 
   if (!repoGitHubConfig) {
     const configDir = getConfigFileDir() || '.';
-    const git = simpleGit(configDir);
+    const git = createGitClient(configDir);
     let remoteUrl;
     try {
       const remotes = await git.getRemotes(true);

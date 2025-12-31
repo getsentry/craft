@@ -7,10 +7,10 @@ import {
   Storage as GCSStorage,
   UploadOptions as GCSUploadOptions,
 } from '@google-cloud/storage';
-import { isDryRun } from './helpers';
 
 import { logger } from '../logger';
 import { reportError } from './errors';
+import { safeExec } from './dryRun';
 import { RequiredConfigVar } from './env';
 import { detectContentType } from './files';
 import { RemoteArtifact } from '../artifact_providers/base';
@@ -207,13 +207,9 @@ export class CraftGCSClient {
       `File \`${filename}\`, upload options: ${formatJson(uploadConfig)}`
     );
 
-    if (!isDryRun()) {
-      logger.debug(
-        `Attempting to upload \`${filename}\` to \`${path.posix.join(
-          this.bucketName,
-          pathInBucket
-        )}\`.`
-      );
+    const destination = path.posix.join(this.bucketName, pathInBucket);
+    await safeExec(async () => {
+      logger.debug(`Attempting to upload \`${filename}\` to \`${destination}\`.`);
 
       try {
         await this.bucket.upload(artifactLocalPath, uploadConfig);
@@ -232,9 +228,7 @@ export class CraftGCSClient {
             filename
           )} <path-to-download-location>\`.`
       );
-    } else {
-      logger.info(`[dry-run] Skipping upload for \`${filename}\``);
-    }
+    }, `upload ${filename} to ${destination}`);
   }
 
   /**
@@ -246,13 +240,13 @@ export class CraftGCSClient {
    * file
    * @param destinationFilename Name to give the downloaded file, if different from its
    * name on the artifact provider
-   * @returns Path to the downloaded file
+   * @returns Path to the downloaded file, or `null` in dry-run mode (file won't exist)
    */
   public async downloadArtifact(
     downloadFilepath: string,
     destinationDirectory: string,
     destinationFilename: string = path.basename(downloadFilepath)
-  ): Promise<string> {
+  ): Promise<string | null> {
     if (!fs.existsSync(destinationDirectory)) {
       reportError(
         `Unable to download \`${destinationFilename}\` to ` +
@@ -260,14 +254,16 @@ export class CraftGCSClient {
       );
     }
 
-    if (!isDryRun()) {
+    const localPath = path.join(destinationDirectory, destinationFilename);
+
+    const result = await safeExec(async () => {
       logger.debug(
         `Attempting to download \`${destinationFilename}\` to \`${destinationDirectory}\`.`
       );
 
       try {
         await this.bucket.file(downloadFilepath).download({
-          destination: path.join(destinationDirectory, destinationFilename),
+          destination: localPath,
         });
       } catch (err) {
         reportError(`Encountered an error while downloading \`${destinationFilename}\`:
@@ -275,11 +271,11 @@ export class CraftGCSClient {
       }
 
       logger.debug(`Successfully downloaded \`${destinationFilename}\`.`);
-    } else {
-      logger.info(`[dry-run] Skipping download for \`${destinationFilename}\``);
-    }
+      return localPath;
+    }, `download ${destinationFilename} to ${destinationDirectory}`);
 
-    return path.join(destinationDirectory, destinationFilename);
+    // In dry-run mode, safeExec returns undefined - return null to indicate file doesn't exist
+    return result ?? null;
   }
 
   /**
