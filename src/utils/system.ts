@@ -10,6 +10,7 @@ import { logger } from '../logger';
 
 import { reportError } from './errors';
 import { isDryRun } from './helpers';
+import { isInWorktreeMode } from './dryRun';
 
 /**
  * Types of supported hashing algorithms
@@ -134,7 +135,8 @@ export async function spawnProcess(
 ): Promise<Buffer | undefined> {
   const argsString = args.map(arg => `"${arg}"`).join(' ');
 
-  if (isDryRun() && !spawnProcessOptions.enableInDryRunMode) {
+  // Allow spawning in worktree mode (isolated environment) or when explicitly enabled
+  if (isDryRun() && !spawnProcessOptions.enableInDryRunMode && !isInWorktreeMode()) {
     logger.info('[dry-run] Not spawning process:', `${command} ${argsString}`);
     return undefined;
   }

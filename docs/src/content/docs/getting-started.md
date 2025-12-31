@@ -207,17 +207,32 @@ CRAFT_NO_INPUT=0
 
 ### Dry-Run Mode
 
-The `--dry-run` flag prevents destructive operations while still allowing reads:
+The `--dry-run` flag lets you preview what would happen without making real changes.
 
-**Blocked:**
-- File writes (create, modify, delete)
-- Git mutations (commit, push, checkout, merge, tag)
-- GitHub API mutations (create release, upload assets)
+**How it works:**
 
-**Allowed:**
-- Reading files and git history
-- Fetching from GitHub API
-- Git fetch and status checks
+Craft creates a temporary git worktree where all local operations run normally (branch creation, file modifications, commits). At the end, it shows a diff of what would change:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Dry-run complete. Here's what would change:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Files changed: 2
+ M CHANGELOG.md
+ M package.json
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+...
+```
+
+**What's blocked:**
+- Git push (nothing leaves your machine)
+- GitHub API mutations (no releases, uploads, or changes)
+
+**What's allowed:**
+- All local operations (in a temporary worktree)
+- Reading from GitHub API (requires `GITHUB_TOKEN`)
 
 :::note
 Dry-run still requires `GITHUB_TOKEN` for commands that fetch PR information from GitHub.

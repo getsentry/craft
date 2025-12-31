@@ -4,6 +4,10 @@
  * This module provides Proxy-wrapped versions of external libraries/APIs that
  * automatically respect the --dry-run flag. Instead of checking isDryRun() in
  * every function, use these wrapped versions which intercept mutating operations.
+ *
+ * Dry-run has two modes:
+ * 1. Worktree mode: Operations run in a temp worktree, only remote ops are blocked
+ * 2. Strict mode: All mutating operations are blocked (fallback)
  */
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
@@ -12,6 +16,41 @@ import type { Octokit } from '@octokit/rest';
 
 import { logger } from '../logger';
 import { isDryRun } from './helpers';
+
+// ============================================================================
+// Worktree Mode Context
+// ============================================================================
+
+/**
+ * When true, we're running in a worktree and local operations are allowed.
+ * Only remote operations (push, GitHub API mutations) are blocked.
+ */
+let _inWorktreeMode = false;
+
+/**
+ * Enable worktree mode for dry-run.
+ * In this mode, local git and fs operations are allowed since they happen
+ * in a temporary worktree that will be cleaned up.
+ */
+export function enableWorktreeMode(): void {
+  _inWorktreeMode = true;
+  logger.debug('[dry-run] Worktree mode enabled - local operations allowed');
+}
+
+/**
+ * Disable worktree mode and return to strict dry-run.
+ */
+export function disableWorktreeMode(): void {
+  _inWorktreeMode = false;
+  logger.debug('[dry-run] Worktree mode disabled');
+}
+
+/**
+ * Check if we're currently in worktree mode.
+ */
+export function isInWorktreeMode(): boolean {
+  return _inWorktreeMode;
+}
 
 /**
  * Log a dry-run message with consistent formatting.
@@ -25,13 +64,20 @@ export function logDryRun(operation: string): void {
 // ============================================================================
 
 /**
- * Git methods that modify state and should be blocked in dry-run mode.
+ * Git methods that affect remote state and should ALWAYS be blocked in dry-run.
+ * These are the "point of no return" operations.
  */
-const GIT_MUTATING_METHODS = new Set([
-  'push',
+const GIT_REMOTE_METHODS = new Set(['push']);
+
+/**
+ * Git methods that modify local state only.
+ * Blocked in strict dry-run, but allowed in worktree mode.
+ */
+const GIT_LOCAL_METHODS = new Set([
   'commit',
   'checkout',
   'checkoutBranch',
+  'checkoutLocalBranch',
   'merge',
   'branch',
   'addTag',
@@ -47,10 +93,15 @@ const GIT_MUTATING_METHODS = new Set([
 ]);
 
 /**
- * Git raw commands that modify state and should be blocked in dry-run mode.
+ * Git raw commands that affect remote state - always blocked.
  */
-const GIT_RAW_MUTATING_COMMANDS = new Set([
-  'push',
+const GIT_RAW_REMOTE_COMMANDS = new Set(['push']);
+
+/**
+ * Git raw commands that modify local state only.
+ * Blocked in strict dry-run, but allowed in worktree mode.
+ */
+const GIT_RAW_LOCAL_COMMANDS = new Set([
   'commit',
   'checkout',
   'merge',
@@ -62,9 +113,38 @@ const GIT_RAW_MUTATING_COMMANDS = new Set([
   'stash',
   'branch',
   'pull',
-  // Note: 'clone' is intentionally NOT included - it creates a local copy
-  // which is safe to do in dry-run mode and needed for subsequent operations
+  // Note: 'clone' is intentionally NOT included
 ]);
+
+/**
+ * Check if a git method should be blocked based on current mode.
+ */
+function shouldBlockGitMethod(method: string): boolean {
+  // Remote methods are always blocked in dry-run
+  if (GIT_REMOTE_METHODS.has(method)) {
+    return true;
+  }
+  // Local methods are only blocked in strict mode (not in worktree mode)
+  if (GIT_LOCAL_METHODS.has(method)) {
+    return !isInWorktreeMode();
+  }
+  return false;
+}
+
+/**
+ * Check if a git raw command should be blocked based on current mode.
+ */
+function shouldBlockGitRawCommand(command: string): boolean {
+  // Remote commands are always blocked in dry-run
+  if (GIT_RAW_REMOTE_COMMANDS.has(command)) {
+    return true;
+  }
+  // Local commands are only blocked in strict mode (not in worktree mode)
+  if (GIT_RAW_LOCAL_COMMANDS.has(command)) {
+    return !isInWorktreeMode();
+  }
+  return false;
+}
 
 // WeakMap to cache wrapped git instances, avoiding recreation on chaining
 const gitProxyCache = new WeakMap<SimpleGit, SimpleGit>();
@@ -119,7 +199,7 @@ export function createDryRunGit(git: SimpleGit): SimpleGit {
       if (prop === 'raw') {
         return function (...args: string[]) {
           const command = args[0];
-          if (isDryRun() && GIT_RAW_MUTATING_COMMANDS.has(command)) {
+          if (isDryRun() && shouldBlockGitRawCommand(command)) {
             logDryRun(`git ${args.join(' ')}`);
             // Return a resolved promise for async compatibility
             return Promise.resolve('');
@@ -128,26 +208,23 @@ export function createDryRunGit(git: SimpleGit): SimpleGit {
         };
       }
 
-      // Check if this is a mutating method
-      if (GIT_MUTATING_METHODS.has(prop)) {
+      // Check if this method should be blocked
+      if (isDryRun() && shouldBlockGitMethod(prop)) {
         return function (...args: unknown[]) {
-          if (isDryRun()) {
-            const argsStr = args
-              .map(a => (typeof a === 'string' ? a : JSON.stringify(a)))
-              .join(' ');
-            logDryRun(`git.${prop}(${argsStr})`);
-            // Return a mock result if the method's return value is accessed,
-            // otherwise return the proxy directly for chaining compatibility.
-            // SimpleGit is thenable, so `await proxy` works correctly.
-            const mockResult = GIT_MOCK_RESULTS[prop];
-            if (mockResult) {
-              return Promise.resolve(mockResult);
-            }
-            // Return proxy directly (not wrapped in Promise) to support
-            // chaining like git.pull().merge().push()
-            return proxy;
+          const argsStr = args
+            .map(a => (typeof a === 'string' ? a : JSON.stringify(a)))
+            .join(' ');
+          logDryRun(`git.${prop}(${argsStr})`);
+          // Return a mock result if the method's return value is accessed,
+          // otherwise return the proxy directly for chaining compatibility.
+          // SimpleGit is thenable, so `await proxy` works correctly.
+          const mockResult = GIT_MOCK_RESULTS[prop];
+          if (mockResult) {
+            return Promise.resolve(mockResult);
           }
-          return value.apply(target, args);
+          // Return proxy directly (not wrapped in Promise) to support
+          // chaining like git.pull().merge().push()
+          return proxy;
         };
       }
 
@@ -291,6 +368,7 @@ const FS_MUTATING_METHODS: Record<string, number> = {
 /**
  * Creates a proxy handler for file system modules.
  * Intercepts mutating operations and blocks them in dry-run mode.
+ * In worktree mode, file operations are allowed since they happen in temp dir.
  */
 function createFsProxyHandler(
   isAsync: boolean
@@ -308,7 +386,9 @@ function createFsProxyHandler(
       const pathArgCount = FS_MUTATING_METHODS[prop];
       if (pathArgCount !== undefined) {
         return function (...args: unknown[]) {
-          if (isDryRun()) {
+          // In worktree mode, allow file operations (they're in temp dir)
+          // In strict mode, block and log
+          if (isDryRun() && !isInWorktreeMode()) {
             const paths = args.slice(0, pathArgCount).join(', ');
             logDryRun(`fs.${prop}(${paths})`);
             // Return appropriate value for async vs sync
@@ -375,20 +455,21 @@ export const safeFs = {
 // ============================================================================
 
 /**
- * Execute an action only if not in dry-run mode.
+ * Execute an action only if not in dry-run mode, or if in worktree mode.
  *
  * This is useful for wrapping arbitrary async operations that don't fit
- * into the git/github/fs categories.
+ * into the git/github/fs categories. In worktree mode, commands are allowed
+ * to execute because they run in an isolated temporary worktree.
  *
  * @param action The action to execute
  * @param description Human-readable description for dry-run logging
- * @returns The result of the action, or undefined in dry-run mode
+ * @returns The result of the action, or undefined in strict dry-run mode
  */
 export async function safeExec<T>(
   action: () => Promise<T>,
   description: string
 ): Promise<T | undefined> {
-  if (isDryRun()) {
+  if (isDryRun() && !isInWorktreeMode()) {
     logDryRun(description);
     return undefined;
   }
@@ -396,17 +477,20 @@ export async function safeExec<T>(
 }
 
 /**
- * Execute a synchronous action only if not in dry-run mode.
+ * Execute a synchronous action only if not in dry-run mode, or if in worktree mode.
+ *
+ * In worktree mode, commands are allowed to execute because they run in an
+ * isolated temporary worktree.
  *
  * @param action The action to execute
  * @param description Human-readable description for dry-run logging
- * @returns The result of the action, or undefined in dry-run mode
+ * @returns The result of the action, or undefined in strict dry-run mode
  */
 export function safeExecSync<T>(
   action: () => T,
   description: string
 ): T | undefined {
-  if (isDryRun()) {
+  if (isDryRun() && !isInWorktreeMode()) {
     logDryRun(description);
     return undefined;
   }
