@@ -248,194 +248,120 @@ export function createDryRunOctokit(octokit: Octokit): Octokit {
 // ============================================================================
 
 /**
- * Dry-run-aware file system operations.
+ * File system methods that modify state and should be blocked in dry-run mode.
+ * Maps method names to the number of path arguments to include in the log.
+ */
+const FS_MUTATING_METHODS: Record<string, number> = {
+  // Single path methods
+  writeFile: 1,
+  writeFileSync: 1,
+  unlink: 1,
+  unlinkSync: 1,
+  rm: 1,
+  rmSync: 1,
+  rmdir: 1,
+  rmdirSync: 1,
+  mkdir: 1,
+  mkdirSync: 1,
+  appendFile: 1,
+  appendFileSync: 1,
+  chmod: 1,
+  chmodSync: 1,
+  chown: 1,
+  chownSync: 1,
+  truncate: 1,
+  truncateSync: 1,
+  // Two path methods (source, dest)
+  rename: 2,
+  renameSync: 2,
+  copyFile: 2,
+  copyFileSync: 2,
+  symlink: 2,
+  symlinkSync: 2,
+  link: 2,
+  linkSync: 2,
+};
+
+/**
+ * Creates a proxy handler for file system modules.
+ * Intercepts mutating operations and blocks them in dry-run mode.
+ */
+function createFsProxyHandler(
+  isAsync: boolean
+): ProxyHandler<typeof fs | typeof fsPromises> {
+  return {
+    get(target, prop: string) {
+      const value = target[prop as keyof typeof target];
+
+      // If it's not a function, return as-is
+      if (typeof value !== 'function') {
+        return value;
+      }
+
+      // Check if this is a mutating method
+      const pathArgCount = FS_MUTATING_METHODS[prop];
+      if (pathArgCount !== undefined) {
+        return function (...args: unknown[]) {
+          if (isDryRun()) {
+            const paths = args.slice(0, pathArgCount).join(', ');
+            logDryRun(`fs.${prop}(${paths})`);
+            // Return appropriate value for async vs sync
+            return isAsync ? Promise.resolve(undefined) : undefined;
+          }
+          return (value as (...a: unknown[]) => unknown).apply(target, args);
+        };
+      }
+
+      // For non-mutating methods, bind and return
+      return (value as (...a: unknown[]) => unknown).bind(target);
+    },
+  };
+}
+
+/**
+ * Dry-run-aware file system operations (async).
  *
  * Write operations are blocked and logged in dry-run mode.
  * Read operations always execute normally.
  */
+export const safeFsPromises = new Proxy(
+  fsPromises,
+  createFsProxyHandler(true)
+) as typeof fsPromises;
+
+/**
+ * Dry-run-aware file system operations (sync).
+ *
+ * Write operations are blocked and logged in dry-run mode.
+ * Read operations always execute normally.
+ */
+export const safeFsSync = new Proxy(
+  fs,
+  createFsProxyHandler(false)
+) as typeof fs;
+
+/**
+ * Convenience object that provides the most commonly used fs operations.
+ * Combines async and sync methods in one object for backwards compatibility.
+ */
 export const safeFs = {
-  /**
-   * Write data to a file asynchronously.
-   */
-  writeFile: async (
-    filePath: string,
-    data: string | Buffer,
-    options?: fs.WriteFileOptions
-  ): Promise<void> => {
-    if (isDryRun()) {
-      logDryRun(`fs.writeFile(${filePath})`);
-      return;
-    }
-    return fsPromises.writeFile(filePath, data, options);
-  },
+  // Async methods (from fs/promises)
+  writeFile: safeFsPromises.writeFile.bind(safeFsPromises),
+  unlink: safeFsPromises.unlink.bind(safeFsPromises),
+  rename: safeFsPromises.rename.bind(safeFsPromises),
+  rm: safeFsPromises.rm.bind(safeFsPromises),
+  mkdir: safeFsPromises.mkdir.bind(safeFsPromises),
+  appendFile: safeFsPromises.appendFile.bind(safeFsPromises),
+  copyFile: safeFsPromises.copyFile.bind(safeFsPromises),
 
-  /**
-   * Write data to a file synchronously.
-   */
-  writeFileSync: (
-    filePath: string,
-    data: string | Buffer,
-    options?: fs.WriteFileOptions
-  ): void => {
-    if (isDryRun()) {
-      logDryRun(`fs.writeFileSync(${filePath})`);
-      return;
-    }
-    return fs.writeFileSync(filePath, data, options);
-  },
-
-  /**
-   * Delete a file asynchronously.
-   */
-  unlink: async (filePath: string): Promise<void> => {
-    if (isDryRun()) {
-      logDryRun(`fs.unlink(${filePath})`);
-      return;
-    }
-    return fsPromises.unlink(filePath);
-  },
-
-  /**
-   * Delete a file synchronously.
-   */
-  unlinkSync: (filePath: string): void => {
-    if (isDryRun()) {
-      logDryRun(`fs.unlinkSync(${filePath})`);
-      return;
-    }
-    return fs.unlinkSync(filePath);
-  },
-
-  /**
-   * Rename a file asynchronously.
-   */
-  rename: async (oldPath: string, newPath: string): Promise<void> => {
-    if (isDryRun()) {
-      logDryRun(`fs.rename(${oldPath}, ${newPath})`);
-      return;
-    }
-    return fsPromises.rename(oldPath, newPath);
-  },
-
-  /**
-   * Rename a file synchronously.
-   */
-  renameSync: (oldPath: string, newPath: string): void => {
-    if (isDryRun()) {
-      logDryRun(`fs.renameSync(${oldPath}, ${newPath})`);
-      return;
-    }
-    return fs.renameSync(oldPath, newPath);
-  },
-
-  /**
-   * Remove a directory recursively asynchronously.
-   */
-  rm: async (
-    filePath: string,
-    options?: fs.RmOptions
-  ): Promise<void> => {
-    if (isDryRun()) {
-      logDryRun(`fs.rm(${filePath})`);
-      return;
-    }
-    return fsPromises.rm(filePath, options);
-  },
-
-  /**
-   * Remove a directory recursively synchronously.
-   */
-  rmSync: (filePath: string, options?: fs.RmOptions): void => {
-    if (isDryRun()) {
-      logDryRun(`fs.rmSync(${filePath})`);
-      return;
-    }
-    return fs.rmSync(filePath, options);
-  },
-
-  /**
-   * Create a directory asynchronously.
-   */
-  mkdir: async (
-    dirPath: string,
-    options?: fs.MakeDirectoryOptions
-  ): Promise<string | undefined> => {
-    if (isDryRun()) {
-      logDryRun(`fs.mkdir(${dirPath})`);
-      return undefined;
-    }
-    return fsPromises.mkdir(dirPath, options);
-  },
-
-  /**
-   * Create a directory synchronously.
-   */
-  mkdirSync: (
-    dirPath: string,
-    options?: fs.MakeDirectoryOptions
-  ): string | undefined => {
-    if (isDryRun()) {
-      logDryRun(`fs.mkdirSync(${dirPath})`);
-      return undefined;
-    }
-    return fs.mkdirSync(dirPath, options);
-  },
-
-  /**
-   * Append data to a file asynchronously.
-   */
-  appendFile: async (
-    filePath: string,
-    data: string | Buffer,
-    options?: fs.WriteFileOptions
-  ): Promise<void> => {
-    if (isDryRun()) {
-      logDryRun(`fs.appendFile(${filePath})`);
-      return;
-    }
-    return fsPromises.appendFile(filePath, data, options);
-  },
-
-  /**
-   * Append data to a file synchronously.
-   */
-  appendFileSync: (
-    filePath: string,
-    data: string | Buffer,
-    options?: fs.WriteFileOptions
-  ): void => {
-    if (isDryRun()) {
-      logDryRun(`fs.appendFileSync(${filePath})`);
-      return;
-    }
-    return fs.appendFileSync(filePath, data, options);
-  },
-
-  /**
-   * Copy a file asynchronously.
-   */
-  copyFile: async (
-    src: string,
-    dest: string,
-    mode?: number
-  ): Promise<void> => {
-    if (isDryRun()) {
-      logDryRun(`fs.copyFile(${src}, ${dest})`);
-      return;
-    }
-    return fsPromises.copyFile(src, dest, mode);
-  },
-
-  /**
-   * Copy a file synchronously.
-   */
-  copyFileSync: (src: string, dest: string, mode?: number): void => {
-    if (isDryRun()) {
-      logDryRun(`fs.copyFileSync(${src}, ${dest})`);
-      return;
-    }
-    return fs.copyFileSync(src, dest, mode);
-  },
+  // Sync methods (from fs)
+  writeFileSync: safeFsSync.writeFileSync.bind(safeFsSync),
+  unlinkSync: safeFsSync.unlinkSync.bind(safeFsSync),
+  renameSync: safeFsSync.renameSync.bind(safeFsSync),
+  rmSync: safeFsSync.rmSync.bind(safeFsSync),
+  mkdirSync: safeFsSync.mkdirSync.bind(safeFsSync),
+  appendFileSync: safeFsSync.appendFileSync.bind(safeFsSync),
+  copyFileSync: safeFsSync.copyFileSync.bind(safeFsSync),
 };
 
 // ============================================================================
