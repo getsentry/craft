@@ -66,6 +66,9 @@ const GIT_RAW_MUTATING_COMMANDS = new Set([
   // which is safe to do in dry-run mode and needed for subsequent operations
 ]);
 
+// WeakMap to cache wrapped git instances, avoiding recreation on chaining
+const gitProxyCache = new WeakMap<SimpleGit, SimpleGit>();
+
 /**
  * Creates a dry-run-aware wrapper around a SimpleGit instance.
  *
@@ -76,7 +79,13 @@ const GIT_RAW_MUTATING_COMMANDS = new Set([
  * @returns A proxied SimpleGit that respects dry-run mode
  */
 export function createDryRunGit(git: SimpleGit): SimpleGit {
-  return new Proxy(git, {
+  // Return cached proxy if we've already wrapped this instance
+  const cached = gitProxyCache.get(git);
+  if (cached) {
+    return cached;
+  }
+
+  const proxy = new Proxy(git, {
     get(target, prop: string) {
       const value = target[prop as keyof SimpleGit];
 
@@ -107,8 +116,8 @@ export function createDryRunGit(git: SimpleGit): SimpleGit {
               .join(' ');
             logDryRun(`git.${prop}(${argsStr})`);
             // Return a resolved promise for async compatibility
-            // Some git methods return the git instance for chaining
-            return Promise.resolve(createDryRunGit(target));
+            // Return the same proxy for chaining (already cached)
+            return Promise.resolve(proxy);
           }
           return value.apply(target, args);
         };
@@ -118,6 +127,10 @@ export function createDryRunGit(git: SimpleGit): SimpleGit {
       return value.bind(target);
     },
   });
+
+  // Cache the proxy for this git instance
+  gitProxyCache.set(git, proxy);
+  return proxy;
 }
 
 // ============================================================================
@@ -374,6 +387,32 @@ export const safeFs = {
       return;
     }
     return fs.appendFileSync(filePath, data, options);
+  },
+
+  /**
+   * Copy a file asynchronously.
+   */
+  copyFile: async (
+    src: string,
+    dest: string,
+    mode?: number
+  ): Promise<void> => {
+    if (isDryRun()) {
+      logDryRun(`fs.copyFile(${src}, ${dest})`);
+      return;
+    }
+    return fsPromises.copyFile(src, dest, mode);
+  },
+
+  /**
+   * Copy a file synchronously.
+   */
+  copyFileSync: (src: string, dest: string, mode?: number): void => {
+    if (isDryRun()) {
+      logDryRun(`fs.copyFileSync(${src}, ${dest})`);
+      return;
+    }
+    return fs.copyFileSync(src, dest, mode);
   },
 };
 

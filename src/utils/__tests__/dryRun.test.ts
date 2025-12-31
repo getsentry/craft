@@ -121,6 +121,51 @@ describe('dryRun utilities', () => {
       await git.revparse('HEAD');
       expect(mockGit.revparse).toHaveBeenCalledWith('HEAD');
     });
+
+    it('supports method chaining in dry-run mode', async () => {
+      vi.mocked(helpers.isDryRun).mockReturnValue(true);
+
+      // Create a mock that supports chaining by returning itself
+      const chainableMockGit = {
+        pull: vi.fn().mockReturnThis(),
+        merge: vi.fn().mockReturnThis(),
+        push: vi.fn().mockReturnThis(),
+        add: vi.fn().mockReturnThis(),
+        commit: vi.fn().mockReturnThis(),
+        status: vi.fn().mockResolvedValue({ current: 'main' }),
+      };
+
+      const git = createDryRunGit(chainableMockGit as any);
+
+      // Test chaining: pull().merge().push()
+      const result = await git.pull('origin', 'main');
+      // In dry-run mode, mutating methods should return the proxy for chaining
+      expect(result).toBeDefined();
+      // The actual methods should not be called
+      expect(chainableMockGit.pull).not.toHaveBeenCalled();
+
+      // Ensure we can continue chaining
+      const result2 = await (result as any).merge(['--no-ff', 'branch']);
+      expect(result2).toBeDefined();
+      expect(chainableMockGit.merge).not.toHaveBeenCalled();
+
+      const result3 = await (result2 as any).push('origin', 'main');
+      expect(result3).toBeDefined();
+      expect(chainableMockGit.push).not.toHaveBeenCalled();
+
+      // Verify dry-run messages were logged
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('[dry-run]')
+      );
+    });
+
+    it('caches proxy instances for the same git object', () => {
+      const git1 = createDryRunGit(mockGit as any);
+      const git2 = createDryRunGit(mockGit as any);
+
+      // Same underlying object should return the same proxy
+      expect(git1).toBe(git2);
+    });
   });
 
   describe('createDryRunOctokit', () => {

@@ -240,13 +240,13 @@ export class CraftGCSClient {
    * file
    * @param destinationFilename Name to give the downloaded file, if different from its
    * name on the artifact provider
-   * @returns Path to the downloaded file
+   * @returns Path to the downloaded file, or `null` in dry-run mode (file won't exist)
    */
   public async downloadArtifact(
     downloadFilepath: string,
     destinationDirectory: string,
     destinationFilename: string = path.basename(downloadFilepath)
-  ): Promise<string> {
+  ): Promise<string | null> {
     if (!fs.existsSync(destinationDirectory)) {
       reportError(
         `Unable to download \`${destinationFilename}\` to ` +
@@ -254,14 +254,16 @@ export class CraftGCSClient {
       );
     }
 
-    await safeExec(async () => {
+    const localPath = path.join(destinationDirectory, destinationFilename);
+
+    const result = await safeExec(async () => {
       logger.debug(
         `Attempting to download \`${destinationFilename}\` to \`${destinationDirectory}\`.`
       );
 
       try {
         await this.bucket.file(downloadFilepath).download({
-          destination: path.join(destinationDirectory, destinationFilename),
+          destination: localPath,
         });
       } catch (err) {
         reportError(`Encountered an error while downloading \`${destinationFilename}\`:
@@ -269,9 +271,11 @@ export class CraftGCSClient {
       }
 
       logger.debug(`Successfully downloaded \`${destinationFilename}\`.`);
+      return localPath;
     }, `download ${destinationFilename} to ${destinationDirectory}`);
 
-    return path.join(destinationDirectory, destinationFilename);
+    // In dry-run mode, safeExec returns undefined - return null to indicate file doesn't exist
+    return result ?? null;
   }
 
   /**

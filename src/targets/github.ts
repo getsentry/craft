@@ -14,6 +14,7 @@ import {
   findChangeset,
 } from '../utils/changelog';
 import { getGitHubClient } from '../utils/githubApi';
+import { isDryRun } from '../utils/helpers';
 import { safeExec } from '../utils/dryRun';
 import {
   isPreviewRelease,
@@ -132,6 +133,17 @@ export class GitHubTarget extends BaseTarget {
     const isPreview =
       this.githubConfig.previewReleases && isPreviewRelease(version);
 
+    // In dry-run mode, return mock release data since the API call is blocked
+    if (isDryRun()) {
+      this.logger.info('[dry-run] Would create draft release');
+      return {
+        id: 0,
+        tag_name: tag,
+        upload_url: '',
+        draft: true,
+      };
+    }
+
     const { data } = await this.github.repos.createRelease({
       draft: true,
       name: tag,
@@ -143,15 +155,6 @@ export class GitHubTarget extends BaseTarget {
       ...changes,
     });
 
-    // In dry-run mode, the proxy returns an empty object - provide mock data
-    if (!data.id) {
-      return {
-        id: 0,
-        tag_name: tag,
-        upload_url: '',
-        draft: true,
-      };
-    }
     return data;
   }
 

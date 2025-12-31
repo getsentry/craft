@@ -53,10 +53,16 @@ export class GCSArtifactProvider extends BaseArtifactProvider {
     artifact: RemoteArtifact,
     downloadDirectory: string
   ): Promise<string> {
-    return this.gcsClient.downloadArtifact(
+    const result = await this.gcsClient.downloadArtifact(
       artifact.storedFile.downloadFilepath,
       downloadDirectory
     );
+    // In dry-run mode, downloadArtifact returns null. Return a placeholder path
+    // that indicates the file would have been downloaded here.
+    if (result === null) {
+      return `${downloadDirectory}/${artifact.filename} [dry-run: not downloaded]`;
+    }
+    return result;
   }
 
   /**
