@@ -88,17 +88,51 @@ changelog:
   policy: auto
 ```
 
-Auto mode uses `.github/release.yml` to categorize PRs by labels or commit patterns. If not present, it uses default [Conventional Commits](https://www.conventionalcommits.org/) patterns:
+Auto mode uses `.github/release.yml` to categorize PRs. This file follows [GitHub's release.yml format](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes#configuring-automatically-generated-release-notes) with Craft-specific extensions.
 
-| Category | Pattern |
-|----------|---------|
-| Breaking Changes | `^(?<type>\w+(?:\((?<scope>[^)]+)\))?!:\s*)` |
-| New Features | `^(?<type>feat(?:\((?<scope>[^)]+)\))?!?:\s*)` |
-| Bug Fixes | `^(?<type>fix(?:\((?<scope>[^)]+)\))?!?:\s*)` |
-| Documentation | `^(?<type>docs?(?:\((?<scope>[^)]+)\))?!?:\s*)` |
-| Build / dependencies | `^(?<type>(?:build\|refactor\|chore\|ci)(?:\((?<scope>[^)]+)\))?!?:\s*)` |
+#### Craft Extensions to release.yml
 
-Example `.github/release.yml`:
+Craft extends GitHub's format with two additional fields:
+
+| Field | Description |
+|-------|-------------|
+| `commit_patterns` | Array of regex patterns to match commit/PR titles (in addition to labels) |
+| `semver` | Version bump type for auto-versioning: `major`, `minor`, or `patch` |
+
+#### Default Configuration
+
+If `.github/release.yml` doesn't exist, Craft uses these defaults based on [Conventional Commits](https://www.conventionalcommits.org/):
+
+```yaml
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+  categories:
+    - title: Breaking Changes 🛠
+      commit_patterns:
+        - "^(?<type>\\w+(?:\\((?<scope>[^)]+)\\))?!:\\s*)"
+      semver: major
+    - title: New Features ✨
+      commit_patterns:
+        - "^(?<type>feat(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+      semver: minor
+    - title: Bug Fixes 🐛
+      commit_patterns:
+        - "^(?<type>fix(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+        - "^Revert \""
+      semver: patch
+    - title: Documentation 📚
+      commit_patterns:
+        - "^(?<type>docs?(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+      semver: patch
+    - title: Build / dependencies / internal 🔧
+      commit_patterns:
+        - "^(?<type>(?:build|refactor|meta|chore|ci|ref|perf)(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+      semver: patch
+```
+
+#### Example Configuration
 
 ```yaml
 changelog:
@@ -108,11 +142,13 @@ changelog:
         - enhancement
       commit_patterns:
         - "^(?<type>feat(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+      semver: minor
     - title: Bug Fixes
       labels:
         - bug
       commit_patterns:
         - "^(?<type>fix(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+      semver: patch
 ```
 
 ### Custom Changelog Entries from PR Descriptions
@@ -237,6 +273,39 @@ To disable stripping, provide custom patterns using non-capturing groups:
 ```yaml
 commit_patterns:
   - "^feat(?:\\([^)]+\\))?!?:"  # No named groups = no stripping
+```
+
+### Skipping Changelog Entries
+
+You can exclude PRs or commits from the changelog in several ways:
+
+#### Magic Word
+
+Add `#skip-changelog` anywhere in your commit message or PR body:
+
+```
+chore: Update dependencies
+
+#skip-changelog
+```
+
+#### Skip Label
+
+PRs with the `skip-changelog` label are automatically excluded.
+
+#### Configuration
+
+Configure exclusions in `.github/release.yml`:
+
+```yaml
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+      - dependencies
+    authors:
+      - dependabot[bot]
+      - renovate[bot]
 ```
 
 ### Configuration Options

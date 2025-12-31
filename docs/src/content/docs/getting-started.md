@@ -38,7 +38,7 @@ Commands:
 
 Options:
   --no-input     Suppresses all user prompts                    [default: false]
-  --dry-run      Dry run mode: do not perform any real actions
+  --dry-run      Dry run mode: no file writes, commits, pushes, or API mutations
   --log-level    Logging level
           [choices: "Fatal", "Error", "Warn", "Log", "Info", "Success", "Debug",
                                  "Trace", "Silent", "Verbose"] [default: "Info"]
@@ -73,7 +73,7 @@ Positionals:
 
 Options:
   --no-input       Suppresses all user prompts                  [default: false]
-  --dry-run        Dry run mode: do not perform any real actions
+  --dry-run        Dry run mode: no file writes, commits, pushes, or API mutations
   --rev, -r        Source revision (git SHA or tag) to prepare from
   --no-push        Do not push the release branch     [boolean] [default: false]
   --no-git-checks  Ignore local git changes and unsynchronized remotes
@@ -98,7 +98,7 @@ Positionals:
 
 Options:
   --no-input         Suppresses all user prompts                [default: false]
-  --dry-run          Dry run mode: do not perform any real actions
+  --dry-run          Dry run mode: no file writes, commits, pushes, or API mutations
   --target, -t       Publish to this target                     [default: "all"]
   --rev, -r          Source revision (git SHA or tag) to publish
   --no-merge         Do not merge the release branch after publishing
@@ -108,6 +108,38 @@ Options:
   -v, --version      Show version number                               [boolean]
   -h, --help         Show help                                         [boolean]
 ```
+
+### `craft changelog`: Generate Changelog
+
+Generate a changelog from git history without preparing a release. This is useful for previewing what would be included in a release or for CI integrations.
+
+```shell
+craft changelog
+
+Generate changelog from git history
+
+Options:
+  --since, -s    Base revision (tag or SHA) to generate from. Defaults to latest tag.
+  --pr           PR number for the current (unmerged) PR to include with highlighting.
+  --format, -f   Output format: text (default) or json
+```
+
+Examples:
+
+```shell
+# Generate changelog since last tag
+craft changelog
+
+# Generate changelog since specific commit
+craft changelog --since 2b58d3c
+
+# Get detailed JSON output including bump type and commit stats
+craft changelog --format json
+```
+
+:::note
+This command requires `GITHUB_TOKEN` to fetch PR information from GitHub.
+:::
 
 ### Example
 
@@ -172,6 +204,26 @@ CRAFT_LOG_LEVEL=Debug
 CRAFT_DRY_RUN=1
 CRAFT_NO_INPUT=0
 ```
+
+### Dry-Run Mode
+
+The `--dry-run` flag prevents destructive operations while still allowing reads:
+
+**Blocked:**
+- File writes (create, modify, delete)
+- Git mutations (commit, push, checkout, merge, tag)
+- GitHub API mutations (create release, upload assets)
+
+**Allowed:**
+- Reading files and git history
+- Fetching from GitHub API
+- Git fetch and status checks
+
+:::note
+Dry-run still requires `GITHUB_TOKEN` for commands that fetch PR information from GitHub.
+:::
+
+### GitHub Token
 
 Since Craft relies heavily on GitHub, set the `GITHUB_TOKEN` environment variable to a [GitHub Personal Access Token](https://github.com/settings/tokens) with `repo` scope.
 
