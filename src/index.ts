@@ -35,7 +35,7 @@ const GLOBAL_BOOLEAN_FLAGS = {
     // TODO(byk): Deprecate this in favor of CRAFT_DRY_RUN
     default: process.env.DRY_RUN,
     global: true,
-    describe: 'Dry run mode: do not perform any real actions',
+    describe: 'Dry run mode: no file writes, commits, pushes, or API mutations',
   },
 };
 

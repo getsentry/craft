@@ -77,7 +77,8 @@ export function getGitHubApiToken(): string {
     process.env.GITHUB_TOKEN || process.env.GITHUB_API_TOKEN;
   if (!githubApiToken) {
     throw new ConfigurationError(
-      'GitHub target: GITHUB_TOKEN not found in the environment'
+      'GITHUB_TOKEN not found. This is required to fetch PR information from GitHub.\n' +
+        'Tip: Run `gh auth token` if you have GitHub CLI installed.'
     );
   }
   return githubApiToken;
