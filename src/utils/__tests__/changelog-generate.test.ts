@@ -1136,6 +1136,86 @@ See incident report: https://example.com/incident/123`,
       expect(result.bumpType).toBeNull();
     });
   });
+
+  describe('PR deduplication', () => {
+    it('deduplicates commits with same PR number from rebase-merge workflows', async () => {
+      // When using rebase-merge, all individual commits from a PR are added to
+      // the base branch and each gets associated with the same PR number.
+      // We should only show the PR once in the changelog.
+      setup([
+        {
+          hash: 'commit1',
+          title: 'feat(ui): add button component',
+          body: '',
+          pr: {
+            local: '42',
+            remote: {
+              number: '42',
+              title: 'feat(ui): add button component',
+              author: { login: 'alice' },
+            },
+          },
+        },
+        {
+          hash: 'commit2',
+          title: 'feat(ui): add button styles',
+          body: '',
+          pr: {
+            local: '42',
+            remote: {
+              number: '42',
+              title: 'feat(ui): add button component', // Same PR, same title from API
+              author: { login: 'alice' },
+            },
+          },
+        },
+        {
+          hash: 'commit3',
+          title: 'feat(ui): add button tests',
+          body: '',
+          pr: {
+            local: '42',
+            remote: {
+              number: '42',
+              title: 'feat(ui): add button component', // Same PR, same title from API
+              author: { login: 'alice' },
+            },
+          },
+        },
+      ], null);
+
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+
+      // PR #42 should appear only once, not three times
+      const matches = result.changelog.match(/#42/g);
+      expect(matches).toHaveLength(1);
+      expect(result.changelog).toContain('Add button component');
+    });
+
+    it('keeps commits without PR association even if they share hashes', async () => {
+      // Commits without PR association should all be kept
+      setup([
+        {
+          hash: 'commit1',
+          title: 'chore: update dependencies',
+          body: '',
+          // No PR association
+        },
+        {
+          hash: 'commit2',
+          title: 'chore: fix typo',
+          body: '',
+          // No PR association
+        },
+      ], null);
+
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+
+      // Both commits should appear (in leftovers since no PR)
+      expect(result.changelog).toContain('update dependencies');
+      expect(result.changelog).toContain('fix typo');
+    });
+  });
 });
 
 describe('generateChangelogWithHighlight', () => {
@@ -1544,6 +1624,57 @@ describe('generateChangelogWithHighlight', () => {
       expect(result.changelog).toContain('by **alice**');
       expect(result.changelog).not.toContain('@bob');
       expect(result.changelog).not.toContain('@alice');
+    });
+
+    it('deduplicates already-merged PRs to avoid duplicate entries (PR 648 fix)', async () => {
+      // When a PR is already merged but its title/description is updated,
+      // the changelog preview would show the PR twice:
+      // 1. From git history (via fetchRawCommitInfo)
+      // 2. From the current PR fetch (with highlight: true)
+      // This test verifies the deduplication fix.
+      setup({
+        currentPR: {
+          number: 2,
+          title: 'feat: updated title after merge', // Title updated after merge
+          body: 'Updated description.',
+          author: 'bob',
+          headSha: 'def456', // Same SHA as in existingCommits
+        },
+        existingCommits: [
+          {
+            hash: 'abc123',
+            title: 'fix: other bug fix',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'def456', // Same PR, appears in git history
+            title: 'feat: original title before merge',
+            body: '',
+            pr: {
+              local: '2',
+              remote: {
+                number: '2',
+                title: 'feat: original title before merge',
+                author: { login: 'bob' },
+              },
+            },
+          },
+        ],
+      });
+
+      const result = await generateChangelogWithHighlight(dummyGit, '1.0.0', 2);
+
+      // PR #2 should appear only once (with the updated title from current PR fetch)
+      expect(result.changelog).toContain('Updated title after merge');
+      expect(result.changelog).not.toContain('Original title before merge');
+      // The highlighted entry should use the fresh PR data
+      expect(result.changelog).toContain('> - Updated title after merge');
+      // Other PRs should still appear normally
+      expect(result.changelog).toContain('Other bug fix');
     });
   });
 

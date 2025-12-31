@@ -29,6 +29,7 @@ import {
   getPackageManifest,
   updateManifestSymlinks,
   RegistryPackageType,
+  InitialManifestData,
 } from '../utils/registry';
 import { cloneRepo } from '../utils/git';
 import { filterAsync, withRetry } from '../utils/async';
@@ -47,6 +48,14 @@ export interface RegistryConfig {
   checksums?: ChecksumEntry[];
   /** Pattern that allows to skip the target if there's no matching file */
   onlyIfPresent?: RegExp;
+  /** Human-readable name for new packages */
+  name?: string;
+  /** Link to package registry (PyPI, npm, etc.) */
+  packageUrl?: string;
+  /** Link to main documentation */
+  mainDocsUrl?: string;
+  /** Link to API documentation */
+  apiDocsUrl?: string;
 }
 
 interface LocalRegistry {
@@ -371,6 +380,23 @@ export class RegistryTarget extends BaseTarget {
       created_at: new Date().toISOString(),
     };
 
+    // Apply config fields - these always override existing values when specified
+    // This allows repo maintainers to update metadata in their config
+    const { owner, repo } = this.githubRepo;
+    updatedManifest.repo_url = `https://github.com/${owner}/${repo}`;
+    if (registryConfig.name !== undefined) {
+      updatedManifest.name = registryConfig.name;
+    }
+    if (registryConfig.packageUrl !== undefined) {
+      updatedManifest.package_url = registryConfig.packageUrl;
+    }
+    if (registryConfig.mainDocsUrl !== undefined) {
+      updatedManifest.main_docs_url = registryConfig.mainDocsUrl;
+    }
+    if (registryConfig.apiDocsUrl !== undefined) {
+      updatedManifest.api_docs_url = registryConfig.apiDocsUrl;
+    }
+
     // Add file links if it's a generic app (legacy)
     if (registryConfig.type === RegistryPackageType.APP) {
       await this.addFileLinks(
@@ -388,6 +414,26 @@ export class RegistryTarget extends BaseTarget {
   }
 
   /**
+   * Builds the initial manifest data for creating a new package in the registry.
+   *
+   * @param registryConfig The registry configuration
+   * @returns The initial manifest data
+   */
+  private buildInitialManifestData(
+    registryConfig: RegistryConfig
+  ): InitialManifestData {
+    const { owner, repo } = this.githubRepo;
+    return {
+      canonical: registryConfig.canonicalName,
+      repoUrl: `https://github.com/${owner}/${repo}`,
+      name: registryConfig.name,
+      packageUrl: registryConfig.packageUrl,
+      mainDocsUrl: registryConfig.mainDocsUrl,
+      apiDocsUrl: registryConfig.apiDocsUrl,
+    };
+  }
+
+  /**
    * Commits the new version of the package to the release registry.
    *
    * @param localRepo The local checkout of the registry
@@ -401,11 +447,13 @@ export class RegistryTarget extends BaseTarget {
     revision: string
   ): Promise<void> {
     const canonicalName = registryConfig.canonicalName;
+    const initialManifestData = this.buildInitialManifestData(registryConfig);
     const { versionFilePath, packageManifest } = await getPackageManifest(
       localRepo.dir,
       registryConfig.type,
       canonicalName,
-      version
+      version,
+      initialManifestData
     );
 
     const newManifest = await this.getUpdatedManifest(
