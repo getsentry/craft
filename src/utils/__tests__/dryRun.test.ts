@@ -124,32 +124,30 @@ describe('dryRun utilities', () => {
       expect(mockGit.revparse).toHaveBeenCalledWith('HEAD');
     });
 
-    it('returns mock results for methods that return data in dry-run mode', async () => {
+    it('returns mock results for methods that need them in dry-run mode', async () => {
       vi.mocked(helpers.isDryRun).mockReturnValue(true);
 
       const git = createDryRunGit(mockGit as any);
 
       // commit() should return a mock CommitResult with a commit hash
+      // because upm.ts accesses commitResult.commit
       const commitResult = await git.commit('test commit');
       expect(commitResult).toBeDefined();
       expect((commitResult as any).commit).toBe('dry-run-commit-hash');
       expect(mockGit.commit).not.toHaveBeenCalled();
 
-      // pull() should return a mock PullResult
+      // Methods without mock results should return the proxy for chaining
+      // This is important for chains like git.pull().merge().push()
       const pullResult = await git.pull('origin', 'main');
-      expect(pullResult).toBeDefined();
-      expect((pullResult as any).files).toBeDefined();
+      expect(pullResult).toBe(git); // Returns proxy for chaining
       expect(mockGit.pull).not.toHaveBeenCalled();
 
-      // push() should return a mock PushResult
       const pushResult = await git.push('origin', 'main');
-      expect(pushResult).toBeDefined();
-      expect((pushResult as any).pushed).toBeDefined();
+      expect(pushResult).toBe(git); // Returns proxy for chaining
       expect(mockGit.push).not.toHaveBeenCalled();
 
-      // Methods without mock results should return the proxy for chaining
       const addResult = await git.add(['.']);
-      expect(addResult).toBe(git);
+      expect(addResult).toBe(git); // Returns proxy for chaining
       expect(mockGit.add).not.toHaveBeenCalled();
 
       // Verify dry-run messages were logged

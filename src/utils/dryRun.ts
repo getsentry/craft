@@ -70,10 +70,15 @@ const GIT_RAW_MUTATING_COMMANDS = new Set([
 const gitProxyCache = new WeakMap<SimpleGit, SimpleGit>();
 
 /**
- * Mock results for git methods that return data structures (not just for chaining).
+ * Mock results for git methods that return data structures consumers access.
  * Methods not listed here will return the proxy for chaining compatibility.
+ *
+ * IMPORTANT: Only add methods here if their return value properties are actually
+ * accessed in the codebase. Methods used in chains (like pull, push, branch)
+ * should NOT be listed here, as returning a mock object breaks chaining.
  */
 const GIT_MOCK_RESULTS: Record<string, unknown> = {
+  // commit: Used in upm.ts where commitResult.commit is accessed
   commit: {
     commit: 'dry-run-commit-hash',
     author: null,
@@ -81,8 +86,8 @@ const GIT_MOCK_RESULTS: Record<string, unknown> = {
     root: false,
     summary: { changes: 0, insertions: 0, deletions: 0 },
   },
-  push: { pushed: [], remoteMessages: { all: [] } },
-  pull: { files: [], insertions: {}, deletions: {}, summary: { changes: 0, insertions: 0, deletions: 0 } },
+  // NOTE: pull and push are intentionally NOT included here because they are
+  // used in method chains like git.pull().merge().push() in publish.ts
 };
 
 /**
