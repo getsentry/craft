@@ -136,10 +136,16 @@ export function createDryRunGit(git: SimpleGit): SimpleGit {
               .map(a => (typeof a === 'string' ? a : JSON.stringify(a)))
               .join(' ');
             logDryRun(`git.${prop}(${argsStr})`);
-            // Return a mock result if available (for methods that return data),
-            // otherwise return the proxy for chaining compatibility
+            // Return a mock result if the method's return value is accessed,
+            // otherwise return the proxy directly for chaining compatibility.
+            // SimpleGit is thenable, so `await proxy` works correctly.
             const mockResult = GIT_MOCK_RESULTS[prop];
-            return Promise.resolve(mockResult ?? proxy);
+            if (mockResult) {
+              return Promise.resolve(mockResult);
+            }
+            // Return proxy directly (not wrapped in Promise) to support
+            // chaining like git.pull().merge().push()
+            return proxy;
           }
           return value.apply(target, args);
         };
