@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.17.0
+
+### New Features ✨
+
+- (registry) Auto-create package structure for new packages by @BYK in [#689](https://github.com/getsentry/craft/pull/689)
+
+### Bug Fixes 🐛
+
+#### Changelog
+
+- Deduplicate merged PR entries in preview by @BYK in [#690](https://github.com/getsentry/craft/pull/690)
+- Disable author mentions in PR preview comments by @BYK in [#684](https://github.com/getsentry/craft/pull/684)
+
+#### Other
+
+- (github) Clean up orphaned draft releases on publish failure by @BYK in [#681](https://github.com/getsentry/craft/pull/681)
+- (publish) Fail early on dirty git repository by @BYK in [#683](https://github.com/getsentry/craft/pull/683)
+
+### Documentation 📚
+
+- Improve documentation and CLI messages for new users by @BYK in [#691](https://github.com/getsentry/craft/pull/691)
+
+### Build / dependencies / internal 🔧
+
+- Centralize dry-run logic with Proxy-based abstraction by @BYK in [#685](https://github.com/getsentry/craft/pull/685)
+
 ## 2.16.0
 
 ### New Features ✨
