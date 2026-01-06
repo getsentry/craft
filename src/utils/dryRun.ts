@@ -20,7 +20,6 @@ import { randomBytes } from 'crypto';
 import { existsSync, symlinkSync, lstatSync } from 'fs';
 import { rm } from 'fs/promises';
 
-// eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
 import simpleGit, { type SimpleGit } from 'simple-git';
 import type { Octokit } from '@octokit/rest';
 
@@ -222,6 +221,7 @@ export async function createDryRunIsolation(
   logger.info(`[dry-run] Creating temporary worktree at ${worktreePath}`);
 
   // Create the worktree using raw git (bypassing dry-run proxy)
+  // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
   const rawGit = simpleGit(originalCwd);
   await rawGit.raw(['worktree', 'add', '--detach', worktreePath, revision]);
 
@@ -244,6 +244,7 @@ export async function createDryRunIsolation(
     process.chdir(originalCwd);
 
     try {
+      // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
       const cleanupGit = simpleGit(originalCwd);
       await cleanupGit.raw(['worktree', 'remove', '--force', worktreePath]);
     } catch (err) {
@@ -252,6 +253,7 @@ export async function createDryRunIsolation(
       );
       try {
         await rm(worktreePath, { recursive: true, force: true });
+        // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
         const pruneGit = simpleGit(originalCwd);
         await pruneGit.raw(['worktree', 'prune']);
       } catch (rmErr) {
@@ -264,6 +266,7 @@ export async function createDryRunIsolation(
   registerCleanupHandlers(cleanup);
 
   const showDiff = async (): Promise<void> => {
+    // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
     const diffGit = simpleGit(worktreePath);
     const worktreeHead = (await diffGit.revparse(['HEAD'])).trim();
     const diffSummary = await diffGit.diffSummary([originalHead, worktreeHead]);
