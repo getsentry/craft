@@ -1,11 +1,7 @@
 import { existsSync, promises as fsPromises } from 'fs';
 import { join, relative } from 'path';
 
-import {
-  safeFs,
-  createDryRunIsolation,
-  type DryRunIsolation,
-} from '../utils/dryRun';
+import { safeFs, createDryRunIsolation } from '../utils/dryRun';
 import * as shellQuote from 'shell-quote';
 import { SimpleGit, StatusResult } from 'simple-git';
 import { Arguments, Argv, CommandBuilder } from 'yargs';
@@ -674,20 +670,9 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
   logger.info(`Preparing to release the version: ${newVersion}`);
 
-  // Create dry-run isolation if in dry-run mode
-  // Returns null if not in dry-run mode, so no explicit isDryRun() check needed
-  let isolation: DryRunIsolation | null = null;
-  try {
-    isolation = await createDryRunIsolation(git, rev);
-    if (isolation) {
-      // Use the isolated git client from the worktree
-      git = isolation.git;
-    }
-  } catch (err) {
-    logger.warn(
-      `[dry-run] Could not create worktree, falling back to strict mode: ${err}`
-    );
-  }
+  // Create isolation context (worktree in dry-run mode, passthrough otherwise)
+  const isolation = await createDryRunIsolation(git, rev);
+  git = isolation.git;
 
   try {
     // Create a new release branch and check it out. Fail if it already exists.
@@ -740,10 +725,8 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       logger.debug('Not committing anything since preReleaseCommand is empty.');
     }
 
-    // In dry-run mode with isolation, show the diff before "pushing"
-    if (isolation) {
-      await isolation.showDiff();
-    }
+    // Show diff preview (no-op in non-dry-run mode)
+    await isolation.showDiff();
 
     // Push the release branch (blocked in dry-run mode)
     await pushReleaseBranch(git, branchName, argv.remote, !argv.noPush);
@@ -757,7 +740,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       setGitHubActionsOutput('changelog', changelogBody);
     }
 
-    if (!isolation) {
+    if (!isDryRun()) {
       // Only show these messages in real mode
       logger.info(
         `View diff at: https://github.com/${githubConfig.owner}/${githubConfig.repo}/compare/${branchName}`
@@ -778,10 +761,8 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       }
     }
   } finally {
-    // Clean up isolation if we created one
-    if (isolation) {
-      await isolation.cleanup();
-    }
+    // Clean up (no-op in non-dry-run mode)
+    await isolation.cleanup();
   }
 }
 

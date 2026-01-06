@@ -175,8 +175,8 @@ function symlinkDependencyDirs(
  * Creates an isolated dry-run environment using a git worktree.
  *
  * This function:
- * 1. Returns `null` if not in dry-run mode (no isolation needed)
- * 2. Creates a temporary git worktree at /tmp/craft-dry-run-*
+ * 1. In non-dry-run mode: returns a passthrough object (no-op methods, original git)
+ * 2. In dry-run mode: creates a temporary git worktree at /tmp/craft-dry-run-*
  * 3. Symlinks dependency directories (node_modules, etc.)
  * 4. Enables worktree mode so local operations are allowed
  * 5. Changes process.cwd() to the worktree
@@ -185,28 +185,33 @@ function symlinkDependencyDirs(
  * Usage:
  * ```typescript
  * const isolation = await createDryRunIsolation(git, rev);
- * if (isolation) {
- *   try {
- *     // Use isolation.git for git operations
- *     // All local changes happen in isolation.worktreePath
- *     await isolation.showDiff();
- *   } finally {
- *     await isolation.cleanup();
- *   }
+ * git = isolation.git;
+ * try {
+ *   // Use isolation.git for git operations
+ *   // All local changes happen in isolation.worktreePath (or real repo in non-dry-run)
+ *   await isolation.showDiff();
+ * } finally {
+ *   await isolation.cleanup();
  * }
  * ```
  *
  * @param git Git client for the original repository
  * @param rev Revision to base the worktree on (defaults to HEAD)
- * @returns DryRunIsolation object, or null if not in dry-run mode
+ * @returns DryRunIsolation object (passthrough in non-dry-run mode)
  */
 export async function createDryRunIsolation(
   git: SimpleGit,
   rev?: string
-): Promise<DryRunIsolation | null> {
-  // If not in dry-run mode, no isolation needed
+): Promise<DryRunIsolation> {
+  // If not in dry-run mode, return a passthrough that does nothing
   if (!isDryRun()) {
-    return null;
+    return {
+      worktreePath: process.cwd(),
+      originalCwd: process.cwd(),
+      git, // Use original git client
+      showDiff: async () => {}, // No-op
+      cleanup: async () => {}, // No-op
+    };
   }
 
   const originalCwd = process.cwd();
