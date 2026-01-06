@@ -3,8 +3,8 @@ import { join, relative } from 'path';
 
 import {
   safeFs,
-  enableWorktreeMode,
-  disableWorktreeMode,
+  createDryRunIsolation,
+  type DryRunIsolation,
 } from '../utils/dryRun';
 import * as shellQuote from 'shell-quote';
 import { SimpleGit, StatusResult } from 'simple-git';
@@ -36,7 +36,7 @@ import {
   handleGlobalError,
   reportError,
 } from '../utils/errors';
-import { getGitClient, getDefaultBranch, getLatestTag, isRepoDirty, createGitClient } from '../utils/git';
+import { getGitClient, getDefaultBranch, getLatestTag, isRepoDirty } from '../utils/git';
 import {
   getChangelogWithBumpType,
   calculateNextVersion,
@@ -52,11 +52,6 @@ import {
 import { formatJson } from '../utils/strings';
 import { spawnProcess } from '../utils/system';
 import { isValidVersion } from '../utils/version';
-import {
-  createDryRunWorktree,
-  showWorktreeDiff,
-  type WorktreeContext,
-} from '../utils/worktree';
 
 import { handler as publishMainHandler, PublishOptions } from './publish';
 
@@ -629,7 +624,6 @@ async function resolveVersion(
  */
 export async function prepareMain(argv: PrepareOptions): Promise<any> {
   let git = await getGitClient();
-  let worktreeContext: WorktreeContext | null = null;
 
   // Handle --config-from: load config from remote branch
   if (argv.configFrom) {
@@ -680,22 +674,19 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
   logger.info(`Preparing to release the version: ${newVersion}`);
 
-  // In dry-run mode, create a worktree to run all operations in
-  if (isDryRun()) {
-    try {
-      worktreeContext = await createDryRunWorktree(git, rev);
-      // Switch to the worktree directory
-      process.chdir(worktreeContext.worktreePath);
-      // Create a new git client for the worktree
-      git = createGitClient(worktreeContext.worktreePath);
-      // Enable worktree mode so local operations are allowed
-      enableWorktreeMode();
-    } catch (err) {
-      logger.warn(
-        `[dry-run] Could not create worktree, falling back to strict mode: ${err}`
-      );
-      // Continue with strict dry-run mode (current behavior)
+  // Create dry-run isolation if in dry-run mode
+  // Returns null if not in dry-run mode, so no explicit isDryRun() check needed
+  let isolation: DryRunIsolation | null = null;
+  try {
+    isolation = await createDryRunIsolation(git, rev);
+    if (isolation) {
+      // Use the isolated git client from the worktree
+      git = isolation.git;
     }
+  } catch (err) {
+    logger.warn(
+      `[dry-run] Could not create worktree, falling back to strict mode: ${err}`
+    );
   }
 
   try {
@@ -749,12 +740,9 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       logger.debug('Not committing anything since preReleaseCommand is empty.');
     }
 
-    // In dry-run mode with worktree, show the diff before "pushing"
-    if (worktreeContext) {
-      await showWorktreeDiff(
-        worktreeContext.worktreePath,
-        worktreeContext.originalHead
-      );
+    // In dry-run mode with isolation, show the diff before "pushing"
+    if (isolation) {
+      await isolation.showDiff();
     }
 
     // Push the release branch (blocked in dry-run mode)
@@ -769,7 +757,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       setGitHubActionsOutput('changelog', changelogBody);
     }
 
-    if (!worktreeContext) {
+    if (!isolation) {
       // Only show these messages in real mode
       logger.info(
         `View diff at: https://github.com/${githubConfig.owner}/${githubConfig.repo}/compare/${branchName}`
@@ -790,11 +778,9 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       }
     }
   } finally {
-    // Clean up worktree if we created one
-    if (worktreeContext) {
-      disableWorktreeMode();
-      process.chdir(worktreeContext.originalCwd);
-      await worktreeContext.cleanup();
+    // Clean up isolation if we created one
+    if (isolation) {
+      await isolation.cleanup();
     }
   }
 }

@@ -8,17 +8,28 @@
  * Dry-run has two modes:
  * 1. Worktree mode: Operations run in a temp worktree, only remote ops are blocked
  * 2. Strict mode: All mutating operations are blocked (fallback)
+ *
+ * For commands that need to preview changes (like `prepare`), use `createDryRunIsolation()`
+ * which provides a unified interface for worktree-based dry-run with automatic cleanup.
  */
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
-import type { SimpleGit } from 'simple-git';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { randomBytes } from 'crypto';
+import { existsSync, symlinkSync, lstatSync } from 'fs';
+import { rm } from 'fs/promises';
+
+// eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
+import simpleGit, { type SimpleGit } from 'simple-git';
 import type { Octokit } from '@octokit/rest';
 
 import { logger } from '../logger';
 import { isDryRun } from './helpers';
+import { createGitClient } from './git';
 
 // ============================================================================
-// Worktree Mode Context
+// Worktree Mode Context (Internal State)
 // ============================================================================
 
 /**
@@ -31,6 +42,8 @@ let _inWorktreeMode = false;
  * Enable worktree mode for dry-run.
  * In this mode, local git and fs operations are allowed since they happen
  * in a temporary worktree that will be cleaned up.
+ *
+ * @internal This is managed by createDryRunIsolation() and exposed for testing.
  */
 export function enableWorktreeMode(): void {
   _inWorktreeMode = true;
@@ -39,6 +52,8 @@ export function enableWorktreeMode(): void {
 
 /**
  * Disable worktree mode and return to strict dry-run.
+ *
+ * @internal This is managed by createDryRunIsolation() and exposed for testing.
  */
 export function disableWorktreeMode(): void {
   _inWorktreeMode = false;
@@ -47,6 +62,8 @@ export function disableWorktreeMode(): void {
 
 /**
  * Check if we're currently in worktree mode.
+ * This is used by other modules (system.ts, etc.) to determine if
+ * operations should be allowed in dry-run mode.
  */
 export function isInWorktreeMode(): boolean {
   return _inWorktreeMode;
@@ -60,12 +77,248 @@ export function logDryRun(operation: string): void {
 }
 
 // ============================================================================
+// Dry-Run Isolation (Worktree-based)
+// ============================================================================
+
+/**
+ * Represents an isolated dry-run environment.
+ *
+ * This interface provides a clean way to run operations in a temporary
+ * worktree without affecting the user's repository. All local operations
+ * (file writes, git commits) happen in the isolated environment, while
+ * remote operations (push, GitHub API) are blocked.
+ */
+export interface DryRunIsolation {
+  /** Path to the temporary worktree directory */
+  worktreePath: string;
+  /** Original working directory before switching to worktree */
+  originalCwd: string;
+  /** Git client for the worktree */
+  git: SimpleGit;
+  /** Shows a formatted diff of changes made in the worktree */
+  showDiff(): Promise<void>;
+  /** Cleans up the worktree and restores original state */
+  cleanup(): Promise<void>;
+}
+
+// Track active worktree for cleanup on unexpected exit
+let _activeWorktreeCleanup: (() => Promise<void>) | null = null;
+
+/**
+ * Register signal handlers for cleanup on Ctrl+C or unexpected exit.
+ */
+function registerCleanupHandlers(cleanup: () => Promise<void>): void {
+  _activeWorktreeCleanup = cleanup;
+
+  const handleSignal = async (signal: string): Promise<void> => {
+    if (_activeWorktreeCleanup) {
+      logger.info(`\n[dry-run] Received ${signal}, cleaning up worktree...`);
+      try {
+        await _activeWorktreeCleanup();
+      } catch (err) {
+        logger.debug(`[dry-run] Cleanup error: ${err}`);
+      }
+      _activeWorktreeCleanup = null;
+    }
+    process.exit(signal === 'SIGINT' ? 130 : 143);
+  };
+
+  process.once('SIGINT', () => handleSignal('SIGINT'));
+  process.once('SIGTERM', () => handleSignal('SIGTERM'));
+}
+
+/**
+ * Unregister cleanup handlers after normal cleanup.
+ */
+function unregisterCleanupHandlers(): void {
+  _activeWorktreeCleanup = null;
+  process.removeAllListeners('SIGINT');
+  process.removeAllListeners('SIGTERM');
+}
+
+/**
+ * Directories that should be symlinked from the original repo to the worktree.
+ */
+const SYMLINK_DIRS = [
+  'node_modules',
+  'vendor',
+  '.venv',
+  'venv',
+  '__pycache__',
+  '.gradle',
+  'build',
+  'target',
+  'Pods',
+];
+
+/**
+ * Symlinks dependency directories from the original repo to the worktree.
+ */
+function symlinkDependencyDirs(
+  originalCwd: string,
+  worktreePath: string
+): void {
+  for (const dir of SYMLINK_DIRS) {
+    const srcPath = join(originalCwd, dir);
+    const destPath = join(worktreePath, dir);
+
+    if (existsSync(srcPath) && lstatSync(srcPath).isDirectory()) {
+      try {
+        symlinkSync(srcPath, destPath);
+        logger.debug(`[dry-run] Symlinked ${dir} to worktree`);
+      } catch (err) {
+        logger.debug(`[dry-run] Could not symlink ${dir}: ${err}`);
+      }
+    }
+  }
+}
+
+/**
+ * Creates an isolated dry-run environment using a git worktree.
+ *
+ * This function:
+ * 1. Returns `null` if not in dry-run mode (no isolation needed)
+ * 2. Creates a temporary git worktree at /tmp/craft-dry-run-*
+ * 3. Symlinks dependency directories (node_modules, etc.)
+ * 4. Enables worktree mode so local operations are allowed
+ * 5. Changes process.cwd() to the worktree
+ * 6. Returns an isolation object with cleanup and diff methods
+ *
+ * Usage:
+ * ```typescript
+ * const isolation = await createDryRunIsolation(git, rev);
+ * if (isolation) {
+ *   try {
+ *     // Use isolation.git for git operations
+ *     // All local changes happen in isolation.worktreePath
+ *     await isolation.showDiff();
+ *   } finally {
+ *     await isolation.cleanup();
+ *   }
+ * }
+ * ```
+ *
+ * @param git Git client for the original repository
+ * @param rev Revision to base the worktree on (defaults to HEAD)
+ * @returns DryRunIsolation object, or null if not in dry-run mode
+ */
+export async function createDryRunIsolation(
+  git: SimpleGit,
+  rev?: string
+): Promise<DryRunIsolation | null> {
+  // If not in dry-run mode, no isolation needed
+  if (!isDryRun()) {
+    return null;
+  }
+
+  const originalCwd = process.cwd();
+  const originalHead = (await git.revparse(['HEAD'])).trim();
+  const revision = rev || originalHead;
+
+  // Generate a unique temp directory name
+  const randomSuffix = randomBytes(8).toString('hex');
+  const worktreePath = join(tmpdir(), `craft-dry-run-${randomSuffix}`);
+
+  logger.info(`[dry-run] Creating temporary worktree at ${worktreePath}`);
+
+  // Create the worktree using raw git (bypassing dry-run proxy)
+  const rawGit = simpleGit(originalCwd);
+  await rawGit.raw(['worktree', 'add', '--detach', worktreePath, revision]);
+
+  // Symlink large directories
+  symlinkDependencyDirs(originalCwd, worktreePath);
+
+  // Create git client for worktree
+  const worktreeGit = createGitClient(worktreePath);
+
+  // Enable worktree mode so local operations are allowed
+  enableWorktreeMode();
+
+  // Change to worktree directory
+  process.chdir(worktreePath);
+
+  const cleanup = async (): Promise<void> => {
+    logger.debug(`[dry-run] Cleaning up temporary worktree at ${worktreePath}`);
+    unregisterCleanupHandlers();
+    disableWorktreeMode();
+    process.chdir(originalCwd);
+
+    try {
+      const cleanupGit = simpleGit(originalCwd);
+      await cleanupGit.raw(['worktree', 'remove', '--force', worktreePath]);
+    } catch (err) {
+      logger.debug(
+        `[dry-run] Git worktree remove failed, cleaning up manually: ${err}`
+      );
+      try {
+        await rm(worktreePath, { recursive: true, force: true });
+        const pruneGit = simpleGit(originalCwd);
+        await pruneGit.raw(['worktree', 'prune']);
+      } catch (rmErr) {
+        logger.warn(`[dry-run] Failed to clean up worktree: ${rmErr}`);
+      }
+    }
+  };
+
+  // Register signal handlers for cleanup on Ctrl+C
+  registerCleanupHandlers(cleanup);
+
+  const showDiff = async (): Promise<void> => {
+    const diffGit = simpleGit(worktreePath);
+    const worktreeHead = (await diffGit.revparse(['HEAD'])).trim();
+    const diffSummary = await diffGit.diffSummary([originalHead, worktreeHead]);
+
+    if (diffSummary.files.length === 0) {
+      logger.info('\n[dry-run] No changes would be made.');
+      return;
+    }
+
+    console.log('\n' + '━'.repeat(70));
+    console.log(" Dry-run complete. Here's what would change:");
+    console.log('━'.repeat(70) + '\n');
+
+    console.log(`Files changed: ${diffSummary.files.length}`);
+    for (const file of diffSummary.files) {
+      const status = file.binary
+        ? 'B'
+        : file.insertions > 0 && file.deletions > 0
+          ? 'M'
+          : file.insertions > 0
+            ? 'A'
+            : 'D';
+      console.log(` ${status} ${file.file}`);
+    }
+    console.log('');
+
+    const diff = await diffGit.diff([
+      originalHead,
+      worktreeHead,
+      '--color=always',
+    ]);
+    if (diff) {
+      console.log(diff);
+    }
+
+    console.log('━'.repeat(70));
+    console.log('[dry-run] No actual changes were made to your repository.');
+    console.log('━'.repeat(70) + '\n');
+  };
+
+  return {
+    worktreePath,
+    originalCwd,
+    git: worktreeGit,
+    showDiff,
+    cleanup,
+  };
+}
+
+// ============================================================================
 // Git Proxy
 // ============================================================================
 
 /**
  * Git methods that affect remote state and should ALWAYS be blocked in dry-run.
- * These are the "point of no return" operations.
  */
 const GIT_REMOTE_METHODS = new Set(['push']);
 
@@ -88,8 +341,6 @@ const GIT_LOCAL_METHODS = new Set([
   'revert',
   'stash',
   'tag',
-  // Note: 'clone' is intentionally NOT included - it creates a local copy
-  // which is safe to do in dry-run mode and needed for subsequent operations
 ]);
 
 /**
@@ -99,7 +350,6 @@ const GIT_RAW_REMOTE_COMMANDS = new Set(['push']);
 
 /**
  * Git raw commands that modify local state only.
- * Blocked in strict dry-run, but allowed in worktree mode.
  */
 const GIT_RAW_LOCAL_COMMANDS = new Set([
   'commit',
@@ -113,18 +363,15 @@ const GIT_RAW_LOCAL_COMMANDS = new Set([
   'stash',
   'branch',
   'pull',
-  // Note: 'clone' is intentionally NOT included
 ]);
 
 /**
  * Check if a git method should be blocked based on current mode.
  */
 function shouldBlockGitMethod(method: string): boolean {
-  // Remote methods are always blocked in dry-run
   if (GIT_REMOTE_METHODS.has(method)) {
     return true;
   }
-  // Local methods are only blocked in strict mode (not in worktree mode)
   if (GIT_LOCAL_METHODS.has(method)) {
     return !isInWorktreeMode();
   }
@@ -135,30 +382,22 @@ function shouldBlockGitMethod(method: string): boolean {
  * Check if a git raw command should be blocked based on current mode.
  */
 function shouldBlockGitRawCommand(command: string): boolean {
-  // Remote commands are always blocked in dry-run
   if (GIT_RAW_REMOTE_COMMANDS.has(command)) {
     return true;
   }
-  // Local commands are only blocked in strict mode (not in worktree mode)
   if (GIT_RAW_LOCAL_COMMANDS.has(command)) {
     return !isInWorktreeMode();
   }
   return false;
 }
 
-// WeakMap to cache wrapped git instances, avoiding recreation on chaining
+// WeakMap to cache wrapped git instances
 const gitProxyCache = new WeakMap<SimpleGit, SimpleGit>();
 
 /**
  * Mock results for git methods that return data structures consumers access.
- * Methods not listed here will return the proxy for chaining compatibility.
- *
- * IMPORTANT: Only add methods here if their return value properties are actually
- * accessed in the codebase. Methods used in chains (like pull, push, branch)
- * should NOT be listed here, as returning a mock object breaks chaining.
  */
 const GIT_MOCK_RESULTS: Record<string, unknown> = {
-  // commit: Used in upm.ts where commitResult.commit is accessed
   commit: {
     commit: 'dry-run-commit-hash',
     author: null,
@@ -166,8 +405,6 @@ const GIT_MOCK_RESULTS: Record<string, unknown> = {
     root: false,
     summary: { changes: 0, insertions: 0, deletions: 0 },
   },
-  // NOTE: pull and push are intentionally NOT included here because they are
-  // used in method chains like git.pull().merge().push() in publish.ts
 };
 
 /**
@@ -180,7 +417,6 @@ const GIT_MOCK_RESULTS: Record<string, unknown> = {
  * @returns A proxied SimpleGit that respects dry-run mode
  */
 export function createDryRunGit(git: SimpleGit): SimpleGit {
-  // Return cached proxy if we've already wrapped this instance
   const cached = gitProxyCache.get(git);
   if (cached) {
     return cached;
@@ -190,50 +426,39 @@ export function createDryRunGit(git: SimpleGit): SimpleGit {
     get(target, prop: string) {
       const value = target[prop as keyof SimpleGit];
 
-      // If it's not a function, return as-is
       if (typeof value !== 'function') {
         return value;
       }
 
-      // Handle the special 'raw' method
       if (prop === 'raw') {
         return function (...args: string[]) {
           const command = args[0];
           if (isDryRun() && shouldBlockGitRawCommand(command)) {
             logDryRun(`git ${args.join(' ')}`);
-            // Return a resolved promise for async compatibility
             return Promise.resolve('');
           }
           return value.apply(target, args);
         };
       }
 
-      // Check if this method should be blocked
       if (isDryRun() && shouldBlockGitMethod(prop)) {
         return function (...args: unknown[]) {
           const argsStr = args
             .map(a => (typeof a === 'string' ? a : JSON.stringify(a)))
             .join(' ');
           logDryRun(`git.${prop}(${argsStr})`);
-          // Return a mock result if the method's return value is accessed,
-          // otherwise return the proxy directly for chaining compatibility.
-          // SimpleGit is thenable, so `await proxy` works correctly.
           const mockResult = GIT_MOCK_RESULTS[prop];
           if (mockResult) {
             return Promise.resolve(mockResult);
           }
-          // Return proxy directly (not wrapped in Promise) to support
-          // chaining like git.pull().merge().push()
           return proxy;
         };
       }
 
-      // For non-mutating methods, bind and return
       return value.bind(target);
     },
   });
 
-  // Cache the proxy for this git instance
   gitProxyCache.set(git, proxy);
   return proxy;
 }
@@ -267,7 +492,6 @@ function isGitHubMutatingMethod(methodName: string): boolean {
 
 /**
  * Creates a recursive proxy that intercepts GitHub API calls.
- * Handles nested namespaces like github.repos.createRelease().
  */
 function createGitHubNamespaceProxy(
   target: Record<string, unknown>,
@@ -277,28 +501,23 @@ function createGitHubNamespaceProxy(
     get(obj, prop: string) {
       const value = obj[prop];
 
-      // Skip non-existent properties and symbols
       if (value === undefined || typeof prop === 'symbol') {
         return value;
       }
 
       const currentPath = [...path, prop];
 
-      // If it's a function, potentially intercept it
       if (typeof value === 'function') {
         return function (...args: unknown[]) {
           if (isDryRun() && isGitHubMutatingMethod(prop)) {
             const pathStr = currentPath.join('.');
             logDryRun(`github.${pathStr}(...)`);
-            // Return a mock response for compatibility
-            // status: 0 ensures status-based checks (e.g., === 204) fail gracefully
             return Promise.resolve({ data: {}, status: 0 });
           }
           return (value as (...a: unknown[]) => unknown).apply(obj, args);
         };
       }
 
-      // If it's an object (namespace), recursively proxy it
       if (typeof value === 'object' && value !== null) {
         return createGitHubNamespaceProxy(
           value as Record<string, unknown>,
@@ -332,10 +551,8 @@ export function createDryRunOctokit(octokit: Octokit): Octokit {
 
 /**
  * File system methods that modify state and should be blocked in dry-run mode.
- * Maps method names to the number of path arguments to include in the log.
  */
 const FS_MUTATING_METHODS: Record<string, number> = {
-  // Single path methods
   writeFile: 1,
   writeFileSync: 1,
   unlink: 1,
@@ -354,7 +571,6 @@ const FS_MUTATING_METHODS: Record<string, number> = {
   chownSync: 1,
   truncate: 1,
   truncateSync: 1,
-  // Two path methods (source, dest)
   rename: 2,
   renameSync: 2,
   copyFile: 2,
@@ -367,8 +583,6 @@ const FS_MUTATING_METHODS: Record<string, number> = {
 
 /**
  * Creates a proxy handler for file system modules.
- * Intercepts mutating operations and blocks them in dry-run mode.
- * In worktree mode, file operations are allowed since they happen in temp dir.
  */
 function createFsProxyHandler(
   isAsync: boolean
@@ -377,28 +591,22 @@ function createFsProxyHandler(
     get(target, prop: string) {
       const value = target[prop as keyof typeof target];
 
-      // If it's not a function, return as-is
       if (typeof value !== 'function') {
         return value;
       }
 
-      // Check if this is a mutating method
       const pathArgCount = FS_MUTATING_METHODS[prop];
       if (pathArgCount !== undefined) {
         return function (...args: unknown[]) {
-          // In worktree mode, allow file operations (they're in temp dir)
-          // In strict mode, block and log
           if (isDryRun() && !isInWorktreeMode()) {
             const paths = args.slice(0, pathArgCount).join(', ');
             logDryRun(`fs.${prop}(${paths})`);
-            // Return appropriate value for async vs sync
             return isAsync ? Promise.resolve(undefined) : undefined;
           }
           return (value as (...a: unknown[]) => unknown).apply(target, args);
         };
       }
 
-      // For non-mutating methods, bind and return
       return (value as (...a: unknown[]) => unknown).bind(target);
     },
   };
@@ -406,9 +614,6 @@ function createFsProxyHandler(
 
 /**
  * Dry-run-aware file system operations (async).
- *
- * Write operations are blocked and logged in dry-run mode.
- * Read operations always execute normally.
  */
 export const safeFsPromises = new Proxy(
   fsPromises,
@@ -417,9 +622,6 @@ export const safeFsPromises = new Proxy(
 
 /**
  * Dry-run-aware file system operations (sync).
- *
- * Write operations are blocked and logged in dry-run mode.
- * Read operations always execute normally.
  */
 export const safeFsSync = new Proxy(
   fs,
@@ -428,10 +630,8 @@ export const safeFsSync = new Proxy(
 
 /**
  * Convenience object that provides the most commonly used fs operations.
- * Combines async and sync methods in one object for backwards compatibility.
  */
 export const safeFs = {
-  // Async methods (from fs/promises)
   writeFile: safeFsPromises.writeFile.bind(safeFsPromises),
   unlink: safeFsPromises.unlink.bind(safeFsPromises),
   rename: safeFsPromises.rename.bind(safeFsPromises),
@@ -440,7 +640,6 @@ export const safeFs = {
   appendFile: safeFsPromises.appendFile.bind(safeFsPromises),
   copyFile: safeFsPromises.copyFile.bind(safeFsPromises),
 
-  // Sync methods (from fs)
   writeFileSync: safeFsSync.writeFileSync.bind(safeFsSync),
   unlinkSync: safeFsSync.unlinkSync.bind(safeFsSync),
   renameSync: safeFsSync.renameSync.bind(safeFsSync),
@@ -456,10 +655,6 @@ export const safeFs = {
 
 /**
  * Execute an action only if not in dry-run mode, or if in worktree mode.
- *
- * This is useful for wrapping arbitrary async operations that don't fit
- * into the git/github/fs categories. In worktree mode, commands are allowed
- * to execute because they run in an isolated temporary worktree.
  *
  * @param action The action to execute
  * @param description Human-readable description for dry-run logging
@@ -478,9 +673,6 @@ export async function safeExec<T>(
 
 /**
  * Execute a synchronous action only if not in dry-run mode, or if in worktree mode.
- *
- * In worktree mode, commands are allowed to execute because they run in an
- * isolated temporary worktree.
  *
  * @param action The action to execute
  * @param description Human-readable description for dry-run logging
