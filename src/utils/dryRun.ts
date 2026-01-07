@@ -93,6 +93,8 @@ export interface DryRunIsolation {
   originalCwd: string;
   /** Git client for the worktree */
   git: SimpleGit;
+  /** Whether operating in an isolated worktree (true in dry-run, false in real mode) */
+  isIsolated: boolean;
   /** Shows a formatted diff of changes made in the worktree */
   showDiff(): Promise<void>;
   /** Cleans up the worktree and restores original state */
@@ -209,6 +211,7 @@ export async function createDryRunIsolation(
       worktreePath: process.cwd(),
       originalCwd: process.cwd(),
       git, // Use original git client
+      isIsolated: false, // Not in isolated worktree
       showDiff: async () => {}, // No-op
       cleanup: async () => {}, // No-op
     };
@@ -316,6 +319,7 @@ export async function createDryRunIsolation(
     worktreePath,
     originalCwd,
     git: worktreeGit,
+    isIsolated: true, // Operating in isolated worktree
     showDiff,
     cleanup,
   };

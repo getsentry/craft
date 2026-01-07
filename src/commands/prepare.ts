@@ -740,25 +740,22 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       setGitHubActionsOutput('changelog', changelogBody);
     }
 
-    if (!isDryRun()) {
-      // Only show these messages in real mode
-      logger.info(
-        `View diff at: https://github.com/${githubConfig.owner}/${githubConfig.repo}/compare/${branchName}`
+    logger.info(
+      `View diff at: https://github.com/${githubConfig.owner}/${githubConfig.repo}/compare/${branchName}`
+    );
+
+    if (argv.publish) {
+      logger.success(`Release branch "${branchName}" has been pushed.`);
+      await execPublish(argv.remote, newVersion, argv.noGitChecks);
+    } else {
+      logger.success(
+        'Done. Do not forget to run "craft publish" to publish the artifacts:',
+        `  $ craft publish ${newVersion}`
       );
+    }
 
-      if (argv.publish) {
-        logger.success(`Release branch "${branchName}" has been pushed.`);
-        await execPublish(argv.remote, newVersion, argv.noGitChecks);
-      } else {
-        logger.success(
-          'Done. Do not forget to run "craft publish" to publish the artifacts:',
-          `  $ craft publish ${newVersion}`
-        );
-      }
-
-      if (!argv.rev) {
-        await switchToDefaultBranch(git, defaultBranch);
-      }
+    if (!argv.rev && !isolation.isIsolated) {
+      await switchToDefaultBranch(git, defaultBranch);
     }
   } finally {
     // Clean up (no-op in non-dry-run mode)
