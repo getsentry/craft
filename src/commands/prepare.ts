@@ -745,8 +745,12 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     );
 
     if (argv.publish) {
-      logger.success(`Release branch "${branchName}" has been pushed.`);
-      await execPublish(argv.remote, newVersion, argv.noGitChecks);
+      if (isolation.isIsolated) {
+        logger.info(`[dry-run] Would run: craft publish ${newVersion}`);
+      } else {
+        logger.success(`Release branch "${branchName}" has been pushed.`);
+        await execPublish(argv.remote, newVersion, argv.noGitChecks);
+      }
     } else {
       logger.success(
         'Done. Do not forget to run "craft publish" to publish the artifacts:',
