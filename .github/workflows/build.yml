@@ -74,7 +74,7 @@ jobs:
         env:
           CRAFT_BUILD_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        run: pnpm build:ci
+        run: pnpm build
       - &build-artifact-steps
         - name: Smoke Test
           run: ./dist/craft --help
