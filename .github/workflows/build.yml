@@ -50,28 +50,22 @@ jobs:
       contents: read
     environment: ${{ github.ref == 'refs/heads/master' && 'production' || '' }}
     steps:
-      - &checkout-step
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
-      - &setup-node-step
-        uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
         with:
           node-version-file: package.json
-      - &pnpm-version-step
-        name: Get pnpm version from Volta config
+      - name: Get pnpm version from Volta config
         id: pnpm-version
         run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
-      - &pnpm-setup-step
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: ${{ steps.pnpm-version.outputs.version }}
-      - &cache-step
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
+      - uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
         id: cache
         with:
           path: node_modules
           key: ${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
-      - &install-deps-step
-        name: Install Dependencies
+      - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
       - name: Build
@@ -85,14 +79,11 @@ jobs:
           CRAFT_BUILD_SHA: ${{ github.sha }}
         if: github.ref != 'refs/heads/master'
         run: pnpm build
-      - &smoke-test-step
-        name: Smoke Test
+      - name: Smoke Test
         run: ./dist/craft --help
-      - &npm-pack-step
-        name: NPM Pack
+      - name: NPM Pack
         run: npm pack
-      - &archive-step
-        name: Archive Artifacts
+      - name: Archive Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.sha }}-build
