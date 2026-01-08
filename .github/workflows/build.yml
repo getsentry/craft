@@ -67,7 +67,7 @@ jobs:
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
-      - name: Build (master with source maps)
+      - name: Build
         if: github.ref == 'refs/heads/master'
         env:
           CRAFT_BUILD_SHA: ${{ github.sha }}
