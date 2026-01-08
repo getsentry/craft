@@ -155,11 +155,11 @@ jobs:
       contents: read
     steps:
       - name: Download Build Artifacts
-        uses: actions/download-artifact@65c6e1e1c8c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0 # v4
+        uses: actions/download-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.sha }}-build
       - name: Download Docs Artifacts
-        uses: actions/download-artifact@65c6e1e1c8c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0 # v4
+        uses: actions/download-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.sha }}-docs
       - name: Archive Merged Artifacts
@@ -182,11 +182,11 @@ jobs:
       contents: read
     steps:
       - name: Download Build Artifacts
-        uses: actions/download-artifact@65c6e1e1c8c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0 # v4
+        uses: actions/download-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.sha }}-build
       - name: Download Docs Artifacts
-        uses: actions/download-artifact@65c6e1e1c8c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0 # v4
+        uses: actions/download-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.sha }}-docs
       - name: Archive Merged Artifacts
