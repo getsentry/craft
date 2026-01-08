@@ -46,6 +46,19 @@ describe('validateConfiguration', () => {
     expect(validateConfiguration(data)).toEqual(data);
   });
 
+  test('parses configuration with changelog aiSummary', () => {
+    const data = {
+      changelog: {
+        policy: 'auto',
+        aiSummary: {
+          enabled: true,
+        },
+      },
+    };
+
+    expect(validateConfiguration(data)).toEqual(data);
+  });
+
   test('parses configuration with versioning', () => {
     const data = {
       versioning: {
@@ -94,5 +107,19 @@ describe('CraftProjectConfigSchema', () => {
 
     const result = CraftProjectConfigSchema.safeParse(data);
     expect(result.success).toBe(false);
+  });
+
+  test('schema validates changelog with aiSummary', () => {
+    const data = {
+      changelog: {
+        policy: 'auto',
+        aiSummary: {
+          enabled: true,
+        },
+      },
+    };
+
+    const result = CraftProjectConfigSchema.safeParse(data);
+    expect(result.success).toBe(true);
   });
 });
