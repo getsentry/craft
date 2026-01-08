@@ -9,3 +9,4 @@
 !/scripts
 !/src
 !/pnpm-lock.yaml
+!/build.mjs
