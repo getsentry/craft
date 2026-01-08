@@ -48,6 +48,7 @@ import {
 import { formatJson } from '../utils/strings';
 import { spawnProcess } from '../utils/system';
 import { isValidVersion } from '../utils/version';
+import * as Sentry from '@sentry/node';
 
 import { handler as publishMainHandler, PublishOptions } from './publish';
 
@@ -755,7 +756,12 @@ export const handler = async (args: {
   [argName: string]: any;
 }): Promise<void> => {
   try {
-    return await prepareMain(args as PrepareOptions);
+    return await Sentry.startSpan(
+      { name: 'craft.prepare', op: 'craft.prepare' },
+      async () => {
+        return await prepareMain(args as PrepareOptions);
+      }
+    );
   } catch (e) {
     handleGlobalError(e);
   }

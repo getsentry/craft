@@ -1,11 +1,14 @@
 #!/usr/bin/env node
+// Import Sentry instrumentation first, before any other code
+import './instrument';
+
 import isCI from 'is-ci';
 import yargs from 'yargs';
+import * as Sentry from '@sentry/node';
 
 import { logger, LogLevel } from './logger';
 import { readEnvironmentConfig } from './utils/env';
 import { envToBool, setGlobals } from './utils/helpers';
-import { initSentrySdk } from './utils/sentry';
 import { getPackageVersion } from './utils/version';
 
 // Commands
@@ -71,8 +74,6 @@ async function main(): Promise<void> {
 
   readEnvironmentConfig();
 
-  initSentrySdk();
-
   const argv = fixGlobalBooleanFlags(process.argv.slice(2));
 
   await yargs()
@@ -105,4 +106,6 @@ async function main(): Promise<void> {
     .parse(argv);
 }
 
-main();
+Sentry.startSpan({ name: 'craft.cli', op: 'cli' }, async () => {
+  await main();
+});
