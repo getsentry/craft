@@ -77,7 +77,7 @@
   "scripts": {
     "build:fat": "tsc -p tsconfig.build.json",
     "build:watch": "tsc -p tsconfig.build.json --watch",
-    "build": "esbuild src/index.ts --sourcemap --bundle --platform=node --target=node22 --inject:./src/utils/import-meta-url.js --define:import.meta.url=import_meta_url --outfile=dist/craft",
+    "build": "esbuild src/index.ts --sourcemap --bundle --platform=node --target=node22 --inject:./src/utils/import-meta-url.js --define:import.meta.url=import_meta_url --define:process.env.NODE_ENV=\\\"production\\\" --outfile=dist/craft",
     "build:ci": "node build.mjs",
     "precli": "pnpm build",
     "cli": "node -r source-map-support/register dist/craft",

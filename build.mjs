@@ -28,6 +28,7 @@ await esbuild.build({
   inject: ['./src/utils/import-meta-url.js'],
   define: {
     'import.meta.url': 'import_meta_url',
+    'process.env.NODE_ENV': JSON.stringify('production'),
     ...(process.env.CRAFT_BUILD_SHA && {
       'process.env.CRAFT_BUILD_SHA': JSON.stringify(process.env.CRAFT_BUILD_SHA),
     }),
