@@ -21,9 +21,12 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Get pnpm version from Volta config
+        id: pnpm-version
+        run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
       - uses: pnpm/action-setup@v4
         with:
-          version: 10.27.0
+          version: ${{ steps.pnpm-version.outputs.version }}
 
       - name: Build Docs for Preview
         working-directory: docs

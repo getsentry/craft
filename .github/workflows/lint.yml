@@ -16,9 +16,12 @@ jobs:
       - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
         with:
           node-version-file: package.json
+      - name: Get pnpm version from Volta config
+        id: pnpm-version
+        run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
       - uses: pnpm/action-setup@v4
         with:
-          version: 10.27.0
+          version: ${{ steps.pnpm-version.outputs.version }}
       - uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
         id: cache
         with:
