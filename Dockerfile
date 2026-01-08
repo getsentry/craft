@@ -2,8 +2,8 @@ FROM node:22-bookworm-slim AS builder
 
 WORKDIR /usr/local/lib
 
-# Enable corepack and pnpm
-RUN corepack enable && corepack prepare pnpm@10.27.0 --activate
+# Install pnpm
+RUN npm install -g pnpm@10.27.0
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile --quiet

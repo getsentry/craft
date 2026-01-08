@@ -33,15 +33,10 @@ runs:
       with:
         node-version: '22'
 
-    - name: Enable corepack
+    - name: Install pnpm
       if: github.repository == 'getsentry/craft' && steps.artifact.outcome != 'success'
       shell: bash
-      run: corepack enable
-
-    - name: Prepare pnpm
-      if: github.repository == 'getsentry/craft' && steps.artifact.outcome != 'success'
-      shell: bash
-      run: corepack prepare pnpm@10.27.0 --activate
+      run: npm install -g pnpm@10.27.0
 
     - name: Build Craft from source
       id: build

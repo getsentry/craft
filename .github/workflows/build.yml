@@ -25,10 +25,8 @@ jobs:
       - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
         with:
           node-version: '${{ matrix.node }}'
-      - name: Enable corepack
-        run: corepack enable
-      - name: Prepare pnpm
-        run: corepack prepare pnpm@10.27.0 --activate
+      - name: Install pnpm
+        run: npm install -g pnpm@10.27.0
       - uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
         id: cache
         with:
@@ -51,10 +49,8 @@ jobs:
       - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
         with:
           node-version-file: package.json
-      - name: Enable corepack
-        run: corepack enable
-      - name: Prepare pnpm
-        run: corepack prepare pnpm@10.27.0 --activate
+      - name: Install pnpm
+        run: npm install -g pnpm@10.27.0
       - uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
         id: cache
         with:

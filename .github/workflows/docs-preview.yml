@@ -21,10 +21,8 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Enable corepack
-        run: corepack enable
-      - name: Prepare pnpm
-        run: corepack prepare pnpm@10.27.0 --activate
+      - name: Install pnpm
+        run: npm install -g pnpm@10.27.0
 
       - name: Build Docs for Preview
         working-directory: docs

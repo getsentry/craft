@@ -11,6 +11,9 @@ importers:
       marked:
         specifier: ^17.0.1
         version: 17.0.1
+      semver:
+        specifier: ^7.7.3
+        version: 7.7.3
     devDependencies:
       '@aws-sdk/client-lambda':
         specifier: ^3.723.0
