@@ -2,10 +2,11 @@ FROM node:22-bookworm-slim AS builder
 
 WORKDIR /usr/local/lib
 
-COPY package.json yarn.lock ./
-RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
-  && yarn install --frozen-lockfile --quiet \
-  && rm -r "$YARN_CACHE_FOLDER"
+# Enable corepack and pnpm
+RUN corepack enable && corepack prepare pnpm@10.27.0 --activate
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --quiet
 
 COPY . .
 
@@ -13,7 +14,7 @@ RUN \
   NODE_ENV=production \
   NODE_PATH=/usr/local/lib/node_modules \
   PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/lib/node_modules/.bin" \
-  yarn --modules-folder /usr/local/lib/node_modules build
+  pnpm build
 
 FROM node:22-bookworm
 

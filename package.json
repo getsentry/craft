@@ -77,19 +77,19 @@
     "build:fat": "tsc -p tsconfig.build.json",
     "build:watch": "tsc -p tsconfig.build.json --watch",
     "build": "esbuild src/index.ts --sourcemap --bundle --platform=node --target=node22 --inject:./src/utils/import-meta-url.js --define:import.meta.url=import_meta_url --outfile=dist/craft",
-    "precli": "yarn build",
+    "precli": "pnpm build",
     "cli": "node -r source-map-support/register dist/craft",
     "clean": "rimraf dist coverage",
     "lint": "eslint --cache --cache-strategy content",
-    "fix": "yarn lint --fix",
+    "fix": "pnpm lint --fix",
     "test": "vitest run",
     "test:watch": "vitest",
-    "docs:dev": "cd docs && yarn dev",
-    "docs:build": "cd docs && yarn build"
+    "docs:dev": "cd docs && pnpm dev",
+    "docs:build": "cd docs && pnpm build"
   },
   "volta": {
     "node": "22.12.0",
-    "yarn": "1.22.19"
+    "pnpm": "10.27.0"
   },
   "dependencies": {
     "marked": "^17.0.1"

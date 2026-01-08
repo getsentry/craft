@@ -4,23 +4,23 @@ This file provides guidance for AI coding assistants working with the Craft code
 
 ## Package Management
 
-- **Always use `yarn`** (v1) for package management. Never use `npm` or `pnpm`.
+- **Always use `pnpm`** for package management. Never use `npm` or `yarn`.
 - Node.js version is managed by [Volta](https://volta.sh/) (currently v22.12.0).
-- Install dependencies with `yarn install --frozen-lockfile`.
+- Install dependencies with `pnpm install --frozen-lockfile`.
 
 ## Development Commands
 
 | Command | Description |
 |---------|-------------|
-| `yarn build` | Build the project (outputs to `dist/craft`) |
-| `yarn test` | Run tests |
-| `yarn lint` | Run ESLint |
-| `yarn fix` | Auto-fix lint issues |
+| `pnpm build` | Build the project (outputs to `dist/craft`) |
+| `pnpm test` | Run tests |
+| `pnpm lint` | Run ESLint |
+| `pnpm fix` | Auto-fix lint issues |
 
 To manually test changes:
 
 ```bash
-yarn build && ./dist/craft
+pnpm build && ./dist/craft
 ```
 
 ## Code Style
@@ -54,7 +54,7 @@ dist/
 
 - Tests use **Vitest**.
 - Test files are located in `src/__tests__/` and follow the `*.test.ts` naming pattern.
-- Run tests with `yarn test`.
+- Run tests with `pnpm test`.
 - Use `vi.fn()`, `vi.mock()`, `vi.spyOn()` for mocking (Vitest's mock API).
 
 ## CI/CD
