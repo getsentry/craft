@@ -51,50 +51,52 @@ jobs:
     if: github.ref == 'refs/heads/master'
     environment: production
     steps:
-      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
-      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
-        with:
-          node-version-file: package.json
-      - name: Get pnpm version from Volta config
-        id: pnpm-version
-        run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ steps.pnpm-version.outputs.version }}
-      - uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
-        id: cache
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
-      - name: Install Dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
+      - &artifact-setup
+        - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+        - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
+          with:
+            node-version-file: package.json
+        - name: Get pnpm version from Volta config
+          id: pnpm-version
+          run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
+        - uses: pnpm/action-setup@v4
+          with:
+            version: ${{ steps.pnpm-version.outputs.version }}
+        - uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
+          id: cache
+          with:
+            path: node_modules
+            key: ${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
+        - name: Install Dependencies
+          if: steps.cache.outputs.cache-hit != 'true'
+          run: pnpm install --frozen-lockfile
       - name: Build
         env:
           CRAFT_BUILD_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: pnpm build:ci
-      - name: Smoke Test
-        run: ./dist/craft --help
-      - name: NPM Pack
-        run: npm pack
-      - name: Build Docs
-        working-directory: docs
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm build
-      - name: Package Docs
-        run: |
-          cp .nojekyll docs/dist/
-          cd docs/dist && zip -r ../../gh-pages.zip .
-      - name: Archive Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: ${{ github.sha }}
-          path: |
-            ${{ github.workspace }}/gh-pages.zip
-            ${{ github.workspace }}/*.tgz
-            ${{ github.workspace }}/dist/craft
+      - &artifact-steps
+        - name: Smoke Test
+          run: ./dist/craft --help
+        - name: NPM Pack
+          run: npm pack
+        - name: Build Docs
+          working-directory: docs
+          run: |
+            pnpm install --frozen-lockfile
+            pnpm build
+        - name: Package Docs
+          run: |
+            cp .nojekyll docs/dist/
+            cd docs/dist && zip -r ../../gh-pages.zip .
+        - name: Archive Artifacts
+          uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+          with:
+            name: ${{ github.sha }}
+            path: |
+              ${{ github.workspace }}/gh-pages.zip
+              ${{ github.workspace }}/*.tgz
+              ${{ github.workspace }}/dist/craft
 
   artifacts-non-master:
     name: Artifacts Upload
@@ -104,46 +106,9 @@ jobs:
       contents: read
     if: github.ref != 'refs/heads/master'
     steps:
-      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
-      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
-        with:
-          node-version-file: package.json
-      - name: Get pnpm version from Volta config
-        id: pnpm-version
-        run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ steps.pnpm-version.outputs.version }}
-      - uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
-        id: cache
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
-      - name: Install Dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
+      - *artifact-setup
       - name: Build
         env:
           CRAFT_BUILD_SHA: ${{ github.sha }}
         run: pnpm build
-      - name: Smoke Test
-        run: ./dist/craft --help
-      - name: NPM Pack
-        run: npm pack
-      - name: Build Docs
-        working-directory: docs
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm build
-      - name: Package Docs
-        run: |
-          cp .nojekyll docs/dist/
-          cd docs/dist && zip -r ../../gh-pages.zip .
-      - name: Archive Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: ${{ github.sha }}
-          path: |
-            ${{ github.workspace }}/gh-pages.zip
-            ${{ github.workspace }}/*.tgz
-            ${{ github.workspace }}/dist/craft
+      - *artifact-steps
