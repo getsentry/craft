@@ -1,7 +1,7 @@
 import { Octokit } from '@octokit/rest';
-import * as Sentry from '@sentry/node';
 
 import { LogLevel, logger } from '../logger';
+import { withTracing } from './tracing';
 
 import { ConfigurationError } from './errors';
 import { createDryRunOctokit } from './dryRun';
@@ -139,17 +139,7 @@ export async function getFile(
   path: string,
   ref: string
 ): Promise<string | undefined> {
-  return Sentry.startSpan(
-    {
-      name: 'craft.github.getFile',
-      op: 'craft.github.api',
-      attributes: {
-        'github.owner': owner,
-        'github.repo': repo,
-        'github.path': path,
-        'github.ref': ref,
-      },
-    },
+  return withTracing(
     async () => {
       try {
         const response = await github.repos.getContent({
@@ -169,6 +159,16 @@ export async function getFile(
         }
         throw e;
       }
+    },
+    {
+      name: 'craft.github.getFile',
+      op: 'craft.github.api',
+      attributes: {
+        'github.owner': owner,
+        'github.repo': repo,
+        'github.path': path,
+        'github.ref': ref,
+      },
     }
-  );
+  )();
 }

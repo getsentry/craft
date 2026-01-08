@@ -4,12 +4,12 @@ import './instrument';
 
 import isCI from 'is-ci';
 import yargs from 'yargs';
-import * as Sentry from '@sentry/node';
 
 import { logger, LogLevel } from './logger';
 import { readEnvironmentConfig } from './utils/env';
 import { envToBool, setGlobals } from './utils/helpers';
 import { getPackageVersion } from './utils/version';
+import { withTracing } from './utils/tracing';
 
 // Commands
 import * as prepare from './commands/prepare';
@@ -106,6 +106,4 @@ async function main(): Promise<void> {
     .parse(argv);
 }
 
-Sentry.startSpan({ name: 'craft.cli', op: 'cli' }, async () => {
-  await main();
-});
+withTracing(main, { name: 'craft.cli', op: 'cli' })();
