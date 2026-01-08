@@ -73,7 +73,7 @@ jobs:
           CRAFT_BUILD_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         environment: production
-        run: pnpm build
+        run: pnpm build:ci
       - name: Build (non-master)
         if: github.ref != 'refs/heads/master'
         env:
