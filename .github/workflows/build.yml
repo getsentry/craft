@@ -72,12 +72,6 @@ jobs:
         env:
           CRAFT_BUILD_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        if: github.ref == 'refs/heads/master'
-        run: pnpm build
-      - name: Build
-        env:
-          CRAFT_BUILD_SHA: ${{ github.sha }}
-        if: github.ref != 'refs/heads/master'
         run: pnpm build
       - name: Smoke Test
         run: ./dist/craft --help
