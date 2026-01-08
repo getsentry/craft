@@ -2,8 +2,9 @@ FROM node:22-bookworm-slim AS builder
 
 WORKDIR /usr/local/lib
 
-# Install pnpm
-RUN npm install -g pnpm@10.27.0
+# Install pnpm (version from Volta config in package.json)
+COPY package.json ./
+RUN npm install -g pnpm@$(node -p "require('./package.json').volta.pnpm")
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile --quiet
