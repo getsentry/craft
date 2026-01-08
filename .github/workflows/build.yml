@@ -141,6 +141,7 @@ jobs:
       - artifacts
       - artifacts-non-master
       - docs
+    if: always() && (needs.artifacts.result == 'success' || needs.artifacts-non-master.result == 'success') && needs.docs.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
