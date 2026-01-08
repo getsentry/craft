@@ -51,7 +51,7 @@ jobs:
     if: github.ref == 'refs/heads/master'
     environment: production
     steps:
-      - &artifact-setup
+      - &setup-steps
         - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
         - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
           with:
@@ -106,7 +106,7 @@ jobs:
       contents: read
     if: github.ref != 'refs/heads/master'
     steps:
-      - *artifact-setup
+      - *setup-steps
       - name: Build
         env:
           CRAFT_BUILD_SHA: ${{ github.sha }}
