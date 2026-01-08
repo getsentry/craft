@@ -48,8 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    if: github.ref == 'refs/heads/master'
-    environment: production
+    environment: ${{ github.ref == 'refs/heads/master' && 'production' || '' }}
     steps:
       - &checkout-step
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
@@ -79,6 +78,12 @@ jobs:
         env:
           CRAFT_BUILD_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        if: github.ref == 'refs/heads/master'
+        run: pnpm build
+      - name: Build
+        env:
+          CRAFT_BUILD_SHA: ${{ github.sha }}
+        if: github.ref != 'refs/heads/master'
         run: pnpm build
       - &smoke-test-step
         name: Smoke Test
@@ -94,28 +99,6 @@ jobs:
           path: |
             ${{ github.workspace }}/*.tgz
             ${{ github.workspace }}/dist/craft
-
-  artifacts-non-master:
-    name: Artifacts Upload
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    if: github.ref != 'refs/heads/master'
-    steps:
-      - *checkout-step
-      - *setup-node-step
-      - *pnpm-version-step
-      - *pnpm-setup-step
-      - *cache-step
-      - *install-deps-step
-      - name: Build
-        env:
-          CRAFT_BUILD_SHA: ${{ github.sha }}
-        run: pnpm build
-      - *smoke-test-step
-      - *npm-pack-step
-      - *archive-step
 
   docs:
     name: Build Docs
@@ -153,9 +136,8 @@ jobs:
     name: Merge Artifacts
     needs:
       - artifacts
-      - artifacts-non-master
       - docs
-    if: always() && (needs.artifacts.result == 'success' || needs.artifacts-non-master.result == 'success') && needs.docs.result == 'success'
+    if: always() && needs.artifacts.result == 'success' && needs.docs.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
