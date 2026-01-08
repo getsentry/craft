@@ -1,12 +1,15 @@
 #!/usr/bin/env node
+// Import Sentry instrumentation first, before any other code
+import './instrument';
+
 import isCI from 'is-ci';
 import yargs from 'yargs';
 
 import { logger, LogLevel } from './logger';
 import { readEnvironmentConfig } from './utils/env';
 import { envToBool, setGlobals } from './utils/helpers';
-import { initSentrySdk } from './utils/sentry';
 import { getPackageVersion } from './utils/version';
+import { withTracing } from './utils/tracing';
 
 // Commands
 import * as prepare from './commands/prepare';
@@ -71,8 +74,6 @@ async function main(): Promise<void> {
 
   readEnvironmentConfig();
 
-  initSentrySdk();
-
   const argv = fixGlobalBooleanFlags(process.argv.slice(2));
 
   await yargs()
@@ -105,4 +106,4 @@ async function main(): Promise<void> {
     .parse(argv);
 }
 
-main();
+withTracing(main, { name: 'craft.cli', op: 'cli' })();

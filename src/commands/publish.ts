@@ -34,6 +34,7 @@ import { BaseStatusProvider } from '../status_providers/base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { SimpleGit } from 'simple-git';
 import { getGitClient, getDefaultBranch, isRepoDirty } from '../utils/git';
+import { withTracing } from '../utils/tracing';
 
 /** Default path to post-release script, relative to project root */
 const DEFAULT_POST_RELEASE_SCRIPT_PATH = join('scripts', 'post-release.sh');
@@ -189,7 +190,21 @@ async function publishToTarget(
   logger.info(delim);
   logger.info(publishMessage);
   logger.info(delim);
-  await target.publish(version, revision);
+  await withTracing(
+    async () => {
+      await target.publish(version, revision);
+    },
+    {
+      name: `craft.target.${target.id}`,
+      op: 'craft.target.publish',
+      attributes: {
+        'target.id': target.id,
+        'target.name': target.config.name,
+        version,
+        revision,
+      },
+    }
+  )();
 }
 
 /**
@@ -625,7 +640,10 @@ export const handler = async (args: {
 }): Promise<any> => {
   try {
     catchKeyboardInterrupt();
-    return await publishMain(args as PublishOptions);
+    return await withTracing(publishMain, {
+      name: 'craft.publish',
+      op: 'craft.publish',
+    })(args as PublishOptions);
   } catch (e) {
     handleGlobalError(e);
   }
