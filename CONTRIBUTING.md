@@ -2,15 +2,15 @@
 
 ## Setup
 
-Craft uses Yarn v1 for managing its dependencies. We also rely on
-[Volta](https://volta.sh/) to manage our Node and Yarn versions. We highly
+Craft uses pnpm for managing its dependencies. We also rely on
+[Volta](https://volta.sh/) to manage our Node and pnpm versions. We highly
 recommend installing Volta if you don't already have it.
 
 Then, to get started, install the dependencies and get an initial build:
 
 ```shell
-yarn install
-yarn build
+pnpm install
+pnpm build
 ```
 
 ## Logging Level

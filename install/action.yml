@@ -33,14 +33,26 @@ runs:
       with:
         node-version: '22'
 
+    - name: Get pnpm version from Volta config
+      if: github.repository == 'getsentry/craft' && steps.artifact.outcome != 'success'
+      id: pnpm-version
+      shell: bash
+      run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
+
+    - name: Setup pnpm
+      if: github.repository == 'getsentry/craft' && steps.artifact.outcome != 'success'
+      uses: pnpm/action-setup@v4
+      with:
+        version: ${{ steps.pnpm-version.outputs.version }}
+
     - name: Build Craft from source
       id: build
       if: github.repository == 'getsentry/craft' && steps.artifact.outcome != 'success'
       shell: bash
       run: |
         echo "Building Craft from source..."
-        yarn install --frozen-lockfile
-        yarn build
+        pnpm install --frozen-lockfile
+        pnpm build
         sudo install -m 755 dist/craft /usr/local/bin/craft
 
     - name: Install Craft from release

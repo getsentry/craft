@@ -10,7 +10,7 @@ Thank you for your interest in contributing to Craft! This guide will help you g
 ### Prerequisites
 
 - Node.js v22+ (managed by [Volta](https://volta.sh/))
-- Yarn v1
+- pnpm
 
 ### Installation
 
@@ -20,24 +20,24 @@ git clone https://github.com/getsentry/craft.git
 cd craft
 
 # Install dependencies
-yarn install --frozen-lockfile
+pnpm install --frozen-lockfile
 ```
 
 ## Development Commands
 
 | Command | Description |
 |---------|-------------|
-| `yarn build` | Build the project (outputs to `dist/craft`) |
-| `yarn test` | Run tests |
-| `yarn lint` | Run ESLint |
-| `yarn fix` | Auto-fix lint issues |
+| `pnpm build` | Build the project (outputs to `dist/craft`) |
+| `pnpm test` | Run tests |
+| `pnpm lint` | Run ESLint |
+| `pnpm fix` | Auto-fix lint issues |
 
 ### Manual Testing
 
 To test your changes locally:
 
 ```bash
-yarn build && ./dist/craft
+pnpm build && ./dist/craft
 ```
 
 ## Project Structure
@@ -72,10 +72,10 @@ src/
 
 ```bash
 # Run all tests
-yarn test
+pnpm test
 
 # Run tests in watch mode
-yarn test:watch
+pnpm test:watch
 ```
 
 ## Adding a New Target

@@ -25,16 +25,22 @@ jobs:
       - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
         with:
           node-version: '${{ matrix.node }}'
+      - name: Get pnpm version from Volta config
+        id: pnpm-version
+        run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ steps.pnpm-version.outputs.version }}
       - uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
         id: cache
         with:
           path: node_modules
-          key: ${{ runner.os }}-${{ hashFiles('package.json', 'yarn.lock') }}
+          key: ${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
-        run: yarn install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
       - name: Test
-        run: yarn test
+        run: pnpm test
 
   artifacts:
     name: Artifacts Upload
@@ -47,16 +53,22 @@ jobs:
       - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
         with:
           node-version-file: package.json
+      - name: Get pnpm version from Volta config
+        id: pnpm-version
+        run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ steps.pnpm-version.outputs.version }}
       - uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
         id: cache
         with:
           path: node_modules
-          key: ${{ runner.os }}-${{ hashFiles('package.json', 'yarn.lock') }}
+          key: ${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
-        run: yarn install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
       - name: Build
-        run: yarn build --define:process.env.CRAFT_BUILD_SHA='"'${{ github.sha }}'"'
+        run: pnpm build --define:process.env.CRAFT_BUILD_SHA='"'${{ github.sha }}'"'
       - name: Smoke Test
         run: ./dist/craft --help
       - name: NPM Pack
@@ -64,8 +76,8 @@ jobs:
       - name: Build Docs
         working-directory: docs
         run: |
-          yarn install --frozen-lockfile
-          yarn build
+          pnpm install --frozen-lockfile
+          pnpm build
       - name: Package Docs
         run: |
           cp .nojekyll docs/dist/
