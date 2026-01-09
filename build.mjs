@@ -1,4 +1,4 @@
-import { chmod } from 'fs/promises';
+import { chmod, readFile, writeFile } from 'fs/promises';
 import esbuild from 'esbuild';
 import { sentryEsbuildPlugin } from '@sentry/esbuild-plugin';
 
@@ -38,5 +38,10 @@ await esbuild.build({
   plugins,
 });
 
-// Make the output file executable
+// Add shebang if not present and make executable
+const content = await readFile('dist/craft', 'utf-8');
+const hasShebang = content.startsWith('#!');
+if (!hasShebang) {
+  await writeFile('dist/craft', '#!/usr/bin/env node\n' + content);
+}
 await chmod('dist/craft', 0o755);
