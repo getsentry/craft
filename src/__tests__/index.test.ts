@@ -1,14 +1,21 @@
-import { vi, describe, test, expect } from 'vitest';
-import { execFile } from 'child_process';
+import { describe, test, expect, beforeAll } from 'vitest';
+import { execFile, execSync } from 'child_process';
 import { promisify } from 'util';
 import { resolve } from 'path';
+import { existsSync } from 'fs';
 
 const execFileAsync = promisify(execFile);
 
-// Path to the TypeScript source file - we use tsx to run it directly
-const CLI_ENTRY = resolve(__dirname, '../index.ts');
-// Path to the local tsx binary
-const TSX_BIN = resolve(__dirname, '../../node_modules/.bin/tsx');
+// Path to the built CLI binary - e2e tests should use the actual artifact
+const CLI_BIN = resolve(__dirname, '../../dist/craft');
+
+// Ensure the binary is built before running e2e tests
+beforeAll(() => {
+  if (!existsSync(CLI_BIN)) {
+    console.log('Building craft binary for e2e tests...');
+    execSync('pnpm build', { cwd: resolve(__dirname, '../..'), stdio: 'inherit' });
+  }
+}, 60000);
 
 describe('CLI smoke tests', () => {
   test('CLI starts and shows help without runtime errors', async () => {
@@ -16,11 +23,9 @@ describe('CLI smoke tests', () => {
     // - Missing dependencies
     // - Syntax errors
     // - Runtime initialization errors (e.g., yargs singleton usage in v18)
-    const { stdout, stderr } = await execFileAsync(
-      TSX_BIN,
-      [CLI_ENTRY, '--help'],
-      { env: { ...process.env, NODE_ENV: 'test' } }
-    );
+    const { stdout, stderr } = await execFileAsync(CLI_BIN, ['--help'], {
+      env: { ...process.env, NODE_ENV: 'test' },
+    });
 
     expect(stdout).toMatch(/<command>/);
     expect(stdout).toContain('prepare NEW-VERSION');
@@ -32,11 +37,9 @@ describe('CLI smoke tests', () => {
   }, 30000);
 
   test('CLI shows version without errors', async () => {
-    const { stdout } = await execFileAsync(
-      TSX_BIN,
-      [CLI_ENTRY, '--version'],
-      { env: { ...process.env, NODE_ENV: 'test' } }
-    );
+    const { stdout } = await execFileAsync(CLI_BIN, ['--version'], {
+      env: { ...process.env, NODE_ENV: 'test' },
+    });
 
     // Version should be a semver-like string
     expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
@@ -45,7 +48,7 @@ describe('CLI smoke tests', () => {
   test('CLI exits with error for unknown command', async () => {
     // This ensures yargs command parsing works and async handlers are awaited
     await expect(
-      execFileAsync(TSX_BIN, [CLI_ENTRY, 'nonexistent-command'], {
+      execFileAsync(CLI_BIN, ['nonexistent-command'], {
         env: { ...process.env, NODE_ENV: 'test' },
       })
     ).rejects.toMatchObject({
@@ -59,7 +62,7 @@ describe('CLI smoke tests', () => {
     // We expect it to fail due to missing config, but it should fail gracefully
     // not due to premature exit
     try {
-      await execFileAsync(TSX_BIN, [CLI_ENTRY, 'targets'], {
+      await execFileAsync(CLI_BIN, ['targets'], {
         env: { ...process.env, NODE_ENV: 'test' },
         cwd: '/tmp', // No .craft.yml here
       });

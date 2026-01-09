@@ -6,18 +6,28 @@
  * 2. Original repository working directory is not modified
  * 3. Worktree is cleaned up after execution
  */
-import { describe, test, expect, afterEach } from 'vitest';
-import { execFile } from 'child_process';
+import { describe, test, expect, afterEach, beforeAll } from 'vitest';
+import { execFile, execSync } from 'child_process';
 import { promisify } from 'util';
 import { resolve, join } from 'path';
 import { mkdtemp, rm, writeFile, readFile, mkdir, chmod } from 'fs/promises';
+import { existsSync } from 'fs';
 import { tmpdir } from 'os';
 // eslint-disable-next-line no-restricted-imports, no-restricted-syntax -- Test file needs direct git access for setup/verification
 import simpleGit from 'simple-git';
 
 const execFileAsync = promisify(execFile);
-const CLI_ENTRY = resolve(__dirname, '../index.ts');
-const TSX_BIN = resolve(__dirname, '../../node_modules/.bin/tsx');
+
+// Path to the built CLI binary - e2e tests use the actual artifact
+const CLI_BIN = resolve(__dirname, '../../dist/craft');
+
+// Ensure the binary is built before running e2e tests
+beforeAll(() => {
+  if (!existsSync(CLI_BIN)) {
+    console.log('Building craft binary for e2e tests...');
+    execSync('pnpm build', { cwd: resolve(__dirname, '../..'), stdio: 'inherit' });
+  }
+}, 60000);
 
 /**
  * Creates a test git repository with:
@@ -157,8 +167,8 @@ describe('prepare --dry-run e2e', () => {
 
       // Run prepare --dry-run
       const { stdout, stderr } = await execFileAsync(
-        TSX_BIN,
-        [CLI_ENTRY, 'prepare', '1.0.1', '--dry-run', '--no-input'],
+        CLI_BIN,
+        ['prepare', '1.0.1', '--dry-run', '--no-input'],
         {
           cwd: tempDir,
           env: {
@@ -218,8 +228,8 @@ describe('prepare --dry-run e2e', () => {
 
       // Run prepare --dry-run
       const { stdout, stderr } = await execFileAsync(
-        TSX_BIN,
-        [CLI_ENTRY, 'prepare', '1.0.1', '--dry-run', '--no-input'],
+        CLI_BIN,
+        ['prepare', '1.0.1', '--dry-run', '--no-input'],
         {
           cwd: tempDir,
           env: {
@@ -295,8 +305,8 @@ targets: []
 
       // Run prepare --dry-run
       const { stdout, stderr } = await execFileAsync(
-        TSX_BIN,
-        [CLI_ENTRY, 'prepare', '1.0.1', '--dry-run', '--no-input'],
+        CLI_BIN,
+        ['prepare', '1.0.1', '--dry-run', '--no-input'],
         {
           cwd: tempDir,
           env: {
@@ -350,8 +360,8 @@ targets: []
 
       try {
         await execFileAsync(
-          TSX_BIN,
-          [CLI_ENTRY, 'prepare', '1.0.1', '--dry-run', '--no-input'],
+          CLI_BIN,
+          ['prepare', '1.0.1', '--dry-run', '--no-input'],
           {
             cwd: tempDir,
             env: {
