@@ -130,6 +130,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, edited, labeled]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   changelog-preview:
     uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
@@ -145,6 +149,10 @@ jobs:
 ### Pinning a Specific Version
 
 ```yaml
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   changelog-preview:
     uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
@@ -205,8 +213,21 @@ The workflow supports these PR event types:
 
 ### Requirements
 
-- Use `secrets: inherit` to pass the GitHub token
+The workflow requires specific permissions and secrets to function correctly:
+
+**Permissions** (required):
+- `contents: read` - Allows the workflow to checkout your repository and read git history for changelog generation
+- `pull-requests: write` - Allows the workflow to post and update comments on pull requests
+
+**Secrets**:
+- `secrets: inherit` - Passes your repository's `GITHUB_TOKEN` to the workflow, ensuring it has access to your repository (especially important for private repositories)
+
+**Repository Setup**:
 - The repository should have a git history with tags for the changelog to be meaningful
+
+:::note[Why are these permissions needed?]
+GitHub Actions reusable workflows use permission intersection - the final permissions are the intersection of what the caller grants and what the workflow declares. By explicitly declaring these permissions in your workflow file, you ensure the workflow can access your repository and post comments, even for private repositories.
+:::
 
 ## Skipping Changelog Entries
 
@@ -250,6 +271,10 @@ name: Changelog Preview
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited, labeled]
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   changelog-preview:
