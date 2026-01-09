@@ -1,4 +1,4 @@
-import { chmod, readFile, rename, unlink, writeFile } from 'fs/promises';
+import { chmod, readFile, rename, stat, unlink, writeFile } from 'fs/promises';
 import esbuild from 'esbuild';
 import { sentryEsbuildPlugin } from '@sentry/esbuild-plugin';
 
@@ -40,16 +40,34 @@ await esbuild.build({
   plugins,
 });
 
-// Add shebang if not present
-const content = await readFile('dist/craft.js', 'utf-8');
-const hasShebang = content.startsWith('#!');
-if (!hasShebang) {
-  await writeFile('dist/craft.js', '#!/usr/bin/env node\n' + content);
+// Helper to check if file exists
+async function exists(path) {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-// Rename to final executable name and set permissions
-await rename('dist/craft.js', 'dist/craft');
-await chmod('dist/craft', 0o755);
+// Post-build processing with race condition handling for parallel test builds
+// Another parallel build may have already renamed the file
+if (await exists('dist/craft.js')) {
+  // Add shebang if not present
+  const content = await readFile('dist/craft.js', 'utf-8');
+  const hasShebang = content.startsWith('#!');
+  if (!hasShebang) {
+    await writeFile('dist/craft.js', '#!/usr/bin/env node\n' + content);
+  }
+
+  // Rename to final executable name
+  await rename('dist/craft.js', 'dist/craft');
+}
+
+// Ensure permissions are set (idempotent)
+if (await exists('dist/craft')) {
+  await chmod('dist/craft', 0o755);
+}
 
 // Clean up source map if it wasn't deleted by Sentry plugin
 try {
