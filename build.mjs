@@ -51,8 +51,9 @@ async function exists(path) {
 }
 
 // Post-build processing with race condition handling for parallel test builds
-// Another parallel build may have already renamed the file
-if (await exists('dist/craft.js')) {
+// Another parallel build may have already processed the file, so all operations
+// must gracefully handle ENOENT errors
+try {
   // Add shebang if not present
   const content = await readFile('dist/craft.js', 'utf-8');
   const hasShebang = content.startsWith('#!');
@@ -62,6 +63,11 @@ if (await exists('dist/craft.js')) {
 
   // Rename to final executable name
   await rename('dist/craft.js', 'dist/craft');
+} catch (err) {
+  // ENOENT means another parallel build already processed the file
+  if (err.code !== 'ENOENT') {
+    throw err;
+  }
 }
 
 // Ensure permissions are set (idempotent)
