@@ -129,6 +129,7 @@ function normalizeOutput(output: string): string {
       // Remove node warnings and experimental warnings
       .replace(/\(node:\d+\)[^\n]*\n/g, '')
       .replace(/\(Use `node --trace-warnings.*\n/g, '')
+      .replace(/\(Use `node --trace-deprecation.*\n/g, '')
       .replace(/Support for loading ES Module.*\n/g, '')
       // Normalize PID references
       .replace(/node:\d+/g, 'node:PID')
