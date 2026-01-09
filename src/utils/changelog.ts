@@ -1968,10 +1968,7 @@ export async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
           totalHashes: hashes.length,
           httpStatus: error.status || error.response?.status,
           errorName: error.name,
-        });
-        scope.setContext('graphql_query', {
           query: graphqlQuery,
-          queryLength: graphqlQuery.length,
         });
         captureException(error);
       });
