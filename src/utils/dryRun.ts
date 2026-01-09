@@ -104,6 +104,10 @@ export interface DryRunIsolation {
 // Track active worktree for cleanup on unexpected exit
 let _activeWorktreeCleanup: (() => Promise<void>) | null = null;
 
+// Store references to our handlers so we can remove only them (not Sentry's handlers)
+let _sigintHandler: (() => void) | null = null;
+let _sigtermHandler: (() => void) | null = null;
+
 /**
  * Register signal handlers for cleanup on Ctrl+C or unexpected exit.
  */
@@ -120,20 +124,38 @@ function registerCleanupHandlers(cleanup: () => Promise<void>): void {
       }
       _activeWorktreeCleanup = null;
     }
-    process.exit(signal === 'SIGINT' ? 130 : 143);
+    // Note: We don't call process.exit() here. Instead, we let the signal
+    // propagate to other handlers (like Sentry's) and allow Node.js to
+    // terminate naturally after all handlers complete. This gives Sentry
+    // time to flush telemetry data.
   };
 
-  process.once('SIGINT', () => handleSignal('SIGINT'));
-  process.once('SIGTERM', () => handleSignal('SIGTERM'));
+  // Create wrapper functions so we can remove them specifically later
+  _sigintHandler = () => {
+    handleSignal('SIGINT');
+  };
+  _sigtermHandler = () => {
+    handleSignal('SIGTERM');
+  };
+
+  process.once('SIGINT', _sigintHandler);
+  process.once('SIGTERM', _sigtermHandler);
 }
 
 /**
  * Unregister cleanup handlers after normal cleanup.
+ * Only removes our handlers, preserving other signal handlers (e.g., Sentry's).
  */
 function unregisterCleanupHandlers(): void {
   _activeWorktreeCleanup = null;
-  process.removeAllListeners('SIGINT');
-  process.removeAllListeners('SIGTERM');
+  if (_sigintHandler) {
+    process.removeListener('SIGINT', _sigintHandler);
+    _sigintHandler = null;
+  }
+  if (_sigtermHandler) {
+    process.removeListener('SIGTERM', _sigtermHandler);
+    _sigtermHandler = null;
+  }
 }
 
 /**

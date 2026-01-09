@@ -17,6 +17,7 @@ import simpleGit from 'simple-git';
 
 const execFileAsync = promisify(execFile);
 const CLI_ENTRY = resolve(__dirname, '../index.ts');
+const TSX_BIN = resolve(__dirname, '../../node_modules/.bin/tsx');
 
 /**
  * Creates a test git repository with:
@@ -156,16 +157,8 @@ describe('prepare --dry-run e2e', () => {
 
       // Run prepare --dry-run
       const { stdout, stderr } = await execFileAsync(
-        'npx',
-        [
-          'ts-node',
-          '--transpile-only',
-          CLI_ENTRY,
-          'prepare',
-          '1.0.1',
-          '--dry-run',
-          '--no-input',
-        ],
+        TSX_BIN,
+        [CLI_ENTRY, 'prepare', '1.0.1', '--dry-run', '--no-input'],
         {
           cwd: tempDir,
           env: {
@@ -225,16 +218,8 @@ describe('prepare --dry-run e2e', () => {
 
       // Run prepare --dry-run
       const { stdout, stderr } = await execFileAsync(
-        'npx',
-        [
-          'ts-node',
-          '--transpile-only',
-          CLI_ENTRY,
-          'prepare',
-          '1.0.1',
-          '--dry-run',
-          '--no-input',
-        ],
+        TSX_BIN,
+        [CLI_ENTRY, 'prepare', '1.0.1', '--dry-run', '--no-input'],
         {
           cwd: tempDir,
           env: {
@@ -310,16 +295,8 @@ targets: []
 
       // Run prepare --dry-run
       const { stdout, stderr } = await execFileAsync(
-        'npx',
-        [
-          'ts-node',
-          '--transpile-only',
-          CLI_ENTRY,
-          'prepare',
-          '1.0.1',
-          '--dry-run',
-          '--no-input',
-        ],
+        TSX_BIN,
+        [CLI_ENTRY, 'prepare', '1.0.1', '--dry-run', '--no-input'],
         {
           cwd: tempDir,
           env: {
@@ -373,16 +350,8 @@ targets: []
 
       try {
         await execFileAsync(
-          'npx',
-          [
-            'ts-node',
-            '--transpile-only',
-            CLI_ENTRY,
-            'prepare',
-            '1.0.1',
-            '--dry-run',
-            '--no-input',
-          ],
+          TSX_BIN,
+          [CLI_ENTRY, 'prepare', '1.0.1', '--dry-run', '--no-input'],
           {
             cwd: tempDir,
             env: {

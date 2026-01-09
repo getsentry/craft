@@ -5,8 +5,10 @@ import { resolve } from 'path';
 
 const execFileAsync = promisify(execFile);
 
-// Path to the TypeScript source file - we use ts-node to run it directly
+// Path to the TypeScript source file - we use tsx to run it directly
 const CLI_ENTRY = resolve(__dirname, '../index.ts');
+// Path to the local tsx binary
+const TSX_BIN = resolve(__dirname, '../../node_modules/.bin/tsx');
 
 describe('CLI smoke tests', () => {
   test('CLI starts and shows help without runtime errors', async () => {
@@ -15,8 +17,8 @@ describe('CLI smoke tests', () => {
     // - Syntax errors
     // - Runtime initialization errors (e.g., yargs singleton usage in v18)
     const { stdout, stderr } = await execFileAsync(
-      'npx',
-      ['ts-node', '--transpile-only', CLI_ENTRY, '--help'],
+      TSX_BIN,
+      [CLI_ENTRY, '--help'],
       { env: { ...process.env, NODE_ENV: 'test' } }
     );
 
@@ -31,8 +33,8 @@ describe('CLI smoke tests', () => {
 
   test('CLI shows version without errors', async () => {
     const { stdout } = await execFileAsync(
-      'npx',
-      ['ts-node', '--transpile-only', CLI_ENTRY, '--version'],
+      TSX_BIN,
+      [CLI_ENTRY, '--version'],
       { env: { ...process.env, NODE_ENV: 'test' } }
     );
 
@@ -43,11 +45,9 @@ describe('CLI smoke tests', () => {
   test('CLI exits with error for unknown command', async () => {
     // This ensures yargs command parsing works and async handlers are awaited
     await expect(
-      execFileAsync(
-        'npx',
-        ['ts-node', '--transpile-only', CLI_ENTRY, 'nonexistent-command'],
-        { env: { ...process.env, NODE_ENV: 'test' } }
-      )
+      execFileAsync(TSX_BIN, [CLI_ENTRY, 'nonexistent-command'], {
+        env: { ...process.env, NODE_ENV: 'test' },
+      })
     ).rejects.toMatchObject({
       code: 1,
     });
@@ -59,14 +59,10 @@ describe('CLI smoke tests', () => {
     // We expect it to fail due to missing config, but it should fail gracefully
     // not due to premature exit
     try {
-      await execFileAsync(
-        'npx',
-        ['ts-node', '--transpile-only', CLI_ENTRY, 'targets'],
-        {
-          env: { ...process.env, NODE_ENV: 'test' },
-          cwd: '/tmp', // No .craft.yml here
-        }
-      );
+      await execFileAsync(TSX_BIN, [CLI_ENTRY, 'targets'], {
+        env: { ...process.env, NODE_ENV: 'test' },
+        cwd: '/tmp', // No .craft.yml here
+      });
     } catch (error: any) {
       // Should fail with a config error, not a silent exit or unhandled promise
       expect(error.stderr || error.stdout).toMatch(
