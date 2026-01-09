@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.18.1
+
+### Bug Fixes 🐛
+
+- (changelog) Add retry and robust error handling for GitHub GraphQL by @seer-by-sentry in [#701](https://github.com/getsentry/craft/pull/701)
+- Add permissions and docs for changelog-preview reusable workflow by @BYK in [#703](https://github.com/getsentry/craft/pull/703)
+
 ## 2.18.0
 
 ### New Features ✨
