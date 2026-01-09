@@ -11,10 +11,10 @@ Craft is [distributed as a minified single JS binary](https://github.com/getsent
 
 ### npm (not recommended)
 
-While the recommended approach is to use the binary directly, you can also install Craft as an [NPM package](https://yarn.pm/@sentry/craft):
+While the recommended approach is to use the binary directly, you can also install Craft as an [NPM package](https://www.npmjs.com/package/@sentry/craft):
 
 ```shell
-yarn global add @sentry/craft
+pnpm add -g @sentry/craft
 ```
 
 ```shell

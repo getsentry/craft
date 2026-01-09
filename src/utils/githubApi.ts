@@ -1,6 +1,7 @@
 import { Octokit } from '@octokit/rest';
 
 import { LogLevel, logger } from '../logger';
+import { withTracing } from './tracing';
 
 import { ConfigurationError } from './errors';
 import { createDryRunOctokit } from './dryRun';
@@ -138,22 +139,36 @@ export async function getFile(
   path: string,
   ref: string
 ): Promise<string | undefined> {
-  try {
-    const response = await github.repos.getContent({
-      owner,
-      path,
-      ref,
-      repo,
-    });
-    // Response theoretically could be a list of files
-    if (response.data instanceof Array || !('content' in response.data)) {
-      return undefined;
+  return withTracing(
+    async () => {
+      try {
+        const response = await github.repos.getContent({
+          owner,
+          path,
+          ref,
+          repo,
+        });
+        // Response theoretically could be a list of files
+        if (response.data instanceof Array || !('content' in response.data)) {
+          return undefined;
+        }
+        return Buffer.from(response.data.content, 'base64').toString();
+      } catch (e: any) {
+        if (e.status === 404) {
+          return undefined;
+        }
+        throw e;
+      }
+    },
+    {
+      name: 'craft.github.getFile',
+      op: 'craft.github.api',
+      attributes: {
+        'github.owner': owner,
+        'github.repo': repo,
+        'github.path': path,
+        'github.ref': ref,
+      },
     }
-    return Buffer.from(response.data.content, 'base64').toString();
-  } catch (e: any) {
-    if (e.status === 404) {
-      return undefined;
-    }
-    throw e;
-  }
+  )();
 }

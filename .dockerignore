@@ -8,4 +8,5 @@
 !/package.json
 !/scripts
 !/src
-!/yarn.lock
+!/pnpm-lock.yaml
+!/build.mjs

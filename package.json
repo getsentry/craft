@@ -12,10 +12,12 @@
   },
   "devDependencies": {
     "@aws-sdk/client-lambda": "^3.723.0",
+    "@eslint/js": "^9.17.0",
     "@google-cloud/storage": "^7.14.0",
     "@octokit/plugin-retry": "^7.1.2",
     "@octokit/request-error": "^7.0.0",
     "@octokit/rest": "^21.0.2",
+    "@sentry/esbuild-plugin": "^2.23.0",
     "@sentry/node": "^10.27.0",
     "@sentry/typescript": "^5.20.1",
     "@types/async": "^3.0.1",
@@ -35,9 +37,6 @@
     "@types/tar": "^4.0.0",
     "@types/tmp": "^0.0.33",
     "@types/yargs": "^17",
-    "@eslint/js": "^9.17.0",
-    "typescript-eslint": "^8.18.2",
-    "zod": "^3.24.1",
     "async": "3.2.2",
     "aws4": "^1.11.0",
     "chalk": "4.1.1",
@@ -52,7 +51,6 @@
     "git-url-parse": "^16.1.0",
     "glob": "^11.0.0",
     "is-ci": "^2.0.0",
-    "vitest": "^3.0.2",
     "js-yaml": "4.1.1",
     "mkdirp": "^1.0.4",
     "mustache": "3.0.1",
@@ -71,27 +69,31 @@
     "tar": "6.2.1",
     "tmp": "0.2.4",
     "typescript": "^5.7.2",
-    "yargs": "^18"
+    "typescript-eslint": "^8.18.2",
+    "vitest": "^3.0.2",
+    "yargs": "^18",
+    "zod": "^3.24.1"
   },
   "scripts": {
     "build:fat": "tsc -p tsconfig.build.json",
     "build:watch": "tsc -p tsconfig.build.json --watch",
-    "build": "esbuild src/index.ts --sourcemap --bundle --platform=node --target=node22 --inject:./src/utils/import-meta-url.js --define:import.meta.url=import_meta_url --outfile=dist/craft",
-    "precli": "yarn build",
+    "build": "node build.mjs",
+    "precli": "pnpm build",
     "cli": "node -r source-map-support/register dist/craft",
     "clean": "rimraf dist coverage",
     "lint": "eslint --cache --cache-strategy content",
-    "fix": "yarn lint --fix",
+    "fix": "pnpm lint --fix",
     "test": "vitest run",
     "test:watch": "vitest",
-    "docs:dev": "cd docs && yarn dev",
-    "docs:build": "cd docs && yarn build"
+    "docs:dev": "cd docs && pnpm dev",
+    "docs:build": "cd docs && pnpm build"
   },
   "volta": {
     "node": "22.12.0",
-    "yarn": "1.22.19"
+    "pnpm": "10.27.0"
   },
   "dependencies": {
-    "marked": "^17.0.1"
+    "marked": "^17.0.1",
+    "semver": "^7.7.3"
   }
 }

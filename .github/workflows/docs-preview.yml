@@ -21,14 +21,21 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Get pnpm version from Volta config
+        id: pnpm-version
+        run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ steps.pnpm-version.outputs.version }}
+
       - name: Build Docs for Preview
         working-directory: docs
         env:
           # Override base path for PR preview
           DOCS_BASE_PATH: /craft/pr-preview/pr-${{ github.event.pull_request.number }}
         run: |
-          yarn install --frozen-lockfile
-          yarn build
+          pnpm install --frozen-lockfile
+          pnpm build
 
       - name: Ensure .nojekyll at gh-pages root
         run: |
