@@ -12,6 +12,7 @@ if (process.env.SENTRY_AUTH_TOKEN) {
       project: 'craft',
       authToken: process.env.SENTRY_AUTH_TOKEN,
       sourcemaps: {
+        assets: ['dist/craft', 'dist/craft.map'],
         filesToDeleteAfterUpload: ['dist/**/*.map'],
       },
     })

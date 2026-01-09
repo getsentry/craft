@@ -1,0 +1,57 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`prepare --dry-run e2e > executes pre-release command and shows diff of changes > pre-release-diff 1`] = `
+"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Dry-run complete. Here's what would change:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Files changed: 1
+ M package.json
+
+diff --git a/package.json b/package.json
+index HASH..HASH 100644
+--- a/package.json
++++ b/package.json
+@@ -X,Y +X,Y @@
+ {
+   "name": "test-package",
+-  "version": "1.0.0"
++  "version": "1.0.1"
+ }
+\\ No newline at end of file
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[dry-run] No actual changes were made to your repository.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[info] Checking the local repository status...
+[info] Releasing version 1.0.1 from DEFAULT_BRANCH
+[info] Preparing to release the version: 1.0.1
+[info] [dry-run] Creating temporary worktree at /tmp/craft-XXXXX
+[info] Created a new release branch: "release/1.0.1"
+[info] Switched to branch "release/1.0.1"
+[info] Running the pre-release command...
+[info] Pushing the release branch "release/1.0.1"...
+[info] [dry-run] Would execute: git.push(origin release/1.0.1 ["--set-upstream"])
+[info] View diff at: https://github.com/test-owner/test-repo/compare/release/1.0.1
+[success] Done. Do not forget to run "craft publish" to publish the artifacts:   $ craft publish 1.0.1
+"
+`;
+
+exports[`prepare --dry-run e2e > produces consistent output format > dry-run-output 1`] = `
+"[info] Checking the local repository status...
+[info] Releasing version 1.0.1 from DEFAULT_BRANCH
+[info] Preparing to release the version: 1.0.1
+[info] [dry-run] Creating temporary worktree at /tmp/craft-XXXXX
+[info] Created a new release branch: "release/1.0.1"
+[info] Switched to branch "release/1.0.1"
+[warn] Not running the pre-release command: no command specified
+[info] 
+[dry-run] No changes would be made.
+[info] Pushing the release branch "release/1.0.1"...
+[info] [dry-run] Would execute: git.push(origin release/1.0.1 ["--set-upstream"])
+[info] View diff at: https://github.com/test-owner/test-repo/compare/release/1.0.1
+[success] Done. Do not forget to run "craft publish" to publish the artifacts:   $ craft publish 1.0.1
+"
+`;

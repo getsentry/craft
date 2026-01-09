@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as helpers from '../helpers';
 
 // Mock the helpers module to control isDryRun
@@ -28,12 +28,22 @@ import {
   safeExec,
   safeExecSync,
   logDryRun,
+  enableWorktreeMode,
+  disableWorktreeMode,
+  isInWorktreeMode,
 } from '../dryRun';
 import { logger } from '../../logger';
 
 describe('dryRun utilities', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Ensure worktree mode is disabled before each test
+    disableWorktreeMode();
+  });
+
+  afterEach(() => {
+    // Clean up worktree mode after each test
+    disableWorktreeMode();
   });
 
   describe('logDryRun', () => {
@@ -292,6 +302,18 @@ describe('dryRun utilities', () => {
         '[dry-run] Would execute: test action'
       );
     });
+
+    it('executes action in dry-run mode when worktree mode is enabled', async () => {
+      vi.mocked(helpers.isDryRun).mockReturnValue(true);
+      enableWorktreeMode();
+      const action = vi.fn().mockResolvedValue('result');
+
+      const result = await safeExec(action, 'test action');
+
+      expect(action).toHaveBeenCalled();
+      expect(result).toBe('result');
+      expect(logger.info).not.toHaveBeenCalled();
+    });
   });
 
   describe('safeExecSync', () => {
@@ -316,6 +338,103 @@ describe('dryRun utilities', () => {
       expect(logger.info).toHaveBeenCalledWith(
         '[dry-run] Would execute: test action'
       );
+    });
+
+    it('executes action in dry-run mode when worktree mode is enabled', () => {
+      vi.mocked(helpers.isDryRun).mockReturnValue(true);
+      enableWorktreeMode();
+      const action = vi.fn().mockReturnValue('result');
+
+      const result = safeExecSync(action, 'test action');
+
+      expect(action).toHaveBeenCalled();
+      expect(result).toBe('result');
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('worktree mode', () => {
+    it('starts disabled', () => {
+      expect(isInWorktreeMode()).toBe(false);
+    });
+
+    it('can be enabled and disabled', () => {
+      enableWorktreeMode();
+      expect(isInWorktreeMode()).toBe(true);
+
+      disableWorktreeMode();
+      expect(isInWorktreeMode()).toBe(false);
+    });
+
+    describe('git operations in worktree mode', () => {
+      const mockGit = {
+        push: vi.fn().mockResolvedValue(undefined),
+        commit: vi.fn().mockResolvedValue({ commit: 'abc123' }),
+        checkout: vi.fn().mockResolvedValue(undefined),
+        add: vi.fn().mockResolvedValue(undefined),
+        status: vi.fn().mockResolvedValue({ current: 'main' }),
+      };
+
+      it('allows local git operations in worktree mode', async () => {
+        vi.mocked(helpers.isDryRun).mockReturnValue(true);
+        enableWorktreeMode();
+
+        const git = createDryRunGit(mockGit as any);
+
+        // Local operations should be allowed
+        mockGit.commit.mockClear();
+        await git.commit('test');
+        expect(mockGit.commit).toHaveBeenCalledWith('test');
+
+        mockGit.checkout.mockClear();
+        await git.checkout('test-branch');
+        expect(mockGit.checkout).toHaveBeenCalledWith('test-branch');
+
+        mockGit.add.mockClear();
+        await git.add(['.']);
+        expect(mockGit.add).toHaveBeenCalledWith(['.']);
+      });
+
+      it('still blocks remote git operations in worktree mode', async () => {
+        vi.mocked(helpers.isDryRun).mockReturnValue(true);
+        enableWorktreeMode();
+
+        const git = createDryRunGit(mockGit as any);
+
+        // Push should still be blocked
+        mockGit.push.mockClear();
+        await git.push();
+        expect(mockGit.push).not.toHaveBeenCalled();
+        expect(logger.info).toHaveBeenCalledWith(
+          expect.stringContaining('[dry-run]')
+        );
+      });
+    });
+
+    describe('fs operations in worktree mode', () => {
+      it('allows file operations in worktree mode', async () => {
+        vi.mocked(helpers.isDryRun).mockReturnValue(true);
+        enableWorktreeMode();
+
+        // In worktree mode, safeFs should not block or log
+        vi.mocked(logger.info).mockClear();
+        await safeFs.writeFile('/tmp/test.txt', 'content');
+
+        // Should NOT have logged a dry-run message (operation is allowed)
+        expect(logger.info).not.toHaveBeenCalledWith(
+          expect.stringContaining('[dry-run] Would execute: fs.writeFile')
+        );
+      });
+
+      it('blocks file operations in strict dry-run mode', async () => {
+        vi.mocked(helpers.isDryRun).mockReturnValue(true);
+        disableWorktreeMode();
+
+        await safeFs.writeFile('/tmp/test.txt', 'content');
+        expect(logger.info).toHaveBeenCalledWith(
+          '[dry-run] Would execute: fs.writeFile(/tmp/test.txt)'
+        );
+      });
     });
   });
 });

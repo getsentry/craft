@@ -1,4 +1,4 @@
-name: 'Build / Test / Artifacts'
+name: 'Build & Test'
 on:
   push:
     branches:
@@ -42,8 +42,8 @@ jobs:
       - name: Test
         run: pnpm test
 
-  artifacts:
-    name: Artifacts Upload
+  build:
+    name: Build
     needs: test
     runs-on: ubuntu-latest
     permissions:
@@ -77,7 +77,7 @@ jobs:
         run: ./dist/craft --help
       - name: NPM Pack
         run: npm pack
-      - name: Archive Artifacts
+      - name: Upload Build Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.sha }}-build
@@ -111,7 +111,7 @@ jobs:
         run: |
           cp .nojekyll docs/dist/
           cd docs/dist && zip -r ../../gh-pages.zip .
-      - name: Archive Docs Artifacts
+      - name: Upload Docs Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.sha }}-docs
@@ -120,9 +120,9 @@ jobs:
   merge-artifacts:
     name: Merge Artifacts
     needs:
-      - artifacts
+      - build
       - docs
-    if: always() && needs.artifacts.result == 'success' && needs.docs.result == 'success'
+    if: always() && needs.build.result == 'success' && needs.docs.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
