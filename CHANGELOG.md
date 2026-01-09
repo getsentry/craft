@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.18.0
+
+### New Features ✨
+
+- (dry-run) Add worktree-based dry-run mode with real diff output by @BYK in [#692](https://github.com/getsentry/craft/pull/692)
+
+### Bug Fixes 🐛
+
+- (brew) Skip prereleases and add mustache templating for formula names by @BYK in [#682](https://github.com/getsentry/craft/pull/682)
+
+### Build / dependencies / internal 🔧
+
+- Add comprehensive Sentry integration with tracing and source maps by @BYK in [#697](https://github.com/getsentry/craft/pull/697)
+- Migrate from Yarn to pnpm 10.27.0 by @BYK in [#693](https://github.com/getsentry/craft/pull/693)
+
 ## 2.17.0
 
 ### New Features ✨
