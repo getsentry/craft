@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { load } from 'js-yaml';
 import { marked, type Token, type Tokens } from 'marked';
+import { captureException, withScope } from '@sentry/node';
 import { logger } from '../logger';
 
 import {
@@ -1943,12 +1944,45 @@ export async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
       }
     }`;
     logger.trace('Running graphql query:', graphqlQuery);
-    Object.assign(
-      commitInfo,
-      ((await getGitHubClient().graphql(graphqlQuery)) as CommitInfoResult)
-        .repository
-    );
-    logger.trace('Query result:', commitInfo);
+
+    try {
+      const response = await getGitHubClient().graphql(graphqlQuery);
+      const typedResponse = response as CommitInfoResult;
+
+      if (!typedResponse?.repository) {
+        throw new Error('GraphQL response missing "repository" property');
+      }
+
+      Object.assign(commitInfo, typedResponse.repository);
+      logger.trace('Query result:', commitInfo);
+    } catch (error: any) {
+      // Capture to Sentry with context for tracking GraphQL failures
+      withScope(scope => {
+        scope.setTag('error_type', 'graphql_changelog_failure');
+        scope.setTag('chunk_number', `${chunk + 1}`);
+        scope.setTag('total_chunks', `${chunkCount}`);
+        scope.setContext('graphql_chunk', {
+          chunkIndex: chunk + 1,
+          totalChunks: chunkCount,
+          commitsInChunk: subset.length,
+          totalHashes: hashes.length,
+          httpStatus: error.status || error.response?.status,
+          errorName: error.name,
+          query: graphqlQuery,
+        });
+        captureException(error);
+      });
+
+      logger.warn(
+        `Failed to fetch PR info for chunk ${chunk + 1}/${chunkCount} ` +
+          `(${subset.length} commits): ${error.message || error}. ` +
+          `Skipping this chunk and continuing with remaining commits.`
+      );
+
+      for (const hash of subset) {
+        commitInfo[`C${hash}`] = null;
+      }
+    }
   }
 
   return Object.fromEntries(
