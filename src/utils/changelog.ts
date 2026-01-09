@@ -1943,12 +1943,65 @@ export async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
       }
     }`;
     logger.trace('Running graphql query:', graphqlQuery);
-    Object.assign(
-      commitInfo,
-      ((await getGitHubClient().graphql(graphqlQuery)) as CommitInfoResult)
-        .repository
-    );
-    logger.trace('Query result:', commitInfo);
+    
+    // Retry logic for 5xx errors
+    const maxRetries = 3;
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await getGitHubClient().graphql(graphqlQuery);
+        
+        // Validate response structure before accessing .repository
+        if (!response || typeof response !== 'object') {
+          throw new Error('GraphQL response is not a valid object');
+        }
+        
+        const typedResponse = response as CommitInfoResult;
+        
+        // Check if repository property exists
+        if (!typedResponse.repository) {
+          throw new Error('GraphQL response missing "repository" property');
+        }
+        
+        Object.assign(commitInfo, typedResponse.repository);
+        logger.trace('Query result:', commitInfo);
+        
+        // Success - break out of retry loop
+        lastError = null;
+        break;
+      } catch (error: any) {
+        lastError = error;
+        
+        // Check if it's a 5xx error that we should retry
+        const statusCode = error.status || error.response?.status;
+        const is5xxError = statusCode >= 500 && statusCode < 600;
+        
+        if (is5xxError && attempt < maxRetries - 1) {
+          const backoffMs = Math.pow(2, attempt) * 1000; // Exponential backoff: 1s, 2s, 4s
+          logger.warn(
+            `GraphQL query failed with ${statusCode} (attempt ${attempt + 1}/${maxRetries}). ` +
+            `Retrying in ${backoffMs}ms...`
+          );
+          await new Promise(resolve => setTimeout(resolve, backoffMs));
+          continue;
+        }
+        
+        // Non-5xx error or max retries reached - log and continue with next chunk
+        logger.warn(
+          `Failed to fetch PR info for chunk ${chunk + 1}/${chunkCount} ` +
+          `(${subset.length} commits): ${error.message || error}. ` +
+          `Skipping this chunk and continuing with remaining commits.`
+        );
+        
+        // Initialize empty commit info for all hashes in this failed chunk
+        for (const hash of subset) {
+          commitInfo[`C${hash}`] = null;
+        }
+        
+        break; // Exit retry loop
+      }
+    }
   }
 
   return Object.fromEntries(
