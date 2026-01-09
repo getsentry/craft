@@ -1,4 +1,4 @@
-import { chmod, readFile, writeFile } from 'fs/promises';
+import { chmod, readFile, rename, unlink, writeFile } from 'fs/promises';
 import esbuild from 'esbuild';
 import { sentryEsbuildPlugin } from '@sentry/esbuild-plugin';
 
@@ -12,7 +12,7 @@ if (process.env.SENTRY_AUTH_TOKEN) {
       project: 'craft',
       authToken: process.env.SENTRY_AUTH_TOKEN,
       sourcemaps: {
-        assets: ['dist/craft', 'dist/craft.map'],
+        assets: ['dist/craft.js', 'dist/craft.js.map'],
         filesToDeleteAfterUpload: ['dist/**/*.map'],
       },
     })
@@ -21,6 +21,7 @@ if (process.env.SENTRY_AUTH_TOKEN) {
   console.log('[build] SENTRY_AUTH_TOKEN not found, skipping source map upload');
 }
 
+// Build to .js file first so Sentry plugin can properly handle source maps
 await esbuild.build({
   entryPoints: ['src/index.ts'],
   sourcemap: true,
@@ -35,14 +36,24 @@ await esbuild.build({
       'process.env.CRAFT_BUILD_SHA': JSON.stringify(process.env.CRAFT_BUILD_SHA),
     }),
   },
-  outfile: 'dist/craft',
+  outfile: 'dist/craft.js',
   plugins,
 });
 
-// Add shebang if not present and make executable
-const content = await readFile('dist/craft', 'utf-8');
+// Add shebang if not present
+const content = await readFile('dist/craft.js', 'utf-8');
 const hasShebang = content.startsWith('#!');
 if (!hasShebang) {
-  await writeFile('dist/craft', '#!/usr/bin/env node\n' + content);
+  await writeFile('dist/craft.js', '#!/usr/bin/env node\n' + content);
 }
+
+// Rename to final executable name and set permissions
+await rename('dist/craft.js', 'dist/craft');
 await chmod('dist/craft', 0o755);
+
+// Clean up source map if it wasn't deleted by Sentry plugin
+try {
+  await unlink('dist/craft.js.map');
+} catch {
+  // Source map already deleted by Sentry plugin or doesn't exist
+}
