@@ -1,3 +1,4 @@
+import { chmod } from 'fs/promises';
 import esbuild from 'esbuild';
 import { sentryEsbuildPlugin } from '@sentry/esbuild-plugin';
 
@@ -36,3 +37,6 @@ await esbuild.build({
   outfile: 'dist/craft',
   plugins,
 });
+
+// Make the output file executable
+await chmod('dist/craft', 0o755);
