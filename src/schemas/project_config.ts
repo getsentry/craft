@@ -83,6 +83,38 @@ export const BaseArtifactProviderSchema = z.object({
 export type BaseArtifactProvider = z.infer<typeof BaseArtifactProviderSchema>;
 
 /**
+ * Artifact pattern(s) for a single workflow - can be a single string or array of strings
+ */
+const ArtifactPatternsSchema = z.union([z.string(), z.array(z.string())]);
+
+/**
+ * Full artifacts config for GitHub artifact provider:
+ * - string: single artifact pattern (searches all workflows)
+ * - array: multiple artifact patterns (searches all workflows)
+ * - object: workflow-scoped patterns (keys = workflow name/pattern, values = artifact(s))
+ */
+export const GitHubArtifactsConfigSchema = z
+  .union([
+    z.string(), // single artifact pattern
+    z.array(z.string()), // array of artifact patterns
+    z.record(z.string(), ArtifactPatternsSchema), // workflow → artifact(s)
+  ])
+  .optional();
+
+export type GitHubArtifactsConfig = z.infer<typeof GitHubArtifactsConfigSchema>;
+
+/**
+ * GitHub-specific artifact provider configuration
+ */
+export const GitHubArtifactProviderConfigSchema = z.object({
+  artifacts: GitHubArtifactsConfigSchema,
+});
+
+export type GitHubArtifactProviderConfig = z.infer<
+  typeof GitHubArtifactProviderConfigSchema
+>;
+
+/**
  * Calendar versioning configuration
  */
 export const CalVerConfigSchema = z.object({

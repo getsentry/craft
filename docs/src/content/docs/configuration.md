@@ -390,6 +390,81 @@ artifactProvider:
   name: github  # or 'gcs' or 'none'
 ```
 
+### GitHub Artifact Provider Configuration
+
+By default, the GitHub artifact provider looks for artifacts named exactly as the commit SHA. You can customize this with the `artifacts` configuration option.
+
+#### Pattern Syntax
+
+- **Regex patterns**: Wrapped in `/` (e.g., `/^build-.*$/`)
+- **Exact strings**: Plain text (e.g., `build`, `release-artifacts`)
+
+#### Configuration Formats
+
+**1. Single artifact pattern** - searches all workflows:
+
+```yaml
+artifactProvider:
+  name: github
+  config:
+    artifacts: /^sentry-.*\.tgz$/
+```
+
+**2. Multiple artifact patterns** - searches all workflows:
+
+```yaml
+artifactProvider:
+  name: github
+  config:
+    artifacts:
+      - /^sentry-.*\.tgz$/
+      - release-bundle
+```
+
+**3. Workflow-scoped patterns** - filter by workflow name:
+
+```yaml
+artifactProvider:
+  name: github
+  config:
+    artifacts:
+      build: release-artifacts              # exact workflow → exact artifact
+      /^build-.*$/: artifacts               # workflow pattern → exact artifact
+      ci:                                   # exact workflow → multiple artifacts
+        - /^output-.*$/
+        - bundle
+      /^release-.*$/:                       # workflow pattern → multiple artifacts
+        - /^dist-.*$/
+        - checksums
+```
+
+#### Common Examples
+
+Fetch artifacts named `craft-binary` and `craft-docs` from the "Build & Test" workflow:
+
+```yaml
+artifactProvider:
+  name: github
+  config:
+    artifacts:
+      Build & Test:
+        - craft-binary
+        - craft-docs
+```
+
+Fetch all `.tgz` files from any workflow:
+
+```yaml
+artifactProvider:
+  name: github
+  config:
+    artifacts: /\.tgz$/
+```
+
+#### Backward Compatibility
+
+When `artifacts` is not configured, the provider uses the legacy behavior where it searches for an artifact with a name matching the commit SHA exactly. This ensures existing configurations continue to work without changes.
+
 ## Targets
 
 List release targets in your configuration:
