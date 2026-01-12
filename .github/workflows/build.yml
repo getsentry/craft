@@ -143,3 +143,4 @@ jobs:
             ${{ github.workspace }}/*.tgz
             ${{ github.workspace }}/dist/craft
             ${{ github.workspace }}/gh-pages.zip
+          if-no-files-found: ignore
