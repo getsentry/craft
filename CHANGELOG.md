@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.18.3
+
+### Bug Fixes 🐛
+
+- (changelog-preview) Replace deleted install sub-action with inline install by @BYK in [#706](https://github.com/getsentry/craft/pull/706)
+
 ## 2.18.2
 
 ### Bug Fixes 🐛
