@@ -56,13 +56,26 @@ When `minVersion: "2.19.0"` or higher is set and no custom `preReleaseCommand` i
 
 | Target | Detection | Version Bump Method |
 |--------|-----------|---------------------|
-| `npm` | `package.json` exists | `npm version --no-git-tag-version` |
+| `npm` | `package.json` exists | `npm version --no-git-tag-version` (with workspace support) |
 | `pypi` | `pyproject.toml` exists | hatch, poetry, setuptools-scm, or direct edit |
 | `crates` | `Cargo.toml` exists | `cargo set-version` (requires cargo-edit) |
 | `gem` | `*.gemspec` exists | Direct edit of gemspec and `lib/**/version.rb` |
 | `pub-dev` | `pubspec.yaml` exists | Direct edit of pubspec.yaml |
 | `hex` | `mix.exs` exists | Direct edit of mix.exs |
 | `nuget` | `*.csproj` exists | dotnet-setversion or direct XML edit |
+
+### npm Workspace Support
+
+For npm/yarn/pnpm monorepos, Craft automatically detects and bumps versions in all workspace packages:
+
+- **npm 7+**: Uses `npm version --workspaces` to bump all packages at once
+- **yarn/pnpm or npm < 7**: Falls back to bumping each non-private package individually
+
+Workspace detection checks for:
+- `workspaces` field in root `package.json` (npm/yarn)
+- `pnpm-workspace.yaml` (pnpm)
+
+Private packages (`"private": true`) are skipped during workspace version bumping.
 
 ### Python (pypi) Detection Priority
 

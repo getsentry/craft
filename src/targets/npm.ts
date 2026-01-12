@@ -1,5 +1,5 @@
 import { SpawnOptions, spawnSync } from 'child_process';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import prompts from 'prompts';
 
@@ -8,6 +8,7 @@ import { ConfigurationError, reportError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
 import { isDryRun } from '../utils/helpers';
 import { hasExecutable, spawnProcess } from '../utils/system';
+import { discoverWorkspaces } from '../utils/workspaces';
 import {
   isPreviewRelease,
   parseVersion,
@@ -246,6 +247,7 @@ export class NpmTarget extends BaseTarget {
 
   /**
    * Bump version in package.json using npm or yarn.
+   * Supports workspaces - bumps root and all workspace packages.
    *
    * @param rootDir - Project root directory
    * @param newVersion - New version string to set
@@ -276,19 +278,88 @@ export class NpmTarget extends BaseTarget {
       );
     }
 
-    // Run version bump command
+    // Check if this is a workspace project
+    const workspaces = await discoverWorkspaces(rootDir);
+    const isWorkspace = workspaces.type !== 'none' && workspaces.packages.length > 0;
+
+    // Build base args for version bump
     // --no-git-tag-version prevents npm from creating a git commit and tag
     // --allow-same-version allows setting the same version (useful for re-runs)
-    const args =
+    const baseArgs =
       bin === NPM_BIN
         ? ['version', newVersion, '--no-git-tag-version', '--allow-same-version']
         : ['version', newVersion, '--no-git-tag-version'];
 
-    logger.debug(`Running: ${bin} ${args.join(' ')}`);
+    // Bump root package.json first
+    logger.debug(`Running: ${bin} ${baseArgs.join(' ')}`);
+    await spawnProcess(bin, baseArgs, { cwd: rootDir });
 
-    await spawnProcess(bin, args, { cwd: rootDir });
+    // If this is a workspace project, also bump workspace packages
+    if (isWorkspace) {
+      if (bin === NPM_BIN) {
+        // npm 7+ supports --workspaces flag
+        const workspaceArgs = [...baseArgs, '--workspaces', '--include-workspace-root'];
+        logger.debug(`Running: ${bin} ${workspaceArgs.join(' ')} (for workspaces)`);
+        try {
+          await spawnProcess(bin, workspaceArgs, { cwd: rootDir });
+        } catch (error) {
+          // If --workspaces fails (npm < 7), fall back to individual package bumping
+          logger.debug('npm --workspaces failed, falling back to individual package bumping');
+          await NpmTarget.bumpWorkspacePackagesIndividually(
+            bin,
+            workspaces.packages,
+            newVersion,
+            baseArgs
+          );
+        }
+      } else {
+        // yarn doesn't have --workspaces for version command, bump individually
+        await NpmTarget.bumpWorkspacePackagesIndividually(
+          bin,
+          workspaces.packages,
+          newVersion,
+          baseArgs
+        );
+      }
+
+      logger.info(
+        `Bumped version in root and ${workspaces.packages.length} workspace packages`
+      );
+    }
 
     return true;
+  }
+
+  /**
+   * Bump version in each workspace package individually
+   */
+  private static async bumpWorkspacePackagesIndividually(
+    bin: string,
+    packages: { name: string; location: string }[],
+    newVersion: string,
+    baseArgs: string[]
+  ): Promise<void> {
+    for (const pkg of packages) {
+      // Check if package.json exists and is not private
+      const pkgJsonPath = join(pkg.location, 'package.json');
+      if (!existsSync(pkgJsonPath)) {
+        continue;
+      }
+
+      try {
+        const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
+        // Skip private packages - they don't need version bumping
+        if (pkgJson.private) {
+          logger.debug(`Skipping private package: ${pkg.name}`);
+          continue;
+        }
+      } catch {
+        continue;
+      }
+
+      logger.debug(`Bumping version for workspace package: ${pkg.name}`);
+      await spawnProcess(bin, baseArgs, { cwd: pkg.location });
+    }
   }
 
   public constructor(
