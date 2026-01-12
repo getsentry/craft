@@ -35,6 +35,12 @@ inputs:
     description: Use the craft config from the merge target branch
     required: false
     default: "false"
+  craft_version:
+    description: >
+      Version of Craft to install (tag or "latest"). 
+      Defaults to the action ref (e.g., "v2") if not specified.
+    required: false
+    default: ""
 
 outputs:
   version:
@@ -103,16 +109,26 @@ runs:
           sudo install -m 755 /tmp/craft-artifact/dist/craft /usr/local/bin/craft
         else
           # Download from release (for external repos or if artifact unavailable)
-          ACTION_REF="${{ github.action_ref }}"
-          CRAFT_URL="https://github.com/getsentry/craft/releases/download/${ACTION_REF}/craft"
+          # Use explicit craft_version input if provided, otherwise fall back to github.action_ref
+          CRAFT_VERSION="${{ inputs.craft_version }}"
+          if [[ -z "$CRAFT_VERSION" ]]; then
+            CRAFT_VERSION="${{ github.action_ref }}"
+          fi
 
-          echo "Downloading Craft from: ${CRAFT_URL}"
-
-          # Fallback to latest if ref doesn't have a release
-          if ! curl -sfI "$CRAFT_URL" >/dev/null 2>&1; then
-            echo "Release not found for ref '${ACTION_REF}', falling back to latest..."
+          if [[ "$CRAFT_VERSION" == "latest" || -z "$CRAFT_VERSION" ]]; then
+            echo "Downloading latest Craft release..."
             CRAFT_URL=$(curl -s "https://api.github.com/repos/getsentry/craft/releases/latest" \
               | jq -r '.assets[] | select(.name == "craft") | .browser_download_url')
+          else
+            CRAFT_URL="https://github.com/getsentry/craft/releases/download/${CRAFT_VERSION}/craft"
+            echo "Downloading Craft ${CRAFT_VERSION} from: ${CRAFT_URL}"
+
+            # Fallback to latest if specified version doesn't have a release
+            if ! curl -sfI "$CRAFT_URL" >/dev/null 2>&1; then
+              echo "Release not found for version '${CRAFT_VERSION}', falling back to latest..."
+              CRAFT_URL=$(curl -s "https://api.github.com/repos/getsentry/craft/releases/latest" \
+                | jq -r '.assets[] | select(.name == "craft") | .browser_download_url')
+            fi
           fi
 
           echo "Installing Craft from: ${CRAFT_URL}"
