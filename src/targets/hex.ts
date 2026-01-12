@@ -1,3 +1,6 @@
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
+
 import { createGitClient } from '../utils/git';
 
 import { BaseTarget } from './base';
@@ -6,6 +9,7 @@ import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { reportError } from '../utils/errors';
+import { logger } from '../logger';
 
 const DEFAULT_MIX_BIN = 'mix';
 
@@ -29,6 +33,61 @@ export class HexTarget extends BaseTarget {
   public readonly name: string = 'hex';
   /** GitHub repo configuration */
   public readonly githubRepo: GitHubGlobalConfig;
+
+  /**
+   * Bump version in mix.exs for Elixir projects.
+   *
+   * @param rootDir - Project root directory
+   * @param newVersion - New version string to set
+   * @returns true if version was bumped, false if no mix.exs exists
+   * @throws Error if file cannot be updated
+   */
+  public static async bumpVersion(
+    rootDir: string,
+    newVersion: string
+  ): Promise<boolean> {
+    const mixExsPath = join(rootDir, 'mix.exs');
+
+    // Check if mix.exs exists
+    if (!existsSync(mixExsPath)) {
+      return false;
+    }
+
+    const content = readFileSync(mixExsPath, 'utf-8');
+
+    // Match version in mix.exs: version: "1.0.0" or @version "1.0.0"
+    const versionPatterns = [
+      // version: "1.0.0" in project definition
+      /^(\s*version:\s*["'])([^"']+)(["'])/m,
+      // @version "1.0.0" module attribute
+      /^(\s*@version\s+["'])([^"']+)(["'])/m,
+    ];
+
+    let newContent = content;
+    let updated = false;
+
+    for (const pattern of versionPatterns) {
+      if (pattern.test(newContent)) {
+        newContent = newContent.replace(pattern, `$1${newVersion}$3`);
+        updated = true;
+      }
+    }
+
+    if (!updated) {
+      logger.debug('No version pattern found in mix.exs');
+      return false;
+    }
+
+    if (newContent === content) {
+      logger.debug('Version already set to target value');
+      return true;
+    }
+
+    logger.debug(`Updating version in ${mixExsPath} to ${newVersion}`);
+    writeFileSync(mixExsPath, newContent);
+
+    return true;
+  }
 
   public constructor(
     config: TargetConfig,

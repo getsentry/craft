@@ -41,6 +41,78 @@ export npm_config_git_tag_version=false
 npm version "${NEW_VERSION}"
 ```
 
+## Automatic Version Bumping
+
+When `minVersion: "2.19.0"` or higher is set and no custom `preReleaseCommand` is defined, Craft automatically bumps version numbers based on your configured publish targets. This eliminates the need for a `scripts/bump-version.sh` script in most cases.
+
+### How It Works
+
+1. Craft examines your configured `targets` in `.craft.yml`
+2. For each target that supports version bumping, Craft updates the appropriate project files
+3. Targets are processed in the order they appear in your configuration
+4. Each target type is only processed once (e.g., multiple npm targets won't bump `package.json` twice)
+
+### Supported Targets
+
+| Target | Detection | Version Bump Method |
+|--------|-----------|---------------------|
+| `npm` | `package.json` exists | `npm version --no-git-tag-version` |
+| `pypi` | `pyproject.toml` exists | hatch, poetry, setuptools-scm, or direct edit |
+| `crates` | `Cargo.toml` exists | `cargo set-version` (requires cargo-edit) |
+| `gem` | `*.gemspec` exists | Direct edit of gemspec and `lib/**/version.rb` |
+| `pub-dev` | `pubspec.yaml` exists | Direct edit of pubspec.yaml |
+| `hex` | `mix.exs` exists | Direct edit of mix.exs |
+| `nuget` | `*.csproj` exists | dotnet-setversion or direct XML edit |
+
+### Python (pypi) Detection Priority
+
+For Python projects, Craft detects the build tool and uses the appropriate method:
+
+1. **Hatch** - If `[tool.hatch]` section exists → `hatch version <version>`
+2. **Poetry** - If `[tool.poetry]` section exists → `poetry version <version>`
+3. **setuptools-scm** - If `[tool.setuptools_scm]` section exists → No-op (version derived from git tags)
+4. **Direct edit** - If `[project]` section with `version` field exists → Edit `pyproject.toml` directly
+
+### Enabling Automatic Version Bumping
+
+To enable automatic version bumping, ensure your `.craft.yml` has:
+
+```yaml
+minVersion: "2.19.0"
+targets:
+  - name: npm  # or pypi, crates, etc.
+  # ... other targets
+```
+
+And either:
+- Remove any custom `preReleaseCommand`, or
+- Don't define `preReleaseCommand` at all
+
+### Disabling Automatic Version Bumping
+
+To disable automatic version bumping while still using minVersion 2.19.0+:
+
+```yaml
+minVersion: "2.19.0"
+preReleaseCommand: ""  # Explicitly set to empty string
+```
+
+Or define a custom script:
+
+```yaml
+minVersion: "2.19.0"
+preReleaseCommand: bash scripts/my-custom-bump.sh
+```
+
+### Error Handling
+
+If automatic version bumping fails:
+- **Missing tool**: Craft reports which tool is missing (e.g., "Cannot find 'npm' for version bumping")
+- **Command failure**: Craft shows the error from the failed command
+- **No supported targets**: Craft warns that no targets support automatic bumping
+
+In all error cases, Craft suggests defining a custom `preReleaseCommand` as a fallback.
+
 ## Post-release Command
 
 This command runs after a successful `craft publish`. Default: `bash scripts/post-release.sh`.

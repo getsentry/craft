@@ -1,11 +1,19 @@
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
+import { join } from 'path';
+
 import { TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
-import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
+import {
+  checkExecutableIsPresent,
+  hasExecutable,
+  spawnProcess,
+} from '../utils/system';
 import { BaseTarget } from './base';
 import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../artifact_providers/base';
+import { logger } from '../logger';
 
 /** Command to launch dotnet tools */
 export const NUGET_DOTNET_BIN = process.env.NUGET_DOTNET_BIN || 'dotnet';
@@ -39,6 +47,121 @@ export class NugetTarget extends BaseTarget {
   public readonly name: string = 'nuget';
   /** Target options */
   public readonly nugetConfig: NugetTargetOptions;
+
+  /**
+   * Bump version in .NET project files (.csproj, Directory.Build.props).
+   *
+   * Tries dotnet-setversion first if available, otherwise edits XML directly.
+   *
+   * @param rootDir - Project root directory
+   * @param newVersion - New version string to set
+   * @returns true if version was bumped, false if no .NET project found
+   * @throws Error if version cannot be updated
+   */
+  public static async bumpVersion(
+    rootDir: string,
+    newVersion: string
+  ): Promise<boolean> {
+    // Check for .NET project files
+    const csprojFiles = readdirSync(rootDir).filter(f => f.endsWith('.csproj'));
+    const hasDotNet =
+      csprojFiles.length > 0 ||
+      existsSync(join(rootDir, 'Directory.Build.props'));
+
+    if (!hasDotNet) {
+      return false;
+    }
+
+    // Try dotnet-setversion if available
+    if (hasExecutable(NUGET_DOTNET_BIN)) {
+      try {
+        // dotnet-setversion is a dotnet tool that sets version in all project files
+        const result = await spawnProcess(
+          NUGET_DOTNET_BIN,
+          ['setversion', newVersion],
+          { cwd: rootDir },
+          { enableInDryRunMode: true }
+        );
+        if (result !== null) {
+          return true;
+        }
+      } catch (error) {
+        // dotnet-setversion not installed, fall through to manual edit
+        const message =
+          error instanceof Error ? error.message : String(error);
+        if (
+          !message.includes('not installed') &&
+          !message.includes('Could not execute')
+        ) {
+          throw error;
+        }
+        logger.debug('dotnet-setversion not available, falling back to manual edit');
+      }
+    }
+
+    // Fallback: Directly edit .csproj or Directory.Build.props
+    let bumped = false;
+
+    // Try Directory.Build.props first (centralized version management)
+    const buildPropsPath = join(rootDir, 'Directory.Build.props');
+    if (existsSync(buildPropsPath)) {
+      if (NugetTarget.updateVersionInXml(buildPropsPath, newVersion)) {
+        bumped = true;
+      }
+    }
+
+    // Update individual .csproj files if no centralized version management
+    if (!bumped) {
+      for (const csproj of csprojFiles) {
+        const csprojPath = join(rootDir, csproj);
+        if (NugetTarget.updateVersionInXml(csprojPath, newVersion)) {
+          bumped = true;
+        }
+      }
+    }
+
+    return bumped;
+  }
+
+  /**
+   * Update version in an XML project file (.csproj or Directory.Build.props)
+   */
+  private static updateVersionInXml(filePath: string, newVersion: string): boolean {
+    const content = readFileSync(filePath, 'utf-8');
+
+    // Match <Version>x.y.z</Version> or <PackageVersion>x.y.z</PackageVersion>
+    const versionPatterns = [
+      /(<Version>)([^<]+)(<\/Version>)/g,
+      /(<PackageVersion>)([^<]+)(<\/PackageVersion>)/g,
+      /(<AssemblyVersion>)([^<]+)(<\/AssemblyVersion>)/g,
+      /(<FileVersion>)([^<]+)(<\/FileVersion>)/g,
+    ];
+
+    let newContent = content;
+    let updated = false;
+
+    for (const pattern of versionPatterns) {
+      if (pattern.test(newContent)) {
+        // Reset lastIndex for global regex
+        pattern.lastIndex = 0;
+        newContent = newContent.replace(pattern, `$1${newVersion}$3`);
+        updated = true;
+      }
+    }
+
+    if (!updated) {
+      return false;
+    }
+
+    if (newContent === content) {
+      return true; // Already at target version
+    }
+
+    logger.debug(`Updating version in ${filePath} to ${newVersion}`);
+    writeFileSync(filePath, newContent);
+
+    return true;
+  }
 
   public constructor(
     config: TargetConfig,

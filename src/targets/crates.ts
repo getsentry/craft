@@ -7,9 +7,14 @@ import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { forEachChained, sleep, withRetry } from '../utils/async';
 import { ConfigurationError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
-import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
+import {
+  checkExecutableIsPresent,
+  hasExecutable,
+  spawnProcess,
+} from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
+import { logger } from '../logger';
 
 const DEFAULT_CARGO_BIN = 'cargo';
 
@@ -106,6 +111,60 @@ export class CratesTarget extends BaseTarget {
   public readonly cratesConfig: CratesTargetOptions;
   /** GitHub repo configuration */
   public readonly githubRepo: GitHubGlobalConfig;
+
+  /**
+   * Bump version in Cargo.toml using cargo set-version (from cargo-edit).
+   *
+   * @param rootDir - Project root directory
+   * @param newVersion - New version string to set
+   * @returns true if version was bumped, false if no Cargo.toml exists
+   * @throws Error if cargo is not found or command fails
+   */
+  public static async bumpVersion(
+    rootDir: string,
+    newVersion: string
+  ): Promise<boolean> {
+    const cargoTomlPath = path.join(rootDir, 'Cargo.toml');
+
+    // Check if Cargo.toml exists
+    if (!fs.existsSync(cargoTomlPath)) {
+      return false;
+    }
+
+    if (!hasExecutable(CARGO_BIN)) {
+      throw new Error(
+        `Cannot find "${CARGO_BIN}" for version bumping. ` +
+          'Install cargo or define a custom preReleaseCommand in .craft.yml'
+      );
+    }
+
+    // Use cargo set-version from cargo-edit to bump version
+    // This handles workspaces properly by bumping all crates
+    const args = ['set-version', newVersion];
+
+    logger.debug(`Running: ${CARGO_BIN} ${args.join(' ')}`);
+
+    try {
+      await spawnProcess(CARGO_BIN, args, { cwd: rootDir });
+    } catch (error) {
+      // If cargo set-version is not available, provide helpful error
+      const message =
+        error instanceof Error ? error.message : String(error);
+      if (
+        message.includes('no such command') ||
+        message.includes('no such subcommand')
+      ) {
+        throw new Error(
+          'cargo set-version command not found. ' +
+            'Install cargo-edit with: cargo install cargo-edit\n' +
+            'Or define a custom preReleaseCommand in .craft.yml'
+        );
+      }
+      throw error;
+    }
+
+    return true;
+  }
 
   public constructor(
     config: TargetConfig,

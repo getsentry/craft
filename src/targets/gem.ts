@@ -1,3 +1,6 @@
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
+import { join } from 'path';
+
 import {
   BaseArtifactProvider,
   RemoteArtifact,
@@ -6,6 +9,7 @@ import { reportError } from '../utils/errors';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 import { TargetConfig } from '../schemas/project_config';
+import { logger } from '../logger';
 
 const DEFAULT_GEM_BIN = 'gem';
 
@@ -25,6 +29,95 @@ const DEFAULT_GEM_REGEX = /^.*(\.gem)$/;
 export class GemTarget extends BaseTarget {
   /** Target name */
   public readonly name: string = 'gem';
+
+  /**
+   * Bump version in Ruby gem project files.
+   *
+   * Looks for version patterns in:
+   * 1. *.gemspec files (s.version = "x.y.z")
+   * 2. lib/**/version.rb files (VERSION = "x.y.z")
+   *
+   * @param rootDir - Project root directory
+   * @param newVersion - New version string to set
+   * @returns true if version was bumped, false if no gem project found
+   * @throws Error if version file cannot be updated
+   */
+  public static async bumpVersion(
+    rootDir: string,
+    newVersion: string
+  ): Promise<boolean> {
+    // Look for gemspec files
+    const gemspecFiles = readdirSync(rootDir).filter(f => f.endsWith('.gemspec'));
+
+    if (gemspecFiles.length === 0) {
+      return false;
+    }
+
+    let bumped = false;
+
+    // Try to update version in gemspec
+    for (const gemspecFile of gemspecFiles) {
+      const gemspecPath = join(rootDir, gemspecFile);
+      const content = readFileSync(gemspecPath, 'utf-8');
+
+      // Match: s.version = "1.0.0" or spec.version = '1.0.0'
+      const versionRegex = /^(\s*\w+\.version\s*=\s*["'])([^"']+)(["'])/m;
+
+      if (versionRegex.test(content)) {
+        const newContent = content.replace(versionRegex, `$1${newVersion}$3`);
+        if (newContent !== content) {
+          logger.debug(`Updating version in ${gemspecPath} to ${newVersion}`);
+          writeFileSync(gemspecPath, newContent);
+          bumped = true;
+        }
+      }
+    }
+
+    // Also try to update lib/**/version.rb if it exists
+    const libDir = join(rootDir, 'lib');
+    if (existsSync(libDir)) {
+      bumped = GemTarget.updateVersionRbFiles(libDir, newVersion) || bumped;
+    }
+
+    return bumped;
+  }
+
+  /**
+   * Recursively find and update version.rb files
+   */
+  private static updateVersionRbFiles(dir: string, newVersion: string): boolean {
+    let updated = false;
+
+    try {
+      const entries = readdirSync(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const fullPath = join(dir, entry.name);
+
+        if (entry.isDirectory()) {
+          updated = GemTarget.updateVersionRbFiles(fullPath, newVersion) || updated;
+        } else if (entry.name === 'version.rb') {
+          const content = readFileSync(fullPath, 'utf-8');
+
+          // Match: VERSION = "1.0.0" or VERSION = '1.0.0'
+          const versionRegex = /^(\s*VERSION\s*=\s*["'])([^"']+)(["'])/m;
+
+          if (versionRegex.test(content)) {
+            const newContent = content.replace(versionRegex, `$1${newVersion}$3`);
+            if (newContent !== content) {
+              logger.debug(`Updating VERSION in ${fullPath} to ${newVersion}`);
+              writeFileSync(fullPath, newContent);
+              updated = true;
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignore errors reading directories
+    }
+
+    return updated;
+  }
 
   public constructor(
     config: TargetConfig,

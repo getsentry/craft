@@ -1,11 +1,19 @@
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
+
 import { TargetConfig } from '../schemas/project_config';
 import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../artifact_providers/base';
 import { ConfigurationError, reportError } from '../utils/errors';
-import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
+import {
+  checkExecutableIsPresent,
+  hasExecutable,
+  spawnProcess,
+} from '../utils/system';
 import { BaseTarget } from './base';
+import { logger } from '../logger';
 
 const DEFAULT_TWINE_BIN = 'twine';
 
@@ -35,6 +43,137 @@ export class PypiTarget extends BaseTarget {
   public readonly name: string = 'pypi';
   /** Target options */
   public readonly pypiConfig: PypiTargetOptions;
+
+  /**
+   * Bump version in Python project files.
+   *
+   * Detection priority:
+   * 1. [tool.hatch] in pyproject.toml → hatch version <version>
+   * 2. [tool.poetry] in pyproject.toml → poetry version <version>
+   * 3. [tool.setuptools_scm] in pyproject.toml → no-op (version from git tags)
+   * 4. [project] with version field → direct TOML edit
+   *
+   * @param rootDir - Project root directory
+   * @param newVersion - New version string to set
+   * @returns true if version was bumped, false if no pyproject.toml exists
+   * @throws Error if tool is not found or command fails
+   */
+  public static async bumpVersion(
+    rootDir: string,
+    newVersion: string
+  ): Promise<boolean> {
+    const pyprojectPath = join(rootDir, 'pyproject.toml');
+
+    // Check if pyproject.toml exists
+    if (!existsSync(pyprojectPath)) {
+      return false;
+    }
+
+    // Read and parse pyproject.toml (simple parsing, not full TOML)
+    const content = readFileSync(pyprojectPath, 'utf-8');
+
+    // Check for tool configurations in priority order
+    if (content.includes('[tool.hatch]')) {
+      return PypiTarget.bumpWithHatch(rootDir, newVersion);
+    }
+
+    if (content.includes('[tool.poetry]')) {
+      return PypiTarget.bumpWithPoetry(rootDir, newVersion);
+    }
+
+    if (content.includes('[tool.setuptools_scm]')) {
+      // setuptools_scm derives version from git tags, no bump needed
+      logger.debug(
+        'Project uses setuptools_scm - version is derived from git tags, skipping bump'
+      );
+      return true;
+    }
+
+    // Check for standard [project] section with version field
+    if (content.includes('[project]')) {
+      return PypiTarget.bumpDirectToml(pyprojectPath, content, newVersion);
+    }
+
+    // No recognized Python project structure
+    return false;
+  }
+
+  /**
+   * Bump version using hatch
+   */
+  private static async bumpWithHatch(
+    rootDir: string,
+    newVersion: string
+  ): Promise<boolean> {
+    const HATCH_BIN = process.env.HATCH_BIN || 'hatch';
+
+    if (!hasExecutable(HATCH_BIN)) {
+      throw new Error(
+        `Cannot find "${HATCH_BIN}" for version bumping. ` +
+          'Install hatch or define a custom preReleaseCommand in .craft.yml'
+      );
+    }
+
+    logger.debug(`Running: ${HATCH_BIN} version ${newVersion}`);
+    await spawnProcess(HATCH_BIN, ['version', newVersion], { cwd: rootDir });
+
+    return true;
+  }
+
+  /**
+   * Bump version using poetry
+   */
+  private static async bumpWithPoetry(
+    rootDir: string,
+    newVersion: string
+  ): Promise<boolean> {
+    const POETRY_BIN = process.env.POETRY_BIN || 'poetry';
+
+    if (!hasExecutable(POETRY_BIN)) {
+      throw new Error(
+        `Cannot find "${POETRY_BIN}" for version bumping. ` +
+          'Install poetry or define a custom preReleaseCommand in .craft.yml'
+      );
+    }
+
+    logger.debug(`Running: ${POETRY_BIN} version ${newVersion}`);
+    await spawnProcess(POETRY_BIN, ['version', newVersion], { cwd: rootDir });
+
+    return true;
+  }
+
+  /**
+   * Bump version by directly editing pyproject.toml
+   * This handles standard PEP 621 [project] section with version field
+   */
+  private static bumpDirectToml(
+    pyprojectPath: string,
+    content: string,
+    newVersion: string
+  ): boolean {
+    // Match version in [project] section
+    // This regex handles: version = "1.0.0" or version = '1.0.0'
+    const versionRegex = /^(\s*version\s*=\s*["'])([^"']+)(["'])/m;
+
+    if (!versionRegex.test(content)) {
+      logger.debug(
+        'pyproject.toml has [project] section but no version field found'
+      );
+      return false;
+    }
+
+    const newContent = content.replace(versionRegex, `$1${newVersion}$3`);
+
+    if (newContent === content) {
+      logger.debug('Version already set to target value');
+      return true;
+    }
+
+    logger.debug(`Updating version in ${pyprojectPath} to ${newVersion}`);
+    writeFileSync(pyprojectPath, newContent);
+
+    return true;
+  }
 
   public constructor(
     config: TargetConfig,

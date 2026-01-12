@@ -1,4 +1,4 @@
-import { constants, promises as fsPromises } from 'fs';
+import { constants, existsSync, promises as fsPromises, readFileSync, writeFileSync } from 'fs';
 import { homedir, platform } from 'os';
 import { join, dirname } from 'path';
 import { load, dump } from 'js-yaml';
@@ -12,6 +12,7 @@ import { withTempDir } from '../utils/files';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { isDryRun } from '../utils/helpers';
 import { logDryRun } from '../utils/dryRun';
+import { logger } from '../logger';
 
 export const targetSecrets = [
   'PUBDEV_ACCESS_TOKEN',
@@ -51,6 +52,43 @@ export class PubDevTarget extends BaseTarget {
   public readonly pubDevConfig: PubDevTargetConfig;
   /** GitHub repo configuration */
   public readonly githubRepo: GitHubGlobalConfig;
+
+  /**
+   * Bump version in pubspec.yaml for Dart/Flutter projects.
+   *
+   * @param rootDir - Project root directory
+   * @param newVersion - New version string to set
+   * @returns true if version was bumped, false if no pubspec.yaml exists
+   * @throws Error if file cannot be updated
+   */
+  public static async bumpVersion(
+    rootDir: string,
+    newVersion: string
+  ): Promise<boolean> {
+    const pubspecPath = join(rootDir, 'pubspec.yaml');
+
+    // Check if pubspec.yaml exists
+    if (!existsSync(pubspecPath)) {
+      return false;
+    }
+
+    const content = readFileSync(pubspecPath, 'utf-8');
+
+    // Parse YAML, update version, and write back
+    const pubspec = load(content) as Record<string, any>;
+
+    if (!pubspec || typeof pubspec !== 'object') {
+      logger.debug('pubspec.yaml is not a valid YAML object');
+      return false;
+    }
+
+    pubspec.version = newVersion;
+
+    logger.debug(`Updating version in ${pubspecPath} to ${newVersion}`);
+    writeFileSync(pubspecPath, dump(pubspec));
+
+    return true;
+  }
 
   public constructor(
     config: TargetConfig,

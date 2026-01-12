@@ -1,4 +1,6 @@
 import { SpawnOptions, spawnSync } from 'child_process';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import prompts from 'prompts';
 
 import { TargetConfig } from '../schemas/project_config';
@@ -240,6 +242,53 @@ export class NpmTarget extends BaseTarget {
 
       return expandedTarget;
     });
+  }
+
+  /**
+   * Bump version in package.json using npm or yarn.
+   *
+   * @param rootDir - Project root directory
+   * @param newVersion - New version string to set
+   * @returns true if version was bumped, false if no package.json exists
+   * @throws Error if npm/yarn is not found or command fails
+   */
+  public static async bumpVersion(
+    rootDir: string,
+    newVersion: string
+  ): Promise<boolean> {
+    const packageJsonPath = join(rootDir, 'package.json');
+
+    // Check if package.json exists
+    if (!existsSync(packageJsonPath)) {
+      return false;
+    }
+
+    // Determine which package manager to use
+    let bin: string;
+    if (hasExecutable(NPM_BIN)) {
+      bin = NPM_BIN;
+    } else if (hasExecutable(YARN_BIN)) {
+      bin = YARN_BIN;
+    } else {
+      throw new Error(
+        'Cannot find "npm" or "yarn" for version bumping. ' +
+          'Install npm/yarn or define a custom preReleaseCommand in .craft.yml'
+      );
+    }
+
+    // Run version bump command
+    // --no-git-tag-version prevents npm from creating a git commit and tag
+    // --allow-same-version allows setting the same version (useful for re-runs)
+    const args =
+      bin === NPM_BIN
+        ? ['version', newVersion, '--no-git-tag-version', '--allow-same-version']
+        : ['version', newVersion, '--no-git-tag-version'];
+
+    logger.debug(`Running: ${bin} ${args.join(' ')}`);
+
+    await spawnProcess(bin, args, { cwd: rootDir });
+
+    return true;
   }
 
   public constructor(
