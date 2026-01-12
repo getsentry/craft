@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.18.2
+
+### Bug Fixes 🐛
+
+#### Action
+
+- Simplify install by using build artifact with release fallback by @BYK in [#705](https://github.com/getsentry/craft/pull/705)
+- Resolve install sub-action path for external repos by @BYK in [#704](https://github.com/getsentry/craft/pull/704)
+
 ## 2.18.1
 
 ### Bug Fixes 🐛
