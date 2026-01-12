@@ -259,13 +259,10 @@ export class NpmTarget extends BaseTarget {
     newVersion: string
   ): Promise<boolean> {
     const packageJsonPath = join(rootDir, 'package.json');
-
-    // Check if package.json exists
     if (!existsSync(packageJsonPath)) {
       return false;
     }
 
-    // Determine which package manager to use
     let bin: string;
     if (hasExecutable(NPM_BIN)) {
       bin = NPM_BIN;
@@ -278,11 +275,9 @@ export class NpmTarget extends BaseTarget {
       );
     }
 
-    // Check if this is a workspace project
     const workspaces = await discoverWorkspaces(rootDir);
     const isWorkspace = workspaces.type !== 'none' && workspaces.packages.length > 0;
 
-    // Build base args for version bump
     // --no-git-tag-version prevents npm from creating a git commit and tag
     // --allow-same-version allows setting the same version (useful for re-runs)
     const baseArgs =
@@ -290,11 +285,9 @@ export class NpmTarget extends BaseTarget {
         ? ['version', newVersion, '--no-git-tag-version', '--allow-same-version']
         : ['version', newVersion, '--no-git-tag-version'];
 
-    // Bump root package.json first
     logger.debug(`Running: ${bin} ${baseArgs.join(' ')}`);
     await spawnProcess(bin, baseArgs, { cwd: rootDir });
 
-    // If this is a workspace project, also bump workspace packages
     if (isWorkspace) {
       if (bin === NPM_BIN) {
         // npm 7+ supports --workspaces flag
@@ -340,20 +333,20 @@ export class NpmTarget extends BaseTarget {
     baseArgs: string[]
   ): Promise<void> {
     for (const pkg of packages) {
-      // Check if package.json exists and is not private
       const pkgJsonPath = join(pkg.location, 'package.json');
       if (!existsSync(pkgJsonPath)) {
         continue;
       }
 
+      let pkgJson: { private?: boolean };
       try {
-        const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
-        // Skip private packages - they don't need version bumping
-        if (pkgJson.private) {
-          logger.debug(`Skipping private package: ${pkg.name}`);
-          continue;
-        }
+        pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
       } catch {
+        continue;
+      }
+
+      if (pkgJson.private) {
+        logger.debug(`Skipping private package: ${pkg.name}`);
         continue;
       }
 

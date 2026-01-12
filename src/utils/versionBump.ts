@@ -46,8 +46,7 @@ export async function runAutomaticVersionBumps(
   rootDir: string,
   newVersion: string
 ): Promise<boolean> {
-  // Track which target types we've already processed to avoid duplicates
-  // (e.g., multiple npm targets should only bump package.json once)
+  // Deduplicate: multiple npm targets should only bump package.json once
   const processedTargetTypes = new Set<string>();
   let anyBumped = false;
 
@@ -86,12 +85,9 @@ export async function runAutomaticVersionBumps(
         );
       }
     } catch (error) {
-      // Re-throw with additional context
-      const message =
-        error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
       throw new Error(
-        `Automatic version bump failed for "${targetName}" target: ${message}\n` +
-          `You may need to define a custom preReleaseCommand in .craft.yml`
+        `Automatic version bump failed for "${targetName}" target: ${message}`
       );
     }
   }

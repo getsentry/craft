@@ -125,8 +125,6 @@ export class CratesTarget extends BaseTarget {
     newVersion: string
   ): Promise<boolean> {
     const cargoTomlPath = path.join(rootDir, 'Cargo.toml');
-
-    // Check if Cargo.toml exists
     if (!fs.existsSync(cargoTomlPath)) {
       return false;
     }
@@ -138,26 +136,16 @@ export class CratesTarget extends BaseTarget {
       );
     }
 
-    // Use cargo set-version from cargo-edit to bump version
-    // This handles workspaces properly by bumping all crates
     const args = ['set-version', newVersion];
-
     logger.debug(`Running: ${CARGO_BIN} ${args.join(' ')}`);
 
     try {
       await spawnProcess(CARGO_BIN, args, { cwd: rootDir });
     } catch (error) {
-      // If cargo set-version is not available, provide helpful error
-      const message =
-        error instanceof Error ? error.message : String(error);
-      if (
-        message.includes('no such command') ||
-        message.includes('no such subcommand')
-      ) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('no such command') || message.includes('no such subcommand')) {
         throw new Error(
-          'cargo set-version command not found. ' +
-            'Install cargo-edit with: cargo install cargo-edit\n' +
-            'Or define a custom preReleaseCommand in .craft.yml'
+          'cargo set-version not found. Install cargo-edit: cargo install cargo-edit'
         );
       }
       throw error;

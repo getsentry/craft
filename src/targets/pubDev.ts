@@ -66,15 +66,11 @@ export class PubDevTarget extends BaseTarget {
     newVersion: string
   ): Promise<boolean> {
     const pubspecPath = join(rootDir, 'pubspec.yaml');
-
-    // Check if pubspec.yaml exists
     if (!existsSync(pubspecPath)) {
       return false;
     }
 
     const content = readFileSync(pubspecPath, 'utf-8');
-
-    // Parse YAML, update version, and write back
     const pubspec = load(content) as Record<string, any>;
 
     if (!pubspec || typeof pubspec !== 'object') {

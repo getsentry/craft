@@ -274,66 +274,44 @@ async function commitNewVersion(
   await git.commit(message, ['--all']);
 }
 
-/** Options for running pre-release commands */
 interface PreReleaseOptions {
-  /** Previous version (from git tag) */
   oldVersion: string;
-  /** New version to release */
   newVersion: string;
-  /** Custom pre-release command from config */
   preReleaseCommand?: string;
-  /** Target configurations from .craft.yml */
   targets?: TargetConfig[];
-  /** Project root directory */
   rootDir: string;
 }
 
 /**
- * Run an external pre-release command or automatic version bumping.
+ * Run pre-release command or automatic version bumping.
  *
- * The command/bumping executes operations for version bumping and might
- * include dependency updates.
- *
- * Behavior:
- * - If preReleaseCommand is explicitly set to empty string: do nothing
- * - If preReleaseCommand is defined: run the custom command
- * - If minVersion >= 2.19.0 and targets are defined: use automatic version bumping
- * - Otherwise: run default scripts/bump-version.sh
- *
- * @param options Pre-release options
+ * Priority: custom command > automatic bumping (minVersion >= 2.19.0) > default script
  */
 export async function runPreReleaseCommand(
   options: PreReleaseOptions
 ): Promise<boolean> {
   const { oldVersion, newVersion, preReleaseCommand, targets, rootDir } = options;
 
-  // If preReleaseCommand is explicitly set to empty string, skip version bumping
   if (preReleaseCommand !== undefined && preReleaseCommand.length === 0) {
     logger.warn('Not running the pre-release command: no command specified');
     return false;
   }
 
-  // If a custom preReleaseCommand is defined, use it
   if (preReleaseCommand) {
     return runCustomPreReleaseCommand(oldVersion, newVersion, preReleaseCommand);
   }
 
-  // If minVersion >= 2.19.0 and targets are configured, use automatic version bumping
   if (requiresMinVersion(AUTO_BUMP_MIN_VERSION) && targets && targets.length > 0) {
     logger.info('Running automatic version bumping from targets...');
     const anyBumped = await runAutomaticVersionBumps(targets, rootDir, newVersion);
 
     if (!anyBumped) {
-      logger.warn(
-        'No targets support automatic version bumping. ' +
-          'Consider adding a scripts/bump-version.sh script or defining preReleaseCommand in .craft.yml'
-      );
+      logger.warn('No targets support automatic version bumping');
     }
 
     return anyBumped;
   }
 
-  // Fall back to default bump-version.sh script
   return runCustomPreReleaseCommand(oldVersion, newVersion, undefined);
 }
 

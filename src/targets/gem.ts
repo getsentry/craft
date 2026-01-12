@@ -46,16 +46,13 @@ export class GemTarget extends BaseTarget {
     rootDir: string,
     newVersion: string
   ): Promise<boolean> {
-    // Look for gemspec files
     const gemspecFiles = readdirSync(rootDir).filter(f => f.endsWith('.gemspec'));
-
     if (gemspecFiles.length === 0) {
       return false;
     }
 
     let bumped = false;
 
-    // Try to update version in gemspec
     for (const gemspecFile of gemspecFiles) {
       const gemspecPath = join(rootDir, gemspecFile);
       const content = readFileSync(gemspecPath, 'utf-8');
@@ -73,7 +70,6 @@ export class GemTarget extends BaseTarget {
       }
     }
 
-    // Also try to update lib/**/version.rb if it exists
     const libDir = join(rootDir, 'lib');
     if (existsSync(libDir)) {
       bumped = GemTarget.updateVersionRbFiles(libDir, newVersion) || bumped;
@@ -87,33 +83,32 @@ export class GemTarget extends BaseTarget {
    */
   private static updateVersionRbFiles(dir: string, newVersion: string): boolean {
     let updated = false;
+    let entries;
 
     try {
-      const entries = readdirSync(dir, { withFileTypes: true });
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return false;
+    }
 
-      for (const entry of entries) {
-        const fullPath = join(dir, entry.name);
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name);
 
-        if (entry.isDirectory()) {
-          updated = GemTarget.updateVersionRbFiles(fullPath, newVersion) || updated;
-        } else if (entry.name === 'version.rb') {
-          const content = readFileSync(fullPath, 'utf-8');
+      if (entry.isDirectory()) {
+        updated = GemTarget.updateVersionRbFiles(fullPath, newVersion) || updated;
+      } else if (entry.name === 'version.rb') {
+        const content = readFileSync(fullPath, 'utf-8');
+        const versionRegex = /^(\s*VERSION\s*=\s*["'])([^"']+)(["'])/m;
 
-          // Match: VERSION = "1.0.0" or VERSION = '1.0.0'
-          const versionRegex = /^(\s*VERSION\s*=\s*["'])([^"']+)(["'])/m;
-
-          if (versionRegex.test(content)) {
-            const newContent = content.replace(versionRegex, `$1${newVersion}$3`);
-            if (newContent !== content) {
-              logger.debug(`Updating VERSION in ${fullPath} to ${newVersion}`);
-              writeFileSync(fullPath, newContent);
-              updated = true;
-            }
+        if (versionRegex.test(content)) {
+          const newContent = content.replace(versionRegex, `$1${newVersion}$3`);
+          if (newContent !== content) {
+            logger.debug(`Updating VERSION in ${fullPath} to ${newVersion}`);
+            writeFileSync(fullPath, newContent);
+            updated = true;
           }
         }
       }
-    } catch {
-      // Ignore errors reading directories
     }
 
     return updated;

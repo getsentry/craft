@@ -47,19 +47,13 @@ export class HexTarget extends BaseTarget {
     newVersion: string
   ): Promise<boolean> {
     const mixExsPath = join(rootDir, 'mix.exs');
-
-    // Check if mix.exs exists
     if (!existsSync(mixExsPath)) {
       return false;
     }
 
     const content = readFileSync(mixExsPath, 'utf-8');
-
-    // Match version in mix.exs: version: "1.0.0" or @version "1.0.0"
     const versionPatterns = [
-      // version: "1.0.0" in project definition
       /^(\s*version:\s*["'])([^"']+)(["'])/m,
-      // @version "1.0.0" module attribute
       /^(\s*@version\s+["'])([^"']+)(["'])/m,
     ];
 

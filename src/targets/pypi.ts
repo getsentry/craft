@@ -63,16 +63,12 @@ export class PypiTarget extends BaseTarget {
     newVersion: string
   ): Promise<boolean> {
     const pyprojectPath = join(rootDir, 'pyproject.toml');
-
-    // Check if pyproject.toml exists
     if (!existsSync(pyprojectPath)) {
       return false;
     }
 
-    // Read and parse pyproject.toml (simple parsing, not full TOML)
     const content = readFileSync(pyprojectPath, 'utf-8');
 
-    // Check for tool configurations in priority order
     if (content.includes('[tool.hatch]')) {
       return PypiTarget.bumpWithHatch(rootDir, newVersion);
     }
@@ -83,13 +79,10 @@ export class PypiTarget extends BaseTarget {
 
     if (content.includes('[tool.setuptools_scm]')) {
       // setuptools_scm derives version from git tags, no bump needed
-      logger.debug(
-        'Project uses setuptools_scm - version is derived from git tags, skipping bump'
-      );
+      logger.debug('setuptools_scm project - version derived from git tags');
       return true;
     }
 
-    // Check for standard [project] section with version field
     if (content.includes('[project]')) {
       return PypiTarget.bumpDirectToml(pyprojectPath, content, newVersion);
     }

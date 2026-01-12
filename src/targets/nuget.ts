@@ -72,10 +72,8 @@ export class NugetTarget extends BaseTarget {
       return false;
     }
 
-    // Try dotnet-setversion if available
     if (hasExecutable(NUGET_DOTNET_BIN)) {
       try {
-        // dotnet-setversion is a dotnet tool that sets version in all project files
         const result = await spawnProcess(
           NUGET_DOTNET_BIN,
           ['setversion', newVersion],
@@ -86,20 +84,14 @@ export class NugetTarget extends BaseTarget {
           return true;
         }
       } catch (error) {
-        // dotnet-setversion not installed, fall through to manual edit
-        const message =
-          error instanceof Error ? error.message : String(error);
-        if (
-          !message.includes('not installed') &&
-          !message.includes('Could not execute')
-        ) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!message.includes('not installed') && !message.includes('Could not execute')) {
           throw error;
         }
         logger.debug('dotnet-setversion not available, falling back to manual edit');
       }
     }
 
-    // Fallback: Directly edit .csproj or Directory.Build.props
     let bumped = false;
 
     // Try Directory.Build.props first (centralized version management)
@@ -110,7 +102,6 @@ export class NugetTarget extends BaseTarget {
       }
     }
 
-    // Update individual .csproj files if no centralized version management
     if (!bumped) {
       for (const csproj of csprojFiles) {
         const csprojPath = join(rootDir, csproj);
