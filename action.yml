@@ -83,8 +83,16 @@ runs:
         echo "GIT_AUTHOR_NAME=${GIT_USER_NAME}" >> $GITHUB_ENV
         echo "EMAIL=${GIT_USER_EMAIL}" >> $GITHUB_ENV
 
-    - name: Install Craft
+    # For dogfooding (Craft releasing itself) - local path works because
+    # the checkout is in the Craft repo, so ./install resolves correctly
+    - name: Install Craft (local)
+      if: github.repository == 'getsentry/craft'
       uses: ./install
+
+    # For external repos - use fully-qualified reference with action ref
+    - name: Install Craft
+      if: github.repository != 'getsentry/craft'
+      uses: getsentry/craft/install@${{ github.action_ref }}
 
     - name: Craft Prepare
       id: craft
