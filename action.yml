@@ -58,6 +58,9 @@ outputs:
   changelog:
     description: The changelog for this release
     value: ${{ steps.craft.outputs.changelog }}
+  issue_url:
+    description: The URL of the created publish request issue
+    value: ${{ steps.request-publish.outputs.issue_url }}
 
 runs:
   using: "composite"
@@ -105,7 +108,7 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        
+
         if [[ -f /tmp/craft-artifact/dist/craft ]]; then
           echo "Installing Craft from build artifact..."
           sudo install -m 755 /tmp/craft-artifact/dist/craft /usr/local/bin/craft
@@ -142,7 +145,7 @@ runs:
           echo "Installing Craft from: ${CRAFT_URL}"
           sudo curl -fsSL -o /usr/local/bin/craft "$CRAFT_URL"
           sudo chmod +x /usr/local/bin/craft
-          
+
           # Verify the binary was downloaded successfully
           if [[ ! -s /usr/local/bin/craft ]]; then
             echo "::error::Downloaded Craft binary is empty or missing"
@@ -189,6 +192,7 @@ runs:
         echo "EOF" >> "$GITHUB_OUTPUT"
 
     - name: Request publish
+      id: request-publish
       shell: bash
       run: |
         if [[ '${{ inputs.path }}' == '.' ]]; then
@@ -221,8 +225,11 @@ runs:
         # Check if issue already exists
         # GitHub only allows search with the "in" operator and this issue search can
         # return non-exact matches. We extract the titles and check with grep -xF
-        if gh -R "$PUBLISH_REPO" issue list -S "'$title' in:title" --json title -q '.[] | .title' | grep -qxF -- "$title"; then
+        existing_issue_url=$(gh -R "$PUBLISH_REPO" issue list -S "'$title' in:title" --json title,url -q ".[] | select(.title == \"$title\") | .url")
+        if [[ -n "$existing_issue_url" ]]; then
           echo "There's already an open publish request, skipped issue creation."
+          echo "::notice::Existing publish request: ${existing_issue_url}"
+          echo "issue_url=${existing_issue_url}" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
@@ -269,4 +276,6 @@ runs:
 
         Checked targets will be skipped (either already published or user-requested skip). Uncheck to retry a target.
         ${CHANGELOG_SECTION}"
-        gh issue create -R "$PUBLISH_REPO" --title "$title" --body "$body"
+        issue_url=$(gh issue create -R "$PUBLISH_REPO" --title "$title" --body "$body")
+        echo "::notice::Created publish request: ${issue_url}"
+        echo "issue_url=${issue_url}" >> "$GITHUB_OUTPUT"
