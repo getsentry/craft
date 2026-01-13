@@ -5,6 +5,7 @@ import {
   formatSize,
   formatJson,
 } from '../strings';
+import { ConfigurationError } from '../errors';
 
 describe('sanitizeObject', () => {
   test('processes empty object', () => {
@@ -69,8 +70,31 @@ describe('renderTemplateSafe', () => {
     );
   });
 
-  test('does not render globals', () => {
-    expect(renderTemplateSafe('{{ process }}', {})).toBe('');
+  test('throws error on unknown variable', () => {
+    expect(() => renderTemplateSafe('{{ unknown }}', { known: 'value' })).toThrow(
+      ConfigurationError
+    );
+    expect(() => renderTemplateSafe('{{ unknown }}', { known: 'value' })).toThrow(
+      /Unknown template variable\(s\): unknown/
+    );
+  });
+
+  test('throws error with available variables in message', () => {
+    expect(() =>
+      renderTemplateSafe('{{ missing }}', { foo: 1, bar: 2 })
+    ).toThrow(/Available variables: foo, bar/);
+  });
+
+  test('throws error for globals (prevents accidental access)', () => {
+    expect(() => renderTemplateSafe('{{ process }}', {})).toThrow(
+      ConfigurationError
+    );
+  });
+
+  test('throws error listing all unknown variables', () => {
+    expect(() =>
+      renderTemplateSafe('{{ a }} {{ b }} {{ c }}', { x: 1 })
+    ).toThrow(/Unknown template variable\(s\): a, b, c/);
   });
 });
 

@@ -549,7 +549,9 @@ Please use ${registryHint}DOCKER_USERNAME and DOCKER_PASSWORD environment variab
     } else if (
       sourceRegistry &&
       !source.skipLogin &&
-      !gcrConfiguredRegistries.has(sourceRegistry)
+      !gcrConfiguredRegistries.has(sourceRegistry) &&
+      // Don't warn if source and target share the same registry - target login will cover it
+      sourceRegistry !== targetRegistry
     ) {
       // Source registry needs auth but we couldn't configure it
       // This is okay - source might be public or already authenticated
@@ -582,11 +584,13 @@ Please use ${registryHint}DOCKER_USERNAME and DOCKER_PASSWORD environment variab
     const { source, target } = this.dockerConfig;
 
     const sourceImage = renderTemplateSafe(source.format, {
+      image: source.image,
       source: source.image,
       target: target.image,
       revision: sourceRevision,
     });
     const targetImage = renderTemplateSafe(target.format, {
+      image: target.image,
       source: source.image,
       target: target.image,
       version,
