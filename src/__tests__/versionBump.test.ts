@@ -17,15 +17,23 @@ vi.mock('../utils/system', async () => {
   const actual = await vi.importActual('../utils/system');
   return {
     ...actual,
-    spawnProcess: vi.fn().mockResolvedValue(''),
-    hasExecutable: vi.fn().mockReturnValue(true),
+    spawnProcess: vi.fn(),
+    hasExecutable: vi.fn(),
   };
 });
+
+// Helper to set up default mocks
+async function setupDefaultMocks() {
+  const { spawnProcess, hasExecutable } = await import('../utils/system');
+  vi.mocked(spawnProcess).mockResolvedValue('');
+  vi.mocked(hasExecutable).mockReturnValue(true);
+}
 
 describe('runAutomaticVersionBumps', () => {
   let tempDir: string;
 
   beforeEach(async () => {
+    await setupDefaultMocks();
     tempDir = await mkdtemp(join(tmpdir(), 'craft-test-'));
   });
 
@@ -33,7 +41,7 @@ describe('runAutomaticVersionBumps', () => {
     if (tempDir) {
       await rm(tempDir, { recursive: true, force: true });
     }
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   test('returns false when no targets are provided', async () => {
@@ -139,6 +147,7 @@ describe('NpmTarget.bumpVersion', () => {
   let tempDir: string;
 
   beforeEach(async () => {
+    await setupDefaultMocks();
     tempDir = await mkdtemp(join(tmpdir(), 'craft-npm-test-'));
   });
 
@@ -146,7 +155,7 @@ describe('NpmTarget.bumpVersion', () => {
     if (tempDir) {
       await rm(tempDir, { recursive: true, force: true });
     }
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   test('returns false when no package.json exists', async () => {
@@ -176,6 +185,7 @@ describe('PypiTarget.bumpVersion', () => {
   let tempDir: string;
 
   beforeEach(async () => {
+    await setupDefaultMocks();
     tempDir = await mkdtemp(join(tmpdir(), 'craft-pypi-test-'));
   });
 
@@ -183,7 +193,7 @@ describe('PypiTarget.bumpVersion', () => {
     if (tempDir) {
       await rm(tempDir, { recursive: true, force: true });
     }
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   test('returns false when no pyproject.toml exists', async () => {
@@ -259,6 +269,7 @@ describe('GemTarget.bumpVersion', () => {
   let tempDir: string;
 
   beforeEach(async () => {
+    await setupDefaultMocks();
     tempDir = await mkdtemp(join(tmpdir(), 'craft-gem-test-'));
   });
 
@@ -317,6 +328,7 @@ describe('PubDevTarget.bumpVersion', () => {
   let tempDir: string;
 
   beforeEach(async () => {
+    await setupDefaultMocks();
     tempDir = await mkdtemp(join(tmpdir(), 'craft-pubdev-test-'));
   });
 
@@ -353,6 +365,7 @@ describe('HexTarget.bumpVersion', () => {
   let tempDir: string;
 
   beforeEach(async () => {
+    await setupDefaultMocks();
     tempDir = await mkdtemp(join(tmpdir(), 'craft-hex-test-'));
   });
 
@@ -413,6 +426,7 @@ describe('NugetTarget.bumpVersion', () => {
   let tempDir: string;
 
   beforeEach(async () => {
+    await setupDefaultMocks();
     tempDir = await mkdtemp(join(tmpdir(), 'craft-nuget-test-'));
   });
 
@@ -420,7 +434,7 @@ describe('NugetTarget.bumpVersion', () => {
     if (tempDir) {
       await rm(tempDir, { recursive: true, force: true });
     }
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   test('returns false when no .csproj exists', async () => {
@@ -479,6 +493,7 @@ describe('CratesTarget.bumpVersion', () => {
   let tempDir: string;
 
   beforeEach(async () => {
+    await setupDefaultMocks();
     tempDir = await mkdtemp(join(tmpdir(), 'craft-crates-test-'));
   });
 
@@ -486,7 +501,7 @@ describe('CratesTarget.bumpVersion', () => {
     if (tempDir) {
       await rm(tempDir, { recursive: true, force: true });
     }
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   test('returns false when no Cargo.toml exists', async () => {
