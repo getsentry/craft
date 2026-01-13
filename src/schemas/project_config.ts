@@ -88,16 +88,14 @@ export type BaseArtifactProvider = z.infer<typeof BaseArtifactProviderSchema>;
 const ArtifactPatternsSchema = z.union([z.string(), z.array(z.string())]);
 
 /**
- * Full artifacts config for GitHub artifact provider:
- * - string: single artifact pattern (searches all workflows)
- * - array: multiple artifact patterns (searches all workflows)
- * - object: workflow-scoped patterns (keys = workflow name/pattern, values = artifact(s))
+ * Artifacts config for GitHub artifact provider.
+ * Accepts string, array of strings, or object mapping workflow names to artifact patterns.
  */
 export const GitHubArtifactsConfigSchema = z
   .union([
-    z.string(), // single artifact pattern
-    z.array(z.string()), // array of artifact patterns
-    z.record(z.string(), ArtifactPatternsSchema), // workflow → artifact(s)
+    z.string(),
+    z.array(z.string()),
+    z.record(z.string(), ArtifactPatternsSchema),
   ])
   .optional();
 

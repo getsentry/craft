@@ -80,27 +80,14 @@ export function normalizeArtifactsConfig(
     return [];
   }
 
-  // String format: single artifact pattern (searches all workflows)
   if (typeof config === 'string') {
-    return [
-      {
-        workflow: undefined,
-        artifacts: normalizeArtifactPatterns(config),
-      },
-    ];
+    return [{ workflow: undefined, artifacts: normalizeArtifactPatterns(config) }];
   }
 
-  // Array format: multiple artifact patterns (searches all workflows)
   if (Array.isArray(config)) {
-    return [
-      {
-        workflow: undefined,
-        artifacts: normalizeArtifactPatterns(config),
-      },
-    ];
+    return [{ workflow: undefined, artifacts: normalizeArtifactPatterns(config) }];
   }
 
-  // Object format: workflow-scoped patterns
   const filters: NormalizedArtifactFilter[] = [];
   for (const [workflowPattern, artifactPatterns] of Object.entries(config)) {
     filters.push({
@@ -411,14 +398,11 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
         });
 
         for (const artifact of response.data.artifacts) {
-          // Check if this artifact matches any filter
           for (const filter of filters) {
-            // If filter has a workflow pattern, check if this run matches it
             if (filter.workflow && !filter.workflow.test(workflowName)) {
               continue;
             }
 
-            // Check if artifact name matches any of the artifact patterns
             const matches = filter.artifacts.some(pattern =>
               pattern.test(artifact.name)
             );
@@ -427,7 +411,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
                 `Artifact "${artifact.name}" matches filter from workflow "${workflowName}"`
               );
               matchingArtifacts.push(artifact);
-              break; // Don't add the same artifact twice
+              break;
             }
           }
         }
@@ -489,7 +473,6 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
         } of ${MAX_TRIES})`
       );
 
-      // Get workflow runs for the commit
       const allRuns = await this.getWorkflowRunsForCommit(revision);
       if (allRuns.length === 0) {
         this.logger.debug(`No workflow runs found for commit ${revision}`);
@@ -507,13 +490,11 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
         );
       }
 
-      // Filter workflow runs by patterns
       const filteredRuns = this.filterWorkflowRuns(allRuns, filters);
       this.logger.debug(
         `${filteredRuns.length} of ${allRuns.length} workflow runs match filters`
       );
 
-      // Get artifacts from filtered workflow runs
       const matchingArtifacts = await this.getArtifactsFromWorkflowRuns(
         filteredRuns,
         filters
@@ -535,14 +516,12 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
         );
       }
 
-      // Download artifacts in parallel
       this.logger.debug(
         `Downloading ${matchingArtifacts.length} artifacts in parallel...`
       );
       return await this.downloadArtifactsInParallel(matchingArtifacts);
     }
 
-    // This should not be reached, but TypeScript needs a return
     throw new Error(
       `Failed to fetch artifacts for revision "${revision}" (tries: ${MAX_TRIES})`
     );
@@ -554,18 +533,16 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
   protected async doListArtifactsForRevision(
     revision: string
   ): Promise<RemoteArtifact[]> {
-    // Check if artifacts config is present
     const artifactsConfig = this.config.artifacts as
       | GitHubArtifactsConfig
       | undefined;
     const filters = normalizeArtifactsConfig(artifactsConfig);
 
     if (filters.length > 0) {
-      // Use new workflow-based approach
       return await this.doListArtifactsWithFilters(revision, filters);
     }
 
-    // Legacy behavior: artifact.name === revision SHA
+    // Legacy: artifact.name === revision SHA
     const foundArtifact = await this.getRevisionArtifact(revision);
 
     this.logger.debug(`Requesting archive URL from GitHub...`);
