@@ -34,13 +34,8 @@ export class GemTarget extends BaseTarget {
    * Bump version in Ruby gem project files.
    *
    * Looks for version patterns in:
-   * 1. *.gemspec files (s.version = "x.y.z")
-   * 2. lib/**/version.rb files (VERSION = "x.y.z")
-   *
-   * @param rootDir - Project root directory
-   * @param newVersion - New version string to set
-   * @returns true if version was bumped, false if no gem project found
-   * @throws Error if version file cannot be updated
+   * 1. .gemspec files (s.version = "x.y.z")
+   * 2. lib/.../version.rb files (VERSION = "x.y.z")
    */
   public static async bumpVersion(
     rootDir: string,
