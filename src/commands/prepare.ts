@@ -32,7 +32,12 @@ import {
   handleGlobalError,
   reportError,
 } from '../utils/errors';
-import { getGitClient, getDefaultBranch, getLatestTag, isRepoDirty } from '../utils/git';
+import {
+  getGitClient,
+  getDefaultBranch,
+  getLatestTag,
+  isRepoDirty,
+} from '../utils/git';
 import {
   getChangelogWithBumpType,
   calculateNextVersion,
@@ -52,7 +57,7 @@ import { withTracing } from '../utils/tracing';
 
 import { handler as publishMainHandler, PublishOptions } from './publish';
 
-export const command = ['prepare NEW-VERSION'];
+export const command = ['prepare [NEW-VERSION]'];
 export const aliases = ['p', 'prerelease', 'prepublish', 'prepare', 'release'];
 export const description = '🚢 Prepare a new release branch';
 
@@ -104,11 +109,13 @@ export const builder: CommandBuilder = (yargs: Argv) =>
       type: 'string',
     })
     .option('config-from', {
-      description: 'Load .craft.yml from the specified remote branch instead of local file',
+      description:
+        'Load .craft.yml from the specified remote branch instead of local file',
       type: 'string',
     })
     .option('calver-offset', {
-      description: 'Days to go back for CalVer date calculation (overrides config)',
+      description:
+        'Days to go back for CalVer date calculation (overrides config)',
       type: 'number',
     })
     .check(checkVersionOrPart);
@@ -200,7 +207,7 @@ async function createReleaseBranch(
   rev: string,
   newVersion: string,
   remoteName: string,
-  releaseBranchPrefix?: string
+  releaseBranchPrefix?: string,
 ): Promise<string> {
   const branchPrefix = releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
   const branchName = `${branchPrefix}/${newVersion}`;
@@ -233,7 +240,7 @@ async function pushReleaseBranch(
   git: SimpleGit,
   branchName: string,
   remoteName: string,
-  pushFlag = true
+  pushFlag = true,
 ): Promise<any> {
   if (pushFlag) {
     logger.info(`Pushing the release branch "${branchName}"...`);
@@ -243,7 +250,7 @@ async function pushReleaseBranch(
     logger.info('Not pushing the release branch.');
     logger.info(
       'You can push this branch later using the following command:',
-      `  $ git push -u ${remoteName} "${branchName}"`
+      `  $ git push -u ${remoteName} "${branchName}"`,
     );
   }
 }
@@ -256,7 +263,7 @@ async function pushReleaseBranch(
  */
 async function commitNewVersion(
   git: SimpleGit,
-  newVersion: string
+  newVersion: string,
 ): Promise<any> {
   const message = `release: ${newVersion}`;
   const repoStatus = await git.status();
@@ -281,7 +288,7 @@ async function commitNewVersion(
 export async function runPreReleaseCommand(
   oldVersion: string,
   newVersion: string,
-  preReleaseCommand?: string
+  preReleaseCommand?: string,
 ): Promise<boolean> {
   let sysCommand: string;
   let args: string[];
@@ -330,13 +337,13 @@ function checkGitStatus(repoStatus: StatusResult, rev: string) {
     reportError(
       'Your repository is in a dirty state. ' +
         'Please stash or commit the pending changes.',
-      logger
+      logger,
     );
   }
 
   if (repoStatus.current !== rev) {
     logger.warn(
-      `You are releasing from '${rev}', not '${repoStatus.current}' which you are currently on.`
+      `You are releasing from '${rev}', not '${repoStatus.current}' which you are currently on.`,
     );
   }
 }
@@ -354,7 +361,7 @@ function checkGitStatus(repoStatus: StatusResult, rev: string) {
 async function execPublish(
   remote: string,
   newVersion: string,
-  noGitChecks: boolean
+  noGitChecks: boolean,
 ): Promise<never> {
   logger.info('Running the "publish" command...');
   const publishOptions: PublishOptions = {
@@ -367,7 +374,7 @@ async function execPublish(
     noGitChecks,
   };
   logger.info(
-    `Sleeping for ${SLEEP_BEFORE_PUBLISH_SECONDS} seconds before publishing...`
+    `Sleeping for ${SLEEP_BEFORE_PUBLISH_SECONDS} seconds before publishing...`,
   );
   if (!isDryRun()) {
     await sleep(SLEEP_BEFORE_PUBLISH_SECONDS * 1000);
@@ -382,7 +389,7 @@ async function execPublish(
     logger.error(e);
     logger.error(
       'There was an error running "publish". Fix the issue and run the command manually:',
-      `  $ craft publish ${newVersion}`
+      `  $ craft publish ${newVersion}`,
     );
     throw e;
   }
@@ -403,11 +410,11 @@ async function prepareChangelog(
   oldVersion: string,
   newVersion: string,
   changelogPolicy: ChangelogPolicy = ChangelogPolicy.None,
-  changelogPath: string = DEFAULT_CHANGELOG_PATH
+  changelogPath: string = DEFAULT_CHANGELOG_PATH,
 ): Promise<string | undefined> {
   if (changelogPolicy === ChangelogPolicy.None) {
     logger.debug(
-      `Changelog policy is set to "${changelogPolicy}", nothing to do.`
+      `Changelog policy is set to "${changelogPolicy}", nothing to do.`,
     );
     return undefined;
   }
@@ -417,7 +424,7 @@ async function prepareChangelog(
     changelogPolicy !== ChangelogPolicy.Simple
   ) {
     throw new ConfigurationError(
-      `Invalid changelog policy: "${changelogPolicy}"`
+      `Invalid changelog policy: "${changelogPolicy}"`,
     );
   }
 
@@ -431,16 +438,21 @@ async function prepareChangelog(
   }
 
   if (!existsSync(relativePath)) {
-    throw new ConfigurationError(
-      `Changelog does not exist: "${changelogPath}"`
-    );
+    if (changelogPolicy === ChangelogPolicy.Auto) {
+      logger.info(`Creating changelog file: ${relativePath}`);
+      await safeFs.writeFile(relativePath, '# Changelog\n');
+    } else {
+      throw new ConfigurationError(
+        `Changelog does not exist: "${changelogPath}"`,
+      );
+    }
   }
 
   let changelogString = (await fsPromises.readFile(relativePath)).toString();
   let changeset = findChangeset(
     changelogString,
     newVersion,
-    changelogPolicy === ChangelogPolicy.Auto
+    changelogPolicy === ChangelogPolicy.Auto,
   );
   switch (changelogPolicy) {
     case ChangelogPolicy.Auto:
@@ -460,7 +472,7 @@ async function prepareChangelog(
         changeset.name = newVersion;
       }
       logger.debug(
-        `Updating the changelog file for the new version: ${newVersion}`
+        `Updating the changelog file for the new version: ${newVersion}`,
       );
 
       if (replaceSection) {
@@ -474,7 +486,7 @@ async function prepareChangelog(
     default:
       if (!changeset?.body) {
         throw new ConfigurationError(
-          `No changelog entry found for version "${newVersion}"`
+          `No changelog entry found for version "${newVersion}"`,
         );
       }
   }
@@ -492,7 +504,7 @@ async function prepareChangelog(
  */
 async function switchToDefaultBranch(
   git: SimpleGit,
-  defaultBranch: string
+  defaultBranch: string,
 ): Promise<void> {
   const repoStatus = await git.status();
   if (repoStatus.current === defaultBranch) {
@@ -525,7 +537,7 @@ interface ResolveVersionOptions {
  */
 async function resolveVersion(
   git: SimpleGit,
-  options: ResolveVersionOptions
+  options: ResolveVersionOptions,
 ): Promise<string> {
   const config = getConfiguration();
   let version = options.versionArg;
@@ -538,7 +550,7 @@ async function resolveVersion(
     if (policy === VersioningPolicy.Manual) {
       throw new ConfigurationError(
         'Version is required. Either specify a version argument or set ' +
-          'versioning.policy to "auto" or "calver" in .craft.yml'
+          'versioning.policy to "auto" or "calver" in .craft.yml',
       );
     }
 
@@ -551,7 +563,7 @@ async function resolveVersion(
     if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
       throw new ConfigurationError(
         `CalVer versioning requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
-          'Please update your configuration or specify the version explicitly.'
+          'Please update your configuration or specify the version explicitly.',
       );
     }
 
@@ -581,7 +593,7 @@ async function resolveVersion(
         : 'Auto-versioning';
       throw new ConfigurationError(
         `${featureName} requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
-          'Please update your configuration or specify the version explicitly.'
+          'Please update your configuration or specify the version explicitly.',
       );
     }
 
@@ -605,7 +617,7 @@ async function resolveVersion(
 
     const newVersion = calculateNextVersion(currentVersion, bumpType);
     logger.info(
-      `Version bump: ${currentVersion} -> ${newVersion} (${bumpType} bump)`
+      `Version bump: ${currentVersion} -> ${newVersion} (${bumpType} bump)`,
     );
     return newVersion;
   }
@@ -633,7 +645,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       loadConfigurationFromString(configContent);
     } catch (error: any) {
       throw new ConfigurationError(
-        `Failed to load ${CONFIG_FILE_NAME} from branch "${argv.configFrom}": ${error.message}`
+        `Failed to load ${CONFIG_FILE_NAME} from branch "${argv.configFrom}": ${error.message}`,
       );
     }
   }
@@ -682,7 +694,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       rev,
       newVersion,
       argv.remote,
-      config.releaseBranchPrefix
+      config.releaseBranchPrefix,
     );
 
     // Do this once we are on the release branch as we might be releasing from
@@ -709,14 +721,14 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       oldVersion,
       newVersion,
       argv.noChangelog ? ChangelogPolicy.None : changelogPolicy,
-      changelogPath
+      changelogPath,
     );
 
     // Run a pre-release script (e.g. for version bumping)
     const preReleaseCommandRan = await runPreReleaseCommand(
       oldVersion,
       newVersion,
-      config.preReleaseCommand
+      config.preReleaseCommand,
     );
 
     if (preReleaseCommandRan) {
@@ -742,7 +754,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     }
 
     logger.info(
-      `View diff at: https://github.com/${githubConfig.owner}/${githubConfig.repo}/compare/${branchName}`
+      `View diff at: https://github.com/${githubConfig.owner}/${githubConfig.repo}/compare/${branchName}`,
     );
 
     if (argv.publish) {
@@ -755,7 +767,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     } else {
       logger.success(
         'Done. Do not forget to run "craft publish" to publish the artifacts:',
-        `  $ craft publish ${newVersion}`
+        `  $ craft publish ${newVersion}`,
       );
     }
 

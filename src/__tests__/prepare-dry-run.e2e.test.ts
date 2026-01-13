@@ -25,7 +25,10 @@ const CLI_BIN = resolve(__dirname, '../../dist/craft');
 beforeAll(() => {
   if (!existsSync(CLI_BIN)) {
     console.log('Building craft binary for e2e tests...');
-    execSync('pnpm build', { cwd: resolve(__dirname, '../..'), stdio: 'inherit' });
+    execSync('pnpm build', {
+      cwd: resolve(__dirname, '../..'),
+      stdio: 'inherit',
+    });
   }
 }, 60000);
 
@@ -75,7 +78,7 @@ targets: []
   };
   await writeFile(
     join(tempDir, 'package.json'),
-    JSON.stringify(packageJson, null, 2)
+    JSON.stringify(packageJson, null, 2),
   );
 
   // Initial commit and tag
@@ -147,142 +150,132 @@ describe('prepare --dry-run e2e', () => {
     }
   });
 
-  test(
-    'creates worktree, operates within it, and cleans up',
-    async () => {
-      tempDir = await createTestRepo();
-      // eslint-disable-next-line no-restricted-syntax -- Test verification needs direct git access
-      const git = simpleGit(tempDir);
+  test('creates worktree, operates within it, and cleans up', async () => {
+    tempDir = await createTestRepo();
+    // eslint-disable-next-line no-restricted-syntax -- Test verification needs direct git access
+    const git = simpleGit(tempDir);
 
-      // Get state before
-      const statusBefore = await git.status();
-      const logBefore = await git.log();
-      const packageJsonBefore = await readFile(
-        join(tempDir, 'package.json'),
-        'utf8'
-      );
-      const changelogBefore = await readFile(
-        join(tempDir, 'CHANGELOG.md'),
-        'utf8'
-      );
+    // Get state before
+    const statusBefore = await git.status();
+    const logBefore = await git.log();
+    const packageJsonBefore = await readFile(
+      join(tempDir, 'package.json'),
+      'utf8',
+    );
+    const changelogBefore = await readFile(
+      join(tempDir, 'CHANGELOG.md'),
+      'utf8',
+    );
 
-      // Run prepare --dry-run
-      const { stdout, stderr } = await execFileAsync(
-        CLI_BIN,
-        ['prepare', '1.0.1', '--dry-run', '--no-input'],
-        {
-          cwd: tempDir,
-          env: {
-            ...process.env,
-            NODE_ENV: 'test',
-            GITHUB_TOKEN: 'test-token',
-          },
-        }
-      );
+    // Run prepare --dry-run
+    const { stdout, stderr } = await execFileAsync(
+      CLI_BIN,
+      ['prepare', '1.0.1', '--dry-run', '--no-input'],
+      {
+        cwd: tempDir,
+        env: {
+          ...process.env,
+          NODE_ENV: 'test',
+          GITHUB_TOKEN: 'test-token',
+        },
+      },
+    );
 
-      const combinedOutput = stdout + stderr;
+    const combinedOutput = stdout + stderr;
 
-      // Verify worktree was created
-      expect(combinedOutput).toContain('[dry-run] Creating temporary worktree');
-      // Verify release branch was created in worktree
-      expect(combinedOutput).toContain('release/1.0.1');
-      // Verify push was blocked
-      expect(combinedOutput).toContain('[dry-run] Would execute');
-      expect(combinedOutput).toContain('git.push');
+    // Verify worktree was created
+    expect(combinedOutput).toContain('[dry-run] Creating temporary worktree');
+    // Verify release branch was created in worktree
+    expect(combinedOutput).toContain('release/1.0.1');
+    // Verify push was blocked
+    expect(combinedOutput).toContain('[dry-run] Would execute');
+    expect(combinedOutput).toContain('git.push');
 
-      // Verify original repo working directory is unchanged
-      const statusAfter = await git.status();
-      const logAfter = await git.log();
-      const packageJsonAfter = await readFile(
-        join(tempDir, 'package.json'),
-        'utf8'
-      );
-      const changelogAfter = await readFile(
-        join(tempDir, 'CHANGELOG.md'),
-        'utf8'
-      );
+    // Verify original repo working directory is unchanged
+    const statusAfter = await git.status();
+    const logAfter = await git.log();
+    const packageJsonAfter = await readFile(
+      join(tempDir, 'package.json'),
+      'utf8',
+    );
+    const changelogAfter = await readFile(
+      join(tempDir, 'CHANGELOG.md'),
+      'utf8',
+    );
 
-      // Same working directory status - no uncommitted changes
-      expect(statusAfter.files).toEqual(statusBefore.files);
-      // Same commit history in main branch
-      expect(logAfter.total).toEqual(logBefore.total);
-      // Files unchanged
-      expect(packageJsonAfter).toEqual(packageJsonBefore);
-      expect(changelogAfter).toEqual(changelogBefore);
+    // Same working directory status - no uncommitted changes
+    expect(statusAfter.files).toEqual(statusBefore.files);
+    // Same commit history in main branch
+    expect(logAfter.total).toEqual(logBefore.total);
+    // Files unchanged
+    expect(packageJsonAfter).toEqual(packageJsonBefore);
+    expect(changelogAfter).toEqual(changelogBefore);
 
-      // Verify worktree is cleaned up (no leftover worktrees)
-      const worktrees = await git.raw(['worktree', 'list']);
-      const worktreeLines = worktrees.trim().split('\n');
-      expect(worktreeLines.length).toBe(1); // Only the main worktree
+    // Verify worktree is cleaned up (no leftover worktrees)
+    const worktrees = await git.raw(['worktree', 'list']);
+    const worktreeLines = worktrees.trim().split('\n');
+    expect(worktreeLines.length).toBe(1); // Only the main worktree
 
-      // Note: The release branch may still exist in refs because git worktrees
-      // share the same object store. What matters is that the working directory
-      // is unchanged and the worktree is cleaned up.
-    },
-    60000
-  );
+    // Note: The release branch may still exist in refs because git worktrees
+    // share the same object store. What matters is that the working directory
+    // is unchanged and the worktree is cleaned up.
+  }, 60000);
 
-  test(
-    'produces consistent output format',
-    async () => {
-      tempDir = await createTestRepo();
+  test('produces consistent output format', async () => {
+    tempDir = await createTestRepo();
 
-      // Run prepare --dry-run
-      const { stdout, stderr } = await execFileAsync(
-        CLI_BIN,
-        ['prepare', '1.0.1', '--dry-run', '--no-input'],
-        {
-          cwd: tempDir,
-          env: {
-            ...process.env,
-            NODE_ENV: 'test',
-            GITHUB_TOKEN: 'test-token',
-          },
-        }
-      );
+    // Run prepare --dry-run
+    const { stdout, stderr } = await execFileAsync(
+      CLI_BIN,
+      ['prepare', '1.0.1', '--dry-run', '--no-input'],
+      {
+        cwd: tempDir,
+        env: {
+          ...process.env,
+          NODE_ENV: 'test',
+          GITHUB_TOKEN: 'test-token',
+        },
+      },
+    );
 
-      const combinedOutput = stdout + stderr;
+    const combinedOutput = stdout + stderr;
 
-      // Verify expected messages appear in order
-      expect(combinedOutput).toContain('Checking the local repository status');
-      expect(combinedOutput).toContain('Releasing version 1.0.1');
-      expect(combinedOutput).toContain('[dry-run] Creating temporary worktree');
-      expect(combinedOutput).toContain('Created a new release branch');
-      expect(combinedOutput).toContain('Pushing the release branch');
-      expect(combinedOutput).toContain('[dry-run] Would execute');
+    // Verify expected messages appear in order
+    expect(combinedOutput).toContain('Checking the local repository status');
+    expect(combinedOutput).toContain('Releasing version 1.0.1');
+    expect(combinedOutput).toContain('[dry-run] Creating temporary worktree');
+    expect(combinedOutput).toContain('Created a new release branch');
+    expect(combinedOutput).toContain('Pushing the release branch');
+    expect(combinedOutput).toContain('[dry-run] Would execute');
 
-      // Snapshot the normalized output
-      const normalizedOutput = normalizeOutput(combinedOutput);
-      expect(normalizedOutput).toMatchSnapshot('dry-run-output');
-    },
-    60000
-  );
+    // Snapshot the normalized output
+    const normalizedOutput = normalizeOutput(combinedOutput);
+    expect(normalizedOutput).toMatchSnapshot('dry-run-output');
+  }, 60000);
 
-  test(
-    'executes pre-release command and shows diff of changes',
-    async () => {
-      tempDir = await createTestRepo();
-      // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
-      const git = simpleGit(tempDir);
+  test('executes pre-release command and shows diff of changes', async () => {
+    tempDir = await createTestRepo();
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const git = simpleGit(tempDir);
 
-      // Get the current branch name (could be 'main' or 'master')
-      const status = await git.status();
-      const currentBranch = status.current!;
+    // Get the current branch name (could be 'main' or 'master')
+    const status = await git.status();
+    const currentBranch = status.current!;
 
-      // Create a version bump script
-      const scriptsDir = join(tempDir, 'scripts');
-      await mkdir(scriptsDir, { recursive: true });
-      const versionBumpScript = `#!/bin/bash
+    // Create a version bump script
+    const scriptsDir = join(tempDir, 'scripts');
+    await mkdir(scriptsDir, { recursive: true });
+    const versionBumpScript = `#!/bin/bash
 VERSION="$2"
 # Update package.json version
 sed -i 's/"version": "[^"]*"/"version": "'"$VERSION"'"/' package.json
 `;
-      const scriptPath = join(scriptsDir, 'bump-version.sh');
-      await writeFile(scriptPath, versionBumpScript);
-      await chmod(scriptPath, '755');
+    const scriptPath = join(scriptsDir, 'bump-version.sh');
+    await writeFile(scriptPath, versionBumpScript);
+    await chmod(scriptPath, '755');
 
-      // Update .craft.yml with pre-release command
-      const craftConfig = `
+    // Update .craft.yml with pre-release command
+    const craftConfig = `
 minVersion: "2.0.0"
 github:
   owner: test-owner
@@ -292,20 +285,71 @@ changelog:
 preReleaseCommand: bash scripts/bump-version.sh
 targets: []
 `;
-      await writeFile(join(tempDir, '.craft.yml'), craftConfig);
-      await git.add('.');
-      await git.commit('Add version bump script');
-      await git.push('origin', currentBranch);
+    await writeFile(join(tempDir, '.craft.yml'), craftConfig);
+    await git.add('.');
+    await git.commit('Add version bump script');
+    await git.push('origin', currentBranch);
 
-      // Get original package.json
-      const packageJsonBefore = await readFile(
-        join(tempDir, 'package.json'),
-        'utf8'
-      );
-      expect(packageJsonBefore).toContain('"version": "1.0.0"');
+    // Get original package.json
+    const packageJsonBefore = await readFile(
+      join(tempDir, 'package.json'),
+      'utf8',
+    );
+    expect(packageJsonBefore).toContain('"version": "1.0.0"');
 
-      // Run prepare --dry-run
-      const { stdout, stderr } = await execFileAsync(
+    // Run prepare --dry-run
+    const { stdout, stderr } = await execFileAsync(
+      CLI_BIN,
+      ['prepare', '1.0.1', '--dry-run', '--no-input'],
+      {
+        cwd: tempDir,
+        env: {
+          ...process.env,
+          NODE_ENV: 'test',
+          GITHUB_TOKEN: 'test-token',
+        },
+      },
+    );
+
+    const combinedOutput = stdout + stderr;
+
+    // Verify pre-release command ran (should show "Running the pre-release command")
+    expect(combinedOutput).toContain('Running the pre-release command');
+    // Should NOT say "Not spawning process" - the command should actually run
+    expect(combinedOutput).not.toContain('[dry-run] Not spawning process');
+
+    // Should show the diff with version change
+    expect(combinedOutput).toContain("Here's what would change");
+    expect(combinedOutput).toContain('package.json');
+
+    // Original file should be unchanged
+    const packageJsonAfter = await readFile(
+      join(tempDir, 'package.json'),
+      'utf8',
+    );
+    expect(packageJsonAfter).toEqual(packageJsonBefore);
+    expect(packageJsonAfter).toContain('"version": "1.0.0"');
+
+    // Snapshot the diff output
+    const normalizedOutput = normalizeOutput(combinedOutput);
+    expect(normalizedOutput).toMatchSnapshot('pre-release-diff');
+  }, 60000);
+
+  test('cleans up worktree even on error', async () => {
+    tempDir = await createTestRepo();
+    // eslint-disable-next-line no-restricted-syntax -- Test verification needs direct git access
+    const git = simpleGit(tempDir);
+
+    // Get the current branch name
+    const status = await git.status();
+    const currentBranch = status.current;
+
+    // Create the release branch locally to cause a conflict in the worktree
+    await git.checkoutLocalBranch('release/1.0.1');
+    await git.checkout(currentBranch!);
+
+    try {
+      await execFileAsync(
         CLI_BIN,
         ['prepare', '1.0.1', '--dry-run', '--no-input'],
         {
@@ -315,73 +359,163 @@ targets: []
             NODE_ENV: 'test',
             GITHUB_TOKEN: 'test-token',
           },
-        }
+        },
       );
+      // If it doesn't throw, that's also fine (branch might be reused)
+    } catch {
+      // Expected to fail due to existing branch
+    }
 
-      const combinedOutput = stdout + stderr;
+    // Even after error, worktree should be cleaned up
+    const worktrees = await git.raw(['worktree', 'list']);
+    const worktreeLines = worktrees.trim().split('\n');
+    expect(worktreeLines.length).toBe(1);
+  }, 60000);
 
-      // Verify pre-release command ran (should show "Running the pre-release command")
-      expect(combinedOutput).toContain('Running the pre-release command');
-      // Should NOT say "Not spawning process" - the command should actually run
-      expect(combinedOutput).not.toContain('[dry-run] Not spawning process');
+  test('accepts prepare command without version argument when versioning policy is set', async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'craft-e2e-'));
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const git = simpleGit(tempDir);
 
-      // Should show the diff with version change
-      expect(combinedOutput).toContain("Here's what would change");
-      expect(combinedOutput).toContain('package.json');
+    // Initialize git repo
+    await git.init();
+    await git.addConfig('user.email', 'test@example.com');
+    await git.addConfig('user.name', 'Test User');
 
-      // Original file should be unchanged
-      const packageJsonAfter = await readFile(
-        join(tempDir, 'package.json'),
-        'utf8'
-      );
-      expect(packageJsonAfter).toEqual(packageJsonBefore);
-      expect(packageJsonAfter).toContain('"version": "1.0.0"');
+    // Create .craft.yml with auto versioning policy
+    const craftConfig = `
+minVersion: "2.14.0"
+github:
+  owner: test-owner
+  repo: test-repo
+versioning:
+  policy: auto
+changelog:
+  policy: none
+preReleaseCommand: ""
+targets: []
+`;
+    await writeFile(join(tempDir, '.craft.yml'), craftConfig);
 
-      // Snapshot the diff output
-      const normalizedOutput = normalizeOutput(combinedOutput);
-      expect(normalizedOutput).toMatchSnapshot('pre-release-diff');
-    },
-    60000
-  );
+    // Create package.json
+    const packageJson = { name: 'test-package', version: '1.0.0' };
+    await writeFile(
+      join(tempDir, 'package.json'),
+      JSON.stringify(packageJson, null, 2),
+    );
 
-  test(
-    'cleans up worktree even on error',
-    async () => {
-      tempDir = await createTestRepo();
-      // eslint-disable-next-line no-restricted-syntax -- Test verification needs direct git access
-      const git = simpleGit(tempDir);
+    // Initial commit and tag
+    await git.add('.');
+    await git.commit('Initial commit');
+    await git.addTag('1.0.0');
 
-      // Get the current branch name
-      const status = await git.status();
-      const currentBranch = status.current;
+    // Add a feature commit (for auto version detection)
+    await writeFile(join(tempDir, 'feature.ts'), 'export const foo = 1;');
+    await git.add('.');
+    await git.commit('feat: Add foo feature');
 
-      // Create the release branch locally to cause a conflict in the worktree
-      await git.checkoutLocalBranch('release/1.0.1');
-      await git.checkout(currentBranch!);
+    // Create remote
+    const remoteDir = await mkdtemp(join(tmpdir(), 'craft-e2e-remote-'));
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const remoteGit = simpleGit(remoteDir);
+    await remoteGit.init(true);
+    await git.addRemote('origin', remoteDir);
+    const status = await git.status();
+    await git.push('origin', status.current!, ['--set-upstream']);
 
-      try {
-        await execFileAsync(
-          CLI_BIN,
-          ['prepare', '1.0.1', '--dry-run', '--no-input'],
-          {
-            cwd: tempDir,
-            env: {
-              ...process.env,
-              NODE_ENV: 'test',
-              GITHUB_TOKEN: 'test-token',
-            },
-          }
-        );
-        // If it doesn't throw, that's also fine (branch might be reused)
-      } catch {
-        // Expected to fail due to existing branch
-      }
+    // Run prepare WITHOUT version argument - should use auto policy
+    const { stdout, stderr } = await execFileAsync(
+      CLI_BIN,
+      ['prepare', '--dry-run', '--no-input'],
+      {
+        cwd: tempDir,
+        env: {
+          ...process.env,
+          NODE_ENV: 'test',
+          GITHUB_TOKEN: 'test-token',
+        },
+      },
+    );
 
-      // Even after error, worktree should be cleaned up
-      const worktrees = await git.raw(['worktree', 'list']);
-      const worktreeLines = worktrees.trim().split('\n');
-      expect(worktreeLines.length).toBe(1);
-    },
-    60000
-  );
+    const combinedOutput = stdout + stderr;
+
+    // Should succeed and detect a minor version bump (due to feat: commit)
+    expect(combinedOutput).toContain('Releasing version 1.1.0');
+    expect(combinedOutput).toContain('release/1.1.0');
+  }, 60000);
+
+  test('auto changelog policy creates CHANGELOG.md if it does not exist', async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'craft-e2e-'));
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const git = simpleGit(tempDir);
+
+    // Initialize git repo
+    await git.init();
+    await git.addConfig('user.email', 'test@example.com');
+    await git.addConfig('user.name', 'Test User');
+
+    // Create .craft.yml with auto changelog policy - NO CHANGELOG.md file
+    const craftConfig = `
+minVersion: "2.14.0"
+github:
+  owner: test-owner
+  repo: test-repo
+versioning:
+  policy: auto
+changelog:
+  policy: auto
+preReleaseCommand: ""
+targets: []
+`;
+    await writeFile(join(tempDir, '.craft.yml'), craftConfig);
+
+    // Create package.json
+    const packageJson = { name: 'test-package', version: '1.0.0' };
+    await writeFile(
+      join(tempDir, 'package.json'),
+      JSON.stringify(packageJson, null, 2),
+    );
+
+    // Initial commit and tag - deliberately NO CHANGELOG.md
+    await git.add('.');
+    await git.commit('Initial commit');
+    await git.addTag('1.0.0');
+
+    // Add a feature commit
+    await writeFile(join(tempDir, 'feature.ts'), 'export const foo = 1;');
+    await git.add('.');
+    await git.commit('feat: Add foo feature');
+
+    // Create remote
+    const remoteDir = await mkdtemp(join(tmpdir(), 'craft-e2e-remote-'));
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const remoteGit = simpleGit(remoteDir);
+    await remoteGit.init(true);
+    await git.addRemote('origin', remoteDir);
+    const status = await git.status();
+    await git.push('origin', status.current!, ['--set-upstream']);
+
+    // Verify CHANGELOG.md does not exist before running
+    expect(existsSync(join(tempDir, 'CHANGELOG.md'))).toBe(false);
+
+    // Run prepare with auto changelog policy
+    const { stdout, stderr } = await execFileAsync(
+      CLI_BIN,
+      ['prepare', '--dry-run', '--no-input'],
+      {
+        cwd: tempDir,
+        env: {
+          ...process.env,
+          NODE_ENV: 'test',
+          GITHUB_TOKEN: 'test-token',
+        },
+      },
+    );
+
+    const combinedOutput = stdout + stderr;
+
+    // Should succeed and mention creating the changelog
+    expect(combinedOutput).toContain('Creating changelog file');
+    expect(combinedOutput).toContain('Releasing version 1.1.0');
+  }, 60000);
 });
