@@ -21,9 +21,6 @@ import { sleep } from '../utils/async';
 import { patternToRegexp } from '../utils/filters';
 import { GitHubArtifactsConfig } from '../schemas/project_config';
 
-// Re-export for backward compatibility with tests
-export { patternToRegexp } from '../utils/filters';
-
 const MAX_TRIES = 3;
 const MILLISECONDS = 1000;
 const ARTIFACTS_POLLING_INTERVAL = 10 * MILLISECONDS;

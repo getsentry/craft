@@ -93,8 +93,7 @@ export const ArtifactPatternsSchema = z.union([z.string(), z.array(z.string())])
  */
 export const GitHubArtifactsConfigSchema = z
   .union([
-    z.string(),
-    z.array(z.string()),
+    ArtifactPatternsSchema,
     z.record(z.string(), ArtifactPatternsSchema),
   ])
   .optional();

@@ -16,9 +16,9 @@ import {
   lazyRequest,
   lazyRequestCallback,
   normalizeArtifactsConfig,
-  patternToRegexp,
   NormalizedArtifactFilter,
 } from '../github';
+import { patternToRegexp } from '../../utils/filters';
 import { sleep } from '../../utils/async';
 
 class TestGitHubArtifactProvider extends GitHubArtifactProvider {
