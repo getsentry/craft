@@ -1,4 +1,6 @@
 import { SpawnOptions, spawnSync } from 'child_process';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 import prompts from 'prompts';
 
 import { TargetConfig } from '../schemas/project_config';
@@ -6,6 +8,7 @@ import { ConfigurationError, reportError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
 import { isDryRun } from '../utils/helpers';
 import { hasExecutable, spawnProcess } from '../utils/system';
+import { discoverWorkspaces } from '../utils/workspaces';
 import {
   isPreviewRelease,
   parseVersion,
@@ -240,6 +243,116 @@ export class NpmTarget extends BaseTarget {
 
       return expandedTarget;
     });
+  }
+
+  /**
+   * Bump version in package.json using npm or yarn.
+   * Supports workspaces - bumps root and all workspace packages.
+   *
+   * @param rootDir - Project root directory
+   * @param newVersion - New version string to set
+   * @returns true if version was bumped, false if no package.json exists
+   * @throws Error if npm/yarn is not found or command fails
+   */
+  public static async bumpVersion(
+    rootDir: string,
+    newVersion: string
+  ): Promise<boolean> {
+    const packageJsonPath = join(rootDir, 'package.json');
+    if (!existsSync(packageJsonPath)) {
+      return false;
+    }
+
+    let bin: string;
+    if (hasExecutable(NPM_BIN)) {
+      bin = NPM_BIN;
+    } else if (hasExecutable(YARN_BIN)) {
+      bin = YARN_BIN;
+    } else {
+      throw new Error(
+        'Cannot find "npm" or "yarn" for version bumping. ' +
+          'Install npm/yarn or define a custom preReleaseCommand in .craft.yml'
+      );
+    }
+
+    const workspaces = await discoverWorkspaces(rootDir);
+    const isWorkspace = workspaces.type !== 'none' && workspaces.packages.length > 0;
+
+    // --no-git-tag-version prevents npm from creating a git commit and tag
+    // --allow-same-version allows setting the same version (useful for re-runs)
+    const baseArgs =
+      bin === NPM_BIN
+        ? ['version', newVersion, '--no-git-tag-version', '--allow-same-version']
+        : ['version', newVersion, '--no-git-tag-version'];
+
+    logger.debug(`Running: ${bin} ${baseArgs.join(' ')}`);
+    await spawnProcess(bin, baseArgs, { cwd: rootDir });
+
+    if (isWorkspace) {
+      if (bin === NPM_BIN) {
+        // npm 7+ supports --workspaces flag
+        const workspaceArgs = [...baseArgs, '--workspaces', '--include-workspace-root'];
+        logger.debug(`Running: ${bin} ${workspaceArgs.join(' ')} (for workspaces)`);
+        try {
+          await spawnProcess(bin, workspaceArgs, { cwd: rootDir });
+        } catch (error) {
+          // If --workspaces fails (npm < 7), fall back to individual package bumping
+          logger.debug('npm --workspaces failed, falling back to individual package bumping');
+          await NpmTarget.bumpWorkspacePackagesIndividually(
+            bin,
+            workspaces.packages,
+            newVersion,
+            baseArgs
+          );
+        }
+      } else {
+        // yarn doesn't have --workspaces for version command, bump individually
+        await NpmTarget.bumpWorkspacePackagesIndividually(
+          bin,
+          workspaces.packages,
+          newVersion,
+          baseArgs
+        );
+      }
+
+      logger.info(
+        `Bumped version in root and ${workspaces.packages.length} workspace packages`
+      );
+    }
+
+    return true;
+  }
+
+  /**
+   * Bump version in each workspace package individually
+   */
+  private static async bumpWorkspacePackagesIndividually(
+    bin: string,
+    packages: { name: string; location: string }[],
+    newVersion: string,
+    baseArgs: string[]
+  ): Promise<void> {
+    for (const pkg of packages) {
+      const pkgJsonPath = join(pkg.location, 'package.json');
+      if (!existsSync(pkgJsonPath)) {
+        continue;
+      }
+
+      let pkgJson: { private?: boolean };
+      try {
+        pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
+      } catch {
+        continue;
+      }
+
+      if (pkgJson.private) {
+        logger.debug(`Skipping private package: ${pkg.name}`);
+        continue;
+      }
+
+      logger.debug(`Bumping version for workspace package: ${pkg.name}`);
+      await spawnProcess(bin, baseArgs, { cwd: pkg.location });
+    }
   }
 
   public constructor(

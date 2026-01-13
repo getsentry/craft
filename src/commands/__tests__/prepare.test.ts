@@ -8,6 +8,7 @@ vi.mock('../../utils/system');
 describe('runPreReleaseCommand', () => {
   const oldVersion = '2.3.3';
   const newVersion = '2.3.4';
+  const rootDir = process.cwd();
   const mockedSpawnProcess = spawnProcess as Mock;
 
   beforeEach(() => {
@@ -17,11 +18,16 @@ describe('runPreReleaseCommand', () => {
   test('runs with default command', async () => {
     expect.assertions(1);
 
-    await runPreReleaseCommand(oldVersion, newVersion);
+    await runPreReleaseCommand({
+      oldVersion,
+      newVersion,
+      rootDir,
+      preReleaseCommand: 'scripts/bump-version.sh',
+    });
 
     expect(mockedSpawnProcess).toBeCalledWith(
-      '/bin/bash',
-      [pathJoin('scripts', 'bump-version.sh'), oldVersion, newVersion],
+      'scripts/bump-version.sh',
+      [oldVersion, newVersion],
       {
         env: {
           ...process.env,
@@ -35,11 +41,12 @@ describe('runPreReleaseCommand', () => {
   test('runs with custom command', async () => {
     expect.assertions(1);
 
-    await runPreReleaseCommand(
+    await runPreReleaseCommand({
       oldVersion,
       newVersion,
-      'python ./increase_version.py "argument 1"'
-    );
+      rootDir,
+      preReleaseCommand: 'python ./increase_version.py "argument 1"',
+    });
 
     expect(mockedSpawnProcess).toBeCalledWith(
       'python',

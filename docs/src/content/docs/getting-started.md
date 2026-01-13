@@ -288,7 +288,9 @@ export NUGET_API_TOKEN=abcdefgh
 
 3. **Add `.craft.yml`** to your project with targets and options.
 
-4. **Add a pre-release script** (default: `scripts/bump-version.sh`).
+4. **Set up version bumping** (one of):
+   - **Automatic** (recommended): Set `minVersion: "2.19.0"` and Craft will automatically bump versions based on your targets (npm, pypi, crates, etc.)
+   - **Custom script**: Add `scripts/bump-version.sh` (or set `preReleaseCommand`)
 
 5. **Configure environment variables** for your targets.
 
