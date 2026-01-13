@@ -13,7 +13,10 @@ const CLI_BIN = resolve(__dirname, '../../dist/craft');
 beforeAll(() => {
   if (!existsSync(CLI_BIN)) {
     console.log('Building craft binary for e2e tests...');
-    execSync('pnpm build', { cwd: resolve(__dirname, '../..'), stdio: 'inherit' });
+    execSync('pnpm build', {
+      cwd: resolve(__dirname, '../..'),
+      stdio: 'inherit',
+    });
   }
 }, 60000);
 
@@ -28,7 +31,7 @@ describe('CLI smoke tests', () => {
     });
 
     expect(stdout).toMatch(/<command>/);
-    expect(stdout).toContain('prepare NEW-VERSION');
+    expect(stdout).toContain('prepare [NEW-VERSION]');
     expect(stdout).toContain('publish NEW-VERSION');
     expect(stdout).toContain('--help');
     // Ensure no error output (warnings are acceptable)
@@ -50,7 +53,7 @@ describe('CLI smoke tests', () => {
     await expect(
       execFileAsync(CLI_BIN, ['nonexistent-command'], {
         env: { ...process.env, NODE_ENV: 'test' },
-      })
+      }),
     ).rejects.toMatchObject({
       code: 1,
     });
@@ -69,7 +72,7 @@ describe('CLI smoke tests', () => {
     } catch (error: any) {
       // Should fail with a config error, not a silent exit or unhandled promise
       expect(error.stderr || error.stdout).toMatch(
-        /Cannot find configuration file|craft\.yml|config/i
+        /Cannot find configuration file|craft\.yml|config/i,
       );
     }
   }, 30000);
