@@ -331,15 +331,18 @@ export class DockerTarget extends BaseTarget {
           // GHCR defaults: use GitHub Actions built-in env vars
           // GITHUB_ACTOR and GITHUB_TOKEN are available by default in GitHub Actions
           // See: https://docs.github.com/en/actions/reference/workflows-and-actions/variables
-          username = username ?? process.env.GITHUB_ACTOR;
-          password = password ?? process.env.GITHUB_TOKEN;
+          // GITHUB_API_TOKEN is used by getsentry/publish workflow with release bot token
+          // x-access-token works with GitHub App installation tokens and PATs
+          username = username || process.env.GITHUB_ACTOR || 'x-access-token';
+          password = password || process.env.GITHUB_TOKEN || process.env.GITHUB_API_TOKEN;
         }
       }
 
       // 3. Fallback to defaults (only for target registry, not for source)
+      // Use || to treat empty strings as "not set" (consistent with ghcr.io logic above)
       if (useDefaultFallback) {
-        username = username ?? process.env.DOCKER_USERNAME;
-        password = password ?? process.env.DOCKER_PASSWORD;
+        username = username || process.env.DOCKER_USERNAME;
+        password = password || process.env.DOCKER_PASSWORD;
       }
     }
 
