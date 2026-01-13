@@ -1203,10 +1203,12 @@ export function stripTitle(
  * Format: `- Title by @author in [#123](pr-url)` or `- Title in [abcdef12](commit-url)`
  * When highlight is true, the entry is prefixed with `> ` (blockquote).
  * When disableMentions is true, uses `**author**` instead of `@author` to avoid pinging.
+ * When disablePRLinks is true, uses plain `#123` instead of markdown links to avoid cross-references.
  */
 function formatChangelogEntry(
   entry: ChangelogEntry,
-  disableMentions = false
+  disableMentions = false,
+  disablePRLinks = false
 ): string {
   let title = entry.title;
 
@@ -1229,12 +1231,14 @@ function formatChangelogEntry(
     : null;
 
   if (entry.prNumber) {
-    // Full markdown link format for PRs
-    const prLink = `${entry.repoUrl}/pull/${entry.prNumber}`;
+    // Format PR reference: use backticks to prevent GitHub auto-linking when disablePRLinks is true
+    const prRef = disablePRLinks
+      ? `\`#${entry.prNumber}\``
+      : `[#${entry.prNumber}](${entry.repoUrl}/pull/${entry.prNumber})`;
     if (authorRef) {
-      text += ` by ${authorRef} in [#${entry.prNumber}](${prLink})`;
+      text += ` by ${authorRef} in ${prRef}`;
     } else {
-      text += ` in [#${entry.prNumber}](${prLink})`;
+      text += ` in ${prRef}`;
     }
   } else {
     // Commits without PRs: link to commit
@@ -1442,8 +1446,8 @@ export async function generateChangelogWithHighlight(
   // Step 9: Run categorization on filtered list
   const { data: rawData, stats } = categorizeCommits(filteredCommits);
 
-  // Step 10: Serialize to markdown (disable mentions to avoid pinging in PR preview comments)
-  const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS, true);
+  // Step 10: Serialize to markdown (disable mentions and PR links to avoid pinging/cross-referencing in PR preview comments)
+  const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS, true, true);
 
   // Determine bump type:
   // - If current PR survived revert processing, use its specific bump type (PR 676 fix)
@@ -1676,12 +1680,14 @@ async function generateRawChangelog(
  * @param rawData The raw changelog data to serialize
  * @param maxLeftovers Maximum number of leftover entries to include
  * @param disableMentions When true, uses bold formatting instead of @ mentions for authors
+ * @param disablePRLinks When true, uses plain text PR references to avoid GitHub cross-references
  * @returns Formatted markdown changelog string
  */
 async function serializeChangelog(
   rawData: RawChangelogData,
   maxLeftovers: number,
-  disableMentions = false
+  disableMentions = false,
+  disablePRLinks = false
 ): Promise<string> {
   const { categories, leftovers, releaseConfig } = rawData;
 
@@ -1767,7 +1773,8 @@ async function serializeChangelog(
             repoUrl,
             highlight: pr.highlight,
           },
-          disableMentions
+          disableMentions,
+          disablePRLinks
         )
       );
 
@@ -1823,7 +1830,8 @@ async function serializeChangelog(
               body: pr.body || undefined,
               highlight: pr.highlight,
             },
-            disableMentions
+            disableMentions,
+            disablePRLinks
           )
         );
       }
