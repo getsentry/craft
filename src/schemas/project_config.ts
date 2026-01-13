@@ -85,7 +85,7 @@ export type BaseArtifactProvider = z.infer<typeof BaseArtifactProviderSchema>;
 /**
  * Artifact pattern(s) for a single workflow - can be a single string or array of strings
  */
-const ArtifactPatternsSchema = z.union([z.string(), z.array(z.string())]);
+export const ArtifactPatternsSchema = z.union([z.string(), z.array(z.string())]);
 
 /**
  * Artifacts config for GitHub artifact provider.

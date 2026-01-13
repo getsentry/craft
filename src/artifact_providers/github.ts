@@ -18,8 +18,11 @@ import {
 } from '../utils/files';
 import { extractZipArchive } from '../utils/system';
 import { sleep } from '../utils/async';
-import { stringToRegexp } from '../utils/filters';
+import { patternToRegexp } from '../utils/filters';
 import { GitHubArtifactsConfig } from '../schemas/project_config';
+
+// Re-export for backward compatibility with tests
+export { patternToRegexp } from '../utils/filters';
 
 const MAX_TRIES = 3;
 const MILLISECONDS = 1000;
@@ -36,22 +39,8 @@ export type WorkflowRun =
  * Normalized artifact filter structure
  */
 export interface NormalizedArtifactFilter {
-  /** Optional workflow name pattern to match (if undefined, matches all workflows) */
   workflow?: RegExp;
-  /** Artifact name patterns to match */
   artifacts: RegExp[];
-}
-
-/**
- * Converts a string to a RegExp if it's wrapped in slashes, otherwise creates an exact match RegExp
- */
-export function patternToRegexp(pattern: string): RegExp {
-  if (pattern.startsWith('/') && pattern.lastIndexOf('/') > 0) {
-    return stringToRegexp(pattern);
-  }
-  // Exact match (escape special regex characters)
-  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`^${escaped}$`);
 }
 
 /**
@@ -243,46 +232,12 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
   }
 
   /**
-   * Downloads and unpacks a GitHub artifact in a temp folder
-   * @param archiveResponse
+   * Downloads and unpacks a single GitHub artifact
    */
-  private async downloadAndUnpackArtifacts(
-    url: string
-  ): Promise<RemoteArtifact[]> {
-    const artifacts: RemoteArtifact[] = [];
-    await withTempFile(async tempFilepath => {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(
-          `Unexpected HTTP response from ${url}: ${response.status} (${response.statusText})`
-        );
-      }
-      await new Promise<void>((resolve, reject) =>
-        response.body
-          .pipe(fs.createWriteStream(tempFilepath))
-          .on('finish', () => resolve())
-          .on('error', reject)
-      );
-      this.logger.info(`Finished downloading.`);
-
-      await withTempDir(async tmpDir => {
-        this.logger.debug(`Extracting "${tempFilepath}" to "${tmpDir}"...`);
-        await extractZipArchive(tempFilepath, tmpDir);
-        (await scan(tmpDir)).forEach(file => {
-          artifacts.push({
-            filename: path.basename(file),
-            mimeType: detectContentType(file),
-            storedFile: {
-              downloadFilepath: file,
-              filename: path.basename(file),
-              size: fs.lstatSync(file).size,
-            },
-          } as RemoteArtifact);
-        });
-      }, false);
-    });
-
-    return artifacts;
+  private async downloadAndUnpackArtifacts(url: string): Promise<RemoteArtifact[]> {
+    const tempFile = await this.downloadToTempFile(url);
+    this.logger.info(`Finished downloading.`);
+    return this.unpackArtifact(tempFile);
   }
 
   /**
@@ -368,11 +323,23 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
   }
 
   /**
+   * Gets the artifact patterns applicable to a workflow run
+   */
+  private getApplicablePatterns(
+    workflowName: string,
+    filters: NormalizedArtifactFilter[]
+  ): RegExp[] {
+    const patterns: RegExp[] = [];
+    for (const filter of filters) {
+      if (!filter.workflow || filter.workflow.test(workflowName)) {
+        patterns.push(...filter.artifacts);
+      }
+    }
+    return patterns;
+  }
+
+  /**
    * Gets artifacts from workflow runs and filters them by patterns
-   *
-   * @param runs Array of workflow runs
-   * @param filters Array of normalized filters
-   * @returns Array of matching artifacts
    */
   protected async getArtifactsFromWorkflowRuns(
     runs: WorkflowRun[],
@@ -380,9 +347,15 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
   ): Promise<ArtifactItem[]> {
     const { repoName: repo, repoOwner: owner } = this.config;
     const matchingArtifacts: ArtifactItem[] = [];
+    const seenArtifactIds = new Set<number>();
 
     for (const run of runs) {
       const workflowName = run.name ?? '';
+      const patterns = this.getApplicablePatterns(workflowName, filters);
+      if (patterns.length === 0) {
+        continue;
+      }
+
       this.logger.debug(
         `Fetching artifacts for workflow run "${workflowName}" (ID: ${run.id})`
       );
@@ -398,21 +371,16 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
         });
 
         for (const artifact of response.data.artifacts) {
-          for (const filter of filters) {
-            if (filter.workflow && !filter.workflow.test(workflowName)) {
-              continue;
-            }
-
-            const matches = filter.artifacts.some(pattern =>
-              pattern.test(artifact.name)
+          if (seenArtifactIds.has(artifact.id)) {
+            continue;
+          }
+          const matches = patterns.some(pattern => pattern.test(artifact.name));
+          if (matches) {
+            this.logger.debug(
+              `Artifact "${artifact.name}" matches filter from workflow "${workflowName}"`
             );
-            if (matches) {
-              this.logger.debug(
-                `Artifact "${artifact.name}" matches filter from workflow "${workflowName}"`
-              );
-              matchingArtifacts.push(artifact);
-              break;
-            }
+            seenArtifactIds.add(artifact.id);
+            matchingArtifacts.push(artifact);
           }
         }
 
@@ -427,31 +395,88 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
   }
 
   /**
-   * Downloads multiple artifacts in parallel and unpacks them
-   *
-   * @param artifactItems Array of artifact items to download
-   * @returns Array of remote artifacts from all downloaded zip files
+   * Downloads an artifact to a temp file
+   */
+  private async downloadToTempFile(url: string): Promise<string> {
+    return withTempFile(
+      async tempFilepath => {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(
+            `Unexpected HTTP response from ${url}: ${response.status} (${response.statusText})`
+          );
+        }
+        await new Promise<void>((resolve, reject) =>
+          response.body
+            .pipe(fs.createWriteStream(tempFilepath))
+            .on('finish', () => resolve())
+            .on('error', reject)
+        );
+        return tempFilepath;
+      },
+      false // Don't cleanup - we'll handle it after unpacking
+    );
+  }
+
+  /**
+   * Unpacks a downloaded zip file and returns the artifacts
+   */
+  private async unpackArtifact(tempFilepath: string): Promise<RemoteArtifact[]> {
+    const artifacts: RemoteArtifact[] = [];
+    await withTempDir(async tmpDir => {
+      this.logger.debug(`Extracting "${tempFilepath}" to "${tmpDir}"...`);
+      await extractZipArchive(tempFilepath, tmpDir);
+      (await scan(tmpDir)).forEach(file => {
+        artifacts.push({
+          filename: path.basename(file),
+          mimeType: detectContentType(file),
+          storedFile: {
+            downloadFilepath: file,
+            filename: path.basename(file),
+            size: fs.lstatSync(file).size,
+          },
+        } as RemoteArtifact);
+      });
+    }, false);
+
+    // Clean up the temp zip file
+    fs.unlinkSync(tempFilepath);
+    return artifacts;
+  }
+
+  /**
+   * Downloads and unpacks multiple artifacts using a two-phase pipeline:
+   * 1. Download all artifacts in parallel
+   * 2. Unpack all artifacts in parallel
    */
   protected async downloadArtifactsInParallel(
     artifactItems: ArtifactItem[]
   ): Promise<RemoteArtifact[]> {
     const limit = pLimit(DOWNLOAD_CONCURRENCY);
-    const allArtifacts: RemoteArtifact[] = [];
 
+    // Phase 1: Download all artifacts in parallel
+    this.logger.debug(`Downloading ${artifactItems.length} artifacts...`);
     const downloadPromises = artifactItems.map(item =>
       limit(async () => {
         this.logger.debug(`Downloading artifact "${item.name}"...`);
         const url = await this.getArchiveDownloadUrl(item);
-        const artifacts = await this.downloadAndUnpackArtifacts(url);
-        return artifacts;
+        return this.downloadToTempFile(url);
       })
     );
+    const tempFiles = await Promise.all(downloadPromises);
+    this.logger.info(`Downloaded ${tempFiles.length} artifacts.`);
 
-    const results = await Promise.all(downloadPromises);
+    // Phase 2: Unpack all artifacts in parallel
+    this.logger.debug(`Unpacking ${tempFiles.length} artifacts...`);
+    const unpackPromises = tempFiles.map(tempFile =>
+      limit(() => this.unpackArtifact(tempFile))
+    );
+    const results = await Promise.all(unpackPromises);
+
+    const allArtifacts: RemoteArtifact[] = [];
     for (const artifacts of results) {
       allArtifacts.push(...artifacts);
     }
-
     return allArtifacts;
   }
 
