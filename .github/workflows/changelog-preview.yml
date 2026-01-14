@@ -17,7 +17,7 @@ on:
   #
   #   on:
   #     pull_request:
-  #       types: [opened, synchronize, reopened, edited, labeled]
+  #       types: [opened, synchronize, reopened, edited, labeled, unlabeled]
   #
   #   permissions:
   #     contents: read
@@ -43,7 +43,7 @@ on:
   # Also run on PRs in this repository (for dogfooding)
   # Includes 'edited' and 'labeled' to update when PR title/description/labels change
   pull_request:
-    types: [opened, synchronize, reopened, edited, labeled]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 permissions:
   contents: read
