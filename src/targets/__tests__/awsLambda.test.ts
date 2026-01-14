@@ -1,4 +1,10 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import {
+  vi,
+  type Mock,
+  type MockInstance,
+  type Mocked,
+  type MockedFunction,
+} from 'vitest';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { ConfigurationError } from '../../utils/errors';
 import { AwsLambdaLayerTarget } from '../awsLambdaLayer';
@@ -12,7 +18,7 @@ function getAwsLambdaTarget(): AwsLambdaLayerTarget {
       name: 'aws-lambda-layer',
       ['testKey']: 'testValue',
     },
-    new NoneArtifactProvider()
+    new NoneArtifactProvider(),
   );
 }
 
@@ -91,7 +97,7 @@ describe('project config parameters', () => {
     } catch (error) {
       expect(error instanceof ConfigurationError).toBe(true);
       expect(
-        /Missing project configuration parameter/.test(error.message)
+        /Missing project configuration parameter/.test(error.message),
       ).toBe(true);
     }
   });
@@ -109,9 +115,8 @@ describe('project config parameters', () => {
       // throw an error and avoid the whole `publish` to be executed. So, if
       // the error in the mocked function is thrown, the project config test
       // was successful; on the other hand, if it's not thrown, the test fails.
-      awsTarget.getArtifactsForRevision = getArtifactsFailingMock.bind(
-        AwsLambdaLayerTarget
-      );
+      awsTarget.getArtifactsForRevision =
+        getArtifactsFailingMock.bind(AwsLambdaLayerTarget);
       await awsTarget.publish('', ''); // Should break the mocked function.
       fail('Should not reach here');
     } catch (error) {
@@ -141,7 +146,8 @@ describe('layer name templating', () => {
 
   test('layer name with multiple version variables', () => {
     const awsTarget = getAwsLambdaTarget();
-    awsTarget.config.layerName = 'SentrySDKv{{{major}}}-{{{minor}}}-{{{patch}}}';
+    awsTarget.config.layerName =
+      'SentrySDKv{{{major}}}-{{{minor}}}-{{{patch}}}';
     const resolved = awsTarget.resolveLayerName('10.2.3');
     expect(resolved).toBe('SentrySDKv10-2-3');
   });
@@ -173,9 +179,8 @@ describe('publish', () => {
   test('error on missing artifact', async () => {
     const awsTarget = getAwsLambdaTarget();
     setTestingProjectConfig(awsTarget);
-    awsTarget.getArtifactsForRevision = noArtifactsForRevision.bind(
-      AwsLambdaLayerTarget
-    );
+    awsTarget.getArtifactsForRevision =
+      noArtifactsForRevision.bind(AwsLambdaLayerTarget);
     // `publish` should report an error. When it's not dry run, the error is
     // thrown; when it's on dry run, the error is logged and `undefined` is
     // returned. Thus, both alternatives have been considered.
@@ -196,16 +201,15 @@ describe('publish', () => {
   test('error on having too many artifacts', async () => {
     const awsTarget = getAwsLambdaTarget();
     setTestingProjectConfig(awsTarget);
-    awsTarget.getArtifactsForRevision = twoArtifactsForRevision.bind(
-      AwsLambdaLayerTarget
-    );
+    awsTarget.getArtifactsForRevision =
+      twoArtifactsForRevision.bind(AwsLambdaLayerTarget);
     // `publish` should report an error. When it's not dry run, the error is
     // thrown; when it's on dry run, the error is logged and `undefined` is
     // returned. Thus, both alternatives have been considered.
     try {
       const multiplePackagesFound = await awsTarget.publish(
         'version',
-        'revision'
+        'revision',
       );
       expect(multiplePackagesFound).toBe(undefined);
     } catch (error) {
@@ -213,5 +217,43 @@ describe('publish', () => {
       const multiplePackagesPattern = /multiple packages/;
       expect(multiplePackagesPattern.test(error.message)).toBe(true);
     }
+  });
+
+  test('skips publishing for pre-release versions', async () => {
+    const awsTarget = getAwsLambdaTarget();
+    setTestingProjectConfig(awsTarget);
+
+    // Test various pre-release version formats
+    const preReleaseVersions = [
+      '1.0.0-alpha.1',
+      '2.5.3-beta.2',
+      '3.0.0-rc.1',
+      '1.2.3-dev',
+      '4.0.0-preview.5',
+    ];
+
+    for (const version of preReleaseVersions) {
+      const result = await awsTarget.publish(version, 'revision');
+      expect(result).toBe(undefined);
+    }
+  });
+
+  test('publishes for pre-release when linkPrereleases is true', async () => {
+    const awsTarget = getAwsLambdaTarget();
+    setTestingProjectConfig(awsTarget);
+    awsTarget.awsLambdaConfig.linkPrereleases = true;
+
+    const getArtifactsMock = vi.fn().mockImplementation(() => ['artifact.zip']);
+    awsTarget.getArtifactsForRevision =
+      getArtifactsMock.bind(AwsLambdaLayerTarget);
+
+    // This should proceed to call getArtifactsForRevision for a pre-release
+    try {
+      await awsTarget.publish('1.0.0-alpha.1', 'revision');
+    } catch (error) {
+      // Expected to fail at a later stage, but getArtifactsForRevision should be called
+    }
+
+    expect(getArtifactsMock).toHaveBeenCalled();
   });
 });
