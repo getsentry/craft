@@ -76,10 +76,13 @@ runs:
 
     - name: Set git user
       shell: bash
+      env:
+        INPUT_GIT_USER_NAME: ${{ inputs.git_user_name }}
+        INPUT_GIT_USER_EMAIL: ${{ inputs.git_user_email }}
       run: |
         # Use provided values or fall back to triggering actor
-        GIT_USER_NAME='${{ inputs.git_user_name }}'
-        GIT_USER_EMAIL='${{ inputs.git_user_email }}'
+        GIT_USER_NAME="${INPUT_GIT_USER_NAME}"
+        GIT_USER_EMAIL="${INPUT_GIT_USER_EMAIL}"
 
         if [[ -z "$GIT_USER_NAME" ]]; then
           GIT_USER_NAME="${GITHUB_ACTOR}"
@@ -194,21 +197,31 @@ runs:
     - name: Request publish
       id: request-publish
       shell: bash
+      env:
+        CHANGELOG: ${{ steps.craft.outputs.changelog }}
+        TARGETS: ${{ steps.craft-targets.outputs.targets }}
+        VERSION: ${{ steps.craft.outputs.version }}
+        BRANCH: ${{ steps.craft.outputs.branch }}
+        SHA: ${{ steps.craft.outputs.sha }}
+        PREVIOUS_TAG: ${{ steps.craft.outputs.previous_tag }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_MERGE_TARGET: ${{ inputs.merge_target }}
+        INPUT_PUBLISH_REPO: ${{ inputs.publish_repo }}
       run: |
-        if [[ '${{ inputs.path }}' == '.' ]]; then
+        if [[ "$INPUT_PATH" == "." ]]; then
           subdirectory=''
         else
-          subdirectory='/${{ inputs.path }}'
+          subdirectory="/$INPUT_PATH"
         fi
 
-        if [[ -n '${{ inputs.merge_target }}' ]]; then
-          merge_target='${{ inputs.merge_target }}'
+        if [[ -n "$INPUT_MERGE_TARGET" ]]; then
+          merge_target="$INPUT_MERGE_TARGET"
         else
           merge_target='(default)'
         fi
 
         # Use resolved version from Craft output
-        RESOLVED_VERSION="${{ steps.craft.outputs.version }}"
+        RESOLVED_VERSION="$VERSION"
         if [[ -z "$RESOLVED_VERSION" ]]; then
           echo "::error::Craft did not output a version. This is unexpected."
           exit 1
@@ -217,7 +230,7 @@ runs:
         title="publish: ${GITHUB_REPOSITORY}${subdirectory}@${RESOLVED_VERSION}"
 
         # Determine publish repo
-        PUBLISH_REPO='${{ inputs.publish_repo }}'
+        PUBLISH_REPO="$INPUT_PUBLISH_REPO"
         if [[ -z "$PUBLISH_REPO" ]]; then
           PUBLISH_REPO="${GITHUB_REPOSITORY_OWNER}/publish"
         fi
@@ -234,17 +247,16 @@ runs:
         fi
 
         # Use Craft outputs for git info
-        RELEASE_BRANCH="${{ steps.craft.outputs.branch }}"
-        RELEASE_SHA="${{ steps.craft.outputs.sha }}"
-        PREVIOUS_TAG="${{ steps.craft.outputs.previous_tag }}"
+        RELEASE_BRANCH="$BRANCH"
+        RELEASE_SHA="$SHA"
+        RELEASE_PREVIOUS_TAG="$PREVIOUS_TAG"
 
         # Fall back to HEAD if no previous tag
-        if [[ -z "$PREVIOUS_TAG" ]]; then
-          PREVIOUS_TAG="HEAD"
+        if [[ -z "$RELEASE_PREVIOUS_TAG" ]]; then
+          RELEASE_PREVIOUS_TAG="HEAD"
         fi
 
         # Build changelog section if available
-        CHANGELOG='${{ steps.craft.outputs.changelog }}'
         if [[ -n "$CHANGELOG" ]]; then
           CHANGELOG_SECTION="
         ---
@@ -264,7 +276,7 @@ runs:
         Merge target: ${merge_target}
 
         Quick links:
-        - [View changes](https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS_TAG}...${RELEASE_BRANCH})
+        - [View changes](https://github.com/${GITHUB_REPOSITORY}/compare/${RELEASE_PREVIOUS_TAG}...${RELEASE_BRANCH})
         - [View check runs](https://github.com/${GITHUB_REPOSITORY}/commit/${RELEASE_SHA}/checks/)
 
         Assign the **accepted** label to this issue to approve the release.
@@ -272,7 +284,7 @@ runs:
 
         ### Targets
 
-        ${{ steps.craft-targets.outputs.targets }}
+        ${TARGETS}
 
         Checked targets will be skipped (either already published or user-requested skip). Uncheck to retry a target.
         ${CHANGELOG_SECTION}"
