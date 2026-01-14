@@ -30,6 +30,11 @@ on:
   #
   workflow_call:
     inputs:
+      working-directory:
+        description: "Directory to run Craft in (relative to repo root)"
+        required: false
+        type: string
+        default: "."
       craft-version:
         description: 'Version of Craft to use (tag or "latest")'
         required: false
@@ -101,6 +106,7 @@ jobs:
 
       - name: Generate Changelog Preview
         shell: bash
+        working-directory: ${{ inputs.working-directory }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
