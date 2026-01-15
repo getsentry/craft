@@ -171,22 +171,60 @@ jobs:
             # Check run mode (new feature or internal dogfooding)
             echo "Using check run mode..."
             
-            # 1. Create check run via GitHub API
+            HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+            DETAILS_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            PR_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/${PR_NUMBER}"
+            
+            # Build the check summary with full changelog
+            CHECK_SUMMARY="## Semver Impact
+
+          ${BUMP_BADGE}
+
+          <details>
+          <summary>📋 Changelog Preview</summary>
+
+          This is how your changes will appear in the changelog.
+          Entries from this PR are highlighted with a left border (blockquote style).
+
+          ---
+
+          ${CHANGELOG}
+
+          ---
+
+          </details>
+
+          [→ View PR #${PR_NUMBER}](${PR_URL})"
+
+            # Create check run via GitHub API using jq for safe JSON construction
             echo "Creating check run..."
-            gh api -X POST \
+            JSON_PAYLOAD=$(jq -n \
+              --arg name "Changelog" \
+              --arg head_sha "$HEAD_SHA" \
+              --arg details_url "$DETAILS_URL" \
+              --arg title "$BUMP_SHORT" \
+              --arg summary "$CHECK_SUMMARY" \
+              '{
+                name: $name,
+                head_sha: $head_sha,
+                status: "completed",
+                conclusion: "neutral",
+                details_url: $details_url,
+                output: {
+                  title: $title,
+                  summary: $summary
+                }
+              }')
+
+            gh api --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
               "repos/$GITHUB_REPOSITORY/check-runs" \
-              -f name="Changelog" \
-              -f head_sha="${{ github.event.pull_request.head.sha || github.sha }}" \
-              -f status="completed" \
-              -f conclusion="neutral" \
-              -f output[title]="$BUMP_SHORT" \
-              -f output[summary]="$CHANGELOG"
+              --input - <<< "$JSON_PAYLOAD"
             
             echo "✓ Check run created"
             
             # 2. Write to job summary
-            PR_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/${PR_NUMBER}"
-            
             cat >> $GITHUB_STEP_SUMMARY << CRAFT_CHANGELOG_SUMMARY_END
           # Changelog Preview for PR #${PR_NUMBER}
 
