@@ -159,10 +159,10 @@ jobs:
 
           # Create short description with emoji for check run title
           case "$BUMP_TYPE" in
-            major) BUMP_SHORT="🔴 Major" ;;
-            minor) BUMP_SHORT="🟡 Minor" ;;
-            patch) BUMP_SHORT="🟢 Patch" ;;
-            *) BUMP_SHORT="⚪ None" ;;
+            major) BUMP_SHORT="Semver impact: 🔴 Major" ;;
+            minor) BUMP_SHORT="Semver impact: 🟡 Minor" ;;
+            patch) BUMP_SHORT="Semver impact: 🟢 Patch" ;;
+            *) BUMP_SHORT="Semver impact: ⚪ None" ;;
           esac
 
           # Determine mode: use check run mode when comment is false OR when running internally (no input)
@@ -209,8 +209,6 @@ jobs:
           ---
 
           </details>
-
-          <sub>💡 This preview is available in the Actions run summary. [View all workflow runs](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/changelog-preview.yml).</sub>
           CRAFT_CHANGELOG_SUMMARY_END
             
             echo "✓ Job summary written"
