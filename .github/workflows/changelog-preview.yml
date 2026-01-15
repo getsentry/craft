@@ -160,19 +160,19 @@ jobs:
           # Create descriptions for status check (no emoji support in Commit Status API)
           case "$BUMP_TYPE" in
             major) 
-              BUMP_SHORT="Semver impact: Major"
+              BUMP_SHORT="Major"
               BUMP_EMOJI="🔴"
               ;;
             minor) 
-              BUMP_SHORT="Semver impact: Minor"
+              BUMP_SHORT="Minor"
               BUMP_EMOJI="🟡"
               ;;
             patch) 
-              BUMP_SHORT="Semver impact: Patch"
+              BUMP_SHORT="Patch"
               BUMP_EMOJI="🟢"
               ;;
             *) 
-              BUMP_SHORT="Semver impact: None"
+              BUMP_SHORT="None"
               BUMP_EMOJI="⚪"
               ;;
           esac
@@ -194,7 +194,7 @@ jobs:
               -H "X-GitHub-Api-Version: 2022-11-28" \
               "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
               -f state="success" \
-              -f context="Changelog" \
+              -f context="Changelog Preview / Semver Impact" \
               -f description="$BUMP_SHORT" \
               -f target_url="$TARGET_URL"
             
