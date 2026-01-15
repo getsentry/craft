@@ -157,12 +157,24 @@ jobs:
             *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
           esac
 
-          # Create short description with emoji for check run title
+          # Create descriptions for status check (no emoji support in Commit Status API)
           case "$BUMP_TYPE" in
-            major) BUMP_SHORT="Semver impact: 🔴 Major" ;;
-            minor) BUMP_SHORT="Semver impact: 🟡 Minor" ;;
-            patch) BUMP_SHORT="Semver impact: 🟢 Patch" ;;
-            *) BUMP_SHORT="Semver impact: ⚪ None" ;;
+            major) 
+              BUMP_SHORT="Semver impact: Major"
+              BUMP_EMOJI="🔴"
+              ;;
+            minor) 
+              BUMP_SHORT="Semver impact: Minor"
+              BUMP_EMOJI="🟡"
+              ;;
+            patch) 
+              BUMP_SHORT="Semver impact: Patch"
+              BUMP_EMOJI="🟢"
+              ;;
+            *) 
+              BUMP_SHORT="Semver impact: None"
+              BUMP_EMOJI="⚪"
+              ;;
           esac
 
           # Determine mode: use status check mode when comment is false OR when running internally (no input)
