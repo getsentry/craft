@@ -142,9 +142,85 @@ jobs:
 
 ### Inputs
 
-| Input           | Description                               | Default  |
-| --------------- | ----------------------------------------- | -------- |
-| `craft-version` | Version of Craft to use (tag or "latest") | `latest` |
+| Input               | Description                                                                  | Default  |
+| ------------------- | ---------------------------------------------------------------------------- | -------- |
+| `working-directory` | Directory to run Craft in (relative to repo root)                            | `.`      |
+| `craft-version`     | Version of Craft to use (tag or "latest")                                    | `latest` |
+| `comment`           | Post changelog as PR comment (true) or as check run with job summary (false) | `true`   |
+
+### Output Modes
+
+The workflow supports two output modes for displaying changelog previews:
+
+#### Comment Mode (Default)
+
+Posts the changelog preview as a PR comment that updates automatically:
+
+```yaml
+jobs:
+  changelog-preview:
+    uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
+    with:
+      comment: true # or omit for default
+    secrets: inherit
+```
+
+**Pros:**
+
+- Changelog visible directly on PR page
+- All team members see updates immediately
+- Familiar commenting interface
+
+**Cons:**
+
+- Creates notification noise on every update
+- Multiple updates trigger multiple notifications
+- Can clutter PR conversation on active branches
+
+**Required permissions:**
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+```
+
+#### Check Run Mode
+
+Creates a neutral check run with detailed output and writes to the Actions job summary:
+
+```yaml
+jobs:
+  changelog-preview:
+    uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
+    with:
+      comment: false
+    secrets: inherit
+```
+
+**Pros:**
+
+- Minimal notification noise
+- Cleaner PR interface
+- Semver impact visible in checks section
+- Full changelog available in check details and Actions summary
+
+**Cons:**
+
+- Requires clicking through to see full changelog
+- Less immediate visibility than comment
+
+**Required permissions:**
+
+```yaml
+permissions:
+  contents: read
+  checks: write
+```
+
+:::tip
+Craft itself uses check run mode to avoid notification noise. You can see it in action on any PR in the [getsentry/craft repository](https://github.com/getsentry/craft/pulls).
+:::
 
 ### Pinning a Specific Version
 
@@ -168,8 +244,8 @@ jobs:
 3. **Categorizes the PR** - Matches the PR to changelog categories based on labels and commit patterns
 4. **Suggests version bump** - Based on matched categories with semver fields (major/minor/patch)
 5. **Highlights PR entries** - The current PR is rendered with blockquote style (displayed with a left border in GitHub)
-6. **Posts a comment** - Creates or updates a comment on the PR with the changelog preview
-7. **Auto-updates** - The comment is automatically updated when you update the PR (push commits, edit title/description, or change labels)
+6. **Displays the preview** - Posts as a PR comment (default) or creates a neutral check run with job summary (when `comment: false`)
+7. **Auto-updates** - The preview is automatically updated when you update the PR (push commits, edit title/description, or change labels)
 
 :::note
 The version bump suggestion requires categories in your `.github/release.yml` to have
@@ -225,7 +301,8 @@ The workflow requires specific permissions and secrets to function correctly:
 **Permissions** (required):
 
 - `contents: read` - Allows the workflow to checkout your repository and read git history for changelog generation
-- `pull-requests: write` - Allows the workflow to post and update comments on pull requests
+- `pull-requests: write` - Required for comment mode (default) to post and update comments on pull requests
+- `checks: write` - Required for check run mode (when `comment: false`) to create check runs
 
 **Secrets**:
 
@@ -236,7 +313,9 @@ The workflow requires specific permissions and secrets to function correctly:
 - The repository should have a git history with tags for the changelog to be meaningful
 
 :::note[Why are these permissions needed?]
-GitHub Actions reusable workflows use permission intersection - the final permissions are the intersection of what the caller grants and what the workflow declares. By explicitly declaring these permissions in your workflow file, you ensure the workflow can access your repository and post comments, even for private repositories.
+GitHub Actions reusable workflows use permission intersection - the final permissions are the intersection of what the caller grants and what the workflow declares. By explicitly declaring these permissions in your workflow file, you ensure the workflow can access your repository and perform the necessary actions, even for private repositories.
+
+Note: You only need `pull-requests: write` for comment mode OR `checks: write` for check run mode, not both. However, it's safe to grant both permissions if you're unsure which mode you'll use.
 :::
 
 ## Skipping Changelog Entries
