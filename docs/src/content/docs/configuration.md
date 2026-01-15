@@ -140,7 +140,7 @@ changelog:
       commit_patterns:
         - "^(?<type>docs?(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
       semver: patch
-    - title: Build / dependencies / internal 🔧
+    - title: Internal Changes 🔧
       commit_patterns:
         - "^(?<type>(?:build|refactor|meta|chore|ci|ref|perf)(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
       semver: patch
