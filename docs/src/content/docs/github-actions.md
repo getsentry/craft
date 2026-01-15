@@ -127,8 +127,8 @@ Call the reusable workflow from your repository:
 ```yaml
 name: Changelog Preview
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, edited, labeled]
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -139,6 +139,12 @@ jobs:
     uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
     secrets: inherit
 ```
+
+:::caution[Use `pull_request_target`, not `pull_request`]
+The workflow requires `pull_request_target` to post comments on PRs from forks. The standard `pull_request` event provides a read-only `GITHUB_TOKEN` for fork PRs, which would cause the workflow to fail with a 403 error.
+
+This is safe because the workflow only reads git metadata and config - no code from the PR is executed.
+:::
 
 ### Inputs
 
@@ -225,6 +231,10 @@ Craft itself uses status check mode to avoid notification noise. You can see it 
 ### Pinning a Specific Version
 
 ```yaml
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
 permissions:
   contents: read
   pull-requests: write
@@ -358,8 +368,8 @@ You can use both the changelog preview and release workflows together for a comp
 # .github/workflows/changelog-preview.yml
 name: Changelog Preview
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, edited, labeled]
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 permissions:
   contents: read

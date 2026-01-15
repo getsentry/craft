@@ -6,18 +6,22 @@ on:
   # USAGE REQUIREMENTS:
   # When calling this workflow from another repository, you must:
   #
-  # 1. Grant required permissions:
+  # 1. Use pull_request_target (NOT pull_request):
+  #    - This is required to post comments on PRs from forks
+  #    - pull_request event has read-only GITHUB_TOKEN for fork PRs
+  #
+  # 2. Grant required permissions:
   #    - contents: read        (to checkout repo and read git history)
   #    - pull-requests: write  (to post/update PR comments in comment mode)
   #    - statuses: write       (to create commit statuses in status check mode)
   #
-  # 2. Inherit secrets:
+  # 3. Inherit secrets:
   #    - secrets: inherit      (ensures caller's GITHUB_TOKEN is used)
   #
   # Example caller workflow (comment mode):
   #
   #   on:
-  #     pull_request:
+  #     pull_request_target:
   #       types: [opened, synchronize, reopened, edited, labeled, unlabeled]
   #
   #   permissions:
@@ -42,6 +46,12 @@ on:
   #         comment: false
   #       secrets: inherit
   #
+  # SECURITY NOTE:
+  # This workflow is safe to use with pull_request_target because:
+  # - The Craft binary is downloaded from releases, NOT from the PR
+  # - Only git metadata (commits, tags) and .craft.yml config are read
+  # - No code from the PR is ever executed
+  #
   workflow_call:
     inputs:
       working-directory:
@@ -59,9 +69,8 @@ on:
         type: boolean
         default: true
 
-  # Also run on PRs in this repository (for dogfooding)
-  # Includes 'edited' and 'labeled' to update when PR title/description/labels change
-  pull_request:
+  # Also run on PRs in this repository (dogfooding)
+  pull_request_target:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 permissions:
@@ -73,16 +82,21 @@ jobs:
   preview:
     runs-on: ubuntu-latest
     steps:
+      # For pull_request_target, we must explicitly specify the ref to get the PR commits.
+      # Try the merge ref first; fall back to head ref if PR has merge conflicts.
       - uses: actions/checkout@v4
+        id: checkout-merge
+        continue-on-error: true
         with:
           fetch-depth: 0
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
 
-      # Install Craft from release
-      # Note: Dogfooding (using build artifact from this PR) is not feasible here because:
-      # 1. The build workflow runs separately and artifacts are scoped to that workflow run
-      # 2. Cross-workflow artifact fetching would require additional complexity
-      # 3. The changelog preview is less critical than the main release action
-      # For now, we always use the released version for changelog previews.
+      - uses: actions/checkout@v4
+        if: steps.checkout-merge.outcome == 'failure'
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Install Craft
         shell: bash
         run: |
@@ -134,11 +148,9 @@ jobs:
         run: |
           PR_NUMBER="${{ github.event.pull_request.number }}"
 
-          # Generate changelog with current PR injected and highlighted (JSON format)
           echo "Running craft changelog --pr $PR_NUMBER --format json..."
           RESULT=$(craft changelog --pr "$PR_NUMBER" --format json 2>/dev/null || echo '{"changelog":"","bumpType":null}')
 
-          # Extract fields from JSON
           CHANGELOG=$(echo "$RESULT" | jq -r '.changelog // ""')
           BUMP_TYPE=$(echo "$RESULT" | jq -r '.bumpType // "none"')
           PR_SKIPPED=$(echo "$RESULT" | jq -r '.prSkipped // false')
@@ -149,7 +161,6 @@ jobs:
             CHANGELOG="_No changelog entries will be generated from this PR._"
           fi
 
-          # Format bump type for display
           case "$BUMP_TYPE" in
             major) BUMP_BADGE="🔴 **Major** (breaking changes)" ;;
             minor) BUMP_BADGE="🟡 **Minor** (new features)" ;;
@@ -157,7 +168,6 @@ jobs:
             *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
           esac
 
-          # Create descriptions for status check (no emoji support in Commit Status API)
           case "$BUMP_TYPE" in
             major) 
               BUMP_SHORT="Major"
@@ -230,7 +240,6 @@ jobs:
             # Comment mode (original behavior)
             echo "Using comment mode..."
             
-            # Build comment body using a temp file (safer than heredoc)
             COMMENT_FILE=$(mktemp)
             cat > "$COMMENT_FILE" << CRAFT_CHANGELOG_COMMENT_END
           <!-- craft-changelog-preview -->
@@ -255,7 +264,6 @@ jobs:
           <sub>🤖 This preview updates automatically when you update the PR.</sub>
           CRAFT_CHANGELOG_COMMENT_END
 
-            # Find existing comment with our marker
             COMMENT_ID=$(gh api \
               "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
               --jq '.[] | select(.body | contains("<!-- craft-changelog-preview -->")) | .id' \
