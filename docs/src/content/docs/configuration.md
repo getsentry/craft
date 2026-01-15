@@ -31,6 +31,7 @@ The command is executed with the following environment variables:
 The script should:
 
 - Use these environment variables to perform version replacement
+- Replace version occurrences
 - Not commit changes
 - Not change git state
 
@@ -104,6 +105,13 @@ Craft extends GitHub's format with two additional fields:
 | ----------------- | ------------------------------------------------------------------------- |
 | `commit_patterns` | Array of regex patterns to match commit/PR titles (in addition to labels) |
 | `semver`          | Version bump type for auto-versioning: `major`, `minor`, or `patch`       |
+
+:::caution[Required for Version Detection]
+The `semver` field is required for Craft's automatic version detection to work.
+If you define a custom `.github/release.yml` without `semver` fields, PRs will
+still appear in the changelog but won't contribute to suggested version bumps.
+The [changelog preview](/github-actions/#changelog-preview) will show "None" for semver impact.
+:::
 
 #### Default Configuration
 
