@@ -31,10 +31,10 @@ on:
   workflow_call:
     inputs:
       working-directory:
-        description: "Directory to run Craft in (relative to repo root)"
+        description: 'Directory to run Craft in (relative to repo root)'
         required: false
         type: string
-        default: "."
+        default: '.'
       craft-version:
         description: 'Version of Craft to use (tag or "latest")'
         required: false
@@ -67,9 +67,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          
+
           CRAFT_VERSION="${{ inputs.craft-version || 'latest' }}"
-          
+
           if [[ "$CRAFT_VERSION" == "latest" || -z "$CRAFT_VERSION" ]]; then
             echo "Downloading latest Craft release..."
             CRAFT_URL=$(curl -fsSL "https://api.github.com/repos/getsentry/craft/releases/latest" \
@@ -85,23 +85,23 @@ jobs:
                 | jq -r '.assets[] | select(.name == "craft") | .browser_download_url')
             fi
           fi
-          
+
           # Verify we have a valid URL
           if [[ -z "$CRAFT_URL" ]]; then
             echo "::error::Failed to determine Craft download URL"
             exit 1
           fi
-          
+
           echo "Installing Craft from: ${CRAFT_URL}"
           sudo curl -fsSL -o /usr/local/bin/craft "$CRAFT_URL"
           sudo chmod +x /usr/local/bin/craft
-          
+
           # Verify installation
           if [[ ! -s /usr/local/bin/craft ]]; then
             echo "::error::Downloaded Craft binary is empty or missing"
             exit 1
           fi
-          
+
           craft --version
 
       - name: Generate Changelog Preview
@@ -145,7 +145,8 @@ jobs:
 
           ${BUMP_BADGE}
 
-          ## 📋 Changelog Preview
+          <details>
+          <summary>📋 Changelog Preview</summary>
 
           This is how your changes will appear in the changelog.
           Entries from this PR are highlighted with a left border (blockquote style).
@@ -155,6 +156,8 @@ jobs:
           ${CHANGELOG}
 
           ---
+
+          </details>
 
           <sub>🤖 This preview updates automatically when you update the PR.</sub>
           CRAFT_CHANGELOG_COMMENT_END
