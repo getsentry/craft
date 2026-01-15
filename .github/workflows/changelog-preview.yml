@@ -175,22 +175,13 @@ jobs:
             DETAILS_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             PR_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/${PR_NUMBER}"
             
-            # Build the check summary with full changelog
-            CHECK_SUMMARY="## Semver Impact
-
-          ${BUMP_BADGE}
+            # Build the check summary with full changelog (simpler format)
+            CHECK_SUMMARY="${BUMP_BADGE}
 
           <details>
           <summary>📋 Changelog Preview</summary>
 
-          This is how your changes will appear in the changelog.
-          Entries from this PR are highlighted with a left border (blockquote style).
-
-          ---
-
           ${CHANGELOG}
-
-          ---
 
           </details>
 
