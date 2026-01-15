@@ -344,6 +344,7 @@ describe('DockerTarget', () => {
     delete process.env.DOCKER_GCR_IO_PASSWORD;
     delete process.env.GITHUB_ACTOR;
     delete process.env.GITHUB_TOKEN;
+    delete process.env.GITHUB_API_TOKEN;
   });
 
   afterAll(() => {
@@ -465,6 +466,73 @@ describe('DockerTarget', () => {
         expect(target.dockerConfig.target.credentials!.password).toBe('github-token');
       });
 
+      it('falls back to GITHUB_API_TOKEN for ghcr.io when GITHUB_TOKEN is not set', () => {
+        process.env.GITHUB_ACTOR = 'github-actor';
+        process.env.GITHUB_API_TOKEN = 'github-api-token';
+
+        const target = new DockerTarget(
+          {
+            name: 'docker',
+            source: 'ghcr.io/org/image',
+            target: 'ghcr.io/org/image',
+          },
+          new NoneArtifactProvider()
+        );
+
+        expect(target.dockerConfig.target.credentials!.username).toBe('github-actor');
+        expect(target.dockerConfig.target.credentials!.password).toBe('github-api-token');
+      });
+
+      it('falls back to x-access-token username for ghcr.io when GITHUB_ACTOR is not set', () => {
+        process.env.GITHUB_TOKEN = 'github-token';
+
+        const target = new DockerTarget(
+          {
+            name: 'docker',
+            source: 'ghcr.io/org/image',
+            target: 'ghcr.io/org/image',
+          },
+          new NoneArtifactProvider()
+        );
+
+        expect(target.dockerConfig.target.credentials!.username).toBe('x-access-token');
+        expect(target.dockerConfig.target.credentials!.password).toBe('github-token');
+      });
+
+      it('falls back to x-access-token username for ghcr.io when GITHUB_ACTOR is empty', () => {
+        process.env.GITHUB_ACTOR = '';
+        process.env.GITHUB_TOKEN = 'github-token';
+
+        const target = new DockerTarget(
+          {
+            name: 'docker',
+            source: 'ghcr.io/org/image',
+            target: 'ghcr.io/org/image',
+          },
+          new NoneArtifactProvider()
+        );
+
+        expect(target.dockerConfig.target.credentials!.username).toBe('x-access-token');
+        expect(target.dockerConfig.target.credentials!.password).toBe('github-token');
+      });
+
+      it('uses x-access-token and GITHUB_API_TOKEN for ghcr.io (app token scenario)', () => {
+        // This simulates the getsentry/publish workflow with release bot token
+        process.env.GITHUB_API_TOKEN = 'release-bot-token';
+
+        const target = new DockerTarget(
+          {
+            name: 'docker',
+            source: 'ghcr.io/org/image',
+            target: 'ghcr.io/org/image',
+          },
+          new NoneArtifactProvider()
+        );
+
+        expect(target.dockerConfig.target.credentials!.username).toBe('x-access-token');
+        expect(target.dockerConfig.target.credentials!.password).toBe('release-bot-token');
+      });
+
       it('uses default DOCKER_* env vars for Docker Hub', () => {
         process.env.DOCKER_USERNAME = 'dockerhub-user';
         process.env.DOCKER_PASSWORD = 'dockerhub-pass';
@@ -520,6 +588,25 @@ describe('DockerTarget', () => {
       });
 
       it('falls back to DOCKER_* when registry-specific vars are not set', () => {
+        process.env.DOCKER_USERNAME = 'default-user';
+        process.env.DOCKER_PASSWORD = 'default-pass';
+
+        const target = new DockerTarget(
+          {
+            name: 'docker',
+            source: 'ghcr.io/org/image',
+            target: 'gcr.io/project/image',
+          },
+          new NoneArtifactProvider()
+        );
+
+        expect(target.dockerConfig.target.credentials!.username).toBe('default-user');
+        expect(target.dockerConfig.target.credentials!.password).toBe('default-pass');
+      });
+
+      it('falls back to DOCKER_* when registry-specific vars are empty strings', () => {
+        process.env.DOCKER_GCR_IO_USERNAME = '';
+        process.env.DOCKER_GCR_IO_PASSWORD = '';
         process.env.DOCKER_USERNAME = 'default-user';
         process.env.DOCKER_PASSWORD = 'default-pass';
 

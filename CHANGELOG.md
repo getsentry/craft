@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.19.0
+
+### New Features ✨
+
+- (action) Emit publish request issue URL as annotation by @BYK in [#708](https://github.com/getsentry/craft/pull/708)
+
+### Bug Fixes 🐛
+
+#### Docker
+
+- Add image template var and strict template validation by @BYK in [#713](https://github.com/getsentry/craft/pull/713)
+- Add GITHUB_API_TOKEN and x-access-token fallbacks for ghcr.io by @BYK in [#710](https://github.com/getsentry/craft/pull/710)
+
+#### Other
+
+- (action) Use environment variables for complex inputs by @BYK in [#716](https://github.com/getsentry/craft/pull/716)
+- (aws-lambda) Skip layer publication for pre-release versions by @BYK in [#714](https://github.com/getsentry/craft/pull/714)
+- (prepare) Make NEW-VERSION optional and auto-create changelog by @BYK in [#715](https://github.com/getsentry/craft/pull/715)
+- Don't mention PRs to avoid linking in changelog previews by @BYK in [#712](https://github.com/getsentry/craft/pull/712)
+
 ## 2.18.3
 
 ### Bug Fixes 🐛

@@ -18,10 +18,20 @@ Copies an existing source image tagged with the revision SHA to a new target tag
 |----------|-------------|
 | `image` | Docker image path (e.g., `ghcr.io/org/image`) |
 | `registry` | Override the registry (auto-detected from `image`) |
-| `format` | Format template. Default: `{{{source}}}:{{{revision}}}` for source |
+| `format` | Format template (see below). Default: `{{{source}}}:{{{revision}}}` for source, `{{{target}}}:{{{version}}}` for target |
 | `usernameVar` | Env var name for username |
 | `passwordVar` | Env var name for password |
 | `skipLogin` | Skip `docker login` for this registry |
+
+### Format Template Variables
+
+| Variable | Description |
+|----------|-------------|
+| `{{{image}}}` | The `image` value from the current block (source or target) |
+| `{{{source}}}` | The source image path |
+| `{{{target}}}` | The target image path |
+| `{{{revision}}}` | Git revision SHA (source format only) |
+| `{{{version}}}` | Release version (target format only) |
 
 ## Environment Variables
 
@@ -89,6 +99,25 @@ targets:
       usernameVar: PRIVATE_REGISTRY_USER
       passwordVar: PRIVATE_REGISTRY_PASS
     target: getsentry/craft
+```
+
+### Custom Format with "latest" Tag
+
+```yaml
+targets:
+  # Versioned tag
+  - name: docker
+    id: versioned
+    source: ghcr.io/getsentry/spotlight
+    target: ghcr.io/getsentry/spotlight
+
+  # Latest tag
+  - name: docker
+    id: latest
+    source: ghcr.io/getsentry/spotlight
+    target:
+      image: ghcr.io/getsentry/spotlight
+      format: "{{{image}}}:latest"
 ```
 
 ### Google Cloud Registries

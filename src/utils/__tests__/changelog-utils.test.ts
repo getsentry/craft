@@ -1,9 +1,16 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import {
+  vi,
+  type Mock,
+  type MockInstance,
+  type Mocked,
+  type MockedFunction,
+} from 'vitest';
 /**
  * Tests for changelog utility functions.
  * - shouldExcludePR: Checks if a PR should be excluded from changelog
  * - shouldSkipCurrentPR: Checks if current PR should skip changelog generation
  * - getBumpTypeForPR: Determines the version bump type for a PR
+ * - normalizeReleaseConfig: Normalizes release config and warns about missing semver fields
  *
  * Note: shouldSkipCurrentPR and getBumpTypeForPR read config internally,
  * so they only take the PRInfo argument. More comprehensive tests are
@@ -19,10 +26,15 @@ import {
   extractRevertedTitle,
   extractRevertedSha,
   processReverts,
+  getNormalizedReleaseConfig,
+  clearReleaseConfigCache,
   SKIP_CHANGELOG_MAGIC_WORD,
   BODY_IN_CHANGELOG_MAGIC_WORD,
   type CurrentPRInfo,
 } from '../changelog';
+
+// Mock the logger to capture warnings
+vi.mock('../../logger');
 
 describe('shouldExcludePR', () => {
   // Config must match NormalizedReleaseConfig structure
@@ -36,48 +48,41 @@ describe('shouldExcludePR', () => {
   };
 
   it('returns true when PR has excluded label', () => {
-    expect(shouldExcludePR(
-      new Set(['bug', 'skip-changelog']),
-      'alice',
-      baseConfig as any,
-      ''
-    )).toBe(true);
+    expect(
+      shouldExcludePR(
+        new Set(['bug', 'skip-changelog']),
+        'alice',
+        baseConfig as any,
+        '',
+      ),
+    ).toBe(true);
   });
 
   it('returns true when PR has excluded author', () => {
-    expect(shouldExcludePR(
-      new Set(['bug']),
-      'dependabot',
-      baseConfig as any,
-      ''
-    )).toBe(true);
+    expect(
+      shouldExcludePR(new Set(['bug']), 'dependabot', baseConfig as any, ''),
+    ).toBe(true);
   });
 
   it('returns false when PR has no exclusion criteria', () => {
-    expect(shouldExcludePR(
-      new Set(['bug']),
-      'alice',
-      baseConfig as any,
-      ''
-    )).toBe(false);
+    expect(
+      shouldExcludePR(new Set(['bug']), 'alice', baseConfig as any, ''),
+    ).toBe(false);
   });
 
   it('returns true when body contains skip magic word', () => {
-    expect(shouldExcludePR(
-      new Set(['bug']),
-      'alice',
-      baseConfig as any,
-      `Some text\n${SKIP_CHANGELOG_MAGIC_WORD}\nMore text`
-    )).toBe(true);
+    expect(
+      shouldExcludePR(
+        new Set(['bug']),
+        'alice',
+        baseConfig as any,
+        `Some text\n${SKIP_CHANGELOG_MAGIC_WORD}\nMore text`,
+      ),
+    ).toBe(true);
   });
 
   it('returns false when config is null', () => {
-    expect(shouldExcludePR(
-      new Set(['bug']),
-      'alice',
-      null,
-      ''
-    )).toBe(false);
+    expect(shouldExcludePR(new Set(['bug']), 'alice', null, '')).toBe(false);
   });
 });
 
@@ -99,7 +104,10 @@ describe('shouldSkipCurrentPR', () => {
   });
 
   it('returns true when PR body contains skip magic word', () => {
-    const prInfo = { ...basePRInfo, body: `Some text\n${SKIP_CHANGELOG_MAGIC_WORD}` };
+    const prInfo = {
+      ...basePRInfo,
+      body: `Some text\n${SKIP_CHANGELOG_MAGIC_WORD}`,
+    };
     expect(shouldSkipCurrentPR(prInfo)).toBe(true);
   });
 });
@@ -156,31 +164,31 @@ describe('stripTitle', () => {
 
     it('strips the type prefix', () => {
       expect(stripTitle('feat: add endpoint', pattern, false)).toBe(
-        'Add endpoint'
+        'Add endpoint',
       );
     });
 
     it('strips type and scope when preserveScope is false', () => {
       expect(stripTitle('feat(api): add endpoint', pattern, false)).toBe(
-        'Add endpoint'
+        'Add endpoint',
       );
     });
 
     it('preserves scope when preserveScope is true', () => {
       expect(stripTitle('feat(api): add endpoint', pattern, true)).toBe(
-        '(api) Add endpoint'
+        '(api) Add endpoint',
       );
     });
 
     it('capitalizes first letter after stripping', () => {
       expect(stripTitle('feat: lowercase start', pattern, false)).toBe(
-        'Lowercase start'
+        'Lowercase start',
       );
     });
 
     it('handles already capitalized content', () => {
       expect(stripTitle('feat: Already Capitalized', pattern, false)).toBe(
-        'Already Capitalized'
+        'Already Capitalized',
       );
     });
 
@@ -191,17 +199,17 @@ describe('stripTitle', () => {
     it('handles breaking change indicator', () => {
       const breakingPattern = /^(?<type>feat(?:\((?<scope>[^)]+)\))?!:\s*)/;
       expect(stripTitle('feat!: breaking change', breakingPattern, false)).toBe(
-        'Breaking change'
+        'Breaking change',
       );
       expect(
-        stripTitle('feat(api)!: breaking api change', breakingPattern, false)
+        stripTitle('feat(api)!: breaking api change', breakingPattern, false),
       ).toBe('Breaking api change');
     });
 
     it('does not strip when pattern has no type group', () => {
       const noGroupPattern = /^feat(?:\([^)]+\))?!?:\s*/;
       expect(stripTitle('feat: add endpoint', noGroupPattern, false)).toBe(
-        'feat: add endpoint'
+        'feat: add endpoint',
       );
     });
   });
@@ -211,7 +219,7 @@ describe('stripTitle', () => {
 
     it('returns original if pattern is undefined', () => {
       expect(stripTitle('feat: add endpoint', undefined, false)).toBe(
-        'feat: add endpoint'
+        'feat: add endpoint',
       );
     });
 
@@ -222,17 +230,17 @@ describe('stripTitle', () => {
 
     it('handles scope with special characters', () => {
       expect(stripTitle('feat(my-api): add endpoint', pattern, true)).toBe(
-        '(my-api) Add endpoint'
+        '(my-api) Add endpoint',
       );
       expect(stripTitle('feat(my_api): add endpoint', pattern, true)).toBe(
-        '(my_api) Add endpoint'
+        '(my_api) Add endpoint',
       );
     });
 
     it('does not preserve scope when scope is not captured', () => {
       const noScopePattern = /^(?<type>feat(?:\([^)]+\))?!?:\s*)/;
       expect(stripTitle('feat(api): add endpoint', noScopePattern, true)).toBe(
-        'Add endpoint'
+        'Add endpoint',
       );
     });
   });
@@ -241,20 +249,20 @@ describe('stripTitle', () => {
     it('works with fix type', () => {
       const pattern = /^(?<type>fix(?:\((?<scope>[^)]+)\))?!?:\s*)/;
       expect(stripTitle('fix(core): resolve bug', pattern, false)).toBe(
-        'Resolve bug'
+        'Resolve bug',
       );
       expect(stripTitle('fix(core): resolve bug', pattern, true)).toBe(
-        '(core) Resolve bug'
+        '(core) Resolve bug',
       );
     });
 
     it('works with docs type', () => {
       const pattern = /^(?<type>docs?(?:\((?<scope>[^)]+)\))?!?:\s*)/;
       expect(stripTitle('docs(readme): update docs', pattern, false)).toBe(
-        'Update docs'
+        'Update docs',
       );
       expect(stripTitle('doc(readme): update docs', pattern, false)).toBe(
-        'Update docs'
+        'Update docs',
       );
     });
 
@@ -262,13 +270,13 @@ describe('stripTitle', () => {
       const pattern =
         /^(?<type>(?:build|refactor|meta|chore|ci|ref|perf)(?:\((?<scope>[^)]+)\))?!?:\s*)/;
       expect(stripTitle('chore(deps): update deps', pattern, false)).toBe(
-        'Update deps'
+        'Update deps',
       );
       expect(stripTitle('build(ci): fix pipeline', pattern, false)).toBe(
-        'Fix pipeline'
+        'Fix pipeline',
       );
       expect(stripTitle('refactor(api): simplify logic', pattern, true)).toBe(
-        '(api) Simplify logic'
+        '(api) Simplify logic',
       );
     });
   });
@@ -285,7 +293,9 @@ describe('isRevertCommit', () => {
   });
 
   it('returns true when body contains revert magic string', () => {
-    expect(isRevertCommit('fix: undo feature', 'This reverts commit abc123def.')).toBe(true);
+    expect(
+      isRevertCommit('fix: undo feature', 'This reverts commit abc123def.'),
+    ).toBe(true);
   });
 
   it('returns false when neither title nor body indicates revert', () => {
@@ -295,18 +305,26 @@ describe('isRevertCommit', () => {
   it('handles case-insensitive text matching in body', () => {
     // The "This reverts commit" text is matched case-insensitively
     // (SHAs in git are always lowercase, so we only test the text part)
-    expect(isRevertCommit('fix: undo', 'THIS REVERTS COMMIT abc123def.')).toBe(true);
-    expect(isRevertCommit('fix: undo', 'this Reverts Commit abc123def.')).toBe(true);
+    expect(isRevertCommit('fix: undo', 'THIS REVERTS COMMIT abc123def.')).toBe(
+      true,
+    );
+    expect(isRevertCommit('fix: undo', 'this Reverts Commit abc123def.')).toBe(
+      true,
+    );
   });
 });
 
 describe('extractRevertedSha', () => {
   it('extracts SHA from standard git revert message', () => {
-    expect(extractRevertedSha('This reverts commit abc123def456.')).toBe('abc123def456');
+    expect(extractRevertedSha('This reverts commit abc123def456.')).toBe(
+      'abc123def456',
+    );
   });
 
   it('extracts SHA without trailing period', () => {
-    expect(extractRevertedSha('This reverts commit abc123def456')).toBe('abc123def456');
+    expect(extractRevertedSha('This reverts commit abc123def456')).toBe(
+      'abc123def456',
+    );
   });
 
   it('extracts SHA from body with additional text', () => {
@@ -338,46 +356,52 @@ describe('extractRevertedTitle', () => {
   // after 'Revert ' and the last " before the end/PR suffix.
 
   it('extracts title from simple revert', () => {
-    expect(extractRevertedTitle('Revert "feat: add feature"')).toBe('feat: add feature');
+    expect(extractRevertedTitle('Revert "feat: add feature"')).toBe(
+      'feat: add feature',
+    );
   });
 
   it('extracts title from revert with PR suffix', () => {
-    expect(extractRevertedTitle('Revert "feat: add feature" (#123)')).toBe('feat: add feature');
+    expect(extractRevertedTitle('Revert "feat: add feature" (#123)')).toBe(
+      'feat: add feature',
+    );
   });
 
   it('extracts title from double revert (nested quotes)', () => {
     // Revert "Revert "feat: add feature""
     // The greedy .+ matches: Revert "feat: add feature"
     expect(extractRevertedTitle('Revert "Revert "feat: add feature""')).toBe(
-      'Revert "feat: add feature"'
+      'Revert "feat: add feature"',
     );
   });
 
   it('extracts title from triple revert (deeply nested quotes)', () => {
     // Revert "Revert "Revert "feat: add feature"""
-    expect(extractRevertedTitle('Revert "Revert "Revert "feat: add feature"""')).toBe(
-      'Revert "Revert "feat: add feature""'
-    );
+    expect(
+      extractRevertedTitle('Revert "Revert "Revert "feat: add feature"""'),
+    ).toBe('Revert "Revert "feat: add feature""');
   });
 
   it('extracts title from quadruple revert', () => {
     // Revert "Revert "Revert "Revert "feat: add feature""""
-    expect(extractRevertedTitle('Revert "Revert "Revert "Revert "feat: add feature""""')).toBe(
-      'Revert "Revert "Revert "feat: add feature"""'
-    );
+    expect(
+      extractRevertedTitle(
+        'Revert "Revert "Revert "Revert "feat: add feature""""',
+      ),
+    ).toBe('Revert "Revert "Revert "feat: add feature"""');
   });
 
   it('extracts title with quotes in the message', () => {
     // Revert "fix: handle "special" case"
     expect(extractRevertedTitle('Revert "fix: handle "special" case"')).toBe(
-      'fix: handle "special" case'
+      'fix: handle "special" case',
     );
   });
 
   it('extracts title from double revert with PR suffix', () => {
-    expect(extractRevertedTitle('Revert "Revert "feat: add feature"" (#456)')).toBe(
-      'Revert "feat: add feature"'
-    );
+    expect(
+      extractRevertedTitle('Revert "Revert "feat: add feature"" (#456)'),
+    ).toBe('Revert "feat: add feature"');
   });
 
   it('returns null for non-revert titles', () => {
@@ -400,7 +424,7 @@ describe('processReverts', () => {
     title: string,
     body = '',
     prTitle?: string,
-    prBody?: string
+    prBody?: string,
   ) => ({
     hash,
     title,
@@ -417,7 +441,11 @@ describe('processReverts', () => {
   it('cancels out revert and original via SHA', () => {
     // Commits in newest-first order (git log order)
     const commits = [
-      commit('def456', 'Revert "feat: add feature"', 'This reverts commit abc123.'),
+      commit(
+        'def456',
+        'Revert "feat: add feature"',
+        'This reverts commit abc123.',
+      ),
       commit('abc123', 'feat: add feature'),
     ];
     const result = processReverts(commits);
@@ -436,7 +464,11 @@ describe('processReverts', () => {
 
   it('keeps standalone revert when original not in list', () => {
     const commits = [
-      commit('def456', 'Revert "feat: old feature"', 'This reverts commit oldsha.'),
+      commit(
+        'def456',
+        'Revert "feat: old feature"',
+        'This reverts commit oldsha.',
+      ),
     ];
     const result = processReverts(commits);
     expect(result).toHaveLength(1);
@@ -445,4 +477,44 @@ describe('processReverts', () => {
 
   // Note: "current PR preview scenario" tests are covered by integration tests
   // in changelog-generate.test.ts under generateChangelogWithHighlight
+});
+
+describe('getNormalizedReleaseConfig semver warnings', () => {
+  // These tests need to be in a separate file with proper module mocking
+  // For now, we test the warning behavior through integration with the real config
+
+  beforeEach(() => {
+    // Clear the memoization cache and mocks before each test
+    clearReleaseConfigCache();
+    vi.clearAllMocks();
+  });
+
+  it('does not warn when using default config', async () => {
+    const { logger } = await import('../../logger');
+
+    // Uses real readReleaseConfig which returns defaults when no file exists
+    getNormalizedReleaseConfig();
+
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('memoizes the result', async () => {
+    // Call multiple times, should return same object
+    const result1 = getNormalizedReleaseConfig();
+    const result2 = getNormalizedReleaseConfig();
+    const result3 = getNormalizedReleaseConfig();
+
+    expect(result1).toBe(result2);
+    expect(result2).toBe(result3);
+  });
+
+  it('returns fresh result after clearing cache', () => {
+    const result1 = getNormalizedReleaseConfig();
+    clearReleaseConfigCache();
+    const result2 = getNormalizedReleaseConfig();
+
+    // Should be equal but not the same object
+    expect(result1).not.toBe(result2);
+    expect(result1).toEqual(result2);
+  });
 });

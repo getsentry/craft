@@ -8,16 +8,17 @@ on:
   #
   # 1. Grant required permissions:
   #    - contents: read        (to checkout repo and read git history)
-  #    - pull-requests: write  (to post/update PR comments)
+  #    - pull-requests: write  (to post/update PR comments in comment mode)
+  #    - statuses: write       (to create commit statuses in status check mode)
   #
   # 2. Inherit secrets:
   #    - secrets: inherit      (ensures caller's GITHUB_TOKEN is used)
   #
-  # Example caller workflow:
+  # Example caller workflow (comment mode):
   #
   #   on:
   #     pull_request:
-  #       types: [opened, synchronize, reopened, edited, labeled]
+  #       types: [opened, synchronize, reopened, edited, labeled, unlabeled]
   #
   #   permissions:
   #     contents: read
@@ -28,21 +29,45 @@ on:
   #       uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
   #       secrets: inherit
   #
+  # Example caller workflow (status check mode):
+  #
+  #   permissions:
+  #     contents: read
+  #     statuses: write
+  #
+  #   jobs:
+  #     changelog-preview:
+  #       uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
+  #       with:
+  #         comment: false
+  #       secrets: inherit
+  #
   workflow_call:
     inputs:
+      working-directory:
+        description: 'Directory to run Craft in (relative to repo root)'
+        required: false
+        type: string
+        default: '.'
       craft-version:
         description: 'Version of Craft to use (tag or "latest")'
         required: false
         type: string
+      comment:
+        description: 'Post changelog as PR comment (true) or as check run with job summary (false)'
+        required: false
+        type: boolean
+        default: true
 
   # Also run on PRs in this repository (for dogfooding)
   # Includes 'edited' and 'labeled' to update when PR title/description/labels change
   pull_request:
-    types: [opened, synchronize, reopened, edited, labeled]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: write # For comment mode
+  statuses: write # For status check mode
 
 jobs:
   preview:
@@ -62,9 +87,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          
+
           CRAFT_VERSION="${{ inputs.craft-version || 'latest' }}"
-          
+
           if [[ "$CRAFT_VERSION" == "latest" || -z "$CRAFT_VERSION" ]]; then
             echo "Downloading latest Craft release..."
             CRAFT_URL=$(curl -fsSL "https://api.github.com/repos/getsentry/craft/releases/latest" \
@@ -80,27 +105,28 @@ jobs:
                 | jq -r '.assets[] | select(.name == "craft") | .browser_download_url')
             fi
           fi
-          
+
           # Verify we have a valid URL
           if [[ -z "$CRAFT_URL" ]]; then
             echo "::error::Failed to determine Craft download URL"
             exit 1
           fi
-          
+
           echo "Installing Craft from: ${CRAFT_URL}"
           sudo curl -fsSL -o /usr/local/bin/craft "$CRAFT_URL"
           sudo chmod +x /usr/local/bin/craft
-          
+
           # Verify installation
           if [[ ! -s /usr/local/bin/craft ]]; then
             echo "::error::Downloaded Craft binary is empty or missing"
             exit 1
           fi
-          
+
           craft --version
 
       - name: Generate Changelog Preview
         shell: bash
+        working-directory: ${{ inputs.working-directory }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -131,15 +157,61 @@ jobs:
             *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
           esac
 
-          # Build comment body using a temp file (safer than heredoc)
-          COMMENT_FILE=$(mktemp)
-          cat > "$COMMENT_FILE" << CRAFT_CHANGELOG_COMMENT_END
-          <!-- craft-changelog-preview -->
+          # Create descriptions for status check (no emoji support in Commit Status API)
+          case "$BUMP_TYPE" in
+            major) 
+              BUMP_SHORT="Major"
+              BUMP_EMOJI="🔴"
+              ;;
+            minor) 
+              BUMP_SHORT="Minor"
+              BUMP_EMOJI="🟡"
+              ;;
+            patch) 
+              BUMP_SHORT="Patch"
+              BUMP_EMOJI="🟢"
+              ;;
+            *) 
+              BUMP_SHORT="None"
+              BUMP_EMOJI="⚪"
+              ;;
+          esac
+
+          # Determine mode: use status check mode when comment is false OR when running internally (no input)
+          USE_COMMENT_MODE="${{ inputs.comment }}"
+          if [[ "$USE_COMMENT_MODE" == "false" ]] || [[ -z "$USE_COMMENT_MODE" ]]; then
+            # Status check mode (new feature or internal dogfooding)
+            echo "Using status check mode..."
+            
+            HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+            TARGET_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            PR_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/${PR_NUMBER}"
+            
+            # Create commit status via GitHub API
+            echo "Creating commit status..."
+            gh api --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+              -f state="success" \
+              -f context="Changelog Preview / Semver Impact" \
+              -f description="$BUMP_SHORT" \
+              -f target_url="$TARGET_URL"
+            
+            echo "✓ Commit status created"
+            
+            # 2. Write to job summary
+            cat >> $GITHUB_STEP_SUMMARY << CRAFT_CHANGELOG_SUMMARY_END
+          # Changelog Preview for PR #${PR_NUMBER}
+
+          [→ View PR #${PR_NUMBER}](${PR_URL})
+
           ## Semver Impact of This PR
 
           ${BUMP_BADGE}
 
-          ## 📋 Changelog Preview
+          <details>
+          <summary>📋 Changelog Preview</summary>
 
           This is how your changes will appear in the changelog.
           Entries from this PR are highlighted with a left border (blockquote style).
@@ -150,25 +222,57 @@ jobs:
 
           ---
 
+          </details>
+          CRAFT_CHANGELOG_SUMMARY_END
+            
+            echo "✓ Job summary written"
+          else
+            # Comment mode (original behavior)
+            echo "Using comment mode..."
+            
+            # Build comment body using a temp file (safer than heredoc)
+            COMMENT_FILE=$(mktemp)
+            cat > "$COMMENT_FILE" << CRAFT_CHANGELOG_COMMENT_END
+          <!-- craft-changelog-preview -->
+          ## Semver Impact of This PR
+
+          ${BUMP_BADGE}
+
+          <details>
+          <summary>📋 Changelog Preview</summary>
+
+          This is how your changes will appear in the changelog.
+          Entries from this PR are highlighted with a left border (blockquote style).
+
+          ---
+
+          ${CHANGELOG}
+
+          ---
+
+          </details>
+
           <sub>🤖 This preview updates automatically when you update the PR.</sub>
           CRAFT_CHANGELOG_COMMENT_END
 
-          # Find existing comment with our marker
-          COMMENT_ID=$(gh api \
-            "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-            --jq '.[] | select(.body | contains("<!-- craft-changelog-preview -->")) | .id' \
-            | head -1)
-
-          if [[ -n "$COMMENT_ID" ]]; then
-            echo "Updating existing comment $COMMENT_ID..."
-            gh api -X PATCH \
-              "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" \
-              -F body=@"$COMMENT_FILE"
-          else
-            echo "Creating new comment..."
-            gh api -X POST \
+            # Find existing comment with our marker
+            COMMENT_ID=$(gh api \
               "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-              -F body=@"$COMMENT_FILE"
-          fi
+              --jq '.[] | select(.body | contains("<!-- craft-changelog-preview -->")) | .id' \
+              | head -1)
 
-          rm -f "$COMMENT_FILE"
+            if [[ -n "$COMMENT_ID" ]]; then
+              echo "Updating existing comment $COMMENT_ID..."
+              gh api -X PATCH \
+                "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" \
+                -F body=@"$COMMENT_FILE"
+            else
+              echo "Creating new comment..."
+              gh api -X POST \
+                "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+                -F body=@"$COMMENT_FILE"
+            fi
+
+            rm -f "$COMMENT_FILE"
+            echo "✓ Comment posted"
+          fi

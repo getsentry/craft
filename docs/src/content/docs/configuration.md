@@ -23,22 +23,29 @@ This command runs on your release branch as part of `craft prepare`. Default: `b
 preReleaseCommand: bash scripts/bump-version.sh
 ```
 
+The command is executed with the following environment variables:
+
+- `CRAFT_OLD_VERSION`: The previous version (or `0.0.0` if no previous version exists)
+- `CRAFT_NEW_VERSION`: The new version being released
+
 The script should:
-- Accept old and new version as the last two arguments
+
+- Use these environment variables to perform version replacement
 - Replace version occurrences
 - Not commit changes
 - Not change git state
+
+> **Note:** For backward compatibility, the old and new versions are also passed as the last two command-line arguments to the script, but using environment variables is safer and recommended.
 
 Example script:
 
 ```bash
 #!/bin/bash
 set -eux
-OLD_VERSION="${1}"
-NEW_VERSION="${2}"
 
+# Use CRAFT_NEW_VERSION provided by craft
 export npm_config_git_tag_version=false
-npm version "${NEW_VERSION}"
+npm version "${CRAFT_NEW_VERSION}"
 ```
 
 ## Post-release Command
@@ -94,10 +101,17 @@ Auto mode uses `.github/release.yml` to categorize PRs. This file follows [GitHu
 
 Craft extends GitHub's format with two additional fields:
 
-| Field | Description |
-|-------|-------------|
+| Field             | Description                                                               |
+| ----------------- | ------------------------------------------------------------------------- |
 | `commit_patterns` | Array of regex patterns to match commit/PR titles (in addition to labels) |
-| `semver` | Version bump type for auto-versioning: `major`, `minor`, or `patch` |
+| `semver`          | Version bump type for auto-versioning: `major`, `minor`, or `patch`       |
+
+:::caution[Required for Version Detection]
+The `semver` field is required for Craft's automatic version detection to work.
+If you define a custom `.github/release.yml` without `semver` fields, PRs will
+still appear in the changelog but won't contribute to suggested version bumps.
+The [changelog preview](/github-actions/#changelog-preview) will show "None" for semver impact.
+:::
 
 #### Default Configuration
 
@@ -120,13 +134,13 @@ changelog:
     - title: Bug Fixes 🐛
       commit_patterns:
         - "^(?<type>fix(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
-        - "^Revert \""
+        - '^Revert "'
       semver: patch
     - title: Documentation 📚
       commit_patterns:
         - "^(?<type>docs?(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
       semver: patch
-    - title: Build / dependencies / internal 🔧
+    - title: Internal Changes 🔧
       commit_patterns:
         - "^(?<type>(?:build|refactor|meta|chore|ci|ref|perf)(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
       semver: patch
@@ -198,12 +212,13 @@ of the PR title. If no such section is present, the PR title is used as usual.
    ### Changelog Entry
 
    - Add authentication system
-       - OAuth2 support
-       - Two-factor authentication
-       - Session management
+     - OAuth2 support
+     - Two-factor authentication
+     - Session management
    ```
 
    This will generate:
+
    ```markdown
    - Add authentication system by @user in [#123](url)
      - OAuth2 support
@@ -228,7 +243,7 @@ Changes are automatically grouped by scope (e.g., `feat(api):` groups under "Api
 ```yaml
 changelog:
   policy: auto
-  scopeGrouping: true  # default
+  scopeGrouping: true # default
 ```
 
 Scope headers are only shown for scopes with more than one entry. Entries without
@@ -262,17 +277,17 @@ This behavior is controlled by named capture groups in `commit_patterns`:
 - `(?<type>...)` - The type prefix to strip (includes type, scope, and colon)
 - `(?<scope>...)` - Scope to preserve when not under a scope header
 
-| Original Title | Scope Header | Displayed Title |
-|----------------|--------------|-----------------|
-| `feat(api): add endpoint` | Yes (Api) | `Add endpoint` |
-| `feat(api): add endpoint` | No | `(api) Add endpoint` |
-| `feat: add endpoint` | N/A | `Add endpoint` |
+| Original Title            | Scope Header | Displayed Title      |
+| ------------------------- | ------------ | -------------------- |
+| `feat(api): add endpoint` | Yes (Api)    | `Add endpoint`       |
+| `feat(api): add endpoint` | No           | `(api) Add endpoint` |
+| `feat: add endpoint`      | N/A          | `Add endpoint`       |
 
 To disable stripping, provide custom patterns using non-capturing groups:
 
 ```yaml
 commit_patterns:
-  - "^feat(?:\\([^)]+\\))?!?:"  # No named groups = no stripping
+  - "^feat(?:\\([^)]+\\))?!?:" # No named groups = no stripping
 ```
 
 ### Skipping Changelog Entries
@@ -310,12 +325,12 @@ changelog:
 
 ### Configuration Options
 
-| Option | Description |
-|--------|-------------|
-| `changelog` | Path to changelog file (string) OR configuration object |
-| `changelog.filePath` | Path to changelog file. Default: `CHANGELOG.md` |
-| `changelog.policy` | Mode: `none`, `simple`, or `auto`. Default: `none` |
-| `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true` |
+| Option                    | Description                                             |
+| ------------------------- | ------------------------------------------------------- |
+| `changelog`               | Path to changelog file (string) OR configuration object |
+| `changelog.filePath`      | Path to changelog file. Default: `CHANGELOG.md`         |
+| `changelog.policy`        | Mode: `none`, `simple`, or `auto`. Default: `none`      |
+| `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true`            |
 
 ## Versioning
 
@@ -323,16 +338,16 @@ Configure default versioning behavior:
 
 ```yaml
 versioning:
-  policy: auto  # auto, manual, or calver
+  policy: auto # auto, manual, or calver
 ```
 
 ### Versioning Policies
 
-| Policy | Description |
-|--------|-------------|
-| `auto` | Analyze commits to determine version bump (default when using `craft prepare auto`) |
-| `manual` | Require explicit version argument |
-| `calver` | Use calendar-based versioning |
+| Policy   | Description                                                                         |
+| -------- | ----------------------------------------------------------------------------------- |
+| `auto`   | Analyze commits to determine version bump (default when using `craft prepare auto`) |
+| `manual` | Require explicit version argument                                                   |
+| `calver` | Use calendar-based versioning                                                       |
 
 ### Calendar Versioning (CalVer)
 
@@ -342,11 +357,12 @@ For projects using calendar-based versions:
 versioning:
   policy: calver
   calver:
-    format: "%y.%-m"  # e.g., 24.12 for December 2024
-    offset: 14        # Days to look back for date calculation
+    format: '%y.%-m' # e.g., 24.12 for December 2024
+    offset: 14 # Days to look back for date calculation
 ```
 
 Format supports:
+
 - `%y` - 2-digit year
 - `%m` - Zero-padded month
 - `%-m` - Month without padding
@@ -387,7 +403,7 @@ Configure where to fetch artifacts from:
 
 ```yaml
 artifactProvider:
-  name: github  # or 'gcs' or 'none'
+  name: github # or 'gcs' or 'none'
 ```
 
 ### GitHub Artifact Provider Configuration
@@ -485,11 +501,11 @@ See [Target Configurations](./targets/) for details on each target.
 
 These options apply to all targets:
 
-| Option | Description |
-|--------|-------------|
-| `includeNames` | Regex: only matched files are processed |
-| `excludeNames` | Regex: matched files are skipped |
-| `id` | Unique ID for the target (use with `-t target[id]`) |
+| Option         | Description                                         |
+| -------------- | --------------------------------------------------- |
+| `includeNames` | Regex: only matched files are processed             |
+| `excludeNames` | Regex: matched files are skipped                    |
+| `id`           | Unique ID for the target (use with `-t target[id]`) |
 
 Example:
 
