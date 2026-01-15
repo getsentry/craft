@@ -37,6 +37,7 @@ import {
   generateChangesetFromGit,
   generateChangelogWithHighlight,
   clearChangesetCache,
+  clearReleaseConfigCache,
 } from '../changelog';
 import { type TestCommit } from './fixtures/changelog';
 
@@ -59,6 +60,7 @@ describe('generateChangesetFromGit', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     clearChangesetCache();
+    clearReleaseConfigCache();
     mockClient = vi.fn();
     (getGitHubClient as MockedFunction<typeof getGitHubClient>).mockReturnValue(
       {
@@ -824,20 +826,29 @@ changelog:
     it('cancels out a simple revert via SHA match', async () => {
       // Commit A and Revert A should cancel each other out
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'def456',
-          title: 'Revert "feat: add new feature"',
-          body: 'This reverts commit abc123.',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'abc123',
-          title: 'feat: add new feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'def456',
+            title: 'Revert "feat: add new feature"',
+            body: 'This reverts commit abc123.',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'abc123',
+            title: 'feat: add new feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // Both commits should cancel out, resulting in empty changelog
       expect(result.changelog).toBe('');
@@ -847,20 +858,29 @@ changelog:
     it('cancels out a simple revert via title fallback', async () => {
       // When no SHA in body, fall back to title matching
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'def456',
-          title: 'Revert "feat: add new feature"',
-          body: '', // No SHA in body
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'abc123',
-          title: 'feat: add new feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'def456',
+            title: 'Revert "feat: add new feature"',
+            body: '', // No SHA in body
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'abc123',
+            title: 'feat: add new feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toBe('');
       expect(result.bumpType).toBeNull();
@@ -868,18 +888,26 @@ changelog:
 
     it('keeps standalone revert when original is not in changelog', async () => {
       // Revert without corresponding original commit stays as bug fix
-      setup([
-        {
-          hash: 'def456',
-          title: 'Revert "feat: add feature from previous release"',
-          body: 'This reverts commit oldsha123.',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'def456',
+            title: 'Revert "feat: add feature from previous release"',
+            body: 'This reverts commit oldsha123.',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // Revert should appear in Bug Fixes category with full title
       expect(result.changelog).toContain('Bug Fixes');
-      expect(result.changelog).toContain('Revert "feat: add feature from previous release"');
+      expect(result.changelog).toContain(
+        'Revert "feat: add feature from previous release"',
+      );
       expect(result.bumpType).toBe('patch');
     });
 
@@ -887,26 +915,38 @@ changelog:
       // A -> B (Revert A) -> C (Revert B)
       // Expected: C cancels B, A remains
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'ccc333',
-          title: 'Revert "Revert "feat: add feature""',
-          body: 'This reverts commit bbb222.',
-          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
-        },
-        {
-          hash: 'bbb222',
-          title: 'Revert "feat: add feature"',
-          body: 'This reverts commit aaa111.',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'aaa111',
-          title: 'feat: add feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'ccc333',
+            title: 'Revert "Revert "feat: add feature""',
+            body: 'This reverts commit bbb222.',
+            pr: {
+              local: '3',
+              remote: { number: '3', author: { login: 'charlie' } },
+            },
+          },
+          {
+            hash: 'bbb222',
+            title: 'Revert "feat: add feature"',
+            body: 'This reverts commit aaa111.',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'aaa111',
+            title: 'feat: add feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // B and C cancel out, A remains
       expect(result.changelog).toContain('New Features');
@@ -920,32 +960,47 @@ changelog:
       // Processing newest first:
       // D cancels C, B cancels A -> nothing remains
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'ddd444',
-          title: 'Revert "Revert "Revert "feat: add feature"""',
-          body: 'This reverts commit ccc333.',
-          pr: { local: '4', remote: { number: '4', author: { login: 'dave' } } },
-        },
-        {
-          hash: 'ccc333',
-          title: 'Revert "Revert "feat: add feature""',
-          body: 'This reverts commit bbb222.',
-          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
-        },
-        {
-          hash: 'bbb222',
-          title: 'Revert "feat: add feature"',
-          body: 'This reverts commit aaa111.',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'aaa111',
-          title: 'feat: add feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'ddd444',
+            title: 'Revert "Revert "Revert "feat: add feature"""',
+            body: 'This reverts commit ccc333.',
+            pr: {
+              local: '4',
+              remote: { number: '4', author: { login: 'dave' } },
+            },
+          },
+          {
+            hash: 'ccc333',
+            title: 'Revert "Revert "feat: add feature""',
+            body: 'This reverts commit bbb222.',
+            pr: {
+              local: '3',
+              remote: { number: '3', author: { login: 'charlie' } },
+            },
+          },
+          {
+            hash: 'bbb222',
+            title: 'Revert "feat: add feature"',
+            body: 'This reverts commit aaa111.',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'aaa111',
+            title: 'feat: add feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // D cancels C, B cancels A -> empty
       expect(result.changelog).toBe('');
@@ -957,38 +1012,56 @@ changelog:
       // Processing newest first:
       // E cancels D, C cancels B, A remains
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'eee555',
-          title: 'Revert "Revert "Revert "Revert "feat: add feature""""',
-          body: 'This reverts commit ddd444.',
-          pr: { local: '5', remote: { number: '5', author: { login: 'eve' } } },
-        },
-        {
-          hash: 'ddd444',
-          title: 'Revert "Revert "Revert "feat: add feature"""',
-          body: 'This reverts commit ccc333.',
-          pr: { local: '4', remote: { number: '4', author: { login: 'dave' } } },
-        },
-        {
-          hash: 'ccc333',
-          title: 'Revert "Revert "feat: add feature""',
-          body: 'This reverts commit bbb222.',
-          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
-        },
-        {
-          hash: 'bbb222',
-          title: 'Revert "feat: add feature"',
-          body: 'This reverts commit aaa111.',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'aaa111',
-          title: 'feat: add feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'eee555',
+            title: 'Revert "Revert "Revert "Revert "feat: add feature""""',
+            body: 'This reverts commit ddd444.',
+            pr: {
+              local: '5',
+              remote: { number: '5', author: { login: 'eve' } },
+            },
+          },
+          {
+            hash: 'ddd444',
+            title: 'Revert "Revert "Revert "feat: add feature"""',
+            body: 'This reverts commit ccc333.',
+            pr: {
+              local: '4',
+              remote: { number: '4', author: { login: 'dave' } },
+            },
+          },
+          {
+            hash: 'ccc333',
+            title: 'Revert "Revert "feat: add feature""',
+            body: 'This reverts commit bbb222.',
+            pr: {
+              local: '3',
+              remote: { number: '3', author: { login: 'charlie' } },
+            },
+          },
+          {
+            hash: 'bbb222',
+            title: 'Revert "feat: add feature"',
+            body: 'This reverts commit aaa111.',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'aaa111',
+            title: 'feat: add feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // E cancels D, C cancels B, A remains
       expect(result.changelog).toContain('New Features');
@@ -1001,26 +1074,38 @@ changelog:
       // Two commits with same title, revert SHA points to first one
       // Only first one should be canceled, second remains
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'ccc333',
-          title: 'Revert "feat: add feature"',
-          body: 'This reverts commit aaa111.', // SHA points to first
-          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
-        },
-        {
-          hash: 'bbb222',
-          title: 'feat: add feature', // Same title as first
-          body: '',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'aaa111',
-          title: 'feat: add feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'ccc333',
+            title: 'Revert "feat: add feature"',
+            body: 'This reverts commit aaa111.', // SHA points to first
+            pr: {
+              local: '3',
+              remote: { number: '3', author: { login: 'charlie' } },
+            },
+          },
+          {
+            hash: 'bbb222',
+            title: 'feat: add feature', // Same title as first
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'aaa111',
+            title: 'feat: add feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // First feat and revert cancel, second feat remains
       expect(result.changelog).toContain('Add feature');
@@ -1031,20 +1116,29 @@ changelog:
     it('handles revert with PR number suffix in title', async () => {
       // GitHub often includes PR number in title like: Revert "feat: add feature (#1)"
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'def456',
-          title: 'Revert "feat: add feature (#1)" (#2)',
-          body: 'This reverts commit abc123.',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'abc123',
-          title: 'feat: add feature (#1)',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'def456',
+            title: 'Revert "feat: add feature (#1)" (#2)',
+            body: 'This reverts commit abc123.',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'abc123',
+            title: 'feat: add feature (#1)',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toBe('');
     });
@@ -1052,27 +1146,33 @@ changelog:
     it('uses PR title for matching when available', async () => {
       // PR title differs from commit title, should use PR title for matching
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'def456',
-          title: 'Revert "feat: add feature"', // Matches PR title, not commit title
-          body: '',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'abc123',
-          title: 'wip commit message',
-          body: '',
-          pr: {
-            local: '1',
-            remote: {
-              number: '1',
-              author: { login: 'alice' },
-              title: 'feat: add feature', // PR title is different
+      setup(
+        [
+          {
+            hash: 'def456',
+            title: 'Revert "feat: add feature"', // Matches PR title, not commit title
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
             },
           },
-        },
-      ], null);
+          {
+            hash: 'abc123',
+            title: 'wip commit message',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                title: 'feat: add feature', // PR title is different
+              },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toBe('');
     });
@@ -1080,25 +1180,34 @@ changelog:
     it('extracts SHA from body with additional explanation text', async () => {
       // Revert body often contains explanation in addition to the "This reverts commit" line
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'def456abc123',
-          title: 'Revert "feat: add new feature"',
-          body: `This reverts commit abc123def456.
+      setup(
+        [
+          {
+            hash: 'def456abc123',
+            title: 'Revert "feat: add new feature"',
+            body: `This reverts commit abc123def456.
 
 The feature caused performance issues in production.
 We need to investigate further before re-enabling.
 
 See incident report: https://example.com/incident/123`,
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'abc123def456',
-          title: 'feat: add new feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'abc123def456',
+            title: 'feat: add new feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // Both should cancel out despite the additional text in the body
       expect(result.changelog).toBe('');
@@ -1109,27 +1218,33 @@ See incident report: https://example.com/incident/123`,
       // Sometimes the title may not follow the "Revert "..."" format,
       // but the body still contains "This reverts commit <sha>"
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'def456abc123',
-          title: 'fix: undo the new feature due to issues', // Non-standard revert title
-          body: '',
-          pr: {
-            local: '2',
-            remote: {
-              number: '2',
-              author: { login: 'bob' },
-              body: 'This reverts commit abc123def456.\n\nThe feature caused problems.',
+      setup(
+        [
+          {
+            hash: 'def456abc123',
+            title: 'fix: undo the new feature due to issues', // Non-standard revert title
+            body: '',
+            pr: {
+              local: '2',
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                body: 'This reverts commit abc123def456.\n\nThe feature caused problems.',
+              },
             },
           },
-        },
-        {
-          hash: 'abc123def456',
-          title: 'feat: add new feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+          {
+            hash: 'abc123def456',
+            title: 'feat: add new feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // Both should cancel out because body contains the revert magic string with SHA
       expect(result.changelog).toBe('');
@@ -1142,47 +1257,50 @@ See incident report: https://example.com/incident/123`,
       // When using rebase-merge, all individual commits from a PR are added to
       // the base branch and each gets associated with the same PR number.
       // We should only show the PR once in the changelog.
-      setup([
-        {
-          hash: 'commit1',
-          title: 'feat(ui): add button component',
-          body: '',
-          pr: {
-            local: '42',
-            remote: {
-              number: '42',
-              title: 'feat(ui): add button component',
-              author: { login: 'alice' },
+      setup(
+        [
+          {
+            hash: 'commit1',
+            title: 'feat(ui): add button component',
+            body: '',
+            pr: {
+              local: '42',
+              remote: {
+                number: '42',
+                title: 'feat(ui): add button component',
+                author: { login: 'alice' },
+              },
             },
           },
-        },
-        {
-          hash: 'commit2',
-          title: 'feat(ui): add button styles',
-          body: '',
-          pr: {
-            local: '42',
-            remote: {
-              number: '42',
-              title: 'feat(ui): add button component', // Same PR, same title from API
-              author: { login: 'alice' },
+          {
+            hash: 'commit2',
+            title: 'feat(ui): add button styles',
+            body: '',
+            pr: {
+              local: '42',
+              remote: {
+                number: '42',
+                title: 'feat(ui): add button component', // Same PR, same title from API
+                author: { login: 'alice' },
+              },
             },
           },
-        },
-        {
-          hash: 'commit3',
-          title: 'feat(ui): add button tests',
-          body: '',
-          pr: {
-            local: '42',
-            remote: {
-              number: '42',
-              title: 'feat(ui): add button component', // Same PR, same title from API
-              author: { login: 'alice' },
+          {
+            hash: 'commit3',
+            title: 'feat(ui): add button tests',
+            body: '',
+            pr: {
+              local: '42',
+              remote: {
+                number: '42',
+                title: 'feat(ui): add button component', // Same PR, same title from API
+                author: { login: 'alice' },
+              },
             },
           },
-        },
-      ], null);
+        ],
+        null,
+      );
 
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
 
@@ -1194,20 +1312,23 @@ See incident report: https://example.com/incident/123`,
 
     it('keeps commits without PR association even if they share hashes', async () => {
       // Commits without PR association should all be kept
-      setup([
-        {
-          hash: 'commit1',
-          title: 'chore: update dependencies',
-          body: '',
-          // No PR association
-        },
-        {
-          hash: 'commit2',
-          title: 'chore: fix typo',
-          body: '',
-          // No PR association
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'commit1',
+            title: 'chore: update dependencies',
+            body: '',
+            // No PR association
+          },
+          {
+            hash: 'commit2',
+            title: 'chore: fix typo',
+            body: '',
+            // No PR association
+          },
+        ],
+        null,
+      );
 
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
 
@@ -1234,6 +1355,7 @@ describe('generateChangelogWithHighlight', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     clearChangesetCache();
+    clearReleaseConfigCache();
     mockGraphqlClient = vi.fn();
     mockRestClient = {
       pulls: { get: vi.fn() },
