@@ -204,7 +204,6 @@ jobs:
 - Cleaner PR interface
 - Semver impact visible in status checks section
 - Full changelog available in Actions job summary
-- Status appears independently (not grouped with other checks)
 
 **Cons:**
 
