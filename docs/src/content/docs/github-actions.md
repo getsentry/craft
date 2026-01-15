@@ -142,11 +142,11 @@ jobs:
 
 ### Inputs
 
-| Input               | Description                                                                  | Default  |
-| ------------------- | ---------------------------------------------------------------------------- | -------- |
-| `working-directory` | Directory to run Craft in (relative to repo root)                            | `.`      |
-| `craft-version`     | Version of Craft to use (tag or "latest")                                    | `latest` |
-| `comment`           | Post changelog as PR comment (true) or as check run with job summary (false) | `true`   |
+| Input               | Description                                                                      | Default  |
+| ------------------- | -------------------------------------------------------------------------------- | -------- |
+| `working-directory` | Directory to run Craft in (relative to repo root)                                | `.`      |
+| `craft-version`     | Version of Craft to use (tag or "latest")                                        | `latest` |
+| `comment`           | Post changelog as PR comment (true) or as commit status with job summary (false) | `true`   |
 
 ### Output Modes
 
@@ -185,9 +185,9 @@ permissions:
   pull-requests: write
 ```
 
-#### Check Run Mode
+#### Status Check Mode
 
-Creates a neutral check run with detailed output and writes to the Actions job summary:
+Creates a commit status with the semver impact and writes the full changelog to the Actions job summary:
 
 ```yaml
 jobs:
@@ -202,12 +202,13 @@ jobs:
 
 - Minimal notification noise
 - Cleaner PR interface
-- Semver impact visible in checks section
-- Full changelog available in check details and Actions summary
+- Semver impact visible in status checks section
+- Full changelog available in Actions job summary
+- Status appears independently (not grouped with other checks)
 
 **Cons:**
 
-- Requires clicking through to see full changelog
+- Requires clicking through to Actions run to see full changelog
 - Less immediate visibility than comment
 
 **Required permissions:**
@@ -215,11 +216,11 @@ jobs:
 ```yaml
 permissions:
   contents: read
-  checks: write
+  statuses: write
 ```
 
 :::tip
-Craft itself uses check run mode to avoid notification noise. You can see it in action on any PR in the [getsentry/craft repository](https://github.com/getsentry/craft/pulls).
+Craft itself uses status check mode to avoid notification noise. You can see it in action on any PR in the [getsentry/craft repository](https://github.com/getsentry/craft/pulls).
 :::
 
 ### Pinning a Specific Version
@@ -302,7 +303,7 @@ The workflow requires specific permissions and secrets to function correctly:
 
 - `contents: read` - Allows the workflow to checkout your repository and read git history for changelog generation
 - `pull-requests: write` - Required for comment mode (default) to post and update comments on pull requests
-- `checks: write` - Required for check run mode (when `comment: false`) to create check runs
+- `statuses: write` - Required for status check mode (when `comment: false`) to create commit statuses
 
 **Secrets**:
 
@@ -315,7 +316,7 @@ The workflow requires specific permissions and secrets to function correctly:
 :::note[Why are these permissions needed?]
 GitHub Actions reusable workflows use permission intersection - the final permissions are the intersection of what the caller grants and what the workflow declares. By explicitly declaring these permissions in your workflow file, you ensure the workflow can access your repository and perform the necessary actions, even for private repositories.
 
-Note: You only need `pull-requests: write` for comment mode OR `checks: write` for check run mode, not both. However, it's safe to grant both permissions if you're unsure which mode you'll use.
+Note: You only need `pull-requests: write` for comment mode OR `statuses: write` for status check mode, not both. However, it's safe to grant both permissions if you're unsure which mode you'll use.
 :::
 
 ## Skipping Changelog Entries

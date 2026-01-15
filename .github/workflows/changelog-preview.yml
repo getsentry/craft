@@ -9,7 +9,7 @@ on:
   # 1. Grant required permissions:
   #    - contents: read        (to checkout repo and read git history)
   #    - pull-requests: write  (to post/update PR comments in comment mode)
-  #    - checks: write         (to create check runs in check run mode)
+  #    - statuses: write       (to create commit statuses in status check mode)
   #
   # 2. Inherit secrets:
   #    - secrets: inherit      (ensures caller's GITHUB_TOKEN is used)
@@ -29,11 +29,11 @@ on:
   #       uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
   #       secrets: inherit
   #
-  # Example caller workflow (check run mode):
+  # Example caller workflow (status check mode):
   #
   #   permissions:
   #     contents: read
-  #     checks: write
+  #     statuses: write
   #
   #   jobs:
   #     changelog-preview:
@@ -67,7 +67,7 @@ on:
 permissions:
   contents: read
   pull-requests: write # For comment mode
-  checks: write # For check run mode
+  statuses: write # For status check mode
 
 jobs:
   preview:
@@ -165,55 +165,28 @@ jobs:
             *) BUMP_SHORT="Semver impact: ⚪ None" ;;
           esac
 
-          # Determine mode: use check run mode when comment is false OR when running internally (no input)
+          # Determine mode: use status check mode when comment is false OR when running internally (no input)
           USE_COMMENT_MODE="${{ inputs.comment }}"
           if [[ "$USE_COMMENT_MODE" == "false" ]] || [[ -z "$USE_COMMENT_MODE" ]]; then
-            # Check run mode (new feature or internal dogfooding)
-            echo "Using check run mode..."
+            # Status check mode (new feature or internal dogfooding)
+            echo "Using status check mode..."
             
             HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
-            DETAILS_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            TARGET_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             PR_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/${PR_NUMBER}"
             
-            # Build the check summary with full changelog (simpler format)
-            CHECK_SUMMARY="${BUMP_BADGE}
-
-          <details>
-          <summary>📋 Changelog Preview</summary>
-
-          ${CHANGELOG}
-
-          </details>
-
-          [→ View PR #${PR_NUMBER}](${PR_URL})"
-
-            # Create check run via GitHub API using jq for safe JSON construction
-            echo "Creating check run..."
-            JSON_PAYLOAD=$(jq -n \
-              --arg name "Changelog" \
-              --arg head_sha "$HEAD_SHA" \
-              --arg details_url "$DETAILS_URL" \
-              --arg title "$BUMP_SHORT" \
-              --arg summary "$CHECK_SUMMARY" \
-              '{
-                name: $name,
-                head_sha: $head_sha,
-                status: "completed",
-                conclusion: "neutral",
-                details_url: $details_url,
-                output: {
-                  title: $title,
-                  summary: $summary
-                }
-              }')
-
+            # Create commit status via GitHub API
+            echo "Creating commit status..."
             gh api --method POST \
               -H "Accept: application/vnd.github+json" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
-              "repos/$GITHUB_REPOSITORY/check-runs" \
-              --input - <<< "$JSON_PAYLOAD"
+              "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+              -f state="success" \
+              -f context="Changelog" \
+              -f description="$BUMP_SHORT" \
+              -f target_url="$TARGET_URL"
             
-            echo "✓ Check run created"
+            echo "✓ Commit status created"
             
             # 2. Write to job summary
             cat >> $GITHUB_STEP_SUMMARY << CRAFT_CHANGELOG_SUMMARY_END
