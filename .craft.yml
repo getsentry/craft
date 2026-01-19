@@ -1,6 +1,13 @@
 minVersion: '2.14.0'
 changelog:
   policy: auto
+artifactProvider:
+  name: github
+  config:
+    artifacts:
+      Build & Test:
+        - craft-binary
+        - craft-docs
 preReleaseCommand: >-
   node -p "
     const {execSync} = require('child_process');
