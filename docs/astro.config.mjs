@@ -13,9 +13,13 @@ export default defineConfig({
       logo: {
         src: './src/assets/logo.svg',
       },
-      social: {
-        github: 'https://github.com/getsentry/craft',
-      },
+      social: [
+        {
+          icon: 'github',
+          label: 'GitHub',
+          href: 'https://github.com/getsentry/craft',
+        },
+      ],
       sidebar: [
         {
           label: 'Getting Started',
@@ -32,9 +36,7 @@ export default defineConfig({
         },
         {
           label: 'Resources',
-          items: [
-            { label: 'Contributing', slug: 'contributing' },
-          ],
+          items: [{ label: 'Contributing', slug: 'contributing' }],
         },
       ],
       customCss: [],
