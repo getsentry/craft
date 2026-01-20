@@ -95,5 +95,10 @@
   "dependencies": {
     "marked": "^17.0.1",
     "semver": "^7.7.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "diff": "^8.0.3"
+    }
   }
 }

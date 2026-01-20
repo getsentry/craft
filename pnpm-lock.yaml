@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  diff: ^8.0.3
+
 importers:
 
   .:
@@ -1970,8 +1973,8 @@ packages:
     resolution: {integrity: sha512-ZySD7Nf91aLB0RxL4KGrKHBXl7Eds1DAmEdcoVawXnLD7SDhpNgtuII2aAkg7a7QS41jxPSZ17p4VdGnMHk3MQ==}
     engines: {node: '>=0.4.0'}
 
-  diff@3.5.0:
-    resolution: {integrity: sha512-A46qtFgd+g7pDZinpnwiRJtxbC1hpgf0uzP3iG89scHk0AUC7A1TGxf5OiiOUv/JMZR8GOt8hL900hV0bOy5xA==}
+  diff@8.0.3:
+    resolution: {integrity: sha512-qejHi7bcSD4hQAZE0tNAawRK1ZtafHDmMTMkrrIGgSLl7hTnQHmKCeB45xAcbfTqK2zowkM3j3bHt/4b/ARbYQ==}
     engines: {node: '>=0.3.1'}
 
   dotenv@16.6.1:
@@ -5351,7 +5354,7 @@ snapshots:
 
   delayed-stream@1.0.0: {}
 
-  diff@3.5.0: {}
+  diff@8.0.3: {}
 
   dotenv@16.6.1: {}
 
@@ -6420,7 +6423,7 @@ snapshots:
       builtin-modules: 1.1.1
       chalk: 2.4.2
       commander: 2.20.3
-      diff: 3.5.0
+      diff: 8.0.3
       glob: 7.2.3
       js-yaml: 3.14.2
       minimatch: 3.1.2
