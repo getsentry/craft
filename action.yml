@@ -1,5 +1,5 @@
-name: "Craft Prepare Release"
-description: "Prepare a new release using Craft"
+name: 'Craft Prepare Release'
+description: 'Prepare a new release using Craft'
 
 inputs:
   version:
@@ -13,11 +13,11 @@ inputs:
   force:
     description: Force a release even when there are release-blockers
     required: false
-    default: "false"
+    default: 'false'
   blocker_label:
     description: Label that blocks releases
     required: false
-    default: "release-blocker"
+    default: 'release-blocker'
   publish_repo:
     description: Repository for publish issues (owner/repo format)
     required: false
@@ -30,17 +30,17 @@ inputs:
   path:
     description: The path that Craft will run inside
     required: false
-    default: "."
+    default: '.'
   craft_config_from_merge_target:
     description: Use the craft config from the merge target branch
     required: false
-    default: "false"
+    default: 'false'
   craft_version:
     description: >
       Version of Craft to install (tag or "latest").
       Defaults to the action ref (e.g., "v2") if not specified.
     required: false
-    default: ""
+    default: ''
 
 outputs:
   version:
@@ -63,7 +63,7 @@ outputs:
     value: ${{ steps.request-publish.outputs.issue_url }}
 
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
     - id: killswitch
       name: Check release blockers
@@ -205,9 +205,10 @@ runs:
         title="publish: ${GITHUB_REPOSITORY}${SUBDIRECTORY}@${RESOLVED_VERSION}"
 
         # Check if issue already exists
-        # GitHub only allows search with the "in" operator and this issue search can
-        # return non-exact matches. We extract the titles and check with grep -xF
-        existing_issue_url=$(gh -R "$PUBLISH_REPO" issue list -S "'$title' in:title" --json title,url -q ".[] | select(.title == \"$title\") | .url")
+        # GitHub search requires double quotes for exact phrase matching. The search can
+        # still return non-exact matches, so we filter with jq to match the exact title.
+        # We use --arg to safely pass the title to jq, avoiding escaping issues with @ and other special chars.
+        existing_issue_url=$(gh -R "$PUBLISH_REPO" issue list -S "\"$title\" in:title" --json title,url | jq -r --arg t "$title" '.[] | select(.title == $t) | .url')
         if [[ -n "$existing_issue_url" ]]; then
           echo "There's already an open publish request, skipped issue creation."
           echo "::notice::Existing publish request: ${existing_issue_url}"
