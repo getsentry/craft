@@ -204,11 +204,9 @@ runs:
 
         title="publish: ${GITHUB_REPOSITORY}${SUBDIRECTORY}@${RESOLVED_VERSION}"
 
-        # Check if issue already exists
-        # GitHub search requires double quotes for exact phrase matching. The search can
-        # still return non-exact matches, so we filter with jq to match the exact title.
-        # We use --arg to safely pass the title to jq, avoiding escaping issues with @ and other special chars.
-        existing_issue_url=$(gh -R "$PUBLISH_REPO" issue list -S "\"$title\" in:title" --json title,url | jq -r --arg t "$title" '.[] | select(.title == $t) | .url')
+        # Check if issue already exists by listing all open issues and filtering by exact title match.
+        # We avoid GitHub search API to bypass indexing delays and query syntax edge cases.
+        existing_issue_url=$(gh -R "$PUBLISH_REPO" issue list --json title,url | jq -r --arg t "$title" '.[] | select(.title == $t) | .url')
         if [[ -n "$existing_issue_url" ]]; then
           echo "There's already an open publish request, skipped issue creation."
           echo "::notice::Existing publish request: ${existing_issue_url}"
