@@ -586,10 +586,12 @@ targets: []
 
     const combinedOutput = stdout + stderr;
 
-    // Should detect first release and default to 0.1.0
+    // Should detect first release and default to 0.1.0 (minor bump from 0.0.0)
     expect(combinedOutput).toContain('No previous releases found');
     expect(combinedOutput).toContain('first release');
-    expect(combinedOutput).toContain('default first version: 0.1.0');
+    expect(combinedOutput).toContain(
+      'default bump type for first release: minor',
+    );
     expect(combinedOutput).toContain('Releasing version 0.1.0');
     expect(combinedOutput).toContain('release/0.1.0');
   }, 60000);
