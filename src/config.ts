@@ -95,7 +95,7 @@ export function getConfigFilePath(): string {
   const configFilePath = findConfigFile();
   if (!configFilePath) {
     throw new ConfigurationError(
-      `Cannot find Craft configuration file. Have you added "${CONFIG_FILE_NAME}" to your project?`
+      `Cannot find Craft configuration file. Have you added "${CONFIG_FILE_NAME}" to your project?`,
     );
   }
   return configFilePath;
@@ -122,7 +122,7 @@ export function getConfigFileDir(): string | undefined {
  * @param rawConfig Raw project configuration object
  */
 export function validateConfiguration(
-  rawConfig: Record<string, any>
+  rawConfig: Record<string, any>,
 ): CraftProjectConfig {
   logger.debug('Parsing and validating the configuration file...');
   try {
@@ -133,7 +133,7 @@ export function validateConfiguration(
         .map(e => `${e.path.join('.')}: ${e.message}`)
         .join('\n');
       throw new ConfigurationError(
-        `Cannot parse configuration file:\n${messages}`
+        `Cannot parse configuration file:\n${messages}`,
       );
     }
     throw error;
@@ -166,7 +166,9 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
  *
  * @param configContent The raw YAML configuration content
  */
-export function loadConfigurationFromString(configContent: string): CraftProjectConfig {
+export function loadConfigurationFromString(
+  configContent: string,
+): CraftProjectConfig {
   logger.debug('Loading configuration from provided content...');
   const rawConfig = load(configContent) as Record<string, any>;
   _configCache = validateConfiguration(rawConfig);
@@ -184,7 +186,7 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
   const minVersionRaw = config.minVersion;
   if (!minVersionRaw) {
     logger.debug(
-      'No minimal version specified in the configuration, skpipping the check'
+      'No minimal version specified in the configuration, skpipping the check',
     );
     return;
   }
@@ -205,11 +207,11 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
 
   if (versionGreaterOrEqualThan(currentVersion, minVersion)) {
     logger.debug(
-      `"craft" version is compatible with the minimal version from the configuration file.`
+      `"craft" version is compatible with the minimal version from the configuration file.`,
     );
   } else {
     throw new ConfigurationError(
-      `Incompatible "craft" versions. Current version: ${currentVersionRaw},  minimal version: ${minVersionRaw} (taken from .craft.yml).`
+      `Incompatible "craft" versions. Current version: ${currentVersionRaw},  minimal version: ${minVersionRaw} (taken from .craft.yml).`,
     );
   }
 }
@@ -245,6 +247,9 @@ export function requiresMinVersion(requiredVersion: string): boolean {
 /** Minimum craft version required for auto-versioning and CalVer */
 const AUTO_VERSION_MIN_VERSION = '2.14.0';
 
+/** Minimum craft version required for smart defaults (auto changelog, etc.) */
+const SMART_DEFAULTS_MIN_VERSION = '2.20.0';
+
 /**
  * Returns the effective versioning policy for the project.
  *
@@ -279,12 +284,12 @@ export function getVersioningPolicy(): VersioningPolicy {
  */
 let _globalGitHubConfigCache: GitHubGlobalConfig | null;
 export async function getGlobalGitHubConfig(
-  clearCache = false
+  clearCache = false,
 ): Promise<GitHubGlobalConfig> {
   if (!clearCache && _globalGitHubConfigCache !== undefined) {
     if (_globalGitHubConfigCache === null) {
       throw new ConfigurationError(
-        'GitHub configuration not found in the config file and cannot be determined from Git'
+        'GitHub configuration not found in the config file and cannot be determined from Git',
       );
     }
 
@@ -421,19 +426,24 @@ const DEFAULT_CHANGELOG_FILE_PATH = 'CHANGELOG.md';
  *
  * Handles both legacy `changelogPolicy` and new `changelog` object format.
  * Emits deprecation warning when using `changelogPolicy`.
+ *
+ * Smart defaults (when minVersion >= 2.20.0):
+ * - policy defaults to 'auto' instead of 'none'
  */
 export function getChangelogConfig(): NormalizedChangelogConfig {
   const config = getConfiguration();
 
-  // Default values
+  // Default values - use smart defaults for minVersion >= 2.20.0
   let filePath = DEFAULT_CHANGELOG_FILE_PATH;
-  let policy = ChangelogPolicy.None;
+  let policy = requiresMinVersion(SMART_DEFAULTS_MIN_VERSION)
+    ? ChangelogPolicy.Auto
+    : ChangelogPolicy.None;
   let scopeGrouping = true;
 
   // Handle legacy changelogPolicy (deprecated)
   if (config.changelogPolicy !== undefined) {
     logger.warn(
-      'The "changelogPolicy" option is deprecated. Please use "changelog.policy" instead.'
+      'The "changelogPolicy" option is deprecated. Please use "changelog.policy" instead.',
     );
     policy = config.changelogPolicy;
   }
@@ -475,7 +485,7 @@ interface ExpandableTargetClass {
  * Check if a target class has an expand method
  */
 function isExpandableTarget(
-  targetClass: unknown
+  targetClass: unknown,
 ): targetClass is ExpandableTargetClass {
   return (
     typeof targetClass === 'function' &&
@@ -495,7 +505,7 @@ function isExpandableTarget(
  * @returns The expanded list of target configs
  */
 export async function expandWorkspaceTargets(
-  targets: TargetConfig[]
+  targets: TargetConfig[],
 ): Promise<TargetConfig[]> {
   // Lazy import to avoid circular dependency
 

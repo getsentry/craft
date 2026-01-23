@@ -10,6 +10,13 @@ import { withTempDir } from '../utils/files';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
+import {
+  DetectionContext,
+  DetectionResult,
+  fileExists,
+  readTextFile,
+  TargetPriority,
+} from '../utils/detection';
 
 const DEFAULT_CARGO_BIN = 'cargo';
 
@@ -107,10 +114,48 @@ export class CratesTarget extends BaseTarget {
   /** GitHub repo configuration */
   public readonly githubRepo: GitHubGlobalConfig;
 
+  /**
+   * Detect if this project should use the crates target.
+   *
+   * Checks for Cargo.toml with package definition.
+   */
+  public static detect(context: DetectionContext): DetectionResult | null {
+    const { rootDir } = context;
+
+    // Check for Cargo.toml
+    if (!fileExists(rootDir, 'Cargo.toml')) {
+      return null;
+    }
+
+    const content = readTextFile(rootDir, 'Cargo.toml');
+    if (!content) {
+      return null;
+    }
+
+    // Check if it has a [package] section (indicates a crate)
+    // Workspace-only Cargo.toml files may not have [package]
+    if (content.includes('[package]')) {
+      return {
+        config: { name: 'crates' },
+        priority: TargetPriority.CRATES,
+      };
+    }
+
+    // Check for workspace with members
+    if (content.includes('[workspace]') && content.includes('members')) {
+      return {
+        config: { name: 'crates' },
+        priority: TargetPriority.CRATES,
+      };
+    }
+
+    return null;
+  }
+
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GitHubGlobalConfig
+    githubRepo: GitHubGlobalConfig,
   ) {
     super(config, artifactProvider, githubRepo);
     this.cratesConfig = this.getCratesConfig();
@@ -125,7 +170,7 @@ export class CratesTarget extends BaseTarget {
     if (!process.env.CRATES_IO_TOKEN) {
       throw new ConfigurationError(
         `Cannot publish to Crates.io: missing credentials.
-         Please use CRATES_IO_TOKEN environment variable to pass the API token.`
+         Please use CRATES_IO_TOKEN environment variable to pass the API token.`,
       );
     }
     return {
@@ -155,13 +200,13 @@ export class CratesTarget extends BaseTarget {
     ];
 
     this.logger.info(
-      `Loading workspace information from ${directory}/Cargo.toml`
+      `Loading workspace information from ${directory}/Cargo.toml`,
     );
     const metadata = await spawnProcess(
       CARGO_BIN,
       args,
       {},
-      { enableInDryRunMode: true }
+      { enableInDryRunMode: true },
     );
     if (!metadata) {
       throw new ConfigurationError('Empty Cargo metadata!');
@@ -183,10 +228,13 @@ export class CratesTarget extends BaseTarget {
    * @returns The sorted list of packages
    */
   public getPublishOrder(packages: CratePackage[]): CratePackage[] {
-    const remaining = packages.reduce((dict, p) => {
-      dict[p.name] = p;
-      return dict;
-    }, {} as { [index: string]: CratePackage });
+    const remaining = packages.reduce(
+      (dict, p) => {
+        dict[p.name] = p;
+        return dict;
+      },
+      {} as { [index: string]: CratePackage },
+    );
     const ordered: CratePackage[] = [];
 
     const isWorkspaceDependency = (dep: CrateDependency) => {
@@ -209,7 +257,7 @@ export class CratesTarget extends BaseTarget {
     while (Object.keys(remaining).length > 0) {
       const leafDependencies = Object.values(remaining).filter(
         // Find all packages with no remaining workspace dependencies
-        p => p.dependencies.filter(isWorkspaceDependency).length === 0
+        p => p.dependencies.filter(isWorkspaceDependency).length === 0,
       );
 
       if (leafDependencies.length === 0) {
@@ -246,7 +294,7 @@ export class CratesTarget extends BaseTarget {
     this.logger.debug(
       `Publishing packages in the following order: ${crates
         .map(c => c.name)
-        .join(', ')}`
+        .join(', ')}`,
     );
     return forEachChained(crates, async crate => this.publishPackage(crate));
   }
@@ -265,7 +313,7 @@ export class CratesTarget extends BaseTarget {
     args.push(
       '--no-verify', // Verification should be done on the CI stage
       '--manifest-path',
-      crate.manifest_path
+      crate.manifest_path,
     );
 
     const env = {
@@ -282,7 +330,7 @@ export class CratesTarget extends BaseTarget {
         } catch (err) {
           if (err instanceof Error && err.message.includes(REPUBLISH_ERROR)) {
             this.logger.info(
-              `Skipping ${crate.name}, version ${crate.version} already published`
+              `Skipping ${crate.name}, version ${crate.version} already published`,
             );
           } else {
             throw err;
@@ -299,7 +347,7 @@ export class CratesTarget extends BaseTarget {
         await sleep(delay * 1000);
         delay *= RETRY_EXP_FACTOR;
         return true;
-      }
+      },
     );
   }
 
@@ -313,7 +361,7 @@ export class CratesTarget extends BaseTarget {
   public async cloneWithSubmodules(
     config: GitHubGlobalConfig,
     revision: string,
-    directory: string
+    directory: string,
   ): Promise<any> {
     const { owner, repo } = config;
     const git = createGitClient(directory);
@@ -349,7 +397,7 @@ export class CratesTarget extends BaseTarget {
         await this.publishWorkspace(directory);
       },
       true,
-      'craft-crates-'
+      'craft-crates-',
     );
 
     this.logger.info('Crates release complete');
