@@ -67,6 +67,9 @@ const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
 /** Minimum craft version required for auto-versioning */
 const AUTO_VERSION_MIN_VERSION = '2.14.0';
 
+/** Default version for first release when no tags exist */
+const DEFAULT_FIRST_VERSION = '0.1.0';
+
 export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
     .positional('NEW-VERSION', {
@@ -599,6 +602,15 @@ async function resolveVersion(
 
     const latestTag = await getLatestTag(git);
 
+    // Handle first release (no existing tags)
+    if (!latestTag) {
+      logger.info(
+        `No previous releases found. This appears to be the first release.`,
+      );
+      logger.info(`Using default first version: ${DEFAULT_FIRST_VERSION}`);
+      return DEFAULT_FIRST_VERSION;
+    }
+
     // Determine bump type - either from arg or from commit analysis
     let bumpType: BumpType;
     if (version === 'auto') {
@@ -610,10 +622,9 @@ async function resolveVersion(
     }
 
     // Calculate new version from latest tag
-    const currentVersion =
-      latestTag && latestTag.replace(/^v/, '').match(/^\d/)
-        ? latestTag.replace(/^v/, '')
-        : '0.0.0';
+    const currentVersion = latestTag.replace(/^v/, '').match(/^\d/)
+      ? latestTag.replace(/^v/, '')
+      : '0.0.0';
 
     const newVersion = calculateNextVersion(currentVersion, bumpType);
     logger.info(

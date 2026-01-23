@@ -6,6 +6,13 @@ import {
 import { ConfigurationError, reportError } from '../utils/errors';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
+import {
+  DetectionContext,
+  DetectionResult,
+  fileExists,
+  readTextFile,
+  TargetPriority,
+} from '../utils/detection';
 
 const DEFAULT_TWINE_BIN = 'twine';
 
@@ -36,9 +43,45 @@ export class PypiTarget extends BaseTarget {
   /** Target options */
   public readonly pypiConfig: PypiTargetOptions;
 
+  /**
+   * Detect if this project should use the pypi target.
+   *
+   * Checks for pyproject.toml or setup.py.
+   */
+  public static detect(context: DetectionContext): DetectionResult | null {
+    const { rootDir } = context;
+
+    // Check for pyproject.toml (modern Python packaging)
+    if (fileExists(rootDir, 'pyproject.toml')) {
+      const content = readTextFile(rootDir, 'pyproject.toml');
+      if (content) {
+        // Check if it has a [project] or [tool.poetry] section (indicates a package)
+        if (
+          content.includes('[project]') ||
+          content.includes('[tool.poetry]')
+        ) {
+          return {
+            config: { name: 'pypi' },
+            priority: TargetPriority.PYPI,
+          };
+        }
+      }
+    }
+
+    // Check for setup.py (legacy Python packaging)
+    if (fileExists(rootDir, 'setup.py')) {
+      return {
+        config: { name: 'pypi' },
+        priority: TargetPriority.PYPI,
+      };
+    }
+
+    return null;
+  }
+
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
     this.pypiConfig = this.getPypiConfig();
@@ -54,8 +97,8 @@ export class PypiTarget extends BaseTarget {
         `Cannot perform PyPI release: missing credentials.
          Please use TWINE_USERNAME and TWINE_PASSWORD environment variables.`.replace(
           /^\s+/gm,
-          ''
-        )
+          '',
+        ),
       );
     }
     return {
@@ -93,7 +136,7 @@ export class PypiTarget extends BaseTarget {
       packageFiles.map(async (file: RemoteArtifact) => {
         this.logger.info(`Uploading file "${file.filename}" via twine`);
         return this.artifactProvider.downloadArtifact(file);
-      })
+      }),
     );
     await this.uploadAssets(paths);
 
