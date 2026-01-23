@@ -219,7 +219,7 @@ runs:
           CHANGELOG_SECTION="
         ---
 
-        <details>
+        <details open>
         <summary>📋 Changelog</summary>
 
         ${CHANGELOG}
