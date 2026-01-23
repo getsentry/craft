@@ -14,6 +14,13 @@ import {
 } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
+import {
+  DetectionContext,
+  DetectionResult,
+  fileExists,
+  readTextFile,
+  TargetPriority,
+} from '../utils/detection';
 
 /** Cargo executable configuration */
 const CARGO_CONFIG = {
@@ -149,6 +156,44 @@ export class CratesTarget extends BaseTarget {
     }
 
     return true;
+  }
+
+  /**
+   * Detect if this project should use the crates target.
+   *
+   * Checks for Cargo.toml with package definition.
+   */
+  public static detect(context: DetectionContext): DetectionResult | null {
+    const { rootDir } = context;
+
+    // Check for Cargo.toml
+    if (!fileExists(rootDir, 'Cargo.toml')) {
+      return null;
+    }
+
+    const content = readTextFile(rootDir, 'Cargo.toml');
+    if (!content) {
+      return null;
+    }
+
+    // Check if it has a [package] section (indicates a crate)
+    // Workspace-only Cargo.toml files may not have [package]
+    if (content.includes('[package]')) {
+      return {
+        config: { name: 'crates' },
+        priority: TargetPriority.CRATES,
+      };
+    }
+
+    // Check for workspace with members
+    if (content.includes('[workspace]') && content.includes('members')) {
+      return {
+        config: { name: 'crates' },
+        priority: TargetPriority.CRATES,
+      };
+    }
+
+    return null;
   }
 
   public constructor(

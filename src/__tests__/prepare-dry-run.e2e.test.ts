@@ -519,4 +519,154 @@ targets: []
     expect(combinedOutput).toContain('Creating changelog file');
     expect(combinedOutput).toContain('Releasing version 1.1.0');
   }, 60000);
+
+  test('first release with no tags defaults to version 0.1.0', async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'craft-e2e-'));
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const git = simpleGit(tempDir);
+
+    // Initialize git repo
+    await git.init();
+    await git.addConfig('user.email', 'test@example.com');
+    await git.addConfig('user.name', 'Test User');
+
+    // Create .craft.yml with auto versioning - NO TAGS
+    const craftConfig = `
+minVersion: "2.14.0"
+github:
+  owner: test-owner
+  repo: test-repo
+versioning:
+  policy: auto
+changelog:
+  policy: none
+preReleaseCommand: ""
+targets: []
+`;
+    await writeFile(join(tempDir, '.craft.yml'), craftConfig);
+
+    // Create package.json
+    const packageJson = { name: 'test-package', version: '0.0.0' };
+    await writeFile(
+      join(tempDir, 'package.json'),
+      JSON.stringify(packageJson, null, 2),
+    );
+
+    // Initial commit - NO TAG
+    await git.add('.');
+    await git.commit('Initial commit');
+
+    // Add a feature commit
+    await writeFile(join(tempDir, 'feature.ts'), 'export const foo = 1;');
+    await git.add('.');
+    await git.commit('feat: Add foo feature');
+
+    // Create remote
+    const remoteDir = await mkdtemp(join(tmpdir(), 'craft-e2e-remote-'));
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const remoteGit = simpleGit(remoteDir);
+    await remoteGit.init(true);
+    await git.addRemote('origin', remoteDir);
+    const status = await git.status();
+    await git.push('origin', status.current!, ['--set-upstream']);
+
+    // Run prepare without version argument - should default to 0.1.0 for first release
+    const { stdout, stderr } = await execFileAsync(
+      CLI_BIN,
+      ['prepare', '--dry-run', '--no-input'],
+      {
+        cwd: tempDir,
+        env: {
+          ...process.env,
+          NODE_ENV: 'test',
+          GITHUB_TOKEN: 'test-token',
+        },
+      },
+    );
+
+    const combinedOutput = stdout + stderr;
+
+    // Should detect first release and default to 0.1.0
+    expect(combinedOutput).toContain('No previous releases found');
+    expect(combinedOutput).toContain('first release');
+    expect(combinedOutput).toContain('default first version: 0.1.0');
+    expect(combinedOutput).toContain('Releasing version 0.1.0');
+    expect(combinedOutput).toContain('release/0.1.0');
+  }, 60000);
+
+  test('first release with auto changelog creates CHANGELOG.md', async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'craft-e2e-'));
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const git = simpleGit(tempDir);
+
+    // Initialize git repo
+    await git.init();
+    await git.addConfig('user.email', 'test@example.com');
+    await git.addConfig('user.name', 'Test User');
+
+    // Create .craft.yml with auto versioning AND auto changelog - NO TAGS, NO CHANGELOG
+    const craftConfig = `
+minVersion: "2.14.0"
+github:
+  owner: test-owner
+  repo: test-repo
+versioning:
+  policy: auto
+changelog:
+  policy: auto
+preReleaseCommand: ""
+targets: []
+`;
+    await writeFile(join(tempDir, '.craft.yml'), craftConfig);
+
+    // Create package.json
+    const packageJson = { name: 'test-package', version: '0.0.0' };
+    await writeFile(
+      join(tempDir, 'package.json'),
+      JSON.stringify(packageJson, null, 2),
+    );
+
+    // Initial commit - NO TAG, NO CHANGELOG
+    await git.add('.');
+    await git.commit('Initial commit');
+
+    // Add a feature commit
+    await writeFile(join(tempDir, 'feature.ts'), 'export const foo = 1;');
+    await git.add('.');
+    await git.commit('feat: Add foo feature');
+
+    // Create remote
+    const remoteDir = await mkdtemp(join(tmpdir(), 'craft-e2e-remote-'));
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const remoteGit = simpleGit(remoteDir);
+    await remoteGit.init(true);
+    await git.addRemote('origin', remoteDir);
+    const status = await git.status();
+    await git.push('origin', status.current!, ['--set-upstream']);
+
+    // Verify no CHANGELOG.md exists
+    expect(existsSync(join(tempDir, 'CHANGELOG.md'))).toBe(false);
+
+    // Run prepare - should default to 0.1.0 and create CHANGELOG.md
+    const { stdout, stderr } = await execFileAsync(
+      CLI_BIN,
+      ['prepare', '--dry-run', '--no-input'],
+      {
+        cwd: tempDir,
+        env: {
+          ...process.env,
+          NODE_ENV: 'test',
+          GITHUB_TOKEN: 'test-token',
+        },
+      },
+    );
+
+    const combinedOutput = stdout + stderr;
+
+    // Should detect first release
+    expect(combinedOutput).toContain('No previous releases found');
+    expect(combinedOutput).toContain('Releasing version 0.1.0');
+    // Should create CHANGELOG.md
+    expect(combinedOutput).toContain('Creating changelog file');
+  }, 60000);
 });

@@ -21,26 +21,34 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 ## Features
 
 <CardGrid stagger>
-  <Card title="Automated Releases" icon="rocket">
-    Prepare and publish releases with a single command. Craft handles version bumping, changelog management, and artifact publishing.
+  <Card title="Quick Setup" icon="rocket">
+    Run `craft init` to auto-detect your project and generate configuration.
+    Works with npm, PyPI, Cargo, Docker, and more.
   </Card>
   <Card title="Auto Versioning" icon="star">
-    Automatically determine version bumps from conventional commits. Just run `craft prepare auto` and let Craft figure out the rest.
+    Automatically determine version bumps from conventional commits. Just run
+    `craft prepare` and let Craft figure out the rest.
   </Card>
   <Card title="Multiple Targets" icon="list-format">
-    Publish to GitHub, NPM, PyPI, Docker, NuGet, Crates.io, and many more registries from a single configuration.
+    Publish to GitHub, NPM, PyPI, Docker, NuGet, Crates.io, and many more
+    registries from a single configuration.
   </Card>
   <Card title="Changelog Management" icon="document">
-    Automatic changelog generation using conventional commits or manual changelog policies.
+    Automatic changelog generation using conventional commits or manual
+    changelog policies.
   </Card>
   <Card title="CI/CD Integration" icon="setting">
-    Works seamlessly with GitHub Actions and other CI systems. Fetch artifacts and publish them to your targets.
+    Works seamlessly with GitHub Actions and other CI systems. Fetch artifacts
+    and publish them to your targets.
   </Card>
 </CardGrid>
 
 ## Quick Example
 
 ```bash
+# Initialize a new project (one-time setup)
+craft init
+
 # Auto-determine version from conventional commits
 craft prepare auto
 

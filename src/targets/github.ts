@@ -26,6 +26,11 @@ import {
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { logger } from '../logger';
+import {
+  DetectionContext,
+  DetectionResult,
+  TargetPriority,
+} from '../utils/detection';
 
 /**
  * Default content type for GitHub release assets.
@@ -67,7 +72,8 @@ interface GitHubRelease {
   draft?: boolean;
 }
 
-type ReposListAssetsForReleaseResponseItem = RestEndpointMethodTypes['repos']['listReleaseAssets']['response']['data'][0];
+type ReposListAssetsForReleaseResponseItem =
+  RestEndpointMethodTypes['repos']['listReleaseAssets']['response']['data'][0];
 
 /**
  * Target responsible for publishing releases on GitHub.
@@ -82,10 +88,28 @@ export class GitHubTarget extends BaseTarget {
   /** GitHub repo configuration */
   public readonly githubRepo: GitHubGlobalConfig;
 
+  /**
+   * Detect if this project should use the github target.
+   *
+   * The GitHub target is always recommended for projects with GitHub remotes,
+   * as it creates GitHub Releases with changelogs and uploaded artifacts.
+   */
+  public static detect(context: DetectionContext): DetectionResult | null {
+    // GitHub target should be included when we detect a GitHub repo
+    if (context.githubOwner && context.githubRepo) {
+      return {
+        config: { name: 'github' },
+        priority: TargetPriority.GITHUB,
+      };
+    }
+
+    return null;
+  }
+
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GitHubGlobalConfig
+    githubRepo: GitHubGlobalConfig,
   ) {
     super(config, artifactProvider, githubRepo);
     this.githubRepo = githubRepo;
@@ -126,7 +150,7 @@ export class GitHubTarget extends BaseTarget {
   public async createDraftRelease(
     version: string,
     revision: string,
-    changes?: Changeset
+    changes?: Changeset,
   ): Promise<GitHubRelease> {
     const tag = versionToTag(version, this.githubConfig.tagPrefix);
     this.logger.info(`Git tag: "${tag}"`);
@@ -185,7 +209,7 @@ export class GitHubTarget extends BaseTarget {
    * @param asset Asset to delete
    */
   public async deleteAsset(
-    asset: ReposListAssetsForReleaseResponseItem
+    asset: ReposListAssetsForReleaseResponseItem,
   ): Promise<boolean> {
     this.logger.debug(`Deleting asset: "${asset.name}"...`);
     return (
@@ -212,7 +236,7 @@ export class GitHubTarget extends BaseTarget {
 
     if (release.draft === false) {
       this.logger.warn(
-        `Refusing to delete release "${release.tag_name}" because it is not a draft`
+        `Refusing to delete release "${release.tag_name}" because it is not a draft`,
       );
       return false;
     }
@@ -235,7 +259,7 @@ export class GitHubTarget extends BaseTarget {
    * @param release Release to fetch assets from
    */
   public async getAssetsForRelease(
-    release_id: number
+    release_id: number,
   ): Promise<ReposListAssetsForReleaseResponseItem[]> {
     const assetsResponse = await this.github.repos.listReleaseAssets({
       owner: this.githubConfig.owner,
@@ -254,15 +278,15 @@ export class GitHubTarget extends BaseTarget {
    */
   public async deleteAssetByName(
     release_id: number,
-    assetName: string
+    assetName: string,
   ): Promise<boolean> {
     const assets = await this.getAssetsForRelease(release_id);
     const assetToDelete = assets.find(({ name }) => name === assetName);
     if (!assetToDelete) {
       logger.warn(
         `No such asset with the name "${assetToDelete}", moving on. We have these instead: ${assets.map(
-          ({ name }) => name
-        )}`
+          ({ name }) => name,
+        )}`,
       );
       return false;
     }
@@ -279,17 +303,21 @@ export class GitHubTarget extends BaseTarget {
   public async uploadAsset(
     release: GitHubRelease,
     path: string,
-    contentType?: string
+    contentType?: string,
   ): Promise<string | undefined> {
     const name = basename(path);
 
     return safeExec(async () => {
       process.stderr.write(
-        `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}\n`
+        `Uploading asset "${name}" to ${this.githubConfig.owner}/${this.githubConfig.repo}:${release.tag_name}\n`,
       );
 
       try {
-        const { url } = await this.handleGitHubUpload(release, path, contentType);
+        const { url } = await this.handleGitHubUpload(
+          release,
+          path,
+          contentType,
+        );
         process.stderr.write(`✔ Uploaded asset "${name}".\n`);
         return url;
       } catch (e) {
@@ -303,7 +331,7 @@ export class GitHubTarget extends BaseTarget {
     release: GitHubRelease,
     path: string,
     contentType?: string,
-    retries = 3
+    retries = 3,
   ): Promise<{ url: string; size: number }> {
     const contentTypeProcessed = contentType || DEFAULT_CONTENT_TYPE;
     const stats = statSync(path);
@@ -338,7 +366,7 @@ export class GitHubTarget extends BaseTarget {
 
       if (ret.size != stats.size) {
         throw new Error(
-          `Uploaded asset size (${ret.size} bytes) does not match local asset size (${stats.size} bytes) for "${name}".`
+          `Uploaded asset size (${ret.size} bytes) does not match local asset size (${stats.size} bytes) for "${name}".`,
         );
       }
 
@@ -346,12 +374,12 @@ export class GitHubTarget extends BaseTarget {
     } catch (err) {
       if (retries <= 0) {
         throw new Error(
-          `Reached maximum retries for trying to upload asset "${params.name}.`
+          `Reached maximum retries for trying to upload asset "${params.name}.`,
         );
       }
 
       logger.info(
-        'Got an error when trying to upload an asset, deleting and retrying...'
+        'Got an error when trying to upload an asset, deleting and retrying...',
       );
       await this.deleteAssetByName(params.release_id, params.name);
       return this.handleGitHubUpload(release, path, contentType, --retries);
@@ -367,7 +395,7 @@ export class GitHubTarget extends BaseTarget {
    */
   public async publishRelease(
     release: GitHubRelease,
-    options: { makeLatest: boolean } = { makeLatest: true }
+    options: { makeLatest: boolean } = { makeLatest: true },
   ) {
     await this.github.repos.updateRelease({
       ...this.githubConfig,
@@ -389,7 +417,7 @@ export class GitHubTarget extends BaseTarget {
    */
   protected async createGitTag(
     version: string,
-    revision: string
+    revision: string,
   ): Promise<any> {
     const tag = versionToTag(version, this.githubConfig.tagPrefix);
     const tagRef = `refs/tags/${tag}`;
@@ -427,7 +455,7 @@ export class GitHubTarget extends BaseTarget {
    */
   protected async updateFloatingTags(
     version: string,
-    revision: string
+    revision: string,
   ): Promise<void> {
     const floatingTags = this.githubConfig.floatingTags;
     if (!floatingTags || floatingTags.length === 0) {
@@ -437,7 +465,7 @@ export class GitHubTarget extends BaseTarget {
     const parsedVersion = parseVersion(version);
     if (!parsedVersion) {
       this.logger.warn(
-        `Cannot parse version "${version}" for floating tags, skipping`
+        `Cannot parse version "${version}" for floating tags, skipping`,
       );
       return;
     }
@@ -488,7 +516,7 @@ export class GitHubTarget extends BaseTarget {
   public async publish(version: string, revision: string): Promise<any> {
     if (this.githubConfig.tagOnly) {
       this.logger.info(
-        `Not creating a GitHub release because "tagOnly" flag was set.`
+        `Not creating a GitHub release because "tagOnly" flag was set.`,
       );
       await this.createGitTag(version, revision);
       await this.updateFloatingTags(version, revision);
@@ -506,7 +534,7 @@ export class GitHubTarget extends BaseTarget {
       artifacts.map(async artifact => ({
         mimeType: artifact.mimeType,
         path: await this.artifactProvider.downloadArtifact(artifact),
-      }))
+      })),
     );
 
     let latestRelease: { tag_name: string } | undefined = undefined;
@@ -529,7 +557,7 @@ export class GitHubTarget extends BaseTarget {
     this.logger.info(
       latestReleaseTag
         ? `Previous release: ${latestReleaseTag}`
-        : 'No previous release found'
+        : 'No previous release found',
     );
 
     // Preview versions should never be marked as latest
@@ -542,14 +570,14 @@ export class GitHubTarget extends BaseTarget {
     const draftRelease = await this.createDraftRelease(
       version,
       revision,
-      changelog
+      changelog,
     );
 
     try {
       await Promise.all(
         localArtifacts.map(({ path, mimeType }) =>
-          this.uploadAsset(draftRelease, path, mimeType)
-        )
+          this.uploadAsset(draftRelease, path, mimeType),
+        ),
       );
 
       await this.publishRelease(draftRelease, { makeLatest });
@@ -558,11 +586,11 @@ export class GitHubTarget extends BaseTarget {
       try {
         await this.deleteRelease(draftRelease);
         this.logger.info(
-          `Deleted orphaned draft release: ${draftRelease.tag_name}`
+          `Deleted orphaned draft release: ${draftRelease.tag_name}`,
         );
       } catch (deleteError) {
         this.logger.warn(
-          `Failed to delete orphaned draft release: ${deleteError}`
+          `Failed to delete orphaned draft release: ${deleteError}`,
         );
       }
       throw error;
@@ -575,7 +603,7 @@ export class GitHubTarget extends BaseTarget {
 
 export function isLatestRelease(
   githubRelease: { tag_name: string } | undefined,
-  version: string
+  version: string,
 ) {
   const latestVersion = githubRelease && parseVersion(githubRelease.tag_name);
   const versionToPublish = parseVersion(version);

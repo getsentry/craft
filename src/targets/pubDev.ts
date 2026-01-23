@@ -1,4 +1,10 @@
-import { constants, existsSync, promises as fsPromises, readFileSync, writeFileSync } from 'fs';
+import {
+  constants,
+  existsSync,
+  promises as fsPromises,
+  readFileSync,
+  writeFileSync,
+} from 'fs';
 import { homedir, platform } from 'os';
 import { join, dirname } from 'path';
 import { load, dump } from 'js-yaml';
@@ -13,12 +19,18 @@ import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { isDryRun } from '../utils/helpers';
 import { logDryRun } from '../utils/dryRun';
 import { logger } from '../logger';
+import {
+  DetectionContext,
+  DetectionResult,
+  fileExists,
+  TargetPriority,
+} from '../utils/detection';
 
 export const targetSecrets = [
   'PUBDEV_ACCESS_TOKEN',
   'PUBDEV_REFRESH_TOKEN',
 ] as const;
-type SecretsType = typeof targetSecrets[number];
+type SecretsType = (typeof targetSecrets)[number];
 
 /** Target options for "brew" */
 export interface PubDevTargetOptions {
@@ -63,7 +75,7 @@ export class PubDevTarget extends BaseTarget {
    */
   public static async bumpVersion(
     rootDir: string,
-    newVersion: string
+    newVersion: string,
   ): Promise<boolean> {
     const pubspecPath = join(rootDir, 'pubspec.yaml');
     if (!existsSync(pubspecPath)) {
@@ -86,10 +98,29 @@ export class PubDevTarget extends BaseTarget {
     return true;
   }
 
+  /**
+   * Detect if this project should use the pub-dev target.
+   *
+   * Checks for pubspec.yaml (Dart/Flutter package).
+   */
+  public static detect(context: DetectionContext): DetectionResult | null {
+    const { rootDir } = context;
+
+    // Check for pubspec.yaml
+    if (fileExists(rootDir, 'pubspec.yaml')) {
+      return {
+        config: { name: 'pub-dev' },
+        priority: TargetPriority.PUB_DEV,
+      };
+    }
+
+    return null;
+  }
+
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GitHubGlobalConfig
+    githubRepo: GitHubGlobalConfig,
   ) {
     super(config, artifactProvider, githubRepo);
     this.pubDevConfig = this.getPubDevConfig();
@@ -145,7 +176,7 @@ export class PubDevTarget extends BaseTarget {
   private checkRequiredSoftware(config: PubDevTargetConfig): void {
     this.logger.debug(
       'Checking if Dart CLI is available: ',
-      config.dartCliPath
+      config.dartCliPath,
     );
     checkExecutableIsPresent(config.dartCliPath);
   }
@@ -168,11 +199,11 @@ export class PubDevTarget extends BaseTarget {
       async directory => {
         await this.cloneRepository(this.githubRepo, revision, directory);
         await forEachChained(this.pubDevConfig.packages, async pkg =>
-          this.publishPackage(directory, pkg)
+          this.publishPackage(directory, pkg),
         );
       },
       true,
-      'craft-pub-dev-'
+      'craft-pub-dev-',
     );
   }
 
@@ -220,7 +251,7 @@ export class PubDevTarget extends BaseTarget {
   public async cloneRepository(
     config: GitHubGlobalConfig,
     revision: string,
-    directory: string
+    directory: string,
   ): Promise<any> {
     const { owner, repo } = config;
     const git = createGitClient(directory);
@@ -251,7 +282,7 @@ export class PubDevTarget extends BaseTarget {
         await this.removeDependencyOverrides(directory, pkg);
       } catch (e) {
         throw new Error(
-          `Cannot remove dependency_overrides key from pubspec.yaml: ${e}`
+          `Cannot remove dependency_overrides key from pubspec.yaml: ${e}`,
         );
       }
     }
@@ -269,16 +300,16 @@ export class PubDevTarget extends BaseTarget {
       // Dart stops the process and asks user to go to provided url for authorization.
       // We want the stdout to be visible just in case something goes wrong, otherwise
       // the process will hang with no clear reason why.
-      { showStdout: true }
+      { showStdout: true },
     );
     this.logger.info(
-      `Package release complete${pkg !== '.' ? `: ${pkg}` : '.'}`
+      `Package release complete${pkg !== '.' ? `: ${pkg}` : '.'}`,
     );
   }
 
   private async removeDependencyOverrides(
     directory: string,
-    pkg: string
+    pkg: string,
   ): Promise<void> {
     const pubSpecPath = join(directory, pkg, 'pubspec.yaml');
     const pubSpecContent = await fsPromises.readFile(pubSpecPath, 'utf8');

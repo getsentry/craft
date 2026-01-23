@@ -11,6 +11,13 @@ import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 import { TargetConfig } from '../schemas/project_config';
 import { logger } from '../logger';
+import {
+  DetectionContext,
+  DetectionResult,
+  fileExists,
+  TargetPriority,
+} from '../utils/detection';
+import { readdirSync } from 'fs';
 
 const DEFAULT_GEM_BIN = 'gem';
 
@@ -126,6 +133,36 @@ export class GemTarget extends BaseTarget {
     }
 
     return updated;
+  }
+
+  /**
+   * Detect if this project should use the gem target.
+   *
+   * Checks for *.gemspec files in the root directory.
+   */
+  public static detect(context: DetectionContext): DetectionResult | null {
+    const { rootDir } = context;
+
+    // Check for Gemfile (indicates Ruby project)
+    if (!fileExists(rootDir, 'Gemfile')) {
+      return null;
+    }
+
+    // Look for .gemspec files (indicates a gem)
+    try {
+      const files = readdirSync(rootDir);
+      const hasGemspec = files.some(f => f.endsWith('.gemspec'));
+      if (hasGemspec) {
+        return {
+          config: { name: 'gem' },
+          priority: TargetPriority.GEM,
+        };
+      }
+    } catch {
+      // Ignore errors reading directory
+    }
+
+    return null;
   }
 
   public constructor(
