@@ -18,6 +18,8 @@ import * as targets from './commands/targets';
 import * as config from './commands/config';
 import * as artifacts from './commands/artifacts';
 import * as changelog from './commands/changelog';
+import * as init from './commands/init';
+import * as validate from './commands/validate';
 
 function printVersion(): void {
   if (!process.argv.includes('-v') && !process.argv.includes('--version')) {
@@ -87,6 +89,8 @@ async function main(): Promise<void> {
     .command(config)
     .command(artifacts)
     .command(changelog)
+    .command(init)
+    .command(validate)
     .demandCommand()
     .version(getPackageVersion())
     .alias('v', 'version')
