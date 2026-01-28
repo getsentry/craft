@@ -133,6 +133,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  statuses: write
 
 jobs:
   changelog-preview:
@@ -183,14 +184,6 @@ jobs:
 - Multiple updates trigger multiple notifications
 - Can clutter PR conversation on active branches
 
-**Required permissions:**
-
-```yaml
-permissions:
-  contents: read
-  pull-requests: write
-```
-
 #### Status Check Mode
 
 Creates a commit status with the semver impact and writes the full changelog to the Actions job summary:
@@ -216,14 +209,6 @@ jobs:
 - Requires clicking through to Actions run to see full changelog
 - Less immediate visibility than comment
 
-**Required permissions:**
-
-```yaml
-permissions:
-  contents: read
-  statuses: write
-```
-
 :::tip
 Craft itself uses status check mode to avoid notification noise. You can see it in action on any PR in the [getsentry/craft repository](https://github.com/getsentry/craft/pulls).
 :::
@@ -238,6 +223,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  statuses: write
 
 jobs:
   changelog-preview:
@@ -308,11 +294,18 @@ The workflow supports these PR event types:
 
 The workflow requires specific permissions and secrets to function correctly:
 
-**Permissions** (required):
+**Permissions** (all three required):
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+```
 
 - `contents: read` - Allows the workflow to checkout your repository and read git history for changelog generation
-- `pull-requests: write` - Required for comment mode (default) to post and update comments on pull requests
-- `statuses: write` - Required for status check mode (when `comment: false`) to create commit statuses
+- `pull-requests: write` - Required for comment mode to post and update comments on pull requests
+- `statuses: write` - Required for status check mode to create commit statuses
 
 **Secrets**:
 
@@ -322,10 +315,8 @@ The workflow requires specific permissions and secrets to function correctly:
 
 - The repository should have a git history with tags for the changelog to be meaningful
 
-:::note[Why are these permissions needed?]
-GitHub Actions reusable workflows use permission intersection - the final permissions are the intersection of what the caller grants and what the workflow declares. By explicitly declaring these permissions in your workflow file, you ensure the workflow can access your repository and perform the necessary actions, even for private repositories.
-
-Note: You only need `pull-requests: write` for comment mode OR `statuses: write` for status check mode, not both. However, it's safe to grant both permissions if you're unsure which mode you'll use.
+:::caution[All permissions are required]
+GitHub Actions reusable workflows use permission intersection - the final permissions are the intersection of what the caller grants and what the workflow declares. The changelog-preview workflow declares both `pull-requests: write` and `statuses: write`, so **your caller workflow must grant both permissions** regardless of which mode you use. If either permission is missing, GitHub will refuse to run the workflow.
 :::
 
 ## Skipping Changelog Entries
@@ -374,6 +365,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  statuses: write
 
 jobs:
   changelog-preview:
