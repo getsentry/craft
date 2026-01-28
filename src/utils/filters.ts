@@ -24,3 +24,22 @@ export function stringToRegexp(str: string): RegExp {
   const regexpModifiers = str.slice(lastSlash + 1);
   return new RegExp(regexpString, regexpModifiers);
 }
+
+/**
+ * Escapes special regex characters in a string for use in RegExp
+ */
+export function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Converts a pattern string to a RegExp.
+ * If wrapped in slashes (e.g., /^foo.*$/), parses as regex.
+ * Otherwise, creates an exact match pattern.
+ */
+export function patternToRegexp(pattern: string): RegExp {
+  if (pattern.startsWith('/') && pattern.lastIndexOf('/') > 0) {
+    return stringToRegexp(pattern);
+  }
+  return new RegExp(`^${escapeRegex(pattern)}$`);
+}

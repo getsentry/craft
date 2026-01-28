@@ -94,6 +94,7 @@
   },
   "dependencies": {
     "marked": "^17.0.1",
+    "p-limit": "^6.2.0",
     "semver": "^7.7.3"
   },
   "pnpm": {
