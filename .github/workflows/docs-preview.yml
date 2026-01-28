@@ -32,7 +32,7 @@ jobs:
         working-directory: docs
         env:
           # Override base path for PR preview
-          DOCS_BASE_PATH: /craft/pr-preview/pr-${{ github.event.pull_request.number }}
+          DOCS_BASE_PATH: /pr-preview/pr-${{ github.event.pull_request.number }}
         run: |
           pnpm install --frozen-lockfile
           pnpm build
@@ -74,4 +74,5 @@ jobs:
           source-dir: docs/dist/
           preview-branch: gh-pages
           umbrella-dir: pr-preview
+          pages-base-url: craft.sentry.dev
           action: auto
