@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.20.1
+
+### Bug Fixes 🐛
+
+- (action) Expand changelog by default in publish issues by @BYK in [#731](https://github.com/getsentry/craft/pull/731)
+
+### Documentation 📚
+
+- Update documentation for changes since 2.17.0 by @BYK in [#735](https://github.com/getsentry/craft/pull/735)
+- Update base path for craft.sentry.dev domain by @BYK in [#734](https://github.com/getsentry/craft/pull/734)
+
 ## 2.20.0
 
 ### New Features ✨
