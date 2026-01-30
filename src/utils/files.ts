@@ -194,33 +194,30 @@ async function walkDirectory(
     return results;
   }
 
-  try {
-    for await (const entry of dir) {
-      const fullPath = path.join(currentDir, entry.name);
-      const relativePath = path.relative(rootDir, fullPath);
+  // for await...of automatically closes the directory when iteration completes
+  for await (const entry of dir) {
+    const fullPath = path.join(currentDir, entry.name);
+    const relativePath = path.relative(rootDir, fullPath);
 
-      // Skip ignored paths
-      if (ig.ignores(relativePath)) {
-        continue;
-      }
-
-      if (entry.isFile()) {
-        if (!fileFilter || fileFilter(entry.name)) {
-          results.push(fullPath);
-        }
-      } else if (entry.isDirectory() && depth < maxDepth) {
-        const subResults = await walkDirectory(
-          rootDir,
-          fullPath,
-          ig,
-          options,
-          depth + 1,
-        );
-        results.push(...subResults);
-      }
+    // Skip ignored paths
+    if (ig.ignores(relativePath)) {
+      continue;
     }
-  } finally {
-    await dir.close();
+
+    if (entry.isFile()) {
+      if (!fileFilter || fileFilter(entry.name)) {
+        results.push(fullPath);
+      }
+    } else if (entry.isDirectory() && depth < maxDepth) {
+      const subResults = await walkDirectory(
+        rootDir,
+        fullPath,
+        ig,
+        options,
+        depth + 1,
+      );
+      results.push(...subResults);
+    }
   }
 
   return results;

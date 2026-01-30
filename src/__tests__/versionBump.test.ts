@@ -12,21 +12,43 @@ import { PubDevTarget } from '../targets/pubDev';
 import { HexTarget } from '../targets/hex';
 import { NugetTarget } from '../targets/nuget';
 
-// Mock spawnProcess to avoid actually running commands
+// Store mock functions at module scope so they can be configured in tests
+const mockSpawnProcess = vi.fn();
+const mockHasExecutable = vi.fn();
+
+// Mock spawnProcess and hasExecutable to avoid actually running commands
+// We need to mock runWithExecutable as well since it internally calls hasExecutable
+// which won't be the mocked version due to how module internals work
 vi.mock('../utils/system', async () => {
-  const actual = await vi.importActual('../utils/system');
+  const actual =
+    await vi.importActual<typeof import('../utils/system')>('../utils/system');
+
   return {
     ...actual,
-    spawnProcess: vi.fn(),
-    hasExecutable: vi.fn(),
+    spawnProcess: mockSpawnProcess,
+    hasExecutable: mockHasExecutable,
+    // Re-implement runWithExecutable to use mocked functions
+    runWithExecutable: async (
+      config: import('../utils/system').ExecutableConfig,
+      args: string[],
+      options = {},
+    ) => {
+      const bin = actual.resolveExecutable(config);
+      if (!mockHasExecutable(bin)) {
+        const hint = config.errorHint
+          ? ` ${config.errorHint}`
+          : ' Is it installed?';
+        throw new Error(`Cannot find "${bin}".${hint}`);
+      }
+      return mockSpawnProcess(bin, args, options);
+    },
   };
 });
 
 // Helper to set up default mocks
 async function setupDefaultMocks() {
-  const { spawnProcess, hasExecutable } = await import('../utils/system');
-  vi.mocked(spawnProcess).mockResolvedValue('');
-  vi.mocked(hasExecutable).mockReturnValue(true);
+  mockSpawnProcess.mockResolvedValue(Buffer.from(''));
+  mockHasExecutable.mockReturnValue(true);
 }
 
 describe('runAutomaticVersionBumps', () => {
