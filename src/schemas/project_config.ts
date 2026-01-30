@@ -83,6 +83,35 @@ export const BaseArtifactProviderSchema = z.object({
 export type BaseArtifactProvider = z.infer<typeof BaseArtifactProviderSchema>;
 
 /**
+ * Artifact pattern(s) for a single workflow - can be a single string or array of strings
+ */
+export const ArtifactPatternsSchema = z.union([z.string(), z.array(z.string())]);
+
+/**
+ * Artifacts config for GitHub artifact provider.
+ * Accepts string, array of strings, or object mapping workflow names to artifact patterns.
+ */
+export const GitHubArtifactsConfigSchema = z
+  .union([
+    ArtifactPatternsSchema,
+    z.record(z.string(), ArtifactPatternsSchema),
+  ])
+  .optional();
+
+export type GitHubArtifactsConfig = z.infer<typeof GitHubArtifactsConfigSchema>;
+
+/**
+ * GitHub-specific artifact provider configuration
+ */
+export const GitHubArtifactProviderConfigSchema = z.object({
+  artifacts: GitHubArtifactsConfigSchema,
+});
+
+export type GitHubArtifactProviderConfig = z.infer<
+  typeof GitHubArtifactProviderConfigSchema
+>;
+
+/**
  * Calendar versioning configuration
  */
 export const CalVerConfigSchema = z.object({
