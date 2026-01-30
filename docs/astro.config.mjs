@@ -2,10 +2,10 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 // Allow base path override via environment variable for PR previews
-const base = process.env.DOCS_BASE_PATH || '/craft';
+const base = process.env.DOCS_BASE_PATH || '/';
 
 export default defineConfig({
-  site: 'https://getsentry.github.io',
+  site: 'https://craft.sentry.dev',
   base: base,
   integrations: [
     starlight({
@@ -13,9 +13,13 @@ export default defineConfig({
       logo: {
         src: './src/assets/logo.svg',
       },
-      social: {
-        github: 'https://github.com/getsentry/craft',
-      },
+      social: [
+        {
+          icon: 'github',
+          label: 'GitHub',
+          href: 'https://github.com/getsentry/craft',
+        },
+      ],
       sidebar: [
         {
           label: 'Getting Started',
@@ -32,9 +36,7 @@ export default defineConfig({
         },
         {
           label: 'Resources',
-          items: [
-            { label: 'Contributing', slug: 'contributing' },
-          ],
+          items: [{ label: 'Contributing', slug: 'contributing' }],
         },
       ],
       customCss: [],

@@ -127,18 +127,25 @@ Call the reusable workflow from your repository:
 ```yaml
 name: Changelog Preview
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, edited, labeled]
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 permissions:
   contents: read
   pull-requests: write
+  statuses: write
 
 jobs:
   changelog-preview:
     uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
     secrets: inherit
 ```
+
+:::caution[Use `pull_request_target`, not `pull_request`]
+The workflow requires `pull_request_target` to post comments on PRs from forks. The standard `pull_request` event provides a read-only `GITHUB_TOKEN` for fork PRs, which would cause the workflow to fail with a 403 error.
+
+This is safe because the workflow only reads git metadata and config - no code from the PR is executed.
+:::
 
 ### Inputs
 
@@ -177,14 +184,6 @@ jobs:
 - Multiple updates trigger multiple notifications
 - Can clutter PR conversation on active branches
 
-**Required permissions:**
-
-```yaml
-permissions:
-  contents: read
-  pull-requests: write
-```
-
 #### Status Check Mode
 
 Creates a commit status with the semver impact and writes the full changelog to the Actions job summary:
@@ -210,14 +209,6 @@ jobs:
 - Requires clicking through to Actions run to see full changelog
 - Less immediate visibility than comment
 
-**Required permissions:**
-
-```yaml
-permissions:
-  contents: read
-  statuses: write
-```
-
 :::tip
 Craft itself uses status check mode to avoid notification noise. You can see it in action on any PR in the [getsentry/craft repository](https://github.com/getsentry/craft/pulls).
 :::
@@ -225,9 +216,14 @@ Craft itself uses status check mode to avoid notification noise. You can see it 
 ### Pinning a Specific Version
 
 ```yaml
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
 permissions:
   contents: read
   pull-requests: write
+  statuses: write
 
 jobs:
   changelog-preview:
@@ -298,11 +294,18 @@ The workflow supports these PR event types:
 
 The workflow requires specific permissions and secrets to function correctly:
 
-**Permissions** (required):
+**Permissions** (all three required):
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+```
 
 - `contents: read` - Allows the workflow to checkout your repository and read git history for changelog generation
-- `pull-requests: write` - Required for comment mode (default) to post and update comments on pull requests
-- `statuses: write` - Required for status check mode (when `comment: false`) to create commit statuses
+- `pull-requests: write` - Required for comment mode to post and update comments on pull requests
+- `statuses: write` - Required for status check mode to create commit statuses
 
 **Secrets**:
 
@@ -312,10 +315,8 @@ The workflow requires specific permissions and secrets to function correctly:
 
 - The repository should have a git history with tags for the changelog to be meaningful
 
-:::note[Why are these permissions needed?]
-GitHub Actions reusable workflows use permission intersection - the final permissions are the intersection of what the caller grants and what the workflow declares. By explicitly declaring these permissions in your workflow file, you ensure the workflow can access your repository and perform the necessary actions, even for private repositories.
-
-Note: You only need `pull-requests: write` for comment mode OR `statuses: write` for status check mode, not both. However, it's safe to grant both permissions if you're unsure which mode you'll use.
+:::caution[All permissions are required]
+GitHub Actions reusable workflows use permission intersection - the final permissions are the intersection of what the caller grants and what the workflow declares. The changelog-preview workflow declares both `pull-requests: write` and `statuses: write`, so **your caller workflow must grant both permissions** regardless of which mode you use. If either permission is missing, GitHub will refuse to run the workflow.
 :::
 
 ## Skipping Changelog Entries
@@ -358,12 +359,13 @@ You can use both the changelog preview and release workflows together for a comp
 # .github/workflows/changelog-preview.yml
 name: Changelog Preview
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, edited, labeled]
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 permissions:
   contents: read
   pull-requests: write
+  statuses: write
 
 jobs:
   changelog-preview:

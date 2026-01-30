@@ -119,6 +119,12 @@ function normalizeOutput(output: string): string {
       // Remove ANSI color codes
       // eslint-disable-next-line no-control-regex -- Need to match ANSI escape sequences
       .replace(/\x1b\[[0-9;]*m/g, '')
+      // Remove node deprecation warnings (must be before hash normalization)
+      .replace(/\(node:\d+\)[^\n]*DeprecationWarning[^\n]*\n?/g, '')
+      .replace(/\(node:\d+\)[^\n]*\n/g, '')
+      .replace(/\(Use `node --trace-warnings.*\n/g, '')
+      .replace(/\(Use `node --trace-deprecation.*\n/g, '')
+      .replace(/Support for loading ES Module.*\n/g, '')
       // Normalize temp directory paths
       .replace(/\/tmp\/craft-[a-z0-9-]+/g, '/tmp/craft-XXXXX')
       // Normalize commit hashes (7-40 hex chars)
@@ -129,11 +135,6 @@ function normalizeOutput(output: string): string {
       .replace(/craft-dry-run-[a-f0-9]+/g, 'craft-dry-run-XXXXX')
       // Normalize line counts that might vary
       .replace(/@@ -\d+,\d+ \+\d+,\d+ @@/g, '@@ -X,Y +X,Y @@')
-      // Remove node warnings and experimental warnings
-      .replace(/\(node:\d+\)[^\n]*\n/g, '')
-      .replace(/\(Use `node --trace-warnings.*\n/g, '')
-      .replace(/\(Use `node --trace-deprecation.*\n/g, '')
-      .replace(/Support for loading ES Module.*\n/g, '')
       // Normalize PID references
       .replace(/node:\d+/g, 'node:PID')
       // Normalize branch names (main vs master)

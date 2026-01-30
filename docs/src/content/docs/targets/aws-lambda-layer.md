@@ -12,8 +12,12 @@ Creates a new public Lambda layer in each available AWS region and updates the S
 | `layerName` | Name of the Lambda layer. Supports template variables (see below) |
 | `compatibleRuntimes` | List of runtime configurations |
 | `license` | Layer license |
-| `linkPrereleases` | Update for preview releases. Default: `false` |
+| `linkPrereleases` | Publish layers for preview/pre-release versions. Default: `false` |
 | `includeNames` | Must filter to exactly one artifact |
+
+:::note[Pre-release Versions]
+Layer publication is automatically skipped for pre-release versions (e.g., `1.0.0-alpha.1`, `2.0.0-rc.1`) unless `linkPrereleases` is set to `true`. This prevents unstable versions from being published to all AWS regions.
+:::
 
 ### Layer Name Templating
 
