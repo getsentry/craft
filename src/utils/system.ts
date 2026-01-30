@@ -286,7 +286,7 @@ function isExecutable(filePath: string): boolean {
   try {
     fs.accessSync(filePath, fs.constants.F_OK | fs.constants.X_OK);
     return true;
-  } catch (e) {
+  } catch {
     return false;
   }
 }

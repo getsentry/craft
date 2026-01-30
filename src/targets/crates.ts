@@ -14,7 +14,6 @@ import {
 } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
-import { logger } from '../logger';
 
 /** Cargo executable configuration */
 const CARGO_CONFIG = {
