@@ -1,11 +1,12 @@
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { readdir, readFile, writeFile } from 'fs/promises';
+import { dirname, join } from 'path';
 
 import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../artifact_providers/base';
 import { reportError } from '../utils/errors';
+import { findFiles } from '../utils/files';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 import { TargetConfig } from '../schemas/project_config';
@@ -33,24 +34,31 @@ export class GemTarget extends BaseTarget {
   /**
    * Bump version in Ruby gem project files.
    *
+   * Supports monorepos by searching for gemspec files up to 2 levels deep,
+   * respecting .gitignore patterns.
+   *
    * Looks for version patterns in:
    * 1. .gemspec files (s.version = "x.y.z")
-   * 2. lib/.../version.rb files (VERSION = "x.y.z")
+   * 2. lib/.../version.rb files relative to each gemspec (VERSION = "x.y.z")
    */
   public static async bumpVersion(
     rootDir: string,
-    newVersion: string
+    newVersion: string,
   ): Promise<boolean> {
-    const gemspecFiles = readdirSync(rootDir).filter(f => f.endsWith('.gemspec'));
+    // Find all gemspec files up to 2 levels deep, respecting .gitignore
+    const gemspecFiles = await findFiles(rootDir, {
+      maxDepth: 2,
+      fileFilter: name => name.endsWith('.gemspec'),
+    });
+
     if (gemspecFiles.length === 0) {
       return false;
     }
 
     let bumped = false;
 
-    for (const gemspecFile of gemspecFiles) {
-      const gemspecPath = join(rootDir, gemspecFile);
-      const content = readFileSync(gemspecPath, 'utf-8');
+    for (const gemspecPath of gemspecFiles) {
+      const content = await readFile(gemspecPath, 'utf-8');
 
       // Match: s.version = "1.0.0" or spec.version = '1.0.0'
       const versionRegex = /^(\s*\w+\.version\s*=\s*["'])([^"']+)(["'])/m;
@@ -59,15 +67,19 @@ export class GemTarget extends BaseTarget {
         const newContent = content.replace(versionRegex, `$1${newVersion}$3`);
         if (newContent !== content) {
           logger.debug(`Updating version in ${gemspecPath} to ${newVersion}`);
-          writeFileSync(gemspecPath, newContent);
+          await writeFile(gemspecPath, newContent);
           bumped = true;
         }
       }
-    }
 
-    const libDir = join(rootDir, 'lib');
-    if (existsSync(libDir)) {
-      bumped = GemTarget.updateVersionRbFiles(libDir, newVersion) || bumped;
+      // Also check for lib/**/version.rb relative to each gemspec's directory
+      const gemDir = dirname(gemspecPath);
+      const libDir = join(gemDir, 'lib');
+      const libUpdated = await GemTarget.updateVersionRbFiles(
+        libDir,
+        newVersion,
+      );
+      bumped = libUpdated || bumped;
     }
 
     return bumped;
@@ -76,12 +88,15 @@ export class GemTarget extends BaseTarget {
   /**
    * Recursively find and update version.rb files
    */
-  private static updateVersionRbFiles(dir: string, newVersion: string): boolean {
+  private static async updateVersionRbFiles(
+    dir: string,
+    newVersion: string,
+  ): Promise<boolean> {
     let updated = false;
     let entries;
 
     try {
-      entries = readdirSync(dir, { withFileTypes: true });
+      entries = await readdir(dir, { withFileTypes: true });
     } catch {
       return false;
     }
@@ -90,16 +105,20 @@ export class GemTarget extends BaseTarget {
       const fullPath = join(dir, entry.name);
 
       if (entry.isDirectory()) {
-        updated = GemTarget.updateVersionRbFiles(fullPath, newVersion) || updated;
+        const subUpdated = await GemTarget.updateVersionRbFiles(
+          fullPath,
+          newVersion,
+        );
+        updated = subUpdated || updated;
       } else if (entry.name === 'version.rb') {
-        const content = readFileSync(fullPath, 'utf-8');
+        const content = await readFile(fullPath, 'utf-8');
         const versionRegex = /^(\s*VERSION\s*=\s*["'])([^"']+)(["'])/m;
 
         if (versionRegex.test(content)) {
           const newContent = content.replace(versionRegex, `$1${newVersion}$3`);
           if (newContent !== content) {
             logger.debug(`Updating VERSION in ${fullPath} to ${newVersion}`);
-            writeFileSync(fullPath, newContent);
+            await writeFile(fullPath, newContent);
             updated = true;
           }
         }
@@ -111,7 +130,7 @@ export class GemTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
     checkExecutableIsPresent(GEM_BIN);
@@ -149,7 +168,7 @@ export class GemTarget extends BaseTarget {
         const path = await this.artifactProvider.downloadArtifact(file);
         this.logger.info(`Pushing gem "${file.filename}"`);
         return this.pushGem(path);
-      })
+      }),
     );
 
     this.logger.info('Successfully registered gem');
