@@ -50,7 +50,7 @@ npm version "${CRAFT_NEW_VERSION}"
 
 ## Automatic Version Bumping
 
-When `minVersion: "2.19.0"` or higher is set and no custom `preReleaseCommand` is defined, Craft automatically bumps version numbers based on your configured publish targets. This eliminates the need for a `scripts/bump-version.sh` script in most cases.
+When `minVersion: "2.21.0"` or higher is set and no custom `preReleaseCommand` is defined, Craft automatically bumps version numbers based on your configured publish targets. This eliminates the need for a `scripts/bump-version.sh` script in most cases.
 
 ### How It Works
 
@@ -61,15 +61,15 @@ When `minVersion: "2.19.0"` or higher is set and no custom `preReleaseCommand` i
 
 ### Supported Targets
 
-| Target | Detection | Version Bump Method |
-|--------|-----------|---------------------|
-| `npm` | `package.json` exists | `npm version --no-git-tag-version` (with workspace support) |
-| `pypi` | `pyproject.toml` exists | hatch, poetry, setuptools-scm, or direct edit |
-| `crates` | `Cargo.toml` exists | `cargo set-version` (requires cargo-edit) |
-| `gem` | `*.gemspec` exists | Direct edit of gemspec and `lib/**/version.rb` |
-| `pub-dev` | `pubspec.yaml` exists | Direct edit of pubspec.yaml |
-| `hex` | `mix.exs` exists | Direct edit of mix.exs |
-| `nuget` | `*.csproj` exists | dotnet-setversion or direct XML edit |
+| Target    | Detection               | Version Bump Method                                         |
+| --------- | ----------------------- | ----------------------------------------------------------- |
+| `npm`     | `package.json` exists   | `npm version --no-git-tag-version` (with workspace support) |
+| `pypi`    | `pyproject.toml` exists | hatch, poetry, setuptools-scm, or direct edit               |
+| `crates`  | `Cargo.toml` exists     | `cargo set-version` (requires cargo-edit)                   |
+| `gem`     | `*.gemspec` exists      | Direct edit of gemspec and `lib/**/version.rb`              |
+| `pub-dev` | `pubspec.yaml` exists   | Direct edit of pubspec.yaml                                 |
+| `hex`     | `mix.exs` exists        | Direct edit of mix.exs                                      |
+| `nuget`   | `*.csproj` exists       | dotnet-setversion or direct XML edit                        |
 
 ### npm Workspace Support
 
@@ -79,6 +79,7 @@ For npm/yarn/pnpm monorepos, Craft automatically detects and bumps versions in a
 - **yarn/pnpm or npm < 7**: Falls back to bumping each non-private package individually
 
 Workspace detection checks for:
+
 - `workspaces` field in root `package.json` (npm/yarn)
 - `pnpm-workspace.yaml` (pnpm)
 
@@ -98,35 +99,37 @@ For Python projects, Craft detects the build tool and uses the appropriate metho
 To enable automatic version bumping, ensure your `.craft.yml` has:
 
 ```yaml
-minVersion: "2.19.0"
+minVersion: '2.21.0'
 targets:
-  - name: npm  # or pypi, crates, etc.
+  - name: npm # or pypi, crates, etc.
   # ... other targets
 ```
 
 And either:
+
 - Remove any custom `preReleaseCommand`, or
 - Don't define `preReleaseCommand` at all
 
 ### Disabling Automatic Version Bumping
 
-To disable automatic version bumping while still using minVersion 2.19.0+:
+To disable automatic version bumping while still using minVersion 2.21.0+:
 
 ```yaml
-minVersion: "2.19.0"
-preReleaseCommand: ""  # Explicitly set to empty string
+minVersion: '2.21.0'
+preReleaseCommand: '' # Explicitly set to empty string
 ```
 
 Or define a custom script:
 
 ```yaml
-minVersion: "2.19.0"
+minVersion: '2.21.0'
 preReleaseCommand: bash scripts/my-custom-bump.sh
 ```
 
 ### Error Handling
 
 If automatic version bumping fails:
+
 - **Missing tool**: Craft reports which tool is missing (e.g., "Cannot find 'npm' for version bumping")
 - **Command failure**: Craft shows the error from the failed command
 - **No supported targets**: Craft warns that no targets support automatic bumping
@@ -529,12 +532,12 @@ artifactProvider:
   name: github
   config:
     artifacts:
-      build: release-artifacts              # exact workflow → exact artifact
-      /^build-.*$/: artifacts               # workflow pattern → exact artifact
-      ci:                                   # exact workflow → multiple artifacts
+      build: release-artifacts # exact workflow → exact artifact
+      /^build-.*$/: artifacts # workflow pattern → exact artifact
+      ci: # exact workflow → multiple artifacts
         - /^output-.*$/
         - bundle
-      /^release-.*$/:                       # workflow pattern → multiple artifacts
+      /^release-.*$/: # workflow pattern → multiple artifacts
         - /^dist-.*$/
         - checksums
 ```

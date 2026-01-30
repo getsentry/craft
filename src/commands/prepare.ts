@@ -74,7 +74,7 @@ const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
 const AUTO_VERSION_MIN_VERSION = '2.14.0';
 
 /** Minimum craft version required for automatic version bumping from targets */
-const AUTO_BUMP_MIN_VERSION = '2.19.0';
+const AUTO_BUMP_MIN_VERSION = '2.21.0';
 
 export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
@@ -296,7 +296,7 @@ interface PreReleaseOptions {
 /**
  * Run pre-release command or automatic version bumping.
  *
- * Priority: custom command > automatic bumping (minVersion >= 2.19.0) > default script
+ * Priority: custom command > automatic bumping (minVersion >= 2.21.0) > default script
  */
 export async function runPreReleaseCommand(
   options: PreReleaseOptions,
