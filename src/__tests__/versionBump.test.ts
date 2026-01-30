@@ -33,7 +33,7 @@ vi.mock('../utils/system', async () => {
     runWithExecutable: async (
       config: import('../utils/system').ExecutableConfig,
       args: string[],
-      options = {}
+      options = {},
     ) => {
       const bin = actual.resolveExecutable(config);
       if (!mockHasExecutable(bin)) {
@@ -49,16 +49,6 @@ vi.mock('../utils/system', async () => {
 
 // Helper to set up default mocks
 function setupDefaultMocks() {
-  mockSpawnProcess.mockResolvedValue(Buffer.from(''));
-  mockHasExecutable.mockReturnValue(true);
-}
-      return mockSpawnProcess(bin, args, options);
-    },
-  };
-});
-
-// Helper to set up default mocks
-async function setupDefaultMocks() {
   mockSpawnProcess.mockResolvedValue(Buffer.from(''));
   mockHasExecutable.mockReturnValue(true);
 }
