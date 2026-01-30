@@ -321,6 +321,79 @@ export function checkExecutableIsPresent(name: string): void {
 }
 
 /**
+ * Configuration for runWithExecutable helper
+ */
+export interface ExecutableConfig {
+  /** Default binary name (e.g., 'npm', 'cargo') */
+  name: string;
+  /** Optional environment variable for custom binary path (e.g., 'NPM_BIN') */
+  envVar?: string;
+  /** Hint to show in error message when executable is not found */
+  errorHint?: string;
+}
+
+/**
+ * Resolves the executable path from config, checking env var override first
+ *
+ * @param config Executable configuration
+ * @returns The resolved binary name/path
+ */
+export function resolveExecutable(config: ExecutableConfig): string {
+  const { name, envVar } = config;
+  return envVar ? process.env[envVar] || name : name;
+}
+
+/**
+ * Checks if an executable exists and runs it with the provided arguments
+ *
+ * This helper abstracts the common pattern of:
+ * 1. Checking for an executable (with optional env var override)
+ * 2. Throwing a helpful error if not found
+ * 3. Running the command with provided arguments
+ *
+ * @param config Executable configuration
+ * @param args Arguments to pass to the executable
+ * @param options Optional spawn options (cwd, env, etc.)
+ * @param spawnOpts Optional spawn process options
+ * @returns Promise resolving to stdout buffer
+ * @throws Error if executable is not found
+ *
+ * @example
+ * ```typescript
+ * // Simple usage
+ * await runWithExecutable(
+ *   { name: 'cargo', envVar: 'CARGO_BIN', errorHint: 'Install Rust toolchain' },
+ *   ['build', '--release'],
+ *   { cwd: projectDir }
+ * );
+ *
+ * // With custom error handling
+ * await runWithExecutable(
+ *   { name: 'npm', errorHint: 'Install Node.js' },
+ *   ['version', '1.0.0', '--no-git-tag-version']
+ * );
+ * ```
+ */
+export async function runWithExecutable(
+  config: ExecutableConfig,
+  args: string[],
+  options: SpawnOptions = {},
+  spawnOpts: SpawnProcessOptions = {},
+): Promise<Buffer | undefined> {
+  const bin = resolveExecutable(config);
+
+  if (!hasExecutable(bin)) {
+    const hint = config.errorHint
+      ? ` ${config.errorHint}`
+      : ' Is it installed?';
+    throw new Error(`Cannot find "${bin}".${hint}`);
+  }
+
+  logger.debug(`Running: ${bin} ${args.join(' ')}`);
+  return spawnProcess(bin, args, options, spawnOpts);
+}
+
+/**
  * Extracts a source code tarball in the specified directory
  *
  * The tarball should contain a top level directory that contains all source

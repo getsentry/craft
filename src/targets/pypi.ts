@@ -7,11 +7,7 @@ import {
   RemoteArtifact,
 } from '../artifact_providers/base';
 import { ConfigurationError, reportError } from '../utils/errors';
-import {
-  checkExecutableIsPresent,
-  hasExecutable,
-  spawnProcess,
-} from '../utils/system';
+import { checkExecutableIsPresent, runWithExecutable } from '../utils/system';
 import { BaseTarget } from './base';
 import { logger } from '../logger';
 
@@ -60,7 +56,7 @@ export class PypiTarget extends BaseTarget {
    */
   public static async bumpVersion(
     rootDir: string,
-    newVersion: string
+    newVersion: string,
   ): Promise<boolean> {
     const pyprojectPath = join(rootDir, 'pyproject.toml');
     if (!existsSync(pyprojectPath)) {
@@ -96,20 +92,18 @@ export class PypiTarget extends BaseTarget {
    */
   private static async bumpWithHatch(
     rootDir: string,
-    newVersion: string
+    newVersion: string,
   ): Promise<boolean> {
-    const HATCH_BIN = process.env.HATCH_BIN || 'hatch';
-
-    if (!hasExecutable(HATCH_BIN)) {
-      throw new Error(
-        `Cannot find "${HATCH_BIN}" for version bumping. ` +
-          'Install hatch or define a custom preReleaseCommand in .craft.yml'
-      );
-    }
-
-    logger.debug(`Running: ${HATCH_BIN} version ${newVersion}`);
-    await spawnProcess(HATCH_BIN, ['version', newVersion], { cwd: rootDir });
-
+    await runWithExecutable(
+      {
+        name: 'hatch',
+        envVar: 'HATCH_BIN',
+        errorHint:
+          'Install hatch or define a custom preReleaseCommand in .craft.yml',
+      },
+      ['version', newVersion],
+      { cwd: rootDir },
+    );
     return true;
   }
 
@@ -118,20 +112,18 @@ export class PypiTarget extends BaseTarget {
    */
   private static async bumpWithPoetry(
     rootDir: string,
-    newVersion: string
+    newVersion: string,
   ): Promise<boolean> {
-    const POETRY_BIN = process.env.POETRY_BIN || 'poetry';
-
-    if (!hasExecutable(POETRY_BIN)) {
-      throw new Error(
-        `Cannot find "${POETRY_BIN}" for version bumping. ` +
-          'Install poetry or define a custom preReleaseCommand in .craft.yml'
-      );
-    }
-
-    logger.debug(`Running: ${POETRY_BIN} version ${newVersion}`);
-    await spawnProcess(POETRY_BIN, ['version', newVersion], { cwd: rootDir });
-
+    await runWithExecutable(
+      {
+        name: 'poetry',
+        envVar: 'POETRY_BIN',
+        errorHint:
+          'Install poetry or define a custom preReleaseCommand in .craft.yml',
+      },
+      ['version', newVersion],
+      { cwd: rootDir },
+    );
     return true;
   }
 
@@ -142,7 +134,7 @@ export class PypiTarget extends BaseTarget {
   private static bumpDirectToml(
     pyprojectPath: string,
     content: string,
-    newVersion: string
+    newVersion: string,
   ): boolean {
     // Match version in [project] section
     // This regex handles: version = "1.0.0" or version = '1.0.0'
@@ -150,7 +142,7 @@ export class PypiTarget extends BaseTarget {
 
     if (!versionRegex.test(content)) {
       logger.debug(
-        'pyproject.toml has [project] section but no version field found'
+        'pyproject.toml has [project] section but no version field found',
       );
       return false;
     }
@@ -170,7 +162,7 @@ export class PypiTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
     this.pypiConfig = this.getPypiConfig();
@@ -186,8 +178,8 @@ export class PypiTarget extends BaseTarget {
         `Cannot perform PyPI release: missing credentials.
          Please use TWINE_USERNAME and TWINE_PASSWORD environment variables.`.replace(
           /^\s+/gm,
-          ''
-        )
+          '',
+        ),
       );
     }
     return {
@@ -225,7 +217,7 @@ export class PypiTarget extends BaseTarget {
       packageFiles.map(async (file: RemoteArtifact) => {
         this.logger.info(`Uploading file "${file.filename}" via twine`);
         return this.artifactProvider.downloadArtifact(file);
-      })
+      }),
     );
     await this.uploadAssets(paths);
 
