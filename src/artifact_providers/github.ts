@@ -464,16 +464,45 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
     this.logger.info(`Downloaded ${tempFiles.length} artifacts.`);
 
     // Phase 2: Unpack all artifacts in parallel
+    // Use allSettled to ensure we can clean up all temp files even if some unpacking fails
     this.logger.debug(`Unpacking ${tempFiles.length} artifacts...`);
     const unpackPromises = tempFiles.map(tempFile =>
       limit(() => this.unpackArtifact(tempFile))
     );
-    const results = await Promise.all(unpackPromises);
+    const results = await Promise.allSettled(unpackPromises);
 
+    // Collect successful unpacks and clean up failed ones
     const allArtifacts: RemoteArtifact[] = [];
-    for (const artifacts of results) {
-      allArtifacts.push(...artifacts);
+    const errors: Error[] = [];
+    
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      const tempFile = tempFiles[i];
+      
+      if (result.status === 'fulfilled') {
+        allArtifacts.push(...result.value);
+      } else {
+        errors.push(result.reason);
+        // Clean up temp file if unpacking failed
+        try {
+          if (fs.existsSync(tempFile)) {
+            fs.unlinkSync(tempFile);
+            this.logger.debug(`Cleaned up temp file after failed unpack: ${tempFile}`);
+          }
+        } catch (cleanupError) {
+          this.logger.warn(`Failed to clean up temp file ${tempFile}:`, cleanupError);
+        }
+      }
     }
+
+    // If any unpacking failed, throw an error with details
+    if (errors.length > 0) {
+      const errorMessages = errors.map(e => e.message).join('; ');
+      throw new Error(
+        `Failed to unpack ${errors.length} of ${tempFiles.length} artifacts: ${errorMessages}`
+      );
+    }
+
     return allArtifacts;
   }
 
