@@ -93,6 +93,7 @@
     "pnpm": "10.27.0"
   },
   "dependencies": {
+    "ignore": "^7.0.5",
     "marked": "^17.0.1",
     "p-limit": "^6.2.0",
     "semver": "^7.7.3"

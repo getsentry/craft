@@ -286,7 +286,7 @@ function isExecutable(filePath: string): boolean {
   try {
     fs.accessSync(filePath, fs.constants.F_OK | fs.constants.X_OK);
     return true;
-  } catch (e) {
+  } catch {
     return false;
   }
 }
@@ -318,6 +318,170 @@ export function checkExecutableIsPresent(name: string): void {
   if (!hasExecutable(name)) {
     reportError(`Executable "${name}" not found. Is it installed?`);
   }
+}
+
+/**
+ * Configuration for runWithExecutable helper
+ */
+export interface ExecutableConfig {
+  /** Default binary name (e.g., 'npm', 'cargo') */
+  name: string;
+  /** Optional environment variable for custom binary path (e.g., 'NPM_BIN') */
+  envVar?: string;
+  /** Hint to show in error message when executable is not found */
+  errorHint?: string;
+}
+
+/**
+ * Resolves the executable path from config, checking env var override first
+ *
+ * @param config Executable configuration
+ * @returns The resolved binary name/path
+ */
+export function resolveExecutable(config: ExecutableConfig): string {
+  const { name, envVar } = config;
+  return envVar ? process.env[envVar] || name : name;
+}
+
+/**
+ * Result from findFirstExecutable when an executable is found
+ */
+export interface FoundExecutable {
+  /** The resolved binary path */
+  bin: string;
+  /** The config that matched */
+  config: ExecutableConfig;
+  /** Index in the original array */
+  index: number;
+}
+
+/**
+ * Finds the first available executable from an array of configs
+ *
+ * @param configs Array of executable configurations to try in order
+ * @returns The first found executable info, or undefined if none found
+ *
+ * @example
+ * ```typescript
+ * const found = findFirstExecutable([
+ *   { name: 'npm', envVar: 'NPM_BIN' },
+ *   { name: 'yarn', envVar: 'YARN_BIN' },
+ * ]);
+ * if (found) {
+ *   console.log(`Using ${found.bin}`);
+ * }
+ * ```
+ */
+export function findFirstExecutable(
+  configs: ExecutableConfig[],
+): FoundExecutable | undefined {
+  for (let i = 0; i < configs.length; i++) {
+    const config = configs[i];
+    const bin = resolveExecutable(config);
+    if (hasExecutable(bin)) {
+      return { bin, config, index: i };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Requires at least one executable from an array of configs to be present
+ *
+ * @param configs Array of executable configurations to try in order
+ * @param errorHint Optional hint to show in error message
+ * @returns The first found executable info
+ * @throws Error if no executable is found
+ *
+ * @example
+ * ```typescript
+ * const { bin } = requireFirstExecutable(
+ *   [{ name: 'npm' }, { name: 'yarn' }],
+ *   'Install npm or yarn'
+ * );
+ * ```
+ */
+export function requireFirstExecutable(
+  configs: ExecutableConfig[],
+  errorHint?: string,
+): FoundExecutable {
+  const found = findFirstExecutable(configs);
+  if (!found) {
+    const names = configs.map(c => `"${resolveExecutable(c)}"`).join(' or ');
+    const hint = errorHint ? ` ${errorHint}` : '';
+    throw new Error(`Cannot find ${names}.${hint}`);
+  }
+  return found;
+}
+
+/**
+ * Checks if an executable exists and runs it with the provided arguments
+ *
+ * This helper abstracts the common pattern of:
+ * 1. Checking for an executable (with optional env var override)
+ * 2. Throwing a helpful error if not found
+ * 3. Running the command with provided arguments
+ *
+ * Accepts either a single config or an array of configs (tries in order).
+ *
+ * @param config Executable configuration or array of configs to try in order
+ * @param args Arguments to pass to the executable
+ * @param options Optional spawn options (cwd, env, etc.)
+ * @param spawnOpts Optional spawn process options
+ * @returns Promise resolving to stdout buffer
+ * @throws Error if executable is not found
+ *
+ * @example
+ * ```typescript
+ * // Single executable
+ * await runWithExecutable(
+ *   { name: 'cargo', envVar: 'CARGO_BIN', errorHint: 'Install Rust toolchain' },
+ *   ['build', '--release'],
+ *   { cwd: projectDir }
+ * );
+ *
+ * // Multiple executables (tries in order)
+ * await runWithExecutable(
+ *   [
+ *     { name: 'npm', envVar: 'NPM_BIN' },
+ *     { name: 'yarn', envVar: 'YARN_BIN' },
+ *   ],
+ *   ['install'],
+ *   { cwd: projectDir }
+ * );
+ * ```
+ */
+export async function runWithExecutable(
+  config: ExecutableConfig | ExecutableConfig[],
+  args: string[],
+  options: SpawnOptions = {},
+  spawnOpts: SpawnProcessOptions = {},
+): Promise<Buffer | undefined> {
+  let bin: string;
+  let errorHint: string | undefined;
+
+  if (Array.isArray(config)) {
+    const found = findFirstExecutable(config);
+    if (!found) {
+      const names = config.map(c => `"${resolveExecutable(c)}"`).join(' or ');
+      // Use errorHint from the first config if available
+      errorHint = config[0]?.errorHint;
+      const hint = errorHint ? ` ${errorHint}` : ' Is it installed?';
+      throw new Error(`Cannot find ${names}.${hint}`);
+    }
+    bin = found.bin;
+  } else {
+    bin = resolveExecutable(config);
+    errorHint = config.errorHint;
+
+    if (!hasExecutable(bin)) {
+      const hint = errorHint ? ` ${errorHint}` : ' Is it installed?';
+      throw new Error(`Cannot find "${bin}".${hint}`);
+    }
+  }
+
+  logger.debug(`Running: ${bin} ${args.join(' ')}`);
+  return spawnProcess(bin, args, options, spawnOpts);
 }
 
 /**

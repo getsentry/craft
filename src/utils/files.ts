@@ -1,4 +1,6 @@
 import * as fs from 'fs';
+import { opendir, readFile } from 'fs/promises';
+import ignore, { Ignore } from 'ignore';
 import * as os from 'os';
 import * as path from 'path';
 import rimraf from 'rimraf';
@@ -26,7 +28,7 @@ const readdir = util.promisify(fs.readdir);
  */
 export async function scan(
   directory: string,
-  results: string[] = []
+  results: string[] = [],
 ): Promise<string[]> {
   const files = await readdirp(directory);
   for (const f of files) {
@@ -76,7 +78,7 @@ export async function listFiles(directory: string): Promise<string[]> {
 export async function withTempDir<T>(
   callback: (arg: string) => T | Promise<T>,
   cleanup = true,
-  prefix = 'craft-'
+  prefix = 'craft-',
 ): Promise<T> {
   const directory = await mkdtemp(path.join(os.tmpdir(), prefix));
   try {
@@ -112,7 +114,7 @@ export async function withTempDir<T>(
 export async function withTempFile<T>(
   callback: (arg: string) => T | Promise<T>,
   cleanup = true,
-  prefix = 'craft-'
+  prefix = 'craft-',
 ): Promise<T> {
   tmp.setGracefulCleanup();
   const tmpFile = tmp.fileSync({ prefix });
@@ -144,4 +146,104 @@ export function detectContentType(artifactName: string): string | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * Options for the findFiles function
+ */
+export interface FindFilesOptions {
+  /** Maximum directory depth to traverse (default: 2) */
+  maxDepth?: number;
+  /** Filter function to select which files to include */
+  fileFilter?: (name: string) => boolean;
+}
+
+/**
+ * Load and parse .gitignore file from a directory
+ */
+async function loadGitignore(rootDir: string): Promise<Ignore> {
+  const ig = ignore();
+  try {
+    const content = await readFile(path.join(rootDir, '.gitignore'), 'utf-8');
+    ig.add(content);
+  } catch {
+    // No .gitignore file, use empty ignore list
+  }
+  // Always ignore .git directory
+  ig.add('.git');
+  return ig;
+}
+
+/**
+ * Recursively walk a directory up to a maximum depth
+ */
+async function walkDirectory(
+  rootDir: string,
+  currentDir: string,
+  ig: Ignore,
+  options: FindFilesOptions,
+  depth: number,
+): Promise<string[]> {
+  const { maxDepth = 2, fileFilter } = options;
+  const results: string[] = [];
+
+  let dir;
+  try {
+    dir = await opendir(currentDir);
+  } catch {
+    return results;
+  }
+
+  // for await...of automatically closes the directory when iteration completes
+  for await (const entry of dir) {
+    const fullPath = path.join(currentDir, entry.name);
+    const relativePath = path.relative(rootDir, fullPath);
+
+    // Skip ignored paths
+    if (ig.ignores(relativePath)) {
+      continue;
+    }
+
+    if (entry.isFile()) {
+      if (!fileFilter || fileFilter(entry.name)) {
+        results.push(fullPath);
+      }
+    } else if (entry.isDirectory() && depth < maxDepth) {
+      const subResults = await walkDirectory(
+        rootDir,
+        fullPath,
+        ig,
+        options,
+        depth + 1,
+      );
+      results.push(...subResults);
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Find files matching a filter, respecting .gitignore rules.
+ *
+ * Recursively searches directories up to maxDepth levels deep,
+ * skipping any paths that match .gitignore patterns.
+ *
+ * @param rootDir - Starting directory for the search
+ * @param options - Search options including maxDepth and fileFilter
+ * @returns Array of absolute file paths matching the filter
+ *
+ * @example
+ * // Find all .gemspec files up to 2 levels deep
+ * const gemspecs = await findFiles(projectRoot, {
+ *   maxDepth: 2,
+ *   fileFilter: name => name.endsWith('.gemspec'),
+ * });
+ */
+export async function findFiles(
+  rootDir: string,
+  options: FindFilesOptions = {},
+): Promise<string[]> {
+  const ig = await loadGitignore(rootDir);
+  return walkDirectory(rootDir, rootDir, ig, options, 0);
 }

@@ -11,6 +11,9 @@ importers:
 
   .:
     dependencies:
+      ignore:
+        specifier: ^7.0.5
+        version: 7.0.5
       marked:
         specifier: ^17.0.1
         version: 17.0.1
