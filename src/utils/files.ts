@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { readdir as readdirAsync, readFile } from 'fs/promises';
+import { opendir, readFile } from 'fs/promises';
 import ignore, { Ignore } from 'ignore';
 import * as os from 'os';
 import * as path from 'path';
@@ -187,36 +187,40 @@ async function walkDirectory(
   const { maxDepth = 2, fileFilter } = options;
   const results: string[] = [];
 
-  let entries;
+  let dir;
   try {
-    entries = await readdirAsync(currentDir, { withFileTypes: true });
+    dir = await opendir(currentDir);
   } catch {
     return results;
   }
 
-  for (const entry of entries) {
-    const fullPath = path.join(currentDir, entry.name);
-    const relativePath = path.relative(rootDir, fullPath);
+  try {
+    for await (const entry of dir) {
+      const fullPath = path.join(currentDir, entry.name);
+      const relativePath = path.relative(rootDir, fullPath);
 
-    // Skip ignored paths
-    if (ig.ignores(relativePath)) {
-      continue;
-    }
-
-    if (entry.isFile()) {
-      if (!fileFilter || fileFilter(entry.name)) {
-        results.push(fullPath);
+      // Skip ignored paths
+      if (ig.ignores(relativePath)) {
+        continue;
       }
-    } else if (entry.isDirectory() && depth < maxDepth) {
-      const subResults = await walkDirectory(
-        rootDir,
-        fullPath,
-        ig,
-        options,
-        depth + 1,
-      );
-      results.push(...subResults);
+
+      if (entry.isFile()) {
+        if (!fileFilter || fileFilter(entry.name)) {
+          results.push(fullPath);
+        }
+      } else if (entry.isDirectory() && depth < maxDepth) {
+        const subResults = await walkDirectory(
+          rootDir,
+          fullPath,
+          ig,
+          options,
+          depth + 1,
+        );
+        results.push(...subResults);
+      }
     }
+  } finally {
+    await dir.close();
   }
 
   return results;
