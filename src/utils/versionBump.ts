@@ -22,7 +22,7 @@ export interface VersionBumpableTarget {
  * Check if a target class has the bumpVersion static method
  */
 function hasVersionBump(
-  targetClass: unknown
+  targetClass: unknown,
 ): targetClass is { bumpVersion: VersionBumpableTarget['bumpVersion'] } {
   return (
     typeof targetClass === 'function' &&
@@ -32,23 +32,37 @@ function hasVersionBump(
 }
 
 /**
+ * Result of running automatic version bumps
+ */
+export interface VersionBumpResult {
+  /** Whether at least one target successfully bumped the version */
+  anyBumped: boolean;
+  /** Targets that support version bumping (have bumpVersion method) */
+  bumpableTargets: string[];
+  /** Targets that support bumping but didn't apply (e.g., no matching files) */
+  skippedTargets: string[];
+}
+
+/**
  * Run automatic version bumps for all applicable targets.
  * Calls bumpVersion() on each unique target class in config order.
  *
  * @param targets - Target configs from .craft.yml
  * @param rootDir - Project root directory
  * @param newVersion - New version to set
- * @returns true if at least one target bumped the version
+ * @returns Result with bump status and target details
  * @throws Error if any bumpVersion() call throws
  */
 export async function runAutomaticVersionBumps(
   targets: TargetConfig[],
   rootDir: string,
-  newVersion: string
-): Promise<boolean> {
+  newVersion: string,
+): Promise<VersionBumpResult> {
   // Deduplicate: multiple npm targets should only bump package.json once
   const processedTargetTypes = new Set<string>();
   let anyBumped = false;
+  const bumpableTargets: string[] = [];
+  const skippedTargets: string[] = [];
 
   for (const targetConfig of targets) {
     const targetName = targetConfig.name;
@@ -67,11 +81,12 @@ export async function runAutomaticVersionBumps(
 
     if (!hasVersionBump(targetClass)) {
       logger.debug(
-        `Target "${targetName}" does not support automatic version bumping`
+        `Target "${targetName}" does not support automatic version bumping`,
       );
       continue;
     }
 
+    bumpableTargets.push(targetName);
     logger.debug(`Running version bump for target "${targetName}"...`);
 
     try {
@@ -80,17 +95,16 @@ export async function runAutomaticVersionBumps(
         logger.info(`Version bumped by "${targetName}" target`);
         anyBumped = true;
       } else {
-        logger.debug(
-          `Target "${targetName}" did not apply (detection failed)`
-        );
+        logger.debug(`Target "${targetName}" did not apply (detection failed)`);
+        skippedTargets.push(targetName);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(
-        `Automatic version bump failed for "${targetName}" target: ${message}`
+        `Automatic version bump failed for "${targetName}" target: ${message}`,
       );
     }
   }
 
-  return anyBumped;
+  return { anyBumped, bumpableTargets, skippedTargets };
 }

@@ -323,17 +323,24 @@ export async function runPreReleaseCommand(
     targets.length > 0
   ) {
     logger.info('Running automatic version bumping from targets...');
-    const anyBumped = await runAutomaticVersionBumps(
-      targets,
-      rootDir,
-      newVersion,
-    );
+    const result = await runAutomaticVersionBumps(targets, rootDir, newVersion);
 
-    if (!anyBumped) {
-      logger.warn('No targets support automatic version bumping');
+    if (!result.anyBumped) {
+      if (result.bumpableTargets.length === 0) {
+        logger.warn(
+          'None of your configured targets support automatic version bumping. ' +
+            'Consider adding a preReleaseCommand to bump versions manually.',
+        );
+      } else {
+        logger.warn(
+          `Targets [${result.skippedTargets.join(', ')}] support version bumping ` +
+            'but did not find applicable files in your project. ' +
+            'Consider adding a preReleaseCommand if you need custom version bumping.',
+        );
+      }
     }
 
-    return anyBumped;
+    return result.anyBumped;
   }
 
   return runCustomPreReleaseCommand(oldVersion, newVersion, undefined);

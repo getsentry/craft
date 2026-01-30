@@ -136,6 +136,28 @@ If automatic version bumping fails:
 
 In all error cases, Craft suggests defining a custom `preReleaseCommand` as a fallback.
 
+### Recovery from Failed Prepare
+
+If version bumping succeeds but `craft prepare` fails mid-way (e.g., during changelog generation or git operations), you may need to clean up manually:
+
+1. **Check the release branch**: If a release branch was created, you can delete it:
+
+   ```bash
+   git branch -D release/<version>
+   ```
+
+2. **Revert version changes**: If files were modified but not committed, reset them:
+
+   ```bash
+   git checkout -- package.json pyproject.toml Cargo.toml  # or whichever files were changed
+   ```
+
+3. **Re-run prepare**: Once the issue is fixed, run `craft prepare` again. Version bumping is idempotent—running it multiple times with the same version is safe.
+
+:::tip
+Use `craft prepare --dry-run` first to preview what changes will be made without modifying any files.
+:::
+
 ## Post-release Command
 
 This command runs after a successful `craft publish`. Default: `bash scripts/post-release.sh`.

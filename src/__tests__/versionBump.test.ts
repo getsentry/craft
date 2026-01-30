@@ -68,29 +68,35 @@ describe('runAutomaticVersionBumps', () => {
     vi.resetAllMocks();
   });
 
-  test('returns false when no targets are provided', async () => {
+  test('returns empty result when no targets are provided', async () => {
     const result = await runAutomaticVersionBumps([], tempDir, '1.0.0');
-    expect(result).toBe(false);
+    expect(result.anyBumped).toBe(false);
+    expect(result.bumpableTargets).toEqual([]);
+    expect(result.skippedTargets).toEqual([]);
   });
 
-  test('returns false when target does not support version bumping', async () => {
+  test('returns no bumpable targets when target does not support version bumping', async () => {
     // 'github' target doesn't have bumpVersion
     const result = await runAutomaticVersionBumps(
       [{ name: 'github' }],
       tempDir,
       '1.0.0',
     );
-    expect(result).toBe(false);
+    expect(result.anyBumped).toBe(false);
+    expect(result.bumpableTargets).toEqual([]);
+    expect(result.skippedTargets).toEqual([]);
   });
 
-  test('returns false when target detection fails', async () => {
+  test('returns skipped target when target detection fails', async () => {
     // npm target but no package.json
     const result = await runAutomaticVersionBumps(
       [{ name: 'npm' }],
       tempDir,
       '1.0.0',
     );
-    expect(result).toBe(false);
+    expect(result.anyBumped).toBe(false);
+    expect(result.bumpableTargets).toEqual(['npm']);
+    expect(result.skippedTargets).toEqual(['npm']);
   });
 
   test('calls bumpVersion for npm target with package.json', async () => {
@@ -105,7 +111,9 @@ describe('runAutomaticVersionBumps', () => {
       '1.0.0',
     );
 
-    expect(result).toBe(true);
+    expect(result.anyBumped).toBe(true);
+    expect(result.bumpableTargets).toEqual(['npm']);
+    expect(result.skippedTargets).toEqual([]);
   });
 
   test('deduplicates multiple targets of the same type', async () => {
@@ -146,7 +154,9 @@ describe('runAutomaticVersionBumps', () => {
       '1.0.0',
     );
 
-    expect(result).toBe(true);
+    expect(result.anyBumped).toBe(true);
+    expect(result.bumpableTargets).toEqual(['npm', 'pypi']);
+    expect(result.skippedTargets).toEqual([]);
     expect(npmSpy).toHaveBeenCalledTimes(1);
     expect(pypiSpy).toHaveBeenCalledTimes(1);
   });
