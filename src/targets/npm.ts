@@ -7,8 +7,11 @@ import { TargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
 import { isDryRun } from '../utils/helpers';
-import { hasExecutable, spawnProcess } from '../utils/system';
-import { discoverWorkspaces } from '../utils/workspaces';
+import {
+  hasExecutable,
+  requireFirstExecutable,
+  spawnProcess,
+} from '../utils/system';
 import {
   isPreviewRelease,
   parseVersion,
@@ -29,6 +32,12 @@ import {
 import { withTempFile } from '../utils/files';
 import { writeFileSync } from 'fs';
 import { logger } from '../logger';
+
+/** npm executable config */
+export const NPM_CONFIG = { name: 'npm', envVar: 'NPM_BIN' } as const;
+
+/** yarn executable config */
+export const YARN_CONFIG = { name: 'yarn', envVar: 'YARN_BIN' } as const;
 
 /** Command to launch "npm" */
 export const NPM_BIN = process.env.NPM_BIN || 'npm';
@@ -122,7 +131,7 @@ export class NpmTarget extends BaseTarget {
    */
   public static async expand(
     config: NpmTargetConfig,
-    rootDir: string
+    rootDir: string,
   ): Promise<TargetConfig[]> {
     // If workspaces is not enabled, return the config as-is
     if (!config.workspaces) {
@@ -133,7 +142,7 @@ export class NpmTarget extends BaseTarget {
 
     if (result.type === 'none' || result.packages.length === 0) {
       logger.warn(
-        'npm target has workspaces enabled but no workspace packages were found'
+        'npm target has workspaces enabled but no workspace packages were found',
       );
       return [];
     }
@@ -151,28 +160,28 @@ export class NpmTarget extends BaseTarget {
     const filteredPackages = filterWorkspacePackages(
       result.packages,
       includePattern,
-      excludePattern
+      excludePattern,
     );
 
     // Also filter out private packages by default (they shouldn't be published)
     const publishablePackages = filteredPackages.filter(pkg => !pkg.private);
     const privatePackageNames = new Set(
-      filteredPackages.filter(pkg => pkg.private).map(pkg => pkg.name)
+      filteredPackages.filter(pkg => pkg.private).map(pkg => pkg.name),
     );
 
     // Validate: public packages should not depend on private workspace packages
     for (const pkg of publishablePackages) {
       const privateDeps = pkg.workspaceDependencies.filter(dep =>
-        privatePackageNames.has(dep)
+        privatePackageNames.has(dep),
       );
       if (privateDeps.length > 0) {
         throw new ConfigurationError(
           `Public package "${
             pkg.name
           }" depends on private workspace package(s): ${privateDeps.join(
-            ', '
+            ', ',
           )}. ` +
-            `Private packages cannot be published to npm, so this dependency cannot be resolved by consumers.`
+            `Private packages cannot be published to npm, so this dependency cannot be resolved by consumers.`,
         );
       }
 
@@ -181,7 +190,7 @@ export class NpmTarget extends BaseTarget {
       if (isScoped && !pkg.hasPublicAccess) {
         logger.warn(
           `Scoped package "${pkg.name}" does not have publishConfig.access set to 'public'. ` +
-            `This may cause npm publish to fail for public packages.`
+            `This may cause npm publish to fail for public packages.`,
         );
       }
     }
@@ -192,10 +201,8 @@ export class NpmTarget extends BaseTarget {
     }
 
     logger.info(
-      `Discovered ${publishablePackages.length} publishable ${result.type} workspace packages`
+      `Discovered ${publishablePackages.length} publishable ${result.type} workspace packages`,
     );
-
-
 
     // Sort packages by dependency order (dependencies first, then dependents)
     const sortedPackages = topologicalSortPackages(publishablePackages);
@@ -205,7 +212,7 @@ export class NpmTarget extends BaseTarget {
         sortedPackages.length
       } packages (dependency order): ${sortedPackages
         .map(p => p.name)
-        .join(', ')}`
+        .join(', ')}`,
     );
 
     // Generate a target config for each package
@@ -215,7 +222,7 @@ export class NpmTarget extends BaseTarget {
       if (config.artifactTemplate) {
         includeNames = packageNameToArtifactFromTemplate(
           pkg.name,
-          config.artifactTemplate
+          config.artifactTemplate,
         );
       } else {
         includeNames = packageNameToArtifactPattern(pkg.name);
@@ -256,53 +263,55 @@ export class NpmTarget extends BaseTarget {
    */
   public static async bumpVersion(
     rootDir: string,
-    newVersion: string
+    newVersion: string,
   ): Promise<boolean> {
     const packageJsonPath = join(rootDir, 'package.json');
     if (!existsSync(packageJsonPath)) {
       return false;
     }
 
-    let bin: string;
-    if (hasExecutable(NPM_BIN)) {
-      bin = NPM_BIN;
-    } else if (hasExecutable(YARN_BIN)) {
-      bin = YARN_BIN;
-    } else {
-      throw new Error(
-        'Cannot find "npm" or "yarn" for version bumping. ' +
-          'Install npm/yarn or define a custom preReleaseCommand in .craft.yml'
-      );
-    }
+    const { bin, index: execIndex } = requireFirstExecutable(
+      [NPM_CONFIG, YARN_CONFIG],
+      'Install npm/yarn or define a custom preReleaseCommand in .craft.yml',
+    );
+    const isNpm = execIndex === 0;
 
     const workspaces = await discoverWorkspaces(rootDir);
-    const isWorkspace = workspaces.type !== 'none' && workspaces.packages.length > 0;
+    const isWorkspace =
+      workspaces.type !== 'none' && workspaces.packages.length > 0;
 
     // --no-git-tag-version prevents npm from creating a git commit and tag
     // --allow-same-version allows setting the same version (useful for re-runs)
-    const baseArgs =
-      bin === NPM_BIN
-        ? ['version', newVersion, '--no-git-tag-version', '--allow-same-version']
-        : ['version', newVersion, '--no-git-tag-version'];
+    const baseArgs = isNpm
+      ? ['version', newVersion, '--no-git-tag-version', '--allow-same-version']
+      : ['version', newVersion, '--no-git-tag-version'];
 
     logger.debug(`Running: ${bin} ${baseArgs.join(' ')}`);
     await spawnProcess(bin, baseArgs, { cwd: rootDir });
 
     if (isWorkspace) {
-      if (bin === NPM_BIN) {
+      if (isNpm) {
         // npm 7+ supports --workspaces flag
-        const workspaceArgs = [...baseArgs, '--workspaces', '--include-workspace-root'];
-        logger.debug(`Running: ${bin} ${workspaceArgs.join(' ')} (for workspaces)`);
+        const workspaceArgs = [
+          ...baseArgs,
+          '--workspaces',
+          '--include-workspace-root',
+        ];
+        logger.debug(
+          `Running: ${bin} ${workspaceArgs.join(' ')} (for workspaces)`,
+        );
         try {
           await spawnProcess(bin, workspaceArgs, { cwd: rootDir });
-        } catch (error) {
+        } catch {
           // If --workspaces fails (npm < 7), fall back to individual package bumping
-          logger.debug('npm --workspaces failed, falling back to individual package bumping');
+          logger.debug(
+            'npm --workspaces failed, falling back to individual package bumping',
+          );
           await NpmTarget.bumpWorkspacePackagesIndividually(
             bin,
             workspaces.packages,
             newVersion,
-            baseArgs
+            baseArgs,
           );
         }
       } else {
@@ -311,12 +320,12 @@ export class NpmTarget extends BaseTarget {
           bin,
           workspaces.packages,
           newVersion,
-          baseArgs
+          baseArgs,
         );
       }
 
       logger.info(
-        `Bumped version in root and ${workspaces.packages.length} workspace packages`
+        `Bumped version in root and ${workspaces.packages.length} workspace packages`,
       );
     }
 
@@ -330,7 +339,7 @@ export class NpmTarget extends BaseTarget {
     bin: string,
     packages: { name: string; location: string }[],
     newVersion: string,
-    baseArgs: string[]
+    baseArgs: string[],
   ): Promise<void> {
     for (const pkg of packages) {
       const pkgJsonPath = join(pkg.location, 'package.json');
@@ -357,7 +366,7 @@ export class NpmTarget extends BaseTarget {
 
   public constructor(
     config: NpmTargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
     this.checkRequirements();
@@ -383,7 +392,7 @@ export class NpmTarget extends BaseTarget {
         (major === NPM_MIN_MAJOR && minor < NPM_MIN_MINOR)
       ) {
         reportError(
-          `NPM version is too old: ${npmVersion}. Please update your NodeJS`
+          `NPM version is too old: ${npmVersion}. Please update your NodeJS`,
         );
       }
       this.logger.debug(`Found NPM version ${npmVersion}`);
@@ -429,7 +438,7 @@ export class NpmTarget extends BaseTarget {
         npmConfig.access = this.config.access;
       } else {
         throw new ConfigurationError(
-          `Invalid value for "npm.access" option: ${this.config.access}`
+          `Invalid value for "npm.access" option: ${this.config.access}`,
         );
       }
     }
@@ -449,7 +458,7 @@ export class NpmTarget extends BaseTarget {
    */
   protected async publishPackage(
     path: string,
-    options: NpmPublishOptions
+    options: NpmPublishOptions,
   ): Promise<any> {
     // NOTE: --ignore-scripts prevents execution of lifecycle scripts (prepublish,
     // prepublishOnly, prepack, postpack, publish, postpublish) which could run
@@ -487,7 +496,7 @@ export class NpmTarget extends BaseTarget {
       spawnOptions.env.npm_config_userconfig = filePath;
       writeFileSync(
         filePath,
-        `//registry.npmjs.org/:_authToken=\${${NPM_TOKEN_ENV_VAR}}`
+        `//registry.npmjs.org/:_authToken=\${${NPM_TOKEN_ENV_VAR}}`,
       );
 
       // The path has to be pushed always as the last arg
@@ -527,7 +536,7 @@ export class NpmTarget extends BaseTarget {
       this.config.checkPackageName,
       this.npmConfig,
       this.logger,
-      publishOptions.otp
+      publishOptions.otp,
     );
     if (tag) {
       publishOptions.tag = tag;
@@ -538,7 +547,7 @@ export class NpmTarget extends BaseTarget {
         const path = await this.artifactProvider.downloadArtifact(file);
         this.logger.info(`Releasing ${file.filename} to NPM`);
         return this.publishPackage(path, publishOptions);
-      })
+      }),
     );
 
     this.logger.info('NPM release complete');
@@ -551,7 +560,7 @@ export class NpmTarget extends BaseTarget {
 export async function getLatestVersion(
   packageName: string,
   npmConfig: NpmTargetOptions,
-  otp?: NpmPublishOptions['otp']
+  otp?: NpmPublishOptions['otp'],
 ): Promise<string | undefined> {
   const args = ['info', packageName, 'version'];
   const bin = NPM_BIN;
@@ -569,7 +578,7 @@ export async function getLatestVersion(
       spawnOptions.env.npm_config_userconfig = filePath;
       writeFileSync(
         filePath,
-        `//registry.npmjs.org/:_authToken=\${${NPM_TOKEN_ENV_VAR}}`
+        `//registry.npmjs.org/:_authToken=\${${NPM_TOKEN_ENV_VAR}}`,
       );
 
       return spawnProcess(bin, args, spawnOptions);
@@ -594,7 +603,7 @@ export async function getPublishTag(
   checkPackageName: string | undefined,
   npmConfig: NpmTargetOptions,
   logger: NpmTarget['logger'],
-  otp?: NpmPublishOptions['otp']
+  otp?: NpmPublishOptions['otp'],
 ): Promise<string | undefined> {
   if (isPreviewRelease(version)) {
     logger.warn('Detected pre-release version for npm package!');
@@ -610,14 +619,14 @@ export async function getPublishTag(
   const latestVersion = await getLatestVersion(
     checkPackageName,
     npmConfig,
-    otp
+    otp,
   );
   const parsedLatestVersion = latestVersion && parseVersion(latestVersion);
   const parsedNewVersion = parseVersion(version);
 
   if (!parsedLatestVersion) {
     logger.warn(
-      `Could not fetch current version for package ${checkPackageName}`
+      `Could not fetch current version for package ${checkPackageName}`,
     );
     return undefined;
   }
@@ -629,7 +638,7 @@ export async function getPublishTag(
     !versionGreaterOrEqualThan(parsedNewVersion, parsedLatestVersion)
   ) {
     logger.warn(
-      `Detected older version than currently published version (${latestVersion}) for ${checkPackageName}`
+      `Detected older version than currently published version (${latestVersion}) for ${checkPackageName}`,
     );
     logger.warn('Adding tag "old" to not make it "latest" in registry.');
     return 'old';
