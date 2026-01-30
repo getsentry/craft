@@ -12,9 +12,11 @@ import { PubDevTarget } from '../targets/pubDev';
 import { HexTarget } from '../targets/hex';
 import { NugetTarget } from '../targets/nuget';
 
-// Store mock functions at module scope so they can be configured in tests
-const mockSpawnProcess = vi.fn();
-const mockHasExecutable = vi.fn();
+// Use vi.hoisted to create mock functions that are available during vi.mock hoisting
+const { mockSpawnProcess, mockHasExecutable } = vi.hoisted(() => ({
+  mockSpawnProcess: vi.fn(),
+  mockHasExecutable: vi.fn(),
+}));
 
 // Mock spawnProcess and hasExecutable to avoid actually running commands
 // We need to mock runWithExecutable as well since it internally calls hasExecutable
@@ -31,7 +33,7 @@ vi.mock('../utils/system', async () => {
     runWithExecutable: async (
       config: import('../utils/system').ExecutableConfig,
       args: string[],
-      options = {},
+      options = {}
     ) => {
       const bin = actual.resolveExecutable(config);
       if (!mockHasExecutable(bin)) {
@@ -40,6 +42,16 @@ vi.mock('../utils/system', async () => {
           : ' Is it installed?';
         throw new Error(`Cannot find "${bin}".${hint}`);
       }
+      return mockSpawnProcess(bin, args, options);
+    },
+  };
+});
+
+// Helper to set up default mocks
+function setupDefaultMocks() {
+  mockSpawnProcess.mockResolvedValue(Buffer.from(''));
+  mockHasExecutable.mockReturnValue(true);
+}
       return mockSpawnProcess(bin, args, options);
     },
   };
