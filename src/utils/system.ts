@@ -3,7 +3,7 @@ import { createHash, Hash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import split from 'split';
-import tar from 'tar';
+import * as tar from 'tar';
 import extract from 'extract-zip';
 
 import { logger } from '../logger';
@@ -62,10 +62,10 @@ function processError(
   args?: string[],
   options?: any,
   stdout?: string,
-  stderr?: string
+  stderr?: string,
 ): Error {
   const error = new Error(
-    `Process "${command}" errored with code ${code}\n\nSTDOUT: ${stdout}\n\nSTDERR:${stderr}`
+    `Process "${command}" errored with code ${code}\n\nSTDOUT: ${stdout}\n\nSTDERR:${stderr}`,
   ) as any;
   error.code = code;
   error.args = args;
@@ -84,7 +84,7 @@ function processError(
  */
 export function replaceEnvVariable(
   arg: string,
-  env: Record<string, any>
+  env: Record<string, any>,
 ): string {
   if (!env || !arg || arg[0] !== '$') {
     return arg;
@@ -131,12 +131,16 @@ export async function spawnProcess(
   command: string,
   args: string[] = [],
   options: SpawnOptions = {},
-  spawnProcessOptions: SpawnProcessOptions = {}
+  spawnProcessOptions: SpawnProcessOptions = {},
 ): Promise<Buffer | undefined> {
   const argsString = args.map(arg => `"${arg}"`).join(' ');
 
   // Allow spawning in worktree mode (isolated environment) or when explicitly enabled
-  if (isDryRun() && !spawnProcessOptions.enableInDryRunMode && !isInWorktreeMode()) {
+  if (
+    isDryRun() &&
+    !spawnProcessOptions.enableInDryRunMode &&
+    !isInWorktreeMode()
+  ) {
     logger.info('[dry-run] Not spawning process:', `${command} ${argsString}`);
     return undefined;
   }
@@ -160,7 +164,7 @@ export async function spawnProcess(
 
       // Do a shell-like replacement of arguments that look like environment variables
       const processedArgs = args.map(arg =>
-        replaceEnvVariable(arg, { ...process.env, ...options.env })
+        replaceEnvVariable(arg, { ...process.env, ...options.env }),
       );
 
       // Allow child to accept input (use 'pipe' for stdin if we need to write to it)
@@ -219,7 +223,7 @@ export async function calculateChecksum(
     algorithm?: HashAlgorithm;
     /** Hash format */
     format?: HashOutputFormat;
-  }
+  },
 ): Promise<string> {
   const { algorithm = HashAlgorithm.SHA256, format = HashOutputFormat.Hex } =
     options || {};
@@ -267,7 +271,7 @@ function getPotentialPaths(fileName: string): string[] {
     .replace(/"/g, '')
     .split(path.delimiter)
     .map(chunk =>
-      envExt.split(path.delimiter).map(ext => path.join(chunk, fileName + ext))
+      envExt.split(path.delimiter).map(ext => path.join(chunk, fileName + ext)),
     )
     .reduce((a, b) => a.concat(b));
 }
@@ -330,7 +334,7 @@ export function checkExecutableIsPresent(name: string): void {
  */
 export async function extractSourcesFromTarStream(
   stream: NodeJS.ReadableStream,
-  dir: string
+  dir: string,
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     try {
@@ -356,7 +360,7 @@ export async function extractSourcesFromTarStream(
  */
 export async function extractZipArchive(
   filePath: string,
-  dir: string
+  dir: string,
 ): Promise<void> {
   await extract(filePath, { dir: dir });
 }
@@ -373,7 +377,7 @@ export async function extractZipArchive(
 export function catchKeyboardInterrupt(maxTimeDiff = 1000): void {
   if (process.env.CRAFT_CATCH_KEYBOARD_INTERRUPT !== '1') {
     logger.debug(
-      'Catching Ctrl-C is disabled by default. See https://github.com/getsentry/craft/issues/21'
+      'Catching Ctrl-C is disabled by default. See https://github.com/getsentry/craft/issues/21',
     );
     return;
   }

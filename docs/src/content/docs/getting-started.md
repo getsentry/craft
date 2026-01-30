@@ -54,22 +54,22 @@ This command creates a new release branch, checks the changelog entries, runs a 
 
 **Version Specification**
 
-The `NEW-VERSION` argument can be specified in three ways:
+The `NEW-VERSION` argument can be specified in three ways (or omitted to use `auto`):
 
 1. **Explicit version** (e.g., `1.2.3`): Release with the specified version
 2. **Bump type** (`major`, `minor`, or `patch`): Automatically increment the latest tag
-3. **Auto** (`auto`): Analyze commits since the last tag and determine bump type from conventional commit patterns
+3. **Auto** (`auto` or omit the argument): Analyze commits since the last tag and determine bump type from conventional commit patterns
 
 ```shell
-craft prepare NEW-VERSION
+craft prepare [NEW-VERSION]
 
 🚢 Prepare a new release branch
 
 Positionals:
   NEW-VERSION  The new version to release. Can be: a semver string (e.g.,
                "1.2.3"), a bump type ("major", "minor", or "patch"), or "auto"
-               to determine automatically from conventional commits.
-                                                             [string] [required]
+               to determine automatically from conventional commits. When
+               omitted, defaults to "auto".                            [string]
 
 Options:
   --no-input       Suppresses all user prompts                  [default: false]

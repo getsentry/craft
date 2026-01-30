@@ -55,7 +55,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
     this.github = getGitHubClient();
@@ -69,7 +69,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
       throw new ConfigurationError(
         `Cannot publish AWS Lambda Layer: missing credentials.
-        Please use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.`
+        Please use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.`,
       );
     }
     return {
@@ -98,7 +98,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     }
     if (missingConfigOptions.length > 0) {
       throw new ConfigurationError(
-        'Missing project configuration parameter(s): ' + missingConfigOptions
+        'Missing project configuration parameter(s): ' + missingConfigOptions,
       );
     }
   }
@@ -139,6 +139,14 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   public async publish(version: string, revision: string): Promise<any> {
     this.checkProjectConfig();
 
+    // Skip publishing AWS Lambda layers for pre-releases unless explicitly configured
+    if (isPreviewRelease(version) && !this.awsLambdaConfig.linkPrereleases) {
+      this.logger.info(
+        `Skipping AWS Lambda layer publication for pre-release version ${version}`,
+      );
+      return undefined;
+    }
+
     this.logger.debug('Fetching artifact list...');
     const packageFiles = await this.getArtifactsForRevision(revision, {
       includeNames:
@@ -154,13 +162,13 @@ export class AwsLambdaLayerTarget extends BaseTarget {
       reportError(
         'Cannot publish AWS Lambda Layer: ' +
           'multiple packages with matching patterns were found. You may want ' +
-          'to include or modify the includeNames parameter in the project config'
+          'to include or modify the includeNames parameter in the project config',
       );
       return undefined;
     }
 
     const artifactBuffer = fs.readFileSync(
-      await this.artifactProvider.downloadArtifact(packageFiles[0])
+      await this.artifactProvider.downloadArtifact(packageFiles[0]),
     );
 
     const awsRegions = await getRegionsFromAws();
@@ -172,31 +180,31 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     await withTempDir(
       async directory => {
         this.logger.info(
-          `Cloning ${remote.getRemoteString()} to ${directory}...`
+          `Cloning ${remote.getRemoteString()} to ${directory}...`,
         );
-        const git = await cloneRepo(remote.getRemoteStringWithAuth(), directory);
+        const git = await cloneRepo(
+          remote.getRemoteStringWithAuth(),
+          directory,
+        );
 
-        await safeExec(
-          async () => {
-            await this.publishRuntimes(
-              version,
-              directory,
-              awsRegions,
-              artifactBuffer
-            );
-            this.logger.debug('Finished publishing runtimes.');
-          },
-          'publishRuntimes(...)'
-        );
+        await safeExec(async () => {
+          await this.publishRuntimes(
+            version,
+            directory,
+            awsRegions,
+            artifactBuffer,
+          );
+          this.logger.debug('Finished publishing runtimes.');
+        }, 'publishRuntimes(...)');
 
         await git.add(['.']);
         await git.checkout('master');
         const runtimeNames = this.config.compatibleRuntimes.map(
-          (runtime: CompatibleRuntime) => runtime.name
+          (runtime: CompatibleRuntime) => runtime.name,
         );
         await git.commit(
           'craft(aws-lambda): AWS Lambda layers published\n\n' +
-            `v${version} for ${runtimeNames}`
+            `v${version} for ${runtimeNames}`,
         );
 
         if (this.isPushableToRegistry(version)) {
@@ -205,7 +213,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         }
       },
       true,
-      'craft-release-awslambdalayer-'
+      'craft-release-awslambdalayer-',
     );
   }
 
@@ -224,7 +232,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     if (isPreviewRelease(version) && !this.awsLambdaConfig.linkPrereleases) {
       // preview release
       this.logger.info(
-        "Preview release detected, not updating the layer's data."
+        "Preview release detected, not updating the layer's data.",
       );
       return false;
     }
@@ -240,7 +248,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
   private createVersionSymlinks(
     directory: string,
     version: string,
-    versionFilepath: string
+    versionFilepath: string,
   ): void {
     this.logger.debug('Creating symlinks...');
     const latestVersionPath = path.posix.join(directory, 'latest.json');
@@ -266,7 +274,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     version: string,
     directory: string,
     awsRegions: string[],
-    artifactBuffer: Buffer
+    artifactBuffer: Buffer,
   ): Promise<void> {
     const resolvedLayerName = this.resolveLayerName(version);
     this.logger.debug(`Resolved layer name: ${resolvedLayerName}`);
@@ -280,7 +288,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           this.config.license,
           artifactBuffer,
           awsRegions,
-          version
+          version,
         );
 
         let publishedLayers = [];
@@ -290,7 +298,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         } catch (error) {
           this.logger.error(
             `Did not publish layers for ${runtime.name}.`,
-            error
+            error,
           );
           return;
         }
@@ -301,7 +309,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           return;
         } else {
           this.logger.info(
-            `${runtime.name}: ${publishedLayers.length} layers published.`
+            `${runtime.name}: ${publishedLayers.length} layers published.`,
           );
         }
 
@@ -309,11 +317,11 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         const runtimeBaseDir = path.posix.join(
           directory,
           this.AWS_REGISTRY_DIR,
-          runtime.name
+          runtime.name,
         );
         if (!fs.existsSync(runtimeBaseDir)) {
           this.logger.warn(
-            `Directory structure for ${runtime.name} is missing, skipping file creation.`
+            `Directory structure for ${runtime.name} is missing, skipping file creation.`,
           );
           return;
         }
@@ -336,11 +344,11 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
         const baseFilepath = path.posix.join(
           runtimeBaseDir,
-          this.BASE_FILENAME
+          this.BASE_FILENAME,
         );
         const newVersionFilepath = path.posix.join(
           runtimeBaseDir,
-          `${version}.json`
+          `${version}.json`,
         );
 
         if (!fs.existsSync(baseFilepath)) {
@@ -350,7 +358,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           fs.writeFileSync(newVersionFilepath, manifestString);
         } else {
           const baseData = JSON.parse(
-            fs.readFileSync(baseFilepath, { encoding: 'utf-8' }).toString()
+            fs.readFileSync(baseFilepath, { encoding: 'utf-8' }).toString(),
           );
           const manifestString =
             JSON.stringify({ ...baseData, ...runtimeData }, undefined, 2) +
@@ -360,9 +368,9 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
         this.createVersionSymlinks(runtimeBaseDir, version, newVersionFilepath);
         this.logger.info(
-          `${runtime.name}: created files and updated symlinks.`
+          `${runtime.name}: created files and updated symlinks.`,
         );
-      })
+      }),
     );
   }
 }

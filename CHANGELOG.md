@@ -1,5 +1,74 @@
 # Changelog
 
+## 2.20.1
+
+### Bug Fixes 🐛
+
+- (action) Expand changelog by default in publish issues by @BYK in [#731](https://github.com/getsentry/craft/pull/731)
+
+### Documentation 📚
+
+- Update documentation for changes since 2.17.0 by @BYK in [#735](https://github.com/getsentry/craft/pull/735)
+- Update base path for craft.sentry.dev domain by @BYK in [#734](https://github.com/getsentry/craft/pull/734)
+
+## 2.20.0
+
+### New Features ✨
+
+#### Github
+
+- Add comment option to changelog-preview workflow by @BYK in [#722](https://github.com/getsentry/craft/pull/722)
+- Add working-directory input to changelog-preview workflow by @BYK in [#717](https://github.com/getsentry/craft/pull/717)
+
+### Bug Fixes 🐛
+
+#### Changelog
+
+- Warn when custom release.yml lacks semver fields by @BYK in [#720](https://github.com/getsentry/craft/pull/720)
+- Collapse previews by default by @BYK in [#718](https://github.com/getsentry/craft/pull/718)
+
+#### Other
+
+- (action) Fix detection of existing publish issues by @BYK in [#728](https://github.com/getsentry/craft/pull/728)
+- (actions) Use repository check instead of event_name for dogfooding conditions by @BYK in [#727](https://github.com/getsentry/craft/pull/727)
+- (github) Use pull_request_target for changelog preview on fork PRs by @BYK in [#723](https://github.com/getsentry/craft/pull/723)
+- Address security vulnerabilities in dependencies by @BYK in [#725](https://github.com/getsentry/craft/pull/725)
+
+### Documentation 📚
+
+- Document CRAFT_NEW_VERSION and CRAFT_OLD_VERSION for pre-release command by @BYK in [#719](https://github.com/getsentry/craft/pull/719)
+
+### Internal Changes 🔧
+
+#### Deps Dev
+
+- Bump tar from 7.5.3 to 7.5.4 by @dependabot in [#726](https://github.com/getsentry/craft/pull/726)
+- Bump tar from 6.2.1 to 7.5.3 by @dependabot in [#724](https://github.com/getsentry/craft/pull/724)
+
+#### Other
+
+- Rename changelog category to "Internal Changes" by @BYK in [#721](https://github.com/getsentry/craft/pull/721)
+
+## 2.19.0
+
+### New Features ✨
+
+- (action) Emit publish request issue URL as annotation by @BYK in [#708](https://github.com/getsentry/craft/pull/708)
+
+### Bug Fixes 🐛
+
+#### Docker
+
+- Add image template var and strict template validation by @BYK in [#713](https://github.com/getsentry/craft/pull/713)
+- Add GITHUB_API_TOKEN and x-access-token fallbacks for ghcr.io by @BYK in [#710](https://github.com/getsentry/craft/pull/710)
+
+#### Other
+
+- (action) Use environment variables for complex inputs by @BYK in [#716](https://github.com/getsentry/craft/pull/716)
+- (aws-lambda) Skip layer publication for pre-release versions by @BYK in [#714](https://github.com/getsentry/craft/pull/714)
+- (prepare) Make NEW-VERSION optional and auto-create changelog by @BYK in [#715](https://github.com/getsentry/craft/pull/715)
+- Don't mention PRs to avoid linking in changelog previews by @BYK in [#712](https://github.com/getsentry/craft/pull/712)
+
 ## 2.18.3
 
 ### Bug Fixes 🐛
