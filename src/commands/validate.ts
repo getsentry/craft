@@ -13,6 +13,7 @@ import {
 import { getAllTargetNames } from '../targets';
 import { stringToRegexp } from '../utils/filters';
 import { ConfigurationError } from '../utils/errors';
+import { parseVersion, versionGreaterOrEqualThan } from '../utils/version';
 
 export const command = ['validate'];
 export const description = 'Validate Craft configuration and workflows';
@@ -153,19 +154,27 @@ function validateCraftConfig(configPath: string): ValidationIssue[] {
 
   // Recommend minVersion >= 2.20.0 for smart defaults
   const minVersion = rawConfig.minVersion as string | undefined;
+  const smartDefaultsVersion = '2.20.0';
   if (!minVersion) {
     issues.push({
       level: 'warning',
-      message: 'Consider adding minVersion: "2.20.0" to enable smart defaults',
+      message: `Consider adding minVersion: "${smartDefaultsVersion}" to enable smart defaults`,
       file: configPath,
     });
-  } else if (minVersion < '2.20.0') {
-    issues.push({
-      level: 'warning',
-      message:
-        'Consider updating minVersion to "2.20.0" or later for smart defaults',
-      file: configPath,
-    });
+  } else {
+    const parsedMinVersion = parseVersion(minVersion);
+    const parsedSmartDefaultsVersion = parseVersion(smartDefaultsVersion);
+    if (
+      parsedMinVersion &&
+      parsedSmartDefaultsVersion &&
+      !versionGreaterOrEqualThan(parsedMinVersion, parsedSmartDefaultsVersion)
+    ) {
+      issues.push({
+        level: 'warning',
+        message: `Consider updating minVersion to "${smartDefaultsVersion}" or later for smart defaults`,
+        file: configPath,
+      });
+    }
   }
 
   return issues;
