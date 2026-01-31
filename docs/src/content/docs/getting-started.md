@@ -48,7 +48,7 @@ Example output:
 
 Proposed .craft.yml:
 ────────────────────────────────────────
-minVersion: "2.20.0"
+minVersion: "2.21.0"
 targets:
   - name: npm
   - name: github
@@ -438,7 +438,7 @@ craft prepare  # Defaults to 0.1.0 for first release
 craft publish 0.1.0
 ```
 
-With smart defaults enabled (`minVersion: "2.20.0"`), Craft will:
+With smart defaults enabled (`minVersion: "2.21.0"`), Craft will:
 
 - Auto-detect version bumps from commits
 - Automatically generate changelogs

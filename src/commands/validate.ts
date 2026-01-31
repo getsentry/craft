@@ -152,9 +152,9 @@ function validateCraftConfig(configPath: string): ValidationIssue[] {
     });
   }
 
-  // Recommend minVersion >= 2.20.0 for smart defaults
+  // Recommend minVersion >= 2.21.0 for smart defaults
   const minVersion = rawConfig.minVersion as string | undefined;
-  const smartDefaultsVersion = '2.20.0';
+  const smartDefaultsVersion = '2.21.0';
   if (!minVersion) {
     issues.push({
       level: 'warning',
