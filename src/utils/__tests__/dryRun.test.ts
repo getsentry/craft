@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { unlinkSync } from 'fs';
 import * as helpers from '../helpers';
 
 // Mock the helpers module to control isDryRun
@@ -50,7 +53,7 @@ describe('dryRun utilities', () => {
     it('logs with consistent format', () => {
       logDryRun('test operation');
       expect(logger.info).toHaveBeenCalledWith(
-        '[dry-run] Would execute: test operation'
+        '[dry-run] Would execute: test operation',
       );
     });
   });
@@ -98,7 +101,7 @@ describe('dryRun utilities', () => {
       await git.push();
       expect(mockGit.push).not.toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('[dry-run]')
+        expect.stringContaining('[dry-run]'),
       );
     });
 
@@ -110,7 +113,7 @@ describe('dryRun utilities', () => {
       await git.raw('push', 'origin', 'main');
       expect(mockGit.raw).not.toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('git push origin main')
+        expect.stringContaining('git push origin main'),
       );
     });
 
@@ -162,7 +165,7 @@ describe('dryRun utilities', () => {
 
       // Verify dry-run messages were logged
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('[dry-run]')
+        expect.stringContaining('[dry-run]'),
       );
     });
 
@@ -194,7 +197,11 @@ describe('dryRun utilities', () => {
       vi.mocked(helpers.isDryRun).mockReturnValue(false);
       const octokit = createDryRunOctokit(mockOctokit as any);
 
-      await octokit.repos.getContent({ owner: 'test', repo: 'test', path: '/' });
+      await octokit.repos.getContent({
+        owner: 'test',
+        repo: 'test',
+        path: '/',
+      });
       expect(mockOctokit.repos.getContent).toHaveBeenCalled();
     });
 
@@ -222,7 +229,7 @@ describe('dryRun utilities', () => {
       });
       expect(mockOctokit.repos.createRelease).not.toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('[dry-run]')
+        expect.stringContaining('[dry-run]'),
       );
     });
 
@@ -244,7 +251,11 @@ describe('dryRun utilities', () => {
       vi.mocked(helpers.isDryRun).mockReturnValue(true);
       const octokit = createDryRunOctokit(mockOctokit as any);
 
-      await octokit.repos.getContent({ owner: 'test', repo: 'test', path: '/' });
+      await octokit.repos.getContent({
+        owner: 'test',
+        repo: 'test',
+        path: '/',
+      });
       expect(mockOctokit.repos.getContent).toHaveBeenCalled();
     });
   });
@@ -256,7 +267,7 @@ describe('dryRun utilities', () => {
 
       await safeFs.writeFile('/tmp/test.txt', 'content');
       expect(logger.info).toHaveBeenCalledWith(
-        '[dry-run] Would execute: fs.writeFile(/tmp/test.txt)'
+        '[dry-run] Would execute: fs.writeFile(/tmp/test.txt)',
       );
     });
 
@@ -265,7 +276,7 @@ describe('dryRun utilities', () => {
 
       await safeFs.unlink('/tmp/test.txt');
       expect(logger.info).toHaveBeenCalledWith(
-        '[dry-run] Would execute: fs.unlink(/tmp/test.txt)'
+        '[dry-run] Would execute: fs.unlink(/tmp/test.txt)',
       );
     });
 
@@ -274,7 +285,7 @@ describe('dryRun utilities', () => {
 
       await safeFs.rename('/tmp/old.txt', '/tmp/new.txt');
       expect(logger.info).toHaveBeenCalledWith(
-        '[dry-run] Would execute: fs.rename(/tmp/old.txt, /tmp/new.txt)'
+        '[dry-run] Would execute: fs.rename(/tmp/old.txt, /tmp/new.txt)',
       );
     });
   });
@@ -299,7 +310,7 @@ describe('dryRun utilities', () => {
       expect(action).not.toHaveBeenCalled();
       expect(result).toBeUndefined();
       expect(logger.info).toHaveBeenCalledWith(
-        '[dry-run] Would execute: test action'
+        '[dry-run] Would execute: test action',
       );
     });
 
@@ -336,7 +347,7 @@ describe('dryRun utilities', () => {
       expect(action).not.toHaveBeenCalled();
       expect(result).toBeUndefined();
       expect(logger.info).toHaveBeenCalledWith(
-        '[dry-run] Would execute: test action'
+        '[dry-run] Would execute: test action',
       );
     });
 
@@ -406,7 +417,7 @@ describe('dryRun utilities', () => {
         await git.push();
         expect(mockGit.push).not.toHaveBeenCalled();
         expect(logger.info).toHaveBeenCalledWith(
-          expect.stringContaining('[dry-run]')
+          expect.stringContaining('[dry-run]'),
         );
       });
     });
@@ -416,23 +427,34 @@ describe('dryRun utilities', () => {
         vi.mocked(helpers.isDryRun).mockReturnValue(true);
         enableWorktreeMode();
 
+        // Use os.tmpdir() which respects TMPDIR env var
+        const testFile = join(tmpdir(), 'craft-dryrun-test.txt');
+
         // In worktree mode, safeFs should not block or log
         vi.mocked(logger.info).mockClear();
-        await safeFs.writeFile('/tmp/test.txt', 'content');
+        await safeFs.writeFile(testFile, 'content');
 
         // Should NOT have logged a dry-run message (operation is allowed)
         expect(logger.info).not.toHaveBeenCalledWith(
-          expect.stringContaining('[dry-run] Would execute: fs.writeFile')
+          expect.stringContaining('[dry-run] Would execute: fs.writeFile'),
         );
+
+        // Clean up the test file
+        try {
+          unlinkSync(testFile);
+        } catch {
+          // Ignore cleanup errors
+        }
       });
 
       it('blocks file operations in strict dry-run mode', async () => {
         vi.mocked(helpers.isDryRun).mockReturnValue(true);
         disableWorktreeMode();
 
-        await safeFs.writeFile('/tmp/test.txt', 'content');
+        const testFile = join(tmpdir(), 'craft-dryrun-test.txt');
+        await safeFs.writeFile(testFile, 'content');
         expect(logger.info).toHaveBeenCalledWith(
-          '[dry-run] Would execute: fs.writeFile(/tmp/test.txt)'
+          `[dry-run] Would execute: fs.writeFile(${testFile})`,
         );
       });
     });
