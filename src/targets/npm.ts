@@ -32,6 +32,13 @@ import {
 import { withTempFile } from '../utils/files';
 import { writeFileSync } from 'fs';
 import { logger } from '../logger';
+import {
+  DetectionContext,
+  DetectionResult,
+  fileExists,
+  readJsonFile,
+  TargetPriority,
+} from '../utils/detection';
 
 /** npm executable config */
 export const NPM_CONFIG = { name: 'npm', envVar: 'NPM_BIN' } as const;
@@ -120,6 +127,48 @@ export class NpmTarget extends BaseTarget {
   public readonly name: string = 'npm';
   /** Target options */
   public readonly npmConfig: NpmTargetOptions;
+
+  /**
+   * Detect if this project should use the npm target.
+   *
+   * Checks for package.json and whether it's publishable (not private without workspaces).
+   */
+  public static detect(context: DetectionContext): DetectionResult | null {
+    const { rootDir } = context;
+
+    // Check for package.json
+    if (!fileExists(rootDir, 'package.json')) {
+      return null;
+    }
+
+    const pkg = readJsonFile<{
+      private?: boolean;
+      workspaces?: string[] | { packages: string[] };
+      name?: string;
+    }>(rootDir, 'package.json');
+
+    if (!pkg) {
+      return null;
+    }
+
+    // If it's private without workspaces, it's not publishable to npm
+    if (pkg.private && !pkg.workspaces) {
+      return null;
+    }
+
+    // Build the target config
+    const config: TargetConfig = { name: 'npm' };
+
+    // If there are workspaces, enable workspace discovery
+    if (pkg.workspaces) {
+      config.workspaces = true;
+    }
+
+    return {
+      config,
+      priority: TargetPriority.NPM,
+    };
+  }
 
   /**
    * Expand an npm target config into multiple targets if workspaces is enabled.
