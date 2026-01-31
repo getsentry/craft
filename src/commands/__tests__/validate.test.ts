@@ -57,7 +57,7 @@ describe('validate command', () => {
 github:
   owner: getsentry
   repo: craft
-minVersion: "2.20.0"
+minVersion: "2.21.0"
 targets:
   - name: github
 `,
@@ -170,7 +170,7 @@ targets:
 github:
   owner: getsentry
   repo: craft
-minVersion: "2.20.0"
+minVersion: "2.21.0"
 targets:
   - name: npm
     id: npm-main
@@ -218,7 +218,7 @@ targets:
 github:
   owner: getsentry
   repo: craft
-minVersion: "2.20.0"
+minVersion: "2.21.0"
 changelogPolicy: auto
 targets:
   - name: github
@@ -299,7 +299,7 @@ targets:
 github:
   owner: getsentry
   repo: craft
-minVersion: "2.20.0"
+minVersion: "2.21.0"
 targets:
   - name: github
 `,
@@ -322,7 +322,7 @@ targets:
 github:
   owner: getsentry
   repo: craft
-minVersion: "2.20.0"
+minVersion: "2.21.0"
 targets:
   - name: github
 `,
@@ -344,7 +344,7 @@ targets:
 github:
   owner: getsentry
   repo: craft
-minVersion: "2.20.0"
+minVersion: "2.21.0"
 targets:
   - name: github
 `,
@@ -399,7 +399,7 @@ jobs:
 github:
   owner: getsentry
   repo: craft
-minVersion: "2.20.0"
+minVersion: "2.21.0"
 targets:
   - name: github
 `,

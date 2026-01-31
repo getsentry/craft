@@ -21,7 +21,7 @@ describe('Template Generation', () => {
       const yaml = generateCraftConfig(baseContext);
       const parsed = load(yaml) as Record<string, unknown>;
 
-      expect(parsed.minVersion).toBe('2.20.0');
+      expect(parsed.minVersion).toBe('2.21.0');
       expect(parsed.targets).toHaveLength(2);
     });
 

@@ -487,13 +487,13 @@ minVersion: '0.5.0'
 
 ### Smart Defaults
 
-Setting `minVersion` to `2.20.0` or higher enables smart defaults that simplify configuration:
+Setting `minVersion` to `2.21.0` or higher enables smart defaults that simplify configuration:
 
 ```yaml
-minVersion: '2.20.0'
+minVersion: '2.21.0'
 ```
 
-| Feature             | Default with `minVersion >= 2.20.0` | Default without |
+| Feature             | Default with `minVersion >= 2.21.0` | Default without |
 | ------------------- | ----------------------------------- | --------------- |
 | `changelog.policy`  | `auto`                              | `none`          |
 | `versioning.policy` | `auto` (with `>= 2.14.0`)           | `manual`        |
@@ -501,7 +501,7 @@ minVersion: '2.20.0'
 This means a minimal configuration like this:
 
 ```yaml
-minVersion: '2.20.0'
+minVersion: '2.21.0'
 targets:
   - name: npm
   - name: github
@@ -514,7 +514,7 @@ Will automatically:
 - Create `CHANGELOG.md` if it doesn't exist
 
 :::tip[Recommended for New Projects]
-Use `minVersion: '2.20.0'` for new projects to take advantage of smart defaults.
+Use `minVersion: '2.21.0'` for new projects to take advantage of smart defaults.
 Run `craft init` to automatically generate this configuration.
 :::
 

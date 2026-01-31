@@ -52,7 +52,7 @@ export interface TemplateContext {
  */
 export function generateCraftConfig(context: TemplateContext): string {
   const config: Record<string, unknown> = {
-    minVersion: '2.20.0',
+    minVersion: '2.21.0',
   };
 
   // Sort targets by priority (already sorted from detection)

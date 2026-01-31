@@ -249,7 +249,7 @@ export function requiresMinVersion(requiredVersion: string): boolean {
 const AUTO_VERSION_MIN_VERSION = '2.14.0';
 
 /** Minimum craft version required for smart defaults (auto changelog, etc.) */
-const SMART_DEFAULTS_MIN_VERSION = '2.20.0';
+const SMART_DEFAULTS_MIN_VERSION = '2.21.0';
 
 /**
  * Returns the effective versioning policy for the project.
@@ -428,13 +428,13 @@ const DEFAULT_CHANGELOG_FILE_PATH = 'CHANGELOG.md';
  * Handles both legacy `changelogPolicy` and new `changelog` object format.
  * Emits deprecation warning when using `changelogPolicy`.
  *
- * Smart defaults (when minVersion >= 2.20.0):
+ * Smart defaults (when minVersion >= 2.21.0):
  * - policy defaults to 'auto' instead of 'none'
  */
 export function getChangelogConfig(): NormalizedChangelogConfig {
   const config = getConfiguration();
 
-  // Default values - use smart defaults for minVersion >= 2.20.0
+  // Default values - use smart defaults for minVersion >= 2.21.0
   let filePath = DEFAULT_CHANGELOG_FILE_PATH;
   let policy = requiresMinVersion(SMART_DEFAULTS_MIN_VERSION)
     ? ChangelogPolicy.Auto
