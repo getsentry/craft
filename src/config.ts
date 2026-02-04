@@ -18,6 +18,7 @@ import {
   VersioningPolicy,
 } from './schemas/project_config';
 import { ConfigurationError } from './utils/errors';
+import { isCompiledGitHubAction } from './utils/detection';
 import {
   getPackageVersion,
   parseVersion,
@@ -95,7 +96,7 @@ export function getConfigFilePath(): string {
   const configFilePath = findConfigFile();
   if (!configFilePath) {
     throw new ConfigurationError(
-      `Cannot find Craft configuration file. Have you added "${CONFIG_FILE_NAME}" to your project?`
+      `Cannot find Craft configuration file. Have you added "${CONFIG_FILE_NAME}" to your project?`,
     );
   }
   return configFilePath;
@@ -122,7 +123,7 @@ export function getConfigFileDir(): string | undefined {
  * @param rawConfig Raw project configuration object
  */
 export function validateConfiguration(
-  rawConfig: Record<string, any>
+  rawConfig: Record<string, any>,
 ): CraftProjectConfig {
   logger.debug('Parsing and validating the configuration file...');
   try {
@@ -133,7 +134,7 @@ export function validateConfiguration(
         .map(e => `${e.path.join('.')}: ${e.message}`)
         .join('\n');
       throw new ConfigurationError(
-        `Cannot parse configuration file:\n${messages}`
+        `Cannot parse configuration file:\n${messages}`,
       );
     }
     throw error;
@@ -166,7 +167,9 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
  *
  * @param configContent The raw YAML configuration content
  */
-export function loadConfigurationFromString(configContent: string): CraftProjectConfig {
+export function loadConfigurationFromString(
+  configContent: string,
+): CraftProjectConfig {
   logger.debug('Loading configuration from provided content...');
   const rawConfig = load(configContent) as Record<string, any>;
   _configCache = validateConfiguration(rawConfig);
@@ -184,7 +187,7 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
   const minVersionRaw = config.minVersion;
   if (!minVersionRaw) {
     logger.debug(
-      'No minimal version specified in the configuration, skpipping the check'
+      'No minimal version specified in the configuration, skpipping the check',
     );
     return;
   }
@@ -205,11 +208,11 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
 
   if (versionGreaterOrEqualThan(currentVersion, minVersion)) {
     logger.debug(
-      `"craft" version is compatible with the minimal version from the configuration file.`
+      `"craft" version is compatible with the minimal version from the configuration file.`,
     );
   } else {
     throw new ConfigurationError(
-      `Incompatible "craft" versions. Current version: ${currentVersionRaw},  minimal version: ${minVersionRaw} (taken from .craft.yml).`
+      `Incompatible "craft" versions. Current version: ${currentVersionRaw},  minimal version: ${minVersionRaw} (taken from .craft.yml).`,
     );
   }
 }
@@ -279,12 +282,12 @@ export function getVersioningPolicy(): VersioningPolicy {
  */
 let _globalGitHubConfigCache: GitHubGlobalConfig | null;
 export async function getGlobalGitHubConfig(
-  clearCache = false
+  clearCache = false,
 ): Promise<GitHubGlobalConfig> {
   if (!clearCache && _globalGitHubConfigCache !== undefined) {
     if (_globalGitHubConfigCache === null) {
       throw new ConfigurationError(
-        'GitHub configuration not found in the config file and cannot be determined from Git'
+        'GitHub configuration not found in the config file and cannot be determined from Git',
       );
     }
 
@@ -433,7 +436,7 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
   // Handle legacy changelogPolicy (deprecated)
   if (config.changelogPolicy !== undefined) {
     logger.warn(
-      'The "changelogPolicy" option is deprecated. Please use "changelog.policy" instead.'
+      'The "changelogPolicy" option is deprecated. Please use "changelog.policy" instead.',
     );
     policy = config.changelogPolicy;
   }
@@ -465,6 +468,61 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
 }
 
 /**
+ * Result of noMerge configuration resolution
+ */
+export interface NoMergeConfig {
+  /** Whether to skip merging the release branch */
+  noMerge: boolean;
+  /** The source of the noMerge value */
+  source: 'config' | 'auto-detected' | 'default';
+}
+
+/**
+ * Returns whether the release branch should be merged after publishing.
+ *
+ * Resolution order:
+ * 1. Explicit `noMerge` value in .craft.yml takes precedence
+ * 2. Auto-detect compiled GitHub Actions (Node.js actions with dist/ folder)
+ * 3. Default to false (merge the branch)
+ *
+ * Compiled GitHub Actions typically have their `dist/` folder gitignored on
+ * main/master but need it in release branches for the action to work. Merging
+ * the release branch back would overwrite the clean main branch with compiled
+ * artifacts.
+ *
+ * @returns Configuration object with noMerge value and its source
+ */
+export function getNoMergeConfig(): NoMergeConfig {
+  const config = getConfiguration();
+
+  // Explicit config takes precedence
+  if (config.noMerge !== undefined) {
+    return {
+      noMerge: config.noMerge,
+      source: 'config',
+    };
+  }
+
+  // Auto-detect compiled GitHub Action
+  const rootDir = getConfigFileDir() || process.cwd();
+  if (isCompiledGitHubAction(rootDir)) {
+    logger.debug(
+      'Detected compiled GitHub Action (Node.js action with dist/ folder), defaulting noMerge to true',
+    );
+    return {
+      noMerge: true,
+      source: 'auto-detected',
+    };
+  }
+
+  // Default: merge the branch
+  return {
+    noMerge: false,
+    source: 'default',
+  };
+}
+
+/**
  * Type for target classes that support expansion
  */
 interface ExpandableTargetClass {
@@ -475,7 +533,7 @@ interface ExpandableTargetClass {
  * Check if a target class has an expand method
  */
 function isExpandableTarget(
-  targetClass: unknown
+  targetClass: unknown,
 ): targetClass is ExpandableTargetClass {
   return (
     typeof targetClass === 'function' &&
@@ -495,7 +553,7 @@ function isExpandableTarget(
  * @returns The expanded list of target configs
  */
 export async function expandWorkspaceTargets(
-  targets: TargetConfig[]
+  targets: TargetConfig[],
 ): Promise<TargetConfig[]> {
   // Lazy import to avoid circular dependency
 

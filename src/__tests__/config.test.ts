@@ -17,10 +17,7 @@ describe('validateConfiguration', () => {
   test('parses configuration with targets', () => {
     const data = {
       github: { owner: 'getsentry', repo: 'craft' },
-      targets: [
-        { name: 'npm' },
-        { name: 'github', tagPrefix: 'v' },
-      ],
+      targets: [{ name: 'npm' }, { name: 'github', tagPrefix: 'v' }],
     };
 
     expect(validateConfiguration(data)).toEqual(data);
@@ -61,18 +58,21 @@ describe('validateConfiguration', () => {
   });
 
   test('fails with invalid github config', () => {
-    expect(() => validateConfiguration({ github: { owner: 'getsentry' } }))
-      .toThrow(/repo.*Required/);
+    expect(() =>
+      validateConfiguration({ github: { owner: 'getsentry' } }),
+    ).toThrow(/repo.*Required/);
   });
 
   test('fails with invalid minVersion format', () => {
-    expect(() => validateConfiguration({ minVersion: 'invalid' }))
-      .toThrow(/minVersion/);
+    expect(() => validateConfiguration({ minVersion: 'invalid' })).toThrow(
+      /minVersion/,
+    );
   });
 
   test('fails with invalid changelog policy', () => {
-    expect(() => validateConfiguration({ changelog: { policy: 'invalid' } }))
-      .toThrow(/changelog/);
+    expect(() =>
+      validateConfiguration({ changelog: { policy: 'invalid' } }),
+    ).toThrow(/changelog/);
   });
 });
 
@@ -94,5 +94,27 @@ describe('CraftProjectConfigSchema', () => {
 
     const result = CraftProjectConfigSchema.safeParse(data);
     expect(result.success).toBe(false);
+  });
+});
+
+describe('noMerge config', () => {
+  test('parses configuration with noMerge: true', () => {
+    const data = { noMerge: true };
+    expect(validateConfiguration(data)).toEqual(data);
+  });
+
+  test('parses configuration with noMerge: false', () => {
+    const data = { noMerge: false };
+    expect(validateConfiguration(data)).toEqual(data);
+  });
+
+  test('noMerge defaults to undefined when not specified', () => {
+    const data = { github: { owner: 'getsentry', repo: 'craft' } };
+    const result = validateConfiguration(data);
+    expect(result.noMerge).toBeUndefined();
+  });
+
+  test('fails with invalid noMerge type', () => {
+    expect(() => validateConfiguration({ noMerge: 'yes' })).toThrow(/noMerge/);
   });
 });
