@@ -1,0 +1,44 @@
+## Implementation Plan: Add noMerge Config Option
+
+### Goal
+Add a `noMerge` configuration option to `.craft.yml` that mirrors the `--no-merge` CLI flag.
+Additionally, auto-detect compiled GitHub Actions and default to `noMerge: true` for them.
+
+### Background
+Compiled GitHub Actions (built with tools like `@vercel/ncc` or `esbuild`) need the `dist/`
+folder in release branches but typically gitignore it on main/master. When publishing these
+projects, merging the release branch back would overwrite the clean main branch with compiled
+artifacts. The `--no-merge` flag prevents this, and making it a config option avoids needing
+to remember it every time.
+
+### Implementation Steps
+
+1. **Add `noMerge` to Config Schema** (`src/schemas/project_config.ts`)
+   - Added `noMerge: z.boolean().optional()` to `CraftProjectConfigSchema`
+
+2. **Add Detection Function** (`src/utils/detection.ts`)
+   - Created `isCompiledGitHubAction(rootDir: string): boolean`
+   - Detection criteria:
+     - Has `action.yml` or `action.yaml` at root
+     - `runs.using` starts with `node` (e.g., `node20`, `node16`)
+     - `runs.main` references a path in `dist/` (e.g., `dist/index.js`)
+
+3. **Add Config Accessor** (`src/config.ts`)
+   - Added `getNoMergeConfig(): NoMergeConfig` that returns:
+     - `noMerge`: boolean value
+     - `source`: 'config' | 'auto-detected' | 'default'
+
+4. **Modify Publish Command** (`src/commands/publish.ts`)
+   - Check both CLI flag and config option
+   - Warn if `--merge-target` specified but noMerge is true from config
+   - Log the source of the noMerge decision
+
+5. **Tests**
+   - Added tests for config parsing in `src/__tests__/config.test.ts`
+   - Added tests for detection in `src/utils/__tests__/detection.test.ts`
+
+### Design Decisions
+1. Explicit `noMerge: false` in config overrides auto-detection
+2. CLI `--no-merge` always takes precedence
+3. `--merge-target` shows warning when ignored due to config/auto-detection
+4. Clear logging indicates why merging was skipped
