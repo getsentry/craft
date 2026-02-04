@@ -218,12 +218,15 @@ runs:
 
         # Extract checked targets from the existing body.
         # Targets appear as " - [x] targetName" or " - [X] targetName" in markdown.
+        # We only look within the "### Targets" section to avoid matching checkboxes in the changelog.
         # We store them in an associative array for O(1) lookup when rebuilding targets.
         declare -A checked_targets
         if [[ -n "$existing_body" ]]; then
+          # Extract only the Targets section (between "### Targets" and "Checked targets will be skipped")
+          targets_section=$(echo "$existing_body" | sed -n '/### Targets/,/Checked targets will be skipped/p')
           while IFS= read -r target; do
             [[ -n "$target" ]] && checked_targets["$target"]=1
-          done < <(echo "$existing_body" | grep -oE '^\s*-\s*\[[xX]\]\s+\S+' | sed 's/.*\[[xX]\][[:space:]]*//')
+          done < <(echo "$targets_section" | grep -oE '^\s*-\s*\[[xX]\]\s+\S+' | sed 's/.*\[[xX]\][[:space:]]*//')
         fi
 
         # Apply preserved checked states to the new targets list.
