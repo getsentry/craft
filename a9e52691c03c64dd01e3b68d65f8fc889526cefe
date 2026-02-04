@@ -1,0 +1,37 @@
+## Implementation Plan
+
+### Changes to action.yml (lines 207-285)
+
+Replace the simple 'skip if exists' logic with an 'update if exists' flow:
+
+1. Fetch existing issue data including body and number (not just url)
+2. Extract checked targets from existing body using grep/sed
+3. Store checked targets in bash associative array for O(1) lookup
+4. Apply preserved checked states to new targets list
+5. Build fresh body with latest requester, merge target, links, changelog
+6. Update existing issue via `gh issue edit` or create new issue
+
+### Key Implementation Details
+
+| Feature | Implementation |
+|---------|---------------|
+| Fetch existing issue data | Extended `gh issue list --json` to include `number` and `body` |
+| Extract checked targets | grep/sed to parse `- [x] target` lines into associative array |
+| Apply preserved states | Iterate through new targets, replace `[ ]` with `[x]` for matches |
+| Update vs Create | Conditional: `gh issue edit` for existing, `gh issue create` for new |
+
+### Behavior Matrix
+
+| Scenario | Result |
+|----------|--------|
+| Target was `[x]`, still exists in config | Stays `[x]` |
+| Target was `[ ]`, still exists in config | Stays `[ ]` |
+| New target added to config | Starts as `[ ]` |
+| Target removed from config | Not included |
+| No existing issue | Creates new issue (unchanged) |
+
+### Edge Cases Handled
+
+- Target names with special characters (e.g., `npm[registry]`) work correctly
+- Empty existing body is handled gracefully
+- No checked targets in original issue is handled efficiently
