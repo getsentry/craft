@@ -14,6 +14,7 @@ import {
   DEFAULT_RELEASE_BRANCH_NAME,
   getGlobalGitHubConfig,
   expandWorkspaceTargets,
+  getNoMergeConfig,
 } from '../config';
 import { formatTable, logger } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
@@ -180,10 +181,10 @@ function checkVersion(argv: Arguments<any>, _opt: any): any {
 async function publishToTarget(
   target: BaseTarget,
   version: string,
-  revision: string
+  revision: string,
 ): Promise<void> {
   const publishMessage = `=== Publishing to target: ${chalk.bold.cyan(
-    target.id
+    target.id,
   )} ===`;
   const delim = Array(stringLength(publishMessage) + 1).join('=');
   logger.info(' ');
@@ -203,7 +204,7 @@ async function publishToTarget(
         version,
         revision,
       },
-    }
+    },
   )();
 }
 
@@ -215,7 +216,7 @@ async function publishToTarget(
  */
 async function printRevisionSummary(
   artifactProvider: BaseArtifactProvider,
-  revision: string
+  revision: string,
 ): Promise<void> {
   const artifacts = await artifactProvider.listArtifactsForRevision(revision);
   if (artifacts.length > 0) {
@@ -236,7 +237,7 @@ async function printRevisionSummary(
         head: ['File Name', 'Size', 'Updated', 'ContentType'],
         style: { head: ['cyan'] },
       },
-      artifactData
+      artifactData,
     );
     logger.info(' ');
     logger.info(`Available artifacts: \n${table.toString()}\n`);
@@ -247,7 +248,7 @@ async function printRevisionSummary(
 
 async function getTargetList(
   targetConfigList: TargetConfig[],
-  artifactProvider: BaseArtifactProvider
+  artifactProvider: BaseArtifactProvider,
 ): Promise<BaseTarget[]> {
   logger.trace('Initializing targets');
   const githubRepo = await getGlobalGitHubConfig();
@@ -265,7 +266,7 @@ async function getTargetList(
       const target = new targetClass(
         targetConfig,
         artifactProvider,
-        githubRepo
+        githubRepo,
       );
       targetList.push(target);
     } catch (err) {
@@ -293,7 +294,7 @@ async function getTargetList(
 async function checkRequiredArtifacts(
   artifactProvider: BaseArtifactProvider,
   revision: string,
-  requiredNames?: string[]
+  requiredNames?: string[],
 ): Promise<void> {
   if (!requiredNames || requiredNames.length === 0) {
     return;
@@ -307,16 +308,16 @@ async function checkRequiredArtifacts(
   for (const requiredNameRegexString of requiredNames) {
     const requiredNameRegex = stringToRegexp(requiredNameRegexString);
     const matchedArtifacts = artifacts.filter(artifact =>
-      requiredNameRegex.test(artifact.filename)
+      requiredNameRegex.test(artifact.filename),
     );
     if (matchedArtifacts.length === 0) {
       checkPassed = false;
       reportError(
-        `No matching artifact found for the required pattern: ${requiredNameRegexString}`
+        `No matching artifact found for the required pattern: ${requiredNameRegexString}`,
       );
     } else {
       logger.debug(
-        `Artifact "${matchedArtifacts[0].filename}" matches pattern ${requiredNameRegexString}`
+        `Artifact "${matchedArtifacts[0].filename}" matches pattern ${requiredNameRegexString}`,
       );
     }
   }
@@ -339,7 +340,7 @@ async function checkRequiredArtifacts(
 async function checkRevisionStatus(
   statusProvider: BaseStatusProvider,
   revision: string,
-  skipStatusCheckFlag = false
+  skipStatusCheckFlag = false,
 ): Promise<void> {
   if (skipStatusCheckFlag) {
     logger.warn(`Skipping build status checks for revision ${revision}`);
@@ -354,7 +355,7 @@ async function checkRevisionStatus(
     logger.trace(repositoryInfo);
   } catch (e) {
     logger.error(
-      `Cannot get repository information from ${statusProvider.config.name}. Check your configuration and credentials.`
+      `Cannot get repository information from ${statusProvider.config.name}. Check your configuration and credentials.`,
     );
     reportError(e);
   }
@@ -379,7 +380,7 @@ async function handleReleaseBranch(
   remoteName: string,
   branch: string,
   mergeTarget?: string,
-  keepBranch = false
+  keepBranch = false,
 ): Promise<void> {
   if (!mergeTarget) {
     mergeTarget = await getDefaultBranch(git, remoteName);
@@ -413,7 +414,7 @@ async function handleReleaseBranch(
  */
 export async function runPostReleaseCommand(
   newVersion: string,
-  postReleaseCommand?: string
+  postReleaseCommand?: string,
 ): Promise<boolean> {
   let sysCommand: shellQuote.ParseEntry;
   let args: shellQuote.ParseEntry[];
@@ -429,7 +430,7 @@ export async function runPostReleaseCommand(
   } else {
     // Not running post-release command
     logger.info(
-      `Not running the optional post-release command: '${DEFAULT_POST_RELEASE_SCRIPT_PATH}' not found`
+      `Not running the optional post-release command: '${DEFAULT_POST_RELEASE_SCRIPT_PATH}' not found`,
     );
     return false;
   }
@@ -442,7 +443,7 @@ export async function runPostReleaseCommand(
       PATH: process.env.PATH,
       GITHUB_TOKEN: process.env.GITHUB_TOKEN,
       ...Object.fromEntries(
-        ALLOWED_ENV_VARS.map(key => [key, process.env[key]])
+        ALLOWED_ENV_VARS.map(key => [key, process.env[key]]),
       ),
     },
   });
@@ -473,7 +474,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       reportError(
         'Your repository is in a dirty state. ' +
           'Please stash or commit the pending changes.',
-        logger
+        logger,
       );
     }
   }
@@ -514,14 +515,14 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   let targetsToPublish: Set<string> = new Set(
     (typeof argv.target === 'string' ? [argv.target] : argv.target) || [
       SpecialTarget.All,
-    ]
+    ],
   );
 
   // Treat "all"/"none" specially
   for (const specialTarget of [SpecialTarget.All, SpecialTarget.None]) {
     if (targetsToPublish.size > 1 && targetsToPublish.has(specialTarget)) {
       logger.error(
-        `Target "${specialTarget}" specified together with other targets. Exiting.`
+        `Target "${specialTarget}" specified together with other targets. Exiting.`,
       );
       return undefined;
     }
@@ -544,14 +545,14 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   for (const published of Object.keys(publishState.published)) {
     logger.info(
-      `Skipping target ${published} as it is marked as successful in state file.`
+      `Skipping target ${published} as it is marked as successful in state file.`,
     );
     targetsToPublish.delete(published);
   }
 
   if (!targetsToPublish.has(SpecialTarget.All)) {
     targetConfigList = targetConfigList.filter(targetConf =>
-      targetsToPublish.has(BaseTarget.getId(targetConf))
+      targetsToPublish.has(BaseTarget.getId(targetConf)),
     );
   }
 
@@ -585,7 +586,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       if (argv.keepDownloads) {
         logger.info(
           'Directory with the downloaded artifacts will not be removed',
-          `Path: ${downloadDirectory}`
+          `Path: ${downloadDirectory}`,
         );
       }
     }, !argv.keepDownloads);
@@ -593,11 +594,27 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     logger.info(' ');
   }
 
-  if (argv.noMerge) {
-    logger.info('Not merging per user request via no-merge option.');
+  // Check both CLI flag and config option for noMerge
+  const noMergeConfig = getNoMergeConfig();
+  const noMerge = argv.noMerge || noMergeConfig.noMerge;
+
+  // Warn if --merge-target was specified but noMerge is true from config
+  if (noMergeConfig.noMerge && !argv.noMerge && argv.mergeTarget) {
+    logger.warn(
+      `The --merge-target option will be ignored because noMerge is enabled via ${noMergeConfig.source === 'auto-detected' ? 'auto-detection (compiled GitHub Action)' : 'config'}.`,
+    );
+  }
+
+  if (noMerge) {
+    const source = argv.noMerge
+      ? 'CLI option'
+      : noMergeConfig.source === 'auto-detected'
+        ? 'auto-detection (compiled GitHub Action with dist/ folder)'
+        : 'config';
+    logger.info(`Not merging the release branch (${source}).`);
   } else if (!branchName) {
     logger.info(
-      'Not merging because cannot determine a branch name to merge from.'
+      'Not merging because cannot determine a branch name to merge from.',
     );
   } else if (
     targetsToPublish.has(SpecialTarget.All) ||
@@ -610,7 +627,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       argv.remote,
       branchName,
       argv.mergeTarget,
-      argv.keepBranch
+      argv.keepBranch,
     );
     // XXX(BYK): intentionally DO NOT await unlinking as we do not want
     // to block (both in terms of waiting for IO and the success of the

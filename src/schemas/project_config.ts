@@ -85,17 +85,17 @@ export type BaseArtifactProvider = z.infer<typeof BaseArtifactProviderSchema>;
 /**
  * Artifact pattern(s) for a single workflow - can be a single string or array of strings
  */
-export const ArtifactPatternsSchema = z.union([z.string(), z.array(z.string())]);
+export const ArtifactPatternsSchema = z.union([
+  z.string(),
+  z.array(z.string()),
+]);
 
 /**
  * Artifacts config for GitHub artifact provider.
  * Accepts string, array of strings, or object mapping workflow names to artifact patterns.
  */
 export const GitHubArtifactsConfigSchema = z
-  .union([
-    ArtifactPatternsSchema,
-    z.record(z.string(), ArtifactPatternsSchema),
-  ])
+  .union([ArtifactPatternsSchema, z.record(z.string(), ArtifactPatternsSchema)])
   .optional();
 
 export type GitHubArtifactsConfig = z.infer<typeof GitHubArtifactsConfigSchema>;
@@ -161,11 +161,19 @@ export const CraftProjectConfigSchema = z.object({
   releaseBranchPrefix: z.string().optional(),
   changelog: ChangelogConfigSchema.optional(),
   changelogPolicy: z.enum(['auto', 'simple', 'none']).optional(),
-  minVersion: z.string().regex(/^\d+\.\d+\.\d+.*$/).optional(),
+  minVersion: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+.*$/)
+    .optional(),
   requireNames: z.array(z.string()).optional(),
   statusProvider: BaseStatusProviderSchema.optional(),
   artifactProvider: BaseArtifactProviderSchema.optional(),
   versioning: VersioningConfigSchema.optional(),
+  /**
+   * Do not merge the release branch after publishing.
+   * Defaults to true for compiled GitHub Actions (Node.js actions with dist/ folder).
+   */
+  noMerge: z.boolean().optional(),
 });
 
 export type CraftProjectConfig = z.infer<typeof CraftProjectConfigSchema>;
