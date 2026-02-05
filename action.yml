@@ -206,7 +206,9 @@ runs:
 
         # Check if issue already exists by listing all open issues and filtering by exact title match.
         # We avoid GitHub search API to bypass indexing delays and query syntax edge cases.
-        existing_issue=$(gh -R "$PUBLISH_REPO" issue list --json title,url,number,body | jq -r --arg t "$title" '.[] | select(.title == $t)')
+        # gh issue list returns issues sorted by creation date (most recent first), so we take
+        # the first match to handle the theoretical case of duplicate titles.
+        existing_issue=$(gh -R "$PUBLISH_REPO" issue list --json title,url,number,body | jq -r --arg t "$title" '[.[] | select(.title == $t)] | first // empty')
         existing_issue_url=""
         existing_issue_number=""
         existing_body=""
