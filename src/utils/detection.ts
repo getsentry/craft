@@ -27,6 +27,35 @@ export interface DetectionContext {
 }
 
 /**
+ * Information about a required secret for a target
+ */
+export interface RequiredSecret {
+  /** Environment variable name (e.g., 'NPM_TOKEN') */
+  name: string;
+  /** Human-readable description */
+  description: string;
+}
+
+/**
+ * Workflow setup information detected from the project.
+ * Used to generate appropriate GitHub Actions workflows.
+ */
+export interface WorkflowSetup {
+  /** Node.js setup (if applicable) */
+  node?: {
+    /** Package manager to use */
+    packageManager: 'npm' | 'pnpm' | 'yarn';
+    /** Node version file path (e.g., .nvmrc, package.json for volta) */
+    versionFile?: string;
+  };
+  /** Python setup (if applicable) */
+  python?: {
+    /** Python version */
+    version?: string;
+  };
+}
+
+/**
  * Result of target detection, including the config and a priority for ordering.
  * Higher priority targets appear later in the generated config (e.g., github should be last).
  */
@@ -42,6 +71,15 @@ export interface DetectionResult {
    * - 900-999: GitHub and other "final" targets
    */
   priority: number;
+  /**
+   * Workflow setup information for this target.
+   * Used to generate appropriate GitHub Actions workflows.
+   */
+  workflowSetup?: WorkflowSetup;
+  /**
+   * Secrets required by this target for publishing.
+   */
+  requiredSecrets?: RequiredSecret[];
 }
 
 /**
@@ -142,33 +180,14 @@ export function isCompiledGitHubAction(rootDir: string): boolean {
 }
 
 /**
- * Priority constants for target ordering in generated configs.
+ * Recommended priority values for target ordering in generated configs.
  * Lower numbers appear first in the config file.
+ *
+ * Each target should define its own `static readonly priority` property.
+ *
+ * Guidelines:
+ * - 0-99: Package registries (npm=10, pypi=20, crates=30, gem=40, nuget=50, pub-dev=60, hex=70, maven=80, cocoapods=90)
+ * - 100-199: Storage/CDN targets (gcs=100, docker=110, aws-lambda=120, powershell=130)
+ * - 200-299: Registry/metadata targets (registry=200, brew=210, symbol-collector=220, gh-pages=230)
+ * - 900-999: GitHub and other "final" targets (github=900)
  */
-export const TargetPriority = {
-  // Package registries - appear first
-  NPM: 10,
-  PYPI: 20,
-  CRATES: 30,
-  GEM: 40,
-  NUGET: 50,
-  PUB_DEV: 60,
-  HEX: 70,
-  MAVEN: 80,
-  COCOAPODS: 90,
-
-  // Storage and distribution
-  GCS: 100,
-  DOCKER: 110,
-  AWS_LAMBDA: 120,
-  POWERSHELL: 130,
-
-  // Metadata and registry
-  REGISTRY: 200,
-  BREW: 210,
-  SYMBOL_COLLECTOR: 220,
-  GH_PAGES: 230,
-
-  // Should always be last
-  GITHUB: 900,
-} as const;

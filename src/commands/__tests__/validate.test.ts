@@ -85,22 +85,6 @@ jobs:
       - uses: getsentry/craft@v2
 `,
     );
-    writeFileSync(
-      join(workflowsDir, 'publish.yml'),
-      `
-name: Publish
-on:
-  push:
-    branches: [release/**]
-    paths:
-      - 'CHANGELOG.md'
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: getsentry/craft@v2
-`,
-    );
 
     await handler({});
 
@@ -247,21 +231,6 @@ jobs:
       - uses: getsentry/craft@v2
 `,
     );
-    writeFileSync(
-      join(workflowsDir, 'publish.yml'),
-      `
-name: Publish
-on:
-  push:
-    paths:
-      - 'CHANGELOG.md'
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: getsentry/craft@v2
-`,
-    );
 
     await handler({});
 
@@ -369,21 +338,6 @@ jobs:
       - uses: getsentry/craft@v2
 `,
     );
-    writeFileSync(
-      join(workflowsDir, 'publish.yml'),
-      `
-name: Publish
-on:
-  push:
-    paths:
-      - 'CHANGELOG.md'
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: getsentry/craft@v2
-`,
-    );
 
     await handler({});
 
@@ -424,21 +378,6 @@ jobs:
         with:
           fetch-depth: 0
       - run: npm run release
-`,
-    );
-    writeFileSync(
-      join(workflowsDir, 'publish.yml'),
-      `
-name: Publish
-on:
-  push:
-    paths:
-      - 'CHANGELOG.md'
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    steps:
-      - run: npm run publish
 `,
     );
 

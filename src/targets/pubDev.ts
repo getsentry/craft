@@ -11,11 +11,7 @@ import { load, dump } from 'js-yaml';
 import { createGitClient } from '../utils/git';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
-import {
-  GitHubGlobalConfig,
-  TargetConfig,
-  TypedTargetConfig,
-} from '../schemas/project_config';
+import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { forEachChained } from '../utils/async';
 import { checkEnvForPrerequisite } from '../utils/env';
 import { withTempDir } from '../utils/files';
@@ -23,19 +19,17 @@ import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { isDryRun } from '../utils/helpers';
 import { logDryRun } from '../utils/dryRun';
 import { logger } from '../logger';
+import {
+  DetectionContext,
+  DetectionResult,
+  fileExists,
+} from '../utils/detection';
 
 export const targetSecrets = [
   'PUBDEV_ACCESS_TOKEN',
   'PUBDEV_REFRESH_TOKEN',
 ] as const;
 type SecretsType = (typeof targetSecrets)[number];
-
-/** Fields on the pub-dev target config accessed at runtime */
-interface PubDevTargetConfigFields extends Record<string, unknown> {
-  dartCliPath?: string;
-  packages?: Record<string, unknown>;
-  skipValidation?: boolean;
-}
 
 /** Target options for "brew" */
 export interface PubDevTargetOptions {
@@ -70,6 +64,9 @@ export class PubDevTarget extends BaseTarget {
   /** GitHub repo configuration */
   public readonly githubRepo: GitHubGlobalConfig;
 
+  /** Priority for ordering in config (package registries appear first) */
+  public static readonly priority = 60;
+
   /**
    * Bump version in pubspec.yaml for Dart/Flutter projects.
    *
@@ -103,6 +100,32 @@ export class PubDevTarget extends BaseTarget {
     return true;
   }
 
+  /**
+   * Detect if this project should use the pub-dev target.
+   *
+   * Checks for pubspec.yaml (Dart/Flutter package).
+   */
+  public static detect(context: DetectionContext): DetectionResult | null {
+    const { rootDir } = context;
+
+    // Check for pubspec.yaml
+    if (fileExists(rootDir, 'pubspec.yaml')) {
+      return {
+        config: { name: 'pub-dev' },
+        priority: PubDevTarget.priority,
+        requiredSecrets: [
+          { name: 'PUBDEV_ACCESS_TOKEN', description: 'pub.dev access token' },
+          {
+            name: 'PUBDEV_REFRESH_TOKEN',
+            description: 'pub.dev refresh token',
+          },
+        ],
+      };
+    }
+
+    return null;
+  }
+
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
@@ -123,15 +146,13 @@ export class PubDevTarget extends BaseTarget {
   private getPubDevConfig(): PubDevTargetConfig {
     // We could do `...this.config`, but `packages` is in a list, not array format in `.yml`
     // so I wanted to keep setting the defaults unified.
-    const targetConfig = this
-      .config as TypedTargetConfig<PubDevTargetConfigFields>;
-    const config: PubDevTargetConfig = {
-      dartCliPath: targetConfig.dartCliPath || 'dart',
-      packages: targetConfig.packages
-        ? Object.keys(targetConfig.packages)
+    const config = {
+      dartCliPath: this.config.dartCliPath || 'dart',
+      packages: this.config.packages
+        ? Object.keys(this.config.packages)
         : ['.'],
       ...this.getTargetSecrets(),
-      skipValidation: targetConfig.skipValidation ?? false,
+      skipValidation: this.config.skipValidation ?? false,
     };
 
     this.checkRequiredSoftware(config);

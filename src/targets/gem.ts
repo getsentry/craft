@@ -15,7 +15,6 @@ import {
   DetectionContext,
   DetectionResult,
   fileExists,
-  TargetPriority,
 } from '../utils/detection';
 import { readdirSync } from 'fs';
 
@@ -37,6 +36,9 @@ const DEFAULT_GEM_REGEX = /^.*(\.gem)$/;
 export class GemTarget extends BaseTarget {
   /** Target name */
   public readonly name: string = 'gem';
+
+  /** Priority for ordering in config (package registries appear first) */
+  public static readonly priority = 40;
 
   /**
    * Bump version in Ruby gem project files.
@@ -155,7 +157,13 @@ export class GemTarget extends BaseTarget {
       if (hasGemspec) {
         return {
           config: { name: 'gem' },
-          priority: TargetPriority.GEM,
+          priority: GemTarget.priority,
+          requiredSecrets: [
+            {
+              name: 'GEM_HOST_API_KEY',
+              description: 'RubyGems API key for publishing',
+            },
+          ],
         };
       }
     } catch {
