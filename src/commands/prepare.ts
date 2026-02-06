@@ -15,6 +15,7 @@ import {
   loadConfigurationFromString,
   CONFIG_FILE_NAME,
   getVersioningPolicy,
+  getChangelogConfig,
 } from '../config';
 import { logger } from '../logger';
 import {
@@ -787,23 +788,14 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     const oldVersion = await getLatestTag(git);
 
     // Check & update the changelog
-    // Extract changelog path from config (can be string or object)
-    const changelogPath =
-      typeof config.changelog === 'string'
-        ? config.changelog
-        : config.changelog?.filePath;
-    // Get policy from new format or legacy changelogPolicy
-    const changelogPolicy = (
-      typeof config.changelog === 'object' && config.changelog?.policy
-        ? config.changelog.policy
-        : config.changelogPolicy
-    ) as ChangelogPolicy | undefined;
+    // Use getChangelogConfig() to apply smart defaults (auto for minVersion >= 2.21.0)
+    const changelogConfig = getChangelogConfig();
     const changelogBody = await prepareChangelog(
       git,
       oldVersion,
       newVersion,
-      argv.noChangelog ? ChangelogPolicy.None : changelogPolicy,
-      changelogPath,
+      argv.noChangelog ? ChangelogPolicy.None : changelogConfig.policy,
+      changelogConfig.filePath,
     );
 
     // Run a pre-release script (e.g. for version bumping)
