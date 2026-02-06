@@ -19,8 +19,7 @@ import {
   generateChangelogPreviewWorkflow,
   TemplateContext,
 } from '../utils/templates';
-import { createGitClient } from '../utils/git';
-import GitUrlParse from 'git-url-parse';
+import { createGitClient, getGitHubInfoFromRemote } from '../utils/git';
 import { isDryRun, hasInput } from '../utils/helpers';
 
 export const command = ['init'];
@@ -43,39 +42,6 @@ export const builder = (yargs: Argv) =>
       type: 'boolean',
       default: false,
     });
-
-/**
- * Detect GitHub repository information from git remote
- */
-async function detectGitHubInfo(
-  rootDir: string,
-): Promise<{ owner: string; repo: string } | null> {
-  try {
-    const git = createGitClient(rootDir);
-    const remotes = await git.getRemotes(true);
-    const defaultRemote =
-      remotes.find(remote => remote.name === 'origin') || remotes[0];
-
-    if (!defaultRemote) {
-      return null;
-    }
-
-    const remoteUrl = GitUrlParse(
-      defaultRemote.refs.push || defaultRemote.refs.fetch,
-    );
-
-    if (remoteUrl?.source === 'github.com') {
-      return {
-        owner: remoteUrl.owner,
-        repo: remoteUrl.name,
-      };
-    }
-  } catch (error) {
-    logger.debug('Error detecting GitHub info:', error);
-  }
-
-  return null;
-}
 
 /**
  * Detect all applicable targets for the project
@@ -139,7 +105,8 @@ export async function handler(args: InitArgs = {}): Promise<void> {
   logger.info('Detecting project type...');
 
   // Detect GitHub info
-  const githubInfo = await detectGitHubInfo(rootDir);
+  const git = createGitClient(rootDir);
+  const githubInfo = await getGitHubInfoFromRemote(git);
   if (githubInfo) {
     logger.info(
       `✓ Found GitHub repository: ${githubInfo.owner}/${githubInfo.repo}`,
@@ -289,15 +256,19 @@ export async function handler(args: InitArgs = {}): Promise<void> {
 
   logger.info('\nDone! Next steps:');
   logger.info('1. Review the generated configuration');
-  logger.info('2. Set up required secrets in your GitHub repository:');
-  logger.info(
-    '   - GH_RELEASE_PAT: GitHub Personal Access Token with repo scope',
-  );
-  for (const secret of requiredSecrets) {
-    logger.info(`   - ${secret.name}: ${secret.description}`);
+  if (requiredSecrets.length > 0) {
+    logger.info('2. Set up required secrets in your GitHub repository:');
+    for (const secret of requiredSecrets) {
+      logger.info(`   - ${secret.name}: ${secret.description}`);
+    }
+    logger.info(
+      '3. Configure publishing in your publish repository (see docs for details)',
+    );
+    logger.info('4. Run `craft validate` to verify your configuration');
+  } else {
+    logger.info(
+      '2. Configure publishing in your publish repository (see docs for details)',
+    );
+    logger.info('3. Run `craft validate` to verify your configuration');
   }
-  logger.info(
-    '3. Configure publishing in your publish repository (see docs for details)',
-  );
-  logger.info('4. Run `craft validate` to verify your configuration');
 }

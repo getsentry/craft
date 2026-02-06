@@ -1,15 +1,22 @@
+// eslint-disable-next-line no-restricted-imports -- This is the wrapper module
 import simpleGit, {
   type SimpleGit,
   type LogOptions,
   type Options,
   type StatusResult,
 } from 'simple-git';
+import GitUrlParse from 'git-url-parse';
 
 import { getConfigFileDir } from '../config';
 import { ConfigurationError } from './errors';
 import { createDryRunGit } from './dryRun';
 import { logger } from '../logger';
 import { distance as levenshtein } from 'fastest-levenshtein';
+
+export interface GitHubInfo {
+  owner: string;
+  repo: string;
+}
 
 export interface GitChange {
   hash: string;
@@ -257,4 +264,42 @@ export async function findReleaseBranches(
     exactMatches: exactMatches.slice(-limit).reverse(),
     fuzzyMatches: fuzzyMatches.slice(-limit).reverse(),
   };
+}
+
+/**
+ * Extract GitHub owner/repo from git remote.
+ *
+ * Looks for the 'origin' remote first, then falls back to the first available remote.
+ * Returns null if no GitHub remote is found.
+ *
+ * @param git SimpleGit instance for the repository
+ * @returns GitHub owner and repo, or null if not a GitHub repo
+ */
+export async function getGitHubInfoFromRemote(
+  git: SimpleGit,
+): Promise<GitHubInfo | null> {
+  try {
+    const remotes = await git.getRemotes(true);
+    const defaultRemote =
+      remotes.find(remote => remote.name === 'origin') || remotes[0];
+
+    if (!defaultRemote) {
+      return null;
+    }
+
+    const remoteUrl = GitUrlParse(
+      defaultRemote.refs.push || defaultRemote.refs.fetch,
+    );
+
+    if (remoteUrl?.source === 'github.com') {
+      return {
+        owner: remoteUrl.owner,
+        repo: remoteUrl.name,
+      };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
