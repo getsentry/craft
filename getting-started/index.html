@@ -196,7 +196,11 @@
 <p><strong>Add <code dir="auto">.craft.yml</code></strong> to your project with targets and options.</p>
 </li>
 <li>
-<p><strong>Add a pre-release script</strong> (default: <code dir="auto">scripts/bump-version.sh</code>).</p>
+<p><strong>Set up version bumping</strong> (one of):</p>
+<ul>
+<li><strong>Automatic</strong> (recommended): Set <code dir="auto">minVersion: "2.19.0"</code> and Craft will automatically bump versions based on your targets (npm, pypi, crates, etc.)</li>
+<li><strong>Custom script</strong>: Add <code dir="auto">scripts/bump-version.sh</code> (or set <code dir="auto">preReleaseCommand</code>)</li>
+</ul>
 </li>
 <li>
 <p><strong>Configure environment variables</strong> for your targets.</p>
