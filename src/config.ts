@@ -2,8 +2,7 @@ import { existsSync, lstatSync, readFileSync } from 'fs';
 import path from 'path';
 
 import { load } from 'js-yaml';
-import GitUrlParse from 'git-url-parse';
-import { createGitClient } from './utils/git';
+import { createGitClient, getGitHubInfoFromRemote } from './utils/git';
 import { ZodError } from 'zod';
 
 import { logger } from './logger';
@@ -304,23 +303,10 @@ export async function getGlobalGitHubConfig(
   if (!repoGitHubConfig) {
     const configDir = getConfigFileDir() || '.';
     const git = createGitClient(configDir);
-    let remoteUrl;
     try {
-      const remotes = await git.getRemotes(true);
-      const defaultRemote =
-        remotes.find(remote => remote.name === 'origin') || remotes[0];
-      remoteUrl =
-        defaultRemote &&
-        GitUrlParse(defaultRemote.refs.push || defaultRemote.refs.fetch);
+      repoGitHubConfig = await getGitHubInfoFromRemote(git);
     } catch (error) {
       logger.warn('Error when trying to get git remotes: ', error);
-    }
-
-    if (remoteUrl?.source === 'github.com') {
-      repoGitHubConfig = {
-        owner: remoteUrl.owner,
-        repo: remoteUrl.name,
-      };
     }
   }
 
