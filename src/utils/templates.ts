@@ -22,10 +22,6 @@ export interface TemplateContext {
   targets: TargetConfig[];
   /** Workflow setup (aggregated from targets) */
   workflowSetup?: WorkflowSetup;
-  /** Name of the CI workflow/job to wait for */
-  ciJobName?: string;
-  /** Whether there's a Dockerfile */
-  hasDocker?: boolean;
 }
 
 /**

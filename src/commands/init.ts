@@ -289,7 +289,13 @@ export async function handler(args: InitArgs = {}): Promise<void> {
 
   logger.info('\nDone! Next steps:');
   logger.info('1. Review the generated configuration');
-  logger.info('2. Set up GH_RELEASE_PAT secret (GitHub PAT with repo scope)');
+  logger.info('2. Set up required secrets in your GitHub repository:');
+  logger.info(
+    '   - GH_RELEASE_PAT: GitHub Personal Access Token with repo scope',
+  );
+  for (const secret of requiredSecrets) {
+    logger.info(`   - ${secret.name}: ${secret.description}`);
+  }
   logger.info(
     '3. Configure publishing in your publish repository (see docs for details)',
   );
