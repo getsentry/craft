@@ -273,17 +273,19 @@ function validateCraftWorkflow(filePath: string): {
     return { usesCraft: false, issues: [] };
   }
 
-  // Check for reusable workflow (known bug)
-  if (content.includes('getsentry/craft/.github/workflows/')) {
-    issues.push({
-      level: 'warning',
-      message:
-        'Using Craft reusable workflow is not recommended. Use "getsentry/craft@v2" action directly instead.',
-      file: filePath,
-    });
+  // Check if workflow uses reusable workflow vs composite action
+  const usesReusableWorkflow = content.includes(
+    'getsentry/craft/.github/workflows/',
+  );
+  const usesCompositeAction = /uses:\s*['"]?getsentry\/craft@/.test(content);
+
+  // If only using reusable workflow (e.g., changelog-preview.yml), skip validation
+  // Reusable workflows are self-contained and handle their own checkout
+  if (usesReusableWorkflow && !usesCompositeAction) {
+    return { usesCraft: true, issues: [] };
   }
 
-  // Check for proper checkout with fetch-depth
+  // Check for proper checkout with fetch-depth (only for composite action usage)
   const hasFetchDepth =
     content.includes('fetch-depth: 0') || content.includes('fetch-depth: "0"');
   if (!hasFetchDepth) {
