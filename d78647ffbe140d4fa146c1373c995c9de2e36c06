@@ -1,0 +1,28 @@
+## Investigation Plan
+
+### Error
+Release workflow failed with:
+```
+Unable to download artifact(s): Artifact not found for name: bf5e62f4136842f9f402e3516b5a3e28094213e7
+```
+
+From: https://github.com/getsentry/craft/actions/runs/21755074971
+
+### Root Cause Analysis
+
+1. Examined the failed GitHub Actions run - artifacts 'craft-binary' and 'craft-docs' were present
+2. Explored artifact_providers/ to understand how artifacts are named/downloaded
+3. Discovered the error was NOT from Craft's artifact provider code, but from the GitHub Action itself
+
+### Finding
+
+Mismatch between artifact names:
+- build.yml (upload): `name: craft-binary`
+- action.yml (download): `name: ${{ github.sha }}`
+
+The action.yml was using legacy naming convention (commit SHA) while build.yml
+was using the new explicit naming convention.
+
+### Fix
+
+Update action.yml line 96 to use `name: craft-binary` instead of `name: ${{ github.sha }}`
