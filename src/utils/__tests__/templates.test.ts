@@ -131,37 +131,41 @@ describe('Template Generation', () => {
         (s.uses as string)?.includes('getsentry/craft'),
       );
       expect(craftStep).toBeDefined();
-      expect((craftStep?.with as Record<string, unknown>).action).toBe(
-        'prepare',
+      expect((craftStep?.with as Record<string, unknown>).version).toBe(
+        '${{ inputs.version }}',
       );
     });
   });
 
   describe('generateChangelogPreviewWorkflow', () => {
-    test('generates changelog preview workflow', () => {
+    test('generates changelog preview workflow with pull_request_target', () => {
       const yaml = generateChangelogPreviewWorkflow();
       const parsed = load(yaml) as Record<string, unknown>;
 
       expect(parsed.name).toBe('Changelog Preview');
-      expect(parsed.on).toHaveProperty('pull_request');
+      expect(parsed.on).toHaveProperty('pull_request_target');
     });
 
-    test('uses craft changelog-preview action', () => {
+    test('uses craft reusable workflow', () => {
       const yaml = generateChangelogPreviewWorkflow();
       const parsed = load(yaml) as Record<string, unknown>;
-      const job = (parsed.jobs as Record<string, unknown>).preview as Record<
-        string,
-        unknown
-      >;
-      const steps = job.steps as Record<string, unknown>[];
+      const job = (parsed.jobs as Record<string, unknown>)[
+        'changelog-preview'
+      ] as Record<string, unknown>;
 
-      const craftStep = steps.find(s =>
-        (s.uses as string)?.includes('getsentry/craft'),
+      expect(job.uses).toBe(
+        'getsentry/craft/.github/workflows/changelog-preview.yml@v2',
       );
-      expect(craftStep).toBeDefined();
-      expect((craftStep?.with as Record<string, unknown>).action).toBe(
-        'changelog-preview',
-      );
+      expect(job.secrets).toBe('inherit');
+    });
+
+    test('sets required permissions', () => {
+      const yaml = generateChangelogPreviewWorkflow();
+      const parsed = load(yaml) as Record<string, unknown>;
+      const permissions = parsed.permissions as Record<string, string>;
+
+      expect(permissions.contents).toBe('read');
+      expect(permissions['pull-requests']).toBe('write');
     });
   });
 });
