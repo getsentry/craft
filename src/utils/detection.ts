@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import path from 'path';
 import { load } from 'js-yaml';
+import { TargetConfig } from '../schemas/project_config';
 
 /**
  * GitHub Action manifest structure (partial, only what we need)
@@ -13,9 +14,106 @@ interface ActionManifest {
 }
 
 /**
+ * Context for target detection, providing information about the project
+ * that targets can use to determine if they apply.
+ */
+export interface DetectionContext {
+  /** Root directory of the project */
+  rootDir: string;
+  /** GitHub owner (if detected) */
+  githubOwner?: string;
+  /** GitHub repo name (if detected) */
+  githubRepo?: string;
+}
+
+/**
+ * Information about a required secret for a target
+ */
+export interface RequiredSecret {
+  /** Environment variable name (e.g., 'NPM_TOKEN') */
+  name: string;
+  /** Human-readable description */
+  description: string;
+}
+
+/**
+ * Workflow setup information detected from the project.
+ * Used to generate appropriate GitHub Actions workflows.
+ */
+export interface WorkflowSetup {
+  /** Node.js setup (if applicable) */
+  node?: {
+    /** Package manager to use */
+    packageManager: 'npm' | 'pnpm' | 'yarn';
+    /** Node version file path (e.g., .nvmrc, package.json for volta) */
+    versionFile?: string;
+  };
+  /** Python setup (if applicable) */
+  python?: {
+    /** Python version */
+    version?: string;
+  };
+}
+
+/**
+ * Result of target detection, including the config and a priority for ordering.
+ * Higher priority targets appear later in the generated config (e.g., github should be last).
+ */
+export interface DetectionResult {
+  /** The detected target configuration */
+  config: TargetConfig;
+  /**
+   * Priority for ordering in the config file.
+   * Lower numbers appear first. Use these guidelines:
+   * - 0-99: Package registries (npm, pypi, crates, etc.)
+   * - 100-199: Storage/CDN targets (gcs, docker, etc.)
+   * - 200-299: Registry/metadata targets
+   * - 900-999: GitHub and other "final" targets
+   */
+  priority: number;
+  /**
+   * Workflow setup information for this target.
+   * Used to generate appropriate GitHub Actions workflows.
+   */
+  workflowSetup?: WorkflowSetup;
+  /**
+   * Secrets required by this target for publishing.
+   */
+  requiredSecrets?: RequiredSecret[];
+}
+
+/**
+ * Check if a file exists in the given directory
+ */
+export function fileExists(
+  rootDir: string,
+  ...pathSegments: string[]
+): boolean {
+  return existsSync(path.join(rootDir, ...pathSegments));
+}
+
+/**
+ * Read a JSON file from the project directory
+ */
+export function readJsonFile<T = unknown>(
+  rootDir: string,
+  ...pathSegments: string[]
+): T | null {
+  const filePath = path.join(rootDir, ...pathSegments);
+  if (!existsSync(filePath)) {
+    return null;
+  }
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Read a file as text from the project directory
  */
-function readTextFile(
+export function readTextFile(
   rootDir: string,
   ...pathSegments: string[]
 ): string | null {
@@ -80,3 +178,16 @@ export function isCompiledGitHubAction(rootDir: string): boolean {
     return false;
   }
 }
+
+/**
+ * Recommended priority values for target ordering in generated configs.
+ * Lower numbers appear first in the config file.
+ *
+ * Each target should define its own `static readonly priority` property.
+ *
+ * Guidelines:
+ * - 0-99: Package registries (npm=10, pypi=20, crates=30, gem=40, nuget=50, pub-dev=60, hex=70, maven=80, cocoapods=90)
+ * - 100-199: Storage/CDN targets (gcs=100, docker=110, aws-lambda=120, powershell=130)
+ * - 200-299: Registry/metadata targets (registry=200, brew=210, symbol-collector=220, gh-pages=230)
+ * - 900-999: GitHub and other "final" targets (github=900)
+ */

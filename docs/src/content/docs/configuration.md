@@ -485,6 +485,39 @@ Require a minimum Craft version:
 minVersion: '0.5.0'
 ```
 
+### Smart Defaults
+
+Setting `minVersion` to `2.21.0` or higher enables smart defaults that simplify configuration:
+
+```yaml
+minVersion: '2.21.0'
+```
+
+| Feature             | Default with `minVersion >= 2.21.0` | Default without |
+| ------------------- | ----------------------------------- | --------------- |
+| `changelog.policy`  | `auto`                              | `none`          |
+| `versioning.policy` | `auto` (with `>= 2.14.0`)           | `manual`        |
+
+This means a minimal configuration like this:
+
+```yaml
+minVersion: '2.21.0'
+targets:
+  - name: npm
+  - name: github
+```
+
+Will automatically:
+
+- Generate changelogs from conventional commits
+- Determine version bumps from commit analysis
+- Create `CHANGELOG.md` if it doesn't exist
+
+:::tip[Recommended for New Projects]
+Use `minVersion: '2.21.0'` for new projects to take advantage of smart defaults.
+Run `craft init` to automatically generate this configuration.
+:::
+
 ## Required Files
 
 Ensure specific artifacts exist before publishing:

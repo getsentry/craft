@@ -1,10 +1,21 @@
 // eslint-disable-next-line no-restricted-imports -- This is the wrapper module
-import simpleGit, { type SimpleGit, type LogOptions, type Options, type StatusResult } from 'simple-git';
+import simpleGit, {
+  type SimpleGit,
+  type LogOptions,
+  type Options,
+  type StatusResult,
+} from 'simple-git';
+import GitUrlParse from 'git-url-parse';
 
 import { getConfigFileDir } from '../config';
 import { ConfigurationError } from './errors';
 import { createDryRunGit } from './dryRun';
 import { logger } from '../logger';
+
+export interface GitHubInfo {
+  owner: string;
+  repo: string;
+}
 
 export interface GitChange {
   hash: string;
@@ -26,14 +37,14 @@ export const defaultInitialTag = '0.0.0';
 
 export async function getDefaultBranch(
   git: SimpleGit,
-  remoteName: string
+  remoteName: string,
 ): Promise<string> {
   // This part is courtesy of https://stackoverflow.com/a/62397081/90297
   return stripRemoteName(
     await git
       .remote(['set-head', remoteName, '--auto'])
       .revparse(['--abbrev-ref', `${remoteName}/HEAD`]),
-    remoteName
+    remoteName,
   );
 }
 
@@ -45,8 +56,7 @@ export async function getLatestTag(git: SimpleGit): Promise<string> {
     // If there are no tags, return an empty string
     if (
       err instanceof Error &&
-      (
-        err.message.startsWith('fatal: No names found') ||
+      (err.message.startsWith('fatal: No names found') ||
         err.message.startsWith('Nothing to describe'))
     ) {
       return '';
@@ -58,7 +68,7 @@ export async function getLatestTag(git: SimpleGit): Promise<string> {
 export async function getChangesSince(
   git: SimpleGit,
   rev: string,
-  until?: string
+  until?: string,
 ): Promise<GitChange[]> {
   const gitLogArgs: Options | LogOptions = {
     to: until || 'HEAD',
@@ -90,7 +100,7 @@ export async function getChangesSince(
 
 export function stripRemoteName(
   branch: string | undefined,
-  remoteName: string
+  remoteName: string,
 ): string {
   const branchName = branch || '';
   const remotePrefix = `${remoteName}/`;
@@ -104,7 +114,7 @@ export async function getGitClient(): Promise<SimpleGit> {
   const configFileDir = getConfigFileDir() || '.';
   // Move to the directory where the config file is located
   process.chdir(configFileDir);
-  logger.debug("Working directory:", process.cwd());
+  logger.debug('Working directory:', process.cwd());
 
   // eslint-disable-next-line no-restricted-syntax -- This is the git wrapper module
   const git = simpleGit(configFileDir);
@@ -144,7 +154,7 @@ export function createGitClient(directory: string): SimpleGit {
 export async function cloneRepo(
   url: string,
   targetDirectory: string,
-  options?: string[]
+  options?: string[],
 ): Promise<SimpleGit> {
   // eslint-disable-next-line no-restricted-syntax -- This is the git wrapper module
   const git = simpleGit();
@@ -171,4 +181,42 @@ export function isRepoDirty(repoStatus: StatusResult): boolean {
     repoStatus.renamed.length ||
     repoStatus.staged.length
   );
+}
+
+/**
+ * Extract GitHub owner/repo from git remote.
+ *
+ * Looks for the 'origin' remote first, then falls back to the first available remote.
+ * Returns null if no GitHub remote is found.
+ *
+ * @param git SimpleGit instance for the repository
+ * @returns GitHub owner and repo, or null if not a GitHub repo
+ */
+export async function getGitHubInfoFromRemote(
+  git: SimpleGit,
+): Promise<GitHubInfo | null> {
+  try {
+    const remotes = await git.getRemotes(true);
+    const defaultRemote =
+      remotes.find(remote => remote.name === 'origin') || remotes[0];
+
+    if (!defaultRemote) {
+      return null;
+    }
+
+    const remoteUrl = GitUrlParse(
+      defaultRemote.refs.push || defaultRemote.refs.fetch,
+    );
+
+    if (remoteUrl?.source === 'github.com') {
+      return {
+        owner: remoteUrl.owner,
+        repo: remoteUrl.name,
+      };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
