@@ -286,16 +286,33 @@ export class DockerTarget extends BaseTarget {
     const config: TargetConfig = { name: 'docker' };
 
     // If we have GitHub info, suggest ghcr.io as source
+    // Otherwise, default to Docker Hub with placeholders
     if (githubOwner && githubRepo) {
       config.source = `ghcr.io/${githubOwner}/${githubRepo}`;
       config.target = `${githubOwner}/${githubRepo}`;
+    } else {
+      // Default to Docker Hub - user must fill in their username/repo
+      config.source = 'YOUR_DOCKERHUB_USERNAME/YOUR_REPO';
+      config.target = 'YOUR_DOCKERHUB_USERNAME/YOUR_REPO';
     }
 
     return {
       config,
       priority: DockerTarget.priority,
-      // Docker typically uses GITHUB_TOKEN for ghcr.io, no additional secrets needed
-      // Users can configure DOCKER_USERNAME/DOCKER_PASSWORD if needed
+      // ghcr.io uses GITHUB_TOKEN, Docker Hub needs explicit credentials
+      requiredSecrets:
+        githubOwner && githubRepo
+          ? []
+          : [
+              {
+                name: 'DOCKER_USERNAME',
+                description: 'Docker Hub username',
+              },
+              {
+                name: 'DOCKER_PASSWORD',
+                description: 'Docker Hub password or access token',
+              },
+            ],
     };
   }
 
