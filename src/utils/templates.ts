@@ -67,11 +67,6 @@ export function generateReleaseWorkflow(context: TemplateContext): string {
             description: 'Version to release (leave empty for auto)',
             required: false,
           },
-          'dry-run': {
-            description: 'Dry run (skip actual publish)',
-            type: 'boolean',
-            default: false,
-          },
         },
       },
     },
@@ -149,12 +144,10 @@ function generateReleaseJob(context: TemplateContext): Record<string, unknown> {
   steps.push({
     uses: 'getsentry/craft@v2',
     with: {
-      action: 'prepare',
       version: '${{ inputs.version }}',
-      'dry-run': '${{ inputs.dry-run }}',
     },
     env: {
-      GH_TOKEN: '${{ secrets.GH_RELEASE_PAT }}',
+      GITHUB_TOKEN: '${{ secrets.GH_RELEASE_PAT }}',
     },
   });
 
@@ -166,35 +159,33 @@ function generateReleaseJob(context: TemplateContext): Record<string, unknown> {
 
 /**
  * Generate a changelog preview workflow for PRs
+ *
+ * Uses pull_request_target to allow posting comments on PRs from forks.
+ * Calls the reusable workflow from getsentry/craft.
  */
 export function generateChangelogPreviewWorkflow(): string {
   const workflow: Record<string, unknown> = {
     name: 'Changelog Preview',
     on: {
-      pull_request: {
-        types: ['opened', 'synchronize', 'reopened'],
+      pull_request_target: {
+        types: [
+          'opened',
+          'synchronize',
+          'reopened',
+          'edited',
+          'labeled',
+          'unlabeled',
+        ],
       },
     },
+    permissions: {
+      contents: 'read',
+      'pull-requests': 'write',
+    },
     jobs: {
-      preview: {
-        'runs-on': 'ubuntu-latest',
-        steps: [
-          {
-            uses: 'actions/checkout@v4',
-            with: {
-              'fetch-depth': 0,
-            },
-          },
-          {
-            uses: 'getsentry/craft@v2',
-            with: {
-              action: 'changelog-preview',
-            },
-            env: {
-              GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
-            },
-          },
-        ],
+      'changelog-preview': {
+        uses: 'getsentry/craft/.github/workflows/changelog-preview.yml@v2',
+        secrets: 'inherit',
       },
     },
   };
