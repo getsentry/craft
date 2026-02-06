@@ -18,7 +18,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        node: ['20', '22']
+        node: ['20','22']
     name: Node ${{ matrix.node }}
     steps:
       - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
@@ -81,15 +81,6 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: craft-binary
-          path: |
-            ${{ github.workspace }}/*.tgz
-            ${{ github.workspace }}/dist/craft
-      # Legacy artifact name for backward compatibility with older Craft versions
-      # that look for artifact.name === commit SHA. Can be removed after 2.21.0 is released.
-      - name: Upload Legacy Artifact (backward compat)
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: ${{ github.sha }}
           path: |
             ${{ github.workspace }}/*.tgz
             ${{ github.workspace }}/dist/craft
