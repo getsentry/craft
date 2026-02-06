@@ -282,9 +282,13 @@ runs:
         ${CHANGELOG_SECTION}"
 
         if [[ -n "$existing_issue_number" ]]; then
-          # Update existing issue with fresh body (preserving checked target states)
-          gh issue edit "$existing_issue_number" -R "$PUBLISH_REPO" --body "$body"
-          echo "::notice::Updated existing publish request: ${existing_issue_url}"
+          # Try to update existing issue with fresh body (preserving checked target states)
+          # This may fail if the token doesn't have permission to update issues in the publish repo
+          if gh issue edit "$existing_issue_number" -R "$PUBLISH_REPO" --body "$body" 2>/dev/null; then
+            echo "::notice::Updated existing publish request: ${existing_issue_url}"
+          else
+            echo "::warning::Could not update existing issue (permission denied). Using existing issue as-is."
+          fi
           echo "issue_url=${existing_issue_url}" >> "$GITHUB_OUTPUT"
         else
           # Create new issue
