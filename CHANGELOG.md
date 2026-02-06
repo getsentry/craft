@@ -1,5 +1,35 @@
 # Changelog
 
+## 2.21.1
+
+### New Features ✨
+
+- Update publish issue body when re-running GitHub Action by @BYK in [#740](https://github.com/getsentry/craft/pull/740)
+- Add noMerge config option with auto-detection for GitHub Actions by @BYK in [#739](https://github.com/getsentry/craft/pull/739)
+- Automatic version bumping from configured targets by @BYK in [#707](https://github.com/getsentry/craft/pull/707)
+- Configure GitHub artifact provider to filter by workflow and name by @BYK in [#709](https://github.com/getsentry/craft/pull/709)
+
+### Bug Fixes 🐛
+
+- (action) Handle permission errors when updating publish issues by @BYK in [#744](https://github.com/getsentry/craft/pull/744)
+- (build) Add legacy artifact name for backward compatibility by @BYK in [#743](https://github.com/getsentry/craft/pull/743)
+- (security) Resolve HIGH severity Dependabot alerts by @BYK in [#741](https://github.com/getsentry/craft/pull/741)
+
+### Internal Changes 🔧
+
+#### Deps Dev
+
+- Bump fast-xml-parser from 4.5.3 to 5.3.4 by @dependabot in [#737](https://github.com/getsentry/craft/pull/737)
+- Bump tar from 7.5.4 to 7.5.7 by @dependabot in [#736](https://github.com/getsentry/craft/pull/736)
+
+#### Other
+
+- Use correct artifact name for dogfooding by @BYK in [#742](https://github.com/getsentry/craft/pull/742)
+
+### Other
+
+- Revert legacy artifact naming for backward compatibility by @BYK in [#745](https://github.com/getsentry/craft/pull/745)
+
 ## 2.20.1
 
 ### Bug Fixes 🐛
