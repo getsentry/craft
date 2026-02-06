@@ -12,7 +12,6 @@ import {
   DetectionContext,
   DetectionResult,
   fileExists,
-  TargetPriority,
 } from '../utils/detection';
 
 const DEFAULT_DOCKER_BIN = 'docker';
@@ -268,6 +267,9 @@ export class DockerTarget extends BaseTarget {
   /** Target options */
   public readonly dockerConfig: DockerTargetOptions;
 
+  /** Priority for ordering in config (storage/CDN targets) */
+  public static readonly priority = 110;
+
   /**
    * Detect if this project should use the docker target.
    *
@@ -291,7 +293,9 @@ export class DockerTarget extends BaseTarget {
 
     return {
       config,
-      priority: TargetPriority.DOCKER,
+      priority: DockerTarget.priority,
+      // Docker typically uses GITHUB_TOKEN for ghcr.io, no additional secrets needed
+      // Users can configure DOCKER_USERNAME/DOCKER_PASSWORD if needed
     };
   }
 

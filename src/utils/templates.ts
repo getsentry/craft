@@ -8,24 +8,7 @@
 
 import { dump } from 'js-yaml';
 import { TargetConfig } from '../schemas/project_config';
-
-/**
- * Detected project setup for Node.js
- */
-export interface NodeSetup {
-  /** Package manager: npm, pnpm, or yarn */
-  packageManager: 'npm' | 'pnpm' | 'yarn';
-  /** Node version file path (e.g., .nvmrc, package.json volta) */
-  versionFile?: string;
-}
-
-/**
- * Detected project setup for Python
- */
-export interface PythonSetup {
-  /** Python version */
-  version?: string;
-}
+import { WorkflowSetup } from './detection';
 
 /**
  * Context for generating templates
@@ -37,10 +20,8 @@ export interface TemplateContext {
   githubRepo: string;
   /** Detected targets */
   targets: TargetConfig[];
-  /** Node.js setup (if detected) */
-  nodeSetup?: NodeSetup;
-  /** Python setup (if detected) */
-  pythonSetup?: PythonSetup;
+  /** Workflow setup (aggregated from targets) */
+  workflowSetup?: WorkflowSetup;
   /** Name of the CI workflow/job to wait for */
   ciJobName?: string;
   /** Whether there's a Dockerfile */
@@ -129,8 +110,8 @@ function generateReleaseJob(context: TemplateContext): Record<string, unknown> {
   });
 
   // Node.js setup (if needed)
-  if (context.nodeSetup) {
-    if (context.nodeSetup.packageManager === 'pnpm') {
+  if (context.workflowSetup?.node) {
+    if (context.workflowSetup.node.packageManager === 'pnpm') {
       steps.push({
         uses: 'pnpm/action-setup@v4',
       });
@@ -139,14 +120,14 @@ function generateReleaseJob(context: TemplateContext): Record<string, unknown> {
     const nodeStep: Record<string, unknown> = {
       uses: 'actions/setup-node@v4',
       with: {
-        cache: context.nodeSetup.packageManager,
+        cache: context.workflowSetup.node.packageManager,
       },
     };
 
-    if (context.nodeSetup.versionFile) {
+    if (context.workflowSetup.node.versionFile) {
       nodeStep.with = {
         ...(nodeStep.with as Record<string, unknown>),
-        'node-version-file': context.nodeSetup.versionFile,
+        'node-version-file': context.workflowSetup.node.versionFile,
       };
     }
 
@@ -154,14 +135,14 @@ function generateReleaseJob(context: TemplateContext): Record<string, unknown> {
   }
 
   // Python setup (if needed)
-  if (context.pythonSetup) {
+  if (context.workflowSetup?.python) {
     const pythonStep: Record<string, unknown> = {
       uses: 'actions/setup-python@v5',
     };
 
-    if (context.pythonSetup.version) {
+    if (context.workflowSetup.python.version) {
       pythonStep.with = {
-        'python-version': context.pythonSetup.version,
+        'python-version': context.workflowSetup.python.version,
       };
     }
 
@@ -218,116 +199,6 @@ export function generateChangelogPreviewWorkflow(): string {
             },
           },
         ],
-      },
-    },
-  };
-
-  return dump(workflow, {
-    indent: 2,
-    lineWidth: 120,
-    noRefs: true,
-    sortKeys: false,
-    quotingType: '"',
-    forceQuotes: false,
-  });
-}
-
-/**
- * Generate a publish workflow that runs after PR merge
- */
-export function generatePublishWorkflow(context: TemplateContext): string {
-  const steps: Record<string, unknown>[] = [];
-
-  // Checkout
-  steps.push({
-    uses: 'actions/checkout@v4',
-    with: {
-      'fetch-depth': 0,
-    },
-  });
-
-  // Node.js setup (if needed)
-  if (context.nodeSetup) {
-    if (context.nodeSetup.packageManager === 'pnpm') {
-      steps.push({
-        uses: 'pnpm/action-setup@v4',
-      });
-    }
-
-    const nodeStep: Record<string, unknown> = {
-      uses: 'actions/setup-node@v4',
-      with: {
-        cache: context.nodeSetup.packageManager,
-        'registry-url': 'https://registry.npmjs.org',
-      },
-    };
-
-    if (context.nodeSetup.versionFile) {
-      nodeStep.with = {
-        ...(nodeStep.with as Record<string, unknown>),
-        'node-version-file': context.nodeSetup.versionFile,
-      };
-    }
-
-    steps.push(nodeStep);
-  }
-
-  // Python setup (if needed)
-  if (context.pythonSetup) {
-    const pythonStep: Record<string, unknown> = {
-      uses: 'actions/setup-python@v5',
-    };
-
-    if (context.pythonSetup.version) {
-      pythonStep.with = {
-        'python-version': context.pythonSetup.version,
-      };
-    }
-
-    steps.push(pythonStep);
-  }
-
-  // Craft publish action
-  const craftEnv: Record<string, string> = {
-    GH_TOKEN: '${{ secrets.GH_RELEASE_PAT }}',
-  };
-
-  // Add target-specific secrets
-  const hasNpm = context.targets.some(t => t.name === 'npm');
-  const hasPypi = context.targets.some(t => t.name === 'pypi');
-  const hasCrates = context.targets.some(t => t.name === 'crates');
-
-  if (hasNpm) {
-    craftEnv.NPM_TOKEN = '${{ secrets.NPM_TOKEN }}';
-  }
-  if (hasPypi) {
-    craftEnv.TWINE_USERNAME = '__token__';
-    craftEnv.TWINE_PASSWORD = '${{ secrets.PYPI_TOKEN }}';
-  }
-  if (hasCrates) {
-    craftEnv.CRATES_IO_TOKEN = '${{ secrets.CRATES_IO_TOKEN }}';
-  }
-
-  steps.push({
-    uses: 'getsentry/craft@v2',
-    with: {
-      action: 'publish',
-    },
-    env: craftEnv,
-  });
-
-  const workflow: Record<string, unknown> = {
-    name: 'Publish',
-    on: {
-      push: {
-        branches: ['master', 'main'],
-        paths: ['CHANGELOG.md'],
-      },
-    },
-    jobs: {
-      publish: {
-        'runs-on': 'ubuntu-latest',
-        steps,
       },
     },
   };

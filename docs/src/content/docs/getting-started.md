@@ -116,8 +116,11 @@ Generated files:
 
 - `.craft.yml` - Main configuration
 - `.github/workflows/release.yml` - Release preparation workflow
-- `.github/workflows/publish.yml` - Publishing workflow
 - `.github/workflows/changelog-preview.yml` - PR changelog preview
+
+:::note
+Publishing is typically handled via a separate repository that stores secrets securely. See [Publishing Configuration](/configuration#publishing) for details.
+:::
 
 ### `craft validate`: Validate Configuration
 

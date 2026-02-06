@@ -5,7 +5,6 @@ import {
   generateCraftConfig,
   generateReleaseWorkflow,
   generateChangelogPreviewWorkflow,
-  generatePublishWorkflow,
   TemplateContext,
 } from '../templates';
 
@@ -79,7 +78,7 @@ describe('Template Generation', () => {
     test('includes pnpm setup for pnpm projects', () => {
       const context: TemplateContext = {
         ...baseContext,
-        nodeSetup: { packageManager: 'pnpm' },
+        workflowSetup: { node: { packageManager: 'pnpm' } },
       };
 
       const yaml = generateReleaseWorkflow(context);
@@ -99,7 +98,7 @@ describe('Template Generation', () => {
     test('includes Python setup for Python projects', () => {
       const context: TemplateContext = {
         ...baseContext,
-        pythonSetup: { version: '3.11' },
+        workflowSetup: { python: { version: '3.11' } },
       };
 
       const yaml = generateReleaseWorkflow(context);
@@ -163,91 +162,6 @@ describe('Template Generation', () => {
       expect((craftStep?.with as Record<string, unknown>).action).toBe(
         'changelog-preview',
       );
-    });
-  });
-
-  describe('generatePublishWorkflow', () => {
-    test('generates publish workflow', () => {
-      const yaml = generatePublishWorkflow(baseContext);
-      const parsed = load(yaml) as Record<string, unknown>;
-
-      expect(parsed.name).toBe('Publish');
-      expect((parsed.on as Record<string, unknown>).push).toBeDefined();
-    });
-
-    test('triggers on CHANGELOG.md changes', () => {
-      const yaml = generatePublishWorkflow(baseContext);
-      const parsed = load(yaml) as Record<string, unknown>;
-      const push = (parsed.on as Record<string, unknown>).push as Record<
-        string,
-        unknown
-      >;
-
-      expect(push.paths).toContain('CHANGELOG.md');
-    });
-
-    test('includes NPM_TOKEN for npm targets', () => {
-      const yaml = generatePublishWorkflow(baseContext);
-      const parsed = load(yaml) as Record<string, unknown>;
-      const job = (parsed.jobs as Record<string, unknown>).publish as Record<
-        string,
-        unknown
-      >;
-      const steps = job.steps as Record<string, unknown>[];
-
-      const craftStep = steps.find(s =>
-        (s.uses as string)?.includes('getsentry/craft'),
-      );
-      expect(
-        (craftStep?.env as Record<string, unknown>).NPM_TOKEN,
-      ).toBeDefined();
-    });
-
-    test('includes TWINE secrets for pypi targets', () => {
-      const context: TemplateContext = {
-        ...baseContext,
-        targets: [{ name: 'pypi' }, { name: 'github' }],
-      };
-
-      const yaml = generatePublishWorkflow(context);
-      const parsed = load(yaml) as Record<string, unknown>;
-      const job = (parsed.jobs as Record<string, unknown>).publish as Record<
-        string,
-        unknown
-      >;
-      const steps = job.steps as Record<string, unknown>[];
-
-      const craftStep = steps.find(s =>
-        (s.uses as string)?.includes('getsentry/craft'),
-      );
-      expect(
-        (craftStep?.env as Record<string, unknown>).TWINE_USERNAME,
-      ).toBeDefined();
-      expect(
-        (craftStep?.env as Record<string, unknown>).TWINE_PASSWORD,
-      ).toBeDefined();
-    });
-
-    test('includes CRATES_IO_TOKEN for crates targets', () => {
-      const context: TemplateContext = {
-        ...baseContext,
-        targets: [{ name: 'crates' }, { name: 'github' }],
-      };
-
-      const yaml = generatePublishWorkflow(context);
-      const parsed = load(yaml) as Record<string, unknown>;
-      const job = (parsed.jobs as Record<string, unknown>).publish as Record<
-        string,
-        unknown
-      >;
-      const steps = job.steps as Record<string, unknown>[];
-
-      const craftStep = steps.find(s =>
-        (s.uses as string)?.includes('getsentry/craft'),
-      );
-      expect(
-        (craftStep?.env as Record<string, unknown>).CRATES_IO_TOKEN,
-      ).toBeDefined();
     });
   });
 });

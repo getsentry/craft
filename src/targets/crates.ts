@@ -19,7 +19,6 @@ import {
   DetectionResult,
   fileExists,
   readTextFile,
-  TargetPriority,
 } from '../utils/detection';
 
 /** Cargo executable configuration */
@@ -121,6 +120,9 @@ export class CratesTarget extends BaseTarget {
   /** GitHub repo configuration */
   public readonly githubRepo: GitHubGlobalConfig;
 
+  /** Priority for ordering in config (package registries appear first) */
+  public static readonly priority = 30;
+
   /**
    * Bump version in Cargo.toml using cargo set-version (from cargo-edit).
    *
@@ -176,21 +178,26 @@ export class CratesTarget extends BaseTarget {
       return null;
     }
 
+    const result: DetectionResult = {
+      config: { name: 'crates' },
+      priority: CratesTarget.priority,
+      requiredSecrets: [
+        {
+          name: 'CRATES_IO_TOKEN',
+          description: 'crates.io API token for publishing',
+        },
+      ],
+    };
+
     // Check if it has a [package] section (indicates a crate)
     // Workspace-only Cargo.toml files may not have [package]
     if (content.includes('[package]')) {
-      return {
-        config: { name: 'crates' },
-        priority: TargetPriority.CRATES,
-      };
+      return result;
     }
 
     // Check for workspace with members
     if (content.includes('[workspace]') && content.includes('members')) {
-      return {
-        config: { name: 'crates' },
-        priority: TargetPriority.CRATES,
-      };
+      return result;
     }
 
     return null;

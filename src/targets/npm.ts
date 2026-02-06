@@ -37,7 +37,6 @@ import {
   DetectionResult,
   fileExists,
   readJsonFile,
-  TargetPriority,
 } from '../utils/detection';
 
 /** npm executable config */
@@ -128,10 +127,14 @@ export class NpmTarget extends BaseTarget {
   /** Target options */
   public readonly npmConfig: NpmTargetOptions;
 
+  /** Priority for ordering in config (package registries appear first) */
+  public static readonly priority = 10;
+
   /**
    * Detect if this project should use the npm target.
    *
    * Checks for package.json and whether it's publishable (not private without workspaces).
+   * Also detects Node.js setup (package manager, version file) for workflow generation.
    */
   public static detect(context: DetectionContext): DetectionResult | null {
     const { rootDir } = context;
@@ -145,6 +148,8 @@ export class NpmTarget extends BaseTarget {
       private?: boolean;
       workspaces?: string[] | { packages: string[] };
       name?: string;
+      packageManager?: string;
+      volta?: { node?: string };
     }>(rootDir, 'package.json');
 
     if (!pkg) {
@@ -164,9 +169,37 @@ export class NpmTarget extends BaseTarget {
       config.workspaces = true;
     }
 
+    // Detect package manager
+    let packageManager: 'npm' | 'pnpm' | 'yarn' = 'npm';
+    if (pkg.packageManager?.startsWith('pnpm')) {
+      packageManager = 'pnpm';
+    } else if (pkg.packageManager?.startsWith('yarn')) {
+      packageManager = 'yarn';
+    } else if (fileExists(rootDir, 'pnpm-lock.yaml')) {
+      packageManager = 'pnpm';
+    } else if (fileExists(rootDir, 'yarn.lock')) {
+      packageManager = 'yarn';
+    }
+
+    // Detect Node version file
+    let versionFile: string | undefined;
+    if (pkg.volta?.node) {
+      versionFile = 'package.json';
+    } else if (fileExists(rootDir, '.nvmrc')) {
+      versionFile = '.nvmrc';
+    } else if (fileExists(rootDir, '.node-version')) {
+      versionFile = '.node-version';
+    }
+
     return {
       config,
-      priority: TargetPriority.NPM,
+      priority: NpmTarget.priority,
+      workflowSetup: {
+        node: { packageManager, versionFile },
+      },
+      requiredSecrets: [
+        { name: 'NPM_TOKEN', description: 'npm access token for publishing' },
+      ],
     };
   }
 

@@ -15,7 +15,6 @@ import {
   DetectionResult,
   fileExists,
   readTextFile,
-  TargetPriority,
 } from '../utils/detection';
 
 const DEFAULT_TWINE_BIN = 'twine';
@@ -46,6 +45,9 @@ export class PypiTarget extends BaseTarget {
   public readonly name: string = 'pypi';
   /** Target options */
   public readonly pypiConfig: PypiTargetOptions;
+
+  /** Priority for ordering in config (package registries appear first) */
+  public static readonly priority = 20;
 
   /**
    * Bump version in Python project files.
@@ -171,14 +173,33 @@ export class PypiTarget extends BaseTarget {
    * Detect if this project should use the pypi target.
    *
    * Checks for pyproject.toml or setup.py.
+   * Also detects Python version for workflow generation.
    */
   public static detect(context: DetectionContext): DetectionResult | null {
     const { rootDir } = context;
+
+    // Detect Python version
+    let pythonVersion: string | undefined;
+
+    // Check .python-version file first
+    if (fileExists(rootDir, '.python-version')) {
+      pythonVersion = readTextFile(rootDir, '.python-version')?.trim();
+    }
 
     // Check for pyproject.toml (modern Python packaging)
     if (fileExists(rootDir, 'pyproject.toml')) {
       const content = readTextFile(rootDir, 'pyproject.toml');
       if (content) {
+        // Try to extract requires-python if we don't have a version yet
+        if (!pythonVersion) {
+          const match = content.match(
+            /requires-python\s*=\s*["']>=?(\d+\.\d+)/,
+          );
+          if (match) {
+            pythonVersion = match[1];
+          }
+        }
+
         // Check if it has a [project] or [tool.poetry] section (indicates a package)
         if (
           content.includes('[project]') ||
@@ -186,7 +207,20 @@ export class PypiTarget extends BaseTarget {
         ) {
           return {
             config: { name: 'pypi' },
-            priority: TargetPriority.PYPI,
+            priority: PypiTarget.priority,
+            workflowSetup: {
+              python: { version: pythonVersion },
+            },
+            requiredSecrets: [
+              {
+                name: 'TWINE_USERNAME',
+                description: 'PyPI username (use __token__ for API tokens)',
+              },
+              {
+                name: 'TWINE_PASSWORD',
+                description: 'PyPI API token for publishing',
+              },
+            ],
           };
         }
       }
@@ -196,7 +230,20 @@ export class PypiTarget extends BaseTarget {
     if (fileExists(rootDir, 'setup.py')) {
       return {
         config: { name: 'pypi' },
-        priority: TargetPriority.PYPI,
+        priority: PypiTarget.priority,
+        workflowSetup: {
+          python: { version: pythonVersion },
+        },
+        requiredSecrets: [
+          {
+            name: 'TWINE_USERNAME',
+            description: 'PyPI username (use __token__ for API tokens)',
+          },
+          {
+            name: 'TWINE_PASSWORD',
+            description: 'PyPI API token for publishing',
+          },
+        ],
       };
     }
 

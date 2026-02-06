@@ -11,7 +11,7 @@ import { DockerTarget } from '../../targets/docker';
 import { GemTarget } from '../../targets/gem';
 import { PubDevTarget } from '../../targets/pubDev';
 import { GitHubTarget } from '../../targets/github';
-import { DetectionContext, TargetPriority } from '../detection';
+import { DetectionContext } from '../detection';
 
 describe('isCompiledGitHubAction', () => {
   let tempDir: string;
@@ -237,7 +237,7 @@ describe('Target Detection', () => {
       const result = NpmTarget.detect(createContext());
       expect(result).not.toBeNull();
       expect(result?.config.name).toBe('npm');
-      expect(result?.priority).toBe(TargetPriority.NPM);
+      expect(result?.priority).toBe(NpmTarget.priority);
     });
 
     test('detects npm workspace package', () => {
@@ -270,7 +270,7 @@ describe('Target Detection', () => {
       const result = PypiTarget.detect(createContext());
       expect(result).not.toBeNull();
       expect(result?.config.name).toBe('pypi');
-      expect(result?.priority).toBe(TargetPriority.PYPI);
+      expect(result?.priority).toBe(PypiTarget.priority);
     });
 
     test('detects pyproject.toml with [tool.poetry]', () => {
@@ -305,7 +305,7 @@ describe('Target Detection', () => {
       const result = CratesTarget.detect(createContext());
       expect(result).not.toBeNull();
       expect(result?.config.name).toBe('crates');
-      expect(result?.priority).toBe(TargetPriority.CRATES);
+      expect(result?.priority).toBe(CratesTarget.priority);
     });
 
     test('detects Cargo.toml with workspace', () => {
@@ -330,7 +330,7 @@ describe('Target Detection', () => {
       const result = DockerTarget.detect(createContext());
       expect(result).not.toBeNull();
       expect(result?.config.name).toBe('docker');
-      expect(result?.priority).toBe(TargetPriority.DOCKER);
+      expect(result?.priority).toBe(DockerTarget.priority);
     });
 
     test('includes ghcr.io source when GitHub info available', () => {
@@ -362,7 +362,7 @@ describe('Target Detection', () => {
       const result = GemTarget.detect(createContext());
       expect(result).not.toBeNull();
       expect(result?.config.name).toBe('gem');
-      expect(result?.priority).toBe(TargetPriority.GEM);
+      expect(result?.priority).toBe(GemTarget.priority);
     });
   });
 
@@ -380,7 +380,7 @@ describe('Target Detection', () => {
       const result = PubDevTarget.detect(createContext());
       expect(result).not.toBeNull();
       expect(result?.config.name).toBe('pub-dev');
-      expect(result?.priority).toBe(TargetPriority.PUB_DEV);
+      expect(result?.priority).toBe(PubDevTarget.priority);
     });
   });
 
@@ -396,21 +396,21 @@ describe('Target Detection', () => {
       );
       expect(result).not.toBeNull();
       expect(result?.config.name).toBe('github');
-      expect(result?.priority).toBe(TargetPriority.GITHUB);
+      expect(result?.priority).toBe(GitHubTarget.priority);
     });
   });
 
   describe('Priority ordering', () => {
     test('npm comes before github', () => {
-      expect(TargetPriority.NPM).toBeLessThan(TargetPriority.GITHUB);
+      expect(NpmTarget.priority).toBeLessThan(GitHubTarget.priority);
     });
 
     test('pypi comes before docker', () => {
-      expect(TargetPriority.PYPI).toBeLessThan(TargetPriority.DOCKER);
+      expect(PypiTarget.priority).toBeLessThan(DockerTarget.priority);
     });
 
     test('docker comes before github', () => {
-      expect(TargetPriority.DOCKER).toBeLessThan(TargetPriority.GITHUB);
+      expect(DockerTarget.priority).toBeLessThan(GitHubTarget.priority);
     });
   });
 });

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { load } from 'js-yaml';
 import { Argv } from 'yargs';
@@ -182,6 +182,8 @@ function validateCraftConfig(configPath: string): ValidationIssue[] {
 
 /**
  * Validate GitHub Actions workflow files
+ *
+ * Scans all workflow files and validates those that use the Craft action.
  */
 function validateWorkflows(rootDir: string): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -196,39 +198,63 @@ function validateWorkflows(rootDir: string): ValidationIssue[] {
     return issues;
   }
 
-  // Check for release workflow
-  const releaseWorkflowPath = join(workflowsDir, 'release.yml');
-  if (!existsSync(releaseWorkflowPath)) {
+  // Scan all workflow files
+  let workflowFiles: string[];
+  try {
+    workflowFiles = readdirSync(workflowsDir).filter(
+      f => f.endsWith('.yml') || f.endsWith('.yaml'),
+    );
+  } catch {
     issues.push({
-      level: 'warning',
-      message:
-        'No release.yml workflow found. This workflow triggers `craft prepare`.',
+      level: 'error',
+      message: 'Failed to read workflows directory',
       file: workflowsDir,
     });
-  } else {
-    issues.push(...validateReleaseWorkflow(releaseWorkflowPath));
+    return issues;
   }
 
-  // Check for publish workflow
-  const publishWorkflowPath = join(workflowsDir, 'publish.yml');
-  if (!existsSync(publishWorkflowPath)) {
+  if (workflowFiles.length === 0) {
     issues.push({
       level: 'warning',
       message:
-        'No publish.yml workflow found. This workflow triggers `craft publish` after PR merge.',
+        'No workflow files found. Consider running `craft init` to generate workflows.',
       file: workflowsDir,
     });
-  } else {
-    issues.push(...validatePublishWorkflow(publishWorkflowPath));
+    return issues;
+  }
+
+  // Validate each workflow that uses Craft
+  let craftWorkflowCount = 0;
+  for (const file of workflowFiles) {
+    const filePath = join(workflowsDir, file);
+    const workflowIssues = validateCraftWorkflow(filePath);
+
+    // Only count and report issues for workflows that use Craft
+    if (workflowIssues.usesCraft) {
+      craftWorkflowCount++;
+      issues.push(...workflowIssues.issues);
+    }
+  }
+
+  if (craftWorkflowCount === 0) {
+    issues.push({
+      level: 'warning',
+      message:
+        'No workflows using getsentry/craft action found. Consider running `craft init` to generate workflows.',
+      file: workflowsDir,
+    });
   }
 
   return issues;
 }
 
 /**
- * Validate a release workflow file
+ * Validate a workflow file that may use Craft
  */
-function validateReleaseWorkflow(filePath: string): ValidationIssue[] {
+function validateCraftWorkflow(filePath: string): {
+  usesCraft: boolean;
+  issues: ValidationIssue[];
+} {
   const issues: ValidationIssue[] = [];
 
   let content: string;
@@ -237,22 +263,14 @@ function validateReleaseWorkflow(filePath: string): ValidationIssue[] {
     // Parse to validate YAML syntax
     load(content);
   } catch {
-    issues.push({
-      level: 'error',
-      message: 'Failed to parse workflow file',
-      file: filePath,
-    });
-    return issues;
+    // If we can't parse the file, skip it (might not be a valid YAML)
+    return { usesCraft: false, issues: [] };
   }
 
-  // Check for Craft action usage
-  const craftActionUsed = content.includes('getsentry/craft');
-  if (!craftActionUsed) {
-    issues.push({
-      level: 'warning',
-      message: 'Workflow does not use getsentry/craft action',
-      file: filePath,
-    });
+  // Check if this workflow uses Craft
+  const usesCraft = content.includes('getsentry/craft');
+  if (!usesCraft) {
+    return { usesCraft: false, issues: [] };
   }
 
   // Check for reusable workflow (known bug)
@@ -277,50 +295,7 @@ function validateReleaseWorkflow(filePath: string): ValidationIssue[] {
     });
   }
 
-  return issues;
-}
-
-/**
- * Validate a publish workflow file
- */
-function validatePublishWorkflow(filePath: string): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-
-  let content: string;
-  try {
-    content = readFileSync(filePath, 'utf-8');
-    load(content);
-  } catch {
-    issues.push({
-      level: 'error',
-      message: 'Failed to parse workflow file',
-      file: filePath,
-    });
-    return issues;
-  }
-
-  // Check for Craft action usage
-  const craftActionUsed = content.includes('getsentry/craft');
-  if (!craftActionUsed) {
-    issues.push({
-      level: 'warning',
-      message: 'Workflow does not use getsentry/craft action',
-      file: filePath,
-    });
-  }
-
-  // Check for CHANGELOG.md trigger
-  const triggersOnChangelog =
-    content.includes('CHANGELOG.md') || content.includes("'CHANGELOG.md'");
-  if (!triggersOnChangelog) {
-    issues.push({
-      level: 'warning',
-      message: 'Publish workflow should trigger on CHANGELOG.md changes',
-      file: filePath,
-    });
-  }
-
-  return issues;
+  return { usesCraft: true, issues };
 }
 
 export async function handler(args: ValidateArgs = {}): Promise<void> {

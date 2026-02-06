@@ -23,7 +23,6 @@ import {
   DetectionContext,
   DetectionResult,
   fileExists,
-  TargetPriority,
 } from '../utils/detection';
 
 export const targetSecrets = [
@@ -64,6 +63,9 @@ export class PubDevTarget extends BaseTarget {
   public readonly pubDevConfig: PubDevTargetConfig;
   /** GitHub repo configuration */
   public readonly githubRepo: GitHubGlobalConfig;
+
+  /** Priority for ordering in config (package registries appear first) */
+  public static readonly priority = 60;
 
   /**
    * Bump version in pubspec.yaml for Dart/Flutter projects.
@@ -110,7 +112,14 @@ export class PubDevTarget extends BaseTarget {
     if (fileExists(rootDir, 'pubspec.yaml')) {
       return {
         config: { name: 'pub-dev' },
-        priority: TargetPriority.PUB_DEV,
+        priority: PubDevTarget.priority,
+        requiredSecrets: [
+          { name: 'PUBDEV_ACCESS_TOKEN', description: 'pub.dev access token' },
+          {
+            name: 'PUBDEV_REFRESH_TOKEN',
+            description: 'pub.dev refresh token',
+          },
+        ],
       };
     }
 
