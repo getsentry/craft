@@ -11,6 +11,7 @@ import {
   checkExecutableIsPresent,
   resolveExecutable,
   runWithExecutable,
+  spawnProcess,
 } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';

@@ -85,6 +85,7 @@
     "fix": "pnpm lint --fix",
     "test": "vitest run",
     "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
     "docs:dev": "cd docs && pnpm dev",
     "docs:build": "cd docs && pnpm build"
   },
