@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.21.2
+
+### Bug Fixes 🐛
+
+- (targets) Add missing spawnProcess imports in pypi and crates by @BYK in [#746](https://github.com/getsentry/craft/pull/746)
+
+### Internal Changes 🔧
+
+- Add TypeScript type checking to CI by @BYK in [#747](https://github.com/getsentry/craft/pull/747)
+
 ## 2.21.1
 
 ### New Features ✨
