@@ -1,0 +1,51 @@
+## Implementation Plan
+
+### Context
+Fix all TypeScript type errors in the getsentry/craft repository and add type checking to CI.
+
+### What Was Done
+
+1. **Added dependencies**
+   - `tslib` - Fixed 33 TS2354 errors
+   - `@types/semver` - Fixed TS7016 error
+
+2. **Created `TypedTargetConfig<T>` utility type** in `src/schemas/project_config.ts`
+   - Allows targets to have strongly-typed config access
+
+3. **Fixed `config.ts` enum/literal mismatches**
+   - Added type assertions for `VersioningPolicy` and `ChangelogPolicy`
+
+4. **Fixed all target config type issues** (~16 target files)
+   - Added inline interfaces for target-specific config fields
+   - Used `TypedTargetConfig<T>` casting for `this.config`
+   - Files: brew, github, ghPages, maven, cocoapods, awsLambdaLayer, commitOnGitRepository, gcs, nuget, powershell, symbolCollector, upm, sentryPypi, npm, pubDev, registry
+
+5. **Cleaned up unused imports** in ~40 test files
+   - Removed unused vitest type imports (Mock, MockInstance, Mocked, MockedFunction)
+
+6. **Fixed test-specific errors**
+   - Replaced `fail('...')` with `expect.fail('...')`
+   - Added `as any` casts for mock assignments
+   - Fixed null vs undefined mismatches
+
+7. **Fixed utility files**
+   - `gcsApi.ts`: Fixed maxRetries, downloadFilepath, getFiles type issues
+   - `helpers.ts`: Made GlobalFlags properties optional with internal required type
+   - `registry.ts`: Added unreachable throw for type narrowing
+   - `tracing.ts`: Inferred StartSpanOptions from Sentry.startSpan parameters
+   - `publish.ts`: Added `(err: unknown)` type annotation
+
+8. **Fixed lint warnings**
+   - Removed unused eslint-disable directives (4 files)
+   - Changed catch blocks to use `catch {}` pattern (6 locations)
+   - Exported MustacheScanner and MustacheContext classes
+
+9. **Added typecheck to CI**
+   - Added `pnpm typecheck` step to lint.yml
+   - Enabled incremental TypeScript compilation
+   - Added .tsbuildinfo to cache and .gitignore
+
+### Design Decisions
+- **Inline interfaces**: Target-specific config interfaces defined in each target file (not centralized)
+- **TypedTargetConfig<T>**: Generic utility to maintain type safety while working with target configs
+- **Incremental compilation**: Enabled for faster CI runs via .tsbuildinfo caching
