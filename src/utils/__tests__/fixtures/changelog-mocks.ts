@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { vi, type Mock, type MockedFunction } from 'vitest';
 /**
  * Shared mock setup for changelog tests.
  */
@@ -25,12 +25,18 @@ export function initMocks(
   getChangesSince: any,
   config: any,
   readFileSync: any,
-  clearChangesetCache: () => void
+  clearChangesetCache: () => void,
 ): void {
   mockClient = vi.fn();
-  mockGetChangesSince = getChangesSince as MockedFunction<typeof getChangesSince>;
-  getConfigFileDirMock = config.getConfigFileDir as MockedFunction<typeof config.getConfigFileDir>;
-  getGlobalGitHubConfigMock = config.getGlobalGitHubConfig as MockedFunction<typeof config.getGlobalGitHubConfig>;
+  mockGetChangesSince = getChangesSince as MockedFunction<
+    typeof getChangesSince
+  >;
+  getConfigFileDirMock = config.getConfigFileDir as MockedFunction<
+    typeof config.getConfigFileDir
+  >;
+  getGlobalGitHubConfigMock = config.getGlobalGitHubConfig as MockedFunction<
+    typeof config.getGlobalGitHubConfig
+  >;
   readFileSyncMock = readFileSync as MockedFunction<typeof readFileSync>;
 
   vi.resetAllMocks();
@@ -58,7 +64,7 @@ export function initMocks(
  */
 export function setupGenerateTest(
   commits: TestCommit[],
-  releaseConfig?: string | null
+  releaseConfig?: string | null,
 ): void {
   mockGetChangesSince.mockResolvedValueOnce(
     commits.map(commit => ({
@@ -66,7 +72,7 @@ export function setupGenerateTest(
       title: commit.title,
       body: commit.body,
       pr: commit.pr?.local || null,
-    }))
+    })),
   );
 
   mockClient.mockResolvedValueOnce({
@@ -93,7 +99,7 @@ export function setupGenerateTest(
               : [],
           },
         },
-      ])
+      ]),
     ),
   });
 
@@ -118,4 +124,3 @@ export function setupGenerateTest(
     }
   }
 }
-

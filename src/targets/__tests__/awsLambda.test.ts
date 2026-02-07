@@ -1,10 +1,4 @@
-import {
-  vi,
-  type Mock,
-  type MockInstance,
-  type Mocked,
-  type MockedFunction,
-} from 'vitest';
+import { vi } from 'vitest';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { ConfigurationError } from '../../utils/errors';
 import { AwsLambdaLayerTarget } from '../awsLambdaLayer';
@@ -118,7 +112,7 @@ describe('project config parameters', () => {
       awsTarget.getArtifactsForRevision =
         getArtifactsFailingMock.bind(AwsLambdaLayerTarget);
       await awsTarget.publish('', ''); // Should break the mocked function.
-      fail('Should not reach here');
+      expect.fail('Should not reach here');
     } catch (error) {
       expect(new RegExp(failingTestErrorMsg).test(error.message)).toBe(true);
     }
@@ -250,7 +244,7 @@ describe('publish', () => {
     // This should proceed to call getArtifactsForRevision for a pre-release
     try {
       await awsTarget.publish('1.0.0-alpha.1', 'revision');
-    } catch (error) {
+    } catch {
       // Expected to fail at a later stage, but getArtifactsForRevision should be called
     }
 

@@ -2,7 +2,9 @@
   "extends": "./tsconfig.build.json",
   "compilerOptions": {
     "types": ["node", "vitest/globals"],
-    "plugins": []
+    "plugins": [],
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo"
   },
   "include": ["src/**/*.ts", "**/__mocks__/**/*.ts", "**/__tests_/**/*.ts"],
   "exclude": ["dist/**/*"]

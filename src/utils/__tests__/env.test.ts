@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi } from 'vitest';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 // XXX(BYK): This is to be able to spy on `homedir()` in tests
@@ -33,7 +33,7 @@ describe('env utils functions', () => {
       checkEnvForPrerequisite({ name: 'DOGS' });
       expect(logger.debug).toHaveBeenCalledWith(
         'Checking for environment variable:',
-        'DOGS'
+        'DOGS',
       );
     });
 
@@ -46,7 +46,7 @@ describe('env utils functions', () => {
 
       it('errors if var not set', () => {
         expect(() => checkEnvForPrerequisite({ name: 'DOGS' })).toThrowError(
-          ConfigurationError
+          ConfigurationError,
         );
       });
     }); // end describe('no legacy name')
@@ -58,7 +58,7 @@ describe('env utils functions', () => {
         checkEnvForPrerequisite({ name: 'DOGS', legacyName: 'CATS' });
         expect(logger.warn).toHaveBeenCalledWith(
           `When searching configuration files and your environment, found DOGS ` +
-            `but also found legacy CATS. Do you mean to be using both?`
+            `but also found legacy CATS. Do you mean to be using both?`,
         );
       });
 
@@ -73,14 +73,14 @@ describe('env utils functions', () => {
         checkEnvForPrerequisite({ name: 'DOGS', legacyName: 'CATS' });
         expect(logger.warn).toHaveBeenCalledWith(
           `Usage of CATS is deprecated, and will be removed in later versions. ` +
-            `Please use DOGS instead.`
+            `Please use DOGS instead.`,
         );
         expect(process.env.DOGS).toEqual('DROOL');
       });
 
       it('errors if neither is set', () => {
         expect(() =>
-          checkEnvForPrerequisite({ name: 'DOGS', legacyName: 'CATS' })
+          checkEnvForPrerequisite({ name: 'DOGS', legacyName: 'CATS' }),
         ).toThrowError(ConfigurationError);
       });
     }); // end describe('with legacy name')
@@ -91,33 +91,33 @@ describe('env utils functions', () => {
         // it error, so `expect` the error to catch it so it doesn't break the
         // test)
         expect(() =>
-          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' })
+          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' }),
         ).toThrowError(ConfigurationError);
         expect(logger.debug).toHaveBeenCalledWith(
           'Checking for environment variable(s):',
-          'MAISEY or CHARLIE'
+          'MAISEY or CHARLIE',
         );
         expect(logger.debug).toHaveBeenCalledWith(
           'Checking for environment variable:',
-          'MAISEY'
+          'MAISEY',
         );
         expect(logger.debug).toHaveBeenCalledWith(
           'Checking for environment variable:',
-          'CHARLIE'
+          'CHARLIE',
         );
       });
 
       it('is happy if either option is defined', () => {
         process.env.MAISEY = 'GOOD DOG';
         expect(() =>
-          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' })
+          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' }),
         ).not.toThrowError(ConfigurationError);
         expect(logger.debug).toHaveBeenCalledWith('Found MAISEY');
 
         delete process.env.MAISEY;
         process.env.CHARLIE = 'ALSO GOOD DOG';
         expect(() =>
-          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' })
+          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' }),
         ).not.toThrowError(ConfigurationError);
         expect(logger.debug).toHaveBeenCalledWith('Found CHARLIE');
       });
@@ -125,7 +125,7 @@ describe('env utils functions', () => {
       it('throws if neither one is defined', () => {
         // skip defining vars here
         expect(() =>
-          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' })
+          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' }),
         ).toThrowError(ConfigurationError);
       });
 
@@ -134,8 +134,8 @@ describe('env utils functions', () => {
         expect(() =>
           checkEnvForPrerequisite(
             { name: 'MAISEY' },
-            { name: 'CHARLIE', legacyName: 'OPAL' }
-          )
+            { name: 'CHARLIE', legacyName: 'OPAL' },
+          ),
         ).not.toThrowError(ConfigurationError);
         expect(logger.debug).toHaveBeenCalledWith('Found MAISEY');
 
@@ -144,12 +144,12 @@ describe('env utils functions', () => {
         expect(() =>
           checkEnvForPrerequisite(
             { name: 'MAISEY' },
-            { name: 'CHARLIE', legacyName: 'OPAL' }
-          )
+            { name: 'CHARLIE', legacyName: 'OPAL' },
+          ),
         ).not.toThrowError(ConfigurationError);
         expect(logger.warn).toHaveBeenCalledWith(
           `Usage of OPAL is deprecated, and will be removed in later versions. ` +
-            `Please use CHARLIE instead.`
+            `Please use CHARLIE instead.`,
         );
         expect(process.env.CHARLIE).toEqual('GOOD PUPPY');
       });

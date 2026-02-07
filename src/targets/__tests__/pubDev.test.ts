@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi, type MockedFunction } from 'vitest';
 import { promises as fsPromises } from 'fs';
 import { platform } from 'os';
 import simpleGit from 'simple-git';
@@ -11,7 +11,7 @@ const TMP_DIR = '/tmp/dir';
 
 vi.mock('../../utils/helpers');
 vi.mock('../../utils/system');
-vi.mock('../../utils/files', async (importOriginal) => {
+vi.mock('../../utils/files', async importOriginal => {
   const actual = await importOriginal<typeof import('../../utils/files')>();
   return {
     ...actual,
@@ -19,7 +19,7 @@ vi.mock('../../utils/files', async (importOriginal) => {
   };
 });
 
-vi.mock('os', async (importOriginal) => {
+vi.mock('os', async importOriginal => {
   const actual = await importOriginal<typeof import('os')>();
   return {
     ...actual,
@@ -28,7 +28,7 @@ vi.mock('os', async (importOriginal) => {
   };
 });
 
-vi.mock('fs', async (importOriginal) => {
+vi.mock('fs', async importOriginal => {
   const actual = await importOriginal<typeof import('fs')>();
   return {
     ...actual,
@@ -64,7 +64,7 @@ function removeTargetSecretsFromEnv(): void {
 }
 
 function createPubDevTarget(
-  targetConfig?: Record<string, unknown>
+  targetConfig?: Record<string, unknown>,
 ): PubDevTarget {
   return new PubDevTarget(
     {
@@ -72,7 +72,7 @@ function createPubDevTarget(
       ...targetConfig,
     },
     new NoneArtifactProvider(),
-    { owner: 'testOwner', repo: 'testRepo' }
+    { owner: 'testOwner', repo: 'testRepo' },
   );
 }
 
@@ -90,12 +90,12 @@ describe('PubDev target configuration', () => {
     removeTargetSecretsFromEnv();
 
     expect(createPubDevTarget).toThrowErrorMatchingInlineSnapshot(
-      `[Error: Required value(s) PUBDEV_ACCESS_TOKEN not found in configuration files or the environment. See the documentation for more details.]`
+      `[Error: Required value(s) PUBDEV_ACCESS_TOKEN not found in configuration files or the environment. See the documentation for more details.]`,
     );
 
     process.env.PUBDEV_ACCESS_TOKEN = DEFAULT_OPTION_VALUE;
     expect(createPubDevTarget).toThrowErrorMatchingInlineSnapshot(
-      `[Error: Required value(s) PUBDEV_REFRESH_TOKEN not found in configuration files or the environment. See the documentation for more details.]`
+      `[Error: Required value(s) PUBDEV_REFRESH_TOKEN not found in configuration files or the environment. See the documentation for more details.]`,
     );
 
     process.env.PUBDEV_REFRESH_TOKEN = DEFAULT_OPTION_VALUE;
@@ -145,13 +145,13 @@ describe('publish', () => {
     const callOrder: string[] = [];
     const target = createPubDevTarget();
     target.createCredentialsFile = vi.fn(
-      async () => void callOrder.push('createCredentialsFile')
+      async () => void callOrder.push('createCredentialsFile'),
     );
     target.cloneRepository = vi.fn(
-      async () => void callOrder.push('cloneRepository')
+      async () => void callOrder.push('cloneRepository'),
     );
     target.publishPackage = vi.fn(
-      async () => void callOrder.push('publishPackage')
+      async () => void callOrder.push('publishPackage'),
     );
 
     await target.publish('1.0.0', revision);
@@ -160,7 +160,7 @@ describe('publish', () => {
     expect(target.cloneRepository).toHaveBeenCalledWith(
       target.githubRepo,
       revision,
-      TMP_DIR
+      TMP_DIR,
     );
     expect(target.publishPackage).toHaveBeenCalledWith(TMP_DIR, '.');
     expect(callOrder).toStrictEqual([
@@ -181,13 +181,13 @@ describe('publish', () => {
       },
     });
     target.createCredentialsFile = vi.fn(
-      async () => void callOrder.push('createCredentialsFile')
+      async () => void callOrder.push('createCredentialsFile'),
     );
     target.cloneRepository = vi.fn(
-      async () => void callOrder.push('cloneRepository')
+      async () => void callOrder.push('cloneRepository'),
     );
     target.publishPackage = vi.fn(
-      async () => void callOrder.push('publishPackage')
+      async () => void callOrder.push('publishPackage'),
     );
 
     await target.publish('1.0.0', revision);
@@ -196,7 +196,7 @@ describe('publish', () => {
     expect(target.cloneRepository).toHaveBeenCalledWith(
       target.githubRepo,
       revision,
-      TMP_DIR
+      TMP_DIR,
     );
     expect(target.publishPackage).toHaveBeenNthCalledWith(1, TMP_DIR, 'uno');
     expect(target.publishPackage).toHaveBeenNthCalledWith(2, TMP_DIR, 'dos');
@@ -215,13 +215,13 @@ describe('publish', () => {
     const callOrder: string[] = [];
     const target = createPubDevTarget();
     target.createCredentialsFile = vi.fn(
-      async () => void callOrder.push('createCredentialsFile')
+      async () => void callOrder.push('createCredentialsFile'),
     );
     target.cloneRepository = vi.fn(
-      async () => void callOrder.push('cloneRepository')
+      async () => void callOrder.push('cloneRepository'),
     );
     target.publishPackage = vi.fn(
-      async () => void callOrder.push('publishPackage')
+      async () => void callOrder.push('publishPackage'),
     );
 
     const isDryRunMock = isDryRun as MockedFunction<typeof isDryRun>;
@@ -254,17 +254,17 @@ describe('createCredentialsFile', () => {
     const [path, content] = writeFileMock.mock.calls[0];
 
     expect(path).toBe(
-      `/usr/Library/Application Support/dart/pub-credentials.json`
+      `/usr/Library/Application Support/dart/pub-credentials.json`,
     );
     expect(content).toMatchInlineSnapshot(
-      `"{"accessToken":"my_default_value","refreshToken":"my_default_value","tokenEndpoint":"https://accounts.google.com/o/oauth2/token","scopes":["openid","https://www.googleapis.com/auth/userinfo.email"],"expiration":1645564942000}"`
+      `"{"accessToken":"my_default_value","refreshToken":"my_default_value","tokenEndpoint":"https://accounts.google.com/o/oauth2/token","scopes":["openid","https://www.googleapis.com/auth/userinfo.email"],"expiration":1645564942000}"`,
     );
   });
 
   test('should make sure that directory exists before writing credentials file', async () => {
     fsPromises.access = vi.fn(() => Promise.reject());
     (platform as MockedFunction<typeof platform>).mockImplementationOnce(
-      () => 'linux'
+      () => 'linux',
     );
     const target = createPubDevTarget();
     await target.createCredentialsFile();
@@ -276,20 +276,20 @@ describe('createCredentialsFile', () => {
   test('should choose path based on the platform', async () => {
     fsPromises.access = vi.fn(() => Promise.reject());
     (platform as MockedFunction<typeof platform>).mockImplementationOnce(
-      () => 'linux'
+      () => 'linux',
     );
     const target = createPubDevTarget();
     await target.createCredentialsFile();
     expect(fsPromises.writeFile).toHaveBeenCalledWith(
       `/usr/.config/dart/pub-credentials.json`,
-      expect.any(String)
+      expect.any(String),
     );
   });
 
   test('should throw when run on unsupported platform', async () => {
     fsPromises.access = vi.fn(() => Promise.reject());
     (platform as MockedFunction<typeof platform>).mockImplementationOnce(
-      () => 'win32'
+      () => 'win32',
     );
     const target = createPubDevTarget();
     await expect(target.createCredentialsFile()).rejects.toThrow();
@@ -308,7 +308,7 @@ describe('cloneRepository', () => {
     expect(simpleGitMock).toHaveBeenCalledWith(TMP_DIR);
     expect(simpleGitMockRv.clone).toHaveBeenCalledWith(
       `https://github.com/${target.githubRepo.owner}/${target.githubRepo.repo}.git`,
-      TMP_DIR
+      TMP_DIR,
     );
     expect(simpleGitMockRv.checkout).toHaveBeenCalledWith(revision);
   });
@@ -342,7 +342,7 @@ dev_dependencies:
 
 dependency_overrides:
   sentry:
-    path: ../dart`)
+    path: ../dart`),
     );
 
     await target.publishPackage(TMP_DIR, pkg);
@@ -400,7 +400,7 @@ dependency_overrides:
       {
         cwd: `${TMP_DIR}/${pkg}`,
       },
-      { showStdout: true }
+      { showStdout: true },
     );
   });
 
@@ -419,7 +419,7 @@ dependency_overrides:
       {
         cwd: `${TMP_DIR}/${pkg}`,
       },
-      { showStdout: true }
+      { showStdout: true },
     );
   });
 
@@ -441,7 +441,7 @@ dependency_overrides:
       {
         cwd: `${TMP_DIR}/${pkg}`,
       },
-      { showStdout: true }
+      { showStdout: true },
     );
   });
 
@@ -464,7 +464,7 @@ dependency_overrides:
       {
         cwd: `${TMP_DIR}/${pkg}`,
       },
-      { showStdout: true }
+      { showStdout: true },
     );
   });
 });

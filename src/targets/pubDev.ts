@@ -1,11 +1,21 @@
-import { constants, existsSync, promises as fsPromises, readFileSync, writeFileSync } from 'fs';
+import {
+  constants,
+  existsSync,
+  promises as fsPromises,
+  readFileSync,
+  writeFileSync,
+} from 'fs';
 import { homedir, platform } from 'os';
 import { join, dirname } from 'path';
 import { load, dump } from 'js-yaml';
 import { createGitClient } from '../utils/git';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
-import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import {
+  GitHubGlobalConfig,
+  TargetConfig,
+  TypedTargetConfig,
+} from '../schemas/project_config';
 import { forEachChained } from '../utils/async';
 import { checkEnvForPrerequisite } from '../utils/env';
 import { withTempDir } from '../utils/files';
@@ -18,7 +28,14 @@ export const targetSecrets = [
   'PUBDEV_ACCESS_TOKEN',
   'PUBDEV_REFRESH_TOKEN',
 ] as const;
-type SecretsType = typeof targetSecrets[number];
+type SecretsType = (typeof targetSecrets)[number];
+
+/** Fields on the pub-dev target config accessed at runtime */
+interface PubDevTargetConfigFields extends Record<string, unknown> {
+  dartCliPath?: string;
+  packages?: Record<string, unknown>;
+  skipValidation?: boolean;
+}
 
 /** Target options for "brew" */
 export interface PubDevTargetOptions {
@@ -63,7 +80,7 @@ export class PubDevTarget extends BaseTarget {
    */
   public static async bumpVersion(
     rootDir: string,
-    newVersion: string
+    newVersion: string,
   ): Promise<boolean> {
     const pubspecPath = join(rootDir, 'pubspec.yaml');
     if (!existsSync(pubspecPath)) {
@@ -89,7 +106,7 @@ export class PubDevTarget extends BaseTarget {
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GitHubGlobalConfig
+    githubRepo: GitHubGlobalConfig,
   ) {
     super(config, artifactProvider, githubRepo);
     this.pubDevConfig = this.getPubDevConfig();
@@ -106,13 +123,15 @@ export class PubDevTarget extends BaseTarget {
   private getPubDevConfig(): PubDevTargetConfig {
     // We could do `...this.config`, but `packages` is in a list, not array format in `.yml`
     // so I wanted to keep setting the defaults unified.
-    const config = {
-      dartCliPath: this.config.dartCliPath || 'dart',
-      packages: this.config.packages
-        ? Object.keys(this.config.packages)
+    const targetConfig = this
+      .config as TypedTargetConfig<PubDevTargetConfigFields>;
+    const config: PubDevTargetConfig = {
+      dartCliPath: targetConfig.dartCliPath || 'dart',
+      packages: targetConfig.packages
+        ? Object.keys(targetConfig.packages)
         : ['.'],
       ...this.getTargetSecrets(),
-      skipValidation: this.config.skipValidation ?? false,
+      skipValidation: targetConfig.skipValidation ?? false,
     };
 
     this.checkRequiredSoftware(config);
@@ -145,7 +164,7 @@ export class PubDevTarget extends BaseTarget {
   private checkRequiredSoftware(config: PubDevTargetConfig): void {
     this.logger.debug(
       'Checking if Dart CLI is available: ',
-      config.dartCliPath
+      config.dartCliPath,
     );
     checkExecutableIsPresent(config.dartCliPath);
   }
@@ -168,11 +187,11 @@ export class PubDevTarget extends BaseTarget {
       async directory => {
         await this.cloneRepository(this.githubRepo, revision, directory);
         await forEachChained(this.pubDevConfig.packages, async pkg =>
-          this.publishPackage(directory, pkg)
+          this.publishPackage(directory, pkg),
         );
       },
       true,
-      'craft-pub-dev-'
+      'craft-pub-dev-',
     );
   }
 
@@ -220,7 +239,7 @@ export class PubDevTarget extends BaseTarget {
   public async cloneRepository(
     config: GitHubGlobalConfig,
     revision: string,
-    directory: string
+    directory: string,
   ): Promise<any> {
     const { owner, repo } = config;
     const git = createGitClient(directory);
@@ -251,7 +270,7 @@ export class PubDevTarget extends BaseTarget {
         await this.removeDependencyOverrides(directory, pkg);
       } catch (e) {
         throw new Error(
-          `Cannot remove dependency_overrides key from pubspec.yaml: ${e}`
+          `Cannot remove dependency_overrides key from pubspec.yaml: ${e}`,
         );
       }
     }
@@ -269,16 +288,16 @@ export class PubDevTarget extends BaseTarget {
       // Dart stops the process and asks user to go to provided url for authorization.
       // We want the stdout to be visible just in case something goes wrong, otherwise
       // the process will hang with no clear reason why.
-      { showStdout: true }
+      { showStdout: true },
     );
     this.logger.info(
-      `Package release complete${pkg !== '.' ? `: ${pkg}` : '.'}`
+      `Package release complete${pkg !== '.' ? `: ${pkg}` : '.'}`,
     );
   }
 
   private async removeDependencyOverrides(
     directory: string,
-    pkg: string
+    pkg: string,
   ): Promise<void> {
     const pubSpecPath = join(directory, pkg, 'pubspec.yaml');
     const pubSpecContent = await fsPromises.readFile(pubSpecPath, 'utf8');

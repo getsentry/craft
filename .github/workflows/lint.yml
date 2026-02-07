@@ -28,9 +28,12 @@ jobs:
           path: |
             node_modules
             .eslintcache
+            .tsbuildinfo
           key: ${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
+      - name: Type Check
+        run: pnpm typecheck
       - name: Lint
         run: pnpm lint -f github-annotations

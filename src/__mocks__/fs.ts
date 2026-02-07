@@ -1,7 +1,6 @@
 import { vi } from 'vitest';
 
 // Import the actual fs module using require to avoid circular mock issues
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const actualFs = require('fs') as typeof import('fs');
 
 // Mock existsSync to return true by default
@@ -104,4 +103,4 @@ export const readv = actualFs.readv;
 export default {
   ...actualFs,
   existsSync,
-};
+} as typeof actualFs;

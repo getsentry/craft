@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi } from 'vitest';
 import { setGlobals } from '../../utils/helpers';
 import { filterAsync, forEachChained, withRetry, sleep } from '../async';
 import { logger } from '../../logger';
@@ -8,7 +8,7 @@ vi.mock('../../logger');
 import { retrySpawnProcess } from '../async';
 import { spawnProcess } from '../system';
 
-vi.mock('../system', async (importOriginal) => {
+vi.mock('../system', async importOriginal => {
   const actual = await importOriginal<typeof import('../system')>();
   return {
     ...actual,
@@ -46,7 +46,7 @@ describe('retrySpawnProcess', () => {
           maxRetries: numRetries,
           retryDelay: delay,
           retryExpFactor: expFactor,
-        }
+        },
       );
     } catch (error) {
       const endTime = new Date().getTime();
@@ -81,7 +81,7 @@ describe('filterAsync', () => {
 
     const predicate = (i: number) =>
       new Promise<boolean>(resolve =>
-        setTimeout(() => resolve(i > 2), i * 100)
+        setTimeout(() => resolve(i > 2), i * 100),
       );
     const filtered = await filterAsync([1, 2, 3, 4], predicate);
     expect(filtered).toEqual([3, 4]);
@@ -106,7 +106,7 @@ describe('filterAsync', () => {
       function predicate(): any {
         expect(this).toBe(that);
       },
-      that
+      that,
     );
   });
 });
@@ -133,7 +133,7 @@ describe('forEachChained', () => {
     const arr = [500, 300, 100];
 
     fun.mockImplementation(
-      timeout => new Promise(resolve => setTimeout(resolve, timeout))
+      timeout => new Promise(resolve => setTimeout(resolve, timeout)),
     );
 
     await forEachChained(arr, fun);
@@ -153,7 +153,7 @@ describe('forEachChained', () => {
       function action(): void {
         expect(this).toBe(that);
       },
-      that
+      that,
     );
   });
 
@@ -181,7 +181,7 @@ describe('forEachChained', () => {
     }
 
     async function regularModeExpectCheck(
-      iteratee: (entry: string) => string | Promise<string>
+      iteratee: (entry: string) => string | Promise<string>,
     ): Promise<void> {
       expect.assertions(3);
 
@@ -189,29 +189,29 @@ describe('forEachChained', () => {
       // problematic entry
       await expect(forEachChained(arr, iteratee)).rejects.toThrowError('drat');
       expect(logger.debug).toHaveBeenCalledWith(
-        'Processing array entry `second`'
+        'Processing array entry `second`',
       );
 
       // we didn't get this far
       expect(logger.debug).not.toHaveBeenCalledWith(
-        'Processing array entry `third`'
+        'Processing array entry `third`',
       );
     }
 
     async function dryrunModeExpectCheck(
-      iteratee: (entry: string) => string | Promise<string>
+      iteratee: (entry: string) => string | Promise<string>,
     ): Promise<void> {
       expect.assertions(3);
 
       // check that it logs the error rather than throws it
       await expect(forEachChained(arr, iteratee)).resolves.not.toThrowError();
       expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('drat')
+        expect.stringContaining('drat'),
       );
 
       // check that it's gotten all the way through the array
       expect(logger.debug).toHaveBeenCalledWith(
-        'Processing array entry `fourth`'
+        'Processing array entry `fourth`',
       );
     }
 
@@ -257,7 +257,7 @@ describe('withRetry', () => {
       throw new Error('I always fail');
     };
     await expect(withRetry(fn)).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[RetryError: Max retries reached: 3]`
+      `[RetryError: Max retries reached: 3]`,
     );
   });
 
@@ -283,8 +283,10 @@ describe('withRetry', () => {
       return 'success';
     };
     await expect(
-      withRetry(fn, 5, () => Promise.resolve(false))
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`[RetryError: Cancelled retry]`);
+      withRetry(fn, 5, () => Promise.resolve(false)),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(
+      `[RetryError: Cancelled retry]`,
+    );
   });
 
   test('fails when onRetry throws', async () => {
@@ -297,7 +299,9 @@ describe('withRetry', () => {
       return 'success';
     };
     await expect(
-      withRetry(fn, 5, () => Promise.reject(new Error('no retries')))
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`[RetryError: Cancelled retry]`);
+      withRetry(fn, 5, () => Promise.reject(new Error('no retries'))),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(
+      `[RetryError: Cancelled retry]`,
+    );
   });
 });

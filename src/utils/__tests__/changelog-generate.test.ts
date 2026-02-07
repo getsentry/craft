@@ -1,10 +1,4 @@
-import {
-  vi,
-  type Mock,
-  type MockInstance,
-  type Mocked,
-  type MockedFunction,
-} from 'vitest';
+import { vi, type Mock, type MockedFunction } from 'vitest';
 /**
  * Tests for generateChangesetFromGit - the main changelog generation function.
  * Uses snapshot testing for output validation to reduce test file size.

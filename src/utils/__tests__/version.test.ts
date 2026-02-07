@@ -1,6 +1,3 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
-
-
 import {
   getPackage,
   getVersion,
@@ -140,7 +137,7 @@ describe('isPreviewRelease', () => {
     'accepts semver preview release',
     previewSuffix => {
       expect(isPreviewRelease(`2.3.4-${previewSuffix}1`)).toBe(true);
-    }
+    },
   );
 
   test('accepts Python-style preview release', () => {
@@ -166,7 +163,7 @@ describe('versionGreaterOrEqualThan', () => {
     minor: number,
     patch: number,
     pre?: string,
-    build?: string
+    build?: string,
   ): SemVer {
     return { major, minor, patch, pre, build };
   }
@@ -206,7 +203,6 @@ describe('versionGreaterOrEqualThan', () => {
   });
 
   test('can compare pre parts', () => {
-     
     const v1 = parseVersion('1.2.3-1')!;
     const v2 = parseVersion('1.2.3-2')!;
     expect(versionGreaterOrEqualThan(v1, v2)).toBe(false);
@@ -257,6 +253,6 @@ describe('semVerToString', () => {
     'converts a SemVer object (%s) to a string',
     (_, semver, expectedString) => {
       expect(semVerToString(semver)).toBe(expectedString);
-    }
+    },
   );
 });
