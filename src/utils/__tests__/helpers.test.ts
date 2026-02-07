@@ -1,4 +1,3 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { envToBool } from '../helpers';
 
 describe('envToBool', () =>
@@ -18,5 +17,5 @@ describe('envToBool', () =>
     ['yes', true],
     ['dogs are great!', true],
   ])('From %j we should get "%s"', (envVar, result) =>
-    expect(envToBool(envVar)).toBe(result)
+    expect(envToBool(envVar)).toBe(result),
   ));

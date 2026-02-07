@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi, type MockInstance } from 'vitest';
 import {
   getPublishTag,
   getLatestVersion,
@@ -29,14 +29,14 @@ describe('getLatestVersion', () => {
   it('returns undefined if package name does not exist', async () => {
     const actual = await getLatestVersion(
       'sentry-xx-this-does-not-exist',
-      defaultNpmConfig
+      defaultNpmConfig,
     );
     expect(actual).toEqual(undefined);
     expect(spawnProcessMock).toBeCalledTimes(1);
     expect(spawnProcessMock).toBeCalledWith(
       'npm',
       ['info', 'sentry-xx-this-does-not-exist', 'version'],
-      expect.objectContaining({})
+      expect.objectContaining({}),
     );
   });
 
@@ -44,7 +44,7 @@ describe('getLatestVersion', () => {
     spawnProcessMock = vi
       .spyOn(system, 'spawnProcess')
       .mockImplementation(() =>
-        Promise.resolve(Buffer.from('7.20.0\n', 'utf-8'))
+        Promise.resolve(Buffer.from('7.20.0\n', 'utf-8')),
       );
     const actual = await getLatestVersion('@sentry/browser', defaultNpmConfig);
     expect(actual).toBe('7.20.0');
@@ -52,7 +52,7 @@ describe('getLatestVersion', () => {
     expect(spawnProcessMock).toBeCalledWith(
       'npm',
       ['info', '@sentry/browser', 'version'],
-      expect.objectContaining({})
+      expect.objectContaining({}),
     );
   });
 });
@@ -78,7 +78,7 @@ describe('getPublishTag', () => {
       '1.0.0',
       undefined,
       defaultNpmConfig,
-      logger
+      logger,
     );
     expect(actual).toEqual(undefined);
     expect(logger.warn).not.toHaveBeenCalled();
@@ -93,12 +93,12 @@ describe('getPublishTag', () => {
       '1.0.0',
       'sentry-xx-does-not-exist',
       defaultNpmConfig,
-      logger
+      logger,
     );
     expect(actual).toEqual(undefined);
     expect(logger.warn).toHaveBeenCalledTimes(1);
     expect(logger.warn).toHaveBeenCalledWith(
-      'Could not fetch current version for package sentry-xx-does-not-exist'
+      'Could not fetch current version for package sentry-xx-does-not-exist',
     );
     expect(spawnProcessMock).toBeCalledTimes(1);
   });
@@ -107,7 +107,7 @@ describe('getPublishTag', () => {
     spawnProcessMock = vi
       .spyOn(system, 'spawnProcess')
       .mockImplementation(() =>
-        Promise.resolve(Buffer.from('weird-version', 'utf-8'))
+        Promise.resolve(Buffer.from('weird-version', 'utf-8')),
       );
 
     const logger = {
@@ -117,12 +117,12 @@ describe('getPublishTag', () => {
       '1.0.0',
       '@sentry/browser',
       defaultNpmConfig,
-      logger
+      logger,
     );
     expect(actual).toEqual(undefined);
     expect(logger.warn).toHaveBeenCalledTimes(1);
     expect(logger.warn).toHaveBeenCalledWith(
-      'Could not fetch current version for package @sentry/browser'
+      'Could not fetch current version for package @sentry/browser',
     );
     expect(spawnProcessMock).toBeCalledTimes(1);
   });
@@ -135,15 +135,15 @@ describe('getPublishTag', () => {
       '1.0.0-alpha.1',
       undefined,
       defaultNpmConfig,
-      logger
+      logger,
     );
     expect(actual).toBe('next');
     expect(logger.warn).toHaveBeenCalledTimes(2);
     expect(logger.warn).toHaveBeenCalledWith(
-      'Detected pre-release version for npm package!'
+      'Detected pre-release version for npm package!',
     );
     expect(logger.warn).toHaveBeenCalledWith(
-      'Adding tag "next" to not make it "latest" in registry.'
+      'Adding tag "next" to not make it "latest" in registry.',
     );
     expect(spawnProcessMock).not.toBeCalled();
   });
@@ -152,7 +152,7 @@ describe('getPublishTag', () => {
     spawnProcessMock = vi
       .spyOn(system, 'spawnProcess')
       .mockImplementation(() =>
-        Promise.resolve(Buffer.from('7.20.0\n', 'utf-8'))
+        Promise.resolve(Buffer.from('7.20.0\n', 'utf-8')),
       );
 
     const logger = {
@@ -163,17 +163,17 @@ describe('getPublishTag', () => {
       '1.0.0',
       '@sentry/browser',
       defaultNpmConfig,
-      logger
+      logger,
     );
     expect(actual).toBe('old');
     expect(logger.warn).toHaveBeenCalledTimes(2);
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringMatching(
-        /Detected older version than currently published version \(([\d.]+)\) for @sentry\/browser/
-      )
+        /Detected older version than currently published version \(([\d.]+)\) for @sentry\/browser/,
+      ),
     );
     expect(logger.warn).toHaveBeenCalledWith(
-      'Adding tag "old" to not make it "latest" in registry.'
+      'Adding tag "old" to not make it "latest" in registry.',
     );
     expect(spawnProcessMock).toBeCalledTimes(1);
   });
@@ -226,7 +226,7 @@ describe('NpmTarget.expand', () => {
     const config = { name: 'npm', workspaces: true };
 
     await expect(NpmTarget.expand(config, '/root')).rejects.toThrow(
-      /Public package "@sentry\/browser" depends on private workspace package\(s\): @sentry-internal\/utils/
+      /Public package "@sentry\/browser" depends on private workspace package\(s\): @sentry-internal\/utils/,
     );
   });
 

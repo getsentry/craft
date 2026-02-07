@@ -1,4 +1,3 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { parseCanonical } from '../packagePath';
 
 describe('parseCanonical', () => {

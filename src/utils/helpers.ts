@@ -9,22 +9,35 @@ export function envToBool(envVar: unknown): boolean {
   return !FALSY_ENV_VALUES.has(normalized);
 }
 
-interface GlobalFlags {
-  [flag: string]: any;
+export interface GlobalFlags {
+  [flag: string]: unknown;
+  'dry-run'?: boolean;
+  'no-input'?: boolean;
+  'log-level'?: keyof typeof LogLevel;
+}
+
+/** Internal type with required values (initialized with defaults) */
+interface InternalGlobalFlags {
   'dry-run': boolean;
   'no-input': boolean;
   'log-level': keyof typeof LogLevel;
 }
 
-const GLOBAL_FLAGS: GlobalFlags = {
+const GLOBAL_FLAGS: InternalGlobalFlags = {
   'dry-run': false,
   'no-input': false,
   'log-level': 'Info',
 };
 
 export function setGlobals(argv: GlobalFlags): void {
-  for (const globalFlag of Object.keys(GLOBAL_FLAGS)) {
-    GLOBAL_FLAGS[globalFlag] = argv[globalFlag];
+  if (argv['dry-run'] !== undefined) {
+    GLOBAL_FLAGS['dry-run'] = argv['dry-run'];
+  }
+  if (argv['no-input'] !== undefined) {
+    GLOBAL_FLAGS['no-input'] = argv['no-input'];
+  }
+  if (argv['log-level'] !== undefined) {
+    GLOBAL_FLAGS['log-level'] = argv['log-level'];
   }
   logger.trace('Global flags:', GLOBAL_FLAGS);
   setLevel(LogLevel[GLOBAL_FLAGS['log-level']]);
@@ -78,7 +91,7 @@ export function setGitHubActionsOutput(name: string, value: string): void {
     const delimiter = `EOF_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     appendFileSync(
       outputFile,
-      `${name}<<${delimiter}\n${value}\n${delimiter}\n`
+      `${name}<<${delimiter}\n${value}\n${delimiter}\n`,
     );
   } else {
     appendFileSync(outputFile, `${name}=${value}\n`);

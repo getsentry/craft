@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach, afterEach, afterAll, type Mock, type Mocked } from 'vitest';
+import { vi, type Mocked } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 
@@ -13,7 +13,7 @@ import {
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import * as system from '../../utils/system';
 
-vi.mock('../../utils/system', async (importOriginal) => {
+vi.mock('../../utils/system', async importOriginal => {
   const actual = await importOriginal<typeof system>();
   return {
     ...actual,
@@ -147,14 +147,14 @@ describe('normalizeImageRef', () => {
   it('throws ConfigurationError when source is missing', () => {
     const config = { target: 'getsentry/craft' };
     expect(() => normalizeImageRef(config, 'source')).toThrow(
-      "Docker target requires a 'source' property. Please specify the source image."
+      "Docker target requires a 'source' property. Please specify the source image.",
     );
   });
 
   it('throws ConfigurationError when target is missing', () => {
     const config = { source: 'ghcr.io/org/image' };
     expect(() => normalizeImageRef(config, 'target')).toThrow(
-      "Docker target requires a 'target' property. Please specify the target image."
+      "Docker target requires a 'target' property. Please specify the target image.",
     );
   });
 });
@@ -184,7 +184,7 @@ describe('extractRegistry', () => {
 
   it('extracts other registries with dots', () => {
     expect(extractRegistry('registry.example.com/image')).toBe(
-      'registry.example.com'
+      'registry.example.com',
     );
   });
 
@@ -201,7 +201,7 @@ describe('extractRegistry', () => {
   it('extracts registries with ports', () => {
     expect(extractRegistry('localhost:5000/image')).toBe('localhost:5000');
     expect(extractRegistry('myregistry:8080/user/image')).toBe(
-      'myregistry:8080'
+      'myregistry:8080',
     );
   });
 });
@@ -223,7 +223,7 @@ describe('registryToEnvPrefix', () => {
 
   it('handles hyphens in registry names', () => {
     expect(registryToEnvPrefix('my-registry.example.com')).toBe(
-      'MY_REGISTRY_EXAMPLE_COM'
+      'MY_REGISTRY_EXAMPLE_COM',
     );
   });
 
@@ -255,7 +255,9 @@ describe('isGoogleCloudRegistry', () => {
     expect(isGoogleCloudRegistry('us-east4-docker.pkg.dev')).toBe(true);
     expect(isGoogleCloudRegistry('europe-west1-docker.pkg.dev')).toBe(true);
     expect(isGoogleCloudRegistry('asia-east1-docker.pkg.dev')).toBe(true);
-    expect(isGoogleCloudRegistry('australia-southeast1-docker.pkg.dev')).toBe(true);
+    expect(isGoogleCloudRegistry('australia-southeast1-docker.pkg.dev')).toBe(
+      true,
+    );
   });
 
   it('returns false for non-Google registries', () => {
@@ -288,7 +290,7 @@ describe('hasGcloudCredentials', () => {
   it('returns true when GOOGLE_APPLICATION_CREDENTIALS points to existing file', () => {
     process.env.GOOGLE_APPLICATION_CREDENTIALS = '/path/to/creds.json';
     vi.mocked(mockFs.existsSync).mockImplementation(
-      (p: fs.PathLike) => p === '/path/to/creds.json'
+      (p: fs.PathLike) => p === '/path/to/creds.json',
     );
 
     expect(hasGcloudCredentials()).toBe(true);
@@ -297,7 +299,7 @@ describe('hasGcloudCredentials', () => {
   it('returns true when GOOGLE_GHA_CREDS_PATH points to existing file', () => {
     process.env.GOOGLE_GHA_CREDS_PATH = '/tmp/gha-creds.json';
     vi.mocked(mockFs.existsSync).mockImplementation(
-      (p: fs.PathLike) => p === '/tmp/gha-creds.json'
+      (p: fs.PathLike) => p === '/tmp/gha-creds.json',
     );
 
     expect(hasGcloudCredentials()).toBe(true);
@@ -306,7 +308,7 @@ describe('hasGcloudCredentials', () => {
   it('returns true when CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE points to existing file', () => {
     process.env.CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE = '/override/creds.json';
     vi.mocked(mockFs.existsSync).mockImplementation(
-      (p: fs.PathLike) => p === '/override/creds.json'
+      (p: fs.PathLike) => p === '/override/creds.json',
     );
 
     expect(hasGcloudCredentials()).toBe(true);
@@ -315,7 +317,7 @@ describe('hasGcloudCredentials', () => {
   it('returns true when default ADC file exists', () => {
     vi.mocked(mockFs.existsSync).mockImplementation(
       (p: fs.PathLike) =>
-        p === '/home/user/.config/gcloud/application_default_credentials.json'
+        p === '/home/user/.config/gcloud/application_default_credentials.json',
     );
 
     expect(hasGcloudCredentials()).toBe(true);
@@ -365,11 +367,15 @@ describe('DockerTarget', () => {
             usernameVar: 'MY_USER',
             passwordVar: 'MY_PASS',
           },
-          new NoneArtifactProvider()
+          new NoneArtifactProvider(),
         );
 
-        expect(target.dockerConfig.target.credentials!.username).toBe('custom-user');
-        expect(target.dockerConfig.target.credentials!.password).toBe('custom-pass');
+        expect(target.dockerConfig.target.credentials!.username).toBe(
+          'custom-user',
+        );
+        expect(target.dockerConfig.target.credentials!.password).toBe(
+          'custom-pass',
+        );
       });
 
       it('throws if only usernameVar is specified', () => {
@@ -384,9 +390,11 @@ describe('DockerTarget', () => {
                 target: 'ghcr.io/org/image',
                 usernameVar: 'MY_USER',
               },
-              new NoneArtifactProvider()
-            )
-        ).toThrow('Both usernameVar and passwordVar must be specified together');
+              new NoneArtifactProvider(),
+            ),
+        ).toThrow(
+          'Both usernameVar and passwordVar must be specified together',
+        );
       });
 
       it('throws if only passwordVar is specified', () => {
@@ -401,9 +409,11 @@ describe('DockerTarget', () => {
                 target: 'ghcr.io/org/image',
                 passwordVar: 'MY_PASS',
               },
-              new NoneArtifactProvider()
-            )
-        ).toThrow('Both usernameVar and passwordVar must be specified together');
+              new NoneArtifactProvider(),
+            ),
+        ).toThrow(
+          'Both usernameVar and passwordVar must be specified together',
+        );
       });
 
       it('throws if explicit env vars are not set (no fallback)', () => {
@@ -421,10 +431,10 @@ describe('DockerTarget', () => {
                 usernameVar: 'NONEXISTENT_USER',
                 passwordVar: 'NONEXISTENT_PASS',
               },
-              new NoneArtifactProvider()
-            )
+              new NoneArtifactProvider(),
+            ),
         ).toThrow(
-          'Missing credentials: NONEXISTENT_USER and/or NONEXISTENT_PASS environment variable(s) not set'
+          'Missing credentials: NONEXISTENT_USER and/or NONEXISTENT_PASS environment variable(s) not set',
         );
       });
     });
@@ -442,11 +452,15 @@ describe('DockerTarget', () => {
             source: 'ghcr.io/org/image',
             target: 'ghcr.io/org/image',
           },
-          new NoneArtifactProvider()
+          new NoneArtifactProvider(),
         );
 
-        expect(target.dockerConfig.target.credentials!.username).toBe('ghcr-user');
-        expect(target.dockerConfig.target.credentials!.password).toBe('ghcr-pass');
+        expect(target.dockerConfig.target.credentials!.username).toBe(
+          'ghcr-user',
+        );
+        expect(target.dockerConfig.target.credentials!.password).toBe(
+          'ghcr-pass',
+        );
       });
 
       it('falls back to GHCR defaults (GITHUB_ACTOR/GITHUB_TOKEN) for ghcr.io', () => {
@@ -459,11 +473,15 @@ describe('DockerTarget', () => {
             source: 'ghcr.io/org/image',
             target: 'ghcr.io/org/image',
           },
-          new NoneArtifactProvider()
+          new NoneArtifactProvider(),
         );
 
-        expect(target.dockerConfig.target.credentials!.username).toBe('github-actor');
-        expect(target.dockerConfig.target.credentials!.password).toBe('github-token');
+        expect(target.dockerConfig.target.credentials!.username).toBe(
+          'github-actor',
+        );
+        expect(target.dockerConfig.target.credentials!.password).toBe(
+          'github-token',
+        );
       });
 
       it('falls back to GITHUB_API_TOKEN for ghcr.io when GITHUB_TOKEN is not set', () => {
@@ -476,11 +494,15 @@ describe('DockerTarget', () => {
             source: 'ghcr.io/org/image',
             target: 'ghcr.io/org/image',
           },
-          new NoneArtifactProvider()
+          new NoneArtifactProvider(),
         );
 
-        expect(target.dockerConfig.target.credentials!.username).toBe('github-actor');
-        expect(target.dockerConfig.target.credentials!.password).toBe('github-api-token');
+        expect(target.dockerConfig.target.credentials!.username).toBe(
+          'github-actor',
+        );
+        expect(target.dockerConfig.target.credentials!.password).toBe(
+          'github-api-token',
+        );
       });
 
       it('falls back to x-access-token username for ghcr.io when GITHUB_ACTOR is not set', () => {
@@ -492,11 +514,15 @@ describe('DockerTarget', () => {
             source: 'ghcr.io/org/image',
             target: 'ghcr.io/org/image',
           },
-          new NoneArtifactProvider()
+          new NoneArtifactProvider(),
         );
 
-        expect(target.dockerConfig.target.credentials!.username).toBe('x-access-token');
-        expect(target.dockerConfig.target.credentials!.password).toBe('github-token');
+        expect(target.dockerConfig.target.credentials!.username).toBe(
+          'x-access-token',
+        );
+        expect(target.dockerConfig.target.credentials!.password).toBe(
+          'github-token',
+        );
       });
 
       it('falls back to x-access-token username for ghcr.io when GITHUB_ACTOR is empty', () => {
@@ -509,11 +535,15 @@ describe('DockerTarget', () => {
             source: 'ghcr.io/org/image',
             target: 'ghcr.io/org/image',
           },
-          new NoneArtifactProvider()
+          new NoneArtifactProvider(),
         );
 
-        expect(target.dockerConfig.target.credentials!.username).toBe('x-access-token');
-        expect(target.dockerConfig.target.credentials!.password).toBe('github-token');
+        expect(target.dockerConfig.target.credentials!.username).toBe(
+          'x-access-token',
+        );
+        expect(target.dockerConfig.target.credentials!.password).toBe(
+          'github-token',
+        );
       });
 
       it('uses x-access-token and GITHUB_API_TOKEN for ghcr.io (app token scenario)', () => {
@@ -526,11 +556,15 @@ describe('DockerTarget', () => {
             source: 'ghcr.io/org/image',
             target: 'ghcr.io/org/image',
           },
-          new NoneArtifactProvider()
+          new NoneArtifactProvider(),
         );
 
-        expect(target.dockerConfig.target.credentials!.username).toBe('x-access-token');
-        expect(target.dockerConfig.target.credentials!.password).toBe('release-bot-token');
+        expect(target.dockerConfig.target.credentials!.username).toBe(
+          'x-access-token',
+        );
+        expect(target.dockerConfig.target.credentials!.password).toBe(
+          'release-bot-token',
+        );
       });
 
       it('uses default DOCKER_* env vars for Docker Hub', () => {
@@ -543,12 +577,18 @@ describe('DockerTarget', () => {
             source: 'ghcr.io/org/image',
             target: 'getsentry/craft',
           },
-          new NoneArtifactProvider()
+          new NoneArtifactProvider(),
         );
 
-        expect(target.dockerConfig.target.credentials!.username).toBe('dockerhub-user');
-        expect(target.dockerConfig.target.credentials!.password).toBe('dockerhub-pass');
-        expect(target.dockerConfig.target.credentials!.registry).toBeUndefined();
+        expect(target.dockerConfig.target.credentials!.username).toBe(
+          'dockerhub-user',
+        );
+        expect(target.dockerConfig.target.credentials!.password).toBe(
+          'dockerhub-pass',
+        );
+        expect(
+          target.dockerConfig.target.credentials!.registry,
+        ).toBeUndefined();
       });
 
       it('treats docker.io as Docker Hub and uses default credentials', () => {
@@ -561,12 +601,18 @@ describe('DockerTarget', () => {
             source: 'ghcr.io/org/image',
             target: 'docker.io/getsentry/craft',
           },
-          new NoneArtifactProvider()
+          new NoneArtifactProvider(),
         );
 
-        expect(target.dockerConfig.target.credentials!.username).toBe('dockerhub-user');
-        expect(target.dockerConfig.target.credentials!.password).toBe('dockerhub-pass');
-        expect(target.dockerConfig.target.credentials!.registry).toBeUndefined();
+        expect(target.dockerConfig.target.credentials!.username).toBe(
+          'dockerhub-user',
+        );
+        expect(target.dockerConfig.target.credentials!.password).toBe(
+          'dockerhub-pass',
+        );
+        expect(
+          target.dockerConfig.target.credentials!.registry,
+        ).toBeUndefined();
       });
 
       it('treats index.docker.io as Docker Hub and uses default credentials', () => {
@@ -579,12 +625,18 @@ describe('DockerTarget', () => {
             source: 'ghcr.io/org/image',
             target: 'index.docker.io/getsentry/craft',
           },
-          new NoneArtifactProvider()
+          new NoneArtifactProvider(),
         );
 
-        expect(target.dockerConfig.target.credentials!.username).toBe('dockerhub-user');
-        expect(target.dockerConfig.target.credentials!.password).toBe('dockerhub-pass');
-        expect(target.dockerConfig.target.credentials!.registry).toBeUndefined();
+        expect(target.dockerConfig.target.credentials!.username).toBe(
+          'dockerhub-user',
+        );
+        expect(target.dockerConfig.target.credentials!.password).toBe(
+          'dockerhub-pass',
+        );
+        expect(
+          target.dockerConfig.target.credentials!.registry,
+        ).toBeUndefined();
       });
 
       it('falls back to DOCKER_* when registry-specific vars are not set', () => {
@@ -597,11 +649,15 @@ describe('DockerTarget', () => {
             source: 'ghcr.io/org/image',
             target: 'gcr.io/project/image',
           },
-          new NoneArtifactProvider()
+          new NoneArtifactProvider(),
         );
 
-        expect(target.dockerConfig.target.credentials!.username).toBe('default-user');
-        expect(target.dockerConfig.target.credentials!.password).toBe('default-pass');
+        expect(target.dockerConfig.target.credentials!.username).toBe(
+          'default-user',
+        );
+        expect(target.dockerConfig.target.credentials!.password).toBe(
+          'default-pass',
+        );
       });
 
       it('falls back to DOCKER_* when registry-specific vars are empty strings', () => {
@@ -616,11 +672,15 @@ describe('DockerTarget', () => {
             source: 'ghcr.io/org/image',
             target: 'gcr.io/project/image',
           },
-          new NoneArtifactProvider()
+          new NoneArtifactProvider(),
         );
 
-        expect(target.dockerConfig.target.credentials!.username).toBe('default-user');
-        expect(target.dockerConfig.target.credentials!.password).toBe('default-pass');
+        expect(target.dockerConfig.target.credentials!.username).toBe(
+          'default-user',
+        );
+        expect(target.dockerConfig.target.credentials!.password).toBe(
+          'default-pass',
+        );
       });
 
       it('throws when no credentials are available', () => {
@@ -632,8 +692,8 @@ describe('DockerTarget', () => {
                 source: 'ghcr.io/org/image',
                 target: 'getsentry/craft',
               },
-              new NoneArtifactProvider()
-            )
+              new NoneArtifactProvider(),
+            ),
         ).toThrow('Cannot perform Docker release: missing credentials');
       });
 
@@ -647,8 +707,8 @@ describe('DockerTarget', () => {
                 source: 'ghcr.io/org/image',
                 target: 'custom.registry.io/project/image',
               },
-              new NoneArtifactProvider()
-            )
+              new NoneArtifactProvider(),
+            ),
         ).toThrow('DOCKER_CUSTOM_REGISTRY_IO_USERNAME/PASSWORD');
       });
     });
@@ -665,12 +725,16 @@ describe('DockerTarget', () => {
             target: 'us.gcr.io/project/image',
             registry: 'gcr.io', // Override to share creds across regions
           },
-          new NoneArtifactProvider()
+          new NoneArtifactProvider(),
         );
 
         expect(target.dockerConfig.target.credentials!.registry).toBe('gcr.io');
-        expect(target.dockerConfig.target.credentials!.username).toBe('gcr-user');
-        expect(target.dockerConfig.target.credentials!.password).toBe('gcr-pass');
+        expect(target.dockerConfig.target.credentials!.username).toBe(
+          'gcr-user',
+        );
+        expect(target.dockerConfig.target.credentials!.password).toBe(
+          'gcr-pass',
+        );
       });
     });
   });
@@ -688,18 +752,26 @@ describe('DockerTarget', () => {
           source: 'ghcr.io/org/image',
           target: 'getsentry/craft',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       // Target should use Docker Hub credentials
-      expect(target.dockerConfig.target.credentials!.username).toBe('dockerhub-user');
-      expect(target.dockerConfig.target.credentials!.password).toBe('dockerhub-pass');
+      expect(target.dockerConfig.target.credentials!.username).toBe(
+        'dockerhub-user',
+      );
+      expect(target.dockerConfig.target.credentials!.password).toBe(
+        'dockerhub-pass',
+      );
       expect(target.dockerConfig.target.credentials!.registry).toBeUndefined();
 
       // Source should use GHCR credentials
       expect(target.dockerConfig.source.credentials).toBeDefined();
-      expect(target.dockerConfig.source.credentials?.username).toBe('ghcr-user');
-      expect(target.dockerConfig.source.credentials?.password).toBe('ghcr-pass');
+      expect(target.dockerConfig.source.credentials?.username).toBe(
+        'ghcr-user',
+      );
+      expect(target.dockerConfig.source.credentials?.password).toBe(
+        'ghcr-pass',
+      );
       expect(target.dockerConfig.source.credentials?.registry).toBe('ghcr.io');
     });
 
@@ -713,7 +785,7 @@ describe('DockerTarget', () => {
           source: 'ghcr.io/org/source-image',
           target: 'ghcr.io/org/target-image',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       expect(target.dockerConfig.source.credentials).toBeUndefined();
@@ -733,11 +805,15 @@ describe('DockerTarget', () => {
           sourceUsernameVar: 'MY_SOURCE_USER',
           sourcePasswordVar: 'MY_SOURCE_PASS',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
-      expect(target.dockerConfig.source.credentials?.username).toBe('source-user');
-      expect(target.dockerConfig.source.credentials?.password).toBe('source-pass');
+      expect(target.dockerConfig.source.credentials?.username).toBe(
+        'source-user',
+      );
+      expect(target.dockerConfig.source.credentials?.password).toBe(
+        'source-pass',
+      );
     });
 
     it('throws if only sourceUsernameVar is specified', () => {
@@ -754,8 +830,8 @@ describe('DockerTarget', () => {
               target: 'getsentry/craft',
               sourceUsernameVar: 'MY_SOURCE_USER',
             },
-            new NoneArtifactProvider()
-          )
+            new NoneArtifactProvider(),
+          ),
       ).toThrow('Both usernameVar and passwordVar must be specified together');
     });
 
@@ -770,7 +846,7 @@ describe('DockerTarget', () => {
           source: 'ghcr.io/org/public-image',
           target: 'getsentry/craft',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       // Should not throw, source credentials are optional
@@ -790,7 +866,7 @@ describe('DockerTarget', () => {
           target: 'getsentry/craft',
           sourceRegistry: 'gcr.io', // Use gcr.io creds for us.gcr.io
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       expect(target.dockerConfig.source.credentials?.registry).toBe('gcr.io');
@@ -812,7 +888,7 @@ describe('DockerTarget', () => {
             image: 'ghcr.io/org/target-image',
           },
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       expect(target.dockerConfig.target.image).toBe('ghcr.io/org/target-image');
@@ -831,7 +907,7 @@ describe('DockerTarget', () => {
           },
           target: 'ghcr.io/org/target-image',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       expect(target.dockerConfig.source.image).toBe('ghcr.io/org/source-image');
@@ -853,7 +929,7 @@ describe('DockerTarget', () => {
             image: 'getsentry/craft',
           },
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       expect(target.dockerConfig.source.image).toBe('ghcr.io/org/source-image');
@@ -873,7 +949,7 @@ describe('DockerTarget', () => {
             registry: 'gcr.io', // Override to share creds across regions
           },
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       expect(target.dockerConfig.target.credentials!.registry).toBe('gcr.io');
@@ -894,11 +970,15 @@ describe('DockerTarget', () => {
             passwordVar: 'MY_TARGET_PASS',
           },
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
-      expect(target.dockerConfig.target.credentials!.username).toBe('target-user');
-      expect(target.dockerConfig.target.credentials!.password).toBe('target-pass');
+      expect(target.dockerConfig.target.credentials!.username).toBe(
+        'target-user',
+      );
+      expect(target.dockerConfig.target.credentials!.password).toBe(
+        'target-pass',
+      );
     });
 
     it('uses format from object config', () => {
@@ -917,14 +997,14 @@ describe('DockerTarget', () => {
             format: '{{{target}}}:v{{{version}}}',
           },
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       expect(target.dockerConfig.source.format).toBe(
-        '{{{source}}}:sha-{{{revision}}}'
+        '{{{source}}}:sha-{{{revision}}}',
       );
       expect(target.dockerConfig.target.format).toBe(
-        '{{{target}}}:v{{{version}}}'
+        '{{{target}}}:v{{{version}}}',
       );
     });
 
@@ -944,12 +1024,18 @@ describe('DockerTarget', () => {
           },
           target: 'getsentry/craft',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
-      expect(target.dockerConfig.source.credentials?.username).toBe('source-user');
-      expect(target.dockerConfig.source.credentials?.password).toBe('source-pass');
-      expect(target.dockerConfig.target.credentials!.username).toBe('dockerhub-user');
+      expect(target.dockerConfig.source.credentials?.username).toBe(
+        'source-user',
+      );
+      expect(target.dockerConfig.source.credentials?.password).toBe(
+        'source-pass',
+      );
+      expect(target.dockerConfig.target.credentials!.username).toBe(
+        'dockerhub-user',
+      );
     });
   });
 
@@ -964,7 +1050,7 @@ describe('DockerTarget', () => {
           source: 'ghcr.io/org/image',
           target: 'ghcr.io/org/image',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       await target.login();
@@ -973,7 +1059,7 @@ describe('DockerTarget', () => {
         'docker',
         ['login', '--username=user', '--password-stdin', 'ghcr.io'],
         {},
-        { stdin: 'pass' }
+        { stdin: 'pass' },
       );
     });
 
@@ -987,7 +1073,7 @@ describe('DockerTarget', () => {
           source: 'ghcr.io/org/image',
           target: 'getsentry/craft',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       await target.login();
@@ -996,7 +1082,7 @@ describe('DockerTarget', () => {
         'docker',
         ['login', '--username=user', '--password-stdin'],
         {},
-        { stdin: 'pass' }
+        { stdin: 'pass' },
       );
     });
 
@@ -1010,7 +1096,7 @@ describe('DockerTarget', () => {
           source: 'ghcr.io/org/image',
           target: 'getsentry/craft',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       await target.login();
@@ -1034,7 +1120,7 @@ describe('DockerTarget', () => {
           source: 'ghcr.io/org/image',
           target: 'getsentry/craft',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       await target.login();
@@ -1048,7 +1134,7 @@ describe('DockerTarget', () => {
         'docker',
         ['login', '--username=ghcr-user', '--password-stdin', 'ghcr.io'],
         {},
-        { stdin: 'ghcr-pass' }
+        { stdin: 'ghcr-pass' },
       );
 
       // Second call: login to target (Docker Hub)
@@ -1057,7 +1143,7 @@ describe('DockerTarget', () => {
         'docker',
         ['login', '--username=dockerhub-user', '--password-stdin'],
         {},
-        { stdin: 'dockerhub-pass' }
+        { stdin: 'dockerhub-pass' },
       );
     });
 
@@ -1072,7 +1158,7 @@ describe('DockerTarget', () => {
           source: 'ghcr.io/org/public-image',
           target: 'getsentry/craft',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       await target.login();
@@ -1083,7 +1169,7 @@ describe('DockerTarget', () => {
         'docker',
         ['login', '--username=dockerhub-user', '--password-stdin'],
         {},
-        { stdin: 'dockerhub-pass' }
+        { stdin: 'dockerhub-pass' },
       );
     });
 
@@ -1097,7 +1183,7 @@ describe('DockerTarget', () => {
           source: 'ghcr.io/org/source-image',
           target: 'ghcr.io/org/target-image',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       await target.login();
@@ -1108,7 +1194,7 @@ describe('DockerTarget', () => {
         'docker',
         ['login', '--username=ghcr-user', '--password-stdin', 'ghcr.io'],
         {},
-        { stdin: 'ghcr-pass' }
+        { stdin: 'ghcr-pass' },
       );
     });
 
@@ -1124,7 +1210,7 @@ describe('DockerTarget', () => {
             skipLogin: true, // Auth handled externally (e.g., gcloud workload identity)
           },
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       await target.login();
@@ -1146,7 +1232,7 @@ describe('DockerTarget', () => {
           },
           target: 'getsentry/craft',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       await target.login();
@@ -1157,7 +1243,7 @@ describe('DockerTarget', () => {
         'docker',
         ['login', '--username=dockerhub-user', '--password-stdin'],
         {},
-        { stdin: 'dockerhub-pass' }
+        { stdin: 'dockerhub-pass' },
       );
     });
 
@@ -1174,7 +1260,7 @@ describe('DockerTarget', () => {
             skipLogin: true,
           },
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       await target.login();
@@ -1194,7 +1280,7 @@ describe('DockerTarget', () => {
           source: 'ghcr.io/org/image',
           target: 'gcr.io/project/image',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       await target.login();
@@ -1204,7 +1290,7 @@ describe('DockerTarget', () => {
         'gcloud',
         ['auth', 'configure-docker', 'gcr.io', '--quiet'],
         {},
-        {}
+        {},
       );
     });
 
@@ -1218,7 +1304,7 @@ describe('DockerTarget', () => {
           source: 'ghcr.io/org/image',
           target: 'us-docker.pkg.dev/project/repo/image',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       await target.login();
@@ -1228,7 +1314,7 @@ describe('DockerTarget', () => {
         'gcloud',
         ['auth', 'configure-docker', 'us-docker.pkg.dev', '--quiet'],
         {},
-        {}
+        {},
       );
     });
 
@@ -1242,7 +1328,7 @@ describe('DockerTarget', () => {
           source: 'us.gcr.io/project/source',
           target: 'eu.gcr.io/project/target',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       await target.login();
@@ -1252,7 +1338,7 @@ describe('DockerTarget', () => {
         'gcloud',
         ['auth', 'configure-docker', 'us.gcr.io,eu.gcr.io', '--quiet'],
         {},
-        {}
+        {},
       );
     });
 
@@ -1270,7 +1356,7 @@ describe('DockerTarget', () => {
           source: 'gcr.io/project/image',
           target: 'getsentry/craft',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       await target.login();
@@ -1280,13 +1366,13 @@ describe('DockerTarget', () => {
         'gcloud',
         expect.any(Array),
         expect.any(Object),
-        expect.any(Object)
+        expect.any(Object),
       );
       expect(system.spawnProcess).toHaveBeenCalledWith(
         'docker',
         expect.arrayContaining(['login']),
         {},
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -1299,7 +1385,7 @@ describe('DockerTarget', () => {
           source: 'ghcr.io/org/image',
           target: 'gcr.io/project/image',
         },
-        new NoneArtifactProvider()
+        new NoneArtifactProvider(),
       );
 
       expect(target.dockerConfig.target.credentials).toBeUndefined();

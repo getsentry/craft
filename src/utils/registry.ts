@@ -77,7 +77,7 @@ export async function getPackageManifest(
   type: RegistryPackageType,
   canonicalName: string,
   version: string,
-  initialManifestData?: InitialManifestData
+  initialManifestData?: InitialManifestData,
 ): Promise<{ versionFilePath: string; packageManifest: any }> {
   const packageDirPath = getPackageDirPath(type, canonicalName);
   const fullPackageDir = path.join(baseDir, packageDirPath);
@@ -93,20 +93,23 @@ export async function getPackageManifest(
   if (!existsSync(packageManifestPath)) {
     if (!initialManifestData) {
       reportError(
-        `Package "${canonicalName}" does not exist in the registry and no initial manifest data was provided.`
+        `Package "${canonicalName}" does not exist in the registry and no initial manifest data was provided.`,
       );
+      // reportError throws in non-dry-run mode, but TypeScript doesn't know that
+      // This is unreachable in practice, but needed for type narrowing
+      throw new Error('Unreachable');
     }
 
     // Create directory structure if it doesn't exist
     if (!existsSync(fullPackageDir)) {
       logger.info(
-        `Creating new package directory for "${canonicalName}" at "${packageDirPath}"...`
+        `Creating new package directory for "${canonicalName}" at "${packageDirPath}"...`,
       );
       mkdirSync(fullPackageDir, { recursive: true });
     }
 
     logger.info(
-      `Creating initial manifest for new package "${canonicalName}"...`
+      `Creating initial manifest for new package "${canonicalName}"...`,
     );
     return {
       versionFilePath,
@@ -119,7 +122,7 @@ export async function getPackageManifest(
     versionFilePath,
     packageManifest:
       JSON.parse(
-        await fsPromises.readFile(packageManifestPath, { encoding: 'utf-8' })
+        await fsPromises.readFile(packageManifestPath, { encoding: 'utf-8' }),
       ) || {},
   };
 }
@@ -137,7 +140,7 @@ export async function updateManifestSymlinks(
   updatedManifest: unknown,
   version: string,
   versionFilePath: string,
-  previousVersion: string
+  previousVersion: string,
 ): Promise<void> {
   const manifestString = JSON.stringify(updatedManifest, undefined, 2) + '\n';
   logger.trace('Updated manifest', manifestString);
@@ -148,5 +151,5 @@ export async function updateManifestSymlinks(
 
 export const DEFAULT_REGISTRY_REMOTE = new GitHubRemote(
   'getsentry',
-  'sentry-release-registry'
+  'sentry-release-registry',
 );

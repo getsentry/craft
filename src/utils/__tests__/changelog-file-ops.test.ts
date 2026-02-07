@@ -1,14 +1,9 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 /**
  * Tests for changelog file operations: findChangeset, removeChangeset, prependChangeset.
  * These functions work with CHANGELOG.md file content.
  */
 
-import {
-  findChangeset,
-  removeChangeset,
-  prependChangeset,
-} from '../changelog';
+import { findChangeset, removeChangeset, prependChangeset } from '../changelog';
 import {
   SAMPLE_CHANGESET,
   SAMPLE_CHANGESET_WITH_SUBHEADING,
@@ -25,7 +20,10 @@ describe('findChangeset', () => {
       'with date in parentheses',
       createFullChangelog('Changelog', [
         { version: '1.0.1', body: 'newer' },
-        { version: `${SAMPLE_CHANGESET.name} (2019-02-02)`, body: SAMPLE_CHANGESET.body },
+        {
+          version: `${SAMPLE_CHANGESET.name} (2019-02-02)`,
+          body: SAMPLE_CHANGESET.body,
+        },
         { version: '0.9.0', body: 'older' },
       ]),
     ],
@@ -47,9 +45,14 @@ describe('findChangeset', () => {
 
   test('supports sub-headings within version section', () => {
     const markdown = createFullChangelog('Changelog', [
-      { version: SAMPLE_CHANGESET_WITH_SUBHEADING.name, body: SAMPLE_CHANGESET_WITH_SUBHEADING.body },
+      {
+        version: SAMPLE_CHANGESET_WITH_SUBHEADING.name,
+        body: SAMPLE_CHANGESET_WITH_SUBHEADING.body,
+      },
     ]);
-    expect(findChangeset(markdown, 'v1.0.0')).toEqual(SAMPLE_CHANGESET_WITH_SUBHEADING);
+    expect(findChangeset(markdown, 'v1.0.0')).toEqual(
+      SAMPLE_CHANGESET_WITH_SUBHEADING,
+    );
   });
 
   test.each([
@@ -168,7 +171,9 @@ describe('removeChangeset', () => {
   });
 
   test('returns unchanged when header not found', () => {
-    expect(removeChangeset(fullChangelog, 'non-existent version')).toEqual(fullChangelog);
+    expect(removeChangeset(fullChangelog, 'non-existent version')).toEqual(
+      fullChangelog,
+    );
   });
 
   test('returns unchanged when header is empty', () => {
@@ -183,7 +188,11 @@ describe('prependChangeset', () => {
   };
 
   test.each([
-    ['to empty text', '', '## 2.0.0\n\n- rewrote everything from scratch\n- with multiple lines\n\n'],
+    [
+      'to empty text',
+      '',
+      '## 2.0.0\n\n- rewrote everything from scratch\n- with multiple lines\n\n',
+    ],
     [
       'without top-level header',
       '## 1.0.0\n\nthis is a test\n',
@@ -208,4 +217,3 @@ describe('prependChangeset', () => {
     expect(prependChangeset(markdown, newChangeset)).toEqual(expected);
   });
 });
-

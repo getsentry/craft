@@ -2,7 +2,11 @@ import { mapLimit } from 'async';
 import { Octokit } from '@octokit/rest';
 import type { SimpleGit } from 'simple-git';
 
-import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import {
+  GitHubGlobalConfig,
+  TargetConfig,
+  TypedTargetConfig,
+} from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
@@ -33,6 +37,19 @@ import {
 } from '../utils/registry';
 import { cloneRepo } from '../utils/git';
 import { filterAsync, withRetry } from '../utils/async';
+
+/** Fields on the registry target config accessed at runtime */
+interface RegistryTargetConfigFields extends Record<string, unknown> {
+  remote?: string;
+  type?: RegistryPackageType;
+  urlTemplate?: string;
+  config?: { canonical?: string };
+  linkPrereleases?: boolean;
+  checksums?: unknown[];
+  onlyIfPresent?: string;
+  sdks?: Record<string, unknown>;
+  apps?: Record<string, unknown>;
+}
 
 /** "registry" target options */
 export interface RegistryConfig {
@@ -93,10 +110,12 @@ export class RegistryTarget extends BaseTarget {
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GitHubGlobalConfig
+    githubRepo: GitHubGlobalConfig,
   ) {
     super(config, artifactProvider, githubRepo);
-    const remote = this.config.remote;
+    const typedConfig = this
+      .config as TypedTargetConfig<RegistryTargetConfigFields>;
+    const remote = typedConfig.remote;
     if (remote) {
       const [owner, repo] = remote.split('/', 2);
       this.remote = new GitHubRemote(owner, repo);
@@ -112,8 +131,14 @@ export class RegistryTarget extends BaseTarget {
    * Extracts Registry target options from the raw configuration.
    */
   public getRegistryConfig(): RegistryConfig[] {
+    const typedConfig = this
+      .config as TypedTargetConfig<RegistryTargetConfigFields>;
     const items = Object.entries(BATCH_KEYS).flatMap(([key, type]) =>
-      Object.entries(this.config[key] || {}).map(([canonicalName, conf]) => {
+      Object.entries(
+        (typedConfig[key as keyof RegistryTargetConfigFields] as
+          | Record<string, unknown>
+          | undefined) || {},
+      ).map(([canonicalName, conf]) => {
         const config = conf as RegistryConfig | null;
         const result = Object.assign(Object.create(null), config, {
           type,
@@ -125,12 +150,12 @@ export class RegistryTarget extends BaseTarget {
         }
 
         return result;
-      })
+      }),
     );
 
-    if (items.length === 0 && this.config.type) {
+    if (items.length === 0 && typedConfig.type) {
       this.logger.warn(
-        'You are using a deprecated registry target config, please update.'
+        'You are using a deprecated registry target config, please update.',
       );
       return [this.getLegacyRegistryConfig()];
     } else {
@@ -139,48 +164,51 @@ export class RegistryTarget extends BaseTarget {
   }
 
   private getLegacyRegistryConfig(): RegistryConfig {
-    const registryType = this.config.type;
+    const typedConfig = this
+      .config as TypedTargetConfig<RegistryTargetConfigFields>;
+    const registryType = typedConfig.type;
     if (
+      !registryType ||
       [RegistryPackageType.APP, RegistryPackageType.SDK].indexOf(
-        registryType
+        registryType,
       ) === -1
     ) {
       throw new ConfigurationError(
-        `Invalid registry type specified: "${registryType}"`
+        `Invalid registry type specified: "${registryType}"`,
       );
     }
 
-    let urlTemplate;
+    let urlTemplate: string | undefined;
     if (registryType === RegistryPackageType.APP) {
-      urlTemplate = this.config.urlTemplate;
+      urlTemplate = typedConfig.urlTemplate;
       if (urlTemplate && typeof urlTemplate !== 'string') {
         throw new ConfigurationError(
-          `Invalid "urlTemplate" specified: ${urlTemplate}`
+          `Invalid "urlTemplate" specified: ${urlTemplate}`,
         );
       }
     }
 
-    const releaseConfig = this.config.config;
+    const releaseConfig = typedConfig.config;
     if (!releaseConfig) {
       throw new ConfigurationError(
-        'Cannot find configuration dictionary for release registry'
+        'Cannot find configuration dictionary for release registry',
       );
     }
     const canonicalName = releaseConfig.canonical;
     if (!canonicalName) {
       throw new ConfigurationError(
-        'Canonical name not found in the configuration'
+        'Canonical name not found in the configuration',
       );
     }
 
-    const linkPrereleases = this.config.linkPrereleases || false;
+    const linkPrereleases = typedConfig.linkPrereleases || false;
     if (typeof linkPrereleases !== 'boolean') {
       throw new ConfigurationError('Invlaid type of "linkPrereleases"');
     }
 
-    const checksums = castChecksums(this.config.checksums);
+    const checksums = castChecksums(typedConfig.checksums as unknown[]);
 
-    const onlyIfPresentStr = this.config.onlyIfPresent || undefined;
+    const onlyIfPresentStr = typedConfig.onlyIfPresent || undefined;
     let onlyIfPresent;
     if (onlyIfPresentStr) {
       if (typeof onlyIfPresentStr !== 'string') {
@@ -214,7 +242,7 @@ export class RegistryTarget extends BaseTarget {
     registryConfig: RegistryConfig,
     manifest: { [key: string]: any },
     version: string,
-    revision: string
+    revision: string,
   ): Promise<void> {
     if (!registryConfig.urlTemplate) {
       return;
@@ -223,7 +251,7 @@ export class RegistryTarget extends BaseTarget {
     const artifacts = await this.getArtifactsForRevision(revision);
     if (artifacts.length === 0) {
       this.logger.warn(
-        'No artifacts found, not adding any links to the manifest'
+        'No artifacts found, not adding any links to the manifest',
       );
       return;
     }
@@ -236,11 +264,11 @@ export class RegistryTarget extends BaseTarget {
           file: artifact.filename,
           revision,
           version,
-        }
+        },
       );
     }
     this.logger.debug(
-      `Writing file urls to the manifest, files found: ${artifacts.length}`
+      `Writing file urls to the manifest, files found: ${artifacts.length}`,
     );
     manifest.file_urls = fileUrls;
   }
@@ -264,7 +292,7 @@ export class RegistryTarget extends BaseTarget {
     registryConfig: RegistryConfig,
     artifact: RemoteArtifact,
     version: string,
-    revision: string
+    revision: string,
   ): Promise<ArtifactData> {
     const artifactData: ArtifactData = {};
 
@@ -280,7 +308,7 @@ export class RegistryTarget extends BaseTarget {
       artifactData.checksums = await getArtifactChecksums(
         registryConfig.checksums,
         artifact,
-        this.artifactProvider
+        this.artifactProvider,
       );
     }
 
@@ -305,7 +333,7 @@ export class RegistryTarget extends BaseTarget {
     registryConfig: RegistryConfig,
     packageManifest: { [key: string]: any },
     version: string,
-    revision: string
+    revision: string,
   ): Promise<void> {
     // Clear existing data
     delete packageManifest.files;
@@ -315,7 +343,7 @@ export class RegistryTarget extends BaseTarget {
       !(registryConfig.checksums && registryConfig.checksums.length > 0)
     ) {
       this.logger.warn(
-        'No URL template or checksums, not adding any file data'
+        'No URL template or checksums, not adding any file data',
       );
       return;
     }
@@ -327,19 +355,23 @@ export class RegistryTarget extends BaseTarget {
     }
 
     this.logger.info(
-      'Adding extra data (checksums, download links) for available artifacts...'
+      'Adding extra data (checksums, download links) for available artifacts...',
     );
 
     const files: { [key: string]: any } = {};
-    await mapLimit(artifacts, MAX_DOWNLOAD_CONCURRENCY, async (artifact: RemoteArtifact) => {
-      const fileData = await this.getArtifactData(
-        registryConfig,
-        artifact,
-        version,
-        revision
-      );
-      files[artifact.filename] = fileData;
-    });
+    await mapLimit(
+      artifacts,
+      MAX_DOWNLOAD_CONCURRENCY,
+      async (artifact: RemoteArtifact) => {
+        const fileData = await this.getArtifactData(
+          registryConfig,
+          artifact,
+          version,
+          revision,
+        );
+        files[artifact.filename] = fileData;
+      },
+    );
 
     packageManifest.files = files;
   }
@@ -360,13 +392,13 @@ export class RegistryTarget extends BaseTarget {
     packageManifest: { [key: string]: any },
     canonical: string,
     version: string,
-    revision: string
+    revision: string,
   ): Promise<any> {
     // Additional check
     if (canonical !== packageManifest.canonical) {
       reportError(
         `Canonical name in "craft" config ("${canonical}") is inconsistent with ` +
-          `the one in package manifest ("${packageManifest.canonical}")`
+          `the one in package manifest ("${packageManifest.canonical}")`,
       );
     }
     // Update the manifest
@@ -403,7 +435,7 @@ export class RegistryTarget extends BaseTarget {
         registryConfig,
         updatedManifest,
         version,
-        revision
+        revision,
       );
     }
 
@@ -420,7 +452,7 @@ export class RegistryTarget extends BaseTarget {
    * @returns The initial manifest data
    */
   private buildInitialManifestData(
-    registryConfig: RegistryConfig
+    registryConfig: RegistryConfig,
   ): InitialManifestData {
     const { owner, repo } = this.githubRepo;
     return {
@@ -444,7 +476,7 @@ export class RegistryTarget extends BaseTarget {
     registryConfig: RegistryConfig,
     localRepo: LocalRegistry,
     version: string,
-    revision: string
+    revision: string,
   ): Promise<void> {
     const canonicalName = registryConfig.canonicalName;
     const initialManifestData = this.buildInitialManifestData(registryConfig);
@@ -453,7 +485,7 @@ export class RegistryTarget extends BaseTarget {
       registryConfig.type,
       canonicalName,
       version,
-      initialManifestData
+      initialManifestData,
     );
 
     const newManifest = await this.getUpdatedManifest(
@@ -461,14 +493,14 @@ export class RegistryTarget extends BaseTarget {
       packageManifest,
       canonicalName,
       version,
-      revision
+      revision,
     );
 
     await updateManifestSymlinks(
       newManifest,
       version,
       versionFilePath,
-      packageManifest.version || undefined
+      packageManifest.version || undefined,
     );
   }
 
@@ -477,7 +509,7 @@ export class RegistryTarget extends BaseTarget {
     remote.setAuth(getGitHubApiToken());
 
     this.logger.info(
-      `Cloning "${remote.getRemoteString()}" to "${directory}"...`
+      `Cloning "${remote.getRemoteString()}" to "${directory}"...`,
     );
     return cloneRepo(remote.getRemoteStringWithAuth(), directory, [
       '--filter=tree:0',
@@ -487,12 +519,12 @@ export class RegistryTarget extends BaseTarget {
 
   public async getValidItems(
     version: string,
-    revision: string
+    revision: string,
   ): Promise<RegistryConfig[]> {
     return filterAsync(this.registryConfig, async registryConfig => {
       if (!registryConfig.linkPrereleases && isPreviewRelease(version)) {
         this.logger.info(
-          `Preview release detected, skipping ${registryConfig.canonicalName}`
+          `Preview release detected, skipping ${registryConfig.canonicalName}`,
         );
         return false;
       }
@@ -500,15 +532,13 @@ export class RegistryTarget extends BaseTarget {
       // If we have onlyIfPresent specified, check that we have any of matched files
       const onlyIfPresentPattern = registryConfig.onlyIfPresent;
       if (onlyIfPresentPattern) {
-        const artifacts = await this.artifactProvider.filterArtifactsForRevision(
-          revision,
-          {
+        const artifacts =
+          await this.artifactProvider.filterArtifactsForRevision(revision, {
             includeNames: onlyIfPresentPattern,
-          }
-        );
+          });
         if (artifacts.length === 0) {
           this.logger.warn(
-            `No files found that match "${onlyIfPresentPattern.toString()}", skipping the target.`
+            `No files found that match "${onlyIfPresentPattern.toString()}", skipping the target.`,
           );
           return false;
         }
@@ -540,26 +570,26 @@ export class RegistryTarget extends BaseTarget {
               registryConfig,
               localRepo,
               version,
-              revision
-            )
-          )
+              revision,
+            ),
+          ),
         );
 
         await localRepo.git
           .add(['.'])
           .commit(
-            `craft: release "${this.githubRepo.repo}", version "${version}"`
+            `craft: release "${this.githubRepo.repo}", version "${version}"`,
           );
         this.logger.info(`Pushing the changes...`);
         // Ensure we are still up to date with upstream
         await withRetry(() =>
           localRepo.git
             .pull('origin', 'master', ['--rebase'])
-            .push('origin', 'master')
+            .push('origin', 'master'),
         );
       },
       true,
-      'craft-release-registry-'
+      'craft-release-registry-',
     );
 
     this.logger.info('Release registry updated.');

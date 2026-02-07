@@ -3,7 +3,11 @@ import * as fs from 'fs';
 import { basename, join } from 'path';
 import { promisify } from 'util';
 
-import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import {
+  GitHubGlobalConfig,
+  TargetConfig,
+  TypedTargetConfig,
+} from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { getFile, getGitHubClient } from '../utils/githubApi';
@@ -25,6 +29,11 @@ export interface CocoapodsTargetOptions {
   specPath: string;
 }
 
+/** Config fields for cocoapods target */
+interface CocoapodsTargetConfig extends Record<string, unknown> {
+  specPath?: string;
+}
+
 /**
  * Target responsible for publishing to Cocoapods registry
  */
@@ -41,7 +50,7 @@ export class CocoapodsTarget extends BaseTarget {
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GitHubGlobalConfig
+    githubRepo: GitHubGlobalConfig,
   ) {
     super(config, artifactProvider, githubRepo);
     this.cocoapodsConfig = this.getCocoapodsConfig();
@@ -54,7 +63,8 @@ export class CocoapodsTarget extends BaseTarget {
    * Extracts Cocoapods target options from the environment
    */
   public getCocoapodsConfig(): CocoapodsTargetOptions {
-    const specPath = this.config.specPath;
+    const config = this.config as TypedTargetConfig<CocoapodsTargetConfig>;
+    const specPath = config.specPath;
     if (!specPath) {
       throw new ConfigurationError('No podspec path provided!');
     }
@@ -80,7 +90,7 @@ export class CocoapodsTarget extends BaseTarget {
       owner,
       repo,
       specPath,
-      revision
+      revision,
     );
 
     if (!specContents) {
@@ -105,11 +115,11 @@ export class CocoapodsTarget extends BaseTarget {
             env: {
               ...process.env,
             },
-          }
+          },
         );
       },
       true,
-      'craft-cocoapods-'
+      'craft-cocoapods-',
     );
 
     this.logger.info('Cocoapods release complete');

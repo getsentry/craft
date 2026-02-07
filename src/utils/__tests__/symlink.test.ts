@@ -1,4 +1,3 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { createSymlinks } from '../symlink';
 import { withTempDir } from '../files';
 import { promises as fsPromises } from 'fs';
@@ -66,7 +65,7 @@ describe('createSymlinks', () => {
         const symlinkDestination = await fsPromises.readlink(symlinkFilePath);
         expect(symlinkDestination).toBe(versionFile);
       }
-    }, true)
+    }, true),
   );
 
   it('handles updating an old major version', async () =>
@@ -110,25 +109,25 @@ describe('createSymlinks', () => {
           '2.0.json',
 
           'latest.json',
-        ].sort()
+        ].sort(),
       );
 
       const latestLink = await fsPromises.readlink(
-        path.join(tmpDir, 'latest.json')
+        path.join(tmpDir, 'latest.json'),
       );
       const major1Link = await fsPromises.readlink(path.join(tmpDir, '1.json'));
       const major2Link = await fsPromises.readlink(path.join(tmpDir, '2.json'));
       const minor10Link = await fsPromises.readlink(
-        path.join(tmpDir, '1.0.json')
+        path.join(tmpDir, '1.0.json'),
       );
       const minor12Link = await fsPromises.readlink(
-        path.join(tmpDir, '1.2.json')
+        path.join(tmpDir, '1.2.json'),
       );
       const minor15Link = await fsPromises.readlink(
-        path.join(tmpDir, '1.5.json')
+        path.join(tmpDir, '1.5.json'),
       );
       const minor20Link = await fsPromises.readlink(
-        path.join(tmpDir, '2.0.json')
+        path.join(tmpDir, '2.0.json'),
       );
 
       expect(latestLink).toBe('2.0.0.json');
@@ -166,18 +165,18 @@ describe('createSymlinks', () => {
           '1.1.json',
 
           'latest.json',
-        ].sort()
+        ].sort(),
       );
 
       const latestLink = await fsPromises.readlink(
-        path.join(tmpDir, 'latest.json')
+        path.join(tmpDir, 'latest.json'),
       );
       const major1Link = await fsPromises.readlink(path.join(tmpDir, '1.json'));
       const minor10Link = await fsPromises.readlink(
-        path.join(tmpDir, '1.0.json')
+        path.join(tmpDir, '1.0.json'),
       );
       const minor11Link = await fsPromises.readlink(
-        path.join(tmpDir, '1.1.json')
+        path.join(tmpDir, '1.1.json'),
       );
 
       expect(latestLink).toBe('1.1.0.json');
@@ -211,15 +210,15 @@ it('handles updating a previous patch version on the same minor', async () =>
         '1.0.json',
 
         'latest.json',
-      ].sort()
+      ].sort(),
     );
 
     const latestLink = await fsPromises.readlink(
-      path.join(tmpDir, 'latest.json')
+      path.join(tmpDir, 'latest.json'),
     );
     const major1Link = await fsPromises.readlink(path.join(tmpDir, '1.json'));
     const minor10Link = await fsPromises.readlink(
-      path.join(tmpDir, '1.0.json')
+      path.join(tmpDir, '1.0.json'),
     );
 
     expect(latestLink).toBe('1.0.2.json');

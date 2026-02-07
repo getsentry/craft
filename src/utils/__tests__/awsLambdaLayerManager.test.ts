@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi } from 'vitest';
 import * as awsManager from '../awsLambdaLayerManager';
 
 vi.mock('../../logger');
@@ -32,7 +32,7 @@ function getTestAwsLambdaLayerManager(): awsManager.AwsLambdaLayerManager {
     'test license',
     Buffer.alloc(0),
     AWS_TEST_REGIONS,
-    '0.0.0'
+    '0.0.0',
   );
 }
 

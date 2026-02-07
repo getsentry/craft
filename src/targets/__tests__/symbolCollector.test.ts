@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi, type MockedFunction } from 'vitest';
 import { withTempDir } from '../../utils/files';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { checkExecutableIsPresent, spawnProcess } from '../../utils/system';
@@ -6,7 +6,7 @@ import { SymbolCollector, SYM_COLLECTOR_BIN_NAME } from '../symbolCollector';
 
 vi.mock('../../utils/files');
 vi.mock('../../utils/system');
-vi.mock('fs', async (importOriginal) => {
+vi.mock('fs', async importOriginal => {
   const actual = await importOriginal<typeof import('fs')>();
   return {
     ...actual,
@@ -24,31 +24,33 @@ const customConfig = {
 };
 
 function getSymbolCollectorInstance(
-  config: Record<string, unknown> = { testKey: 'testVal' }
+  config: Record<string, unknown> = { testKey: 'testVal' },
 ): SymbolCollector {
   return new SymbolCollector(
     {
       name: 'symbol-collector',
       ...config,
     },
-    new NoneArtifactProvider()
+    new NoneArtifactProvider(),
   );
 }
 
 describe('target config', () => {
   test('symbol collector not present in path', () => {
-    (checkExecutableIsPresent as MockedFunction<
-      typeof checkExecutableIsPresent
-    >).mockImplementationOnce(() => {
+    (
+      checkExecutableIsPresent as MockedFunction<
+        typeof checkExecutableIsPresent
+      >
+    ).mockImplementationOnce(() => {
       throw new Error('Checked for executable');
     });
 
     expect(getSymbolCollectorInstance).toThrowErrorMatchingInlineSnapshot(
-      `[Error: Checked for executable]`
+      `[Error: Checked for executable]`,
     );
     expect(checkExecutableIsPresent).toHaveBeenCalledTimes(1);
     expect(checkExecutableIsPresent).toHaveBeenCalledWith(
-      SYM_COLLECTOR_BIN_NAME
+      SYM_COLLECTOR_BIN_NAME,
     );
   });
 
@@ -58,7 +60,7 @@ describe('target config', () => {
     >) = vi.fn();
 
     expect(getSymbolCollectorInstance).toThrowErrorMatchingInlineSnapshot(
-      `[Error: The required \`batchType\` parameter is missing in the configuration file. See the documentation for more details.]`
+      `[Error: The required \`batchType\` parameter is missing in the configuration file. See the documentation for more details.]`,
     );
   });
 
@@ -71,7 +73,7 @@ describe('target config', () => {
     const actualConfig = symCollector.symbolCollectorConfig;
     expect(checkExecutableIsPresent).toHaveBeenCalledTimes(1);
     expect(checkExecutableIsPresent).toHaveBeenLastCalledWith(
-      SYM_COLLECTOR_BIN_NAME
+      SYM_COLLECTOR_BIN_NAME,
     );
     expect(actualConfig).toHaveProperty('serverEndpoint');
     expect(actualConfig).toHaveProperty('batchType');
@@ -90,11 +92,11 @@ describe('publish', () => {
 
   test('with artifacts', async () => {
     (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
-      async cb => await cb('tmpDir')
+      async cb => await cb('tmpDir'),
     );
-    (spawnProcess as MockedFunction<
-      typeof spawnProcess
-    >).mockImplementation(() => Promise.resolve(undefined));
+    (spawnProcess as MockedFunction<typeof spawnProcess>).mockImplementation(
+      () => Promise.resolve(undefined),
+    );
 
     const mockedArtifacts = ['artifact1', 'artifact2', 'artifact3'];
 
@@ -108,13 +110,12 @@ describe('publish', () => {
 
     expect(symCollector.getArtifactsForRevision).toHaveBeenCalledTimes(1);
     expect(
-      symCollector.artifactProvider.downloadArtifact
+      symCollector.artifactProvider.downloadArtifact,
     ).toHaveBeenCalledTimes(mockedArtifacts.length);
 
     expect(spawnProcess).toHaveBeenCalledTimes(1);
-    const [cmd, args] = (spawnProcess as MockedFunction<
-      typeof spawnProcess
-    >).mock.calls[0] as string[];
+    const [cmd, args] = (spawnProcess as MockedFunction<typeof spawnProcess>)
+      .mock.calls[0] as string[];
     expect(cmd).toBe(SYM_COLLECTOR_BIN_NAME);
     expect(args).toMatchInlineSnapshot(`
       [

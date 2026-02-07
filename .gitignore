@@ -16,4 +16,5 @@ npm-debug.log
 .Trashes
 *.env
 .eslintcache
+.tsbuildinfo
 .idea

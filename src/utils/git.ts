@@ -1,5 +1,9 @@
-// eslint-disable-next-line no-restricted-imports -- This is the wrapper module
-import simpleGit, { type SimpleGit, type LogOptions, type Options, type StatusResult } from 'simple-git';
+import simpleGit, {
+  type SimpleGit,
+  type LogOptions,
+  type Options,
+  type StatusResult,
+} from 'simple-git';
 
 import { getConfigFileDir } from '../config';
 import { ConfigurationError } from './errors';
@@ -26,14 +30,14 @@ export const defaultInitialTag = '0.0.0';
 
 export async function getDefaultBranch(
   git: SimpleGit,
-  remoteName: string
+  remoteName: string,
 ): Promise<string> {
   // This part is courtesy of https://stackoverflow.com/a/62397081/90297
   return stripRemoteName(
     await git
       .remote(['set-head', remoteName, '--auto'])
       .revparse(['--abbrev-ref', `${remoteName}/HEAD`]),
-    remoteName
+    remoteName,
   );
 }
 
@@ -45,8 +49,7 @@ export async function getLatestTag(git: SimpleGit): Promise<string> {
     // If there are no tags, return an empty string
     if (
       err instanceof Error &&
-      (
-        err.message.startsWith('fatal: No names found') ||
+      (err.message.startsWith('fatal: No names found') ||
         err.message.startsWith('Nothing to describe'))
     ) {
       return '';
@@ -58,7 +61,7 @@ export async function getLatestTag(git: SimpleGit): Promise<string> {
 export async function getChangesSince(
   git: SimpleGit,
   rev: string,
-  until?: string
+  until?: string,
 ): Promise<GitChange[]> {
   const gitLogArgs: Options | LogOptions = {
     to: until || 'HEAD',
@@ -90,7 +93,7 @@ export async function getChangesSince(
 
 export function stripRemoteName(
   branch: string | undefined,
-  remoteName: string
+  remoteName: string,
 ): string {
   const branchName = branch || '';
   const remotePrefix = `${remoteName}/`;
@@ -104,7 +107,7 @@ export async function getGitClient(): Promise<SimpleGit> {
   const configFileDir = getConfigFileDir() || '.';
   // Move to the directory where the config file is located
   process.chdir(configFileDir);
-  logger.debug("Working directory:", process.cwd());
+  logger.debug('Working directory:', process.cwd());
 
   // eslint-disable-next-line no-restricted-syntax -- This is the git wrapper module
   const git = simpleGit(configFileDir);
@@ -144,7 +147,7 @@ export function createGitClient(directory: string): SimpleGit {
 export async function cloneRepo(
   url: string,
   targetDirectory: string,
-  options?: string[]
+  options?: string[],
 ): Promise<SimpleGit> {
   // eslint-disable-next-line no-restricted-syntax -- This is the git wrapper module
   const git = simpleGit();

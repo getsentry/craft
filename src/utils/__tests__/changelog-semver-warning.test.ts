@@ -66,7 +66,7 @@ changelog:
     const { logger } = await import('../../logger');
 
     // Setup: no config file dir
-    vi.mocked(getConfigFileDir).mockReturnValue(null);
+    vi.mocked(getConfigFileDir).mockReturnValue(undefined);
 
     const { getNormalizedReleaseConfig, clearReleaseConfigCache } =
       await import('../changelog');

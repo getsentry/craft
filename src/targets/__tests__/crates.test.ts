@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi } from 'vitest';
 import { CrateDependency, CratePackage, CratesTarget } from '../crates';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 
@@ -38,7 +38,7 @@ describe('getPublishOrder', () => {
       noDevDeps: true,
     },
     new NoneArtifactProvider(),
-    { owner: 'getsentry', repo: 'craft' }
+    { owner: 'getsentry', repo: 'craft' },
   );
 
   test('sorts crate packages properly', () => {

@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import prompts from 'prompts';
 
-import { TargetConfig } from '../schemas/project_config';
+import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
 import { isDryRun } from '../utils/helpers';
@@ -100,6 +100,12 @@ export interface NpmTargetOptions {
   useYarn: boolean;
   /** Value of NPM_TOKEN so we can pass it to npm executable */
   token: string;
+}
+
+/** Fields on the npm target config accessed at runtime */
+interface NpmTargetConfigFields extends Record<string, unknown> {
+  access?: NpmPackageAccess;
+  checkPackageName?: string;
 }
 
 /** Options for running the NPM publish command */
@@ -338,7 +344,7 @@ export class NpmTarget extends BaseTarget {
   private static async bumpWorkspacePackagesIndividually(
     bin: string,
     packages: { name: string; location: string }[],
-    newVersion: string,
+    _newVersion: string,
     baseArgs: string[],
   ): Promise<void> {
     for (const pkg of packages) {
@@ -429,16 +435,17 @@ export class NpmTarget extends BaseTarget {
       throw new Error('NPM target: NPM_TOKEN not found in the environment');
     }
 
+    const config = this.config as TypedTargetConfig<NpmTargetConfigFields>;
     const npmConfig: NpmTargetOptions = {
       useYarn: !!process.env.USE_YARN || !hasExecutable(NPM_BIN),
       token,
     };
-    if (this.config.access) {
-      if (Object.values(NpmPackageAccess).includes(this.config.access)) {
-        npmConfig.access = this.config.access;
+    if (config.access) {
+      if (Object.values(NpmPackageAccess).includes(config.access)) {
+        npmConfig.access = config.access;
       } else {
         throw new ConfigurationError(
-          `Invalid value for "npm.access" option: ${this.config.access}`,
+          `Invalid value for "npm.access" option: ${config.access}`,
         );
       }
     }
@@ -531,9 +538,10 @@ export class NpmTarget extends BaseTarget {
       publishOptions.otp = await this.requestOtp();
     }
 
+    const config = this.config as TypedTargetConfig<NpmTargetConfigFields>;
     const tag = await getPublishTag(
       version,
-      this.config.checkPackageName,
+      config.checkPackageName,
       this.npmConfig,
       this.logger,
       publishOptions.otp,

@@ -1,5 +1,4 @@
 import { vi, describe, test, expect, beforeEach, type Mock } from 'vitest';
-import { join as pathJoin } from 'path';
 import { spawnProcess } from '../../utils/system';
 import { runPreReleaseCommand, checkVersionOrPart } from '../prepare';
 
@@ -34,7 +33,7 @@ describe('runPreReleaseCommand', () => {
           CRAFT_NEW_VERSION: newVersion,
           CRAFT_OLD_VERSION: oldVersion,
         },
-      }
+      },
     );
   });
 
@@ -57,7 +56,7 @@ describe('runPreReleaseCommand', () => {
           CRAFT_NEW_VERSION: newVersion,
           CRAFT_OLD_VERSION: oldVersion,
         },
-      }
+      },
     );
   });
 });
@@ -71,8 +70,8 @@ describe('checkVersionOrPart', () => {
           {
             newVersion: v,
           },
-          null
-        )
+          null,
+        ),
       ).toBe(true);
     }
   });
@@ -83,8 +82,8 @@ describe('checkVersionOrPart', () => {
         {
           newVersion: 'auto',
         },
-        null
-      )
+        null,
+      ),
     ).toBe(true);
   });
 
@@ -96,8 +95,8 @@ describe('checkVersionOrPart', () => {
           {
             newVersion: bumpType,
           },
-          null
-        )
+          null,
+        ),
       ).toBe(true);
     }
   });
@@ -110,8 +109,7 @@ describe('checkVersionOrPart', () => {
       },
       {
         v: 'v2.3.3',
-        e:
-          'Invalid version or version part specified: "v2.3.3". Removing the "v" prefix will likely fix the issue',
+        e: 'Invalid version or version part specified: "v2.3.3". Removing the "v" prefix will likely fix the issue',
       },
     ];
     for (const t of invalidVersions) {
@@ -120,7 +118,7 @@ describe('checkVersionOrPart', () => {
           {
             newVersion: t.v,
           },
-          null
+          null,
         );
       };
       expect(fn).toThrow(t.e);

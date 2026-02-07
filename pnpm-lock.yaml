@@ -92,6 +92,9 @@ importers:
       '@types/rimraf':
         specifier: ^2.0.2
         version: 2.0.5
+      '@types/semver':
+        specifier: ^7.7.1
+        version: 7.7.1
       '@types/shell-quote':
         specifier: ^1.6.0
         version: 1.7.5
@@ -197,6 +200,9 @@ importers:
       tmp:
         specifier: 0.2.4
         version: 0.2.4
+      tslib:
+        specifier: ^2.8.1
+        version: 2.8.1
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -1595,6 +1601,9 @@ packages:
 
   '@types/rimraf@2.0.5':
     resolution: {integrity: sha512-YyP+VfeaqAyFmXoTh3HChxOQMyjByRMsHU7kc5KOJkSlXudhMhQIALbYV7rHh/l8d2lX3VUQzprrcAgWdRuU8g==}
+
+  '@types/semver@7.7.1':
+    resolution: {integrity: sha512-FmgJfu+MOcQ370SD0ev7EI8TlCAfKYU+B4m5T3yXc1CiRN94g/SZPtsCkk506aUDtlMnFZvasDwHHUcZUEaYuA==}
 
   '@types/shell-quote@1.7.5':
     resolution: {integrity: sha512-+UE8GAGRPbJVQDdxi16dgadcBfQ+KG2vgZhV1+3A1XmHbmwcdwhCUwIdy+d3pAGrbvgRoVSjeI9vOWyq376Yzw==}
@@ -4971,6 +4980,8 @@ snapshots:
     dependencies:
       '@types/glob': 9.0.0
       '@types/node': 22.19.1
+
+  '@types/semver@7.7.1': {}
 
   '@types/shell-quote@1.7.5': {}
 

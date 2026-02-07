@@ -71,7 +71,7 @@ interface GCSCreds {
  */
 export function getGCSCredsFromEnv(
   jsonVar: RequiredConfigVar,
-  filepathVar: RequiredConfigVar
+  filepathVar: RequiredConfigVar,
 ): GCSCreds | null {
   // Check if either credential source is provided
   const gcsCredsJson = process.env[jsonVar.name];
@@ -80,7 +80,7 @@ export function getGCSCredsFromEnv(
   // If no credentials are provided, return null to indicate ADC should be used
   if (!gcsCredsJson && !gcsCredsPath) {
     logger.debug(
-      'No GCS credentials provided, will use Application Default Credentials'
+      'No GCS credentials provided, will use Application Default Credentials',
     );
     return null;
   }
@@ -139,10 +139,10 @@ export class CraftGCSClient {
     this.bucket = new GCSBucket(
       new GCSStorage({
         credentials,
-        maxRetries,
+        retryOptions: { maxRetries },
         projectId,
       }),
-      bucketName
+      bucketName,
     );
   }
 
@@ -155,7 +155,7 @@ export class CraftGCSClient {
    */
   public async uploadArtifact(
     artifactLocalPath: string,
-    bucketPath: BucketPath
+    bucketPath: BucketPath,
   ): Promise<void> {
     const filename = path.basename(artifactLocalPath);
     let pathInBucket = bucketPath.path;
@@ -171,7 +171,7 @@ export class CraftGCSClient {
     if (!artifactLocalPath) {
       reportError(
         `Unable to upload file \`${filename}\` - ` +
-          `no local path to file specified!`
+          `no local path to file specified!`,
       );
     }
 
@@ -189,7 +189,7 @@ export class CraftGCSClient {
     // any way, so setting it on upload is pointless. Action item: fix this.
     if (contentType) {
       logger.debug(
-        `Detected \`${filename}\` to be of type \`${contentType}\`.`
+        `Detected \`${filename}\` to be of type \`${contentType}\`.`,
       );
     }
     const metadata = {
@@ -204,12 +204,14 @@ export class CraftGCSClient {
     };
 
     logger.trace(
-      `File \`${filename}\`, upload options: ${formatJson(uploadConfig)}`
+      `File \`${filename}\`, upload options: ${formatJson(uploadConfig)}`,
     );
 
     const destination = path.posix.join(this.bucketName, pathInBucket);
     await safeExec(async () => {
-      logger.debug(`Attempting to upload \`${filename}\` to \`${destination}\`.`);
+      logger.debug(
+        `Attempting to upload \`${filename}\` to \`${destination}\`.`,
+      );
 
       try {
         await this.bucket.upload(artifactLocalPath, uploadConfig);
@@ -225,8 +227,8 @@ export class CraftGCSClient {
             'gs://',
             this.bucketName,
             pathInBucket,
-            filename
-          )} <path-to-download-location>\`.`
+            filename,
+          )} <path-to-download-location>\`.`,
       );
     }, `upload ${filename} to ${destination}`);
   }
@@ -245,12 +247,12 @@ export class CraftGCSClient {
   public async downloadArtifact(
     downloadFilepath: string,
     destinationDirectory: string,
-    destinationFilename: string = path.basename(downloadFilepath)
+    destinationFilename: string = path.basename(downloadFilepath),
   ): Promise<string | null> {
     if (!fs.existsSync(destinationDirectory)) {
       reportError(
         `Unable to download \`${destinationFilename}\` to ` +
-          `\`${destinationDirectory}\` - directory does not exist!`
+          `\`${destinationDirectory}\` - directory does not exist!`,
       );
     }
 
@@ -258,7 +260,7 @@ export class CraftGCSClient {
 
     const result = await safeExec(async () => {
       logger.debug(
-        `Attempting to download \`${destinationFilename}\` to \`${destinationDirectory}\`.`
+        `Attempting to download \`${destinationFilename}\` to \`${destinationDirectory}\`.`,
       );
 
       try {
@@ -300,7 +302,7 @@ export class CraftGCSClient {
       filename,
       mimeType,
       storedFile: {
-        downloadFilepath,
+        downloadFilepath: downloadFilepath ?? name,
         filename,
         lastUpdated,
         size: Number(size),
@@ -319,20 +321,19 @@ export class CraftGCSClient {
   public async listArtifactsForRevision(
     repoOwner: string,
     repoName: string,
-    revision: string
+    revision: string,
   ): Promise<RemoteArtifact[]> {
-    let filesResponse: GCSFile[][] = [[]];
+    let files: GCSFile[] = [];
     const prefix = path.posix.join(repoOwner, repoName, revision);
     logger.debug(`Looking for files starting with '${prefix}'`);
     try {
-      filesResponse = await this.bucket.getFiles({ prefix });
+      [files] = await this.bucket.getFiles({ prefix });
     } catch (err) {
       reportError(
-        `Error retrieving artifact list from GCS: ${formatJson(err)}`
+        `Error retrieving artifact list from GCS: ${formatJson(err)}`,
       );
     }
 
-    const files = filesResponse[0];
     return files.map(gcsFile => this.convertToRemoteArtifact(gcsFile));
   }
 }

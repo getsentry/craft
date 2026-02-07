@@ -4,7 +4,14 @@ import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
-    ignores: ['docs/**', 'dist/**', 'node_modules/**', 'coverage/**', '*.mjs', '**/*.js'],
+    ignores: [
+      'docs/**',
+      'dist/**',
+      'node_modules/**',
+      'coverage/**',
+      '*.mjs',
+      '**/*.js',
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
@@ -18,7 +25,10 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       'no-constant-condition': ['error', { checkLoops: false }],
       // Make sure variables marked with _ are ignored (ex. _varName)
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_' },
+      ],
       '@typescript-eslint/ban-ts-comment': [
         'error',
         {
@@ -47,5 +57,5 @@ export default tseslint.config(
         },
       ],
     },
-  }
+  },
 );

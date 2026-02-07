@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi, type Mock } from 'vitest';
 import * as fs from 'fs';
 
 import { logger } from '../../logger';
@@ -20,7 +20,8 @@ describe('spawnProcess', () => {
   test('resolves on success with standard output', async () => {
     expect.assertions(1);
     const stdout =
-      (await spawnProcess(process.execPath, ['-e', 'console.log("test")'])) || '';
+      (await spawnProcess(process.execPath, ['-e', 'console.log("test")'])) ||
+      '';
     expect(stdout.toString()).toBe('test\n');
   });
 
@@ -55,7 +56,9 @@ describe('spawnProcess', () => {
   test('attaches options on error', async () => {
     try {
       expect.assertions(1);
-      await spawnProcess(process.execPath, ['-e', 'process.exit(1)'], { cwd: '/tmp/' });
+      await spawnProcess(process.execPath, ['-e', 'process.exit(1)'], {
+        cwd: '/tmp/',
+      });
     } catch (e: any) {
       expect(e.options.cwd).toEqual('/tmp/');
     }
@@ -64,7 +67,9 @@ describe('spawnProcess', () => {
   test('strips env from options on error', async () => {
     try {
       expect.assertions(1);
-      await spawnProcess(process.execPath, ['-e', 'process.exit(1)'], { env: { x: '123', password: '456' } });
+      await spawnProcess(process.execPath, ['-e', 'process.exit(1)'], {
+        env: { x: '123', password: '456' },
+      });
     } catch (e: any) {
       expect(e.options.env).toBeUndefined();
     }
@@ -85,7 +90,7 @@ describe('spawnProcess', () => {
       process.execPath,
       ['-e', 'process.stdout.write("test-string")'],
       {},
-      { showStdout: true }
+      { showStdout: true },
     );
 
     expect(mockedLogInfo).toHaveBeenCalledTimes(1);
@@ -116,7 +121,7 @@ describe('calculateChecksum', () => {
 
       const checksum = await calculateChecksum(tmpFilePath);
       expect(checksum).toBe(
-        '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b'
+        '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
       );
     });
   });
@@ -145,7 +150,7 @@ describe('calculateChecksum', () => {
         format: HashOutputFormat.Base64,
       });
       expect(checksum).toBe(
-        '7GZOiJ7WwbJ2PKz3iZ2Vt/NHNz65guUjQZ/uo6o2LYkbO/Al8pImelhUBJCReJw+'
+        '7GZOiJ7WwbJ2PKz3iZ2Vt/NHNz65guUjQZ/uo6o2LYkbO/Al8pImelhUBJCReJw+',
       );
     });
   });
@@ -161,7 +166,9 @@ describe('isExecutableInPath', () => {
   });
 
   test('checks for existing executable using absolute path', () => {
-    expect(hasExecutable(`${process.cwd()}/node_modules/.bin/vitest`)).toBe(true);
+    expect(hasExecutable(`${process.cwd()}/node_modules/.bin/vitest`)).toBe(
+      true,
+    );
   });
 
   test('checks for non-existing executable using absolute path', () => {
@@ -186,176 +193,25 @@ describe('extractZipArchive', () => {
       const zipf = await fs.promises.open(zip, 'w');
       await zipf.writeFile(
         Buffer.from([
-          80,
-          75,
-          3,
-          4,
-          10,
-          0,
-          0,
-          0,
-          0,
-          0,
-          99,
-          150,
-          109,
-          88,
-          220,
-          199,
-          60,
-          159,
-          40,
-          11,
-          4,
-          0,
-          40,
-          11,
-          4,
-          0,
-          5,
-          0,
-          28,
-          0,
-          116,
-          46,
-          116,
-          120,
-          116,
-          85,
-          84,
-          9,
-          0,
-          3,
-          153,
-          245,
-          241,
-          101,
-          140,
-          245,
-          241,
-          101,
-          117,
-          120,
-          11,
-          0,
-          1,
-          4,
-          0,
-          0,
-          0,
-          0,
-          4,
-          0,
-          0,
-          0,
-          0,
-        ])
+          80, 75, 3, 4, 10, 0, 0, 0, 0, 0, 99, 150, 109, 88, 220, 199, 60, 159,
+          40, 11, 4, 0, 40, 11, 4, 0, 5, 0, 28, 0, 116, 46, 116, 120, 116, 85,
+          84, 9, 0, 3, 153, 245, 241, 101, 140, 245, 241, 101, 117, 120, 11, 0,
+          1, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0,
+        ]),
       );
       for (let i = 0; i < 5000; i += 1) {
         await zipf.writeFile(
-          'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\n'
+          'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\n',
         );
       }
       await zipf.writeFile(
         Buffer.from([
-          80,
-          75,
-          1,
-          2,
-          30,
-          3,
-          10,
-          0,
-          0,
-          0,
-          0,
-          0,
-          99,
-          150,
-          109,
-          88,
-          220,
-          199,
-          60,
-          159,
-          40,
-          11,
-          4,
-          0,
-          40,
-          11,
-          4,
-          0,
-          5,
-          0,
-          24,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          164,
-          129,
-          0,
-          0,
-          0,
-          0,
-          116,
-          46,
-          116,
-          120,
-          116,
-          85,
-          84,
-          5,
-          0,
-          3,
-          153,
-          245,
-          241,
-          101,
-          117,
-          120,
-          11,
-          0,
-          1,
-          4,
-          0,
-          0,
-          0,
-          0,
-          4,
-          0,
-          0,
-          0,
-          0,
-          80,
-          75,
-          5,
-          6,
-          0,
-          0,
-          0,
-          0,
-          1,
-          0,
-          1,
-          0,
-          75,
-          0,
-          0,
-          0,
-          103,
-          11,
-          4,
-          0,
-          0,
-          0,
-        ])
+          80, 75, 1, 2, 30, 3, 10, 0, 0, 0, 0, 0, 99, 150, 109, 88, 220, 199,
+          60, 159, 40, 11, 4, 0, 40, 11, 4, 0, 5, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 164, 129, 0, 0, 0, 0, 116, 46, 116, 120, 116, 85, 84, 5, 0, 3, 153,
+          245, 241, 101, 117, 120, 11, 0, 1, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0, 80,
+          75, 5, 6, 0, 0, 0, 0, 1, 0, 1, 0, 75, 0, 0, 0, 103, 11, 4, 0, 0, 0,
+        ]),
       );
       await zipf.close();
 
@@ -364,7 +220,7 @@ describe('extractZipArchive', () => {
       // should not have corrupted our file
       const checksum = await calculateChecksum(`${tmpdir}/out/t.txt`);
       expect(checksum).toBe(
-        '7687e11d941faf48d4cf1692c2473a599ad0d7030e1e5c639a31b2f59cd646ba'
+        '7687e11d941faf48d4cf1692c2473a599ad0d7030e1e5c639a31b2f59cd646ba',
       );
     });
   });

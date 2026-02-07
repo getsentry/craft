@@ -94,7 +94,7 @@ function getAllDependencyNames(packageJson: PackageJson): string[] {
  * Handles both array format and object format with packages property
  */
 function extractWorkspacesGlobs(
-  workspaces: string[] | { packages?: string[] } | undefined
+  workspaces: string[] | { packages?: string[] } | undefined,
 ): string[] {
   if (!workspaces) {
     return [];
@@ -110,10 +110,13 @@ function extractWorkspacesGlobs(
  */
 async function resolveWorkspaceGlobs(
   rootDir: string,
-  patterns: string[]
+  patterns: string[],
 ): Promise<WorkspacePackage[]> {
   // First: collect all workspace package names and locations
-  const workspaceLocations: Array<{ location: string; packageJson: PackageJson }> = [];
+  const workspaceLocations: Array<{
+    location: string;
+    packageJson: PackageJson;
+  }> = [];
   const workspaceNames = new Set<string>();
 
   for (const pattern of patterns) {
@@ -139,7 +142,7 @@ async function resolveWorkspaceGlobs(
     private: packageJson.private ?? false,
     hasPublicAccess: packageJson.publishConfig?.access === 'public',
     workspaceDependencies: getAllDependencyNames(packageJson).filter(dep =>
-      workspaceNames.has(dep)
+      workspaceNames.has(dep),
     ),
   }));
 }
@@ -151,7 +154,7 @@ function fileExists(filePath: string): boolean {
   try {
     readFileSync(filePath);
     return true;
-  } catch (err) {
+  } catch {
     return false;
   }
 }
@@ -160,7 +163,7 @@ function fileExists(filePath: string): boolean {
  * Discover npm/yarn workspaces from package.json
  */
 async function discoverNpmYarnWorkspaces(
-  rootDir: string
+  rootDir: string,
 ): Promise<WorkspaceDiscoveryResult | null> {
   const packageJson = readPackageJson(rootDir);
   if (!packageJson) {
@@ -180,7 +183,7 @@ async function discoverNpmYarnWorkspaces(
   logger.debug(
     `Discovered ${
       packages.length
-    } ${type} workspace packages from ${workspacesGlobs.join(', ')}`
+    } ${type} workspace packages from ${workspacesGlobs.join(', ')}`,
   );
 
   return { type, packages };
@@ -190,7 +193,7 @@ async function discoverNpmYarnWorkspaces(
  * Discover pnpm workspaces from pnpm-workspace.yaml
  */
 async function discoverPnpmWorkspaces(
-  rootDir: string
+  rootDir: string,
 ): Promise<WorkspaceDiscoveryResult | null> {
   const pnpmWorkspacePath = path.join(rootDir, 'pnpm-workspace.yaml');
 
@@ -214,8 +217,8 @@ async function discoverPnpmWorkspaces(
 
   logger.debug(
     `Discovered ${packages.length} pnpm workspace packages from ${patterns.join(
-      ', '
-    )}`
+      ', ',
+    )}`,
   );
 
   return { type: 'pnpm', packages };
@@ -233,7 +236,7 @@ async function discoverPnpmWorkspaces(
  * @returns Discovery result with type and packages, or null if not a workspace
  */
 export async function discoverWorkspaces(
-  rootDir: string
+  rootDir: string,
 ): Promise<WorkspaceDiscoveryResult> {
   // Try pnpm first (more specific)
   const pnpmResult = await discoverPnpmWorkspaces(rootDir);
@@ -292,7 +295,7 @@ function escapeRegex(str: string): string {
 export function packageNameToArtifactFromTemplate(
   packageName: string,
   template: string,
-  version = '\\d.*'
+  version = '\\d.*',
 ): string {
   const simpleName = packageName.replace(/^@/, '').replace(/\//g, '-');
 
@@ -316,11 +319,11 @@ export function packageNameToArtifactFromTemplate(
   result = result
     .replace(
       new RegExp(escapeRegex(NAME_PLACEHOLDER), 'g'),
-      escapeRegex(packageName)
+      escapeRegex(packageName),
     )
     .replace(
       new RegExp(escapeRegex(SIMPLE_PLACEHOLDER), 'g'),
-      escapeRegex(simpleName)
+      escapeRegex(simpleName),
     )
     .replace(new RegExp(escapeRegex(VERSION_PLACEHOLDER), 'g'), versionValue);
 
@@ -338,7 +341,7 @@ export function packageNameToArtifactFromTemplate(
 export function filterWorkspacePackages(
   packages: WorkspacePackage[],
   includePattern?: RegExp,
-  excludePattern?: RegExp
+  excludePattern?: RegExp,
 ): WorkspacePackage[] {
   return packages.filter(pkg => {
     // Check exclude pattern first
@@ -365,7 +368,7 @@ export function filterWorkspacePackages(
  * @throws Error if there's a circular dependency
  */
 export function topologicalSortPackages(
-  packages: WorkspacePackage[]
+  packages: WorkspacePackage[],
 ): WorkspacePackage[] {
   // Map package name to its workspace dependencies
   const depsMap = new Map<string, string[]>();
@@ -387,7 +390,7 @@ export function topologicalSortPackages(
     if (computing.has(name)) {
       const cyclePackages = Array.from(computing);
       throw new Error(
-        `Circular dependency detected among workspace packages: ${cyclePackages.join(', ')}`
+        `Circular dependency detected among workspace packages: ${cyclePackages.join(', ')}`,
       );
     }
 

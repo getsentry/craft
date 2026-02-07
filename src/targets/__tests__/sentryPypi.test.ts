@@ -1,4 +1,3 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { WHEEL_REGEX, uniquePackages } from '../sentryPypi';
 
 describe('WHEEL_REGEX', () => {

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
-import { TargetConfig } from '../schemas/project_config';
+import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import {
   checkExecutableIsPresent,
@@ -39,6 +39,11 @@ export interface NugetTargetOptions {
   serverUrl: string;
 }
 
+/** Config fields for nuget target from .craft.yml */
+interface NugetYamlConfig extends Record<string, unknown> {
+  serverUrl?: string;
+}
+
 /**
  * Target responsible for publishing releases on Nuget
  */
@@ -60,7 +65,7 @@ export class NugetTarget extends BaseTarget {
    */
   public static async bumpVersion(
     rootDir: string,
-    newVersion: string
+    newVersion: string,
   ): Promise<boolean> {
     // Check for .NET project files
     const csprojFiles = readdirSync(rootDir).filter(f => f.endsWith('.csproj'));
@@ -78,17 +83,22 @@ export class NugetTarget extends BaseTarget {
           NUGET_DOTNET_BIN,
           ['setversion', newVersion],
           { cwd: rootDir },
-          { enableInDryRunMode: true }
+          { enableInDryRunMode: true },
         );
         if (result !== null) {
           return true;
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (!message.includes('not installed') && !message.includes('Could not execute')) {
+        if (
+          !message.includes('not installed') &&
+          !message.includes('Could not execute')
+        ) {
           throw error;
         }
-        logger.debug('dotnet-setversion not available, falling back to manual edit');
+        logger.debug(
+          'dotnet-setversion not available, falling back to manual edit',
+        );
       }
     }
 
@@ -117,7 +127,10 @@ export class NugetTarget extends BaseTarget {
   /**
    * Update version in an XML project file (.csproj or Directory.Build.props)
    */
-  private static updateVersionInXml(filePath: string, newVersion: string): boolean {
+  private static updateVersionInXml(
+    filePath: string,
+    newVersion: string,
+  ): boolean {
     const content = readFileSync(filePath, 'utf-8');
 
     // Match <Version>x.y.z</Version> or <PackageVersion>x.y.z</PackageVersion>
@@ -156,7 +169,7 @@ export class NugetTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
     this.nugetConfig = this.getNugetConfig();
@@ -170,12 +183,13 @@ export class NugetTarget extends BaseTarget {
     if (!process.env.NUGET_API_TOKEN) {
       throw new ConfigurationError(
         `Cannot perform Nuget release: missing credentials.
-         Please use NUGET_API_TOKEN environment variable.`
+         Please use NUGET_API_TOKEN environment variable.`,
       );
     }
+    const config = this.config as TypedTargetConfig<NugetYamlConfig>;
     return {
       apiToken: process.env.NUGET_API_TOKEN,
-      serverUrl: this.config.serverUrl || DEFAULT_NUGET_SERVER_URL,
+      serverUrl: config.serverUrl || DEFAULT_NUGET_SERVER_URL,
     };
   }
 
@@ -221,7 +235,7 @@ export class NugetTarget extends BaseTarget {
 
     if (!packageFiles.length) {
       reportError(
-        'Cannot release to Nuget: there are no Nuget packages found!'
+        'Cannot release to Nuget: there are no Nuget packages found!',
       );
     }
 
@@ -235,7 +249,7 @@ export class NugetTarget extends BaseTarget {
     await spawnProcess(
       NUGET_DOTNET_BIN,
       ['nuget', '--version'],
-      DOTNET_SPAWN_OPTIONS
+      DOTNET_SPAWN_OPTIONS,
     );
 
     await Promise.all(
@@ -260,10 +274,10 @@ export class NugetTarget extends BaseTarget {
           `Uploading file "${file.filename}" via "dotnet nuget"` +
             (symbolFile
               ? `, including symbol file "${symbolFile.filename}"`
-              : '')
+              : ''),
         );
         return this.uploadAsset(path);
-      })
+      }),
     );
 
     this.logger.info('Nuget release complete');
