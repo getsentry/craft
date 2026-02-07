@@ -1,0 +1,21 @@
+## Implementation Plan
+
+### Root Cause Analysis
+The `spawnProcess` function was used but never imported in:
+- `src/targets/pypi.ts` (line 193)
+- `src/targets/crates.ts` (lines 204, 328)
+
+### Why It Wasn't Caught
+1. **esbuild doesn't type check** - Build uses esbuild which only transpiles
+2. **Tests mocked the method** - Test replaced uploadAssets entirely with mock
+3. **No type checking in CI** - tsc --noEmit was never run
+
+### Fix Implementation
+1. Add missing `spawnProcess` import to both files
+2. Add test that mocks `spawnProcess` but calls real `uploadAssets` method
+3. Add `typecheck` script to package.json for local development
+
+### Prevention
+- New test ensures import exists (would fail if removed)
+- typecheck script available for developers to catch similar issues locally
+- Full CI type checking deferred (150+ pre-existing type errors need fixing first)
