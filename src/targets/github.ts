@@ -7,6 +7,7 @@ import {
   ChangelogPolicy,
   GitHubGlobalConfig,
   TargetConfig,
+  TypedTargetConfig,
 } from '../schemas/project_config';
 import {
   Changeset,
@@ -32,6 +33,16 @@ import { DetectionContext, DetectionResult } from '../utils/detection';
  * Default content type for GitHub release assets.
  */
 export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
+
+/** GitHub target configuration fields */
+interface GitHubConfigFields extends Record<string, unknown> {
+  owner?: string;
+  repo?: string;
+  tagPrefix?: string;
+  tagOnly?: boolean;
+  previewReleases?: boolean;
+  floatingTags?: string[];
+}
 
 /**
  * Configuration options for the GitHub target.
@@ -118,8 +129,9 @@ export class GitHubTarget extends BaseTarget {
   ) {
     super(config, artifactProvider, githubRepo);
     this.githubRepo = githubRepo;
-    const owner = config.owner || githubRepo.owner;
-    const repo = config.repo || githubRepo.repo;
+    const typedConfig = this.config as TypedTargetConfig<GitHubConfigFields>;
+    const owner = typedConfig.owner || githubRepo.owner;
+    const repo = typedConfig.repo || githubRepo.repo;
     const configChangelog = getConfiguration().changelog;
     const changelog =
       typeof configChangelog === 'string'
@@ -131,11 +143,11 @@ export class GitHubTarget extends BaseTarget {
       repo,
       changelog,
       previewReleases:
-        this.config.previewReleases === undefined ||
-        !!this.config.previewReleases,
-      tagPrefix: this.config.tagPrefix || '',
-      tagOnly: !!this.config.tagOnly,
-      floatingTags: this.config.floatingTags || [],
+        typedConfig.previewReleases === undefined ||
+        !!typedConfig.previewReleases,
+      tagPrefix: typedConfig.tagPrefix || '',
+      tagOnly: !!typedConfig.tagOnly,
+      floatingTags: typedConfig.floatingTags || [],
     };
     this.github = getGitHubClient();
   }
@@ -376,7 +388,7 @@ export class GitHubTarget extends BaseTarget {
       }
 
       return ret;
-    } catch (err) {
+    } catch {
       if (retries <= 0) {
         throw new Error(
           `Reached maximum retries for trying to upload asset "${params.name}.`,

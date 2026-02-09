@@ -7,7 +7,11 @@ import {
   RemoteArtifact,
 } from '../artifact_providers/base';
 import { ConfigurationError, reportError } from '../utils/errors';
-import { checkExecutableIsPresent, runWithExecutable } from '../utils/system';
+import {
+  checkExecutableIsPresent,
+  runWithExecutable,
+  spawnProcess,
+} from '../utils/system';
 import { BaseTarget } from './base';
 import { logger } from '../logger';
 import {

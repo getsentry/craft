@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { mkdtempSync, rmSync } from 'fs';
@@ -23,7 +23,13 @@ describe('getPackageManifest', () => {
 
   describe('when package already exists', () => {
     it('reads the existing latest.json manifest', async () => {
-      const packageDir = path.join(tempDir, 'packages', 'npm', '@sentry', 'browser');
+      const packageDir = path.join(
+        tempDir,
+        'packages',
+        'npm',
+        '@sentry',
+        'browser',
+      );
       fs.mkdirSync(packageDir, { recursive: true });
       const existingManifest = {
         canonical: 'npm:@sentry/browser',
@@ -33,28 +39,32 @@ describe('getPackageManifest', () => {
       };
       fs.writeFileSync(
         path.join(packageDir, 'latest.json'),
-        JSON.stringify(existingManifest)
+        JSON.stringify(existingManifest),
       );
 
       const result = await getPackageManifest(
         tempDir,
         RegistryPackageType.SDK,
         'npm:@sentry/browser',
-        '1.1.0'
+        '1.1.0',
       );
 
       expect(result.packageManifest).toEqual(existingManifest);
-      expect(result.versionFilePath).toBe(
-        path.join(packageDir, '1.1.0.json')
-      );
+      expect(result.versionFilePath).toBe(path.join(packageDir, '1.1.0.json'));
     });
 
     it('throws an error if version file already exists', async () => {
-      const packageDir = path.join(tempDir, 'packages', 'npm', '@sentry', 'browser');
+      const packageDir = path.join(
+        tempDir,
+        'packages',
+        'npm',
+        '@sentry',
+        'browser',
+      );
       fs.mkdirSync(packageDir, { recursive: true });
       fs.writeFileSync(
         path.join(packageDir, 'latest.json'),
-        JSON.stringify({ canonical: 'npm:@sentry/browser' })
+        JSON.stringify({ canonical: 'npm:@sentry/browser' }),
       );
       fs.writeFileSync(path.join(packageDir, '1.0.0.json'), '{}');
 
@@ -63,8 +73,8 @@ describe('getPackageManifest', () => {
           tempDir,
           RegistryPackageType.SDK,
           'npm:@sentry/browser',
-          '1.0.0'
-        )
+          '1.0.0',
+        ),
       ).rejects.toThrow('Version file for "1.0.0" already exists');
     });
   });
@@ -84,11 +94,17 @@ describe('getPackageManifest', () => {
         RegistryPackageType.SDK,
         'npm:@sentry/wasm',
         '0.1.0',
-        initialData
+        initialData,
       );
 
       // Check directory was created
-      const packageDir = path.join(tempDir, 'packages', 'npm', '@sentry', 'wasm');
+      const packageDir = path.join(
+        tempDir,
+        'packages',
+        'npm',
+        '@sentry',
+        'wasm',
+      );
       expect(fs.existsSync(packageDir)).toBe(true);
 
       // Check manifest has correct fields
@@ -101,9 +117,7 @@ describe('getPackageManifest', () => {
       });
 
       // Check version file path
-      expect(result.versionFilePath).toBe(
-        path.join(packageDir, '0.1.0.json')
-      );
+      expect(result.versionFilePath).toBe(path.join(packageDir, '0.1.0.json'));
     });
 
     it('creates initial manifest with only required fields when optional are not provided', async () => {
@@ -117,7 +131,7 @@ describe('getPackageManifest', () => {
         RegistryPackageType.SDK,
         'npm:@sentry/minimal',
         '1.0.0',
-        initialData
+        initialData,
       );
 
       expect(result.packageManifest).toEqual({
@@ -132,10 +146,10 @@ describe('getPackageManifest', () => {
           tempDir,
           RegistryPackageType.SDK,
           'npm:@sentry/new-package',
-          '1.0.0'
-        )
+          '1.0.0',
+        ),
       ).rejects.toThrow(
-        'Package "npm:@sentry/new-package" does not exist in the registry and no initial manifest data was provided'
+        'Package "npm:@sentry/new-package" does not exist in the registry and no initial manifest data was provided',
       );
     });
 
@@ -151,7 +165,7 @@ describe('getPackageManifest', () => {
         RegistryPackageType.APP,
         'app:craft',
         '2.0.0',
-        initialData
+        initialData,
       );
 
       // Check directory was created
@@ -177,7 +191,7 @@ describe('getPackageManifest', () => {
         RegistryPackageType.SDK,
         'npm:@sentry/core',
         '1.0.0',
-        initialData
+        initialData,
       );
 
       expect(result.packageManifest).toEqual({

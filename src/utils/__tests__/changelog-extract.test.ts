@@ -1,4 +1,3 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 /**
  * Tests for changelog extraction and parsing functions.
  * - extractScope: Extracts scope from conventional commit titles
@@ -6,7 +5,11 @@ import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } fr
  * - extractChangelogEntry: Extracts custom changelog entries from PR bodies
  */
 
-import { extractScope, formatScopeTitle, extractChangelogEntry } from '../changelog';
+import {
+  extractScope,
+  formatScopeTitle,
+  extractChangelogEntry,
+} from '../changelog';
 
 describe('extractScope', () => {
   it.each([
@@ -157,7 +160,8 @@ This PR has no changelog entry section.`;
     });
 
     it('handles CRLF line endings', () => {
-      const prBody = '### Changelog Entry\r\n\r\n- Entry with CRLF\r\n- Another entry\r\n\r\n### Next';
+      const prBody =
+        '### Changelog Entry\r\n\r\n- Entry with CRLF\r\n- Another entry\r\n\r\n### Next';
       expect(extractChangelogEntry(prBody)).toMatchSnapshot();
     });
 
@@ -193,4 +197,3 @@ Intro paragraph:
     });
   });
 });
-

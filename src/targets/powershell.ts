@@ -1,6 +1,6 @@
 import { join } from 'path';
 import { BaseArtifactProvider } from '../artifact_providers/base';
-import { TargetConfig } from '../schemas/project_config';
+import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
@@ -28,6 +28,12 @@ export interface PowerShellTargetOptions {
   module: string;
 }
 
+/** Config fields for powershell target from .craft.yml */
+interface PowerShellYamlConfig extends Record<string, unknown> {
+  repository?: string;
+  module?: string;
+}
+
 /**
  * Target responsible for publishing modules to a PowerShell repository
  */
@@ -43,13 +49,14 @@ export class PowerShellTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
+    const typedConfig = this.config as TypedTargetConfig<PowerShellYamlConfig>;
     this.psConfig = {
       apiKey: process.env.POWERSHELL_API_KEY || '',
-      repository: this.config.repository || DEFAULT_POWERSHELL_REPOSITORY,
-      module: this.config.module || '',
+      repository: typedConfig.repository || DEFAULT_POWERSHELL_REPOSITORY,
+      module: typedConfig.module || '',
     };
     checkExecutableIsPresent(POWERSHELL_BIN);
   }
@@ -59,7 +66,7 @@ export class PowerShellTarget extends BaseTarget {
    */
   private async spawnPwsh(
     command: string,
-    spawnProcessOptions: SpawnProcessOptions = this.defaultSpawnOptions
+    spawnProcessOptions: SpawnProcessOptions = this.defaultSpawnOptions,
   ): Promise<Buffer | undefined> {
     command = `$ErrorActionPreference = 'Stop'\n` + command;
     this.logger.trace('Executing PowerShell command:', command);
@@ -67,7 +74,7 @@ export class PowerShellTarget extends BaseTarget {
       POWERSHELL_BIN,
       ['-Command', command],
       {},
-      spawnProcessOptions
+      spawnProcessOptions,
     );
   }
 
@@ -89,7 +96,7 @@ export class PowerShellTarget extends BaseTarget {
     }
     if (missingConfigOptions.length > 0) {
       throw new ConfigurationError(
-        'Missing project configuration parameter(s): ' + missingConfigOptions
+        'Missing project configuration parameter(s): ' + missingConfigOptions,
       );
     }
   }
@@ -108,7 +115,7 @@ export class PowerShellTarget extends BaseTarget {
       POWERSHELL_BIN,
       ['--version'],
       {},
-      this.defaultSpawnOptions
+      this.defaultSpawnOptions,
     );
 
     // Also check the command and its its module version in case there are issues:
@@ -123,7 +130,7 @@ export class PowerShellTarget extends BaseTarget {
     // Escape the given module artifact name to avoid regex issues.
     let moduleArtifactRegex = `${this.psConfig.module}`.replace(
       /[/\-\\^$*+?.()|[\]{}]/g,
-      '\\$&'
+      '\\$&',
     );
     moduleArtifactRegex = `/^${moduleArtifactRegex}\\.zip$/`;
 
@@ -133,11 +140,11 @@ export class PowerShellTarget extends BaseTarget {
     });
     if (!packageFiles.length) {
       reportError(
-        `Cannot release the module to ${this.psConfig.repository}: there are no matching artifacts!`
+        `Cannot release the module to ${this.psConfig.repository}: there are no matching artifacts!`,
       );
     } else if (packageFiles.length > 1) {
       reportError(
-        `Cannot release the module to ${this.psConfig.repository}: found multiple matching artifacts!`
+        `Cannot release the module to ${this.psConfig.repository}: found multiple matching artifacts!`,
       );
     }
     const artifact = packageFiles[0];
@@ -155,7 +162,7 @@ export class PowerShellTarget extends BaseTarget {
 
   public async publishModule(moduleDir: string): Promise<void> {
     this.logger.info(
-      `Publishing PowerShell module "${this.psConfig.module}" to ${this.psConfig.repository}`
+      `Publishing PowerShell module "${this.psConfig.module}" to ${this.psConfig.repository}`,
     );
     await this.spawnPwsh(`
         Publish-Module  -Path '${moduleDir}' \`

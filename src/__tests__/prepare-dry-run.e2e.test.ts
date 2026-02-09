@@ -13,7 +13,6 @@ import { resolve, join } from 'path';
 import { mkdtemp, rm, writeFile, readFile, mkdir, chmod } from 'fs/promises';
 import { existsSync } from 'fs';
 import { tmpdir } from 'os';
-// eslint-disable-next-line no-restricted-imports, no-restricted-syntax -- Test file needs direct git access for setup/verification
 import simpleGit from 'simple-git';
 
 const execFileAsync = promisify(execFile);

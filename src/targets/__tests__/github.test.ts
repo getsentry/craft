@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi } from 'vitest';
 import { isLatestRelease, GitHubTarget } from '../github';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { setGlobals } from '../../utils/helpers';
@@ -80,7 +80,7 @@ describe('GitHubTarget', () => {
     githubTarget = new GitHubTarget(
       { name: 'github' },
       new NoneArtifactProvider(),
-      { owner: 'testOwner', repo: 'testRepo' }
+      { owner: 'testOwner', repo: 'testRepo' },
     );
   });
 
@@ -106,16 +106,16 @@ describe('GitHubTarget', () => {
       githubTarget.publishRelease = vi.fn().mockResolvedValue(undefined);
       githubTarget.github.repos.getLatestRelease = vi.fn().mockRejectedValue({
         status: 404,
-      });
+      }) as any;
     });
 
     it('cleans up draft release when publishRelease fails', async () => {
       const publishError = new Error('Publish failed');
       githubTarget.publishRelease = vi.fn().mockRejectedValue(publishError);
 
-      await expect(
-        githubTarget.publish('1.0.0', 'abc123')
-      ).rejects.toThrow('Publish failed');
+      await expect(githubTarget.publish('1.0.0', 'abc123')).rejects.toThrow(
+        'Publish failed',
+      );
 
       expect(githubTarget.deleteRelease).toHaveBeenCalledWith(mockDraftRelease);
     });
@@ -127,9 +127,9 @@ describe('GitHubTarget', () => {
       githubTarget.publishRelease = vi.fn().mockRejectedValue(publishError);
       githubTarget.deleteRelease = vi.fn().mockRejectedValue(deleteError);
 
-      await expect(
-        githubTarget.publish('1.0.0', 'abc123')
-      ).rejects.toThrow('Publish failed');
+      await expect(githubTarget.publish('1.0.0', 'abc123')).rejects.toThrow(
+        'Publish failed',
+      );
 
       expect(githubTarget.deleteRelease).toHaveBeenCalledWith(mockDraftRelease);
     });
@@ -151,7 +151,7 @@ describe('GitHubTarget', () => {
       };
 
       const deleteReleaseSpy = vi.fn().mockResolvedValue({ status: 204 });
-      githubTarget.github.repos.deleteRelease = deleteReleaseSpy;
+      githubTarget.github.repos.deleteRelease = deleteReleaseSpy as any;
 
       const result = await githubTarget.deleteRelease(draftRelease);
 
@@ -177,7 +177,7 @@ describe('GitHubTarget', () => {
       };
 
       const deleteReleaseSpy = vi.fn().mockResolvedValue({ status: 204 });
-      githubTarget.github.repos.deleteRelease = deleteReleaseSpy;
+      githubTarget.github.repos.deleteRelease = deleteReleaseSpy as any;
 
       const result = await githubTarget.deleteRelease(publishedRelease);
 
@@ -193,7 +193,7 @@ describe('GitHubTarget', () => {
       };
 
       const deleteReleaseSpy = vi.fn().mockResolvedValue({ status: 204 });
-      githubTarget.github.repos.deleteRelease = deleteReleaseSpy;
+      githubTarget.github.repos.deleteRelease = deleteReleaseSpy as any;
 
       const result = await githubTarget.deleteRelease(releaseWithoutDraftFlag);
 
@@ -212,7 +212,7 @@ describe('GitHubTarget', () => {
       };
 
       const deleteReleaseSpy = vi.fn().mockResolvedValue({ status: 204 });
-      githubTarget.github.repos.deleteRelease = deleteReleaseSpy;
+      githubTarget.github.repos.deleteRelease = deleteReleaseSpy as any;
 
       const result = await githubTarget.deleteRelease(draftRelease);
 

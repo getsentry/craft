@@ -63,6 +63,20 @@ export const TargetConfigSchema = z
 export type TargetConfig = z.infer<typeof TargetConfigSchema>;
 
 /**
+ * Utility type for strongly-typed target configurations.
+ * Combines base TargetConfig fields with target-specific fields.
+ *
+ * @example
+ * interface BrewConfigFields {
+ *   tap?: string;
+ *   template: string;
+ * }
+ * const config = this.config as TypedTargetConfig<BrewConfigFields>;
+ */
+export type TypedTargetConfig<T extends Record<string, unknown>> =
+  TargetConfig & T;
+
+/**
  * Which service should be used for status checks
  */
 export const BaseStatusProviderSchema = z.object({

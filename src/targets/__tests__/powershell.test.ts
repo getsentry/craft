@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi, type Mock } from 'vitest';
 import { spawnProcess } from '../../utils/system';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { ConfigurationError } from '../../utils/errors';
@@ -15,7 +15,7 @@ function getPwshTarget(): PowerShellTarget {
       module: 'moduleName',
       repository: 'repositoryName',
     },
-    new NoneArtifactProvider()
+    new NoneArtifactProvider(),
   );
 }
 
@@ -72,7 +72,7 @@ describe('config', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(ConfigurationError);
       expect(error.message).toBe(
-        'Missing project configuration parameter(s): apiKey,repository,module'
+        'Missing project configuration parameter(s): apiKey,repository,module',
       );
     }
   });
@@ -136,7 +136,7 @@ describe('publish', () => {
       'pwsh',
       ['--version'],
       {},
-      spawnOptions
+      spawnOptions,
     );
     expect(mockedSpawnProcess).toBeCalledWith(
       'pwsh',
@@ -151,7 +151,7 @@ describe('publish', () => {
     `,
       ],
       {},
-      spawnOptions
+      spawnOptions,
     );
   });
 
@@ -171,7 +171,7 @@ describe('publish', () => {
       `,
       ],
       {},
-      spawnOptions
+      spawnOptions,
     );
   });
 });

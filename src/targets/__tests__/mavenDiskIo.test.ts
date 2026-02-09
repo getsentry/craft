@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi } from 'vitest';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { MavenTarget } from '../maven';
 import { withTempDir } from '../../utils/files';
@@ -25,7 +25,7 @@ function getRequiredTargetConfig(): any {
 }
 
 function createMavenTarget(
-  targetConfig?: Record<string, unknown>
+  targetConfig?: Record<string, unknown>,
 ): MavenTarget {
   process.env.GPG_PRIVATE_KEY = DEFAULT_OPTION_VALUE;
   process.env.GPG_PASSPHRASE = DEFAULT_OPTION_VALUE;
@@ -42,71 +42,63 @@ function createMavenTarget(
 
 describe('maven disk io', () => {
   test('fileExists', async () => {
-    await withTempDir(
-      async (tmpDir): Promise<void> => {
-        const target = createMavenTarget();
+    await withTempDir(async (tmpDir): Promise<void> => {
+      const target = createMavenTarget();
 
-        expect(await target.fileExists('a/random/path')).toBe(false);
+      expect(await target.fileExists('a/random/path')).toBe(false);
 
-        // a folder should return false
-        expect(await target.fileExists(tmpDir)).toBe(false);
+      // a folder should return false
+      expect(await target.fileExists(tmpDir)).toBe(false);
 
-        const file = join(tmpDir, 'module.json');
+      const file = join(tmpDir, 'module.json');
 
-        // when the file doesn't exist it should return false
-        expect(await target.fileExists(file)).toBe(false);
-        await fsPromises.writeFile(file, 'abc');
+      // when the file doesn't exist it should return false
+      expect(await target.fileExists(file)).toBe(false);
+      await fsPromises.writeFile(file, 'abc');
 
-        // once the file is written, it should exist
-        expect(await target.fileExists(file)).toBe(true);
-      }
-    );
+      // once the file is written, it should exist
+      expect(await target.fileExists(file)).toBe(true);
+    });
   });
 
   test('fixModuleFileName', async () => {
-    await withTempDir(
-      async (tmpDir): Promise<void> => {
-        const target = createMavenTarget();
+    await withTempDir(async (tmpDir): Promise<void> => {
+      const target = createMavenTarget();
 
-        const file = join(tmpDir, 'module.json');
-        await fsPromises.writeFile(file, 'abc');
+      const file = join(tmpDir, 'module.json');
+      await fsPromises.writeFile(file, 'abc');
 
-        const moduleFile = join(tmpDir, 'sentry-java-1.0.0.module');
-        // when fix module is called with proper file names
-        await target.fixModuleFileName(tmpDir, moduleFile);
+      const moduleFile = join(tmpDir, 'sentry-java-1.0.0.module');
+      // when fix module is called with proper file names
+      await target.fixModuleFileName(tmpDir, moduleFile);
 
-        // it should rename the file
-        expect(await target.fileExists(file)).toBe(false);
-        expect(await target.fileExists(moduleFile)).toBe(true);
-      }
-    );
+      // it should rename the file
+      expect(await target.fileExists(file)).toBe(false);
+      expect(await target.fileExists(moduleFile)).toBe(true);
+    });
   });
 
   test('fixModuleFileName no-op', async () => {
-    await withTempDir(
-      async (tmpDir): Promise<void> => {
-        const target = createMavenTarget();
+    await withTempDir(async (tmpDir): Promise<void> => {
+      const target = createMavenTarget();
 
-        const file = join(tmpDir, 'sentry-java-1.0.0.module');
-        await fsPromises.writeFile(file, 'abc');
+      const file = join(tmpDir, 'sentry-java-1.0.0.module');
+      await fsPromises.writeFile(file, 'abc');
 
-        // when fix module is called, but the proper file already exists
-        await target.fixModuleFileName(tmpDir, file);
+      // when fix module is called, but the proper file already exists
+      await target.fixModuleFileName(tmpDir, file);
 
-        // it should still exist after calling fixModuleFileName
-        expect(await target.fileExists(file)).toBe(true);
-      }
-    );
+      // it should still exist after calling fixModuleFileName
+      expect(await target.fileExists(file)).toBe(true);
+    });
   });
 
   test('fixModuleFileName non-existant-files', async () => {
-    await withTempDir(
-      async (tmpDir): Promise<void> => {
-        const target = createMavenTarget();
+    await withTempDir(async (tmpDir): Promise<void> => {
+      const target = createMavenTarget();
 
-        const file = join(tmpDir, 'sentry-java-1.0.0.module');
-        await target.fixModuleFileName(tmpDir, file);
-      }
-    );
+      const file = join(tmpDir, 'sentry-java-1.0.0.module');
+      await target.fixModuleFileName(tmpDir, file);
+    });
   });
 });

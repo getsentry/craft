@@ -1,4 +1,3 @@
-// eslint-disable-next-line no-restricted-imports -- This is the wrapper module
 import simpleGit, {
   type SimpleGit,
   type LogOptions,

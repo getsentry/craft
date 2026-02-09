@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi } from 'vitest';
 import { getLatestTag, isRepoDirty } from '../git';
 import * as loggerModule from '../../logger';
 import type { StatusResult } from 'simple-git';

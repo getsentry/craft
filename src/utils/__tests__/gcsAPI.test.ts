@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -32,13 +32,12 @@ import {
 vi.mock('../../logger');
 
 // Mock existsSync to be controllable in tests while keeping other fs functions real
-const mockExistsSync = vi.fn<(path: fs.PathLike) => boolean>((path) => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+const mockExistsSync = vi.fn<(path: fs.PathLike) => boolean>(path => {
   const realFs = require('fs');
   return realFs.existsSync(path);
 });
 
-vi.mock('fs', async (importOriginal) => {
+vi.mock('fs', async importOriginal => {
   const actual = await importOriginal<typeof import('fs')>();
   return {
     ...actual,
@@ -92,7 +91,7 @@ describe('gcsApi module', () => {
 
       const creds = getGCSCredsFromEnv(
         { name: 'DOG_CREDS_JSON' },
-        { name: 'DOG_CREDS_PATH' }
+        { name: 'DOG_CREDS_PATH' },
       );
 
       expect(creds).toMatchObject({
@@ -115,7 +114,7 @@ describe('gcsApi module', () => {
 
         const creds = getGCSCredsFromEnv(
           { name: 'DOG_CREDS_JSON' },
-          { name: 'DOG_CREDS_PATH' }
+          { name: 'DOG_CREDS_PATH' },
         );
 
         expect(creds).toMatchObject({
@@ -134,8 +133,8 @@ describe('gcsApi module', () => {
       expect(
         getGCSCredsFromEnv(
           { name: 'DOG_CREDS_JSON' },
-          { name: 'DOG_CREDS_PATH' }
-        )
+          { name: 'DOG_CREDS_PATH' },
+        ),
       ).toBeNull();
     });
 
@@ -145,7 +144,7 @@ describe('gcsApi module', () => {
       expect(() => {
         getGCSCredsFromEnv(
           { name: 'DOG_CREDS_JSON' },
-          { name: 'DOG_CREDS_PATH' }
+          { name: 'DOG_CREDS_PATH' },
         );
       }).toThrowError('Error parsing JSON credentials');
     });
@@ -159,7 +158,7 @@ describe('gcsApi module', () => {
       expect(() => {
         getGCSCredsFromEnv(
           { name: 'DOG_CREDS_JSON' },
-          { name: 'DOG_CREDS_PATH' }
+          { name: 'DOG_CREDS_PATH' },
         );
       }).toThrowError('File does not exist: `./iDontExist.json`!');
     });
@@ -173,7 +172,7 @@ describe('gcsApi module', () => {
       expect(() => {
         getGCSCredsFromEnv(
           { name: 'DOG_CREDS_JSON' },
-          { name: 'DOG_CREDS_PATH' }
+          { name: 'DOG_CREDS_PATH' },
         );
       }).toThrowError('GCS credentials missing `client_email`!');
     });
@@ -186,12 +185,12 @@ describe('gcsApi module', () => {
 
         await client.uploadArtifact(
           squirrelStatsLocalPath,
-          squirrelStatsBucketPath
+          squirrelStatsBucketPath,
         );
 
         const { filename } = squirrelStatsArtifact;
         const destinationPath = path.posix.normalize(
-          squirrelStatsBucketPath.path
+          squirrelStatsBucketPath.path,
         );
 
         expect(mockGCSUpload).toHaveBeenCalledWith(squirrelStatsLocalPath, {
@@ -211,7 +210,7 @@ describe('gcsApi module', () => {
 
         const { filename } = squirrelStatsArtifact;
         const destinationPath = path.posix.normalize(
-          squirrelStatsBucketPath.path
+          squirrelStatsBucketPath.path,
         );
 
         expect(mockGCSUpload).toHaveBeenCalledWith(squirrelStatsLocalPath, {
@@ -227,7 +226,7 @@ describe('gcsApi module', () => {
 
         await client.uploadArtifact(
           squirrelSimulatorLocalPath,
-          squirrelSimulatorBucketPath
+          squirrelSimulatorBucketPath,
         );
 
         expect(mockGCSUpload).toHaveBeenCalledWith(
@@ -236,7 +235,7 @@ describe('gcsApi module', () => {
             metadata: expect.objectContaining({
               contentType: 'application/javascript; charset=utf-8',
             }),
-          })
+          }),
         );
       });
 
@@ -245,7 +244,7 @@ describe('gcsApi module', () => {
 
         await client.uploadArtifact(
           squirrelSimulatorLocalPath,
-          squirrelSimulatorBucketPath
+          squirrelSimulatorBucketPath,
         );
 
         const squirrelSimulatorMetadata = squirrelSimulatorBucketPath.metadata;
@@ -254,7 +253,7 @@ describe('gcsApi module', () => {
           squirrelSimulatorLocalPath,
           expect.objectContaining({
             metadata: expect.objectContaining({ ...squirrelSimulatorMetadata }),
-          })
+          }),
         );
       });
 
@@ -270,10 +269,10 @@ describe('gcsApi module', () => {
         await expect(
           client.uploadArtifact(
             squirrelSimulatorLocalPath,
-            squirrelSimulatorBucketPath
-          )
+            squirrelSimulatorBucketPath,
+          ),
         ).rejects.toThrowError(
-          `Encountered an error while uploading \`${filename}\``
+          `Encountered an error while uploading \`${filename}\``,
         );
       });
 
@@ -284,7 +283,7 @@ describe('gcsApi module', () => {
 
         await client.uploadArtifact(
           squirrelStatsLocalPath,
-          squirrelStatsBucketPath
+          squirrelStatsBucketPath,
         );
 
         expect(mockGCSUpload).not.toHaveBeenCalled();
@@ -298,7 +297,7 @@ describe('gcsApi module', () => {
         await withTempDir(async tempDownloadDirectory => {
           await client.downloadArtifact(
             squirrelStatsArtifact.storedFile.downloadFilepath,
-            tempDownloadDirectory
+            tempDownloadDirectory,
           );
 
           const { filename } = squirrelStatsArtifact;
@@ -318,8 +317,8 @@ describe('gcsApi module', () => {
         await expect(
           client.downloadArtifact(
             squirrelSimulatorArtifact.storedFile.downloadFilepath,
-            './iDontExist/'
-          )
+            './iDontExist/',
+          ),
         ).rejects.toThrowError(`directory does not exist!`);
       });
 
@@ -336,10 +335,10 @@ describe('gcsApi module', () => {
           await expect(
             client.downloadArtifact(
               squirrelSimulatorArtifact.storedFile.downloadFilepath,
-              tempDownloadDirectory
-            )
+              tempDownloadDirectory,
+            ),
           ).rejects.toThrowError(
-            `Encountered an error while downloading \`${filename}\``
+            `Encountered an error while downloading \`${filename}\``,
           );
         });
       });
@@ -356,7 +355,7 @@ describe('gcsApi module', () => {
 
           await client.downloadArtifact(
             squirrelSimulatorArtifact.storedFile.downloadFilepath,
-            tempDownloadDirectory
+            tempDownloadDirectory,
           );
 
           expect(mockGCSDownload).not.toHaveBeenCalled();
@@ -373,14 +372,14 @@ describe('gcsApi module', () => {
         await client.listArtifactsForRevision(
           dogsGHOrg,
           squirrelRepo,
-          squirrelSimulatorCommit
+          squirrelSimulatorCommit,
         );
 
         expect(mockGCSGetFiles).toHaveBeenCalledWith({
           prefix: path.posix.join(
             dogsGHOrg,
             squirrelRepo,
-            squirrelSimulatorCommit
+            squirrelSimulatorCommit,
           ),
         });
       });
@@ -393,7 +392,7 @@ describe('gcsApi module', () => {
         const artifacts = await client.listArtifactsForRevision(
           dogsGHOrg,
           squirrelRepo,
-          squirrelStatsCommit
+          squirrelStatsCommit,
         );
 
         expect(artifacts[0]).toEqual(squirrelStatsArtifact);
@@ -409,7 +408,7 @@ describe('gcsApi module', () => {
         const artifacts = await client.listArtifactsForRevision(
           dogsGHOrg,
           squirrelRepo,
-          squirrelStatsCommit
+          squirrelStatsCommit,
         );
 
         expect(artifacts.length).toEqual(2);
@@ -426,8 +425,8 @@ describe('gcsApi module', () => {
           client.listArtifactsForRevision(
             dogsGHOrg,
             squirrelRepo,
-            squirrelSimulatorCommit
-          )
+            squirrelSimulatorCommit,
+          ),
         ).rejects.toThrowError('Error retrieving artifact list from GCS');
       });
     }); // end describe('listArtifactsForRevision')

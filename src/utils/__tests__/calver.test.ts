@@ -1,5 +1,9 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
-import { formatCalVerDate, calculateCalVer, DEFAULT_CALVER_CONFIG } from '../calver';
+import { vi, type Mock } from 'vitest';
+import {
+  formatCalVerDate,
+  calculateCalVer,
+  DEFAULT_CALVER_CONFIG,
+} from '../calver';
 
 // Mock the config module to control tagPrefix
 vi.mock('../../config', () => ({
@@ -154,7 +158,9 @@ describe('calculateCalVer', () => {
   });
 
   it('handles non-numeric patch suffixes gracefully', async () => {
-    mockGit.tags.mockResolvedValue({ all: ['24.12.0', '24.12.beta', '24.12.1'] });
+    mockGit.tags.mockResolvedValue({
+      all: ['24.12.0', '24.12.beta', '24.12.1'],
+    });
 
     const version = await calculateCalVer(mockGit as any, {
       offset: 0,
@@ -186,7 +192,9 @@ describe('calculateCalVer', () => {
   it('ignores tags without the configured prefix', async () => {
     mockGetGitTagPrefix.mockReturnValue('v');
     // Mix of prefixed and non-prefixed tags
-    mockGit.tags.mockResolvedValue({ all: ['24.12.5', 'v24.12.0', 'v24.12.1'] });
+    mockGit.tags.mockResolvedValue({
+      all: ['24.12.5', 'v24.12.0', 'v24.12.1'],
+    });
 
     const version = await calculateCalVer(mockGit as any, {
       offset: 0,

@@ -270,7 +270,7 @@ export function getVersioningPolicy(): VersioningPolicy {
 
   // Use explicitly configured policy if available
   if (config.versioning?.policy) {
-    return config.versioning.policy;
+    return config.versioning.policy as VersioningPolicy;
   }
 
   // Default based on minVersion
@@ -321,7 +321,7 @@ export async function getGlobalGitHubConfig(
 export function getGitTagPrefix(): string {
   const targets = getConfiguration().targets || [];
   const githubTarget = targets.find(target => target.name === 'github');
-  return githubTarget?.tagPrefix || '';
+  return (githubTarget?.tagPrefix as string | undefined) || '';
 }
 
 /**
@@ -432,7 +432,7 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
     logger.warn(
       'The "changelogPolicy" option is deprecated. Please use "changelog.policy" instead.',
     );
-    policy = config.changelogPolicy;
+    policy = config.changelogPolicy as ChangelogPolicy;
   }
 
   // Handle changelog config

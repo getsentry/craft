@@ -93,7 +93,7 @@ runs:
       if: github.repository == 'getsentry/craft'
       uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
       with:
-        name: ${{ github.sha }}
+        name: craft-binary
         path: /tmp/craft-artifact
 
     - name: Install Craft from artifact or release
@@ -206,12 +206,46 @@ runs:
 
         # Check if issue already exists by listing all open issues and filtering by exact title match.
         # We avoid GitHub search API to bypass indexing delays and query syntax edge cases.
-        existing_issue_url=$(gh -R "$PUBLISH_REPO" issue list --json title,url | jq -r --arg t "$title" '.[] | select(.title == $t) | .url')
-        if [[ -n "$existing_issue_url" ]]; then
-          echo "There's already an open publish request, skipped issue creation."
-          echo "::notice::Existing publish request: ${existing_issue_url}"
-          echo "issue_url=${existing_issue_url}" >> "$GITHUB_OUTPUT"
-          exit 0
+        # gh issue list returns issues sorted by creation date (most recent first), so we take
+        # the first match to handle the theoretical case of duplicate titles.
+        existing_issue=$(gh -R "$PUBLISH_REPO" issue list --json title,url,number,body | jq -r --arg t "$title" '[.[] | select(.title == $t)] | first // empty')
+        existing_issue_url=""
+        existing_issue_number=""
+        existing_body=""
+        if [[ -n "$existing_issue" ]]; then
+          existing_issue_url=$(echo "$existing_issue" | jq -r '.url')
+          existing_issue_number=$(echo "$existing_issue" | jq -r '.number')
+          existing_body=$(echo "$existing_issue" | jq -r '.body')
+        fi
+
+        # Extract checked targets from the existing body.
+        # Targets appear as " - [x] targetName" or " - [X] targetName" in markdown.
+        # We only look within the "### Targets" section to avoid matching checkboxes in the changelog.
+        # We store them in an associative array for O(1) lookup when rebuilding targets.
+        declare -A checked_targets
+        if [[ -n "$existing_body" ]]; then
+          # Extract only the Targets section (between "### Targets" and "Checked targets will be skipped")
+          targets_section=$(echo "$existing_body" | sed -n '/### Targets/,/Checked targets will be skipped/p')
+          while IFS= read -r target; do
+            [[ -n "$target" ]] && checked_targets["$target"]=1
+          done < <(echo "$targets_section" | grep -oE '^\s*-\s*\[[xX]\]\s+\S+' | sed 's/.*\[[xX]\][[:space:]]*//')
+        fi
+
+        # Apply preserved checked states to the new targets list.
+        # For each target in the new list, check if it was marked as checked in the original.
+        if [[ ${#checked_targets[@]} -gt 0 ]]; then
+          new_targets=""
+          while IFS= read -r line; do
+            # Extract target name from " - [ ] targetName" format
+            target_name=$(echo "$line" | sed 's/.*\[ \][[:space:]]*//')
+            if [[ -n "$target_name" && -n "${checked_targets[$target_name]+x}" ]]; then
+              # This target was checked in the original, preserve that state
+              line=$(echo "$line" | sed 's/\[ \]/[x]/')
+            fi
+            new_targets+="${line}"$'\n'
+          done <<< "$TARGETS"
+          # Remove trailing newline
+          TARGETS="${new_targets%$'\n'}"
         fi
 
         # Build changelog section if available
@@ -246,6 +280,19 @@ runs:
 
         Checked targets will be skipped (either already published or user-requested skip). Uncheck to retry a target.
         ${CHANGELOG_SECTION}"
-        issue_url=$(gh issue create -R "$PUBLISH_REPO" --title "$title" --body "$body")
-        echo "::notice::Created publish request: ${issue_url}"
-        echo "issue_url=${issue_url}" >> "$GITHUB_OUTPUT"
+
+        if [[ -n "$existing_issue_number" ]]; then
+          # Try to update existing issue with fresh body (preserving checked target states)
+          # This may fail if the token doesn't have permission to update issues in the publish repo
+          if gh issue edit "$existing_issue_number" -R "$PUBLISH_REPO" --body "$body" 2>/dev/null; then
+            echo "::notice::Updated existing publish request: ${existing_issue_url}"
+          else
+            echo "::warning::Could not update existing issue (permission denied). Using existing issue as-is."
+          fi
+          echo "issue_url=${existing_issue_url}" >> "$GITHUB_OUTPUT"
+        else
+          # Create new issue
+          issue_url=$(gh issue create -R "$PUBLISH_REPO" --title "$title" --body "$body")
+          echo "::notice::Created publish request: ${issue_url}"
+          echo "issue_url=${issue_url}" >> "$GITHUB_OUTPUT"
+        fi

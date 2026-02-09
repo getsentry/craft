@@ -637,7 +637,9 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     // finishes then as nothing relies on the removal of this file.
     safeFs
       .unlink(publishStateFile)
-      .catch(err => logger.trace("Couldn't remove publish state file: ", err));
+      .catch((err: unknown) =>
+        logger.trace("Couldn't remove publish state file: ", err),
+      );
     logger.success(`Version ${newVersion} has been published!`);
   } else {
     const msg = [

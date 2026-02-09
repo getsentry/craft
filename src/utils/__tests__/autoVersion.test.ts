@@ -1,16 +1,15 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
-
+import { vi, type Mock, type MockedFunction } from 'vitest';
 
 vi.mock('../githubApi.ts');
 vi.mock('../git');
-vi.mock('fs', async (importOriginal) => {
+vi.mock('fs', async importOriginal => {
   const actual = await importOriginal<typeof import('fs')>();
   return {
     ...actual,
     readFileSync: vi.fn(),
   };
 });
-vi.mock('../../config', async (importOriginal) => {
+vi.mock('../../config', async importOriginal => {
   const actual = await importOriginal<typeof import('../../config')>();
   return {
     ...actual,
@@ -39,9 +38,7 @@ const getGlobalGitHubConfigMock =
   config.getGlobalGitHubConfig as MockedFunction<
     typeof config.getGlobalGitHubConfig
   >;
-const readFileSyncMock = readFileSync as MockedFunction<
-  typeof readFileSync
->;
+const readFileSyncMock = readFileSync as MockedFunction<typeof readFileSync>;
 const getChangesSinceMock = getChangesSince as MockedFunction<
   typeof getChangesSince
 >;
@@ -83,7 +80,7 @@ describe('validateBumpType', () => {
     };
 
     expect(() => validateBumpType(result)).toThrow(
-      'Cannot determine version automatically: no commits found since the last release.'
+      'Cannot determine version automatically: no commits found since the last release.',
     );
   });
 
@@ -96,7 +93,7 @@ describe('validateBumpType', () => {
     };
 
     expect(() => validateBumpType(result)).toThrow(
-      'Cannot determine version automatically'
+      'Cannot determine version automatically',
     );
   });
 

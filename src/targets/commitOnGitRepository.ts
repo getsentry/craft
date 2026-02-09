@@ -1,8 +1,8 @@
 import { BaseArtifactProvider } from '../artifact_providers/base';
-import { TargetConfig } from '../schemas/project_config';
+import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
-import { cloneRepo, createGitClient } from '../utils/git';
+import { cloneRepo } from '../utils/git';
 import { BaseTarget } from './base';
 import childProcess from 'child_process';
 import type { Consola } from 'consola';
@@ -16,6 +16,12 @@ interface GitRepositoryTargetConfig {
   stripComponents?: number;
 }
 
+/** Config fields for commit-on-git-repository target from .craft.yml */
+interface GitRepositoryYamlConfig extends Record<string, unknown> {
+  createTag?: boolean;
+  stripComponents?: number;
+}
+
 /**
  * Target responsible for pushing code to a git repository.
  */
@@ -25,7 +31,7 @@ export class CommitOnGitRepositoryTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
   }
@@ -37,13 +43,8 @@ export class CommitOnGitRepositoryTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(version: string, revision: string): Promise<void> {
-    const {
-      archive,
-      branch,
-      repositoryUrl,
-      createTag,
-      stripComponents,
-    } = this.getGitRepositoryTargetConfig();
+    const { archive, branch, repositoryUrl, createTag, stripComponents } =
+      this.getGitRepositoryTargetConfig();
 
     this.logger.info(`Finding archive with regexp "${archive}"...`);
 
@@ -64,7 +65,7 @@ export class CommitOnGitRepositoryTarget extends BaseTarget {
     this.logger.debug('Downloading archive...');
 
     const archivePath = await this.artifactProvider.downloadArtifact(
-      archives[0]
+      archives[0],
     );
 
     this.logger.info('Downloading archive complete');
@@ -83,28 +84,29 @@ export class CommitOnGitRepositoryTarget extends BaseTarget {
   private getGitRepositoryTargetConfig(): GitRepositoryTargetConfig {
     if (typeof this.config['archive'] !== 'string') {
       throw new ConfigurationError(
-        `\`archive\` option has invalid value ${this.config['archive']}. Needs to be RegExp in the form of a string.`
+        `\`archive\` option has invalid value ${this.config['archive']}. Needs to be RegExp in the form of a string.`,
       );
     }
 
     if (typeof this.config['repositoryUrl'] !== 'string') {
       throw new ConfigurationError(
-        `\`repositoryUrl\` option has invalid value ${this.config['repositoryUrl']}. Needs to be string.`
+        `\`repositoryUrl\` option has invalid value ${this.config['repositoryUrl']}. Needs to be string.`,
       );
     }
 
     if (typeof this.config['branch'] !== 'string') {
       throw new ConfigurationError(
-        `\`repositoryUrl\` option has invalid value ${this.config['branch']}. Needs to be string.`
+        `\`repositoryUrl\` option has invalid value ${this.config['branch']}. Needs to be string.`,
       );
     }
 
+    const config = this.config as TypedTargetConfig<GitRepositoryYamlConfig>;
     return {
       archive: this.config['archive'],
       repositoryUrl: this.config['repositoryUrl'],
       branch: this.config['branch'],
-      createTag: this.config['createTag'] ?? true,
-      stripComponents: this.config['stripComponents'],
+      createTag: config.createTag ?? true,
+      stripComponents: config.stripComponents,
     };
   }
 }
@@ -138,7 +140,7 @@ export async function pushArchiveToGitRepository({
         parsedUrl = new URL(repositoryUrl);
       } catch (e) {
         logger?.error(
-          `Error while parsing \`repositoryUrl\`. Make sure this is a valid URL using the http or https protocol!`
+          `Error while parsing \`repositoryUrl\`. Make sure this is a valid URL using the http or https protocol!`,
         );
         throw e;
       }
@@ -192,6 +194,6 @@ export async function pushArchiveToGitRepository({
       }
     },
     true,
-    'craft-git-repository-target-'
+    'craft-git-repository-target-',
   );
 }

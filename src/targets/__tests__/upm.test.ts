@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi } from 'vitest';
 import { setGlobals } from '../../utils/helpers';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { ARTIFACT_NAME, UpmTarget } from '../upm';
@@ -22,7 +22,7 @@ describe('UPM Target', () => {
         releaseRepoName: 'unity-test',
       },
       new NoneArtifactProvider(),
-      { owner: 'testSourceOwner', repo: 'testSourceRepo' }
+      { owner: 'testSourceOwner', repo: 'testSourceRepo' },
     );
   });
 
@@ -42,9 +42,9 @@ describe('UPM Target', () => {
           .mockResolvedValueOnce(artifacts);
 
         await expect(upmTarget.fetchArtifact('revision')).rejects.toThrow(
-          error
+          error,
         );
-      }
+      },
     );
   });
 
@@ -61,7 +61,7 @@ describe('UPM Target', () => {
 
     test('publish', () => {
       return expect(
-        upmTarget.publish('version', 'revision')
+        upmTarget.publish('version', 'revision'),
       ).resolves.not.toThrow();
     });
   });

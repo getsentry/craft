@@ -11,7 +11,11 @@ import { load, dump } from 'js-yaml';
 import { createGitClient } from '../utils/git';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
-import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import {
+  GitHubGlobalConfig,
+  TargetConfig,
+  TypedTargetConfig,
+} from '../schemas/project_config';
 import { forEachChained } from '../utils/async';
 import { checkEnvForPrerequisite } from '../utils/env';
 import { withTempDir } from '../utils/files';
@@ -30,6 +34,13 @@ export const targetSecrets = [
   'PUBDEV_REFRESH_TOKEN',
 ] as const;
 type SecretsType = (typeof targetSecrets)[number];
+
+/** Fields on the pub-dev target config accessed at runtime */
+interface PubDevTargetConfigFields extends Record<string, unknown> {
+  dartCliPath?: string;
+  packages?: Record<string, unknown>;
+  skipValidation?: boolean;
+}
 
 /** Target options for "brew" */
 export interface PubDevTargetOptions {
@@ -146,13 +157,15 @@ export class PubDevTarget extends BaseTarget {
   private getPubDevConfig(): PubDevTargetConfig {
     // We could do `...this.config`, but `packages` is in a list, not array format in `.yml`
     // so I wanted to keep setting the defaults unified.
-    const config = {
-      dartCliPath: this.config.dartCliPath || 'dart',
-      packages: this.config.packages
-        ? Object.keys(this.config.packages)
+    const targetConfig = this
+      .config as TypedTargetConfig<PubDevTargetConfigFields>;
+    const config: PubDevTargetConfig = {
+      dartCliPath: targetConfig.dartCliPath || 'dart',
+      packages: targetConfig.packages
+        ? Object.keys(targetConfig.packages)
         : ['.'],
       ...this.getTargetSecrets(),
-      skipValidation: this.config.skipValidation ?? false,
+      skipValidation: targetConfig.skipValidation ?? false,
     };
 
     this.checkRequiredSoftware(config);

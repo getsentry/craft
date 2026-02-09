@@ -1,5 +1,8 @@
 import * as Sentry from '@sentry/node';
 
+/** Inferred type from Sentry.startSpan's first parameter */
+type StartSpanOptions = Parameters<typeof Sentry.startSpan>[0];
+
 /**
  * Wraps a function with Sentry tracing
  *
@@ -9,7 +12,7 @@ import * as Sentry from '@sentry/node';
  */
 export function withTracing<T extends (...args: any[]) => any>(
   fn: T,
-  spanOptions: Partial<Sentry.StartSpanOptions> = {}
+  spanOptions: Partial<StartSpanOptions> = {},
 ): (...args: Parameters<T>) => ReturnType<T> {
   return (...args: Parameters<T>): ReturnType<T> =>
     Sentry.startSpan(
@@ -18,6 +21,6 @@ export function withTracing<T extends (...args: any[]) => any>(
         attributes: { args: JSON.stringify(args) },
         ...spanOptions,
       },
-      () => fn(...args)
+      () => fn(...args),
     );
 }

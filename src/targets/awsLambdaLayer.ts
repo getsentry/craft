@@ -8,7 +8,7 @@ import {
   GitHubRemote,
 } from '../utils/githubApi';
 
-import { TargetConfig } from '../schemas/project_config';
+import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { ConfigurationError, reportError } from '../utils/errors';
@@ -20,7 +20,7 @@ import {
 } from '../utils/awsLambdaLayerManager';
 import { createSymlinks } from '../utils/symlink';
 import { withTempDir } from '../utils/files';
-import { cloneRepo, createGitClient } from '../utils/git';
+import { cloneRepo } from '../utils/git';
 import { safeExec } from '../utils/dryRun';
 import { renderTemplateSafe } from '../utils/strings';
 import { isPreviewRelease, parseVersion } from '../utils/version';
@@ -36,6 +36,13 @@ interface AwsLambdaTargetConfig {
   registryRemote: GitHubRemote;
   /** Should layer versions of prereleases be pushed to the registry? */
   linkPrereleases: boolean;
+}
+
+/** Config fields for aws-lambda-layer target from .craft.yml */
+interface AwsLambdaTargetYamlConfig extends Record<string, unknown> {
+  linkPrereleases?: boolean;
+  compatibleRuntimes?: CompatibleRuntime[];
+  license?: string;
 }
 
 /**
@@ -72,11 +79,12 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         Please use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.`,
       );
     }
+    const config = this.config as TypedTargetConfig<AwsLambdaTargetYamlConfig>;
     return {
       awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID,
       awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
       registryRemote: DEFAULT_REGISTRY_REMOTE,
-      linkPrereleases: this.config.linkPrereleases || false,
+      linkPrereleases: config.linkPrereleases || false,
     };
   }
 
@@ -199,7 +207,9 @@ export class AwsLambdaLayerTarget extends BaseTarget {
 
         await git.add(['.']);
         await git.checkout('master');
-        const runtimeNames = this.config.compatibleRuntimes.map(
+        const config = this
+          .config as TypedTargetConfig<AwsLambdaTargetYamlConfig>;
+        const runtimeNames = config.compatibleRuntimes!.map(
           (runtime: CompatibleRuntime) => runtime.name,
         );
         await git.commit(
@@ -279,13 +289,14 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     const resolvedLayerName = this.resolveLayerName(version);
     this.logger.debug(`Resolved layer name: ${resolvedLayerName}`);
 
+    const config = this.config as TypedTargetConfig<AwsLambdaTargetYamlConfig>;
     await Promise.all(
-      this.config.compatibleRuntimes.map(async (runtime: CompatibleRuntime) => {
+      config.compatibleRuntimes!.map(async (runtime: CompatibleRuntime) => {
         this.logger.debug(`Publishing runtime ${runtime.name}...`);
         const layerManager = new AwsLambdaLayerManager(
           runtime,
           resolvedLayerName,
-          this.config.license,
+          config.license!,
           artifactBuffer,
           awsRegions,
           version,
