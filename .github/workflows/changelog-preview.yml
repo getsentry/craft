@@ -154,6 +154,7 @@ jobs:
           CHANGELOG=$(echo "$RESULT" | jq -r '.changelog // ""')
           BUMP_TYPE=$(echo "$RESULT" | jq -r '.bumpType // "none"')
           PR_SKIPPED=$(echo "$RESULT" | jq -r '.prSkipped // false')
+          VERSIONING_POLICY=$(echo "$RESULT" | jq -r '.versioningPolicy // "auto"')
 
           if [[ "$PR_SKIPPED" == "true" ]]; then
             CHANGELOG="_This PR will not appear in the changelog._"
@@ -161,31 +162,30 @@ jobs:
             CHANGELOG="_No changelog entries will be generated from this PR._"
           fi
 
-          case "$BUMP_TYPE" in
-            major) BUMP_BADGE="🔴 **Major** (breaking changes)" ;;
-            minor) BUMP_BADGE="🟡 **Minor** (new features)" ;;
-            patch) BUMP_BADGE="🟢 **Patch** (bug fixes)" ;;
-            *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
-          esac
+          # CalVer projects don't use semver bumps — skip the impact badge
+          if [[ "$VERSIONING_POLICY" == "calver" ]]; then
+            BUMP_BADGE=""
+            BUMP_SHORT="CalVer"
+            SECTION_HEADING="Changelog Preview"
+            STATUS_CONTEXT="Changelog Preview"
+          else
+            case "$BUMP_TYPE" in
+              major) BUMP_BADGE="🔴 **Major** (breaking changes)" ;;
+              minor) BUMP_BADGE="🟡 **Minor** (new features)" ;;
+              patch) BUMP_BADGE="🟢 **Patch** (bug fixes)" ;;
+              *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
+            esac
 
-          case "$BUMP_TYPE" in
-            major) 
-              BUMP_SHORT="Major"
-              BUMP_EMOJI="🔴"
-              ;;
-            minor) 
-              BUMP_SHORT="Minor"
-              BUMP_EMOJI="🟡"
-              ;;
-            patch) 
-              BUMP_SHORT="Patch"
-              BUMP_EMOJI="🟢"
-              ;;
-            *) 
-              BUMP_SHORT="None"
-              BUMP_EMOJI="⚪"
-              ;;
-          esac
+            case "$BUMP_TYPE" in
+              major) BUMP_SHORT="Major" ;;
+              minor) BUMP_SHORT="Minor" ;;
+              patch) BUMP_SHORT="Patch" ;;
+              *) BUMP_SHORT="None" ;;
+            esac
+
+            SECTION_HEADING="Semver Impact of This PR"
+            STATUS_CONTEXT="Changelog Preview / Semver Impact"
+          fi
 
           # Determine mode: use status check mode when comment is false OR when running internally (no input)
           USE_COMMENT_MODE="${{ inputs.comment }}"
@@ -204,7 +204,7 @@ jobs:
               -H "X-GitHub-Api-Version: 2022-11-28" \
               "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
               -f state="success" \
-              -f context="Changelog Preview / Semver Impact" \
+              -f context="$STATUS_CONTEXT" \
               -f description="$BUMP_SHORT" \
               -f target_url="$TARGET_URL"
             
@@ -216,7 +216,7 @@ jobs:
 
           [→ View PR #${PR_NUMBER}](${PR_URL})
 
-          ## Semver Impact of This PR
+          ## ${SECTION_HEADING}
 
           ${BUMP_BADGE}
 
@@ -243,7 +243,7 @@ jobs:
             COMMENT_FILE=$(mktemp)
             cat > "$COMMENT_FILE" << CRAFT_CHANGELOG_COMMENT_END
           <!-- craft-changelog-preview -->
-          ## Semver Impact of This PR
+          ## ${SECTION_HEADING}
 
           ${BUMP_BADGE}
 
