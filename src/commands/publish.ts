@@ -509,6 +509,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);
 
   await printRevisionSummary(artifactProvider, revision);
+
   await checkRequiredArtifacts(artifactProvider, revision, config.requireNames);
 
   // Find targets
