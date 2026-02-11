@@ -1,6 +1,7 @@
 import { Argv, CommandBuilder } from 'yargs';
 
 import { logger } from '../logger';
+import { findConfigFile, getVersioningPolicy } from '../config';
 import { getGitClient, getLatestTag } from '../utils/git';
 import {
   generateChangesetFromGit,
@@ -58,7 +59,9 @@ export async function changelogMain(argv: ChangelogOptions): Promise<void> {
     if (since) {
       logger.debug(`Using latest tag as base revision: ${since}`);
     } else {
-      logger.debug('No tags found, generating changelog from beginning of history');
+      logger.debug(
+        'No tags found, generating changelog from beginning of history',
+      );
     }
   }
 
@@ -69,9 +72,21 @@ export async function changelogMain(argv: ChangelogOptions): Promise<void> {
 
   // Output based on format
   if (argv.format === 'json') {
+    // Detect the versioning policy from .craft.yml so consumers (e.g. the
+    // changelog-preview workflow) can tailor their display accordingly.
+    let versioningPolicy = 'auto';
+    try {
+      if (findConfigFile()) {
+        versioningPolicy = getVersioningPolicy();
+      }
+    } catch {
+      // If config can't be read, default to 'auto' (semver behavior)
+    }
+
     const output = {
       changelog: result.changelog || '',
       bumpType: result.bumpType,
+      versioningPolicy,
       totalCommits: result.totalCommits,
       matchedCommitsWithSemver: result.matchedCommitsWithSemver,
       prSkipped: result.prSkipped ?? false,
