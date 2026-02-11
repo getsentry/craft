@@ -540,10 +540,10 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
     for (const filter of filters) {
       // Validate workflow pattern matched at least one run
       if (filter.workflow) {
-        const matchedRuns = allRuns.filter(run =>
+        const hasMatchingRun = allRuns.some(run =>
           filter.workflow!.test(run.name ?? ''),
         );
-        if (matchedRuns.length === 0) {
+        if (!hasMatchingRun) {
           const availableNames = allRuns
             .map(r => r.name ?? '(unnamed)')
             .join(', ');
