@@ -44,7 +44,7 @@ export interface NormalizedArtifactFilter {
  * Normalizes artifact patterns from string/array format to array of RegExp
  */
 function normalizeArtifactPatterns(
-  patterns: string | string[] | undefined
+  patterns: string | string[] | undefined,
 ): RegExp[] {
   if (!patterns) {
     return [];
@@ -60,18 +60,22 @@ function normalizeArtifactPatterns(
  * @returns Array of normalized filter objects
  */
 export function normalizeArtifactsConfig(
-  config: GitHubArtifactsConfig
+  config: GitHubArtifactsConfig,
 ): NormalizedArtifactFilter[] {
   if (!config) {
     return [];
   }
 
   if (typeof config === 'string') {
-    return [{ workflow: undefined, artifacts: normalizeArtifactPatterns(config) }];
+    return [
+      { workflow: undefined, artifacts: normalizeArtifactPatterns(config) },
+    ];
   }
 
   if (Array.isArray(config)) {
-    return [{ workflow: undefined, artifacts: normalizeArtifactPatterns(config) }];
+    return [
+      { workflow: undefined, artifacts: normalizeArtifactPatterns(config) },
+    ];
   }
 
   const filters: NormalizedArtifactFilter[] = [];
@@ -101,11 +105,11 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
    */
   public async doDownloadArtifact(
     artifact: RemoteArtifact,
-    downloadDirectory: string
+    downloadDirectory: string,
   ): Promise<string> {
     const destination = path.join(downloadDirectory, artifact.filename);
     this.logger.debug(
-      `rename ${artifact.storedFile.downloadFilepath} to ${destination}`
+      `rename ${artifact.storedFile.downloadFilepath} to ${destination}`,
     );
     fs.renameSync(artifact.storedFile.downloadFilepath, destination);
     return destination;
@@ -120,13 +124,13 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
    */
   protected async searchForRevisionArtifact(
     revision: string,
-    getRevisionDate: lazyRequestCallback<string>
+    getRevisionDate: lazyRequestCallback<string>,
   ): Promise<ArtifactItem | null> {
     const { repoName: repo, repoOwner: owner } = this.config;
     const per_page = 100;
 
     this.logger.debug(
-      `Searching GitHub artifacts for ${owner}/${repo}, revision ${revision}`
+      `Searching GitHub artifacts for ${owner}/${repo}, revision ${revision}`,
     );
 
     let checkNextPage = true;
@@ -148,7 +152,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
       // There is no public documentation on this but the observed data and
       // common-sense logic suggests that this is a reasonably safe assumption.
       const foundArtifact = artifacts.find(
-        artifact => artifact.name === revision
+        artifact => artifact.name === revision,
       );
       if (foundArtifact) {
         this.logger.trace(`Found artifact on page ${page}:`, foundArtifact);
@@ -199,12 +203,12 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
       this.logger.info(
         `Fetching GitHub artifacts for ${owner}/${repo}, revision ${revision} (attempt ${
           tries + 1
-        } of ${MAX_TRIES})`
+        } of ${MAX_TRIES})`,
       );
 
       artifact = await this.searchForRevisionArtifact(
         revision,
-        getRevisionDate
+        getRevisionDate,
       );
       if (artifact) {
         return artifact;
@@ -217,21 +221,23 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
         this.logger.info(
           `Waiting ${
             ARTIFACTS_POLLING_INTERVAL / MILLISECONDS
-          } seconds for artifacts to become available via GitHub API...`
+          } seconds for artifacts to become available via GitHub API...`,
         );
         await sleep(ARTIFACTS_POLLING_INTERVAL);
       }
     }
 
     throw new Error(
-      `Can't find any artifacts for revision "${revision}" (tries: ${MAX_TRIES})`
+      `Can't find any artifacts for revision "${revision}" (tries: ${MAX_TRIES})`,
     );
   }
 
   /**
    * Downloads and unpacks a single GitHub artifact
    */
-  private async downloadAndUnpackArtifacts(url: string): Promise<RemoteArtifact[]> {
+  private async downloadAndUnpackArtifacts(
+    url: string,
+  ): Promise<RemoteArtifact[]> {
     const tempFile = await this.downloadToTempFile(url);
     this.logger.info(`Finished downloading.`);
     return this.unpackArtifact(tempFile);
@@ -242,7 +248,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
    * @param foundArtifact
    */
   private async getArchiveDownloadUrl(
-    foundArtifact: ArtifactItem
+    foundArtifact: ArtifactItem,
   ): Promise<string> {
     const { repoName, repoOwner } = this.config;
 
@@ -263,12 +269,12 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
    * @returns Array of workflow runs for the commit
    */
   protected async getWorkflowRunsForCommit(
-    revision: string
+    revision: string,
   ): Promise<WorkflowRun[]> {
     const { repoName: repo, repoOwner: owner } = this.config;
 
     this.logger.debug(
-      `Fetching workflow runs for commit ${revision} from ${owner}/${repo}`
+      `Fetching workflow runs for commit ${revision} from ${owner}/${repo}`,
     );
 
     const runs: WorkflowRun[] = [];
@@ -303,7 +309,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
    */
   protected filterWorkflowRuns(
     runs: WorkflowRun[],
-    filters: NormalizedArtifactFilter[]
+    filters: NormalizedArtifactFilter[],
   ): WorkflowRun[] {
     // If no filters have workflow patterns, return all runs
     const hasWorkflowFilters = filters.some(f => f.workflow !== undefined);
@@ -314,7 +320,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
     return runs.filter(run => {
       const workflowName = run.name ?? '';
       return filters.some(
-        filter => !filter.workflow || filter.workflow.test(workflowName)
+        filter => !filter.workflow || filter.workflow.test(workflowName),
       );
     });
   }
@@ -324,7 +330,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
    */
   private getApplicablePatterns(
     workflowName: string,
-    filters: NormalizedArtifactFilter[]
+    filters: NormalizedArtifactFilter[],
   ): RegExp[] {
     const patterns: RegExp[] = [];
     for (const filter of filters) {
@@ -340,7 +346,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
    */
   protected async getArtifactsFromWorkflowRuns(
     runs: WorkflowRun[],
-    filters: NormalizedArtifactFilter[]
+    filters: NormalizedArtifactFilter[],
   ): Promise<ArtifactItem[]> {
     const { repoName: repo, repoOwner: owner } = this.config;
     const matchingArtifacts: ArtifactItem[] = [];
@@ -354,7 +360,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
       }
 
       this.logger.debug(
-        `Fetching artifacts for workflow run "${workflowName}" (ID: ${run.id})`
+        `Fetching artifacts for workflow run "${workflowName}" (ID: ${run.id})`,
       );
 
       const per_page = 100;
@@ -374,7 +380,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
           const matches = patterns.some(pattern => pattern.test(artifact.name));
           if (matches) {
             this.logger.debug(
-              `Artifact "${artifact.name}" matches filter from workflow "${workflowName}"`
+              `Artifact "${artifact.name}" matches filter from workflow "${workflowName}"`,
             );
             seenArtifactIds.add(artifact.id);
             matchingArtifacts.push(artifact);
@@ -400,25 +406,27 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
         const response = await fetch(url);
         if (!response.ok) {
           throw new Error(
-            `Unexpected HTTP response from ${url}: ${response.status} (${response.statusText})`
+            `Unexpected HTTP response from ${url}: ${response.status} (${response.statusText})`,
           );
         }
         await new Promise<void>((resolve, reject) =>
           response.body
             .pipe(fs.createWriteStream(tempFilepath))
             .on('finish', () => resolve())
-            .on('error', reject)
+            .on('error', reject),
         );
         return tempFilepath;
       },
-      false // Don't cleanup - we'll handle it after unpacking
+      false, // Don't cleanup - we'll handle it after unpacking
     );
   }
 
   /**
    * Unpacks a downloaded zip file and returns the artifacts
    */
-  private async unpackArtifact(tempFilepath: string): Promise<RemoteArtifact[]> {
+  private async unpackArtifact(
+    tempFilepath: string,
+  ): Promise<RemoteArtifact[]> {
     const artifacts: RemoteArtifact[] = [];
     await withTempDir(async tmpDir => {
       this.logger.debug(`Extracting "${tempFilepath}" to "${tmpDir}"...`);
@@ -447,7 +455,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
    * 2. Unpack all artifacts in parallel
    */
   protected async downloadArtifactsInParallel(
-    artifactItems: ArtifactItem[]
+    artifactItems: ArtifactItem[],
   ): Promise<RemoteArtifact[]> {
     const limit = pLimit(DOWNLOAD_CONCURRENCY);
 
@@ -458,7 +466,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
         this.logger.debug(`Downloading artifact "${item.name}"...`);
         const url = await this.getArchiveDownloadUrl(item);
         return this.downloadToTempFile(url);
-      })
+      }),
     );
     const tempFiles = await Promise.all(downloadPromises);
     this.logger.info(`Downloaded ${tempFiles.length} artifacts.`);
@@ -467,18 +475,18 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
     // Use allSettled to ensure we can clean up all temp files even if some unpacking fails
     this.logger.debug(`Unpacking ${tempFiles.length} artifacts...`);
     const unpackPromises = tempFiles.map(tempFile =>
-      limit(() => this.unpackArtifact(tempFile))
+      limit(() => this.unpackArtifact(tempFile)),
     );
     const results = await Promise.allSettled(unpackPromises);
 
     // Collect successful unpacks and clean up failed ones
     const allArtifacts: RemoteArtifact[] = [];
     const errors: Error[] = [];
-    
+
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
       const tempFile = tempFiles[i];
-      
+
       if (result.status === 'fulfilled') {
         allArtifacts.push(...result.value);
       } else {
@@ -487,10 +495,15 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
         try {
           if (fs.existsSync(tempFile)) {
             fs.unlinkSync(tempFile);
-            this.logger.debug(`Cleaned up temp file after failed unpack: ${tempFile}`);
+            this.logger.debug(
+              `Cleaned up temp file after failed unpack: ${tempFile}`,
+            );
           }
         } catch (cleanupError) {
-          this.logger.warn(`Failed to clean up temp file ${tempFile}:`, cleanupError);
+          this.logger.warn(
+            `Failed to clean up temp file ${tempFile}:`,
+            cleanupError,
+          );
         }
       }
     }
@@ -499,11 +512,75 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
     if (errors.length > 0) {
       const errorMessages = errors.map(e => e.message).join('; ');
       throw new Error(
-        `Failed to unpack ${errors.length} of ${tempFiles.length} artifacts: ${errorMessages}`
+        `Failed to unpack ${errors.length} of ${tempFiles.length} artifacts: ${errorMessages}`,
       );
     }
 
     return allArtifacts;
+  }
+
+  /**
+   * Validates that every configured workflow pattern matched at least one
+   * workflow run, and every artifact pattern matched at least one artifact.
+   *
+   * This catches configuration issues early with clear error messages instead
+   * of letting them surface as confusing per-target failures later.
+   *
+   * @param filters Normalized artifact filters from config
+   * @param allRuns All workflow runs found for the commit
+   * @param matchingArtifacts Artifacts that matched at least one pattern
+   */
+  protected validateAllPatternsMatched(
+    filters: NormalizedArtifactFilter[],
+    allRuns: WorkflowRun[],
+    matchingArtifacts: ArtifactItem[],
+  ): void {
+    const errors: string[] = [];
+
+    for (const filter of filters) {
+      // Validate workflow pattern matched at least one run
+      if (filter.workflow) {
+        const matchedRuns = allRuns.filter(run =>
+          filter.workflow!.test(run.name ?? ''),
+        );
+        if (matchedRuns.length === 0) {
+          const availableNames = allRuns
+            .map(r => r.name ?? '(unnamed)')
+            .join(', ');
+          errors.push(
+            `Workflow pattern ${filter.workflow} did not match any workflow runs. ` +
+              `Available workflows: ${availableNames || '(none)'}`,
+          );
+          // Skip artifact validation for this filter since no runs matched
+          continue;
+        }
+      }
+
+      // Validate each artifact pattern matched at least one artifact
+      for (const artifactPattern of filter.artifacts) {
+        const matched = matchingArtifacts.some(a =>
+          artifactPattern.test(a.name),
+        );
+        if (!matched) {
+          const availableNames = matchingArtifacts.map(a => a.name).join(', ');
+          const workflowDesc = filter.workflow
+            ? ` (from workflow ${filter.workflow})`
+            : '';
+          errors.push(
+            `Artifact pattern ${artifactPattern}${workflowDesc} did not match any artifacts. ` +
+              `Available artifact names: ${availableNames || '(none)'}`,
+          );
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new Error(
+        `Not all configured artifact patterns were satisfied:\n  - ${errors.join('\n  - ')}\n` +
+          `Check that your workflow names and artifact names in .craft.yml match ` +
+          `what your CI actually produces.`,
+      );
+    }
   }
 
   /**
@@ -515,13 +592,13 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
    */
   protected async doListArtifactsWithFilters(
     revision: string,
-    filters: NormalizedArtifactFilter[]
+    filters: NormalizedArtifactFilter[],
   ): Promise<RemoteArtifact[]> {
     for (let tries = 0; tries < MAX_TRIES; tries++) {
       this.logger.info(
         `Fetching GitHub artifacts for revision ${revision} using artifact filters (attempt ${
           tries + 1
-        } of ${MAX_TRIES})`
+        } of ${MAX_TRIES})`,
       );
 
       const allRuns = await this.getWorkflowRunsForCommit(revision);
@@ -531,24 +608,24 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
           this.logger.info(
             `Waiting ${
               ARTIFACTS_POLLING_INTERVAL / MILLISECONDS
-            } seconds for workflow runs to become available...`
+            } seconds for workflow runs to become available...`,
           );
           await sleep(ARTIFACTS_POLLING_INTERVAL);
           continue;
         }
         throw new Error(
-          `No workflow runs found for revision "${revision}" (tries: ${MAX_TRIES})`
+          `No workflow runs found for revision "${revision}" (tries: ${MAX_TRIES})`,
         );
       }
 
       const filteredRuns = this.filterWorkflowRuns(allRuns, filters);
       this.logger.debug(
-        `${filteredRuns.length} of ${allRuns.length} workflow runs match filters`
+        `${filteredRuns.length} of ${allRuns.length} workflow runs match filters`,
       );
 
       const matchingArtifacts = await this.getArtifactsFromWorkflowRuns(
         filteredRuns,
-        filters
+        filters,
       );
 
       if (matchingArtifacts.length === 0) {
@@ -557,24 +634,30 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
           this.logger.info(
             `Waiting ${
               ARTIFACTS_POLLING_INTERVAL / MILLISECONDS
-            } seconds for artifacts to become available...`
+            } seconds for artifacts to become available...`,
           );
           await sleep(ARTIFACTS_POLLING_INTERVAL);
           continue;
         }
         throw new Error(
-          `No artifacts matching filters found for revision "${revision}" (tries: ${MAX_TRIES})`
+          `No artifacts matching filters found for revision "${revision}" (tries: ${MAX_TRIES})`,
         );
       }
 
+      // Validate that ALL configured patterns matched, not just some.
+      // This catches cases like: config says ['craft-binary', 'craft-docs']
+      // but only 'craft-binary' was found. Without this check, the publish
+      // would silently proceed with missing artifacts.
+      this.validateAllPatternsMatched(filters, allRuns, matchingArtifacts);
+
       this.logger.debug(
-        `Downloading ${matchingArtifacts.length} artifacts in parallel...`
+        `Downloading ${matchingArtifacts.length} artifacts in parallel...`,
       );
       return await this.downloadArtifactsInParallel(matchingArtifacts);
     }
 
     throw new Error(
-      `Failed to fetch artifacts for revision "${revision}" (tries: ${MAX_TRIES})`
+      `Failed to fetch artifacts for revision "${revision}" (tries: ${MAX_TRIES})`,
     );
   }
 
@@ -582,7 +665,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
    * @inheritDoc
    */
   protected async doListArtifactsForRevision(
-    revision: string
+    revision: string,
   ): Promise<RemoteArtifact[]> {
     const artifactsConfig = this.config.artifacts as
       | GitHubArtifactsConfig
@@ -607,7 +690,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
 }
 
 export function lazyRequest<T>(
-  cb: lazyRequestCallback<T>
+  cb: lazyRequestCallback<T>,
 ): lazyRequestCallback<T> {
   let data: T;
   return async () => {
