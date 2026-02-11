@@ -167,13 +167,13 @@ describe('GitHub Artifact Provider', () => {
       expect(result).toHaveLength(2);
 
       // First filter: build -> release-artifacts
-      expect(result[0].workflow?.test('build')).toBe(true);
-      expect(result[0].workflow?.test('build-linux')).toBe(false);
+      expect(result[0].workflow!.test('build')).toBe(true);
+      expect(result[0].workflow!.test('build-linux')).toBe(false);
       expect(result[0].artifacts).toHaveLength(1);
       expect(result[0].artifacts[0].test('release-artifacts')).toBe(true);
 
       // Second filter: ci -> [output, bundle]
-      expect(result[1].workflow?.test('ci')).toBe(true);
+      expect(result[1].workflow!.test('ci')).toBe(true);
       expect(result[1].artifacts).toHaveLength(2);
       expect(result[1].artifacts[0].test('output')).toBe(true);
       expect(result[1].artifacts[1].test('bundle')).toBe(true);
@@ -187,14 +187,14 @@ describe('GitHub Artifact Provider', () => {
       expect(result).toHaveLength(2);
 
       // First filter: /^build-.*$/ -> /^output-.*$/
-      expect(result[0].workflow?.test('build-linux')).toBe(true);
-      expect(result[0].workflow?.test('build-macos')).toBe(true);
-      expect(result[0].workflow?.test('test-linux')).toBe(false);
+      expect(result[0].workflow!.test('build-linux')).toBe(true);
+      expect(result[0].workflow!.test('build-macos')).toBe(true);
+      expect(result[0].workflow!.test('test-linux')).toBe(false);
       expect(result[0].artifacts[0].test('output-x86')).toBe(true);
       expect(result[0].artifacts[0].test('output-arm')).toBe(true);
 
       // Second filter: /^release-.*$/ -> [/^dist-.*$/, checksums]
-      expect(result[1].workflow?.test('release-production')).toBe(true);
+      expect(result[1].workflow!.test('release-production')).toBe(true);
       expect(result[1].artifacts).toHaveLength(2);
       expect(result[1].artifacts[0].test('dist-linux')).toBe(true);
       expect(result[1].artifacts[1].test('checksums')).toBe(true);
@@ -903,9 +903,9 @@ describe('GitHub Artifact Provider', () => {
         'Build*': 'output',
       });
       expect(result).toHaveLength(1);
-      expect(result[0].workflow?.test('Build')).toBe(true);
-      expect(result[0].workflow?.test('Build & Test')).toBe(true);
-      expect(result[0].workflow?.test('Lint')).toBe(false);
+      expect(result[0].workflow!.test('Build')).toBe(true);
+      expect(result[0].workflow!.test('Build & Test')).toBe(true);
+      expect(result[0].workflow!.test('Lint')).toBe(false);
     });
 
     test('mixed glob and exact patterns', () => {
