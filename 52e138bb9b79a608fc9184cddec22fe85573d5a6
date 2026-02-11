@@ -1,0 +1,77 @@
+## Implementation Plan
+
+### Problem Statement
+
+Three related issues from the getsentry/cli#230 experience:
+
+1. **patternToRegexp() silently treats globs as exact matches** — Writing
+   "sentry-*" in .craft.yml creates /^sentry\-\*$/ (exact match for the literal
+   string "sentry-*") instead of the expected /^sentry-.*$/. This caused the
+   getsentry/cli 0.9.0 release to ship without platform binaries.
+
+2. **No validation that ALL configured patterns matched** — If artifacts config
+   lists ["craft-binary", "craft-docs"] but only "craft-binary" exists, the
+   publish continues with missing artifacts. Each pattern should be validated to
+   have at least one match.
+
+3. **No validation that all workflow patterns matched** — If the config
+   references workflow "Build & Test" but the workflow was renamed, publish should
+   fail early with a clear error instead of silently finding zero artifacts.
+
+4. **Publish continues with zero artifacts when artifacts config is set** — The
+   printRevisionSummary only logs a warning when no artifacts are found. When
+   artifacts config is explicitly configured, zero artifacts should be a hard
+   error.
+
+### Changes
+
+#### 1. Add glob pattern support to patternToRegexp() — src/utils/filters.ts
+
+New function: globToRegex(pattern: string): string
+- Processes the pattern character by character:
+  - * → .* (match zero or more characters)
+  - ? → .  (match exactly one character)
+  - All other regex-special characters escaped via escapeRegex()
+
+Modified function: patternToRegexp(pattern: string): RegExp
+- Three-path logic:
+  1. Starts with / and has closing / → parse as regex string (unchanged)
+  2. Contains * or ? → use globToRegex(), wrap in ^...$
+  3. Plain string (no globs) → exact match via escapeRegex(), wrap in ^...$
+
+#### 2. Add all-patterns-must-match validation — src/artifact_providers/github.ts
+
+New method: validateAllPatternsMatched(filters, allRuns, matchingArtifacts)
+- Validates workflow patterns: For each filter with a workflow regex, checks that
+  at least one workflow run matched.
+- Validates artifact patterns: For each filter, for each artifact pattern, checks
+  that at least one matching artifact satisfies the pattern.
+- Error messages include available workflow/artifact names for debugging.
+- Reports ALL mismatches at once, not just the first.
+- Integrated into doListArtifactsWithFilters() AFTER retry loop succeeds (some
+  artifacts found) but BEFORE downloading. Existing retry/polling logic for "CI
+  still running" is fully preserved.
+
+#### 3. Fail publish when artifacts config is set but no artifacts found
+
+In publishMain(), after printRevisionSummary(), if artifactProvider.config.artifacts
+is set and listArtifactsForRevision returns empty, call reportError(). This is a
+belt-and-suspenders check; the provider validation handles most cases.
+
+### Design Decisions
+
+- Glob support is first-class with no deprecation warnings (more intuitive for users)
+- Validation fires only after retry loop succeeds — "wait for CI" polling preserved
+- Workflow pattern validation skips artifact checks for unmatched workflows (avoids
+  redundant error messages)
+- Multiple errors collected and reported together for faster debugging
+- Belt-and-suspenders check in publish uses reportError() which throws in non-dry-run
+  mode but only warns in dry-run mode
+
+### Backward Compatibility
+
+- Plain strings without * or ?: Behavior unchanged (exact match)
+- Regex strings (/pattern/): Behavior unchanged
+- Strings with * or ?: Previously silently wrong, now correctly treated as globs
+- All-patterns-must-match: New strictness, only when artifacts config is set
+- Legacy SHA-based artifact lookup: Completely unaffected
