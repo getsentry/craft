@@ -510,22 +510,6 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   await printRevisionSummary(artifactProvider, revision);
 
-  // If artifact filters are explicitly configured, ensure we actually found
-  // artifacts. The artifact provider itself validates that all patterns matched,
-  // but this is a belt-and-suspenders check at the publish level to catch any
-  // edge case where zero artifacts slip through without an error.
-  const artifactsConfig = config.artifactProvider?.config?.artifacts;
-  if (artifactsConfig) {
-    const artifacts = await artifactProvider.listArtifactsForRevision(revision);
-    if (artifacts.length === 0) {
-      reportError(
-        'No artifacts found for the revision, but artifact filters are ' +
-          'configured in .craft.yml. Check that your workflow names and ' +
-          'artifact names match the patterns in artifactProvider.config.artifacts.',
-      );
-    }
-  }
-
   await checkRequiredArtifacts(artifactProvider, revision, config.requireNames);
 
   // Find targets
