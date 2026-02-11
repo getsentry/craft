@@ -534,7 +534,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
     filters: NormalizedArtifactFilter[],
     allRuns: WorkflowRun[],
     matchingArtifacts: ArtifactItem[],
-  ): void {
+  ): string[] {
     const errors: string[] = [];
 
     for (const filter of filters) {
@@ -556,13 +556,20 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
         }
       }
 
+      // Scope artifact validation to runs matching this filter's workflow
+      const scopedArtifacts = filter.workflow
+        ? matchingArtifacts.filter(a => {
+            const runName =
+              allRuns.find(r => r.id === a.workflow_run?.id)?.name ?? '';
+            return filter.workflow!.test(runName);
+          })
+        : matchingArtifacts;
+
       // Validate each artifact pattern matched at least one artifact
       for (const artifactPattern of filter.artifacts) {
-        const matched = matchingArtifacts.some(a =>
-          artifactPattern.test(a.name),
-        );
+        const matched = scopedArtifacts.some(a => artifactPattern.test(a.name));
         if (!matched) {
-          const availableNames = matchingArtifacts.map(a => a.name).join(', ');
+          const availableNames = scopedArtifacts.map(a => a.name).join(', ');
           const workflowDesc = filter.workflow
             ? ` (from workflow ${filter.workflow})`
             : '';
@@ -574,13 +581,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
       }
     }
 
-    if (errors.length > 0) {
-      throw new Error(
-        `Not all configured artifact patterns were satisfied:\n  - ${errors.join('\n  - ')}\n` +
-          `Check that your workflow names and artifact names in .craft.yml match ` +
-          `what your CI actually produces.`,
-      );
-    }
+    return errors;
   }
 
   /**
@@ -648,7 +649,28 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
       // This catches cases like: config says ['craft-binary', 'craft-docs']
       // but only 'craft-binary' was found. Without this check, the publish
       // would silently proceed with missing artifacts.
-      this.validateAllPatternsMatched(filters, allRuns, matchingArtifacts);
+      const validationErrors = this.validateAllPatternsMatched(
+        filters,
+        allRuns,
+        matchingArtifacts,
+      );
+      if (validationErrors.length > 0) {
+        if (tries + 1 < MAX_TRIES) {
+          this.logger.info(
+            `Not all patterns matched yet (${validationErrors.length} unmatched). ` +
+              `Waiting ${
+                ARTIFACTS_POLLING_INTERVAL / MILLISECONDS
+              } seconds before retrying...`,
+          );
+          await sleep(ARTIFACTS_POLLING_INTERVAL);
+          continue;
+        }
+        throw new Error(
+          `Not all configured artifact patterns were satisfied:\n  - ${validationErrors.join('\n  - ')}\n` +
+            `Check that your workflow names and artifact names in .craft.yml match ` +
+            `what your CI actually produces.`,
+        );
+      }
 
       this.logger.debug(
         `Downloading ${matchingArtifacts.length} artifacts in parallel...`,

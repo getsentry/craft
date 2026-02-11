@@ -52,7 +52,7 @@ class TestGitHubArtifactProvider extends GitHubArtifactProvider {
     filters: NormalizedArtifactFilter[],
     allRuns: WorkflowRun[],
     matchingArtifacts: ArtifactItem[],
-  ): void {
+  ): string[] {
     return this.validateAllPatternsMatched(filters, allRuns, matchingArtifacts);
   }
 }
@@ -927,7 +927,7 @@ describe('GitHub Artifact Provider', () => {
       { id: 2, name: 'Lint' },
     ] as WorkflowRun[];
 
-    test('succeeds when all patterns have matches', () => {
+    test('returns no errors when all patterns have matches', () => {
       const filters: NormalizedArtifactFilter[] = [
         {
           workflow: /^Build & Test$/,
@@ -935,20 +935,19 @@ describe('GitHub Artifact Provider', () => {
         },
       ];
       const artifacts = [
-        { id: 101, name: 'craft-binary' },
-        { id: 102, name: 'craft-docs' },
+        { id: 101, name: 'craft-binary', workflow_run: { id: 1 } },
+        { id: 102, name: 'craft-docs', workflow_run: { id: 1 } },
       ] as ArtifactItem[];
 
-      expect(() =>
-        githubArtifactProvider.testValidateAllPatternsMatched(
-          filters,
-          mockRuns,
-          artifacts,
-        ),
-      ).not.toThrow();
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors).toEqual([]);
     });
 
-    test('throws when an artifact pattern has no match', () => {
+    test('returns error when an artifact pattern has no match', () => {
       const filters: NormalizedArtifactFilter[] = [
         {
           workflow: /^Build & Test$/,
@@ -956,33 +955,39 @@ describe('GitHub Artifact Provider', () => {
         },
       ];
       // Only craft-binary exists, craft-docs is missing
-      const artifacts = [{ id: 101, name: 'craft-binary' }] as ArtifactItem[];
+      const artifacts = [
+        { id: 101, name: 'craft-binary', workflow_run: { id: 1 } },
+      ] as ArtifactItem[];
 
-      expect(() =>
-        githubArtifactProvider.testValidateAllPatternsMatched(
-          filters,
-          mockRuns,
-          artifacts,
-        ),
-      ).toThrow(/Artifact pattern.*craft-docs.*did not match/);
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatch(/Artifact pattern.*craft-docs.*did not match/);
     });
 
-    test('throws when a workflow pattern has no match', () => {
+    test('returns error when a workflow pattern has no match', () => {
       const filters: NormalizedArtifactFilter[] = [
         {
           workflow: /^Release$/,
           artifacts: [/^output$/],
         },
       ];
-      const artifacts = [{ id: 101, name: 'output' }] as ArtifactItem[];
+      const artifacts = [
+        { id: 101, name: 'output', workflow_run: { id: 1 } },
+      ] as ArtifactItem[];
 
-      expect(() =>
-        githubArtifactProvider.testValidateAllPatternsMatched(
-          filters,
-          mockRuns,
-          artifacts,
-        ),
-      ).toThrow(/Workflow pattern.*Release.*did not match any workflow runs/);
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatch(
+        /Workflow pattern.*Release.*did not match any workflow runs/,
+      );
     });
 
     test('includes available names in error message for artifacts', () => {
@@ -992,15 +997,18 @@ describe('GitHub Artifact Provider', () => {
           artifacts: [/^craft-binary$/, /^missing-artifact$/],
         },
       ];
-      const artifacts = [{ id: 101, name: 'craft-binary' }] as ArtifactItem[];
+      const artifacts = [
+        { id: 101, name: 'craft-binary', workflow_run: { id: 1 } },
+      ] as ArtifactItem[];
 
-      expect(() =>
-        githubArtifactProvider.testValidateAllPatternsMatched(
-          filters,
-          mockRuns,
-          artifacts,
-        ),
-      ).toThrow(/Available artifact names: craft-binary/);
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors.join('\n')).toMatch(
+        /Available artifact names: craft-binary/,
+      );
     });
 
     test('includes available names in error message for workflows', () => {
@@ -1012,13 +1020,14 @@ describe('GitHub Artifact Provider', () => {
       ];
       const artifacts = [] as ArtifactItem[];
 
-      expect(() =>
-        githubArtifactProvider.testValidateAllPatternsMatched(
-          filters,
-          mockRuns,
-          artifacts,
-        ),
-      ).toThrow(/Available workflows: Build & Test, Lint/);
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors.join('\n')).toMatch(
+        /Available workflows: Build & Test, Lint/,
+      );
     });
 
     test('reports multiple errors at once', () => {
@@ -1028,19 +1037,18 @@ describe('GitHub Artifact Provider', () => {
           artifacts: [/^missing-one$/, /^missing-two$/],
         },
       ];
-      const artifacts = [{ id: 101, name: 'craft-binary' }] as ArtifactItem[];
+      const artifacts = [
+        { id: 101, name: 'craft-binary', workflow_run: { id: 1 } },
+      ] as ArtifactItem[];
 
-      try {
-        githubArtifactProvider.testValidateAllPatternsMatched(
-          filters,
-          mockRuns,
-          artifacts,
-        );
-        expect.fail('Should have thrown');
-      } catch (e: any) {
-        expect(e.message).toMatch(/missing-one/);
-        expect(e.message).toMatch(/missing-two/);
-      }
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors).toHaveLength(2);
+      expect(errors.join('\n')).toMatch(/missing-one/);
+      expect(errors.join('\n')).toMatch(/missing-two/);
     });
 
     test('skips artifact validation for unmatched workflow', () => {
@@ -1054,35 +1062,66 @@ describe('GitHub Artifact Provider', () => {
       ];
       const artifacts = [] as ArtifactItem[];
 
-      try {
-        githubArtifactProvider.testValidateAllPatternsMatched(
-          filters,
-          mockRuns,
-          artifacts,
-        );
-        expect.fail('Should have thrown');
-      } catch (e: any) {
-        expect(e.message).toMatch(/Workflow pattern/);
-        expect(e.message).not.toMatch(/should-not-report/);
-      }
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatch(/Workflow pattern/);
+      expect(errors[0]).not.toMatch(/should-not-report/);
     });
 
-    test('succeeds with no workflow filter (matches all runs)', () => {
+    test('returns no errors with no workflow filter (matches all runs)', () => {
       const filters: NormalizedArtifactFilter[] = [
         {
           workflow: undefined,
           artifacts: [/^craft-binary$/],
         },
       ];
-      const artifacts = [{ id: 101, name: 'craft-binary' }] as ArtifactItem[];
+      const artifacts = [
+        { id: 101, name: 'craft-binary', workflow_run: { id: 1 } },
+      ] as ArtifactItem[];
 
-      expect(() =>
-        githubArtifactProvider.testValidateAllPatternsMatched(
-          filters,
-          mockRuns,
-          artifacts,
-        ),
-      ).not.toThrow();
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors).toEqual([]);
+    });
+
+    test('scopes artifact validation to matching workflow runs', () => {
+      // Two workflows produce different artifacts. Workflow A's artifact
+      // should not satisfy workflow B's artifact pattern.
+      const filters: NormalizedArtifactFilter[] = [
+        {
+          workflow: /^Build$/,
+          artifacts: [/^build-output$/],
+        },
+        {
+          workflow: /^Release$/,
+          artifacts: [/^release-output$/],
+        },
+      ];
+      const runs = [
+        { id: 10, name: 'Build' },
+        { id: 20, name: 'Release' },
+      ] as WorkflowRun[];
+      // build-output comes from Build, release-output is missing from Release
+      const artifacts = [
+        { id: 101, name: 'build-output', workflow_run: { id: 10 } },
+      ] as ArtifactItem[];
+
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        runs,
+        artifacts,
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatch(/release-output/);
+      expect(errors[0]).toMatch(/from workflow/);
+      expect(errors[0]).toMatch(/Release/);
     });
   });
 });
