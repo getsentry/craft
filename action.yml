@@ -272,7 +272,6 @@ runs:
         - [View check runs](https://github.com/${GITHUB_REPOSITORY}/commit/${RELEASE_SHA}/checks/)
 
         Assign the **accepted** label to this issue to approve the release.
-        To retract the release, the person requesting it must leave a comment containing \`#retract\` on a line by itself under this issue.
 
         ### Targets
 
