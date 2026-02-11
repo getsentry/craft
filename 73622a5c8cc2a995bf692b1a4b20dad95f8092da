@@ -1,0 +1,33 @@
+## Implementation Plan
+
+### Problem
+The changelog preview job always shows "Semver Impact" with semver badges
+(Major/Minor/Patch), even for CalVer projects where versions are date-based.
+This confuses users who see semver concepts that do not apply to their project.
+
+### Design Decisions
+- Detection happens in the craft CLI: `craft changelog --format json` now
+  includes a `versioningPolicy` field ("auto", "manual", or "calver") read
+  from .craft.yml via `findConfigFile()` + `getVersioningPolicy()`.
+- Graceful fallback: if no config file or config parse error, defaults to
+  "auto" (preserving existing semver behavior).
+- The workflow reads the policy and branches on it:
+  - CalVer: empty bump badge, heading "Changelog Preview", status context
+    "Changelog Preview", description "CalVer".
+  - Auto/Manual: unchanged semver badges, heading "Semver Impact of This PR",
+    status context "Changelog Preview / Semver Impact".
+- For CalVer, the bump badge is omitted entirely (no note about CalVer in the
+  body) to avoid repetitive noise on every PR.
+- Manual policy keeps showing semver impact since manual versions still follow
+  semver conventions.
+
+### Changes
+1. src/commands/changelog.ts - Added versioningPolicy to JSON output
+2. .github/workflows/changelog-preview.yml - Conditional display for CalVer
+3. src/commands/__tests__/changelog-versioning-policy.test.ts - 6 tests
+
+### Test Coverage
+- calver/auto/manual policies in JSON output
+- Fallback when no config file exists
+- Fallback when getVersioningPolicy() throws
+- Text output does not include versioningPolicy
