@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.21.3
+
+### Bug Fixes 🐛
+
+- (artifacts) Support glob patterns and validate all configured patterns match by @BYK in [#748](https://github.com/getsentry/craft/pull/748)
+- (changelog) Tailor preview output to versioning policy by @BYK in [#749](https://github.com/getsentry/craft/pull/749)
+
+### Other
+
+- fix: Retract is no more by @BYK in [1aa1e5c1](https://github.com/getsentry/craft/commit/1aa1e5c18fe59a7ac942e9db68adb1d418da91ac)
+
 ## 2.21.2
 
 ### Bug Fixes 🐛
