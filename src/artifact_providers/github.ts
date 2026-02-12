@@ -20,7 +20,7 @@ import { extractZipArchive } from '../utils/system';
 import { sleep } from '../utils/async';
 import { patternToRegexp } from '../utils/filters';
 import { GitHubArtifactsConfig } from '../schemas/project_config';
-import { dump } from 'js-yaml';
+import { formatArtifactConfigForError } from '../utils/strings';
 
 const MAX_TRIES = 3;
 const MILLISECONDS = 1000;
@@ -597,17 +597,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
    * config is defined.
    */
   protected formatArtifactConfigForError(): string {
-    const artifactsConfig = this.config.artifacts as
-      | GitHubArtifactsConfig
-      | undefined;
-    if (!artifactsConfig) {
-      return '';
-    }
-    const yamlSnippet = dump(
-      { artifacts: artifactsConfig },
-      { indent: 2, flowLevel: 3 },
-    ).trimEnd();
-    return `\n\nYour .craft.yml artifact configuration:\n${yamlSnippet}`;
+    return formatArtifactConfigForError(this.config.artifacts);
   }
 
   /**

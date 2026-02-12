@@ -28,7 +28,7 @@ import {
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
 import { promptConfirmation } from '../utils/helpers';
-import { formatSize } from '../utils/strings';
+import { formatArtifactConfigForError, formatSize } from '../utils/strings';
 import {
   catchKeyboardInterrupt,
   hasExecutable,
@@ -45,7 +45,6 @@ import {
   findReleaseBranches,
 } from '../utils/git';
 import { withTracing } from '../utils/tracing';
-import { dump } from 'js-yaml';
 
 /** Default path to post-release script, relative to project root */
 const DEFAULT_POST_RELEASE_SCRIPT_PATH = join('scripts', 'post-release.sh');
@@ -255,16 +254,13 @@ async function printRevisionSummary(
     const config = getConfiguration();
     const artifactsConfig = config?.artifactProvider?.config?.artifacts;
     if (artifactsConfig) {
-      const yamlSnippet = dump(
-        { artifacts: artifactsConfig },
-        { indent: 2, flowLevel: 3 },
-      ).trimEnd();
+      const configSnippet = formatArtifactConfigForError(artifactsConfig);
       reportError(
         `No artifacts found for the revision, but your .craft.yml defines artifact patterns.\n\n` +
           `Check that:\n` +
           `  1. Your CI workflow has completed successfully for this commit\n` +
-          `  2. The artifact names in your CI match your .craft.yml configuration\n\n` +
-          `Your .craft.yml artifact configuration:\n${yamlSnippet}`,
+          `  2. The artifact names in your CI match your .craft.yml configuration` +
+          configSnippet,
       );
     } else {
       logger.warn('No artifacts found for the revision.');
@@ -517,44 +513,48 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       await git.raw('name-rev', '--name-only', '--no-undefined', rev)
     ).trim();
     checkoutTarget = branchName || rev;
+    logger.debug('Checking out revision', checkoutTarget);
+    await git.checkout(checkoutTarget);
   } else {
     // Find the remote branch
     branchName = `${branchPrefix}/${newVersion}`;
     checkoutTarget = branchName;
-  }
 
-  try {
-    logger.debug('Checking out release branch', branchName);
-    await git.checkout(checkoutTarget);
-  } catch (_err) {
-    const { exactMatches, fuzzyMatches } = await findReleaseBranches(
-      git,
-      branchPrefix,
-    );
+    try {
+      logger.debug('Checking out release branch', branchName);
+      await git.checkout(checkoutTarget);
+    } catch (err) {
+      const { exactMatches, fuzzyMatches } = await findReleaseBranches(
+        git,
+        branchPrefix,
+      );
 
-    let message =
-      `Could not find the release branch "${branchName}".\n\n` +
-      `Have you run \`craft prepare\` for version ${newVersion}?\n\n` +
-      `Release branch prefix: "${branchPrefix}"` +
-      (config.releaseBranchPrefix ? '' : ' (default)');
+      let message =
+        `Could not find the release branch "${branchName}".\n\n` +
+        `Have you run \`craft prepare\` for version ${newVersion}?\n\n` +
+        `Release branch prefix: "${branchPrefix}"` +
+        (config.releaseBranchPrefix ? '' : ' (default)');
 
-    if (exactMatches.length > 0) {
-      message +=
-        `\n\nExisting release branches:\n` +
-        exactMatches.map(b => `  - ${b}`).join('\n');
+      if (exactMatches.length > 0) {
+        message +=
+          `\n\nExisting release branches:\n` +
+          exactMatches.map(b => `  - ${b}`).join('\n');
+      }
+
+      if (fuzzyMatches.length > 0) {
+        message +=
+          `\n\nDid you mean one of these? (similar branch prefix):\n` +
+          fuzzyMatches.map(b => `  - ${b}`).join('\n');
+      }
+
+      if (exactMatches.length === 0 && fuzzyMatches.length === 0) {
+        message += `\n\nNo release branches found on the remote.`;
+      }
+
+      message += `\n\nOriginal error: ${err instanceof Error ? err.message : String(err)}`;
+
+      throw new ConfigurationError(message);
     }
-
-    if (fuzzyMatches.length > 0) {
-      message +=
-        `\n\nDid you mean one of these? (similar branch prefix):\n` +
-        fuzzyMatches.map(b => `  - ${b}`).join('\n');
-    }
-
-    if (exactMatches.length === 0 && fuzzyMatches.length === 0) {
-      message += `\n\nNo release branches found on the remote.`;
-    }
-
-    throw new ConfigurationError(message);
   }
 
   const revision = await git.revparse('HEAD');

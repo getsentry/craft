@@ -1,3 +1,4 @@
+import { dump } from 'js-yaml';
 import * as mustache from 'mustache';
 import * as util from 'util';
 
@@ -126,4 +127,23 @@ export function formatJson(obj: any): string {
   } else {
     return result;
   }
+}
+
+/**
+ * Formats artifact configuration from .craft.yml as a YAML snippet for
+ * inclusion in error messages.
+ *
+ * @param artifactsConfig The artifacts config object from .craft.yml
+ * @returns A formatted string with a header and YAML, or empty string if
+ *   no config is provided
+ */
+export function formatArtifactConfigForError(artifactsConfig: unknown): string {
+  if (!artifactsConfig) {
+    return '';
+  }
+  const yamlSnippet = dump(
+    { artifacts: artifactsConfig },
+    { indent: 2, flowLevel: 3 },
+  ).trimEnd();
+  return `\n\nYour .craft.yml artifact configuration:\n${yamlSnippet}`;
 }

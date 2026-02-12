@@ -252,7 +252,7 @@ export async function findReleaseBranches(
     }
   }
 
-  // Return the most recent branches (git lists chronologically, newest at end)
+  // git branch -r lists alphabetically; for semver branches, taking from the end gives roughly the highest versions
   return {
     exactMatches: exactMatches.slice(-limit).reverse(),
     fuzzyMatches: fuzzyMatches.slice(-limit).reverse(),
