@@ -190,6 +190,8 @@ export class PypiTarget extends BaseTarget {
       pythonVersion = readTextFile(rootDir, '.python-version')?.trim();
     }
 
+    let isPythonPackage = false;
+
     // Check for pyproject.toml (modern Python packaging)
     if (fileExists(rootDir, 'pyproject.toml')) {
       const content = readTextFile(rootDir, 'pyproject.toml');
@@ -205,33 +207,17 @@ export class PypiTarget extends BaseTarget {
         }
 
         // Check if it has a [project] or [tool.poetry] section (indicates a package)
-        if (
-          content.includes('[project]') ||
-          content.includes('[tool.poetry]')
-        ) {
-          return {
-            config: { name: 'pypi' },
-            priority: PypiTarget.priority,
-            workflowSetup: {
-              python: { version: pythonVersion },
-            },
-            requiredSecrets: [
-              {
-                name: 'TWINE_USERNAME',
-                description: 'PyPI username (use __token__ for API tokens)',
-              },
-              {
-                name: 'TWINE_PASSWORD',
-                description: 'PyPI API token for publishing',
-              },
-            ],
-          };
-        }
+        isPythonPackage =
+          content.includes('[project]') || content.includes('[tool.poetry]');
       }
     }
 
     // Check for setup.py (legacy Python packaging)
-    if (fileExists(rootDir, 'setup.py')) {
+    if (!isPythonPackage) {
+      isPythonPackage = fileExists(rootDir, 'setup.py');
+    }
+
+    if (isPythonPackage) {
       return {
         config: { name: 'pypi' },
         priority: PypiTarget.priority,
