@@ -62,7 +62,7 @@ const originalLookup = mustache.Context.prototype.lookup;
  */
 export function renderTemplateSafe(
   template: string,
-  context: Record<string, any>
+  context: Record<string, any>,
 ): string {
   const sanitizedContext = sanitizeObject(context);
   const unknownVars: string[] = [];
@@ -83,7 +83,7 @@ export function renderTemplateSafe(
       const availableVars = Object.keys(sanitizedContext).join(', ');
       const unknownList = [...new Set(unknownVars)].join(', ');
       throw new ConfigurationError(
-        `Unknown template variable(s): ${unknownList}. Available variables: ${availableVars}`
+        `Unknown template variable(s): ${unknownList}. Available variables: ${availableVars}`,
       );
     }
 

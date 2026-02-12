@@ -9,6 +9,7 @@ import { getConfigFileDir } from '../config';
 import { ConfigurationError } from './errors';
 import { createDryRunGit } from './dryRun';
 import { logger } from '../logger';
+import { distance as levenshtein } from 'fastest-levenshtein';
 
 export interface GitChange {
   hash: string;
@@ -174,4 +175,86 @@ export function isRepoDirty(repoStatus: StatusResult): boolean {
     repoStatus.renamed.length ||
     repoStatus.staged.length
   );
+}
+
+export interface ReleaseBranchSearchResult {
+  /** Branches that exactly match the configured prefix */
+  exactMatches: string[];
+  /** Branches with a similar prefix (Levenshtein distance ≤ 3), excluding exact matches */
+  fuzzyMatches: string[];
+}
+
+/**
+ * Parses the output of `git branch -r` into an array of trimmed branch names,
+ * filtering out HEAD pointer entries.
+ */
+function parseGitBranchOutput(output: string): string[] {
+  return output
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line && !line.includes('->'));
+}
+
+/**
+ * Searches remote branches for those matching or similar to a given prefix.
+ *
+ * Fetches from remote first to get up-to-date refs, then:
+ * - `exactMatches`: branches whose prefix segment matches exactly
+ * - `fuzzyMatches`: branches whose prefix is within edit distance 3
+ *   (catches typos like "relaese" → "release", "releases" → "release")
+ *
+ * @param git SimpleGit instance
+ * @param prefix The release branch prefix to search for
+ * @param limit Maximum number of branches to return per category
+ * @returns Object with exactMatches and fuzzyMatches arrays
+ */
+export async function findReleaseBranches(
+  git: SimpleGit,
+  prefix: string,
+  limit: number = 10,
+): Promise<ReleaseBranchSearchResult> {
+  const MAX_EDIT_DISTANCE = 3;
+
+  try {
+    await git.fetch();
+  } catch (_err) {
+    logger.debug('Failed to fetch from remote, using locally cached refs');
+  }
+
+  let allBranches: string[];
+  try {
+    const output = await git.raw('branch', '-r');
+    allBranches = parseGitBranchOutput(output);
+  } catch (_err) {
+    logger.debug('Failed to list remote branches');
+    return { exactMatches: [], fuzzyMatches: [] };
+  }
+
+  const exactMatches: string[] = [];
+  const fuzzyMatches: string[] = [];
+
+  for (const branch of allBranches) {
+    // "origin/release/1.2.3" → strip remote → "release/1.2.3"
+    const withoutRemote = branch.replace(/^[^/]+\//, '');
+    // "release/1.2.3" → prefix portion = "release"
+    const slashIndex = withoutRemote.indexOf('/');
+    const branchPrefix =
+      slashIndex >= 0 ? withoutRemote.slice(0, slashIndex) : withoutRemote;
+
+    if (!branchPrefix) {
+      continue;
+    }
+
+    if (branchPrefix === prefix) {
+      exactMatches.push(branch);
+    } else if (levenshtein(branchPrefix, prefix) <= MAX_EDIT_DISTANCE) {
+      fuzzyMatches.push(branch);
+    }
+  }
+
+  // Return the most recent branches (git lists chronologically, newest at end)
+  return {
+    exactMatches: exactMatches.slice(-limit).reverse(),
+    fuzzyMatches: fuzzyMatches.slice(-limit).reverse(),
+  };
 }

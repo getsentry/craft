@@ -45,8 +45,11 @@ class TestGitHubArtifactProvider extends GitHubArtifactProvider {
   public testGetArtifactsFromWorkflowRuns(
     runs: WorkflowRun[],
     filters: NormalizedArtifactFilter[],
-  ): Promise<ArtifactItem[]> {
+  ): Promise<{ matching: ArtifactItem[]; allNames: string[] }> {
     return this.getArtifactsFromWorkflowRuns(runs, filters);
+  }
+  public testFormatArtifactConfigForError(): string {
+    return this.formatArtifactConfigForError();
   }
   public testValidateAllPatternsMatched(
     filters: NormalizedArtifactFilter[],
@@ -807,7 +810,7 @@ describe('GitHub Artifact Provider', () => {
         { workflow: /^Build & Test$/, artifacts: [/^craft-/] },
       ];
 
-      const artifacts =
+      const { matching: artifacts } =
         await githubArtifactProvider.testGetArtifactsFromWorkflowRuns(
           mockRuns,
           filters,
@@ -846,7 +849,7 @@ describe('GitHub Artifact Provider', () => {
         { workflow: undefined, artifacts: [/^craft-/] },
       ];
 
-      const artifacts =
+      const { matching: artifacts } =
         await githubArtifactProvider.testGetArtifactsFromWorkflowRuns(
           mockRuns,
           filters,
@@ -876,7 +879,7 @@ describe('GitHub Artifact Provider', () => {
         { workflow: undefined, artifacts: [/binary$/] },
       ];
 
-      const artifacts =
+      const { matching: artifacts } =
         await githubArtifactProvider.testGetArtifactsFromWorkflowRuns(
           mockRuns,
           filters,
@@ -1122,6 +1125,103 @@ describe('GitHub Artifact Provider', () => {
       expect(errors[0]).toMatch(/release-output/);
       expect(errors[0]).toMatch(/from workflow/);
       expect(errors[0]).toMatch(/Release/);
+    });
+  });
+
+  describe('formatArtifactConfigForError', () => {
+    test('formats object config as YAML', () => {
+      const provider = new TestGitHubArtifactProvider({
+        name: 'github',
+        repoName: 'test',
+        repoOwner: 'owner',
+        artifacts: {
+          'Build & Test': ['craft-binary', 'craft-docs'],
+        },
+      });
+
+      const result = provider.testFormatArtifactConfigForError();
+
+      expect(result).toContain('Your .craft.yml artifact configuration:');
+      expect(result).toContain('artifacts');
+      expect(result).toContain('Build & Test');
+      expect(result).toContain('craft-binary');
+      expect(result).toContain('craft-docs');
+    });
+
+    test('returns empty string when no artifacts config', () => {
+      const provider = new TestGitHubArtifactProvider({
+        name: 'github',
+        repoName: 'test',
+        repoOwner: 'owner',
+      });
+
+      const result = provider.testFormatArtifactConfigForError();
+
+      expect(result).toBe('');
+    });
+  });
+
+  describe('getArtifactsFromWorkflowRuns returns allNames', () => {
+    test('returns all artifact names including non-matching ones', async () => {
+      const mockRuns = [{ id: 1, name: 'Build' }] as WorkflowRun[];
+
+      mockClient.actions.listWorkflowRunArtifacts.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          total_count: 3,
+          artifacts: [
+            { id: 101, name: 'craft-binary' },
+            { id: 102, name: 'craft-docs' },
+            { id: 103, name: 'unrelated-artifact' },
+          ],
+        },
+      });
+
+      const filters: NormalizedArtifactFilter[] = [
+        { workflow: /^Build$/, artifacts: [/^craft-/] },
+      ];
+
+      const { matching, allNames } =
+        await githubArtifactProvider.testGetArtifactsFromWorkflowRuns(
+          mockRuns,
+          filters,
+        );
+
+      expect(matching).toHaveLength(2);
+      expect(matching.map(a => a.name)).toEqual(['craft-binary', 'craft-docs']);
+      expect(allNames).toEqual([
+        'craft-binary',
+        'craft-docs',
+        'unrelated-artifact',
+      ]);
+    });
+
+    test('returns all names even when no artifacts match', async () => {
+      const mockRuns = [{ id: 1, name: 'Build' }] as WorkflowRun[];
+
+      mockClient.actions.listWorkflowRunArtifacts.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          total_count: 2,
+          artifacts: [
+            { id: 101, name: 'something-else' },
+            { id: 102, name: 'another-thing' },
+          ],
+        },
+      });
+
+      const filters: NormalizedArtifactFilter[] = [
+        { workflow: /^Build$/, artifacts: [/^craft-/] },
+      ];
+
+      const { matching, allNames } =
+        await githubArtifactProvider.testGetArtifactsFromWorkflowRuns(
+          mockRuns,
+          filters,
+        );
+
+      expect(matching).toHaveLength(0);
+      expect(allNames).toEqual(['something-else', 'another-thing']);
     });
   });
 });
