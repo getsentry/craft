@@ -7,6 +7,7 @@
  */
 
 import { dump } from 'js-yaml';
+import { SMART_DEFAULTS_MIN_VERSION } from '../config';
 import { TargetConfig } from '../schemas/project_config';
 import { WorkflowSetup } from './detection';
 
@@ -29,7 +30,7 @@ export interface TemplateContext {
  */
 export function generateCraftConfig(context: TemplateContext): string {
   const config: Record<string, unknown> = {
-    minVersion: '2.21.0',
+    minVersion: SMART_DEFAULTS_MIN_VERSION,
   };
 
   // Sort targets by priority (already sorted from detection)

@@ -248,7 +248,7 @@ export function requiresMinVersion(requiredVersion: string): boolean {
 const AUTO_VERSION_MIN_VERSION = '2.14.0';
 
 /** Minimum craft version required for smart defaults (auto changelog, etc.) */
-const SMART_DEFAULTS_MIN_VERSION = '2.21.0';
+export const SMART_DEFAULTS_MIN_VERSION = '2.21.0';
 
 /**
  * Returns the effective versioning policy for the project.

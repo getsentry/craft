@@ -6,6 +6,7 @@ import { Argv } from 'yargs';
 import { logger } from '../logger';
 import {
   CONFIG_FILE_NAME,
+  SMART_DEFAULTS_MIN_VERSION,
   findConfigFile,
   getConfigFileDir,
   validateConfiguration,
@@ -152,18 +153,17 @@ function validateCraftConfig(configPath: string): ValidationIssue[] {
     });
   }
 
-  // Recommend minVersion >= 2.21.0 for smart defaults
+  // Recommend minVersion >= SMART_DEFAULTS_MIN_VERSION for smart defaults
   const minVersion = rawConfig.minVersion as string | undefined;
-  const smartDefaultsVersion = '2.21.0';
   if (!minVersion) {
     issues.push({
       level: 'warning',
-      message: `Consider adding minVersion: "${smartDefaultsVersion}" to enable smart defaults`,
+      message: `Consider adding minVersion: "${SMART_DEFAULTS_MIN_VERSION}" to enable smart defaults`,
       file: configPath,
     });
   } else {
     const parsedMinVersion = parseVersion(minVersion);
-    const parsedSmartDefaultsVersion = parseVersion(smartDefaultsVersion);
+    const parsedSmartDefaultsVersion = parseVersion(SMART_DEFAULTS_MIN_VERSION);
     if (
       parsedMinVersion &&
       parsedSmartDefaultsVersion &&
@@ -171,7 +171,7 @@ function validateCraftConfig(configPath: string): ValidationIssue[] {
     ) {
       issues.push({
         level: 'warning',
-        message: `Consider updating minVersion to "${smartDefaultsVersion}" or later for smart defaults`,
+        message: `Consider updating minVersion to "${SMART_DEFAULTS_MIN_VERSION}" or later for smart defaults`,
         file: configPath,
       });
     }
