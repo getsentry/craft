@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.4
+
+### Bug Fixes 🐛
+
+- (ux) Improve error messages for artifact mismatches and missing release branches by @BYK in [#750](https://github.com/getsentry/craft/pull/750)
+
 ## 2.21.3
 
 ### Bug Fixes 🐛
