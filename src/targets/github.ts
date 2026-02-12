@@ -27,6 +27,7 @@ import {
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { logger } from '../logger';
+import { DetectionContext, DetectionResult } from '../utils/detection';
 
 /**
  * Default content type for GitHub release assets.
@@ -93,6 +94,33 @@ export class GitHubTarget extends BaseTarget {
   public readonly github: Octokit;
   /** GitHub repo configuration */
   public readonly githubRepo: GitHubGlobalConfig;
+
+  /** Priority for ordering in config (GitHub should always be last) */
+  public static readonly priority = 900;
+
+  /**
+   * Detect if this project should use the github target.
+   *
+   * The GitHub target is always recommended for projects with GitHub remotes,
+   * as it creates GitHub Releases with changelogs and uploaded artifacts.
+   */
+  public static detect(context: DetectionContext): DetectionResult | null {
+    // GitHub target should be included when we detect a GitHub repo
+    if (context.githubOwner && context.githubRepo) {
+      return {
+        config: { name: 'github' },
+        priority: GitHubTarget.priority,
+        requiredSecrets: [
+          {
+            name: 'GH_RELEASE_PAT',
+            description: 'GitHub Personal Access Token with repo scope',
+          },
+        ],
+      };
+    }
+
+    return null;
+  }
 
   public constructor(
     config: TargetConfig,

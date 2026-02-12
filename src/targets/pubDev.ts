@@ -23,6 +23,11 @@ import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { isDryRun } from '../utils/helpers';
 import { logDryRun } from '../utils/dryRun';
 import { logger } from '../logger';
+import {
+  DetectionContext,
+  DetectionResult,
+  fileExists,
+} from '../utils/detection';
 
 export const targetSecrets = [
   'PUBDEV_ACCESS_TOKEN',
@@ -70,6 +75,9 @@ export class PubDevTarget extends BaseTarget {
   /** GitHub repo configuration */
   public readonly githubRepo: GitHubGlobalConfig;
 
+  /** Priority for ordering in config (package registries appear first) */
+  public static readonly priority = 60;
+
   /**
    * Bump version in pubspec.yaml for Dart/Flutter projects.
    *
@@ -101,6 +109,32 @@ export class PubDevTarget extends BaseTarget {
     writeFileSync(pubspecPath, dump(pubspec));
 
     return true;
+  }
+
+  /**
+   * Detect if this project should use the pub-dev target.
+   *
+   * Checks for pubspec.yaml (Dart/Flutter package).
+   */
+  public static detect(context: DetectionContext): DetectionResult | null {
+    const { rootDir } = context;
+
+    // Check for pubspec.yaml
+    if (fileExists(rootDir, 'pubspec.yaml')) {
+      return {
+        config: { name: 'pub-dev' },
+        priority: PubDevTarget.priority,
+        requiredSecrets: [
+          { name: 'PUBDEV_ACCESS_TOKEN', description: 'pub.dev access token' },
+          {
+            name: 'PUBDEV_REFRESH_TOKEN',
+            description: 'pub.dev refresh token',
+          },
+        ],
+      };
+    }
+
+    return null;
   }
 
   public constructor(

@@ -2,8 +2,7 @@ import { existsSync, lstatSync, readFileSync } from 'fs';
 import path from 'path';
 
 import { load } from 'js-yaml';
-import GitUrlParse from 'git-url-parse';
-import { createGitClient } from './utils/git';
+import { createGitClient, getGitHubInfoFromRemote } from './utils/git';
 import { ZodError } from 'zod';
 
 import { logger } from './logger';
@@ -248,6 +247,9 @@ export function requiresMinVersion(requiredVersion: string): boolean {
 /** Minimum craft version required for auto-versioning and CalVer */
 const AUTO_VERSION_MIN_VERSION = '2.14.0';
 
+/** Minimum craft version required for smart defaults (auto changelog, etc.) */
+const SMART_DEFAULTS_MIN_VERSION = '2.21.0';
+
 /**
  * Returns the effective versioning policy for the project.
  *
@@ -301,23 +303,10 @@ export async function getGlobalGitHubConfig(
   if (!repoGitHubConfig) {
     const configDir = getConfigFileDir() || '.';
     const git = createGitClient(configDir);
-    let remoteUrl;
     try {
-      const remotes = await git.getRemotes(true);
-      const defaultRemote =
-        remotes.find(remote => remote.name === 'origin') || remotes[0];
-      remoteUrl =
-        defaultRemote &&
-        GitUrlParse(defaultRemote.refs.push || defaultRemote.refs.fetch);
+      repoGitHubConfig = await getGitHubInfoFromRemote(git);
     } catch (error) {
       logger.warn('Error when trying to get git remotes: ', error);
-    }
-
-    if (remoteUrl?.source === 'github.com') {
-      repoGitHubConfig = {
-        owner: remoteUrl.owner,
-        repo: remoteUrl.name,
-      };
     }
   }
 
@@ -424,13 +413,18 @@ const DEFAULT_CHANGELOG_FILE_PATH = 'CHANGELOG.md';
  *
  * Handles both legacy `changelogPolicy` and new `changelog` object format.
  * Emits deprecation warning when using `changelogPolicy`.
+ *
+ * Smart defaults (when minVersion >= 2.21.0):
+ * - policy defaults to 'auto' instead of 'none'
  */
 export function getChangelogConfig(): NormalizedChangelogConfig {
   const config = getConfiguration();
 
-  // Default values
+  // Default values - use smart defaults for minVersion >= 2.21.0
   let filePath = DEFAULT_CHANGELOG_FILE_PATH;
-  let policy = ChangelogPolicy.None;
+  let policy = requiresMinVersion(SMART_DEFAULTS_MIN_VERSION)
+    ? ChangelogPolicy.Auto
+    : ChangelogPolicy.None;
   let scopeGrouping = true;
 
   // Handle legacy changelogPolicy (deprecated)

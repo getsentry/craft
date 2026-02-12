@@ -15,6 +15,12 @@ import {
 } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
+import {
+  DetectionContext,
+  DetectionResult,
+  fileExists,
+  readTextFile,
+} from '../utils/detection';
 
 /** Cargo executable configuration */
 const CARGO_CONFIG = {
@@ -115,6 +121,9 @@ export class CratesTarget extends BaseTarget {
   /** GitHub repo configuration */
   public readonly githubRepo: GitHubGlobalConfig;
 
+  /** Priority for ordering in config (package registries appear first) */
+  public static readonly priority = 30;
+
   /**
    * Bump version in Cargo.toml using cargo set-version (from cargo-edit).
    *
@@ -150,6 +159,49 @@ export class CratesTarget extends BaseTarget {
     }
 
     return true;
+  }
+
+  /**
+   * Detect if this project should use the crates target.
+   *
+   * Checks for Cargo.toml with package definition.
+   */
+  public static detect(context: DetectionContext): DetectionResult | null {
+    const { rootDir } = context;
+
+    // Check for Cargo.toml
+    if (!fileExists(rootDir, 'Cargo.toml')) {
+      return null;
+    }
+
+    const content = readTextFile(rootDir, 'Cargo.toml');
+    if (!content) {
+      return null;
+    }
+
+    const result: DetectionResult = {
+      config: { name: 'crates' },
+      priority: CratesTarget.priority,
+      requiredSecrets: [
+        {
+          name: 'CRATES_IO_TOKEN',
+          description: 'crates.io API token for publishing',
+        },
+      ],
+    };
+
+    // Check if it has a [package] section (indicates a crate)
+    // Workspace-only Cargo.toml files may not have [package]
+    if (content.includes('[package]')) {
+      return result;
+    }
+
+    // Check for workspace with members
+    if (content.includes('[workspace]') && content.includes('members')) {
+      return result;
+    }
+
+    return null;
   }
 
   public constructor(

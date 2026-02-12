@@ -32,6 +32,12 @@ import {
 import { withTempFile } from '../utils/files';
 import { writeFileSync } from 'fs';
 import { logger } from '../logger';
+import {
+  DetectionContext,
+  DetectionResult,
+  fileExists,
+  readJsonFile,
+} from '../utils/detection';
 
 /** npm executable config */
 export const NPM_CONFIG = { name: 'npm', envVar: 'NPM_BIN' } as const;
@@ -126,6 +132,82 @@ export class NpmTarget extends BaseTarget {
   public readonly name: string = 'npm';
   /** Target options */
   public readonly npmConfig: NpmTargetOptions;
+
+  /** Priority for ordering in config (package registries appear first) */
+  public static readonly priority = 10;
+
+  /**
+   * Detect if this project should use the npm target.
+   *
+   * Checks for package.json and whether it's publishable (not private without workspaces).
+   * Also detects Node.js setup (package manager, version file) for workflow generation.
+   */
+  public static detect(context: DetectionContext): DetectionResult | null {
+    const { rootDir } = context;
+
+    // Check for package.json
+    if (!fileExists(rootDir, 'package.json')) {
+      return null;
+    }
+
+    const pkg = readJsonFile<{
+      private?: boolean;
+      workspaces?: string[] | { packages: string[] };
+      name?: string;
+      packageManager?: string;
+      volta?: { node?: string };
+    }>(rootDir, 'package.json');
+
+    if (!pkg) {
+      return null;
+    }
+
+    // If it's private without workspaces, it's not publishable to npm
+    if (pkg.private && !pkg.workspaces) {
+      return null;
+    }
+
+    // Build the target config
+    const config: TargetConfig = { name: 'npm' };
+
+    // If there are workspaces, enable workspace discovery
+    if (pkg.workspaces) {
+      config.workspaces = true;
+    }
+
+    // Detect package manager
+    let packageManager: 'npm' | 'pnpm' | 'yarn' = 'npm';
+    if (pkg.packageManager?.startsWith('pnpm')) {
+      packageManager = 'pnpm';
+    } else if (pkg.packageManager?.startsWith('yarn')) {
+      packageManager = 'yarn';
+    } else if (fileExists(rootDir, 'pnpm-lock.yaml')) {
+      packageManager = 'pnpm';
+    } else if (fileExists(rootDir, 'yarn.lock')) {
+      packageManager = 'yarn';
+    }
+
+    // Detect Node version file
+    let versionFile: string | undefined;
+    if (pkg.volta?.node) {
+      versionFile = 'package.json';
+    } else if (fileExists(rootDir, '.nvmrc')) {
+      versionFile = '.nvmrc';
+    } else if (fileExists(rootDir, '.node-version')) {
+      versionFile = '.node-version';
+    }
+
+    return {
+      config,
+      priority: NpmTarget.priority,
+      workflowSetup: {
+        node: { packageManager, versionFile },
+      },
+      requiredSecrets: [
+        { name: 'NPM_TOKEN', description: 'npm access token for publishing' },
+      ],
+    };
+  }
 
   /**
    * Expand an npm target config into multiple targets if workspaces is enabled.
