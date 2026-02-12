@@ -106,7 +106,12 @@ export async function handler(args: InitArgs = {}): Promise<void> {
 
   // Detect GitHub info
   const git = createGitClient(rootDir);
-  const githubInfo = await getGitHubInfoFromRemote(git);
+  let githubInfo: Awaited<ReturnType<typeof getGitHubInfoFromRemote>> = null;
+  try {
+    githubInfo = await getGitHubInfoFromRemote(git);
+  } catch (error) {
+    logger.debug('Error detecting GitHub info:', error);
+  }
   if (githubInfo) {
     logger.info(
       `✓ Found GitHub repository: ${githubInfo.owner}/${githubInfo.repo}`,

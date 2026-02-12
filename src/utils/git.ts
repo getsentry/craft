@@ -194,27 +194,23 @@ export function isRepoDirty(repoStatus: StatusResult): boolean {
 export async function getGitHubInfoFromRemote(
   git: SimpleGit,
 ): Promise<GitHubInfo | null> {
-  try {
-    const remotes = await git.getRemotes(true);
-    const defaultRemote =
-      remotes.find(remote => remote.name === 'origin') || remotes[0];
+  const remotes = await git.getRemotes(true);
+  const defaultRemote =
+    remotes.find(remote => remote.name === 'origin') || remotes[0];
 
-    if (!defaultRemote) {
-      return null;
-    }
-
-    const remoteUrl = GitUrlParse(
-      defaultRemote.refs.push || defaultRemote.refs.fetch,
-    );
-
-    if (remoteUrl?.source === 'github.com') {
-      return {
-        owner: remoteUrl.owner,
-        repo: remoteUrl.name,
-      };
-    }
-  } catch {
+  if (!defaultRemote) {
     return null;
+  }
+
+  const remoteUrl = GitUrlParse(
+    defaultRemote.refs.push || defaultRemote.refs.fetch,
+  );
+
+  if (remoteUrl?.source === 'github.com') {
+    return {
+      owner: remoteUrl.owner,
+      repo: remoteUrl.name,
+    };
   }
 
   return null;
