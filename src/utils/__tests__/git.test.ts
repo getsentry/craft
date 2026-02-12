@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { getLatestTag, isRepoDirty } from '../git';
+import { getLatestTag, isRepoDirty, findReleaseBranches } from '../git';
 import * as loggerModule from '../../logger';
 import type { StatusResult } from 'simple-git';
 
@@ -86,5 +86,149 @@ describe('isRepoDirty', () => {
     const status = createCleanStatus();
     status.conflicted = ['conflict.txt'];
     expect(isRepoDirty(status)).toBe(true);
+  });
+});
+
+describe('findReleaseBranches', () => {
+  function createMockGit(branchOutput: string, fetchError?: Error) {
+    return {
+      fetch: fetchError
+        ? vi.fn().mockRejectedValue(fetchError)
+        : vi.fn().mockResolvedValue(undefined),
+      raw: vi.fn().mockResolvedValue(branchOutput),
+    } as any;
+  }
+
+  it('returns exact matches for branches with matching prefix', async () => {
+    const git = createMockGit(
+      '  origin/release/1.2.0\n  origin/release/1.2.1\n  origin/release/1.2.2\n',
+    );
+
+    const result = await findReleaseBranches(git, 'release');
+
+    expect(result.exactMatches).toEqual([
+      'origin/release/1.2.2',
+      'origin/release/1.2.1',
+      'origin/release/1.2.0',
+    ]);
+    expect(result.fuzzyMatches).toEqual([]);
+  });
+
+  it('returns fuzzy matches for branches with similar prefix (edit distance <= 3)', async () => {
+    const git = createMockGit(
+      '  origin/releases/1.0.0\n  origin/relaese/2.0.0\n',
+    );
+
+    const result = await findReleaseBranches(git, 'release');
+
+    expect(result.exactMatches).toEqual([]);
+    // "releases" has distance 1, "relaese" has distance 2
+    expect(result.fuzzyMatches).toEqual([
+      'origin/relaese/2.0.0',
+      'origin/releases/1.0.0',
+    ]);
+  });
+
+  it('returns both exact and fuzzy matches together', async () => {
+    const git = createMockGit(
+      '  origin/release/1.0.0\n  origin/releases/1.0.0\n  origin/release/2.0.0\n',
+    );
+
+    const result = await findReleaseBranches(git, 'release');
+
+    expect(result.exactMatches).toEqual([
+      'origin/release/2.0.0',
+      'origin/release/1.0.0',
+    ]);
+    expect(result.fuzzyMatches).toEqual(['origin/releases/1.0.0']);
+  });
+
+  it('returns empty results when no branches match', async () => {
+    const git = createMockGit(
+      '  origin/main\n  origin/develop\n  origin/feature/foo\n',
+    );
+
+    const result = await findReleaseBranches(git, 'release');
+
+    expect(result.exactMatches).toEqual([]);
+    expect(result.fuzzyMatches).toEqual([]);
+  });
+
+  it('filters out HEAD pointer entries', async () => {
+    const git = createMockGit(
+      '  origin/HEAD -> origin/main\n  origin/release/1.0.0\n',
+    );
+
+    const result = await findReleaseBranches(git, 'release');
+
+    expect(result.exactMatches).toEqual(['origin/release/1.0.0']);
+    expect(result.fuzzyMatches).toEqual([]);
+  });
+
+  it('respects the limit parameter', async () => {
+    const git = createMockGit(
+      '  origin/release/1.0.0\n  origin/release/1.1.0\n  origin/release/1.2.0\n  origin/release/1.3.0\n  origin/release/1.4.0\n',
+    );
+
+    const result = await findReleaseBranches(git, 'release', 2);
+
+    expect(result.exactMatches).toHaveLength(2);
+    // Most recent (last in git output) come first
+    expect(result.exactMatches).toEqual([
+      'origin/release/1.4.0',
+      'origin/release/1.3.0',
+    ]);
+  });
+
+  it('fetches from remote before listing branches', async () => {
+    const git = createMockGit('  origin/release/1.0.0\n');
+
+    await findReleaseBranches(git, 'release');
+
+    expect(git.fetch).toHaveBeenCalled();
+    expect(git.raw).toHaveBeenCalledWith('branch', '-r');
+  });
+
+  it('continues gracefully if fetch fails', async () => {
+    const git = createMockGit(
+      '  origin/release/1.0.0\n',
+      new Error('network error'),
+    );
+
+    const result = await findReleaseBranches(git, 'release');
+
+    expect(result.exactMatches).toEqual(['origin/release/1.0.0']);
+  });
+
+  it('returns empty results if branch listing fails', async () => {
+    const git = {
+      fetch: vi.fn().mockResolvedValue(undefined),
+      raw: vi.fn().mockRejectedValue(new Error('git error')),
+    } as any;
+
+    const result = await findReleaseBranches(git, 'release');
+
+    expect(result.exactMatches).toEqual([]);
+    expect(result.fuzzyMatches).toEqual([]);
+  });
+
+  it('excludes branches with edit distance > 3', async () => {
+    // "rel" has distance 4 from "release" — should NOT match
+    const git = createMockGit('  origin/rel/1.0.0\n  origin/r/1.0.0\n');
+
+    const result = await findReleaseBranches(git, 'release');
+
+    expect(result.exactMatches).toEqual([]);
+    expect(result.fuzzyMatches).toEqual([]);
+  });
+
+  it('handles branches without a slash after prefix', async () => {
+    const git = createMockGit('  origin/main\n  origin/release/1.0.0\n');
+
+    const result = await findReleaseBranches(git, 'release');
+
+    expect(result.exactMatches).toEqual(['origin/release/1.0.0']);
+    // "main" has distance > 3 from "release", so no fuzzy match
+    expect(result.fuzzyMatches).toEqual([]);
   });
 });

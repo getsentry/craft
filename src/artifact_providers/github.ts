@@ -20,6 +20,7 @@ import { extractZipArchive } from '../utils/system';
 import { sleep } from '../utils/async';
 import { patternToRegexp } from '../utils/filters';
 import { GitHubArtifactsConfig } from '../schemas/project_config';
+import { formatArtifactConfigForError } from '../utils/strings';
 
 const MAX_TRIES = 3;
 const MILLISECONDS = 1000;
@@ -342,15 +343,20 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
   }
 
   /**
-   * Gets artifacts from workflow runs and filters them by patterns
+   * Gets artifacts from workflow runs and filters them by patterns.
+   *
+   * Returns both the matching artifacts and all artifact names seen
+   * (regardless of whether they matched). The allNames list is used
+   * in error messages to help users identify naming mismatches.
    */
   protected async getArtifactsFromWorkflowRuns(
     runs: WorkflowRun[],
     filters: NormalizedArtifactFilter[],
-  ): Promise<ArtifactItem[]> {
+  ): Promise<{ matching: ArtifactItem[]; allNames: string[] }> {
     const { repoName: repo, repoOwner: owner } = this.config;
     const matchingArtifacts: ArtifactItem[] = [];
     const seenArtifactIds = new Set<number>();
+    const allArtifactNames = new Set<string>();
 
     for (const run of runs) {
       const workflowName = run.name ?? '';
@@ -374,6 +380,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
         });
 
         for (const artifact of response.data.artifacts) {
+          allArtifactNames.add(artifact.name);
           if (seenArtifactIds.has(artifact.id)) {
             continue;
           }
@@ -394,7 +401,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
     }
 
     this.logger.debug(`Found ${matchingArtifacts.length} matching artifacts`);
-    return matchingArtifacts;
+    return { matching: matchingArtifacts, allNames: [...allArtifactNames] };
   }
 
   /**
@@ -585,6 +592,15 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
   }
 
   /**
+   * Formats the artifact provider config from .craft.yml as a YAML snippet
+   * for inclusion in error messages. Returns an empty string if no artifact
+   * config is defined.
+   */
+  protected formatArtifactConfigForError(): string {
+    return formatArtifactConfigForError(this.config.artifacts);
+  }
+
+  /**
    * Fetches artifacts using the new workflow-based approach
    *
    * @param revision Git commit SHA
@@ -595,6 +611,8 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
     revision: string,
     filters: NormalizedArtifactFilter[],
   ): Promise<RemoteArtifact[]> {
+    const configHint = this.formatArtifactConfigForError();
+
     for (let tries = 0; tries < MAX_TRIES; tries++) {
       this.logger.info(
         `Fetching GitHub artifacts for revision ${revision} using artifact filters (attempt ${
@@ -615,7 +633,11 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
           continue;
         }
         throw new Error(
-          `No workflow runs found for revision "${revision}" (tries: ${MAX_TRIES})`,
+          `No workflow runs found for revision "${revision}" after ${MAX_TRIES} attempts.\n\n` +
+            `Check that:\n` +
+            `  1. Your CI workflow has completed successfully for this commit\n` +
+            `  2. The workflow names in .craft.yml match your actual GitHub Actions workflow names` +
+            configHint,
         );
       }
 
@@ -624,10 +646,8 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
         `${filteredRuns.length} of ${allRuns.length} workflow runs match filters`,
       );
 
-      const matchingArtifacts = await this.getArtifactsFromWorkflowRuns(
-        filteredRuns,
-        filters,
-      );
+      const { matching: matchingArtifacts, allNames: allArtifactNames } =
+        await this.getArtifactsFromWorkflowRuns(filteredRuns, filters);
 
       if (matchingArtifacts.length === 0) {
         this.logger.debug(`No matching artifacts found`);
@@ -640,8 +660,17 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
           await sleep(ARTIFACTS_POLLING_INTERVAL);
           continue;
         }
+        const availableNames =
+          allArtifactNames.length > 0 ? allArtifactNames.join(', ') : '(none)';
         throw new Error(
-          `No artifacts matching filters found for revision "${revision}" (tries: ${MAX_TRIES})`,
+          `No artifacts matching your configured patterns were found for revision "${revision}" ` +
+            `after ${MAX_TRIES} attempts.\n\n` +
+            `Found ${filteredRuns.length} workflow run(s), but none of their artifacts matched.\n` +
+            `Available artifact names from matching runs: ${availableNames}\n\n` +
+            `Check that:\n` +
+            `  1. Your CI workflow is uploading artifacts with the expected names\n` +
+            `  2. The artifact names in .craft.yml match what your CI actually produces` +
+            configHint,
         );
       }
 
@@ -666,9 +695,10 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
           continue;
         }
         throw new Error(
-          `Not all configured artifact patterns were satisfied:\n  - ${validationErrors.join('\n  - ')}\n` +
+          `Not all configured artifact patterns were satisfied:\n  - ${validationErrors.join('\n  - ')}\n\n` +
             `Check that your workflow names and artifact names in .craft.yml match ` +
-            `what your CI actually produces.`,
+            `what your CI actually produces.` +
+            configHint,
         );
       }
 

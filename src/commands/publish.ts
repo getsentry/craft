@@ -20,11 +20,15 @@ import { formatTable, logger } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
-import { handleGlobalError, reportError } from '../utils/errors';
+import {
+  ConfigurationError,
+  handleGlobalError,
+  reportError,
+} from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
 import { promptConfirmation } from '../utils/helpers';
-import { formatSize } from '../utils/strings';
+import { formatArtifactConfigForError, formatSize } from '../utils/strings';
 import {
   catchKeyboardInterrupt,
   hasExecutable,
@@ -34,7 +38,12 @@ import { isValidVersion } from '../utils/version';
 import { BaseStatusProvider } from '../status_providers/base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { SimpleGit } from 'simple-git';
-import { getGitClient, getDefaultBranch, isRepoDirty } from '../utils/git';
+import {
+  getGitClient,
+  getDefaultBranch,
+  isRepoDirty,
+  findReleaseBranches,
+} from '../utils/git';
 import { withTracing } from '../utils/tracing';
 
 /** Default path to post-release script, relative to project root */
@@ -242,7 +251,20 @@ async function printRevisionSummary(
     logger.info(' ');
     logger.info(`Available artifacts: \n${table.toString()}\n`);
   } else {
-    logger.warn('No artifacts found for the revision.');
+    const config = getConfiguration();
+    const artifactsConfig = config?.artifactProvider?.config?.artifacts;
+    if (artifactsConfig) {
+      const configSnippet = formatArtifactConfigForError(artifactsConfig);
+      reportError(
+        `No artifacts found for the revision, but your .craft.yml defines artifact patterns.\n\n` +
+          `Check that:\n` +
+          `  1. Your CI workflow has completed successfully for this commit\n` +
+          `  2. The artifact names in your CI match your .craft.yml configuration` +
+          configSnippet,
+      );
+    } else {
+      logger.warn('No artifacts found for the revision.');
+    }
   }
 }
 
@@ -479,6 +501,9 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     }
   }
 
+  const branchPrefix =
+    config.releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
+
   const rev = argv.rev;
   let checkoutTarget;
   let branchName;
@@ -488,16 +513,49 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       await git.raw('name-rev', '--name-only', '--no-undefined', rev)
     ).trim();
     checkoutTarget = branchName || rev;
+    logger.debug('Checking out revision', checkoutTarget);
+    await git.checkout(checkoutTarget);
   } else {
     // Find the remote branch
-    const branchPrefix =
-      config.releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
     branchName = `${branchPrefix}/${newVersion}`;
     checkoutTarget = branchName;
-  }
 
-  logger.debug('Checking out release branch', branchName);
-  await git.checkout(checkoutTarget);
+    try {
+      logger.debug('Checking out release branch', branchName);
+      await git.checkout(checkoutTarget);
+    } catch (err) {
+      const { exactMatches, fuzzyMatches } = await findReleaseBranches(
+        git,
+        branchPrefix,
+      );
+
+      let message =
+        `Could not find the release branch "${branchName}".\n\n` +
+        `Have you run \`craft prepare\` for version ${newVersion}?\n\n` +
+        `Release branch prefix: "${branchPrefix}"` +
+        (config.releaseBranchPrefix ? '' : ' (default)');
+
+      if (exactMatches.length > 0) {
+        message +=
+          `\n\nExisting release branches:\n` +
+          exactMatches.map(b => `  - ${b}`).join('\n');
+      }
+
+      if (fuzzyMatches.length > 0) {
+        message +=
+          `\n\nDid you mean one of these? (similar branch prefix):\n` +
+          fuzzyMatches.map(b => `  - ${b}`).join('\n');
+      }
+
+      if (exactMatches.length === 0 && fuzzyMatches.length === 0) {
+        message += `\n\nNo release branches found on the remote.`;
+      }
+
+      message += `\n\nOriginal error: ${err instanceof Error ? err.message : String(err)}`;
+
+      throw new ConfigurationError(message);
+    }
+  }
 
   const revision = await git.revparse('HEAD');
   logger.debug('Revision to publish: ', revision);
