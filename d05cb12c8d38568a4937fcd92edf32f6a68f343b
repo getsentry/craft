@@ -1,0 +1,24 @@
+## Implementation Plan
+
+### Problem
+Every Craft deployment nukes the CNAME file on the gh-pages branch because
+the gh-pages target does a destructive `git rm -rf .` before extracting the
+new archive contents. This causes craft.sentry.dev to stop resolving after
+each release.
+
+### Analysis
+1. The gh-pages target's full-replacement behavior is by design — no code change needed there.
+2. The getsentry/cli repo solves this by placing a CNAME file in `docs/public/`. Astro copies
+   public/ contents into dist/ at build time, so the CNAME ends up in the deployment archive.
+3. The Craft repo was missing this file.
+
+### Solution
+Add `docs/public/CNAME` containing `craft.sentry.dev`. No changes to the gh-pages target
+code or .craft.yml configuration are needed.
+
+### Alternatives Considered
+- Adding CNAME awareness to the gh-pages target (rejected: unnecessary complexity)
+- Adding a `cname` config option to the gh-pages target (rejected: same reason)
+
+Both alternatives were rejected because the build-time inclusion pattern used by
+getsentry/cli is simpler and already proven.
