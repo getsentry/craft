@@ -56,8 +56,11 @@ outputs:
     description: The tag before this release (for diff links)
     value: ${{ steps.craft.outputs.previous_tag }}
   changelog:
-    description: The changelog for this release
+    description: The changelog for this release (may be truncated for large repos)
     value: ${{ steps.craft.outputs.changelog }}
+  changelog_file:
+    description: Path to the full changelog file (available when running in GitHub Actions)
+    value: ${{ steps.craft.outputs.changelog_file }}
   issue_url:
     description: The URL of the created publish request issue
     value: ${{ steps.request-publish.outputs.issue_url }}
@@ -187,7 +190,10 @@ runs:
       id: request-publish
       shell: bash
       env:
-        CHANGELOG: ${{ steps.craft.outputs.changelog }}
+        # NOTE: CHANGELOG is read from a file to avoid E2BIG errors.
+        # Large changelogs (e.g. sentry's monthly releases) can exceed the ~2 MB
+        # Linux ARG_MAX limit when passed as an environment variable.
+        CHANGELOG_FILE: ${{ steps.craft.outputs.changelog_file }}
         TARGETS: ${{ steps.craft-targets.outputs.targets }}
         RESOLVED_VERSION: ${{ steps.craft.outputs.version }}
         RELEASE_BRANCH: ${{ steps.craft.outputs.branch }}
@@ -200,6 +206,22 @@ runs:
         if [[ -z "$RESOLVED_VERSION" ]]; then
           echo "::error::Craft did not output a version. This is unexpected."
           exit 1
+        fi
+
+        # Read changelog from file to avoid E2BIG.
+        # Produced by craft >= 2.22.0; older versions don't produce the file
+        # and the publish issue will be created without a changelog section.
+        CHANGELOG=""
+        if [[ -n "${CHANGELOG_FILE:-}" && -f "$CHANGELOG_FILE" ]]; then
+          CHANGELOG=$(cat "$CHANGELOG_FILE")
+        fi
+
+        # GitHub issue bodies are limited to ~65 536 characters.  Truncate
+        # the changelog to stay under that limit with room for the rest of
+        # the body template (~2 KB of surrounding markdown).
+        MAX_CHANGELOG_CHARS=60000
+        if [[ ${#CHANGELOG} -gt $MAX_CHANGELOG_CHARS ]]; then
+          CHANGELOG="${CHANGELOG:0:$MAX_CHANGELOG_CHARS}"$'\n\n---\n*Changelog truncated for issue body.*'
         fi
 
         title="publish: ${GITHUB_REPOSITORY}${SUBDIRECTORY}@${RESOLVED_VERSION}"

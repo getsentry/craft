@@ -8,7 +8,7 @@ on:
       version:
         description: Version to release
         required: true
-        default: "auto"
+        default: 'auto'
       force:
         description: Force a release even when there are release-blockers (optional)
         required: false
@@ -24,7 +24,7 @@ on:
         description: Force a release even when there are release-blockers
         type: string
         required: false
-        default: "false"
+        default: 'false'
       merge_target:
         description: Target branch to merge into
         type: string
@@ -33,7 +33,7 @@ on:
         description: Label that blocks releases
         type: string
         required: false
-        default: "release-blocker"
+        default: 'release-blocker'
       publish_repo:
         description: Repository for publish issues (owner/repo format)
         type: string
@@ -50,12 +50,12 @@ on:
         description: The path that Craft will run inside
         type: string
         required: false
-        default: "."
+        default: '.'
       craft_config_from_merge_target:
         description: Use the craft config from the merge target branch
         type: string
         required: false
-        default: "false"
+        default: 'false'
     outputs:
       version:
         description: The resolved version being released
@@ -70,7 +70,7 @@ on:
         description: The tag before this release (for diff links)
         value: ${{ jobs.release.outputs.previous_tag }}
       changelog:
-        description: The changelog for this release
+        description: The changelog for this release (may be truncated for large repos)
         value: ${{ jobs.release.outputs.changelog }}
 
 jobs:
