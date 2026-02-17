@@ -5,6 +5,7 @@ import { tmpdir } from 'os';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 import {
+  disableChangelogMentions,
   envToBool,
   MAX_STEP_OUTPUT_BYTES,
   setGitHubActionsOutput,
@@ -192,5 +193,72 @@ describe('truncateForOutput', () => {
     // Content portion should be exactly `budget` 'a' chars (no char was dropped)
     const contentPortion = result.slice(0, budget);
     expect(contentPortion).toBe('a'.repeat(budget));
+  });
+});
+
+describe('disableChangelogMentions', () => {
+  test('replaces @-mentions with bold in PR entries', () => {
+    const input =
+      '- Fix crash on startup by @alice in [#123](https://github.com/org/repo/pull/123)';
+    const result = disableChangelogMentions(input);
+    expect(result).toBe(
+      '- Fix crash on startup by **alice** in [#123](https://github.com/org/repo/pull/123)',
+    );
+  });
+
+  test('replaces @-mentions with bold in commit entries', () => {
+    const input =
+      '- Fix typo by @bob in [abcdef12](https://github.com/org/repo/commit/abcdef12)';
+    const result = disableChangelogMentions(input);
+    expect(result).toBe(
+      '- Fix typo by **bob** in [abcdef12](https://github.com/org/repo/commit/abcdef12)',
+    );
+  });
+
+  test('replaces @-mentions in backtick PR refs (disablePRLinks mode)', () => {
+    const input = '- Fix bug by @charlie in `#456`';
+    const result = disableChangelogMentions(input);
+    expect(result).toBe('- Fix bug by **charlie** in `#456`');
+  });
+
+  test('handles multiple entries', () => {
+    const input = [
+      '### Bug Fixes',
+      '- Fix crash by @alice in [#1](https://github.com/org/repo/pull/1)',
+      '- Fix typo by @bob in [#2](https://github.com/org/repo/pull/2)',
+      '- Improve perf by @charlie in [#3](https://github.com/org/repo/pull/3)',
+    ].join('\n');
+    const result = disableChangelogMentions(input);
+    expect(result).toContain('by **alice** in');
+    expect(result).toContain('by **bob** in');
+    expect(result).toContain('by **charlie** in');
+    expect(result).not.toContain('@alice');
+    expect(result).not.toContain('@bob');
+    expect(result).not.toContain('@charlie');
+  });
+
+  test('preserves entries without author mentions', () => {
+    const input = '- Fix crash in [#123](https://github.com/org/repo/pull/123)';
+    const result = disableChangelogMentions(input);
+    expect(result).toBe(input);
+  });
+
+  test('preserves section headers and other text', () => {
+    const input = [
+      '### New Features',
+      '- Add dark mode by @alice in [#10](https://github.com/org/repo/pull/10)',
+      '',
+      '### Bug Fixes',
+      '- Fix crash in [#11](https://github.com/org/repo/pull/11)',
+    ].join('\n');
+    const result = disableChangelogMentions(input);
+    expect(result).toContain('### New Features');
+    expect(result).toContain('### Bug Fixes');
+    expect(result).toContain('by **alice** in');
+    expect(result).not.toContain('@alice');
+  });
+
+  test('returns empty string unchanged', () => {
+    expect(disableChangelogMentions('')).toBe('');
   });
 });

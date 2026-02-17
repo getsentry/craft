@@ -175,3 +175,15 @@ export function truncateForOutput(
 
   return truncated + notice;
 }
+
+/**
+ * Replaces `@author` mentions in changelog text with bold formatting
+ * (`**author**`) to avoid pinging contributors when the changelog is
+ * embedded in a GitHub issue body.
+ *
+ * Targets the exact output format of `formatChangelogEntry()`:
+ * `- Title by @author in [#123](url)`
+ */
+export function disableChangelogMentions(changelog: string): string {
+  return changelog.replace(/ by @(\S+) in /g, ' by **$1** in ');
+}
