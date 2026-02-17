@@ -1,0 +1,37 @@
+## Implementation Plan
+
+### Problem
+When `craft prepare` creates a publish issue in `getsentry/publish`, the
+changelog body contains `@author` mentions that ping every contributor.
+For CalVer projects with regular release cadence this is excessive noise.
+
+### Root Cause
+`generateChangesetFromGit()` produces changelog with `disableMentions=false`
+(the default).  The same `changelogBody` string flows to both CHANGELOG.md
+(harmless — files don't trigger notifications) and the GitHub Actions file
+output consumed by `action.yml` to build the publish issue body (pings).
+
+### Approach
+Post-process the changelog string *only* for the Actions output path.
+Before `writeGitHubActionsFile` / `setGitHubActionsOutput`, detect CalVer
+via two sources:
+
+1. `argv.newVersion === "calver"` — user ran `craft prepare calver`
+2. `getVersioningPolicy() === VersioningPolicy.CalVer` — config policy
+
+If either matches, run a regex replacement that converts
+` by @author in ` → ` by **author** in `, matching the exact output
+format of `formatChangelogEntry()`.
+
+### Files Changed
+- `src/utils/helpers.ts` — new `disableChangelogMentions()` function
+- `src/commands/prepare.ts` — conditional call before writing outputs
+- `src/utils/__tests__/helpers.test.ts` — 7 tests for the regex helper
+
+### Design Decisions
+- Regex replacement over re-generating changelog: avoids expensive API
+  calls and memoization cache complications
+- Helper extracted to `helpers.ts` (alongside `truncateForOutput`) for
+  independent testability
+- CHANGELOG.md keeps @-mentions (clickable links, no notifications)
+- Non-calver projects are completely unaffected
