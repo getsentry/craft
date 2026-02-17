@@ -140,7 +140,8 @@ export function writeGitHubActionsFile(
 }
 
 /**
- * Truncates `value` to `MAX_STEP_OUTPUT_BYTES` and appends a notice.
+ * Truncates `value` to `MAX_STEP_OUTPUT_BYTES` (including the notice) and
+ * appends a notice.
  *
  * When `changelogUrl` is provided the notice links to the full changelog on
  * GitHub (e.g. the CHANGELOG.md file on the release branch) so readers of the
@@ -150,20 +151,27 @@ export function truncateForOutput(
   value: string,
   changelogUrl?: string,
 ): string {
+  const notice = changelogUrl
+    ? `\n\n---\n*Changelog truncated. [View full changelog](${changelogUrl}).*`
+    : '\n\n---\n*Changelog truncated.*';
+
+  const noticeBytes = Buffer.byteLength(notice, 'utf-8');
+  const contentBudget = MAX_STEP_OUTPUT_BYTES - noticeBytes;
+
   if (Buffer.byteLength(value, 'utf-8') <= MAX_STEP_OUTPUT_BYTES) {
     return value;
   }
 
   // Truncate at a safe byte boundary by encoding then slicing
-  const truncated = Buffer.from(value, 'utf-8')
-    .subarray(0, MAX_STEP_OUTPUT_BYTES)
-    .toString('utf-8')
-    // Drop the last character in case it was split mid-codepoint
-    .slice(0, -1);
+  let truncated = Buffer.from(value, 'utf-8')
+    .subarray(0, contentBudget)
+    .toString('utf-8');
 
-  const notice = changelogUrl
-    ? `\n\n---\n*Changelog truncated. [View full changelog](${changelogUrl}).*`
-    : '\n\n---\n*Changelog truncated.*';
+  // Drop the last character only if the byte slice split a multi-byte
+  // codepoint, which surfaces as the Unicode replacement character U+FFFD.
+  if (truncated.length > 0 && truncated[truncated.length - 1] === '\uFFFD') {
+    truncated = truncated.slice(0, -1);
+  }
 
   return truncated + notice;
 }

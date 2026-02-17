@@ -72,9 +72,6 @@ on:
       changelog:
         description: The changelog for this release (may be truncated for large repos)
         value: ${{ jobs.release.outputs.changelog }}
-      changelog_file:
-        description: Path to the full changelog file (only available within the same job)
-        value: ${{ jobs.release.outputs.changelog_file }}
 
 jobs:
   # Build job only for Craft's own releases (dogfooding)
@@ -99,7 +96,6 @@ jobs:
       sha: ${{ steps.craft-local.outputs.sha || steps.craft-action.outputs.sha }}
       previous_tag: ${{ steps.craft-local.outputs.previous_tag || steps.craft-action.outputs.previous_tag }}
       changelog: ${{ steps.craft-local.outputs.changelog || steps.craft-action.outputs.changelog }}
-      changelog_file: ${{ steps.craft-local.outputs.changelog_file || steps.craft-action.outputs.changelog_file }}
     steps:
       # For Craft repo: use the release bot token
       - name: Get auth token

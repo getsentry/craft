@@ -216,6 +216,14 @@ runs:
           CHANGELOG=$(cat "$CHANGELOG_FILE")
         fi
 
+        # GitHub issue bodies are limited to ~65 536 characters.  Truncate
+        # the changelog to stay under that limit with room for the rest of
+        # the body template (~2 KB of surrounding markdown).
+        MAX_CHANGELOG_CHARS=60000
+        if [[ ${#CHANGELOG} -gt $MAX_CHANGELOG_CHARS ]]; then
+          CHANGELOG="${CHANGELOG:0:$MAX_CHANGELOG_CHARS}"$'\n\n---\n*Changelog truncated for issue body.*'
+        fi
+
         title="publish: ${GITHUB_REPOSITORY}${SUBDIRECTORY}@${RESOLVED_VERSION}"
 
         # Check if issue already exists by listing all open issues and filtering by exact title match.

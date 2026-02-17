@@ -131,10 +131,26 @@ describe('truncateForOutput', () => {
     // Create a string that exceeds 64KB
     const large = 'x'.repeat(MAX_STEP_OUTPUT_BYTES + 1000);
     const result = truncateForOutput(large);
-    expect(Buffer.byteLength(result, 'utf-8')).toBeLessThan(
-      MAX_STEP_OUTPUT_BYTES + 200, // truncation notice adds some bytes
-    );
     expect(result).toContain('Changelog truncated');
+  });
+
+  test('total output (content + notice) stays within MAX_STEP_OUTPUT_BYTES', () => {
+    const large = 'x'.repeat(MAX_STEP_OUTPUT_BYTES + 1000);
+    const result = truncateForOutput(large);
+    expect(Buffer.byteLength(result, 'utf-8')).toBeLessThanOrEqual(
+      MAX_STEP_OUTPUT_BYTES,
+    );
+  });
+
+  test('total output with URL stays within MAX_STEP_OUTPUT_BYTES', () => {
+    const large = 'x'.repeat(MAX_STEP_OUTPUT_BYTES + 1000);
+    const url =
+      'https://github.com/getsentry/sentry/blob/release/25.2.0/CHANGELOG.md#L3-L538';
+    const result = truncateForOutput(large, url);
+    expect(Buffer.byteLength(result, 'utf-8')).toBeLessThanOrEqual(
+      MAX_STEP_OUTPUT_BYTES,
+    );
+    expect(result).toContain(`[View full changelog](${url})`);
   });
 
   test('includes changelog URL as a markdown link when provided', () => {
@@ -161,5 +177,20 @@ describe('truncateForOutput', () => {
     // Should not throw and should produce valid UTF-8
     expect(Buffer.from(result, 'utf-8').toString('utf-8')).toBe(result);
     expect(result).toContain('Changelog truncated');
+  });
+
+  test('does not strip last char when truncation lands on a valid boundary', () => {
+    // Build a string of exactly (contentBudget + 100) ASCII bytes so the
+    // byte-slice lands cleanly on a character boundary. The last char of the
+    // truncated portion should NOT be stripped.
+    const notice = '\n\n---\n*Changelog truncated.*';
+    const noticeBytes = Buffer.byteLength(notice, 'utf-8');
+    const budget = MAX_STEP_OUTPUT_BYTES - noticeBytes;
+    // Use budget + 100 so truncation fires, then check the content portion
+    const large = 'a'.repeat(budget + 100);
+    const result = truncateForOutput(large);
+    // Content portion should be exactly `budget` 'a' chars (no char was dropped)
+    const contentPortion = result.slice(0, budget);
+    expect(contentPortion).toBe('a'.repeat(budget));
   });
 });

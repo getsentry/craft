@@ -585,8 +585,25 @@ async function getChangelogLineRange(
       return '';
     }
 
-    // End = next level-2 heading, or last non-blank line
-    let endIdx = lines.findIndex((l, i) => i > startIdx && /^## /.test(l));
+    // End = next level-2 heading (ATX: "## ..." or setext: line followed by
+    // "---" or "==="), or EOF.
+    let endIdx = -1;
+    for (let i = startIdx + 1; i < lines.length; i++) {
+      if (/^## /.test(lines[i])) {
+        endIdx = i;
+        break;
+      }
+      // Setext heading: a non-blank line followed by a line of only dashes or
+      // equals signs (at least 3 characters long).
+      if (
+        i + 1 < lines.length &&
+        lines[i].trim() !== '' &&
+        /^(-{3,}|={3,})\s*$/.test(lines[i + 1])
+      ) {
+        endIdx = i;
+        break;
+      }
+    }
     if (endIdx < 0) {
       endIdx = lines.length;
     }
