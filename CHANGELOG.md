@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.21.6
+
+### Bug Fixes 🐛
+
+- (changelog) Disable @-mention pings in publish issues for calver releases by @BYK in [#755](https://github.com/getsentry/craft/pull/755)
+- (github) Truncate release body exceeding GitHub 125k char limit by @BYK in [#754](https://github.com/getsentry/craft/pull/754)
+- (ux) Show failed check details on status provider failures by @BYK in [#756](https://github.com/getsentry/craft/pull/756)
+
 ## 2.21.5
 
 ### Bug Fixes 🐛
