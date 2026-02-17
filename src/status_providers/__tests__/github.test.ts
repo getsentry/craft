@@ -98,6 +98,44 @@ describe('GitHubStatusProvider', () => {
       expect(details.join('\n')).not.toContain('ci/tests');
     });
 
+    it('excludes pending legacy statuses from failure details', async () => {
+      const github = getGitHubMock();
+      github.repos.getCombinedStatusForRef.mockResolvedValue({
+        data: {
+          state: 'failure',
+          total_count: 2,
+          statuses: [
+            {
+              context: 'ci/build',
+              state: 'failure',
+              target_url: 'https://ci.example.com/1',
+            },
+            {
+              context: 'ci/deploy',
+              state: 'pending',
+              target_url: 'https://ci.example.com/2',
+            },
+          ],
+        },
+      });
+      github.checks.listSuitesForRef.mockResolvedValue({
+        data: { check_suites: [] },
+      });
+      github.checks.listForRef.mockResolvedValue({
+        data: { total_count: 0, check_runs: [] },
+      });
+
+      await provider.getRevisionStatus('pending-test');
+      const details = provider.getFailureDetails('pending-test');
+
+      // Failed status should appear
+      expect(details).toContainEqual(
+        '  FAILURE: ci/build \u2192 https://ci.example.com/1',
+      );
+      // Pending status should NOT appear
+      expect(details.join('\n')).not.toContain('ci/deploy');
+    });
+
     it('lists failed check runs with html_url', async () => {
       const github = getGitHubMock();
       github.repos.getCombinedStatusForRef.mockResolvedValue({

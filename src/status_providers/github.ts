@@ -364,10 +364,12 @@ export class GitHubStatusProvider extends BaseStatusProvider {
   public override getFailureDetails(revision: string): string[] {
     const details: string[] = [];
 
-    // Collect failed legacy commit statuses
+    // Collect failed legacy commit statuses (exclude pending — only show
+    // statuses that have conclusively failed, consistent with how check
+    // runs are filtered below)
     if (this.lastRevisionStatus) {
       for (const status of this.lastRevisionStatus.statuses) {
-        if (status.state !== 'success') {
+        if (status.state !== 'success' && status.state !== 'pending') {
           const url = status.target_url ? ` → ${status.target_url}` : '';
           details.push(
             `  ${status.state.toUpperCase()}: ${status.context}${url}`,
