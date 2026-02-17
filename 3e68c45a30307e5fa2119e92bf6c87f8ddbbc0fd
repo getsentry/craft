@@ -1,0 +1,18 @@
+Implementation plan for #752:
+
+1. Add getFailureDetails(revision) to BaseStatusProvider with a default
+   empty implementation so subclasses can override it.
+
+2. Update waitForTheBuildToSucceed() to call getFailureDetails() and log
+   each line at error level before throwing, so details appear in
+   non-debug output.
+
+3. In GitHubStatusProvider, cache the three API responses (commit status,
+   check suites, check runs) as instance fields during getRevisionStatus().
+   Override getFailureDetails() to iterate the cached data and collect:
+   - Failed legacy commit statuses (context, state, target_url)
+   - Failed check runs (name, conclusion, html_url)
+   - A "See all checks" link to the GitHub commit page
+
+4. Add unit tests covering: empty cache, failed legacy statuses, failed
+   check runs, mixed failures, missing URLs, and the link footer.
