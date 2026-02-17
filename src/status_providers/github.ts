@@ -12,9 +12,12 @@ import { ConfigurationError } from '../utils/errors';
 import { formatJson } from '../utils/strings';
 import { GitHubGlobalConfig } from '../schemas/project_config';
 
-type ReposGetCombinedStatusForRefResponse = RestEndpointMethodTypes['repos']['getCombinedStatusForRef']['response']['data'];
-type ChecksListSuitesForRefResponse = RestEndpointMethodTypes['checks']['listSuitesForRef']['response']['data'];
-type ChecksListForRefResponse = RestEndpointMethodTypes['checks']['listForRef']['response']['data'];
+type ReposGetCombinedStatusForRefResponse =
+  RestEndpointMethodTypes['repos']['getCombinedStatusForRef']['response']['data'];
+type ChecksListSuitesForRefResponse =
+  RestEndpointMethodTypes['checks']['listSuitesForRef']['response']['data'];
+type ChecksListForRefResponse =
+  RestEndpointMethodTypes['checks']['listForRef']['response']['data'];
 
 /**
  * Status provider that talks to GitHub to get commit checks (statuses)
@@ -23,9 +26,13 @@ export class GitHubStatusProvider extends BaseStatusProvider {
   /** GitHub client */
   private readonly github: Octokit;
 
+  /** Cached API responses from the most recent getRevisionStatus() call */
+  private lastRevisionStatus?: ReposGetCombinedStatusForRefResponse;
+  private lastRevisionChecks?: ChecksListForRefResponse;
+
   public constructor(
     config: StatusProviderConfig,
-    githubConfig: GitHubGlobalConfig
+    githubConfig: GitHubGlobalConfig,
   ) {
     super(config, githubConfig);
     this.github = getGitHubClient();
@@ -42,24 +49,25 @@ export class GitHubStatusProvider extends BaseStatusProvider {
 
       if (!(Array.isArray(contexts) && contexts.length > 0)) {
         throw new ConfigurationError(
-          `Invalid configuration for GitHubStatusProvider`
+          `Invalid configuration for GitHubStatusProvider`,
         );
       }
     }
 
     // There are two commit status flavours we have to consider:
-    const [
-      revisionStatus,
-      revisionCheckSuites,
-      revisionChecks,
-    ] = await Promise.all([
-      // 1. Commit status API
-      this.getCommitApiStatus(revision),
-      // 2. Check suites API
-      this.getRevisionCheckSuites(revision),
-      // 3. Check runs API
-      this.getRevisionChecks(revision),
-    ]);
+    const [revisionStatus, revisionCheckSuites, revisionChecks] =
+      await Promise.all([
+        // 1. Commit status API
+        this.getCommitApiStatus(revision),
+        // 2. Check suites API
+        this.getRevisionCheckSuites(revision),
+        // 3. Check runs API
+        this.getRevisionChecks(revision),
+      ]);
+
+    // Cache the responses so getFailureDetails() can use them
+    this.lastRevisionStatus = revisionStatus;
+    this.lastRevisionChecks = revisionChecks;
 
     if (contexts.length > 0) {
       for (const context of contexts) {
@@ -70,14 +78,14 @@ export class GitHubStatusProvider extends BaseStatusProvider {
           contextString,
           revisionStatus,
           revisionCheckSuites,
-          revisionChecks
+          revisionChecks,
         );
         if (contextResult === CommitStatus.FAILURE) {
           logger.error(`Context "${contextString}" failed, returning early.`);
           return contextResult;
         } else if (contextResult === CommitStatus.PENDING) {
           logger.debug(
-            `Context "${contextString}" has state ${contextResult}, we can return early.`
+            `Context "${contextString}" has state ${contextResult}, we can return early.`,
           );
           return contextResult;
         }
@@ -86,7 +94,7 @@ export class GitHubStatusProvider extends BaseStatusProvider {
       return CommitStatus.SUCCESS;
     } else {
       logger.debug(
-        'No config provided for GitHub status provider, calculating the combined status...'
+        'No config provided for GitHub status provider, calculating the combined status...',
       );
 
       let commitApiStatusResult;
@@ -100,7 +108,7 @@ export class GitHubStatusProvider extends BaseStatusProvider {
           suite =>
             // Need the any cast as octokit lacks this prop in its types
             (suite as any).latest_check_runs_count > 0 &&
-            suite.status === 'queued'
+            suite.status === 'queued',
         );
         if (revisionChecks.total_count > 0) {
           logger.debug('Check runs exist, continuing...');
@@ -113,15 +121,14 @@ export class GitHubStatusProvider extends BaseStatusProvider {
           commitApiStatusResult = CommitStatus.NOT_FOUND;
         }
       } else {
-        commitApiStatusResult = this.getResultFromCommitApiStatus(
-          revisionStatus
-        );
+        commitApiStatusResult =
+          this.getResultFromCommitApiStatus(revisionStatus);
       }
       logger.debug(`Commit API status result: ${commitApiStatusResult}`);
 
       const revisionChecksResult = this.getResultFromRevisionChecks(
         revisionCheckSuites,
-        revisionChecks
+        revisionChecks,
       );
       logger.debug(`Check runs API result: ${revisionChecksResult}`);
 
@@ -151,14 +158,14 @@ export class GitHubStatusProvider extends BaseStatusProvider {
     context: string,
     revisionStatus: ReposGetCombinedStatusForRefResponse,
     revisionCheckSuites: ChecksListSuitesForRefResponse,
-    revisionChecks: ChecksListForRefResponse
+    revisionChecks: ChecksListForRefResponse,
   ): CommitStatus {
     const results = [
       this.getResultFromCommitApiStatus(revisionStatus, context),
       this.getResultFromRevisionChecks(
         revisionCheckSuites,
         revisionChecks,
-        context
+        context,
       ),
     ];
     logger.debug(`Status check results: ${formatJson(results)}`);
@@ -206,7 +213,7 @@ export class GitHubStatusProvider extends BaseStatusProvider {
    */
   private getResultFromCommitApiStatus(
     combinedStatus: ReposGetCombinedStatusForRefResponse,
-    context?: string
+    context?: string,
   ): CommitStatus {
     if (context) {
       const statuses = combinedStatus.statuses;
@@ -231,13 +238,13 @@ export class GitHubStatusProvider extends BaseStatusProvider {
   private getResultFromRevisionChecks(
     revisionCheckSuites: ChecksListSuitesForRefResponse,
     revisionChecks: ChecksListForRefResponse,
-    context?: string
+    context?: string,
   ): CommitStatus {
     // Check runs: we have an array of runs, and each of them has a status
     let isSomethingPending = revisionCheckSuites.check_suites.some(
       suite =>
         // Need the any cast as octokit lacks this prop in its types
-        (suite as any).latest_check_runs_count > 0 && suite.status === 'queued'
+        (suite as any).latest_check_runs_count > 0 && suite.status === 'queued',
     );
     let found = false;
     for (const run of revisionChecks.check_runs) {
@@ -274,15 +281,14 @@ export class GitHubStatusProvider extends BaseStatusProvider {
    * @param revision Git revision SHA
    */
   protected async getCommitApiStatus(
-    revision: string
+    revision: string,
   ): Promise<ReposGetCombinedStatusForRefResponse> {
     logger.debug(`Fetching combined revision status...`);
-    const revisionStatusResponse = await this.github.repos.getCombinedStatusForRef(
-      {
+    const revisionStatusResponse =
+      await this.github.repos.getCombinedStatusForRef({
         ...this.githubConfig,
         ref: revision,
-      }
-    );
+      });
     const revisionStatus = revisionStatusResponse.data;
     logger.debug('Combined revision status received.');
     logger.trace(revisionStatus);
@@ -300,7 +306,7 @@ export class GitHubStatusProvider extends BaseStatusProvider {
    * @param revision Git revision SHA
    */
   protected async getRevisionCheckSuites(
-    revision: string
+    revision: string,
   ): Promise<ChecksListSuitesForRefResponse> {
     logger.debug('Fetching Checks API status...');
     const revisionCheckSuites = (
@@ -326,7 +332,7 @@ export class GitHubStatusProvider extends BaseStatusProvider {
    * @param revision Git revision SHA
    */
   protected async getRevisionChecks(
-    revision: string
+    revision: string,
   ): Promise<ChecksListForRefResponse> {
     logger.debug('Fetching Checks API status...');
     const revisionChecksResponse = await this.github.checks.listForRef({
@@ -347,5 +353,53 @@ export class GitHubStatusProvider extends BaseStatusProvider {
     return this.github.repos.get({
       ...this.githubConfig,
     });
+  }
+
+  /**
+   * Returns details about failed checks using cached API responses from
+   * the most recent getRevisionStatus() call.
+   *
+   * @param revision Git revision SHA (used for the "see all checks" link)
+   */
+  public override getFailureDetails(revision: string): string[] {
+    const details: string[] = [];
+
+    // Collect failed legacy commit statuses (exclude pending — only show
+    // statuses that have conclusively failed, consistent with how check
+    // runs are filtered below)
+    if (this.lastRevisionStatus) {
+      for (const status of this.lastRevisionStatus.statuses) {
+        if (status.state !== 'success' && status.state !== 'pending') {
+          const url = status.target_url ? ` → ${status.target_url}` : '';
+          details.push(
+            `  ${status.state.toUpperCase()}: ${status.context}${url}`,
+          );
+        }
+      }
+    }
+
+    // Collect failed check runs
+    if (this.lastRevisionChecks) {
+      for (const run of this.lastRevisionChecks.check_runs) {
+        if (
+          run.status === 'completed' &&
+          run.conclusion !== 'success' &&
+          run.conclusion !== 'skipped'
+        ) {
+          const url = run.html_url ? ` → ${run.html_url}` : '';
+          details.push(
+            `  ${(run.conclusion || 'unknown').toUpperCase()}: ${run.name}${url}`,
+          );
+        }
+      }
+    }
+
+    // Include link to see all checks on GitHub
+    const { owner, repo } = this.githubConfig;
+    details.push(
+      `\nSee all checks: https://github.com/${owner}/${repo}/commit/${revision}`,
+    );
+
+    return details;
   }
 }
