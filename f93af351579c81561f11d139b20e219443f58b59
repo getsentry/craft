@@ -1,0 +1,41 @@
+## Implementation Plan
+
+### Problem
+Sentry 26.2.0 release failed because the CHANGELOG body exceeded GitHub's
+125,000-character release body limit, causing a 422 error at
+github.repos.createRelease().
+
+### Root Cause
+The changelog body extracted from CHANGELOG.md (via findChangeset →
+extractChangeset) was passed directly to the GitHub API with no size check.
+The Changeset object was spread into the API request parameters.
+
+### Solution
+
+#### 1. src/utils/changelog.ts
+- Extend Changeset interface with optional startLine/endLine (1-indexed)
+- Add getLineNumber() helper converting character positions to line numbers
+- Modify extractChangeset() to compute line numbers from ChangesetLoc
+
+#### 2. src/targets/github.ts
+- Add GITHUB_RELEASE_BODY_MAX = 125,000 constant
+- Add buildChangelogPermalink() to construct a permalink:
+  https://github.com/{owner}/{repo}/blob/{sha}/{changelog}#L{start}-L{end}
+- Add truncateBody() to cut at last newline boundary before the limit and
+  append a footer with the permalink
+- Refactor createDraftRelease() to explicitly pass name and body (not spread)
+  so startLine/endLine do not leak into the API request
+
+#### 3. Tests
+- changelog-file-ops.test.ts: 3 tests for startLine/endLine accuracy
+  (first section, middle section, setext headings)
+- github.test.ts: 5 tests for createDraftRelease truncation behavior
+  (short body passthrough, empty body, truncation with permalink,
+  line boundary truncation, no line fragment when absent, no extra fields)
+
+### Design Decisions
+- Optional fields on Changeset for backward compatibility
+- Truncation at line boundaries to avoid cutting markdown mid-line
+- Permalink with commit SHA so the link survives future CHANGELOG edits
+- Truncation in createDraftRelease since it owns the API call and has access
+  to revision and githubConfig
