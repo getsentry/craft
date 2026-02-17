@@ -1,7 +1,18 @@
-import { appendFileSync } from 'fs';
+import { appendFileSync, mkdirSync, writeFileSync } from 'fs';
+import path from 'path';
 
 import prompts from 'prompts';
 import { logger, LogLevel, setLevel } from '../logger';
+
+/**
+ * Maximum size (in bytes) for step output values passed through GITHUB_OUTPUT.
+ * Values exceeding this are truncated to avoid E2BIG errors when GitHub Actions
+ * expands them into environment variables for subsequent steps.
+ *
+ * 64 KB is well under the ~2 MB ARG_MAX kernel limit and also under GitHub's
+ * ~65 536-character issue body limit, so truncated changelogs still render.
+ */
+export const MAX_STEP_OUTPUT_BYTES = 64 * 1024;
 
 const FALSY_ENV_VALUES = new Set(['', 'undefined', 'null', '0', 'false', 'no']);
 export function envToBool(envVar: unknown): boolean {
@@ -96,4 +107,63 @@ export function setGitHubActionsOutput(name: string, value: string): void {
   } else {
     appendFileSync(outputFile, `${name}=${value}\n`);
   }
+}
+
+/**
+ * Writes a large value to a file under RUNNER_TEMP and sets a `{name}_file`
+ * GitHub Actions output pointing to it.
+ *
+ * This avoids the Linux E2BIG error that occurs when a large step output is
+ * expanded into an environment variable in a subsequent composite-action step.
+ *
+ * No-op when not running in GitHub Actions (RUNNER_TEMP is unset).
+ *
+ * @returns The absolute path of the written file, or `undefined` outside CI.
+ */
+export function writeGitHubActionsFile(
+  name: string,
+  content: string,
+): string | undefined {
+  const runnerTemp = process.env.RUNNER_TEMP;
+  if (!runnerTemp) {
+    return undefined;
+  }
+
+  const dir = path.join(runnerTemp, 'craft');
+  mkdirSync(dir, { recursive: true });
+
+  const filePath = path.join(dir, `${name}.md`);
+  writeFileSync(filePath, content, 'utf-8');
+  setGitHubActionsOutput(`${name}_file`, filePath);
+
+  return filePath;
+}
+
+/**
+ * Truncates `value` to `MAX_STEP_OUTPUT_BYTES` and appends a notice.
+ *
+ * When `changelogUrl` is provided the notice links to the full changelog on
+ * GitHub (e.g. the CHANGELOG.md file on the release branch) so readers of the
+ * truncated output in a publish issue can jump straight to the source.
+ */
+export function truncateForOutput(
+  value: string,
+  changelogUrl?: string,
+): string {
+  if (Buffer.byteLength(value, 'utf-8') <= MAX_STEP_OUTPUT_BYTES) {
+    return value;
+  }
+
+  // Truncate at a safe byte boundary by encoding then slicing
+  const truncated = Buffer.from(value, 'utf-8')
+    .subarray(0, MAX_STEP_OUTPUT_BYTES)
+    .toString('utf-8')
+    // Drop the last character in case it was split mid-codepoint
+    .slice(0, -1);
+
+  const notice = changelogUrl
+    ? `\n\n---\n*Changelog truncated. [View full changelog](${changelogUrl}).*`
+    : '\n\n---\n*Changelog truncated.*';
+
+  return truncated + notice;
 }

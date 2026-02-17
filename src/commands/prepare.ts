@@ -54,6 +54,8 @@ import {
   isDryRun,
   promptConfirmation,
   setGitHubActionsOutput,
+  truncateForOutput,
+  writeGitHubActionsFile,
 } from '../utils/helpers';
 import { formatJson } from '../utils/strings';
 import { spawnProcess } from '../utils/system';
@@ -561,6 +563,46 @@ async function prepareChangelog(
 }
 
 /**
+ * Reads the committed changelog file and returns a `#L{start}-L{end}` fragment
+ * covering the section for `version`.  Returns `''` on any failure so the
+ * caller can safely concatenate the result onto a URL.
+ */
+async function getChangelogLineRange(
+  git: SimpleGit,
+  changelogPath: string,
+  version: string,
+): Promise<string> {
+  try {
+    const content = await git.show([`HEAD:${changelogPath}`]);
+    const lines = content.split('\n');
+
+    // The version header is "## {version}" (atx style) or "{version}\n---"
+    // (setext).  Match both.
+    const startIdx = lines.findIndex(
+      l => l.trimEnd() === `## ${version}` || l.trimEnd() === version,
+    );
+    if (startIdx < 0) {
+      return '';
+    }
+
+    // End = next level-2 heading, or last non-blank line
+    let endIdx = lines.findIndex((l, i) => i > startIdx && /^## /.test(l));
+    if (endIdx < 0) {
+      endIdx = lines.length;
+    }
+
+    // Trim trailing blank lines
+    while (endIdx > startIdx + 1 && lines[endIdx - 1].trim() === '') {
+      endIdx--;
+    }
+
+    return `#L${startIdx + 1}-L${endIdx}`;
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Switches to the default branch of the repo
  *
  * @param git Local git client
@@ -817,7 +859,31 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     setGitHubActionsOutput('sha', releaseSha);
     setGitHubActionsOutput('previous_tag', oldVersion || '');
     if (changelogBody) {
-      setGitHubActionsOutput('changelog', changelogBody);
+      // Write full changelog to a file to avoid E2BIG when the action.yml
+      // "Request publish" step expands it into an environment variable.
+      // Repos with large changelogs (e.g. sentry's monthly releases) can
+      // exceed the ~2 MB Linux ARG_MAX limit.
+      writeGitHubActionsFile('changelog', changelogBody);
+
+      // Build a GitHub permalink to the changelog entry on the release
+      // branch, including line numbers so GitHub renders it inline when
+      // pasted into an issue body.
+      const resolvedChangelogPath = changelogPath || DEFAULT_CHANGELOG_PATH;
+      const lineRange = await getChangelogLineRange(
+        git,
+        resolvedChangelogPath,
+        newVersion,
+      );
+      const changelogFileUrl =
+        `https://github.com/${githubConfig.owner}/${githubConfig.repo}/blob/${branchName}/${resolvedChangelogPath}` +
+        lineRange;
+
+      // Also set the step output, but truncated so older action.yml versions
+      // that read it via env var don't hit E2BIG.
+      setGitHubActionsOutput(
+        'changelog',
+        truncateForOutput(changelogBody, changelogFileUrl),
+      );
     }
 
     logger.info(
