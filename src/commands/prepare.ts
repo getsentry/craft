@@ -53,6 +53,7 @@ import {
 import {
   isDryRun,
   promptConfirmation,
+  disableChangelogMentions,
   setGitHubActionsOutput,
   truncateForOutput,
   writeGitHubActionsFile,
@@ -876,11 +877,22 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     setGitHubActionsOutput('sha', releaseSha);
     setGitHubActionsOutput('previous_tag', oldVersion || '');
     if (changelogBody) {
+      // For CalVer releases, replace @-mentions with bold formatting in the
+      // changelog destined for publish issues, to avoid pinging many
+      // contributors on regular-cadence releases.  The committed CHANGELOG.md
+      // keeps the original @-mentions (they don't create notifications).
+      const isCalVer =
+        argv.newVersion === 'calver' ||
+        getVersioningPolicy() === VersioningPolicy.CalVer;
+      const issueChangelog = isCalVer
+        ? disableChangelogMentions(changelogBody)
+        : changelogBody;
+
       // Write full changelog to a file to avoid E2BIG when the action.yml
       // "Request publish" step expands it into an environment variable.
       // Repos with large changelogs (e.g. sentry's monthly releases) can
       // exceed the ~2 MB Linux ARG_MAX limit.
-      writeGitHubActionsFile('changelog', changelogBody);
+      writeGitHubActionsFile('changelog', issueChangelog);
 
       // Build a GitHub permalink to the changelog entry on the release
       // branch, including line numbers so GitHub renders it inline when
@@ -899,7 +911,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       // that read it via env var don't hit E2BIG.
       setGitHubActionsOutput(
         'changelog',
-        truncateForOutput(changelogBody, changelogFileUrl),
+        truncateForOutput(issueChangelog, changelogFileUrl),
       );
     }
 
