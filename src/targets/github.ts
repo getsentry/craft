@@ -33,6 +33,12 @@ import { logger } from '../logger';
  */
 export const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
 
+/**
+ * Maximum number of characters allowed in a GitHub release body.
+ * @see https://docs.github.com/rest/releases/releases#create-a-release
+ */
+export const GITHUB_RELEASE_BODY_MAX = 125_000;
+
 /** GitHub target configuration fields */
 interface GitHubConfigFields extends Record<string, unknown> {
   owner?: string;
@@ -125,6 +131,53 @@ export class GitHubTarget extends BaseTarget {
   }
 
   /**
+   * Builds a permalink URL to the changelog file in the repository at a
+   * specific revision, optionally anchored to the line range of the changeset.
+   */
+  private buildChangelogPermalink(
+    revision: string,
+    changes?: Changeset,
+  ): string {
+    const { owner, repo, changelog } = this.githubConfig;
+    let url = `https://github.com/${owner}/${repo}/blob/${revision}/${changelog}`;
+    if (changes?.startLine != null && changes?.endLine != null) {
+      url += `#L${changes.startLine}-L${changes.endLine}`;
+    }
+    return url;
+  }
+
+  /**
+   * If the release body exceeds GitHub's maximum, truncate it at the last
+   * line boundary that fits and append a link to the full changelog.
+   */
+  private truncateBody(
+    body: string,
+    revision: string,
+    changes?: Changeset,
+  ): string {
+    if (body.length <= GITHUB_RELEASE_BODY_MAX) {
+      return body;
+    }
+
+    const permalink = this.buildChangelogPermalink(revision, changes);
+    const footer = `\n\n---\n_This changelog has been truncated. See the [full changelog](${permalink}) for all changes._`;
+    const maxLength = GITHUB_RELEASE_BODY_MAX - footer.length;
+
+    // Truncate at the last newline that fits so we don't cut a line in half
+    const truncateAt = body.lastIndexOf('\n', maxLength);
+    const truncated = body.substring(
+      0,
+      truncateAt > 0 ? truncateAt : maxLength,
+    );
+
+    this.logger.warn(
+      `Release body exceeds GitHub limit (${body.length} > ${GITHUB_RELEASE_BODY_MAX} chars). Truncating and linking to full changelog.`,
+    );
+
+    return truncated + footer;
+  }
+
+  /**
    * Create a draft release for the given version.
    *
    * The release name and description body is brought in from `changes`
@@ -157,15 +210,19 @@ export class GitHubTarget extends BaseTarget {
       };
     }
 
+    const body = changes?.body
+      ? this.truncateBody(changes.body, revision, changes)
+      : undefined;
+
     const { data } = await this.github.repos.createRelease({
       draft: true,
-      name: tag,
+      name: changes?.name || tag,
       owner: this.githubConfig.owner,
       prerelease: isPreview,
       repo: this.githubConfig.repo,
       tag_name: tag,
       target_commitish: revision,
-      ...changes,
+      body,
     });
 
     return data;

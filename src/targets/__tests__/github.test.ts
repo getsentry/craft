@@ -1,5 +1,9 @@
 import { vi } from 'vitest';
-import { isLatestRelease, GitHubTarget } from '../github';
+import {
+  isLatestRelease,
+  GitHubTarget,
+  GITHUB_RELEASE_BODY_MAX,
+} from '../github';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { setGlobals } from '../../utils/helpers';
 
@@ -138,6 +142,103 @@ describe('GitHubTarget', () => {
       await githubTarget.publish('1.0.0', 'abc123');
 
       expect(githubTarget.deleteRelease).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createDraftRelease', () => {
+    let createReleaseSpy: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      createReleaseSpy = vi.fn().mockResolvedValue({
+        data: {
+          id: 1,
+          tag_name: '1.0.0',
+          upload_url: 'https://example.com/upload',
+          draft: true,
+        },
+      });
+      githubTarget.github.repos.createRelease = createReleaseSpy as any;
+    });
+
+    it('passes short body through unchanged', async () => {
+      const changes = { name: '1.0.0', body: 'short body' };
+      await githubTarget.createDraftRelease('1.0.0', 'abc123', changes);
+
+      expect(createReleaseSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ body: 'short body' }),
+      );
+    });
+
+    it('passes undefined body when changes have no body', async () => {
+      const changes = { name: '1.0.0', body: '' };
+      await githubTarget.createDraftRelease('1.0.0', 'abc123', changes);
+
+      expect(createReleaseSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ body: undefined }),
+      );
+    });
+
+    it('truncates body exceeding GitHub limit with permalink', async () => {
+      const longBody = 'line one\n'.repeat(20_000); // well over 125k chars
+      const changes = {
+        name: '1.0.0',
+        body: longBody,
+        startLine: 3,
+        endLine: 500,
+      };
+
+      await githubTarget.createDraftRelease('1.0.0', 'abc123', changes);
+
+      const calledBody = createReleaseSpy.mock.calls[0][0].body as string;
+      expect(calledBody.length).toBeLessThanOrEqual(GITHUB_RELEASE_BODY_MAX);
+      expect(calledBody).toContain(
+        'https://github.com/testOwner/testRepo/blob/abc123/CHANGELOG.md#L3-L500',
+      );
+      expect(calledBody).toContain('full changelog');
+    });
+
+    it('truncates at a line boundary', async () => {
+      const longBody = 'line one\n'.repeat(20_000);
+      const changes = { name: '1.0.0', body: longBody };
+
+      await githubTarget.createDraftRelease('1.0.0', 'abc123', changes);
+
+      const calledBody = createReleaseSpy.mock.calls[0][0].body as string;
+      // Verify the truncation cut at a newline, not mid-line.
+      // The footer starts with \n\n---\n, so the content before it should be
+      // the end of a complete line (the newline itself is excluded from
+      // substring, but the line content is intact).
+      const footerIndex = calledBody.indexOf('\n\n---\n');
+      const contentBefore = calledBody.substring(0, footerIndex);
+      const lastLine = contentBefore.split('\n').pop();
+      expect(lastLine).toBe('line one');
+    });
+
+    it('omits line fragment from permalink when line info is absent', async () => {
+      const longBody = 'x'.repeat(GITHUB_RELEASE_BODY_MAX + 1);
+      const changes = { name: '1.0.0', body: longBody };
+
+      await githubTarget.createDraftRelease('1.0.0', 'abc123', changes);
+
+      const calledBody = createReleaseSpy.mock.calls[0][0].body as string;
+      expect(calledBody).toContain(
+        'https://github.com/testOwner/testRepo/blob/abc123/CHANGELOG.md)',
+      );
+      expect(calledBody).not.toContain('#L');
+    });
+
+    it('does not spread extra Changeset fields into the API call', async () => {
+      const changes = {
+        name: '1.0.0',
+        body: 'some body',
+        startLine: 5,
+        endLine: 20,
+      };
+      await githubTarget.createDraftRelease('1.0.0', 'abc123', changes);
+
+      const calledWith = createReleaseSpy.mock.calls[0][0];
+      expect(calledWith).not.toHaveProperty('startLine');
+      expect(calledWith).not.toHaveProperty('endLine');
     });
   });
 

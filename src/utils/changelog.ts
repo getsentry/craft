@@ -112,6 +112,10 @@ export interface Changeset {
   name: string;
   /** The markdown body describing the changeset */
   body: string;
+  /** The 1-indexed line number where this changeset starts in the source file */
+  startLine?: number;
+  /** The 1-indexed line number where this changeset ends in the source file */
+  endLine?: number;
 }
 
 /**
@@ -128,6 +132,19 @@ interface ChangesetLoc {
   headingLength: number;
   /** Whether this was a setext-style heading */
   isSetext: boolean;
+}
+
+/**
+ * Returns the 1-indexed line number for a given character index in the text.
+ */
+function getLineNumber(text: string, charIndex: number): number {
+  let count = 1;
+  for (let i = 0; i < charIndex && i < text.length; i++) {
+    if (text[i] === '\n') {
+      count++;
+    }
+  }
+  return count;
 }
 
 function escapeMarkdownPound(text: string): string {
@@ -391,7 +408,14 @@ function extractChangeset(markdown: string, location: ChangesetLoc): Changeset {
   const body = markdown.substring(bodyStart, location.endIndex).trim();
   // Remove trailing parenthetical content (e.g., dates) from the title
   const name = location.title.replace(/\(.*\)$/, '').trim();
-  return { name, body };
+  const startLine = getLineNumber(markdown, location.startIndex);
+  // endIndex points to the start of the next heading (or end of file).
+  // We want the last line of the current section's content.
+  const endLine = getLineNumber(
+    markdown,
+    Math.max(location.startIndex, location.endIndex - 1),
+  );
+  return { name, body, startLine, endLine };
 }
 
 /**
