@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.5
+
+### Bug Fixes 🐛
+
+- (action) Write changelog to file to avoid E2BIG on large repos by @BYK in [#753](https://github.com/getsentry/craft/pull/753)
+- (gh-pages) Add CNAME file to preserve custom domain on deploy by @BYK in [#751](https://github.com/getsentry/craft/pull/751)
+
 ## 2.21.4
 
 ### Bug Fixes 🐛
