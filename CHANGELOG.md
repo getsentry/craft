@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.21.7
+
+### Internal Changes 🔧
+
+#### Deps Dev
+
+- Bump fast-xml-parser from 5.3.4 to 5.3.6 by @dependabot in [#757](https://github.com/getsentry/craft/pull/757)
+- Bump tar from 7.5.7 to 7.5.8 by @dependabot in [#758](https://github.com/getsentry/craft/pull/758)
+
 ## 2.21.6
 
 ### Bug Fixes 🐛
