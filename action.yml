@@ -203,6 +203,11 @@ runs:
         MERGE_TARGET: ${{ inputs.merge_target || '(default)' }}
         PUBLISH_REPO: ${{ inputs.publish_repo || format('{0}/publish', github.repository_owner) }}
       run: |
+        # Resolve "self" to the current repository
+        if [[ "$PUBLISH_REPO" == "self" ]]; then
+          PUBLISH_REPO="$GITHUB_REPOSITORY"
+        fi
+
         if [[ -z "$RESOLVED_VERSION" ]]; then
           echo "::error::Craft did not output a version. This is unexpected."
           exit 1

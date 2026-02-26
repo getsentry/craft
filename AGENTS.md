@@ -10,12 +10,12 @@ This file provides guidance for AI coding assistants working with the Craft code
 
 ## Development Commands
 
-| Command | Description |
-|---------|-------------|
+| Command      | Description                                 |
+| ------------ | ------------------------------------------- |
 | `pnpm build` | Build the project (outputs to `dist/craft`) |
-| `pnpm test` | Run tests |
-| `pnpm lint` | Run ESLint |
-| `pnpm fix` | Auto-fix lint issues |
+| `pnpm test`  | Run tests                                   |
+| `pnpm lint`  | Run ESLint                                  |
+| `pnpm fix`   | Auto-fix lint issues                        |
 
 To manually test changes:
 
@@ -111,3 +111,14 @@ Some operations need explicit `isDryRun()` checks:
 - Commands with their own `--dry-run` flag (e.g., `dart pub publish --dry-run` in pubDev target)
 - Operations that need to return mock data in dry-run mode
 - User experience optimizations (e.g., skipping sleep timers)
+
+<!-- This section is auto-maintained by lore (https://github.com/BYK/opencode-lore) -->
+
+## Long-term Knowledge
+
+### Pattern
+
+<!-- lore:019c9b36-8f9d-71c9-a43a-d2715aa249d0 -->
+
+- **Craft publish_repo 'self' sentinel resolves to GITHUB_REPOSITORY at runtime**: The composite action's \`publish_repo\` input supports a special sentinel value \`"self"\` which resolves to \`$GITHUB_REPOSITORY\` at runtime in the bash script of the 'Request publish' step. This allows repos to create publish request issues in themselves rather than in a separate \`{owner}/publish\` repo. The resolution happens in bash (not in the GitHub Actions expression) because the expression layer sets \`PUBLISH_REPO\` via \`inputs.publish_repo || format('{0}/publish', github.repository_owner)\` — the string \`"self"\` passes through as-is and gets resolved to the actual repo name in the shell. Useful for personal/small repos where the default GITHUB_TOKEN already has write access to the repo itself.
+<!-- End lore-managed section -->
