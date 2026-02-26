@@ -1,0 +1,26 @@
+## Implementation Plan
+
+### Problem
+The default `release.yml` config (used when no `.github/release.yml` exists)
+was missing several conventional commit types from the "Internal Changes"
+category, causing them to fall through to the unlabelled "Other" section.
+
+Missing types: `test`, `tests`, `style`
+
+### Approach
+Update the regex alternation group in `DEFAULT_RELEASE_CONFIG` in
+`src/utils/changelog.ts` to include the missing types:
+- `tests?` — matches both `test:` and `tests:` in one token
+- `style` — code style changes (whitespace, formatting, semicolons)
+
+### Changes
+1. `src/utils/changelog.ts` — Updated the "Internal Changes" commit_patterns
+   regex: added `tests?|style` to the alternation group alongside the
+   existing `build|refactor|meta|chore|ci|ref|perf`.
+
+2. `docs/src/content/docs/configuration.md` — Matching update to the
+   default config YAML example shown in the documentation.
+
+3. `src/utils/__tests__/changelog-utils.test.ts` — Updated the test that
+   was hardcoding the old pattern; renamed the test description and added
+   three new assertions covering `test:`, `tests:`, and `style:`.
