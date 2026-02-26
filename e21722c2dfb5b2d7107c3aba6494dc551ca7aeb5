@@ -1,0 +1,68 @@
+## Security Fix Plan
+
+### Background
+
+7 open Dependabot alerts across 3 packages — all transitive, all patched:
+
+| Alerts | Package | Severity | CVE | Fix |
+|--------|---------|----------|-----|-----|
+| #111-114 | minimatch (4 versions: 3.x, 8.x, 9.x, 10.x) | High | CVE-2026-26996 (ReDoS) | pnpm override |
+| #110 | ajv < 6.14.0 | Medium | CVE-2025-69873 (ReDoS) | pnpm override |
+| #108-109 | devalue <= 5.6.2 (docs/) | Low | GHSA-33hq / GHSA-8qm3 | pnpm override in docs/ |
+
+### Task 1: Remove @sentry/typescript (source of tslint → minimatch 3.1.2)
+
+@sentry/typescript was only used for its tsconfig.json (strict TS settings).
+It dragged in tslint (deprecated since 2019) → minimatch 3.x (vulnerable).
+
+Actions:
+- Inlined all relevant compilerOptions from @sentry/typescript/tsconfig.json
+  directly into tsconfig.build.json and removed the 'extends' line.
+- Removed @sentry/typescript from devDependencies.
+
+### Task 2: Remove rimraf and @types/rimraf
+
+rimraf 2.7.1 was a direct dep with one call site (src/utils/files.ts).
+@types/rimraf pulled in @types/glob -> glob@13 -> minimatch@10.1.1 (vulnerable).
+
+Actions:
+- Replaced rimraf(dir, cb) with fs.rm(dir, { recursive: true }, cb) using
+  Node 22 built-in (same callback signature, no await needed).
+- Updated 'clean' script from 'rimraf dist coverage' to 'rm -rf dist coverage'.
+- Removed rimraf and @types/rimraf from devDependencies.
+
+### Task 3: Add pnpm.overrides for minimatch (alerts #111-114)
+
+After removing @sentry/typescript/@types/rimraf, all remaining minimatch
+consumers are on the 10.x line. A blanket override is safe:
+
+  "minimatch": ">=10.2.1"
+
+Note: version-range keyed overrides (e.g. "minimatch@>=10.0.0 <10.2.1")
+do not reliably work in pnpm 10 for already-compatible resolutions — pnpm
+resolves the version once and doesn't re-evaluate against the override
+selector. A blanket override is the reliable workaround when all consumers
+are on the same major version line.
+
+### Task 4: Add pnpm.overrides for ajv (alert #110)
+
+ajv 6.12.6 is pulled in by eslint → @eslint/eslintrc. The fix is:
+
+  "ajv@<6.14.0": "^6.14.0"
+
+Important: must use ^6.14.0, NOT >=6.14.0. The >= form would resolve to
+ajv v8 which has an incompatible API (crashes eslint with 'Cannot set
+properties of undefined (setting defaultMeta)').
+
+### Task 5: Fix devalue in docs/ (alerts #108-109)
+
+devalue <= 5.6.2 is a transitive dep via the Astro/Starlight stack.
+Added to docs/package.json pnpm.overrides:
+
+  "devalue": ">=5.6.3"
+
+### Verification
+
+- pnpm build: passes
+- pnpm lint: passes (2 pre-existing warnings in git.ts unrelated to this)
+- pnpm test: 884 passing, 6 pre-existing e2e failures (EDITOR unset env issue)
