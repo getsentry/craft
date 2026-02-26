@@ -1,0 +1,38 @@
+## Implementation Plan
+
+### Problem
+The composite action's 'Request publish' step always creates a GitHub issue in a
+'publish' repository (defaulting to `{owner}/publish`). Personal repos or small
+orgs don't have this dedicated repo, causing the action to fail with permission
+or 404 errors.
+
+### Approach considered
+1. Boolean `create_publish_request` input — skip the step entirely
+2. Sentinel value `publish_repo: "self"` — route the issue to the source repo
+3. Sentinel value `publish_repo: "none"` — skip the step entirely
+
+Chose option 2 (`"self"` sentinel) because:
+- Reuses existing input; no new input or structural changes needed
+- Preserves the publish request audit trail (issue goes to project itself)
+- Default GITHUB_TOKEN already has issue write access to the source repo
+- Implementation is a single 4-line bash conditional
+
+### Changes
+- `action.yml`: Resolve `PUBLISH_REPO=self` → `$GITHUB_REPOSITORY` in bash,
+  before any gh CLI calls. Placed immediately after the env block so the
+  variable override is visible to all subsequent uses in the script.
+- `docs/src/content/docs/github-actions.md`: Document `"self"` in the
+  `publish_repo` row of the Workflow Inputs table.
+- `README.md`: Same documentation update (also reformatted by Prettier).
+
+### No changes needed to
+- `.github/workflows/release.yml`: already passes `publish_repo` through as-is
+- Any other files: the sentinel is resolved entirely in bash at runtime
+
+### Usage
+```yaml
+uses: getsentry/craft/.github/workflows/release.yml@v2
+with:
+  version: auto
+  publish_repo: self   # issues created in BYK/opencode-lore itself
+```
