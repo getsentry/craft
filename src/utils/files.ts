@@ -3,7 +3,6 @@ import { opendir, readFile } from 'fs/promises';
 import ignore, { Ignore } from 'ignore';
 import * as os from 'os';
 import * as path from 'path';
-import rimraf from 'rimraf';
 import * as tmp from 'tmp';
 import * as util from 'util';
 
@@ -85,7 +84,7 @@ export async function withTempDir<T>(
     return await callback(directory);
   } finally {
     if (cleanup) {
-      rimraf(directory, err => {
+      fs.rm(directory, { recursive: true }, err => {
         // XXX(BYK): intentionally DO NOT await unlinking as we do not want
         // to block (both in terms of waiting for IO and the success of the
         // operation) finishing the task at hand. If unlinking fails, we honestly
