@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.23.1
+
+### Bug Fixes 🐛
+
+- (changelog) Categorize direct commits (no PR) by commit_patterns by @BYK in [#764](https://github.com/getsentry/craft/pull/764)
+
+### Internal Changes 🔧
+
+- (deps-dev) Bump fast-xml-parser from 5.3.6 to 5.3.8 by @dependabot in [#762](https://github.com/getsentry/craft/pull/762)
+
 ## 2.23.0
 
 ### New Features ✨
