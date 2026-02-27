@@ -505,6 +505,72 @@ changelog:
       expect(result.changelog).toMatchSnapshot();
     });
 
+    it('categorizes direct commits (no PR) by commit_patterns', async () => {
+      // Commits pushed directly without a PR should be grouped into categories
+      // if their title matches commit_patterns, not dumped into leftovers.
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: add new feature directly',
+            body: '',
+            // No PR association
+          },
+          {
+            hash: 'def456',
+            title: 'fix: patch a bug directly',
+            body: '',
+            // No PR association
+          },
+          {
+            hash: 'ghi789',
+            title: 'some unrecognized commit',
+            body: '',
+            // No PR association, no pattern match -> leftovers
+          },
+        ],
+        PATTERN_CONFIG,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      // Categorized commits should appear under their category headers
+      expect(result.changelog).toContain('Features');
+      expect(result.changelog).toContain('add new feature directly');
+      expect(result.changelog).toContain('Bug Fixes');
+      expect(result.changelog).toContain('patch a bug directly');
+      // Unrecognized commit goes to Other
+      expect(result.changelog).toContain('some unrecognized commit');
+    });
+
+    it('mixes direct commits and PR commits in the same category', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: direct feature commit',
+            body: '',
+            // No PR
+          },
+          {
+            hash: 'def456',
+            title: 'feat: feature via PR',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        PATTERN_CONFIG,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      // Both should be under Features, not just the PR one
+      expect(result.changelog).toContain('Features');
+      expect(result.changelog).toContain('direct feature commit');
+      expect(result.changelog).toContain('feature via PR');
+      // Should NOT have an "Other" section for the direct commit
+      expect(result.changelog).not.toContain('Other');
+    });
+
     it('uses default conventional commits config when no config exists', async () => {
       setup(
         [
@@ -1326,9 +1392,9 @@ See incident report: https://example.com/incident/123`,
 
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
 
-      // Both commits should appear (in leftovers since no PR)
-      expect(result.changelog).toContain('update dependencies');
-      expect(result.changelog).toContain('fix typo');
+      // Both commits should appear, categorized under Internal Changes via the chore: pattern
+      expect(result.changelog).toContain('Update dependencies');
+      expect(result.changelog).toContain('Fix typo');
     });
   });
 });
