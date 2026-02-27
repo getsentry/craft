@@ -84,7 +84,7 @@ export async function withTempDir<T>(
     return await callback(directory);
   } finally {
     if (cleanup) {
-      fs.rm(directory, { recursive: true }, err => {
+      fs.rm(directory, { recursive: true, force: true }, err => {
         // XXX(BYK): intentionally DO NOT await unlinking as we do not want
         // to block (both in terms of waiting for IO and the success of the
         // operation) finishing the task at hand. If unlinking fails, we honestly
