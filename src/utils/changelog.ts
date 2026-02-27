@@ -1664,8 +1664,8 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
       missing.push(raw);
     }
 
-    if (!categoryTitle || !raw.pr) {
-      // No category match or no PR - goes to leftovers
+    if (!categoryTitle) {
+      // No category match - goes to leftovers
       leftovers.push({
         author: raw.author,
         hash: raw.hash,
