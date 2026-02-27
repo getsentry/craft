@@ -4,13 +4,23 @@ import {
   getLatestVersion,
   NpmTarget,
   NpmPackageAccess,
+  NPM_BIN,
+  YARN_BIN,
 } from '../npm';
+import type { BaseArtifactProvider } from '../../artifact_providers/base';
 import * as system from '../../utils/system';
 import * as workspaces from '../../utils/workspaces';
 
 const defaultNpmConfig = {
   useYarn: false,
   token: 'xxx',
+  useOidc: false,
+};
+
+const oidcNpmConfigNoToken = {
+  useYarn: false,
+  token: undefined,
+  useOidc: true,
 };
 
 describe('getLatestVersion', () => {
@@ -333,5 +343,202 @@ describe('NpmTarget.expand', () => {
       expect(target.access).toBe(NpmPackageAccess.PUBLIC);
       expect(target.checkPackageName).toBe('@sentry/browser');
     }
+  });
+});
+
+describe('getLatestVersion OIDC mode', () => {
+  let spawnProcessMock: MockInstance;
+
+  beforeEach(() => {
+    spawnProcessMock = vi
+      .spyOn(system, 'spawnProcess')
+      .mockResolvedValue(Buffer.from('7.20.0\n', 'utf-8'));
+  });
+
+  afterEach(() => {
+    spawnProcessMock.mockRestore();
+  });
+
+  it('calls spawnProcess without auth when no token is available', async () => {
+    await getLatestVersion('@sentry/browser', oidcNpmConfigNoToken);
+
+    expect(spawnProcessMock).toBeCalledTimes(1);
+    const spawnOptions = spawnProcessMock.mock.calls[0][2];
+    expect(spawnOptions.env).not.toHaveProperty('npm_config_userconfig');
+    expect(spawnOptions.env).not.toHaveProperty(NPM_BIN);
+  });
+
+  it('uses temp .npmrc auth when token is available', async () => {
+    await getLatestVersion('@sentry/browser', defaultNpmConfig);
+
+    expect(spawnProcessMock).toBeCalledTimes(1);
+    const spawnOptions = spawnProcessMock.mock.calls[0][2];
+    expect(spawnOptions.env).toHaveProperty('npm_config_userconfig');
+    expect(spawnOptions.env).toHaveProperty('NPM_TOKEN', 'xxx');
+  });
+
+  it('returns version when called without token', async () => {
+    const actual = await getLatestVersion(
+      '@sentry/browser',
+      oidcNpmConfigNoToken,
+    );
+    expect(actual).toBe('7.20.0');
+  });
+
+  it('returns undefined when npm info fails in no-token mode', async () => {
+    spawnProcessMock.mockRejectedValue(new Error('not found'));
+    const actual = await getLatestVersion(
+      '@sentry/private-pkg',
+      oidcNpmConfigNoToken,
+    );
+    expect(actual).toBeUndefined();
+  });
+});
+
+describe('NpmTarget OIDC configuration', () => {
+  // child_process.spawnSync cannot be spied on in ESM. Instead, use a TestNpmTarget
+  // subclass that overrides checkRequirements() to inject a controllable npm version
+  // and delegates hasExecutable() to the mockable system module.
+  class TestNpmTarget extends NpmTarget {
+    /** Set before construction to control which npm version checkRequirements reports */
+    static mockVersion: { major: number; minor: number; patch: number } = {
+      major: 12,
+      minor: 0,
+      patch: 0,
+    };
+
+    protected override checkRequirements(): void {
+      const config = this.config as { oidc?: boolean };
+      if (system.hasExecutable(NPM_BIN)) {
+        this.npmVersion = TestNpmTarget.mockVersion;
+      } else if (system.hasExecutable(YARN_BIN)) {
+        if (config.oidc) {
+          throw new Error(
+            'npm target: OIDC trusted publishing requires npm, but only yarn was found. ' +
+              'Install npm >= 11.5.1 to use OIDC.',
+          );
+        }
+      } else {
+        throw new Error('No "npm" or "yarn" found!');
+      }
+    }
+  }
+
+  let hasExecutableMock: MockInstance;
+  const mockArtifactProvider = {} as BaseArtifactProvider;
+
+  beforeEach(() => {
+    // Default: npm 12.0.0 available; reset mock version to avoid cross-test pollution
+    TestNpmTarget.mockVersion = { major: 12, minor: 0, patch: 0 };
+    hasExecutableMock = vi
+      .spyOn(system, 'hasExecutable')
+      .mockImplementation((bin: string) => bin === NPM_BIN);
+  });
+
+  afterEach(() => {
+    hasExecutableMock.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  it('uses token auth when NPM_TOKEN is set (backward compat, no OIDC env)', () => {
+    vi.stubEnv('NPM_TOKEN', 'my-token');
+    vi.stubEnv('ACTIONS_ID_TOKEN_REQUEST_URL', '');
+    vi.stubEnv('ACTIONS_ID_TOKEN_REQUEST_TOKEN', '');
+    vi.stubEnv('NPM_ID_TOKEN', '');
+
+    const target = new TestNpmTarget({ name: 'npm' }, mockArtifactProvider);
+    expect(target.npmConfig.useOidc).toBe(false);
+    expect(target.npmConfig.token).toBe('my-token');
+  });
+
+  it('auto-detects OIDC via GitHub Actions env vars when NPM_TOKEN is absent', () => {
+    vi.stubEnv('NPM_TOKEN', '');
+    vi.stubEnv(
+      'ACTIONS_ID_TOKEN_REQUEST_URL',
+      'https://token.actions.githubusercontent.com',
+    );
+    vi.stubEnv('ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'gha-token');
+
+    const target = new TestNpmTarget({ name: 'npm' }, mockArtifactProvider);
+    expect(target.npmConfig.useOidc).toBe(true);
+    expect(target.npmConfig.token).toBeUndefined();
+  });
+
+  it('auto-detects OIDC via GitLab env var when NPM_TOKEN is absent', () => {
+    vi.stubEnv('NPM_TOKEN', '');
+    vi.stubEnv('NPM_ID_TOKEN', 'gitlab-oidc-token');
+
+    const target = new TestNpmTarget({ name: 'npm' }, mockArtifactProvider);
+    expect(target.npmConfig.useOidc).toBe(true);
+    expect(target.npmConfig.token).toBeUndefined();
+  });
+
+  it('token auth wins when NPM_TOKEN is set even if OIDC env vars are present', () => {
+    vi.stubEnv('NPM_TOKEN', 'my-token');
+    vi.stubEnv(
+      'ACTIONS_ID_TOKEN_REQUEST_URL',
+      'https://token.actions.githubusercontent.com',
+    );
+    vi.stubEnv('ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'gha-token');
+
+    const target = new TestNpmTarget({ name: 'npm' }, mockArtifactProvider);
+    expect(target.npmConfig.useOidc).toBe(false);
+    expect(target.npmConfig.token).toBe('my-token');
+  });
+
+  it('forces OIDC when oidc: true is set, even when NPM_TOKEN is present', () => {
+    vi.stubEnv('NPM_TOKEN', 'my-token');
+
+    const target = new TestNpmTarget(
+      { name: 'npm', oidc: true },
+      mockArtifactProvider,
+    );
+    expect(target.npmConfig.useOidc).toBe(true);
+    // Token is still stored so getLatestVersion can use it for private packages
+    expect(target.npmConfig.token).toBe('my-token');
+  });
+
+  it('throws when oidc: true and npm version is too old', () => {
+    TestNpmTarget.mockVersion = { major: 5, minor: 6, patch: 0 };
+
+    expect(
+      () =>
+        new TestNpmTarget({ name: 'npm', oidc: true }, mockArtifactProvider),
+    ).toThrow(/npm >= 11\.5\.1/);
+  });
+
+  it('throws when oidc: true and only yarn is available', () => {
+    hasExecutableMock.mockImplementation((bin: string) => bin === YARN_BIN);
+
+    expect(
+      () =>
+        new TestNpmTarget({ name: 'npm', oidc: true }, mockArtifactProvider),
+    ).toThrow(/OIDC trusted publishing requires npm/);
+  });
+
+  it('throws when no NPM_TOKEN and no OIDC environment', () => {
+    vi.stubEnv('NPM_TOKEN', '');
+    vi.stubEnv('ACTIONS_ID_TOKEN_REQUEST_URL', '');
+    vi.stubEnv('ACTIONS_ID_TOKEN_REQUEST_TOKEN', '');
+    vi.stubEnv('NPM_ID_TOKEN', '');
+
+    expect(
+      () => new TestNpmTarget({ name: 'npm' }, mockArtifactProvider),
+    ).toThrow('NPM_TOKEN not found');
+  });
+
+  it('falls through to token error when OIDC env detected but npm version is too old', () => {
+    TestNpmTarget.mockVersion = { major: 5, minor: 6, patch: 0 };
+    vi.stubEnv('NPM_TOKEN', '');
+    vi.stubEnv(
+      'ACTIONS_ID_TOKEN_REQUEST_URL',
+      'https://token.actions.githubusercontent.com',
+    );
+    vi.stubEnv('ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'gha-token');
+
+    // OIDC env present but npm too old → should fall through to "NPM_TOKEN not found"
+    expect(
+      () => new TestNpmTarget({ name: 'npm' }, mockArtifactProvider),
+    ).toThrow('NPM_TOKEN not found');
   });
 });
