@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.23.0
+
+### New Features ✨
+
+- (npm) Support OIDC trusted publishing by @BYK in [#763](https://github.com/getsentry/craft/pull/763)
+
 ## 2.22.0
 
 ### New Features ✨
