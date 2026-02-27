@@ -6,7 +6,7 @@ settings:
 
 overrides:
   h3: ^1.15.5
-  devalue: '>=5.6.3'
+  devalue: ^5.6.3
 
 importers:
 
