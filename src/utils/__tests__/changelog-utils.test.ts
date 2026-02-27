@@ -260,9 +260,9 @@ describe('stripTitle', () => {
       );
     });
 
-    it('works with build/chore types', () => {
+    it('works with build/chore/test/style types', () => {
       const pattern =
-        /^(?<type>(?:build|refactor|meta|chore|ci|ref|perf)(?:\((?<scope>[^)]+)\))?!?:\s*)/;
+        /^(?<type>(?:build|refactor|meta|chore|ci|ref|perf|tests?|style)(?:\((?<scope>[^)]+)\))?!?:\s*)/;
       expect(stripTitle('chore(deps): update deps', pattern, false)).toBe(
         'Update deps',
       );
@@ -271,6 +271,15 @@ describe('stripTitle', () => {
       );
       expect(stripTitle('refactor(api): simplify logic', pattern, true)).toBe(
         '(api) Simplify logic',
+      );
+      expect(stripTitle('test(auth): add unit tests', pattern, false)).toBe(
+        'Add unit tests',
+      );
+      expect(stripTitle('tests(auth): add unit tests', pattern, false)).toBe(
+        'Add unit tests',
+      );
+      expect(stripTitle('style(button): fix formatting', pattern, false)).toBe(
+        'Fix formatting',
       );
     });
   });
