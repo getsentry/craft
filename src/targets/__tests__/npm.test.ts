@@ -8,6 +8,7 @@ import {
   YARN_BIN,
 } from '../npm';
 import type { BaseArtifactProvider } from '../../artifact_providers/base';
+import type { SemVer } from '../../utils/version';
 import * as system from '../../utils/system';
 import * as workspaces from '../../utils/workspaces';
 
@@ -424,11 +425,7 @@ describe('NpmTarget OIDC configuration', () => {
   // and delegates hasExecutable() to the mockable system module.
   class TestNpmTarget extends NpmTarget {
     /** Set before construction to control which npm version checkRequirements reports */
-    static mockVersion: { major: number; minor: number; patch: number } = {
-      major: 12,
-      minor: 0,
-      patch: 0,
-    };
+    static mockVersion: SemVer = { major: 12, minor: 0, patch: 0 };
 
     protected override checkRequirements(): void {
       const config = this.config as { oidc?: boolean };
