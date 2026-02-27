@@ -1,0 +1,40 @@
+## Implementation Plan
+
+### Problem
+Commits pushed directly to the repo (no associated PR) were always
+routed to the 'Other' leftovers section of the changelog, even when
+their commit title matched a category via `commit_patterns`. This made
+the changelog less useful for repos that use direct pushes.
+
+The version bump calculation was already correct — bump type is tracked
+before the leftovers guard — so only the changelog display was broken.
+
+### Root Cause
+In `categorizeCommits()` (src/utils/changelog.ts), the leftovers guard:
+
+    if (!categoryTitle || !raw.pr) {
+
+The `|| !raw.pr` half forced ALL commits without a PR number into
+leftovers, bypassing any category match that `matchCommitToCategory()`
+had already found.
+
+### Fix
+Remove `|| !raw.pr` so the condition becomes:
+
+    if (!categoryTitle) {
+
+Only commits with no matching category go to leftovers.
+
+### Why no other changes needed
+- `createPREntriesFromRaw` already uses `raw.pr ?? ''`
+- `formatChangelogEntry` already falls back to commit-hash links when
+  `prNumber` is falsy (empty string)
+- The `PullRequest.number` field is typed as `string`, not `string | null`,
+  so an empty string is the correct sentinel for 'no PR'
+
+### Tests
+- Updated assertion in 'keeps commits without PR association' — commits
+  now correctly land in 'Internal Changes' (via `chore:` pattern) instead
+  of 'Other', so expected strings changed to title-cased versions.
+- New test: 'categorizes direct commits (no PR) by commit_patterns'
+- New test: 'mixes direct commits and PR commits in the same category'
