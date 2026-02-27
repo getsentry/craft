@@ -118,14 +118,14 @@ Some operations need explicit `isDryRun()` checks:
 
 ### Architecture
 
-<!-- lore:019c9be1-33d8-7edb-8e74-95d7369f4abb -->
-
 - **Craft tsconfig.build.json is now self-contained — no @sentry/typescript base**: The \`@sentry/typescript\` package was removed as a dev dependency. It only provided a base \`tsconfig.json\` with strict TS settings, but dragged in deprecated \`tslint\` and vulnerable \`minimatch@3.1.2\`. All useful compiler options from its tsconfig are now inlined directly in \`tsconfig.build.json\`. Key settings carried forward: \`declaration\`, \`declarationMap\`, \`downlevelIteration\`, \`inlineSources\`, \`noFallthroughCasesInSwitch\`, \`noImplicitAny\`, \`noImplicitReturns\`, \`noUnusedLocals\`, \`noUnusedParameters\`, \`pretty\`, \`sourceMap\`, \`strict\`. The chain is: \`tsconfig.json\` extends \`tsconfig.build.json\` (no further extends).
 
 ### Gotcha
 
-<!-- lore:019c9be1-33db-7bba-bb0a-297d5de6edb7 -->
+<!-- lore:019c9e9c-fa8f-7ab2-b26e-d47e50cb04bb -->
 
+- **marked-terminal unconditionally imports cli-highlight and node-emoji — no tree-shaking possible**: marked-terminal has static top-level imports of \`cli-highlight\` (which pulls in highlight.js, ~570KB minified output) and \`node-emoji\` (which pulls in emojilib, ~208KB minified output) at lines 5-6 of its index.js. These are unconditional — there's no config option to disable them, and the \`emoji: false\` option only skips the emoji replacement function but doesn't prevent the import. esbuild cannot tree-shake static imports. This means any bundle including marked-terminal will grow by ~970KB (highlight.js + emojilib + parse5). To avoid this in a CLI bundle, you'd need to either: (1) write a custom marked renderer using only chalk, (2) fork marked-terminal with dynamic imports, or (3) use esbuild's \`external\` option (but then those packages must be available at runtime).
+<!-- lore:019c9be1-33db-7bba-bb0a-297d5de6edb7 -->
 - **prepare-dry-run e2e tests require EDITOR env var for git commit**: The 6 tests in \`src/\_\_tests\_\_/prepare-dry-run.e2e.test.ts\` fail in environments where \`EDITOR\` is unset and the terminal is non-interactive (e.g., headless CI agents, worktrees). The error is \`Terminal is dumb, but EDITOR unset\` from git refusing to commit without a message editor. These are environment-dependent failures, not code bugs. They pass in environments with \`EDITOR=vi\` or similar set.
 <!-- lore:019c9be1-33d1-7b6e-b107-ae7ad42a4ea4 -->
 - **pnpm overrides with >= can cross major versions — use ^ to constrain**: When using pnpm overrides to patch a transitive dependency vulnerability, \`"ajv@<6.14.0": ">=6.14.0"\` will resolve to the latest ajv (v8.x), not the latest 6.x. ajv v6 and v8 have incompatible APIs — this broke eslint (\`@eslint/eslintrc\` calls \`ajv\` v6 API, crashes with \`Cannot set properties of undefined (setting 'defaultMeta')\` on v8). Fix: use \`"ajv@<6.14.0": "^6.14.0"\` to constrain within the same major. This applies to any override where the target package has multiple major versions in the registry — always use \`^\` (or \`~\`) instead of \`>=\` to stay within the compatible major line.
@@ -143,11 +143,12 @@ Some operations need explicit `isDryRun()` checks:
 <!-- lore:019c9b36-8f9d-71c9-a43a-d2715aa249d0 -->
 
 - **Craft publish_repo 'self' sentinel resolves to GITHUB_REPOSITORY at runtime**: The composite action's \`publish_repo\` input supports a special sentinel value \`"self"\` which resolves to \`$GITHUB_REPOSITORY\` at runtime in the bash script of the 'Request publish' step. This allows repos to create publish request issues in themselves rather than in a separate \`{owner}/publish\` repo. The resolution happens in bash (not in the GitHub Actions expression) because the expression layer sets \`PUBLISH_REPO\` via \`inputs.publish_repo || format('{0}/publish', github.repository_owner)\` — the string \`"self"\` passes through as-is and gets resolved to the actual repo name in the shell. Useful for personal/small repos where the default GITHUB_TOKEN already has write access to the repo itself.
+<!-- lore:019c9e9c-fa91-758c-8be9-f8ddb4e46eb5 -->
+- **esbuild metafile output bytes vs input bytes — use output for real size impact**: When analyzing bundle size with esbuild's metafile, \`result.metafile.inputs\` shows raw source file sizes BEFORE minification and tree-shaking — these are misleading for size impact analysis. A 3.3MB input file may contribute 0 bytes to output if tree-shaken. Use \`result.metafile.outputs\[outfile].inputs\` to see actual per-file output contribution after minification. To dump metafile: add \`import { writeFileSync } from 'node:fs'; writeFileSync('/tmp/meta.json', JSON.stringify(result.metafile));\` after the build call, then analyze with \`jq\`. The bundle script at script/bundle.ts generates metafile but doesn't write it to disk by default.
 <!-- lore:019c9bb9-a79b-71e0-9f71-d94e77119b4b -->
-
-* **CLI UX: auto-correct common user mistakes with stderr warnings instead of hard errors**: When a CLI command can unambiguously detect a common user mistake (like using the wrong separator character), prefer auto-correcting the input and printing a warning to stderr over throwing a hard error. This is safe when: (1) the input is already invalid and would fail anyway, (2) there's no ambiguity in the correction, and (3) the warning goes to stderr so it doesn't interfere with JSON/stdout output. Implementation pattern: normalize inputs at the command level before passing to pure parsing functions, keeping the parsers side-effect-free. The \`gh\` CLI (GitHub CLI) is the UX model — match its conventions.
+- **CLI UX: auto-correct common user mistakes with stderr warnings instead of hard errors**: When a CLI command can unambiguously detect a common user mistake (like using the wrong separator character), prefer auto-correcting the input and printing a warning to stderr over throwing a hard error. This is safe when: (1) the input is already invalid and would fail anyway, (2) there's no ambiguity in the correction, and (3) the warning goes to stderr so it doesn't interfere with JSON/stdout output. Implementation pattern: normalize inputs at the command level before passing to pure parsing functions, keeping the parsers side-effect-free. The \`gh\` CLI (GitHub CLI) is the UX model — match its conventions.
 <!-- lore:019c9aa1-f79a-7f3c-94c6-1371d2fd7e62 -->
-* **Kubernetes deployment pattern**: Use helm charts for Kubernetes deployments with resource limits
+- **Kubernetes deployment pattern**: Use helm charts for Kubernetes deployments with resource limits
 
 ### Preference
 
