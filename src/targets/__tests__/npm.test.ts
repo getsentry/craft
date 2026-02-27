@@ -344,6 +344,29 @@ describe('NpmTarget.expand', () => {
       expect(target.checkPackageName).toBe('@sentry/browser');
     }
   });
+
+  it('propagates oidc option to expanded workspace targets', async () => {
+    discoverWorkspacesMock = vi
+      .spyOn(workspaces, 'discoverWorkspaces')
+      .mockResolvedValue({
+        type: 'npm',
+        packages: [
+          {
+            name: '@sentry/browser',
+            location: '/root/packages/browser',
+            private: false,
+            hasPublicAccess: true,
+            workspaceDependencies: [],
+          },
+        ],
+      });
+
+    const config = { name: 'npm', workspaces: true, oidc: true };
+    const result = await NpmTarget.expand(config, '/root');
+
+    expect(result).toHaveLength(1);
+    expect((result[0] as any).oidc).toBe(true);
+  });
 });
 
 describe('getLatestVersion OIDC mode', () => {
@@ -365,7 +388,7 @@ describe('getLatestVersion OIDC mode', () => {
     expect(spawnProcessMock).toBeCalledTimes(1);
     const spawnOptions = spawnProcessMock.mock.calls[0][2];
     expect(spawnOptions.env).not.toHaveProperty('npm_config_userconfig');
-    expect(spawnOptions.env).not.toHaveProperty(NPM_BIN);
+    expect(spawnOptions.env).not.toHaveProperty('NPM_TOKEN');
   });
 
   it('uses temp .npmrc auth when token is available', async () => {

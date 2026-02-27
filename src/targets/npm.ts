@@ -71,6 +71,24 @@ function isOidcEnvironment(): boolean {
   );
 }
 
+/**
+ * Returns true if the given npm version satisfies the minimum required for OIDC.
+ */
+function isNpmVersionSufficientForOidc(version: {
+  major: number;
+  minor: number;
+  patch: number;
+}): boolean {
+  const { major, minor, patch } = version;
+  return (
+    major > NPM_OIDC_MIN_MAJOR ||
+    (major === NPM_OIDC_MIN_MAJOR && minor > NPM_OIDC_MIN_MINOR) ||
+    (major === NPM_OIDC_MIN_MAJOR &&
+      minor === NPM_OIDC_MIN_MINOR &&
+      patch >= NPM_OIDC_MIN_PATCH)
+  );
+}
+
 /** A regular expression used to find the package tarball */
 const DEFAULT_PACKAGE_REGEX = /^.*\d\.\d.*\.tgz$/;
 
@@ -294,6 +312,9 @@ export class NpmTarget extends BaseTarget {
       if (config.checkPackageName) {
         expandedTarget.checkPackageName = config.checkPackageName;
       }
+      if (config.oidc) {
+        expandedTarget.oidc = config.oidc;
+      }
 
       return expandedTarget;
     });
@@ -510,14 +531,8 @@ export class NpmTarget extends BaseTarget {
             'Install npm >= 11.5.1 to use OIDC.',
         );
       }
-      const { major, minor, patch } = this.npmVersion;
-      const isNewEnough =
-        major > NPM_OIDC_MIN_MAJOR ||
-        (major === NPM_OIDC_MIN_MAJOR && minor > NPM_OIDC_MIN_MINOR) ||
-        (major === NPM_OIDC_MIN_MAJOR &&
-          minor === NPM_OIDC_MIN_MINOR &&
-          patch >= NPM_OIDC_MIN_PATCH);
-      if (!isNewEnough) {
+      if (!isNpmVersionSufficientForOidc(this.npmVersion)) {
+        const { major, minor, patch } = this.npmVersion;
         throw new ConfigurationError(
           `npm target: OIDC trusted publishing requires npm >= ${NPM_OIDC_MIN_MAJOR}.${NPM_OIDC_MIN_MINOR}.${NPM_OIDC_MIN_PATCH}, ` +
             `but found ${major}.${minor}.${patch}. Update npm (or Node.js) to use OIDC.`,
@@ -528,20 +543,14 @@ export class NpmTarget extends BaseTarget {
       // No explicit token — check if we can auto-detect OIDC
       if (oidcEnv) {
         if (this.npmVersion) {
-          const { major, minor, patch } = this.npmVersion;
-          const isNewEnough =
-            major > NPM_OIDC_MIN_MAJOR ||
-            (major === NPM_OIDC_MIN_MAJOR && minor > NPM_OIDC_MIN_MINOR) ||
-            (major === NPM_OIDC_MIN_MAJOR &&
-              minor === NPM_OIDC_MIN_MINOR &&
-              patch >= NPM_OIDC_MIN_PATCH);
-          if (isNewEnough) {
+          if (isNpmVersionSufficientForOidc(this.npmVersion)) {
             this.logger.info(
               'NPM_TOKEN not set but OIDC environment detected — using trusted publishing.',
             );
             useOidc = true;
           } else {
             // OIDC detected but npm too old — fall through to token error below
+            const { major, minor, patch } = this.npmVersion;
             this.logger.warn(
               `OIDC environment detected but npm ${major}.${minor}.${patch} is too old for trusted publishing ` +
                 `(requires >= ${NPM_OIDC_MIN_MAJOR}.${NPM_OIDC_MIN_MINOR}.${NPM_OIDC_MIN_PATCH}). ` +
