@@ -7,19 +7,19 @@ Releases an NPM package to the public registry. Requires a package tarball gener
 
 ## Configuration
 
-| Option | Description |
-|--------|-------------|
-| `access` | Visibility for scoped packages: `restricted` (default) or `public` |
+| Option             | Description                                                        |
+| ------------------ | ------------------------------------------------------------------ |
+| `access`           | Visibility for scoped packages: `restricted` (default) or `public` |
 | `checkPackageName` | Package to check for current version when determining `latest` tag |
 
 ## Environment Variables
 
-| Name | Description |
-|------|-------------|
-| `NPM_TOKEN` | An [automation token](https://docs.npmjs.com/creating-and-viewing-access-tokens) allowed to publish |
-| `NPM_BIN` | Path to npm executable. Default: `npm` |
-| `YARN_BIN` | Path to yarn executable. Default: `yarn` |
-| `CRAFT_NPM_USE_OTP` | If `1`, prompts for OTP (for 2FA) |
+| Name                | Description                                                                                                                        |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `NPM_TOKEN`         | An [automation token](https://docs.npmjs.com/creating-and-viewing-access-tokens) allowed to publish. Not required when using OIDC. |
+| `NPM_BIN`           | Path to npm executable. Default: `npm`                                                                                             |
+| `YARN_BIN`          | Path to yarn executable. Default: `yarn`                                                                                           |
+| `CRAFT_NPM_USE_OTP` | If `1`, prompts for OTP (for 2FA)                                                                                                  |
 
 ## Example
 
@@ -35,12 +35,12 @@ Craft supports automatic discovery and publishing of NPM/Yarn workspace packages
 
 ### Workspace Configuration
 
-| Option | Description |
-|--------|-------------|
-| `workspaces` | Enable workspace discovery. Default: `false` |
-| `includeWorkspaces` | Regex pattern to filter which packages to include (e.g., `/^@sentry\//`) |
-| `excludeWorkspaces` | Regex pattern to filter which packages to exclude (e.g., `/^@sentry-internal\//`) |
-| `artifactTemplate` | Template for artifact filenames. Variables: `{{name}}`, `{{simpleName}}`, `{{version}}` |
+| Option              | Description                                                                             |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `workspaces`        | Enable workspace discovery. Default: `false`                                            |
+| `includeWorkspaces` | Regex pattern to filter which packages to include (e.g., `/^@sentry\//`)                |
+| `excludeWorkspaces` | Regex pattern to filter which packages to exclude (e.g., `/^@sentry-internal\//`)       |
+| `artifactTemplate`  | Template for artifact filenames. Variables: `{{name}}`, `{{simpleName}}`, `{{version}}` |
 
 ### Workspace Example
 
@@ -64,6 +64,7 @@ targets:
 ### Artifact Naming
 
 By default, Craft expects artifacts named like:
+
 - `@sentry/browser` → `sentry-browser-{version}.tgz`
 
 Use `artifactTemplate` for custom naming:
@@ -72,12 +73,57 @@ Use `artifactTemplate` for custom naming:
 targets:
   - name: npm
     workspaces: true
-    artifactTemplate: "{{simpleName}}-{{version}}.tgz"
+    artifactTemplate: '{{simpleName}}-{{version}}.tgz'
 ```
+
+## OIDC Trusted Publishing
+
+Craft supports [npm's trusted publishing](https://docs.npmjs.com/trusted-publishers) (OIDC), which eliminates the need for long-lived `NPM_TOKEN` secrets.
+
+### Auto-detection (zero config)
+
+If `NPM_TOKEN` is not set and Craft detects an OIDC-capable CI environment, it automatically uses trusted publishing:
+
+- **GitHub Actions**: workflow must have `id-token: write` permission
+- **GitLab CI/CD**: pipeline must configure `id_tokens` with `aud: "npm:registry.npmjs.org"`
+
+Requires **npm >= 11.5.1** and **Node.js >= 22.14.0** (OIDC is not supported in older versions).
+
+### Explicit opt-in
+
+Set `oidc: true` in `.craft.yml` to force OIDC mode (useful when migrating from token-based auth while both are configured):
+
+```yaml
+targets:
+  - name: npm
+    access: public
+    oidc: true
+```
+
+When `oidc: true`, Craft hard-errors if npm is too old or only yarn is available.
+
+### GitHub Actions example
+
+```yaml
+permissions:
+  id-token: write
+  contents: read
+
+steps:
+  - uses: actions/setup-node@v4
+    with:
+      node-version: '24'
+      registry-url: 'https://registry.npmjs.org'
+  - run: craft publish
+```
+
+### `checkPackageName` with OIDC
+
+The `npm info` command used by `checkPackageName` does not support OIDC — it requires traditional auth. For **public** packages this works without a token. For **private** packages, provide a read-only `NPM_TOKEN`; if absent, Craft will warn and skip the version check (defaulting to the `latest` tag).
 
 ## Notes
 
 - The `npm` utility must be installed on the system
-- If `npm` is not found, Craft falls back to `yarn publish`
+- If `npm` is not found, Craft falls back to `yarn publish` (only in non-OIDC mode)
 - For scoped packages (`@org/package`), set `access: public` to publish publicly
 - Pre-release versions are automatically tagged as `next` instead of `latest`
