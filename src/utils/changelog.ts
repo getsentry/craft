@@ -844,7 +844,7 @@ export const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
       {
         title: 'Internal Changes 🔧',
         commit_patterns: [
-          '^(?<type>(?:build|refactor|meta|chore|ci|ref|perf)(?:\\((?<scope>[^)]+)\\))?!?:\\s*)',
+          '^(?<type>(?:build|refactor|meta|chore|ci|ref|perf|tests?|style)(?:\\((?<scope>[^)]+)\\))?!?:\\s*)',
         ],
         semver: 'patch',
       },

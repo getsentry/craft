@@ -15,6 +15,7 @@ import {
 import {
   isPreviewRelease,
   parseVersion,
+  SemVer,
   versionGreaterOrEqualThan,
 } from '../utils/version';
 import {
@@ -48,7 +49,26 @@ export const YARN_BIN = process.env.YARN_BIN || 'yarn';
 const NPM_MIN_MAJOR = 5;
 const NPM_MIN_MINOR = 6;
 
+/** Minimum npm version required for OIDC trusted publishing support */
+const NPM_OIDC_MIN_VERSION: SemVer = { major: 11, minor: 5, patch: 1 };
+
 const NPM_TOKEN_ENV_VAR = 'NPM_TOKEN';
+
+/**
+ * Detect whether the current CI environment exposes OIDC credentials that npm
+ * can use for trusted publishing.
+ *
+ * - GitHub Actions: sets ACTIONS_ID_TOKEN_REQUEST_URL + ACTIONS_ID_TOKEN_REQUEST_TOKEN
+ *   when the workflow has `id-token: write` permission.
+ * - GitLab CI/CD: sets NPM_ID_TOKEN when `id_tokens` is configured with the npm audience.
+ */
+function isOidcEnvironment(): boolean {
+  return !!(
+    (process.env.ACTIONS_ID_TOKEN_REQUEST_URL &&
+      process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN) ||
+    process.env.NPM_ID_TOKEN
+  );
+}
 
 /** A regular expression used to find the package tarball */
 const DEFAULT_PACKAGE_REGEX = /^.*\d\.\d.*\.tgz$/;
@@ -65,6 +85,16 @@ export interface NpmTargetConfig extends TargetConfig {
   access?: NpmPackageAccess;
   /** If defined, lookup this package name on the registry to get the current latest version. */
   checkPackageName?: string;
+  /**
+   * Enable OIDC trusted publishing (no long-lived NPM_TOKEN required).
+   * When set to `true`, forces OIDC mode and errors if the environment does not
+   * support it or npm < 11.5.1.
+   * When omitted, OIDC is auto-detected from CI environment variables:
+   *   - GitHub Actions: ACTIONS_ID_TOKEN_REQUEST_URL + ACTIONS_ID_TOKEN_REQUEST_TOKEN
+   *   - GitLab CI/CD: NPM_ID_TOKEN
+   * If auto-detected and NPM_TOKEN is absent, OIDC is used automatically.
+   */
+  oidc?: boolean;
   /**
    * Enable workspace discovery to auto-generate npm targets for all workspace packages.
    * When enabled, this target will be expanded into multiple targets, one per workspace package.
@@ -98,14 +128,21 @@ export interface NpmTargetOptions {
   useOtp?: boolean;
   /** Do we use Yarn instead of NPM? */
   useYarn: boolean;
-  /** Value of NPM_TOKEN so we can pass it to npm executable */
-  token: string;
+  /**
+   * Value of NPM_TOKEN to pass to the npm executable.
+   * Undefined when using OIDC without a token (publish auth is handled by npm
+   * natively; getLatestVersion will run without auth and works for public packages).
+   */
+  token?: string;
+  /** Whether to use OIDC trusted publishing instead of token-based auth */
+  useOidc: boolean;
 }
 
 /** Fields on the npm target config accessed at runtime */
 interface NpmTargetConfigFields extends Record<string, unknown> {
   access?: NpmPackageAccess;
   checkPackageName?: string;
+  oidc?: boolean;
 }
 
 /** Options for running the NPM publish command */
@@ -126,6 +163,8 @@ export class NpmTarget extends BaseTarget {
   public readonly name: string = 'npm';
   /** Target options */
   public readonly npmConfig: NpmTargetOptions;
+  /** Parsed npm version, set during checkRequirements() */
+  protected npmVersion: SemVer | null = null;
 
   /**
    * Expand an npm target config into multiple targets if workspaces is enabled.
@@ -252,6 +291,9 @@ export class NpmTarget extends BaseTarget {
       }
       if (config.checkPackageName) {
         expandedTarget.checkPackageName = config.checkPackageName;
+      }
+      if (config.oidc) {
+        expandedTarget.oidc = config.oidc;
       }
 
       return expandedTarget;
@@ -380,33 +422,45 @@ export class NpmTarget extends BaseTarget {
   }
 
   /**
-   * Check that NPM executable exists and is not too old
+   * Check that NPM executable exists and is not too old.
+   * Stores the parsed npm version for later OIDC version validation in getNpmConfig().
    */
   protected checkRequirements(): void {
+    const config = this.config as TypedTargetConfig<NpmTargetConfigFields>;
+
     if (hasExecutable(NPM_BIN)) {
       this.logger.debug('Checking that NPM has recent version...');
-      const npmVersion = spawnSync(NPM_BIN, ['--version'])
+      const npmVersionStr = spawnSync(NPM_BIN, ['--version'])
         .stdout.toString()
         .trim();
-      const parsedVersion = parseVersion(npmVersion);
+      const parsedVersion = parseVersion(npmVersionStr);
       if (!parsedVersion) {
-        reportError(`Cannot parse NPM version: "${npmVersion}"`);
+        reportError(`Cannot parse NPM version: "${npmVersionStr}"`);
       }
-      const { major, minor } = parsedVersion || { major: 0, minor: 0 };
+      const { major = 0, minor = 0 } = parsedVersion ?? {};
       if (
         major < NPM_MIN_MAJOR ||
         (major === NPM_MIN_MAJOR && minor < NPM_MIN_MINOR)
       ) {
         reportError(
-          `NPM version is too old: ${npmVersion}. Please update your NodeJS`,
+          `NPM version is too old: ${npmVersionStr}. Please update your NodeJS`,
         );
       }
-      this.logger.debug(`Found NPM version ${npmVersion}`);
+      this.npmVersion = parsedVersion;
+      this.logger.debug(`Found NPM version ${npmVersionStr}`);
     } else if (hasExecutable(YARN_BIN)) {
       const yarnVersion = spawnSync(YARN_BIN, ['--version'])
         .stdout.toString()
         .trim();
       this.logger.debug(`Found Yarn version ${yarnVersion}`);
+
+      // OIDC requires npm — yarn cannot exchange OIDC tokens
+      if (config.oidc) {
+        throw new ConfigurationError(
+          'npm target: OIDC trusted publishing requires npm, but only yarn was found. ' +
+            'Install npm >= 11.5.1 to use OIDC.',
+        );
+      }
     } else {
       reportError('No "npm" or "yarn" found!');
     }
@@ -427,19 +481,85 @@ export class NpmTarget extends BaseTarget {
   }
 
   /**
-   * Extracts NPM target options from the raw configuration
+   * Extracts NPM target options from the raw configuration.
+   *
+   * Auth strategy decision table:
+   *
+   * | oidc config | NPM_TOKEN set | OIDC env detected | Result              |
+   * |-------------|---------------|-------------------|---------------------|
+   * | true        | any           | any               | Force OIDC          |
+   * | unset/false | yes           | any               | Token auth          |
+   * | unset/false | no            | yes               | Auto-detect OIDC    |
+   * | unset/false | no            | no                | Error (no auth)     |
    */
   protected getNpmConfig(): NpmTargetOptions {
+    const config = this.config as TypedTargetConfig<NpmTargetConfigFields>;
     const token = process.env.NPM_TOKEN;
-    if (!token) {
-      throw new Error('NPM target: NPM_TOKEN not found in the environment');
+    const oidcEnv = isOidcEnvironment();
+
+    let useOidc = false;
+
+    if (config.oidc) {
+      // Explicit OIDC mode — validate hard requirements
+      if (!this.npmVersion) {
+        throw new ConfigurationError(
+          'npm target: OIDC trusted publishing requires npm, but only yarn was found. ' +
+            'Install npm >= 11.5.1 to use OIDC.',
+        );
+      }
+      const { major, minor, patch } = this.npmVersion;
+      if (!versionGreaterOrEqualThan(this.npmVersion, NPM_OIDC_MIN_VERSION)) {
+        const {
+          major: minMaj,
+          minor: minMin,
+          patch: minPat,
+        } = NPM_OIDC_MIN_VERSION;
+        throw new ConfigurationError(
+          `npm target: OIDC trusted publishing requires npm >= ${minMaj}.${minMin}.${minPat}, ` +
+            `but found ${major}.${minor}.${patch}. Update npm (or Node.js) to use OIDC.`,
+        );
+      }
+      useOidc = true;
+    } else if (!token) {
+      // No explicit token — check if we can auto-detect OIDC
+      if (oidcEnv) {
+        if (this.npmVersion) {
+          if (
+            versionGreaterOrEqualThan(this.npmVersion, NPM_OIDC_MIN_VERSION)
+          ) {
+            this.logger.info(
+              'NPM_TOKEN not set but OIDC environment detected — using trusted publishing.',
+            );
+            useOidc = true;
+          } else {
+            // OIDC detected but npm too old — fall through to token error below
+            const { major, minor, patch } = this.npmVersion;
+            const {
+              major: minMaj,
+              minor: minMin,
+              patch: minPat,
+            } = NPM_OIDC_MIN_VERSION;
+            this.logger.warn(
+              `OIDC environment detected but npm ${major}.${minor}.${patch} is too old for trusted publishing ` +
+                `(requires >= ${minMaj}.${minMin}.${minPat}). ` +
+                'Falling through to token-based auth.',
+            );
+          }
+        }
+        // yarn-only + OIDC env: also falls through to token error below
+      }
+
+      if (!useOidc) {
+        throw new Error('NPM target: NPM_TOKEN not found in the environment');
+      }
     }
 
-    const config = this.config as TypedTargetConfig<NpmTargetConfigFields>;
     const npmConfig: NpmTargetOptions = {
-      useYarn: !!process.env.USE_YARN || !hasExecutable(NPM_BIN),
-      token,
+      useYarn: !useOidc && (!!process.env.USE_YARN || !hasExecutable(NPM_BIN)),
+      token: token || undefined,
+      useOidc,
     };
+
     if (config.access) {
       if (Object.values(NpmPackageAccess).includes(config.access)) {
         npmConfig.access = config.access;
@@ -491,6 +611,23 @@ export class NpmTarget extends BaseTarget {
       args.push(`--tag=${options.tag}`);
     }
 
+    // The path has to be pushed always as the last arg
+    args.push(path);
+
+    if (this.npmConfig.useOidc) {
+      // OIDC trusted publishing: let npm handle authentication natively via
+      // the OIDC environment (ACTIONS_ID_TOKEN_REQUEST_URL on GitHub Actions,
+      // NPM_ID_TOKEN on GitLab CI). Do NOT inject a custom .npmrc or NPM_TOKEN —
+      // that would override npm's OIDC detection.
+      const spawnOptions: SpawnOptions = {};
+      spawnOptions.env = { ...process.env };
+      if (options.otp) {
+        spawnOptions.env.NPM_CONFIG_OTP = options.otp;
+      }
+      // Disable output buffering because npm can ask for one-time passwords
+      return spawnProcess(bin, args, spawnOptions, { showStdout: true });
+    }
+
     return withTempFile(filePath => {
       // Pass OTP if configured
       const spawnOptions: SpawnOptions = {};
@@ -505,9 +642,6 @@ export class NpmTarget extends BaseTarget {
         filePath,
         `//registry.npmjs.org/:_authToken=\${${NPM_TOKEN_ENV_VAR}}`,
       );
-
-      // The path has to be pushed always as the last arg
-      args.push(path);
 
       // Disable output buffering because NPM/Yarn can ask us for one-time passwords
       return spawnProcess(bin, args, spawnOptions, {
@@ -564,6 +698,10 @@ export class NpmTarget extends BaseTarget {
 
 /**
  * Get the latest version for the given package.
+ *
+ * When a token is available, uses token-based auth via a temporary .npmrc.
+ * When no token is available (OIDC mode without NPM_TOKEN), runs without auth —
+ * this works for public packages but will fail silently for private ones.
  */
 export async function getLatestVersion(
   packageName: string,
@@ -574,23 +712,36 @@ export async function getLatestVersion(
   const bin = NPM_BIN;
 
   try {
-    const response = await withTempFile(filePath => {
-      // Pass OTP if configured
+    let response: Buffer | string | undefined;
+
+    if (npmConfig.token) {
+      // Token available: authenticate via temporary .npmrc
+      response = await withTempFile(filePath => {
+        const spawnOptions: SpawnOptions = {};
+        spawnOptions.env = { ...process.env };
+        if (otp) {
+          spawnOptions.env.NPM_CONFIG_OTP = otp;
+        }
+        spawnOptions.env[NPM_TOKEN_ENV_VAR] = npmConfig.token;
+        // NOTE(byk): Use npm_config_userconfig instead of --userconfig for yarn compat
+        spawnOptions.env.npm_config_userconfig = filePath;
+        writeFileSync(
+          filePath,
+          `//registry.npmjs.org/:_authToken=\${${NPM_TOKEN_ENV_VAR}}`,
+        );
+
+        return spawnProcess(bin, args, spawnOptions);
+      });
+    } else {
+      // No token (OIDC mode without NPM_TOKEN): run without auth.
+      // Works for public packages; private packages will fail and return undefined.
       const spawnOptions: SpawnOptions = {};
       spawnOptions.env = { ...process.env };
       if (otp) {
         spawnOptions.env.NPM_CONFIG_OTP = otp;
       }
-      spawnOptions.env[NPM_TOKEN_ENV_VAR] = npmConfig.token;
-      // NOTE(byk): Use npm_config_userconfig instead of --userconfig for yarn compat
-      spawnOptions.env.npm_config_userconfig = filePath;
-      writeFileSync(
-        filePath,
-        `//registry.npmjs.org/:_authToken=\${${NPM_TOKEN_ENV_VAR}}`,
-      );
-
-      return spawnProcess(bin, args, spawnOptions);
-    });
+      response = await spawnProcess(bin, args, spawnOptions);
+    }
 
     if (!response) {
       return undefined;

@@ -10,12 +10,12 @@ This file provides guidance for AI coding assistants working with the Craft code
 
 ## Development Commands
 
-| Command | Description |
-|---------|-------------|
+| Command      | Description                                 |
+| ------------ | ------------------------------------------- |
 | `pnpm build` | Build the project (outputs to `dist/craft`) |
-| `pnpm test` | Run tests |
-| `pnpm lint` | Run ESLint |
-| `pnpm fix` | Auto-fix lint issues |
+| `pnpm test`  | Run tests                                   |
+| `pnpm lint`  | Run ESLint                                  |
+| `pnpm fix`   | Auto-fix lint issues                        |
 
 To manually test changes:
 
@@ -111,3 +111,50 @@ Some operations need explicit `isDryRun()` checks:
 - Commands with their own `--dry-run` flag (e.g., `dart pub publish --dry-run` in pubDev target)
 - Operations that need to return mock data in dry-run mode
 - User experience optimizations (e.g., skipping sleep timers)
+
+<!-- This section is auto-maintained by lore (https://github.com/BYK/opencode-lore) -->
+
+## Long-term Knowledge
+
+### Architecture
+
+<!-- lore:019c9be1-33d8-7edb-8e74-95d7369f4abb -->
+
+- **Craft tsconfig.build.json is now self-contained — no @sentry/typescript base**: The \`@sentry/typescript\` package was removed as a dev dependency. It only provided a base \`tsconfig.json\` with strict TS settings, but dragged in deprecated \`tslint\` and vulnerable \`minimatch@3.1.2\`. All useful compiler options from its tsconfig are now inlined directly in \`tsconfig.build.json\`. Key settings carried forward: \`declaration\`, \`declarationMap\`, \`downlevelIteration\`, \`inlineSources\`, \`noFallthroughCasesInSwitch\`, \`noImplicitAny\`, \`noImplicitReturns\`, \`noUnusedLocals\`, \`noUnusedParameters\`, \`pretty\`, \`sourceMap\`, \`strict\`. The chain is: \`tsconfig.json\` extends \`tsconfig.build.json\` (no further extends).
+
+### Gotcha
+
+<!-- lore:019c9eb7-a648-70f7-8a8d-5fc5b5c0f221 -->
+
+- **git stash pop after merge can cause second conflict on same file**: When you stash local changes, merge, then \`git stash pop\`, the stash apply can create a NEW conflict on the same file that was just conflict-resolved in the merge. This happens because the stash was based on the pre-merge state and conflicts with the post-merge-resolution content. The resolution requires a second manual conflict resolution pass. To avoid: if stashed changes are lore/auto-generated content, consider just dropping the stash and re-running the generation tool after merge instead of popping.
+<!-- lore:019c9eb7-a640-776a-929d-89120f81733a -->
+- **pnpm-lock.yaml merge conflicts: regenerate don't manually merge**: When \`pnpm-lock.yaml\` has merge conflicts, never try to manually resolve the conflict markers. Instead: (1) \`git checkout --theirs pnpm-lock.yaml\` (or \`--ours\` depending on which package.json changes you want as base), (2) run \`pnpm install\` to regenerate the lockfile incorporating both sides' \`package.json\` changes (including overrides). This produces a clean lockfile that reflects the merged dependency state. Manual conflict resolution in lockfiles is error-prone and unnecessary since pnpm can regenerate it deterministically.
+<!-- lore:019c9e9c-fa8f-7ab2-b26e-d47e50cb04bb -->
+- **marked-terminal unconditionally imports cli-highlight and node-emoji — no tree-shaking possible**: marked-terminal has static top-level imports of \`cli-highlight\` (which pulls in highlight.js, ~570KB minified output) and \`node-emoji\` (which pulls in emojilib, ~208KB minified output) at lines 5-6 of its index.js. These are unconditional — there's no config option to disable them, and the \`emoji: false\` option only skips the emoji replacement function but doesn't prevent the import. esbuild cannot tree-shake static imports. This means any bundle including marked-terminal will grow by ~970KB (highlight.js + emojilib + parse5). To avoid this in a CLI bundle, you'd need to either: (1) write a custom marked renderer using only chalk, (2) fork marked-terminal with dynamic imports, or (3) use esbuild's \`external\` option (but then those packages must be available at runtime).
+<!-- lore:019c9be1-33db-7bba-bb0a-297d5de6edb7 -->
+- **prepare-dry-run e2e tests require EDITOR env var for git commit**: The 6 tests in \`src/\_\_tests\_\_/prepare-dry-run.e2e.test.ts\` fail in environments where \`EDITOR\` is unset and the terminal is non-interactive (e.g., headless CI agents, worktrees). The error is \`Terminal is dumb, but EDITOR unset\` from git refusing to commit without a message editor. These are environment-dependent failures, not code bugs. They pass in environments with \`EDITOR=vi\` or similar set.
+<!-- lore:019c9be1-33d1-7b6e-b107-ae7ad42a4ea4 -->
+- **pnpm overrides with >= can cross major versions — use ^ to constrain**: When using pnpm overrides to patch a transitive dependency vulnerability, \`"ajv@<6.14.0": ">=6.14.0"\` will resolve to the latest ajv (v8.x), not the latest 6.x. ajv v6 and v8 have incompatible APIs — this broke eslint (\`@eslint/eslintrc\` calls \`ajv\` v6 API, crashes with \`Cannot set properties of undefined (setting 'defaultMeta')\` on v8). Fix: use \`"ajv@<6.14.0": "^6.14.0"\` to constrain within the same major. This applies to any override where the target package has multiple major versions in the registry — always use \`^\` (or \`~\`) instead of \`>=\` to stay within the compatible major line.
+<!-- lore:019c9be1-33ca-714e-8ad9-dfda5350a106 -->
+- **pnpm overrides with version-range keys don't force upgrades of already-compatible resolutions**: pnpm overrides with version-range selectors like \`"minimatch@>=10.0.0 <10.2.1": ">=10.2.1"\` do NOT work as expected for forcing upgrades of transitive deps that already satisfy their parent's semver range. If a parent requests \`^10.1.1\` and pnpm resolves \`10.1.1\`, the override key \`>=10.0.0 <10.2.1\` should match but doesn't reliably force re-resolution — even with \`pnpm install --force\`. The workaround is a blanket override without a version selector: \`"minimatch": ">=10.2.1"\`. This is only safe when ALL consumers are on the same major version line (otherwise it's a breaking change). Verify first with \`pnpm why \<pkg>\` that no other major versions exist in the tree before using a blanket override.
+<!-- lore:019c9ba5-5158-77df-b32d-08980d0753c4 -->
+- **git notes are lost on commit amend — must re-attach to new SHA**: Git notes are attached to a specific commit SHA. When you \`git commit --amend\`, the old commit is replaced with a new one (different SHA), and the note attached to the old SHA becomes orphaned. After amending, you must re-add the note to the new commit with \`git notes add\` targeting the new SHA. This also affects \`git push --force\` of notes refs — the remote note ref still points to the old SHA.
+
+### Pattern
+
+<!-- lore:019c9eb7-a633-78aa-aaeb-8ddca3719975 -->
+
+- **Craft publish_repo 'self' sentinel resolves to GITHUB_REPOSITORY at runtime**: The Craft composite action's \`publish_repo\` input supports a special sentinel value \`"self"\` which resolves to \`$GITHUB_REPOSITORY\` at runtime in the bash script of the 'Request publish' step. This allows repos to create publish request issues in themselves rather than in a separate \`{owner}/publish\` repo. The resolution happens in bash (not in the GitHub Actions expression) because the expression layer sets \`PUBLISH_REPO\` via \`inputs.publish_repo || format('{0}/publish', github.repository_owner)\` — the string \`"self"\` passes through as-is and gets resolved to the actual repo name in the shell. Useful for personal/small repos where the default GITHUB_TOKEN already has write access to the repo itself.
+<!-- lore:019c9e9c-fa91-758c-8be9-f8ddb4e46eb5 -->
+- **esbuild metafile output bytes vs input bytes — use output for real size impact**: When analyzing bundle size with esbuild's metafile, \`result.metafile.inputs\` shows raw source file sizes BEFORE minification and tree-shaking — these are misleading for size impact analysis. A 3.3MB input file may contribute 0 bytes to output if tree-shaken. Use \`result.metafile.outputs\[outfile].inputs\` to see actual per-file output contribution after minification. To dump metafile: add \`import { writeFileSync } from 'node:fs'; writeFileSync('/tmp/meta.json', JSON.stringify(result.metafile));\` after the build call, then analyze with \`jq\`. The bundle script at script/bundle.ts generates metafile but doesn't write it to disk by default.
+<!-- lore:019c9bb9-a79b-71e0-9f71-d94e77119b4b -->
+- **CLI UX: auto-correct common user mistakes with stderr warnings instead of hard errors**: When a CLI command can unambiguously detect a common user mistake (like using the wrong separator character), prefer auto-correcting the input and printing a warning to stderr over throwing a hard error. This is safe when: (1) the input is already invalid and would fail anyway, (2) there's no ambiguity in the correction, and (3) the warning goes to stderr so it doesn't interfere with JSON/stdout output. Implementation pattern: normalize inputs at the command level before passing to pure parsing functions, keeping the parsers side-effect-free. The \`gh\` CLI (GitHub CLI) is the UX model — match its conventions.
+
+### Preference
+
+<!-- lore:019c9aa1-f7a2-7c42-b067-a87eff21df63 -->
+
+- **General coding preference**: Prefer explicit error handling over silent failures
+<!-- lore:019c9aa1-f75c-7cf4-921e-cc1d5fdccbe7 -->
+- **Code style**: User prefers no backwards-compat shims, fix callers directly
+<!-- End lore-managed section -->

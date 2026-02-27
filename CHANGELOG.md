@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.23.0
+
+### New Features ✨
+
+- (npm) Support OIDC trusted publishing by @BYK in [#763](https://github.com/getsentry/craft/pull/763)
+
+## 2.22.0
+
+### New Features ✨
+
+- (actions) Support `publish_repo: self` for single-repo setups by @BYK in [#760](https://github.com/getsentry/craft/pull/760)
+- (changelog) Add test/tests/style to default internal changes categories by @BYK in [#759](https://github.com/getsentry/craft/pull/759)
+
+### Bug Fixes 🐛
+
+- (deps) Address Dependabot security vulnerabilities by @BYK in [#761](https://github.com/getsentry/craft/pull/761)
+
+## 2.21.7
+
+### Internal Changes 🔧
+
+#### Deps Dev
+
+- Bump fast-xml-parser from 5.3.4 to 5.3.6 by @dependabot in [#757](https://github.com/getsentry/craft/pull/757)
+- Bump tar from 7.5.7 to 7.5.8 by @dependabot in [#758](https://github.com/getsentry/craft/pull/758)
+
 ## 2.21.6
 
 ### Bug Fixes 🐛

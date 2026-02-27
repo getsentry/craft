@@ -50,7 +50,7 @@ craft publish 1.2.3
 Create a `.craft.yml` in your project root:
 
 ```yaml
-minVersion: "2.0.0"
+minVersion: '2.0.0'
 changelog:
   policy: auto
 targets:
@@ -63,24 +63,24 @@ See the [configuration reference](https://getsentry.github.io/craft/configuratio
 
 ## Supported Targets
 
-| Target | Description |
-|--------|-------------|
-| `github` | GitHub releases and tags |
-| `npm` | NPM registry (with workspace support) |
-| `pypi` | Python Package Index |
-| `crates` | Rust crates.io |
-| `nuget` | .NET NuGet |
-| `docker` | Docker registries |
-| `brew` | Homebrew formulas |
-| `gcs` | Google Cloud Storage |
-| `gh-pages` | GitHub Pages |
-| `cocoapods` | CocoaPods |
-| `gem` | RubyGems |
-| `maven` | Maven Central |
-| `hex` | Elixir Hex |
-| `pub-dev` | Dart/Flutter pub.dev |
-| `aws-lambda-layer` | AWS Lambda layers |
-| `powershell` | PowerShell Gallery |
+| Target             | Description                           |
+| ------------------ | ------------------------------------- |
+| `github`           | GitHub releases and tags              |
+| `npm`              | NPM registry (with workspace support) |
+| `pypi`             | Python Package Index                  |
+| `crates`           | Rust crates.io                        |
+| `nuget`            | .NET NuGet                            |
+| `docker`           | Docker registries                     |
+| `brew`             | Homebrew formulas                     |
+| `gcs`              | Google Cloud Storage                  |
+| `gh-pages`         | GitHub Pages                          |
+| `cocoapods`        | CocoaPods                             |
+| `gem`              | RubyGems                              |
+| `maven`            | Maven Central                         |
+| `hex`              | Elixir Hex                            |
+| `pub-dev`          | Dart/Flutter pub.dev                  |
+| `aws-lambda-layer` | AWS Lambda layers                     |
+| `powershell`       | PowerShell Gallery                    |
 
 See the [targets documentation](https://getsentry.github.io/craft/targets/) for configuration details.
 
@@ -117,22 +117,22 @@ jobs:
 
 **Inputs:**
 
-| Input | Description | Default |
-|-------|-------------|---------|
-| `version` | Version to release (semver, "auto", "major", "minor", "patch") | Uses `versioning.policy` from config |
-| `merge_target` | Target branch to merge into | Default branch |
-| `force` | Force release even with blockers | `false` |
-| `blocker_label` | Label that blocks releases | `release-blocker` |
-| `publish_repo` | Repository for publish issues | `{owner}/publish` |
+| Input           | Description                                                                                   | Default                              |
+| --------------- | --------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `version`       | Version to release (semver, "auto", "major", "minor", "patch")                                | Uses `versioning.policy` from config |
+| `merge_target`  | Target branch to merge into                                                                   | Default branch                       |
+| `force`         | Force release even with blockers                                                              | `false`                              |
+| `blocker_label` | Label that blocks releases                                                                    | `release-blocker`                    |
+| `publish_repo`  | Repository for publish issues. Use `"self"` to create issues in the source repository itself. | `{owner}/publish`                    |
 
 **Outputs:**
 
-| Output | Description |
-|--------|-------------|
-| `version` | The resolved version being released |
-| `branch` | The release branch name |
-| `sha` | The commit SHA on the release branch |
-| `changelog` | The changelog for this release |
+| Output      | Description                          |
+| ----------- | ------------------------------------ |
+| `version`   | The resolved version being released  |
+| `branch`    | The release branch name              |
+| `sha`       | The commit SHA on the release branch |
+| `changelog` | The changelog for this release       |
 
 ### Changelog Preview (Reusable Workflow)
 
@@ -151,6 +151,7 @@ jobs:
 ```
 
 The workflow will:
+
 - Generate the upcoming changelog including the PR's changes
 - Highlight entries from the PR using blockquote style (left border)
 - Post a comment on the PR with the preview

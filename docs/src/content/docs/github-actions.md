@@ -45,7 +45,7 @@ jobs:
 | `merge_target`                   | Target branch to merge into.                                                                                                            | Default branch                       |
 | `force`                          | Force a release even when there are release-blockers.                                                                                   | `false`                              |
 | `blocker_label`                  | Label that blocks releases.                                                                                                             | `release-blocker`                    |
-| `publish_repo`                   | Repository for publish issues (owner/repo format).                                                                                      | `{owner}/publish`                    |
+| `publish_repo`                   | Repository for publish issues (owner/repo format). Use `"self"` to create issues in the source repository itself.                       | `{owner}/publish`                    |
 | `git_user_name`                  | Git committer name.                                                                                                                     | GitHub actor                         |
 | `git_user_email`                 | Git committer email.                                                                                                                    | Actor's noreply email                |
 | `path`                           | The path that Craft will run inside.                                                                                                    | `.`                                  |
