@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.22.0
+
+### New Features ✨
+
+- (actions) Support `publish_repo: self` for single-repo setups by @BYK in [#760](https://github.com/getsentry/craft/pull/760)
+- (changelog) Add test/tests/style to default internal changes categories by @BYK in [#759](https://github.com/getsentry/craft/pull/759)
+
+### Bug Fixes 🐛
+
+- (deps) Address Dependabot security vulnerabilities by @BYK in [#761](https://github.com/getsentry/craft/pull/761)
+
 ## 2.21.7
 
 ### Internal Changes 🔧
