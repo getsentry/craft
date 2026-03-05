@@ -1,0 +1,28 @@
+## Implementation Plan
+
+### Problem
+4 open Dependabot alerts on transitive dependencies:
+- #116 (High): rollup 4.54.0 in root — CVE-2026-27606 arbitrary file write via path traversal
+- #115 (High): rollup 4.54.0 in docs — same CVE
+- #118 (High): svgo 4.0.0 in docs — CVE-2026-29074 Billion Laughs DoS via DOCTYPE entity expansion
+- #119 (Low): @tootallnate/once 2.0.0 in root — CVE-2026-3449 promise hang after AbortSignal abort
+
+### Approach
+All 4 are transitive dependencies that cannot be directly bumped. Used pnpm overrides
+(consistent with existing pattern for fast-xml-parser, minimatch, ajv, h3, devalue).
+
+### Dependency Chains
+- rollup (root): vitest → vite → rollup
+- rollup (docs): astro → vite → rollup
+- svgo (docs): astro → svgo
+- @tootallnate/once (root): @google-cloud/storage → teeny-request → http-proxy-agent@5 → @tootallnate/once
+
+### Risk Assessment
+- rollup >=4.59.0: Low risk — patch within same minor, vite 6/7 both support rollup 4.x
+- svgo >=4.0.1: Very low risk — patch release
+- @tootallnate/once >=3.0.1: Low-Medium — major version jump (2→3), but dev-only dep in deprecated chain (http-proxy-agent@5). Even teeny-request@10 still pins http-proxy-agent@^5, so no upstream fix available.
+
+### Verification
+- Build: passes
+- Tests: 898/898 pass (6 e2e failures are pre-existing EDITOR env issue)
+- pnpm why: all 4 packages resolved to patched versions
