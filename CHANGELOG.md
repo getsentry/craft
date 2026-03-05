@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.23.2
+
+### Bug Fixes 🐛
+
+- Resolve 4 open Dependabot security alerts via pnpm overrides by @BYK in [#767](https://github.com/getsentry/craft/pull/767)
+
+### Documentation 📚
+
+- Clarify urlTemplate usage and repo_url derivation for registry target by @BYK in [#766](https://github.com/getsentry/craft/pull/766)
+
 ## 2.23.1
 
 ### Bug Fixes 🐛
