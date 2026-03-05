@@ -7,8 +7,8 @@ settings:
 overrides:
   h3: ^1.15.5
   devalue: ^5.6.3
-  rollup: '>=4.59.0'
-  svgo: '>=4.0.1'
+  rollup: ^4.59.0
+  svgo: ^4.0.1
 
 importers:
 
@@ -545,7 +545,7 @@ packages:
     resolution: {integrity: sha512-5EdhGZtnu3V88ces7s53hhfK5KSASnJZv8Lulpc04cWO3REESroJXg73DFsOmgbU2BhwV0E20bu2IDZb3VKW4Q==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
-      rollup: '>=4.59.0'
+      rollup: ^4.59.0
     peerDependenciesMeta:
       rollup:
         optional: true
