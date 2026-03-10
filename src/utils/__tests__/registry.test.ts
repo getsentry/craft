@@ -203,7 +203,6 @@ describe('getPackageManifest', () => {
 
     describe('sdkName symlink creation', () => {
       it('creates a sdks/ symlink when sdkName is provided', async () => {
-        fs.mkdirSync(path.join(tempDir, 'sdks'), { recursive: true });
         const initialData: InitialManifestData = {
           canonical: 'npm:@sentry/hono',
           repoUrl: 'https://github.com/getsentry/sentry-javascript',

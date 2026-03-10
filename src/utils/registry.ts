@@ -113,6 +113,7 @@ export async function getPackageManifest(
     // Create the sdks/ symlink when an sdkName is provided
     if (initialManifestData.sdkName) {
       const sdkSymlinkPath = path.join(baseDir, 'sdks', initialManifestData.sdkName);
+      mkdirSync(path.dirname(sdkSymlinkPath), { recursive: true });
       if (!existsSync(sdkSymlinkPath)) {
         const relativeTarget = path.join('..', packageDirPath);
         logger.info(
