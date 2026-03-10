@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.24.0
+
+### New Features ✨
+
+- Add `sdkName` option and symlink creation for SDK packages in registry by @s1gr1d in [#769](https://github.com/getsentry/craft/pull/769)
+
+### Internal Changes 🔧
+
+- (deps-dev) Bump tar from 7.5.8 to 7.5.10 by @dependabot in [#768](https://github.com/getsentry/craft/pull/768)
+
 ## 2.23.2
 
 ### Bug Fixes 🐛
