@@ -1,4 +1,4 @@
-import { promises as fsPromises, existsSync, mkdirSync } from 'fs';
+import { promises as fsPromises, existsSync, mkdirSync, symlinkSync } from 'fs';
 import * as path from 'path';
 
 import { logger } from '../logger';
@@ -29,6 +29,8 @@ export interface InitialManifestData {
   mainDocsUrl?: string;
   /** Link to API documentation */
   apiDocsUrl?: string;
+  /** SDK identifier used in the `sdk_info.name` field of the event (e.g. "sentry.javascript.react"). Used to create an entry in the registry's sdks/ directory. */
+  sdkName?: string;
 }
 
 /**
@@ -106,6 +108,18 @@ export async function getPackageManifest(
         `Creating new package directory for "${canonicalName}" at "${packageDirPath}"...`,
       );
       mkdirSync(fullPackageDir, { recursive: true });
+    }
+
+    // Create the sdks/ symlink when an sdkName is provided
+    if (initialManifestData.sdkName) {
+      const sdkSymlinkPath = path.join(baseDir, 'sdks', initialManifestData.sdkName);
+      if (!existsSync(sdkSymlinkPath)) {
+        const relativeTarget = path.join('..', packageDirPath);
+        logger.info(
+          `Creating sdks symlink "${initialManifestData.sdkName}" -> "${relativeTarget}"...`,
+        );
+        symlinkSync(relativeTarget, sdkSymlinkPath);
+      }
     }
 
     logger.info(

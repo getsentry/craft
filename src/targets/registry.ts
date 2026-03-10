@@ -67,6 +67,8 @@ export interface RegistryConfig {
   onlyIfPresent?: RegExp;
   /** Human-readable name for new packages */
   name?: string;
+  /** SDK identifier used in the `sdk_info.name` field of the event (e.g. "sentry.javascript.react"). Used to create an entry in the registry's sdks/ directory. */
+  sdkName?: string;
   /** Link to package registry (PyPI, npm, etc.) */
   packageUrl?: string;
   /** Link to main documentation */
@@ -459,6 +461,7 @@ export class RegistryTarget extends BaseTarget {
       canonical: registryConfig.canonicalName,
       repoUrl: `https://github.com/${owner}/${repo}`,
       name: registryConfig.name,
+      sdkName: registryConfig.sdkName,
       packageUrl: registryConfig.packageUrl,
       mainDocsUrl: registryConfig.mainDocsUrl,
       apiDocsUrl: registryConfig.apiDocsUrl,

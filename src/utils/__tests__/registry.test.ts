@@ -200,5 +200,115 @@ describe('getPackageManifest', () => {
         api_docs_url: 'https://docs.sentry.io/api/',
       });
     });
+
+    describe('sdkName symlink creation', () => {
+      it('creates a sdks/ symlink when sdkName is provided', async () => {
+        fs.mkdirSync(path.join(tempDir, 'sdks'), { recursive: true });
+        const initialData: InitialManifestData = {
+          canonical: 'npm:@sentry/hono',
+          repoUrl: 'https://github.com/getsentry/sentry-javascript',
+          name: 'Sentry Hono SDK',
+          sdkName: 'sentry.javascript.hono',
+        };
+
+        await getPackageManifest(
+          tempDir,
+          RegistryPackageType.SDK,
+          'npm:@sentry/hono',
+          '1.0.0',
+          initialData,
+        );
+
+        const symlinkPath = path.join(tempDir, 'sdks', 'sentry.javascript.hono');
+        expect(fs.existsSync(symlinkPath)).toBe(true);
+        expect(fs.lstatSync(symlinkPath).isSymbolicLink()).toBe(true);
+        expect(fs.readlinkSync(symlinkPath)).toBe(
+          path.join('..', 'packages', 'npm', '@sentry', 'hono'),
+        );
+      });
+
+      it('does not create a sdks/ symlink when sdkName is not provided', async () => {
+        fs.mkdirSync(path.join(tempDir, 'sdks'), { recursive: true });
+        const initialData: InitialManifestData = {
+          canonical: 'npm:@sentry/hono',
+          repoUrl: 'https://github.com/getsentry/sentry-javascript',
+        };
+
+        await getPackageManifest(
+          tempDir,
+          RegistryPackageType.SDK,
+          'npm:@sentry/hono',
+          '1.0.0',
+          initialData,
+        );
+
+        const sdksDir = path.join(tempDir, 'sdks');
+        expect(fs.readdirSync(sdksDir)).toHaveLength(0);
+      });
+
+      it('skips symlink creation when the symlink already exists', async () => {
+        fs.mkdirSync(path.join(tempDir, 'sdks'), { recursive: true });
+        const symlinkPath = path.join(tempDir, 'sdks', 'sentry.javascript.hono');
+        const existingTarget = path.join(
+          '..',
+          'packages',
+          'npm',
+          '@sentry',
+          'hono',
+        );
+        fs.symlinkSync(existingTarget, symlinkPath);
+
+        const initialData: InitialManifestData = {
+          canonical: 'npm:@sentry/hono',
+          repoUrl: 'https://github.com/getsentry/sentry-javascript',
+          sdkName: 'sentry.javascript.hono',
+        };
+
+        // Should not throw or overwrite the existing symlink
+        await expect(
+          getPackageManifest(
+            tempDir,
+            RegistryPackageType.SDK,
+            'npm:@sentry/hono',
+            '1.0.0',
+            initialData,
+          ),
+        ).resolves.not.toThrow();
+
+        expect(fs.readlinkSync(symlinkPath)).toBe(existingTarget);
+      });
+
+      it('does not create a sdks/ symlink for existing packages (only new ones)', async () => {
+        fs.mkdirSync(path.join(tempDir, 'sdks'), { recursive: true });
+
+        // Set up an existing package with latest.json
+        const packageDir = path.join(
+          tempDir,
+          'packages',
+          'npm',
+          '@sentry',
+          'browser',
+        );
+        fs.mkdirSync(packageDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(packageDir, 'latest.json'),
+          JSON.stringify({
+            canonical: 'npm:@sentry/browser',
+            version: '1.0.0',
+          }),
+        );
+
+        await getPackageManifest(
+          tempDir,
+          RegistryPackageType.SDK,
+          'npm:@sentry/browser',
+          '1.1.0',
+          // sdkName is only consulted when the package is new
+        );
+
+        const sdksDir = path.join(tempDir, 'sdks');
+        expect(fs.readdirSync(sdksDir)).toHaveLength(0);
+      });
+    });
   });
 });
