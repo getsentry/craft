@@ -19,12 +19,13 @@ Avoid having multiple `registry` targets—it supports batching multiple apps an
 ### App/SDK Options
 
 | Option            | Description                                                                                                                                                                                                                                         |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `urlTemplate`     | URL template for artifact download links in the manifest. Supports `{{version}}`, `{{file}}`, and `{{revision}}` variables. Primarily for apps and CDN-hosted assets—not needed for SDK packages installed from public registries (npm, PyPI, etc.) |
 | `linkPrereleases` | Update for preview releases. Default: `false`                                                                                                                                                                                                       |
 | `checksums`       | List of checksum configs                                                                                                                                                                                                                            |
 | `onlyIfPresent`   | Only run if matching file exists                                                                                                                                                                                                                    |
 | `name`            | Human-readable name (used when creating new packages)                                                                                                                                                                                               |
+| `sdkName`         | SDK identifier matching the SDK's `sdk_info.name` field in Sentry events (e.g., `sentry.javascript.react`). Will create the `sdks/` symlink. (used when creating new packages)                                                                      |
 | `packageUrl`      | Link to package registry page, e.g., npmjs.com (used when creating new packages)                                                                                                                                                                    |
 | `mainDocsUrl`     | Link to main documentation (used when creating new packages)                                                                                                                                                                                        |
 | `apiDocsUrl`      | Link to API documentation (used when creating new packages)                                                                                                                                                                                         |
@@ -59,7 +60,9 @@ targets:
 
 ## Creating New Packages
 
-When you introduce a new package that doesn't yet exist in the release registry, Craft will automatically create the required directory structure and initial manifest.
+When you introduce a new package that doesn't yet exist in the release registry, Craft will automatically create the required directory structure and initial manifest on the first publish.
+
+Supply `name`, `packageUrl`, `sdkName` and `mainDocsUrl` so the release registry entry is added to the registry for the first time (existing packages just need `onlyIfPresent` since the manifest already exists):
 
 ```yaml
 targets:
@@ -67,6 +70,7 @@ targets:
     sdks:
       'npm:@sentry/wasm':
         name: 'Sentry WASM'
+        sdkName: 'sentry.javascript.wasm'
         packageUrl: 'https://www.npmjs.com/package/@sentry/wasm'
         mainDocsUrl: 'https://docs.sentry.io/platforms/javascript/'
 ```
@@ -90,4 +94,4 @@ The value is always overwritten on every publish, so it stays in sync with the a
 
 ### Other metadata
 
-When specified, the metadata fields (`name`, `packageUrl`, `mainDocsUrl`, `apiDocsUrl`) are applied to every release, allowing you to update package metadata by changing your `.craft.yml` configuration.
+When specified, the metadata fields (`name`, `sdkName`, `packageUrl`, `mainDocsUrl`, `apiDocsUrl`) are applied to every release, allowing you to update package metadata by changing your `.craft.yml` configuration.
