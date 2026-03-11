@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.24.1
+
+### Bug Fixes 🐛
+
+- Fix fenced code blocks being silently dropped from custom changelog entries in PR descriptions by @BYK in [#771](https://github.com/getsentry/craft/pull/771)
+- Update simple-git and tar to address security vulnerabilities by @BYK in [#772](https://github.com/getsentry/craft/pull/772)
+
 ## 2.24.0
 
 ### New Features ✨
