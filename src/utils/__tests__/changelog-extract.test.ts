@@ -197,3 +197,108 @@ Intro paragraph:
     });
   });
 });
+
+describe('extractChangelogEntry code blocks', () => {
+  it('preserves fenced code block inside a bullet item', () => {
+    const prBody = `### Changelog Entry
+
+- Added a new \`foo\` function:
+  \`\`\`go
+  func foo() {
+    fmt.Println("Hello")
+  }
+  \`\`\`
+- Another entry`;
+
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(2);
+    expect(result![0].text).toBe('Added a new `foo` function:');
+    expect(result![0].nestedContent).toContain('```go');
+    expect(result![0].nestedContent).toContain('func foo()');
+    expect(result![1].text).toBe('Another entry');
+    expect(result![1].nestedContent).toBeUndefined();
+  });
+
+  it('preserves code block without language specifier', () => {
+    const prBody = `### Changelog Entry
+
+- Example code:
+  \`\`\`
+  some code here
+  \`\`\``;
+
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('Example code:');
+    expect(result![0].nestedContent).toContain('```');
+    expect(result![0].nestedContent).toContain('some code here');
+    // Should not have a language tag after the opening fence
+    expect(result![0].nestedContent).not.toMatch(/```\S/);
+  });
+
+  it('preserves standalone code block after paragraph', () => {
+    const prBody = `### Changelog Entry
+
+Here is a change with code:
+
+\`\`\`go
+func foo() {}
+\`\`\``;
+
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('Here is a change with code:');
+    expect(result![0].nestedContent).toContain('```go');
+    expect(result![0].nestedContent).toContain('func foo() {}');
+    // Verify 2-space indentation for proper nesting under list items
+    expect(result![0].nestedContent).toBe('  ```go\n  func foo() {}\n  ```');
+  });
+
+  it('preserves code block in loose list item', () => {
+    const prBody = `### Changelog Entry
+
+- First entry with code:
+
+  \`\`\`go
+  func foo() {}
+  \`\`\`
+
+- Second entry`;
+
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(2);
+    expect(result![0].text).toBe('First entry with code:');
+    expect(result![0].nestedContent).toContain('```go');
+    expect(result![0].nestedContent).toContain('func foo() {}');
+    expect(result![1].text).toBe('Second entry');
+  });
+
+  it('preserves nested list items alongside code blocks', () => {
+    const prBody = `### Changelog Entry
+
+- Main entry
+  - Sub item
+  \`\`\`js
+  const x = 1;
+  \`\`\``;
+
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('Main entry');
+    expect(result![0].nestedContent).toContain('- Sub item');
+    expect(result![0].nestedContent).toContain('```js');
+    expect(result![0].nestedContent).toContain('const x = 1;');
+  });
+
+  it('skips orphaned code block with no preceding entry', () => {
+    const prBody = `### Changelog Entry
+
+\`\`\`go
+func foo() {}
+\`\`\``;
+
+    const result = extractChangelogEntry(prBody);
+    // A bare code block without descriptive text is not a meaningful entry
+    expect(result).toBeNull();
+  });
+});

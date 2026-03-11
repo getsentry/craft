@@ -313,6 +313,23 @@ export function extractChangelogEntry(
 }
 
 /**
+ * Renders a fenced code block token as indented markdown lines.
+ * Each line (opening fence, content lines, closing fence) is prefixed with `indent`.
+ */
+function renderIndentedCodeBlock(
+  codeToken: Tokens.Code,
+  indent = '  ',
+): string[] {
+  const fence = codeToken.lang ? `\`\`\`${codeToken.lang}` : '```';
+  const lines = [`${indent}${fence}`];
+  for (const line of codeToken.text.split('\n')) {
+    lines.push(`${indent}${line}`);
+  }
+  lines.push(`${indent}\`\`\``);
+  return lines;
+}
+
+/**
  * Recursively extracts nested content from a list item's tokens.
  */
 function extractNestedContent(tokens: Token[]): string {
@@ -337,6 +354,9 @@ function extractNestedContent(tokens: Token[]): string {
           nestedLines.push(indentedDeeper);
         }
       }
+    } else if (token.type === 'code') {
+      // Preserve fenced code blocks (e.g., ```go ... ```) as nested content
+      nestedLines.push(...renderIndentedCodeBlock(token as Tokens.Code));
     }
   }
 
@@ -390,6 +410,24 @@ function parseTokensToEntries(tokens: Token[]): ChangelogEntryItem[] | null {
       if (text) {
         entries.push({ text });
       }
+    } else if (token.type === 'code') {
+      // Standalone code blocks become nested content on the previous entry,
+      // or a new entry if there is no previous entry.
+      // Indent with 2 spaces so the block nests properly under the list item
+      // in the final markdown (consistent with extractNestedContent).
+      const codeBlock = renderIndentedCodeBlock(token as Tokens.Code).join(
+        '\n',
+      );
+
+      if (entries.length > 0) {
+        // Attach to previous entry as nested content
+        const prev = entries[entries.length - 1];
+        prev.nestedContent = prev.nestedContent
+          ? `${prev.nestedContent}\n${codeBlock}`
+          : codeBlock;
+      }
+      // If no previous entry exists, skip the orphaned code block — a bare
+      // code block without descriptive text isn't a meaningful changelog entry.
     }
   }
 
