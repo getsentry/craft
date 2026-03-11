@@ -1,0 +1,86 @@
+# Fix GitHub Security Reports
+
+## Summary of Open Alerts
+
+| #       | Package             | Severity                | Current | Patched  | Relationship | Action      |
+| ------- | ------------------- | ----------------------- | ------- | -------- | ------------ | ----------- |
+| **122** | `simple-git`        | **CRITICAL** (CVSS 9.8) | 3.30.0  | ≥ 3.32.3 | direct       | **Update**  |
+| **119** | `@tootallnate/once` | **LOW** (CVSS 3.3)      | 2.0.0   | ≥ 3.0.1  | transitive   | **Dismiss** |
+
+> Alerts #120, #121 (`tar`), #118 (`svgo`), #115–116 (`rollup`), #113–114 (`minimatch`) are already in **fixed** state.
+
+---
+
+## Step 1: Update `simple-git` (Alert #122 — CRITICAL)
+
+**CVE-2026-28292**: RCE via case-insensitive `protocol.allow` bypass in `blockUnsafeOperationsPlugin`.
+
+**Fix**: Update from 3.30.0 → 3.33.0 (latest). The version constraint `^3.6.0` in `package.json` already allows this — only the lockfile needs updating.
+
+```bash
+pnpm update simple-git
+```
+
+**No code changes needed.** Analysis confirms:
+
+- Only 2 files create `simpleGit()` instances: `src/utils/git.ts` and `src/utils/dryRun.ts` (wrapper modules)
+- All other files import only types
+- Changelog 3.30→3.33 is security hardening + minor features; no API breaking changes
+- Tests mock `simple-git` at module level — mock patterns remain valid
+
+**Files affected**: `pnpm-lock.yaml` only
+
+---
+
+## Step 2: Update `tar` to latest patch (housekeeping)
+
+Though alerts #120/#121 show as "fixed", the installed version is still 7.5.8 (behind 7.5.11). Update to pick up all security patches:
+
+```bash
+pnpm update tar
+```
+
+**No code changes needed.** Only `tar.extract()` is used in `src/utils/system.ts` — API unchanged across patch versions.
+
+**Files affected**: `pnpm-lock.yaml` only
+
+---
+
+## Step 3: Dismiss `@tootallnate/once` alert (Alert #119 — LOW)
+
+**CVE-2026-3449**: Promise hangs when AbortSignal is used with `@tootallnate/once`. Low severity (CVSS 3.3).
+
+**Why we can't fix it**:
+
+- Dependency chain: `@google-cloud/storage` → `teeny-request@9` → `http-proxy-agent@5` → `@tootallnate/once@2`
+- The fix requires `@tootallnate/once@3.0.1` (major version bump)
+- `http-proxy-agent@5` pins to `"@tootallnate/once": "2"` — overriding to v3 would break the API contract
+- `http-proxy-agent@7` dropped `@tootallnate/once` entirely, but `teeny-request` (all versions including 10.1.0) pins to `http-proxy-agent@^5`
+- This is blocked upstream in `teeny-request`
+
+**Why dismissal is safe**:
+
+1. `@google-cloud/storage` is a **devDependency** (used for GCS artifact upload)
+2. Craft doesn't use AbortSignal with proxy agent operations
+3. The vulnerability requires specific AbortSignal usage patterns that don't apply here
+4. Low severity (local, low availability impact only)
+
+**Action**: Dismiss via GitHub API with reason "not_applicable":
+
+```bash
+gh api -X PATCH \
+  -H "Accept: application/vnd.github+json" \
+  /repos/{owner}/{repo}/dependabot/alerts/119 \
+  -f state=dismissed \
+  -f dismissed_reason="tolerable_risk" \
+  -f dismissed_comment="Transitive dep via @google-cloud/storage (devDependency). Blocked upstream: teeny-request pins http-proxy-agent@^5 which requires @tootallnate/once@2. The vulnerability requires AbortSignal usage patterns not present in Craft. Low severity (CVSS 3.3)."
+```
+
+---
+
+## Verification
+
+1. **Run tests**: `pnpm test` — ensure all tests pass with updated dependencies
+2. **Build**: `pnpm build` — ensure bundled executable builds correctly
+3. **Lint**: `pnpm lint` — ensure no lint issues
+4. **Re-check alerts**: `gh api /repos/{owner}/{repo}/dependabot/alerts --jq '.[] | select(.state=="open") | {number, package: .dependency.package.name}'` — should return empty
