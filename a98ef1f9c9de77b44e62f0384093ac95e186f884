@@ -1,0 +1,94 @@
+# Fix: Code blocks silently dropped from custom PR changelog entries
+
+## Problem
+
+When users add fenced code blocks (` ```go ... ``` `) to their custom `### Changelog Entry` PR descriptions, the code blocks are **silently dropped** from the generated changelog.
+
+### Root Cause
+
+Two functions in `src/utils/changelog.ts` only handle a subset of markdown token types:
+
+1. **`extractNestedContent()` (line 318)** — iterates list item child tokens but only handles `token.type === 'list'` (sub-lists). When `marked.lexer` produces a `token.type === 'code'` token inside a list item, it is silently skipped.
+
+2. **`parseTokensToEntries()` (line 364)** — processes top-level content tokens between the `### Changelog Entry` heading and the next heading. Only handles `'list'` and `'paragraph'` tokens. Standalone `'code'` tokens (e.g., a code block after a paragraph) are silently dropped.
+
+### How marked.lexer tokenizes the user's example
+
+```
+list_item ("Add support for capturing metrics...")
+  ├── text ("Add support for capturing metrics...")   ← consumed by getListItemText()
+  └── list (sub-list)
+       └── list_item ("Example usage:")
+            ├── text ("Example usage:")                ← consumed by getListItemText()
+            └── code {lang: "go", text: "..."}        ← SILENTLY DROPPED by extractNestedContent()
+```
+
+## Fix
+
+### File: `src/utils/changelog.ts`
+
+#### 1. `extractNestedContent()` — Add `else if (token.type === 'code')` branch (after line 339)
+
+````typescript
+} else if (token.type === 'code') {
+  // Preserve fenced code blocks (e.g., ```go ... ```) as nested content
+  const codeToken = token as Tokens.Code;
+  const fence = codeToken.lang ? `\`\`\`${codeToken.lang}` : '```';
+  nestedLines.push(`  ${fence}`);
+  for (const line of codeToken.text.split('\n')) {
+    nestedLines.push(`  ${line}`);
+  }
+  nestedLines.push('  ```');
+}
+````
+
+This renders the code block with 2-space indentation (matching the sub-bullet indent level). When called recursively, the caller adds additional 2-space indentation per nesting level.
+
+#### 2. `parseTokensToEntries()` — Add `else if (token.type === 'code')` branch (after line 393)
+
+````typescript
+} else if (token.type === 'code') {
+  // Standalone code blocks become nested content on the previous entry,
+  // or a new entry if there is no previous entry
+  const codeToken = token as Tokens.Code;
+  const fence = codeToken.lang ? `\`\`\`${codeToken.lang}` : '```';
+  const codeBlock = [fence, codeToken.text, '```'].join('\n');
+
+  if (entries.length > 0) {
+    // Attach to previous entry as nested content
+    const prev = entries[entries.length - 1];
+    prev.nestedContent = prev.nestedContent
+      ? `${prev.nestedContent}\n${codeBlock}`
+      : codeBlock;
+  } else {
+    // No previous entry - create one with the code block as content
+    entries.push({ text: '', nestedContent: codeBlock });
+  }
+}
+````
+
+### File: `src/utils/__tests__/changelog-extract.test.ts`
+
+Add a new `describe('extractChangelogEntry code blocks', ...)` block with 5 test cases:
+
+1. **Fenced code block inside a bullet item** — the exact reported bug (` ```go ` inside a sub-bullet)
+2. **Code block without language specifier** — plain ` ``` ` fences
+3. **Standalone code block after paragraph** — code block at top level (not inside a list)
+4. **Code block in a loose list item** — blank line between list items (marked treats these differently)
+5. **Nested list items alongside code blocks** — sub-bullets mixed with code blocks
+
+## Verification
+
+1. Run `pnpm test` — all tests including new ones should pass
+2. Run `pnpm lint` — no lint errors
+3. Manually verify with the user's exact example by adding a test:
+   ````
+   ### Changelog Entry
+   - Add support for capturing metrics
+       - Example usage:
+         ```go
+         ctx := context.Background()
+         meter := sentry.NewMeter(ctx)
+         ```
+   ````
+   Expected: `result[0].nestedContent` contains `Example usage:`, ` ```go `, and the code lines
