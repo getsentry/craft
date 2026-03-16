@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.24.2
+
+### Bug Fixes 🐛
+
+- (deps) Address security advisories for flatted and devalue by @BYK in [#775](https://github.com/getsentry/craft/pull/775)
+- (prepare) Handle scoped tag prefixes in auto version resolution by @BYK in [#773](https://github.com/getsentry/craft/pull/773)
+
+### Internal Changes 🔧
+
+- Update CI actions from Node.js 20 SHA pins to latest by @BYK in [#774](https://github.com/getsentry/craft/pull/774)
+
 ## 2.24.1
 
 ### Bug Fixes 🐛
