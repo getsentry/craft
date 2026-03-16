@@ -1,134 +1,118 @@
-import { existsSync, promises as fsPromises } from 'fs';
-import { join, relative } from 'path';
+import { existsSync, promises as fsPromises } from "fs";
+import { join, relative } from "path";
 
-import { safeFs, createDryRunIsolation } from '../utils/dryRun';
-import * as shellQuote from 'shell-quote';
-import { SimpleGit, StatusResult } from 'simple-git';
-import { Arguments, Argv, CommandBuilder } from 'yargs';
+import * as shellQuote from "shell-quote";
+import type { SimpleGit, StatusResult } from "simple-git";
+import type { Arguments, Argv, CommandBuilder } from "yargs";
+import { createDryRunIsolation, safeFs } from "../utils/dryRun";
 
 import {
-  getConfiguration,
-  getConfigFileDir,
-  DEFAULT_RELEASE_BRANCH_NAME,
-  getGlobalGitHubConfig,
-  requiresMinVersion,
-  loadConfigurationFromString,
   CONFIG_FILE_NAME,
+  DEFAULT_RELEASE_BRANCH_NAME,
+  getConfigFileDir,
+  getConfiguration,
+  getGlobalGitHubConfig,
   getVersioningPolicy,
-} from '../config';
-import { logger } from '../logger';
+  loadConfigurationFromString,
+  requiresMinVersion,
+} from "../config";
+import { logger } from "../logger";
+import { ChangelogPolicy, type TargetConfig, VersioningPolicy } from "../schemas/project_config";
+import { sleep } from "../utils/async";
 import {
-  ChangelogPolicy,
-  TargetConfig,
-  VersioningPolicy,
-} from '../schemas/project_config';
-import { calculateCalVer, DEFAULT_CALVER_CONFIG } from '../utils/calver';
-import { sleep } from '../utils/async';
+  type BumpType,
+  calculateNextVersion,
+  getChangelogWithBumpType,
+  isBumpType,
+  validateBumpType,
+} from "../utils/autoVersion";
+import { DEFAULT_CALVER_CONFIG, calculateCalVer } from "../utils/calver";
 import {
   DEFAULT_CHANGELOG_PATH,
   DEFAULT_UNRELEASED_TITLE,
   findChangeset,
-  removeChangeset,
-  prependChangeset,
   generateChangesetFromGit,
-} from '../utils/changelog';
+  prependChangeset,
+  removeChangeset,
+} from "../utils/changelog";
+import { ConfigurationError, handleGlobalError, reportError } from "../utils/errors";
+import { getDefaultBranch, getGitClient, getLatestTag, isRepoDirty } from "../utils/git";
 import {
-  ConfigurationError,
-  handleGlobalError,
-  reportError,
-} from '../utils/errors';
-import {
-  getGitClient,
-  getDefaultBranch,
-  getLatestTag,
-  isRepoDirty,
-} from '../utils/git';
-import {
-  getChangelogWithBumpType,
-  calculateNextVersion,
-  validateBumpType,
-  isBumpType,
-  type BumpType,
-} from '../utils/autoVersion';
-import {
+  disableChangelogMentions,
   isDryRun,
   promptConfirmation,
-  disableChangelogMentions,
   setGitHubActionsOutput,
   truncateForOutput,
   writeGitHubActionsFile,
-} from '../utils/helpers';
-import { formatJson } from '../utils/strings';
-import { spawnProcess } from '../utils/system';
-import { isValidVersion } from '../utils/version';
-import { runAutomaticVersionBumps } from '../utils/versionBump';
-import { withTracing } from '../utils/tracing';
+} from "../utils/helpers";
+import { formatJson } from "../utils/strings";
+import { spawnProcess } from "../utils/system";
+import { withTracing } from "../utils/tracing";
+import { getVersion, isValidVersion } from "../utils/version";
+import { runAutomaticVersionBumps } from "../utils/versionBump";
 
-import { handler as publishMainHandler, PublishOptions } from './publish';
+import { type PublishOptions, handler as publishMainHandler } from "./publish";
 
-export const command = ['prepare [NEW-VERSION]'];
-export const aliases = ['p', 'prerelease', 'prepublish', 'prepare', 'release'];
-export const description = '🚢 Prepare a new release branch';
+export const command = ["prepare [NEW-VERSION]"];
+export const aliases = ["p", "prerelease", "prepublish", "prepare", "release"];
+export const description = "🚢 Prepare a new release branch";
 
 /** Default path to bump-version script, relative to project root */
-const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
+const DEFAULT_BUMP_VERSION_PATH = join("scripts", "bump-version.sh");
 
 /** Minimum craft version required for auto-versioning */
-const AUTO_VERSION_MIN_VERSION = '2.14.0';
+const AUTO_VERSION_MIN_VERSION = "2.14.0";
 
 /** Minimum craft version required for automatic version bumping from targets */
-const AUTO_BUMP_MIN_VERSION = '2.21.0';
+const AUTO_BUMP_MIN_VERSION = "2.21.0";
 
 export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
-    .positional('NEW-VERSION', {
+    .positional("NEW-VERSION", {
       description:
         'The new version to release. Can be: a semver string (e.g., "1.2.3"), ' +
         'a bump type ("major", "minor", or "patch"), "auto" to determine automatically ' +
         'from conventional commits, or "calver" for calendar versioning. ' +
-        'If omitted, uses the versioning.policy from .craft.yml',
-      type: 'string',
+        "If omitted, uses the versioning.policy from .craft.yml",
+      type: "string",
     })
-    .option('rev', {
-      alias: 'r',
-      description:
-        'Source revision (git SHA or tag) to prepare from (if not branch head)',
-      type: 'string',
+    .option("rev", {
+      alias: "r",
+      description: "Source revision (git SHA or tag) to prepare from (if not branch head)",
+      type: "string",
     })
-    .option('no-push', {
+    .option("no-push", {
       default: false,
-      description: 'Do not push the release branch',
-      type: 'boolean',
+      description: "Do not push the release branch",
+      type: "boolean",
     })
-    .option('no-git-checks', {
+    .option("no-git-checks", {
       default: false,
-      description: 'Ignore local git changes and unsynchronized remotes',
-      type: 'boolean',
+      description: "Ignore local git changes and unsynchronized remotes",
+      type: "boolean",
     })
-    .option('no-changelog', {
+    .option("no-changelog", {
       default: false,
-      description: 'Do not check for changelog entries',
-      type: 'boolean',
+      description: "Do not check for changelog entries",
+      type: "boolean",
     })
-    .option('publish', {
+    .option("publish", {
       default: false,
       description: 'Run "publish" right after "release"',
-      type: 'boolean',
+      type: "boolean",
     })
-    .option('remote', {
-      default: 'origin',
-      description: 'The git remote to use when pushing',
-      type: 'string',
+    .option("remote", {
+      default: "origin",
+      description: "The git remote to use when pushing",
+      type: "string",
     })
-    .option('config-from', {
-      description:
-        'Load .craft.yml from the specified remote branch instead of local file',
-      type: 'string',
+    .option("config-from", {
+      description: "Load .craft.yml from the specified remote branch instead of local file",
+      type: "string",
     })
-    .option('calver-offset', {
-      description:
-        'Days to go back for CalVer date calculation (overrides config)',
-      type: 'number',
+    .option("calver-offset", {
+      description: "Days to go back for CalVer date calculation (overrides config)",
+      type: "number",
     })
     .check(checkVersionOrPart);
 
@@ -180,12 +164,12 @@ export function checkVersionOrPart(argv: Arguments<any>, _opt: any): boolean {
   }
 
   // Allow 'auto' for automatic version detection
-  if (version === 'auto') {
+  if (version === "auto") {
     return true;
   }
 
   // Allow 'calver' for calendar versioning
-  if (version === 'calver') {
+  if (version === "calver") {
     return true;
   }
 
@@ -198,7 +182,7 @@ export function checkVersionOrPart(argv: Arguments<any>, _opt: any): boolean {
     return true;
   } else {
     let errMsg = `Invalid version or version part specified: "${version}"`;
-    if (version.startsWith('v')) {
+    if (version.startsWith("v")) {
       errMsg += '. Removing the "v" prefix will likely fix the issue';
     }
     throw Error(errMsg);
@@ -224,13 +208,12 @@ async function createReleaseBranch(
   const branchPrefix = releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
   const branchName = `${branchPrefix}/${newVersion}`;
 
-  const branchHead = await git.raw('show-ref', '--heads', branchName);
+  const branchHead = await git.raw("show-ref", "--heads", branchName);
 
   // in case `show-ref` can't find a branch it returns `null`
   if (branchHead) {
     let errorMsg = `Branch already exists: ${branchName}. `;
-    errorMsg +=
-      'Run the following commands to delete the branch, and then rerun "prepare":\n';
+    errorMsg += 'Run the following commands to delete the branch, and then rerun "prepare":\n';
     errorMsg += `    git branch -D ${branchName}; git push ${remoteName} --delete ${branchName}\n`;
     reportError(errorMsg, logger);
   }
@@ -257,11 +240,11 @@ async function pushReleaseBranch(
   if (pushFlag) {
     logger.info(`Pushing the release branch "${branchName}"...`);
     // TODO check remote somehow
-    await git.push(remoteName, branchName, ['--set-upstream']);
+    await git.push(remoteName, branchName, ["--set-upstream"]);
   } else {
-    logger.info('Not pushing the release branch.');
+    logger.info("Not pushing the release branch.");
     logger.info(
-      'You can push this branch later using the following command:',
+      "You can push this branch later using the following command:",
       `  $ git push -u ${remoteName} "${branchName}"`,
     );
   }
@@ -273,19 +256,16 @@ async function pushReleaseBranch(
  * @param git Local git client
  * @param newVersion The version we are releasing
  */
-async function commitNewVersion(
-  git: SimpleGit,
-  newVersion: string,
-): Promise<any> {
+async function commitNewVersion(git: SimpleGit, newVersion: string): Promise<any> {
   const message = `release: ${newVersion}`;
   const repoStatus = await git.status();
   if (!(repoStatus.created.length || repoStatus.modified.length)) {
-    reportError('Nothing to commit: has the pre-release command done its job?');
+    reportError("Nothing to commit: has the pre-release command done its job?");
   }
 
-  logger.debug('Committing the release changes...');
+  logger.debug("Committing the release changes...");
   logger.trace(`Commit message: "${message}"`);
-  await git.commit(message, ['--all']);
+  await git.commit(message, ["--all"]);
 }
 
 interface PreReleaseOptions {
@@ -301,44 +281,33 @@ interface PreReleaseOptions {
  *
  * Priority: custom command > automatic bumping (minVersion >= 2.21.0) > default script
  */
-export async function runPreReleaseCommand(
-  options: PreReleaseOptions,
-): Promise<boolean> {
-  const { oldVersion, newVersion, preReleaseCommand, targets, rootDir } =
-    options;
+export async function runPreReleaseCommand(options: PreReleaseOptions): Promise<boolean> {
+  const { oldVersion, newVersion, preReleaseCommand, targets, rootDir } = options;
 
   if (preReleaseCommand !== undefined && preReleaseCommand.length === 0) {
-    logger.warn('Not running the pre-release command: no command specified');
+    logger.warn("Not running the pre-release command: no command specified");
     return false;
   }
 
   if (preReleaseCommand) {
-    return runCustomPreReleaseCommand(
-      oldVersion,
-      newVersion,
-      preReleaseCommand,
-    );
+    return runCustomPreReleaseCommand(oldVersion, newVersion, preReleaseCommand);
   }
 
-  if (
-    requiresMinVersion(AUTO_BUMP_MIN_VERSION) &&
-    targets &&
-    targets.length > 0
-  ) {
-    logger.info('Running automatic version bumping from targets...');
+  if (requiresMinVersion(AUTO_BUMP_MIN_VERSION) && targets && targets.length > 0) {
+    logger.info("Running automatic version bumping from targets...");
     const result = await runAutomaticVersionBumps(targets, rootDir, newVersion);
 
     if (!result.anyBumped) {
       if (result.bumpableTargets.length === 0) {
         logger.warn(
-          'None of your configured targets support automatic version bumping. ' +
-            'Consider adding a preReleaseCommand to bump versions manually.',
+          "None of your configured targets support automatic version bumping. " +
+            "Consider adding a preReleaseCommand to bump versions manually.",
         );
       } else {
         logger.warn(
-          `Targets [${result.skippedTargets.join(', ')}] support version bumping ` +
-            'but did not find applicable files in your project. ' +
-            'Consider adding a preReleaseCommand if you need custom version bumping.',
+          `Targets [${result.skippedTargets.join(", ")}] support version bumping ` +
+            "but did not find applicable files in your project. " +
+            "Consider adding a preReleaseCommand if you need custom version bumping.",
         );
       }
     }
@@ -365,17 +334,17 @@ async function runCustomPreReleaseCommand(
   // Instead of using an empty string, we use "0.0.0" as the old version to
   // avoid breaking the pre-release command as most scripts expect a non-empty
   // version string.
-  const nonEmptyOldVersion = oldVersion || '0.0.0';
+  const nonEmptyOldVersion = oldVersion || "0.0.0";
 
   if (preReleaseCommand) {
     [sysCommand, ...args] = shellQuote.parse(preReleaseCommand) as string[];
   } else {
-    sysCommand = '/bin/bash';
+    sysCommand = "/bin/bash";
     args = [DEFAULT_BUMP_VERSION_PATH];
   }
 
   args = [...args, nonEmptyOldVersion, newVersion];
-  logger.info('Running the pre-release command...');
+  logger.info("Running the pre-release command...");
 
   const additionalEnv = {
     CRAFT_NEW_VERSION: newVersion,
@@ -396,22 +365,16 @@ async function runCustomPreReleaseCommand(
  * @param rev Revision to prepare the relese from
  */
 function checkGitStatus(repoStatus: StatusResult, rev: string) {
-  logger.info('Checking the local repository status...');
+  logger.info("Checking the local repository status...");
 
-  logger.debug('Repository status:', formatJson(repoStatus));
+  logger.debug("Repository status:", formatJson(repoStatus));
 
   if (isRepoDirty(repoStatus)) {
-    reportError(
-      'Your repository is in a dirty state. ' +
-        'Please stash or commit the pending changes.',
-      logger,
-    );
+    reportError("Your repository is in a dirty state. " + "Please stash or commit the pending changes.", logger);
   }
 
   if (repoStatus.current !== rev) {
-    logger.warn(
-      `You are releasing from '${rev}', not '${repoStatus.current}' which you are currently on.`,
-    );
+    logger.warn(`You are releasing from '${rev}', not '${repoStatus.current}' which you are currently on.`);
   }
 }
 
@@ -425,11 +388,7 @@ function checkGitStatus(repoStatus: StatusResult, rev: string) {
  * @param newVersion Version to publish
  * @param noGitChecks If true, skip git status checks
  */
-async function execPublish(
-  remote: string,
-  newVersion: string,
-  noGitChecks: boolean,
-): Promise<never> {
+async function execPublish(remote: string, newVersion: string, noGitChecks: boolean): Promise<never> {
   logger.info('Running the "publish" command...');
   const publishOptions: PublishOptions = {
     remote,
@@ -440,13 +399,11 @@ async function execPublish(
     noStatusCheck: false,
     noGitChecks,
   };
-  logger.info(
-    `Sleeping for ${SLEEP_BEFORE_PUBLISH_SECONDS} seconds before publishing...`,
-  );
+  logger.info(`Sleeping for ${SLEEP_BEFORE_PUBLISH_SECONDS} seconds before publishing...`);
   if (!isDryRun()) {
     await sleep(SLEEP_BEFORE_PUBLISH_SECONDS * 1000);
   } else {
-    logger.info('[dry-run] Not wasting time on sleep');
+    logger.info("[dry-run] Not wasting time on sleep");
   }
 
   try {
@@ -480,53 +437,40 @@ async function prepareChangelog(
   changelogPath: string = DEFAULT_CHANGELOG_PATH,
 ): Promise<string | undefined> {
   if (changelogPolicy === ChangelogPolicy.None) {
-    logger.debug(
-      `Changelog policy is set to "${changelogPolicy}", nothing to do.`,
-    );
+    logger.debug(`Changelog policy is set to "${changelogPolicy}", nothing to do.`);
     return undefined;
   }
 
-  if (
-    changelogPolicy !== ChangelogPolicy.Auto &&
-    changelogPolicy !== ChangelogPolicy.Simple
-  ) {
-    throw new ConfigurationError(
-      `Invalid changelog policy: "${changelogPolicy}"`,
-    );
+  if (changelogPolicy !== ChangelogPolicy.Auto && changelogPolicy !== ChangelogPolicy.Simple) {
+    throw new ConfigurationError(`Invalid changelog policy: "${changelogPolicy}"`);
   }
 
-  logger.info('Checking the changelog...');
+  logger.info("Checking the changelog...");
   logger.debug(`Changelog policy: "${changelogPolicy}".`);
 
-  const relativePath = relative('', changelogPath);
+  const relativePath = relative("", changelogPath);
   logger.debug(`Changelog path: ${relativePath}`);
-  if (relativePath.startsWith('.')) {
+  if (relativePath.startsWith(".")) {
     throw new ConfigurationError(`Invalid changelog path: "${changelogPath}"`);
   }
 
   if (!existsSync(relativePath)) {
     if (changelogPolicy === ChangelogPolicy.Auto) {
       logger.info(`Creating changelog file: ${relativePath}`);
-      await safeFs.writeFile(relativePath, '# Changelog\n');
+      await safeFs.writeFile(relativePath, "# Changelog\n");
     } else {
-      throw new ConfigurationError(
-        `Changelog does not exist: "${changelogPath}"`,
-      );
+      throw new ConfigurationError(`Changelog does not exist: "${changelogPath}"`);
     }
   }
 
   let changelogString = (await fsPromises.readFile(relativePath)).toString();
-  let changeset = findChangeset(
-    changelogString,
-    newVersion,
-    changelogPolicy === ChangelogPolicy.Auto,
-  );
+  let changeset = findChangeset(changelogString, newVersion, changelogPolicy === ChangelogPolicy.Auto);
   switch (changelogPolicy) {
     case ChangelogPolicy.Auto:
       // eslint-disable-next-line no-case-declarations
       let replaceSection;
       if (!changeset) {
-        changeset = { name: newVersion, body: '' };
+        changeset = { name: newVersion, body: "" };
       }
       if (!changeset.body) {
         replaceSection = changeset.name;
@@ -538,9 +482,7 @@ async function prepareChangelog(
         replaceSection = changeset.name;
         changeset.name = newVersion;
       }
-      logger.debug(
-        `Updating the changelog file for the new version: ${newVersion}`,
-      );
+      logger.debug(`Updating the changelog file for the new version: ${newVersion}`);
 
       if (replaceSection) {
         changelogString = removeChangeset(changelogString, replaceSection);
@@ -552,13 +494,11 @@ async function prepareChangelog(
       break;
     default:
       if (!changeset?.body) {
-        throw new ConfigurationError(
-          `No changelog entry found for version "${newVersion}"`,
-        );
+        throw new ConfigurationError(`No changelog entry found for version "${newVersion}"`);
       }
   }
 
-  logger.debug('Changelog entry found:', changeset.name);
+  logger.debug("Changelog entry found:", changeset.name);
   logger.trace(changeset.body);
   return changeset?.body;
 }
@@ -568,22 +508,16 @@ async function prepareChangelog(
  * covering the section for `version`.  Returns `''` on any failure so the
  * caller can safely concatenate the result onto a URL.
  */
-async function getChangelogLineRange(
-  git: SimpleGit,
-  changelogPath: string,
-  version: string,
-): Promise<string> {
+async function getChangelogLineRange(git: SimpleGit, changelogPath: string, version: string): Promise<string> {
   try {
     const content = await git.show([`HEAD:${changelogPath}`]);
-    const lines = content.split('\n');
+    const lines = content.split("\n");
 
     // The version header is "## {version}" (atx style) or "{version}\n---"
     // (setext).  Match both.
-    const startIdx = lines.findIndex(
-      l => l.trimEnd() === `## ${version}` || l.trimEnd() === version,
-    );
+    const startIdx = lines.findIndex(l => l.trimEnd() === `## ${version}` || l.trimEnd() === version);
     if (startIdx < 0) {
-      return '';
+      return "";
     }
 
     // End = next level-2 heading (ATX: "## ..." or setext: line followed by
@@ -596,11 +530,7 @@ async function getChangelogLineRange(
       }
       // Setext heading: a non-blank line followed by a line of only dashes or
       // equals signs (at least 3 characters long).
-      if (
-        i + 1 < lines.length &&
-        lines[i].trim() !== '' &&
-        /^(-{3,}|={3,})\s*$/.test(lines[i + 1])
-      ) {
+      if (i + 1 < lines.length && lines[i].trim() !== "" && /^(-{3,}|={3,})\s*$/.test(lines[i + 1])) {
         endIdx = i;
         break;
       }
@@ -610,13 +540,13 @@ async function getChangelogLineRange(
     }
 
     // Trim trailing blank lines
-    while (endIdx > startIdx + 1 && lines[endIdx - 1].trim() === '') {
+    while (endIdx > startIdx + 1 && lines[endIdx - 1].trim() === "") {
       endIdx--;
     }
 
     return `#L${startIdx + 1}-L${endIdx}`;
   } catch {
-    return '';
+    return "";
   }
 }
 
@@ -626,10 +556,7 @@ async function getChangelogLineRange(
  * @param git Local git client
  * @param defaultBranch Default branch of the remote repository
  */
-async function switchToDefaultBranch(
-  git: SimpleGit,
-  defaultBranch: string,
-): Promise<void> {
+async function switchToDefaultBranch(git: SimpleGit, defaultBranch: string): Promise<void> {
   const repoStatus = await git.status();
   if (repoStatus.current === defaultBranch) {
     return;
@@ -659,10 +586,7 @@ interface ResolveVersionOptions {
  * @param options Version resolution options
  * @returns The resolved semver version string
  */
-async function resolveVersion(
-  git: SimpleGit,
-  options: ResolveVersionOptions,
-): Promise<string> {
+async function resolveVersion(git: SimpleGit, options: ResolveVersionOptions): Promise<string> {
   const config = getConfiguration();
   let version = options.versionArg;
 
@@ -673,7 +597,7 @@ async function resolveVersion(
 
     if (policy === VersioningPolicy.Manual) {
       throw new ConfigurationError(
-        'Version is required. Either specify a version argument or set ' +
+        "Version is required. Either specify a version argument or set " +
           'versioning.policy to "auto" or "calver" in .craft.yml',
       );
     }
@@ -683,25 +607,22 @@ async function resolveVersion(
   }
 
   // Handle CalVer versioning
-  if (version === 'calver') {
+  if (version === "calver") {
     if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
       throw new ConfigurationError(
         `CalVer versioning requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
-          'Please update your configuration or specify the version explicitly.',
+          "Please update your configuration or specify the version explicitly.",
       );
     }
 
     // Build CalVer config with overrides
     const calverOffset =
       options.calverOffset ??
-      (process.env.CRAFT_CALVER_OFFSET
-        ? parseInt(process.env.CRAFT_CALVER_OFFSET, 10)
-        : undefined) ??
+      (process.env.CRAFT_CALVER_OFFSET ? Number.parseInt(process.env.CRAFT_CALVER_OFFSET, 10) : undefined) ??
       config.versioning?.calver?.offset ??
       DEFAULT_CALVER_CONFIG.offset;
 
-    const calverFormat =
-      config.versioning?.calver?.format ?? DEFAULT_CALVER_CONFIG.format;
+    const calverFormat = config.versioning?.calver?.format ?? DEFAULT_CALVER_CONFIG.format;
 
     return calculateCalVer(git, {
       offset: calverOffset,
@@ -710,14 +631,12 @@ async function resolveVersion(
   }
 
   // Handle automatic version detection or version bump types
-  if (version === 'auto' || isBumpType(version)) {
+  if (version === "auto" || isBumpType(version)) {
     if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
-      const featureName = isBumpType(version)
-        ? 'Version bump types'
-        : 'Auto-versioning';
+      const featureName = isBumpType(version) ? "Version bump types" : "Auto-versioning";
       throw new ConfigurationError(
         `${featureName} requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
-          'Please update your configuration or specify the version explicitly.',
+          "Please update your configuration or specify the version explicitly.",
       );
     }
 
@@ -725,7 +644,7 @@ async function resolveVersion(
 
     // Determine bump type - either from arg or from commit analysis
     let bumpType: BumpType;
-    if (version === 'auto') {
+    if (version === "auto") {
       const changelogResult = await getChangelogWithBumpType(git, latestTag);
       validateBumpType(changelogResult);
       bumpType = changelogResult.bumpType;
@@ -734,15 +653,10 @@ async function resolveVersion(
     }
 
     // Calculate new version from latest tag
-    const currentVersion =
-      latestTag && latestTag.replace(/^v/, '').match(/^\d/)
-        ? latestTag.replace(/^v/, '')
-        : '0.0.0';
+    const currentVersion = (latestTag && getVersion(latestTag)) || "0.0.0";
 
     const newVersion = calculateNextVersion(currentVersion, bumpType);
-    logger.info(
-      `Version bump: ${currentVersion} -> ${newVersion} (${bumpType} bump)`,
-    );
+    logger.info(`Version bump: ${currentVersion} -> ${newVersion} (${bumpType} bump)`);
     return newVersion;
   }
 
@@ -763,9 +677,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     logger.info(`Loading configuration from remote branch: ${argv.configFrom}`);
     try {
       await git.fetch([argv.remote, argv.configFrom]);
-      const configContent = await git.show([
-        `${argv.remote}/${argv.configFrom}:${CONFIG_FILE_NAME}`,
-      ]);
+      const configContent = await git.show([`${argv.remote}/${argv.configFrom}:${CONFIG_FILE_NAME}`]);
       loadConfigurationFromString(configContent);
     } catch (error: any) {
       throw new ConfigurationError(
@@ -784,7 +696,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   const rev = argv.rev || repoStatus.current || defaultBranch;
 
   if (argv.noGitChecks) {
-    logger.info('Not checking the status of the local repository');
+    logger.info("Not checking the status of the local repository");
   } else {
     // Check that we're in an acceptable state for the release
     checkGitStatus(repoStatus, rev);
@@ -797,7 +709,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   });
 
   // Emit resolved version for GitHub Actions
-  setGitHubActionsOutput('version', newVersion);
+  setGitHubActionsOutput("version", newVersion);
 
   logger.info(`Releasing version ${newVersion} from ${rev}`);
   if (!argv.rev && rev !== defaultBranch) {
@@ -813,13 +725,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
   try {
     // Create a new release branch and check it out. Fail if it already exists.
-    const branchName = await createReleaseBranch(
-      git,
-      rev,
-      newVersion,
-      argv.remote,
-      config.releaseBranchPrefix,
-    );
+    const branchName = await createReleaseBranch(git, rev, newVersion, argv.remote, config.releaseBranchPrefix);
 
     // Do this once we are on the release branch as we might be releasing from
     // a custom revision and it is harder to tell git to give us the tag right
@@ -830,13 +736,10 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
     // Check & update the changelog
     // Extract changelog path from config (can be string or object)
-    const changelogPath =
-      typeof config.changelog === 'string'
-        ? config.changelog
-        : config.changelog?.filePath;
+    const changelogPath = typeof config.changelog === "string" ? config.changelog : config.changelog?.filePath;
     // Get policy from new format or legacy changelogPolicy
     const changelogPolicy = (
-      typeof config.changelog === 'object' && config.changelog?.policy
+      typeof config.changelog === "object" && config.changelog?.policy
         ? config.changelog.policy
         : config.changelogPolicy
     ) as ChangelogPolicy | undefined;
@@ -862,7 +765,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       // Commit the pending changes
       await commitNewVersion(git, newVersion);
     } else {
-      logger.debug('Not committing anything since preReleaseCommand is empty.');
+      logger.debug("Not committing anything since preReleaseCommand is empty.");
     }
 
     // Show diff preview (no-op in non-dry-run mode)
@@ -872,52 +775,39 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     await pushReleaseBranch(git, branchName, argv.remote, !argv.noPush);
 
     // Emit GitHub Actions outputs for downstream steps
-    const releaseSha = await git.revparse(['HEAD']);
-    setGitHubActionsOutput('branch', branchName);
-    setGitHubActionsOutput('sha', releaseSha);
-    setGitHubActionsOutput('previous_tag', oldVersion || '');
+    const releaseSha = await git.revparse(["HEAD"]);
+    setGitHubActionsOutput("branch", branchName);
+    setGitHubActionsOutput("sha", releaseSha);
+    setGitHubActionsOutput("previous_tag", oldVersion || "");
     if (changelogBody) {
       // For CalVer releases, replace @-mentions with bold formatting in the
       // changelog destined for publish issues, to avoid pinging many
       // contributors on regular-cadence releases.  The committed CHANGELOG.md
       // keeps the original @-mentions (they don't create notifications).
-      const isCalVer =
-        argv.newVersion === 'calver' ||
-        getVersioningPolicy() === VersioningPolicy.CalVer;
-      const issueChangelog = isCalVer
-        ? disableChangelogMentions(changelogBody)
-        : changelogBody;
+      const isCalVer = argv.newVersion === "calver" || getVersioningPolicy() === VersioningPolicy.CalVer;
+      const issueChangelog = isCalVer ? disableChangelogMentions(changelogBody) : changelogBody;
 
       // Write full changelog to a file to avoid E2BIG when the action.yml
       // "Request publish" step expands it into an environment variable.
       // Repos with large changelogs (e.g. sentry's monthly releases) can
       // exceed the ~2 MB Linux ARG_MAX limit.
-      writeGitHubActionsFile('changelog', issueChangelog);
+      writeGitHubActionsFile("changelog", issueChangelog);
 
       // Build a GitHub permalink to the changelog entry on the release
       // branch, including line numbers so GitHub renders it inline when
       // pasted into an issue body.
       const resolvedChangelogPath = changelogPath || DEFAULT_CHANGELOG_PATH;
-      const lineRange = await getChangelogLineRange(
-        git,
-        resolvedChangelogPath,
-        newVersion,
-      );
+      const lineRange = await getChangelogLineRange(git, resolvedChangelogPath, newVersion);
       const changelogFileUrl =
         `https://github.com/${githubConfig.owner}/${githubConfig.repo}/blob/${branchName}/${resolvedChangelogPath}` +
         lineRange;
 
       // Also set the step output, but truncated so older action.yml versions
       // that read it via env var don't hit E2BIG.
-      setGitHubActionsOutput(
-        'changelog',
-        truncateForOutput(issueChangelog, changelogFileUrl),
-      );
+      setGitHubActionsOutput("changelog", truncateForOutput(issueChangelog, changelogFileUrl));
     }
 
-    logger.info(
-      `View diff at: https://github.com/${githubConfig.owner}/${githubConfig.repo}/compare/${branchName}`,
-    );
+    logger.info(`View diff at: https://github.com/${githubConfig.owner}/${githubConfig.repo}/compare/${branchName}`);
 
     if (argv.publish) {
       if (isolation.isIsolated) {
@@ -947,8 +837,8 @@ export const handler = async (args: {
 }): Promise<void> => {
   try {
     return await withTracing(prepareMain, {
-      name: 'craft.prepare',
-      op: 'craft.prepare',
+      name: "craft.prepare",
+      op: "craft.prepare",
     })(args as PrepareOptions);
   } catch (e) {
     handleGlobalError(e);

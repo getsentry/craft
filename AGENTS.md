@@ -143,6 +143,15 @@ Some operations need explicit `isDryRun()` checks:
 <!-- lore:019c9be1-33db-7bba-bb0a-297d5de6edb7 -->
 * **prepare-dry-run e2e tests require EDITOR env var for git commit**: The 6 tests in `src/__tests__/prepare-dry-run.e2e.test.ts` fail in environments where `EDITOR` is unset and the terminal is non-interactive (e.g., headless CI agents, worktrees). The error is `Terminal is dumb, but EDITOR unset` from git refusing to commit without a message editor. These are environment-dependent failures, not code bugs. They pass in environments with `EDITOR=vi` or similar set.
 
+<!-- lore:019cc484-f0e1-7016-a851-177fb9ad2cc4 -->
+* **AGENTS.md must be excluded from markdown linters**: AGENTS.md is auto-managed by lore and uses `*` list markers and long lines that violate typical remark-lint rules (unordered-list-marker-style, maximum-line-length). When a project uses remark with `--frail` (warnings become errors), AGENTS.md will fail CI. Fix: add `AGENTS.md` to `.remarkignore`. This applies to any lore-managed project with markdown linting.
+
+<!-- lore:019cc40e-e56e-71e9-bc5d-545f97df732b -->
+* **Consola prompt cancel returns truthy Symbol, not false**: When a user cancels a `consola` / `@clack/prompts` confirmation prompt (Ctrl+C), the return value is `Symbol(clack:cancel)`, not `false`. Since Symbols are truthy in JavaScript, checking `!confirmed` will be `false` and the code falls through as if the user confirmed. Fix: use `confirmed !== true` (strict equality) instead of `!confirmed` to correctly handle cancel, false, and any other non-true values.
+
+<!-- lore:019cc303-e397-75b9-9762-6f6ad108f50a -->
+* **Zod z.coerce.number() converts null to 0 silently**: Zod gotchas in this codebase: (1) `z.coerce.number()` passes input through `Number()`, so `null` silently becomes `0`. Be aware if `null` vs `0` distinction matters. (2) Zod v4 `.default({})` short-circuits — it returns the default value without parsing through inner schema defaults. So `.object({ enabled: z.boolean().default(true) }).default({})` returns `{}`, not `{ enabled: true }`. Fix: provide fully-populated default objects. This affected nested config sections in src/config.ts during the v3→v4 upgrade.
+
 ### Pattern
 
 <!-- lore:019c9bb9-a79b-71e0-9f71-d94e77119b4b -->
