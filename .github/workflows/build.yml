@@ -21,8 +21,8 @@ jobs:
         node: ['20','22']
     name: Node ${{ matrix.node }}
     steps:
-      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
-      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
         with:
           node-version: '${{ matrix.node }}'
       - name: Get pnpm version from Volta config
@@ -31,7 +31,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ steps.pnpm-version.outputs.version }}
-      - uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
+      - uses: actions/cache@v4
         id: cache
         with:
           path: node_modules
@@ -50,8 +50,8 @@ jobs:
       contents: read
     environment: ${{ github.ref == 'refs/heads/master' && 'production' }}
     steps:
-      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
-      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
         with:
           node-version-file: package.json
       - name: Get pnpm version from Volta config
@@ -60,7 +60,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ steps.pnpm-version.outputs.version }}
-      - uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
+      - uses: actions/cache@v4
         id: cache
         with:
           path: node_modules
@@ -78,7 +78,7 @@ jobs:
       - name: NPM Pack
         run: npm pack
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@v4
         with:
           name: craft-binary
           path: |
@@ -92,8 +92,8 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
-      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
         with:
           node-version-file: package.json
       - name: Get pnpm version from Volta config
@@ -112,7 +112,7 @@ jobs:
           cp .nojekyll docs/dist/
           cd docs/dist && zip -r ../../gh-pages.zip .
       - name: Upload Docs Artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@v4
         with:
           name: craft-docs
           path: ${{ github.workspace }}/gh-pages.zip
