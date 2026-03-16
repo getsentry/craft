@@ -102,6 +102,34 @@ export async function getPackageManifest(
       throw new Error('Unreachable');
     }
 
+    if (!initialManifestData.name) {
+      logger.warn(
+        `"name" is not set for "${canonicalName}". ` +
+          `Add \`name\` to the registry target config in your .craft.yml to avoid this warning.`,
+      );
+    }
+
+    if (type === RegistryPackageType.SDK && !initialManifestData.packageUrl) {
+      logger.warn(
+        `"packageUrl" is not set for "${canonicalName}". ` +
+          `Add \`packageUrl\` to the registry target config in your .craft.yml to avoid this warning.`,
+      );
+    }
+
+    // Fall back to repo_url for mainDocsUrl if not explicitly set
+    let effectiveManifestData = initialManifestData;
+    if (!initialManifestData.mainDocsUrl) {
+      logger.warn(
+        `"mainDocsUrl" is not set for "${canonicalName}". ` +
+          `Falling back to repo_url ("${initialManifestData.repoUrl}"). ` +
+          `Set \`mainDocsUrl\` in the registry target config in .craft.yml to avoid this warning.`,
+      );
+      effectiveManifestData = {
+        ...initialManifestData,
+        mainDocsUrl: initialManifestData.repoUrl,
+      };
+    }
+
     // Create directory structure if it doesn't exist
     if (!existsSync(fullPackageDir)) {
       logger.info(
@@ -111,12 +139,16 @@ export async function getPackageManifest(
     }
 
     // Create the sdks/ symlink when an sdkName is provided
-    if (initialManifestData.sdkName) {
-      const sdkSymlinkPath = path.join(baseDir, 'sdks', initialManifestData.sdkName);
+    if (effectiveManifestData.sdkName) {
+      const sdkSymlinkPath = path.join(
+        baseDir,
+        'sdks',
+        effectiveManifestData.sdkName,
+      );
       if (!existsSync(sdkSymlinkPath)) {
         const relativeTarget = path.join('..', packageDirPath);
         logger.info(
-          `Creating sdks symlink "${initialManifestData.sdkName}" -> "${relativeTarget}"...`,
+          `Creating sdks symlink "${effectiveManifestData.sdkName}" -> "${relativeTarget}"...`,
         );
         symlinkSync(relativeTarget, sdkSymlinkPath);
       }
@@ -127,7 +159,7 @@ export async function getPackageManifest(
     );
     return {
       versionFilePath,
-      packageManifest: createInitialManifest(initialManifestData),
+      packageManifest: createInitialManifest(effectiveManifestData),
     };
   }
 

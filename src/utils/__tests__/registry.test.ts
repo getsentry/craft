@@ -219,7 +219,11 @@ describe('getPackageManifest', () => {
           initialData,
         );
 
-        const symlinkPath = path.join(tempDir, 'sdks', 'sentry.javascript.hono');
+        const symlinkPath = path.join(
+          tempDir,
+          'sdks',
+          'sentry.javascript.hono',
+        );
         expect(fs.existsSync(symlinkPath)).toBe(true);
         expect(fs.lstatSync(symlinkPath).isSymbolicLink()).toBe(true);
         expect(fs.readlinkSync(symlinkPath)).toBe(
@@ -248,7 +252,11 @@ describe('getPackageManifest', () => {
 
       it('skips symlink creation when the symlink already exists', async () => {
         fs.mkdirSync(path.join(tempDir, 'sdks'), { recursive: true });
-        const symlinkPath = path.join(tempDir, 'sdks', 'sentry.javascript.hono');
+        const symlinkPath = path.join(
+          tempDir,
+          'sdks',
+          'sentry.javascript.hono',
+        );
         const existingTarget = path.join(
           '..',
           'packages',

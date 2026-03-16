@@ -16,19 +16,19 @@ Avoid having multiple `registry` targets—it supports batching multiple apps an
 | `apps` | Dict of app configs keyed by canonical name (e.g., `app:craft`)              |
 | `sdks` | Dict of SDK configs keyed by canonical name (e.g., `maven:io.sentry:sentry`) |
 
-### App/SDK Options
+### Per-package options
 
 | Option            | Description                                                                                                                                                                                                                                         |
-|-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `urlTemplate`     | URL template for artifact download links in the manifest. Supports `{{version}}`, `{{file}}`, and `{{revision}}` variables. Primarily for apps and CDN-hosted assets—not needed for SDK packages installed from public registries (npm, PyPI, etc.) |
-| `linkPrereleases` | Update for preview releases. Default: `false`                                                                                                                                                                                                       |
-| `checksums`       | List of checksum configs                                                                                                                                                                                                                            |
-| `onlyIfPresent`   | Only run if matching file exists                                                                                                                                                                                                                    |
-| `name`            | Human-readable name (used when creating new packages)                                                                                                                                                                                               |
+| `linkPrereleases` | By default, the registry target is skipped when the version is a pre-release (e.g. `1.0.0-beta.1`). Set to `true` to publish registry entries for pre-releases as well.                                                                             |
+| `checksums`       | List of checksum configs (see [Checksum Configuration](#checksum-configuration))                                                                                                                                                                    |
+| `onlyIfPresent`   | Only run if artifact matches the given filename pattern                                                                                                                                                                                             |
+| `name`            | Human-readable name for the platform or package (e.g. `"Sentry Browser SDK"` or `"Sentry Craft"`) - (used when creating new packages)                                                                                                               |
 | `sdkName`         | SDK identifier matching the SDK's `sdk_info.name` field in Sentry events (e.g., `sentry.javascript.react`). Will create the `sdks/` symlink. (used when creating new packages)                                                                      |
-| `packageUrl`      | Link to package registry page, e.g., npmjs.com (used when creating new packages)                                                                                                                                                                    |
-| `mainDocsUrl`     | Link to main documentation (used when creating new packages)                                                                                                                                                                                        |
-| `apiDocsUrl`      | Link to API documentation (used when creating new packages)                                                                                                                                                                                         |
+| `packageUrl`      | Link to the package registry page (e.g. npmjs.com, PyPI, crates.io). †Not required for `app:` types or `github:` canonicals, but set it when a separate registry or docs page exists. (used when creating new packages)                             |
+| `mainDocsUrl`     | Link to the primary documentation page. If omitted, Craft falls back to `repo_url` and emits a warning. (used when creating new packages)                                                                                                           |
+| `apiDocsUrl`      | Link to the API documentation (e.g. pkg.go.dev, javadoc.io) - (used when creating new packages)                                                                                                                                                     |
 
 ### Checksum Configuration
 
@@ -38,31 +38,50 @@ checksums:
     format: hex # or base64
 ```
 
-## Example
+## How a registry entry is built
+
+Every time Craft publishes a release, it writes a version file (e.g. `packages/npm/@sentry/browser/1.2.3.json`) to the registry. The fields in that file come from different sources:
+
+| Field           | Source                                                                                              |
+| --------------- | --------------------------------------------------------------------------------------------------- |
+| `canonical`     | The dict key in `.craft.yml` (e.g. `npm:@sentry/browser`). Set once on first publish (not updated). |
+| `version`       | The release version being published                                                                 |
+| `created_at`    | The current timestamp at publish time                                                               |
+| `repo_url`      | Auto-detected from the `origin` git remote. Overwritten on every publish                            |
+| `name`          | Your `.craft.yml` config. Applied on every publish, can be updated at any time                      |
+| `package_url`   | Your `.craft.yml` config. Applied on every publish, can be updated at any time                      |
+| `main_docs_url` | Your `.craft.yml` config. Applied on every publish, can be updated at any time                      |
+| `api_docs_url`  | Your `.craft.yml` config. Applied on every publish, can be updated at any time                      |
+
+The `canonical` field is the only one that cannot be changed after the first publish—it is written once and then validated for consistency on every subsequent run. To rename a canonical, you must manually update both the registry and your `.craft.yml` at the same time.
+
+`repo_url` is always resolved automatically and cannot be configured per-package. By default, Craft reads the `origin` git remote (both HTTPS and SSH formats are supported). If auto-detection is not possible, configure it via a top-level `github` block:
 
 ```yaml
-targets:
-  - name: registry
-    sdks:
-      'npm:@sentry/browser':
-    apps:
-      'app:craft':
-        urlTemplate: 'https://downloads.sentry-cdn.com/craft/{{version}}/{{file}}'
-        checksums:
-          - algorithm: sha256
-            format: hex
+github:
+  owner: getsentry
+  repo: sentry-javascript
 ```
 
-## Package Types
+## Adding a new package
 
-- **sdk**: Package uploaded to public registries (PyPI, NPM, etc.)
-- **app**: Standalone application with version files in the registry
+When a package does not yet exist in the registry, Craft creates the directory structure and initial manifest automatically on the first publish. No manual registry changes are needed.
 
-## Creating New Packages
+For this to succeed, certain fields must be present in your `.craft.yml` before you publish for the first time.
 
-When you introduce a new package that doesn't yet exist in the release registry, Craft will automatically create the required directory structure and initial manifest on the first publish.
+:::caution[Required metadata on first publish]
 
-Supply `name`, `packageUrl`, `sdkName` and `mainDocsUrl` so the release registry entry is added to the registry for the first time (existing packages just need `onlyIfPresent` since the manifest already exists):
+- **`name`** — required for all package types.
+- **`sdkName`** — required for SDK packages.
+- **`mainDocsUrl`** — required for all package types. If omitted, Craft falls back to `repo_url` and emits a warning, but you should always set it explicitly.
+- **`packageUrl`** — required for most SDK packages
+- **`apiDocsUrl`** — required packages with separate API docs (e.g. `pkg.go.dev` for Go modules, `javadoc.io` for Java packages). Optional for other packages.
+
+:::
+
+After the first publish, you can add or update any of these fields in `.craft.yml` and they will be applied to the manifest on the next release.
+
+### Example: New SDK package
 
 ```yaml
 targets:
@@ -75,23 +94,17 @@ targets:
         mainDocsUrl: 'https://docs.sentry.io/platforms/javascript/'
 ```
 
-## Manifest Metadata
+### Example: New App with downloadable artifacts
 
-### `repo_url`
-
-The `repo_url` field is automatically set on every publish—it is not user-configurable per target. Craft resolves it in two ways:
-
-1. **Auto-detection (default):** Craft reads the `origin` git remote URL and extracts the owner and repo. Both HTTPS (`https://github.com/org/repo.git`) and SSH (`git@github.com:org/repo.git`) formats are supported. For most repositories, no configuration is needed.
-
-2. **Explicit config (rare):** If auto-detection isn't possible (e.g., the remote is not on `github.com`), you can provide it via a top-level `github` block in `.craft.yml`:
-   ```yaml
-   github:
-     owner: getsentry
-     repo: sentry-javascript
-   ```
-
-The value is always overwritten on every publish, so it stays in sync with the actual repository.
-
-### Other metadata
-
-When specified, the metadata fields (`name`, `sdkName`, `packageUrl`, `mainDocsUrl`, `apiDocsUrl`) are applied to every release, allowing you to update package metadata by changing your `.craft.yml` configuration.
+```yaml
+targets:
+  - name: registry
+    apps:
+      'app:craft':
+        name: 'Sentry Craft'
+        mainDocsUrl: 'https://github.com/getsentry/craft'
+        urlTemplate: 'https://downloads.sentry-cdn.com/craft/{{version}}/{{file}}'
+        checksums:
+          - algorithm: sha256
+            format: hex
+```
