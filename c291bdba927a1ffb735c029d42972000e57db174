@@ -1,0 +1,157 @@
+# Plan: Make post-publish merge failure non-fatal + retry with `resolve` strategy
+
+## Problem
+
+When `craft publish` runs for `getsentry/sentry-fastlane-plugin@2.4.0`, all 3 targets (gem, registry, github) are successfully published, but the subsequent merge of `release/2.4.0` back into `master` fails due to a CHANGELOG.md merge conflict. This causes the entire command to exit with code 1, even though all **irreversible** publishing operations succeeded.
+
+**Consequences of the current behavior:**
+
+1. The publish workflow reports "failure" even though artifacts are live
+2. The publish issue remains open (not closed by the workflow)
+3. The release branch is left unmerged and undeleted
+4. The post-release command never runs
+5. The publish state file is not cleaned up
+
+## Root Cause
+
+In `src/commands/publish.ts`, line 684, `handleReleaseBranch()` is called with no try/catch. The default merge strategy (`ort`) sometimes fails on CHANGELOG.md conflicts that the simpler `resolve` strategy can handle.
+
+## Approach — Two-part fix
+
+### Part 1: Retry merge with `-s resolve` strategy
+
+When the default `ort` merge fails, abort it and retry with `-s resolve`. The `resolve` strategy uses a simpler 3-way merge algorithm that handles criss-cross merge ambiguities differently, which often succeeds where `ort` fails on files like CHANGELOG.md.
+
+### Part 2: Catch remaining merge failures as non-fatal
+
+If both strategies fail, catch the error, warn loudly with manual resolution instructions, but **do not fail the publish command**. The merge is housekeeping — it must not block the success signal for a fully-published release.
+
+## Files to Modify
+
+### 1. `src/commands/publish.ts`
+
+#### a. Refactor `handleReleaseBranch()` to retry merge with `resolve` strategy (lines 400–426)
+
+Break the chained `pull().merge().push()` into separate calls so we can abort and retry just the merge step. Add a retry with `-s resolve`:
+
+```typescript
+async function handleReleaseBranch(
+  git: SimpleGit,
+  remoteName: string,
+  branch: string,
+  mergeTarget?: string,
+  keepBranch = false,
+): Promise<void> {
+  if (!mergeTarget) {
+    mergeTarget = await getDefaultBranch(git, remoteName);
+  }
+  logger.debug(`Checking out merge target branch:`, mergeTarget);
+  await git.checkout(mergeTarget);
+
+  logger.debug(`Pulling latest changes from ${remoteName}/${mergeTarget}`);
+  await git.pull(remoteName, mergeTarget, ['--rebase']);
+
+  logger.debug(`Merging ${branch} into: ${mergeTarget}`);
+  try {
+    await git.merge(['--no-ff', '--no-edit', branch]);
+  } catch (mergeError) {
+    // Default strategy (ort) failed — abort and retry with resolve strategy
+    logger.warn(
+      `Merge with default strategy failed, retrying with "resolve" strategy...`,
+    );
+    try {
+      await git.merge(['--abort']);
+    } catch (_abortError) {
+      // merge --abort can fail if no merge in progress (e.g. pull failed)
+      logger.trace('git merge --abort failed (may be no merge in progress)');
+    }
+
+    // Retry with the resolve strategy which handles criss-cross ambiguities differently
+    await git.merge(['-s', 'resolve', '--no-ff', '--no-edit', branch]);
+  }
+
+  await git.push(remoteName, mergeTarget);
+
+  if (keepBranch) {
+    logger.info('Not deleting the release branch.');
+  } else {
+    logger.debug(`Deleting the release branch: ${branch}`);
+    await git.branch(['-D', branch]).push([remoteName, '--delete', branch]);
+    logger.info(`Removed the remote branch: "${branch}"`);
+  }
+}
+```
+
+#### b. Wrap `handleReleaseBranch()` call in try/catch in `publishMain()` (lines 678–710)
+
+If both merge strategies fail, catch the error, warn, report to Sentry, but don't fail the command. Still clean up the state file and run the post-release command:
+
+```typescript
+} else if (
+  targetsToPublish.has(SpecialTarget.All) ||
+  targetsToPublish.has(SpecialTarget.None) ||
+  earlierStateExists
+) {
+  // Publishing done, MERGE DAT BRANCH!
+  try {
+    await handleReleaseBranch(
+      git,
+      argv.remote,
+      branchName,
+      argv.mergeTarget,
+      argv.keepBranch,
+    );
+  } catch (mergeError) {
+    captureException(mergeError);
+    logger.warn(
+      [
+        `Failed to merge release branch "${branchName}" into the target branch.`,
+        `This is likely due to a merge conflict (e.g., in CHANGELOG.md).`,
+        `All publish targets completed successfully — only the post-publish merge failed.`,
+        ``,
+        `To resolve manually:`,
+        `  1. Merge the release branch into the target branch, resolving conflicts`,
+        `  2. Delete the release branch: git push origin --delete ${branchName}`,
+        ``,
+        `Error: ${mergeError instanceof Error ? mergeError.message : String(mergeError)}`,
+      ].join('\n'),
+    );
+  }
+
+  // Always clean up and report success — targets are published
+  safeFs
+    .unlink(publishStateFile)
+    .catch((err: unknown) =>
+      logger.trace("Couldn't remove publish state file: ", err),
+    );
+  logger.success(`Version ${newVersion} has been published!`);
+}
+```
+
+Note: Move the `safeFs.unlink()` and `logger.success()` calls **outside** the try block so they run regardless of merge outcome.
+
+#### c. Add `captureException` import
+
+Add `import { captureException } from '@sentry/node';` at the top of the file (line ~3).
+
+### 2. `src/commands/__tests__/publish.test.ts`
+
+Export `handleReleaseBranch` and add tests:
+
+1. **Default merge succeeds** — verify pull, merge, push are called in order
+2. **Default merge fails, resolve retry succeeds** — verify `merge --abort` is called, then retry with `-s resolve`
+3. **Both strategies fail** — verify error is re-thrown (so caller can handle it), and `merge --abort` was attempted
+4. **Branch deletion after successful merge** — verify branch deletion flow
+5. **keepBranch=true** — verify branch is NOT deleted
+
+### Test approach
+
+Since `handleReleaseBranch` uses a `SimpleGit` instance, we mock it with `vi.fn()` chains. The function is currently not exported — we need to export it (it's a standalone function, not an internal implementation detail).
+
+## Verification
+
+1. `pnpm test` — all tests pass
+2. `pnpm lint` — no lint errors
+3. `pnpm build` — builds successfully
+4. Review: the merge retry with `-s resolve` fires only when the default strategy fails
+5. Review: if both strategies fail, the publish command still exits 0 with a warning
