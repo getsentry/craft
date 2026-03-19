@@ -412,7 +412,17 @@ export async function handleReleaseBranch(
   await git.checkout(mergeTarget);
 
   logger.debug(`Pulling latest changes from ${remoteName}/${mergeTarget}`);
-  await git.pull(remoteName, mergeTarget, ['--rebase']);
+  try {
+    await git.pull(remoteName, mergeTarget, ['--rebase']);
+  } catch (pullError) {
+    // Pull --rebase failure can leave the repo in an active rebase state
+    try {
+      await git.raw(['rebase', '--abort']);
+    } catch (_abortError) {
+      logger.trace('git rebase --abort failed (may be no rebase in progress)');
+    }
+    throw pullError;
+  }
 
   logger.debug(`Merging ${branch} into: ${mergeTarget}`);
   try {
@@ -431,7 +441,17 @@ export async function handleReleaseBranch(
 
     // Retry with the resolve strategy which handles criss-cross ambiguities
     // differently and often succeeds where ort fails on files like CHANGELOG.md
-    await git.merge(['-s', 'resolve', '--no-ff', '--no-edit', branch]);
+    try {
+      await git.merge(['-s', 'resolve', '--no-ff', '--no-edit', branch]);
+    } catch (resolveError) {
+      // Resolve also failed — abort to leave repo in a clean state
+      try {
+        await git.merge(['--abort']);
+      } catch (_abortError) {
+        logger.trace('git merge --abort failed after resolve strategy');
+      }
+      throw resolveError;
+    }
   }
 
   await git.push(remoteName, mergeTarget);
@@ -722,7 +742,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
           ``,
           `To resolve manually:`,
           `  1. Merge the release branch into the target branch, resolving conflicts`,
-          `  2. Delete the release branch: git push origin --delete ${branchName}`,
+          `  2. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
           ``,
           `Error: ${mergeError instanceof Error ? mergeError.message : String(mergeError)}`,
         ].join('\n'),

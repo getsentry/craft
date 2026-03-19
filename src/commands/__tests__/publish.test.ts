@@ -115,6 +115,7 @@ describe('handleReleaseBranch', () => {
     mockGit.branch = makeChainable();
     mockGit.remote = makeChainable();
     mockGit.revparse = makeChainable('main');
+    mockGit.raw = makeChainable('');
 
     return mockGit as unknown as SimpleGit & Record<string, Mock>;
   }
@@ -204,23 +205,44 @@ describe('handleReleaseBranch', () => {
     expect(git.push).toHaveBeenCalledWith('origin', 'main');
   });
 
-  test('throws when both merge strategies fail', async () => {
+  test('throws when both merge strategies fail and aborts both', async () => {
     const git = createMockGit();
     const defaultError = new Error('CONFLICT with default');
     const resolveError = new Error('CONFLICT with resolve');
 
     (git.merge as Mock)
-      .mockImplementationOnce(() => Promise.reject(defaultError))
-      .mockImplementationOnce(() => Promise.resolve()) // abort
-      .mockImplementationOnce(() => Promise.reject(resolveError));
+      .mockImplementationOnce(() => Promise.reject(defaultError)) // default merge
+      .mockImplementationOnce(() => Promise.resolve()) // abort after default
+      .mockImplementationOnce(() => Promise.reject(resolveError)) // resolve merge
+      .mockImplementationOnce(() => Promise.resolve()); // abort after resolve
 
     await expect(
       handleReleaseBranch(git, 'origin', 'release/1.0.0', 'main'),
     ).rejects.toThrow('CONFLICT with resolve');
 
-    // merge --abort was called
+    expect(git.merge).toHaveBeenCalledTimes(4);
+    // First abort: after default strategy failure
     expect(git.merge).toHaveBeenNthCalledWith(2, ['--abort']);
+    // Second abort: after resolve strategy failure
+    expect(git.merge).toHaveBeenNthCalledWith(4, ['--abort']);
     // push should NOT be called
+    expect(git.push).not.toHaveBeenCalledWith('origin', 'main');
+  });
+
+  test('aborts rebase when pull --rebase fails', async () => {
+    const git = createMockGit();
+    const pullError = new Error('CONFLICT during rebase');
+
+    (git.pull as Mock).mockImplementationOnce(() => Promise.reject(pullError));
+
+    await expect(
+      handleReleaseBranch(git, 'origin', 'release/1.0.0', 'main'),
+    ).rejects.toThrow('CONFLICT during rebase');
+
+    // rebase --abort should have been called to clean up
+    expect(git.raw).toHaveBeenCalledWith(['rebase', '--abort']);
+    // merge and push should NOT be called
+    expect(git.merge).not.toHaveBeenCalled();
     expect(git.push).not.toHaveBeenCalledWith('origin', 'main');
   });
 
