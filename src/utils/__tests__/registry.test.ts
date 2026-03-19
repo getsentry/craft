@@ -125,6 +125,8 @@ describe('getPackageManifest', () => {
       const initialData: InitialManifestData = {
         canonical: 'npm:@sentry/minimal',
         repoUrl: 'https://github.com/getsentry/sentry-javascript',
+        name: 'Sentry Minimal',
+        // mainDocsUrl omitted — falls back to repoUrl
       };
 
       const result = await getPackageManifest(
@@ -138,6 +140,8 @@ describe('getPackageManifest', () => {
       expect(result.packageManifest).toEqual({
         canonical: 'npm:@sentry/minimal',
         repo_url: 'https://github.com/getsentry/sentry-javascript',
+        name: 'Sentry Minimal',
+        main_docs_url: 'https://github.com/getsentry/sentry-javascript',
       });
     });
 
@@ -159,6 +163,7 @@ describe('getPackageManifest', () => {
         canonical: 'app:craft',
         repoUrl: 'https://github.com/getsentry/craft',
         name: 'Craft',
+        // mainDocsUrl omitted — falls back to repoUrl
       };
 
       const result = await getPackageManifest(
@@ -177,6 +182,7 @@ describe('getPackageManifest', () => {
         canonical: 'app:craft',
         repo_url: 'https://github.com/getsentry/craft',
         name: 'Craft',
+        main_docs_url: 'https://github.com/getsentry/craft',
       });
     });
 
@@ -184,6 +190,8 @@ describe('getPackageManifest', () => {
       const initialData: InitialManifestData = {
         canonical: 'npm:@sentry/core',
         repoUrl: 'https://github.com/getsentry/sentry-javascript',
+        name: 'Sentry Core',
+        mainDocsUrl: 'https://docs.sentry.io/platforms/javascript/',
         apiDocsUrl: 'https://docs.sentry.io/api/',
       };
 
@@ -198,6 +206,8 @@ describe('getPackageManifest', () => {
       expect(result.packageManifest).toEqual({
         canonical: 'npm:@sentry/core',
         repo_url: 'https://github.com/getsentry/sentry-javascript',
+        name: 'Sentry Core',
+        main_docs_url: 'https://docs.sentry.io/platforms/javascript/',
         api_docs_url: 'https://docs.sentry.io/api/',
       });
     });
@@ -238,6 +248,7 @@ describe('getPackageManifest', () => {
         const initialData: InitialManifestData = {
           canonical: 'npm:@sentry/hono',
           repoUrl: 'https://github.com/getsentry/sentry-javascript',
+          name: 'Sentry Hono SDK',
         };
 
         await getPackageManifest(
@@ -323,34 +334,62 @@ describe('getPackageManifest', () => {
       });
     });
 
-    describe('SDK validation when sdkName is provided', () => {
-      it('throws an error when sdkName is provided but name is missing', async () => {
+    describe('required field validation for all new packages', () => {
+      it('throws an error when name is missing', async () => {
         const initialData: InitialManifestData = {
-          canonical: 'npm:@sentry/new-sdk',
-          repoUrl: 'https://github.com/getsentry/sentry-javascript',
-          packageUrl: 'https://www.npmjs.com/package/@sentry/new-sdk',
-          sdkName: 'sentry.javascript.new-sdk',
+          canonical: 'app:sentry-cli',
+          repoUrl: 'https://github.com/getsentry/sentry-cli',
+          // No name, no sdkName — error applies to all package types
         };
 
         await expect(
           getPackageManifest(
             tempDir,
-            RegistryPackageType.SDK,
-            'npm:@sentry/new-sdk',
+            RegistryPackageType.APP,
+            'app:sentry-cli',
             '1.0.0',
             initialData,
           ),
         ).rejects.toThrow(
-          '"name" is required for new SDK "npm:@sentry/new-sdk"',
+          '"name" is required for new package "app:sentry-cli"',
         );
       });
 
-      it('throws an error when sdkName is provided but packageUrl is missing', async () => {
+      it('warns and falls back to repoUrl when mainDocsUrl is missing', async () => {
+        const warnSpy = vi.spyOn(logger, 'warn');
+        const initialData: InitialManifestData = {
+          canonical: 'app:sentry-cli',
+          repoUrl: 'https://github.com/getsentry/sentry-cli',
+          name: 'Sentry CLI',
+          // mainDocsUrl omitted — applies to all package types
+        };
+
+        const result = await getPackageManifest(
+          tempDir,
+          RegistryPackageType.APP,
+          'app:sentry-cli',
+          '1.0.0',
+          initialData,
+        );
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('"mainDocsUrl" is not set'),
+        );
+        expect(result.packageManifest.main_docs_url).toBe(
+          'https://github.com/getsentry/sentry-cli',
+        );
+        warnSpy.mockRestore();
+      });
+    });
+
+    describe('additional SDK validation when sdkName is provided', () => {
+      it('throws an error when packageUrl is missing', async () => {
         const initialData: InitialManifestData = {
           canonical: 'npm:@sentry/new-sdk',
           repoUrl: 'https://github.com/getsentry/sentry-javascript',
           name: 'Sentry New SDK',
           sdkName: 'sentry.javascript.new-sdk',
+          // packageUrl omitted
         };
 
         await expect(
@@ -366,32 +405,29 @@ describe('getPackageManifest', () => {
         );
       });
 
-      it('warns and falls back to repoUrl when sdkName is provided but mainDocsUrl is missing', async () => {
-        fs.mkdirSync(path.join(tempDir, 'sdks'), { recursive: true });
-        const warnSpy = vi.spyOn(logger, 'warn');
+      it('does not require packageUrl when sdkName is absent', async () => {
         const initialData: InitialManifestData = {
-          canonical: 'npm:@sentry/new-sdk',
+          canonical: 'npm:@sentry/minimal',
           repoUrl: 'https://github.com/getsentry/sentry-javascript',
-          name: 'Sentry New SDK',
-          packageUrl: 'https://www.npmjs.com/package/@sentry/new-sdk',
-          sdkName: 'sentry.javascript.new-sdk',
+          name: 'Sentry Minimal',
+          mainDocsUrl: 'https://docs.sentry.io/platforms/javascript/',
+          // No sdkName, no packageUrl — should not throw
         };
 
         const result = await getPackageManifest(
           tempDir,
           RegistryPackageType.SDK,
-          'npm:@sentry/new-sdk',
+          'npm:@sentry/minimal',
           '1.0.0',
           initialData,
         );
 
-        expect(warnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('"mainDocsUrl" is not set'),
-        );
-        expect(result.packageManifest.main_docs_url).toBe(
-          'https://github.com/getsentry/sentry-javascript',
-        );
-        warnSpy.mockRestore();
+        expect(result.packageManifest).toEqual({
+          canonical: 'npm:@sentry/minimal',
+          repo_url: 'https://github.com/getsentry/sentry-javascript',
+          name: 'Sentry Minimal',
+          main_docs_url: 'https://docs.sentry.io/platforms/javascript/',
+        });
       });
 
       it('creates initial manifest with all required fields for new SDK with sdkName', async () => {
@@ -419,27 +455,6 @@ describe('getPackageManifest', () => {
           name: 'Sentry New SDK',
           package_url: 'https://www.npmjs.com/package/@sentry/new-sdk',
           main_docs_url: 'https://docs.sentry.io/platforms/javascript/',
-        });
-      });
-
-      it('does not enforce SDK validation when sdkName is absent (existing behavior)', async () => {
-        const initialData: InitialManifestData = {
-          canonical: 'npm:@sentry/minimal',
-          repoUrl: 'https://github.com/getsentry/sentry-javascript',
-          // No name, no packageUrl, no sdkName — should not throw
-        };
-
-        const result = await getPackageManifest(
-          tempDir,
-          RegistryPackageType.SDK,
-          'npm:@sentry/minimal',
-          '1.0.0',
-          initialData,
-        );
-
-        expect(result.packageManifest).toEqual({
-          canonical: 'npm:@sentry/minimal',
-          repo_url: 'https://github.com/getsentry/sentry-javascript',
         });
       });
     });

@@ -104,33 +104,33 @@ export async function getPackageManifest(
 
     let effectiveManifestData = initialManifestData;
 
-    if (initialManifestData.sdkName) {
-      // Strict validation for new SDKs — sdkName signals this is a registry SDK entry
-      if (!initialManifestData.name) {
-        reportError(
-          `"name" is required for new SDK "${canonicalName}". ` +
-            `Add \`name\` to the registry target config in your .craft.yml.`,
-        );
-        throw new Error('Unreachable');
-      }
-      if (!initialManifestData.packageUrl) {
-        reportError(
-          `"packageUrl" is required for new SDK "${canonicalName}". ` +
-            `Add \`packageUrl\` to the registry target config in your .craft.yml.`,
-        );
-        throw new Error('Unreachable');
-      }
-      if (!initialManifestData.mainDocsUrl) {
-        logger.warn(
-          `"mainDocsUrl" is not set for "${canonicalName}". ` +
-            `Falling back to repo_url ("${initialManifestData.repoUrl}"). ` +
-            `Set \`mainDocsUrl\` in the registry target config in .craft.yml to avoid this warning.`,
-        );
-        effectiveManifestData = {
-          ...initialManifestData,
-          mainDocsUrl: initialManifestData.repoUrl,
-        };
-      }
+    // Required for all new packages
+    if (!initialManifestData.name) {
+      reportError(
+        `"name" is required for new package "${canonicalName}". ` +
+          `Add \`name\` to the registry target config in your .craft.yml.`,
+      );
+      throw new Error('Unreachable');
+    }
+    if (!initialManifestData.mainDocsUrl) {
+      logger.warn(
+        `"mainDocsUrl" is not set for "${canonicalName}". ` +
+          `Falling back to repo_url ("${initialManifestData.repoUrl}"). ` +
+          `Set \`mainDocsUrl\` in the registry target config in .craft.yml to avoid this warning.`,
+      );
+      effectiveManifestData = {
+        ...initialManifestData,
+        mainDocsUrl: initialManifestData.repoUrl,
+      };
+    }
+
+    // Additional requirement for SDK packages
+    if (initialManifestData.sdkName && !initialManifestData.packageUrl) {
+      reportError(
+        `"packageUrl" is required for new SDK "${canonicalName}". ` +
+          `Add \`packageUrl\` to the registry target config in your .craft.yml.`,
+      );
+      throw new Error('Unreachable');
     }
 
     // Create directory structure if it doesn't exist

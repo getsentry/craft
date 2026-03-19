@@ -70,12 +70,13 @@ When a package does not yet exist in the registry, Craft creates the directory s
 For this to succeed, certain fields must be present in your `.craft.yml` before you publish for the first time.
 
 :::caution[Required metadata on first publish]
+
 - **`name`** — required for all package types.
 - **`mainDocsUrl`** — required for all package types. If omitted, Craft falls back to `repo_url` and emits a warning, but you should always set it explicitly.
 
 - **`sdkName`** — required for SDK packages.
 - **`packageUrl`** — required for SDK packages
-  :::
+:::
 
 After the first publish, you can add or update any of these fields in `.craft.yml` and they will be applied to the manifest on the next release.
 
