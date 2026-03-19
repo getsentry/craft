@@ -102,32 +102,35 @@ export async function getPackageManifest(
       throw new Error('Unreachable');
     }
 
-    if (!initialManifestData.name) {
-      logger.warn(
-        `"name" is not set for "${canonicalName}". ` +
-          `Add \`name\` to the registry target config in your .craft.yml to avoid this warning.`,
-      );
-    }
-
-    if (type === RegistryPackageType.SDK && !initialManifestData.packageUrl) {
-      logger.warn(
-        `"packageUrl" is not set for "${canonicalName}". ` +
-          `Add \`packageUrl\` to the registry target config in your .craft.yml to avoid this warning.`,
-      );
-    }
-
-    // Fall back to repo_url for mainDocsUrl if not explicitly set
     let effectiveManifestData = initialManifestData;
-    if (!initialManifestData.mainDocsUrl) {
-      logger.warn(
-        `"mainDocsUrl" is not set for "${canonicalName}". ` +
-          `Falling back to repo_url ("${initialManifestData.repoUrl}"). ` +
-          `Set \`mainDocsUrl\` in the registry target config in .craft.yml to avoid this warning.`,
-      );
-      effectiveManifestData = {
-        ...initialManifestData,
-        mainDocsUrl: initialManifestData.repoUrl,
-      };
+
+    if (initialManifestData.sdkName) {
+      // Strict validation for new SDKs — sdkName signals this is a registry SDK entry
+      if (!initialManifestData.name) {
+        reportError(
+          `"name" is required for new SDK "${canonicalName}". ` +
+            `Add \`name\` to the registry target config in your .craft.yml.`,
+        );
+        throw new Error('Unreachable');
+      }
+      if (!initialManifestData.packageUrl) {
+        reportError(
+          `"packageUrl" is required for new SDK "${canonicalName}". ` +
+            `Add \`packageUrl\` to the registry target config in your .craft.yml.`,
+        );
+        throw new Error('Unreachable');
+      }
+      if (!initialManifestData.mainDocsUrl) {
+        logger.warn(
+          `"mainDocsUrl" is not set for "${canonicalName}". ` +
+            `Falling back to repo_url ("${initialManifestData.repoUrl}"). ` +
+            `Set \`mainDocsUrl\` in the registry target config in .craft.yml to avoid this warning.`,
+        );
+        effectiveManifestData = {
+          ...initialManifestData,
+          mainDocsUrl: initialManifestData.repoUrl,
+        };
+      }
     }
 
     // Create directory structure if it doesn't exist
@@ -138,7 +141,7 @@ export async function getPackageManifest(
       mkdirSync(fullPackageDir, { recursive: true });
     }
 
-    // Create the sdks/ symlink when an sdkName is provided
+    // Create the `sdks/` symlink when an sdkName is provided
     if (effectiveManifestData.sdkName) {
       const sdkSymlinkPath = path.join(
         baseDir,
@@ -163,7 +166,10 @@ export async function getPackageManifest(
     };
   }
 
-  logger.debug('Reading the current configuration from', packageManifestPath);
+  logger.debug(
+    'Reading the already existing configuration from',
+    packageManifestPath,
+  );
   return {
     versionFilePath,
     packageManifest:
