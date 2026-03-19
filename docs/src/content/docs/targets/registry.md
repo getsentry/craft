@@ -27,7 +27,7 @@ Avoid having multiple `registry` targets—it supports batching multiple apps an
 | `name`            | Human-readable name for the platform or package (e.g. `"Sentry Browser SDK"` or `"Sentry Craft"`) - (used when creating new packages)                                                                                                               |
 | `sdkName`         | SDK identifier matching the SDK's `sdk_info.name` field in Sentry events (e.g., `sentry.javascript.react`). Will create the `sdks/` symlink. (used when creating new packages)                                                                      |
 | `packageUrl`      | Link to the package registry page (e.g. npmjs.com, PyPI, crates.io). †Not required for `app:` types or `github:` canonicals, but set it when a separate registry or docs page exists. (used when creating new packages)                             |
-| `mainDocsUrl`     | Link to the primary documentation page. If omitted, Craft falls back to `repo_url` and emits a warning. (used when creating new packages)                                                                                                           |
+| `mainDocsUrl`     | Link to the main documentation page. If omitted, Craft falls back to `repo_url` and emits a warning. (used when creating new packages)                                                                                                              |
 | `apiDocsUrl`      | Link to the API documentation (e.g. pkg.go.dev, javadoc.io) - (used when creating new packages)                                                                                                                                                     |
 
 ### Checksum Configuration
@@ -70,14 +70,12 @@ When a package does not yet exist in the registry, Craft creates the directory s
 For this to succeed, certain fields must be present in your `.craft.yml` before you publish for the first time.
 
 :::caution[Required metadata on first publish]
-
 - **`name`** — required for all package types.
-- **`sdkName`** — required for SDK packages.
 - **`mainDocsUrl`** — required for all package types. If omitted, Craft falls back to `repo_url` and emits a warning, but you should always set it explicitly.
-- **`packageUrl`** — required for most SDK packages
-- **`apiDocsUrl`** — required packages with separate API docs (e.g. `pkg.go.dev` for Go modules, `javadoc.io` for Java packages). Optional for other packages.
 
-:::
+- **`sdkName`** — required for SDK packages.
+- **`packageUrl`** — required for SDK packages
+  :::
 
 After the first publish, you can add or update any of these fields in `.craft.yml` and they will be applied to the manifest on the next release.
 
@@ -92,6 +90,8 @@ targets:
         sdkName: 'sentry.javascript.wasm'
         packageUrl: 'https://www.npmjs.com/package/@sentry/wasm'
         mainDocsUrl: 'https://docs.sentry.io/platforms/javascript/'
+        # Optional fields for SDKs with API docs:
+        apiDocsUrl: 'https://pkg.go.dev/github.com/getsentry/sentry-go'
 ```
 
 ### Example: New App with downloadable artifacts
