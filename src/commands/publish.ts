@@ -37,6 +37,7 @@ import {
 import { isValidVersion } from '../utils/version';
 import { BaseStatusProvider } from '../status_providers/base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
+import { captureException } from '@sentry/node';
 import { SimpleGit } from 'simple-git';
 import {
   getGitClient,
@@ -397,7 +398,7 @@ async function checkRevisionStatus(
  * @param [mergeTarget] Branch name to merge the release branch into
  * @param keepBranch If set to "true", the branch will not be deleted
  */
-async function handleReleaseBranch(
+export async function handleReleaseBranch(
   git: SimpleGit,
   remoteName: string,
   branch: string,
@@ -410,11 +411,50 @@ async function handleReleaseBranch(
   logger.debug(`Checking out merge target branch:`, mergeTarget);
   await git.checkout(mergeTarget);
 
+  logger.debug(`Pulling latest changes from ${remoteName}/${mergeTarget}`);
+  try {
+    await git.pull(remoteName, mergeTarget, ['--rebase']);
+  } catch (pullError) {
+    // Pull --rebase failure can leave the repo in an active rebase state
+    try {
+      await git.raw(['rebase', '--abort']);
+    } catch (_abortError) {
+      logger.trace('git rebase --abort failed (may be no rebase in progress)');
+    }
+    throw pullError;
+  }
+
   logger.debug(`Merging ${branch} into: ${mergeTarget}`);
-  await git
-    .pull(remoteName, mergeTarget, ['--rebase'])
-    .merge(['--no-ff', '--no-edit', branch])
-    .push(remoteName, mergeTarget);
+  try {
+    await git.merge(['--no-ff', '--no-edit', branch]);
+  } catch (mergeError) {
+    // Default strategy (ort) failed — abort and retry with resolve strategy
+    logger.warn(
+      `Merge with default strategy failed (${mergeError instanceof Error ? mergeError.message : mergeError}), retrying with "resolve" strategy...`,
+    );
+    try {
+      await git.merge(['--abort']);
+    } catch (_abortError) {
+      // merge --abort can fail if no merge in progress (e.g. pull failed)
+      logger.trace('git merge --abort failed (may be no merge in progress)');
+    }
+
+    // Retry with the resolve strategy which handles criss-cross ambiguities
+    // differently and often succeeds where ort fails on files like CHANGELOG.md
+    try {
+      await git.merge(['-s', 'resolve', '--no-ff', '--no-edit', branch]);
+    } catch (resolveError) {
+      // Resolve also failed — abort to leave repo in a clean state
+      try {
+        await git.merge(['--abort']);
+      } catch (_abortError) {
+        logger.trace('git merge --abort failed after resolve strategy');
+      }
+      throw resolveError;
+    }
+  }
+
+  await git.push(remoteName, mergeTarget);
 
   if (keepBranch) {
     logger.info('Not deleting the release branch.');
@@ -681,13 +721,34 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     earlierStateExists
   ) {
     // Publishing done, MERGE DAT BRANCH!
-    await handleReleaseBranch(
-      git,
-      argv.remote,
-      branchName,
-      argv.mergeTarget,
-      argv.keepBranch,
-    );
+    try {
+      await handleReleaseBranch(
+        git,
+        argv.remote,
+        branchName,
+        argv.mergeTarget,
+        argv.keepBranch,
+      );
+    } catch (mergeError) {
+      // The merge is a housekeeping step — it must not block the success
+      // signal for a fully-published release. Report to Sentry for
+      // observability but don't fail the command.
+      captureException(mergeError);
+      logger.warn(
+        [
+          `Failed to merge release branch "${branchName}" into the target branch.`,
+          `This is likely due to a merge conflict (e.g., in CHANGELOG.md).`,
+          `All publish targets completed successfully — only the post-publish merge failed.`,
+          ``,
+          `To resolve manually:`,
+          `  1. Merge the release branch into the target branch, resolving conflicts`,
+          `  2. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
+          ``,
+          `Error: ${mergeError instanceof Error ? mergeError.message : String(mergeError)}`,
+        ].join('\n'),
+      );
+    }
+
     // XXX(BYK): intentionally DO NOT await unlinking as we do not want
     // to block (both in terms of waiting for IO and the success of the
     // operation) finishing the publish flow on the removal of a temporary
