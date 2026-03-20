@@ -1,0 +1,81 @@
+# Fix GitHub Security Reports
+
+## Summary
+
+4 open Dependabot alerts across 2 independent projects (root + docs/):
+
+| #   | Package           | Manifest              | Severity     | Patched In | Current | Fix                    |
+| --- | ----------------- | --------------------- | ------------ | ---------- | ------- | ---------------------- |
+| 130 | `fast-xml-parser` | `pnpm-lock.yaml`      | Medium (5.9) | 5.5.7      | 5.3.8   | Bump override + devDep |
+| 127 | `fast-xml-parser` | `pnpm-lock.yaml`      | High (7.5)   | 5.5.6      | 5.3.8   | Same fix as #130       |
+| 129 | `h3`              | `docs/pnpm-lock.yaml` | High (7.5)   | 1.15.6     | 1.15.5  | Bump override in docs  |
+| 128 | `h3`              | `docs/pnpm-lock.yaml` | Medium (5.9) | 1.15.6     | 1.15.5  | Same fix as #129       |
+
+## Architecture Context
+
+- **Root project**: `fast-xml-parser` is a direct devDependency (`^5.3.4`) AND has an `pnpm.overrides` entry (`^5.3.4`). Both need bumping.
+- **docs/ project**: `h3` is a transitive dep (via Astro/Nitro) pinned via `pnpm.overrides` to `^1.15.5`. Only the override needs bumping.
+- The two projects have **separate lock files** — changes must be made independently.
+
+## Implementation Steps
+
+### Step 1: Fix `fast-xml-parser` (root) — resolves alerts #127 and #130
+
+**Files to modify:**
+
+- `package.json` — bump devDependency and override from `^5.3.4` → `^5.5.7`
+
+**Commands to run:**
+
+```bash
+# In root directory
+sed -i 's/"fast-xml-parser": "\^5\.3\.4"/"fast-xml-parser": "^5.5.7"/g' package.json
+pnpm install
+```
+
+This bumps both the devDependency line AND the override entry (both are `^5.3.4`). The `^5.5.7` range will resolve to 5.5.7 which satisfies the patch requirement for both CVEs.
+
+### Step 2: Fix `h3` (docs/) — resolves alerts #128 and #129
+
+**Files to modify:**
+
+- `docs/package.json` — bump override from `^1.15.5` → `^1.15.6`
+
+**Commands to run:**
+
+```bash
+# In docs/ directory
+sed -i 's/"h3": "\^1\.15\.5"/"h3": "^1.15.6"/' docs/package.json
+cd docs && pnpm install
+```
+
+The `^1.15.6` range will resolve to ≥1.15.6 (latest is 1.15.9), satisfying the patch for both h3 CVEs.
+
+### Step 3: Verify
+
+```bash
+# Verify fast-xml-parser version in root lock
+grep -A2 'fast-xml-parser' pnpm-lock.yaml | head -6
+
+# Verify h3 version in docs lock
+grep -A2 "'h3'" docs/pnpm-lock.yaml | head -6
+
+# Run tests to ensure no breakage
+pnpm build
+pnpm test
+
+# Build docs to ensure no breakage
+cd docs && pnpm build
+```
+
+### Step 4: Re-check alerts
+
+```bash
+# After pushing, verify alerts close (or check locally)
+gh api /repos/getsentry/craft/dependabot/alerts --jq '.[] | select(.state == "open") | {number, package: .dependency.package.name}'
+```
+
+## Risk Assessment
+
+- **`fast-xml-parser` 5.3.8 → 5.5.7**: This is a minor version bump (5.3 → 5.5). Breaking changes possible but unlikely for XML parsing in a CLI tool's context. Tests will validate.
+- **`h3` 1.15.5 → 1.15.6+**: Patch-level bump. Very low risk, especially as h3 is only a transitive dep of the docs site.
