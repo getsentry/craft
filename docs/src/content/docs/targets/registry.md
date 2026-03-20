@@ -18,17 +18,17 @@ Avoid having multiple `registry` targets—it supports batching multiple apps an
 
 ### Per-package options
 
-| Option            | Description                                                                                                                                                                                                                                         |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Option            | Description                                                                                                                                                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `urlTemplate`     | URL template for artifact download links in the manifest. Supports `{{version}}`, `{{file}}`, and `{{revision}}` variables. Primarily for apps and CDN-hosted assets—not needed for SDK packages installed from public registries (npm, PyPI, etc.) |
-| `linkPrereleases` | By default, the registry target is skipped when the version is a pre-release (e.g. `1.0.0-beta.1`). Set to `true` to publish registry entries for pre-releases as well.                                                                             |
-| `checksums`       | List of checksum configs (see [Checksum Configuration](#checksum-configuration))                                                                                                                                                                    |
-| `onlyIfPresent`   | Only run if artifact matches the given filename pattern                                                                                                                                                                                             |
-| `name`            | Human-readable name for the platform or package (e.g. `"Sentry Browser SDK"` or `"Sentry Craft"`) - (used when creating new packages)                                                                                                               |
-| `sdkName`         | SDK identifier matching the SDK's `sdk_info.name` field in Sentry events (e.g., `sentry.javascript.react`). Will create the `sdks/` symlink. (used when creating new packages)                                                                      |
-| `packageUrl`      | Link to the package registry page (e.g. npmjs.com, PyPI, crates.io). †Not required for `app:` types or `github:` canonicals, but set it when a separate registry or docs page exists. (used when creating new packages)                             |
-| `mainDocsUrl`     | Link to the main documentation page. If omitted, Craft falls back to `repo_url` and emits a warning. (used when creating new packages)                                                                                                              |
-| `apiDocsUrl`      | Link to the API documentation (e.g. pkg.go.dev, javadoc.io) - (used when creating new packages)                                                                                                                                                     |
+| `linkPrereleases` | By default, the registry target is skipped when the version is a pre-release (e.g. `1.0.0-beta.1`). Set to `true` to publish registry entries for pre-releases as well.                                                                           |
+| `checksums`       | List of checksum configs (see [Checksum Configuration](#checksum-configuration))                                                                                                                                                                  |
+| `onlyIfPresent`   | Only run if artifact matches the given filename pattern                                                                                                                                                                                           |
+| `name`            | Human-readable name for the platform or package (e.g. `"Sentry Browser SDK"` or `"Sentry Craft"`) - (used when creating new packages)                                                                                                             |
+| `sdkName`         | SDK identifier matching the SDK's `sdk_info.name` field in Sentry events (e.g., `sentry.javascript.react`). Will create the `sdks/` symlink. (used when creating new packages)                                                                    |
+| `packageUrl`      | Link to the package registry page (e.g. npmjs.com, PyPI, crates.io). Not required for `app` types (used when creating new packages)                             |
+| `mainDocsUrl`     | Link to the main documentation page. If omitted, Craft falls back to `repo_url` and emits a warning. (used when creating new packages)                                                                                                            |
+| `apiDocsUrl`      | Link to the API documentation (e.g. pkg.go.dev, javadoc.io) - (used when creating new packages)                                                                                                                                                   |
 
 ### Checksum Configuration
 
@@ -82,6 +82,8 @@ After the first publish, you can add or update any of these fields in `.craft.ym
 
 ### Example: New SDK package
 
+A package uploaded to public registries (PyPI, NPM, etc.)
+
 ```yaml
 targets:
   - name: registry
@@ -96,6 +98,8 @@ targets:
 ```
 
 ### Example: New App with downloadable artifacts
+
+A standalone application with version files in the registry
 
 ```yaml
 targets:
