@@ -46,7 +46,7 @@
     "eslint-config-prettier": "^9.1.0",
     "eslint-formatter-github-annotations": "^0.1.0",
     "extract-zip": "^2.0.1",
-    "fast-xml-parser": "^5.3.4",
+    "fast-xml-parser": "^5.5.7",
     "git-url-parse": "^16.1.0",
     "glob": "^11.0.0",
     "is-ci": "^2.0.0",
@@ -101,11 +101,11 @@
   },
   "pnpm": {
     "overrides": {
-      "fast-xml-parser": "^5.3.4",
+      "fast-xml-parser": "^5.5.7",
       "minimatch": "^10.2.1",
       "ajv@<6.14.0": "^6.14.0",
       "rollup": "^4.59.0",
-      "flatted": "^3.4.0"
+      "flatted": "^3.4.2"
     }
   }
 }
