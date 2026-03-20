@@ -42,16 +42,16 @@ checksums:
 
 Every time Craft publishes a release, it writes a version file (e.g. `packages/npm/@sentry/browser/1.2.3.json`) to the registry. The fields in that file come from different sources:
 
-| Field           | Source                                                                                              |
-| --------------- | --------------------------------------------------------------------------------------------------- |
-| `canonical`     | The dict key in `.craft.yml` (e.g. `npm:@sentry/browser`). Set once on first publish (not updated). |
-| `version`       | The release version being published                                                                 |
-| `created_at`    | The current timestamp at publish time                                                               |
-| `repo_url`      | Auto-detected from the `origin` git remote. Overwritten on every publish                            |
-| `name`          | Your `.craft.yml` config. Applied on every publish, can be updated at any time                      |
-| `package_url`   | Your `.craft.yml` config. Applied on every publish, can be updated at any time                      |
-| `main_docs_url` | Your `.craft.yml` config. Applied on every publish, can be updated at any time                      |
-| `api_docs_url`  | Your `.craft.yml` config. Applied on every publish, can be updated at any time                      |
+| Registry field  | `.craft.yml` option | Source                                                                                              |
+|-----------------|---------------------|-----------------------------------------------------------------------------------------------------|
+| `canonical`     | _(dict key)_        | The dict key in `.craft.yml` (e.g. `npm:@sentry/browser`). Set once on first publish (not updated). |
+| `version`       | _(automatic)_       | The release version being published                                                                 |
+| `created_at`    | _(automatic)_       | The current timestamp at publish time                                                               |
+| `repo_url`      | _(automatic)_       | Auto-detected from the `origin` git remote. Overwritten on every publish                            |
+| `name`          | `name`              | Your `.craft.yml` config. Applied on every publish, can be updated at any time                      |
+| `package_url`   | `packageUrl`        | Your `.craft.yml` config. Applied on every publish, can be updated at any time                      |
+| `main_docs_url` | `mainDocsUrl`       | Your `.craft.yml` config. Applied on every publish, can be updated at any time                      |
+| `api_docs_url`  | `apiDocsUrl`        | Your `.craft.yml` config. Applied on every publish, can be updated at any time                      |
 
 The `canonical` field is the only one that cannot be changed after the first publish—it is written once and then validated for consistency on every subsequent run. To rename a canonical, you must manually update both the registry and your `.craft.yml` at the same time.
 
