@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.25.0
+
+### New Features ✨
+
+- (registry) Require and validate registry metadata on first publish by @s1gr1d in [#777](https://github.com/getsentry/craft/pull/777)
+
+### Bug Fixes 🐛
+
+- (deps) Address security advisories for fast-xml-parser, h3, and flatted by @BYK in [#780](https://github.com/getsentry/craft/pull/780)
+- (publish) Make post-publish merge failure non-fatal with resolve strategy retry by @BYK in [#778](https://github.com/getsentry/craft/pull/778)
+
+### Internal Changes 🔧
+
+- (deps-dev) Bump fast-xml-parser from 5.3.8 to 5.5.7 by @dependabot in [#779](https://github.com/getsentry/craft/pull/779)
+
 ## 2.24.2
 
 ### Bug Fixes 🐛
