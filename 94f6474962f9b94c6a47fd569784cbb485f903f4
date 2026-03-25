@@ -1,0 +1,32 @@
+# Plan: Fix GitHub Security Reports
+
+## Current State
+
+- **Security advisories**: None (empty `[]`)
+- **Dependabot alerts**: 1 open, 9 already fixed
+
+### Open Alert
+
+| #   | Package     | Severity | Manifest              | Vulnerable | Patched |
+| --- | ----------- | -------- | --------------------- | ---------- | ------- |
+| 132 | `smol-toml` | medium   | `docs/pnpm-lock.yaml` | `< 1.6.1`  | `1.6.1` |
+
+**Summary**: DoS via TOML documents with thousands of consecutive commented lines (stack overflow from recursion).
+
+**Dependency chain**: `astro` → `smol-toml@1.6.0` and `@astrojs/markdown-remark` → `smol-toml@1.6.0` (both transitive, in the docs sub-project).
+
+## Fix
+
+Add a pnpm override in `docs/package.json` to force `smol-toml@^1.6.1`, matching the existing pattern for other overrides (`h3`, `devalue`, `rollup`, `svgo`):
+
+### Files Modified
+
+- **`docs/package.json`** — add `"smol-toml": "^1.6.1"` to `pnpm.overrides`
+- **`docs/pnpm-lock.yaml`** — regenerated via `cd docs && pnpm install`
+
+## Verification
+
+1. `cd docs && pnpm why smol-toml` — should show `1.6.1` (not `1.6.0`)
+2. `cd docs && pnpm build` — docs site still builds
+3. Re-check Dependabot alert #132 status after push (should auto-close)
+4. Root project unaffected — run `pnpm test` and `pnpm build` from root to confirm
