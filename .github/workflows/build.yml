@@ -22,7 +22,7 @@ jobs:
     name: Node ${{ matrix.node }}
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '${{ matrix.node }}'
       - name: Get pnpm version from Volta config
@@ -31,7 +31,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ steps.pnpm-version.outputs.version }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         id: cache
         with:
           path: node_modules
@@ -51,7 +51,7 @@ jobs:
     environment: ${{ github.ref == 'refs/heads/master' && 'production' }}
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: package.json
       - name: Get pnpm version from Volta config
@@ -60,7 +60,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ steps.pnpm-version.outputs.version }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         id: cache
         with:
           path: node_modules
@@ -78,7 +78,7 @@ jobs:
       - name: NPM Pack
         run: npm pack
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: craft-binary
           path: |
@@ -93,7 +93,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: package.json
       - name: Get pnpm version from Volta config
@@ -112,7 +112,7 @@ jobs:
           cp .nojekyll docs/dist/
           cd docs/dist && zip -r ../../gh-pages.zip .
       - name: Upload Docs Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: craft-docs
           path: ${{ github.workspace }}/gh-pages.zip

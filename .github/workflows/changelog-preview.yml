@@ -84,14 +84,14 @@ jobs:
     steps:
       # For pull_request_target, we must explicitly specify the ref to get the PR commits.
       # Try the merge ref first; fall back to head ref if PR has merge conflicts.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         id: checkout-merge
         continue-on-error: true
         with:
           fetch-depth: 0
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: steps.checkout-merge.outcome == 'failure'
         with:
           fetch-depth: 0
