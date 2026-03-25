@@ -1,0 +1,124 @@
+# Fix: Commit changelog changes regardless of preReleaseCommand result
+
+## Problem
+
+In `src/commands/prepare.ts`, the decision to `git commit` is gated on `runPreReleaseCommand()` returning `true`. When it returns `false`, **all** pending changes — including changelog modifications from `prepareChangelog()` — are silently abandoned.
+
+**sentry-go scenario:** `changelog: { policy: auto }` + no `preReleaseCommand` + only `github`/`registry` targets (no `bumpVersion` support) → changelog generated but never committed.
+
+## Current State
+
+> The design subagent already committed a fix as `d90cafa` on master. That commit mixes the logical fix with a full-file Prettier reformatting (280+/162- lines) and uses unconditional `--all` on commit. **Reset it and redo cleanly.**
+
+## Approach: Precise Staging
+
+Instead of always using `git commit --all` (which stages everything in the working tree), be explicit about what gets staged:
+
+- **Changelog** → known file at a known path → `git add <changelogPath>` (explicit)
+- **Pre-release command** → can modify anything → `git add --all` only when it actually ran
+
+Then `git commit` (without `--all`) commits only what was staged.
+
+This prevents accidental inclusion of build artifacts or other untracked files that happen to be in the working tree.
+
+## Steps
+
+### Step 1: Reset the premature commit
+
+```bash
+git reset --hard HEAD~1
+```
+
+### Step 2: Modify `src/commands/prepare.ts`
+
+**Change A — Rename `commitNewVersion` → `commitChanges`, use conditional `--all` (~line 259):**
+
+```typescript
+async function commitChanges(
+  git: SimpleGit,
+  newVersion: string,
+  preReleaseCommandRan: boolean,
+): Promise<void> {
+  const message = `release: ${newVersion}`;
+
+  if (preReleaseCommandRan) {
+    // Pre-release command can modify arbitrary files; stage + commit all changes.
+    const repoStatus = await git.status();
+    if (!(repoStatus.created.length || repoStatus.modified.length)) {
+      reportError(
+        'Nothing to commit: has the pre-release command done its job?',
+      );
+    }
+    logger.debug('Committing the release changes...');
+    logger.trace(`Commit message: "${message}"`);
+    await git.commit(message, ['--all']);
+    return;
+  }
+
+  // No pre-release command ran — only commit explicitly staged changes (e.g. changelog).
+  const repoStatus = await git.status();
+  if (!(repoStatus.staged.length || repoStatus.created.length)) {
+    logger.debug(
+      'Nothing to commit: no changelog changes and no version bumping occurred.',
+    );
+    return;
+  }
+
+  logger.debug('Committing the release changes...');
+  logger.trace(`Commit message: "${message}"`);
+  await git.commit(message);
+}
+```
+
+Key points:
+
+- `preReleaseCommandRan === true` → `--all` (backward compat, catches version bump files)
+- `preReleaseCommandRan === false` → no `--all`, commits only staged files
+- Preserves the existing `reportError` for the "command ran but did nothing" case
+
+**Change B — Stage changelog explicitly + update call site (~line 764):**
+
+```typescript
+const changelogBody = await prepareChangelog(git, oldVersion, newVersion, ...);
+
+// Explicitly stage the changelog file (no-op if unmodified)
+if (changelogBody) {
+  const resolvedChangelogPath = relative("", changelogPath || DEFAULT_CHANGELOG_PATH);
+  await git.add(resolvedChangelogPath);
+}
+
+// Run a pre-release script (e.g. for version bumping)
+const preReleaseCommandRan = await runPreReleaseCommand({...});
+
+// Commit staged changelog and/or version bump changes
+await commitChanges(git, newVersion, preReleaseCommandRan);
+```
+
+`git.add` is already in the dry-run proxy's `GIT_LOCAL_METHODS` — blocked in strict mode, allowed in worktree mode. Same treatment as `commit`, `checkout`, etc.
+
+### Step 3: Add/enhance e2e test in `src/__tests__/prepare-dry-run.e2e.test.ts`
+
+Enhance the existing test at line 447 ("auto changelog policy creates CHANGELOG.md if it does not exist") to verify the changelog is actually committed in dry-run diff output. Also add a test that reproduces the sentry-go scenario: auto changelog + `github`-only targets (no `preReleaseCommand`, no bumpable targets) → verify the release commit includes CHANGELOG.md.
+
+### Step 4: Verify
+
+```bash
+pnpm build && pnpm test && pnpm lint
+```
+
+## Files to Modify
+
+| File                                        | Change                                                                     |
+| ------------------------------------------- | -------------------------------------------------------------------------- |
+| `src/commands/prepare.ts`                   | Rename function, add explicit `git add` for changelog, conditional `--all` |
+| `src/__tests__/prepare-dry-run.e2e.test.ts` | Add/enhance e2e test for changelog-only commit                             |
+
+## Behavior Matrix
+
+| Scenario                                        | Before            | After                      |
+| ----------------------------------------------- | ----------------- | -------------------------- |
+| Changelog + version bump                        | ✅ `--all` commit | ✅ `--all` commit          |
+| **Changelog + no version bump** (bug)           | ❌ Skipped        | ✅ Commit (changelog only) |
+| No changelog + version bump                     | ✅ `--all` commit | ✅ `--all` commit          |
+| No changelog + no version bump + preRelease ran | ✅ reportError    | ✅ reportError             |
+| No changelog + no version bump + no preRelease  | ❌ Misleading log | ✅ Debug log (no-op)       |
