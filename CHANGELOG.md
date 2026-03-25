@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.25.1
+
+### Bug Fixes 🐛
+
+- (deps) Address smol-toml DoS vulnerability (GHSA-v3rj-xjv7-4jmq) by @BYK in [#783](https://github.com/getsentry/craft/pull/783)
+- Commit changelog even when preReleaseCommand returns false by @BYK in [#781](https://github.com/getsentry/craft/pull/781)
+
+### Internal Changes 🔧
+
+- Reformat codebase with Prettier and add CI enforcement by @BYK in [#782](https://github.com/getsentry/craft/pull/782)
+
 ## 2.25.0
 
 ### New Features ✨
