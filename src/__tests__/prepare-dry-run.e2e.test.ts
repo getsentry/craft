@@ -517,5 +517,83 @@ targets: []
     // Should succeed and mention creating the changelog
     expect(combinedOutput).toContain('Creating changelog file');
     expect(combinedOutput).toContain('Releasing version 1.1.0');
+
+    // The diff should include the new CHANGELOG.md (it must be committed)
+    expect(combinedOutput).toContain("Here's what would change");
+    expect(combinedOutput).toContain('CHANGELOG.md');
+  }, 60000);
+
+  test('commits changelog even when no preReleaseCommand runs and targets have no bumpVersion', async () => {
+    // Reproduces the sentry-go scenario: auto changelog + github-only targets
+    // (no bumpVersion support) + no preReleaseCommand → changelog must still
+    // be committed.
+    tempDir = await mkdtemp(join(tmpdir(), 'craft-e2e-'));
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const git = simpleGit(tempDir);
+
+    await git.init();
+    await git.addConfig('user.email', 'test@example.com');
+    await git.addConfig('user.name', 'Test User');
+
+    // Config with auto changelog, no preReleaseCommand, github-only targets
+    // (github target does not have bumpVersion, so auto-bumping returns false)
+    const craftConfig = `
+minVersion: "2.21.0"
+github:
+  owner: test-owner
+  repo: test-repo
+versioning:
+  policy: auto
+changelog:
+  policy: auto
+targets:
+  - name: github
+`;
+    await writeFile(join(tempDir, '.craft.yml'), craftConfig);
+
+    // Create CHANGELOG.md (already tracked, like sentry-go)
+    await writeFile(join(tempDir, 'CHANGELOG.md'), '# Changelog\n');
+
+    // Initial commit and tag
+    await git.add('.');
+    await git.commit('Initial commit');
+    await git.addTag('1.0.0');
+
+    // Add a feature commit
+    await writeFile(join(tempDir, 'feature.go'), 'package main');
+    await git.add('.');
+    await git.commit('feat: Add new feature');
+
+    // Create remote
+    const remoteDir = await mkdtemp(join(tmpdir(), 'craft-e2e-remote-'));
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const remoteGit = simpleGit(remoteDir);
+    await remoteGit.init(true);
+    await git.addRemote('origin', remoteDir);
+    const status = await git.status();
+    await git.push('origin', status.current!, ['--set-upstream']);
+
+    const { stdout, stderr } = await execFileAsync(
+      CLI_BIN,
+      ['prepare', '--dry-run', '--no-input'],
+      {
+        cwd: tempDir,
+        env: {
+          ...process.env,
+          NODE_ENV: 'test',
+          GITHUB_TOKEN: 'test-token',
+        },
+      },
+    );
+
+    const combinedOutput = stdout + stderr;
+
+    // Should succeed with auto-detected version
+    expect(combinedOutput).toContain('Releasing version 1.1.0');
+    expect(combinedOutput).toContain('release/1.1.0');
+
+    // The diff MUST show CHANGELOG.md changes — this was the bug
+    expect(combinedOutput).toContain("Here's what would change");
+    expect(combinedOutput).toContain('CHANGELOG.md');
   }, 60000);
 });
