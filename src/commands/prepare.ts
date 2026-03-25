@@ -288,8 +288,15 @@ async function commitChanges(
 
   if (preReleaseCommandRan) {
     // Pre-release command can modify arbitrary files; stage + commit all changes.
+    // Also check staged — the changelog may already be explicitly staged.
     const repoStatus = await git.status();
-    if (!(repoStatus.created.length || repoStatus.modified.length)) {
+    if (
+      !(
+        repoStatus.created.length ||
+        repoStatus.modified.length ||
+        repoStatus.staged.length
+      )
+    ) {
       reportError(
         'Nothing to commit: has the pre-release command done its job?',
       );
