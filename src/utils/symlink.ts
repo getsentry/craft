@@ -37,7 +37,7 @@ function forceSymlink(target: string, newFile: string): void {
 export function createSymlinks(
   versionFilePath: string,
   newVersion: string,
-  oldVersion?: string
+  oldVersion?: string,
 ): void {
   const parsedNewVersion = parseVersion(newVersion) || undefined;
   if (!parsedNewVersion) {
@@ -62,13 +62,13 @@ export function createSymlinks(
 
   // Read possibly existing symlinks for major and minor versions of the new version
   const existingLinkedMajorVersion = getExistingSymlinkedVersion(
-    path.join(packageDir, `${parsedNewVersion.major}.json`)
+    path.join(packageDir, `${parsedNewVersion.major}.json`),
   );
   const existingLinkedMinorVersion = getExistingSymlinkedVersion(
     path.join(
       packageDir,
-      `${parsedNewVersion.major}.${parsedNewVersion.minor}.json`
-    )
+      `${parsedNewVersion.major}.${parsedNewVersion.minor}.json`,
+    ),
   );
 
   // link {major}.json if there's no link yet for that major

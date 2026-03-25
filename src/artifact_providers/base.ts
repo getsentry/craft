@@ -86,7 +86,7 @@ export interface ParsedFilterOptions {
  * Returns parsed the given raw filters.
  */
 export function parseFilterOptions(
-  rawFilters: RawFilterOptions
+  rawFilters: RawFilterOptions,
 ): ParsedFilterOptions {
   const parsedFilters: ParsedFilterOptions = {};
   if (rawFilters.includeNames) {
@@ -193,7 +193,7 @@ export abstract class BaseArtifactProvider {
    */
   public async downloadArtifact(
     artifact: RemoteArtifact,
-    downloadDirectory?: string
+    downloadDirectory?: string,
   ): Promise<string> {
     let finalDownloadDirectory;
     if (downloadDirectory) {
@@ -210,14 +210,14 @@ export abstract class BaseArtifactProvider {
       return cached;
     }
     this.logger.debug(
-      `Downloading \`${artifact.filename}\` to \`${finalDownloadDirectory}\``
+      `Downloading \`${artifact.filename}\` to \`${finalDownloadDirectory}\``,
     );
     const promise = this.doDownloadArtifact(
       artifact,
-      finalDownloadDirectory
+      finalDownloadDirectory,
     ).catch(err => {
       this.logger.error(
-        `Unable to download ${artifact.filename} from artifact provider!`
+        `Unable to download ${artifact.filename} from artifact provider!`,
       );
       throw err;
     });
@@ -237,7 +237,7 @@ export abstract class BaseArtifactProvider {
    */
   protected abstract doDownloadArtifact(
     artifact: RemoteArtifact,
-    downloadDirectory: string
+    downloadDirectory: string,
   ): Promise<string>;
 
   /**
@@ -254,12 +254,12 @@ export abstract class BaseArtifactProvider {
    */
   public async downloadArtifacts(
     artifacts: RemoteArtifact[],
-    downloadDirectory?: string
+    downloadDirectory?: string,
   ): Promise<string[]> {
     return Promise.all(
       artifacts.map(async artifact =>
-        this.downloadArtifact(artifact, downloadDirectory)
-      )
+        this.downloadArtifact(artifact, downloadDirectory),
+      ),
     );
   }
 
@@ -271,7 +271,7 @@ export abstract class BaseArtifactProvider {
    * @returns List of artifacts associated with that commit
    */
   public async listArtifactsForRevision(
-    revision: string
+    revision: string,
   ): Promise<RemoteArtifact[]> {
     this.logger.debug(`Fetching artifact list for revision \`${revision}\`.`);
     // check the cache first
@@ -288,7 +288,7 @@ export abstract class BaseArtifactProvider {
       artifacts = await this.fileListCache[revision];
     } catch (err) {
       this.logger.error(
-        `Unable to retrieve artifact list for revision ${revision}!`
+        `Unable to retrieve artifact list for revision ${revision}!`,
       );
       throw err;
     }
@@ -314,7 +314,7 @@ export abstract class BaseArtifactProvider {
    * be found
    */
   protected abstract doListArtifactsForRevision(
-    revision: string
+    revision: string,
   ): Promise<RemoteArtifact[]>;
 
   /**
@@ -330,7 +330,7 @@ export abstract class BaseArtifactProvider {
   public async getChecksum(
     artifact: RemoteArtifact,
     algorithm: HashAlgorithm,
-    format: HashOutputFormat
+    format: HashOutputFormat,
   ): Promise<string> {
     const filePath = await this.downloadArtifact(artifact);
     const checksumKey = `${algorithm}__${format}`;
@@ -356,7 +356,7 @@ export abstract class BaseArtifactProvider {
    */
   public async filterArtifactsForRevision(
     revision: string,
-    filterOptions?: ParsedFilterOptions
+    filterOptions?: ParsedFilterOptions,
   ): Promise<RemoteArtifact[]> {
     let filteredArtifacts = await this.listArtifactsForRevision(revision);
     if (!filterOptions || filteredArtifacts.length === 0) {
@@ -365,12 +365,12 @@ export abstract class BaseArtifactProvider {
     const { includeNames, excludeNames } = filterOptions;
     if (includeNames) {
       filteredArtifacts = filteredArtifacts.filter(artifact =>
-        includeNames.test(artifact.filename)
+        includeNames.test(artifact.filename),
       );
     }
     if (excludeNames) {
       filteredArtifacts = filteredArtifacts.filter(
-        artifact => !excludeNames.test(artifact.filename)
+        artifact => !excludeNames.test(artifact.filename),
       );
     }
     return filteredArtifacts;

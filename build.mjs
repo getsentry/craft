@@ -15,10 +15,12 @@ if (process.env.SENTRY_AUTH_TOKEN) {
         assets: ['dist/craft.js', 'dist/craft.js.map'],
         filesToDeleteAfterUpload: ['dist/**/*.map'],
       },
-    })
+    }),
   );
 } else {
-  console.log('[build] SENTRY_AUTH_TOKEN not found, skipping source map upload');
+  console.log(
+    '[build] SENTRY_AUTH_TOKEN not found, skipping source map upload',
+  );
 }
 
 // Build to .js file first so Sentry plugin can properly handle source maps
@@ -33,7 +35,9 @@ await esbuild.build({
     'import.meta.url': 'import_meta_url',
     'process.env.NODE_ENV': JSON.stringify('production'),
     ...(process.env.CRAFT_BUILD_SHA && {
-      'process.env.CRAFT_BUILD_SHA': JSON.stringify(process.env.CRAFT_BUILD_SHA),
+      'process.env.CRAFT_BUILD_SHA': JSON.stringify(
+        process.env.CRAFT_BUILD_SHA,
+      ),
     }),
   },
   outfile: 'dist/craft.js',

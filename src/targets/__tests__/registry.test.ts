@@ -11,16 +11,15 @@ describe('getUpdatedManifest', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockClient = vi.fn();
-    (getGitHubClient as MockedFunction<
-      typeof getGitHubClient
-      // @ts-ignore we only need to mock a subset
-    >).mockReturnValue({ graphql: mockClient });
+    (getGitHubClient as MockedFunction<typeof getGitHubClient>)
+      // @ts-ignore -- we only need to mock a subset
+      .mockReturnValue({ graphql: mockClient });
   });
 
   const target = new RegistryTarget(
     { name: 'pypi' },
     new NoneArtifactProvider(),
-    { owner: 'testSourceOwner', repo: 'testSourceRepo' }
+    { owner: 'testSourceOwner', repo: 'testSourceRepo' },
   );
 
   it('check if created_at exists', async () => {
@@ -40,7 +39,7 @@ describe('getUpdatedManifest', () => {
       packageManifest,
       canonical,
       version,
-      revision
+      revision,
     );
 
     // check if property created_at exists
@@ -62,11 +61,11 @@ describe('getUpdatedManifest', () => {
       packageManifest,
       'example-package',
       '1.0.0',
-      'abc123'
+      'abc123',
     );
 
     expect(updatedManifest.repo_url).toBe(
-      'https://github.com/testSourceOwner/testSourceRepo'
+      'https://github.com/testSourceOwner/testSourceRepo',
     );
   });
 
@@ -88,11 +87,13 @@ describe('getUpdatedManifest', () => {
       packageManifest,
       'example-package',
       '1.0.0',
-      'abc123'
+      'abc123',
     );
 
     expect(updatedManifest.name).toBe('Example Package');
-    expect(updatedManifest.package_url).toBe('https://npmjs.com/package/example');
+    expect(updatedManifest.package_url).toBe(
+      'https://npmjs.com/package/example',
+    );
     expect(updatedManifest.main_docs_url).toBe('https://docs.example.com');
     expect(updatedManifest.api_docs_url).toBe('https://api.example.com/docs');
   });
@@ -116,14 +117,16 @@ describe('getUpdatedManifest', () => {
       packageManifest,
       'example-package',
       '1.0.0',
-      'abc123'
+      'abc123',
     );
 
     // Config values should override
     expect(updatedManifest.name).toBe('New Name');
     expect(updatedManifest.main_docs_url).toBe('https://new-docs.example.com');
     // Existing value not in config should be preserved
-    expect(updatedManifest.package_url).toBe('https://npmjs.com/package/example');
+    expect(updatedManifest.package_url).toBe(
+      'https://npmjs.com/package/example',
+    );
   });
 
   it('does not set optional fields when not specified in config', async () => {
@@ -140,7 +143,7 @@ describe('getUpdatedManifest', () => {
       packageManifest,
       'example-package',
       '1.0.0',
-      'abc123'
+      'abc123',
     );
 
     expect(updatedManifest.name).toBeUndefined();

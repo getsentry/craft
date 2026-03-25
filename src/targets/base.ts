@@ -35,7 +35,7 @@ export class BaseTarget {
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo?: GitHubGlobalConfig
+    githubRepo?: GitHubGlobalConfig,
   ) {
     this.logger = loggerRaw.withScope(`[target/${config.name}]`);
     this.artifactProvider = artifactProvider;
@@ -45,12 +45,12 @@ export class BaseTarget {
     this.filterOptions = {};
     if (this.config.includeNames) {
       this.filterOptions.includeNames = stringToRegexp(
-        this.config.includeNames
+        this.config.includeNames,
       );
     }
     if (this.config.excludeNames) {
       this.filterOptions.excludeNames = stringToRegexp(
-        this.config.excludeNames
+        this.config.excludeNames,
       );
     }
   }
@@ -64,7 +64,7 @@ export class BaseTarget {
   public async publish(
     _version: string,
 
-    _revision: string
+    _revision: string,
   ): Promise<void> {
     throw new Error('Not implemented');
     return;
@@ -80,7 +80,7 @@ export class BaseTarget {
    */
   public async getArtifactsForRevision(
     revision: string,
-    defaultFilterOptions: RawFilterOptions = {}
+    defaultFilterOptions: RawFilterOptions = {},
   ): Promise<RemoteArtifact[]> {
     const filterOptions = {
       ...parseFilterOptions(defaultFilterOptions),
@@ -88,12 +88,12 @@ export class BaseTarget {
     };
     this.logger.debug(
       `Getting artifact list for revision "${revision}", filtering options: {includeNames: ${String(
-        filterOptions.includeNames
-      )}, excludeNames:${String(filterOptions.excludeNames)}}`
+        filterOptions.includeNames,
+      )}, excludeNames:${String(filterOptions.excludeNames)}}`,
     );
     return this.artifactProvider.filterArtifactsForRevision(
       revision,
-      filterOptions
+      filterOptions,
     );
   }
 }

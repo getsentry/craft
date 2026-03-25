@@ -1,4 +1,13 @@
-import { vi, describe, test, expect, beforeEach, afterEach, type Mock, type MockInstance } from 'vitest';
+import {
+  vi,
+  describe,
+  test,
+  expect,
+  beforeEach,
+  afterEach,
+  type Mock,
+  type MockInstance,
+} from 'vitest';
 import { handler } from '../targets';
 
 vi.mock('../../config', () => ({
@@ -29,10 +38,7 @@ describe('targets command', () => {
   });
 
   test('lists targets without expansion when no workspaces', async () => {
-    const targets = [
-      { name: 'npm' },
-      { name: 'github' },
-    ];
+    const targets = [{ name: 'npm' }, { name: 'github' }];
 
     mockedGetConfiguration.mockReturnValue({ targets });
     mockedExpandWorkspaceTargets.mockResolvedValue(targets);

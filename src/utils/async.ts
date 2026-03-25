@@ -47,7 +47,7 @@ export async function retrySpawnProcess(
   args: string[] = [],
   spawnOptions: SpawnOptions = {},
   spawnProcessOptions: SpawnProcessOptions = {},
-  retryOptions: RetryOptions = {}
+  retryOptions: RetryOptions = {},
 ): Promise<Buffer | undefined> {
   const maxRetries = retryOptions.maxRetries ?? MAX_RETRIES;
   const retryExpFactor = retryOptions.retryExpFactor ?? RETRY_EXP_FACTOR;
@@ -62,7 +62,7 @@ export async function retrySpawnProcess(
       await sleep(retryDelay * 1000);
       retryDelay *= retryExpFactor;
       return true;
-    }
+    },
   );
 }
 
@@ -79,7 +79,7 @@ export async function retrySpawnProcess(
 export async function filterAsync<T>(
   array: T[],
   predicate: (arg: T) => boolean | Promise<boolean>,
-  thisArg?: unknown
+  thisArg?: unknown,
 ): Promise<T[]> {
   const verdicts = await Promise.all(array.map(predicate, thisArg));
   return array.filter((_element, index) => verdicts[index]);
@@ -103,15 +103,15 @@ export async function filterAsync<T>(
 export async function forEachChained<T>(
   array: T[],
   iteratee: (x: T) => any,
-   
-  thisArg?: any
+
+  thisArg?: any,
 ): Promise<void> {
   return array.reduce(
     async (prev, ...args: [T]) =>
       // catching errors after each .then() lets us report them and keep going
       // if in dry-run mode (in regular mode, reportError() just re-throws)
       prev.then(() => iteratee.apply(thisArg, args)).catch(reportError),
-    Promise.resolve()
+    Promise.resolve(),
   );
 }
 
@@ -155,7 +155,7 @@ class RetryError extends ExtendedError {
 export async function withRetry<T>(
   fn: () => Promise<T>,
   maxRetries = 3,
-  onRetry?: (err: Error) => Promise<boolean>
+  onRetry?: (err: Error) => Promise<boolean>,
 ): Promise<T> {
   if (!onRetry) {
     onRetry = () => Promise.resolve(true);
