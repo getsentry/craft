@@ -1,3 +1,6 @@
 coverage/
 dist/
 node_modules/
+pnpm-lock.yaml
+temp_*/
+docs/

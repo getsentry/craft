@@ -18,7 +18,7 @@ async function handlerMain(argv: ArtifactsOptions): Promise<any> {
   const artifactProvider = await getArtifactProviderFromConfig();
   if (artifactProvider instanceof NoneArtifactProvider) {
     logger.warn(
-      `Artifact provider is disabled in the configuration, nothing to do.`
+      `Artifact provider is disabled in the configuration, nothing to do.`,
     );
     return undefined;
   }
@@ -41,10 +41,10 @@ async function handlerMain(argv: ArtifactsOptions): Promise<any> {
       head: ['File Name', 'Size', 'Updated'],
       style: { head: ['cyan'] },
     },
-    artifactData
+    artifactData,
   );
   logger.info(
-    `Available artifacts for revision ${revision}: \n${table.toString()}\n`
+    `Available artifacts for revision ${revision}: \n${table.toString()}\n`,
   );
 
   return argv.rev;

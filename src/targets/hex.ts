@@ -44,7 +44,7 @@ export class HexTarget extends BaseTarget {
    */
   public static async bumpVersion(
     rootDir: string,
-    newVersion: string
+    newVersion: string,
   ): Promise<boolean> {
     const mixExsPath = join(rootDir, 'mix.exs');
     if (!existsSync(mixExsPath)) {
@@ -86,7 +86,7 @@ export class HexTarget extends BaseTarget {
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GitHubGlobalConfig
+    githubRepo: GitHubGlobalConfig,
   ) {
     super(config, artifactProvider, githubRepo);
     checkExecutableIsPresent(MIX_BIN);
@@ -101,7 +101,7 @@ export class HexTarget extends BaseTarget {
     if (!process.env.HEX_API_KEY) {
       reportError(
         `Cannot publish to hex.pm: missing credentials.
-         Please use HEX_API_KEY environment variable to pass the API token.`
+         Please use HEX_API_KEY environment variable to pass the API token.`,
       );
     }
   }
@@ -116,7 +116,7 @@ export class HexTarget extends BaseTarget {
   async cloneRepository(
     config: GitHubGlobalConfig,
     revision: string,
-    directory: string
+    directory: string,
   ): Promise<any> {
     const { owner, repo } = config;
     const git = createGitClient(directory);
@@ -144,29 +144,29 @@ export class HexTarget extends BaseTarget {
           MIX_BIN,
           ['local.hex', '--force'],
           spawnOptions,
-          spawnProcessOptions
+          spawnProcessOptions,
         );
         await spawnProcess(
           MIX_BIN,
           ['local.rebar', '--force'],
           spawnOptions,
-          spawnProcessOptions
+          spawnProcessOptions,
         );
         await spawnProcess(
           MIX_BIN,
           ['deps.get'],
           spawnOptions,
-          spawnProcessOptions
+          spawnProcessOptions,
         );
         await spawnProcess(
           MIX_BIN,
           ['hex.publish', '--yes'],
           spawnOptions,
-          spawnProcessOptions
+          spawnProcessOptions,
         );
       },
       true,
-      'craft-hex-'
+      'craft-hex-',
     );
 
     this.logger.info('Hex release complete');

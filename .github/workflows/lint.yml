@@ -33,6 +33,8 @@ jobs:
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
+      - name: Format Check
+        run: pnpm format:check
       - name: Type Check
         run: pnpm typecheck
       - name: Lint

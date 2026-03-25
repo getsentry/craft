@@ -17,7 +17,11 @@ const DEFAULT_DOCKER_BIN = 'docker';
 const DOCKER_BIN = process.env.DOCKER_BIN || DEFAULT_DOCKER_BIN;
 
 /** Docker Hub registry hostnames that should be treated as the default registry */
-const DOCKER_HUB_REGISTRIES = ['docker.io', 'index.docker.io', 'registry-1.docker.io'];
+const DOCKER_HUB_REGISTRIES = [
+  'docker.io',
+  'index.docker.io',
+  'registry-1.docker.io',
+];
 
 /**
  * Google Cloud registry patterns.
@@ -68,7 +72,7 @@ export function hasGcloudCredentials(): boolean {
     homedir(),
     '.config',
     'gcloud',
-    'application_default_credentials.json'
+    'application_default_credentials.json',
   );
   if (existsSync(defaultAdcPath)) {
     return true;
@@ -188,14 +192,14 @@ const LEGACY_KEYS: Record<'source' | 'target', LegacyConfigKeys> = {
  */
 export function normalizeImageRef(
   config: Record<string, unknown>,
-  type: 'source' | 'target'
+  type: 'source' | 'target',
 ): ImageRefConfig {
   const ref = config[type] as ImageRef;
 
   // Validate that the required field is present
   if (ref === undefined || ref === null) {
     throw new ConfigurationError(
-      `Docker target requires a '${type}' property. Please specify the ${type} image.`
+      `Docker target requires a '${type}' property. Please specify the ${type} image.`,
     );
   }
 
@@ -260,7 +264,7 @@ export class DockerTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
     this.dockerConfig = this.getDockerConfig();
@@ -292,7 +296,7 @@ export class DockerTarget extends BaseTarget {
     usernameVar?: string,
     passwordVar?: string,
     required = true,
-    useDefaultFallback = true
+    useDefaultFallback = true,
   ): RegistryCredentials | undefined {
     let username: string | undefined;
     let password: string | undefined;
@@ -301,7 +305,7 @@ export class DockerTarget extends BaseTarget {
     if (usernameVar || passwordVar) {
       if (!usernameVar || !passwordVar) {
         throw new ConfigurationError(
-          'Both usernameVar and passwordVar must be specified together'
+          'Both usernameVar and passwordVar must be specified together',
         );
       }
       username = process.env[usernameVar];
@@ -310,7 +314,7 @@ export class DockerTarget extends BaseTarget {
       if (!username || !password) {
         if (required) {
           throw new ConfigurationError(
-            `Missing credentials: ${usernameVar} and/or ${passwordVar} environment variable(s) not set`
+            `Missing credentials: ${usernameVar} and/or ${passwordVar} environment variable(s) not set`,
           );
         }
         return undefined;
@@ -334,7 +338,10 @@ export class DockerTarget extends BaseTarget {
           // GITHUB_API_TOKEN is used by getsentry/publish workflow with release bot token
           // x-access-token works with GitHub App installation tokens and PATs
           username = username || process.env.GITHUB_ACTOR || 'x-access-token';
-          password = password || process.env.GITHUB_TOKEN || process.env.GITHUB_API_TOKEN;
+          password =
+            password ||
+            process.env.GITHUB_TOKEN ||
+            process.env.GITHUB_API_TOKEN;
         }
       }
 
@@ -351,12 +358,12 @@ export class DockerTarget extends BaseTarget {
         const registryHint = registry
           ? `DOCKER_${registryToEnvPrefix(registry)}_USERNAME/PASSWORD or `
           : '';
-      throw new ConfigurationError(
-        `Cannot perform Docker release: missing credentials.
+        throw new ConfigurationError(
+          `Cannot perform Docker release: missing credentials.
 Please use ${registryHint}DOCKER_USERNAME and DOCKER_PASSWORD environment variables.`.replace(
-          /^\s+/gm,
-          ''
-        )
+            /^\s+/gm,
+            '',
+          ),
         );
       }
       return undefined;
@@ -400,7 +407,7 @@ Please use ${registryHint}DOCKER_USERNAME and DOCKER_PASSWORD environment variab
         target.usernameVar,
         target.passwordVar,
         // Required unless it's a GCR registry (which can use gcloud auth)
-        !isGcrTarget
+        !isGcrTarget,
       );
     }
 
@@ -416,7 +423,7 @@ Please use ${registryHint}DOCKER_USERNAME and DOCKER_PASSWORD environment variab
         // Only required if explicit source env vars are specified
         !!(source.usernameVar || source.passwordVar),
         // Don't fall back to DOCKER_USERNAME/PASSWORD for source
-        false
+        false,
       );
     }
 
@@ -441,7 +448,9 @@ Please use ${registryHint}DOCKER_USERNAME and DOCKER_PASSWORD environment variab
    *
    * @param credentials The registry credentials to use
    */
-  private async loginToRegistry(credentials: RegistryCredentials): Promise<void> {
+  private async loginToRegistry(
+    credentials: RegistryCredentials,
+  ): Promise<void> {
     const { username, password, registry } = credentials;
     const args = ['login', `--username=${username}`, '--password-stdin'];
     if (registry) {
@@ -467,23 +476,34 @@ Please use ${registryHint}DOCKER_USERNAME and DOCKER_PASSWORD environment variab
 
     // Check if gcloud credentials are available
     if (!hasGcloudCredentials()) {
-      this.logger.debug('No gcloud credentials detected, skipping gcloud auth configure-docker');
+      this.logger.debug(
+        'No gcloud credentials detected, skipping gcloud auth configure-docker',
+      );
       return false;
     }
 
     // Check if gcloud is available
     if (!(await isGcloudAvailable())) {
-      this.logger.debug('gcloud CLI not available, skipping gcloud auth configure-docker');
+      this.logger.debug(
+        'gcloud CLI not available, skipping gcloud auth configure-docker',
+      );
       return false;
     }
 
     const registryList = registries.join(',');
-    this.logger.debug(`Configuring Docker for Google Cloud registries: ${registryList}`);
+    this.logger.debug(
+      `Configuring Docker for Google Cloud registries: ${registryList}`,
+    );
 
     try {
       // Run gcloud auth configure-docker with the registries
       // This configures Docker's credential helper to use gcloud for these registries
-      await spawnProcess('gcloud', ['auth', 'configure-docker', registryList, '--quiet'], {}, {});
+      await spawnProcess(
+        'gcloud',
+        ['auth', 'configure-docker', registryList, '--quiet'],
+        {},
+        {},
+      );
       this.logger.info(`Configured Docker authentication for: ${registryList}`);
       return true;
     } catch (error) {
@@ -555,18 +575,23 @@ Please use ${registryHint}DOCKER_USERNAME and DOCKER_PASSWORD environment variab
     ) {
       // Source registry needs auth but we couldn't configure it
       // This is okay - source might be public or already authenticated
-      this.logger.debug(`No credentials for source registry ${sourceRegistry}, assuming public`);
+      this.logger.debug(
+        `No credentials for source registry ${sourceRegistry}, assuming public`,
+      );
     }
 
     // Login to target registry (if needed and not already configured via gcloud)
     if (target.credentials) {
       await this.loginToRegistry(target.credentials);
-    } else if (!target.skipLogin && !gcrConfiguredRegistries.has(targetRegistry || '')) {
+    } else if (
+      !target.skipLogin &&
+      !gcrConfiguredRegistries.has(targetRegistry || '')
+    ) {
       // Target registry needs auth but we have no credentials and couldn't configure gcloud
       // This will likely fail when pushing, but we let it proceed
       if (targetRegistry) {
         this.logger.warn(
-          `No credentials for target registry ${targetRegistry}. Push may fail.`
+          `No credentials for target registry ${targetRegistry}. Push may fail.`,
         );
       }
     }
@@ -601,7 +626,7 @@ Please use ${registryHint}DOCKER_USERNAME and DOCKER_PASSWORD environment variab
       DOCKER_BIN,
       ['buildx', 'imagetools', 'create', '--tag', targetImage, sourceImage],
       {},
-      { showStdout: true }
+      { showStdout: true },
     );
   }
 

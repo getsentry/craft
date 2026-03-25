@@ -5,7 +5,7 @@ import { spawnProcess } from '../system';
 
 vi.mock('../system');
 
-vi.mock('fs', async (importOriginal) => {
+vi.mock('fs', async importOriginal => {
   const actual = await importOriginal<typeof import('fs')>();
   return {
     ...actual,
@@ -24,7 +24,7 @@ describe('importGPGKey', () => {
     importGPGKey(KEY);
     expect(fsPromises.writeFile).toHaveBeenCalledWith(
       PRIVATE_KEY_FILE_MATCHER,
-      KEY
+      KEY,
     );
   });
 

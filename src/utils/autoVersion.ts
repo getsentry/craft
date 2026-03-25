@@ -23,7 +23,7 @@ export { BUMP_TYPES, isBumpType, type BumpType, type ChangelogResult };
  */
 export function calculateNextVersion(
   currentVersion: string,
-  bumpType: BumpType
+  bumpType: BumpType,
 ): string {
   // Handle empty/missing current version (new project)
   const versionToBump = currentVersion || '0.0.0';
@@ -32,7 +32,7 @@ export function calculateNextVersion(
 
   if (!newVersion) {
     throw new Error(
-      `Failed to increment version "${versionToBump}" with bump type "${bumpType}"`
+      `Failed to increment version "${versionToBump}" with bump type "${bumpType}"`,
     );
   }
 
@@ -49,10 +49,10 @@ export function calculateNextVersion(
  */
 export async function getChangelogWithBumpType(
   git: SimpleGit,
-  rev: string
+  rev: string,
 ): Promise<ChangelogResult> {
   logger.info(
-    `Analyzing commits since ${rev || '(beginning of history)'} for auto-versioning...`
+    `Analyzing commits since ${rev || '(beginning of history)'} for auto-versioning...`,
   );
 
   const result = await generateChangesetFromGit(git, rev);
@@ -60,7 +60,7 @@ export async function getChangelogWithBumpType(
   if (result.bumpType) {
     logger.info(
       `Auto-version: determined ${result.bumpType} bump ` +
-        `(${result.matchedCommitsWithSemver}/${result.totalCommits} commits matched)`
+        `(${result.matchedCommitsWithSemver}/${result.totalCommits} commits matched)`,
     );
   }
 
@@ -73,10 +73,12 @@ export async function getChangelogWithBumpType(
  * @param result The changelog result to validate
  * @throws Error if no commits found or none match categories with semver fields
  */
-export function validateBumpType(result: ChangelogResult): asserts result is ChangelogResult & { bumpType: BumpType } {
+export function validateBumpType(
+  result: ChangelogResult,
+): asserts result is ChangelogResult & { bumpType: BumpType } {
   if (result.totalCommits === 0) {
     throw new Error(
-      'Cannot determine version automatically: no commits found since the last release.'
+      'Cannot determine version automatically: no commits found since the last release.',
     );
   }
 
@@ -85,7 +87,7 @@ export function validateBumpType(result: ChangelogResult): asserts result is Cha
       `Cannot determine version automatically: ${result.totalCommits} commit(s) found, ` +
         'but none matched a category with a "semver" field in the release configuration. ' +
         'Please ensure your .github/release.yml categories have "semver" fields defined, ' +
-        'or specify the version explicitly.'
+        'or specify the version explicitly.',
     );
   }
 }

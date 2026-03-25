@@ -45,7 +45,7 @@ interface ArtifactsDownloadOptions extends ArtifactsOptions {
  * @param argv Full path to the target directory
  */
 async function prepareOutputDirectory(
-  argv: ArtifactsDownloadOptions
+  argv: ArtifactsDownloadOptions,
 ): Promise<string> {
   if (argv.directory) {
     const fullPath = resolve(argv.directory);
@@ -78,7 +78,7 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
   const artifactProvider = await getArtifactProviderFromConfig();
   if (artifactProvider instanceof NoneArtifactProvider) {
     logger.warn(
-      `Artifact provider is disabled in the configuration, nothing to do.`
+      `Artifact provider is disabled in the configuration, nothing to do.`,
     );
     return undefined;
   }
@@ -94,10 +94,13 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
   const filesToDownload = argv.all
     ? artifacts.map(ar => ar.filename)
     : argv.names;
-  const nameToArtifact = artifacts.reduce((dict, artifact) => {
-    dict[artifact.filename] = artifact;
-    return dict;
-  }, {} as { [index: string]: RemoteArtifact });
+  const nameToArtifact = artifacts.reduce(
+    (dict, artifact) => {
+      dict[artifact.filename] = artifact;
+      return dict;
+    },
+    {} as { [index: string]: RemoteArtifact },
+  );
 
   logger.info(`Fetching artifacts for revision: ${revision}`);
   for (const name of filesToDownload) {
@@ -110,7 +113,7 @@ async function handlerMain(argv: ArtifactsDownloadOptions): Promise<any> {
 
     const artifactPath = await artifactProvider.downloadArtifact(
       filteredArtifact,
-      outputDirectory
+      outputDirectory,
     );
     logger.info(`Saved artifact to: ${artifactPath}`);
   }
