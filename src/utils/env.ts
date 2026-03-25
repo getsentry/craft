@@ -57,13 +57,13 @@ function envHasVar(envVar: RequiredConfigVar): boolean {
   // the less simple cases - only using legacy name or using both
   else if (process.env[legacyName] && !process.env[name]) {
     logger.warn(
-      `Usage of ${legacyName} is deprecated, and will be removed in later versions. Please use ${name} instead.`
+      `Usage of ${legacyName} is deprecated, and will be removed in later versions. Please use ${name} instead.`,
     );
     logger.debug(`Moving legacy environment variable ${legacyName} to ${name}`);
     process.env[name] = process.env[legacyName];
   } else if (process.env[legacyName] && process.env[name]) {
     logger.warn(
-      `When searching configuration files and your environment, found ${name} but also found legacy ${legacyName}. Do you mean to be using both?`
+      `When searching configuration files and your environment, found ${name} but also found legacy ${legacyName}. Do you mean to be using both?`,
     );
   }
 
@@ -86,7 +86,7 @@ function checkFileIsPrivate(path: string): boolean {
   if (mode & GROUP_MODE_MASK || mode & OTHER_MODE_MASK) {
     const perms = (mode & FULL_MODE_MASK).toString(8);
     logger.warn(
-      `Permissions 0${perms} for file "${path}" are too open. Consider making it readable only for the user.`
+      `Permissions 0${perms} for file "${path}" are too open. Consider making it readable only for the user.`,
     );
     return false;
   }
@@ -111,7 +111,7 @@ export function readEnvironmentConfig(overwriteExisting = false): void {
   if (existsSync(homedirEnvFile)) {
     logger.debug(
       'Found environment file in the home directory:',
-      homedirEnvFile
+      homedirEnvFile,
     );
     checkFileIsPrivate(homedirEnvFile);
     const homedirEnv = {};
@@ -121,7 +121,7 @@ export function readEnvironmentConfig(overwriteExisting = false): void {
   } else {
     logger.debug(
       'No environment file found in the home directory:',
-      homedirEnvFile
+      homedirEnvFile,
     );
   }
 
@@ -134,7 +134,7 @@ export function readEnvironmentConfig(overwriteExisting = false): void {
   } else if (configDirEnvFile && existsSync(configDirEnvFile)) {
     logger.debug(
       'Found environment file in the configuration directory:',
-      configDirEnvFile
+      configDirEnvFile,
     );
     checkFileIsPrivate(configDirEnvFile);
     const configDirEnv = {};
@@ -144,7 +144,7 @@ export function readEnvironmentConfig(overwriteExisting = false): void {
   } else {
     logger.debug(
       'No environment file found in the configuration directory:',
-      configDirEnvFile
+      configDirEnvFile,
     );
   }
 
@@ -174,7 +174,7 @@ export function checkEnvForPrerequisite(...varList: RequiredConfigVar[]): void {
     // all of the places they might have stuck these variables.
     throw new ConfigurationError(
       `Required value(s) ${varNames} not found in configuration files or ` +
-        `the environment. See the documentation for more details.`
+        `the environment. See the documentation for more details.`,
     );
   }
 }

@@ -12,7 +12,7 @@
  * Avoids template literal indentation issues.
  */
 export function createChangelog(
-  sections: Array<{ version: string; body: string; style?: 'atx' | 'setext' }>
+  sections: Array<{ version: string; body: string; style?: 'atx' | 'setext' }>,
 ): string {
   return sections
     .map(({ version, body, style = 'atx' }) => {
@@ -29,7 +29,7 @@ export function createChangelog(
  */
 export function createFullChangelog(
   title: string,
-  sections: Array<{ version: string; body: string; style?: 'atx' | 'setext' }>
+  sections: Array<{ version: string; body: string; style?: 'atx' | 'setext' }>,
 ): string {
   return `# ${title}\n\n${createChangelog(sections)}`;
 }
@@ -75,7 +75,7 @@ export interface TestCommit {
 export function localCommit(
   hash: string,
   title: string,
-  body = ''
+  body = '',
 ): TestCommit {
   return { hash, title, body };
 }
@@ -93,7 +93,7 @@ export function prCommit(
     labels?: string[];
     prTitle?: string;
     prBody?: string;
-  } = {}
+  } = {},
 ): TestCommit {
   return {
     hash,
@@ -210,7 +210,7 @@ export function commitLink(hash: string, shortHash?: string): string {
  */
 export function changelogEntry(
   title: string,
-  options: { author?: string; prNumber?: string; hash?: string } = {}
+  options: { author?: string; prNumber?: string; hash?: string } = {},
 ): string {
   const parts = [title];
 
@@ -233,8 +233,7 @@ export function changelogEntry(
 export function changelogSection(
   title: string,
   emoji: string,
-  entries: string[]
+  entries: string[],
 ): string {
   return `### ${title} ${emoji}\n\n${entries.join('\n')}`;
 }
-

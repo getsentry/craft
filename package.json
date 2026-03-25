@@ -82,6 +82,8 @@
     "clean": "rm -rf dist coverage",
     "lint": "eslint --cache --cache-strategy content",
     "fix": "pnpm lint --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",

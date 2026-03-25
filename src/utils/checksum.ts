@@ -26,30 +26,28 @@ export function castChecksums(checksums: any[]): ChecksumEntry[] {
   }
   if (!Array.isArray(checksums)) {
     throw new ConfigurationError(
-      'Invalid type of "checksums": should be an array'
+      'Invalid type of "checksums": should be an array',
     );
   }
-  return checksums.map(
-    (item: any): ChecksumEntry => {
-      if (typeof item !== 'object' || !item.algorithm || !item.format) {
-        throw new ConfigurationError(
-          `Invalid checksum type: ${JSON.stringify(item)}`
-        );
-      }
-      if (
-        !Object.values(HashAlgorithm).includes(item.algorithm) ||
-        !Object.values(HashOutputFormat).includes(item.format)
-      ) {
-        throw new ConfigurationError(
-          `Invalid checksum type: ${JSON.stringify(item)}`
-        );
-      }
-      return {
-        algorithm: item.algorithm,
-        format: item.format,
-      };
+  return checksums.map((item: any): ChecksumEntry => {
+    if (typeof item !== 'object' || !item.algorithm || !item.format) {
+      throw new ConfigurationError(
+        `Invalid checksum type: ${JSON.stringify(item)}`,
+      );
     }
-  );
+    if (
+      !Object.values(HashAlgorithm).includes(item.algorithm) ||
+      !Object.values(HashOutputFormat).includes(item.format)
+    ) {
+      throw new ConfigurationError(
+        `Invalid checksum type: ${JSON.stringify(item)}`,
+      );
+    }
+    return {
+      algorithm: item.algorithm,
+      format: item.format,
+    };
+  });
 }
 
 /**
@@ -61,7 +59,7 @@ export function castChecksums(checksums: any[]): ChecksumEntry[] {
 export async function getArtifactChecksums(
   checksums: ChecksumEntry[],
   artifact: RemoteArtifact,
-  artifactProvider: BaseArtifactProvider
+  artifactProvider: BaseArtifactProvider,
 ): Promise<{
   [key: string]: string;
 }> {
@@ -71,7 +69,7 @@ export async function getArtifactChecksums(
     const currentChecksum = await artifactProvider.getChecksum(
       artifact,
       algorithm,
-      format
+      format,
     );
     fileChecksums[`${algorithm}-${format}`] = currentChecksum;
   }

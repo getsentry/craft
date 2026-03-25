@@ -69,7 +69,7 @@ export function getAllTargetNames(): string[] {
  * @returns Corresponding target class or undefined
  */
 export function getTargetByName(
-  targetName: string
+  targetName: string,
 ): typeof BaseTarget | undefined {
   return TARGET_MAP[targetName];
 }

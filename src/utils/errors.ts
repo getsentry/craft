@@ -31,7 +31,7 @@ export function reportError(
   errorLogger: {
     error: (...message: string[]) => void;
     [key: string]: any;
-  } = logger
+  } = logger,
 ): void {
   if (!isDryRun()) {
     // wrap the error in an Error object if it isn't already one
@@ -53,7 +53,7 @@ export function reportError(
  *
  * @param e Error (exception) object to handle
  */
- 
+
 export function handleGlobalError(e: any): void {
   if (!(e instanceof ConfigurationError)) {
     captureException(e);

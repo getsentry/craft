@@ -29,13 +29,13 @@ export class GCSArtifactProvider extends BaseArtifactProvider {
       },
       {
         name: 'CRAFT_GCS_STORE_CREDS_PATH',
-      }
+      },
     );
 
     // TODO (kmclb) get rid of this check once config validation is working
     if (!config.bucket) {
       throw new ConfigurationError(
-        'No GCS bucket provided in artifact provider config!'
+        'No GCS bucket provided in artifact provider config!',
       );
     }
 
@@ -51,11 +51,11 @@ export class GCSArtifactProvider extends BaseArtifactProvider {
    */
   protected async doDownloadArtifact(
     artifact: RemoteArtifact,
-    downloadDirectory: string
+    downloadDirectory: string,
   ): Promise<string> {
     const result = await this.gcsClient.downloadArtifact(
       artifact.storedFile.downloadFilepath,
-      downloadDirectory
+      downloadDirectory,
     );
     // In dry-run mode, downloadArtifact returns null. Return a placeholder path
     // that indicates the file would have been downloaded here.
@@ -69,13 +69,13 @@ export class GCSArtifactProvider extends BaseArtifactProvider {
    * @inheritDoc
    */
   protected async doListArtifactsForRevision(
-    revision: string
+    revision: string,
   ): Promise<RemoteArtifact[]> {
     const { repoName, repoOwner } = this.config;
     return this.gcsClient.listArtifactsForRevision(
       repoOwner,
       repoName,
-      revision
+      revision,
     );
   }
 }

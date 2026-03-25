@@ -54,7 +54,7 @@ export class AwsLambdaLayerManager {
     license: string,
     artifactBuffer: Buffer,
     awsRegions: string[],
-    sdkVersion: string
+    sdkVersion: string,
   ) {
     this.runtime = runtime;
     this.layerName = layerName;
@@ -114,11 +114,11 @@ export class AwsLambdaLayerManager {
         } catch (error) {
           logger.warn(
             'Something went wrong with AWS trying to publish to region ' +
-              `${region}: ${error.message}`
+              `${region}: ${error.message}`,
           );
           return undefined;
         }
-      })
+      }),
     );
     return publishedLayers.filter(layer => {
       return layer !== undefined;
@@ -154,17 +154,19 @@ export async function getRegionsFromAws(): Promise<string[]> {
   });
 
   const url = `https://${hostname}${path}`;
-  const response = await fetch(url, { headers: headers as Record<string, string> });
+  const response = await fetch(url, {
+    headers: headers as Record<string, string>,
+  });
   if (!response.ok) {
     throw new Error(
-      `Unexpected HTTP response from ${url}: ${response.status} (${response.statusText})`
+      `Unexpected HTTP response from ${url}: ${response.status} (${response.statusText})`,
     );
   }
   const data = await response.text();
   return new XMLParser()
     .parse(data)
     .DescribeRegionsResponse.regionInfo.item.map(
-      (region: Region) => region.regionName
+      (region: Region) => region.regionName,
     )
     .filter(Boolean);
 }

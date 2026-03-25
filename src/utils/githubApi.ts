@@ -79,7 +79,7 @@ export function getGitHubApiToken(): string {
   if (!githubApiToken) {
     throw new ConfigurationError(
       'GITHUB_TOKEN not found. This is required to fetch PR information from GitHub.\n' +
-        'Tip: Run `gh auth token` if you have GitHub CLI installed.'
+        'Tip: Run `gh auth token` if you have GitHub CLI installed.',
     );
   }
   return githubApiToken;
@@ -137,7 +137,7 @@ export async function getFile(
   owner: string,
   repo: string,
   path: string,
-  ref: string
+  ref: string,
 ): Promise<string | undefined> {
   return withTracing(
     async () => {
@@ -169,6 +169,6 @@ export async function getFile(
         'github.path': path,
         'github.ref': ref,
       },
-    }
+    },
   )();
 }

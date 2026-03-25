@@ -113,24 +113,26 @@ Some operations need explicit `isDryRun()` checks:
 - User experience optimizations (e.g., skipping sleep timers)
 
 <!-- This section is maintained by the coding agent via lore (https://github.com/BYK/opencode-lore) -->
+
 ## Long-term Knowledge
+
+### Architecture
+
+<!-- lore:019cb31a-14ce-7892-b22a-0327cfcebc13 -->
+
+- **Registry target: repo_url auto-derived from git remote, not user-configurable**: \`repo_url\` in registry manifests is always set by Craft as \`https://github.com/${owner}/${repo}\`. Resolution: (1) explicit \`github: { owner, repo }\` in \`.craft.yml\` (rare), (2) fallback: auto-detect from git \`origin\` remote URL via \`git-url-parse\` library (\`git.ts:194-217\`, \`config.ts:286-316\`). Works with HTTPS and SSH remote URLs. Always overwritten on every publish — existing manifest values are replaced (\`registry.ts:417-418\`). Result is cached globally with \`Object.freeze\`. If remote isn't \`github.com\` and no explicit config exists, throws \`ConfigurationError\`. Most repos need no configuration — the git origin remote is sufficient.
+
+<!-- lore:019cb31a-14c8-7ba9-b1c4-81b2e8bf7e85 -->
+
+- **Registry target: urlTemplate generates artifact download URLs in manifest**: \`urlTemplate\` in the registry target config generates download URLs for release artifacts in the registry manifest's \`files\` field. Uses Mustache rendering with variables \`{{version}}\`, \`{{file}}\`, \`{{revision}}\`. Primarily useful for apps (standalone binaries) and CDN-hosted assets — SDK packages published to public registries (npm, PyPI, gem) typically don't need it. If neither \`urlTemplate\` nor \`checksums\` is configured, Craft skips adding file data entirely (warns at \`registry.ts:341-349\`). Real-world pattern: \`https://downloads.sentry-cdn.com/\<product>/{{version}}/{{file}}\`.
 
 ### Gotcha
 
-<!-- lore:019ca05d-1ee2-759e-8a57-596470be9a3a -->
-* **Craft changelog: commits without PRs were forced into leftovers regardless of category match**: In \`src/utils/changelog.ts\`, the leftovers guard at the categorization step had \`if (!categoryTitle || !raw.pr)\` — the \`|| !raw.pr\` condition forced ALL commits without associated PRs into the "Other" leftovers section, even when they matched a category via \`commit\_patterns\` or labels. This meant direct pushes (no PR) like \`feat(auth): add SSO\` would correctly contribute to version bump calculation (which runs before the leftovers check) but would appear under "Other" in the changelog instead of their matched category. Fix: remove \`|| !raw.pr\` so only \`!categoryTitle\` controls leftover placement. The downstream rendering already handles PR-less commits gracefully — \`createPREntriesFromRaw\` uses \`raw.pr ?? ''\`, and \`formatChangelogEntry\` falls back to commit-hash links when \`prNumber\` is falsy (empty string).
+<!-- lore:019c9f57-aa0c-7a2a-8a10-911b13b48fc0 -->
 
-<!-- lore:019c9ba5-515b-70c8-bc1a-1221f6858b42 -->
-* **Edit tool triggers Prettier reformatting on the entire file**: When using the Edit tool to make a targeted change to a file in a repo with Prettier configured, the tool may reformat the entire file (e.g., aligning markdown table columns, changing quote styles). This causes the git diff to show cosmetic changes far beyond the intended edit. To keep commits clean: either accept the Prettier reformatting as a net improvement (if the file passes \`prettier --check\`), or use \`git checkout -- \<file>\` to restore the original and re-apply the change via bash/sed for surgical precision. In this codebase, Prettier is configured (\`.prettierrc.yml\`) but the lint CI workflow does NOT run \`prettier --check\`, only ESLint and typecheck.
+- **ESM modules prevent vi.spyOn of child_process.spawnSync — use test subclass pattern**: In ESM (Vitest or Bun), you cannot \`vi.spyOn\` exports from Node built-in modules — throws 'Module namespace is not configurable'. Workaround: create a test subclass that overrides the method calling the built-in and injects controllable values. \`vi.mock\` at module level works but affects all tests in the file.
 
-<!-- lore:019c9eb7-a640-776a-929d-89120f81733a -->
-* **pnpm-lock.yaml merge conflicts: regenerate don't manually merge**: pnpm gotchas: (1) Lock file conflicts: never manually resolve — \`git checkout --theirs pnpm-lock.yaml\` then \`pnpm install\` to regenerate. \`git stash pop\` after merge can re-conflict; drop the stash and re-run instead. (2) Overrides: \`>=\` crosses major versions — use \`^\` to stay in-major. Version-range selectors don't reliably force re-resolution of compatible transitive deps; use blanket overrides when all consumers are on same major. (3) Overrides go stale on tree changes — audit with \`pnpm why\` and remove orphans.
+<!-- lore:019c9be1-33d1-7b6e-b107-ae7ad42a4ea4 -->
 
-### Pattern
-
-<!-- lore:019c9ba5-515c-7131-a1e6-10f93443d0e2 -->
-* **AGENTS.md lore section: only include project-relevant entries**: The \`\<!-- lore-managed section -->\` in AGENTS.md is auto-maintained by the lore tool and can accumulate cross-project entries (React, Kubernetes, etc.) that are irrelevant to the Craft codebase. When committing AGENTS.md changes, review the lore section and strip entries that don't pertain to this repo. Only project-specific patterns (like the \`publish\_repo: self\` sentinel) should be included.
-
-<!-- lore:019c9b36-8f9d-71c9-a43a-d2715aa249d0 -->
-* **Craft publish\_repo 'self' sentinel resolves to GITHUB\_REPOSITORY at runtime**: The composite action's \`publish\_repo\` input supports a special sentinel value \`"self"\` which resolves to \`$GITHUB\_REPOSITORY\` at runtime in the bash script of the 'Request publish' step. This allows repos to create publish request issues in themselves rather than in a separate \`{owner}/publish\` repo. The resolution happens in bash (not in the GitHub Actions expression) because the expression layer sets \`PUBLISH\_REPO\` via \`inputs.publish\_repo || format('{0}/publish', github.repository\_owner)\` — the string \`"self"\` passes through as-is and gets resolved to the actual repo name in the shell. Useful for personal/small repos where the default GITHUB\_TOKEN already has write access to the repo itself.
+- **pnpm overrides with >= can cross major versions — use ^ to constrain**: pnpm overrides gotchas: (1) \`>=\` crosses major versions — use \`^\` to constrain within same major. (2) Version-range selectors don't reliably force re-resolution of compatible transitive deps; use blanket overrides when safe. (3) Overrides become stale — audit with \`pnpm why \<pkg>\` after dependency changes. (4) Never manually resolve pnpm-lock.yaml conflicts — \`git checkout --theirs\` then \`pnpm install\` to regenerate deterministically.
 <!-- End lore-managed section -->

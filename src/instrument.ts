@@ -4,7 +4,8 @@ import isCI from 'is-ci';
 import { getPackageVersion } from './utils/version';
 
 // Detect CI environment at runtime
-const isCIEnv = isCI || process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+const isCIEnv =
+  isCI || process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
 
 init({
   dsn: 'https://965f09d9d64681174a6617b1e11d7572@o1.ingest.us.sentry.io/4510674351620096',

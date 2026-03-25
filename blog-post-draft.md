@@ -23,7 +23,7 @@ And for teams that prefer calendar-based versioning, Craft now supports `calver`
 versioning:
   policy: calver
   calver:
-    format: "%y.%-m"  # e.g., 24.12 for December 2024
+    format: '%y.%-m' # e.g., 24.12 for December 2024
 ```
 
 The best part? When using auto-versioning, you get a preview in your PR with a "Semver Impact of This PR" section so you know exactly what _your specific change_ will do to the version.
@@ -202,5 +202,7 @@ Drop me a message, file an issue, or just leave a comment. I'm actively working 
 LFG 🚀
 
 [^1]: It's not actually living there. That would be creepy. It just reads the messages. Still creepy? OK moving on.
+
 [^2]: It doesn't. But it handles reverts correctly, which is almost the same thing in software.
+
 [^3]: The Vitest migration alone touches ~30 test files. Don't ask me how I know this.
