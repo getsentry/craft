@@ -1,0 +1,64 @@
+# Plan: Reformat Entire Codebase & Add CI Enforcement
+
+## Problem
+
+- 31 TypeScript source files have formatting drift from Prettier's rules
+- 3 tracked non-TS files (`AGENTS.md`, `CHANGELOG.md`, `.github/workflows/build.yml`) also have formatting issues
+- No `format` or `format:check` script exists in `package.json`
+- No CI step enforces formatting — drift accumulates silently
+- PRs end up mixing formatting changes with logic changes
+
+## Changes
+
+### 1. Add `format` and `format:check` scripts to `package.json`
+
+```json
+"format": "prettier --write .",
+"format:check": "prettier --check ."
+```
+
+### 2. Update `.prettierignore` to exclude non-source artifacts
+
+Add entries for files that shouldn't be formatted:
+
+```
+coverage/
+dist/
+node_modules/
+pnpm-lock.yaml
+temp_*/
+docs/
+```
+
+- `pnpm-lock.yaml` — machine-generated, formatting it causes massive diffs and conflicts
+- `temp_*/` — local scratch directories not tracked by git
+- `docs/` — separate sub-project with its own tooling (already ignored by ESLint)
+
+### 3. Run `prettier --write .` to reformat all files
+
+This will fix the 31 TS files and 3 non-TS tracked files in one commit.
+
+### 4. Add Prettier check to CI (`lint.yml`)
+
+Add a new step **before** the existing Lint step:
+
+```yaml
+- name: Format Check
+  run: pnpm format:check
+```
+
+This ensures future PRs cannot merge with formatting drift.
+
+## Files Modified
+
+- `package.json` — add `format` and `format:check` scripts
+- `.prettierignore` — add `pnpm-lock.yaml`, `temp_*/`, `docs/`
+- `.github/workflows/lint.yml` — add Format Check step
+- ~34 source/config files — reformatted by Prettier (no logic changes)
+
+## Verification
+
+1. `pnpm format:check` — should pass with zero warnings after reformatting
+2. `pnpm lint` — should still pass (eslint-config-prettier already prevents conflicts)
+3. `pnpm test` — should still pass (formatting-only changes)
+4. `pnpm build` — should still produce a working binary
