@@ -94,7 +94,7 @@ runs:
     - name: Download Craft from build artifact
       id: craft-artifact
       if: github.repository == 'getsentry/craft'
-      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+      uses: actions/download-artifact@v8
       with:
         name: craft-binary
         path: /tmp/craft-artifact

@@ -101,12 +101,12 @@ jobs:
       - name: Get auth token
         id: token
         if: github.event_name == 'workflow_dispatch' && github.repository == 'getsentry/craft'
-        uses: actions/create-github-app-token@5d869da34e18e7287c1daad50e0b8ea0f506ce69 # v1.11.0
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ vars.SENTRY_RELEASE_BOT_CLIENT_ID }}
           private-key: ${{ secrets.SENTRY_RELEASE_BOT_PRIVATE_KEY }}
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # Use release bot token for Craft repo, inherited token for external repos
           token: ${{ steps.token.outputs.token || github.token }}
