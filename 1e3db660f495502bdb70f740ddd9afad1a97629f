@@ -1,0 +1,61 @@
+# Fix GitHub Security Reports
+
+## Summary
+
+There is **1 open** Dependabot alert. The remaining 5 alerts are already fixed.
+
+| Alert | Package                   | Severity          | State    | Fix                              |
+| ----- | ------------------------- | ----------------- | -------- | -------------------------------- |
+| #142  | `brace-expansion` < 5.0.5 | Medium (CVSS 6.5) | **OPEN** | Update lockfile to resolve 5.0.5 |
+| #141  | `astro` < 5.18.1          | Low               | Fixed    | -                                |
+| #138  | `picomatch` < 4.0.4       | Medium            | Fixed    | -                                |
+| #137  | `picomatch` ReDoS         | High              | Fixed    | -                                |
+| #135  | `picomatch` < 2.3.2       | Medium            | Fixed    | -                                |
+| #133  | `picomatch` ReDoS         | High              | Fixed    | -                                |
+
+No security advisories exist for this repo.
+
+## Open Alert: brace-expansion (#142)
+
+**CVE:** CVE-2026-33750
+**Issue:** Zero-step sequence `{1..2..0}` causes infinite loop and memory exhaustion
+**Current version:** 5.0.4 (in `pnpm-lock.yaml`)
+**Fixed in:** 5.0.5
+**Dependency chain:** devDependencies → `minimatch@10.2.4` → `brace-expansion@^5.0.2`
+
+Since `minimatch@10.2.4` accepts `brace-expansion@^5.0.2`, version `5.0.5` is within the allowed range. No override is needed — just a lockfile update.
+
+## Plan
+
+### Step 1: Update brace-expansion in the lockfile
+
+```bash
+pnpm update brace-expansion
+```
+
+This will resolve `brace-expansion` from `5.0.4` → `5.0.5` in `pnpm-lock.yaml`.
+
+### Step 2: Verify the update
+
+```bash
+pnpm why brace-expansion
+```
+
+Confirm the resolved version is `5.0.5`.
+
+### Step 3: Run tests and build
+
+```bash
+pnpm test
+pnpm build
+```
+
+Ensure nothing is broken by the transitive dependency update.
+
+### Step 4: Commit
+
+Commit the updated `pnpm-lock.yaml` (and `AGENTS.md` if it has changes).
+
+## Files Modified
+
+- `pnpm-lock.yaml` — lockfile update only (no `package.json` changes needed)
