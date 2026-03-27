@@ -1,0 +1,91 @@
+# Analysis: Why the image from PR #555 didn't appear in the 0.21.0 release changelog
+
+## Root Cause
+
+The image was stored as a **standalone HTML `<img>` tag** in the raw PR body (confirmed via `gh api repos/getsentry/cli/pulls/555 --jq '.body'`):
+
+```html
+<img
+  width="2512"
+  height="1757"
+  alt="image"
+  src="https://github.com/user-attachments/assets/..."
+/>
+```
+
+GitHub's web UI renders uploaded images with the `![image](url)` markdown syntax visually, but internally stores them as `<img>` HTML tags. When `marked.lexer()` parses this, it produces a token of type `html` — not `paragraph`.
+
+Craft's `parseTokensToEntries()` function (`src/utils/changelog.ts:384-435`) only handles three token types:
+
+- `list`
+- `paragraph`
+- `code`
+
+**All other token types (including `html`) are silently dropped.** So the image was collected from the `## Changelog Entry` section but discarded during token-to-entry conversion.
+
+### Verification
+
+```bash
+# Raw PR body has HTML img, not markdown image:
+gh api repos/getsentry/cli/pulls/555 --jq '.body' | head -10
+```
+
+```javascript
+// marked tokenizes standalone <img> as type 'html', which is dropped:
+const tokens = marked.lexer('<img src="url" />');
+// → [{ type: 'html', raw: '<img src="url" />\n' }]
+```
+
+## Proposed Fix
+
+Add an `html` token handler in `parseTokensToEntries()` that preserves HTML blocks (like `<img>` tags) as nested content on the previous entry, similar to how `code` blocks are handled.
+
+### File to modify
+
+- `src/utils/changelog.ts` — `parseTokensToEntries()` function, lines 384-435
+
+### Implementation
+
+After the `code` block handler (line 431), add an `html` token handler:
+
+```typescript
+} else if (token.type === 'html') {
+  // HTML blocks (e.g., <img> tags from GitHub image uploads) become
+  // nested content on the previous entry, similar to code blocks.
+  const htmlContent = (token as Tokens.HTML).raw.trim();
+  if (htmlContent && entries.length > 0) {
+    const prev = entries[entries.length - 1];
+    prev.nestedContent = prev.nestedContent
+      ? `${prev.nestedContent}\n  ${htmlContent}`
+      : `  ${htmlContent}`;
+  }
+  // If no previous entry exists, skip — an orphaned HTML block
+  // without descriptive text isn't a meaningful changelog entry.
+}
+```
+
+This way, if someone has:
+
+```markdown
+## Changelog Entry
+
+Description of the change
+<img src="screenshot.png" />
+```
+
+The image becomes nested content under "Description of the change" rather than being silently dropped.
+
+### Testing
+
+- Add test cases to `src/__tests__/changelog.test.ts` for:
+  1. `<img>` tag after a paragraph in `## Changelog Entry` → preserved as nestedContent
+  2. `<img>` tag after a list item → preserved as nestedContent
+  3. Standalone `<img>` with no preceding entry → dropped (same as orphaned code blocks)
+  4. Inline `<img>` within a paragraph → already preserved (no change needed)
+
+### Verification
+
+```bash
+pnpm test
+pnpm lint
+```
