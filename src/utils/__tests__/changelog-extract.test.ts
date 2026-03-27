@@ -302,3 +302,126 @@ func foo() {}
     expect(result).toBeNull();
   });
 });
+
+describe('extractChangelogEntry HTML blocks', () => {
+  it('preserves <img> tag after paragraph as nested content', () => {
+    const prBody = `### Changelog Entry
+
+Add a chart rendering engine for \`sentry dashboard view\`.
+
+<img width="800" alt="screenshot" src="https://example.com/screenshot.png" />
+
+### Next Section`;
+
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe(
+      'Add a chart rendering engine for `sentry dashboard view`.',
+    );
+    expect(result![0].nestedContent).toContain('<img');
+    expect(result![0].nestedContent).toContain(
+      'src="https://example.com/screenshot.png"',
+    );
+  });
+
+  it('preserves <img> tag after list item as nested content', () => {
+    const prBody = `### Changelog Entry
+
+- Added dashboard charts
+
+<img src="https://example.com/chart.png" />`;
+
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('Added dashboard charts');
+    expect(result![0].nestedContent).toContain('<img');
+    expect(result![0].nestedContent).toContain(
+      'src="https://example.com/chart.png"',
+    );
+  });
+
+  it('skips orphaned HTML block with no preceding entry', () => {
+    const prBody = `### Changelog Entry
+
+<img src="https://example.com/orphan.png" />
+
+### Next Section`;
+
+    const result = extractChangelogEntry(prBody);
+    // A bare HTML block without descriptive text is not a meaningful entry
+    expect(result).toBeNull();
+  });
+
+  it('preserves inline <img> within paragraph text', () => {
+    const prBody = `### Changelog Entry
+
+See the result: <img src="https://example.com/inline.png" /> pretty cool`;
+
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    // Inline HTML within a paragraph is preserved in the text itself
+    expect(result![0].text).toContain('<img');
+    expect(result![0].text).toContain('pretty cool');
+  });
+
+  it('appends HTML block to existing nested content', () => {
+    const prBody = `### Changelog Entry
+
+- Entry with code and image:
+  \`\`\`go
+  func foo() {}
+  \`\`\`
+
+<img src="https://example.com/result.png" />`;
+
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('Entry with code and image:');
+    expect(result![0].nestedContent).toContain('```go');
+    expect(result![0].nestedContent).toContain('<img');
+  });
+
+  it('preserves GitHub-style image upload HTML', () => {
+    // GitHub stores uploaded images as HTML img tags with width/height
+    const prBody = `## Changelog Entry
+
+Add a full chart rendering engine.
+
+<img width="2512" height="1757" alt="image" src="https://github.com/user-attachments/assets/abc123" />
+
+## Chart Types`;
+
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('Add a full chart rendering engine.');
+    expect(result![0].nestedContent).toContain('width="2512"');
+    expect(result![0].nestedContent).toContain(
+      'src="https://github.com/user-attachments/assets/abc123"',
+    );
+  });
+
+  it('indents all lines of multi-line HTML blocks', () => {
+    const prBody = `### Changelog Entry
+
+Added collapsible details section.
+
+<details>
+<summary>Click to expand</summary>
+Some hidden content here.
+</details>`;
+
+    const result = extractChangelogEntry(prBody);
+    expect(result).toHaveLength(1);
+    expect(result![0].text).toBe('Added collapsible details section.');
+    // Every line should be indented with 2 spaces
+    const lines = result![0].nestedContent!.split('\n');
+    for (const line of lines) {
+      expect(line).toMatch(/^ {2}/);
+    }
+    expect(result![0].nestedContent).toContain('  <details>');
+    expect(result![0].nestedContent).toContain(
+      '  <summary>Click to expand</summary>',
+    );
+    expect(result![0].nestedContent).toContain('  </details>');
+  });
+});
