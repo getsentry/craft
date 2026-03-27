@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.25.2
+
+### Bug Fixes 🐛
+
+- Preserve HTML blocks (e.g., `<img>` tags from GitHub image uploads) in custom `## Changelog Entry` PR sections instead of silently dropping them. by @BYK in [#786](https://github.com/getsentry/craft/pull/786)
+- (deps) Bump brace-expansion from 5.0.4 to 5.0.5 by @BYK in [#787](https://github.com/getsentry/craft/pull/787)
+- Upgrade GitHub Actions to Node.js 24 compatible versions by @BYK in [#784](https://github.com/getsentry/craft/pull/784)
+
+### Internal Changes 🔧
+
+- (deps) Bump astro from 5.16.11 to 5.18.1 in /docs by @dependabot in [#785](https://github.com/getsentry/craft/pull/785)
+
 ## 2.25.1
 
 ### Bug Fixes 🐛
