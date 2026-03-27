@@ -428,6 +428,24 @@ function parseTokensToEntries(tokens: Token[]): ChangelogEntryItem[] | null {
       }
       // If no previous entry exists, skip the orphaned code block — a bare
       // code block without descriptive text isn't a meaningful changelog entry.
+    } else if (token.type === 'html') {
+      // HTML blocks (e.g., <img> tags from GitHub image uploads) become
+      // nested content on the previous entry, similar to code blocks.
+      // Indent every line with 2 spaces so multi-line HTML (e.g., <details>,
+      // <table>) nests properly under the list item in the final markdown.
+      const htmlContent = (token as Tokens.HTML).raw.trim();
+      if (htmlContent && entries.length > 0) {
+        const indented = htmlContent
+          .split('\n')
+          .map(line => `  ${line}`)
+          .join('\n');
+        const prev = entries[entries.length - 1];
+        prev.nestedContent = prev.nestedContent
+          ? `${prev.nestedContent}\n${indented}`
+          : indented;
+      }
+      // If no previous entry exists, skip — an orphaned HTML block
+      // without descriptive text isn't a meaningful changelog entry.
     }
   }
 
