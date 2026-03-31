@@ -1,7 +1,11 @@
 import { vi, describe, test, expect, beforeEach, type Mock } from 'vitest';
 import { join as pathJoin } from 'path';
 import { spawnProcess, hasExecutable } from '../../utils/system';
-import { runPostReleaseCommand, handleReleaseBranch } from '../publish';
+import {
+  runPostReleaseCommand,
+  handleReleaseBranch,
+  isAuthError,
+} from '../publish';
 import type { SimpleGit } from 'simple-git';
 
 vi.mock('../../utils/system');
@@ -280,5 +284,52 @@ describe('handleReleaseBranch', () => {
     expect(git.checkout).toHaveBeenCalledWith('master');
     expect(git.pull).toHaveBeenCalledWith('origin', 'master', ['--rebase']);
     expect(git.push).toHaveBeenCalledWith('origin', 'master');
+  });
+});
+
+describe('isAuthError', () => {
+  test('detects "could not read Username" as auth error', () => {
+    expect(
+      isAuthError(
+        new Error(
+          "fatal: could not read Username for 'https://github.com': No such device or address",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  test('detects "Authentication failed" as auth error', () => {
+    expect(
+      isAuthError(
+        new Error(
+          "fatal: Authentication failed for 'https://github.com/org/repo.git/'",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  test('detects HTTP 401 as auth error', () => {
+    expect(isAuthError(new Error('HTTP 401 Unauthorized'))).toBe(true);
+  });
+
+  test('detects HTTP 403 as auth error', () => {
+    expect(isAuthError(new Error('HTTP 403 Forbidden'))).toBe(true);
+  });
+
+  test('does not flag merge conflicts as auth error', () => {
+    expect(
+      isAuthError(
+        new Error('CONFLICT (content): Merge conflict in CHANGELOG.md'),
+      ),
+    ).toBe(false);
+  });
+
+  test('does not flag generic git errors as auth error', () => {
+    expect(isAuthError(new Error('fatal: not a git repository'))).toBe(false);
+  });
+
+  test('handles non-Error values', () => {
+    expect(isAuthError('could not read Username')).toBe(true);
+    expect(isAuthError('some other error')).toBe(false);
   });
 });

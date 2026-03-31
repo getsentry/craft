@@ -387,6 +387,17 @@ async function checkRevisionStatus(
 }
 
 /**
+ * Checks whether an error from a git operation is an authentication failure
+ * (e.g., expired token) rather than a merge conflict or other git error.
+ */
+export function isAuthError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return /could not read Username|Authentication failed|HTTP 401|HTTP 403|Invalid credentials|token.*expired/i.test(
+    msg,
+  );
+}
+
+/**
  * Deals with the release branch after publishing is done
  *
  * Leave the release branch unmerged, or merge it but not delete it if the
@@ -734,10 +745,13 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       // signal for a fully-published release. Report to Sentry for
       // observability but don't fail the command.
       captureException(mergeError);
+      const diagnosis = isAuthError(mergeError)
+        ? `This is likely due to an expired authentication token (common for long-running publishes > 1 hour).`
+        : `This is likely due to a merge conflict (e.g., in CHANGELOG.md).`;
       logger.warn(
         [
           `Failed to merge release branch "${branchName}" into the target branch.`,
-          `This is likely due to a merge conflict (e.g., in CHANGELOG.md).`,
+          diagnosis,
           `All publish targets completed successfully — only the post-publish merge failed.`,
           ``,
           `To resolve manually:`,

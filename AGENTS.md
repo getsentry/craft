@@ -113,26 +113,23 @@ Some operations need explicit `isDryRun()` checks:
 - User experience optimizations (e.g., skipping sleep timers)
 
 <!-- This section is maintained by the coding agent via lore (https://github.com/BYK/opencode-lore) -->
-
 ## Long-term Knowledge
 
 ### Architecture
 
-<!-- lore:019cb31a-14ce-7892-b22a-0327cfcebc13 -->
-
-- **Registry target: repo_url auto-derived from git remote, not user-configurable**: \`repo_url\` in registry manifests is always set by Craft as \`https://github.com/${owner}/${repo}\`. Resolution: (1) explicit \`github: { owner, repo }\` in \`.craft.yml\` (rare), (2) fallback: auto-detect from git \`origin\` remote URL via \`git-url-parse\` library (\`git.ts:194-217\`, \`config.ts:286-316\`). Works with HTTPS and SSH remote URLs. Always overwritten on every publish — existing manifest values are replaced (\`registry.ts:417-418\`). Result is cached globally with \`Object.freeze\`. If remote isn't \`github.com\` and no explicit config exists, throws \`ConfigurationError\`. Most repos need no configuration — the git origin remote is sufficient.
-
-<!-- lore:019cb31a-14c8-7ba9-b1c4-81b2e8bf7e85 -->
-
-- **Registry target: urlTemplate generates artifact download URLs in manifest**: \`urlTemplate\` in the registry target config generates download URLs for release artifacts in the registry manifest's \`files\` field. Uses Mustache rendering with variables \`{{version}}\`, \`{{file}}\`, \`{{revision}}\`. Primarily useful for apps (standalone binaries) and CDN-hosted assets — SDK packages published to public registries (npm, PyPI, gem) typically don't need it. If neither \`urlTemplate\` nor \`checksums\` is configured, Craft skips adding file data entirely (warns at \`registry.ts:341-349\`). Real-world pattern: \`https://downloads.sentry-cdn.com/\<product>/{{version}}/{{file}}\`.
+<!-- lore:019d4479-fd88-7a7d-96b1-2a6b668dfc45 -->
+* **Craft post-publish merge is non-blocking housekeeping**: After all publish targets complete, \`handleReleaseBranch()\` in \`src/commands/publish.ts\` merges the release branch back into the default branch and deletes it. This is a housekeeping step — failures are caught, reported to Sentry via \`captureException\`, and logged as warnings without failing the command. The merge uses \`--no-ff\` with the default (ort) strategy first, then retries with \`-s resolve\` if conflicts occur (handles criss-cross ambiguities in files like CHANGELOG.md). An \`isAuthError()\` helper distinguishes authentication failures (expired tokens) from merge conflicts to provide targeted diagnostics.
 
 ### Gotcha
 
-<!-- lore:019c9f57-aa0c-7a2a-8a10-911b13b48fc0 -->
+<!-- lore:019d4479-fd93-7328-a4b5-f9405e4aad8b -->
+* **GitHub App tokens expire after 1 hour — breaks long-running CI publishes**: GitHub App installation tokens expire after 1 hour (non-configurable). For publish jobs exceeding this (e.g., sentry-native's ~1h 23m symbol upload), the token expires before Craft's post-publish \`git push\` for the release branch merge. Git fails with \`could not read Username for 'https://github.com': No such device or address\` — which looks like a credential config issue but is actually token expiration. No code change in Craft alone can fix this — the \`GITHUB\_TOKEN\` env var, git \`http.extraheader\`, and Octokit all use the same expired token. The real fix requires the CI workflow (\`getsentry/publish\`) to generate a fresh token after the Docker container exits, before the merge step.
 
-- **ESM modules prevent vi.spyOn of child_process.spawnSync — use test subclass pattern**: In ESM (Vitest or Bun), you cannot \`vi.spyOn\` exports from Node built-in modules — throws 'Module namespace is not configurable'. Workaround: create a test subclass that overrides the method calling the built-in and injects controllable values. \`vi.mock\` at module level works but affects all tests in the file.
+<!-- lore:019d4479-fd9a-7a97-931f-8f9a18e5752e -->
+* **prepare-dry-run e2e tests fail without EDITOR in dumb terminals**: The 7 tests in \`src/\_\_tests\_\_/prepare-dry-run.e2e.test.ts\` fail in environments where \`TERM=dumb\` and \`EDITOR\` is unset (e.g., inside agent shells or minimal CI containers). The error is \`Terminal is dumb, but EDITOR unset\` from git commit. This is a pre-existing environment issue, not a code defect. These tests pass in normal CI (Node.js 20/22 runners) where terminal capabilities are available.
 
-<!-- lore:019c9be1-33d1-7b6e-b107-ae7ad42a4ea4 -->
+### Pattern
 
-- **pnpm overrides with >= can cross major versions — use ^ to constrain**: pnpm overrides gotchas: (1) \`>=\` crosses major versions — use \`^\` to constrain within same major. (2) Version-range selectors don't reliably force re-resolution of compatible transitive deps; use blanket overrides when safe. (3) Overrides become stale — audit with \`pnpm why \<pkg>\` after dependency changes. (4) Never manually resolve pnpm-lock.yaml conflicts — \`git checkout --theirs\` then \`pnpm install\` to regenerate deterministically.
+<!-- lore:019d4479-fd97-764e-a7ec-0d32360b0f16 -->
+* **Craft Docker container auth: credentials come from volume-mounted git config**: When Craft runs inside Docker in CI (via \`getsentry/craft:latest\`), git authentication comes from \`actions/checkout\`'s \`http.extraheader\` in the local \`.git/config\`, which is volume-mounted into the container at \`/github/workspace\`. The container sets \`HOME=/root\`, so global git config from the host runner isn't available. The \`GITHUB\_TOKEN\` env var is passed separately. Craft's \`handleReleaseBranch()\` doesn't set up its own auth — it relies on whatever git config is present. Other targets (registry, commitOnGitRepository) explicitly inject tokens into clone URLs via \`GitHubRemote.getRemoteStringWithAuth()\` or URL manipulation.
 <!-- End lore-managed section -->
