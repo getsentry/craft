@@ -1,0 +1,127 @@
+# Fix: Post-publish merge fails due to expired GitHub App token
+
+## Error Explanation
+
+**Timeline:**
+
+- **18:56:14** — GitHub App installation token created via `actions/create-github-app-token`
+- **18:56:17** — `craft publish 0.13.4` starts inside Docker container
+- **20:18:59** — All publish targets complete successfully. Post-publish merge attempt: **FAILS**
+- **20:19:01** — Cleanup confirms: "Token expired, skipping token revocation"
+
+The publish for `sentry-native` took **~1h 23m**, but GitHub App installation tokens expire after **1 hour**. By the time Craft tried to push the merge result, the token had been expired for ~23 minutes.
+
+The git error `fatal: could not read Username for 'https://github.com': No such device or address` means: expired token in `http.extraheader` → GitHub returns 401 → git falls back to interactive credential prompting → fails in non-interactive Docker container.
+
+**The current warning message is misleading** — it says "This is likely due to a merge conflict (e.g., in CHANGELOG.md)" but the actual problem is authentication, not a merge conflict. The local merge succeeded; only the push failed.
+
+**Important:** The publish itself succeeded. All targets completed. This is purely a post-publish housekeeping failure that Craft already handles gracefully (warns but exits 0).
+
+## Root Cause
+
+`handleReleaseBranch()` in `src/commands/publish.ts:401-466`:
+
+1. `git checkout mergeTarget` → OK
+2. `git pull --rebase` → OK
+3. `git merge --no-ff release/0.13.4` → OK (merge succeeds locally)
+4. **`git push origin master`** → FAILS (line 457, token expired)
+
+The `GITHUB_TOKEN` env var, the git `http.extraheader`, and the Octokit client all use the same expired token. No code change in Craft alone can fix token expiration — the fix requires either better error messaging or workflow-level changes to refresh the token.
+
+## Proposed Fix
+
+Improve error detection and messaging in the catch block (`src/commands/publish.ts:732-749`) to correctly distinguish auth failures from merge conflicts and provide actionable guidance.
+
+### File to modify
+
+**`src/commands/publish.ts`** — lines 732-749
+
+### Current code (lines 737-748)
+
+```typescript
+logger.warn(
+  [
+    `Failed to merge release branch "${branchName}" into the target branch.`,
+    `This is likely due to a merge conflict (e.g., in CHANGELOG.md).`,
+    `All publish targets completed successfully — only the post-publish merge failed.`,
+    ``,
+    `To resolve manually:`,
+    `  1. Merge the release branch into the target branch, resolving conflicts`,
+    `  2. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
+    ``,
+    `Error: ${mergeError instanceof Error ? mergeError.message : String(mergeError)}`,
+  ].join('\n'),
+);
+```
+
+### Proposed change
+
+Add a helper function to classify the error, then provide targeted guidance:
+
+```typescript
+function isAuthError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return /could not read Username|Authentication failed|HTTP 401|HTTP 403|Invalid credentials|token.*expired/i.test(
+    msg,
+  );
+}
+```
+
+Update the catch block:
+
+```typescript
+const errorMsg =
+  mergeError instanceof Error ? mergeError.message : String(mergeError);
+const isAuth = isAuthError(mergeError);
+
+logger.warn(
+  [
+    `Failed to merge release branch "${branchName}" into the target branch.`,
+    isAuth
+      ? `This is likely due to an expired authentication token (common for long-running publishes > 1 hour).`
+      : `This is likely due to a merge conflict (e.g., in CHANGELOG.md).`,
+    `All publish targets completed successfully — only the post-publish merge failed.`,
+    ``,
+    `To resolve manually:`,
+    `  1. Merge the release branch into the target branch, resolving conflicts`,
+    `  2. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
+    ``,
+    `Error: ${errorMsg}`,
+  ].join('\n'),
+);
+```
+
+### Test updates
+
+**`src/commands/__tests__/publish.test.ts`** — No test changes needed. The `handleReleaseBranch()` function itself is unchanged; only the caller's catch block messaging in `publishMain()` is updated, and those tests use mock git clients that don't exercise the error classification path.
+
+However, we should add a unit test for the `isAuthError()` helper:
+
+```typescript
+describe('isAuthError', () => {
+  test('detects "could not read Username" as auth error', () => {
+    expect(
+      isAuthError(new Error('fatal: could not read Username for ...')),
+    ).toBe(true);
+  });
+  test('does not flag merge conflicts as auth error', () => {
+    expect(isAuthError(new Error('CONFLICT in CHANGELOG.md'))).toBe(false);
+  });
+});
+```
+
+## Verification
+
+1. `pnpm test` — all existing tests pass (no breaking changes)
+2. `pnpm lint` — no violations
+3. `pnpm build` — builds successfully
+4. Verify the error message improvement by reading the updated code
+
+## Follow-up (outside this PR)
+
+The real prevention for token expiration requires changes in the **`getsentry/publish`** workflow — either:
+
+- Create a fresh token after the Docker container exits and run the merge as a separate step
+- Or: switch Craft's merge to use the GitHub merge API (`POST /repos/{owner}/{repo}/merges`), then update the workflow to provide a fresh token for that API call
+
+This is tracked separately since it involves cross-repo coordination.
