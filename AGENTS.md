@@ -113,23 +113,28 @@ Some operations need explicit `isDryRun()` checks:
 - User experience optimizations (e.g., skipping sleep timers)
 
 <!-- This section is maintained by the coding agent via lore (https://github.com/BYK/opencode-lore) -->
+
 ## Long-term Knowledge
 
 ### Architecture
 
 <!-- lore:019d4479-fd88-7a7d-96b1-2a6b668dfc45 -->
-* **Craft post-publish merge is non-blocking housekeeping**: After all publish targets complete, \`handleReleaseBranch()\` in \`src/commands/publish.ts\` merges the release branch back into the default branch and deletes it. This is a housekeeping step — failures are caught, reported to Sentry via \`captureException\`, and logged as warnings without failing the command. The merge uses \`--no-ff\` with the default (ort) strategy first, then retries with \`-s resolve\` if conflicts occur (handles criss-cross ambiguities in files like CHANGELOG.md). An \`isAuthError()\` helper distinguishes authentication failures (expired tokens) from merge conflicts to provide targeted diagnostics.
+
+- **Craft post-publish merge is non-blocking housekeeping**: After all publish targets complete, \`handleReleaseBranch()\` in \`src/commands/publish.ts\` merges the release branch back into the default branch and deletes it. This is a housekeeping step — failures are caught, reported to Sentry via \`captureException\`, and logged as warnings without failing the command. The merge uses \`--no-ff\` with the default (ort) strategy first, then retries with \`-s resolve\` if conflicts occur (handles criss-cross ambiguities in files like CHANGELOG.md). An \`isAuthError()\` helper distinguishes authentication failures (expired tokens) from merge conflicts to provide targeted diagnostics.
 
 ### Gotcha
 
 <!-- lore:019d4479-fd93-7328-a4b5-f9405e4aad8b -->
-* **GitHub App tokens expire after 1 hour — breaks long-running CI publishes**: GitHub App installation tokens expire after 1 hour (non-configurable). For publish jobs exceeding this (e.g., sentry-native's ~1h 23m symbol upload), the token expires before Craft's post-publish \`git push\` for the release branch merge. Git fails with \`could not read Username for 'https://github.com': No such device or address\` — which looks like a credential config issue but is actually token expiration. No code change in Craft alone can fix this — the \`GITHUB\_TOKEN\` env var, git \`http.extraheader\`, and Octokit all use the same expired token. The real fix requires the CI workflow (\`getsentry/publish\`) to generate a fresh token after the Docker container exits, before the merge step.
+
+- **GitHub App tokens expire after 1 hour — breaks long-running CI publishes**: GitHub App installation tokens expire after 1 hour (non-configurable). For publish jobs exceeding this (e.g., sentry-native's ~1h 23m symbol upload), the token expires before Craft's post-publish \`git push\` for the release branch merge. Git fails with \`could not read Username for 'https://github.com': No such device or address\` — which looks like a credential config issue but is actually token expiration. No code change in Craft alone can fix this — the \`GITHUB_TOKEN\` env var, git \`http.extraheader\`, and Octokit all use the same expired token. The real fix requires the CI workflow (\`getsentry/publish\`) to generate a fresh token after the Docker container exits, before the merge step.
 
 <!-- lore:019d4479-fd9a-7a97-931f-8f9a18e5752e -->
-* **prepare-dry-run e2e tests fail without EDITOR in dumb terminals**: The 7 tests in \`src/\_\_tests\_\_/prepare-dry-run.e2e.test.ts\` fail in environments where \`TERM=dumb\` and \`EDITOR\` is unset (e.g., inside agent shells or minimal CI containers). The error is \`Terminal is dumb, but EDITOR unset\` from git commit. This is a pre-existing environment issue, not a code defect. These tests pass in normal CI (Node.js 20/22 runners) where terminal capabilities are available.
+
+- **prepare-dry-run e2e tests fail without EDITOR in dumb terminals**: The 7 tests in \`src/\_\_tests\_\_/prepare-dry-run.e2e.test.ts\` fail in environments where \`TERM=dumb\` and \`EDITOR\` is unset (e.g., inside agent shells or minimal CI containers). The error is \`Terminal is dumb, but EDITOR unset\` from git commit. This is a pre-existing environment issue, not a code defect. These tests pass in normal CI (Node.js 20/22 runners) where terminal capabilities are available.
 
 ### Pattern
 
 <!-- lore:019d4479-fd97-764e-a7ec-0d32360b0f16 -->
-* **Craft Docker container auth: credentials come from volume-mounted git config**: When Craft runs inside Docker in CI (via \`getsentry/craft:latest\`), git authentication comes from \`actions/checkout\`'s \`http.extraheader\` in the local \`.git/config\`, which is volume-mounted into the container at \`/github/workspace\`. The container sets \`HOME=/root\`, so global git config from the host runner isn't available. The \`GITHUB\_TOKEN\` env var is passed separately. Craft's \`handleReleaseBranch()\` doesn't set up its own auth — it relies on whatever git config is present. Other targets (registry, commitOnGitRepository) explicitly inject tokens into clone URLs via \`GitHubRemote.getRemoteStringWithAuth()\` or URL manipulation.
+
+- **Craft Docker container auth: credentials come from volume-mounted git config**: When Craft runs inside Docker in CI (via \`getsentry/craft:latest\`), git authentication comes from \`actions/checkout\`'s \`http.extraheader\` in the local \`.git/config\`, which is volume-mounted into the container at \`/github/workspace\`. The container sets \`HOME=/root\`, so global git config from the host runner isn't available. The \`GITHUB_TOKEN\` env var is passed separately. Craft's \`handleReleaseBranch()\` doesn't set up its own auth — it relies on whatever git config is present. Other targets (registry, commitOnGitRepository) explicitly inject tokens into clone URLs via \`GitHubRemote.getRemoteStringWithAuth()\` or URL manipulation.
 <!-- End lore-managed section -->
