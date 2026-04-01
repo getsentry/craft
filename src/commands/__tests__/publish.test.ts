@@ -122,6 +122,7 @@ describe('handleReleaseBranch', () => {
     mockGit.revparse = makeChainable('main');
     mockGit.raw = makeChainable('');
     mockGit.status = makeChainable({ conflicted: [] });
+    mockGit.diff = makeChainable('');
 
     return mockGit as unknown as SimpleGit & Record<string, Mock>;
   }
@@ -227,6 +228,10 @@ describe('handleReleaseBranch', () => {
       Promise.resolve({ conflicted: ['CHANGELOG.md', 'package.json'] }),
     );
 
+    const fakeDiff =
+      '<<<<<<< HEAD\nold content\n=======\nnew content\n>>>>>>> release/1.0.0';
+    (git.diff as Mock).mockImplementationOnce(() => Promise.resolve(fakeDiff));
+
     const error = await handleReleaseBranch(
       git,
       'origin',
@@ -235,16 +240,19 @@ describe('handleReleaseBranch', () => {
     ).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(MergeConflictError);
-    expect((error as MergeConflictError).message).toBe('CONFLICT with resolve');
-    expect((error as MergeConflictError).conflictedFiles).toEqual([
+    const conflictError = error as MergeConflictError;
+    expect(conflictError.message).toBe('CONFLICT with resolve');
+    expect(conflictError.conflictedFiles).toEqual([
       'CHANGELOG.md',
       'package.json',
     ]);
+    expect(conflictError.diff).toBe(fakeDiff);
 
     expect(git.merge).toHaveBeenCalledTimes(4);
     expect(git.merge).toHaveBeenNthCalledWith(2, ['--abort']);
     expect(git.merge).toHaveBeenNthCalledWith(4, ['--abort']);
     expect(git.status).toHaveBeenCalledTimes(1);
+    expect(git.diff).toHaveBeenCalledWith(['CHANGELOG.md', 'package.json']);
     // push should NOT be called
     expect(git.push).not.toHaveBeenCalledWith('origin', 'main');
   });
@@ -326,20 +334,27 @@ describe('handleReleaseBranch', () => {
 
 describe('MergeConflictError', () => {
   test('is instanceof Error', () => {
-    const err = new MergeConflictError('conflict', ['a.txt']);
+    const err = new MergeConflictError('conflict', ['a.txt'], '');
     expect(err).toBeInstanceOf(Error);
     expect(err).toBeInstanceOf(MergeConflictError);
   });
 
-  test('carries conflictedFiles', () => {
-    const err = new MergeConflictError('msg', ['CHANGELOG.md', 'package.json']);
+  test('carries conflictedFiles and diff', () => {
+    const diff = '<<<<<<< HEAD\nold\n=======\nnew\n>>>>>>>';
+    const err = new MergeConflictError(
+      'msg',
+      ['CHANGELOG.md', 'package.json'],
+      diff,
+    );
     expect(err.message).toBe('msg');
     expect(err.conflictedFiles).toEqual(['CHANGELOG.md', 'package.json']);
+    expect(err.diff).toBe(diff);
   });
 
-  test('works with empty conflictedFiles', () => {
-    const err = new MergeConflictError('msg', []);
+  test('works with empty conflictedFiles and no diff', () => {
+    const err = new MergeConflictError('msg', [], '');
     expect(err.conflictedFiles).toEqual([]);
+    expect(err.diff).toBe('');
   });
 });
 

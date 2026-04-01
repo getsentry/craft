@@ -388,7 +388,7 @@ async function checkRevisionStatus(
 
 /**
  * Error thrown when the release branch merge fails due to conflicts.
- * Contains the list of conflicting file paths for diagnostics.
+ * Contains the list of conflicting file paths and a unified diff for diagnostics.
  */
 export class MergeConflictError extends Error {
   public __proto__: Error;
@@ -396,6 +396,7 @@ export class MergeConflictError extends Error {
   public constructor(
     message: string,
     public readonly conflictedFiles: string[],
+    public readonly diff: string,
   ) {
     const trueProto = new.target.prototype;
     super(message);
@@ -476,13 +477,21 @@ export async function handleReleaseBranch(
     try {
       await git.merge(['-s', 'resolve', '--no-ff', '--no-edit', branch]);
     } catch (resolveError) {
-      // Resolve also failed — capture conflicting files before aborting
+      // Resolve also failed — capture conflict details before aborting
       let conflictedFiles: string[] = [];
+      let conflictDiff = '';
       try {
         const status = await git.status();
         conflictedFiles = status.conflicted;
       } catch (_statusError) {
         logger.trace('git status failed while collecting conflict info');
+      }
+      if (conflictedFiles.length > 0) {
+        try {
+          conflictDiff = await git.diff(conflictedFiles);
+        } catch (_diffError) {
+          logger.trace('git diff failed while collecting conflict diff');
+        }
       }
       try {
         await git.merge(['--abort']);
@@ -494,6 +503,7 @@ export async function handleReleaseBranch(
           ? resolveError.message
           : String(resolveError),
         conflictedFiles,
+        conflictDiff,
       );
     }
   }
@@ -797,6 +807,9 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
           for (const file of mergeError.conflictedFiles) {
             lines.push(`  - ${file}`);
           }
+        }
+        if (mergeError.diff) {
+          lines.push(``, `Diff:`, mergeError.diff);
         }
         lines.push(
           ``,
