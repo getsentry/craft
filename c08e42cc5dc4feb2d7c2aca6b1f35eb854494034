@@ -1,0 +1,262 @@
+# Cross-Repo Fix: Replace CI Polling with Event-Driven CI-Ready Signal
+
+## Problem
+
+When `craft publish` runs, it polls the GitHub commit status/check runs API every 30 seconds for up to 60 minutes (`BaseStatusProvider.waitForTheBuildToSucceed()` in `src/status_providers/base.ts:82-146`). This eats into the 1-hour GitHub App token lifetime and is the root cause of the expired-token merge failure we just fixed.
+
+## Solution Overview
+
+Replace the polling loop with a **repository_dispatch** signal from the target repo's CI. The publish repo uses labels as a state machine:
+
+| Label        | Added by                                  | Meaning                                    |
+| ------------ | ----------------------------------------- | ------------------------------------------ |
+| `ci-pending` | `action.yml` (at issue creation)          | CI signal expected but not yet received    |
+| `ci-ready`   | new `ci-ready.yml` workflow (on dispatch) | CI passed, safe to publish without polling |
+| `accepted`   | Human or `auto-approve.yml`               | Approved for publishing                    |
+
+Publishing only starts when both `accepted` AND `ci-ready` are present (for opted-in repos). Old repos work exactly as before.
+
+---
+
+## Repos Involved
+
+1. **getsentry/publish** — workflow changes (Phase 1, deploy first)
+2. **getsentry/craft** — action.yml + new signal-ready action (Phase 2)
+3. **Target repos** — adopt signal-ready (Phase 3, one at a time)
+
+---
+
+## Phase 1: getsentry/publish
+
+### 1a. New workflow: `.github/workflows/ci-ready.yml`
+
+Handles `repository_dispatch` type `ci-ready`. Payload: `{ repo, version, sha }`.
+
+Logic:
+
+1. Find open issue by exact title match (`publish: REPO@VERSION`)
+2. Verify `ci-pending` label exists (ignores dispatch for old-style repos)
+3. Remove `ci-pending`, add `ci-ready`
+4. Comment "CI checks passed for SHA"
+
+Auth: `secrets.GITHUB_TOKEN` is sufficient (same-repo issue operations).
+
+### 1b. Modified workflow: `.github/workflows/publish.yml`
+
+**Trigger**: unchanged (`issues: [labeled]`), but add concurrency control:
+
+```yaml
+concurrency:
+  group: publish-${{ github.event.issue.number }}
+  cancel-in-progress: false
+```
+
+**Job condition**: fire on EITHER `accepted` or `ci-ready`:
+
+```yaml
+if: >-
+  (github.event.label.name == 'accepted' || github.event.label.name == 'ci-ready')
+  && github.event.issue.state == 'open'
+```
+
+**New "gate" step** (after inputs parsing + token creation, before Docker run):
+
+- Re-reads the issue's labels live
+- Decision matrix:
+
+| `accepted` | `ci-pending` | `ci-ready` | Action                                                      |
+| ---------- | ------------ | ---------- | ----------------------------------------------------------- |
+| yes        | no           | no         | **Old repo**: publish with polling (no `--no-status-check`) |
+| yes        | yes          | no         | **New repo, CI not done**: comment "waiting for CI", exit   |
+| yes        | -            | yes        | **New repo, both ready**: publish with `--no-status-check`  |
+| no         | -            | yes        | CI ready, waiting for approval: exit                        |
+
+**Modified Docker invocation**: conditionally append `--no-status-check`:
+
+```bash
+EXTRA_FLAGS=""
+if [[ "$skip_status_check" == "true" ]]; then
+  EXTRA_FLAGS="--no-status-check"
+fi
+exec craft publish $VERSION $EXTRA_FLAGS
+```
+
+**Existing success/failure handlers**: unchanged. `post-result.js success` already closes the issue.
+
+### 1c. Create labels
+
+Create `ci-pending` and `ci-ready` labels in the getsentry/publish repo.
+
+---
+
+## Phase 2: getsentry/craft
+
+### 2a. Modified: `action.yml`
+
+**New input:**
+
+```yaml
+ci_ready:
+  description: Enable event-driven CI signaling instead of polling
+  required: false
+  default: 'false'
+```
+
+**New output:**
+
+```yaml
+publish_issue_number:
+  description: The number of the created/updated publish issue
+  value: ${{ steps.request-publish.outputs.issue_number }}
+```
+
+**Modified "Request publish" step** (~line 189):
+
+- When `ci_ready == 'true'`: pass `--label ci-pending` to `gh issue create`
+- When updating an existing issue: add `ci-pending` label if the issue doesn't already have `ci-ready`
+- Extract and output `issue_number` from the created/found issue
+
+### 2b. New composite action: `signal-ready/action.yml`
+
+```yaml
+name: 'Craft Signal CI Ready'
+inputs:
+  publish_repo:
+    default: '' # defaults to {owner}/publish
+  version:
+    required: true
+  sha:
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - shell: bash
+      run: |
+        PUBLISH_REPO="${{ inputs.publish_repo || format('{0}/publish', github.repository_owner) }}"
+        [[ "$PUBLISH_REPO" == "self" ]] && PUBLISH_REPO="$GITHUB_REPOSITORY"
+        gh api -X POST "repos/${PUBLISH_REPO}/dispatches" \
+          -f event_type=ci-ready \
+          -f "client_payload[repo]=${GITHUB_REPOSITORY}" \
+          -f "client_payload[version]=${{ inputs.version }}" \
+          -f "client_payload[sha]=${{ inputs.sha }}"
+```
+
+**Auth requirement**: `GH_TOKEN` env var must be set to a token with `contents: write` on the publish repo. Target repos use sentry-release-bot app token for this (same token already used for checkout in the release workflow).
+
+### 2c. Modified: `.github/workflows/release.yml`
+
+Pass through the new `ci_ready` input:
+
+```yaml
+inputs:
+  ci_ready:
+    description: Enable event-driven CI signaling
+    type: string
+    required: false
+    default: 'false'
+```
+
+Forward to the action step for external repos.
+
+---
+
+## Phase 3: Target Repo Adoption (per-repo, example)
+
+### 3a. Release workflow: enable ci_ready
+
+```yaml
+jobs:
+  release:
+    uses: getsentry/craft/.github/workflows/release.yml@v2
+    with:
+      ci_ready: 'true'
+```
+
+### 3b. CI workflow: add signal-ready job
+
+```yaml
+jobs:
+  test: ...
+  build: ...
+
+  signal-ci-ready:
+    needs: [test, build] # all required CI jobs
+    if: success() && startsWith(github.ref_name, 'release/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get auth token
+        id: token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.SENTRY_RELEASE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.SENTRY_RELEASE_BOT_PRIVATE_KEY }}
+          owner: getsentry
+          repositories: publish
+
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#release/}" >> "$GITHUB_OUTPUT"
+
+      - name: Signal CI ready
+        uses: getsentry/craft/signal-ready@v2
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        with:
+          version: ${{ steps.version.outputs.version }}
+          sha: ${{ github.sha }}
+```
+
+---
+
+## Backward Compatibility
+
+- **Old repos** (no `ci_ready` input): issue has no `ci-pending`/`ci-ready` labels. Gate treats as old-style: `craft publish` runs with existing polling loop. Zero behavioral change.
+- **New repos** (`ci_ready: true`): issue has `ci-pending`. Gate requires both `accepted` + `ci-ready`, runs with `--no-status-check`, no polling.
+
+---
+
+## Race Conditions
+
+| Scenario                                           | Handling                                                                                                        |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `accepted` + `ci-ready` arrive near-simultaneously | `concurrency` group queues one run. Queued run re-reads labels, sees both present, publishes.                   |
+| `auto-approve` fires before `ci-pending` is set    | Can't happen — `ci-pending` is a label arg on `gh issue create` (atomic with issue creation).                   |
+| `ci-ready` dispatch arrives before issue exists    | `ci-ready.yml` searches by title, logs warning if not found. Add retry loop (3 attempts, 10s apart) for safety. |
+| Duplicate `ci-ready` signals                       | Idempotent — handler checks for `ci-pending`. If already replaced by `ci-ready`, second signal is ignored.      |
+
+---
+
+## Complete Scenario Flows
+
+**CI finishes before approval (new repo):**
+
+1. craft prepare → issue created with `[ci-pending]`
+2. CI passes → dispatch → `ci-ready.yml` replaces `ci-pending` with `ci-ready`
+3. `publish.yml` fires on `ci-ready` → gate: no `accepted` → exit
+4. Human/auto adds `accepted` → `publish.yml` fires → gate: both present → publish with `--no-status-check`
+
+**Approval before CI (new repo):**
+
+1. craft prepare → issue with `[ci-pending]`
+2. Human/auto adds `accepted` → `publish.yml` fires → gate: `accepted` + `ci-pending` but no `ci-ready` → comments "waiting for CI", exits
+3. CI passes → dispatch → `ci-ready.yml` adds `ci-ready`
+4. `publish.yml` fires on `ci-ready` → gate: both present → publish with `--no-status-check`
+
+**Old repo (unchanged):**
+
+1. craft prepare → issue without `ci-pending`
+2. Human/auto adds `accepted` → `publish.yml` fires → gate: old-style → publish with polling (current behavior)
+
+---
+
+## Implementation Order
+
+1. **Phase 1** (getsentry/publish): Create labels, add `ci-ready.yml`, modify `publish.yml` gate. Deploy independently — no impact on existing flows.
+2. **Phase 2** (getsentry/craft): Add `ci_ready` input, `ci-pending` label at creation, `signal-ready/action.yml`. Release as minor version bump.
+3. **Phase 3** (target repos): Adopt one-by-one, starting with a fast-CI repo for validation.
+
+## Verification
+
+- **Phase 1**: Open a test issue on getsentry/publish with `ci-pending` label. Add `accepted` → verify "waiting for CI" comment. Then add `ci-ready` → verify publish triggers with `--no-status-check`. Also verify old-style issue (no `ci-pending`) still works with `accepted` alone.
+- **Phase 2**: Run craft prepare with `ci_ready: true` in a test repo. Verify issue is created with `ci-pending` label. Call signal-ready action, verify dispatch is received and `ci-ready` label appears.
+- **Phase 3**: End-to-end: create a release in a pilot repo with both changes active. Verify full flow without polling.
