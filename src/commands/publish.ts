@@ -745,9 +745,20 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       // signal for a fully-published release. Report to Sentry for
       // observability but don't fail the command.
       captureException(mergeError);
-      const diagnosis = isAuthError(mergeError)
+      const authFailure = isAuthError(mergeError);
+      const diagnosis = authFailure
         ? `This is likely due to an expired authentication token (common for long-running publishes > 1 hour).`
         : `This is likely due to a merge conflict (e.g., in CHANGELOG.md).`;
+      const resolutionSteps = authFailure
+        ? [
+            `  1. Re-authenticate (e.g., generate a fresh token)`,
+            `  2. Merge the release branch into the target branch`,
+            `  3. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
+          ]
+        : [
+            `  1. Merge the release branch into the target branch, resolving conflicts`,
+            `  2. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
+          ];
       logger.warn(
         [
           `Failed to merge release branch "${branchName}" into the target branch.`,
@@ -755,8 +766,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
           `All publish targets completed successfully — only the post-publish merge failed.`,
           ``,
           `To resolve manually:`,
-          `  1. Merge the release branch into the target branch, resolving conflicts`,
-          `  2. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
+          ...resolutionSteps,
           ``,
           `Error: ${mergeError instanceof Error ? mergeError.message : String(mergeError)}`,
         ].join('\n'),
