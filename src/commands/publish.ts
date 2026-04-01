@@ -387,14 +387,34 @@ async function checkRevisionStatus(
 }
 
 /**
- * Checks whether an error from a git operation is an authentication failure
- * (e.g., expired token) rather than a merge conflict or other git error.
+ * Error thrown when the release branch merge fails due to conflicts.
+ * Contains the list of conflicting file paths for diagnostics.
  */
-export function isAuthError(error: unknown): boolean {
-  const msg = error instanceof Error ? error.message : String(error);
-  return /could not read Username|Authentication failed|HTTP 401|HTTP 403|Invalid credentials|token.*expired/i.test(
-    msg,
-  );
+export class MergeConflictError extends Error {
+  public __proto__: Error;
+
+  public constructor(
+    message: string,
+    public readonly conflictedFiles: string[],
+  ) {
+    const trueProto = new.target.prototype;
+    super(message);
+    this.__proto__ = trueProto;
+  }
+}
+
+/**
+ * Error thrown when the post-merge push fails (e.g., expired token).
+ * The merge itself succeeded — only the push to the remote failed.
+ */
+export class PushError extends Error {
+  public __proto__: Error;
+
+  public constructor(message: string) {
+    const trueProto = new.target.prototype;
+    super(message);
+    this.__proto__ = trueProto;
+  }
 }
 
 /**
@@ -435,6 +455,7 @@ export async function handleReleaseBranch(
     throw pullError;
   }
 
+  // Stage 1: Merge — if this fails, it's a merge conflict
   logger.debug(`Merging ${branch} into: ${mergeTarget}`);
   try {
     await git.merge(['--no-ff', '--no-edit', branch]);
@@ -455,17 +476,36 @@ export async function handleReleaseBranch(
     try {
       await git.merge(['-s', 'resolve', '--no-ff', '--no-edit', branch]);
     } catch (resolveError) {
-      // Resolve also failed — abort to leave repo in a clean state
+      // Resolve also failed — capture conflicting files before aborting
+      let conflictedFiles: string[] = [];
+      try {
+        const status = await git.status();
+        conflictedFiles = status.conflicted;
+      } catch (_statusError) {
+        logger.trace('git status failed while collecting conflict info');
+      }
       try {
         await git.merge(['--abort']);
       } catch (_abortError) {
         logger.trace('git merge --abort failed after resolve strategy');
       }
-      throw resolveError;
+      throw new MergeConflictError(
+        resolveError instanceof Error
+          ? resolveError.message
+          : String(resolveError),
+        conflictedFiles,
+      );
     }
   }
 
-  await git.push(remoteName, mergeTarget);
+  // Stage 2: Push — merge succeeded, any error here is auth/network
+  try {
+    await git.push(remoteName, mergeTarget);
+  } catch (pushError) {
+    throw new PushError(
+      pushError instanceof Error ? pushError.message : String(pushError),
+    );
+  }
 
   if (keepBranch) {
     logger.info('Not deleting the release branch.');
@@ -745,32 +785,53 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       // signal for a fully-published release. Report to Sentry for
       // observability but don't fail the command.
       captureException(mergeError);
-      const authFailure = isAuthError(mergeError);
-      const diagnosis = authFailure
-        ? `This is likely due to an expired authentication token (common for long-running publishes > 1 hour).`
-        : `This is likely due to a merge conflict (e.g., in CHANGELOG.md).`;
-      const resolutionSteps = authFailure
-        ? [
-            `  1. Re-authenticate (e.g., generate a fresh token)`,
-            `  2. Merge the release branch into the target branch`,
-            `  3. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
-          ]
-        : [
-            `  1. Merge the release branch into the target branch, resolving conflicts`,
-            `  2. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
-          ];
-      logger.warn(
-        [
-          `Failed to merge release branch "${branchName}" into the target branch.`,
-          diagnosis,
+
+      const lines = [
+        `Failed to merge release branch "${branchName}" into the target branch.`,
+      ];
+      if (mergeError instanceof MergeConflictError) {
+        lines.push(`Merge conflict — both ort and resolve strategies failed.`);
+        if (mergeError.conflictedFiles.length > 0) {
+          lines.push(``);
+          lines.push(`Conflicting files:`);
+          for (const file of mergeError.conflictedFiles) {
+            lines.push(`  - ${file}`);
+          }
+        }
+        lines.push(
+          ``,
           `All publish targets completed successfully — only the post-publish merge failed.`,
           ``,
           `To resolve manually:`,
-          ...resolutionSteps,
+          `  1. Merge the release branch into the target branch, resolving conflicts`,
+          `  2. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
+        );
+      } else if (mergeError instanceof PushError) {
+        lines.push(
+          `The merge succeeded locally but pushing to the remote failed.`,
+          `This is likely due to an expired authentication token (common for long-running publishes > 1 hour).`,
           ``,
-          `Error: ${mergeError instanceof Error ? mergeError.message : String(mergeError)}`,
-        ].join('\n'),
+          `All publish targets completed successfully — only the post-publish push failed.`,
+          ``,
+          `To resolve manually:`,
+          `  1. Re-authenticate (e.g., generate a fresh token)`,
+          `  2. Merge the release branch into the target branch`,
+          `  3. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
+        );
+      } else {
+        lines.push(
+          `All publish targets completed successfully — only the post-publish merge failed.`,
+          ``,
+          `To resolve manually:`,
+          `  1. Merge the release branch into the target branch`,
+          `  2. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
+        );
+      }
+      lines.push(
+        ``,
+        `Error: ${mergeError instanceof Error ? mergeError.message : String(mergeError)}`,
       );
+      logger.warn(lines.join('\n'));
     }
 
     // XXX(BYK): intentionally DO NOT await unlinking as we do not want

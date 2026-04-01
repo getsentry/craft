@@ -4,7 +4,8 @@ import { spawnProcess, hasExecutable } from '../../utils/system';
 import {
   runPostReleaseCommand,
   handleReleaseBranch,
-  isAuthError,
+  MergeConflictError,
+  PushError,
 } from '../publish';
 import type { SimpleGit } from 'simple-git';
 
@@ -120,6 +121,7 @@ describe('handleReleaseBranch', () => {
     mockGit.remote = makeChainable();
     mockGit.revparse = makeChainable('main');
     mockGit.raw = makeChainable('');
+    mockGit.status = makeChainable({ conflicted: [] });
 
     return mockGit as unknown as SimpleGit & Record<string, Mock>;
   }
@@ -209,7 +211,7 @@ describe('handleReleaseBranch', () => {
     expect(git.push).toHaveBeenCalledWith('origin', 'main');
   });
 
-  test('throws when both merge strategies fail and aborts both', async () => {
+  test('throws MergeConflictError with file list when both strategies fail', async () => {
     const git = createMockGit();
     const defaultError = new Error('CONFLICT with default');
     const resolveError = new Error('CONFLICT with resolve');
@@ -220,17 +222,52 @@ describe('handleReleaseBranch', () => {
       .mockImplementationOnce(() => Promise.reject(resolveError)) // resolve merge
       .mockImplementationOnce(() => Promise.resolve()); // abort after resolve
 
-    await expect(
-      handleReleaseBranch(git, 'origin', 'release/1.0.0', 'main'),
-    ).rejects.toThrow('CONFLICT with resolve');
+    // Simulate conflicted files in git status
+    (git.status as Mock).mockImplementationOnce(() =>
+      Promise.resolve({ conflicted: ['CHANGELOG.md', 'package.json'] }),
+    );
+
+    const error = await handleReleaseBranch(
+      git,
+      'origin',
+      'release/1.0.0',
+      'main',
+    ).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(MergeConflictError);
+    expect((error as MergeConflictError).message).toBe('CONFLICT with resolve');
+    expect((error as MergeConflictError).conflictedFiles).toEqual([
+      'CHANGELOG.md',
+      'package.json',
+    ]);
 
     expect(git.merge).toHaveBeenCalledTimes(4);
-    // First abort: after default strategy failure
     expect(git.merge).toHaveBeenNthCalledWith(2, ['--abort']);
-    // Second abort: after resolve strategy failure
     expect(git.merge).toHaveBeenNthCalledWith(4, ['--abort']);
+    expect(git.status).toHaveBeenCalledTimes(1);
     // push should NOT be called
     expect(git.push).not.toHaveBeenCalledWith('origin', 'main');
+  });
+
+  test('throws PushError when push fails after successful merge', async () => {
+    const git = createMockGit();
+    const pushError = new Error(
+      "fatal: could not read Username for 'https://github.com': No such device or address",
+    );
+
+    (git.push as Mock).mockImplementationOnce(() => Promise.reject(pushError));
+
+    const error = await handleReleaseBranch(
+      git,
+      'origin',
+      'release/1.0.0',
+      'main',
+    ).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(PushError);
+    expect((error as PushError).message).toContain('could not read Username');
+    // Merge should have been called (and succeeded)
+    expect(git.merge).toHaveBeenCalledTimes(1);
   });
 
   test('aborts rebase when pull --rebase fails', async () => {
@@ -287,49 +324,34 @@ describe('handleReleaseBranch', () => {
   });
 });
 
-describe('isAuthError', () => {
-  test('detects "could not read Username" as auth error', () => {
-    expect(
-      isAuthError(
-        new Error(
-          "fatal: could not read Username for 'https://github.com': No such device or address",
-        ),
-      ),
-    ).toBe(true);
+describe('MergeConflictError', () => {
+  test('is instanceof Error', () => {
+    const err = new MergeConflictError('conflict', ['a.txt']);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(MergeConflictError);
   });
 
-  test('detects "Authentication failed" as auth error', () => {
-    expect(
-      isAuthError(
-        new Error(
-          "fatal: Authentication failed for 'https://github.com/org/repo.git/'",
-        ),
-      ),
-    ).toBe(true);
+  test('carries conflictedFiles', () => {
+    const err = new MergeConflictError('msg', ['CHANGELOG.md', 'package.json']);
+    expect(err.message).toBe('msg');
+    expect(err.conflictedFiles).toEqual(['CHANGELOG.md', 'package.json']);
   });
 
-  test('detects HTTP 401 as auth error', () => {
-    expect(isAuthError(new Error('HTTP 401 Unauthorized'))).toBe(true);
+  test('works with empty conflictedFiles', () => {
+    const err = new MergeConflictError('msg', []);
+    expect(err.conflictedFiles).toEqual([]);
+  });
+});
+
+describe('PushError', () => {
+  test('is instanceof Error', () => {
+    const err = new PushError('push failed');
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(PushError);
   });
 
-  test('detects HTTP 403 as auth error', () => {
-    expect(isAuthError(new Error('HTTP 403 Forbidden'))).toBe(true);
-  });
-
-  test('does not flag merge conflicts as auth error', () => {
-    expect(
-      isAuthError(
-        new Error('CONFLICT (content): Merge conflict in CHANGELOG.md'),
-      ),
-    ).toBe(false);
-  });
-
-  test('does not flag generic git errors as auth error', () => {
-    expect(isAuthError(new Error('fatal: not a git repository'))).toBe(false);
-  });
-
-  test('handles non-Error values', () => {
-    expect(isAuthError('could not read Username')).toBe(true);
-    expect(isAuthError('some other error')).toBe(false);
+  test('carries message', () => {
+    const err = new PushError('could not read Username');
+    expect(err.message).toBe('could not read Username');
   });
 });
