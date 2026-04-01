@@ -41,6 +41,17 @@ inputs:
       Defaults to the action ref (e.g., "v2") if not specified.
     required: false
     default: ''
+  ci_ready:
+    description: >
+      Use event-driven CI signaling instead of polling.
+      When true (the default), the publish issue is created with a
+      "ci-pending" label, and the target repo is expected to send a
+      repository_dispatch event (via the signal-ready action) when CI
+      passes. The publish workflow will not start the job until CI
+      signals readiness, avoiding wasted runner minutes from idle
+      polling. Set to 'false' to fall back to the legacy polling behavior.
+    required: false
+    default: 'true'
 
 outputs:
   version:
@@ -64,6 +75,9 @@ outputs:
   issue_url:
     description: The URL of the created publish request issue
     value: ${{ steps.request-publish.outputs.issue_url }}
+  publish_issue_number:
+    description: The number of the created/updated publish issue (for use with signal-ready)
+    value: ${{ steps.request-publish.outputs.issue_number }}
 
 runs:
   using: 'composite'
@@ -202,6 +216,7 @@ runs:
         SUBDIRECTORY: ${{ inputs.path != '.' && format('/{0}', inputs.path) || '' }}
         MERGE_TARGET: ${{ inputs.merge_target || '(default)' }}
         PUBLISH_REPO: ${{ inputs.publish_repo || format('{0}/publish', github.repository_owner) }}
+        CI_READY: ${{ inputs.ci_ready }}
       run: |
         # Resolve "self" to the current repository
         if [[ "$PUBLISH_REPO" == "self" ]]; then
@@ -307,6 +322,12 @@ runs:
         Checked targets will be skipped (either already published or user-requested skip). Uncheck to retry a target.
         ${CHANGELOG_SECTION}"
 
+        # Build label args for ci-ready opt-in
+        LABEL_ARGS=""
+        if [[ "$CI_READY" == "true" ]]; then
+          LABEL_ARGS="--label ci-pending"
+        fi
+
         if [[ -n "$existing_issue_number" ]]; then
           # Try to update existing issue with fresh body (preserving checked target states)
           # This may fail if the token doesn't have permission to update issues in the publish repo
@@ -315,10 +336,31 @@ runs:
           else
             echo "::warning::Could not update existing issue (permission denied). Using existing issue as-is."
           fi
+
+          # For ci-ready opt-in: ensure ci-pending label is present (unless ci-ready already set)
+          if [[ "$CI_READY" == "true" ]]; then
+            existing_labels=$(gh issue view "$existing_issue_number" -R "$PUBLISH_REPO" --json labels -q '.labels[].name' 2>/dev/null || true)
+            if ! echo "$existing_labels" | grep -q '^ci-ready$'; then
+              gh issue edit "$existing_issue_number" -R "$PUBLISH_REPO" --add-label "ci-pending" 2>/dev/null || true
+            fi
+          fi
+
           echo "issue_url=${existing_issue_url}" >> "$GITHUB_OUTPUT"
+          echo "issue_number=${existing_issue_number}" >> "$GITHUB_OUTPUT"
         else
-          # Create new issue
-          issue_url=$(gh issue create -R "$PUBLISH_REPO" --title "$title" --body "$body")
+          # Create new issue (with ci-pending label if ci_ready is enabled)
+          issue_url=$(gh issue create -R "$PUBLISH_REPO" --title "$title" --body "$body" $LABEL_ARGS)
           echo "::notice::Created publish request: ${issue_url}"
           echo "issue_url=${issue_url}" >> "$GITHUB_OUTPUT"
+
+          # Extract issue number from the URL (last path segment)
+          issue_number=$(echo "$issue_url" | grep -oE '[0-9]+$')
+          echo "issue_number=${issue_number}" >> "$GITHUB_OUTPUT"
+        fi
+
+        # Trigger the CI status poller so it checks immediately rather than
+        # waiting for the next scheduled run.
+        if [[ "$CI_READY" == "true" ]]; then
+          gh api -X POST "repos/${PUBLISH_REPO}/dispatches" \
+            -f event_type=check-ci-status 2>/dev/null || true
         fi

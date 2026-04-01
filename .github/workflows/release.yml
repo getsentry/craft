@@ -56,6 +56,15 @@ on:
         type: string
         required: false
         default: 'false'
+      ci_ready:
+        description: >
+          Use event-driven CI signaling instead of polling.
+          When true (the default), the publish issue is created with a
+          "ci-pending" label. The target repo should call the signal-ready
+          action after CI passes. Set to 'false' to fall back to legacy polling.
+        type: string
+        required: false
+        default: 'true'
     outputs:
       version:
         description: The resolved version being released
@@ -72,6 +81,12 @@ on:
       changelog:
         description: The changelog for this release (may be truncated for large repos)
         value: ${{ jobs.release.outputs.changelog }}
+      issue_url:
+        description: The URL of the created publish request issue
+        value: ${{ jobs.release.outputs.issue_url }}
+      publish_issue_number:
+        description: The number of the created/updated publish issue
+        value: ${{ jobs.release.outputs.publish_issue_number }}
 
 jobs:
   # Build job only for Craft's own releases (dogfooding)
@@ -96,6 +111,8 @@ jobs:
       sha: ${{ steps.craft-local.outputs.sha || steps.craft-action.outputs.sha }}
       previous_tag: ${{ steps.craft-local.outputs.previous_tag || steps.craft-action.outputs.previous_tag }}
       changelog: ${{ steps.craft-local.outputs.changelog || steps.craft-action.outputs.changelog }}
+      issue_url: ${{ steps.craft-local.outputs.issue_url || steps.craft-action.outputs.issue_url }}
+      publish_issue_number: ${{ steps.craft-local.outputs.publish_issue_number || steps.craft-action.outputs.publish_issue_number }}
     steps:
       # For Craft repo: use the release bot token
       - name: Get auth token
@@ -140,3 +157,4 @@ jobs:
           git_user_email: ${{ inputs.git_user_email }}
           path: ${{ inputs.path }}
           craft_config_from_merge_target: ${{ inputs.craft_config_from_merge_target }}
+          ci_ready: ${{ inputs.ci_ready }}
