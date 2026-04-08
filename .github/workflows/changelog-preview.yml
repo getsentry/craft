@@ -48,9 +48,11 @@ on:
   #
   # SECURITY NOTE:
   # This workflow is safe to use with pull_request_target because:
+  # - We ONLY checkout the merge ref, NEVER the PR head ref
   # - The Craft binary is downloaded from releases, NOT from the PR
   # - Only git metadata (commits, tags) and .craft.yml config are read
   # - No code from the PR is ever executed
+  # - If merge conflicts exist, the workflow fails safely without executing PR code
   #
   workflow_call:
     inputs:
@@ -83,19 +85,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # For pull_request_target, we must explicitly specify the ref to get the PR commits.
-      # Try the merge ref first; fall back to head ref if PR has merge conflicts.
+      # We ONLY use the merge ref for security reasons - never checkout PR head with pull_request_target.
+      # If the merge ref is unavailable (e.g., merge conflicts), we fail the workflow safely.
       - uses: actions/checkout@v6
         id: checkout-merge
-        continue-on-error: true
         with:
           fetch-depth: 0
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
 
-      - uses: actions/checkout@v6
-        if: steps.checkout-merge.outcome == 'failure'
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Check for merge conflicts
+        if: failure()
+        run: |
+          echo "::error::Unable to checkout merge ref. This PR likely has merge conflicts."
+          echo "::error::Please resolve merge conflicts before the changelog preview can be generated."
+          exit 1
 
       - name: Install Craft
         shell: bash
