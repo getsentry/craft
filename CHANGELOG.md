@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.25.3
+
+### Bug Fixes 🐛
+
+- (deps) Address security vulnerabilities in vite, picomatch, and defu by @BYK in [#791](https://github.com/getsentry/craft/pull/791)
+- (publish) Distinguish auth failures from merge conflicts in post-publish merge by @BYK in [#788](https://github.com/getsentry/craft/pull/788)
+
 ## 2.25.2
 
 ### Bug Fixes 🐛
