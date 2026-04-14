@@ -1,0 +1,94 @@
+# Fix GitHub Security Alerts (10 open Dependabot alerts)
+
+## Summary
+
+10 open alerts across 3 packages, all transitive dependencies. Fix requires **2 lines of override additions** + **lockfile regeneration**.
+
+| Package                     | Version(s)                 | Project | Fix Strategy                           |
+| --------------------------- | -------------------------- | ------- | -------------------------------------- |
+| **vite** 7.3.0 → 7.3.2      | CVE-2026-39363/39364/39365 | main    | Lockfile re-resolve (semver allows it) |
+| **vite** 6.4.1 → 6.4.2      | CVE-2026-39363/39365       | docs    | Lockfile re-resolve (semver allows it) |
+| **picomatch** 4.0.3 → 4.0.4 | CVE-2026-33671/33672       | main    | Lockfile re-resolve (semver allows it) |
+| **picomatch** 2.3.1 → 2.3.2 | CVE-2026-33671/33672       | main    | **pnpm override** (pinned transitive)  |
+| **defu** 6.1.4 → 6.1.5      | CVE-2026-35209             | docs    | **pnpm override** (deep transitive)    |
+
+## Changes
+
+### 1. `package.json` — add picomatch override (line 110)
+
+Add `"picomatch@<3": "^2.3.2"` to `pnpm.overrides`:
+
+```json
+"pnpm": {
+  "overrides": {
+    "fast-xml-parser": "^5.5.7",
+    "minimatch": "^10.2.1",
+    "ajv@<6.14.0": "^6.14.0",
+    "rollup": "^4.59.0",
+    "flatted": "^3.4.2",
+    "picomatch@<3": "^2.3.2"
+  }
+}
+```
+
+**Why override?** `picomatch@2.3.1` is locked deep in `@sentry/esbuild-plugin` → `unplugin@1.0.1` (pinned) → `chokidar@3` → `anymatch`/`readdirp`. No direct dep bump resolves it. Using `@<3` selector targets only the 2.x line; the 4.x line resolves naturally.
+
+### 2. `docs/package.json` — add defu override (line 22)
+
+Add `"defu": "^6.1.5"` to `pnpm.overrides`:
+
+```json
+"pnpm": {
+  "overrides": {
+    "h3": "^1.15.6",
+    "devalue": "^5.6.4",
+    "rollup": "^4.59.0",
+    "svgo": "^4.0.1",
+    "smol-toml": "^1.6.1",
+    "defu": "^6.1.5"
+  }
+}
+```
+
+**Why override?** `defu@6.1.4` is locked via `astro` → `unstorage` → `h3` → `defu`. The `h3` override already exists but doesn't force defu resolution.
+
+### 3. Regenerate lockfiles
+
+```bash
+# Main project
+pnpm install
+
+# Docs project
+cd docs && pnpm install
+```
+
+This re-resolves vite (7.3.0→7.3.2), picomatch (4.0.3→4.0.4), and applies the new overrides.
+
+## Verification
+
+```bash
+# 1. Check resolved versions
+pnpm why picomatch      # expect 2.3.2+ and 4.0.4+
+pnpm why vite           # expect 7.3.2+
+cd docs
+pnpm why vite           # expect 6.4.2+
+pnpm why defu           # expect 6.1.5+
+
+# 2. Build, test, lint (back in project root)
+cd /home/byk/Code/getsentry/craft
+pnpm build
+pnpm test
+pnpm lint
+
+# 3. Re-run dependabot alerts API to confirm all resolved
+gh api -H "Accept: application/vnd.github+json" \
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  /repos/{owner}/{repo}/dependabot/alerts?state=open
+```
+
+## Files Modified
+
+- `package.json` — 1 line added to overrides
+- `docs/package.json` — 1 line added to overrides
+- `pnpm-lock.yaml` — regenerated
+- `docs/pnpm-lock.yaml` — regenerated
