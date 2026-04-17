@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.25.4
+
+### Bug Fixes 🐛
+
+- (publish) Replace CRAFT_NEW_VERSION with CRAFT_RELEASED_VERSION in post-release env by @BYK in [#793](https://github.com/getsentry/craft/pull/793)
+
 ## 2.25.3
 
 ### Bug Fixes 🐛
