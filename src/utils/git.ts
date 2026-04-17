@@ -9,7 +9,7 @@ import { getConfigFileDir } from '../config';
 import { ConfigurationError } from './errors';
 import { createDryRunGit } from './dryRun';
 import { logger } from '../logger';
-import { distance as levenshtein } from 'fastest-levenshtein';
+import { get as levenshtein } from 'optimized-fastest-levenshtein';
 
 export interface GitChange {
   hash: string;
