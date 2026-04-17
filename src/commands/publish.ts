@@ -561,8 +561,7 @@ export async function runPostReleaseCommand(
   logger.info(`Running the post-release command...`);
   await spawnProcess(sysCommand as string, args as string[], {
     env: {
-      CRAFT_NEW_VERSION: newVersion,
-      CRAFT_OLD_VERSION: '',
+      CRAFT_RELEASED_VERSION: newVersion,
       PATH: process.env.PATH,
       GITHUB_TOKEN: process.env.GITHUB_TOKEN,
       ...Object.fromEntries(
