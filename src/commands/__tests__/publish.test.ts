@@ -38,8 +38,7 @@ describe('runPostReleaseCommand', () => {
         [pathJoin('scripts', 'post-release.sh'), '', newVersion],
         {
           env: {
-            CRAFT_NEW_VERSION: newVersion,
-            CRAFT_OLD_VERSION: '',
+            CRAFT_RELEASED_VERSION: newVersion,
             PATH: process.env.PATH,
             GITHUB_TOKEN: process.env.GITHUB_TOKEN,
             HOME: process.env.HOME,
@@ -75,8 +74,7 @@ describe('runPostReleaseCommand', () => {
       ['./increase_version.py', 'argument 1', '', newVersion],
       {
         env: {
-          CRAFT_NEW_VERSION: newVersion,
-          CRAFT_OLD_VERSION: '',
+          CRAFT_RELEASED_VERSION: newVersion,
           PATH: process.env.PATH,
           GITHUB_TOKEN: process.env.GITHUB_TOKEN,
           HOME: process.env.HOME,
