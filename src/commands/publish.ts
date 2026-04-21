@@ -1,9 +1,9 @@
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 import chalk from 'chalk';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync } from 'fs';
 
 import { safeFs } from '../utils/dryRun';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import shellQuote from 'shell-quote';
 import stringLength from 'string-length';
 
@@ -47,6 +47,7 @@ import {
 } from '../utils/git';
 import { withTracing } from '../utils/tracing';
 import { buildReleaseCommandEnv } from '../utils/releaseCommandEnv';
+import { getPublishStatePath } from '../utils/publishState';
 
 /** Default path to post-release script, relative to project root */
 const DEFAULT_POST_RELEASE_SCRIPT_PATH = join('scripts', 'post-release.sh');
@@ -670,8 +671,40 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   // Expand any npm workspace targets into individual package targets
   let targetConfigList = await expandWorkspaceTargets(config.targets || []);
 
+  // Resolve the GitHub config up front so we can key the publish-state
+  // file by owner/repo. `getGlobalGitHubConfig()` returns cached data on
+  // subsequent calls, so this is effectively free.
+  let publishStateGithubConfig = null;
+  try {
+    publishStateGithubConfig = await getGlobalGitHubConfig();
+  } catch {
+    // Fall through with null — getPublishStatePath() handles this by
+    // falling back to a cwd-hash-only filename, keeping the file in
+    // $XDG_STATE_HOME/craft/ rather than the repo.
+  }
+  const publishStateFile = getPublishStatePath(
+    newVersion,
+    publishStateGithubConfig,
+  );
+
   logger.info(`Looking for publish state file for ${newVersion}...`);
-  const publishStateFile = `.craft-publish-${newVersion}.json`;
+  logger.debug(`Publish state file path: ${publishStateFile}`);
+
+  // Warn when a file at the legacy cwd location is detected. We never
+  // read it (see security/move-publish-state-to-xdg): repo-contents are
+  // attacker-influenceable via PRs and could pre-populate the "already
+  // published" set. Users / workflows that were writing to the legacy
+  // path need to migrate to $XDG_STATE_HOME/craft/.
+  const legacyStateFile = `.craft-publish-${newVersion}.json`;
+  if (existsSync(legacyStateFile)) {
+    logger.warn(
+      `Found legacy publish state file at "${legacyStateFile}" in the project directory. ` +
+        `This file is no longer read for security reasons. ` +
+        `Craft now stores publish state at "${publishStateFile}". ` +
+        `If you were pre-seeding published targets, update your workflow to write to the new location.`,
+    );
+  }
+
   const earlierStateExists = existsSync(publishStateFile);
   let publishState: PublishState;
   if (earlierStateExists) {
@@ -714,6 +747,11 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
     await withTempDir(async (downloadDirectory: string) => {
       artifactProvider.setDownloadDirectory(downloadDirectory);
+
+      // Ensure the state directory exists. `mkdirSync` with
+      // `recursive: true` is idempotent, so this is safe on resumed
+      // runs where the directory was already created.
+      mkdirSync(dirname(publishStateFile), { recursive: true });
 
       // Publish to all targets
       for (const target of targetList) {
