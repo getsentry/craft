@@ -70,17 +70,16 @@ on:
         default: true
 
   # Also run on PRs in this repository (dogfooding)
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled]
-
-permissions:
-  contents: read
-  pull-requests: write # For comment mode
-  statuses: write # For status check mode
 
 jobs:
   preview:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # For comment mode
+      statuses: write # For status check mode
     steps:
       # For pull_request_target, we must explicitly specify the ref to get the PR commits.
       # Try the merge ref first; fall back to head ref if PR has merge conflicts.
@@ -90,12 +89,14 @@ jobs:
         with:
           fetch-depth: 0
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          persist-credentials: false
 
       - uses: actions/checkout@v6
         if: steps.checkout-merge.outcome == 'failure'
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
 
       - name: Install Craft
         shell: bash
