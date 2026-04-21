@@ -113,36 +113,45 @@ Some operations need explicit `isDryRun()` checks:
 - User experience optimizations (e.g., skipping sleep timers)
 
 <!-- This section is maintained by the coding agent via lore (https://github.com/BYK/opencode-lore) -->
-
 ## Long-term Knowledge
 
 ### Architecture
 
-<!-- lore:019cb31a-14ce-7892-b22a-0327cfcebc13 -->
+<!-- lore:019db09e-ac9b-765d-a091-bb6bb512b987 -->
+* **Craft release commands forward sanitized env, not full process.env**: Craft's pre/postReleaseCommand invocations (\`prepare.ts\` runCustomPreReleaseCommand, \`publish.ts\` runPostReleaseCommand) must NOT forward \`...process.env\` to subprocesses — that pattern lets attacker-controlled \`.craft.env\` or config inject \`LD\_PRELOAD\`/\`LD\_LIBRARY\_PATH\` for RCE via the CI release pipeline. Use the shared allowlist helper in \`src/utils/releaseCommandEnv.ts\` which returns only {PATH, HOME, USER, GIT\_COMMITTER\_NAME, GIT\_AUTHOR\_NAME, EMAIL, GITHUB\_TOKEN, CRAFT\_\*} plus per-command additions (CRAFT\_NEW\_VERSION/OLD\_VERSION for prepare, CRAFT\_RELEASED\_VERSION for publish). Tests in \`prepare.test.ts\`/\`publish.test.ts\` assert LD\_PRELOAD and secret env vars are stripped.
 
-- **Registry target: repo_url auto-derived from git remote, not user-configurable**: \`repo_url\` in registry manifests is always set by Craft as \`https://github.com/${owner}/${repo}\`. Resolution: (1) explicit \`github: { owner, repo }\` in \`.craft.yml\` (rare), (2) fallback: auto-detect from git \`origin\` remote URL via \`git-url-parse\` library (\`git.ts:194-217\`, \`config.ts:286-316\`). Works with HTTPS and SSH remote URLs. Always overwritten on every publish — existing manifest values are replaced (\`registry.ts:417-418\`). Result is cached globally with \`Object.freeze\`. If remote isn't \`github.com\` and no explicit config exists, throws \`ConfigurationError\`. Most repos need no configuration — the git origin remote is sufficient.
+<!-- lore:019cb31a-14ce-7892-b22a-0327cfcebc13 -->
+* **Registry target: repo\_url auto-derived from git remote, not user-configurable**: \`repo\_url\` in registry manifests is always set by Craft as \`https://github.com/${owner}/${repo}\`. Resolution: (1) explicit \`github: { owner, repo }\` in \`.craft.yml\` (rare), (2) fallback: auto-detect from git \`origin\` remote URL via \`git-url-parse\` library (\`git.ts:194-217\`, \`config.ts:286-316\`). Works with HTTPS and SSH remote URLs. Always overwritten on every publish — existing manifest values are replaced (\`registry.ts:417-418\`). Result is cached globally with \`Object.freeze\`. If remote isn't \`github.com\` and no explicit config exists, throws \`ConfigurationError\`. Most repos need no configuration — the git origin remote is sufficient.
 
 <!-- lore:019cb31a-14c8-7ba9-b1c4-81b2e8bf7e85 -->
+* **Registry target: urlTemplate generates artifact download URLs in manifest**: \`urlTemplate\` in the registry target config generates download URLs for release artifacts in the registry manifest's \`files\` field. Uses Mustache rendering with variables \`{{version}}\`, \`{{file}}\`, \`{{revision}}\`. Primarily useful for apps (standalone binaries) and CDN-hosted assets — SDK packages published to public registries (npm, PyPI, gem) typically don't need it. If neither \`urlTemplate\` nor \`checksums\` is configured, Craft skips adding file data entirely (warns at \`registry.ts:341-349\`). Real-world pattern: \`https://downloads.sentry-cdn.com/\<product>/{{version}}/{{file}}\`.
 
-- **Registry target: urlTemplate generates artifact download URLs in manifest**: \`urlTemplate\` in the registry target config generates download URLs for release artifacts in the registry manifest's \`files\` field. Uses Mustache rendering with variables \`{{version}}\`, \`{{file}}\`, \`{{revision}}\`. Primarily useful for apps (standalone binaries) and CDN-hosted assets — SDK packages published to public registries (npm, PyPI, gem) typically don't need it. If neither \`urlTemplate\` nor \`checksums\` is configured, Craft skips adding file data entirely (warns at \`registry.ts:341-349\`). Real-world pattern: \`https://downloads.sentry-cdn.com/\<product>/{{version}}/{{file}}\`.
+### Decision
+
+<!-- lore:019db09e-acae-76ae-8813-a317c0e6f6f9 -->
+* **--config-from gated behind --allow-remote-config**: Craft's \`prepare --config-from \<branch>\` fetches \`.craft.yml\` from a remote git ref and feeds it to \`loadConfigurationFromString\`, which can execute arbitrary commands via preReleaseCommand. Now gated: \`assertRemoteConfigAllowed()\` in \`src/commands/prepare.ts\` throws ConfigurationError unless \`--allow-remote-config\` (or \`CRAFT\_ALLOW\_REMOTE\_CONFIG=1\`) is set. When opted in, a warning is logged naming the branch. Exported helper is unit-tested; full \`prepareMain\` is not (heavy mock surface).
 
 ### Gotcha
 
-<!-- lore:019d9a8f-c76e-7716-b1ca-7546635fecc0 -->
+<!-- lore:019db09e-aca8-7a81-b2f7-e117be50e02a -->
+* **Craft .craft.env file reading removed — security hazard via LD\_PRELOAD**: Craft used to hydrate \`process.env\` from \`$HOME/.craft.env\` and \`\<config-dir>/.craft.env\` via \`nvar\`. Removed because an attacker PR could add \`.craft.env\` with \`LD\_PRELOAD=./preload.so\` + a malicious shared library, giving RCE in the release pipeline with access to all secrets (demo: getsentry/action-release#315). \`src/utils/env.ts\` now only exports \`warnIfCraftEnvFileExists()\` (startup warning, no file read, no env mutation) and \`checkEnvForPrerequisite\` (unchanged). \`nvar\` dep and \`src/types/nvar.ts\` were removed. Consumers must set env vars via shell/CI.
 
-- **Craft postReleaseCommand env vars pollute shared bump-version scripts**: Craft's \`runPostReleaseCommand\` sets \`CRAFT_NEW_VERSION=\<released-version>\` in the subprocess env. If a post-release script calls a shared \`bump-version.sh\` that reads \`NEW_VERSION="${CRAFT\_NEW\_VERSION:-${2:-}}"\`, the env var takes precedence over the positional arg (e.g. \`nightly\`), causing the script to set the version to the already-current release version → no diff → no commit → master stays on the release version. Fixed by replacing \`CRAFT_NEW_VERSION\`/\`CRAFT_OLD_VERSION\` with \`CRAFT_RELEASED_VERSION\` in the post-release env (\`publish.ts:563-564\`). The pre-release command (\`prepare.ts\`) still correctly uses \`CRAFT_NEW_VERSION\`. Consuming repos don't need changes unless they explicitly read \`CRAFT_NEW_VERSION\` in their post-release scripts.
+<!-- lore:019d9a8f-c76e-7716-b1ca-7546635fecc0 -->
+* **Craft postReleaseCommand env vars pollute shared bump-version scripts**: Craft's \`runPostReleaseCommand\` sets \`CRAFT\_NEW\_VERSION=\<released-version>\` in the subprocess env. If a post-release script calls a shared \`bump-version.sh\` that reads \`NEW\_VERSION="${CRAFT\_NEW\_VERSION:-${2:-}}"\`, the env var takes precedence over the positional arg (e.g. \`nightly\`), causing the script to set the version to the already-current release version → no diff → no commit → master stays on the release version. Fixed by replacing \`CRAFT\_NEW\_VERSION\`/\`CRAFT\_OLD\_VERSION\` with \`CRAFT\_RELEASED\_VERSION\` in the post-release env (\`publish.ts:563-564\`). The pre-release command (\`prepare.ts\`) still correctly uses \`CRAFT\_NEW\_VERSION\`. Consuming repos don't need changes unless they explicitly read \`CRAFT\_NEW\_VERSION\` in their post-release scripts.
 
 <!-- lore:019c9f57-aa0c-7a2a-8a10-911b13b48fc0 -->
-
-- **ESM modules prevent vi.spyOn of child_process.spawnSync — use test subclass pattern**: In ESM (Vitest or Bun), you cannot \`vi.spyOn\` exports from Node built-in modules — throws 'Module namespace is not configurable'. Workaround: create a test subclass that overrides the method calling the built-in and injects controllable values. \`vi.mock\` at module level works but affects all tests in the file.
+* **ESM modules prevent vi.spyOn of child\_process.spawnSync — use test subclass pattern**: In ESM (Vitest or Bun), you cannot \`vi.spyOn\` exports from Node built-in modules — throws 'Module namespace is not configurable'. Workaround: create a test subclass that overrides the method calling the built-in and injects controllable values. \`vi.mock\` at module level works but affects all tests in the file.
 
 <!-- lore:019c9be1-33d1-7b6e-b107-ae7ad42a4ea4 -->
-
-- **pnpm overrides with >= can cross major versions — use ^ to constrain**: pnpm overrides gotchas: (1) \`>=\` crosses major versions — use \`^\` to constrain within same major. (2) Version-range selectors don't reliably force re-resolution of compatible transitive deps; use blanket overrides when safe. (3) Overrides become stale — audit with \`pnpm why \<pkg>\` after dependency changes. (4) Never manually resolve pnpm-lock.yaml conflicts — \`git checkout --theirs\` then \`pnpm install\` to regenerate deterministically.
+* **pnpm overrides with >= can cross major versions — use ^ to constrain**: pnpm overrides gotchas: (1) \`>=\` crosses major versions — use \`^\` to constrain within same major. (2) Version-range selectors don't reliably force re-resolution of compatible transitive deps; use blanket overrides when safe. (3) Overrides become stale — audit with \`pnpm why \<pkg>\` after dependency changes. (4) Never manually resolve pnpm-lock.yaml conflicts — \`git checkout --theirs\` then \`pnpm install\` to regenerate deterministically.
 
 ### Pattern
 
 <!-- lore:019d8c2f-ddaf-72f0-96db-44dd54bd56b8 -->
+* **Craft/Publish release flow: prepare then accept publish issue**: Craft's release flow is two-phase: (1) Run \`release.yml\` GitHub Action with version "auto" — this runs \`craft prepare\`, auto-determines version from commits, creates the \`release/X.Y.Z\` branch, and opens a publish issue on \`getsentry/publish\` repo (e.g. \`publish: getsentry/craft@2.25.3\`). (2) Add the \`accepted\` label to that publish issue to trigger the actual publish pipeline. Do NOT manually create release branches — always use the workflow. The publish issue URL is emitted in the release job logs as a \`::notice::Created publish request:\` line. The publish repo is configured via \`PUBLISH\_REPO\` (defaults to \`getsentry/publish\`).
 
-- **Craft/Publish release flow: prepare then accept publish issue**: Craft's release flow is two-phase: (1) Run \`release.yml\` GitHub Action with version "auto" — this runs \`craft prepare\`, auto-determines version from commits, creates the \`release/X.Y.Z\` branch, and opens a publish issue on \`getsentry/publish\` repo (e.g. \`publish: getsentry/craft@2.25.3\`). (2) Add the \`accepted\` label to that publish issue to trigger the actual publish pipeline. Do NOT manually create release branches — always use the workflow. The publish issue URL is emitted in the release job logs as a \`::notice::Created publish request:\` line. The publish repo is configured via \`PUBLISH_REPO\` (defaults to \`getsentry/publish\`).
+### Preference
+
+<!-- lore:019db09e-acb5-733a-9527-b80fe9f32b0d -->
+* **CHANGELOG.md is auto-managed — do not edit manually**: Craft's CHANGELOG.md is auto-generated from PR descriptions by the release pipeline. Do NOT add entries manually, even for breaking changes. The user will reject such edits. Describe breaking changes in the PR body instead; the auto-managed process surfaces them in the changelog.
 <!-- End lore-managed section -->

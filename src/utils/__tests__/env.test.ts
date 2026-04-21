@@ -8,8 +8,8 @@ import os = require('os');
 import * as config from '../../config';
 import {
   checkEnvForPrerequisite,
-  readEnvironmentConfig,
-  ENV_FILE_NAME,
+  sanitizeDynamicLinkerEnv,
+  warnIfCraftEnvFileExists,
 } from '../env';
 import { ConfigurationError } from '../errors';
 import { logger } from '../../logger';
@@ -156,111 +156,184 @@ describe('env utils functions', () => {
     }); // end describe('multiple variables')
   }); // end describe('checkEnvForPrerequisites')
 
-  describe('readEnvironmentConfig', () => {
+  describe('warnIfCraftEnvFileExists', () => {
     const invalidDir = '/invalid/invalid';
+    const LEGACY_FILE = '.craft.env';
 
-    function writeConfigFileSync(directory: string): void {
-      const outConfigFile = join(directory, config.CONFIG_FILE_NAME);
-      writeFileSync(outConfigFile, '');
-    }
-
-    test('calls homedir/findConfigFile', () => {
-      process.env.TEST_BLA = '123';
-
+    test('does not warn when no files exist', () => {
       homedirMock.mockReturnValue(invalidDir);
       getConfigFileDirMock.mockReturnValue(invalidDir);
 
-      readEnvironmentConfig();
+      warnIfCraftEnvFileExists();
 
-      expect(getConfigFileDirMock).toHaveBeenCalledTimes(1);
-      expect(homedirMock).toHaveBeenCalledTimes(1);
-      expect(process.env.TEST_BLA).toBe('123');
-      expect(ENV_FILE_NAME.length).toBeGreaterThanOrEqual(1);
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
-    test('checks the config directory', async () => {
+    test('does not warn when getConfigFileDir returns undefined', () => {
       homedirMock.mockReturnValue(invalidDir);
+      getConfigFileDirMock.mockReturnValue(undefined);
 
-      await withTempDir(directory => {
-        getConfigFileDirMock.mockReturnValue(directory);
+      warnIfCraftEnvFileExists();
 
-        writeConfigFileSync(directory);
-
-        const outFile = join(directory, ENV_FILE_NAME);
-        writeFileSync(outFile, 'export TEST_BLA=234\nexport TEST_ANOTHER=345');
-
-        readEnvironmentConfig();
-
-        expect(process.env.TEST_BLA).toBe('234');
-      });
+      expect(logger.warn).not.toHaveBeenCalled();
     });
-    test('checks home directory', async () => {
+
+    test('warns when a legacy file exists in the home directory', async () => {
       getConfigFileDirMock.mockReturnValue(invalidDir);
 
       await withTempDir(directory => {
         homedirMock.mockReturnValue(directory);
-        const outFile = join(directory, ENV_FILE_NAME);
+        const outFile = join(directory, LEGACY_FILE);
         writeFileSync(outFile, 'export TEST_BLA=234\n');
 
-        readEnvironmentConfig();
+        warnIfCraftEnvFileExists();
 
-        expect(process.env.TEST_BLA).toBe('234');
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(outFile),
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('no longer reads this file'),
+        );
       });
     });
 
-    test('checks home directory first, and then the config directory', async () => {
-      await withTempDir(async dir1 => {
-        await withTempDir(dir2 => {
-          homedirMock.mockReturnValue(dir1);
+    test('warns when a legacy file exists in the config directory', async () => {
+      homedirMock.mockReturnValue(invalidDir);
 
-          const outHome = join(dir1, ENV_FILE_NAME);
-          writeFileSync(outHome, 'export TEST_BLA=from_home');
+      await withTempDir(directory => {
+        getConfigFileDirMock.mockReturnValue(directory);
+        const outFile = join(directory, LEGACY_FILE);
+        writeFileSync(outFile, 'export TEST_BLA=234\n');
 
-          getConfigFileDirMock.mockReturnValue(dir2);
-          writeConfigFileSync(dir2);
-          const configDirFile = join(dir2, ENV_FILE_NAME);
-          writeFileSync(configDirFile, 'export TEST_BLA=from_config_dir');
+        warnIfCraftEnvFileExists();
 
-          readEnvironmentConfig();
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(outFile),
+        );
+      });
+    });
 
-          expect(process.env.TEST_BLA).toBe('from_config_dir');
+    test('warns once per location when both files exist', async () => {
+      await withTempDir(async homeDir => {
+        await withTempDir(configDir => {
+          homedirMock.mockReturnValue(homeDir);
+          getConfigFileDirMock.mockReturnValue(configDir);
+
+          const homeFile = join(homeDir, LEGACY_FILE);
+          const configFile = join(configDir, LEGACY_FILE);
+          writeFileSync(homeFile, 'export TEST_BLA=from_home');
+          writeFileSync(configFile, 'export TEST_BLA=from_config_dir');
+
+          warnIfCraftEnvFileExists();
+
+          expect(logger.warn).toHaveBeenCalledTimes(2);
+          expect(logger.warn).toHaveBeenCalledWith(
+            expect.stringContaining(homeFile),
+          );
+          expect(logger.warn).toHaveBeenCalledWith(
+            expect.stringContaining(configFile),
+          );
         });
       });
     });
 
-    test('does not overwrite existing variables by default', async () => {
+    test('does not mutate process.env', async () => {
       homedirMock.mockReturnValue(invalidDir);
-
-      process.env.TEST_BLA = 'existing';
 
       await withTempDir(directory => {
         getConfigFileDirMock.mockReturnValue(directory);
-        const outFile = join(directory, ENV_FILE_NAME);
+        const outFile = join(directory, LEGACY_FILE);
         writeFileSync(outFile, 'export TEST_BLA=new_value');
 
-        readEnvironmentConfig();
-
-        expect(process.env.TEST_BLA).toBe('existing');
+        const before = process.env.TEST_BLA;
+        warnIfCraftEnvFileExists();
+        expect(process.env.TEST_BLA).toBe(before);
       });
     });
+  }); // end describe('warnIfCraftEnvFileExists')
 
-    test('overwrites existing variables if explicitly stated', async () => {
-      homedirMock.mockReturnValue(invalidDir);
+  describe('sanitizeDynamicLinkerEnv', () => {
+    const DYNAMIC_LINKER_KEYS = [
+      'LD_PRELOAD',
+      'LD_LIBRARY_PATH',
+      'LD_AUDIT',
+      'DYLD_INSERT_LIBRARIES',
+      'DYLD_LIBRARY_PATH',
+      'DYLD_FRAMEWORK_PATH',
+      'DYLD_FALLBACK_LIBRARY_PATH',
+      'DYLD_FALLBACK_FRAMEWORK_PATH',
+    ];
 
-      process.env.TEST_BLA = 'existing';
-
-      await withTempDir(directory => {
-        getConfigFileDirMock.mockReturnValue(directory);
-
-        writeConfigFileSync(directory);
-
-        const outFile = join(directory, ENV_FILE_NAME);
-        writeFileSync(outFile, 'export TEST_BLA=new_value');
-
-        readEnvironmentConfig(true);
-
-        expect(process.env.TEST_BLA).toBe('new_value');
-      });
+    beforeEach(() => {
+      for (const key of DYNAMIC_LINKER_KEYS) {
+        delete process.env[key];
+      }
+      delete process.env.CRAFT_ALLOW_DYNAMIC_LINKER_ENV;
     });
-  }); // end describe('readEnvironmentConfig')
+
+    test('does nothing when no dynamic-linker vars are set', () => {
+      sanitizeDynamicLinkerEnv();
+
+      expect(logger.warn).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    test('strips LD_PRELOAD and warns without logging the value', () => {
+      const secret = '/tmp/attacker-preload.so';
+      process.env.LD_PRELOAD = secret;
+
+      sanitizeDynamicLinkerEnv();
+
+      expect(process.env.LD_PRELOAD).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const warnArgs = (logger.warn as any).mock.calls[0];
+      const combined = warnArgs.join(' ');
+      expect(combined).toContain('LD_PRELOAD');
+      // Value must NOT appear anywhere in the log call.
+      expect(combined).not.toContain(secret);
+    });
+
+    test('strips every known dynamic-linker var when set', () => {
+      for (const key of DYNAMIC_LINKER_KEYS) {
+        process.env[key] = `value-for-${key}`;
+      }
+
+      sanitizeDynamicLinkerEnv();
+
+      for (const key of DYNAMIC_LINKER_KEYS) {
+        expect(process.env[key]).toBeUndefined();
+      }
+      expect(logger.warn).toHaveBeenCalledTimes(DYNAMIC_LINKER_KEYS.length);
+    });
+
+    test('preserves vars when CRAFT_ALLOW_DYNAMIC_LINKER_ENV=1', () => {
+      process.env.CRAFT_ALLOW_DYNAMIC_LINKER_ENV = '1';
+      process.env.LD_PRELOAD = '/tmp/legit.so';
+      process.env.LD_LIBRARY_PATH = '/opt/lib';
+
+      sanitizeDynamicLinkerEnv();
+
+      expect(process.env.LD_PRELOAD).toBe('/tmp/legit.so');
+      expect(process.env.LD_LIBRARY_PATH).toBe('/opt/lib');
+      expect(logger.warn).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledTimes(1);
+      const infoArgs = (logger.info as any).mock.calls[0];
+      const combined = infoArgs.join(' ');
+      expect(combined).toContain('LD_PRELOAD');
+      expect(combined).toContain('LD_LIBRARY_PATH');
+    });
+
+    test('opt-out only applies when value is exactly "1"', () => {
+      process.env.CRAFT_ALLOW_DYNAMIC_LINKER_ENV = 'true';
+      process.env.LD_PRELOAD = '/tmp/x.so';
+
+      sanitizeDynamicLinkerEnv();
+
+      // "true" is not the magic opt-out value; var should still be stripped.
+      expect(process.env.LD_PRELOAD).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+    });
+  }); // end describe('sanitizeDynamicLinkerEnv')
 }); // end describe('env utils functions')

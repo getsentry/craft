@@ -1,17 +1,18 @@
-import { existsSync, statSync } from 'fs';
+import { existsSync } from 'fs';
 import { join } from 'path';
 // XXX(BYK): This is to be able to spy on `homedir()` in tests
 // TODO(BYK): Convert this to ES6 imports
 import os = require('os');
 
-import nvar from 'nvar';
-
-import { CONFIG_FILE_NAME, getConfigFileDir } from '../config';
+import { getConfigFileDir } from '../config';
 import { ConfigurationError } from './errors';
 import { logger } from '../logger';
 
-/** File name where additional environment variables are stored */
-export const ENV_FILE_NAME = '.craft.env';
+/**
+ * Legacy filename no longer read by Craft. Retained as a constant for the
+ * startup warning helper below.
+ */
+const LEGACY_ENV_FILE_NAME = '.craft.env';
 
 /**
  * A token, key, or other value which can be stored either in an env file or
@@ -72,86 +73,101 @@ function envHasVar(envVar: RequiredConfigVar): boolean {
 }
 
 /**
- * Checks that the file is only readable for the owner
+ * Dynamic-linker environment variables that Craft refuses to propagate.
  *
- * It is assumed that the file already exists
- * @param path File path
- * @returns true if file is private, false otherwise
+ * Setting these allows arbitrary code to be loaded into every subprocess
+ * spawned by Craft (`LD_PRELOAD` on Linux, `DYLD_*` on macOS). They are a
+ * well-known supply-chain attack vector: an attacker who can influence
+ * Craft's environment (e.g. via a dotfile, a previous build step, or a
+ * misconfigured CI secret) can silently execute code with access to every
+ * release credential Craft touches. We strip these at startup as
+ * defence-in-depth — legitimate uses are extremely rare and can be
+ * re-enabled per-invocation via `CRAFT_ALLOW_DYNAMIC_LINKER_ENV=1`.
  */
-function checkFileIsPrivate(path: string): boolean {
-  const FULL_MODE_MASK = 0o777;
-  const GROUP_MODE_MASK = 0o070;
-  const OTHER_MODE_MASK = 0o007;
-  const mode = statSync(path).mode;
-  if (mode & GROUP_MODE_MASK || mode & OTHER_MODE_MASK) {
-    const perms = (mode & FULL_MODE_MASK).toString(8);
-    logger.warn(
-      `Permissions 0${perms} for file "${path}" are too open. Consider making it readable only for the user.`,
-    );
-    return false;
+const DYNAMIC_LINKER_ENV_VARS = [
+  // Linux / glibc / musl
+  'LD_PRELOAD',
+  'LD_LIBRARY_PATH',
+  'LD_AUDIT',
+  // macOS dyld
+  'DYLD_INSERT_LIBRARIES',
+  'DYLD_LIBRARY_PATH',
+  'DYLD_FRAMEWORK_PATH',
+  'DYLD_FALLBACK_LIBRARY_PATH',
+  'DYLD_FALLBACK_FRAMEWORK_PATH',
+] as const;
+
+/** Opt-out env var for {@link sanitizeDynamicLinkerEnv}. */
+const ALLOW_DYNAMIC_LINKER_ENV_VAR = 'CRAFT_ALLOW_DYNAMIC_LINKER_ENV';
+
+/**
+ * Strips dynamic-linker environment variables (`LD_PRELOAD`, `LD_LIBRARY_PATH`,
+ * `DYLD_*`, etc.) from `process.env` at startup, logging a warning for each
+ * stripped key. Values are never logged.
+ *
+ * Users who legitimately require these variables (e.g. for an instrumented
+ * build toolchain) can set `CRAFT_ALLOW_DYNAMIC_LINKER_ENV=1` to opt out;
+ * this is noisy by design to make the escape hatch visible in CI logs.
+ */
+export function sanitizeDynamicLinkerEnv(): void {
+  const allowOverride = process.env[ALLOW_DYNAMIC_LINKER_ENV_VAR] === '1';
+  const presentKeys = DYNAMIC_LINKER_ENV_VARS.filter(
+    key => process.env[key] !== undefined,
+  );
+
+  if (presentKeys.length === 0) {
+    return;
   }
-  return true;
+
+  if (allowOverride) {
+    logger.info(
+      `${ALLOW_DYNAMIC_LINKER_ENV_VAR}=1 set; preserving dynamic-linker environment variables: ${presentKeys.join(
+        ', ',
+      )}. This is not recommended.`,
+    );
+    return;
+  }
+
+  for (const key of presentKeys) {
+    logger.warn(
+      `Stripping dynamic-linker environment variable "${key}" for security reasons. ` +
+        `Set ${ALLOW_DYNAMIC_LINKER_ENV_VAR}=1 to override (not recommended).`,
+    );
+    delete process.env[key];
+  }
 }
 
 /**
- * Loads environment variables from ".craft.env" files in certain locations
+ * Warns the user if a legacy `.craft.env` file is present in the home
+ * directory or the configuration file directory.
  *
- * The following two places are checked:
- * - The user's home directory
- * - The configuration file directory
- *
- * @param overwriteExisting If set to true, overwrite the existing environment
- * variables
+ * Craft used to load environment variables from these files, but the behavior
+ * was removed for security reasons: arbitrary values (including credentials)
+ * could be silently injected into `process.env` based on the current working
+ * directory. This helper emits a one-time warning per location pointing users
+ * at their shell / CI environment for credential management.
  */
-export function readEnvironmentConfig(overwriteExisting = false): void {
-  let newEnv = {} as any;
+export function warnIfCraftEnvFileExists(): void {
+  const candidatePaths: string[] = [];
 
-  // Read from home dir
-  const homedirEnvFile = join(os.homedir(), ENV_FILE_NAME);
-  if (existsSync(homedirEnvFile)) {
-    logger.debug(
-      'Found environment file in the home directory:',
-      homedirEnvFile,
-    );
-    checkFileIsPrivate(homedirEnvFile);
-    const homedirEnv = {};
-    nvar({ path: homedirEnvFile, target: homedirEnv });
-    newEnv = { ...newEnv, ...homedirEnv };
-    logger.trace('Read the following variables from env file:', homedirEnv);
-  } else {
-    logger.debug(
-      'No environment file found in the home directory:',
-      homedirEnvFile,
-    );
+  try {
+    candidatePaths.push(join(os.homedir(), LEGACY_ENV_FILE_NAME));
+  } catch {
+    // os.homedir() can throw in edge cases; skip silently.
   }
-
-  // Read from the directory where the configuration file is located
 
   const configFileDir = getConfigFileDir();
-  const configDirEnvFile = configFileDir && join(configFileDir, ENV_FILE_NAME);
-  if (!configDirEnvFile) {
-    logger.debug('No configuration file found:', CONFIG_FILE_NAME);
-  } else if (configDirEnvFile && existsSync(configDirEnvFile)) {
-    logger.debug(
-      'Found environment file in the configuration directory:',
-      configDirEnvFile,
-    );
-    checkFileIsPrivate(configDirEnvFile);
-    const configDirEnv = {};
-    nvar({ path: configDirEnvFile, target: configDirEnv });
-    newEnv = { ...newEnv, ...configDirEnv };
-    logger.trace('Read the following variables from env file:', configDirEnv);
-  } else {
-    logger.debug(
-      'No environment file found in the configuration directory:',
-      configDirEnvFile,
-    );
+  if (configFileDir) {
+    candidatePaths.push(join(configFileDir, LEGACY_ENV_FILE_NAME));
   }
 
-  // Add non-existing values to env
-  for (const key of Object.keys(newEnv)) {
-    if (overwriteExisting || process.env[key] === undefined) {
-      process.env[key] = newEnv[key];
+  for (const path of candidatePaths) {
+    if (existsSync(path)) {
+      logger.warn(
+        `Found legacy "${LEGACY_ENV_FILE_NAME}" file at "${path}". ` +
+          `Craft no longer reads this file for security reasons. ` +
+          `Please set the required variables in your shell or CI environment instead.`,
+      );
     }
   }
 }

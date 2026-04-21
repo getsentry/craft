@@ -164,9 +164,6 @@ importers:
       node-fetch:
         specifier: ^2.6.1
         version: 2.7.0
-      nvar:
-        specifier: 1.3.1
-        version: 1.3.1
       ora:
         specifier: 5.4.0
         version: 5.4.0
@@ -2675,10 +2672,6 @@ packages:
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
-
-  nvar@1.3.1:
-    resolution: {integrity: sha512-2U58nVI2o0SXvjiTiQ6UdXpfNu0/A6rqvjCPk7bEsqQujXWDkmLdKppMkh3UXXAvfX9b2LSs1YYYkX2uNE/oAg==}
-    engines: {node: '>=0.10'}
 
   once@1.4.0:
     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
@@ -6044,8 +6037,6 @@ snapshots:
   node-releases@2.0.27: {}
 
   normalize-path@3.0.0: {}
-
-  nvar@1.3.1: {}
 
   once@1.4.0:
     dependencies:
