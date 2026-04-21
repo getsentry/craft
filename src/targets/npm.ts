@@ -1,11 +1,12 @@
 import { SpawnOptions, spawnSync } from 'child_process';
 import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { join, relative, sep as pathSep } from 'path';
 import prompts from 'prompts';
 
 import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
+import { safeFs } from '../utils/dryRun';
 import { ConfigurationError, reportError } from '../utils/errors';
-import { stringToRegexp } from '../utils/filters';
+import { escapeRegex, stringToRegexp } from '../utils/filters';
 import { isDryRun } from '../utils/helpers';
 import {
   hasExecutable,
@@ -24,6 +25,7 @@ import {
   packageNameToArtifactPattern,
   packageNameToArtifactFromTemplate,
   topologicalSortPackages,
+  WorkspacePackage,
 } from '../utils/workspaces';
 import { BaseTarget } from './base';
 import {
@@ -350,17 +352,55 @@ export class NpmTarget extends BaseTarget {
         );
         try {
           await spawnProcess(bin, workspaceArgs, { cwd: rootDir });
-        } catch {
-          // If --workspaces fails (npm < 7), fall back to individual package bumping
-          logger.debug(
-            'npm --workspaces failed, falling back to individual package bumping',
-          );
-          await NpmTarget.bumpWorkspacePackagesIndividually(
-            bin,
-            workspaces.packages,
-            newVersion,
-            baseArgs,
-          );
+        } catch (err) {
+          // `npm version --workspaces` fails with EUNSUPPORTEDPROTOCOL when any
+          // workspace package declares a "workspace:*" dependency, because npm
+          // rejects that URL protocol while validating deps AFTER it has already
+          // rewritten every package.json version on disk.
+          // See: https://github.com/npm/cli/issues/8845
+          //
+          // Rather than parsing stderr (which changes across npm versions), we
+          // check the observable state: if every relevant package.json now has
+          // the target version, the bump succeeded and we continue. Otherwise
+          // we fall back to per-package bumping.
+          //
+          // In dry-run mode, spawnProcess is a no-op and no files were written,
+          // so we skip the post-check and just return success (matching the
+          // existing "dry-run version bump is a noop" contract).
+          if (isDryRun()) {
+            logger.debug('npm --workspaces failed in dry-run mode, skipping');
+          } else if (
+            NpmTarget.allWorkspacePackageJsonsMatch(
+              rootDir,
+              workspaces.packages,
+              newVersion,
+            )
+          ) {
+            logger.warn(
+              'npm version --workspaces exited non-zero but every workspace ' +
+                'package.json was successfully bumped to the target version. ' +
+                'This is likely caused by "workspace:*" dependency protocols ' +
+                "tripping npm's URL validator — see https://github.com/npm/cli/issues/8845. " +
+                'Treating the bump as successful.',
+            );
+            logger.debug(
+              `npm --workspaces error (ignored): ${
+                (err as Error)?.message ?? err
+              }`,
+            );
+          } else {
+            // Files were not bumped — genuine failure. Fall back to individual
+            // package bumping, which may still succeed on a subset.
+            logger.debug(
+              'npm --workspaces failed, falling back to individual package bumping',
+            );
+            await NpmTarget.bumpWorkspacePackagesIndividually(
+              bin,
+              workspaces.packages,
+              newVersion,
+              baseArgs,
+            );
+          }
         }
       } else {
         // yarn doesn't have --workspaces for version command, bump individually
@@ -375,18 +415,79 @@ export class NpmTarget extends BaseTarget {
       logger.info(
         `Bumped version in root and ${workspaces.packages.length} workspace packages`,
       );
+
+      // Patch bun.lock workspace entries so that `bun pm pack` emits tarballs
+      // pointing at the new workspace versions. See patchBunLock() doc comment.
+      // Only relevant for workspace repos — a single-package bun project has
+      // no workspace entries to patch, so we skip the call entirely to avoid
+      // emitting a spurious "lockfile out of sync" warning.
+      NpmTarget.patchBunLock(rootDir, workspaces.packages, newVersion);
     }
 
     return true;
   }
 
   /**
-   * Bump version in each workspace package individually
+   * Read the `version` field from a package.json file.
+   * Returns undefined if the file is missing, unreadable, or malformed.
+   */
+  private static readPackageJsonVersion(
+    packageJsonPath: string,
+  ): string | undefined {
+    try {
+      const parsed = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as {
+        version?: unknown;
+      };
+      return typeof parsed.version === 'string' ? parsed.version : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Check whether every package.json file (root + each workspace package that
+   * exists on disk and is not private) has the expected version string.
+   *
+   * Used to detect the npm/cli#8845 case where `npm version --workspaces`
+   * successfully writes every version field but then exits non-zero.
+   */
+  private static allWorkspacePackageJsonsMatch(
+    rootDir: string,
+    packages: WorkspacePackage[],
+    expectedVersion: string,
+  ): boolean {
+    const rootVersion = NpmTarget.readPackageJsonVersion(
+      join(rootDir, 'package.json'),
+    );
+    if (rootVersion !== expectedVersion) {
+      return false;
+    }
+    for (const pkg of packages) {
+      const pkgJsonPath = join(pkg.location, 'package.json');
+      if (!existsSync(pkgJsonPath)) {
+        continue;
+      }
+      // npm version --workspaces bumps ALL workspace packages, including
+      // private ones, so we verify every package regardless of privacy.
+      if (NpmTarget.readPackageJsonVersion(pkgJsonPath) !== expectedVersion) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Bump version in each workspace package individually.
+   *
+   * Applies the same post-check as the --workspaces path: if a per-package
+   * `npm version` spawn fails but the file on disk already has the target
+   * version (npm/cli#8845), treat it as success and continue. Otherwise
+   * rethrow so the caller fails loudly.
    */
   private static async bumpWorkspacePackagesIndividually(
     bin: string,
-    packages: { name: string; location: string }[],
-    _newVersion: string,
+    packages: WorkspacePackage[],
+    newVersion: string,
     baseArgs: string[],
   ): Promise<void> {
     for (const pkg of packages) {
@@ -408,8 +509,130 @@ export class NpmTarget extends BaseTarget {
       }
 
       logger.debug(`Bumping version for workspace package: ${pkg.name}`);
-      await spawnProcess(bin, baseArgs, { cwd: pkg.location });
+      try {
+        await spawnProcess(bin, baseArgs, { cwd: pkg.location });
+      } catch (err) {
+        // Same npm/cli#8845 workaround as above, but for a single package:
+        // if the file was bumped despite the non-zero exit, continue.
+        if (isDryRun()) {
+          continue;
+        }
+        const actualVersion = NpmTarget.readPackageJsonVersion(pkgJsonPath);
+        if (actualVersion === newVersion) {
+          logger.warn(
+            `npm version for ${pkg.name} exited non-zero but package.json ` +
+              `was successfully bumped to ${newVersion}. Likely caused by ` +
+              '"workspace:*" dependency protocols — see ' +
+              'https://github.com/npm/cli/issues/8845. Continuing.',
+          );
+          logger.debug(
+            `npm version error for ${pkg.name} (ignored): ${
+              (err as Error)?.message ?? err
+            }`,
+          );
+        } else {
+          throw err;
+        }
+      }
     }
+  }
+
+  /**
+   * Patch workspace `version` entries in `bun.lock` if the file exists.
+   *
+   * `bun pm pack` rewrites `workspace:*` dependency specifiers to concrete
+   * versions at pack time, reading those versions FROM `bun.lock` — not from
+   * the workspace `package.json`. Neither `npm version` nor `bun install`
+   * updates those lockfile entries, so after a version bump the lockfile
+   * still records the old workspace version, and published tarballs ship
+   * with stale `dependencies` that fail to install.
+   *
+   * We patch the lockfile in-place with a per-workspace regex that matches
+   * the workspace's path-relative key ("packages/foo": {) and replaces the
+   * first subsequent `"version": "..."` line. This leaves nested dependency
+   * version pins inside the same block untouched.
+   *
+   * Writes go through `safeFs.writeFileSync` so dry-run mode is respected.
+   *
+   * No-op if bun.lock is absent or no workspace entries match (logged).
+   *
+   * See https://github.com/getsentry/craft/issues/804
+   */
+  private static patchBunLock(
+    rootDir: string,
+    packages: WorkspacePackage[],
+    newVersion: string,
+  ): void {
+    const bunLockPath = join(rootDir, 'bun.lock');
+    if (!existsSync(bunLockPath)) {
+      return;
+    }
+
+    let content: string;
+    try {
+      content = readFileSync(bunLockPath, 'utf-8');
+    } catch (err) {
+      logger.warn(
+        `Could not read bun.lock: ${(err as Error)?.message ?? err}. ` +
+          'Skipping lockfile patch.',
+      );
+      return;
+    }
+
+    let patchedCount = 0;
+    for (const pkg of packages) {
+      // bun.lock always uses forward slashes even on Windows.
+      const relPath = relative(rootDir, pkg.location).split(pathSep).join('/');
+      if (!relPath || relPath.startsWith('..')) {
+        // Package lives outside rootDir; skip.
+        continue;
+      }
+
+      const escapedPath = escapeRegex(relPath);
+      // Match: start of workspace block (path key), then any number of chars
+      // that are NOT `{` or `}`, then the first `"version": "x.y.z"` line.
+      // Using `[^{}]*?` (rather than `[\s\S]*?`) is critical: it stops at
+      // either the workspace block's closing `}` or the opener of a nested
+      // object (e.g. `"dependencies": {`). This guarantees:
+      //   1. If this workspace has no `"version"` field, the regex does not
+      //      match and we do NOT walk into the next workspace's block and
+      //      corrupt its version line.
+      //   2. Nested dependency version pins stay untouched regardless of
+      //      field ordering within the workspace block.
+      // bun.lock fields are emitted before nested objects, so the top-level
+      // `"version"` always precedes any `{` and is therefore reachable under
+      // the `[^{}]*?` bound.
+      const pattern = new RegExp(
+        `("${escapedPath}":\\s*\\{[^{}]*?)"version":\\s*"[^"]*"`,
+      );
+      const replaced = content.replace(
+        pattern,
+        (_m, prefix: string) => `${prefix}"version": "${newVersion}"`,
+      );
+      if (replaced !== content) {
+        content = replaced;
+        patchedCount += 1;
+        logger.debug(
+          `Patched bun.lock workspace version for ${pkg.name} (${relPath})`,
+        );
+      }
+    }
+
+    if (patchedCount === 0) {
+      logger.warn(
+        'bun.lock exists but no workspace entries matched the discovered ' +
+          'packages; leaving it untouched. Your lockfile may be out of sync ' +
+          'with package.json workspaces.',
+      );
+      return;
+    }
+
+    safeFs.writeFileSync(bunLockPath, content);
+    logger.info(
+      `Patched ${patchedCount} workspace version entr${
+        patchedCount === 1 ? 'y' : 'ies'
+      } in bun.lock`,
+    );
   }
 
   public constructor(
