@@ -96,6 +96,70 @@ describe('spawnProcess', () => {
     expect(mockedLogInfo).toHaveBeenCalledTimes(1);
     expect(mockedLogInfo.mock.calls[0][0]).toMatch(/test-string/);
   });
+
+  describe('env sanitisation (defence-in-depth)', () => {
+    const savedEnv = { ...process.env };
+
+    afterEach(() => {
+      process.env = { ...savedEnv };
+    });
+
+    test('strips LD_PRELOAD from an explicit options.env', async () => {
+      const stdout =
+        (await spawnProcess(
+          process.execPath,
+          [
+            '-e',
+            'process.stdout.write(JSON.stringify({ ld: process.env.LD_PRELOAD, marker: process.env.CHILD_MARKER }))',
+          ],
+          {
+            env: {
+              PATH: process.env.PATH,
+              LD_PRELOAD: '/tmp/evil.so',
+              CHILD_MARKER: 'reached',
+            },
+          },
+        )) || '';
+
+      const parsed = JSON.parse(stdout.toString());
+      expect(parsed.ld).toBeUndefined();
+      // Other env vars still propagate.
+      expect(parsed.marker).toBe('reached');
+    });
+
+    test('strips LD_PRELOAD set on process.env after startup', async () => {
+      // Simulate a post-startup mutation of process.env (hostile or
+      // accidental). startup-level sanitizeDynamicLinkerEnv() cannot
+      // catch this; the spawn-level sanitiser must.
+      process.env.LD_PRELOAD = '/tmp/later-evil.so';
+
+      const stdout =
+        (await spawnProcess(process.execPath, [
+          '-e',
+          'process.stdout.write(process.env.LD_PRELOAD || "undef")',
+        ])) || '';
+
+      expect(stdout.toString()).toBe('undef');
+    });
+
+    test('honours CRAFT_ALLOW_DYNAMIC_LINKER_ENV=1 opt-out', async () => {
+      process.env.CRAFT_ALLOW_DYNAMIC_LINKER_ENV = '1';
+
+      const stdout =
+        (await spawnProcess(
+          process.execPath,
+          ['-e', 'process.stdout.write(process.env.LD_PRELOAD || "undef")'],
+          {
+            env: {
+              PATH: process.env.PATH,
+              LD_PRELOAD: '/tmp/allowed.so',
+            },
+          },
+        )) || '';
+
+      expect(stdout.toString()).toBe('/tmp/allowed.so');
+    });
+  });
 });
 
 describe('replaceEnvVariable', () => {
