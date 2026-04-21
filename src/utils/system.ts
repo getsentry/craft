@@ -11,6 +11,7 @@ import { logger } from '../logger';
 import { reportError } from './errors';
 import { isDryRun } from './helpers';
 import { isInWorktreeMode } from './dryRun';
+import { sanitizeSpawnEnv } from './dynamicLinkerEnv';
 
 /**
  * Types of supported hashing algorithms
@@ -166,6 +167,15 @@ export async function spawnProcess(
       const processedArgs = args.map(arg =>
         replaceEnvVariable(arg, { ...process.env, ...options.env }),
       );
+
+      // Defence-in-depth: strip dynamic-linker env vars (LD_PRELOAD,
+      // DYLD_*, etc.) from whatever env the child process will see.
+      // Startup already sanitises process.env, so the only way one of
+      // these keys reaches this point is via a later mutation (hostile
+      // or accidental) or via an explicit `options.env` that spreads
+      // in attacker-controlled values. Either way, we refuse to
+      // propagate them. See sanitizeSpawnEnv() in ../utils/env.ts.
+      options.env = sanitizeSpawnEnv(options.env ?? process.env);
 
       // Allow child to accept input (use 'pipe' for stdin if we need to write to it)
       options.stdio = [

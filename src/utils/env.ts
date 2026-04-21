@@ -72,70 +72,17 @@ function envHasVar(envVar: RequiredConfigVar): boolean {
   return true;
 }
 
-/**
- * Dynamic-linker environment variables that Craft refuses to propagate.
- *
- * Setting these allows arbitrary code to be loaded into every subprocess
- * spawned by Craft (`LD_PRELOAD` on Linux, `DYLD_*` on macOS). They are a
- * well-known supply-chain attack vector: an attacker who can influence
- * Craft's environment (e.g. via a dotfile, a previous build step, or a
- * misconfigured CI secret) can silently execute code with access to every
- * release credential Craft touches. We strip these at startup as
- * defence-in-depth — legitimate uses are extremely rare and can be
- * re-enabled per-invocation via `CRAFT_ALLOW_DYNAMIC_LINKER_ENV=1`.
- */
-const DYNAMIC_LINKER_ENV_VARS = [
-  // Linux / glibc / musl
-  'LD_PRELOAD',
-  'LD_LIBRARY_PATH',
-  'LD_AUDIT',
-  // macOS dyld
-  'DYLD_INSERT_LIBRARIES',
-  'DYLD_LIBRARY_PATH',
-  'DYLD_FRAMEWORK_PATH',
-  'DYLD_FALLBACK_LIBRARY_PATH',
-  'DYLD_FALLBACK_FRAMEWORK_PATH',
-] as const;
-
-/** Opt-out env var for {@link sanitizeDynamicLinkerEnv}. */
-const ALLOW_DYNAMIC_LINKER_ENV_VAR = 'CRAFT_ALLOW_DYNAMIC_LINKER_ENV';
-
-/**
- * Strips dynamic-linker environment variables (`LD_PRELOAD`, `LD_LIBRARY_PATH`,
- * `DYLD_*`, etc.) from `process.env` at startup, logging a warning for each
- * stripped key. Values are never logged.
- *
- * Users who legitimately require these variables (e.g. for an instrumented
- * build toolchain) can set `CRAFT_ALLOW_DYNAMIC_LINKER_ENV=1` to opt out;
- * this is noisy by design to make the escape hatch visible in CI logs.
- */
-export function sanitizeDynamicLinkerEnv(): void {
-  const allowOverride = process.env[ALLOW_DYNAMIC_LINKER_ENV_VAR] === '1';
-  const presentKeys = DYNAMIC_LINKER_ENV_VARS.filter(
-    key => process.env[key] !== undefined,
-  );
-
-  if (presentKeys.length === 0) {
-    return;
-  }
-
-  if (allowOverride) {
-    logger.info(
-      `${ALLOW_DYNAMIC_LINKER_ENV_VAR}=1 set; preserving dynamic-linker environment variables: ${presentKeys.join(
-        ', ',
-      )}. This is not recommended.`,
-    );
-    return;
-  }
-
-  for (const key of presentKeys) {
-    logger.warn(
-      `Stripping dynamic-linker environment variable "${key}" for security reasons. ` +
-        `Set ${ALLOW_DYNAMIC_LINKER_ENV_VAR}=1 to override (not recommended).`,
-    );
-    delete process.env[key];
-  }
-}
+// Re-exported from `./dynamicLinkerEnv` so that existing callers
+// (notably `src/index.ts`) keep working without edits. The logic now
+// lives in a leaf module with minimal imports to avoid circular deps
+// with `src/utils/system.ts` (see the file header in
+// `./dynamicLinkerEnv`).
+export {
+  ALLOW_DYNAMIC_LINKER_ENV_VAR,
+  DYNAMIC_LINKER_ENV_VARS,
+  sanitizeDynamicLinkerEnv,
+  sanitizeSpawnEnv,
+} from './dynamicLinkerEnv';
 
 /**
  * Warns the user if a legacy `.craft.env` file is present in the home

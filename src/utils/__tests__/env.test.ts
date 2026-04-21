@@ -9,6 +9,7 @@ import * as config from '../../config';
 import {
   checkEnvForPrerequisite,
   sanitizeDynamicLinkerEnv,
+  sanitizeSpawnEnv,
   warnIfCraftEnvFileExists,
 } from '../env';
 import { ConfigurationError } from '../errors';
@@ -336,4 +337,88 @@ describe('env utils functions', () => {
       expect(logger.warn).toHaveBeenCalledTimes(1);
     });
   }); // end describe('sanitizeDynamicLinkerEnv')
+
+  describe('sanitizeSpawnEnv', () => {
+    beforeEach(() => {
+      delete process.env.CRAFT_ALLOW_DYNAMIC_LINKER_ENV;
+    });
+
+    test('returns undefined for undefined input', () => {
+      expect(sanitizeSpawnEnv(undefined)).toBeUndefined();
+    });
+
+    test('returns a shallow copy without dynamic-linker keys', () => {
+      const input = {
+        PATH: '/usr/bin',
+        HOME: '/home/runner',
+        LD_PRELOAD: '/tmp/evil.so',
+        LD_LIBRARY_PATH: '/opt/lib',
+        GITHUB_TOKEN: 'gho_xxx',
+      };
+
+      const result = sanitizeSpawnEnv(input);
+
+      expect(result).toEqual({
+        PATH: '/usr/bin',
+        HOME: '/home/runner',
+        GITHUB_TOKEN: 'gho_xxx',
+      });
+      // Input must not be mutated — callers may reuse it.
+      expect(input.LD_PRELOAD).toBe('/tmp/evil.so');
+      expect(input.LD_LIBRARY_PATH).toBe('/opt/lib');
+    });
+
+    test('strips all DYLD_* variants on macOS layouts', () => {
+      const input = {
+        PATH: '/usr/bin',
+        DYLD_INSERT_LIBRARIES: '/tmp/a.dylib',
+        DYLD_LIBRARY_PATH: '/opt/a',
+        DYLD_FRAMEWORK_PATH: '/opt/b',
+        DYLD_FALLBACK_LIBRARY_PATH: '/opt/c',
+        DYLD_FALLBACK_FRAMEWORK_PATH: '/opt/d',
+      };
+
+      const result = sanitizeSpawnEnv(input);
+
+      expect(result).toEqual({ PATH: '/usr/bin' });
+    });
+
+    test('warns once when any dynamic-linker key is stripped', () => {
+      sanitizeSpawnEnv({ PATH: '/u', LD_PRELOAD: '/x', LD_LIBRARY_PATH: '/y' });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const msg = (logger.warn as any).mock.calls[0].join(' ');
+      expect(msg).toContain('subprocess');
+      // Value must never appear in the log.
+      expect(msg).not.toContain('/x');
+      expect(msg).not.toContain('/y');
+    });
+
+    test('does not warn when no dynamic-linker keys are present', () => {
+      sanitizeSpawnEnv({ PATH: '/u', HOME: '/h' });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    test('honours CRAFT_ALLOW_DYNAMIC_LINKER_ENV=1 opt-out', () => {
+      process.env.CRAFT_ALLOW_DYNAMIC_LINKER_ENV = '1';
+      const input = { PATH: '/u', LD_PRELOAD: '/tmp/legit.so' };
+
+      const result = sanitizeSpawnEnv(input);
+
+      expect(result).toEqual(input);
+      expect(result).toBe(input); // same reference — explicit no-op
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    test('opt-out only applies when value is exactly "1"', () => {
+      process.env.CRAFT_ALLOW_DYNAMIC_LINKER_ENV = 'yes';
+      const result = sanitizeSpawnEnv({
+        PATH: '/u',
+        LD_PRELOAD: '/tmp/x.so',
+      });
+
+      expect(result).toEqual({ PATH: '/u' });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+    });
+  }); // end describe('sanitizeSpawnEnv')
 }); // end describe('env utils functions')
