@@ -1,8 +1,19 @@
 import { vi } from 'vitest';
 import { pushArchiveToGitRepository } from '../commitOnGitRepository';
-import childProcess from 'child_process';
 
-const execSyncSpy = vi.spyOn(childProcess, 'execSync');
+const { tarExtractMock } = vi.hoisted(() => ({
+  tarExtractMock: vi.fn<(...args: any[]) => Promise<void>>(() =>
+    Promise.resolve(),
+  ),
+}));
+
+vi.mock('tar', async importOriginal => {
+  const actual = await importOriginal<typeof import('tar')>();
+  return {
+    ...actual,
+    x: tarExtractMock,
+  };
+});
 
 const mockClone = vi.fn();
 const mockCheckout = vi.fn();
@@ -20,11 +31,17 @@ vi.mock('simple-git', () => ({
   }),
 }));
 
-test('Basic commit-on-git-repository functionality', async () => {
-  execSyncSpy.mockImplementationOnce(() => {
-    return Buffer.from('noop');
-  });
+beforeEach(() => {
+  tarExtractMock.mockReset();
+  tarExtractMock.mockImplementation(() => Promise.resolve(undefined));
+  mockClone.mockReset();
+  mockCheckout.mockReset();
+  mockRaw.mockReset();
+  mockCommit.mockReset();
+  mockAddTag.mockReset();
+});
 
+test('Basic commit-on-git-repository functionality', async () => {
   await pushArchiveToGitRepository({
     archivePath: '/tmp/my-archive.tgz',
     branch: 'main',
@@ -40,10 +57,12 @@ test('Basic commit-on-git-repository functionality', async () => {
   );
   expect(mockCheckout).toHaveBeenCalledWith('main');
   expect(mockRaw).toHaveBeenCalledWith('rm', '-r', '.');
-  expect(execSyncSpy).toHaveBeenCalledWith(
-    'tar -zxvf /tmp/my-archive.tgz --strip-components 1',
-    expect.objectContaining({ cwd: expect.any(String) }),
-  );
+  expect(tarExtractMock).toHaveBeenCalledWith({
+    file: '/tmp/my-archive.tgz',
+    cwd: expect.any(String),
+    gzip: true,
+    strip: 1,
+  });
   expect(mockRaw).toHaveBeenCalledWith('add', '--all');
   expect(mockCommit).toHaveBeenCalledWith('release: 1.2.3');
   expect(mockAddTag).toHaveBeenCalledWith('1.2.3');
@@ -59,6 +78,49 @@ test('Basic commit-on-git-repository functionality', async () => {
   );
 });
 
+test('No strip-components when not configured', async () => {
+  await pushArchiveToGitRepository({
+    archivePath: '/tmp/my-archive.tgz',
+    branch: 'main',
+    createTag: false,
+    repositoryUrl: 'https://github.com/getsentry/sentry-deno',
+    stripComponents: undefined,
+    version: '1.2.3',
+  });
+
+  expect(tarExtractMock).toHaveBeenCalledWith({
+    file: '/tmp/my-archive.tgz',
+    cwd: expect.any(String),
+    gzip: true,
+    strip: 0,
+  });
+});
+
+test('Shell-metacharacter archivePath does not reach a shell', async () => {
+  // Regression guard: the previous `execSync(`tar -zxvf ${archivePath}`)`
+  // pattern would interpret `;` / `$()` / backticks in the path if an
+  // artifact provider ever returned such a value. `tar.x({ file })`
+  // passes the path as a parameter with no shell involvement, so even
+  // adversarial input is treated as a literal filename.
+  const adversarial = '/tmp/evil;touch /tmp/CRAFT_INJECTION.tgz';
+
+  await pushArchiveToGitRepository({
+    archivePath: adversarial,
+    branch: 'main',
+    createTag: false,
+    repositoryUrl: 'https://github.com/getsentry/sentry-deno',
+    stripComponents: 0,
+    version: '1.2.3',
+  });
+
+  expect(tarExtractMock).toHaveBeenCalledWith(
+    expect.objectContaining({
+      file: adversarial,
+    }),
+  );
+  // No subprocess spawn occurred; tar.x received the literal string.
+});
+
 describe('With authentication', () => {
   let oldToken: string | undefined;
 
@@ -71,10 +133,6 @@ describe('With authentication', () => {
   });
 
   test('adds GitHub pat to repository url', async () => {
-    execSyncSpy.mockImplementationOnce(() => {
-      return Buffer.from('noop');
-    });
-
     process.env['GITHUB_API_TOKEN'] = 'test-token';
 
     await pushArchiveToGitRepository({
