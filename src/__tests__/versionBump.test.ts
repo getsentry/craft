@@ -381,7 +381,7 @@ describe('NpmTarget.bumpVersion', () => {
     });
 
     test('per-package bump post-check tolerates npm/cli#8845 and continues', async () => {
-      const { rootPkg, corePkg, appPkg } = await setupWorkspaceRepo();
+      const { corePkg, appPkg } = await setupWorkspaceRepo();
 
       mockSpawnProcess.mockImplementation(
         async (_bin: string, args: string[], opts: unknown) => {
@@ -408,7 +408,9 @@ describe('NpmTarget.bumpVersion', () => {
       const result = await NpmTarget.bumpVersion(tempDir, '1.0.0');
 
       expect(result).toBe(true);
-      expect(await readVersion(rootPkg)).toBe('0.0.1'); // root spawn returned buffer, no write
+      // The per-package spawns wrote the new version before throwing
+      // (simulating npm/cli#8845 on a per-package bump). The post-check
+      // observes the write and continues past the throw.
       expect(await readVersion(corePkg)).toBe('1.0.0');
       expect(await readVersion(appPkg)).toBe('1.0.0');
     });
@@ -537,6 +539,215 @@ describe('NpmTarget.bumpVersion', () => {
       );
       // Nested dep pin must NOT have been rewritten.
       expect(patched).toContain('"@other/dep": "0.0.1"');
+    });
+
+    test('bun.lock patching does NOT cross workspace boundaries when a workspace lacks a version field', async () => {
+      // Regression test for a silent-corruption bug that existed in earlier
+      // drafts of this change: using `[\s\S]*?` in the regex would walk
+      // past the closing `}` of a versionless workspace and rewrite the
+      // NEXT workspace's version line. The fix uses `[^{}]*?` which stops
+      // at either the block close or the opener of a nested object.
+      await setupWorkspaceRepo();
+
+      const bunLock = `{
+  "workspaces": {
+    "packages/empty": { "name": "@scope/empty" },
+    "packages/other": {
+      "name": "@scope/other",
+      "version": "0.0.1",
+    }
+  }
+}
+`;
+      await writeFile(join(tempDir, 'bun.lock'), bunLock);
+
+      // Only `packages/empty` is a discovered workspace in this fixture,
+      // so only it should be probed. Since it has no version field, the
+      // lockfile must be left untouched — `packages/other`'s version must
+      // NOT be rewritten to match `packages/empty`'s bump target.
+      //
+      // We rewrite the workspaces in setupWorkspaceRepo's package.json to
+      // only include packages/empty, to make the test focused.
+      await writeFile(
+        join(tempDir, 'package.json'),
+        JSON.stringify({
+          name: 'root',
+          version: '0.0.1',
+          private: true,
+          workspaces: ['packages/empty'],
+        }),
+      );
+      await mkdir(join(tempDir, 'packages', 'empty'), { recursive: true });
+      await writeFile(
+        join(tempDir, 'packages', 'empty', 'package.json'),
+        JSON.stringify({
+          name: '@scope/empty',
+          version: '0.0.1',
+          private: true,
+        }),
+      );
+
+      await NpmTarget.bumpVersion(tempDir, '9.9.9');
+
+      const patched = await readFile(join(tempDir, 'bun.lock'), 'utf-8');
+      // packages/other's version must be UNCHANGED.
+      expect(patched).toMatch(
+        /"packages\/other":\s*\{[\s\S]*?"version":\s*"0\.0\.1"/,
+      );
+      // Specifically, it must NOT have been rewritten to 9.9.9.
+      expect(patched).not.toMatch(
+        /"packages\/other":\s*\{[\s\S]*?"version":\s*"9\.9\.9"/,
+      );
+    });
+
+    test('bun.lock patching disambiguates path prefixes (packages/foo vs packages/foo-bar)', async () => {
+      // Regression test: workspace keys are quoted in the regex, so the
+      // trailing `"` in `"packages/foo":` disambiguates it from
+      // `"packages/foo-bar":` — but worth locking in via test.
+      await writeFile(
+        join(tempDir, 'package.json'),
+        JSON.stringify({
+          name: 'root',
+          version: '0.0.1',
+          private: true,
+          workspaces: ['packages/*'],
+        }),
+      );
+      await mkdir(join(tempDir, 'packages', 'foo'), { recursive: true });
+      await writeFile(
+        join(tempDir, 'packages', 'foo', 'package.json'),
+        JSON.stringify({ name: '@scope/foo', version: '0.0.1' }),
+      );
+      await mkdir(join(tempDir, 'packages', 'foo-bar'), { recursive: true });
+      await writeFile(
+        join(tempDir, 'packages', 'foo-bar', 'package.json'),
+        JSON.stringify({ name: '@scope/foo-bar', version: '0.0.1' }),
+      );
+
+      const bunLock = `{
+  "workspaces": {
+    "packages/foo": {
+      "name": "@scope/foo",
+      "version": "0.0.1",
+    },
+    "packages/foo-bar": {
+      "name": "@scope/foo-bar",
+      "version": "0.0.1",
+    },
+  },
+}
+`;
+      await writeFile(join(tempDir, 'bun.lock'), bunLock);
+
+      // Mock simulates a successful bump of both packages.
+      mockSpawnProcess.mockImplementation(
+        async (_bin: string, args: string[], _opts: unknown) => {
+          if (args.includes('--workspaces')) {
+            for (const p of [
+              join(tempDir, 'package.json'),
+              join(tempDir, 'packages', 'foo', 'package.json'),
+              join(tempDir, 'packages', 'foo-bar', 'package.json'),
+            ]) {
+              const raw = JSON.parse(
+                require('fs').readFileSync(p, 'utf-8'),
+              );
+              raw.version = '2.0.0';
+              writeFileSync(p, JSON.stringify(raw));
+            }
+          }
+          return Buffer.from('');
+        },
+      );
+
+      await NpmTarget.bumpVersion(tempDir, '2.0.0');
+
+      const patched = await readFile(join(tempDir, 'bun.lock'), 'utf-8');
+      expect(patched).toMatch(
+        /"packages\/foo":\s*\{[\s\S]*?"version":\s*"2\.0\.0"/,
+      );
+      expect(patched).toMatch(
+        /"packages\/foo-bar":\s*\{[\s\S]*?"version":\s*"2\.0\.0"/,
+      );
+    });
+
+    test('post-check verifies private workspace packages too (npm bumps them)', async () => {
+      // Regression test: an earlier draft skipped private packages in the
+      // post-check, which was incorrect — `npm version --workspaces` bumps
+      // private workspaces as well as public ones. If a private workspace
+      // wasn't bumped (e.g. partial write failure), post-check must fail
+      // and force fallback rather than silently returning success.
+      await writeFile(
+        join(tempDir, 'package.json'),
+        JSON.stringify({
+          name: 'root',
+          version: '0.0.1',
+          private: true,
+          workspaces: ['packages/*'],
+        }),
+      );
+      await mkdir(join(tempDir, 'packages', 'pub'), { recursive: true });
+      const pubPkg = join(tempDir, 'packages', 'pub', 'package.json');
+      await writeFile(
+        pubPkg,
+        JSON.stringify({ name: '@scope/pub', version: '0.0.1' }),
+      );
+      await mkdir(join(tempDir, 'packages', 'priv'), { recursive: true });
+      const privPkg = join(tempDir, 'packages', 'priv', 'package.json');
+      await writeFile(
+        privPkg,
+        JSON.stringify({
+          name: '@scope/priv',
+          version: '0.0.1',
+          private: true,
+        }),
+      );
+
+      let perPackageCalls = 0;
+      mockSpawnProcess.mockImplementation(
+        async (_bin: string, args: string[], opts: unknown) => {
+          const cwd = (opts as { cwd?: string })?.cwd ?? '';
+          if (args.includes('--workspaces')) {
+            // Simulate #8845 but ONLY bump public + root, NOT private.
+            // Post-check should notice the private package is stale and
+            // fall back to per-package bumping.
+            writeFileSync(
+              join(tempDir, 'package.json'),
+              JSON.stringify({
+                name: 'root',
+                version: '1.0.0',
+                private: true,
+                workspaces: ['packages/*'],
+              }),
+            );
+            writeFileSync(
+              pubPkg,
+              JSON.stringify({ name: '@scope/pub', version: '1.0.0' }),
+            );
+            // priv is intentionally NOT bumped.
+            throw new Error('EUNSUPPORTEDPROTOCOL workspace:*');
+          }
+          if (cwd !== tempDir) {
+            perPackageCalls += 1;
+            // Per-package fallback: bump whatever file this runs in.
+            const pkgJsonPath = join(cwd, 'package.json');
+            const raw = JSON.parse(
+              require('fs').readFileSync(pkgJsonPath, 'utf-8'),
+            );
+            raw.version = '1.0.0';
+            writeFileSync(pkgJsonPath, JSON.stringify(raw));
+          }
+          return Buffer.from('');
+        },
+      );
+
+      const result = await NpmTarget.bumpVersion(tempDir, '1.0.0');
+
+      expect(result).toBe(true);
+      // Fallback MUST have run for the public package (per-package cwd).
+      // The private package is skipped inside bumpWorkspacePackagesIndividually
+      // (existing behavior), so only the public package is touched.
+      expect(perPackageCalls).toBeGreaterThan(0);
+      expect(await readVersion(pubPkg)).toBe('1.0.0');
     });
   });
 });

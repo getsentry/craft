@@ -469,11 +469,8 @@ export class NpmTarget extends BaseTarget {
       if (!existsSync(pkgJsonPath)) {
         continue;
       }
-      // Private packages can be skipped by npm version; only verify those
-      // that would be bumped by `--include-workspace-root`.
-      if (pkg.private) {
-        continue;
-      }
+      // npm version --workspaces bumps ALL workspace packages, including
+      // private ones, so we verify every package regardless of privacy.
       if (
         NpmTarget.readPackageJsonVersion(pkgJsonPath) !== expectedVersion
       ) {
@@ -598,12 +595,21 @@ export class NpmTarget extends BaseTarget {
       }
 
       const escapedPath = escapeRegex(relPath);
-      // Match: start of workspace block (path key), then any non-empty prefix
-      // (other fields like "name"), then the first `"version": "x.y.z"` line.
-      // The `[\s\S]*?` is non-greedy so we stop at the earliest version line,
-      // which prevents accidentally rewriting nested dependency pins.
+      // Match: start of workspace block (path key), then any number of chars
+      // that are NOT `{` or `}`, then the first `"version": "x.y.z"` line.
+      // Using `[^{}]*?` (rather than `[\s\S]*?`) is critical: it stops at
+      // either the workspace block's closing `}` or the opener of a nested
+      // object (e.g. `"dependencies": {`). This guarantees:
+      //   1. If this workspace has no `"version"` field, the regex does not
+      //      match and we do NOT walk into the next workspace's block and
+      //      corrupt its version line.
+      //   2. Nested dependency version pins stay untouched regardless of
+      //      field ordering within the workspace block.
+      // bun.lock fields are emitted before nested objects, so the top-level
+      // `"version"` always precedes any `{` and is therefore reachable under
+      // the `[^{}]*?` bound.
       const pattern = new RegExp(
-        `("${escapedPath}":\\s*\\{[\\s\\S]*?)"version":\\s*"[^"]*"`,
+        `("${escapedPath}":\\s*\\{[^{}]*?)"version":\\s*"[^"]*"`,
       );
       const replaced = content.replace(
         pattern,
