@@ -6,7 +6,7 @@ import prompts from 'prompts';
 import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
 import { safeFs } from '../utils/dryRun';
 import { ConfigurationError, reportError } from '../utils/errors';
-import { stringToRegexp } from '../utils/filters';
+import { escapeRegex, stringToRegexp } from '../utils/filters';
 import { isDryRun } from '../utils/helpers';
 import {
   hasExecutable,
@@ -74,11 +74,6 @@ function isOidcEnvironment(): boolean {
 
 /** A regular expression used to find the package tarball */
 const DEFAULT_PACKAGE_REGEX = /^.*\d\.\d.*\.tgz$/;
-
-/** Escape regex metacharacters so a string can be used inside a RegExp. */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 /** Access specifiers for NPM packages. See npm-publish doc for more info */
 export enum NpmPackageAccess {
@@ -420,11 +415,14 @@ export class NpmTarget extends BaseTarget {
       logger.info(
         `Bumped version in root and ${workspaces.packages.length} workspace packages`,
       );
-    }
 
-    // Patch bun.lock workspace entries so that `bun pm pack` emits tarballs
-    // pointing at the new workspace versions. See patchBunLock() doc comment.
-    NpmTarget.patchBunLock(rootDir, workspaces.packages, newVersion);
+      // Patch bun.lock workspace entries so that `bun pm pack` emits tarballs
+      // pointing at the new workspace versions. See patchBunLock() doc comment.
+      // Only relevant for workspace repos — a single-package bun project has
+      // no workspace entries to patch, so we skip the call entirely to avoid
+      // emitting a spurious "lockfile out of sync" warning.
+      NpmTarget.patchBunLock(rootDir, workspaces.packages, newVersion);
+    }
 
     return true;
   }
