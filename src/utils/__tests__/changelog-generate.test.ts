@@ -607,6 +607,136 @@ changelog:
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toMatchSnapshot();
     });
+
+    it('categorizes security commits under Security section with patch bump', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'security: patch XSS in renderer',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'security(auth): fix login bypass',
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      expect(result.changelog).toContain('### Security 🔒');
+      expect(result.changelog).toContain('Patch XSS in renderer');
+      expect(result.changelog).toContain('Fix login bypass');
+      expect(result.bumpType).toBe('patch');
+    });
+
+    it('renders Security section above New Features and Bug Fixes', async () => {
+      setup(
+        [
+          {
+            hash: 'aaa111',
+            title: 'feat: new widget',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'bbb222',
+            title: 'security: patch XSS',
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'ccc333',
+            title: 'fix: off-by-one',
+            body: '',
+            pr: {
+              local: '3',
+              remote: { number: '3', author: { login: 'charlie' } },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const securityIdx = result.changelog.indexOf('### Security 🔒');
+      const featuresIdx = result.changelog.indexOf('### New Features ✨');
+      const fixesIdx = result.changelog.indexOf('### Bug Fixes 🐛');
+      expect(securityIdx).toBeGreaterThanOrEqual(0);
+      expect(featuresIdx).toBeGreaterThanOrEqual(0);
+      expect(fixesIdx).toBeGreaterThanOrEqual(0);
+      expect(securityIdx).toBeLessThan(featuresIdx);
+      expect(featuresIdx).toBeLessThan(fixesIdx);
+      // A feat: commit dominates aggregation: security is patch, feat is minor.
+      // If Security were accidentally tagged as minor, this would still be minor
+      // so we test that separately below.
+      expect(result.bumpType).toBe('minor');
+    });
+
+    it('security alone does not escalate above patch when mixed with docs', async () => {
+      // Guards against accidentally setting semver: 'minor' on the Security category.
+      // docs: is patch, security: is patch -> aggregate must be patch.
+      setup(
+        [
+          {
+            hash: 'aaa111',
+            title: 'security: patch XSS',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'bbb222',
+            title: 'docs: update readme',
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      expect(result.bumpType).toBe('patch');
+    });
+
+    it('escalates breaking security commits to major via Breaking Changes', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'security!: rotate signing keys',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      expect(result.changelog).toContain('### Breaking Changes 🛠');
+      expect(result.changelog).not.toContain('### Security 🔒');
+      expect(result.bumpType).toBe('major');
+    });
   });
 
   // ============================================================================

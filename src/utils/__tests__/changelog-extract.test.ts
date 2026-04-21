@@ -24,6 +24,8 @@ describe('extractScope', () => {
     ['docs(readme): update docs', 'readme'],
     ['chore(deps): update dependencies', 'deps'],
     ['feat(my-long_scope): mixed separators', 'my-long-scope'],
+    ['security(auth): patch login', 'auth'],
+    ['security(auth)!: rotate keys', 'auth'],
   ])('extracts scope from "%s" as "%s"', (title, expected) => {
     expect(extractScope(title)).toBe(expected);
   });

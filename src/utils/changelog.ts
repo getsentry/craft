@@ -878,6 +878,13 @@ export const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
         semver: 'major',
       },
       {
+        title: 'Security 🔒',
+        commit_patterns: [
+          '^(?<type>security(?:\\((?<scope>[^)]+)\\))?!?:\\s*)',
+        ],
+        semver: 'patch',
+      },
+      {
         title: 'New Features ✨',
         commit_patterns: ['^(?<type>feat(?:\\((?<scope>[^)]+)\\))?!?:\\s*)'],
         semver: 'minor',
