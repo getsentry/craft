@@ -1,7 +1,7 @@
 name: Changelog Preview
 
 on:
-  # Allow this workflow to be called from other repositories
+  # Allow this workflow to be called from other repositories.
   #
   # USAGE REQUIREMENTS:
   # When calling this workflow from another repository, you must:
@@ -10,15 +10,14 @@ on:
   #    - This is required to post comments on PRs from forks
   #    - pull_request event has read-only GITHUB_TOKEN for fork PRs
   #
-  # 2. Grant required permissions:
-  #    - contents: read        (to checkout repo and read git history)
-  #    - pull-requests: write  (to post/update PR comments in comment mode)
-  #    - statuses: write       (to create commit statuses in status check mode)
+  # 2. Grant required permissions at the call site:
+  #    - contents: read       (to checkout repo and read git history)
+  #    - pull-requests: write (to post/update PR comments)
   #
   # 3. Inherit secrets:
-  #    - secrets: inherit      (ensures caller's GITHUB_TOKEN is used)
+  #    - secrets: inherit     (ensures caller's GITHUB_TOKEN is used)
   #
-  # Example caller workflow (comment mode):
+  # Example caller workflow:
   #
   #   on:
   #     pull_request_target:
@@ -33,25 +32,16 @@ on:
   #       uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
   #       secrets: inherit
   #
-  # Example caller workflow (status check mode):
-  #
-  #   permissions:
-  #     contents: read
-  #     statuses: write
-  #
-  #   jobs:
-  #     changelog-preview:
-  #       uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
-  #       with:
-  #         comment: false
-  #       secrets: inherit
-  #
-  # SECURITY NOTE:
-  # This workflow is safe to use with pull_request_target because:
-  # - The Craft binary is downloaded from releases, NOT from the PR
-  # - Only git metadata (commits, tags) and .craft.yml config are read
-  # - No code from the PR is ever executed
-  #
+  # SECURITY NOTES FOR CALLERS:
+  # Callers that invoke this workflow on pull_request_target are checking out
+  # attacker-controlled code and running Craft against it. To reduce blast
+  # radius, callers SHOULD:
+  # - Pin this workflow to a commit SHA, not a moving tag like @v2.
+  # - Grant only the minimum permissions shown above; never add
+  #   `contents: write` or other scopes to this job.
+  # - Be aware that Craft reads `.craft.env` from the config-file directory
+  #   and copies its keys into the environment; hardening for that case is
+  #   tracked separately.
   workflow_call:
     inputs:
       working-directory:
@@ -63,39 +53,45 @@ on:
         description: 'Version of Craft to use (tag or "latest")'
         required: false
         type: string
-      comment:
-        description: 'Post changelog as PR comment (true) or as check run with job summary (false)'
-        required: false
-        type: boolean
-        default: true
 
-  # Also run on PRs in this repository (dogfooding)
-  pull_request_target:
+  # Also run on PRs in this repository (dogfooding).
+  #
+  # We intentionally use `pull_request` (not `pull_request_target`) here so the
+  # job runs with a read-only GITHUB_TOKEN for fork PRs. Same-repo branch PRs
+  # still get the declared permissions and a working comment; fork PRs won't
+  # get a preview comment, which is an acceptable trade-off for eliminating
+  # the pull_request_target attack surface on this repository.
+  pull_request:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled]
-
-permissions:
-  contents: read
-  pull-requests: write # For comment mode
-  statuses: write # For status check mode
 
 jobs:
   preview:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
-      # For pull_request_target, we must explicitly specify the ref to get the PR commits.
-      # Try the merge ref first; fall back to head ref if PR has merge conflicts.
-      - uses: actions/checkout@v6
+      # For pull_request_target callers we must explicitly specify the ref to
+      # get the PR commits. Try the merge ref first; fall back to head ref if
+      # the PR has merge conflicts.
+      #
+      # `persist-credentials: false` ensures the GITHUB_TOKEN is not written
+      # into `.git/config` on disk, which would otherwise leak if a later step
+      # executes PR-controlled code.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         id: checkout-merge
         continue-on-error: true
         with:
           fetch-depth: 0
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          persist-credentials: false
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         if: steps.checkout-merge.outcome == 'failure'
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
 
       - name: Install Craft
         shell: bash
@@ -165,9 +161,7 @@ jobs:
           # CalVer projects don't use semver bumps — skip the impact badge
           if [[ "$VERSIONING_POLICY" == "calver" ]]; then
             BUMP_BADGE=""
-            BUMP_SHORT="CalVer"
             SECTION_HEADING="Changelog Preview"
-            STATUS_CONTEXT="Changelog Preview"
           else
             case "$BUMP_TYPE" in
               major) BUMP_BADGE="🔴 **Major** (breaking changes)" ;;
@@ -176,72 +170,11 @@ jobs:
               *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
             esac
 
-            case "$BUMP_TYPE" in
-              major) BUMP_SHORT="Major" ;;
-              minor) BUMP_SHORT="Minor" ;;
-              patch) BUMP_SHORT="Patch" ;;
-              *) BUMP_SHORT="None" ;;
-            esac
-
             SECTION_HEADING="Semver Impact of This PR"
-            STATUS_CONTEXT="Changelog Preview / Semver Impact"
           fi
 
-          # Determine mode: use status check mode when comment is false OR when running internally (no input)
-          USE_COMMENT_MODE="${{ inputs.comment }}"
-          if [[ "$USE_COMMENT_MODE" == "false" ]] || [[ -z "$USE_COMMENT_MODE" ]]; then
-            # Status check mode (new feature or internal dogfooding)
-            echo "Using status check mode..."
-            
-            HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
-            TARGET_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-            PR_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/${PR_NUMBER}"
-            
-            # Create commit status via GitHub API
-            echo "Creating commit status..."
-            gh api --method POST \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
-              -f state="success" \
-              -f context="$STATUS_CONTEXT" \
-              -f description="$BUMP_SHORT" \
-              -f target_url="$TARGET_URL"
-            
-            echo "✓ Commit status created"
-            
-            # 2. Write to job summary
-            cat >> $GITHUB_STEP_SUMMARY << CRAFT_CHANGELOG_SUMMARY_END
-          # Changelog Preview for PR #${PR_NUMBER}
-
-          [→ View PR #${PR_NUMBER}](${PR_URL})
-
-          ## ${SECTION_HEADING}
-
-          ${BUMP_BADGE}
-
-          <details>
-          <summary>📋 Changelog Preview</summary>
-
-          This is how your changes will appear in the changelog.
-          Entries from this PR are highlighted with a left border (blockquote style).
-
-          ---
-
-          ${CHANGELOG}
-
-          ---
-
-          </details>
-          CRAFT_CHANGELOG_SUMMARY_END
-            
-            echo "✓ Job summary written"
-          else
-            # Comment mode (original behavior)
-            echo "Using comment mode..."
-            
-            COMMENT_FILE=$(mktemp)
-            cat > "$COMMENT_FILE" << CRAFT_CHANGELOG_COMMENT_END
+          COMMENT_FILE=$(mktemp)
+          cat > "$COMMENT_FILE" << CRAFT_CHANGELOG_COMMENT_END
           <!-- craft-changelog-preview -->
           ## ${SECTION_HEADING}
 
@@ -264,23 +197,22 @@ jobs:
           <sub>🤖 This preview updates automatically when you update the PR.</sub>
           CRAFT_CHANGELOG_COMMENT_END
 
-            COMMENT_ID=$(gh api \
+          COMMENT_ID=$(gh api \
+            "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+            --jq '.[] | select(.body | contains("<!-- craft-changelog-preview -->")) | .id' \
+            | head -1)
+
+          if [[ -n "$COMMENT_ID" ]]; then
+            echo "Updating existing comment $COMMENT_ID..."
+            gh api -X PATCH \
+              "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" \
+              -F body=@"$COMMENT_FILE"
+          else
+            echo "Creating new comment..."
+            gh api -X POST \
               "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-              --jq '.[] | select(.body | contains("<!-- craft-changelog-preview -->")) | .id' \
-              | head -1)
-
-            if [[ -n "$COMMENT_ID" ]]; then
-              echo "Updating existing comment $COMMENT_ID..."
-              gh api -X PATCH \
-                "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" \
-                -F body=@"$COMMENT_FILE"
-            else
-              echo "Creating new comment..."
-              gh api -X POST \
-                "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-                -F body=@"$COMMENT_FILE"
-            fi
-
-            rm -f "$COMMENT_FILE"
-            echo "✓ Comment posted"
+              -F body=@"$COMMENT_FILE"
           fi
+
+          rm -f "$COMMENT_FILE"
+          echo "✓ Comment posted"
