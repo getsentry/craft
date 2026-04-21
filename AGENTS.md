@@ -122,6 +122,10 @@ Some operations need explicit `isDryRun()` checks:
 
 - **Craft release commands forward sanitized env, not full process.env**: Craft's pre/postReleaseCommand invocations (\`prepare.ts\` runCustomPreReleaseCommand, \`publish.ts\` runPostReleaseCommand) must NOT forward \`...process.env\` to subprocesses — that pattern lets attacker-controlled \`.craft.env\` or config inject \`LD_PRELOAD\`/\`LD_LIBRARY_PATH\` for RCE via the CI release pipeline. Use the shared allowlist helper in \`src/utils/releaseCommandEnv.ts\` which returns only {PATH, HOME, USER, GIT_COMMITTER_NAME, GIT_AUTHOR_NAME, EMAIL, GITHUB_TOKEN, CRAFT\_\*} plus per-command additions (CRAFT_NEW_VERSION/OLD_VERSION for prepare, CRAFT_RELEASED_VERSION for publish). Tests in \`prepare.test.ts\`/\`publish.test.ts\` assert LD_PRELOAD and secret env vars are stripped.
 
+<!-- lore:019db0c1-fb9b-7f8a-bde6-050fc204afc7 -->
+
+- **Craft target \*\_BIN env vars allow redirecting binary execution**: Craft targets honor \`\*\_BIN\` env var overrides (\`DOCKER_BIN\`, \`NPM_BIN\`, \`YARN_BIN\`, \`GEM_BIN\`, \`TWINE_BIN\`, \`MIX_BIN\`, \`NUGET_DOTNET_BIN\`, \`POWERSHELL_BIN\`, \`COCOAPODS_BIN\`, ...) to locate tool binaries. These are NOT attacker-controlled from a PR, but compose with \`preReleaseCommand\`: a malicious pre-release script could \`export NPM_BIN=/tmp/evil-npm\` before exiting, and subsequent target invocations use it. Hardening: resolve each \`\*\_BIN\` once at startup via \`resolveExecutable\`, warn if any points outside standard PATH dirs, reject relative paths.
+
 <!-- lore:019cb31a-14ce-7892-b22a-0327cfcebc13 -->
 
 - **Registry target: repo_url auto-derived from git remote, not user-configurable**: \`repo_url\` in registry manifests is always set by Craft as \`https://github.com/${owner}/${repo}\`. Resolution: (1) explicit \`github: { owner, repo }\` in \`.craft.yml\` (rare), (2) fallback: auto-detect from git \`origin\` remote URL via \`git-url-parse\` library (\`git.ts:194-217\`, \`config.ts:286-316\`). Works with HTTPS and SSH remote URLs. Always overwritten on every publish — existing manifest values are replaced (\`registry.ts:417-418\`). Result is cached globally with \`Object.freeze\`. If remote isn't \`github.com\` and no explicit config exists, throws \`ConfigurationError\`. Most repos need no configuration — the git origin remote is sufficient.
@@ -138,13 +142,33 @@ Some operations need explicit `isDryRun()` checks:
 
 ### Gotcha
 
+<!-- lore:019db0c1-fb98-755c-bd6b-22134bd6d852 -->
+
+- **Craft .craft-publish-\<version>.json state file is unauthenticated**: \`publish.ts\` reads/writes \`.craft-publish-\<version>.json\` in \`cwd\` to skip already-published targets. Any earlier CI step or committed file can pre-mark targets as published → silent skip → pipeline manipulation. The official \`getsentry/publish\` workflow (publish.yml \`Set targets\` step) \*pre-seeds\* this file before invoking craft to exclude unchecked targets from the publish issue, so any fix must preserve that pre-seed path. Planned fix: move state to \`$XDG_STATE_HOME/craft/publish-state-\<owner>-\<repo>-\<sha1(cwd)>-\<version>.json\` (HOME=/root in the publish Docker image, writable by workflow, not by repo contents). Rollout: dual read/write in publish workflow first → release craft using new-only location → drop dual R/W. sha1(cwd) disambiguates monorepo subpaths.
+
 <!-- lore:019db09e-aca8-7a81-b2f7-e117be50e02a -->
 
 - **Craft .craft.env file reading removed — security hazard via LD_PRELOAD**: Craft used to hydrate \`process.env\` from \`$HOME/.craft.env\` and \`\<config-dir>/.craft.env\` via \`nvar\`. Removed because an attacker PR could add \`.craft.env\` with \`LD_PRELOAD=./preload.so\` + a malicious shared library, giving RCE in the release pipeline with access to all secrets (demo: getsentry/action-release#315). \`src/utils/env.ts\` now only exports \`warnIfCraftEnvFileExists()\` (startup warning, no file read, no env mutation) and \`checkEnvForPrerequisite\` (unchanged). \`nvar\` dep and \`src/types/nvar.ts\` were removed. Consumers must set env vars via shell/CI.
 
+<!-- lore:019db0c1-fb90-7507-900b-896619ea120f -->
+
+- **Craft .craft.yml discovery walks up from cwd — ancestor configs auto-load**: \`src/config.ts:findConfigFile()\` walks upward from \`cwd\` up to 1024 dirs looking for \`.craft.yml\`. Any stray \`.craft.yml\` in an ancestor (including \`$HOME\`) is loaded unconditionally and its \`preReleaseCommand\` executes. No \`--config\` flag exists to pin the path. Hardening: restrict discovery to the current git worktree root (first \`.git\` found), optionally require the file to be tracked by git, and add a \`--config \<path>\` flag that disables the walk. Complements the \`--allow-remote-config\` gate \[\[019db09e-acae-76ae-8813-a317c0e6f6f9]] and release env sanitization \[\[019db09e-ac9b-765d-a091-bb6bb512b987]].
+
+<!-- lore:019db0c1-fb9f-719c-a903-14dc258a8cdd -->
+
+- **Craft commitOnGitRepository uses execSync with string-interpolated tar path**: \`src/targets/commitOnGitRepository.ts\` (~line 171) runs \`\` childProcess.execSync(\`tar -zxvf ${archivePath}${stripComponentsArg}\`) \`\` — shell string concatenation. \`archivePath\` is currently Craft-constructed so injection isn't exploitable today, but the pattern is fragile against future refactors. Fix: switch to \`spawnSync('tar', \['-zxvf', archivePath, ...stripComponentsArgs])\` to avoid shell parsing entirely.
+
+<!-- lore:019db0c1-fb94-73b0-aeb6-513d4cb2a79b -->
+
+- **Craft GPG TOCTOU: private key written to fixed /tmp path**: \`src/utils/gpg.ts\` writes \`GPG_PRIVATE_KEY\` to \`path.join(tmpdir(), 'private-key.asc')\` — a fixed, predictable path in world-readable \`/tmp\`. Coresident processes can race with a symlink to redirect the write, or read the file between \`writeFile\` and \`unlink\`. Fix: use \`mkdtemp('craft-gpg-')\` for a per-invocation directory (mode 0700), or pipe the key via stdin to \`gpg --import --batch\` and never touch disk.
+
 <!-- lore:019d9a8f-c76e-7716-b1ca-7546635fecc0 -->
 
 - **Craft postReleaseCommand env vars pollute shared bump-version scripts**: Craft's \`runPostReleaseCommand\` sets \`CRAFT_NEW_VERSION=\<released-version>\` in the subprocess env. If a post-release script calls a shared \`bump-version.sh\` that reads \`NEW_VERSION="${CRAFT\_NEW\_VERSION:-${2:-}}"\`, the env var takes precedence over the positional arg (e.g. \`nightly\`), causing the script to set the version to the already-current release version → no diff → no commit → master stays on the release version. Fixed by replacing \`CRAFT_NEW_VERSION\`/\`CRAFT_OLD_VERSION\` with \`CRAFT_RELEASED_VERSION\` in the post-release env (\`publish.ts:563-564\`). The pre-release command (\`prepare.ts\`) still correctly uses \`CRAFT_NEW_VERSION\`. Consuming repos don't need changes unless they explicitly read \`CRAFT_NEW_VERSION\` in their post-release scripts.
+
+<!-- lore:019db0c1-fb82-79d6-9485-77f5dcc3e924 -->
+
+- **Craft scripts/bump-version.sh and scripts/post-release.sh auto-run from cwd**: Craft's \`prepare.ts\` (DEFAULT_BUMP_VERSION_PATH) and \`publish.ts\` (DEFAULT_POST_RELEASE_SCRIPT_PATH) silently auto-execute \`scripts/bump-version.sh\` / \`scripts/post-release.sh\` when no explicit \`preReleaseCommand\`/\`postReleaseCommand\` is set in \`.craft.yml\`. A PR that merely adds one of these files gets executed on the next \`craft prepare\`/\`publish\` with the allowlisted release env (still includes \`GITHUB_TOKEN\`) — no \`.craft.yml\` edit required. Env sanitization from PR #794 mitigates LD_PRELOAD but not the script contents themselves. Hardening: require explicit opt-in via \`preReleaseCommand\`/\`postReleaseCommand\` in \`.craft.yml\`; drop the file-exists fallback. Related: \[\[019db09e-ac9b-765d-a091-bb6bb512b987]].
 
 <!-- lore:019c9f57-aa0c-7a2a-8a10-911b13b48fc0 -->
 
