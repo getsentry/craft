@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.25.5
+
+### Bug Fixes 🐛
+
+#### Security
+
+- Move workflow to pull_request and do not persist creds by @geoffg-sentry in [#796](https://github.com/getsentry/craft/pull/796)
+- Disable .craft.env reading and harden release subprocess env by @BYK in [#794](https://github.com/getsentry/craft/pull/794)
+
 ## 2.25.4
 
 ### Bug Fixes 🐛
