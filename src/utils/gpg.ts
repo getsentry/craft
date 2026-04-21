@@ -1,12 +1,22 @@
-import { tmpdir } from 'os';
-import { promises as fsPromises } from 'fs';
-import * as path from 'path';
 import { spawnProcess } from './system';
 
+/**
+ * Imports a GPG private key into the local keyring.
+ *
+ * The key is piped to `gpg --batch --import` via stdin — it is NEVER
+ * written to disk. This avoids the previous TOCTOU / information
+ * disclosure hazards of writing the key to a predictable path in
+ * `tmpdir()`:
+ *
+ *   - Co-resident processes on shared runners could read the key
+ *     between `writeFile` and `unlink` (typical `/tmp` is mode 1777).
+ *   - A symlink planted at `/tmp/private-key.asc` before `writeFile`
+ *     would redirect the write to an attacker-chosen destination.
+ *   - An unexpected crash between `writeFile` and `unlink` would
+ *     leave the key on disk indefinitely.
+ *
+ * @param privateKey ASCII-armored GPG private key contents.
+ */
 export async function importGPGKey(privateKey: string): Promise<void> {
-  const PRIVATE_KEY_FILE = path.join(tmpdir(), 'private-key.asc');
-
-  await fsPromises.writeFile(PRIVATE_KEY_FILE, privateKey);
-  await spawnProcess(`gpg`, ['--batch', '--import', PRIVATE_KEY_FILE]);
-  await fsPromises.unlink(PRIVATE_KEY_FILE);
+  await spawnProcess('gpg', ['--batch', '--import'], {}, { stdin: privateKey });
 }
