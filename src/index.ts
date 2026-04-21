@@ -6,7 +6,10 @@ import isCI from 'is-ci';
 import yargs from 'yargs';
 
 import { logger, LogLevel } from './logger';
-import { readEnvironmentConfig } from './utils/env';
+import {
+  sanitizeDynamicLinkerEnv,
+  warnIfCraftEnvFileExists,
+} from './utils/env';
 import { envToBool, setGlobals } from './utils/helpers';
 import { getPackageVersion } from './utils/version';
 import { withTracing } from './utils/tracing';
@@ -70,9 +73,13 @@ function fixGlobalBooleanFlags(argv: string[]): string[] {
  * Main entrypoint
  */
 async function main(): Promise<void> {
+  // Strip dynamic-linker env vars (LD_PRELOAD, DYLD_*, ...) before anything
+  // else so they cannot leak into subprocesses Craft spawns.
+  sanitizeDynamicLinkerEnv();
+
   printVersion();
 
-  readEnvironmentConfig();
+  warnIfCraftEnvFileExists();
 
   const argv = fixGlobalBooleanFlags(process.argv.slice(2));
 

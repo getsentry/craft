@@ -242,21 +242,9 @@ Dry-run still requires `GITHUB_TOKEN` for commands that fetch PR information fro
 
 Since Craft relies heavily on GitHub, set the `GITHUB_TOKEN` environment variable to a [GitHub Personal Access Token](https://github.com/settings/tokens) with `repo` scope.
 
-### Environment Files
+### Environment Variables
 
-Craft reads configuration from these locations (in order of precedence):
-
-1. `$HOME/.craft.env`
-2. `$PROJECT_DIR/.craft.env`
-3. Shell environment
-
-Example `.craft.env`:
-
-```shell
-# ~/.craft.env
-GITHUB_TOKEN=token123
-export NUGET_API_TOKEN=abcdefgh
-```
+Credentials and other configuration (`GITHUB_TOKEN`, `NPM_TOKEN`, etc.) must be provided directly via your shell or CI environment. Craft no longer reads `.craft.env` files — if one is found in your home directory or project directory, Craft will emit a warning at startup. Please migrate any values stored there to your shell or CI configuration.
 
 ## Caveats
 

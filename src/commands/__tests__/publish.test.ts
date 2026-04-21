@@ -86,6 +86,46 @@ describe('runPostReleaseCommand', () => {
       },
     );
   });
+
+  test('does not forward arbitrary env vars from process.env', async () => {
+    // Same threat model as runPreReleaseCommand: attacker-planted env vars
+    // must not leak to the post-release subprocess.
+    const sentinel = '__POST_RELEASE_SHOULD_NOT_LEAK__';
+    const before = {
+      LD_PRELOAD: process.env.LD_PRELOAD,
+      AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
+      SECRET_TOKEN: process.env.SECRET_TOKEN,
+    };
+    process.env.LD_PRELOAD = `/tmp/evil.so-${sentinel}`;
+    process.env.AWS_SECRET_ACCESS_KEY = `aws-${sentinel}`;
+    process.env.SECRET_TOKEN = `token-${sentinel}`;
+
+    try {
+      await runPostReleaseCommand(newVersion, 'bash -c true');
+
+      const spawnCall = mockedSpawnProcess.mock.calls[0];
+      const envArg = spawnCall[2].env as Record<string, unknown>;
+
+      expect(envArg.CRAFT_RELEASED_VERSION).toBe(newVersion);
+      expect(envArg.LD_PRELOAD).toBeUndefined();
+      expect(envArg.AWS_SECRET_ACCESS_KEY).toBeUndefined();
+      expect(envArg.SECRET_TOKEN).toBeUndefined();
+
+      for (const v of Object.values(envArg)) {
+        if (typeof v === 'string') {
+          expect(v).not.toContain(sentinel);
+        }
+      }
+    } finally {
+      for (const [key, val] of Object.entries(before)) {
+        if (val === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = val;
+        }
+      }
+    }
+  });
 });
 
 describe('handleReleaseBranch', () => {
