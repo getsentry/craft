@@ -385,7 +385,7 @@ export class NpmTarget extends BaseTarget {
               'npm version --workspaces exited non-zero but every workspace ' +
                 'package.json was successfully bumped to the target version. ' +
                 'This is likely caused by "workspace:*" dependency protocols ' +
-                'tripping npm\'s URL validator — see https://github.com/npm/cli/issues/8845. ' +
+                "tripping npm's URL validator — see https://github.com/npm/cli/issues/8845. " +
                 'Treating the bump as successful.',
             );
             logger.debug(
@@ -471,9 +471,7 @@ export class NpmTarget extends BaseTarget {
       }
       // npm version --workspaces bumps ALL workspace packages, including
       // private ones, so we verify every package regardless of privacy.
-      if (
-        NpmTarget.readPackageJsonVersion(pkgJsonPath) !== expectedVersion
-      ) {
+      if (NpmTarget.readPackageJsonVersion(pkgJsonPath) !== expectedVersion) {
         return false;
       }
     }
@@ -586,9 +584,7 @@ export class NpmTarget extends BaseTarget {
     let patchedCount = 0;
     for (const pkg of packages) {
       // bun.lock always uses forward slashes even on Windows.
-      const relPath = relative(rootDir, pkg.location)
-        .split(pathSep)
-        .join('/');
+      const relPath = relative(rootDir, pkg.location).split(pathSep).join('/');
       if (!relPath || relPath.startsWith('..')) {
         // Package lives outside rootDir; skip.
         continue;

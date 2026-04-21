@@ -1,13 +1,6 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { join } from 'path';
-import {
-  mkdtemp,
-  rm,
-  writeFile,
-  mkdir,
-  readFile,
-  stat,
-} from 'fs/promises';
+import { mkdtemp, rm, writeFile, mkdir, readFile, stat } from 'fs/promises';
 import { writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 
@@ -363,11 +356,7 @@ describe('NpmTarget.bumpVersion', () => {
       expect(result).toBe(true);
       // Fallback should have hit each public workspace package.
       const perPkgCwds = calls
-        .filter(
-          c =>
-            !c.args.includes('--workspaces') &&
-            c.cwd !== tempDir,
-        )
+        .filter(c => !c.args.includes('--workspaces') && c.cwd !== tempDir)
         .map(c => c.cwd);
       expect(perPkgCwds).toEqual(
         expect.arrayContaining([
@@ -472,9 +461,7 @@ describe('NpmTarget.bumpVersion', () => {
           if (args.includes('--workspaces')) {
             const cwd = (opts as { cwd: string }).cwd;
             for (const p of [rootPkg, corePkg, appPkg]) {
-              const raw = JSON.parse(
-                require('fs').readFileSync(p, 'utf-8'),
-              );
+              const raw = JSON.parse(require('fs').readFileSync(p, 'utf-8'));
               raw.version = '1.0.0';
               writeFileSync(p, JSON.stringify(raw));
             }
@@ -505,9 +492,10 @@ describe('NpmTarget.bumpVersion', () => {
 
       // No bun.lock created.
       await expect(NpmTarget.bumpVersion(tempDir, '1.0.0')).resolves.toBe(true);
-      await expect(
-        stat(join(tempDir, 'bun.lock')),
-      ).rejects.toHaveProperty('code', 'ENOENT');
+      await expect(stat(join(tempDir, 'bun.lock'))).rejects.toHaveProperty(
+        'code',
+        'ENOENT',
+      );
     });
 
     test('bun.lock patching leaves nested dependency version pins untouched', async () => {
@@ -648,9 +636,7 @@ describe('NpmTarget.bumpVersion', () => {
               join(tempDir, 'packages', 'foo', 'package.json'),
               join(tempDir, 'packages', 'foo-bar', 'package.json'),
             ]) {
-              const raw = JSON.parse(
-                require('fs').readFileSync(p, 'utf-8'),
-              );
+              const raw = JSON.parse(require('fs').readFileSync(p, 'utf-8'));
               raw.version = '2.0.0';
               writeFileSync(p, JSON.stringify(raw));
             }
