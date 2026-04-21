@@ -237,6 +237,10 @@ changelog:
       commit_patterns:
         - "^(?<type>\\w+(?:\\((?<scope>[^)]+)\\))?!:\\s*)"
       semver: major
+    - title: Security 🔒
+      commit_patterns:
+        - "^(?<type>security(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+      semver: patch
     - title: New Features ✨
       commit_patterns:
         - "^(?<type>feat(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
