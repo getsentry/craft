@@ -1,4 +1,4 @@
-import { vi, describe, test, expect } from 'vitest';
+import { vi, describe, test, expect, beforeEach } from 'vitest';
 import { promises as fsPromises } from 'fs';
 import { importGPGKey } from '../gpg';
 import { spawnProcess } from '../system';
@@ -10,35 +10,52 @@ vi.mock('fs', async importOriginal => {
   return {
     ...actual,
     promises: {
+      ...actual.promises,
       writeFile: vi.fn(() => Promise.resolve()),
-      unlink: vi.fn(),
+      unlink: vi.fn(() => Promise.resolve()),
+      mkdtemp: vi.fn(() => Promise.resolve('/tmp/should-not-be-created')),
+      rm: vi.fn(() => Promise.resolve()),
     },
   };
 });
 
 describe('importGPGKey', () => {
   const KEY = 'very_private_key_like_for_real_really_private';
-  const PRIVATE_KEY_FILE_MATCHER = expect.stringMatching(/private-key.asc$/);
 
-  test('should write key to temp file', async () => {
-    importGPGKey(KEY);
-    expect(fsPromises.writeFile).toHaveBeenCalledWith(
-      PRIVATE_KEY_FILE_MATCHER,
-      KEY,
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  test('passes the key to gpg via stdin and never touches the filesystem', async () => {
+    await importGPGKey(KEY);
+
+    // gpg is spawned with --batch --import, no file path argument.
+    expect(spawnProcess).toHaveBeenCalledTimes(1);
+    expect(spawnProcess).toHaveBeenCalledWith(
+      'gpg',
+      ['--batch', '--import'],
+      {},
+      { stdin: KEY },
     );
   });
 
-  test('should remove file with the key afterwards', async () => {
-    importGPGKey(KEY);
-    expect(spawnProcess).toHaveBeenCalledWith('gpg', [
-      '--batch',
-      '--import',
-      PRIVATE_KEY_FILE_MATCHER,
-    ]);
+  test('does not write or unlink any file', async () => {
+    await importGPGKey(KEY);
+
+    // The old implementation wrote the key to `tmpdir()/private-key.asc`
+    // and then unlinked it. Neither must happen in the new version.
+    expect(fsPromises.writeFile).not.toHaveBeenCalled();
+    expect(fsPromises.unlink).not.toHaveBeenCalled();
   });
 
-  test('should call gpg command to load the key', async () => {
-    importGPGKey(KEY);
-    expect(fsPromises.unlink).toHaveBeenCalledWith(PRIVATE_KEY_FILE_MATCHER);
+  test('key is not embedded in argv (not visible in process list)', async () => {
+    await importGPGKey(KEY);
+
+    const [, args] = (spawnProcess as any).mock.calls[0];
+    // Argv should contain only the static gpg flags; the key must only
+    // travel through stdin.
+    for (const arg of args as string[]) {
+      expect(arg).not.toContain(KEY);
+    }
   });
 });
