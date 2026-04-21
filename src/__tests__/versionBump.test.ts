@@ -1,6 +1,14 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { join } from 'path';
-import { mkdtemp, rm, writeFile, mkdir, readFile } from 'fs/promises';
+import {
+  mkdtemp,
+  rm,
+  writeFile,
+  mkdir,
+  readFile,
+  stat,
+} from 'fs/promises';
+import { writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 
 import { runAutomaticVersionBumps } from '../utils/versionBump';
@@ -212,6 +220,324 @@ describe('NpmTarget.bumpVersion', () => {
       expect.arrayContaining(['version', '1.0.0', '--no-git-tag-version']),
       expect.objectContaining({ cwd: tempDir }),
     );
+  });
+
+  describe('workspace:* handling (issue #804)', () => {
+    /**
+     * Set up a workspace monorepo:
+     *   /package.json                        (workspaces: ["packages/*"])
+     *   /packages/core/package.json          (@scope/core, version 0.0.1)
+     *   /packages/app/package.json           (@scope/app, 0.0.1, deps: core @ workspace:*)
+     */
+    async function setupWorkspaceRepo(): Promise<{
+      rootPkg: string;
+      corePkg: string;
+      appPkg: string;
+    }> {
+      const rootPkg = join(tempDir, 'package.json');
+      await writeFile(
+        rootPkg,
+        JSON.stringify({
+          name: 'root',
+          version: '0.0.1',
+          private: true,
+          workspaces: ['packages/*'],
+        }),
+      );
+
+      await mkdir(join(tempDir, 'packages', 'core'), { recursive: true });
+      const corePkg = join(tempDir, 'packages', 'core', 'package.json');
+      await writeFile(
+        corePkg,
+        JSON.stringify({
+          name: '@scope/core',
+          version: '0.0.1',
+        }),
+      );
+
+      await mkdir(join(tempDir, 'packages', 'app'), { recursive: true });
+      const appPkg = join(tempDir, 'packages', 'app', 'package.json');
+      await writeFile(
+        appPkg,
+        JSON.stringify({
+          name: '@scope/app',
+          version: '0.0.1',
+          dependencies: { '@scope/core': 'workspace:*' },
+        }),
+      );
+
+      return { rootPkg, corePkg, appPkg };
+    }
+
+    async function readVersion(pkgPath: string): Promise<string> {
+      const raw = await readFile(pkgPath, 'utf-8');
+      return JSON.parse(raw).version;
+    }
+
+    test('post-check treats npm/cli#8845-style failure as success when files are bumped', async () => {
+      const { rootPkg, corePkg, appPkg } = await setupWorkspaceRepo();
+
+      // Simulate `npm version --workspaces`: write the new version to every
+      // package.json, then exit non-zero (EUNSUPPORTEDPROTOCOL).
+      mockSpawnProcess.mockImplementation(
+        async (_bin: string, args: string[], _opts: unknown) => {
+          if (args.includes('--workspaces')) {
+            writeFileSync(
+              rootPkg,
+              JSON.stringify({
+                name: 'root',
+                version: '1.0.0',
+                private: true,
+                workspaces: ['packages/*'],
+              }),
+            );
+            writeFileSync(
+              corePkg,
+              JSON.stringify({ name: '@scope/core', version: '1.0.0' }),
+            );
+            writeFileSync(
+              appPkg,
+              JSON.stringify({
+                name: '@scope/app',
+                version: '1.0.0',
+                dependencies: { '@scope/core': 'workspace:*' },
+              }),
+            );
+            throw new Error(
+              'npm error code EUNSUPPORTEDPROTOCOL\nnpm error Unsupported URL Type "workspace:": workspace:*',
+            );
+          }
+          return Buffer.from('');
+        },
+      );
+
+      const result = await NpmTarget.bumpVersion(tempDir, '1.0.0');
+
+      expect(result).toBe(true);
+      expect(await readVersion(rootPkg)).toBe('1.0.0');
+      expect(await readVersion(corePkg)).toBe('1.0.0');
+      expect(await readVersion(appPkg)).toBe('1.0.0');
+
+      // Should NOT have fallen back to per-package bumping.
+      const workspaceCalls = mockSpawnProcess.mock.calls.filter(call =>
+        (call[1] as string[]).includes('--workspaces'),
+      );
+      expect(workspaceCalls).toHaveLength(1);
+      const perPackageCalls = mockSpawnProcess.mock.calls.filter(
+        call =>
+          !(call[1] as string[]).includes('--workspaces') &&
+          (call[2] as { cwd?: string })?.cwd !== tempDir,
+      );
+      expect(perPackageCalls).toHaveLength(0);
+    });
+
+    test('falls back to individual bumping when files are NOT bumped', async () => {
+      const { rootPkg, corePkg, appPkg } = await setupWorkspaceRepo();
+      const calls: Array<{ cwd: string; args: string[] }> = [];
+
+      mockSpawnProcess.mockImplementation(
+        async (_bin: string, args: string[], opts: unknown) => {
+          const cwd = (opts as { cwd?: string })?.cwd ?? '';
+          calls.push({ cwd, args: [...args] });
+          if (args.includes('--workspaces')) {
+            // Genuine failure: do NOT write files.
+            throw new Error('some other npm error, files unchanged');
+          }
+          // Per-package call: simulate successful bump by writing version.
+          const pkgJsonPath = join(cwd, 'package.json');
+          try {
+            const raw = JSON.parse(
+              require('fs').readFileSync(pkgJsonPath, 'utf-8'),
+            );
+            raw.version = '1.0.0';
+            writeFileSync(pkgJsonPath, JSON.stringify(raw));
+          } catch {
+            // Root call may run before workspace discovery — ignore.
+          }
+          return Buffer.from('');
+        },
+      );
+
+      const result = await NpmTarget.bumpVersion(tempDir, '1.0.0');
+
+      expect(result).toBe(true);
+      // Fallback should have hit each public workspace package.
+      const perPkgCwds = calls
+        .filter(
+          c =>
+            !c.args.includes('--workspaces') &&
+            c.cwd !== tempDir,
+        )
+        .map(c => c.cwd);
+      expect(perPkgCwds).toEqual(
+        expect.arrayContaining([
+          join(tempDir, 'packages', 'core'),
+          join(tempDir, 'packages', 'app'),
+        ]),
+      );
+      expect(await readVersion(rootPkg)).toBe('1.0.0');
+      expect(await readVersion(corePkg)).toBe('1.0.0');
+      expect(await readVersion(appPkg)).toBe('1.0.0');
+    });
+
+    test('per-package bump post-check tolerates npm/cli#8845 and continues', async () => {
+      const { rootPkg, corePkg, appPkg } = await setupWorkspaceRepo();
+
+      mockSpawnProcess.mockImplementation(
+        async (_bin: string, args: string[], opts: unknown) => {
+          const cwd = (opts as { cwd?: string })?.cwd ?? '';
+          if (args.includes('--workspaces')) {
+            // First failure to force fallback; no file writes.
+            throw new Error('files untouched');
+          }
+          // Per-package: write version but also throw, simulating #8845.
+          if (cwd !== tempDir) {
+            const pkgJsonPath = join(cwd, 'package.json');
+            const raw = JSON.parse(
+              require('fs').readFileSync(pkgJsonPath, 'utf-8'),
+            );
+            raw.version = '1.0.0';
+            writeFileSync(pkgJsonPath, JSON.stringify(raw));
+            throw new Error('EUNSUPPORTEDPROTOCOL workspace:*');
+          }
+          // Root call: no-op but succeed.
+          return Buffer.from('');
+        },
+      );
+
+      const result = await NpmTarget.bumpVersion(tempDir, '1.0.0');
+
+      expect(result).toBe(true);
+      expect(await readVersion(rootPkg)).toBe('0.0.1'); // root spawn returned buffer, no write
+      expect(await readVersion(corePkg)).toBe('1.0.0');
+      expect(await readVersion(appPkg)).toBe('1.0.0');
+    });
+
+    test('rethrows when per-package bump fails and file is NOT bumped', async () => {
+      await setupWorkspaceRepo();
+
+      mockSpawnProcess.mockImplementation(
+        async (_bin: string, args: string[], opts: unknown) => {
+          const cwd = (opts as { cwd?: string })?.cwd ?? '';
+          if (args.includes('--workspaces')) {
+            throw new Error('trigger fallback');
+          }
+          if (cwd !== tempDir) {
+            // Per-package: do NOT write, throw — genuine failure.
+            throw new Error('real npm failure, e.g. bad version');
+          }
+          return Buffer.from('');
+        },
+      );
+
+      await expect(NpmTarget.bumpVersion(tempDir, '1.0.0')).rejects.toThrow(
+        'real npm failure',
+      );
+    });
+
+    test('patches bun.lock workspace versions after successful bump', async () => {
+      const { rootPkg, corePkg, appPkg } = await setupWorkspaceRepo();
+
+      const bunLock = `{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "root",
+    },
+    "packages/core": {
+      "name": "@scope/core",
+      "version": "0.0.1",
+    },
+    "packages/app": {
+      "name": "@scope/app",
+      "version": "0.0.1",
+      "dependencies": {
+        "@scope/core": "workspace:*",
+      },
+    },
+  },
+  "packages": {
+    "@scope/core": ["@scope/core@0.0.1", "workspace:packages/core"],
+  },
+}
+`;
+      await writeFile(join(tempDir, 'bun.lock'), bunLock);
+
+      // Normal spawnProcess: succeed without writing (files get written below).
+      mockSpawnProcess.mockImplementation(
+        async (_bin: string, args: string[], opts: unknown) => {
+          // Simulate a successful npm version bump.
+          if (args.includes('--workspaces')) {
+            const cwd = (opts as { cwd: string }).cwd;
+            for (const p of [rootPkg, corePkg, appPkg]) {
+              const raw = JSON.parse(
+                require('fs').readFileSync(p, 'utf-8'),
+              );
+              raw.version = '1.0.0';
+              writeFileSync(p, JSON.stringify(raw));
+            }
+            void cwd;
+          }
+          return Buffer.from('');
+        },
+      );
+
+      const result = await NpmTarget.bumpVersion(tempDir, '1.0.0');
+
+      expect(result).toBe(true);
+      const patched = await readFile(join(tempDir, 'bun.lock'), 'utf-8');
+      // Both workspace entries should have the new version.
+      expect(patched).toContain('"packages/core": {');
+      expect(patched).toMatch(
+        /"packages\/core":\s*\{[\s\S]*?"version":\s*"1\.0\.0"/,
+      );
+      expect(patched).toMatch(
+        /"packages\/app":\s*\{[\s\S]*?"version":\s*"1\.0\.0"/,
+      );
+      // Nested dependency version pins must stay as "workspace:*".
+      expect(patched).toContain('"@scope/core": "workspace:*"');
+    });
+
+    test('bun.lock patching is a no-op when file is absent', async () => {
+      await setupWorkspaceRepo();
+
+      // No bun.lock created.
+      await expect(NpmTarget.bumpVersion(tempDir, '1.0.0')).resolves.toBe(true);
+      await expect(
+        stat(join(tempDir, 'bun.lock')),
+      ).rejects.toHaveProperty('code', 'ENOENT');
+    });
+
+    test('bun.lock patching leaves nested dependency version pins untouched', async () => {
+      await setupWorkspaceRepo();
+
+      // This time include a concrete version pin inside dependencies to prove
+      // the regex is non-greedy and only rewrites the workspace's top-level
+      // "version" line.
+      const bunLock = `{
+  "workspaces": {
+    "packages/core": {
+      "name": "@scope/core",
+      "version": "0.0.1",
+      "dependencies": {
+        "@other/dep": "0.0.1",
+      },
+    },
+  },
+}
+`;
+      await writeFile(join(tempDir, 'bun.lock'), bunLock);
+
+      await NpmTarget.bumpVersion(tempDir, '2.0.0');
+
+      const patched = await readFile(join(tempDir, 'bun.lock'), 'utf-8');
+      // Top-level workspace version bumped.
+      expect(patched).toMatch(
+        /"packages\/core":\s*\{[\s\S]*?"version":\s*"2\.0\.0"/,
+      );
+      // Nested dep pin must NOT have been rewritten.
+      expect(patched).toContain('"@other/dep": "0.0.1"');
+    });
   });
 });
 
