@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.26.0
+
+### Security 🔒
+
+- (ci) Pin third-party GitHub Actions to commit SHAs by @BYK in [#801](https://github.com/getsentry/craft/pull/801)
+- (commit-repo) Replace execSync tar with node-tar by @BYK in [#799](https://github.com/getsentry/craft/pull/799)
+- (gpg) Pipe private key via stdin instead of writing to /tmp by @BYK in [#798](https://github.com/getsentry/craft/pull/798)
+- (publish) Move publish-state file out of repo cwd by @BYK in [#797](https://github.com/getsentry/craft/pull/797)
+- (spawn) Strip dynamic-linker env vars from subprocess env by @BYK in [#800](https://github.com/getsentry/craft/pull/800)
+
+### New Features ✨
+
+- Recognize `security:` commit prefix for changelog and versioning by @BYK in [#802](https://github.com/getsentry/craft/pull/802)
+
 ## 2.25.5
 
 ### Bug Fixes 🐛
