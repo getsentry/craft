@@ -23,7 +23,7 @@
  * - `USER`, `GIT_COMMITTER_NAME`, `GIT_AUTHOR_NAME`, and `EMAIL` help with
  *   commit operations in post-release scripts.
  */
-export const ALLOWED_ENV_VARS = [
+const ALLOWED_ENV_VARS = [
   'HOME',
   'USER',
   'GIT_COMMITTER_NAME',
