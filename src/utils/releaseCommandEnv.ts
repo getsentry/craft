@@ -40,20 +40,30 @@ const ALLOWED_ENV_VARS = [
  *
  * - `GITHUB_*` — context metadata that GitHub Actions injects into every
  *   step (`GITHUB_REPOSITORY`, `GITHUB_SHA`, `GITHUB_REF`, `GITHUB_RUN_ID`,
- *   `GITHUB_ACTOR`, `GITHUB_WORKFLOW`, `GITHUB_API_URL`, `GITHUB_TOKEN`,
- *   ...). User release scripts commonly read these (e.g. sentry-cocoa's
- *   bump script stamps `GITHUB_RUN_ID` into a file for a follow-up step).
- *   `GITHUB_TOKEN` is a credential but is already the single-most-common
- *   thing release scripts need; pretending it's not in scope would force
- *   every consumer to proxy it via `CRAFT_*`.
+ *   `GITHUB_ACTOR`, `GITHUB_WORKFLOW`, `GITHUB_API_URL`, ...). User release
+ *   scripts commonly read these (e.g. sentry-cocoa's bump script stamps
+ *   `GITHUB_RUN_ID` into a file for a follow-up step). The namespace also
+ *   contains credentials — `GITHUB_TOKEN` and `GITHUB_API_TOKEN` (used as
+ *   a ghcr.io / cross-repo fallback in `src/targets/docker.ts`,
+ *   `src/targets/commitOnGitRepository.ts`, and `src/utils/githubApi.ts`).
+ *   Both are forwarded by this prefix match. This is an intentional
+ *   trade-off: a malicious `preReleaseCommand` that already has shell
+ *   execution could exfiltrate whichever of the two is set, but the
+ *   alternative (splitting context and credential by explicit lists)
+ *   would force every consumer to proxy routine Actions metadata via
+ *   `CRAFT_*`, which is the ergonomic regression that #807 exists to
+ *   fix. Also note: `GITHUB_ENV`, `GITHUB_PATH`, `GITHUB_OUTPUT`, and
+ *   `GITHUB_STEP_SUMMARY` point at runner files that subsequent workflow
+ *   steps read — forwarding them lets a compromised release command
+ *   influence later steps. The attacker already has shell exec in the
+ *   same docker mount as those files, so no new primitive is granted.
  * - `RUNNER_*` — non-secret runner metadata (`RUNNER_OS`, `RUNNER_ARCH`,
  *   `RUNNER_TEMP`, ...) with the same ergonomic justification.
  *
- * These prefixes do NOT cover credential env vars (`NPM_TOKEN`,
- * `CRATES_IO_TOKEN`, `DOCKER_PASSWORD`, `GPG_PRIVATE_KEY`,
- * `AWS_SECRET_ACCESS_KEY`, `TWINE_PASSWORD`, ...) which are all named
- * outside the `GITHUB_` / `RUNNER_` namespaces by convention, so the
- * prefix allowlist does not expand the credential-leak surface.
+ * These prefixes do NOT cover credential env vars named with unrelated
+ * prefixes (`NPM_TOKEN`, `CRATES_IO_TOKEN`, `DOCKER_PASSWORD`,
+ * `GPG_PRIVATE_KEY`, `AWS_SECRET_ACCESS_KEY`, `TWINE_PASSWORD`, ...) —
+ * those remain blocked by the allowlist.
  */
 const ALLOWED_ENV_VAR_PREFIXES = ['GITHUB_', 'RUNNER_'] as const;
 
@@ -61,13 +71,20 @@ const ALLOWED_ENV_VAR_PREFIXES = ['GITHUB_', 'RUNNER_'] as const;
  * Builds the environment for a user-defined release command subprocess.
  *
  * The returned env contains only:
- * - every key in {@link ALLOWED_ENV_VARS},
+ * - every key in {@link ALLOWED_ENV_VARS} (values from `process.env`,
+ *   which may be `undefined`),
  * - every key in `process.env` that starts with one of
- *   {@link ALLOWED_ENV_VAR_PREFIXES},
- * - any caller-supplied `extras` (e.g. `CRAFT_NEW_VERSION`).
+ *   {@link ALLOWED_ENV_VAR_PREFIXES}; prefix-match keys are only
+ *   included when actually present on `process.env`,
+ * - any caller-supplied `extras` (e.g. `CRAFT_NEW_VERSION`), which
+ *   override values from the above buckets.
  *
- * Undefined values are preserved (Node's `spawn` treats `undefined` as
- * "unset" rather than the string "undefined").
+ * Node's `child_process.spawn` treats an `undefined` value and an
+ * absent key identically — both result in the variable being unset in
+ * the child. Callers inspecting the returned object via `Object.keys`
+ * should be aware that exact-match keys are always present (even with
+ * `undefined` values) while prefix-match keys are only present when
+ * set.
  *
  * @param extras Additional key/value pairs to include in the child env.
  * @returns A fresh env object safe to pass to `spawn` / `spawnProcess`.
