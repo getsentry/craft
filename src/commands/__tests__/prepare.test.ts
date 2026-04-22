@@ -15,17 +15,27 @@ describe('runPreReleaseCommand', () => {
   const rootDir = process.cwd();
   const mockedSpawnProcess = spawnProcess as Mock;
 
-  const expectedBaseEnv = () => ({
-    PATH: process.env.PATH,
-    GITHUB_TOKEN: process.env.GITHUB_TOKEN,
-    HOME: process.env.HOME,
-    USER: process.env.USER,
-    GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME,
-    GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME,
-    EMAIL: process.env.EMAIL,
-    CRAFT_NEW_VERSION: newVersion,
-    CRAFT_OLD_VERSION: oldVersion,
-  });
+  const expectedBaseEnv = () => {
+    const env: Record<string, string | undefined> = {
+      PATH: process.env.PATH,
+      HOME: process.env.HOME,
+      USER: process.env.USER,
+      GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME,
+      GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME,
+      EMAIL: process.env.EMAIL,
+    };
+    // Prefix-match keys are forwarded as a group — enumerate whatever's
+    // currently on `process.env` (keeps the test stable across local
+    // runs, CI runs with GHA env, and CI runs with runner env).
+    for (const key of Object.keys(process.env)) {
+      if (key.startsWith('GITHUB_') || key.startsWith('RUNNER_')) {
+        env[key] = process.env[key];
+      }
+    }
+    env.CRAFT_NEW_VERSION = newVersion;
+    env.CRAFT_OLD_VERSION = oldVersion;
+    return env;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -108,6 +118,56 @@ describe('runPreReleaseCommand', () => {
       }
     } finally {
       // Restore prior env.
+      for (const [key, val] of Object.entries(before)) {
+        if (val === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = val;
+        }
+      }
+    }
+  });
+
+  test('forwards GITHUB_* and RUNNER_* by prefix, not credential-named vars', async () => {
+    // Regression test for the sentry-cocoa breakage where
+    // ./scripts/update-package-sha.sh read GITHUB_RUN_ID and exploded
+    // with "unbound variable" because Craft was stripping the whole
+    // GITHUB_* namespace.
+    const before = {
+      GITHUB_RUN_ID: process.env.GITHUB_RUN_ID,
+      GITHUB_REPOSITORY: process.env.GITHUB_REPOSITORY,
+      RUNNER_OS: process.env.RUNNER_OS,
+      NPM_TOKEN: process.env.NPM_TOKEN,
+      DOCKER_PASSWORD: process.env.DOCKER_PASSWORD,
+    };
+    process.env.GITHUB_RUN_ID = '123456';
+    process.env.GITHUB_REPOSITORY = 'getsentry/sentry-cocoa';
+    process.env.RUNNER_OS = 'Linux';
+    process.env.NPM_TOKEN = 'npm_xxx_must_not_leak';
+    process.env.DOCKER_PASSWORD = 'dockerpw_must_not_leak';
+
+    try {
+      await runPreReleaseCommand({
+        oldVersion,
+        newVersion,
+        rootDir,
+        preReleaseCommand: 'scripts/bump-version.sh',
+      });
+
+      const envArg = mockedSpawnProcess.mock.calls[0][2].env as Record<
+        string,
+        unknown
+      >;
+
+      // GITHUB_* and RUNNER_* pass through.
+      expect(envArg.GITHUB_RUN_ID).toBe('123456');
+      expect(envArg.GITHUB_REPOSITORY).toBe('getsentry/sentry-cocoa');
+      expect(envArg.RUNNER_OS).toBe('Linux');
+
+      // Credential-named vars do not.
+      expect(envArg.NPM_TOKEN).toBeUndefined();
+      expect(envArg.DOCKER_PASSWORD).toBeUndefined();
+    } finally {
       for (const [key, val] of Object.entries(before)) {
         if (val === undefined) {
           delete process.env[key];

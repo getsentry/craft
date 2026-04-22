@@ -452,9 +452,9 @@ async function runCustomPreReleaseCommand(
 
   // The pre-release command comes from .craft.yml, which is
   // attacker-influenceable via untrusted PRs. We forward only an
-  // allowlisted env (PATH, GITHUB_TOKEN, HOME, etc.) plus the CRAFT_*
-  // version vars to avoid leaking secrets into a potentially malicious
-  // command. See src/utils/releaseCommandEnv.ts for rationale.
+  // allowlisted env plus the CRAFT_* version vars to avoid leaking
+  // secrets into a potentially malicious command. See
+  // src/utils/releaseCommandEnv.ts for the exact allowlist and rationale.
   await spawnProcess(sysCommand, args, {
     env: buildReleaseCommandEnv({
       CRAFT_NEW_VERSION: newVersion,
