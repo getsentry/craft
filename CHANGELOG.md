@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.26.1
+
+### Security 🔒
+
+- (release-env) Allowlist GITHUB_* and RUNNER_* by prefix by @BYK in [#807](https://github.com/getsentry/craft/pull/807)
+
+### Bug Fixes 🐛
+
+- (npm) Tolerate workspace:* deps in version bump and bun.lock patching by @BYK in [#805](https://github.com/getsentry/craft/pull/805)
+
+### Internal Changes 🔧
+
+- Fix Node 20 + app-id deprecation warnings, refresh Node matrix by @BYK in [#803](https://github.com/getsentry/craft/pull/803)
+
 ## 2.26.0
 
 ### Security 🔒
