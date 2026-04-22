@@ -22,6 +22,24 @@ describe('runPostReleaseCommand', () => {
   const mockedSpawnProcess = spawnProcess as Mock;
   const mockedHasExecutable = hasExecutable as Mock;
 
+  const expectedBaseEnv = () => {
+    const env: Record<string, string | undefined> = {
+      PATH: process.env.PATH,
+      HOME: process.env.HOME,
+      USER: process.env.USER,
+      GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME,
+      GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME,
+      EMAIL: process.env.EMAIL,
+    };
+    for (const key of Object.keys(process.env)) {
+      if (key.startsWith('GITHUB_') || key.startsWith('RUNNER_')) {
+        env[key] = process.env[key];
+      }
+    }
+    env.CRAFT_RELEASED_VERSION = newVersion;
+    return env;
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -36,18 +54,7 @@ describe('runPostReleaseCommand', () => {
       expect(mockedSpawnProcess).toHaveBeenCalledWith(
         '/bin/bash',
         [pathJoin('scripts', 'post-release.sh'), '', newVersion],
-        {
-          env: {
-            CRAFT_RELEASED_VERSION: newVersion,
-            PATH: process.env.PATH,
-            GITHUB_TOKEN: process.env.GITHUB_TOKEN,
-            HOME: process.env.HOME,
-            USER: process.env.USER,
-            GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME,
-            GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME,
-            EMAIL: process.env.EMAIL,
-          },
-        },
+        { env: expectedBaseEnv() },
       );
     });
 
@@ -72,18 +79,7 @@ describe('runPostReleaseCommand', () => {
     expect(mockedSpawnProcess).toHaveBeenCalledWith(
       'python',
       ['./increase_version.py', 'argument 1', '', newVersion],
-      {
-        env: {
-          CRAFT_RELEASED_VERSION: newVersion,
-          PATH: process.env.PATH,
-          GITHUB_TOKEN: process.env.GITHUB_TOKEN,
-          HOME: process.env.HOME,
-          USER: process.env.USER,
-          GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME,
-          GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME,
-          EMAIL: process.env.EMAIL,
-        },
-      },
+      { env: expectedBaseEnv() },
     );
   });
 
@@ -116,6 +112,44 @@ describe('runPostReleaseCommand', () => {
           expect(v).not.toContain(sentinel);
         }
       }
+    } finally {
+      for (const [key, val] of Object.entries(before)) {
+        if (val === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = val;
+        }
+      }
+    }
+  });
+
+  test('forwards GITHUB_* and RUNNER_* by prefix, not credential-named vars', async () => {
+    const before = {
+      GITHUB_RUN_ID: process.env.GITHUB_RUN_ID,
+      GITHUB_REPOSITORY: process.env.GITHUB_REPOSITORY,
+      RUNNER_OS: process.env.RUNNER_OS,
+      NPM_TOKEN: process.env.NPM_TOKEN,
+      DOCKER_PASSWORD: process.env.DOCKER_PASSWORD,
+    };
+    process.env.GITHUB_RUN_ID = '9876';
+    process.env.GITHUB_REPOSITORY = 'getsentry/sentry-cocoa';
+    process.env.RUNNER_OS = 'Linux';
+    process.env.NPM_TOKEN = 'npm_xxx_must_not_leak';
+    process.env.DOCKER_PASSWORD = 'dockerpw_must_not_leak';
+
+    try {
+      await runPostReleaseCommand(newVersion, 'bash -c true');
+
+      const envArg = mockedSpawnProcess.mock.calls[0][2].env as Record<
+        string,
+        unknown
+      >;
+
+      expect(envArg.GITHUB_RUN_ID).toBe('9876');
+      expect(envArg.GITHUB_REPOSITORY).toBe('getsentry/sentry-cocoa');
+      expect(envArg.RUNNER_OS).toBe('Linux');
+      expect(envArg.NPM_TOKEN).toBeUndefined();
+      expect(envArg.DOCKER_PASSWORD).toBeUndefined();
     } finally {
       for (const [key, val] of Object.entries(before)) {
         if (val === undefined) {
