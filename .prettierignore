@@ -4,3 +4,9 @@ node_modules/
 pnpm-lock.yaml
 temp_*/
 docs/
+# Auto-generated from PR descriptions by the release tooling.
+# Its contents carry markdown that does not always conform to prettier's
+# preferences (e.g. literal `_*` sequences from release-note titles that
+# prettier wants escaped to `\*`). Excluding avoids re-formatting on every
+# release cut.
+CHANGELOG.md
