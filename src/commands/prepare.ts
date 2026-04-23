@@ -796,7 +796,11 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
   // is responsible for ensuring the branch is trusted — the remote
   // config's preReleaseCommand will be executed by Craft.
   if (argv.configFrom) {
-    logger.info(`Loading configuration from remote branch: ${argv.configFrom}`);
+    logger.warn(
+      `Loading .craft.yml from remote branch "${argv.configFrom}". ` +
+        `Its preReleaseCommand will be executed by Craft — ensure the ` +
+        `branch is trusted.`,
+    );
     try {
       await git.fetch([argv.remote, argv.configFrom]);
       const configContent = await git.show([
