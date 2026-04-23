@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.26.2
+
+### Security 🔒
+
+- (deps) Bump uuid to ^14.0.0 (fix GHSA-w5hq-g745-h8pq) by @BYK in [#810](https://github.com/getsentry/craft/pull/810)
+
+### Bug Fixes 🐛
+
+- (prepare) Remove --allow-remote-config gate by @BYK in [#809](https://github.com/getsentry/craft/pull/809)
+
+### Internal Changes 🔧
+
+- (deps) Bump astro from 5.18.1 to 6.1.6 in /docs by @dependabot in [#806](https://github.com/getsentry/craft/pull/806)
+- (deps-dev) Bump fast-xml-parser from 5.5.7 to 5.7.0 by @dependabot in [#808](https://github.com/getsentry/craft/pull/808)
+
 ## 2.26.1
 
 ### Security 🔒
