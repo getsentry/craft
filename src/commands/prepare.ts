@@ -123,18 +123,8 @@ export const builder: CommandBuilder = (yargs: Argv) =>
     })
     .option('config-from', {
       description:
-        'Load .craft.yml from the specified remote branch instead of local file. ' +
-        'Requires --allow-remote-config since the remote config can run arbitrary ' +
-        'commands via preReleaseCommand.',
+        'Load .craft.yml from the specified remote branch instead of local file',
       type: 'string',
-    })
-    .option('allow-remote-config', {
-      description:
-        'Opt in to loading .craft.yml from a remote branch via --config-from. ' +
-        'Without this flag, --config-from is rejected because remotely-fetched ' +
-        'config is untrusted input that can execute arbitrary commands.',
-      type: 'boolean',
-      default: false,
     })
     .option('calver-offset', {
       description:
@@ -161,8 +151,6 @@ interface PrepareOptions {
   publish: boolean;
   /** Load config from specified remote branch */
   configFrom?: string;
-  /** Explicit opt-in required to use --config-from */
-  allowRemoteConfig?: boolean;
   /** Override CalVer offset (days to go back) */
   calverOffset?: number;
 }
@@ -172,33 +160,6 @@ interface PrepareOptions {
  * flag was specified
  */
 const SLEEP_BEFORE_PUBLISH_SECONDS = 30;
-
-/**
- * Throws a {@link ConfigurationError} if `--config-from` was provided
- * without the explicit `--allow-remote-config` opt-in.
- *
- * Remote-fetched `.craft.yml` is untrusted input: a malicious or
- * compromised branch can set `preReleaseCommand` to an arbitrary shell
- * command that Craft will execute with the allowlisted release env
- * (including `GITHUB_TOKEN`). Requiring an explicit opt-in makes this
- * tradeoff visible in CI logs and prevents accidental use.
- *
- * @param configFrom The branch name passed to `--config-from`.
- * @param allowRemoteConfig Whether the user explicitly opted in.
- */
-export function assertRemoteConfigAllowed(
-  configFrom: string,
-  allowRemoteConfig: boolean | undefined,
-): void {
-  if (!allowRemoteConfig) {
-    throw new ConfigurationError(
-      `--config-from loads ${CONFIG_FILE_NAME} from a remote git ref, which ` +
-        `can execute arbitrary commands via preReleaseCommand. Pass ` +
-        `--allow-remote-config (or set CRAFT_ALLOW_REMOTE_CONFIG=1) to ` +
-        `confirm you trust the remote branch "${configFrom}".`,
-    );
-  }
-}
 
 /**
  * Checks the provided version argument for validity
@@ -831,12 +792,14 @@ async function resolveVersion(
 export async function prepareMain(argv: PrepareOptions): Promise<any> {
   let git = await getGitClient();
 
-  // Handle --config-from: load config from remote branch
+  // Handle --config-from: load config from remote branch. The caller
+  // is responsible for ensuring the branch is trusted — the remote
+  // config's preReleaseCommand will be executed by Craft.
   if (argv.configFrom) {
-    assertRemoteConfigAllowed(argv.configFrom, argv.allowRemoteConfig);
     logger.warn(
-      `Loading configuration from remote branch "${argv.configFrom}" (opted in via --allow-remote-config). ` +
-        `Ensure this branch is trusted — its .craft.yml will configure commands Craft will execute.`,
+      `Loading .craft.yml from remote branch "${argv.configFrom}". ` +
+        `Its preReleaseCommand will be executed by Craft — ensure the ` +
+        `branch is trusted.`,
     );
     try {
       await git.fetch([argv.remote, argv.configFrom]);

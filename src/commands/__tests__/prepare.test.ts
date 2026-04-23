@@ -1,11 +1,6 @@
 import { vi, describe, test, expect, beforeEach, type Mock } from 'vitest';
 import { spawnProcess } from '../../utils/system';
-import {
-  runPreReleaseCommand,
-  checkVersionOrPart,
-  assertRemoteConfigAllowed,
-} from '../prepare';
-import { ConfigurationError } from '../../utils/errors';
+import { runPreReleaseCommand, checkVersionOrPart } from '../prepare';
 
 vi.mock('../../utils/system');
 
@@ -241,34 +236,5 @@ describe('checkVersionOrPart', () => {
       };
       expect(fn).toThrow(t.e);
     }
-  });
-});
-
-describe('assertRemoteConfigAllowed', () => {
-  test('throws ConfigurationError when --allow-remote-config is not set', () => {
-    expect(() =>
-      assertRemoteConfigAllowed('untrusted-branch', false),
-    ).toThrowError(ConfigurationError);
-    expect(() =>
-      assertRemoteConfigAllowed('untrusted-branch', undefined),
-    ).toThrowError(ConfigurationError);
-  });
-
-  test('error message names the branch and the opt-in flag', () => {
-    try {
-      assertRemoteConfigAllowed('evil-branch', false);
-      throw new Error('expected throw');
-    } catch (err) {
-      const message = (err as Error).message;
-      expect(message).toContain('evil-branch');
-      expect(message).toContain('--allow-remote-config');
-      expect(message).toContain('CRAFT_ALLOW_REMOTE_CONFIG');
-    }
-  });
-
-  test('returns silently when opt-in is true', () => {
-    expect(() =>
-      assertRemoteConfigAllowed('trusted-branch', true),
-    ).not.toThrow();
   });
 });
