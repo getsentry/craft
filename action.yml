@@ -71,9 +71,12 @@ runs:
     - id: killswitch
       name: Check release blockers
       shell: bash
+      env:
+        FORCE_INPUT: ${{ inputs.force }}
+        BLOCKER_LABEL_INPUT: ${{ inputs.blocker_label }}
       run: |
-        if [[ '${{ inputs.force }}' != 'true' ]] && gh issue list -l '${{ inputs.blocker_label }}' -s open | grep -q '^[0-9]\+[[:space:]]'; then
-          echo "::error::Open release-blocking issues found (label: ${{ inputs.blocker_label }}), cancelling release..."
+        if [[ "$FORCE_INPUT" != 'true' ]] && gh issue list -l "$BLOCKER_LABEL_INPUT" -s open | grep -q '^[0-9]\+[[:space:]]'; then
+          echo "::error::Open release-blocking issues found (label: $BLOCKER_LABEL_INPUT), cancelling release..."
           gh api -X POST repos/:owner/:repo/actions/runs/$GITHUB_RUN_ID/cancel
         fi
 
@@ -101,6 +104,9 @@ runs:
 
     - name: Install Craft from artifact or release
       shell: bash
+      env:
+        CRAFT_VERSION_INPUT: ${{ inputs.craft_version }}
+        ACTION_REF: ${{ github.action_ref }}
       run: |
         set -euo pipefail
 
@@ -110,9 +116,9 @@ runs:
         else
           # Download from release (for external repos or if artifact unavailable)
           # Use explicit craft_version input if provided, otherwise fall back to github.action_ref
-          CRAFT_VERSION="${{ inputs.craft_version }}"
+          CRAFT_VERSION="$CRAFT_VERSION_INPUT"
           if [[ -z "$CRAFT_VERSION" ]]; then
-            CRAFT_VERSION="${{ github.action_ref }}"
+            CRAFT_VERSION="$ACTION_REF"
           fi
 
           if [[ "$CRAFT_VERSION" == "latest" || -z "$CRAFT_VERSION" ]]; then
@@ -153,6 +159,9 @@ runs:
       shell: bash
       env:
         CRAFT_LOG_LEVEL: Debug
+        CRAFT_CONFIG_FROM_MERGE_TARGET: ${{ inputs.craft_config_from_merge_target }}
+        MERGE_TARGET: ${{ inputs.merge_target }}
+        VERSION: ${{ inputs.version }}
       working-directory: ${{ inputs.path }}
       run: |
         # Ensure we have origin/HEAD set
@@ -160,14 +169,14 @@ runs:
 
         # Build command with optional flags
         CRAFT_ARGS=""
-        if [[ '${{ inputs.craft_config_from_merge_target }}' == 'true' && -n '${{ inputs.merge_target }}' ]]; then
-          CRAFT_ARGS="--config-from ${{ inputs.merge_target }}"
+        if [[ "$CRAFT_CONFIG_FROM_MERGE_TARGET" == 'true' && -n "$MERGE_TARGET" ]]; then
+          CRAFT_ARGS="--config-from \"$MERGE_TARGET\""
         fi
 
         # Version is optional - if not provided, Craft uses versioning.policy from config
         VERSION_ARG=""
-        if [[ -n '${{ inputs.version }}' ]]; then
-          VERSION_ARG="${{ inputs.version }}"
+        if [[ -n "$VERSION" ]]; then
+          VERSION_ARG="$VERSION"
         fi
 
         craft prepare $VERSION_ARG $CRAFT_ARGS
