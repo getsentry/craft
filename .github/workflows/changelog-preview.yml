@@ -100,10 +100,12 @@ jobs:
 
       - name: Install Craft
         shell: bash
+        env:
+          CRAFT_VERSION_INPUT: ${{ inputs.craft-version || 'latest' }}
         run: |
           set -euo pipefail
 
-          CRAFT_VERSION="${{ inputs.craft-version || 'latest' }}"
+          CRAFT_VERSION="$CRAFT_VERSION_INPUT"
 
           if [[ "$CRAFT_VERSION" == "latest" || -z "$CRAFT_VERSION" ]]; then
             echo "Downloading latest Craft release..."
@@ -112,7 +114,7 @@ jobs:
           else
             CRAFT_URL="https://github.com/getsentry/craft/releases/download/${CRAFT_VERSION}/craft"
             echo "Downloading Craft ${CRAFT_VERSION}..."
-            
+
             # Fallback to latest if specified version doesn't exist
             if ! curl -sfI "$CRAFT_URL" >/dev/null 2>&1; then
               echo "Release not found for version '${CRAFT_VERSION}', falling back to latest..."
@@ -146,9 +148,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CRAFT_LOG_LEVEL: Warn
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-
           echo "Running craft changelog --pr $PR_NUMBER --format json..."
           RESULT=$(craft changelog --pr "$PR_NUMBER" --format json 2>/dev/null || echo '{"changelog":"","bumpType":null}')
 
