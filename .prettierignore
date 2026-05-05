@@ -10,3 +10,6 @@ docs/
 # prettier wants escaped to `\*`). Excluding avoids re-formatting on every
 # release cut.
 CHANGELOG.md
+# Auto-managed by lore (https://github.com/BYK/loreai) — formatting is
+# controlled by the lore daemon, not prettier.
+AGENTS.md
