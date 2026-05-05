@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.26.3
+
+### Bug Fixes 🐛
+
+- Prevent shell injection vulnerabilities in GitHub Actions workflows by @fix-it-felix-sentry in [#811](https://github.com/getsentry/craft/pull/811)
+
 ## 2.26.2
 
 ### Security 🔒
