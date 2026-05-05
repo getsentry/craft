@@ -68,6 +68,11 @@ on:
         required: false
         type: boolean
         default: true
+      require-conventional-title:
+        description: 'Fail the workflow if the PR title does not match a conventional commit type (opt-in enforcement)'
+        required: false
+        type: boolean
+        default: false
 
   # Also run on PRs in this repository (dogfooding)
   pull_request:
@@ -140,6 +145,7 @@ jobs:
           craft --version
 
       - name: Generate Changelog Preview
+        id: preview
         shell: bash
         working-directory: ${{ inputs.working-directory }}
         env:
@@ -156,6 +162,13 @@ jobs:
           BUMP_TYPE=$(echo "$RESULT" | jq -r '.bumpType // "none"')
           PR_SKIPPED=$(echo "$RESULT" | jq -r '.prSkipped // false')
           VERSIONING_POLICY=$(echo "$RESULT" | jq -r '.versioningPolicy // "auto"')
+
+          # Export for downstream steps (e.g., title enforcement)
+          {
+            echo "bump_type=${BUMP_TYPE}"
+            echo "pr_skipped=${PR_SKIPPED}"
+            echo "versioning_policy=${VERSIONING_POLICY}"
+          } >> "$GITHUB_OUTPUT"
 
           if [[ "$PR_SKIPPED" == "true" ]]; then
             CHANGELOG="_This PR will not appear in the changelog._"
@@ -285,3 +298,38 @@ jobs:
             rm -f "$COMMENT_FILE"
             echo "✓ Comment posted"
           fi
+
+      - name: Enforce conventional title
+        if: inputs.require-conventional-title == true
+        shell: bash
+        env:
+          BUMP_TYPE: ${{ steps.preview.outputs.bump_type }}
+          PR_SKIPPED: ${{ steps.preview.outputs.pr_skipped }}
+          VERSIONING_POLICY: ${{ steps.preview.outputs.versioning_policy }}
+        run: |
+          if [[ "$PR_SKIPPED" == "true" ]]; then
+            echo "PR is skip-changelog — skipping title enforcement"
+            exit 0
+          fi
+
+          if [[ "$VERSIONING_POLICY" == "manual" ]]; then
+            echo "Manual versioning policy — skipping title enforcement"
+            exit 0
+          fi
+
+          if [[ "$BUMP_TYPE" == "null" || "$BUMP_TYPE" == "none" || -z "$BUMP_TYPE" ]]; then
+            echo "::error::PR title does not follow the conventional commits format."
+            echo ""
+            echo "Your PR title must start with a recognized type prefix:"
+            echo "  feat:, fix:, docs:, refactor:, chore:, ci:, test:, perf:,"
+            echo "  build:, style:, meta:, ref:, security:"
+            echo ""
+            echo "Optional scope: feat(ui): Add button component"
+            echo "Breaking change: feat!: Remove deprecated API"
+            echo ""
+            echo "To skip this check, add the 'skip-changelog' label"
+            echo "or include '#skip-changelog' in the PR body."
+            exit 1
+          fi
+
+          echo "PR title matches conventional commit format (bump: $BUMP_TYPE)"
