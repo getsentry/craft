@@ -115,7 +115,7 @@ runs:
           sudo install -m 755 /tmp/craft-artifact/dist/craft /usr/local/bin/craft
         else
           # Download from release (for external repos or if artifact unavailable)
-          # Use explicit craft_version input if provided, otherwise fall back to github.action_ref
+          # Use explicit craft_version input if provided, otherwise fall back to ACTION_REF
           CRAFT_VERSION="$CRAFT_VERSION_INPUT"
           if [[ -z "$CRAFT_VERSION" ]]; then
             CRAFT_VERSION="$ACTION_REF"
@@ -168,18 +168,18 @@ runs:
         git remote set-head origin --auto
 
         # Build command with optional flags
-        CRAFT_ARGS=""
+        CRAFT_ARGS=()
         if [[ "$CRAFT_CONFIG_FROM_MERGE_TARGET" == 'true' && -n "$MERGE_TARGET" ]]; then
-          CRAFT_ARGS="--config-from \"$MERGE_TARGET\""
+          CRAFT_ARGS=(--config-from "$MERGE_TARGET")
         fi
 
         # Version is optional - if not provided, Craft uses versioning.policy from config
-        VERSION_ARG=""
+        VERSION_ARG=()
         if [[ -n "$VERSION" ]]; then
-          VERSION_ARG="$VERSION"
+          VERSION_ARG=("$VERSION")
         fi
 
-        craft prepare $VERSION_ARG $CRAFT_ARGS
+        craft prepare "${VERSION_ARG[@]}" "${CRAFT_ARGS[@]}"
 
     - name: Read Craft Targets
       id: craft-targets
