@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.26.4
+
+### Bug Fixes 🐛
+
+- (security) Prevent script injection in changelog-preview workflow by @fix-it-felix-sentry in [#813](https://github.com/getsentry/craft/pull/813)
+- Resolve open dependabot security alerts by @BYK in [#816](https://github.com/getsentry/craft/pull/816)
+
+### Internal Changes 🔧
+
+- (deps-dev) Bump simple-git from 3.33.0 to 3.36.0 by @dependabot in [#814](https://github.com/getsentry/craft/pull/814)
+
 ## 2.26.3
 
 ### Bug Fixes 🐛
