@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.26.5
+
+### Bug Fixes 🐛
+
+- (security) Bump devalue override to ^5.8.1 (CVE-2026-42570) by @BYK in [#818](https://github.com/getsentry/craft/pull/818)
+
 ## 2.26.4
 
 ### Bug Fixes 🐛
