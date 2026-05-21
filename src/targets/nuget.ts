@@ -1,4 +1,10 @@
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  writeFileSync,
+} from 'fs';
 import { join } from 'path';
 
 import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
@@ -78,6 +84,19 @@ export class NugetTarget extends BaseTarget {
     }
 
     if (hasExecutable(NUGET_DOTNET_BIN)) {
+      // `dotnet-setversion` operates on files in cwd, so we must invoke it with
+      // cwd=rootDir. That means the dotnet host will read any global.json in
+      // rootDir and may refuse to launch if the pinned SDK isn't installed on
+      // this runner (consumer repos often pin SDK/workload versions with
+      // rollForward: disable for deterministic builds — see #614, #707, and
+      // getsentry/sentry-dotnet#5250). Move global.json aside for the duration
+      // of the call so the host can pick any installed SDK.
+      const globalJsonPath = join(rootDir, 'global.json');
+      const globalJsonBackup = `${globalJsonPath}.craft-bak`;
+      const globalJsonMoved = existsSync(globalJsonPath);
+      if (globalJsonMoved) {
+        renameSync(globalJsonPath, globalJsonBackup);
+      }
       try {
         const result = await spawnProcess(
           NUGET_DOTNET_BIN,
@@ -99,6 +118,10 @@ export class NugetTarget extends BaseTarget {
         logger.debug(
           'dotnet-setversion not available, falling back to manual edit',
         );
+      } finally {
+        if (globalJsonMoved) {
+          renameSync(globalJsonBackup, globalJsonPath);
+        }
       }
     }
 
