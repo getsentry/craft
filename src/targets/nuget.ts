@@ -84,13 +84,9 @@ export class NugetTarget extends BaseTarget {
     }
 
     if (hasExecutable(NUGET_DOTNET_BIN)) {
-      // `dotnet-setversion` operates on files in cwd, so we must invoke it with
-      // cwd=rootDir. That means the dotnet host will read any global.json in
-      // rootDir and may refuse to launch if the pinned SDK isn't installed on
-      // this runner (consumer repos often pin SDK/workload versions with
-      // rollForward: disable for deterministic builds — see #614, #707, and
-      // getsentry/sentry-dotnet#5250). Move global.json aside for the duration
-      // of the call so the host can pick any installed SDK.
+      // `dotnet-setversion` operates in cwd and will pickup global.json,
+      // which breaks if the pinned SDK isn't installed on the craft runner.
+      // See: https://github.com/getsentry/craft/issues/819
       const globalJsonPath = join(rootDir, 'global.json');
       const globalJsonBackup = `${globalJsonPath}.craft-bak`;
       const globalJsonMoved = existsSync(globalJsonPath);
@@ -295,9 +291,9 @@ export class NugetTarget extends BaseTarget {
 
         this.logger.info(
           `Uploading file "${file.filename}" via "dotnet nuget"` +
-            (symbolFile
-              ? `, including symbol file "${symbolFile.filename}"`
-              : ''),
+          (symbolFile
+            ? `, including symbol file "${symbolFile.filename}"`
+            : ''),
         );
         return this.uploadAsset(path);
       }),
