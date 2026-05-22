@@ -63,6 +63,13 @@ const COCOAPODS_INITIAL_DELAY_SECS = 5;
 /** Exponential backoff factor applied to the retry delay */
 const COCOAPODS_RETRY_EXP_FACTOR = 2;
 
+/**
+ * Pattern in pod trunk push output indicating the version was already published.
+ * This can happen when a retry succeeds on the server but the response times
+ * out — the next attempt fails with this message even though the pod is live.
+ */
+const COCOAPODS_ALREADY_PUBLISHED = 'has already been pushed';
+
 /** Options for "cocoapods" target */
 export interface CocoapodsTargetOptions {
   /** Path to the spec file inside the repo */
@@ -150,23 +157,42 @@ export class CocoapodsTarget extends BaseTarget {
 
         let delay = COCOAPODS_INITIAL_DELAY_SECS;
         await withRetry(
-          () =>
-            spawnProcess(
-              COCOAPODS_BIN,
-              [
-                'trunk',
-                'push',
-                fileName,
-                '--allow-warnings',
-                '--synchronous',
-              ],
-              {
-                cwd: directory,
-                env: {
-                  ...process.env,
+          async () => {
+            try {
+              await spawnProcess(
+                COCOAPODS_BIN,
+                [
+                  'trunk',
+                  'push',
+                  fileName,
+                  '--allow-warnings',
+                  '--synchronous',
+                ],
+                {
+                  cwd: directory,
+                  env: {
+                    ...process.env,
+                  },
                 },
-              },
-            ),
+              );
+            } catch (err) {
+              // If a previous attempt actually succeeded on the server but
+              // the response timed out, the retry will fail with "already
+              // pushed". Treat this as success, not failure.
+              if (
+                err instanceof Error &&
+                err.message
+                  .toLowerCase()
+                  .includes(COCOAPODS_ALREADY_PUBLISHED)
+              ) {
+                this.logger.info(
+                  `Podspec "${fileName}" was already published, skipping`,
+                );
+              } else {
+                throw err;
+              }
+            }
+          },
           COCOAPODS_MAX_ATTEMPTS,
           async err => {
             const message = (err.message || '').toLowerCase();

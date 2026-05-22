@@ -110,6 +110,25 @@ describe('CocoapodsTarget', () => {
       expect(mockSpawnProcess).toHaveBeenCalledTimes(3);
     });
 
+    it('treats "already published" as success during retry', async () => {
+      mockSpawnProcess
+        .mockResolvedValueOnce(undefined) // pod setup
+        // first attempt: transient timeout (server may have succeeded)
+        .mockRejectedValueOnce(new Error('CDN: trunk.cocoapods.org: timeout'))
+        // retry: fails with "already published" because first attempt
+        // actually succeeded on the server
+        .mockRejectedValueOnce(
+          new Error(
+            'Process "pod" errored with code 1\n\nSTDERR: [!] MyLib (1.0.0) has already been pushed',
+          ),
+        );
+
+      // Should succeed — "already published" is treated as success
+      await target.publish('1.0.0', 'abc123');
+
+      expect(mockSpawnProcess).toHaveBeenCalledTimes(3);
+    });
+
     it('does not retry on permanent spec validation error', async () => {
       mockSpawnProcess
         .mockResolvedValueOnce(undefined) // pod setup
