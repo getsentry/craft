@@ -109,7 +109,8 @@
       "rollup": "^4.59.0",
       "flatted": "^3.4.2",
       "picomatch@<3": "^2.3.2",
-      "uuid": "^14.0.0"
+      "uuid": "^14.0.0",
+      "@tootallnate/once": "^2.0.1"
     }
   }
 }
