@@ -24,21 +24,34 @@ const DEFAULT_COCOAPODS_BIN = 'pod';
  */
 const COCOAPODS_BIN = process.env.COCOAPODS_BIN || DEFAULT_COCOAPODS_BIN;
 
-/** Patterns in pod trunk push output that indicate transient/retriable errors */
+/**
+ * Patterns in pod trunk push stderr/stdout that indicate transient errors.
+ * Matched case-insensitively against the full error message (which includes
+ * both stdout and stderr from the failed process).
+ *
+ * Permanent errors (spec validation, authentication, "already published")
+ * will NOT match any of these and will fail immediately without retry.
+ */
 const COCOAPODS_TRANSIENT_ERROR_PATTERNS = [
   'timeout',
   'timed out',
   'cdn:',
   'cdn.cocoapods.org',
-  'http error',
-  '503',
-  '502',
-  'server error',
   'etimedout',
   'econnreset',
   'econnrefused',
+  'econnaborted',
   'socketerror',
+  'socket hang up',
   'network error',
+  'connection reset',
+  'connection refused',
+  // CocoaPods trunk server errors include the HTTP status in the message
+  'server error (5',
+  '500 internal server error',
+  '502 bad gateway',
+  '503 service unavailable',
+  '504 gateway timeout',
 ];
 
 /** Maximum number of attempts (including the initial one) for `pod trunk push` */

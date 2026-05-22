@@ -100,7 +100,9 @@ describe('CocoapodsTarget', () => {
     it('retries on 503 server error', async () => {
       mockSpawnProcess
         .mockResolvedValueOnce(undefined) // pod setup
-        .mockRejectedValueOnce(new Error('HTTP error 503 Service Unavailable'))
+        .mockRejectedValueOnce(
+          new Error('503 Service Unavailable from trunk.cocoapods.org'),
+        )
         .mockResolvedValueOnce(undefined); // retry succeeds
 
       await target.publish('1.0.0', 'abc123');
