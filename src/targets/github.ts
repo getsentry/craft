@@ -296,14 +296,20 @@ export class GitHubTarget extends BaseTarget {
    * The listReleases API includes draft releases (for users with push access),
    * unlike getReleaseByTag which only returns published releases.
    *
+   * Only the first page (100 releases) is checked. A leftover draft from a
+   * crashed run will be among the most recent releases, so pagination is
+   * unnecessary in practice.
+   *
    * @param tag The tag name to search for
    * @returns Array of draft releases matching the tag
    */
-  public async findDraftReleasesByTag(tag: string): Promise<GitHubRelease[]> {
+  public async findDraftReleasesByTag(
+    tag: string,
+  ): Promise<GitHubRelease[]> {
     const { data: releases } = await this.github.repos.listReleases({
       owner: this.githubConfig.owner,
       repo: this.githubConfig.repo,
-      per_page: 30,
+      per_page: 100,
     });
     return releases.filter(r => r.tag_name === tag && r.draft === true);
   }
