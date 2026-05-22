@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.26.6
+
+### Bug Fixes 🐛
+
+- (nuget) Move global.json aside during `dotnet setversion` by @jamescrosswell in [#820](https://github.com/getsentry/craft/pull/820)
+- (security) Override @tootallnate/once to ^2.0.1 (CVE-2026-3449) by @BYK in [#822](https://github.com/getsentry/craft/pull/822)
+- Improve partial publishing recovery for CocoaPods and GitHub targets by @BYK in [#821](https://github.com/getsentry/craft/pull/821)
+
 ## 2.26.5
 
 ### Bug Fixes 🐛
