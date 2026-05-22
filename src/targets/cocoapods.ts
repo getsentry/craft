@@ -33,10 +33,9 @@ const COCOAPODS_BIN = process.env.COCOAPODS_BIN || DEFAULT_COCOAPODS_BIN;
  * will NOT match any of these and will fail immediately without retry.
  */
 const COCOAPODS_TRANSIENT_ERROR_PATTERNS = [
-  'timeout',
   'timed out',
-  'cdn:',
   'cdn.cocoapods.org',
+  'trunk.cocoapods.org',
   'etimedout',
   'econnreset',
   'econnrefused',
@@ -176,9 +175,12 @@ export class CocoapodsTarget extends BaseTarget {
                 },
               );
             } catch (err) {
-              // If a previous attempt actually succeeded on the server but
-              // the response timed out, the retry will fail with "already
-              // pushed". Treat this as success, not failure.
+              // Handle "already published" errors as success. This covers:
+              // 1. A previous attempt succeeded on the server but the
+              //    response timed out, so the retry fails with this error.
+              // 2. A re-run of the entire publish pipeline where the pod
+              //    was already published by a previous run.
+              // Same pattern as the Crates target's REPUBLISH_ERROR.
               if (
                 err instanceof Error &&
                 err.message.toLowerCase().includes(COCOAPODS_ALREADY_PUBLISHED)

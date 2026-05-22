@@ -1,4 +1,5 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { sleep } from '../../utils/async';
 
 vi.mock('../../utils/system', () => ({
   checkExecutableIsPresent: vi.fn(),
@@ -28,6 +29,7 @@ import { getFile } from '../../utils/githubApi';
 
 const mockSpawnProcess = vi.mocked(spawnProcess);
 const mockGetFile = vi.mocked(getFile);
+const mockSleep = vi.mocked(sleep);
 
 describe('CocoapodsTarget', () => {
   const cleanEnv = { ...process.env };
@@ -35,16 +37,16 @@ describe('CocoapodsTarget', () => {
 
   beforeEach(() => {
     process.env = { ...cleanEnv, GITHUB_TOKEN: 'test-token' };
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    // Re-apply mock implementations cleared by resetAllMocks
+    mockSleep.mockResolvedValue(undefined);
+    mockGetFile.mockResolvedValue('Pod::Spec.new { |s| s.name = "MyLib" }');
 
     target = new CocoapodsTarget(
       { name: 'cocoapods', specPath: 'MyLib.podspec' },
       new NoneArtifactProvider(),
       { owner: 'testOwner', repo: 'testRepo' },
     );
-
-    // Default: getFile returns a valid podspec
-    mockGetFile.mockResolvedValue('Pod::Spec.new { |s| s.name = "MyLib" }');
   });
 
   afterEach(() => {
@@ -161,10 +163,13 @@ describe('CocoapodsTarget', () => {
     });
 
     it('exhausts retries and throws RetryError on persistent transient errors', async () => {
-      mockSpawnProcess
-        .mockResolvedValueOnce(undefined) // pod setup
-        // All 5 retries fail with transient errors
-        .mockRejectedValue(new Error('CDN: trunk.cocoapods.org: timeout'));
+      mockSpawnProcess.mockResolvedValueOnce(undefined); // pod setup
+      // All 5 attempts fail with transient errors
+      for (let i = 0; i < 5; i++) {
+        mockSpawnProcess.mockRejectedValueOnce(
+          new Error('CDN: trunk.cocoapods.org: timeout'),
+        );
+      }
 
       await expect(target.publish('1.0.0', 'abc123')).rejects.toThrow(
         'Max retries reached: 5',

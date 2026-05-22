@@ -110,6 +110,7 @@ describe('GitHubTarget', () => {
       githubTarget.publishRelease = vi.fn().mockResolvedValue(undefined);
       githubTarget.getReleaseByTag = vi.fn().mockResolvedValue(undefined);
       githubTarget.getRelease = vi.fn().mockResolvedValue(mockDraftRelease);
+      githubTarget.findDraftReleasesByTag = vi.fn().mockResolvedValue([]);
       githubTarget.github.repos.getLatestRelease = vi.fn().mockRejectedValue({
         status: 404,
       }) as any;
@@ -162,19 +163,28 @@ describe('GitHubTarget', () => {
       expect(githubTarget.publishRelease).not.toHaveBeenCalled();
     });
 
-    it('deletes leftover draft release before creating a new one', async () => {
+    it('recovers from 422 by deleting leftover draft and retrying', async () => {
       const leftoverDraft = {
         id: 789,
         tag_name: '1.0.0',
         upload_url: 'https://example.com/upload',
         draft: true,
       };
-      githubTarget.getReleaseByTag = vi.fn().mockResolvedValue(leftoverDraft);
+      // First createDraftRelease call fails with 422 (leftover draft exists)
+      // Second call succeeds after cleanup
+      githubTarget.createDraftRelease = vi
+        .fn()
+        .mockRejectedValueOnce({ status: 422, message: 'Validation Failed' })
+        .mockResolvedValueOnce(mockDraftRelease);
+      githubTarget.findDraftReleasesByTag = vi
+        .fn()
+        .mockResolvedValue([leftoverDraft]);
 
       await githubTarget.publish('1.0.0', 'abc123');
 
+      expect(githubTarget.findDraftReleasesByTag).toHaveBeenCalledWith('1.0.0');
       expect(githubTarget.deleteRelease).toHaveBeenCalledWith(leftoverDraft);
-      expect(githubTarget.createDraftRelease).toHaveBeenCalled();
+      expect(githubTarget.createDraftRelease).toHaveBeenCalledTimes(2);
       expect(githubTarget.publishRelease).toHaveBeenCalled();
     });
 
@@ -501,6 +511,38 @@ describe('GitHubTarget', () => {
 
       expect(result).toBe(false);
       expect(deleteReleaseSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findDraftReleasesByTag', () => {
+    it('returns only draft releases matching the tag', async () => {
+      const releases = [
+        { id: 1, tag_name: 'v1.0.0', draft: true, upload_url: '' },
+        { id: 2, tag_name: 'v1.0.0', draft: false, upload_url: '' },
+        { id: 3, tag_name: 'v2.0.0', draft: true, upload_url: '' },
+      ];
+      githubTarget.github.repos.listReleases = vi
+        .fn()
+        .mockResolvedValue({ data: releases }) as any;
+
+      const result = await githubTarget.findDraftReleasesByTag('v1.0.0');
+
+      expect(result).toEqual([
+        { id: 1, tag_name: 'v1.0.0', draft: true, upload_url: '' },
+      ]);
+    });
+
+    it('returns empty array when no drafts match', async () => {
+      const releases = [
+        { id: 1, tag_name: 'v1.0.0', draft: false, upload_url: '' },
+      ];
+      githubTarget.github.repos.listReleases = vi
+        .fn()
+        .mockResolvedValue({ data: releases }) as any;
+
+      const result = await githubTarget.findDraftReleasesByTag('v1.0.0');
+
+      expect(result).toEqual([]);
     });
   });
 });
