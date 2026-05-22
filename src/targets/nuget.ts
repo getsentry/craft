@@ -291,9 +291,9 @@ export class NugetTarget extends BaseTarget {
 
         this.logger.info(
           `Uploading file "${file.filename}" via "dotnet nuget"` +
-          (symbolFile
-            ? `, including symbol file "${symbolFile.filename}"`
-            : ''),
+            (symbolFile
+              ? `, including symbol file "${symbolFile.filename}"`
+              : ''),
         );
         return this.uploadAsset(path);
       }),
