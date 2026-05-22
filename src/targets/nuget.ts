@@ -1,4 +1,10 @@
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  writeFileSync,
+} from 'fs';
 import { join } from 'path';
 
 import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
@@ -78,6 +84,15 @@ export class NugetTarget extends BaseTarget {
     }
 
     if (hasExecutable(NUGET_DOTNET_BIN)) {
+      // `dotnet-setversion` operates in cwd and will pickup global.json,
+      // which breaks if the pinned SDK isn't installed on the craft runner.
+      // See: https://github.com/getsentry/craft/issues/819
+      const globalJsonPath = join(rootDir, 'global.json');
+      const globalJsonBackup = `${globalJsonPath}.craft-bak`;
+      const globalJsonMoved = existsSync(globalJsonPath);
+      if (globalJsonMoved) {
+        renameSync(globalJsonPath, globalJsonBackup);
+      }
       try {
         const result = await spawnProcess(
           NUGET_DOTNET_BIN,
@@ -99,6 +114,10 @@ export class NugetTarget extends BaseTarget {
         logger.debug(
           'dotnet-setversion not available, falling back to manual edit',
         );
+      } finally {
+        if (globalJsonMoved) {
+          renameSync(globalJsonBackup, globalJsonPath);
+        }
       }
     }
 
