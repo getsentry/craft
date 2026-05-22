@@ -108,6 +108,8 @@ describe('GitHubTarget', () => {
         .mockResolvedValue(mockDraftRelease);
       githubTarget.deleteRelease = vi.fn().mockResolvedValue(true);
       githubTarget.publishRelease = vi.fn().mockResolvedValue(undefined);
+      githubTarget.getReleaseByTag = vi.fn().mockResolvedValue(undefined);
+      githubTarget.getRelease = vi.fn().mockResolvedValue(mockDraftRelease);
       githubTarget.github.repos.getLatestRelease = vi.fn().mockRejectedValue({
         status: 404,
       }) as any;
@@ -121,27 +123,207 @@ describe('GitHubTarget', () => {
         'Publish failed',
       );
 
-      expect(githubTarget.deleteRelease).toHaveBeenCalledWith(mockDraftRelease);
+      expect(githubTarget.getRelease).toHaveBeenCalledWith(mockDraftRelease.id);
+      expect(githubTarget.deleteRelease).toHaveBeenCalled();
     });
 
-    it('still throws original error if deleteRelease also fails', async () => {
+    it('still throws original error if cleanup also fails', async () => {
       const publishError = new Error('Publish failed');
-      const deleteError = new Error('Delete failed');
+      const cleanupError = new Error('Cleanup failed');
 
       githubTarget.publishRelease = vi.fn().mockRejectedValue(publishError);
-      githubTarget.deleteRelease = vi.fn().mockRejectedValue(deleteError);
+      githubTarget.getRelease = vi.fn().mockRejectedValue(cleanupError);
 
       await expect(githubTarget.publish('1.0.0', 'abc123')).rejects.toThrow(
         'Publish failed',
       );
-
-      expect(githubTarget.deleteRelease).toHaveBeenCalledWith(mockDraftRelease);
     });
 
     it('does not delete release when publish succeeds', async () => {
       await githubTarget.publish('1.0.0', 'abc123');
 
       expect(githubTarget.deleteRelease).not.toHaveBeenCalled();
+    });
+
+    it('skips creation when release already exists and is published', async () => {
+      const existingPublished = {
+        id: 456,
+        tag_name: '1.0.0',
+        upload_url: 'https://example.com/upload',
+        draft: false,
+      };
+      githubTarget.getReleaseByTag = vi
+        .fn()
+        .mockResolvedValue(existingPublished);
+
+      await githubTarget.publish('1.0.0', 'abc123');
+
+      expect(githubTarget.createDraftRelease).not.toHaveBeenCalled();
+      expect(githubTarget.publishRelease).not.toHaveBeenCalled();
+    });
+
+    it('deletes leftover draft release before creating a new one', async () => {
+      const leftoverDraft = {
+        id: 789,
+        tag_name: '1.0.0',
+        upload_url: 'https://example.com/upload',
+        draft: true,
+      };
+      githubTarget.getReleaseByTag = vi.fn().mockResolvedValue(leftoverDraft);
+
+      await githubTarget.publish('1.0.0', 'abc123');
+
+      expect(githubTarget.deleteRelease).toHaveBeenCalledWith(leftoverDraft);
+      expect(githubTarget.createDraftRelease).toHaveBeenCalled();
+      expect(githubTarget.publishRelease).toHaveBeenCalled();
+    });
+
+    it('re-fetches release before cleanup and skips delete when already published', async () => {
+      const publishError = new Error('Publish failed');
+      githubTarget.publishRelease = vi.fn().mockRejectedValue(publishError);
+      // Simulate half-succeeded: server published it but response timed out
+      githubTarget.getRelease = vi.fn().mockResolvedValue({
+        ...mockDraftRelease,
+        draft: false,
+      });
+
+      await expect(githubTarget.publish('1.0.0', 'abc123')).rejects.toThrow(
+        'Publish failed',
+      );
+
+      expect(githubTarget.getRelease).toHaveBeenCalledWith(mockDraftRelease.id);
+      expect(githubTarget.deleteRelease).not.toHaveBeenCalled();
+    });
+
+    it('deletes draft release on failure when re-fetch confirms still a draft', async () => {
+      const publishError = new Error('Publish failed');
+      githubTarget.publishRelease = vi.fn().mockRejectedValue(publishError);
+      const refetchedDraft = { ...mockDraftRelease, draft: true };
+      githubTarget.getRelease = vi.fn().mockResolvedValue(refetchedDraft);
+
+      await expect(githubTarget.publish('1.0.0', 'abc123')).rejects.toThrow(
+        'Publish failed',
+      );
+
+      expect(githubTarget.deleteRelease).toHaveBeenCalledWith(refetchedDraft);
+    });
+
+    it('handles release already deleted on failure gracefully', async () => {
+      const publishError = new Error('Publish failed');
+      githubTarget.publishRelease = vi.fn().mockRejectedValue(publishError);
+      githubTarget.getRelease = vi.fn().mockResolvedValue(undefined);
+
+      await expect(githubTarget.publish('1.0.0', 'abc123')).rejects.toThrow(
+        'Publish failed',
+      );
+
+      expect(githubTarget.deleteRelease).not.toHaveBeenCalled();
+    });
+
+    it('treats floating tag failure as non-fatal after successful publish', async () => {
+      // updateFloatingTags is protected, so we spy on the prototype
+      vi.spyOn(
+        GitHubTarget.prototype as any,
+        'updateFloatingTags',
+      ).mockRejectedValue(new Error('Tag update failed'));
+
+      // publish() should NOT throw despite floating tag failure
+      await expect(
+        githubTarget.publish('1.0.0', 'abc123'),
+      ).resolves.toBeUndefined();
+
+      expect(githubTarget.publishRelease).toHaveBeenCalled();
+    });
+
+    it('attempts floating tag updates when release already exists on re-run', async () => {
+      const existingPublished = {
+        id: 456,
+        tag_name: '1.0.0',
+        upload_url: 'https://example.com/upload',
+        draft: false,
+      };
+      githubTarget.getReleaseByTag = vi
+        .fn()
+        .mockResolvedValue(existingPublished);
+      const updateFloatingTagsSpy = vi
+        .spyOn(GitHubTarget.prototype as any, 'updateFloatingTags')
+        .mockResolvedValue(undefined);
+
+      await githubTarget.publish('1.0.0', 'abc123');
+
+      expect(updateFloatingTagsSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('getRelease', () => {
+    it('returns release data on success', async () => {
+      const mockRelease = {
+        id: 123,
+        tag_name: 'v1.0.0',
+        upload_url: 'https://example.com/upload',
+        draft: false,
+      };
+      githubTarget.github.repos.getRelease = vi
+        .fn()
+        .mockResolvedValue({ data: mockRelease }) as any;
+
+      const result = await githubTarget.getRelease(123);
+      expect(result).toEqual(mockRelease);
+    });
+
+    it('returns undefined on 404', async () => {
+      githubTarget.github.repos.getRelease = vi
+        .fn()
+        .mockRejectedValue({ status: 404 }) as any;
+
+      const result = await githubTarget.getRelease(999);
+      expect(result).toBeUndefined();
+    });
+
+    it('re-throws non-404 errors', async () => {
+      const serverError = { status: 500, message: 'Internal Server Error' };
+      githubTarget.github.repos.getRelease = vi
+        .fn()
+        .mockRejectedValue(serverError) as any;
+
+      await expect(githubTarget.getRelease(123)).rejects.toEqual(serverError);
+    });
+  });
+
+  describe('getReleaseByTag', () => {
+    it('returns release data on success', async () => {
+      const mockRelease = {
+        id: 123,
+        tag_name: 'v1.0.0',
+        upload_url: 'https://example.com/upload',
+        draft: false,
+      };
+      githubTarget.github.repos.getReleaseByTag = vi
+        .fn()
+        .mockResolvedValue({ data: mockRelease }) as any;
+
+      const result = await githubTarget.getReleaseByTag('v1.0.0');
+      expect(result).toEqual(mockRelease);
+    });
+
+    it('returns undefined on 404', async () => {
+      githubTarget.github.repos.getReleaseByTag = vi
+        .fn()
+        .mockRejectedValue({ status: 404 }) as any;
+
+      const result = await githubTarget.getReleaseByTag('v99.99.99');
+      expect(result).toBeUndefined();
+    });
+
+    it('re-throws non-404 errors', async () => {
+      const serverError = { status: 500, message: 'Internal Server Error' };
+      githubTarget.github.repos.getReleaseByTag = vi
+        .fn()
+        .mockRejectedValue(serverError) as any;
+
+      await expect(githubTarget.getReleaseByTag('v1.0.0')).rejects.toEqual(
+        serverError,
+      );
     });
   });
 

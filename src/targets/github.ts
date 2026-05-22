@@ -298,6 +298,60 @@ export class GitHubTarget extends BaseTarget {
   }
 
   /**
+   * Fetches the current state of a release from GitHub by its ID.
+   *
+   * Used to verify a release's draft status before attempting cleanup,
+   * since the local object may be stale after a failed publishRelease() call.
+   *
+   * @param releaseId The release ID to fetch
+   * @returns The release data, or undefined if the release no longer exists
+   */
+  public async getRelease(
+    releaseId: number,
+  ): Promise<GitHubRelease | undefined> {
+    try {
+      const { data } = await this.github.repos.getRelease({
+        owner: this.githubConfig.owner,
+        repo: this.githubConfig.repo,
+        release_id: releaseId,
+      });
+      return data;
+    } catch (error) {
+      if (error.status === 404) {
+        return undefined;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Fetches a release by its tag name.
+   *
+   * Used to detect existing releases on re-run, so Craft can skip creation
+   * if a release was already published in a previous (crashed) run.
+   *
+   * @param tag The tag name to look up
+   * @returns The release data, or undefined if no release exists for this tag
+   */
+  public async getReleaseByTag(
+    tag: string,
+  ): Promise<GitHubRelease | undefined> {
+    try {
+      const { data } = await this.github.repos.getReleaseByTag({
+        owner: this.githubConfig.owner,
+        repo: this.githubConfig.repo,
+        tag,
+      });
+      return data;
+    } catch (error) {
+      if (error.status === 404) {
+        return undefined;
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Fetches a list of all assets for the given release
    *
    * The result includes unfinished asset uploads.
@@ -613,6 +667,44 @@ export class GitHubTarget extends BaseTarget {
       ? false
       : isLatestRelease(latestRelease, version);
 
+    // Check for an existing release for this tag. This handles the case
+    // where a previous publish run succeeded in creating/publishing the
+    // release but crashed before persisting state (e.g., floating tag
+    // failure, or a process crash).
+    const tag = versionToTag(version, this.githubConfig.tagPrefix);
+    const existingRelease = await this.getReleaseByTag(tag);
+    if (existingRelease) {
+      if (existingRelease.draft === false) {
+        this.logger.info(
+          `Release for tag "${tag}" already exists and is published. ` +
+            'Skipping GitHub release creation (likely from a previous run).',
+        );
+        // Still attempt floating tag updates since they may have failed
+        // in the previous run
+        try {
+          await this.updateFloatingTags(version, revision);
+        } catch (floatingTagError) {
+          this.logger.warn(
+            `Failed to update floating tags: ${floatingTagError}`,
+          );
+        }
+        return;
+      }
+      // Existing release is still a draft — leftover from a failed run.
+      // Delete it and create a fresh one.
+      this.logger.info(
+        `Found leftover draft release for tag "${tag}", deleting before retry...`,
+      );
+      try {
+        await this.deleteRelease(existingRelease);
+      } catch (deleteError) {
+        this.logger.warn(
+          `Failed to delete leftover draft release: ${deleteError}. ` +
+            'Proceeding with new release creation (may fail with 422).',
+        );
+      }
+    }
+
     const draftRelease = await this.createDraftRelease(
       version,
       revision,
@@ -628,22 +720,51 @@ export class GitHubTarget extends BaseTarget {
 
       await this.publishRelease(draftRelease, { makeLatest });
     } catch (error) {
-      // Clean up the orphaned draft release
+      // Before attempting cleanup, re-fetch the release to check its
+      // actual state. If publishRelease() half-succeeded (server processed
+      // the request but the response timed out), the release may already
+      // be published — deleting it would cause data loss.
       try {
-        await this.deleteRelease(draftRelease);
-        this.logger.info(
-          `Deleted orphaned draft release: ${draftRelease.tag_name}`,
-        );
-      } catch (deleteError) {
+        const currentRelease = await this.getRelease(draftRelease.id);
+        if (currentRelease && currentRelease.draft === false) {
+          // The release was already published — this is the
+          // "half-succeeded publishRelease" scenario. The release is
+          // live, so we must NOT delete it.
+          this.logger.warn(
+            `Release "${draftRelease.tag_name}" was already published on GitHub despite the error. ` +
+              'Skipping cleanup to avoid deleting a live release.',
+          );
+        } else if (currentRelease) {
+          // Release still exists and is still a draft — safe to clean up
+          await this.deleteRelease(currentRelease);
+          this.logger.info(
+            `Deleted orphaned draft release: ${draftRelease.tag_name}`,
+          );
+        } else {
+          // Release was already deleted or never created
+          this.logger.debug(
+            `Release ${draftRelease.id} no longer exists, nothing to clean up`,
+          );
+        }
+      } catch (cleanupError) {
         this.logger.warn(
-          `Failed to delete orphaned draft release: ${deleteError}`,
+          `Failed to clean up release "${draftRelease.tag_name}": ${cleanupError}`,
         );
       }
       throw error;
     }
 
-    // Update floating tags (e.g., v2 for version 2.15.0)
-    await this.updateFloatingTags(version, revision);
+    // Floating tag updates are best-effort — the release is already published.
+    // A failure here must not mark the target as failed, since re-running
+    // would attempt to create a duplicate release.
+    try {
+      await this.updateFloatingTags(version, revision);
+    } catch (floatingTagError) {
+      this.logger.warn(
+        `Failed to update floating tags (release is already published): ${floatingTagError}`,
+      );
+      this.logger.warn('You may need to update floating tags manually.');
+    }
   }
 }
 

@@ -11,6 +11,7 @@ import {
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { getFile, getGitHubClient } from '../utils/githubApi';
+import { withRetry, sleep } from '../utils/async';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
@@ -22,6 +23,32 @@ const DEFAULT_COCOAPODS_BIN = 'pod';
  * Command to launch cocoapods
  */
 const COCOAPODS_BIN = process.env.COCOAPODS_BIN || DEFAULT_COCOAPODS_BIN;
+
+/** Patterns in pod trunk push output that indicate transient/retriable errors */
+const COCOAPODS_TRANSIENT_ERROR_PATTERNS = [
+  'timeout',
+  'timed out',
+  'cdn:',
+  'cdn.cocoapods.org',
+  'http error',
+  '503',
+  '502',
+  'server error',
+  'etimedout',
+  'econnreset',
+  'econnrefused',
+  'socketerror',
+  'network error',
+];
+
+/** Maximum number of retries for `pod trunk push` */
+const COCOAPODS_MAX_RETRIES = 5;
+
+/** Initial delay between retries in seconds */
+const COCOAPODS_INITIAL_DELAY_SECS = 5;
+
+/** Exponential backoff factor applied to the retry delay */
+const COCOAPODS_RETRY_EXP_FACTOR = 2;
 
 /** Options for "cocoapods" target */
 export interface CocoapodsTargetOptions {
@@ -107,14 +134,45 @@ export class CocoapodsTarget extends BaseTarget {
 
         this.logger.info(`Pushing podspec "${fileName}" to cocoapods...`);
         await spawnProcess(COCOAPODS_BIN, ['setup']);
-        await spawnProcess(
-          COCOAPODS_BIN,
-          ['trunk', 'push', fileName, '--allow-warnings', '--synchronous'],
-          {
-            cwd: directory,
-            env: {
-              ...process.env,
-            },
+
+        let delay = COCOAPODS_INITIAL_DELAY_SECS;
+        await withRetry(
+          () =>
+            spawnProcess(
+              COCOAPODS_BIN,
+              [
+                'trunk',
+                'push',
+                fileName,
+                '--allow-warnings',
+                '--synchronous',
+              ],
+              {
+                cwd: directory,
+                env: {
+                  ...process.env,
+                },
+              },
+            ),
+          COCOAPODS_MAX_RETRIES,
+          async err => {
+            const message = (err.message || '').toLowerCase();
+            const isTransient = COCOAPODS_TRANSIENT_ERROR_PATTERNS.some(
+              pattern => message.includes(pattern),
+            );
+            if (!isTransient) {
+              this.logger.warn(
+                'pod trunk push failed with a non-transient error, not retrying',
+              );
+              return false;
+            }
+            this.logger.warn(
+              `pod trunk push failed with a transient error, retrying in ${delay}s...`,
+            );
+            this.logger.debug('Error details:', err.message);
+            await sleep(delay * 1000);
+            delay *= COCOAPODS_RETRY_EXP_FACTOR;
+            return true;
           },
         );
       },
