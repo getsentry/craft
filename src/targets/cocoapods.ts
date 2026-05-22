@@ -181,9 +181,7 @@ export class CocoapodsTarget extends BaseTarget {
               // pushed". Treat this as success, not failure.
               if (
                 err instanceof Error &&
-                err.message
-                  .toLowerCase()
-                  .includes(COCOAPODS_ALREADY_PUBLISHED)
+                err.message.toLowerCase().includes(COCOAPODS_ALREADY_PUBLISHED)
               ) {
                 this.logger.info(
                   `Podspec "${fileName}" was already published, skipping`,
