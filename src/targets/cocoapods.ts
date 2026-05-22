@@ -41,8 +41,8 @@ const COCOAPODS_TRANSIENT_ERROR_PATTERNS = [
   'network error',
 ];
 
-/** Maximum number of retries for `pod trunk push` */
-const COCOAPODS_MAX_RETRIES = 5;
+/** Maximum number of attempts (including the initial one) for `pod trunk push` */
+const COCOAPODS_MAX_ATTEMPTS = 5;
 
 /** Initial delay between retries in seconds */
 const COCOAPODS_INITIAL_DELAY_SECS = 5;
@@ -154,7 +154,7 @@ export class CocoapodsTarget extends BaseTarget {
                 },
               },
             ),
-          COCOAPODS_MAX_RETRIES,
+          COCOAPODS_MAX_ATTEMPTS,
           async err => {
             const message = (err.message || '').toLowerCase();
             const isTransient = COCOAPODS_TRANSIENT_ERROR_PATTERNS.some(
