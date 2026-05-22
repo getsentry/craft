@@ -272,12 +272,14 @@ export class GitHubTarget extends BaseTarget {
         throw error;
       }
 
+      let deletedAny = false;
       for (const draft of drafts) {
         this.logger.info(
           `Deleting leftover draft release (id=${draft.id}) for tag "${tag}"...`,
         );
         try {
           await this.deleteRelease(draft);
+          deletedAny = true;
         } catch (deleteError) {
           this.logger.warn(
             `Failed to delete leftover draft release: ${deleteError}`,
@@ -285,7 +287,17 @@ export class GitHubTarget extends BaseTarget {
         }
       }
 
-      // Retry creation after cleanup
+      if (!deletedAny) {
+        // All deletions failed — retrying createDraftRelease would just
+        // produce another 422. Re-throw the original error.
+        this.logger.warn(
+          'Could not delete any leftover draft releases. ' +
+            'Cannot recover from 422.',
+        );
+        throw error;
+      }
+
+      // Retry creation after successful cleanup
       return this.createDraftRelease(version, revision, changes);
     }
   }
@@ -303,9 +315,7 @@ export class GitHubTarget extends BaseTarget {
    * @param tag The tag name to search for
    * @returns Array of draft releases matching the tag
    */
-  public async findDraftReleasesByTag(
-    tag: string,
-  ): Promise<GitHubRelease[]> {
+  public async findDraftReleasesByTag(tag: string): Promise<GitHubRelease[]> {
     const { data: releases } = await this.github.repos.listReleases({
       owner: this.githubConfig.owner,
       repo: this.githubConfig.repo,
