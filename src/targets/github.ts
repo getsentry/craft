@@ -228,6 +228,102 @@ export class GitHubTarget extends BaseTarget {
     return data;
   }
 
+  /**
+   * Attempts to create a draft release, recovering from 422 errors caused by
+   * leftover draft releases from a previous failed run.
+   *
+   * GitHub's getReleaseByTag API only returns published releases, so leftover
+   * drafts cannot be detected upfront. Instead, we catch the 422 from
+   * createRelease, find the conflicting draft via listReleases, delete it,
+   * and retry the creation.
+   *
+   * @param version The version to release
+   * @param revision Git commit SHA
+   * @param changes Changeset information
+   * @returns The newly created draft release
+   */
+  private async createOrRecoverDraftRelease(
+    version: string,
+    revision: string,
+    changes?: Changeset,
+  ): Promise<GitHubRelease> {
+    try {
+      return await this.createDraftRelease(version, revision, changes);
+    } catch (error) {
+      if (error.status !== 422) {
+        throw error;
+      }
+
+      // A 422 likely means a release (probably a leftover draft) already
+      // exists for this tag. Try to find and clean it up.
+      const tag = versionToTag(version, this.githubConfig.tagPrefix);
+      this.logger.info(
+        `createRelease returned 422 for tag "${tag}". ` +
+          'Looking for a leftover draft release to clean up...',
+      );
+
+      const drafts = await this.findDraftReleasesByTag(tag);
+      if (drafts.length === 0) {
+        // The 422 was for a different reason (not a duplicate tag).
+        this.logger.warn(
+          `No leftover draft releases found for tag "${tag}". ` +
+            'The 422 error may be for a different reason.',
+        );
+        throw error;
+      }
+
+      let deletedAny = false;
+      for (const draft of drafts) {
+        this.logger.info(
+          `Deleting leftover draft release (id=${draft.id}) for tag "${tag}"...`,
+        );
+        try {
+          await this.deleteRelease(draft);
+          deletedAny = true;
+        } catch (deleteError) {
+          this.logger.warn(
+            `Failed to delete leftover draft release: ${deleteError}`,
+          );
+        }
+      }
+
+      if (!deletedAny) {
+        // All deletions failed — retrying createDraftRelease would just
+        // produce another 422. Re-throw the original error.
+        this.logger.warn(
+          'Could not delete any leftover draft releases. ' +
+            'Cannot recover from 422.',
+        );
+        throw error;
+      }
+
+      // Retry creation after successful cleanup
+      return this.createDraftRelease(version, revision, changes);
+    }
+  }
+
+  /**
+   * Finds draft releases matching a specific tag name.
+   *
+   * The listReleases API includes draft releases (for users with push access),
+   * unlike getReleaseByTag which only returns published releases.
+   *
+   * Only the first page (100 releases) is checked. A leftover draft from a
+   * crashed run will be among the most recent releases, so pagination is
+   * unnecessary in practice.
+   *
+   * @param tag The tag name to search for
+   * @returns Array of draft releases matching the tag
+   */
+  public async findDraftReleasesByTag(tag: string): Promise<GitHubRelease[]> {
+    const { data: releases } = await this.github.repos.listReleases({
+      owner: this.githubConfig.owner,
+      repo: this.githubConfig.repo,
+      per_page: 100,
+    });
+    return releases.filter(r => r.tag_name === tag && r.draft === true);
+  }
+
   public async getChangelog(version: string): Promise<Changeset> {
     let changelog;
     try {
@@ -295,6 +391,60 @@ export class GitHubTarget extends BaseTarget {
         })
       ).status === 204
     );
+  }
+
+  /**
+   * Fetches the current state of a release from GitHub by its ID.
+   *
+   * Used to verify a release's draft status before attempting cleanup,
+   * since the local object may be stale after a failed publishRelease() call.
+   *
+   * @param releaseId The release ID to fetch
+   * @returns The release data, or undefined if the release no longer exists
+   */
+  public async getRelease(
+    releaseId: number,
+  ): Promise<GitHubRelease | undefined> {
+    try {
+      const { data } = await this.github.repos.getRelease({
+        owner: this.githubConfig.owner,
+        repo: this.githubConfig.repo,
+        release_id: releaseId,
+      });
+      return data;
+    } catch (error) {
+      if (error.status === 404) {
+        return undefined;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Fetches a release by its tag name.
+   *
+   * Used to detect existing releases on re-run, so Craft can skip creation
+   * if a release was already published in a previous (crashed) run.
+   *
+   * @param tag The tag name to look up
+   * @returns The release data, or undefined if no release exists for this tag
+   */
+  public async getReleaseByTag(
+    tag: string,
+  ): Promise<GitHubRelease | undefined> {
+    try {
+      const { data } = await this.github.repos.getReleaseByTag({
+        owner: this.githubConfig.owner,
+        repo: this.githubConfig.repo,
+        tag,
+      });
+      return data;
+    } catch (error) {
+      if (error.status === 404) {
+        return undefined;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -613,7 +763,29 @@ export class GitHubTarget extends BaseTarget {
       ? false
       : isLatestRelease(latestRelease, version);
 
-    const draftRelease = await this.createDraftRelease(
+    // Check if a published release for this tag already exists. This
+    // handles the case where a previous publish run succeeded but crashed
+    // before persisting state (e.g., floating tag failure or process crash).
+    // Note: getReleaseByTag only returns published releases — draft releases
+    // return 404. Draft cleanup is handled separately below via 422 recovery.
+    const tag = versionToTag(version, this.githubConfig.tagPrefix);
+    const existingRelease = await this.getReleaseByTag(tag);
+    if (existingRelease) {
+      this.logger.info(
+        `Release for tag "${tag}" already exists and is published. ` +
+          'Skipping GitHub release creation (likely from a previous run).',
+      );
+      // Still attempt floating tag updates since they may have failed
+      // in the previous run
+      try {
+        await this.updateFloatingTags(version, revision);
+      } catch (floatingTagError) {
+        this.logger.warn(`Failed to update floating tags: ${floatingTagError}`);
+      }
+      return;
+    }
+
+    const draftRelease = await this.createOrRecoverDraftRelease(
       version,
       revision,
       changelog,
@@ -628,22 +800,55 @@ export class GitHubTarget extends BaseTarget {
 
       await this.publishRelease(draftRelease, { makeLatest });
     } catch (error) {
-      // Clean up the orphaned draft release
+      // Before attempting cleanup, re-fetch the release to check its
+      // actual state. If publishRelease() half-succeeded (server processed
+      // the request but the response timed out), the release may already
+      // be published — deleting it would cause data loss.
       try {
-        await this.deleteRelease(draftRelease);
-        this.logger.info(
-          `Deleted orphaned draft release: ${draftRelease.tag_name}`,
-        );
-      } catch (deleteError) {
+        const currentRelease = await this.getRelease(draftRelease.id);
+        if (currentRelease && currentRelease.draft === false) {
+          // The release was already published — this is the
+          // "half-succeeded publishRelease" scenario. The release is
+          // live, so we must NOT delete it.
+          this.logger.warn(
+            `Release "${draftRelease.tag_name}" was already published on GitHub despite the error. ` +
+              'Skipping cleanup to avoid deleting a live release.',
+          );
+        } else if (currentRelease) {
+          // Release still exists and is still a draft — safe to clean up.
+          // Note: there is an inherent TOCTOU race between the re-fetch
+          // and the delete — the release could be published by another
+          // actor between these calls. deleteRelease() has its own
+          // draft === false guard as a second layer of defense.
+          await this.deleteRelease(currentRelease);
+          this.logger.info(
+            `Deleted orphaned draft release: ${draftRelease.tag_name}`,
+          );
+        } else {
+          // Release was already deleted or never created
+          this.logger.debug(
+            `Release ${draftRelease.id} no longer exists, nothing to clean up`,
+          );
+        }
+      } catch (cleanupError) {
         this.logger.warn(
-          `Failed to delete orphaned draft release: ${deleteError}`,
+          `Failed to clean up release "${draftRelease.tag_name}": ${cleanupError}`,
         );
       }
       throw error;
     }
 
-    // Update floating tags (e.g., v2 for version 2.15.0)
-    await this.updateFloatingTags(version, revision);
+    // Floating tag updates are best-effort — the release is already published.
+    // A failure here must not mark the target as failed, since re-running
+    // would attempt to create a duplicate release.
+    try {
+      await this.updateFloatingTags(version, revision);
+    } catch (floatingTagError) {
+      this.logger.warn(
+        `Failed to update floating tags (release is already published): ${floatingTagError}`,
+      );
+      this.logger.warn('You may need to update floating tags manually.');
+    }
   }
 }
 
