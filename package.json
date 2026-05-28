@@ -110,7 +110,8 @@
       "flatted": "^3.4.2",
       "picomatch@<3": "^2.3.2",
       "uuid": "^14.0.0",
-      "@tootallnate/once": "^2.0.1"
+      "@tootallnate/once": "^2.0.1",
+      "@sentry/cli": "2.58.6"
     }
   }
 }
