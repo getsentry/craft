@@ -195,8 +195,8 @@ importers:
         specifier: 7.5.11
         version: 7.5.11
       tmp:
-        specifier: 0.2.4
-        version: 0.2.4
+        specifier: 0.2.6
+        version: 0.2.6
       tslib:
         specifier: ^2.8.1
         version: 2.8.1
@@ -3014,8 +3014,8 @@ packages:
     resolution: {integrity: sha512-azl+t0z7pw/z958Gy9svOTuzqIk6xq+NSheJzn5MMWtWTFywIacg2wUlzKFGtt3cthx0r2SxMK0yzJOR0IES7Q==}
     engines: {node: '>=14.0.0'}
 
-  tmp@0.2.4:
-    resolution: {integrity: sha512-UdiSoX6ypifLmrfQ/XfiawN6hkjSBpCjhKxxZcWlUUmoXLaCKQU0bx4HF/tdDK2uzRuchf1txGvrWBzYREssoQ==}
+  tmp@0.2.6:
+    resolution: {integrity: sha512-5sJPdPjfI5Kx+qbrDesxkglRBxW//g7hCsqspEjwkewGvBMGIKMOTKzLt1hFVJzyadba3lDUN20O9qhvbQUSTA==}
     engines: {node: '>=14.14'}
 
   to-regex-range@5.0.1:
@@ -6410,7 +6410,7 @@ snapshots:
 
   tinyspy@4.0.4: {}
 
-  tmp@0.2.4: {}
+  tmp@0.2.6: {}
 
   to-regex-range@5.0.1:
     dependencies:
