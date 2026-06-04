@@ -194,7 +194,12 @@ export class PypiTarget extends BaseTarget {
 
   async uploadAssets(paths: string[]): Promise<any> {
     // TODO: Sign the package with "--sign"
-    return spawnProcess(TWINE_BIN, ['upload', ...paths]);
+    const args = ['upload'];
+    if (process.env.TWINE_VERBOSE) {
+      args.push('--verbose');
+    }
+    args.push(...paths);
+    return spawnProcess(TWINE_BIN, args);
   }
 
   /**
