@@ -31,7 +31,7 @@ import { CommitStatus } from '../base';
 import { getGitHubClient } from '../../utils/githubApi';
 
 function getGitHubMock() {
-  return (getGitHubClient as ReturnType<typeof vi.fn>)() as {
+  return (getGitHubClient as unknown as () => unknown)() as {
     repos: {
       getCombinedStatusForRef: ReturnType<typeof vi.fn>;
       get: ReturnType<typeof vi.fn>;
