@@ -254,30 +254,29 @@ describe('extractZipArchive', () => {
     await withTempDir(async tmpdir => {
       const zip = `${tmpdir}/out.zip`;
 
-      const zipf = await fs.promises.open(zip, 'w');
-      await zipf.writeFile(
-        Buffer.from([
-          80, 75, 3, 4, 10, 0, 0, 0, 0, 0, 99, 150, 109, 88, 220, 199, 60, 159,
-          40, 11, 4, 0, 40, 11, 4, 0, 5, 0, 28, 0, 116, 46, 116, 120, 116, 85,
-          84, 9, 0, 3, 153, 245, 241, 101, 140, 245, 241, 101, 117, 120, 11, 0,
-          1, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0,
-        ]),
+      // Build the entire zip content in memory to avoid 5000+ individual async
+      // writes which can exceed the test timeout on slow CI runners.
+      const header = Buffer.from([
+        80, 75, 3, 4, 10, 0, 0, 0, 0, 0, 99, 150, 109, 88, 220, 199, 60, 159,
+        40, 11, 4, 0, 40, 11, 4, 0, 5, 0, 28, 0, 116, 46, 116, 120, 116, 85, 84,
+        9, 0, 3, 153, 245, 241, 101, 140, 245, 241, 101, 117, 120, 11, 0, 1, 4,
+        0, 0, 0, 0, 4, 0, 0, 0, 0,
+      ]);
+      const line = Buffer.from(
+        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\n',
       );
+      const body = Buffer.alloc(line.length * 5000);
       for (let i = 0; i < 5000; i += 1) {
-        await zipf.writeFile(
-          'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\n',
-        );
+        line.copy(body, i * line.length);
       }
-      await zipf.writeFile(
-        Buffer.from([
-          80, 75, 1, 2, 30, 3, 10, 0, 0, 0, 0, 0, 99, 150, 109, 88, 220, 199,
-          60, 159, 40, 11, 4, 0, 40, 11, 4, 0, 5, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 164, 129, 0, 0, 0, 0, 116, 46, 116, 120, 116, 85, 84, 5, 0, 3, 153,
-          245, 241, 101, 117, 120, 11, 0, 1, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0, 80,
-          75, 5, 6, 0, 0, 0, 0, 1, 0, 1, 0, 75, 0, 0, 0, 103, 11, 4, 0, 0, 0,
-        ]),
-      );
-      await zipf.close();
+      const footer = Buffer.from([
+        80, 75, 1, 2, 30, 3, 10, 0, 0, 0, 0, 0, 99, 150, 109, 88, 220, 199, 60,
+        159, 40, 11, 4, 0, 40, 11, 4, 0, 5, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        164, 129, 0, 0, 0, 0, 116, 46, 116, 120, 116, 85, 84, 5, 0, 3, 153, 245,
+        241, 101, 117, 120, 11, 0, 1, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0, 80, 75, 5,
+        6, 0, 0, 0, 0, 1, 0, 1, 0, 75, 0, 0, 0, 103, 11, 4, 0, 0, 0,
+      ]);
+      await fs.promises.writeFile(zip, Buffer.concat([header, body, footer]));
 
       await extractZipArchive(zip, `${tmpdir}/out`);
 
