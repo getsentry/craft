@@ -22,7 +22,7 @@ const execFileAsync = promisify(execFile);
 // the craft CLI invokes git internally via simple-git. GPG signing is disabled
 // to avoid requiring signing keys in test environments.
 const CLI_ENV: Record<string, string> = {
-  ...process.env as Record<string, string>,
+  ...(process.env as Record<string, string>),
   NODE_ENV: 'test',
   GITHUB_TOKEN: 'test-token',
   GIT_COMMITTER_NAME: 'Test User',
