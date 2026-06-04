@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.26.7
+
+### Bug Fixes 🐛
+
+- (nuget) Use unique suffix for global.json backup by @jamescrosswell in [#823](https://github.com/getsentry/craft/pull/823)
+- (security) Upgrade vitest to ^4.1.0 and tmp to ^0.2.6 by @BYK in [#828](https://github.com/getsentry/craft/pull/828)
+
 ## 2.26.6
 
 ### Bug Fixes 🐛
