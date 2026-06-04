@@ -10,10 +10,10 @@ const mockPublishLayerVersion = vi.fn().mockResolvedValue({
 const mockAddLayerVersionPermission = vi.fn().mockResolvedValue({});
 
 vi.mock('@aws-sdk/client-lambda', () => ({
-  Lambda: vi.fn().mockImplementation(() => ({
-    publishLayerVersion: mockPublishLayerVersion,
-    addLayerVersionPermission: mockAddLayerVersionPermission,
-  })),
+  Lambda: vi.fn().mockImplementation(function (this: any) {
+    this.publishLayerVersion = mockPublishLayerVersion;
+    this.addLayerVersionPermission = mockAddLayerVersionPermission;
+  }),
   Runtime: {},
 }));
 

@@ -17,6 +17,20 @@ import simpleGit from 'simple-git';
 
 const execFileAsync = promisify(execFile);
 
+// Base environment for CLI invocations. Prevents "Terminal is dumb, but EDITOR
+// unset" errors in non-interactive environments (e.g., CI with TERM=dumb) where
+// the craft CLI invokes git internally via simple-git. GPG signing is disabled
+// to avoid requiring signing keys in test environments.
+const CLI_ENV: Record<string, string> = {
+  ...(process.env as Record<string, string>),
+  NODE_ENV: 'test',
+  GITHUB_TOKEN: 'test-token',
+  GIT_COMMITTER_NAME: 'Test User',
+  GIT_COMMITTER_EMAIL: 'test@example.com',
+  GIT_AUTHOR_NAME: 'Test User',
+  GIT_AUTHOR_EMAIL: 'test@example.com',
+};
+
 // Path to the built CLI binary - e2e tests use the actual artifact
 const CLI_BIN = resolve(__dirname, '../../dist/craft');
 
@@ -47,6 +61,9 @@ async function createTestRepo(): Promise<string> {
   await git.init();
   await git.addConfig('user.email', 'test@example.com');
   await git.addConfig('user.name', 'Test User');
+  // Disable GPG signing in test repos to avoid editor/terminal issues
+  await git.addConfig('commit.gpgsign', 'false');
+  await git.addConfig('tag.gpgsign', 'false');
 
   // Create .craft.yml with explicit GitHub config
   const craftConfig = `
@@ -173,11 +190,7 @@ describe('prepare --dry-run e2e', () => {
       ['prepare', '1.0.1', '--dry-run', '--no-input'],
       {
         cwd: tempDir,
-        env: {
-          ...process.env,
-          NODE_ENV: 'test',
-          GITHUB_TOKEN: 'test-token',
-        },
+        env: CLI_ENV,
       },
     );
 
@@ -230,11 +243,7 @@ describe('prepare --dry-run e2e', () => {
       ['prepare', '1.0.1', '--dry-run', '--no-input'],
       {
         cwd: tempDir,
-        env: {
-          ...process.env,
-          NODE_ENV: 'test',
-          GITHUB_TOKEN: 'test-token',
-        },
+        env: CLI_ENV,
       },
     );
 
@@ -303,11 +312,7 @@ targets: []
       ['prepare', '1.0.1', '--dry-run', '--no-input'],
       {
         cwd: tempDir,
-        env: {
-          ...process.env,
-          NODE_ENV: 'test',
-          GITHUB_TOKEN: 'test-token',
-        },
+        env: CLI_ENV,
       },
     );
 
@@ -354,11 +359,7 @@ targets: []
         ['prepare', '1.0.1', '--dry-run', '--no-input'],
         {
           cwd: tempDir,
-          env: {
-            ...process.env,
-            NODE_ENV: 'test',
-            GITHUB_TOKEN: 'test-token',
-          },
+          env: CLI_ENV,
         },
       );
       // If it doesn't throw, that's also fine (branch might be reused)
@@ -381,6 +382,9 @@ targets: []
     await git.init();
     await git.addConfig('user.email', 'test@example.com');
     await git.addConfig('user.name', 'Test User');
+    // Disable GPG signing in test repos to avoid editor/terminal issues
+    await git.addConfig('commit.gpgsign', 'false');
+    await git.addConfig('tag.gpgsign', 'false');
 
     // Create .craft.yml with auto versioning policy
     const craftConfig = `
@@ -429,11 +433,7 @@ targets: []
       ['prepare', '--dry-run', '--no-input'],
       {
         cwd: tempDir,
-        env: {
-          ...process.env,
-          NODE_ENV: 'test',
-          GITHUB_TOKEN: 'test-token',
-        },
+        env: CLI_ENV,
       },
     );
 
@@ -453,6 +453,9 @@ targets: []
     await git.init();
     await git.addConfig('user.email', 'test@example.com');
     await git.addConfig('user.name', 'Test User');
+    // Disable GPG signing in test repos to avoid editor/terminal issues
+    await git.addConfig('commit.gpgsign', 'false');
+    await git.addConfig('tag.gpgsign', 'false');
 
     // Create .craft.yml with auto changelog policy - NO CHANGELOG.md file
     const craftConfig = `
@@ -504,11 +507,7 @@ targets: []
       ['prepare', '--dry-run', '--no-input'],
       {
         cwd: tempDir,
-        env: {
-          ...process.env,
-          NODE_ENV: 'test',
-          GITHUB_TOKEN: 'test-token',
-        },
+        env: CLI_ENV,
       },
     );
 
@@ -534,6 +533,9 @@ targets: []
     await git.init();
     await git.addConfig('user.email', 'test@example.com');
     await git.addConfig('user.name', 'Test User');
+    // Disable GPG signing in test repos to avoid editor/terminal issues
+    await git.addConfig('commit.gpgsign', 'false');
+    await git.addConfig('tag.gpgsign', 'false');
 
     // Config with auto changelog, no preReleaseCommand, github-only targets
     // (github target does not have bumpVersion, so auto-bumping returns false)
@@ -578,11 +580,7 @@ targets:
       ['prepare', '--dry-run', '--no-input'],
       {
         cwd: tempDir,
-        env: {
-          ...process.env,
-          NODE_ENV: 'test',
-          GITHUB_TOKEN: 'test-token',
-        },
+        env: CLI_ENV,
       },
     );
 
