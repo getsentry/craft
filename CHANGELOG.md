@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.26.8
+
+### New Features ✨
+
+- (pypi) Support TWINE_VERBOSE env var to pass --verbose to twine upload by @sentry-junior in [#829](https://github.com/getsentry/craft/pull/829)
+
+### Bug Fixes 🐛
+
+- Avoid test timeout in extractZipArchive by batching writes by @BYK in [#830](https://github.com/getsentry/craft/pull/830)
+
 ## 2.26.7
 
 ### Bug Fixes 🐛
