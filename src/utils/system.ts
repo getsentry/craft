@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import split from 'split';
 import * as tar from 'tar';
-import extract from 'extract-zip';
+import StreamZip from 'node-stream-zip';
 
 import { logger } from '../logger';
 
@@ -536,7 +536,13 @@ export async function extractZipArchive(
   filePath: string,
   dir: string,
 ): Promise<void> {
-  await extract(filePath, { dir: dir });
+  await fs.promises.mkdir(dir, { recursive: true });
+  const zip = new StreamZip.async({ file: filePath });
+  try {
+    await zip.extract(null, dir);
+  } finally {
+    await zip.close();
+  }
 }
 
 /**
