@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.26.9
+
+### Bug Fixes 🐛
+
+- Replace extract-zip with node-stream-zip to fix Node 24.16.0 hang by @BYK in [#831](https://github.com/getsentry/craft/pull/831)
+
 ## 2.26.8
 
 ### New Features ✨
