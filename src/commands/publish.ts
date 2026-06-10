@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync } from 'fs';
 
 import { safeFs } from '../utils/dryRun';
 import { dirname, join } from 'path';
-import shellQuote from 'shell-quote';
+import * as shellQuote from 'shell-quote';
 import stringLength from 'string-length';
 
 import {
