@@ -57,7 +57,7 @@
     "ora": "5.4.0",
     "prettier": "^3.4.2",
     "prompts": "2.4.1",
-    "shell-quote": "1.7.3",
+    "shell-quote": "^1.8.4",
     "simple-git": "^3.33.0",
     "source-map-support": "^0.5.20",
     "split": "1.0.1",
