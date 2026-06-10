@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.26.10
+
+### Bug Fixes 🐛
+
+- Bump shell-quote 1.7.3 → ^1.8.4 (GHSA-w7jw-789q-3m8p) by @BYK in [#833](https://github.com/getsentry/craft/pull/833)
+
 ## 2.26.9
 
 ### Bug Fixes 🐛
