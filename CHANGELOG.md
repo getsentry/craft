@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.26.11
+
+### Bug Fixes 🐛
+
+- Resolve 10 Dependabot security alerts by @BYK in [#836](https://github.com/getsentry/craft/pull/836)
+
+### Internal Changes 🔧
+
+- (deps-dev) Bump esbuild from 0.25.12 to 0.28.1 by @dependabot in [#834](https://github.com/getsentry/craft/pull/834)
+
 ## 2.26.10
 
 ### Bug Fixes 🐛
