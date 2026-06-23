@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@astrojs/starlight": "^0.38.3",
-    "astro": "^6.1.10",
+    "astro": "^6.4.8",
     "sharp": "^0.33.5"
   },
   "pnpm": {
@@ -19,7 +19,8 @@
       "rollup": "^4.59.0",
       "svgo": "^4.0.1",
       "smol-toml": "^1.6.1",
-      "defu": "^6.1.5"
+      "defu": "^6.1.5",
+      "vite": "^7.3.5"
     }
   }
 }
