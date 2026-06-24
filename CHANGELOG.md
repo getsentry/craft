@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.26.12
+
+### Bug Fixes 🐛
+
+- Pin Node to 22.23.1 to avoid node-fetch premature-close regression by @BYK in [#837](https://github.com/getsentry/craft/pull/837)
+
 ## 2.26.11
 
 ### Bug Fixes 🐛
