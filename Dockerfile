@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim AS builder
+FROM node:22.23.1-bookworm-slim AS builder
 
 WORKDIR /usr/local/lib
 
@@ -17,7 +17,7 @@ RUN \
   PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/lib/node_modules/.bin" \
   pnpm build
 
-FROM node:22-bookworm
+FROM node:22.23.1-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive \
   DOTNET_CLI_TELEMETRY_OPTOUT=1 \
