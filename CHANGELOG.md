@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.26.13
+
+### Internal Changes 🔧
+
+- Upgrade to Node 24.18.0 (LTS Krypton) by @BYK in [#838](https://github.com/getsentry/craft/pull/838)
+
 ## 2.26.12
 
 ### Bug Fixes 🐛
