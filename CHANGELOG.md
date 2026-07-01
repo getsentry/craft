@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.26.14
+
+### Bug Fixes 🐛
+
+#### Deps
+
+- Bump js-yaml to >=4.2.0 to resolve GHSA-h67p-54hq-rp68 by @BYK in [#841](https://github.com/getsentry/craft/pull/841)
+- Bump @babel/core to ^7.29.6 to resolve GHSA-4x5r-pxfx-6jf8 by @BYK in [#839](https://github.com/getsentry/craft/pull/839)
+
 ## 2.26.13
 
 ### Internal Changes 🔧
