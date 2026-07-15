@@ -1,5 +1,4 @@
 import * as fs from 'fs';
-import * as path from 'path';
 
 import { Octokit } from '@octokit/rest';
 
@@ -16,7 +15,7 @@ import {
   GitHubRemote,
 } from '../utils/githubApi';
 import { cloneRepo } from '../utils/git';
-import { extractZipArchive } from '../utils/system';
+import { extractZipArchiveWithFlattening } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 
@@ -119,27 +118,9 @@ export class GhPagesTarget extends BaseTarget {
       );
     }
 
-    // Extract the archive
+    // Extract the archive (flattening a single top-level directory if present)
     this.logger.info(`Extracting "${archivePath}" to "${directory}"...`);
-    await extractZipArchive(archivePath, directory);
-
-    // If there's a single top-level directory -- move its contents to the git root
-    const newDirContents = fs.readdirSync(directory).filter(f => f !== '.git');
-    if (
-      newDirContents.length === 1 &&
-      fs.statSync(path.join(directory, newDirContents[0])).isDirectory()
-    ) {
-      this.logger.debug(
-        'Single top-level directory found, moving files from it...',
-      );
-      const innerDirPath = path.join(directory, newDirContents[0]);
-      fs.readdirSync(innerDirPath).forEach(item => {
-        const srcPath = path.join(innerDirPath, item);
-        const destPath = path.join(directory, item);
-        fs.renameSync(srcPath, destPath);
-      });
-      fs.rmdirSync(innerDirPath);
-    }
+    await extractZipArchiveWithFlattening(archivePath, directory);
   }
 
   /**

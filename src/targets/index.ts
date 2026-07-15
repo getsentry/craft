@@ -1,5 +1,6 @@
 import { BaseTarget } from './base';
 import { BrewTarget } from './brew';
+import { CloudflareTarget } from './cloudflare';
 import { CocoapodsTarget } from './cocoapods';
 import { CratesTarget } from './crates';
 import { DockerTarget } from './docker';
@@ -23,6 +24,7 @@ import { PowerShellTarget } from './powershell';
 
 export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   brew: BrewTarget,
+  cloudflare: CloudflareTarget,
   cocoapods: CocoapodsTarget,
   crates: CratesTarget,
   docker: DockerTarget,

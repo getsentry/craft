@@ -546,6 +546,42 @@ export async function extractZipArchive(
 }
 
 /**
+ * Extracts a ZIP archive into the specified directory and, if the archive
+ * contains a single top-level directory, moves its contents up into `dir`.
+ *
+ * This "flatten" behavior is useful for static-site archives that wrap all
+ * their files in a single parent folder (e.g. `my-site/index.html`), so that
+ * the caller ends up with the files directly under `dir`.
+ *
+ * @param filePath Path to the ZIP archive
+ * @param dir Path to the directory to extract into
+ * @returns A promise that resolves when extraction (and flattening) completes
+ * @async
+ */
+export async function extractZipArchiveWithFlattening(
+  filePath: string,
+  dir: string,
+): Promise<void> {
+  await extractZipArchive(filePath, dir);
+
+  // If there's a single top-level directory, move its contents to `dir`
+  const dirContents = fs.readdirSync(dir).filter(f => f !== '.git');
+  if (
+    dirContents.length === 1 &&
+    fs.statSync(path.join(dir, dirContents[0])).isDirectory()
+  ) {
+    logger.debug('Single top-level directory found, moving files from it...');
+    const innerDirPath = path.join(dir, dirContents[0]);
+    fs.readdirSync(innerDirPath).forEach(item => {
+      const srcPath = path.join(innerDirPath, item);
+      const destPath = path.join(dir, item);
+      fs.renameSync(srcPath, destPath);
+    });
+    fs.rmdirSync(innerDirPath);
+  }
+}
+
+/**
  * Sets SIGINT handler to avoid accidental process termination via Ctrl-C
  *
  * After the handler is set, the user should press Ctrl-C with less than
