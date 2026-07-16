@@ -100,6 +100,10 @@ RUN curl -fsSL https://github.com/PowerShell/PowerShell/releases/download/v7.4.1
   && apt-get clean \
   && rm /opt/powershell.deb
 
+# Wrangler CLI for the "cloudflare" target (pinned; pulls the workerd binary)
+RUN npm install -g wrangler@4.111.0 \
+  && wrangler --version
+
 # craft does `git` things against mounted directories as root
 RUN git config --global --add safe.directory '*'
 
