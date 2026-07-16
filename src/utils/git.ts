@@ -42,10 +42,21 @@ export async function getDefaultBranch(
   );
 }
 
-export async function getLatestTag(git: SimpleGit): Promise<string> {
+export async function getLatestTag(
+  git: SimpleGit,
+  tagPrefix = '',
+): Promise<string> {
   try {
     // This part is courtesy of https://stackoverflow.com/a/7261049/90297
-    return (await git.raw('describe', '--tags', '--abbrev=0')).trim();
+    const args = ['describe', '--tags', '--abbrev=0'];
+    if (tagPrefix) {
+      // In a monorepo, tags for multiple products (e.g. `cli@1.2.3`,
+      // `mcp@2.0.0`) are interleaved. `--match '<prefix>*'` scopes
+      // `git describe` to a single product's tag namespace so the latest tag
+      // is resolved per-product instead of picking whatever is newest overall.
+      args.push('--match', `${tagPrefix}*`);
+    }
+    return (await git.raw(args)).trim();
   } catch (err) {
     // If there are no tags, return an empty string
     if (
@@ -236,12 +247,21 @@ export async function findReleaseBranches(
   for (const branch of allBranches) {
     // "origin/release/1.2.3" → strip remote → "release/1.2.3"
     const withoutRemote = branch.replace(/^[^/]+\//, '');
-    // "release/1.2.3" → prefix portion = "release"
-    const slashIndex = withoutRemote.indexOf('/');
-    const branchPrefix =
-      slashIndex >= 0 ? withoutRemote.slice(0, slashIndex) : withoutRemote;
 
-    if (!branchPrefix) {
+    // The prefix may itself contain slashes for monorepo per-product releases
+    // (e.g. "release/cli" → branches like "release/cli/1.2.3"). Compare the
+    // branch's leading segments against the prefix rather than only the first
+    // path segment, so slashed prefixes match exactly and fuzzily.
+    const prefixSegmentCount = prefix.split('/').length;
+    const branchSegments = withoutRemote.split('/');
+    const branchPrefix = branchSegments
+      .slice(0, prefixSegmentCount)
+      .join('/');
+
+    // Only consider branches that actually have a version part after the
+    // prefix (i.e. more segments than the prefix), mirroring the original
+    // single-segment behavior.
+    if (!branchPrefix || branchSegments.length <= prefixSegmentCount) {
       continue;
     }
 

@@ -11,6 +11,7 @@ import {
   DEFAULT_RELEASE_BRANCH_NAME,
   getConfigFileDir,
   getConfiguration,
+  getGitTagPrefix,
   getGlobalGitHubConfig,
   getVersioningPolicy,
   loadConfigurationFromString,
@@ -758,7 +759,7 @@ async function resolveVersion(
       );
     }
 
-    const latestTag = await getLatestTag(git);
+    const latestTag = await getLatestTag(git, getGitTagPrefix());
 
     // Determine bump type - either from arg or from commit analysis
     let bumpType: BumpType;
@@ -866,7 +867,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     // before a specific revision.
     // TL;DR - WARNING:
     // The order matters here, do not move this command above createReleaseBranch!
-    const oldVersion = await getLatestTag(git);
+    const oldVersion = await getLatestTag(git, getGitTagPrefix());
 
     // Check & update the changelog
     // Extract changelog path from config (can be string or object)
