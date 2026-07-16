@@ -42,10 +42,21 @@ export async function getDefaultBranch(
   );
 }
 
-export async function getLatestTag(git: SimpleGit): Promise<string> {
+export async function getLatestTag(
+  git: SimpleGit,
+  tagPrefix = '',
+): Promise<string> {
   try {
     // This part is courtesy of https://stackoverflow.com/a/7261049/90297
-    return (await git.raw('describe', '--tags', '--abbrev=0')).trim();
+    const args = ['describe', '--tags', '--abbrev=0'];
+    if (tagPrefix) {
+      // In a monorepo, tags for multiple products (e.g. `cli@1.2.3`,
+      // `mcp@2.0.0`) are interleaved. `--match '<prefix>*'` scopes
+      // `git describe` to a single product's tag namespace so the latest tag
+      // is resolved per-product instead of picking whatever is newest overall.
+      args.push('--match', `${tagPrefix}*`);
+    }
+    return (await git.raw(args)).trim();
   } catch (err) {
     // If there are no tags, return an empty string
     if (
@@ -236,14 +247,18 @@ export async function findReleaseBranches(
   for (const branch of allBranches) {
     // "origin/release/1.2.3" → strip remote → "release/1.2.3"
     const withoutRemote = branch.replace(/^[^/]+\//, '');
-    // "release/1.2.3" → prefix portion = "release"
-    const slashIndex = withoutRemote.indexOf('/');
-    const branchPrefix =
-      slashIndex >= 0 ? withoutRemote.slice(0, slashIndex) : withoutRemote;
 
-    if (!branchPrefix) {
+    // A release branch is "<prefix>/<version>". Treat the prefix as an opaque
+    // string (slashes carry no special meaning) and recover the branch's own
+    // prefix by cutting at the LAST "/": everything before it is the prefix,
+    // everything after is the version. This handles slashed prefixes
+    // (e.g. "release/cli" → "release/cli/1.2.3") without segment arithmetic.
+    const lastSlash = withoutRemote.lastIndexOf('/');
+    if (lastSlash <= 0) {
+      // No version part after a prefix (or nothing before the slash): skip.
       continue;
     }
+    const branchPrefix = withoutRemote.slice(0, lastSlash);
 
     if (branchPrefix === prefix) {
       exactMatches.push(branch);
