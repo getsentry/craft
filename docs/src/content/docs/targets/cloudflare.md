@@ -3,28 +3,42 @@ title: Cloudflare
 description: Deploy static sites or Workers to Cloudflare
 ---
 
-Deploys a release artifact to Cloudflare, either as a [Cloudflare Pages](https://developers.cloudflare.com/pages/) site or as a [Cloudflare Worker](https://developers.cloudflare.com/workers/) with static assets.
+Deploys a release artifact to Cloudflare, either as a [Cloudflare Worker](https://developers.cloudflare.com/workers/) (optionally with static assets) or as a [Cloudflare Pages](https://developers.cloudflare.com/pages/) site.
 
 The target extracts a ZIP artifact and shells out to the [`wrangler`](https://developers.cloudflare.com/workers/wrangler/) CLI to perform the deployment. `wrangler` is bundled in the Craft Docker image.
+
+:::note
+`deployType` defaults to `worker`. Cloudflare is steering new projects to Workers (with static assets) and positioning Pages as legacy, so Workers is the forward-looking default. Pages remains fully supported via `deployType: pages`.
+:::
 
 ## Configuration
 
 | Option | Description |
 |--------|-------------|
-| `deployType` | `pages` (default) or `worker`. |
+| `deployType` | `worker` (default) or `pages`. |
 | `projectName` | Cloudflare Pages project name. **Required** when `deployType` is `pages`. |
-| `productionBranch` | The Pages project's production branch name. Passed to `wrangler pages deploy --branch` so a release always targets the **production** environment. Default: `main`. This is the Cloudflare environment selector, not your git release branch. |
+| `productionBranch` | The Pages project's production branch name. Optional — when omitted, Craft reads it from the Cloudflare API so the release lands on production. See [Production deployments](#production-deployments-pages). Only used for `deployType: pages`. |
 | `wranglerCliPath` | Path to the `wrangler` binary. Default: `wrangler` (or the `WRANGLER_BIN` env var). |
 | `workingDir` | Subdirectory within the extracted artifact to deploy from. For `worker` deploys this is where the `wrangler.toml` lives. |
 
 ## Environment Variables
 
-| Name | Description |
-|------|-------------|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with permission to deploy Pages/Workers. |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID. |
+| Name | Required | Description |
+|------|----------|-------------|
+| `CLOUDFLARE_API_TOKEN` | Yes | Cloudflare API token with permission to deploy (Account → Cloudflare Pages → Edit, or the equivalent Workers permissions). Passed to `wrangler` via the environment, never on the command line. |
+| `CLOUDFLARE_ACCOUNT_ID` | No | Cloudflare account ID. This is an identifier, not a secret. When unset, `wrangler` auto-discovers it for single-account tokens; set it explicitly if your token can access multiple accounts. |
 
-Both are required. They are passed to `wrangler` via the environment, never on the command line.
+:::note
+Cloudflare deployments authenticate with an API token — there is no OIDC/keyless option in `wrangler`, so provide `CLOUDFLARE_API_TOKEN` as a CI secret.
+:::
+
+## Production deployments (Pages)
+
+`wrangler pages deploy --branch <X>` deploys to **production** only when `<X>` exactly matches the project's server-side production branch; any other value silently produces a *preview* deployment (this is not an error). To make releases reliably land on production, Craft resolves the production branch as follows:
+
+1. If `productionBranch` is set in the config, it is used verbatim.
+2. Otherwise, if the account ID is known, Craft reads the project's production branch from the Cloudflare API (`GET /accounts/{id}/pages/projects/{name}`) — the same call `wrangler` makes internally, so it needs no token scope beyond deploying.
+3. If neither is available, Craft omits `--branch`; a bare deploy from Craft's temporary (non-git) directory defaults to production.
 
 ## Default Behavior
 
@@ -36,16 +50,6 @@ By default, this target:
 
 ## Example
 
-Cloudflare Pages (static site):
-
-```yaml
-targets:
-  - name: cloudflare
-    deployType: pages
-    projectName: my-docs-site
-    productionBranch: main
-```
-
 Cloudflare Worker (with a `wrangler.toml` in the artifact):
 
 ```yaml
@@ -55,8 +59,18 @@ targets:
     workingDir: worker
 ```
 
+Cloudflare Pages (static site):
+
+```yaml
+targets:
+  - name: cloudflare
+    deployType: pages
+    projectName: my-docs-site
+    # productionBranch is optional; inferred from the API when omitted.
+```
+
 ## Workflow
 
-1. Create a `cloudflare.zip` artifact in your CI workflow (e.g. the built static site, or your Worker plus `wrangler.toml`).
+1. Create a `cloudflare.zip` artifact in your CI workflow (e.g. your Worker plus `wrangler.toml`, or the built static site for Pages).
 2. Configure the target in `.craft.yml`.
-3. Set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in your environment.
+3. Set `CLOUDFLARE_API_TOKEN` in your environment (and `CLOUDFLARE_ACCOUNT_ID` if your token can access multiple accounts).
