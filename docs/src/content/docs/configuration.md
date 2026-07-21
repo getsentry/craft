@@ -176,6 +176,22 @@ releaseBranchPrefix: publish
 
 Full branch name: `{releaseBranchPrefix}/{version}`
 
+The prefix may contain slashes, which is useful for monorepos that release
+several independently-versioned products from one repository. Pairing a slashed
+`releaseBranchPrefix` with a per-product `github.tagPrefix` keeps each product's
+release branches and tags separate:
+
+```yaml
+releaseBranchPrefix: release/cli
+targets:
+  - name: github
+    tagPrefix: "cli@"
+```
+
+This produces branches like `release/cli/1.2.3` and tags like `cli@1.2.3`. See
+the [GitHub target docs](./targets/github/#monorepo-independently-versioned-products)
+for the full monorepo pattern.
+
 ## Changelog Policies
 
 Craft supports `simple` and `auto` changelog management modes.

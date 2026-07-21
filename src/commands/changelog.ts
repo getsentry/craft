@@ -1,7 +1,11 @@
 import { Argv, CommandBuilder } from 'yargs';
 
 import { logger } from '../logger';
-import { findConfigFile, getVersioningPolicy } from '../config';
+import {
+  findConfigFile,
+  getGitTagPrefix,
+  getVersioningPolicy,
+} from '../config';
 import { getGitClient, getLatestTag } from '../utils/git';
 import {
   generateChangesetFromGit,
@@ -55,7 +59,24 @@ export async function changelogMain(argv: ChangelogOptions): Promise<void> {
   // Determine base revision for changelog generation
   let since = argv.since;
   if (!since) {
-    since = await getLatestTag(git);
+    // Scope the latest-tag lookup to the configured tag prefix (if any) so
+    // monorepos with interleaved product tags (e.g. `cli@`, `mcp@`) resolve
+    // the correct base. Only read the prefix when a config file is present;
+    // the changelog command can run standalone without one. A broken or
+    // unreadable .craft.yml must not abort a standalone changelog run (which
+    // otherwise needs only git history), so fall back to no prefix on error.
+    let tagPrefix = '';
+    try {
+      if (findConfigFile()) {
+        tagPrefix = getGitTagPrefix();
+      }
+    } catch {
+      // If config can't be read, generate from the latest unprefixed tag.
+      logger.debug(
+        'Could not read tag prefix from config; using latest tag overall',
+      );
+    }
+    since = await getLatestTag(git, tagPrefix);
     if (since) {
       logger.debug(`Using latest tag as base revision: ${since}`);
     } else {

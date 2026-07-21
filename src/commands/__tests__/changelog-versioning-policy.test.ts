@@ -7,6 +7,7 @@ vi.mock('../../logger');
 
 vi.mock('../../config', () => ({
   findConfigFile: vi.fn(),
+  getGitTagPrefix: vi.fn(() => ''),
   getVersioningPolicy: vi.fn(),
 }));
 
@@ -132,5 +133,22 @@ describe('changelog command versioningPolicy in JSON output', () => {
     expect(consoleSpy).toHaveBeenCalledTimes(1);
     const textOutput = consoleSpy.mock.calls[0][0] as string;
     expect(textOutput).not.toContain('versioningPolicy');
+  });
+
+  it('still generates a changelog when getGitTagPrefix throws (invalid config)', async () => {
+    const { findConfigFile, getGitTagPrefix } = await import('../../config');
+    const { getLatestTag } = await import('../../utils/git');
+    const { changelogMain } = await import('../changelog');
+
+    vi.mocked(findConfigFile).mockReturnValue('/repo/.craft.yml');
+    vi.mocked(getGitTagPrefix).mockImplementation(() => {
+      throw new Error('Invalid .craft.yml');
+    });
+
+    // Must not throw: a broken config should not abort a standalone changelog.
+    await expect(changelogMain({ format: 'text' })).resolves.toBeUndefined();
+
+    // Falls back to the latest tag overall (empty prefix).
+    expect(getLatestTag).toHaveBeenCalledWith(expect.anything(), '');
   });
 });
