@@ -98,7 +98,9 @@ describe('cloudflare target configuration', () => {
 
   test('does not require CLOUDFLARE_ACCOUNT_ID', () => {
     delete process.env.CLOUDFLARE_ACCOUNT_ID;
-    expect(() => createCloudflareTarget({ deployType: 'worker' })).not.toThrow();
+    expect(() =>
+      createCloudflareTarget({ deployType: 'worker' }),
+    ).not.toThrow();
   });
 
   test('applies default options (worker)', () => {
