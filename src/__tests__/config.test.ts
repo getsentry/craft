@@ -1,11 +1,16 @@
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, vi, afterEach } from 'vitest';
 /**
  * Tests of our ability to read craft config files. (This is NOT general test
  * configuration).
  */
 
-import { validateConfiguration } from '../config';
+import {
+  getGitTagPrefix,
+  loadConfigurationFromString,
+  validateConfiguration,
+} from '../config';
 import { CraftProjectConfigSchema } from '../schemas/project_config';
+import { logger } from '../logger';
 
 describe('validateConfiguration', () => {
   test('parses minimal configuration', () => {
@@ -116,5 +121,72 @@ describe('noMerge config', () => {
 
   test('fails with invalid noMerge type', () => {
     expect(() => validateConfiguration({ noMerge: 'yes' })).toThrow(/noMerge/);
+  });
+});
+
+describe('getGitTagPrefix', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function loadWithTargets(targets: unknown[]): void {
+    loadConfigurationFromString(
+      [
+        'github:',
+        '  owner: getsentry',
+        '  repo: craft',
+        'targets:',
+        ...targets.map(t => `  - ${JSON.stringify(t)}`),
+      ].join('\n'),
+    );
+  }
+
+  test('returns empty string when no github target has a tagPrefix', () => {
+    loadWithTargets([{ name: 'npm' }, { name: 'github' }]);
+    expect(getGitTagPrefix()).toBe('');
+  });
+
+  test("returns the github target's tagPrefix", () => {
+    loadWithTargets([{ name: 'npm' }, { name: 'github', tagPrefix: 'cli@' }]);
+    expect(getGitTagPrefix()).toBe('cli@');
+  });
+
+  test('does not warn for a single github target', () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    loadWithTargets([{ name: 'github', tagPrefix: 'cli@' }]);
+    expect(getGitTagPrefix()).toBe('cli@');
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  test('does not warn when multiple github targets share the same prefix', () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    loadWithTargets([
+      { name: 'github', tagPrefix: 'cli@' },
+      { name: 'github', tagPrefix: 'cli@', id: 'second' },
+    ]);
+    expect(getGitTagPrefix()).toBe('cli@');
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  test('warns and returns the first prefix when github targets disagree', () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    loadWithTargets([
+      { name: 'github', tagPrefix: 'cli@' },
+      { name: 'github', tagPrefix: 'mcp@', id: 'second' },
+    ]);
+    expect(getGitTagPrefix()).toBe('cli@');
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toMatch(/different "tagPrefix"/);
+  });
+
+  test('warns when one github target has a prefix and another omits it', () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    loadWithTargets([
+      { name: 'github', tagPrefix: 'cli@' },
+      { name: 'github', id: 'second' },
+    ]);
+    // A mixed defined/undefined prefix is still ambiguous.
+    expect(getGitTagPrefix()).toBe('cli@');
+    expect(warnSpy).toHaveBeenCalledTimes(1);
   });
 });

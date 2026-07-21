@@ -7,6 +7,7 @@ vi.mock('../../logger');
 
 vi.mock('../../config', () => ({
   findConfigFile: vi.fn(),
+  getGitTagPrefix: vi.fn(() => ''),
   getVersioningPolicy: vi.fn(),
 }));
 

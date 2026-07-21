@@ -29,6 +29,15 @@ describe('getVersion', () => {
   test('extracts a SemVer version from scoped package tag', () => {
     expect(getVersion('@spotlightjs/spotlight@4.10.0')).toBe('4.10.0');
   });
+
+  test('extracts a SemVer version from a monorepo prefixed tag', () => {
+    expect(getVersion('cli@1.2.3')).toBe('1.2.3');
+    expect(getVersion('mcp@2.0.0-dev.1')).toBe('2.0.0-dev.1');
+    // Prefix ending in a digit still works ("@" provides the boundary)
+    expect(getVersion('sentry-cli@10.20.30')).toBe('10.20.30');
+    // Prefixed tag that also carries a leading "v"
+    expect(getVersion('cli@v1.2.3')).toBe('1.2.3');
+  });
 });
 
 describe('isValidVersion', () => {
@@ -129,6 +138,23 @@ describe('parseVersion', () => {
 
   test('does not parse an invalid version', () => {
     expect(parseVersion('v1.2')).toBeNull();
+  });
+
+  test('parses a version out of a monorepo prefixed tag', () => {
+    expect(parseVersion('cli@1.2.3')).toEqual({
+      major: 1,
+      minor: 2,
+      patch: 3,
+      build: undefined,
+      pre: undefined,
+    });
+    expect(parseVersion('mcp@2.0.0-dev.1')).toEqual({
+      major: 2,
+      minor: 0,
+      patch: 0,
+      build: undefined,
+      pre: 'dev.1',
+    });
   });
 
   test('cannot parse empty value', () => {

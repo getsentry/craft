@@ -328,11 +328,33 @@ export async function getGlobalGitHubConfig(
 
 /**
  * Gets git tag prefix from configuration
+ *
+ * Returns the `tagPrefix` of the first `github` target. In a monorepo where
+ * multiple products are released from separate `.craft.yml` files, each config
+ * has a single `github` target with its own prefix (e.g. `cli@`, `mcp@`), so
+ * this resolves unambiguously per release run. If a single config declares
+ * multiple `github` targets with *differing* prefixes, the configuration is
+ * ambiguous: the first prefix is returned and a warning is emitted.
  */
 export function getGitTagPrefix(): string {
   const targets = getConfiguration().targets || [];
-  const githubTarget = targets.find(target => target.name === 'github');
-  return (githubTarget?.tagPrefix as string | undefined) || '';
+  const githubTargets = targets.filter(target => target.name === 'github');
+  const firstPrefix =
+    (githubTargets[0]?.tagPrefix as string | undefined) || '';
+
+  const hasConflictingPrefix = githubTargets.some(
+    target => ((target.tagPrefix as string | undefined) || '') !== firstPrefix,
+  );
+  if (hasConflictingPrefix) {
+    logger.warn(
+      'Multiple "github" targets with different "tagPrefix" values found. ' +
+        `Using "${firstPrefix}". For independently-versioned products in a ` +
+        'monorepo, use a separate .craft.yml per product, each with a single ' +
+        '"github" target and its own "tagPrefix".',
+    );
+  }
+
+  return firstPrefix;
 }
 
 /**

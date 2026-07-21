@@ -12,7 +12,34 @@ describe('getLatestTag', () => {
     const latestTag = await getLatestTag(git);
     expect(latestTag).toBe('1.0.0');
 
-    expect(git.raw).toHaveBeenCalledWith('describe', '--tags', '--abbrev=0');
+    expect(git.raw).toHaveBeenCalledWith(['describe', '--tags', '--abbrev=0']);
+  });
+
+  it('scopes `git describe` to the tag prefix via --match when provided', async () => {
+    const git = {
+      raw: vi.fn().mockResolvedValue('cli@1.2.3'),
+    } as any;
+
+    const latestTag = await getLatestTag(git, 'cli@');
+    expect(latestTag).toBe('cli@1.2.3');
+
+    expect(git.raw).toHaveBeenCalledWith([
+      'describe',
+      '--tags',
+      '--abbrev=0',
+      '--match',
+      'cli@*',
+    ]);
+  });
+
+  it('does not add --match for an empty prefix', async () => {
+    const git = {
+      raw: vi.fn().mockResolvedValue('1.0.0'),
+    } as any;
+
+    await getLatestTag(git, '');
+
+    expect(git.raw).toHaveBeenCalledWith(['describe', '--tags', '--abbrev=0']);
   });
 
   it('moves on with empty string when no tags are found', async () => {
@@ -24,6 +51,16 @@ describe('getLatestTag', () => {
     } as any;
 
     const latestTag = await getLatestTag(git);
+    expect(latestTag).toBe('');
+  });
+
+  it('returns empty string when prefix matches no tags', async () => {
+    const error = new Error('fatal: No names found');
+    const git = {
+      raw: vi.fn().mockRejectedValue(error),
+    } as any;
+
+    const latestTag = await getLatestTag(git, 'mcp@');
     expect(latestTag).toBe('');
   });
 });
@@ -229,6 +266,35 @@ describe('findReleaseBranches', () => {
 
     expect(result.exactMatches).toEqual(['origin/release/1.0.0']);
     // "main" has distance > 3 from "release", so no fuzzy match
+    expect(result.fuzzyMatches).toEqual([]);
+  });
+
+  it('matches slashed (monorepo) release-branch prefixes exactly', async () => {
+    const git = createMockGit(
+      '  origin/release/cli/1.2.0\n' +
+        '  origin/release/cli/1.2.1\n' +
+        '  origin/release/mcp/2.0.0\n' +
+        '  origin/release/1.0.0\n',
+    );
+
+    const result = await findReleaseBranches(git, 'release/cli');
+
+    expect(result.exactMatches).toEqual([
+      'origin/release/cli/1.2.1',
+      'origin/release/cli/1.2.0',
+    ]);
+    // "release/mcp" is distance 3 from "release/cli" (c→m, l→c, i→p) → fuzzy;
+    // "release" alone has too few segments to be considered.
+    expect(result.fuzzyMatches).toEqual(['origin/release/mcp/2.0.0']);
+  });
+
+  it('does not match a slashed prefix branch that lacks a version segment', async () => {
+    const git = createMockGit('  origin/release/cli\n');
+
+    const result = await findReleaseBranches(git, 'release/cli');
+
+    // No version part after the prefix → not a release branch
+    expect(result.exactMatches).toEqual([]);
     expect(result.fuzzyMatches).toEqual([]);
   });
 });
