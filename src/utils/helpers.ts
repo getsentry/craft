@@ -20,6 +20,47 @@ export function envToBool(envVar: unknown): boolean {
   return !FALSY_ENV_VALUES.has(normalized);
 }
 
+/**
+ * Extracts the `--workspace` selection from the raw argv (or the
+ * `CRAFT_WORKSPACE` env var) before yargs parsing.
+ *
+ * This is needed because yargs runs command `builder`s (which may read the
+ * configuration, e.g. `publish` derives its --target choices from
+ * config.targets) *before* middleware, so the workspace must be resolved up
+ * front rather than in a middleware.
+ *
+ * Supports `--workspace foo` and `--workspace=foo`. The CLI flag wins over the
+ * env var, but only when it actually carries a value: a bare `--workspace` with
+ * no following value (or followed by another flag) is ignored here and left for
+ * yargs to report, falling back to `CRAFT_WORKSPACE` if set. Returns
+ * `undefined` when neither yields a value.
+ *
+ * @param argv The raw argv array (process.argv.slice(2))
+ * @param env The environment to read CRAFT_WORKSPACE from (defaults to process.env)
+ */
+export function extractWorkspaceSelection(
+  argv: string[],
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  const envWorkspace = env.CRAFT_WORKSPACE || undefined;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '--workspace') {
+      const next = argv[i + 1];
+      // Only treat the next token as the value if it isn't another option.
+      if (next !== undefined && !next.startsWith('-')) {
+        return next;
+      }
+      // Bare/valueless flag: don't consume a flag as the name; defer to env.
+      return envWorkspace;
+    }
+    if (arg.startsWith('--workspace=')) {
+      return arg.slice('--workspace='.length) || envWorkspace;
+    }
+  }
+  return envWorkspace;
+}
+
 export interface GlobalFlags {
   [flag: string]: unknown;
   'dry-run'?: boolean;

@@ -10,7 +10,11 @@ import {
   sanitizeDynamicLinkerEnv,
   warnIfCraftEnvFileExists,
 } from './utils/env';
-import { envToBool, setGlobals } from './utils/helpers';
+import {
+  envToBool,
+  setGlobals,
+  extractWorkspaceSelection,
+} from './utils/helpers';
 import { getPackageVersion } from './utils/version';
 import { withTracing } from './utils/tracing';
 import { setActiveWorkspace } from './config';
@@ -71,26 +75,6 @@ function fixGlobalBooleanFlags(argv: string[]): string[] {
 }
 
 /**
- * Extracts the `--workspace` selection from the raw argv (or the
- * `CRAFT_WORKSPACE` env var) before yargs parsing.
- *
- * Supports `--workspace foo` and `--workspace=foo`. The CLI flag wins over the
- * env var. Returns `undefined` when neither is present.
- */
-function extractWorkspaceSelection(argv: string[]): string | undefined {
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    if (arg === '--workspace') {
-      return argv[i + 1];
-    }
-    if (arg.startsWith('--workspace=')) {
-      return arg.slice('--workspace='.length);
-    }
-  }
-  return process.env.CRAFT_WORKSPACE || undefined;
-}
-
-/**
  * Main entrypoint
  */
 async function main(): Promise<void> {
@@ -109,8 +93,8 @@ async function main(): Promise<void> {
   // choices from config.targets) *before* middleware, so setting the workspace
   // via middleware would be too late — the builder would resolve/validate the
   // config without a selection and fail. We therefore extract --workspace (or
-  // CRAFT_WORKSPACE) from the raw argv/env up front. The middleware below
-  // re-applies it from the fully-parsed argv as a belt-and-suspenders.
+  // CRAFT_WORKSPACE) from the raw argv/env up front, which is the single source
+  // of truth for the selection (see extractWorkspaceSelection for precedence).
   setActiveWorkspace(extractWorkspaceSelection(argv));
 
   await yargs()
@@ -147,9 +131,6 @@ async function main(): Promise<void> {
     .strictCommands()
     .showHelpOnFail(true)
     .middleware(setGlobals)
-    .middleware(argv =>
-      setActiveWorkspace(argv.workspace as string | undefined),
-    )
     .parse(argv);
 }
 

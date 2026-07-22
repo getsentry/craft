@@ -135,11 +135,23 @@ function resolveWorkspaceConfig(
       continue;
     }
     if (key === 'github') {
-      // Shallow-merge github so a workspace can override a single field.
-      resolved.github = {
+      // Shallow-merge github so a workspace can override a single field
+      // (e.g. just projectPath) while inheriting owner/repo from the base.
+      const mergedGithub = {
         ...(base.github as GitHubGlobalConfig | undefined),
-        ...(value as GitHubGlobalConfig),
+        ...(value as Partial<GitHubGlobalConfig>),
       };
+      // Only adopt the merged github if it is complete (has owner + repo).
+      // Otherwise leave `github` unset so getGlobalGitHubConfig() can still
+      // fall back to git-remote detection instead of seeing a truthy-but-
+      // incomplete object and skipping the fallback. (A workspace that only
+      // sets projectPath without a base github relies on git detection for
+      // owner/repo, exactly like a top-level config with no github block.)
+      if (mergedGithub.owner && mergedGithub.repo) {
+        resolved.github = mergedGithub as GitHubGlobalConfig;
+      } else {
+        delete (resolved as { github?: unknown }).github;
+      }
     } else {
       (resolved as Record<string, unknown>)[key] = value;
     }

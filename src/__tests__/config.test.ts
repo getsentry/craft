@@ -344,4 +344,47 @@ describe('workspaces', () => {
     const config = loadConfigurationFromString(WS_CONFIG);
     expect(config.targets).toEqual([{ name: 'github', tagPrefix: 'cli@' }]);
   });
+
+  test('does not produce an incomplete github when base has none', () => {
+    // A workspace that sets only github.projectPath, with NO top-level github,
+    // must NOT yield a truthy-but-incomplete github object (missing owner/repo)
+    // — that would make getGlobalGitHubConfig skip its git-remote fallback.
+    setActiveWorkspace('cli');
+    const config = loadConfigurationFromString(
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  cli:',
+        '    github:',
+        '      projectPath: cli',
+        '    targets:',
+        '      - name: github',
+        '        tagPrefix: "cli@"',
+      ].join('\n'),
+    );
+    // Incomplete github is dropped so git-remote detection can still run.
+    expect(config.github).toBeUndefined();
+  });
+
+  test('keeps github when workspace override completes owner/repo', () => {
+    setActiveWorkspace('cli');
+    const config = loadConfigurationFromString(
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  cli:',
+        '    github:',
+        '      owner: getsentry',
+        '      repo: toolkit',
+        '      projectPath: cli',
+        '    targets:',
+        '      - name: github',
+      ].join('\n'),
+    );
+    expect(config.github).toEqual({
+      owner: 'getsentry',
+      repo: 'toolkit',
+      projectPath: 'cli',
+    });
+  });
 });
