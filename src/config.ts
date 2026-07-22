@@ -16,6 +16,7 @@ import {
   TargetConfig,
   ChangelogPolicy,
   VersioningPolicy,
+  Workspace,
 } from './schemas/project_config';
 import { ConfigurationError } from './utils/errors';
 import { isCompiledGitHubAction } from './utils/detection';
@@ -23,6 +24,7 @@ import {
   getPackageVersion,
   parseVersion,
   versionGreaterOrEqualThan,
+  SemVer,
 } from './utils/version';
 // Note: We import getTargetByName lazily in expandWorkspaceTargets to avoid
 // circular dependency: config -> targets -> registry -> utils/registry -> symlink -> version -> config
@@ -54,6 +56,164 @@ let _configPathCache: string;
  * Cached configuration
  */
 let _configCache: CraftProjectConfig;
+
+/**
+ * The minimum craft version required to use the top-level `workspaces` config.
+ *
+ * This is the release the workspaces feature ships in. A dev build of that
+ * release (e.g. `2.27.0-dev.0`) satisfies it via the pre-release relaxation in
+ * `checkMinimalConfigVersion`.
+ */
+export const WORKSPACES_MIN_VERSION = '2.27.0';
+
+/**
+ * The name of the currently-selected workspace, or undefined for the default
+ * (single implicit release unit). Set once via `setActiveWorkspace` from the
+ * `--workspace` CLI option / `CRAFT_WORKSPACE` env before any config access.
+ */
+let _activeWorkspaceName: string | undefined;
+
+/**
+ * Selects the active workspace for subsequent configuration reads.
+ *
+ * Passing `undefined` (or omitting) clears the selection (default behavior).
+ * Must be called before the configuration is first resolved/cached; it clears
+ * the caches so a later read re-resolves against the new selection.
+ */
+export function setActiveWorkspace(name: string | undefined): void {
+  _activeWorkspaceName = name;
+  // Invalidate resolved caches so the next read applies the new selection.
+  _configCache = undefined as unknown as CraftProjectConfig;
+  _globalGitHubConfigCache = undefined;
+}
+
+/**
+ * Returns the name of the currently-selected workspace, if any.
+ */
+export function getActiveWorkspace(): string | undefined {
+  return _activeWorkspaceName;
+}
+
+/**
+ * Merges a workspace's overrides onto the top-level (base) config, producing a
+ * flat `CraftProjectConfig` that the rest of craft consumes unchanged.
+ *
+ * Resolution rules:
+ * - Every release-relevant field defined on the workspace replaces the
+ *   top-level value (shallow override; a workspace either declares a field or
+ *   inherits it wholesale — we do not deep-merge arrays/objects, to keep
+ *   behavior predictable).
+ * - `github` is shallow-merged (owner/repo/projectPath) so a workspace can
+ *   override just `projectPath` while inheriting owner/repo.
+ * - `minVersion` and `workspaces` themselves are stripped from the result.
+ */
+function resolveWorkspaceConfig(
+  base: CraftProjectConfig,
+  workspaceName: string,
+): CraftProjectConfig {
+  const workspaces = base.workspaces || {};
+  const workspace = workspaces[workspaceName];
+  if (!workspace) {
+    const available = Object.keys(workspaces);
+    throw new ConfigurationError(
+      `Unknown workspace "${workspaceName}". ` +
+        (available.length
+          ? `Available workspaces: ${available.join(', ')}.`
+          : 'No workspaces are defined in the configuration.'),
+    );
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { workspaces: _ignoredWorkspaces, ...baseWithoutWorkspaces } = base;
+
+  const resolved: CraftProjectConfig = { ...baseWithoutWorkspaces };
+  for (const [key, value] of Object.entries(workspace) as [
+    keyof Workspace,
+    unknown,
+  ][]) {
+    if (value === undefined) {
+      continue;
+    }
+    if (key === 'github') {
+      // Shallow-merge github so a workspace can override a single field.
+      resolved.github = {
+        ...(base.github as GitHubGlobalConfig | undefined),
+        ...(value as GitHubGlobalConfig),
+      };
+    } else {
+      (resolved as Record<string, unknown>)[key] = value;
+    }
+  }
+
+  return resolved;
+}
+
+/**
+ * Pure check: is `minVersionRaw` (a configured minVersion) >= `requiredVersion`?
+ *
+ * Unlike `requiresMinVersion`, this does not read the (possibly not-yet-resolved)
+ * global configuration, so it is safe to call during config resolution.
+ */
+function isVersionGteMinVersion(
+  minVersionRaw: string | undefined,
+  requiredVersion: string,
+): boolean {
+  if (!minVersionRaw) {
+    return false;
+  }
+  const configuredMinVersion = parseVersion(minVersionRaw);
+  const required = parseVersion(requiredVersion);
+  if (!configuredMinVersion || !required) {
+    return false;
+  }
+  return versionGreaterOrEqualThan(configuredMinVersion, required);
+}
+
+/**
+ * Applies workspace selection + validation to a freshly-parsed config.
+ *
+ * - No `workspaces` in config, no active selection → returns the config as-is.
+ * - `workspaces` present but no selection → error (must pick one explicitly).
+ * - Selection present but no `workspaces` in config → error.
+ * - Both present → returns the resolved (merged) config for the selection and
+ *   enforces the `WORKSPACES_MIN_VERSION` gate.
+ */
+function applyWorkspaceSelection(
+  config: CraftProjectConfig,
+): CraftProjectConfig {
+  const hasWorkspaces =
+    !!config.workspaces && Object.keys(config.workspaces).length > 0;
+
+  if (!hasWorkspaces) {
+    if (_activeWorkspaceName) {
+      throw new ConfigurationError(
+        `--workspace "${_activeWorkspaceName}" was given but no "workspaces" ` +
+          'are defined in the configuration file.',
+      );
+    }
+    return config;
+  }
+
+  // Workspaces are defined: require an explicit selection (no implicit first).
+  if (!_activeWorkspaceName) {
+    const available = Object.keys(config.workspaces || {}).join(', ');
+    throw new ConfigurationError(
+      'This configuration defines workspaces; select one with ' +
+        `--workspace <name> (or the CRAFT_WORKSPACE env var). ` +
+        `Available workspaces: ${available}.`,
+    );
+  }
+
+  // Gate the feature behind minVersion, mirroring auto-versioning.
+  if (!isVersionGteMinVersion(config.minVersion, WORKSPACES_MIN_VERSION)) {
+    throw new ConfigurationError(
+      `Using "workspaces" requires minVersion >= ${WORKSPACES_MIN_VERSION} ` +
+        'in the configuration file.',
+    );
+  }
+
+  return resolveWorkspaceConfig(config, _activeWorkspaceName);
+}
 
 /**
  * Searches the current and parent directories for the configuration file
@@ -155,8 +315,9 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
     string,
     any
   >;
-  _configCache = validateConfiguration(rawConfig);
-  checkMinimalConfigVersion(_configCache);
+  const parsed = validateConfiguration(rawConfig);
+  checkMinimalConfigVersion(parsed);
+  _configCache = applyWorkspaceSelection(parsed);
   return _configCache;
 }
 
@@ -172,8 +333,9 @@ export function loadConfigurationFromString(
 ): CraftProjectConfig {
   logger.debug('Loading configuration from provided content...');
   const rawConfig = load(configContent) as Record<string, any>;
-  _configCache = validateConfiguration(rawConfig);
-  checkMinimalConfigVersion(_configCache);
+  const parsed = validateConfiguration(rawConfig);
+  checkMinimalConfigVersion(parsed);
+  _configCache = applyWorkspaceSelection(parsed);
   return _configCache;
 }
 
@@ -206,7 +368,17 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
     throw new Error(`Cannot parse the current version: "${currentVersionRaw}"`);
   }
 
-  if (versionGreaterOrEqualThan(currentVersion, minVersion)) {
+  // A dev/pre-release build of X.Y.Z (e.g. "2.27.0-dev.0") already contains the
+  // features slated for X.Y.Z, so treat it as satisfying a minVersion of up to
+  // X.Y.Z. Without this, running a local dev build would reject any config
+  // whose minVersion targets the very release that build is heading toward,
+  // making it impossible to dogfood a new feature before its release is cut.
+  // We only relax the CURRENT side (never the configured minVersion side).
+  const effectiveCurrentVersion: SemVer = currentVersion.pre
+    ? { ...currentVersion, pre: undefined, build: undefined }
+    : currentVersion;
+
+  if (versionGreaterOrEqualThan(effectiveCurrentVersion, minVersion)) {
     logger.debug(
       `"craft" version is compatible with the minimal version from the configuration file.`,
     );
@@ -228,21 +400,7 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
  */
 export function requiresMinVersion(requiredVersion: string): boolean {
   const config = getConfiguration();
-  const minVersionRaw = config.minVersion;
-
-  if (!minVersionRaw) {
-    // If no minVersion is configured, the feature is not available
-    return false;
-  }
-
-  const configuredMinVersion = parseVersion(minVersionRaw);
-  const required = parseVersion(requiredVersion);
-
-  if (!configuredMinVersion || !required) {
-    return false;
-  }
-
-  return versionGreaterOrEqualThan(configuredMinVersion, required);
+  return isVersionGteMinVersion(config.minVersion, requiredVersion);
 }
 
 /** Minimum craft version required for auto-versioning and CalVer */
@@ -280,7 +438,7 @@ export function getVersioningPolicy(): VersioningPolicy {
 /**
  * Return the parsed global GitHub configuration
  */
-let _globalGitHubConfigCache: GitHubGlobalConfig | null;
+let _globalGitHubConfigCache: GitHubGlobalConfig | null | undefined;
 export async function getGlobalGitHubConfig(
   clearCache = false,
 ): Promise<GitHubGlobalConfig> {
@@ -329,12 +487,13 @@ export async function getGlobalGitHubConfig(
 /**
  * Gets git tag prefix from configuration
  *
- * Returns the `tagPrefix` of the first `github` target. In a monorepo where
- * multiple products are released from separate `.craft.yml` files, each config
- * has a single `github` target with its own prefix (e.g. `cli@`, `mcp@`), so
- * this resolves unambiguously per release run. If a single config declares
- * multiple `github` targets with *differing* prefixes, the configuration is
- * ambiguous: the first prefix is returned and a warning is emitted.
+ * Returns the `tagPrefix` of the first `github` target of the *active*
+ * configuration. When a `--workspace` is selected, the configuration has
+ * already been narrowed to that workspace's targets, so this resolves the
+ * correct per-product prefix. Without workspaces, a repo may still use a
+ * separate `.craft.yml` per product. If the active config declares multiple
+ * `github` targets with *differing* prefixes, it is ambiguous: the first prefix
+ * is returned and a warning is emitted.
  */
 export function getGitTagPrefix(): string {
   const targets = getConfiguration().targets || [];
@@ -348,8 +507,9 @@ export function getGitTagPrefix(): string {
     logger.warn(
       'Multiple "github" targets with different "tagPrefix" values found. ' +
         `Using "${firstPrefix}". For independently-versioned products in a ` +
-        'monorepo, use a separate .craft.yml per product, each with a single ' +
-        '"github" target and its own "tagPrefix".',
+        'monorepo, use a top-level "workspaces" entry per product (or a ' +
+        'separate .craft.yml), each with a single "github" target and its own ' +
+        '"tagPrefix".',
     );
   }
 

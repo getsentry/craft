@@ -13,6 +13,7 @@ import {
 import { envToBool, setGlobals } from './utils/helpers';
 import { getPackageVersion } from './utils/version';
 import { withTracing } from './utils/tracing';
+import { setActiveWorkspace } from './config';
 
 // Commands
 import * as prepare from './commands/prepare';
@@ -70,6 +71,26 @@ function fixGlobalBooleanFlags(argv: string[]): string[] {
 }
 
 /**
+ * Extracts the `--workspace` selection from the raw argv (or the
+ * `CRAFT_WORKSPACE` env var) before yargs parsing.
+ *
+ * Supports `--workspace foo` and `--workspace=foo`. The CLI flag wins over the
+ * env var. Returns `undefined` when neither is present.
+ */
+function extractWorkspaceSelection(argv: string[]): string | undefined {
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '--workspace') {
+      return argv[i + 1];
+    }
+    if (arg.startsWith('--workspace=')) {
+      return arg.slice('--workspace='.length);
+    }
+  }
+  return process.env.CRAFT_WORKSPACE || undefined;
+}
+
+/**
  * Main entrypoint
  */
 async function main(): Promise<void> {
@@ -82,6 +103,15 @@ async function main(): Promise<void> {
   warnIfCraftEnvFileExists();
 
   const argv = fixGlobalBooleanFlags(process.argv.slice(2));
+
+  // Resolve the active workspace BEFORE parsing. yargs runs command `builder`s
+  // (which may read the configuration, e.g. `publish` derives its --target
+  // choices from config.targets) *before* middleware, so setting the workspace
+  // via middleware would be too late — the builder would resolve/validate the
+  // config without a selection and fail. We therefore extract --workspace (or
+  // CRAFT_WORKSPACE) from the raw argv/env up front. The middleware below
+  // re-applies it from the fully-parsed argv as a belt-and-suspenders.
+  setActiveWorkspace(extractWorkspaceSelection(argv));
 
   await yargs()
     .parserConfiguration({
@@ -107,9 +137,19 @@ async function main(): Promise<void> {
       describe: 'Logging level',
       global: true,
     })
+    .option('workspace', {
+      type: 'string',
+      describe:
+        'Select a named workspace (release unit) from the configuration. ' +
+        'Required when the config defines "workspaces". Env: CRAFT_WORKSPACE',
+      global: true,
+    })
     .strictCommands()
     .showHelpOnFail(true)
     .middleware(setGlobals)
+    .middleware(argv =>
+      setActiveWorkspace(argv.workspace as string | undefined),
+    )
     .parse(argv);
 }
 
