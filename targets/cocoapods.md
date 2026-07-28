@@ -1,0 +1,43 @@
+---
+title: "CocoaPods"
+description: "Publish pods to CocoaPods"
+url: "https://craft.sentry.dev/targets/cocoapods/"
+---
+
+# CocoaPods
+
+Pushes a new podspec to the central CocoaPods repository. The podspec is fetched from the GitHub repository at the release revision.
+
+## Configuration
+
+| Option | Description |
+| --- | --- |
+| `specPath` | Path to the Podspec file in the repository |
+
+## Environment Variables
+
+| Name | Description |
+| --- | --- |
+| `COCOAPODS_TRUNK_TOKEN` | Access token for CocoaPods account |
+| `COCOAPODS_BIN` | Path to `pod` executable |
+
+## Example
+
+```yaml
+targets:
+  - name: cocoapods
+    specPath: MyProject.podspec
+```
+
+
+## Notes
+
+- The `cocoapods` gem must be installed on the system
+- No release artifacts are required for this target
+
+## Navigation
+
+- [Docs home](https://craft.sentry.dev/index.md)
+- [Parent: Targets Overview](https://craft.sentry.dev/targets.md)
+- [Previous: Cloudflare](https://craft.sentry.dev/targets/cloudflare.md)
+- [Next: Commit on Git Repository](https://craft.sentry.dev/targets/commit-on-git-repository.md)
