@@ -28,7 +28,7 @@ export default defineConfig({
         {
           label: 'Getting Started',
           items: [
-            { label: 'Introduction', slug: '' },
+            { label: 'Introduction', slug: 'index' },
             { label: 'Installation', slug: 'getting-started' },
             { label: 'Configuration', slug: 'configuration' },
             { label: 'GitHub Actions', slug: 'github-actions' },

@@ -8,9 +8,9 @@
     "preview": "astro preview"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.39.3",
+    "@astrojs/starlight": "^0.41.5",
     "@sentry/starlight-theme": "^0.8.0",
-    "astro": "^6.4.8",
+    "astro": "^7.1.4",
     "sharp": "^0.35.0"
   },
   "pnpm": {
@@ -21,7 +21,7 @@
       "svgo": "^4.0.1",
       "smol-toml": "^1.6.1",
       "defu": "^6.1.5",
-      "vite": "^7.3.5",
+      "vite": "^8.0.0",
       "js-yaml": "^4.2.0"
     }
   }
