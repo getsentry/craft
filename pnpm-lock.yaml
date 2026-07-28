@@ -9,7 +9,7 @@ overrides:
   minimatch: ^10.2.6
   brace-expansion: ^5.0.8
   ajv@<6.14.0: ^6.14.0
-  postcss: ^8.5.10
+  postcss: ^8.5.18
   rollup: ^4.59.0
   flatted: ^3.4.2
   picomatch@<3: ^2.3.2
@@ -2467,8 +2467,8 @@ packages:
     engines: {npm: '>=1.4.0'}
     hasBin: true
 
-  nanoid@3.3.12:
-    resolution: {integrity: sha512-ZB9RH/39qpq5Vu6Y+NmUaFhQR6pp+M2Xt76XBnEwDaGcVAqhlvxrl3B2bKS5D3NH3QR76v3aSrKaF/Kiy7lEtQ==}
+  nanoid@3.3.16:
+    resolution: {integrity: sha512-bzlKTyNJ7+LdGIIwy8ijFpIqEQIvafahV7eYykJ8Cvh42EdJeODoJ6gUJXpQJvej1BddH8OqTXZNE/KfbWAu8Q==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
@@ -2589,8 +2589,8 @@ packages:
     resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
     engines: {node: '>=12'}
 
-  postcss@8.5.15:
-    resolution: {integrity: sha512-FfR8sjd4em2T6fb3I2MwAJU7HWVMr9zba+enmQeeWFfCbm+UOC/0X4DS8XtpUTMwWMGbjKYP7xjfNekzyGmB3A==}
+  postcss@8.5.24:
+    resolution: {integrity: sha512-8RyVklq0owXUTa4xlpzu4l9AaVKIdQvAcOHZWaMh98HgySsUtxRVf/chRe3dsSLqb6i40BzGRzEUddRaI+9TSw==}
     engines: {node: ^10 || ^12 || >=14}
 
   postgres-array@2.0.0:
@@ -5697,7 +5697,7 @@ snapshots:
 
   mustache@3.0.1: {}
 
-  nanoid@3.3.12: {}
+  nanoid@3.3.16: {}
 
   natural-compare@1.4.0: {}
 
@@ -5813,9 +5813,9 @@ snapshots:
 
   picomatch@4.0.4: {}
 
-  postcss@8.5.15:
+  postcss@8.5.24:
     dependencies:
-      nanoid: 3.3.12
+      nanoid: 3.3.16
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
@@ -6127,7 +6127,7 @@ snapshots:
       esbuild: 0.27.7
       fdir: 6.5.0(picomatch@4.0.4)
       picomatch: 4.0.4
-      postcss: 8.5.15
+      postcss: 8.5.24
       rollup: 4.61.1
       tinyglobby: 0.2.17
     optionalDependencies:
