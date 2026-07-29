@@ -91,9 +91,9 @@ export class AwsLambdaLayerManager {
       CompatibleRuntimes: this.runtime.versions as Runtime[],
       ...(this.compatibleArchitectures?.length
         ? {
-          CompatibleArchitectures: this
-            .compatibleArchitectures as Architecture[],
-        }
+            CompatibleArchitectures: this
+              .compatibleArchitectures as Architecture[],
+          }
         : {}),
       LicenseInfo: this.license,
       Description: `Sentry AWS Serverless SDK v${this.sdkVersion}`,
