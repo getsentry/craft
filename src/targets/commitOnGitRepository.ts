@@ -145,9 +145,20 @@ export async function pushArchiveToGitRepository({
         throw e;
       }
 
-      if (parsedUrl.host === 'github.com' && process.env.GITHUB_API_TOKEN) {
-        logger?.info('Using provided github PAT token for authentication.');
-        parsedUrl.username = process.env.GITHUB_API_TOKEN;
+      if (parsedUrl.host === 'github.com') {
+        const ghToken =
+          process.env.GITHUB_API_TOKEN || process.env.GITHUB_TOKEN;
+        if (ghToken) {
+          logger?.info('Using provided github PAT token for authentication.');
+          parsedUrl.password = ghToken;
+          if (!parsedUrl.username) {
+            // `x-access-token` works for both classic PATs and GitHub App
+            // installation tokens (the token type used by getsentry/publish
+            // and craft's own release workflow). The docker target uses the
+            // same username for these tokens.
+            parsedUrl.username = 'x-access-token';
+          }
+        }
       }
 
       const authenticatedUrl = parsedUrl.toString();
