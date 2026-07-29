@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.27.2
+
+### Bug Fixes 🐛
+
+- (commit-on-git) Use proper username and pass for by @BYK in [#862](https://github.com/getsentry/craft/pull/862)
+
 ## 2.27.1
 
 ### Bug Fixes 🐛
