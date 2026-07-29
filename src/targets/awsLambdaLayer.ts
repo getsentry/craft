@@ -42,6 +42,7 @@ interface AwsLambdaTargetConfig {
 interface AwsLambdaTargetYamlConfig extends Record<string, unknown> {
   linkPrereleases?: boolean;
   compatibleRuntimes?: CompatibleRuntime[];
+  compatibleArchitectures?: string[];
   license?: string;
 }
 
@@ -290,6 +291,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     this.logger.debug(`Resolved layer name: ${resolvedLayerName}`);
 
     const config = this.config as TypedTargetConfig<AwsLambdaTargetYamlConfig>;
+    const compatibleArchitectures = config.compatibleArchitectures;
     await Promise.all(
       config.compatibleRuntimes!.map(async (runtime: CompatibleRuntime) => {
         this.logger.debug(`Publishing runtime ${runtime.name}...`);
@@ -300,6 +302,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           artifactBuffer,
           awsRegions,
           version,
+          compatibleArchitectures,
         );
 
         let publishedLayers = [];
@@ -351,6 +354,10 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           account_number: getAccountFromArn(publishedLayers[0].arn),
           layer_name: resolvedLayerName,
           regions: regionsVersions,
+          compatible_runtimes: runtime.versions,
+          ...(compatibleArchitectures?.length
+            ? { compatible_architectures: compatibleArchitectures }
+            : {}),
         };
 
         const baseFilepath = path.posix.join(
