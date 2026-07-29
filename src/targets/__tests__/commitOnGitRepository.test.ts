@@ -145,19 +145,19 @@ describe('With authentication', () => {
     });
 
     expect(mockClone).toHaveBeenCalledWith(
-      'https://test-token@github.com/getsentry/sentry-deno',
+      'https://token:test-token@github.com/getsentry/sentry-deno',
       expect.any(String),
     );
 
     expect(mockRaw).toHaveBeenCalledWith(
       'push',
-      'https://test-token@github.com/getsentry/sentry-deno',
+      'https://token:test-token@github.com/getsentry/sentry-deno',
       '--force',
     );
 
     expect(mockRaw).toHaveBeenCalledWith(
       'push',
-      'https://test-token@github.com/getsentry/sentry-deno',
+      'https://token:test-token@github.com/getsentry/sentry-deno',
       '--tags',
     );
   });

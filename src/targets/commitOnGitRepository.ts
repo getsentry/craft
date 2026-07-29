@@ -146,7 +146,8 @@ export async function pushArchiveToGitRepository({
       }
 
       if (parsedUrl.host === 'github.com') {
-        const ghToken = process.env.GITHUB_API_TOKEN || process.env.GITHUB_TOKEN;
+        const ghToken =
+          process.env.GITHUB_API_TOKEN || process.env.GITHUB_TOKEN;
         if (ghToken) {
           logger?.info('Using provided github PAT token for authentication.');
           parsedUrl.password = ghToken;
