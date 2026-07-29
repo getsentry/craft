@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.27.1
+
+### Bug Fixes 🐛
+
+- (crates) Recognize more already-published error messages by @szokeasaurusrex in [#859](https://github.com/getsentry/craft/pull/859)
+
 ## 2.27.0
 
 ### New Features ✨
