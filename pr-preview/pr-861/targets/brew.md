@@ -1,0 +1,69 @@
+---
+title: "Homebrew"
+description: "Update Homebrew formulas"
+url: "https://craft.sentry.dev/pr-preview/pr-861/targets/brew/"
+---
+
+# Homebrew
+
+Pushes a new or updated Homebrew formula to a tap repository. The formula is committed directly to the master branch.
+
+Note
+
+Formulas on `homebrew/core` are not supported. Use your own tap repository.
+
+## Configuration
+
+| Option | Description |
+| --- | --- |
+| `tap` | Homebrew tap name (e.g., `octocat/tools` → `github.com:octocat/homebrew-tools`) |
+| `template` | Formula template (Ruby code) with Mustache interpolation |
+| `formula` | Formula name (supports Mustache templating with `{{version}}`). Default: repository name |
+| `path` | Path to store formula. Default: `Formula` |
+
+Pre-release Versions
+
+The Brew target automatically skips pre-release versions (e.g., `1.0.0-alpha.1`, `2.0.0-rc.1`). Homebrew formulas are only updated for stable releases.
+
+### Template Variables
+
+- `version`: The new version
+- `revision`: The tag’s commit SHA
+- `checksums`: Map of sha256 checksums by filename (dots replaced with `__`, version with `__VERSION__`)
+
+## Environment Variables
+
+| Name | Description |
+| --- | --- |
+| `GITHUB_TOKEN` | GitHub API token |
+
+## Example
+
+```yaml
+targets:
+  - name: brew
+    tap: octocat/tools
+    formula: myproject
+    path: HomebrewFormula
+    template: >
+      class MyProject < Formula
+        desc "This is a test for homebrew formulae"
+        homepage "https://github.com/octocat/my-project"
+        url "https://github.com/octocat/my-project/releases/download/{{version}}/binary-darwin"
+        version "{{version}}"
+        sha256 "{{checksums.binary-darwin}}"
+
+
+        def install
+          mv "binary-darwin", "myproject"
+          bin.install "myproject"
+        end
+      end
+```
+
+## Navigation
+
+- [Docs home](https://craft.sentry.dev/pr-preview/pr-861/index.md)
+- [Parent: Targets Overview](https://craft.sentry.dev/pr-preview/pr-861/targets.md)
+- [Previous: AWS Lambda Layer](https://craft.sentry.dev/pr-preview/pr-861/targets/aws-lambda-layer.md)
+- [Next: Cloudflare](https://craft.sentry.dev/pr-preview/pr-861/targets/cloudflare.md)
