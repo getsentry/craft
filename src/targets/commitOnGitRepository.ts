@@ -145,9 +145,15 @@ export async function pushArchiveToGitRepository({
         throw e;
       }
 
-      if (parsedUrl.host === 'github.com' && process.env.GITHUB_API_TOKEN) {
-        logger?.info('Using provided github PAT token for authentication.');
-        parsedUrl.username = process.env.GITHUB_API_TOKEN;
+      if (parsedUrl.host === 'github.com') {
+        const ghToken = process.env.GITHUB_API_TOKEN || process.env.GITHUB_TOKEN;
+        if (ghToken) {
+          logger?.info('Using provided github PAT token for authentication.');
+          parsedUrl.password = ghToken;
+          if (!parsedUrl.username) {
+            parsedUrl.username = 'token';
+          }
+        }
       }
 
       const authenticatedUrl = parsedUrl.toString();
