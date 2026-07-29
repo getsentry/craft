@@ -31,6 +31,9 @@ vi.mock('simple-git', () => ({
   }),
 }));
 
+const AUTH_ENV_VARS = ['GITHUB_API_TOKEN', 'GITHUB_TOKEN'] as const;
+let savedAuthEnv: Record<string, string | undefined>;
+
 beforeEach(() => {
   tarExtractMock.mockReset();
   tarExtractMock.mockImplementation(() => Promise.resolve(undefined));
@@ -39,6 +42,24 @@ beforeEach(() => {
   mockRaw.mockReset();
   mockCommit.mockReset();
   mockAddTag.mockReset();
+
+  // Clear any auth tokens so the default (unauthenticated) expectations hold
+  // even in CI, where GITHUB_TOKEN is set automatically.
+  savedAuthEnv = {};
+  for (const key of AUTH_ENV_VARS) {
+    savedAuthEnv[key] = process.env[key];
+    delete process.env[key];
+  }
+});
+
+afterEach(() => {
+  for (const key of AUTH_ENV_VARS) {
+    if (savedAuthEnv[key] === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = savedAuthEnv[key];
+    }
+  }
 });
 
 test('Basic commit-on-git-repository functionality', async () => {
@@ -122,16 +143,6 @@ test('Shell-metacharacter archivePath does not reach a shell', async () => {
 });
 
 describe('With authentication', () => {
-  let oldToken: string | undefined;
-
-  beforeEach(() => {
-    oldToken = process.env['GITHUB_API_TOKEN'];
-  });
-
-  afterEach(() => {
-    process.env['GITHUB_API_TOKEN'] = oldToken;
-  });
-
   test('adds GitHub pat to repository url', async () => {
     process.env['GITHUB_API_TOKEN'] = 'test-token';
 
@@ -145,19 +156,19 @@ describe('With authentication', () => {
     });
 
     expect(mockClone).toHaveBeenCalledWith(
-      'https://token:test-token@github.com/getsentry/sentry-deno',
+      'https://x-access-token:test-token@github.com/getsentry/sentry-deno',
       expect.any(String),
     );
 
     expect(mockRaw).toHaveBeenCalledWith(
       'push',
-      'https://token:test-token@github.com/getsentry/sentry-deno',
+      'https://x-access-token:test-token@github.com/getsentry/sentry-deno',
       '--force',
     );
 
     expect(mockRaw).toHaveBeenCalledWith(
       'push',
-      'https://token:test-token@github.com/getsentry/sentry-deno',
+      'https://x-access-token:test-token@github.com/getsentry/sentry-deno',
       '--tags',
     );
   });
