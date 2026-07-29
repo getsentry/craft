@@ -34,11 +34,18 @@ const CARGO_BIN = resolveExecutable(CARGO_CONFIG);
 const VERSION_ERROR = 'failed to select a version for the requirement';
 
 /**
- * A message fragment emitted by cargo when publishing fails because the crate
- * had already been published in this exact version. This happens especially
- * when rerunning a workspace publish after it has failed in the middle.
+ * Message fragments that likely indicate the crate version is already on
+ * crates.io. This happens especially when rerunning a workspace publish after
+ * it has failed in the middle.
  */
-const REPUBLISH_ERROR = 'is already uploaded';
+const REPUBLISH_ERRORS = [
+  'is already uploaded',
+  'already exists on crates.io index',
+] as const;
+
+function isAlreadyPublishedError(message: string): boolean {
+  return REPUBLISH_ERRORS.some(fragment => message.includes(fragment));
+}
 
 /**
  * Maximum number of attempts including the initial one when publishing fails
@@ -324,7 +331,10 @@ export class CratesTarget extends BaseTarget {
         try {
           await spawnProcess(CARGO_BIN, args, { env });
         } catch (err) {
-          if (err instanceof Error && err.message.includes(REPUBLISH_ERROR)) {
+          if (
+            err instanceof Error &&
+            isAlreadyPublishedError(err.message)
+          ) {
             this.logger.info(
               `Skipping ${crate.name}, version ${crate.version} already published`,
             );
