@@ -67,8 +67,8 @@ targets:
     compatibleRuntimes:
       - name: node
         versions:
-          - nodejs10.x
-          - nodejs12.x
+          - nodejs22.x
+          - nodejs24.x
     compatibleArchitectures:
       - x86_64
       - arm64

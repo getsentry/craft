@@ -348,17 +348,26 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         });
 
         // Common data specific to all the layers in the current runtime.
-        const runtimeData = {
+        const runtimeData: {
+          canonical: string;
+          sdk_version: string;
+          account_number: string;
+          layer_name: string;
+          regions: { region: string; version: string }[];
+          compatible_runtimes: string[];
+          compatible_architectures?: string[];
+        } = {
           canonical: layerManager.getCanonicalName(),
           sdk_version: version,
           account_number: getAccountFromArn(publishedLayers[0].arn),
           layer_name: resolvedLayerName,
           regions: regionsVersions,
           compatible_runtimes: runtime.versions,
-          ...(compatibleArchitectures?.length
-            ? { compatible_architectures: compatibleArchitectures }
-            : {}),
         };
+
+        if (compatibleArchitectures?.length) {
+          runtimeData.compatible_architectures = compatibleArchitectures;
+        }
 
         const baseFilepath = path.posix.join(
           runtimeBaseDir,
