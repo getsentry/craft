@@ -1,7 +1,8 @@
 import { XMLParser } from 'fast-xml-parser';
 import aws4 from 'aws4';
 import fetch from 'node-fetch';
-import { Lambda, Runtime } from '@aws-sdk/client-lambda';
+import { Architecture, Lambda, Runtime } from '@aws-sdk/client-lambda';
+import { captureException } from '@sentry/node';
 import { logger } from '../logger';
 
 /** Prefix of the canonical name. */
@@ -10,6 +11,8 @@ const RUNTIME_CANONICAL_PREFIX = 'aws-layer:';
 const ARN_SEPARATOR = ':';
 /** Index (0-based) of the account number in the ARN. */
 const ARN_ACCOUNT_INDEX = 4;
+/** Total AWS SDK attempts per operation, including the initial request. */
+const AWS_MAX_ATTEMPTS = 3;
 
 /**
  * Info for a runtime.
@@ -35,6 +38,8 @@ interface PublishedLayer {
 export class AwsLambdaLayerManager {
   /** Compatible runtimes with the new layer.  */
   private runtime: CompatibleRuntime;
+  /** Compatible architectures with the new layer. */
+  private compatibleArchitectures?: string[];
   /** Regions to publish the layer to. */
   private awsRegions: string[] = [];
   /** Name of the layer to be published. */
@@ -55,6 +60,7 @@ export class AwsLambdaLayerManager {
     artifactBuffer: Buffer,
     awsRegions: string[],
     sdkVersion: string,
+    compatibleArchitectures?: string[],
   ) {
     this.runtime = runtime;
     this.layerName = layerName;
@@ -62,6 +68,7 @@ export class AwsLambdaLayerManager {
     this.artifactBuffer = artifactBuffer;
     this.awsRegions = awsRegions;
     this.sdkVersion = sdkVersion;
+    this.compatibleArchitectures = compatibleArchitectures;
   }
 
   /**
@@ -71,13 +78,23 @@ export class AwsLambdaLayerManager {
    */
   public async publishLayerToRegion(region: string): Promise<PublishedLayer> {
     logger.debug(`Publishing layer to ${region}...`);
-    const lambda = new Lambda({ region: region });
+    // Let the AWS SDK retry transient failures with exponential backoff.
+    const lambda = new Lambda({
+      region,
+      maxAttempts: AWS_MAX_ATTEMPTS,
+    });
     const publishedLayer = await lambda.publishLayerVersion({
       Content: {
         ZipFile: this.artifactBuffer,
       },
       LayerName: this.layerName,
       CompatibleRuntimes: this.runtime.versions as Runtime[],
+      ...(this.compatibleArchitectures?.length
+        ? {
+            CompatibleArchitectures: this
+              .compatibleArchitectures as Architecture[],
+          }
+        : {}),
       LicenseInfo: this.license,
       Description: `Sentry AWS Serverless SDK v${this.sdkVersion}`,
     });
@@ -103,26 +120,57 @@ export class AwsLambdaLayerManager {
 
   /**
    * Publishes new AWS Lambda layers to all the regions.
-   *
-   * @returns Array of the published layers.
+   * Failed regions are reported, but do not block the release.
+   * @returns Array of the successfully published layers.
    */
   public async publishToAllRegions(): Promise<PublishedLayer[]> {
-    const publishedLayers = await Promise.all(
-      this.awsRegions.map(async region => {
+    type RegionResult =
+      | { region: string; layer: PublishedLayer }
+      | { region: string; error: Error };
+
+    const results: RegionResult[] = await Promise.all(
+      this.awsRegions.map(async (region): Promise<RegionResult> => {
         try {
-          return await this.publishLayerToRegion(region);
+          const layer = await this.publishLayerToRegion(region);
+          return { region, layer: layer };
         } catch (error) {
-          logger.warn(
-            'Something went wrong with AWS trying to publish to region ' +
-              `${region}: ${error.message}`,
-          );
-          return undefined;
+          return {
+            region,
+            error: error instanceof Error ? error : new Error(String(error)),
+          };
         }
       }),
     );
-    return publishedLayers.filter(layer => {
-      return layer !== undefined;
-    }) as PublishedLayer[];
+
+    const failed = results.filter(
+      (result): result is { region: string; error: Error } => 'error' in result,
+    );
+    if (failed.length) {
+      const summary =
+        `Layer published with ${failed.length} failed region(s) for ` +
+        `${this.runtime.name}: ${failed.map(f => f.region).join(', ')}`;
+      logger.error(summary);
+      for (const { region, error } of failed) {
+        logger.error(`  ${region}: ${error.message}`);
+      }
+      captureException(new Error(summary), {
+        extra: {
+          runtime: this.runtime.name,
+          sdkVersion: this.sdkVersion,
+          failedRegions: failed.map(f => ({
+            region: f.region,
+            message: f.error.message,
+          })),
+        },
+      });
+    }
+
+    return results
+      .filter(
+        (result): result is { region: string; layer: PublishedLayer } =>
+          'layer' in result,
+      )
+      .map(result => result.layer);
   }
 
   /**
