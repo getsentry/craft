@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.28.0
+
+### New Features ✨
+
+- (aws-lambda-layer) Add CompatibleArchitectures and per-region failure improvements by @pabloDeputter in [#861](https://github.com/getsentry/craft/pull/861)
+
 ## 2.27.2
 
 ### Bug Fixes 🐛
