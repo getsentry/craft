@@ -14,6 +14,7 @@ Creates a new public Lambda layer in each available AWS region and updates the S
 | --- | --- |
 | `layerName` | Name of the Lambda layer. Supports template variables (see below) |
 | `compatibleRuntimes` | List of runtime configurations |
+| `compatibleArchitectures` | Optional list of instruction set architectures (`x86_64`, `arm64`) |
 | `license` | Layer license |
 | `linkPrereleases` | Publish layers for preview/pre-release versions. Default: `false` |
 | `includeNames` | Must filter to exactly one artifact |
@@ -45,6 +46,9 @@ compatibleRuntimes:
     versions:
       - nodejs10.x
       - nodejs12.x
+compatibleArchitectures:
+  - x86_64
+  - arm64
 ```
 
 
@@ -67,8 +71,11 @@ targets:
     compatibleRuntimes:
       - name: node
         versions:
-          - nodejs10.x
-          - nodejs12.x
+          - nodejs22.x
+          - nodejs24.x
+    compatibleArchitectures:
+      - x86_64
+      - arm64
     license: MIT
 ```
 
