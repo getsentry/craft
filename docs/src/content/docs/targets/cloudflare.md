@@ -21,11 +21,31 @@ The target extracts a ZIP artifact and shells out to the [`wrangler`](https://de
 | `wranglerCliPath` | Path to the `wrangler` binary. Default: `wrangler` (or the `WRANGLER_BIN` env var). |
 | `workingDir` | Subdirectory within the extracted artifact to deploy from. For `worker` deploys this is where the `wrangler.toml` lives. |
 
+## API token permissions
+
+Set `CLOUDFLARE_API_TOKEN` to an API token scoped to the Cloudflare account
+that owns the deployment. Grant only the account permission required by the
+configured deploy type:
+
+| `deployType` | Minimum API token permission |
+| --- | --- |
+| `worker` | `Account → Workers Scripts → Edit` |
+| `pages` | `Account → Cloudflare Pages → Edit` |
+
+If one token is used for both deploy types, grant both permissions. Do not add
+user, zone, billing, account-settings, or read permissions: this target does
+not require them. The account ID is an identifier, not a permission; use the
+optional `CLOUDFLARE_ACCOUNT_ID` value when the token can access multiple
+accounts.
+
+See Cloudflare's [API token permissions](https://developers.cloudflare.com/fundamentals/api/reference/permissions/)
+reference for the current permission names and descriptions.
+
 ## Environment Variables
 
 | Name | Required | Description |
 |------|----------|-------------|
-| `CLOUDFLARE_API_TOKEN` | Yes | Cloudflare API token with permission to deploy (Account → Cloudflare Pages → Edit, or the equivalent Workers permissions). Passed to `wrangler` via the environment, never on the command line. |
+| `CLOUDFLARE_API_TOKEN` | Yes | Cloudflare API token with the minimum permission described in [API token permissions](#api-token-permissions). Passed to `wrangler` via the environment, never on the command line. |
 | `CLOUDFLARE_ACCOUNT_ID` | No | Cloudflare account ID. This is an identifier, not a secret. When unset, `wrangler` auto-discovers it for single-account tokens; set it explicitly if your token can access multiple accounts. |
 
 :::note
