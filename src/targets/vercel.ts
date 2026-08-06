@@ -1,31 +1,28 @@
 import { join } from 'path';
 
+import { createDeployment } from '@vercel/client';
+
 import {
   GitHubGlobalConfig,
   TargetConfig,
   TypedTargetConfig,
 } from '../schemas/project_config';
 import { checkEnvForPrerequisite } from '../utils/env';
-import { ConfigurationError, reportError } from '../utils/errors';
+import { reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
 import { logDryRun } from '../utils/dryRun';
-import {
-  checkExecutableIsPresent,
-  extractZipArchive,
-  resolveExecutable,
-  spawnProcess,
-} from '../utils/system';
+import { extractZipArchiveWithFlattening } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 
 /**
- * Secrets required to authenticate with Vercel.
+ * Secrets required to authenticate with the Vercel API.
  *
- * Only the token is a true secret. The org and project IDs are identifiers, not
- * credentials, and are handled separately (see the `*_ID_ENV_VAR` constants
- * below): they are optional and, when set, forwarded to the Vercel CLI through
- * the environment.
+ * Only the token is a true secret. The org/team and project IDs are
+ * identifiers, not credentials, and are handled separately (see the
+ * `*_ID_ENV_VAR` constants below): they are optional and, when set, forwarded
+ * to the deploy call so it links to the right project non-interactively.
  *
  * Exported so tests (and documentation tooling) can reference the canonical
  * list of environment variables this target consumes.
@@ -34,29 +31,13 @@ export const targetSecrets = ['VERCEL_TOKEN'] as const;
 type SecretsType = (typeof targetSecrets)[number];
 
 /**
- * Optional, non-secret identifiers forwarded to the Vercel CLI when present.
- * They link the deployment to a specific org/project non-interactively, which
- * is what CI needs (there is no interactive `vercel link` step). When unset,
- * the CLI falls back to the `.vercel/project.json` inside the artifact.
+ * Optional, non-secret identifiers forwarded to the Vercel API when present.
+ * They link the deployment to a specific team/project non-interactively, which
+ * is what CI needs. When unset, the deploy falls back to the
+ * `.vercel/project.json` inside the artifact.
  */
 const ORG_ID_ENV_VAR = 'VERCEL_ORG_ID';
 const PROJECT_ID_ENV_VAR = 'VERCEL_PROJECT_ID';
-
-/** Vercel executable configuration */
-const VERCEL_CONFIG = {
-  name: 'vercel',
-  envVar: 'VERCEL_BIN',
-  errorHint:
-    'Install the Vercel CLI (npm install -g vercel) or set VERCEL_BIN to its path',
-} as const;
-
-/**
- * Matches a string that is exactly an environment-variable expansion, e.g.
- * `${VERCEL_TOKEN}`. `spawnProcess` expands args of this exact form against the
- * environment (which includes the token), so any value flowing into the CLI
- * argv must be rejected if it matches.
- */
-const ENV_EXPANSION_REGEX = /^\$\{.*\}$/;
 
 /**
  * Regex for the Vercel deploy archive.
@@ -69,7 +50,6 @@ const DEFAULT_DEPLOY_ARCHIVE_REGEX = /^(?:.+-)?vercel\.zip$/;
 /** Fields on the vercel target config accessed at runtime */
 interface VercelConfigFields extends Record<string, unknown> {
   prebuilt?: boolean;
-  vercelCliPath?: string;
   workingDir?: string;
 }
 
@@ -77,23 +57,21 @@ interface VercelConfigFields extends Record<string, unknown> {
 export interface VercelTargetConfig {
   /**
    * Whether the artifact contains a prebuilt `.vercel/output` (the result of
-   * `vercel build`). When true, the CLI is invoked with `--prebuilt` and skips
+   * `vercel build`). When true, the deploy is created with `prebuilt` and skips
    * the remote build step. Defaults to true: the docs website is built in CI
    * and the release just promotes the prebuilt output to production.
    */
   prebuilt: boolean;
-  /** Resolved path/name of the vercel binary */
-  vercelCliPath: string;
   /** Subdirectory within the extracted artifact to deploy from */
   workingDir?: string;
   /**
-   * Optional Vercel org ID (an identifier, not a secret). Forwarded to the CLI
-   * through the environment when set.
+   * Optional Vercel org/team ID (an identifier, not a secret). Forwarded to the
+   * deploy as `teamId` when set.
    */
   orgId?: string;
   /**
    * Optional Vercel project ID (an identifier, not a secret). Forwarded to the
-   * CLI through the environment when set.
+   * deploy as the project name when set.
    */
   projectId?: string;
 }
@@ -107,8 +85,8 @@ export type VercelTargetFullConfig = VercelTargetConfig &
 /**
  * Target responsible for deploying a prebuilt static site to Vercel.
  *
- * Shells out to the `vercel` CLI to promote a release artifact to production
- * (`vercel deploy --prod`). Intended for release-gated documentation sites: the
+ * Uses the Vercel deploy API (via `@vercel/client`) to promote a release
+ * artifact to production. Intended for release-gated documentation sites: the
  * artifact is built in CI and this target only publishes it, keeping the docs
  * in sync with the released version.
  */
@@ -128,7 +106,6 @@ export class VercelTarget extends BaseTarget {
     super(config, artifactProvider, githubRepo);
     this.githubRepo = githubRepo;
     this.vercelConfig = this.getVercelConfig();
-    checkExecutableIsPresent(this.vercelConfig.vercelCliPath);
   }
 
   /**
@@ -139,29 +116,10 @@ export class VercelTarget extends BaseTarget {
   public getVercelConfig(): VercelTargetFullConfig {
     const config = this.config as TypedTargetConfig<VercelConfigFields>;
 
-    // These config values are passed to the CLI as command-line arguments.
-    // spawnProcess() expands args of the exact form "${VAR}" using the
-    // environment -- which includes VERCEL_TOKEN. Reject such values so a
-    // config string can never be expanded into a secret.
-    if (
-      typeof config.workingDir === 'string' &&
-      ENV_EXPANSION_REGEX.test(config.workingDir)
-    ) {
-      throw new ConfigurationError(
-        `[vercel] "workingDir" must not be an environment-variable ` +
-          `expansion (got "${config.workingDir}")`,
-      );
-    }
-
-    const vercelCliPath = config.vercelCliPath
-      ? config.vercelCliPath
-      : resolveExecutable(VERCEL_CONFIG);
-
     return {
       prebuilt: config.prebuilt ?? true,
-      vercelCliPath,
       workingDir: config.workingDir,
-      // Optional, non-secret identifiers. Forwarded to the CLI when present.
+      // Optional, non-secret identifiers. Forwarded to the deploy when present.
       orgId: process.env[ORG_ID_ENV_VAR] || undefined,
       projectId: process.env[PROJECT_ID_ENV_VAR] || undefined,
       ...this.getTargetSecrets(),
@@ -187,23 +145,49 @@ export class VercelTarget extends BaseTarget {
   }
 
   /**
-   * Builds the vercel CLI argument list for a production deploy.
+   * Runs a Vercel production deploy of `deployDir` and waits for it to finish.
    *
-   * @param version The version being released
+   * Drives the `@vercel/client` event stream to completion: resolves with the
+   * live deployment URL on `ready`, and throws on the `error` event so a failed
+   * deploy fails the release.
+   *
+   * @param deployDir Directory to deploy from
+   * @param version The version being released (attached as deploy provenance)
+   * @returns the production deployment URL
    */
-  private getVercelArgs(version: string): string[] {
-    // `--prod` promotes to production; `--yes` skips interactive prompts (CI).
-    const args = ['deploy', '--prod', '--yes'];
-    if (this.vercelConfig.prebuilt) {
-      args.push('--prebuilt');
+  private async deploy(deployDir: string, version: string): Promise<string> {
+    for await (const event of createDeployment(
+      {
+        token: this.vercelConfig.VERCEL_TOKEN,
+        path: deployDir,
+        prebuilt: this.vercelConfig.prebuilt,
+        teamId: this.vercelConfig.orgId,
+        skipAutoDetectionConfirmation: true,
+      },
+      {
+        // `production` deploys to production; `craftRelease` ties the
+        // deployment back to the released version for traceability.
+        target: 'production',
+        meta: { craftRelease: version },
+        // Link to the configured project non-interactively when set; otherwise
+        // the deploy falls back to the artifact's `.vercel/project.json`.
+        ...(this.vercelConfig.projectId
+          ? { name: this.vercelConfig.projectId }
+          : {}),
+      },
+    )) {
+      if (event.type === 'ready') {
+        return event.payload.url as string;
+      }
+      if (event.type === 'error') {
+        throw event.payload;
+      }
     }
-    // Attach release provenance so the deployment is traceable to the version.
-    args.push('--meta', `craftRelease=${version}`);
-    return args;
+    throw new Error('Vercel deploy finished without a ready deployment');
   }
 
   /**
-   * Deploys the release artifact to Vercel via the `vercel` CLI.
+   * Deploys the release artifact to Vercel via the Vercel deploy API.
    *
    * @param version New version to be released
    * @param revision Git commit SHA to be published
@@ -232,44 +216,24 @@ export class VercelTarget extends BaseTarget {
     await withTempDir(
       async directory => {
         this.logger.info(`Extracting "${archivePath}" to "${directory}"...`);
-        await extractZipArchive(archivePath, directory);
+        await extractZipArchiveWithFlattening(archivePath, directory);
 
         const deployDir = this.vercelConfig.workingDir
           ? join(directory, this.vercelConfig.workingDir)
           : directory;
 
-        const args = this.getVercelArgs(version);
-
         // A Vercel deploy is a remote, irreversible operation with no local
         // isolation. Unlike git/fs operations, it must NEVER run in dry-run
-        // mode -- including worktree mode, where spawnProcess would otherwise
-        // execute the command for real. Guard explicitly here.
+        // mode -- including worktree mode. Guard explicitly here, before any
+        // network calls.
         if (isDryRun()) {
-          logDryRun(`${this.vercelConfig.vercelCliPath} ${args.join(' ')}`);
+          logDryRun(`vercel deploy --prod (${deployDir})`);
           return;
         }
 
-        const env: NodeJS.ProcessEnv = {
-          ...process.env,
-          VERCEL_TOKEN: this.vercelConfig.VERCEL_TOKEN,
-        };
-        // Org/project IDs are optional identifiers that link the deploy
-        // non-interactively: forward them only when set, otherwise let the CLI
-        // fall back to the artifact's `.vercel/project.json`.
-        if (this.vercelConfig.orgId) {
-          env.VERCEL_ORG_ID = this.vercelConfig.orgId;
-        }
-        if (this.vercelConfig.projectId) {
-          env.VERCEL_PROJECT_ID = this.vercelConfig.projectId;
-        }
-
         this.logger.info('Deploying to Vercel...');
-        await spawnProcess(
-          this.vercelConfig.vercelCliPath,
-          args,
-          { cwd: deployDir, env },
-          { showStdout: true },
-        );
+        const url = await this.deploy(deployDir, version);
+        this.logger.info(`Vercel deploy live at https://${url}`);
       },
       true,
       'craft-vercel-',

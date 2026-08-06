@@ -94,6 +94,7 @@
     "pnpm": "10.27.0"
   },
   "dependencies": {
+    "@vercel/client": "^18.2.5",
     "fastest-levenshtein": "^1.0.16",
     "ignore": "^7.0.5",
     "marked": "^17.0.1",
