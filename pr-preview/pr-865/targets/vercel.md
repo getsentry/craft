@@ -37,7 +37,7 @@ For non-interactive CI deployments, set both `VERCEL_ORG_ID` and `VERCEL_PROJECT
 By default, this target:
 
 1. Looks for a single artifact matching `vercel.zip` (or `*-vercel.zip`). Override with `includeNames`.
-2. Extracts its contents (flattening a single top-level directory if present).
+2. Extracts its contents (preserving the archive layout, e.g. a top-level `.vercel/output`).
 3. Deploys to production via `vercel deploy --prod --prebuilt`.
 
 The version being released is attached to the deployment as `--meta craftRelease=<version>` for traceability.

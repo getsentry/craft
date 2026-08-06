@@ -126,7 +126,7 @@
 <p>By default, this target:</p>
 <ol>
 <li>Looks for a single artifact matching <code dir="auto">vercel.zip</code> (or <code dir="auto">*-vercel.zip</code>). Override with <code dir="auto">includeNames</code>.</li>
-<li>Extracts its contents (flattening a single top-level directory if present).</li>
+<li>Extracts its contents (preserving the archive layout, e.g. a top-level <code dir="auto">.vercel/output</code>).</li>
 <li>Deploys to production via <code dir="auto">vercel deploy --prod --prebuilt</code>.</li>
 </ol>
 <p>The version being released is attached to the deployment as <code dir="auto">--meta craftRelease=&lt;version&gt;</code> for traceability.</p>
