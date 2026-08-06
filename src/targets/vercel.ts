@@ -12,7 +12,7 @@ import { isDryRun } from '../utils/helpers';
 import { logDryRun } from '../utils/dryRun';
 import {
   checkExecutableIsPresent,
-  extractZipArchiveWithFlattening,
+  extractZipArchive,
   resolveExecutable,
   spawnProcess,
 } from '../utils/system';
@@ -232,7 +232,7 @@ export class VercelTarget extends BaseTarget {
     await withTempDir(
       async directory => {
         this.logger.info(`Extracting "${archivePath}" to "${directory}"...`);
-        await extractZipArchiveWithFlattening(archivePath, directory);
+        await extractZipArchive(archivePath, directory);
 
         const deployDir = this.vercelConfig.workingDir
           ? join(directory, this.vercelConfig.workingDir)

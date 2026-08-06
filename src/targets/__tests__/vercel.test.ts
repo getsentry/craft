@@ -18,7 +18,7 @@ vi.mock('../../utils/system', async importOriginal => {
     ...actual,
     checkExecutableIsPresent: vi.fn(),
     spawnProcess: vi.fn(async () => undefined),
-    extractZipArchiveWithFlattening: vi.fn(async () => undefined),
+    extractZipArchive: vi.fn(async () => undefined),
   };
 });
 
@@ -163,7 +163,7 @@ describe('publish', () => {
 
     await target.publish(version, revision);
 
-    expect(system.extractZipArchiveWithFlattening).toHaveBeenCalledWith(
+    expect(system.extractZipArchive).toHaveBeenCalledWith(
       '/downloads/vercel.zip',
       TMP_DIR,
     );
@@ -258,7 +258,7 @@ describe('publish', () => {
 
     // Artifact is still extracted (local, safe), but the remote deploy is
     // skipped.
-    expect(system.extractZipArchiveWithFlattening).toHaveBeenCalled();
+    expect(system.extractZipArchive).toHaveBeenCalled();
     expect(system.spawnProcess).not.toHaveBeenCalled();
   });
 });
