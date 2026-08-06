@@ -104,6 +104,10 @@ RUN curl -fsSL https://github.com/PowerShell/PowerShell/releases/download/v7.4.1
 RUN npm install -g wrangler@4.111.0 \
   && wrangler --version
 
+# Vercel CLI for the "vercel" target (pinned)
+RUN npm install -g vercel@58.7.1 \
+  && vercel --version
+
 # craft does `git` things against mounted directories as root
 RUN git config --global --add safe.directory '*'
 
