@@ -16,6 +16,7 @@ The target extracts a ZIP artifact and deploys it via the Vercel deploy API (usi
 | --- | --- |
 | `prebuilt` | Whether the artifact contains a prebuilt `.vercel/output` (the result of `vercel build`). When `true` (default), the artifact’s prebuilt `.vercel/output` is uploaded and the remote build step is skipped. Set to `false` to have Vercel build from source. |
 | `workingDir` | Subdirectory within the extracted artifact to deploy from. |
+| `orgId` | Vercel organization/team ID. Use this for a repository-specific team; `VERCEL_ORG_ID` overrides it when set. |
 | `projectId` | Vercel project ID. Use this for a repository-specific project; `VERCEL_PROJECT_ID` overrides it when set. |
 
 ## Environment Variables
@@ -45,6 +46,7 @@ The version being released is attached to the deployment as metadata (`release=<
 ```yaml
 targets:
   - name: vercel
+    orgId: team_example
     projectId: prj_example
     # prebuilt defaults to true: the docs site is built in CI and this
     # target only promotes the prebuilt output to production.
