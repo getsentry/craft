@@ -21,6 +21,7 @@ overrides:
   '@babel/core': ^7.29.6
   js-yaml: ^4.3.0
   path-to-regexp@<6.3.0: ^6.3.0
+  tar-fs@<1.16.4: 1.16.6
 
 importers:
 
@@ -3068,8 +3069,8 @@ packages:
     resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
     engines: {node: '>=8'}
 
-  tar-fs@1.16.3:
-    resolution: {integrity: sha512-NvCeXpYx7OsmOh8zIOP/ebG55zZmxLE0etfWRbWok+q2Qo8x/vOR/IJT1taADXPe+jsiu9axDb3X4B+iIgNlKw==}
+  tar-fs@1.16.6:
+    resolution: {integrity: sha512-JkOgFt3FxM/2v2CNpAVHqMW2QASjc/Hxo7IGfNd3MHaDYSW/sBFiS7YVmmhmr8x6vwN1VFQDQGdT2MWpmIuVKA==}
 
   tar-stream@1.6.2:
     resolution: {integrity: sha512-rzS0heiNf8Xn7/mpdSVVSMAWAoy9bfb1WOTYC78Z0UQKeKa/CWS8FOq0lKGNa8DWKAn9gxjCvMLYc5PGXYlK2A==}
@@ -5227,7 +5228,7 @@ snapshots:
       ms: 2.1.2
       querystring: 0.2.1
       sleep-promise: 8.0.1
-      tar-fs: 1.16.3
+      tar-fs: 1.16.6
     transitivePeerDependencies:
       - '@sveltejs/kit'
       - '@vercel/analytics'
@@ -6624,7 +6625,7 @@ snapshots:
     dependencies:
       has-flag: 4.0.0
 
-  tar-fs@1.16.3:
+  tar-fs@1.16.6:
     dependencies:
       chownr: 1.1.4
       mkdirp: 0.5.6
