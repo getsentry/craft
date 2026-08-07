@@ -12,7 +12,7 @@ import { reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { isDryRun } from '../utils/helpers';
 import { logDryRun } from '../utils/dryRun';
-import { extractZipArchiveWithFlattening } from '../utils/system';
+import { extractZipArchive } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 
@@ -156,6 +156,7 @@ export class VercelTarget extends BaseTarget {
    * @returns the production deployment URL
    */
   private async deploy(deployDir: string, version: string): Promise<string> {
+    let url: string | undefined;
     for await (const event of createDeployment(
       {
         token: this.vercelConfig.VERCEL_TOKEN,
@@ -165,23 +166,26 @@ export class VercelTarget extends BaseTarget {
         skipAutoDetectionConfirmation: true,
       },
       {
-        // `production` deploys to production; `craftRelease` ties the
-        // deployment back to the released version for traceability.
+        // `production` deploys to production; `release` ties the deployment
+        // back to the released version for traceability.
         target: 'production',
-        meta: { craftRelease: version },
-        // Link to the configured project non-interactively when set; otherwise
-        // the deploy falls back to the artifact's `.vercel/project.json`.
-        ...(this.vercelConfig.projectId
-          ? { name: this.vercelConfig.projectId }
-          : {}),
+        meta: { release: version },
       },
     )) {
       if (event.type === 'ready') {
-        return event.payload.url as string;
+        url = event.payload.url as string;
+      }
+      if (event.type === 'alias-assigned') {
+        return url || (event.payload.url as string);
       }
       if (event.type === 'error') {
         throw event.payload;
       }
+    }
+    if (url) {
+      // Production alias assignment is best-effort for some projects; if the
+      // stream ended after `ready` we still return the URL.
+      return url;
     }
     throw new Error('Vercel deploy finished without a ready deployment');
   }
@@ -216,7 +220,7 @@ export class VercelTarget extends BaseTarget {
     await withTempDir(
       async directory => {
         this.logger.info(`Extracting "${archivePath}" to "${directory}"...`);
-        await extractZipArchiveWithFlattening(archivePath, directory);
+        await extractZipArchive(archivePath, directory);
 
         const deployDir = this.vercelConfig.workingDir
           ? join(directory, this.vercelConfig.workingDir)
@@ -227,7 +231,7 @@ export class VercelTarget extends BaseTarget {
         // mode -- including worktree mode. Guard explicitly here, before any
         // network calls.
         if (isDryRun()) {
-          logDryRun(`vercel deploy --prod (${deployDir})`);
+          logDryRun(`@vercel/client createDeployment (${deployDir})`);
           return;
         }
 

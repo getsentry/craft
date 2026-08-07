@@ -22,7 +22,7 @@ vi.mock('../../utils/system', async importOriginal => {
   const actual = await importOriginal<typeof import('../../utils/system')>();
   return {
     ...actual,
-    extractZipArchiveWithFlattening: vi.fn(async () => undefined),
+    extractZipArchive: vi.fn(async () => undefined),
   };
 });
 
@@ -159,7 +159,7 @@ describe('publish', () => {
 
     await target.publish(version, revision);
 
-    expect(system.extractZipArchiveWithFlattening).toHaveBeenCalledWith(
+    expect(system.extractZipArchive).toHaveBeenCalledWith(
       '/downloads/vercel.zip',
       TMP_DIR,
     );
@@ -172,7 +172,7 @@ describe('publish', () => {
     expect(clientOptions.prebuilt).toBe(true);
     expect(clientOptions.skipAutoDetectionConfirmation).toBe(true);
     expect(deploymentOptions.target).toBe('production');
-    expect(deploymentOptions.meta.craftRelease).toBe(version);
+    expect(deploymentOptions.meta.release).toBe(version);
   });
 
   test('omits prebuilt when prebuilt is false', async () => {
@@ -199,19 +199,16 @@ describe('publish', () => {
     expect('name' in deploymentOptions).toBe(false);
   });
 
-  test('forwards org/project IDs when set', async () => {
+  test('forwards org ID when set', async () => {
     mockDeployment();
     process.env.VERCEL_ORG_ID = ORG_ID;
-    process.env.VERCEL_PROJECT_ID = PROJECT_ID;
     const target = createVercelTarget({});
     stubArtifacts(target, [artifact]);
 
     await target.publish(version, revision);
 
-    const [clientOptions, deploymentOptions] = (createDeployment as any).mock
-      .calls[0];
+    const [clientOptions] = (createDeployment as any).mock.calls[0];
     expect(clientOptions.teamId).toBe(ORG_ID);
-    expect(deploymentOptions.name).toBe(PROJECT_ID);
   });
 
   test('deploys from workingDir subdirectory when configured', async () => {
@@ -256,7 +253,7 @@ describe('publish', () => {
 
     // Artifact is still extracted (local, safe), but the remote deploy is
     // skipped.
-    expect(system.extractZipArchiveWithFlattening).toHaveBeenCalled();
+    expect(system.extractZipArchive).toHaveBeenCalled();
     expect(createDeployment).not.toHaveBeenCalled();
   });
 
