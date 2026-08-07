@@ -61,4 +61,4 @@ targets:
 
 1. Build the site in CI (e.g. `vercel build`) and create a `vercel.zip` artifact containing the prebuilt `.vercel/output` (or the source when `prebuilt: false`).
 2. Configure the target in `.craft.yml`.
-3. Set `VERCEL_TOKEN` in your environment and `VERCEL_ORG_ID` for the team. Set `projectId` in `.craft.yml`, or set `VERCEL_PROJECT_ID` when the shared publish environment must override the repository config.
+3. Set `VERCEL_TOKEN` in your environment. Set `orgId` and `projectId` in `.craft.yml`, or set `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` when the shared publish environment must override the repository config.
