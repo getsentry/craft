@@ -33,3 +33,4 @@ targets:
 - [Docs home](https://craft.sentry.dev/index.md)
 - [Parent: Targets Overview](https://craft.sentry.dev/targets.md)
 - [Previous: Symbol Collector](https://craft.sentry.dev/targets/symbol-collector.md)
+- [Next: Vercel](https://craft.sentry.dev/targets/vercel.md)

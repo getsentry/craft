@@ -22,6 +22,7 @@ Targets define where Craft publishes your release artifacts. Configure them in `
 | [GCS](https://craft.sentry.dev/targets/gcs.md) | Upload to Google Cloud Storage |
 | [GitHub Pages](https://craft.sentry.dev/targets/gh-pages.md) | Deploy static sites |
 | [Cloudflare](https://craft.sentry.dev/targets/cloudflare.md) | Deploy static sites or Workers to Cloudflare |
+| [Vercel](https://craft.sentry.dev/targets/vercel.md) | Deploy a prebuilt static site to Vercel |
 | [CocoaPods](https://craft.sentry.dev/targets/cocoapods.md) | Publish iOS/macOS pods |
 | [Ruby Gems](https://craft.sentry.dev/targets/gem.md) | Publish Ruby gems |
 | [Maven](https://craft.sentry.dev/targets/maven.md) | Publish to Maven Central |
@@ -116,3 +117,4 @@ craft publish 1.2.3 -t none
 - [Sentry Release Registry](https://craft.sentry.dev/targets/registry.md)
 - [Symbol Collector](https://craft.sentry.dev/targets/symbol-collector.md)
 - [Unity Package Manager](https://craft.sentry.dev/targets/upm.md)
+- [Vercel](https://craft.sentry.dev/targets/vercel.md)
