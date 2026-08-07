@@ -1,29 +1,119 @@
-# Jared (Outpost agent)
+# AGENTS.md
 
-Autonomous GitHub coding agent. Work in `/workspace/repo`.
+This file provides guidance for AI coding assistants working with the Craft codebase.
 
-## Model tiers
+## Package Management
 
-The primary model is chosen per event (see `src/agents/models.ts`): heavy for
-code-producing situations, cheaper for lightweight ones.
+- **Always use `pnpm`** for package management. Never use `npm` or `yarn`.
+- Node.js version is managed by [Volta](https://volta.sh/) (currently v22.12.0).
+- Install dependencies with `pnpm install --frozen-lockfile`.
 
-| Role | Subagent | Model |
-| --- | --- | --- |
-| Triage / plan / review (heavy) | (primary Jared) | Claude Opus 4.8 |
-| Triage / plan / review (light) | (primary Jared) | xAI Grok 4.3 |
-| Explore | `explore` | OpenAI gpt-5-mini |
-| Implement | `implement` | Moonshot kimi-k2.7-code |
-| Ship (commit/push/PR) | `ship` | xAI Grok (`grok-build-0.1`) |
+## Development Commands
 
-Pipeline: triage → explore → plan → implement → review → ship.
-(`worker` is a deprecated alias of `implement`.)
+| Command      | Description                                 |
+| ------------ | ------------------------------------------- |
+| `pnpm build` | Build the project (outputs to `dist/craft`) |
+| `pnpm test`  | Run tests                                   |
+| `pnpm lint`  | Run ESLint                                  |
+| `pnpm fix`   | Auto-fix lint issues                        |
 
-Operators also talk to Jared directly from the Outpost dashboard. Those turns
-(`New operator chat` / `Operator guidance:`) skip triage — treat the request as
-the task and answer in the conversation.
+To manually test changes:
 
-Long-term project knowledge for *this* Outpost repo lives in `.lore.md` when present.
-For target repositories, read their `AGENTS.md` / `CONTRIBUTING.md` first.
+```bash
+pnpm build && ./dist/craft
+```
 
-Skills are under `.agents/skills/`, generated from the canonical `skills/` tree
-by `scripts/sync-skills.mjs`. Always load `repo-setup` before situation skills.
+## Code Style
+
+- **TypeScript** is used throughout the codebase.
+- **Prettier** 3.x with single quotes and no arrow parens (configured in `.prettierrc.yml`).
+- **ESLint** 9.x with flat config (`eslint.config.mjs`) using `typescript-eslint`.
+- Unused variables prefixed with `_` are allowed (e.g., `_unusedParam`).
+
+## Project Structure
+
+```
+src/
+├── __mocks__/          # Test mocks
+├── __tests__/          # Test files (*.test.ts)
+├── artifact_providers/ # Artifact provider implementations
+├── commands/           # CLI command implementations
+├── schemas/            # Zod schemas and TypeScript types for config
+├── status_providers/   # Status provider implementations
+├── targets/            # Release target implementations
+├── types/              # Shared TypeScript types
+├── utils/              # Utility functions
+├── config.ts           # Configuration loading
+├── index.ts            # CLI entry point
+└── logger.ts           # Logging utilities
+dist/
+└── craft               # Single bundled executable (esbuild output)
+```
+
+## Testing
+
+- Tests use **Vitest**.
+- Test files are located in `src/__tests__/` and follow the `*.test.ts` naming pattern.
+- Run tests with `pnpm test`.
+- Use `vi.fn()`, `vi.mock()`, `vi.spyOn()` for mocking (Vitest's mock API).
+
+## CI/CD
+
+- Main branch is `master`.
+- CI runs tests on Node.js 20 and 22.
+- Craft releases itself using its own tooling (dogfooding).
+
+## Configuration
+
+- Project configuration lives in `.craft.yml` at the repository root.
+- The configuration schema is defined in `src/schemas/`.
+
+## Dry-Run Mode
+
+Craft supports a `--dry-run` flag that prevents destructive operations. This is implemented via a centralized abstraction layer.
+
+### How It Works
+
+Instead of checking `isDryRun()` manually in every function, destructive operations are wrapped with dry-run-aware proxies:
+
+- **Git operations**: Use `getGitClient()` from `src/utils/git.ts` or `createGitClient(directory)` for working with specific directories
+- **GitHub API**: Use `getGitHubClient()` from `src/utils/githubApi.ts`
+- **File writes**: Use `safeFs` from `src/utils/dryRun.ts`
+- **Other actions**: Use `safeExec()` or `safeExecSync()` from `src/utils/dryRun.ts`
+
+### ESLint Enforcement
+
+ESLint rules prevent direct usage of raw APIs:
+
+- `no-restricted-imports`: Blocks direct `simple-git` imports
+- `no-restricted-syntax`: Blocks `new Octokit()` instantiation
+
+If you're writing a wrapper module that needs raw access, use:
+
+```typescript
+// eslint-disable-next-line no-restricted-imports -- This is the wrapper module
+import simpleGit from 'simple-git';
+```
+
+### Adding New Destructive Operations
+
+When adding new code that performs destructive operations:
+
+1. **Git**: Get the git client via `getGitClient()` or `createGitClient()` - mutating methods are automatically blocked
+2. **GitHub API**: Get the client via `getGitHubClient()` - `create*`, `update*`, `delete*`, `upload*` methods are automatically blocked
+3. **File writes**: Use `safeFs.writeFile()`, `safeFs.unlink()`, etc. instead of raw `fs` methods
+4. **Other**: Wrap with `safeExec(action, description)` for custom operations
+
+### Special Cases
+
+Some operations need explicit `isDryRun()` checks:
+
+- Commands with their own `--dry-run` flag (e.g., `dart pub publish --dry-run` in pubDev target)
+- Operations that need to return mock data in dry-run mode
+- User experience optimizations (e.g., skipping sleep timers)
+
+<!-- This section is maintained by the coding agent via lore (https://github.com/BYK/loreai) -->
+## Long-term Knowledge
+
+For long-term knowledge entries managed by [lore](https://github.com/BYK/loreai) (gotchas, patterns, decisions, architecture), see [`.lore.md`](.lore.md) in the project root.
+<!-- End lore-managed section -->
