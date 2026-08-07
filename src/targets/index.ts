@@ -21,6 +21,7 @@ import { PubDevTarget } from './pubDev';
 import { HexTarget } from './hex';
 import { CommitOnGitRepositoryTarget } from './commitOnGitRepository';
 import { PowerShellTarget } from './powershell';
+import { VercelTarget } from './vercel';
 
 export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   brew: BrewTarget,
@@ -45,6 +46,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   hex: HexTarget,
   'commit-on-git-repository': CommitOnGitRepositoryTarget,
   powershell: PowerShellTarget,
+  vercel: VercelTarget,
 };
 
 /** Targets that are treated specially */

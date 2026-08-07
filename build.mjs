@@ -2,7 +2,37 @@ import { chmod, readFile, rename, stat, unlink, writeFile } from 'fs/promises';
 import esbuild from 'esbuild';
 import { sentryEsbuildPlugin } from '@sentry/esbuild-plugin';
 
-const plugins = [];
+// jsonc-parser ships a UMD entry (its `main`) whose body does runtime
+// `require("./impl/format")` etc. esbuild can't follow those dynamic sibling
+// requires when bundling, so the built `dist/craft` fails at startup with
+// "Cannot find module './impl/format'". Redirect the package to its ESM entry
+// (`module`), which uses static imports esbuild can bundle. Pulled in
+// transitively via @vercel/client → @vercel/microfrontends.
+const jsoncParserEsmPlugin = {
+  name: 'jsonc-parser-esm',
+  setup(build) {
+    build.onResolve({ filter: /^jsonc-parser$/ }, async args => {
+      // Avoid recursing into our own resolve call below.
+      if (args.pluginData?.resolved) {
+        return;
+      }
+      const result = await build.resolve('jsonc-parser', {
+        importer: args.importer,
+        kind: args.kind,
+        resolveDir: args.resolveDir,
+        pluginData: { resolved: true },
+      });
+      if (result.errors.length > 0) {
+        return result;
+      }
+      return {
+        path: result.path.replace(/([\\/])lib[\\/]umd[\\/]/, '$1lib/esm/'),
+      };
+    });
+  },
+};
+
+const plugins = [jsoncParserEsmPlugin];
 
 // Only add Sentry plugin if auth token is available (production builds on master)
 if (process.env.SENTRY_AUTH_TOKEN) {

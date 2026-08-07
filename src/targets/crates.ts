@@ -34,11 +34,18 @@ const CARGO_BIN = resolveExecutable(CARGO_CONFIG);
 const VERSION_ERROR = 'failed to select a version for the requirement';
 
 /**
- * A message fragment emitted by cargo when publishing fails because the crate
- * had already been published in this exact version. This happens especially
- * when rerunning a workspace publish after it has failed in the middle.
+ * Message fragments that likely indicate the crate version is already on
+ * crates.io. This happens especially when rerunning a workspace publish after
+ * it has failed in the middle.
  */
-const REPUBLISH_ERROR = 'is already uploaded';
+const REPUBLISH_ERRORS = [
+  'is already uploaded',
+  'already exists on crates.io index',
+] as const;
+
+function isAlreadyPublishedError(message: string): boolean {
+  return REPUBLISH_ERRORS.some(fragment => message.includes(fragment));
+}
 
 /**
  * Maximum number of attempts including the initial one when publishing fails
@@ -238,14 +245,10 @@ export class CratesTarget extends BaseTarget {
     const ordered: CratePackage[] = [];
 
     const isWorkspaceDependency = (dep: CrateDependency) => {
-      // Optionally exclude dev dependencies from dependency resolution. When
-      // this flag is provided, these usually lead to circular dependencies.
-      // Path-only dependencies are designated by `req = *`, and are not being
-      // validated by cargo on publish.
-      if (
-        dep.kind === 'dev' &&
-        (dep.req === '*' || this.cratesConfig.noDevDeps)
-      ) {
+      // Dev dependencies are not required to publish a crate, regardless of
+      // whether noDevDeps removes them from the package. They must not affect
+      // publication order, including path-only and versioned dependencies.
+      if (dep.kind === 'dev') {
         return false;
       }
 
@@ -328,7 +331,7 @@ export class CratesTarget extends BaseTarget {
         try {
           await spawnProcess(CARGO_BIN, args, { env });
         } catch (err) {
-          if (err instanceof Error && err.message.includes(REPUBLISH_ERROR)) {
+          if (err instanceof Error && isAlreadyPublishedError(err.message)) {
             this.logger.info(
               `Skipping ${crate.name}, version ${crate.version} already published`,
             );

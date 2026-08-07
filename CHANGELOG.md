@@ -1,5 +1,53 @@
 # Changelog
 
+## 2.28.0
+
+### New Features ✨
+
+- (aws-lambda-layer) Add CompatibleArchitectures and per-region failure improvements by @pabloDeputter in [#861](https://github.com/getsentry/craft/pull/861)
+
+## 2.27.2
+
+### Bug Fixes 🐛
+
+- (commit-on-git) Use proper username and pass for by @BYK in [#862](https://github.com/getsentry/craft/pull/862)
+
+## 2.27.1
+
+### Bug Fixes 🐛
+
+- (crates) Recognize more already-published error messages by @szokeasaurusrex in [#859](https://github.com/getsentry/craft/pull/859)
+
+## 2.27.0
+
+### New Features ✨
+
+- (targets) Add cloudflare deploy target by @BYK in [#843](https://github.com/getsentry/craft/pull/843)
+- Prefix-aware read paths for monorepo multi-product releases by @BYK in [#847](https://github.com/getsentry/craft/pull/847)
+
+### Bug Fixes 🐛
+
+- (cloudflare) Default to worker, optional account id, infer prod branch by @BYK in [#846](https://github.com/getsentry/craft/pull/846)
+- (crates) Ignore dev dependencies when ordering packages by @szokeasaurusrex in [#858](https://github.com/getsentry/craft/pull/858)
+- Bump postcss to ^8.5.18 (high-severity Dependabot alert) by @BYK in [#855](https://github.com/getsentry/craft/pull/855)
+- Resolve 9 Dependabot security alerts by @BYK in [#854](https://github.com/getsentry/craft/pull/854)
+
+### Documentation 📚
+
+- Adopt the Sentry Starlight theme by @sentry-junior in [#849](https://github.com/getsentry/craft/pull/849)
+
+### Internal Changes 🔧
+
+#### Deps Dev
+
+- Bump tar from 7.5.16 to 7.5.19 by @dependabot in [#852](https://github.com/getsentry/craft/pull/852)
+- Bump js-yaml from 4.2.0 to 4.3.0 by @dependabot in [#853](https://github.com/getsentry/craft/pull/853)
+- Bump shell-quote from 1.8.4 to 1.9.0 by @dependabot in [#851](https://github.com/getsentry/craft/pull/851)
+
+#### Other
+
+- (deps) Bump sharp from 0.33.5 to 0.35.0 in /docs by @dependabot in [#850](https://github.com/getsentry/craft/pull/850)
+
 ## 2.26.14
 
 ### Bug Fixes 🐛

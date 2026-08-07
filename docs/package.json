@@ -8,20 +8,22 @@
     "preview": "astro preview"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.38.3",
-    "astro": "^6.4.8",
-    "sharp": "^0.33.5"
+    "@astrojs/starlight": "^0.41.5",
+    "@sentry/starlight-theme": "^0.8.0",
+    "astro": "^7.1.4",
+    "sharp": "^0.35.0"
   },
   "pnpm": {
     "overrides": {
       "h3": "^1.15.6",
       "devalue": "^5.8.1",
       "rollup": "^4.59.0",
-      "svgo": "^4.0.1",
+      "svgo": "^4.0.2",
+      "postcss": "^8.5.18",
       "smol-toml": "^1.6.1",
       "defu": "^6.1.5",
-      "vite": "^7.3.5",
-      "js-yaml": "^4.2.0"
+      "vite": "^8.0.0",
+      "js-yaml": "^4.3.1"
     }
   }
 }
