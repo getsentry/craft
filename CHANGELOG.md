@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.30.0
+
+### New Features ✨
+
+- (vercel) Allow project ID in target config by @BYK in [#867](https://github.com/getsentry/craft/pull/867)
+
 ## 2.29.0
 
 ### New Features ✨
