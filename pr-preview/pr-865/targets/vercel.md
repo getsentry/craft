@@ -10,7 +10,7 @@ Deploys a release artifact to [Vercel](https://vercel.com/) as a production depl
 
 The target extracts a ZIP artifact and deploys it via the Vercel deploy API (using [`@vercel/client`](https://www.npmjs.com/package/@vercel/client)) to promote it to production. It does not use or require the `vercel` CLI.
 
-This target is release-gated: it runs as part of `craft publish`, so a deployment only happens on release and the deployed site stays in sync with the published version — the same guarantee the [`gh-pages`](https://craft.sentry.dev/pr-preview/pr-865/targets/vercel/gh-pages.md) target provides, but for Vercel-hosted sites.
+It only runs as part of `craft publish`, so a deployment only happens on release and the deployed site stays in sync with the published version — the same guarantee the [`gh-pages`](https://craft.sentry.dev/pr-preview/pr-865/targets/vercel/gh-pages.md) target provides, but for Vercel-hosted sites.
 
 ## Configuration
 
@@ -39,7 +39,7 @@ By default, this target:
 2. Extracts its contents (preserving the archive layout, e.g. a top-level `.vercel/output`).
 3. Deploys to production via the Vercel deploy API.
 
-The version being released is attached to the deployment as metadata (`craftRelease=<version>`) for traceability.
+The version being released is attached to the deployment as metadata (`release=<version>`) for traceability.
 
 ## Example
 
