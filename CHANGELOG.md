@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.29.0
+
+### New Features ✨
+
+- (targets) Add vercel deploy target by @jared-outpost in [#865](https://github.com/getsentry/craft/pull/865)
+
+### Bug Fixes 🐛
+
+- (deps) Bump vulnerable packages and add overrides by @BYK in [#866](https://github.com/getsentry/craft/pull/866)
+
+### Documentation 📚
+
+- Document Cloudflare token permissions by @BYK in [#863](https://github.com/getsentry/craft/pull/863)
+
 ## 2.28.0
 
 ### New Features ✨
