@@ -33,8 +33,8 @@ type SecretsType = (typeof targetSecrets)[number];
 /**
  * Optional, non-secret identifiers forwarded to the Vercel API when present.
  * They link the deployment to a specific team/project non-interactively, which
- * is what CI needs. When unset, the deploy falls back to the
- * `.vercel/project.json` inside the artifact.
+ * is what CI needs. Without a project ID, the deployment name is derived from
+ * the deploy directory, which would not reliably target the intended project.
  */
 const ORG_ID_ENV_VAR = 'VERCEL_ORG_ID';
 const PROJECT_ID_ENV_VAR = 'VERCEL_PROJECT_ID';
@@ -71,7 +71,8 @@ export interface VercelTargetConfig {
   orgId?: string;
   /**
    * Optional Vercel project ID (an identifier, not a secret). Forwarded to the
-   * deploy as the project name when set.
+   * deploy as the `project` identifier so the deployment links to the intended
+   * project non-interactively.
    */
   projectId?: string;
 }
@@ -147,9 +148,10 @@ export class VercelTarget extends BaseTarget {
   /**
    * Runs a Vercel production deploy of `deployDir` and waits for it to finish.
    *
-   * Drives the `@vercel/client` event stream to completion: resolves with the
-   * live deployment URL on `ready`, and throws on the `error` event so a failed
-   * deploy fails the release.
+   * Drives the `@vercel/client` event stream to completion: resolves on the
+   * `alias-assigned` event (the production promotion is done), falls back to
+   * the `ready` deployment URL when the stream ends without an alias event, and
+   * throws on the `error` event so a failed deploy fails the release.
    *
    * @param deployDir Directory to deploy from
    * @param version The version being released (attached as deploy provenance)
@@ -157,6 +159,17 @@ export class VercelTarget extends BaseTarget {
    */
   private async deploy(deployDir: string, version: string): Promise<string> {
     let url: string | undefined;
+    const deploymentOptions: Record<string, unknown> = {
+      // `production` deploys to production; `release` ties the deployment
+      // back to the released version for traceability.
+      target: 'production',
+      meta: { release: version },
+    };
+    if (this.vercelConfig.projectId) {
+      // `project` (the project ID) overrides `name` and reliably links the
+      // deployment to the configured project non-interactively.
+      deploymentOptions.project = this.vercelConfig.projectId;
+    }
     for await (const event of createDeployment(
       {
         token: this.vercelConfig.VERCEL_TOKEN,
@@ -165,12 +178,7 @@ export class VercelTarget extends BaseTarget {
         teamId: this.vercelConfig.orgId,
         skipAutoDetectionConfirmation: true,
       },
-      {
-        // `production` deploys to production; `release` ties the deployment
-        // back to the released version for traceability.
-        target: 'production',
-        meta: { release: version },
-      },
+      deploymentOptions,
     )) {
       if (event.type === 'ready') {
         url = event.payload.url as string;

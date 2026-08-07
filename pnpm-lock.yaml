@@ -19,6 +19,7 @@ overrides:
   form-data@<3: ^2.5.6
   vite: ^7.3.5
   '@babel/core': ^7.29.6
+  js-yaml: ^4.3.0
 
 importers:
 
@@ -155,7 +156,7 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       js-yaml:
-        specifier: 4.3.0
+        specifier: ^4.3.0
         version: 4.3.0
       mkdirp:
         specifier: ^1.0.4
@@ -2520,10 +2521,6 @@ packages:
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
-
-  js-yaml@4.1.1:
-    resolution: {integrity: sha512-qQKT4zQxXl8lLwBtHMWwaTcGfFOZviOJet3Oy/xmGk2gZH677CJM9EvtfdSkgWcATZhj/55JZ0rmy3myCT5lsA==}
-    hasBin: true
 
   js-yaml@4.3.0:
     resolution: {integrity: sha512-1td788aAnnZ5qs7V2QIRl1owjtYpbKt749Y3xauqQgwIIGF/xXWz1wMTEBx5O3LK3lXLVuqXPdPxj2BoFHaW9Q==}
@@ -5269,7 +5266,7 @@ snapshots:
       '@bytecodealliance/preview2-shim': 0.17.6
       '@renovatebot/pep440': 4.2.1
       fs-extra: 11.1.1
-      js-yaml: 4.1.1
+      js-yaml: 4.3.0
       minimatch: 10.2.6
       smol-toml: 1.5.2
       zod: 3.22.4
@@ -6117,10 +6114,6 @@ snapshots:
       '@isaacs/cliui': 8.0.2
 
   js-tokens@4.0.0: {}
-
-  js-yaml@4.1.1:
-    dependencies:
-      argparse: 2.0.1
 
   js-yaml@4.3.0:
     dependencies:
