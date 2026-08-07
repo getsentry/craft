@@ -137,12 +137,26 @@ describe('vercel target configuration', () => {
     expect(target.vercelConfig.projectId).toBe(PROJECT_ID);
   });
 
+  test('picks up orgId from target config', () => {
+    const target = createVercelTarget({ orgId: ORG_ID });
+
+    expect(target.vercelConfig.orgId).toBe(ORG_ID);
+  });
+
   test('prefers VERCEL_PROJECT_ID over target config', () => {
     const envProjectId = 'prj_from_env';
     process.env.VERCEL_PROJECT_ID = envProjectId;
     const target = createVercelTarget({ projectId: PROJECT_ID });
 
     expect(target.vercelConfig.projectId).toBe(envProjectId);
+  });
+
+  test('prefers VERCEL_ORG_ID over target config', () => {
+    const envOrgId = 'org_from_env';
+    process.env.VERCEL_ORG_ID = envOrgId;
+    const target = createVercelTarget({ orgId: ORG_ID });
+
+    expect(target.vercelConfig.orgId).toBe(envOrgId);
   });
 
   test('allows overriding default options', () => {
