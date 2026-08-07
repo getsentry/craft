@@ -51,6 +51,7 @@ const DEFAULT_DEPLOY_ARCHIVE_REGEX = /^(?:.+-)?vercel\.zip$/;
 interface VercelConfigFields extends Record<string, unknown> {
   prebuilt?: boolean;
   workingDir?: string;
+  projectId?: string;
 }
 
 /** Target options for "vercel" */
@@ -122,7 +123,10 @@ export class VercelTarget extends BaseTarget {
       workingDir: config.workingDir,
       // Optional, non-secret identifiers. Forwarded to the deploy when present.
       orgId: process.env[ORG_ID_ENV_VAR] || undefined,
-      projectId: process.env[PROJECT_ID_ENV_VAR] || undefined,
+      // An environment variable overrides the target config so shared publish
+      // infrastructure can select a project without changing the repository.
+      projectId:
+        process.env[PROJECT_ID_ENV_VAR] || config.projectId || undefined,
       ...this.getTargetSecrets(),
     };
   }

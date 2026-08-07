@@ -131,6 +131,20 @@ describe('vercel target configuration', () => {
     expect(target.vercelConfig.projectId).toBe(PROJECT_ID);
   });
 
+  test('picks up projectId from target config', () => {
+    const target = createVercelTarget({ projectId: PROJECT_ID });
+
+    expect(target.vercelConfig.projectId).toBe(PROJECT_ID);
+  });
+
+  test('prefers VERCEL_PROJECT_ID over target config', () => {
+    const envProjectId = 'prj_from_env';
+    process.env.VERCEL_PROJECT_ID = envProjectId;
+    const target = createVercelTarget({ projectId: PROJECT_ID });
+
+    expect(target.vercelConfig.projectId).toBe(envProjectId);
+  });
+
   test('allows overriding default options', () => {
     const target = createVercelTarget({
       prebuilt: false,

@@ -13,6 +13,7 @@ The target extracts a ZIP artifact and deploys it via the Vercel deploy API (usi
 |--------|-------------|
 | `prebuilt` | Whether the artifact contains a prebuilt `.vercel/output` (the result of `vercel build`). When `true` (default), the artifact's prebuilt `.vercel/output` is uploaded and the remote build step is skipped. Set to `false` to have Vercel build from source. |
 | `workingDir` | Subdirectory within the extracted artifact to deploy from. |
+| `projectId` | Vercel project ID. Use this for a repository-specific project; `VERCEL_PROJECT_ID` overrides it when set. |
 
 ## Environment Variables
 
@@ -41,6 +42,7 @@ The version being released is attached to the deployment as metadata (`release=<
 ```yaml
 targets:
   - name: vercel
+    projectId: prj_example
     # prebuilt defaults to true: the docs site is built in CI and this
     # target only promotes the prebuilt output to production.
 ```
@@ -57,4 +59,4 @@ targets:
 
 1. Build the site in CI (e.g. `vercel build`) and create a `vercel.zip` artifact containing the prebuilt `.vercel/output` (or the source when `prebuilt: false`).
 2. Configure the target in `.craft.yml`.
-3. Set `VERCEL_TOKEN` in your environment, plus `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` so the deploy targets the right project.
+3. Set `VERCEL_TOKEN` in your environment and `VERCEL_ORG_ID` for the team. Set `projectId` in `.craft.yml`, or set `VERCEL_PROJECT_ID` when the shared publish environment must override the repository config.
