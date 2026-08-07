@@ -20,6 +20,7 @@ overrides:
   vite: ^7.3.5
   '@babel/core': ^7.29.6
   js-yaml: ^4.3.0
+  path-to-regexp@<6.3.0: ^6.3.0
 
 importers:
 
@@ -2785,12 +2786,6 @@ packages:
     resolution: {integrity: sha512-oWyT4gICAu+kaA7QWk/jvCHWarMKNs6pXOGWKDTr7cw4IGcUbW+PeTfbaQiLGheFRpjo6O9J0PmyMfQPjH71oA==}
     engines: {node: 20 || >=22}
 
-  path-to-regexp@6.1.0:
-    resolution: {integrity: sha512-h9DqehX3zZZDCEm+xbfU0ZmwCGFCAAraPJWMXJ4+v32NjZJilVg3k1TcKsRgIb8IQ/izZSaydDc1OhJCZvs2Dw==}
-
-  path-to-regexp@6.2.1:
-    resolution: {integrity: sha512-JLyh7xT1kizaEvcaXOQwOc2/Yhw6KZOvPf1S8401UyLk86CU79LN3vl7ztXGm/pZ+YjoyAJ4rxmHwbkBXJX+yw==}
-
   path-to-regexp@6.3.0:
     resolution: {integrity: sha512-Yhpw4T9C6hPpgPeA28us07OJeqZ5EzQTkbfwuhsUg0c237RomFoETJgmp2sa3F/41gfLE6G5cqcYwznmeEeOlQ==}
 
@@ -5255,7 +5250,7 @@ snapshots:
       http-proxy: 1.18.1
       jsonc-parser: 3.3.1
       nanoid: 3.3.16
-      path-to-regexp: 6.2.1
+      path-to-regexp: 6.3.0
     optionalDependencies:
       vite: 7.3.5(@types/node@24.13.2)(tsx@4.21.0)
     transitivePeerDependencies:
@@ -5273,7 +5268,7 @@ snapshots:
 
   '@vercel/routing-utils@6.4.1':
     dependencies:
-      path-to-regexp: 6.1.0
+      path-to-regexp: 6.3.0
       path-to-regexp-updated: path-to-regexp@6.3.0
     optionalDependencies:
       ajv: 6.14.0
@@ -6344,10 +6339,6 @@ snapshots:
     dependencies:
       lru-cache: 11.2.2
       minipass: 7.1.2
-
-  path-to-regexp@6.1.0: {}
-
-  path-to-regexp@6.2.1: {}
 
   path-to-regexp@6.3.0: {}
 
