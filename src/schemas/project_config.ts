@@ -165,9 +165,19 @@ export const ChangelogConfigSchema = z.union([
 ]);
 
 /**
- * Craft project-specific configuration
+ * Fields that describe how a single release unit is built and published.
+ *
+ * These are shared between the top-level config (the implicit/default release
+ * unit) and each entry under the top-level `workspaces` map (an explicit,
+ * independently-versioned release unit). A workspace inherits the top-level
+ * values as defaults and overrides the fields it declares.
+ *
+ * NOTE: this "workspace" (a named, independently-versioned release unit) is a
+ * different concept from the `npm` target's `workspaces: true` field, which
+ * discovers npm packages *within* a single target and publishes them all at the
+ * same version. See docs for the disambiguation.
  */
-export const CraftProjectConfigSchema = z.object({
+const releaseUnitFields = {
   github: GitHubGlobalConfigSchema.optional(),
   targets: z.array(TargetConfigSchema).optional(),
   preReleaseCommand: z.string().optional(),
@@ -175,10 +185,6 @@ export const CraftProjectConfigSchema = z.object({
   releaseBranchPrefix: z.string().optional(),
   changelog: ChangelogConfigSchema.optional(),
   changelogPolicy: z.enum(['auto', 'simple', 'none']).optional(),
-  minVersion: z
-    .string()
-    .regex(/^\d+\.\d+\.\d+.*$/)
-    .optional(),
   requireNames: z.array(z.string()).optional(),
   statusProvider: BaseStatusProviderSchema.optional(),
   artifactProvider: BaseArtifactProviderSchema.optional(),
@@ -188,6 +194,42 @@ export const CraftProjectConfigSchema = z.object({
    * Defaults to true for compiled GitHub Actions (Node.js actions with dist/ folder).
    */
   noMerge: z.boolean().optional(),
+} as const;
+
+/**
+ * Configuration for a single named workspace (release unit).
+ *
+ * A workspace mirrors the release-relevant subset of the top-level config;
+ * every field is optional and inherits the top-level value when omitted. The
+ * `github` block is *partial* (all fields optional) so a workspace can override
+ * just `projectPath` (or `owner`/`repo`) while inheriting the rest from the
+ * top-level `github`.
+ */
+export const WorkspaceSchema = z.object({
+  ...releaseUnitFields,
+  github: GitHubGlobalConfigSchema.partial().optional(),
+});
+
+export type Workspace = z.infer<typeof WorkspaceSchema>;
+
+/**
+ * Craft project-specific configuration
+ */
+export const CraftProjectConfigSchema = z.object({
+  ...releaseUnitFields,
+  minVersion: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+.*$/)
+    .optional(),
+  /**
+   * Named, independently-versioned release units within a single repository.
+   *
+   * When present, a release run must select one via `--workspace <name>` (or
+   * `CRAFT_WORKSPACE`). The selected workspace's fields override the top-level
+   * ones. When absent, craft behaves exactly as before (the top-level config is
+   * the single implicit release unit) — fully backward compatible.
+   */
+  workspaces: z.record(z.string(), WorkspaceSchema).optional(),
 });
 
 export type CraftProjectConfig = z.infer<typeof CraftProjectConfigSchema>;

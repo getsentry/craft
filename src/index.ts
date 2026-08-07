@@ -10,9 +10,14 @@ import {
   sanitizeDynamicLinkerEnv,
   warnIfCraftEnvFileExists,
 } from './utils/env';
-import { envToBool, setGlobals } from './utils/helpers';
+import {
+  envToBool,
+  setGlobals,
+  extractWorkspaceSelection,
+} from './utils/helpers';
 import { getPackageVersion } from './utils/version';
 import { withTracing } from './utils/tracing';
+import { setActiveWorkspace } from './config';
 
 // Commands
 import * as prepare from './commands/prepare';
@@ -83,6 +88,15 @@ async function main(): Promise<void> {
 
   const argv = fixGlobalBooleanFlags(process.argv.slice(2));
 
+  // Resolve the active workspace BEFORE parsing. yargs runs command `builder`s
+  // (which may read the configuration, e.g. `publish` derives its --target
+  // choices from config.targets) *before* middleware, so setting the workspace
+  // via middleware would be too late — the builder would resolve/validate the
+  // config without a selection and fail. We therefore extract --workspace (or
+  // CRAFT_WORKSPACE) from the raw argv/env up front, which is the single source
+  // of truth for the selection (see extractWorkspaceSelection for precedence).
+  setActiveWorkspace(extractWorkspaceSelection(argv));
+
   await yargs()
     .parserConfiguration({
       'boolean-negation': false,
@@ -105,6 +119,13 @@ async function main(): Promise<void> {
       choices: Object.keys(LogLevel).filter(level => isNaN(Number(level))),
       coerce: level => level[0].toUpperCase() + level.slice(1).toLowerCase(),
       describe: 'Logging level',
+      global: true,
+    })
+    .option('workspace', {
+      type: 'string',
+      describe:
+        'Select a named workspace (release unit) from the configuration. ' +
+        'Required when the config defines "workspaces". Env: CRAFT_WORKSPACE',
       global: true,
     })
     .strictCommands()

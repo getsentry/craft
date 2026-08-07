@@ -57,11 +57,22 @@ export const aliases = ['pp', 'publish'];
 export const description = '🛫 Publish artifacts';
 
 export const builder: CommandBuilder = (yargs: Argv) => {
-  const definedTargets = getConfiguration().targets || [];
-  const possibleTargetNames = new Set(getAllTargetNames());
-  const allowedTargetNames = definedTargets
-    .filter(target => target.name && possibleTargetNames.has(target.name))
-    .map(BaseTarget.getId);
+  // Compute the allowed --target choices from the (workspace-resolved) config.
+  // The active workspace is selected before parsing (see index.ts), so this
+  // reflects the selected workspace's targets. If the config can't be resolved
+  // at parse time (e.g. missing/invalid file, or a workspaces config with no
+  // selection yet during shell completion), fall back to all known target
+  // names rather than aborting argument parsing.
+  let allowedTargetNames: string[];
+  try {
+    const definedTargets = getConfiguration().targets || [];
+    const possibleTargetNames = new Set(getAllTargetNames());
+    allowedTargetNames = definedTargets
+      .filter(target => target.name && possibleTargetNames.has(target.name))
+      .map(BaseTarget.getId);
+  } catch {
+    allowedTargetNames = getAllTargetNames();
+  }
 
   return yargs
     .positional('NEW-VERSION', {
