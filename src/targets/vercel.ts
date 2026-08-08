@@ -182,6 +182,9 @@ export class VercelTarget extends BaseTarget {
         token: this.vercelConfig.VERCEL_TOKEN,
         path: deployDir,
         prebuilt: this.vercelConfig.prebuilt,
+        vercelOutputDir: this.vercelConfig.prebuilt
+          ? join(deployDir, '.vercel', 'output')
+          : undefined,
         teamId: this.vercelConfig.orgId,
         skipAutoDetectionConfirmation: true,
       },

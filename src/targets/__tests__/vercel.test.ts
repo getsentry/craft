@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { join } from 'path';
 
 import { createDeployment } from '@vercel/client';
 
@@ -205,6 +206,9 @@ describe('publish', () => {
     expect(clientOptions.token).toBe(DEFAULT_SECRET_VALUE);
     expect(clientOptions.path).toBe(TMP_DIR);
     expect(clientOptions.prebuilt).toBe(true);
+    expect(clientOptions.vercelOutputDir).toBe(
+      join(TMP_DIR, '.vercel', 'output'),
+    );
     expect(clientOptions.skipAutoDetectionConfirmation).toBe(true);
     expect(deploymentOptions.target).toBe('production');
     expect(deploymentOptions.meta.release).toBe(version);
@@ -219,6 +223,7 @@ describe('publish', () => {
 
     const [clientOptions] = (createDeployment as any).mock.calls[0];
     expect(clientOptions.prebuilt).toBe(false);
+    expect(clientOptions.vercelOutputDir).toBeUndefined();
   });
 
   test('does not forward org/project IDs when unset', async () => {
