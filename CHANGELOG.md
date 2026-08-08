@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.30.1
+
+### Bug Fixes 🐛
+
+- (vercel) Pass prebuilt output directory by @BYK in [#868](https://github.com/getsentry/craft/pull/868)
+
 ## 2.30.0
 
 ### New Features ✨
