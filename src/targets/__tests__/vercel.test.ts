@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { join } from 'path';
 
 import { createDeployment } from '@vercel/client';
 
@@ -205,7 +206,9 @@ describe('publish', () => {
     expect(clientOptions.token).toBe(DEFAULT_SECRET_VALUE);
     expect(clientOptions.path).toBe(TMP_DIR);
     expect(clientOptions.prebuilt).toBe(true);
-    expect(clientOptions.vercelOutputDir).toBe(`${TMP_DIR}/.vercel/output`);
+    expect(clientOptions.vercelOutputDir).toBe(
+      join(TMP_DIR, '.vercel', 'output'),
+    );
     expect(clientOptions.skipAutoDetectionConfirmation).toBe(true);
     expect(deploymentOptions.target).toBe('production');
     expect(deploymentOptions.meta.release).toBe(version);
