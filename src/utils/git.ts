@@ -33,6 +33,16 @@ export async function getDefaultBranch(
   git: SimpleGit,
   remoteName: string,
 ): Promise<string> {
+  // Verify the remote exists before attempting to contact it, so we can
+  // surface a clear error instead of a raw git exit-code-128 failure.
+  const remotes = await git.getRemotes(false);
+  if (!remotes.some(r => r.name === remoteName)) {
+    throw new ConfigurationError(
+      `Remote '${remoteName}' is not configured in this repository. ` +
+        `Ensure the repository has a remote named '${remoteName}' before running craft.`,
+    );
+  }
+
   // This part is courtesy of https://stackoverflow.com/a/62397081/90297
   return stripRemoteName(
     await git
