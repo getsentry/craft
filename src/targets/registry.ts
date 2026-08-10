@@ -36,7 +36,7 @@ import {
   InitialManifestData,
 } from '../utils/registry';
 import { cloneRepo } from '../utils/git';
-import { filterAsync, withRetry } from '../utils/async';
+import { filterAsync, sleep, withRetry } from '../utils/async';
 
 /** Fields on the registry target config accessed at runtime */
 interface RegistryTargetConfigFields extends Record<string, unknown> {
@@ -93,6 +93,15 @@ const BATCH_KEYS = {
   sdks: RegistryPackageType.SDK,
   apps: RegistryPackageType.APP,
 };
+
+/** Maximum number of attempts when pushing to the registry remote */
+const PUSH_MAX_ATTEMPTS = 5;
+
+/** Initial delay between registry push retries, in seconds */
+const PUSH_RETRY_DELAY_SECS = 3;
+
+/** Exponential backoff factor applied to the registry push retry delay */
+const PUSH_RETRY_EXP_FACTOR = 2;
 
 /**
  * Target responsible for publishing to Sentry's release registry: https://github.com/getsentry/sentry-release-registry/
@@ -584,17 +593,38 @@ export class RegistryTarget extends BaseTarget {
             `craft: release "${this.githubRepo.repo}", version "${version}"`,
           );
         this.logger.info(`Pushing the changes...`);
-        // Ensure we are still up to date with upstream
-        await withRetry(() =>
-          localRepo.git
-            .pull('origin', 'master', ['--rebase'])
-            .push('origin', 'master'),
-        );
+        await this.pushToRegistry(localRepo.git);
       },
       true,
       'craft-release-registry-',
     );
 
     this.logger.info('Release registry updated.');
+  }
+
+  /**
+   * Pushes the committed changes to the registry's master branch.
+   *
+   * Concurrent releases can push to the registry's master between our pull and
+   * push, causing a non-fast-forward rejection. Retry with exponential
+   * backoff, re-pulling each time, so a burst of concurrent pushes has time to
+   * settle.
+   *
+   * @param git The git client for the local registry clone
+   */
+  private async pushToRegistry(git: SimpleGit): Promise<void> {
+    let pushDelay = PUSH_RETRY_DELAY_SECS;
+    await withRetry(
+      () => git.pull('origin', 'master', ['--rebase']).push('origin', 'master'),
+      PUSH_MAX_ATTEMPTS,
+      async () => {
+        this.logger.warn(
+          `Pushing to the registry failed, trying again in ${pushDelay}s...`,
+        );
+        await sleep(pushDelay * 1000);
+        pushDelay *= PUSH_RETRY_EXP_FACTOR;
+        return true;
+      },
+    );
   }
 }
