@@ -61,10 +61,10 @@ let _configCache: CraftProjectConfig;
  * The minimum craft version required to use the top-level `workspaces` config.
  *
  * This is the release the workspaces feature ships in. A dev build of that
- * release (e.g. `2.27.0-dev.0`) satisfies it via the pre-release relaxation in
+ * release (e.g. `2.29.0-dev.0`) satisfies it via the pre-release relaxation in
  * `checkMinimalConfigVersion`.
  */
-export const WORKSPACES_MIN_VERSION = '2.27.0';
+export const WORKSPACES_MIN_VERSION = '2.29.0';
 
 /**
  * The name of the currently-selected workspace, or undefined for the default
@@ -178,7 +178,19 @@ function isVersionGteMinVersion(
   if (!configuredMinVersion || !required) {
     return false;
   }
-  return versionGreaterOrEqualThan(configuredMinVersion, required);
+  return versionGreaterOrEqualThan(
+    withoutBuildMetadata(configuredMinVersion),
+    withoutBuildMetadata(required),
+  );
+}
+
+/**
+ * SemVer build metadata does not affect precedence, but the comparison helper
+ * intentionally rejects versions carrying it. Strip it before compatibility
+ * checks so config values such as `2.29.0+linux` remain valid.
+ */
+function withoutBuildMetadata(version: SemVer): SemVer {
+  return version.build ? { ...version, build: undefined } : version;
 }
 
 /**
@@ -380,7 +392,7 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
     throw new Error(`Cannot parse the current version: "${currentVersionRaw}"`);
   }
 
-  // A dev/pre-release build of X.Y.Z (e.g. "2.27.0-dev.0") already contains the
+  // A dev/pre-release build of X.Y.Z (e.g. "2.29.0-dev.0") already contains the
   // features slated for X.Y.Z, so treat it as satisfying a minVersion of up to
   // X.Y.Z. Without this, running a local dev build would reject any config
   // whose minVersion targets the very release that build is heading toward,
@@ -388,9 +400,14 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
   // We only relax the CURRENT side (never the configured minVersion side).
   const effectiveCurrentVersion: SemVer = currentVersion.pre
     ? { ...currentVersion, pre: undefined, build: undefined }
-    : currentVersion;
+    : withoutBuildMetadata(currentVersion);
 
-  if (versionGreaterOrEqualThan(effectiveCurrentVersion, minVersion)) {
+  if (
+    versionGreaterOrEqualThan(
+      effectiveCurrentVersion,
+      withoutBuildMetadata(minVersion),
+    )
+  ) {
     logger.debug(
       `"craft" version is compatible with the minimal version from the configuration file.`,
     );

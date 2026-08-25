@@ -325,6 +325,17 @@ describe('workspaces', () => {
     );
   });
 
+  test('accepts build metadata in a workspace minVersion', () => {
+    setActiveWorkspace('cli');
+    const config = loadConfigurationFromString(
+      WS_CONFIG.replace(
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        `minVersion: ${WORKSPACES_MIN_VERSION}+linux`,
+      ),
+    );
+    expect(config.releaseBranchPrefix).toBe('release/cli');
+  });
+
   test('setActiveWorkspace re-resolves against a new selection', () => {
     setActiveWorkspace('cli');
     loadConfigurationFromString(WS_CONFIG);

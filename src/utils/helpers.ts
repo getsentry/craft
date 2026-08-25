@@ -1,5 +1,6 @@
 import { appendFileSync, mkdirSync, writeFileSync } from 'fs';
 import path from 'path';
+import { parseArgs } from 'node:util';
 
 import prompts from 'prompts';
 import { logger, LogLevel, setLevel } from '../logger';
@@ -29,11 +30,11 @@ export function envToBool(envVar: unknown): boolean {
  * config.targets) *before* middleware, so the workspace must be resolved up
  * front rather than in a middleware.
  *
- * Supports `--workspace foo` and `--workspace=foo`. The CLI flag wins over the
- * env var, but only when it actually carries a value: a bare `--workspace` with
- * no following value (or followed by another flag) is ignored here and left for
- * yargs to report, falling back to `CRAFT_WORKSPACE` if set. Returns
- * `undefined` when neither yields a value.
+ * Supports `--workspace foo` and `--workspace=foo`. It uses Node's built-in
+ * argument parser and checks its token stream so a following option (such as
+ * `--workspace --dry-run`) is never mistaken for a workspace name. The CLI
+ * flag wins over the env var only when it carries a value; otherwise this falls
+ * back to `CRAFT_WORKSPACE`.
  *
  * @param argv The raw argv array (process.argv.slice(2))
  * @param env The environment to read CRAFT_WORKSPACE from (defaults to process.env)
@@ -43,22 +44,31 @@ export function extractWorkspaceSelection(
   env: NodeJS.ProcessEnv = process.env,
 ): string | undefined {
   const envWorkspace = env.CRAFT_WORKSPACE || undefined;
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    if (arg === '--workspace') {
-      const next = argv[i + 1];
-      // Only treat the next token as the value if it isn't another option.
-      if (next !== undefined && !next.startsWith('-')) {
-        return next;
-      }
-      // Bare/valueless flag: don't consume a flag as the name; defer to env.
-      return envWorkspace;
+  const { tokens } = parseArgs({
+    args: argv,
+    options: { workspace: { type: 'string' } },
+    allowPositionals: true,
+    strict: false,
+    tokens: true,
+  });
+  let workspace: string | undefined;
+  for (const token of tokens) {
+    if (token.kind !== 'option' || token.name !== 'workspace') {
+      continue;
     }
-    if (arg.startsWith('--workspace=')) {
-      return arg.slice('--workspace='.length) || envWorkspace;
+    // The last occurrence decides. An empty/bare final option must not leave
+    // an earlier value selected; it falls back to CRAFT_WORKSPACE instead.
+    workspace = undefined;
+    if (
+      typeof token.value === 'string' &&
+      token.value &&
+      // `--workspace=-foo` is a valid inline value; `--workspace --foo` is not.
+      (token.inlineValue || !token.value.startsWith('-'))
+    ) {
+      workspace = token.value;
     }
   }
-  return envWorkspace;
+  return workspace || envWorkspace;
 }
 
 export interface GlobalFlags {

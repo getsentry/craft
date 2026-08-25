@@ -53,12 +53,39 @@ describe('extractWorkspaceSelection', () => {
     expect(extractWorkspaceSelection(['--workspace=mcp'], NO_ENV)).toBe('mcp');
   });
 
+  test('accepts a leading-dash workspace name only in inline form', () => {
+    expect(extractWorkspaceSelection(['--workspace=-cli'], NO_ENV)).toBe(
+      '-cli',
+    );
+    expect(
+      extractWorkspaceSelection(['--workspace', '-cli'], NO_ENV),
+    ).toBeUndefined();
+  });
+
   test('CLI flag wins over CRAFT_WORKSPACE env', () => {
     expect(
       extractWorkspaceSelection(['--workspace', 'cli'], {
         CRAFT_WORKSPACE: 'mcp',
       } as NodeJS.ProcessEnv),
     ).toBe('cli');
+  });
+
+  test('uses the last value when --workspace is repeated', () => {
+    expect(
+      extractWorkspaceSelection(
+        ['--workspace', 'cli', '--workspace=mcp'],
+        NO_ENV,
+      ),
+    ).toBe('mcp');
+  });
+
+  test('a final bare --workspace falls back to the environment', () => {
+    expect(
+      extractWorkspaceSelection(
+        ['--workspace', 'cli', '--workspace', '--dry-run'],
+        { CRAFT_WORKSPACE: 'mcp' } as NodeJS.ProcessEnv,
+      ),
+    ).toBe('mcp');
   });
 
   test('falls back to CRAFT_WORKSPACE when no flag', () => {
