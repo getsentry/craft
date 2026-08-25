@@ -15,6 +15,7 @@ import {
   getGlobalGitHubConfig,
   expandWorkspaceTargets,
   getNoMergeConfig,
+  getActiveWorkspace,
 } from '../config';
 import { formatTable, logger } from '../logger';
 import { TargetConfig } from '../schemas/project_config';
@@ -696,6 +697,8 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   const publishStateFile = getPublishStatePath(
     newVersion,
     publishStateGithubConfig,
+    process.cwd(),
+    getActiveWorkspace(),
   );
 
   logger.info(`Looking for publish state file for ${newVersion}...`);

@@ -112,8 +112,7 @@ function resolveWorkspaceConfig(
   workspaceName: string,
 ): CraftProjectConfig {
   const workspaces = base.workspaces || {};
-  const workspace = workspaces[workspaceName];
-  if (!workspace) {
+  if (!Object.hasOwn(workspaces, workspaceName)) {
     const available = Object.keys(workspaces);
     throw new ConfigurationError(
       `Unknown workspace "${workspaceName}". ` +
@@ -122,6 +121,7 @@ function resolveWorkspaceConfig(
           : 'No workspaces are defined in the configuration.'),
     );
   }
+  const workspace = workspaces[workspaceName];
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { workspaces: _ignoredWorkspaces, ...baseWithoutWorkspaces } = base;

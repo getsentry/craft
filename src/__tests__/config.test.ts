@@ -305,6 +305,16 @@ describe('workspaces', () => {
     );
   });
 
+  test.each(['constructor', 'toString', '__proto__'])(
+    'rejects prototype-named workspace %s',
+    workspace => {
+      setActiveWorkspace(workspace);
+      expect(() => loadConfigurationFromString(WS_CONFIG)).toThrow(
+        new RegExp(`Unknown workspace "${workspace}"`),
+      );
+    },
+  );
+
   test('errors when a workspace is selected but none are defined', () => {
     setActiveWorkspace('cli');
     expect(() =>
