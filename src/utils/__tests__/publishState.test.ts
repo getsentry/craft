@@ -67,6 +67,46 @@ describe('publishState', () => {
       expect(a).not.toBe(b);
     });
 
+    test('disambiguates release workspaces at the same repo, cwd, and version', () => {
+      const cli = getPublishStateFilename(
+        '1.2.3',
+        { owner: 'o', repo: 'r' },
+        cwd,
+        'cli',
+      );
+      const mcp = getPublishStateFilename(
+        '1.2.3',
+        { owner: 'o', repo: 'r' },
+        cwd,
+        'mcp',
+      );
+      expect(cli).not.toBe(mcp);
+      expect(cli).toMatch(/-workspace-Y2xp-1\.2\.3\.json$/);
+      expect(mcp).toMatch(/-workspace-bWNw-1\.2\.3\.json$/);
+    });
+
+    test('does not collide when workspace names only differ by case or punctuation', () => {
+      const names = ['CLI', 'cli', 'cli/workspace', 'cli_workspace'];
+      const filenames = names.map(workspace =>
+        getPublishStateFilename(
+          '1.2.3',
+          { owner: 'o', repo: 'r' },
+          cwd,
+          workspace,
+        ),
+      );
+      expect(new Set(filenames)).toHaveLength(names.length);
+    });
+
+    test('preserves the pre-workspace filename when no workspace is selected', () => {
+      const name = getPublishStateFilename(
+        '1.2.3',
+        { owner: 'o', repo: 'r' },
+        cwd,
+      );
+      expect(name).toMatch(/^publish-state-o-r-[0-9a-f]{12}-1\.2\.3\.json$/);
+    });
+
     test('sanitises owner/repo/version characters', () => {
       const name = getPublishStateFilename(
         '1.2.3+build/hack$',

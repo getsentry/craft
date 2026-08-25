@@ -74,20 +74,28 @@ function shortCwdHash(cwd: string): string {
  * filename falls back to a cwd-hash-only form so Craft still refuses
  * to write into the repo itself:
  *   `publish-state-<sha256(cwd)[:16]>-<version>.json`
+ *
+ * When a release workspace is selected, its losslessly encoded name is
+ * included before the version so independent release units in the same
+ * repository cannot share completed-target state.
  */
 export function getPublishStateFilename(
   version: string,
   githubConfig: GitHubGlobalConfig | null,
   cwd: string = process.cwd(),
+  workspace?: string,
 ): string {
   const safeVersion = sanitiseForFilename(version);
+  const workspacePrefix = workspace
+    ? `workspace-${Buffer.from(workspace).toString('base64url')}-`
+    : '';
   if (githubConfig) {
     const owner = sanitiseForFilename(githubConfig.owner);
     const repo = sanitiseForFilename(githubConfig.repo);
-    return `publish-state-${owner}-${repo}-${shortCwdHash(cwd)}-${safeVersion}.json`;
+    return `publish-state-${owner}-${repo}-${shortCwdHash(cwd)}-${workspacePrefix}${safeVersion}.json`;
   }
   const cwdDigest = createHash('sha256').update(cwd).digest('hex').slice(0, 16);
-  return `publish-state-${cwdDigest}-${safeVersion}.json`;
+  return `publish-state-${cwdDigest}-${workspacePrefix}${safeVersion}.json`;
 }
 
 /**
@@ -97,14 +105,17 @@ export function getPublishStateFilename(
  * @param githubConfig Resolved GitHub owner/repo (may be null when
  *   Craft is running outside a GitHub context).
  * @param cwd Override cwd; defaults to `process.cwd()`. Used by tests.
+ * @param workspace Optional selected release workspace, used to isolate
+ *   publish-resume state for same-repository, same-version releases.
  */
 export function getPublishStatePath(
   version: string,
   githubConfig: GitHubGlobalConfig | null,
   cwd: string = process.cwd(),
+  workspace?: string,
 ): string {
   return join(
     getCraftStateDir(),
-    getPublishStateFilename(version, githubConfig, cwd),
+    getPublishStateFilename(version, githubConfig, cwd, workspace),
   );
 }

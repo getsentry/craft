@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import {
   disableChangelogMentions,
   envToBool,
+  extractWorkspaceSelection,
   MAX_STEP_OUTPUT_BYTES,
   setGitHubActionsOutput,
   truncateForOutput,
@@ -32,6 +33,103 @@ describe('envToBool', () =>
   ])('From %j we should get "%s"', (envVar, result) =>
     expect(envToBool(envVar)).toBe(result),
   ));
+
+describe('extractWorkspaceSelection', () => {
+  const NO_ENV = {} as NodeJS.ProcessEnv;
+
+  test('returns undefined when neither flag nor env is set', () => {
+    expect(
+      extractWorkspaceSelection(['publish', '1.0.0'], NO_ENV),
+    ).toBeUndefined();
+  });
+
+  test('reads "--workspace foo"', () => {
+    expect(
+      extractWorkspaceSelection(['publish', '--workspace', 'cli'], NO_ENV),
+    ).toBe('cli');
+  });
+
+  test('reads "--workspace=foo"', () => {
+    expect(extractWorkspaceSelection(['--workspace=mcp'], NO_ENV)).toBe('mcp');
+  });
+
+  test('accepts a leading-dash workspace name only in inline form', () => {
+    expect(extractWorkspaceSelection(['--workspace=-cli'], NO_ENV)).toBe(
+      '-cli',
+    );
+    expect(
+      extractWorkspaceSelection(['--workspace', '-cli'], NO_ENV),
+    ).toBeUndefined();
+  });
+
+  test('CLI flag wins over CRAFT_WORKSPACE env', () => {
+    expect(
+      extractWorkspaceSelection(['--workspace', 'cli'], {
+        CRAFT_WORKSPACE: 'mcp',
+      } as NodeJS.ProcessEnv),
+    ).toBe('cli');
+  });
+
+  test('uses the last value when --workspace is repeated', () => {
+    expect(
+      extractWorkspaceSelection(
+        ['--workspace', 'cli', '--workspace=mcp'],
+        NO_ENV,
+      ),
+    ).toBe('mcp');
+  });
+
+  test('a final bare --workspace falls back to the environment', () => {
+    expect(
+      extractWorkspaceSelection(
+        ['--workspace', 'cli', '--workspace', '--dry-run'],
+        { CRAFT_WORKSPACE: 'mcp' } as NodeJS.ProcessEnv,
+      ),
+    ).toBe('mcp');
+  });
+
+  test('falls back to CRAFT_WORKSPACE when no flag', () => {
+    expect(
+      extractWorkspaceSelection(['publish'], {
+        CRAFT_WORKSPACE: 'mcp',
+      } as NodeJS.ProcessEnv),
+    ).toBe('mcp');
+  });
+
+  test('does not consume a following flag as the value (bare --workspace)', () => {
+    // "--workspace --dry-run" must NOT select "--dry-run"; defer to env.
+    expect(
+      extractWorkspaceSelection(['publish', '--workspace', '--dry-run'], {
+        CRAFT_WORKSPACE: 'mcp',
+      } as NodeJS.ProcessEnv),
+    ).toBe('mcp');
+    expect(
+      extractWorkspaceSelection(
+        ['publish', '--workspace', '--dry-run'],
+        NO_ENV,
+      ),
+    ).toBeUndefined();
+  });
+
+  test('bare --workspace at end of argv falls back to env', () => {
+    expect(
+      extractWorkspaceSelection(['publish', '--workspace'], {
+        CRAFT_WORKSPACE: 'cli',
+      } as NodeJS.ProcessEnv),
+    ).toBe('cli');
+    expect(
+      extractWorkspaceSelection(['publish', '--workspace'], NO_ENV),
+    ).toBeUndefined();
+  });
+
+  test('empty --workspace= falls back to env', () => {
+    expect(
+      extractWorkspaceSelection(['--workspace='], {
+        CRAFT_WORKSPACE: 'cli',
+      } as NodeJS.ProcessEnv),
+    ).toBe('cli');
+  });
+});
 
 describe('setGitHubActionsOutput', () => {
   let outputFile: string;

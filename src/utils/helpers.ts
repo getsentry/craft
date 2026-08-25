@@ -1,5 +1,6 @@
 import { appendFileSync, mkdirSync, writeFileSync } from 'fs';
 import path from 'path';
+import { parseArgs } from 'node:util';
 
 import prompts from 'prompts';
 import { logger, LogLevel, setLevel } from '../logger';
@@ -18,6 +19,56 @@ const FALSY_ENV_VALUES = new Set(['', 'undefined', 'null', '0', 'false', 'no']);
 export function envToBool(envVar: unknown): boolean {
   const normalized = String(envVar).toLowerCase();
   return !FALSY_ENV_VALUES.has(normalized);
+}
+
+/**
+ * Extracts the `--workspace` selection from the raw argv (or the
+ * `CRAFT_WORKSPACE` env var) before yargs parsing.
+ *
+ * This is needed because yargs runs command `builder`s (which may read the
+ * configuration, e.g. `publish` derives its --target choices from
+ * config.targets) *before* middleware, so the workspace must be resolved up
+ * front rather than in a middleware.
+ *
+ * Supports `--workspace foo` and `--workspace=foo`. It uses Node's built-in
+ * argument parser and checks its token stream so a following option (such as
+ * `--workspace --dry-run`) is never mistaken for a workspace name. The CLI
+ * flag wins over the env var only when it carries a value; otherwise this falls
+ * back to `CRAFT_WORKSPACE`.
+ *
+ * @param argv The raw argv array (process.argv.slice(2))
+ * @param env The environment to read CRAFT_WORKSPACE from (defaults to process.env)
+ */
+export function extractWorkspaceSelection(
+  argv: string[],
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  const envWorkspace = env.CRAFT_WORKSPACE || undefined;
+  const { tokens } = parseArgs({
+    args: argv,
+    options: { workspace: { type: 'string' } },
+    allowPositionals: true,
+    strict: false,
+    tokens: true,
+  });
+  let workspace: string | undefined;
+  for (const token of tokens) {
+    if (token.kind !== 'option' || token.name !== 'workspace') {
+      continue;
+    }
+    // The last occurrence decides. An empty/bare final option must not leave
+    // an earlier value selected; it falls back to CRAFT_WORKSPACE instead.
+    workspace = undefined;
+    if (
+      typeof token.value === 'string' &&
+      token.value &&
+      // `--workspace=-foo` is a valid inline value; `--workspace --foo` is not.
+      (token.inlineValue || !token.value.startsWith('-'))
+    ) {
+      workspace = token.value;
+    }
+  }
+  return workspace || envWorkspace;
 }
 
 export interface GlobalFlags {
