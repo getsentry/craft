@@ -31,6 +31,9 @@ inputs:
     description: The path that Craft will run inside
     required: false
     default: '.'
+  workspace:
+    description: Named Craft release workspace to prepare and publish
+    required: false
   craft_config_from_merge_target:
     description: Use the craft config from the merge target branch
     required: false
@@ -68,6 +71,16 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Validate workspace
+      shell: bash
+      env:
+        WORKSPACE: ${{ inputs.workspace }}
+      run: |
+        if [[ -n "$WORKSPACE" ]] && node -e 'process.exit(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(process.env.WORKSPACE) ? 0 : 1)'; then
+          echo "::error::Workspace names cannot contain Unicode control, format, or separator characters."
+          exit 1
+        fi
+
     - id: killswitch
       name: Check release blockers
       shell: bash
@@ -162,6 +175,7 @@ runs:
         CRAFT_CONFIG_FROM_MERGE_TARGET: ${{ inputs.craft_config_from_merge_target }}
         MERGE_TARGET: ${{ inputs.merge_target }}
         VERSION: ${{ inputs.version }}
+        WORKSPACE: ${{ inputs.workspace }}
       working-directory: ${{ inputs.path }}
       run: |
         # Ensure we have origin/HEAD set
@@ -171,6 +185,9 @@ runs:
         CRAFT_ARGS=()
         if [[ "$CRAFT_CONFIG_FROM_MERGE_TARGET" == 'true' && -n "$MERGE_TARGET" ]]; then
           CRAFT_ARGS=(--config-from "$MERGE_TARGET")
+        fi
+        if [[ -n "$WORKSPACE" ]]; then
+          CRAFT_ARGS+=("--workspace=$WORKSPACE")
         fi
 
         # Version is optional - if not provided, Craft uses versioning.policy from config
@@ -187,8 +204,13 @@ runs:
       working-directory: ${{ inputs.path }}
       env:
         CRAFT_LOG_LEVEL: Warn
+        WORKSPACE: ${{ inputs.workspace }}
       run: |
-        targets=$(craft targets | jq -r '.[]|" - [ ] \(.)"')
+        CRAFT_ARGS=()
+        if [[ -n "$WORKSPACE" ]]; then
+          CRAFT_ARGS=("--workspace=$WORKSPACE")
+        fi
+        targets=$(craft targets "${CRAFT_ARGS[@]}" | jq -r '.[]|" - [ ] \(.)"')
 
         # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#multiline-strings
         echo "targets<<EOF" >> "$GITHUB_OUTPUT"
@@ -211,6 +233,7 @@ runs:
         SUBDIRECTORY: ${{ inputs.path != '.' && format('/{0}', inputs.path) || '' }}
         MERGE_TARGET: ${{ inputs.merge_target || '(default)' }}
         PUBLISH_REPO: ${{ inputs.publish_repo || format('{0}/publish', github.repository_owner) }}
+        WORKSPACE: ${{ inputs.workspace }}
       run: |
         # Resolve "self" to the current repository
         if [[ "$PUBLISH_REPO" == "self" ]]; then
@@ -221,7 +244,6 @@ runs:
           echo "::error::Craft did not output a version. This is unexpected."
           exit 1
         fi
-
         # Read changelog from file to avoid E2BIG.
         # Produced by craft >= 2.22.0; older versions don't produce the file
         # and the publish issue will be created without a changelog section.
@@ -238,7 +260,14 @@ runs:
           CHANGELOG="${CHANGELOG:0:$MAX_CHANGELOG_CHARS}"$'\n\n---\n*Changelog truncated for issue body.*'
         fi
 
-        title="publish: ${GITHUB_REPOSITORY}${SUBDIRECTORY}@${RESOLVED_VERSION}"
+        workspace_title=""
+        version_separator="@"
+        if [[ -n "$WORKSPACE" ]]; then
+          workspace_json=$(jq -Rn --arg workspace "$WORKSPACE" '$workspace')
+          workspace_title=" [workspace: ${workspace_json}]"
+          version_separator=" @"
+        fi
+        title="publish: ${GITHUB_REPOSITORY}${SUBDIRECTORY}${workspace_title}${version_separator}${RESOLVED_VERSION}"
 
         # Check if issue already exists by listing all open issues and filtering by exact title match.
         # We avoid GitHub search API to bypass indexing delays and query syntax edge cases.

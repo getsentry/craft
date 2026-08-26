@@ -18,7 +18,10 @@ import {
   getActiveWorkspace,
 } from '../config';
 import { formatTable, logger } from '../logger';
-import { TargetConfig } from '../schemas/project_config';
+import {
+  type GitHubGlobalConfig,
+  TargetConfig,
+} from '../schemas/project_config';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
 import {
@@ -164,6 +167,32 @@ export interface PublishState {
   published: {
     [targetId: string]: boolean;
   };
+}
+
+/**
+ * The Publish controller prepopulates a secure state file using the issue's
+ * checkout repository. That can differ from a workspace's release GitHub
+ * configuration, so this override is deliberately limited to state identity.
+ */
+export function getPublishStateGitHubConfig(
+  githubConfig: GitHubGlobalConfig | null,
+  stateRepository: string | undefined = process.env
+    .CRAFT_PUBLISH_STATE_GITHUB_REPO,
+): GitHubGlobalConfig | null {
+  if (!stateRepository) {
+    return githubConfig;
+  }
+
+  const match = stateRepository.match(
+    /^(?<owner>[A-Za-z0-9_.-]+)\/(?<repo>[A-Za-z0-9_.-]+)$/,
+  );
+  if (!match?.groups) {
+    throw new ConfigurationError(
+      'CRAFT_PUBLISH_STATE_GITHUB_REPO must be a GitHub owner/repository pair.',
+    );
+  }
+
+  return { owner: match.groups.owner, repo: match.groups.repo };
 }
 
 /**
@@ -696,7 +725,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   }
   const publishStateFile = getPublishStatePath(
     newVersion,
-    publishStateGithubConfig,
+    getPublishStateGitHubConfig(publishStateGithubConfig),
     process.cwd(),
     getActiveWorkspace(),
   );
