@@ -202,34 +202,61 @@ const releaseUnitFields = {
  * A workspace mirrors the release-relevant subset of the top-level config;
  * every field is optional and inherits the top-level value when omitted. The
  * `github` block is *partial* (all fields optional) so a workspace can override
- * just `projectPath` (or `owner`/`repo`) while inheriting the rest from the
- * top-level `github`.
+ * `owner` and/or `repo` while inheriting the rest from the top-level `github`.
  */
 export const WorkspaceSchema = z.object({
   ...releaseUnitFields,
-  github: GitHubGlobalConfigSchema.partial().optional(),
+  github: GitHubGlobalConfigSchema.partial()
+    .refine(github => github.projectPath === undefined, {
+      message: 'Workspace github.projectPath is not supported.',
+    })
+    .optional(),
 });
 
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 
+const WorkspaceNameSchema = z
+  .string()
+  // Assigning this key to a regular object mutates its prototype instead of
+  // preserving an own workspace entry.
+  .refine(name => name !== '__proto__', {
+    message: 'Workspace name "__proto__" is not supported.',
+  })
+  .refine(name => name !== '.' && name !== '..', {
+    message: 'Workspace names cannot be "." or "..".',
+  });
+
 /**
  * Craft project-specific configuration
  */
-export const CraftProjectConfigSchema = z.object({
-  ...releaseUnitFields,
-  minVersion: z
-    .string()
-    .regex(/^\d+\.\d+\.\d+.*$/)
-    .optional(),
-  /**
-   * Named, independently-versioned release units within a single repository.
-   *
-   * When present, a release run must select one via `--workspace <name>` (or
-   * `CRAFT_WORKSPACE`). The selected workspace's fields override the top-level
-   * ones. When absent, craft behaves exactly as before (the top-level config is
-   * the single implicit release unit) — fully backward compatible.
-   */
-  workspaces: z.record(z.string(), WorkspaceSchema).optional(),
-});
+export const CraftProjectConfigSchema = z
+  .object({
+    ...releaseUnitFields,
+    minVersion: z
+      .string()
+      .regex(/^\d+\.\d+\.\d+.*$/)
+      .optional(),
+    /**
+     * Named, independently-versioned release units within a single repository.
+     *
+     * When present, a release run must select one via `--workspace <name>` (or
+     * `CRAFT_WORKSPACE`). The selected workspace's fields override the top-level
+     * ones. When absent, craft behaves exactly as before (the top-level config is
+     * the single implicit release unit) — fully backward compatible.
+     */
+    workspaces: z.record(WorkspaceNameSchema, WorkspaceSchema).optional(),
+  })
+  .superRefine((config, context) => {
+    if (
+      Object.keys(config.workspaces || {}).length > 0 &&
+      config.github?.projectPath !== undefined
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Workspace configurations cannot use github.projectPath.',
+        path: ['github', 'projectPath'],
+      });
+    }
+  });
 
 export type CraftProjectConfig = z.infer<typeof CraftProjectConfigSchema>;

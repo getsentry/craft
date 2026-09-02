@@ -74,10 +74,15 @@ runs:
     - name: Validate workspace
       shell: bash
       env:
+        PATH_INPUT: ${{ inputs.path }}
         WORKSPACE: ${{ inputs.workspace }}
       run: |
-        if [[ -n "$WORKSPACE" ]] && node -e 'process.exit(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(process.env.WORKSPACE) ? 0 : 1)'; then
-          echo "::error::Workspace names cannot contain Unicode control, format, or separator characters."
+        if [[ -n "$WORKSPACE" && "$PATH_INPUT" != '.' ]]; then
+          echo "::error::The path and workspace inputs cannot be used together."
+          exit 1
+        fi
+        if [[ -n "$WORKSPACE" ]] && ! node -e 'process.exit(/^(?!\.{1,2}$)(?!__proto__$)(?!-)[A-Za-z0-9_.-]+$/.test(process.env.WORKSPACE) ? 0 : 1)'; then
+          echo "::error::Workspace names must use only ASCII letters, digits, periods, underscores, and hyphens."
           exit 1
         fi
 
@@ -260,14 +265,7 @@ runs:
           CHANGELOG="${CHANGELOG:0:$MAX_CHANGELOG_CHARS}"$'\n\n---\n*Changelog truncated for issue body.*'
         fi
 
-        workspace_title=""
-        version_separator="@"
-        if [[ -n "$WORKSPACE" ]]; then
-          workspace_json=$(jq -Rn --arg workspace "$WORKSPACE" '$workspace')
-          workspace_title=" [workspace: ${workspace_json}]"
-          version_separator=" @"
-        fi
-        title="publish: ${GITHUB_REPOSITORY}${SUBDIRECTORY}${workspace_title}${version_separator}${RESOLVED_VERSION}"
+        title="publish: ${GITHUB_REPOSITORY}${SUBDIRECTORY}${WORKSPACE:+/$WORKSPACE}@${RESOLVED_VERSION}"
 
         # Check if issue already exists by listing all open issues and filtering by exact title match.
         # We avoid GitHub search API to bypass indexing delays and query syntax edge cases.

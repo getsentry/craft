@@ -631,9 +631,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   let branchName;
   if (rev) {
     logger.debug(`Trying to get branch name for provided revision: "${rev}"`);
-    branchName = (
-      await git.raw('name-rev', '--name-only', '--no-undefined', rev)
-    ).trim();
+    branchName = await getRevisionBranchName(git, rev);
     checkoutTarget = branchName || rev;
     logger.debug('Checking out revision', checkoutTarget);
     await git.checkout(checkoutTarget);
@@ -930,6 +928,20 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   // Run the post-release script
   await runPostReleaseCommand(newVersion, config.postReleaseCommand);
+}
+
+export async function getRevisionBranchName(
+  git: SimpleGit,
+  revision: string,
+): Promise<string> {
+  try {
+    return (
+      await git.raw('name-rev', '--name-only', '--no-undefined', revision)
+    ).trim();
+  } catch {
+    // A CI-approved SHA can be checked out detached without a named ref.
+    return '';
+  }
 }
 
 export const handler = async (args: {

@@ -103,8 +103,8 @@ export function getActiveWorkspace(): string | undefined {
  *   top-level value (shallow override; a workspace either declares a field or
  *   inherits it wholesale — we do not deep-merge arrays/objects, to keep
  *   behavior predictable).
- * - `github` is shallow-merged (owner/repo/projectPath) so a workspace can
- *   override just `projectPath` while inheriting owner/repo.
+ * - `github` is shallow-merged (owner/repo) so a workspace can override either
+ *   value while inheriting the other.
  * - `minVersion` and `workspaces` themselves are stripped from the result.
  */
 function resolveWorkspaceConfig(
@@ -135,8 +135,8 @@ function resolveWorkspaceConfig(
       continue;
     }
     if (key === 'github') {
-      // Shallow-merge github so a workspace can override a single field
-      // (e.g. just projectPath) while inheriting owner/repo from the base.
+      // Shallow-merge github so a workspace can override owner or repo while
+      // inheriting the other value from the base configuration.
       const mergedGithub = {
         ...(base.github as GitHubGlobalConfig | undefined),
         ...(value as Partial<GitHubGlobalConfig>),
@@ -144,9 +144,7 @@ function resolveWorkspaceConfig(
       // Only adopt the merged github if it is complete (has owner + repo).
       // Otherwise leave `github` unset so getGlobalGitHubConfig() can still
       // fall back to git-remote detection instead of seeing a truthy-but-
-      // incomplete object and skipping the fallback. (A workspace that only
-      // sets projectPath without a base github relies on git detection for
-      // owner/repo, exactly like a top-level config with no github block.)
+      // incomplete object and skipping the fallback.
       if (mergedGithub.owner && mergedGithub.repo) {
         resolved.github = mergedGithub as GitHubGlobalConfig;
       } else {
@@ -182,6 +180,15 @@ function isVersionGteMinVersion(
     withoutBuildMetadata(configuredMinVersion),
     withoutBuildMetadata(required),
   );
+}
+
+function checkWorkspacesMinVersion(config: CraftProjectConfig): void {
+  if (!isVersionGteMinVersion(config.minVersion, WORKSPACES_MIN_VERSION)) {
+    throw new ConfigurationError(
+      `Using "workspaces" requires minVersion >= ${WORKSPACES_MIN_VERSION} ` +
+        'in the configuration file.',
+    );
+  }
 }
 
 /**
@@ -229,12 +236,7 @@ function applyWorkspaceSelection(
   }
 
   // Gate the feature behind minVersion, mirroring auto-versioning.
-  if (!isVersionGteMinVersion(config.minVersion, WORKSPACES_MIN_VERSION)) {
-    throw new ConfigurationError(
-      `Using "workspaces" requires minVersion >= ${WORKSPACES_MIN_VERSION} ` +
-        'in the configuration file.',
-    );
-  }
+  checkWorkspacesMinVersion(config);
 
   return resolveWorkspaceConfig(config, _activeWorkspaceName);
 }
@@ -361,6 +363,26 @@ export function loadConfigurationFromString(
   checkMinimalConfigVersion(parsed);
   _configCache = applyWorkspaceSelection(parsed);
   return _configCache;
+}
+
+/**
+ * Lists workspace names from the raw validated configuration without applying a
+ * selection. This allows external controllers to discover valid names before
+ * choosing a workspace.
+ */
+export function getWorkspaceNames(): string[] {
+  const configPath = getConfigFilePath();
+  const rawConfig = load(readFileSync(configPath, 'utf-8')) as Record<
+    string,
+    any
+  >;
+  const parsed = validateConfiguration(rawConfig);
+  checkMinimalConfigVersion(parsed);
+  const workspaceNames = Object.keys(parsed.workspaces || {});
+  if (workspaceNames.length > 0) {
+    checkWorkspacesMinVersion(parsed);
+  }
+  return workspaceNames;
 }
 
 /**

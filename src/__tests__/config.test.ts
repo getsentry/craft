@@ -1,4 +1,7 @@
-import { describe, test, expect, vi, afterEach } from 'vitest';
+import { describe, test, expect, vi, afterEach, beforeEach } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 /**
  * Tests of our ability to read craft config files. (This is NOT general test
  * configuration).
@@ -11,6 +14,7 @@ import {
   setActiveWorkspace,
   getActiveWorkspace,
   getVersioningPolicy,
+  getWorkspaceNames,
   WORKSPACES_MIN_VERSION,
 } from '../config';
 import { CraftProjectConfigSchema } from '../schemas/project_config';
@@ -134,7 +138,6 @@ describe('noMerge config', () => {
       workspaces: {
         cli: {
           releaseBranchPrefix: 'release/cli',
-          github: { projectPath: 'cli' },
           targets: [{ name: 'github', tagPrefix: 'cli@' }],
         },
         mcp: {
@@ -146,15 +149,73 @@ describe('noMerge config', () => {
     expect(validateConfiguration(data)).toEqual(data);
   });
 
-  test('allows a workspace github override without owner/repo', () => {
+  test('allows a workspace github owner/repo override', () => {
     const data = {
       workspaces: {
-        cli: { github: { projectPath: 'cli' } },
+        cli: { github: { owner: 'getsentry', repo: 'toolkit' } },
       },
     };
 
-    // Workspace github is partial; owner/repo are inherited, not required here.
+    // Workspace github is partial; owner/repo are not required together here.
     expect(() => validateConfiguration(data)).not.toThrow();
+  });
+
+  test('allows legacy workspace names', () => {
+    expect(() =>
+      validateConfiguration({ workspaces: { 'cli/v2': {} } }),
+    ).not.toThrow();
+  });
+
+  test.each(['.', '..'])('rejects traversal workspace name %j', name => {
+    expect(() => validateConfiguration({ workspaces: { [name]: {} } })).toThrow(
+      'Workspace names cannot be "." or "..".',
+    );
+  });
+
+  test('rejects the __proto__ workspace key', () => {
+    expect(() =>
+      loadConfigurationFromString(
+        [
+          `minVersion: ${WORKSPACES_MIN_VERSION}`,
+          'workspaces:',
+          '  __proto__: {}',
+        ].join('\n'),
+      ),
+    ).toThrow('Workspace name "__proto__" is not supported.');
+  });
+
+  test('rejects workspace github.projectPath', () => {
+    expect(() =>
+      validateConfiguration({
+        workspaces: { cli: { github: { projectPath: 'cli' } } },
+      }),
+    ).toThrow('Workspace github.projectPath is not supported.');
+  });
+
+  test('rejects a base github.projectPath when workspaces are configured', () => {
+    expect(() =>
+      validateConfiguration({
+        github: {
+          owner: 'getsentry',
+          repo: 'toolkit',
+          projectPath: 'packages/cli',
+        },
+        workspaces: { cli: {} },
+      }),
+    ).toThrow('Workspace configurations cannot use github.projectPath.');
+  });
+
+  test('allows github.projectPath with an empty workspace map', () => {
+    expect(() =>
+      validateConfiguration({
+        github: {
+          owner: 'getsentry',
+          repo: 'toolkit',
+          projectPath: 'packages/cli',
+        },
+        workspaces: {},
+      }),
+    ).not.toThrow();
   });
 });
 
@@ -226,7 +287,18 @@ describe('getGitTagPrefix', () => {
 });
 
 describe('workspaces', () => {
+  let originalCwd: string;
+  const temporaryDirectories: string[] = [];
+
+  beforeEach(() => {
+    originalCwd = process.cwd();
+  });
+
   afterEach(() => {
+    process.chdir(originalCwd);
+    for (const directory of temporaryDirectories.splice(0)) {
+      rmSync(directory, { recursive: true, force: true });
+    }
     setActiveWorkspace(undefined);
     vi.restoreAllMocks();
   });
@@ -240,8 +312,6 @@ describe('workspaces', () => {
     'workspaces:',
     '  cli:',
     '    releaseBranchPrefix: release/cli',
-    '    github:',
-    '      projectPath: cli',
     '    targets:',
     '      - name: github',
     '        tagPrefix: "cli@"',
@@ -269,12 +339,7 @@ describe('workspaces', () => {
     // Overridden by the workspace.
     expect(config.releaseBranchPrefix).toBe('release/cli');
     expect(getGitTagPrefix()).toBe('cli@');
-    // github is shallow-merged: owner/repo inherited, projectPath overridden.
-    expect(config.github).toEqual({
-      owner: 'getsentry',
-      repo: 'toolkit',
-      projectPath: 'cli',
-    });
+    expect(config.github).toEqual({ owner: 'getsentry', repo: 'toolkit' });
     // Inherited from the top level.
     expect(config.changelog).toBe('CHANGELOG.md');
     // `workspaces` is stripped from the resolved config.
@@ -287,7 +352,6 @@ describe('workspaces', () => {
     expect(config.releaseBranchPrefix).toBe('release/mcp');
     expect(getGitTagPrefix()).toBe('mcp@');
     expect(getVersioningPolicy()).toBe('calver');
-    // mcp did not override github.projectPath, so it inherits base github only.
     expect(config.github).toEqual({ owner: 'getsentry', repo: 'toolkit' });
   });
 
@@ -295,6 +359,25 @@ describe('workspaces', () => {
     setActiveWorkspace(undefined);
     expect(() => loadConfigurationFromString(WS_CONFIG)).toThrow(
       /defines workspaces; select one/,
+    );
+  });
+
+  test('lists raw workspace names without requiring a selection', () => {
+    setActiveWorkspace(undefined);
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    const configPath = join(directory, '.craft.yml');
+    writeFileSync(configPath, WS_CONFIG);
+    process.chdir(directory);
+
+    expect(getWorkspaceNames()).toEqual(['cli', 'mcp']);
+    writeFileSync(
+      configPath,
+      ['minVersion: 2.14.0', 'workspaces:', '  cli: {}'].join('\n'),
+    );
+
+    expect(() => getWorkspaceNames()).toThrow(
+      `requires minVersion >= ${WORKSPACES_MIN_VERSION}`,
     );
   });
 
@@ -366,28 +449,7 @@ describe('workspaces', () => {
     expect(config.targets).toEqual([{ name: 'github', tagPrefix: 'cli@' }]);
   });
 
-  test('does not produce an incomplete github when base has none', () => {
-    // A workspace that sets only github.projectPath, with NO top-level github,
-    // must NOT yield a truthy-but-incomplete github object (missing owner/repo)
-    // — that would make getGlobalGitHubConfig skip its git-remote fallback.
-    setActiveWorkspace('cli');
-    const config = loadConfigurationFromString(
-      [
-        `minVersion: ${WORKSPACES_MIN_VERSION}`,
-        'workspaces:',
-        '  cli:',
-        '    github:',
-        '      projectPath: cli',
-        '    targets:',
-        '      - name: github',
-        '        tagPrefix: "cli@"',
-      ].join('\n'),
-    );
-    // Incomplete github is dropped so git-remote detection can still run.
-    expect(config.github).toBeUndefined();
-  });
-
-  test('keeps github when workspace override completes owner/repo', () => {
+  test('shallow-merges a workspace github owner/repo override', () => {
     setActiveWorkspace('cli');
     const config = loadConfigurationFromString(
       [
@@ -397,7 +459,6 @@ describe('workspaces', () => {
         '    github:',
         '      owner: getsentry',
         '      repo: toolkit',
-        '      projectPath: cli',
         '    targets:',
         '      - name: github',
       ].join('\n'),
@@ -405,7 +466,6 @@ describe('workspaces', () => {
     expect(config.github).toEqual({
       owner: 'getsentry',
       repo: 'toolkit',
-      projectPath: 'cli',
     });
   });
 });
