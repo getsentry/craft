@@ -74,6 +74,7 @@ runs:
     - name: Validate workspace
       shell: bash
       env:
+        LC_ALL: C
         PATH_INPUT: ${{ inputs.path }}
         WORKSPACE: ${{ inputs.workspace }}
       run: |
@@ -81,8 +82,12 @@ runs:
           echo "::error::The path and workspace inputs cannot be used together."
           exit 1
         fi
-        if [[ -n "$WORKSPACE" ]] && ! node -e 'process.exit(/^(?!\.{1,2}$)(?!__proto__$)(?!-)[A-Za-z0-9_.-]+$/.test(process.env.WORKSPACE) ? 0 : 1)'; then
-          echo "::error::Workspace names must use only ASCII letters, digits, periods, underscores, and hyphens."
+        if ! node -e 'const path = process.env.PATH_INPUT; const segment = /^[A-Za-z0-9_.-]+$/; process.exit(path === "." || (typeof path === "string" && path.split("/").every(name => segment.test(name) && ![".", "..", "__proto__"].includes(name) && !name.startsWith("-"))) ? 0 : 1)'; then
+          echo "::error::The path input must use ASCII path segments containing only letters, digits, periods, underscores, and hyphens."
+          exit 1
+        fi
+        if [[ -n "$WORKSPACE" ]] && ! node -e 'const workspace = process.env.WORKSPACE; const segment = /^[A-Za-z0-9_.-]+$/; process.exit(workspace.split("/").every(name => segment.test(name) && ![".", "..", "__proto__"].includes(name) && !name.startsWith("-")) ? 0 : 1)'; then
+          echo "::error::Workspace names must use ASCII path segments containing only letters, digits, periods, underscores, and hyphens."
           exit 1
         fi
 
@@ -183,6 +188,7 @@ runs:
         WORKSPACE: ${{ inputs.workspace }}
       working-directory: ${{ inputs.path }}
       run: |
+        unset CRAFT_WORKSPACE
         # Ensure we have origin/HEAD set
         git remote set-head origin --auto
 
@@ -211,6 +217,7 @@ runs:
         CRAFT_LOG_LEVEL: Warn
         WORKSPACE: ${{ inputs.workspace }}
       run: |
+        unset CRAFT_WORKSPACE
         CRAFT_ARGS=()
         if [[ -n "$WORKSPACE" ]]; then
           CRAFT_ARGS=("--workspace=$WORKSPACE")

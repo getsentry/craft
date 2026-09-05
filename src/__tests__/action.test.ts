@@ -53,7 +53,7 @@ function createActionEnvironment() {
   writeFileSync(output, '');
   writeFileSync(
     join(binDirectory, 'craft'),
-    '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$CRAFT_CALLS"\nif [[ "$1" == "targets" ]]; then\n  printf \'["github"]\'\nfi\n',
+    '#!/usr/bin/env bash\nif [[ -n "${CRAFT_WORKSPACE:-}" ]]; then\n  exit 1\nfi\nprintf "%s\\n" "$*" >> "$CRAFT_CALLS"\nif [[ "$1" == "targets" ]]; then\n  printf \'["github"]\'\nfi\n',
   );
   writeFileSync(
     join(binDirectory, 'git'),
@@ -190,13 +190,35 @@ test('rejects non-ASCII workspace input in a UTF-8 locale', () => {
   expect(readFileSync(environment.craftCalls, 'utf8')).toBe('');
 });
 
-test.each(['', 'cli-v2'])('accepts safe workspace input %j', workspace => {
-  const environment = createActionEnvironment();
+test.each(['', 'cli-v2', 'packages/cli', 'packages/CLI'])(
+  'accepts safe workspace input %j',
+  workspace => {
+    const environment = createActionEnvironment();
 
-  expect(
-    runActionStep('Validate workspace', workspace, environment).status,
-  ).toBe(0);
-});
+    expect(
+      runActionStep('Validate workspace', workspace, environment).status,
+    ).toBe(0);
+  },
+);
+
+test.each([
+  '../outside',
+  '/tmp',
+  './packages/cli',
+  'packages//cli',
+  'packages/../cli',
+])(
+  'rejects unsafe checkout path %j before every action side effect',
+  pathInput => {
+    const environment = createActionEnvironment();
+
+    expect(
+      runActionStep('Validate workspace', '', environment, pathInput).status,
+    ).toBe(1);
+    expect(readFileSync(environment.gitCalls, 'utf8')).toBe('');
+    expect(readFileSync(environment.craftCalls, 'utf8')).toBe('');
+  },
+);
 
 test('rejects a path and workspace together before every action side effect', () => {
   const environment = createActionEnvironment();
@@ -209,15 +231,18 @@ test('rejects a path and workspace together before every action side effect', ()
   expect(readFileSync(environment.craftCalls, 'utf8')).toBe('');
 });
 
-test('rejects workspace names outside the compact title grammar', () => {
-  const environment = createActionEnvironment();
+test.each(['cli\nnext', 'packages/*'])(
+  'rejects workspace names outside the path workspace grammar',
+  workspace => {
+    const environment = createActionEnvironment();
 
-  expect(
-    runActionStep('Validate workspace', 'cli/v2', environment).status,
-  ).toBe(1);
-  expect(readFileSync(environment.gitCalls, 'utf8')).toBe('');
-  expect(readFileSync(environment.craftCalls, 'utf8')).toBe('');
-});
+    expect(
+      runActionStep('Validate workspace', workspace, environment).status,
+    ).toBe(1);
+    expect(readFileSync(environment.gitCalls, 'utf8')).toBe('');
+    expect(readFileSync(environment.craftCalls, 'utf8')).toBe('');
+  },
+);
 
 test.each(['.', '..', '__proto__', '-foo', '--config'])(
   'rejects unsafe workspace name %j',
@@ -232,17 +257,57 @@ test.each(['.', '..', '__proto__', '-foo', '--config'])(
   },
 );
 
-test('uses the compact workspace path in publish request titles', () => {
+test.each([
+  './packages/cli',
+  'packages//cli',
+  'packages/./cli',
+  'packages/../cli',
+  'packages/__proto__/cli',
+  'packages/-cli',
+])('rejects unsafe workspace path %j', workspace => {
+  const environment = createActionEnvironment();
+
+  expect(
+    runActionStep('Validate workspace', workspace, environment).status,
+  ).toBe(1);
+  expect(readFileSync(environment.gitCalls, 'utf8')).toBe('');
+  expect(readFileSync(environment.craftCalls, 'utf8')).toBe('');
+});
+
+test('uses the full workspace path in publish request titles', () => {
   const rootEnvironment = createActionEnvironment();
   const workspaceEnvironment = createActionEnvironment();
 
   expect(runRequestPublish('', rootEnvironment).status).toBe(0);
-  expect(runRequestPublish('cli', workspaceEnvironment).status).toBe(0);
+  expect(runRequestPublish('packages/cli', workspaceEnvironment).status).toBe(
+    0,
+  );
 
   expect(readFileSync(rootEnvironment.ghTitles, 'utf8')).toBe(
     'publish: getsentry/toolkit@1.2.3\n',
   );
   expect(readFileSync(workspaceEnvironment.ghTitles, 'utf8')).toBe(
-    'publish: getsentry/toolkit/cli@1.2.3\n',
+    'publish: getsentry/toolkit/packages/cli@1.2.3\n',
+  );
+});
+
+test('clears an inherited workspace before root Craft commands', () => {
+  const environment = createActionEnvironment();
+  const previousWorkspace = process.env.CRAFT_WORKSPACE;
+  process.env.CRAFT_WORKSPACE = 'packages/cli';
+
+  try {
+    expect(runActionStep('Craft Prepare', '', environment).status).toBe(0);
+    expect(runActionStep('Read Craft Targets', '', environment).status).toBe(0);
+  } finally {
+    if (previousWorkspace === undefined) {
+      delete process.env.CRAFT_WORKSPACE;
+    } else {
+      process.env.CRAFT_WORKSPACE = previousWorkspace;
+    }
+  }
+
+  expect(readFileSync(environment.craftCalls, 'utf8')).toBe(
+    'prepare\ntargets\n',
   );
 });

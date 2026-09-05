@@ -55,6 +55,13 @@ function sanitiseForFilename(raw: string): string {
     .replace(/^_+|_+$/g, '');
 }
 
+function encodeVersionForFilename(version: string): string {
+  const safeVersion = sanitiseForFilename(version);
+  return safeVersion === version
+    ? safeVersion
+    : `version-${Buffer.from(version).toString('base64url')}`;
+}
+
 /**
  * Short (12-char) hex digest of the absolute cwd path. Used to
  * disambiguate monorepo subpaths so `packages/foo` and `packages/bar`
@@ -85,7 +92,7 @@ export function getPublishStateFilename(
   cwd: string = process.cwd(),
   workspace?: string,
 ): string {
-  const safeVersion = sanitiseForFilename(version);
+  const safeVersion = encodeVersionForFilename(version);
   const workspacePrefix = workspace
     ? `workspace-${Buffer.from(workspace).toString('base64url')}-`
     : '';

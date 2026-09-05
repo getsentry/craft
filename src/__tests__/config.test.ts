@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, afterEach, beforeEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 /**
@@ -13,6 +13,7 @@ import {
   validateConfiguration,
   setActiveWorkspace,
   getActiveWorkspace,
+  getConfiguration,
   getVersioningPolicy,
   getWorkspaceNames,
   WORKSPACES_MIN_VERSION,
@@ -362,7 +363,7 @@ describe('workspaces', () => {
     );
   });
 
-  test('lists raw workspace names without requiring a selection', () => {
+  test('lists concrete workspace names without requiring a selection', () => {
     setActiveWorkspace(undefined);
     const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
     temporaryDirectories.push(directory);
@@ -378,6 +379,193 @@ describe('workspaces', () => {
 
     expect(() => getWorkspaceNames()).toThrow(
       `requires minVersion >= ${WORKSPACES_MIN_VERSION}`,
+    );
+  });
+
+  test('expands a workspace glob into concrete directory paths', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    mkdirSync(join(directory, 'packages', 'mcp'), { recursive: true });
+    writeFileSync(join(directory, 'packages', 'README.md'), 'not a workspace');
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  packages/*:',
+        '    releaseBranchPrefix: release/package',
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    expect(getWorkspaceNames()).toEqual(['packages/cli', 'packages/mcp']);
+
+    setActiveWorkspace('packages/cli');
+    expect(getConfiguration(true).releaseBranchPrefix).toBe('release/package');
+  });
+
+  test('expands remote configuration globs from the repository root', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    const nestedDirectory = join(directory, 'nested');
+    mkdirSync(nestedDirectory);
+    process.chdir(nestedDirectory);
+
+    setActiveWorkspace('packages/cli');
+    expect(
+      loadConfigurationFromString(
+        [
+          `minVersion: ${WORKSPACES_MIN_VERSION}`,
+          'workspaces:',
+          '  packages/*:',
+          '    releaseBranchPrefix: release/package',
+        ].join('\n'),
+        directory,
+      ).releaseBranchPrefix,
+    ).toBe('release/package');
+  });
+
+  test.each(['packages/[!a]*', 'packages/[^a]*'])(
+    'expands negated character-class workspace glob %s',
+    workspaceGlob => {
+      const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+      temporaryDirectories.push(directory);
+      mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+      mkdirSync(join(directory, 'packages', 'api'), { recursive: true });
+      writeFileSync(
+        join(directory, '.craft.yml'),
+        [
+          `minVersion: ${WORKSPACES_MIN_VERSION}`,
+          'workspaces:',
+          `  "${workspaceGlob}": {}`,
+        ].join('\n'),
+      );
+      process.chdir(directory);
+
+      expect(getWorkspaceNames()).toEqual(['packages/cli']);
+    },
+  );
+
+  test.each([
+    ['packages/{cli,mcp}', ['packages/cli', 'packages/mcp']],
+    [
+      'packages/{cli,{mcp,api}}',
+      ['packages/api', 'packages/cli', 'packages/mcp'],
+    ],
+    ['packages/?li', ['packages/cli']],
+    ['packages/[cm]*', ['packages/cli', 'packages/mcp']],
+    ['packages/**/cli', ['packages/cli', 'packages/nested/cli']],
+  ])('expands supported workspace glob %s', (workspaceGlob, expectedNames) => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    mkdirSync(join(directory, 'packages', 'mcp'), { recursive: true });
+    mkdirSync(join(directory, 'packages', 'api'), { recursive: true });
+    mkdirSync(join(directory, 'packages', 'nested', 'cli'), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        `  "${workspaceGlob}": {}`,
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    expect(getWorkspaceNames()).toEqual(expectedNames);
+  });
+
+  test('does not expand workspace globs through symlinked directories', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    const outsideDirectory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory, outsideDirectory);
+    mkdirSync(join(directory, 'packages', 'internal', 'release'), {
+      recursive: true,
+    });
+    mkdirSync(join(outsideDirectory, 'release'), { recursive: true });
+    symlinkSync(outsideDirectory, join(directory, 'packages', 'external'));
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  packages/**/release: {}',
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    expect(getWorkspaceNames()).toEqual(['packages/internal/release']);
+  });
+
+  test.each(['{../outside/*,packages/*}', '{/tmp/*,packages/*}'])(
+    'rejects a glob with an unsafe alternative: %s',
+    workspaceGlob => {
+      const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+      temporaryDirectories.push(directory);
+      process.chdir(directory);
+
+      expect(() =>
+        loadConfigurationFromString(
+          [
+            `minVersion: ${WORKSPACES_MIN_VERSION}`,
+            'workspaces:',
+            `  "${workspaceGlob}": {}`,
+          ].join('\n'),
+        ),
+      ).toThrow('Workspace paths must use safe ASCII segments.');
+    },
+  );
+
+  test.each([
+    'packages/{cli',
+    'packages/{cli}',
+    'packages/{cli,{mcp}}',
+    'packages/{cli,{{},mcp}}',
+  ])('rejects a malformed brace glob: %s', workspaceGlob => {
+    expect(() =>
+      validateConfiguration({ workspaces: { [workspaceGlob]: {} } }),
+    ).toThrow('Workspace paths must use safe ASCII segments.');
+  });
+
+  test.each([
+    'packages/./cli',
+    'packages/../cli',
+    'packages/__proto__/cli',
+    'packages/foo]',
+    'packages/foo!',
+    'packages/foo^',
+  ])('rejects an unsafe literal workspace path: %s', workspaceName => {
+    expect(() =>
+      validateConfiguration({ workspaces: { [workspaceName]: {} } }),
+    ).toThrow('Workspace paths must use safe ASCII segments.');
+  });
+
+  test('rejects concrete workspace paths that match multiple globs', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  packages/*: {}',
+        '  packages/cli*: {}',
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    expect(() => getWorkspaceNames()).toThrow(
+      /matches multiple workspace patterns: packages\/\*, packages\/cli\*/,
+    );
+
+    setActiveWorkspace('packages/cli');
+    expect(() => getConfiguration(true)).toThrow(
+      /matches multiple workspace patterns: packages\/\*, packages\/cli\*/,
     );
   });
 
