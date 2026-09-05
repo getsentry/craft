@@ -82,7 +82,7 @@ Releasing `1.2.3` for each product then produces the tags `cli@1.2.3` / `mcp@1.2
 
 ## Release Workspaces
 
-Use top-level `workspaces:` to define independently versioned release units in one repository. Select one explicitly with `--workspace <name>` or `CRAFT_WORKSPACE`:
+Use top-level `workspaces:` to define independently versioned release units in one repository. Keys may be literal paths or glob patterns, and Craft expands patterns to concrete directories relative to `.craft.yml`. Select one concrete path explicitly with `--workspace <path>` or `CRAFT_WORKSPACE`:
 
 ```yaml
 minVersion: 2.29.0
@@ -90,12 +90,12 @@ github:
   owner: getsentry
   repo: toolkit
 workspaces:
-  cli:
+  packages/*:
     releaseBranchPrefix: release/cli
     targets:
       - name: github
         tagPrefix: "cli@"
-  mcp:
+  tools/mcp:
     releaseBranchPrefix: release/mcp
     targets:
       - name: github
@@ -103,9 +103,9 @@ workspaces:
 ```
 
 
-Workspace names use ASCII letters, digits, periods, underscores, and hyphens. They are release units, not npm package workspaces. A workspace cannot use `github.projectPath`, and a workflow cannot provide both a `path` and a workspace. This keeps each publish request unambiguous.
+Selected workspace paths use nonempty ASCII path segments containing letters, digits, periods, underscores, and hyphens. Segments cannot be `.`, `..`, `__proto__`, or start with `-`. They are release units, not npm package workspaces. Craft ignores files matched by a configured glob and rejects overlapping workspace keys. A workspace cannot use `github.projectPath`, and a workflow cannot provide both a `path` and a workspace. This keeps each publish request unambiguous.
 
-The `craft workspace list` command prints the exact configured workspace names as a JSON array for automation.
+The `craft workspace list` command prints the concrete workspace paths as a JSON array for automation. Action publish titles always carry the full concrete path.
 
 Caution
 
