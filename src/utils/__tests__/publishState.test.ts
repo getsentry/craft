@@ -98,6 +98,21 @@ describe('publishState', () => {
       expect(new Set(filenames)).toHaveLength(names.length);
     });
 
+    test('does not collide when release versions differ by build metadata case', () => {
+      const versions = ['4.2.6+sentry1', '4.2.6+Sentry1'];
+      const filenames = versions.map(version =>
+        getPublishStateFilename(version, { owner: 'o', repo: 'r' }, cwd),
+      );
+
+      expect(new Set(filenames)).toHaveLength(versions.length);
+      expect(filenames).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/-version-NC4yLjYrc2VudHJ5MQ\.json$/),
+          expect.stringMatching(/-version-NC4yLjYrU2VudHJ5MQ\.json$/),
+        ]),
+      );
+    });
+
     test('preserves the pre-workspace filename when no workspace is selected', () => {
       const name = getPublishStateFilename(
         '1.2.3',

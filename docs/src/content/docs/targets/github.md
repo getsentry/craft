@@ -73,12 +73,46 @@ targets:
 
 Releasing `1.2.3` for each product then produces the tags `cli@1.2.3` / `mcp@1.2.3` on release branches `release/cli/1.2.3` / `release/mcp/1.2.3` — no collisions.
 
-:::note[Coming soon: first-class workspaces]
-A single, target-agnostic top-level `workspaces:` model (with an explicit `--workspace` selector) is planned so that all of a repo's products can be managed from one `.craft.yml`. It will supersede the per-file convention above. Track progress in [getsentry/craft#842](https://github.com/getsentry/craft/issues/842).
-:::
+## Release Workspaces
+
+Use top-level `workspaces:` to define independently versioned release units in
+one repository. Keys may be literal paths or glob patterns, and Craft expands
+patterns to concrete directories relative to `.craft.yml`. Select one concrete
+path explicitly with `--workspace <path>` or
+`CRAFT_WORKSPACE`:
+
+```yaml
+minVersion: 2.29.0
+github:
+  owner: getsentry
+  repo: toolkit
+workspaces:
+  packages/*:
+    releaseBranchPrefix: release/cli
+    targets:
+      - name: github
+        tagPrefix: "cli@"
+  tools/mcp:
+    releaseBranchPrefix: release/mcp
+    targets:
+      - name: github
+        tagPrefix: "mcp@"
+```
+
+Selected workspace paths use nonempty ASCII path segments containing letters,
+digits, periods, underscores, and hyphens. Segments cannot be `.`, `..`,
+`__proto__`, or start with `-`. They are release units, not npm package
+workspaces. Craft ignores files matched by a configured glob and rejects
+overlapping workspace keys. A workspace cannot use
+`github.projectPath`, and a workflow cannot provide both a `path` and a
+workspace. This keeps each publish request unambiguous.
+
+The `craft workspace list` command prints the concrete workspace paths as a
+JSON array for automation. Action publish titles always carry the full concrete
+path.
 
 :::caution
-Declaring **multiple** `github` targets with **different** `tagPrefix` values in a *single* config is currently ambiguous: Craft uses the first prefix for read-path operations and logs a warning. Until workspaces land, use a separate `.craft.yml` per product.
+Declaring **multiple** `github` targets with **different** `tagPrefix` values in a single release unit is ambiguous: Craft uses the first prefix for read-path operations and logs a warning. Use separate release workspaces for independent products.
 :::
 
 :::note[Known limitation: the GitHub "Latest" badge is repo-wide]

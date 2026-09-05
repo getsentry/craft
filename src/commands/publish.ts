@@ -18,7 +18,10 @@ import {
   getActiveWorkspace,
 } from '../config';
 import { formatTable, logger } from '../logger';
-import { TargetConfig } from '../schemas/project_config';
+import {
+  type GitHubGlobalConfig,
+  TargetConfig,
+} from '../schemas/project_config';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
 import {
@@ -164,6 +167,32 @@ export interface PublishState {
   published: {
     [targetId: string]: boolean;
   };
+}
+
+/**
+ * The Publish controller prepopulates a secure state file using the issue's
+ * checkout repository. That can differ from a workspace's release GitHub
+ * configuration, so this override is deliberately limited to state identity.
+ */
+export function getPublishStateGitHubConfig(
+  githubConfig: GitHubGlobalConfig | null,
+  stateRepository: string | undefined = process.env
+    .CRAFT_PUBLISH_STATE_GITHUB_REPO,
+): GitHubGlobalConfig | null {
+  if (!stateRepository) {
+    return githubConfig;
+  }
+
+  const match = stateRepository.match(
+    /^(?<owner>[A-Za-z0-9_.-]+)\/(?<repo>[A-Za-z0-9_.-]+)$/,
+  );
+  if (!match?.groups) {
+    throw new ConfigurationError(
+      'CRAFT_PUBLISH_STATE_GITHUB_REPO must be a GitHub owner/repository pair.',
+    );
+  }
+
+  return { owner: match.groups.owner, repo: match.groups.repo };
 }
 
 /**
@@ -602,9 +631,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   let branchName;
   if (rev) {
     logger.debug(`Trying to get branch name for provided revision: "${rev}"`);
-    branchName = (
-      await git.raw('name-rev', '--name-only', '--no-undefined', rev)
-    ).trim();
+    branchName = await getRevisionBranchName(git, rev);
     checkoutTarget = branchName || rev;
     logger.debug('Checking out revision', checkoutTarget);
     await git.checkout(checkoutTarget);
@@ -696,7 +723,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   }
   const publishStateFile = getPublishStatePath(
     newVersion,
-    publishStateGithubConfig,
+    getPublishStateGitHubConfig(publishStateGithubConfig),
     process.cwd(),
     getActiveWorkspace(),
   );
@@ -901,6 +928,20 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   // Run the post-release script
   await runPostReleaseCommand(newVersion, config.postReleaseCommand);
+}
+
+export async function getRevisionBranchName(
+  git: SimpleGit,
+  revision: string,
+): Promise<string> {
+  try {
+    return (
+      await git.raw('name-rev', '--name-only', '--no-undefined', revision)
+    ).trim();
+  } catch {
+    // A CI-approved SHA can be checked out detached without a named ref.
+    return '';
+  }
 }
 
 export const handler = async (args: {

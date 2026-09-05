@@ -1,5 +1,6 @@
-import { existsSync, lstatSync, readFileSync } from 'fs';
+import { existsSync, lstatSync, readFileSync, realpathSync } from 'fs';
 import path from 'path';
+import { globSync, hasMagic } from 'glob';
 
 import { load } from 'js-yaml';
 import GitUrlParse from 'git-url-parse';
@@ -85,6 +86,7 @@ export function setActiveWorkspace(name: string | undefined): void {
   // Invalidate resolved caches so the next read applies the new selection.
   _configCache = undefined as unknown as CraftProjectConfig;
   _globalGitHubConfigCache = undefined;
+  _configPathCache = undefined as unknown as string;
 }
 
 /**
@@ -103,17 +105,23 @@ export function getActiveWorkspace(): string | undefined {
  *   top-level value (shallow override; a workspace either declares a field or
  *   inherits it wholesale — we do not deep-merge arrays/objects, to keep
  *   behavior predictable).
- * - `github` is shallow-merged (owner/repo/projectPath) so a workspace can
- *   override just `projectPath` while inheriting owner/repo.
+ * - `github` is shallow-merged (owner/repo) so a workspace can override either
+ *   value while inheriting the other.
  * - `minVersion` and `workspaces` themselves are stripped from the result.
  */
 function resolveWorkspaceConfig(
   base: CraftProjectConfig,
   workspaceName: string,
+  workspaceDirectory: string,
 ): CraftProjectConfig {
   const workspaces = base.workspaces || {};
-  if (!Object.hasOwn(workspaces, workspaceName)) {
-    const available = Object.keys(workspaces);
+  const workspace = getWorkspaceConfig(
+    workspaces,
+    workspaceName,
+    workspaceDirectory,
+  );
+  if (!workspace) {
+    const available = getWorkspaceNamesFromConfig(base, workspaceDirectory);
     throw new ConfigurationError(
       `Unknown workspace "${workspaceName}". ` +
         (available.length
@@ -121,7 +129,6 @@ function resolveWorkspaceConfig(
           : 'No workspaces are defined in the configuration.'),
     );
   }
-  const workspace = workspaces[workspaceName];
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { workspaces: _ignoredWorkspaces, ...baseWithoutWorkspaces } = base;
@@ -135,8 +142,8 @@ function resolveWorkspaceConfig(
       continue;
     }
     if (key === 'github') {
-      // Shallow-merge github so a workspace can override a single field
-      // (e.g. just projectPath) while inheriting owner/repo from the base.
+      // Shallow-merge github so a workspace can override owner or repo while
+      // inheriting the other value from the base configuration.
       const mergedGithub = {
         ...(base.github as GitHubGlobalConfig | undefined),
         ...(value as Partial<GitHubGlobalConfig>),
@@ -144,9 +151,7 @@ function resolveWorkspaceConfig(
       // Only adopt the merged github if it is complete (has owner + repo).
       // Otherwise leave `github` unset so getGlobalGitHubConfig() can still
       // fall back to git-remote detection instead of seeing a truthy-but-
-      // incomplete object and skipping the fallback. (A workspace that only
-      // sets projectPath without a base github relies on git detection for
-      // owner/repo, exactly like a top-level config with no github block.)
+      // incomplete object and skipping the fallback.
       if (mergedGithub.owner && mergedGithub.repo) {
         resolved.github = mergedGithub as GitHubGlobalConfig;
       } else {
@@ -158,6 +163,230 @@ function resolveWorkspaceConfig(
   }
 
   return resolved;
+}
+
+function getWorkspaceConfig(
+  workspaces: NonNullable<CraftProjectConfig['workspaces']>,
+  workspaceName: string,
+  workspaceDirectory: string,
+): Workspace | undefined {
+  if (isWorkspacePattern(workspaceName)) {
+    return undefined;
+  }
+  const matchingKeys = Object.keys(workspaces).filter(key =>
+    workspaceKeyMatches(key, workspaceName, workspaceDirectory),
+  );
+  if (matchingKeys.length === 1) {
+    return workspaces[matchingKeys[0]];
+  }
+  if (matchingKeys.length > 1) {
+    throw new ConfigurationError(
+      `Workspace "${workspaceName}" matches multiple workspace patterns: ` +
+        `${matchingKeys.join(', ')}.`,
+    );
+  }
+  return undefined;
+}
+
+function workspaceKeyMatches(
+  key: string,
+  workspaceName: string,
+  workspaceDirectory: string,
+): boolean {
+  return isWorkspacePattern(key)
+    ? getWorkspaceGlobMatches(key, workspaceDirectory).includes(workspaceName)
+    : key === workspaceName;
+}
+
+function getWorkspaceNamesFromConfig(
+  config: CraftProjectConfig,
+  workspaceDirectory: string,
+): string[] {
+  const workspaces = config.workspaces || {};
+  const keysByWorkspaceName = new Map<string, string[]>();
+
+  for (const key of Object.keys(workspaces)) {
+    const workspaceNames = isWorkspacePattern(key)
+      ? getWorkspaceGlobMatches(key, workspaceDirectory)
+      : [key];
+    for (const workspaceName of workspaceNames) {
+      const matchingKeys = keysByWorkspaceName.get(workspaceName) || [];
+      matchingKeys.push(key);
+      keysByWorkspaceName.set(workspaceName, matchingKeys);
+    }
+  }
+
+  for (const [workspaceName, matchingKeys] of keysByWorkspaceName) {
+    if (matchingKeys.length > 1) {
+      throw new ConfigurationError(
+        `Workspace "${workspaceName}" matches multiple workspace patterns: ` +
+          `${matchingKeys.join(', ')}.`,
+      );
+    }
+  }
+
+  return Array.from(keysByWorkspaceName.keys()).sort();
+}
+
+function getWorkspaceGlobMatches(
+  workspaceGlob: string,
+  workspaceDirectory: string,
+): string[] {
+  if (!isSafeWorkspaceGlob(workspaceGlob)) {
+    throw new ConfigurationError(
+      `Workspace glob "${workspaceGlob}" must remain inside the repository root.`,
+    );
+  }
+
+  const root = path.resolve(workspaceDirectory);
+  const realRoot = realpathSync(root);
+  return globSync(workspaceGlob, {
+    absolute: false,
+    cwd: root,
+    dot: true,
+    ignore: ['**/node_modules/**'],
+    posix: true,
+  })
+    .filter(match => {
+      const resolvedMatch = path.resolve(root, match);
+      const realMatch = realpathSync(resolvedMatch);
+      return (
+        isSafeWorkspacePath(match) &&
+        (resolvedMatch === root ||
+          resolvedMatch.startsWith(`${root}${path.sep}`)) &&
+        (realMatch === realRoot ||
+          realMatch.startsWith(`${realRoot}${path.sep}`)) &&
+        lstatSync(resolvedMatch).isDirectory()
+      );
+    })
+    .sort();
+}
+
+function isWorkspacePattern(name: string): boolean {
+  return hasMagic(name, { magicalBraces: true });
+}
+
+function isSafeWorkspacePath(name: string): boolean {
+  return (
+    !path.isAbsolute(name) &&
+    !name.includes('\\') &&
+    name
+      .split('/')
+      .every(
+        segment =>
+          /^[A-Za-z0-9_.-]+$/.test(segment) &&
+          segment !== '' &&
+          segment !== '.' &&
+          segment !== '..' &&
+          segment !== '__proto__' &&
+          !segment.startsWith('-'),
+      )
+  );
+}
+
+function isSafeWorkspaceGlob(name: string): boolean {
+  const alternatives = expandBraceAlternatives(name);
+  return (
+    !path.isAbsolute(name) &&
+    !name.includes('\\') &&
+    alternatives !== undefined &&
+    alternatives.length > 0 &&
+    alternatives.every(expanded =>
+      expanded.split('/').every(isSafeWorkspaceGlobSegment),
+    )
+  );
+}
+
+function isSafeWorkspaceGlobSegment(segment: string): boolean {
+  if (
+    segment === '' ||
+    segment === '.' ||
+    segment === '..' ||
+    segment === '__proto__' ||
+    segment.startsWith('-')
+  ) {
+    return false;
+  }
+
+  return isSafeWorkspaceGlobPattern(segment);
+}
+
+function isSafeWorkspaceGlobPattern(segment: string): boolean {
+  if (
+    segment === '' ||
+    segment === '.' ||
+    segment === '..' ||
+    segment === '__proto__' ||
+    segment.startsWith('-')
+  ) {
+    return false;
+  }
+
+  return hasMagic(segment, { magicalBraces: true })
+    ? /^[A-Za-z0-9_.?*[\]!^-]+$/.test(segment)
+    : /^[A-Za-z0-9_.-]+$/.test(segment);
+}
+
+function expandBraceAlternatives(pattern: string): string[] | undefined {
+  const opening = pattern.indexOf('{');
+  if (opening === -1) {
+    return [pattern];
+  }
+
+  let depth = 0;
+  let closing = -1;
+  for (let index = opening; index < pattern.length; index++) {
+    if (pattern[index] === '{') {
+      depth++;
+    } else if (pattern[index] === '}' && --depth === 0) {
+      closing = index;
+      break;
+    }
+  }
+  if (closing === -1) {
+    return undefined;
+  }
+
+  const choices = splitBraceAlternatives(pattern.slice(opening + 1, closing));
+  if (!choices) {
+    return undefined;
+  }
+
+  const prefix = pattern.slice(0, opening);
+  const suffix = pattern.slice(closing + 1);
+  const alternatives: string[] = [];
+  for (const choice of choices) {
+    const expanded = expandBraceAlternatives(`${prefix}${choice}${suffix}`);
+    if (!expanded) {
+      return undefined;
+    }
+    alternatives.push(...expanded);
+  }
+  return alternatives;
+}
+
+function splitBraceAlternatives(content: string): string[] | undefined {
+  const choices: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < content.length; index++) {
+    if (content[index] === '{') {
+      depth++;
+    } else if (content[index] === '}') {
+      if (depth === 0) {
+        return undefined;
+      }
+      depth--;
+    } else if (content[index] === ',' && depth === 0) {
+      choices.push(content.slice(start, index));
+      start = index + 1;
+    }
+  }
+  if (depth !== 0) {
+    return undefined;
+  }
+  choices.push(content.slice(start));
+  return choices.length > 1 ? choices : undefined;
 }
 
 /**
@@ -184,6 +413,15 @@ function isVersionGteMinVersion(
   );
 }
 
+function checkWorkspacesMinVersion(config: CraftProjectConfig): void {
+  if (!isVersionGteMinVersion(config.minVersion, WORKSPACES_MIN_VERSION)) {
+    throw new ConfigurationError(
+      `Using "workspaces" requires minVersion >= ${WORKSPACES_MIN_VERSION} ` +
+        'in the configuration file.',
+    );
+  }
+}
+
 /**
  * SemVer build metadata does not affect precedence, but the comparison helper
  * intentionally rejects versions carrying it. Strip it before compatibility
@@ -204,6 +442,7 @@ function withoutBuildMetadata(version: SemVer): SemVer {
  */
 function applyWorkspaceSelection(
   config: CraftProjectConfig,
+  workspaceDirectory: string,
 ): CraftProjectConfig {
   const hasWorkspaces =
     !!config.workspaces && Object.keys(config.workspaces).length > 0;
@@ -220,7 +459,10 @@ function applyWorkspaceSelection(
 
   // Workspaces are defined: require an explicit selection (no implicit first).
   if (!_activeWorkspaceName) {
-    const available = Object.keys(config.workspaces || {}).join(', ');
+    const available = getWorkspaceNamesFromConfig(
+      config,
+      workspaceDirectory,
+    ).join(', ');
     throw new ConfigurationError(
       'This configuration defines workspaces; select one with ' +
         `--workspace <name> (or the CRAFT_WORKSPACE env var). ` +
@@ -229,14 +471,13 @@ function applyWorkspaceSelection(
   }
 
   // Gate the feature behind minVersion, mirroring auto-versioning.
-  if (!isVersionGteMinVersion(config.minVersion, WORKSPACES_MIN_VERSION)) {
-    throw new ConfigurationError(
-      `Using "workspaces" requires minVersion >= ${WORKSPACES_MIN_VERSION} ` +
-        'in the configuration file.',
-    );
-  }
+  checkWorkspacesMinVersion(config);
 
-  return resolveWorkspaceConfig(config, _activeWorkspaceName);
+  return resolveWorkspaceConfig(
+    config,
+    _activeWorkspaceName,
+    workspaceDirectory,
+  );
 }
 
 /**
@@ -245,9 +486,10 @@ function applyWorkspaceSelection(
  * Returns "undefined" if no file was found.
  */
 export function findConfigFile(): string | undefined {
-  if (_configPathCache) {
+  if (_configPathCache && existsSync(_configPathCache)) {
     return _configPathCache;
   }
+  _configPathCache = undefined as unknown as string;
 
   const cwd = process.cwd();
   const MAX_DEPTH = 1024;
@@ -341,7 +583,7 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
   >;
   const parsed = validateConfiguration(rawConfig);
   checkMinimalConfigVersion(parsed);
-  _configCache = applyWorkspaceSelection(parsed);
+  _configCache = applyWorkspaceSelection(parsed, path.dirname(configPath));
   return _configCache;
 }
 
@@ -354,13 +596,37 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
  */
 export function loadConfigurationFromString(
   configContent: string,
+  workspaceDirectory = process.cwd(),
 ): CraftProjectConfig {
   logger.debug('Loading configuration from provided content...');
   const rawConfig = load(configContent) as Record<string, any>;
   const parsed = validateConfiguration(rawConfig);
   checkMinimalConfigVersion(parsed);
-  _configCache = applyWorkspaceSelection(parsed);
+  _configCache = applyWorkspaceSelection(parsed, workspaceDirectory);
   return _configCache;
+}
+
+/**
+ * Lists concrete workspace names from the validated configuration without
+ * applying a selection. Glob patterns expand relative to the configuration
+ * file, allowing external controllers to discover valid release paths.
+ */
+export function getWorkspaceNames(): string[] {
+  const configPath = getConfigFilePath();
+  const rawConfig = load(readFileSync(configPath, 'utf-8')) as Record<
+    string,
+    any
+  >;
+  const parsed = validateConfiguration(rawConfig);
+  checkMinimalConfigVersion(parsed);
+  const workspaceNames = getWorkspaceNamesFromConfig(
+    parsed,
+    path.dirname(configPath),
+  );
+  if (workspaceNames.length > 0) {
+    checkWorkspacesMinVersion(parsed);
+  }
+  return workspaceNames;
 }
 
 /**
