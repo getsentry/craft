@@ -161,7 +161,7 @@ describe('noMerge config', () => {
     expect(() => validateConfiguration(data)).not.toThrow();
   });
 
-  test('allows legacy workspace names', () => {
+  test('allows multi-segment workspace paths', () => {
     expect(() =>
       validateConfiguration({ workspaces: { 'cli/v2': {} } }),
     ).not.toThrow();
