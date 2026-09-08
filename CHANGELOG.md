@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.31.0
+
+### New Features ✨
+
+- (config) Top-level workspaces schema + --workspace selector by @BYK in [#848](https://github.com/getsentry/craft/pull/848)
+- Propagate release workspaces by @BYK in [#872](https://github.com/getsentry/craft/pull/872)
+
+### Bug Fixes 🐛
+
+- (git) Prevent fatal error for missing 'origin' remote by @sentry in [#871](https://github.com/getsentry/craft/pull/871)
+- (registry) Retry registry push with backoff on concurrent updates by @jared-outpost in [#870](https://github.com/getsentry/craft/pull/870)
+
 ## 2.30.1
 
 ### Bug Fixes 🐛
