@@ -12,6 +12,9 @@ on:
       force:
         description: Force a release even when there are release-blockers (optional)
         required: false
+      workspace:
+        description: Named Craft release workspace to prepare and publish
+        required: false
 
   # For external repos to call this workflow
   workflow_call:
@@ -51,6 +54,10 @@ on:
         type: string
         required: false
         default: '.'
+      workspace:
+        description: Named Craft release workspace to prepare and publish
+        type: string
+        required: false
       craft_config_from_merge_target:
         description: Use the craft config from the merge target branch
         type: string
@@ -122,6 +129,7 @@ jobs:
         with:
           version: ${{ github.event.inputs.version }}
           force: ${{ github.event.inputs.force }}
+          workspace: ${{ github.event.inputs.workspace }}
 
       # For external repos: use published action
       - name: Prepare release
@@ -139,4 +147,5 @@ jobs:
           git_user_name: ${{ inputs.git_user_name }}
           git_user_email: ${{ inputs.git_user_email }}
           path: ${{ inputs.path }}
+          workspace: ${{ inputs.workspace }}
           craft_config_from_merge_target: ${{ inputs.craft_config_from_merge_target }}

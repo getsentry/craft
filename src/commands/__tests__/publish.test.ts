@@ -2,11 +2,14 @@ import { vi, describe, test, expect, beforeEach, type Mock } from 'vitest';
 import { join as pathJoin } from 'path';
 import { spawnProcess, hasExecutable } from '../../utils/system';
 import {
+  getPublishStateGitHubConfig,
+  getRevisionBranchName,
   runPostReleaseCommand,
   handleReleaseBranch,
   MergeConflictError,
   PushError,
 } from '../publish';
+import { getPublishStateFilename } from '../../utils/publishState';
 import type { SimpleGit } from 'simple-git';
 
 vi.mock('../../utils/system');
@@ -159,6 +162,77 @@ describe('runPostReleaseCommand', () => {
         }
       }
     }
+  });
+});
+
+describe('getPublishStateGitHubConfig', () => {
+  test('uses the controller checkout repository only for state identity', () => {
+    const resolvedWorkspaceGithub = {
+      owner: 'release-owner',
+      repo: 'release-repo',
+      projectPath: 'packages/cli',
+    };
+    const stateGithub = getPublishStateGitHubConfig(
+      resolvedWorkspaceGithub,
+      'getsentry/toolkit',
+    );
+
+    expect(stateGithub).toEqual({ owner: 'getsentry', repo: 'toolkit' });
+    expect(
+      getPublishStateFilename(
+        '1.2.3',
+        stateGithub,
+        '/github/workspace/__repo__/packages/cli',
+        'cli',
+      ),
+    ).toBe(
+      getPublishStateFilename(
+        '1.2.3',
+        { owner: 'getsentry', repo: 'toolkit' },
+        '/github/workspace/__repo__/packages/cli',
+        'cli',
+      ),
+    );
+  });
+
+  test('keeps the resolved GitHub configuration without controller state identity', () => {
+    const githubConfig = { owner: 'release-owner', repo: 'release-repo' };
+
+    expect(getPublishStateGitHubConfig(githubConfig, undefined)).toBe(
+      githubConfig,
+    );
+  });
+
+  test('rejects malformed controller state repository values', () => {
+    expect(() =>
+      getPublishStateGitHubConfig(null, 'getsentry/toolkit/extra'),
+    ).toThrow('CRAFT_PUBLISH_STATE_GITHUB_REPO');
+  });
+});
+
+describe('getRevisionBranchName', () => {
+  test('returns the named ref for a revision when available', async () => {
+    const git = {
+      raw: vi.fn().mockResolvedValue('release/1.2.3\n'),
+    } as unknown as SimpleGit;
+
+    await expect(getRevisionBranchName(git, 'abc123')).resolves.toBe(
+      'release/1.2.3',
+    );
+    expect(git.raw).toHaveBeenCalledWith(
+      'name-rev',
+      '--name-only',
+      '--no-undefined',
+      'abc123',
+    );
+  });
+
+  test('allows a detached CI-approved revision', async () => {
+    const git = {
+      raw: vi.fn().mockRejectedValue(new Error('Could not get ref name')),
+    } as unknown as SimpleGit;
+
+    await expect(getRevisionBranchName(git, 'abc123')).resolves.toBe('');
   });
 });
 

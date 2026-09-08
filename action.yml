@@ -31,6 +31,9 @@ inputs:
     description: The path that Craft will run inside
     required: false
     default: '.'
+  workspace:
+    description: Named Craft release workspace to prepare and publish
+    required: false
   craft_config_from_merge_target:
     description: Use the craft config from the merge target branch
     required: false
@@ -68,6 +71,26 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Validate workspace
+      shell: bash
+      env:
+        LC_ALL: C
+        PATH_INPUT: ${{ inputs.path }}
+        WORKSPACE: ${{ inputs.workspace }}
+      run: |
+        if [[ -n "$WORKSPACE" && "$PATH_INPUT" != '.' ]]; then
+          echo "::error::The path and workspace inputs cannot be used together."
+          exit 1
+        fi
+        if ! node -e 'const path = process.env.PATH_INPUT; const segment = /^[A-Za-z0-9_.-]+$/; process.exit(path === "." || (typeof path === "string" && path.split("/").every(name => segment.test(name) && ![".", "..", "__proto__"].includes(name) && !name.startsWith("-"))) ? 0 : 1)'; then
+          echo "::error::The path input must use ASCII path segments containing only letters, digits, periods, underscores, and hyphens."
+          exit 1
+        fi
+        if [[ -n "$WORKSPACE" ]] && ! node -e 'const workspace = process.env.WORKSPACE; const segment = /^[A-Za-z0-9_.-]+$/; process.exit(workspace.split("/").every(name => segment.test(name) && ![".", "..", "__proto__"].includes(name) && !name.startsWith("-")) ? 0 : 1)'; then
+          echo "::error::Workspace names must use ASCII path segments containing only letters, digits, periods, underscores, and hyphens."
+          exit 1
+        fi
+
     - id: killswitch
       name: Check release blockers
       shell: bash
@@ -162,8 +185,10 @@ runs:
         CRAFT_CONFIG_FROM_MERGE_TARGET: ${{ inputs.craft_config_from_merge_target }}
         MERGE_TARGET: ${{ inputs.merge_target }}
         VERSION: ${{ inputs.version }}
+        WORKSPACE: ${{ inputs.workspace }}
       working-directory: ${{ inputs.path }}
       run: |
+        unset CRAFT_WORKSPACE
         # Ensure we have origin/HEAD set
         git remote set-head origin --auto
 
@@ -171,6 +196,9 @@ runs:
         CRAFT_ARGS=()
         if [[ "$CRAFT_CONFIG_FROM_MERGE_TARGET" == 'true' && -n "$MERGE_TARGET" ]]; then
           CRAFT_ARGS=(--config-from "$MERGE_TARGET")
+        fi
+        if [[ -n "$WORKSPACE" ]]; then
+          CRAFT_ARGS+=("--workspace=$WORKSPACE")
         fi
 
         # Version is optional - if not provided, Craft uses versioning.policy from config
@@ -187,8 +215,14 @@ runs:
       working-directory: ${{ inputs.path }}
       env:
         CRAFT_LOG_LEVEL: Warn
+        WORKSPACE: ${{ inputs.workspace }}
       run: |
-        targets=$(craft targets | jq -r '.[]|" - [ ] \(.)"')
+        unset CRAFT_WORKSPACE
+        CRAFT_ARGS=()
+        if [[ -n "$WORKSPACE" ]]; then
+          CRAFT_ARGS=("--workspace=$WORKSPACE")
+        fi
+        targets=$(craft targets "${CRAFT_ARGS[@]}" | jq -r '.[]|" - [ ] \(.)"')
 
         # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#multiline-strings
         echo "targets<<EOF" >> "$GITHUB_OUTPUT"
@@ -211,6 +245,7 @@ runs:
         SUBDIRECTORY: ${{ inputs.path != '.' && format('/{0}', inputs.path) || '' }}
         MERGE_TARGET: ${{ inputs.merge_target || '(default)' }}
         PUBLISH_REPO: ${{ inputs.publish_repo || format('{0}/publish', github.repository_owner) }}
+        WORKSPACE: ${{ inputs.workspace }}
       run: |
         # Resolve "self" to the current repository
         if [[ "$PUBLISH_REPO" == "self" ]]; then
@@ -221,7 +256,6 @@ runs:
           echo "::error::Craft did not output a version. This is unexpected."
           exit 1
         fi
-
         # Read changelog from file to avoid E2BIG.
         # Produced by craft >= 2.22.0; older versions don't produce the file
         # and the publish issue will be created without a changelog section.
@@ -238,7 +272,7 @@ runs:
           CHANGELOG="${CHANGELOG:0:$MAX_CHANGELOG_CHARS}"$'\n\n---\n*Changelog truncated for issue body.*'
         fi
 
-        title="publish: ${GITHUB_REPOSITORY}${SUBDIRECTORY}@${RESOLVED_VERSION}"
+        title="publish: ${GITHUB_REPOSITORY}${SUBDIRECTORY}${WORKSPACE:+/$WORKSPACE}@${RESOLVED_VERSION}"
 
         # Check if issue already exists by listing all open issues and filtering by exact title match.
         # We avoid GitHub search API to bypass indexing delays and query syntax edge cases.

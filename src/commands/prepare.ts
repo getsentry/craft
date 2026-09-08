@@ -807,7 +807,8 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       const configContent = await git.show([
         `${argv.remote}/${argv.configFrom}:${CONFIG_FILE_NAME}`,
       ]);
-      loadConfigurationFromString(configContent);
+      const repositoryRoot = await git.revparse(['--show-toplevel']);
+      loadConfigurationFromString(configContent, repositoryRoot.trim());
     } catch (error: any) {
       throw new ConfigurationError(
         `Failed to load ${CONFIG_FILE_NAME} from branch "${argv.configFrom}": ${error.message}`,

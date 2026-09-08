@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { hasMagic } from 'glob';
 
 /**
  * DEPRECATED: Use changelog.policy instead. Different policies for changelog management
@@ -202,34 +203,167 @@ const releaseUnitFields = {
  * A workspace mirrors the release-relevant subset of the top-level config;
  * every field is optional and inherits the top-level value when omitted. The
  * `github` block is *partial* (all fields optional) so a workspace can override
- * just `projectPath` (or `owner`/`repo`) while inheriting the rest from the
- * top-level `github`.
+ * `owner` and/or `repo` while inheriting the rest from the top-level `github`.
  */
 export const WorkspaceSchema = z.object({
   ...releaseUnitFields,
-  github: GitHubGlobalConfigSchema.partial().optional(),
+  github: GitHubGlobalConfigSchema.partial()
+    .refine(github => github.projectPath === undefined, {
+      message: 'Workspace github.projectPath is not supported.',
+    })
+    .optional(),
 });
 
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 
+function isSafeWorkspaceGlobSegment(segment: string): boolean {
+  if (
+    segment === '' ||
+    segment === '.' ||
+    segment === '..' ||
+    segment === '__proto__' ||
+    segment.startsWith('-')
+  ) {
+    return false;
+  }
+
+  return isSafeWorkspaceGlobPattern(segment);
+}
+
+function isSafeWorkspaceGlobPattern(segment: string): boolean {
+  if (
+    segment === '' ||
+    segment === '.' ||
+    segment === '..' ||
+    segment === '__proto__' ||
+    segment.startsWith('-')
+  ) {
+    return false;
+  }
+
+  return hasMagic(segment, { magicalBraces: true })
+    ? /^[A-Za-z0-9_.?*[\]!^-]+$/.test(segment)
+    : /^[A-Za-z0-9_.-]+$/.test(segment);
+}
+
+function expandBraceAlternatives(pattern: string): string[] | undefined {
+  const opening = pattern.indexOf('{');
+  if (opening === -1) {
+    return [pattern];
+  }
+
+  let depth = 0;
+  let closing = -1;
+  for (let index = opening; index < pattern.length; index++) {
+    if (pattern[index] === '{') {
+      depth++;
+    } else if (pattern[index] === '}' && --depth === 0) {
+      closing = index;
+      break;
+    }
+  }
+  if (closing === -1) {
+    return undefined;
+  }
+
+  const choices = splitBraceAlternatives(pattern.slice(opening + 1, closing));
+  if (!choices) {
+    return undefined;
+  }
+
+  const prefix = pattern.slice(0, opening);
+  const suffix = pattern.slice(closing + 1);
+  const alternatives: string[] = [];
+  for (const choice of choices) {
+    const expanded = expandBraceAlternatives(`${prefix}${choice}${suffix}`);
+    if (!expanded) {
+      return undefined;
+    }
+    alternatives.push(...expanded);
+  }
+  return alternatives;
+}
+
+function isSafeWorkspaceGlob(name: string): boolean {
+  const alternatives = expandBraceAlternatives(name);
+  return (
+    alternatives !== undefined &&
+    alternatives.length > 0 &&
+    alternatives.every(expanded =>
+      expanded.split('/').every(isSafeWorkspaceGlobSegment),
+    )
+  );
+}
+
+function splitBraceAlternatives(content: string): string[] | undefined {
+  const choices: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < content.length; index++) {
+    if (content[index] === '{') {
+      depth++;
+    } else if (content[index] === '}') {
+      if (depth === 0) {
+        return undefined;
+      }
+      depth--;
+    } else if (content[index] === ',' && depth === 0) {
+      choices.push(content.slice(start, index));
+      start = index + 1;
+    }
+  }
+  if (depth !== 0) {
+    return undefined;
+  }
+  choices.push(content.slice(start));
+  return choices.length > 1 ? choices : undefined;
+}
+
+const WorkspaceNameSchema = z
+  .string()
+  // Assigning this key to a regular object mutates its prototype instead of
+  // preserving an own workspace entry.
+  .refine(name => name !== '__proto__', {
+    message: 'Workspace name "__proto__" is not supported.',
+  })
+  .refine(name => name !== '.' && name !== '..', {
+    message: 'Workspace names cannot be "." or "..".',
+  })
+  .refine(isSafeWorkspaceGlob, {
+    message: 'Workspace paths must use safe ASCII segments.',
+  });
+
 /**
  * Craft project-specific configuration
  */
-export const CraftProjectConfigSchema = z.object({
-  ...releaseUnitFields,
-  minVersion: z
-    .string()
-    .regex(/^\d+\.\d+\.\d+.*$/)
-    .optional(),
-  /**
-   * Named, independently-versioned release units within a single repository.
-   *
-   * When present, a release run must select one via `--workspace <name>` (or
-   * `CRAFT_WORKSPACE`). The selected workspace's fields override the top-level
-   * ones. When absent, craft behaves exactly as before (the top-level config is
-   * the single implicit release unit) — fully backward compatible.
-   */
-  workspaces: z.record(z.string(), WorkspaceSchema).optional(),
-});
+export const CraftProjectConfigSchema = z
+  .object({
+    ...releaseUnitFields,
+    minVersion: z
+      .string()
+      .regex(/^\d+\.\d+\.\d+.*$/)
+      .optional(),
+    /**
+     * Named, independently-versioned release units within a single repository.
+     *
+     * When present, a release run must select one via `--workspace <name>` (or
+     * `CRAFT_WORKSPACE`). The selected workspace's fields override the top-level
+     * ones. When absent, craft behaves exactly as before (the top-level config is
+     * the single implicit release unit) — fully backward compatible.
+     */
+    workspaces: z.record(WorkspaceNameSchema, WorkspaceSchema).optional(),
+  })
+  .superRefine((config, context) => {
+    if (
+      Object.keys(config.workspaces || {}).length > 0 &&
+      config.github?.projectPath !== undefined
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Workspace configurations cannot use github.projectPath.',
+        path: ['github', 'projectPath'],
+      });
+    }
+  });
 
 export type CraftProjectConfig = z.infer<typeof CraftProjectConfigSchema>;
