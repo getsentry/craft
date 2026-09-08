@@ -249,7 +249,16 @@ function getWorkspaceGlobMatches(
   })
     .filter(match => {
       const resolvedMatch = path.resolve(root, match);
-      const realMatch = realpathSync(resolvedMatch);
+      let realMatch: string;
+      try {
+        realMatch = realpathSync(resolvedMatch);
+      } catch (error) {
+        // Glob candidates may disappear or be broken symlinks before resolution.
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          return false;
+        }
+        throw error;
+      }
       return (
         isSafeWorkspacePath(match) &&
         (resolvedMatch === root ||

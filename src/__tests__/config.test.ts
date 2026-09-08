@@ -1,5 +1,6 @@
 import { describe, test, expect, vi, afterEach, beforeEach } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'fs';
+import { globSync } from 'glob';
 import { tmpdir } from 'os';
 import { join } from 'path';
 /**
@@ -499,6 +500,48 @@ describe('workspaces', () => {
     process.chdir(directory);
 
     expect(getWorkspaceNames()).toEqual(['packages/internal/release']);
+  });
+
+  test('ignores broken symlinks matched by workspace globs', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    symlinkSync(
+      join(directory, 'missing-workspace'),
+      join(directory, 'packages', 'broken'),
+    );
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  packages/*: {}',
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    expect(
+      globSync('packages/*', { cwd: directory, dot: true, posix: true }),
+    ).toContain('packages/broken');
+    expect(getWorkspaceNames()).toEqual(['packages/cli']);
+  });
+
+  test('fails on unexpected workspace glob resolution errors', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    symlinkSync('loop', join(directory, 'packages', 'loop'));
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  packages/*: {}',
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    expect(() => getWorkspaceNames()).toThrow(/ELOOP/);
   });
 
   test.each(['{../outside/*,packages/*}', '{/tmp/*,packages/*}'])(
