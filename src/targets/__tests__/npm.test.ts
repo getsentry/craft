@@ -518,6 +518,39 @@ describe('NpmTarget OIDC configuration', () => {
     expect(target.npmConfig.token).toBe('my-token');
   });
 
+  it.each([false, true])(
+    'shows publish stdout and stderr with oidc=%s',
+    async oidc => {
+      vi.stubEnv('NPM_TOKEN', 'my-token');
+      vi.stubEnv('USE_YARN', '');
+      const spawnProcessMock = vi
+        .spyOn(system, 'spawnProcess')
+        .mockResolvedValue(Buffer.from('+ @sentry/browser@1.0.0\n'));
+      const provider = {
+        filterArtifactsForRevision: vi
+          .fn()
+          .mockResolvedValue([{ filename: 'sentry-browser-1.0.0.tgz' }]),
+        downloadArtifact: vi
+          .fn()
+          .mockResolvedValue('/tmp/sentry-browser-1.0.0.tgz'),
+      } as unknown as BaseArtifactProvider;
+
+      try {
+        const target = new TestNpmTarget({ name: 'npm', oidc }, provider);
+        await target.publish('1.0.0', 'release-sha');
+
+        expect(spawnProcessMock).toHaveBeenCalledExactlyOnceWith(
+          NPM_BIN,
+          ['publish', '--ignore-scripts', '/tmp/sentry-browser-1.0.0.tgz'],
+          expect.any(Object),
+          { showStdout: true, showStderr: true },
+        );
+      } finally {
+        spawnProcessMock.mockRestore();
+      }
+    },
+  );
+
   it('throws when oidc: true and npm version is too old', () => {
     TestNpmTarget.mockVersion = { major: 5, minor: 6, patch: 0 };
 

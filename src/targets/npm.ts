@@ -848,7 +848,10 @@ export class NpmTarget extends BaseTarget {
         spawnOptions.env.NPM_CONFIG_OTP = options.otp;
       }
       // Disable output buffering because npm can ask for one-time passwords
-      return spawnProcess(bin, args, spawnOptions, { showStdout: true });
+      return spawnProcess(bin, args, spawnOptions, {
+        showStdout: true,
+        showStderr: true,
+      });
     }
 
     return withTempFile(filePath => {
@@ -869,6 +872,7 @@ export class NpmTarget extends BaseTarget {
       // Disable output buffering because NPM/Yarn can ask us for one-time passwords
       return spawnProcess(bin, args, spawnOptions, {
         showStdout: true,
+        showStderr: true,
       });
     });
   }

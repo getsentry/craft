@@ -106,6 +106,8 @@ export function replaceEnvVariable(
 export interface SpawnProcessOptions {
   /** Do not buffer standard output */
   showStdout?: boolean;
+  /** Log standard error at info level instead of trace */
+  showStderr?: boolean;
   /** Force the process to run in dry-run mode */
   enableInDryRunMode?: boolean;
   /** Data to write to stdin (process will receive 'pipe' for stdin instead of 'inherit') */
@@ -210,7 +212,11 @@ export async function spawnProcess(
       });
       child.stderr.pipe(split()).on('data', (data: any) => {
         const output = `${command}: ${data}`;
-        logger.trace(output);
+        if (spawnProcessOptions.showStderr) {
+          logger.info(output);
+        } else {
+          logger.trace(output);
+        }
         stderr += `${output}\n`;
       });
     } catch (e) {
