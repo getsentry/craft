@@ -78,9 +78,15 @@ describe('spawnProcess', () => {
   test('does not write to output by default', async () => {
     const mockedLogInfo = logger.info as Mock;
 
-    await spawnProcess(process.execPath, ['-e', 'console.log("test-string")']);
+    await spawnProcess(process.execPath, [
+      '-e',
+      'console.log("test-string"); process.stderr.write("test-warning")',
+    ]);
 
     expect(mockedLogInfo).toHaveBeenCalledTimes(0);
+    expect(logger.trace).toHaveBeenCalledWith(
+      `${process.execPath}: test-warning`,
+    );
   });
 
   test('writes to output if told so', async () => {
@@ -96,6 +102,37 @@ describe('spawnProcess', () => {
     expect(mockedLogInfo).toHaveBeenCalledTimes(1);
     expect(mockedLogInfo.mock.calls[0][0]).toMatch(/test-string/);
   });
+
+  test.each([0, 1])(
+    'shows stderr without changing stdout or exit code %i',
+    async exitCode => {
+      const result = spawnProcess(
+        process.execPath,
+        [
+          '-e',
+          `process.stdout.write("result"); process.stderr.write("publish-notice"); process.exitCode = ${exitCode}`,
+        ],
+        {},
+        { showStderr: true },
+      );
+
+      if (exitCode === 0) {
+        expect((await result)?.toString()).toBe('result');
+      } else {
+        await expect(result).rejects.toMatchObject({
+          code: exitCode,
+          message: expect.stringContaining('publish-notice'),
+        });
+      }
+
+      expect(logger.info).toHaveBeenCalledWith(
+        `${process.execPath}: publish-notice`,
+      );
+      expect(logger.info).not.toHaveBeenCalledWith(
+        `${process.execPath}: result`,
+      );
+    },
+  );
 
   describe('env sanitisation (defence-in-depth)', () => {
     const savedEnv = { ...process.env };
