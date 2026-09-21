@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.31.1
+
+### Bug Fixes 🐛
+
+- (npm) Show publish stderr at info level by @sentry-junior in [#877](https://github.com/getsentry/craft/pull/877)
+
+### Internal Changes 🔧
+
+#### Deps
+
+- Bump sharp from 0.35.0 to 0.35.4 in /docs by @dependabot in [#874](https://github.com/getsentry/craft/pull/874)
+- Bump astro from 7.1.4 to 7.2.8 in /docs by @dependabot in [#873](https://github.com/getsentry/craft/pull/873)
+
+#### Deps Dev
+
+- Bump vitest from 4.1.8 to 4.1.11 by @dependabot in [#875](https://github.com/getsentry/craft/pull/875)
+- Bump js-yaml from 4.3.1 to 4.3.2 by @dependabot in [#876](https://github.com/getsentry/craft/pull/876)
+
 ## 2.31.0
 
 ### New Features ✨
