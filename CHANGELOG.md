@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.31.2
+
+### Bug Fixes 🐛
+
+- (deps) Remediate open security alerts by @BYK in [#881](https://github.com/getsentry/craft/pull/881)
+- (github) Filter artifacts by name when fetching revision artifact by @itaybre in [#880](https://github.com/getsentry/craft/pull/880)
+
 ## 2.31.1
 
 ### Bug Fixes 🐛
