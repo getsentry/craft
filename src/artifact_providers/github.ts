@@ -131,21 +131,28 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
     const per_page = 100;
 
     this.logger.debug(
-      `Searching GitHub artifacts for ${owner}/${repo}, revision ${revision}`,
+      `Searching GitHub artifacts of ${owner}/${repo} for artifact named "${revision}"`,
     );
 
     let checkNextPage = true;
     for (let page = 0; checkNextPage; page++) {
-      // https://docs.github.com/en/free-pro-team@latest/rest/reference/actions#artifacts
+      // https://docs.github.com/en/rest/actions/artifacts#list-artifacts-for-a-repository
+      // Filter by name server-side: listing all artifacts of a repository
+      // with a large number of artifacts is slow and can fail with HTTP 500
+      // (see https://github.com/getsentry/craft/issues/879).
       const artifactResponse = await this.github.actions.listArtifactsForRepo({
         owner: owner,
         repo: repo,
+        name: revision,
         per_page,
         page,
       });
 
       const { artifacts, total_count } = artifactResponse.data;
-      this.logger.trace(`All available artifacts on page ${page}:`, artifacts);
+      this.logger.trace(
+        `Artifacts named "${revision}" on page ${page}:`,
+        artifacts,
+      );
 
       // We need to find the most recent archive where name matches the revision.
       // XXX(BYK): we assume the artifacts are listed in descending date order on
@@ -202,7 +209,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
 
     for (let tries = 0; tries < MAX_TRIES; tries++) {
       this.logger.info(
-        `Fetching GitHub artifacts for ${owner}/${repo}, revision ${revision} (attempt ${
+        `Fetching GitHub artifact named "${revision}" from ${owner}/${repo} (attempt ${
           tries + 1
         } of ${MAX_TRIES})`,
       );
