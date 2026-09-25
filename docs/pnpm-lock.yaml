@@ -13,7 +13,8 @@ overrides:
   smol-toml: ^1.6.1
   defu: ^6.1.5
   vite: ^8.0.0
-  js-yaml: ^4.3.1
+  js-yaml: ^4.3.2
+  postcss-selector-parser: ^6.1.3
 
 importers:
 
@@ -1258,10 +1259,6 @@ packages:
     resolution: {integrity: sha512-+Pgi+vMuUNkJyExiMBt5IlFoMyKnr5zhJ4Uspz58WOhBF5QoIZkFyNHIbBAtHwzVAgk5RtndVNsDRN61/mmDqg==}
     engines: {node: '>=12'}
 
-  js-yaml@4.3.1:
-    resolution: {integrity: sha512-CY6crGq313MX8GkwvB7tzgp99vjQxY1++5y10/BKN/GUfHqWaOGQMNZkBvqSzsZKWk/ijwHlWzzkLulsGHhjWQ==}
-    hasBin: true
-
   js-yaml@4.3.2:
     resolution: {integrity: sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==}
     hasBin: true
@@ -1630,8 +1627,8 @@ packages:
     peerDependencies:
       postcss: ^8.5.18
 
-  postcss-selector-parser@6.1.2:
-    resolution: {integrity: sha512-Q8qQfPiZ+THO/3ZrOrO0cJJKfpYCagtMUkXbnEfmgUjwXg6z/WBeOyS9APBBPCTSiDV+s4SwQGu8yFsiMRIudg==}
+  postcss-selector-parser@6.1.4:
+    resolution: {integrity: sha512-bIoJLOmjCO1S9XdY/DcnR5hJxvrDir1PbGChrzXG3vw0/FOliy/fA3dmdhQ441kah4gKv+TwckGzex6wNS5cnQ==}
     engines: {node: '>=4'}
 
   postcss@8.5.28:
@@ -2209,7 +2206,7 @@ snapshots:
       hast-util-to-string: 3.0.1
       hastscript: 9.0.1
       i18next: 26.3.6
-      js-yaml: 4.3.1
+      js-yaml: 4.3.2
       klona: 2.0.6
       magic-string: 0.30.21
       mdast-util-directive: 3.1.0
@@ -3399,10 +3396,6 @@ snapshots:
 
   is-plain-obj@4.1.0: {}
 
-  js-yaml@4.3.1:
-    dependencies:
-      argparse: 2.0.1
-
   js-yaml@4.3.2:
     dependencies:
       argparse: 2.0.1
@@ -4040,9 +4033,9 @@ snapshots:
   postcss-nested@6.2.0(postcss@8.5.28):
     dependencies:
       postcss: 8.5.28
-      postcss-selector-parser: 6.1.2
+      postcss-selector-parser: 6.1.4
 
-  postcss-selector-parser@6.1.2:
+  postcss-selector-parser@6.1.4:
     dependencies:
       cssesc: 3.0.0
       util-deprecate: 1.0.2
