@@ -410,6 +410,31 @@ describe('GitHub Artifact Provider', () => {
       expect(sleep).toBeCalledTimes(2);
     });
 
+    test('it should filter artifacts by revision name on every retry', async () => {
+      mockClient.actions.listArtifactsForRepo.mockResolvedValue({
+        status: 200,
+        data: {
+          total_count: 0,
+          artifacts: [],
+        },
+      });
+
+      await expect(
+        githubArtifactProvider.testGetRevisionArtifact(
+          '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+        ),
+      ).rejects.toThrow();
+
+      expect(mockClient.actions.listArtifactsForRepo).toBeCalledTimes(3);
+      for (const call of mockClient.actions.listArtifactsForRepo.mock.calls) {
+        expect(call[0]).toMatchObject({
+          owner: 'getsentry',
+          repo: 'craft',
+          name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+        });
+      }
+    });
+
     test('it should throw when no artifacts with the name can be found', async () => {
       mockClient.actions.listArtifactsForRepo.mockResolvedValue({
         status: 200,
@@ -457,6 +482,53 @@ describe('GitHub Artifact Provider', () => {
   });
 
   describe('searchForRevisionArtifact', () => {
+    test('it should filter artifacts by revision name server-side', async () => {
+      // Listing all artifacts of a repository can fail with HTTP 500 on
+      // repositories with many artifacts, so the API must be asked to filter
+      // by name (see https://github.com/getsentry/craft/issues/879).
+      mockClient.actions.listArtifactsForRepo.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          total_count: 1,
+          artifacts: [
+            {
+              id: 60233710,
+              node_id: 'MDg6QXJ0aWZhY3Q2MDIzMzcxMA==',
+              name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+              size_in_bytes: 6511029,
+              url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
+              archive_download_url:
+                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip',
+              expired: false,
+              created_at: '2021-05-12T21:50:35Z',
+              updated_at: '2021-05-12T21:50:38Z',
+              expires_at: '2021-08-10T21:50:31Z',
+            },
+          ],
+        },
+      });
+
+      const getRevisionDateCallback = vi.fn();
+
+      const artifact =
+        await githubArtifactProvider.testSearchForRevisionArtifact(
+          '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+          lazyRequest<string>(getRevisionDateCallback),
+        );
+
+      expect(artifact?.id).toBe(60233710);
+      expect(mockClient.actions.listArtifactsForRepo).toBeCalledTimes(1);
+      expect(mockClient.actions.listArtifactsForRepo).toBeCalledWith({
+        owner: 'getsentry',
+        repo: 'craft',
+        name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+        per_page: 100,
+        page: 0,
+      });
+      // A single page of filtered results should not require the commit date.
+      expect(getRevisionDateCallback).not.toBeCalled();
+    });
+
     test('it should get the artifact from second page', async () => {
       mockClient.actions.listArtifactsForRepo
         .mockResolvedValueOnce({
