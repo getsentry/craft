@@ -131,7 +131,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
     const per_page = 100;
 
     this.logger.debug(
-      `Searching GitHub artifacts for ${owner}/${repo}, revision ${revision}`,
+      `Searching GitHub artifacts of ${owner}/${repo} for artifact named "${revision}"`,
     );
 
     let checkNextPage = true;
@@ -149,7 +149,10 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
       });
 
       const { artifacts, total_count } = artifactResponse.data;
-      this.logger.trace(`All available artifacts on page ${page}:`, artifacts);
+      this.logger.trace(
+        `Artifacts named "${revision}" on page ${page}:`,
+        artifacts,
+      );
 
       // We need to find the most recent archive where name matches the revision.
       // XXX(BYK): we assume the artifacts are listed in descending date order on
@@ -206,7 +209,7 @@ export class GitHubArtifactProvider extends BaseArtifactProvider {
 
     for (let tries = 0; tries < MAX_TRIES; tries++) {
       this.logger.info(
-        `Fetching GitHub artifacts for ${owner}/${repo}, revision ${revision} (attempt ${
+        `Fetching GitHub artifact named "${revision}" from ${owner}/${repo} (attempt ${
           tries + 1
         } of ${MAX_TRIES})`,
       );
