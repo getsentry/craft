@@ -448,23 +448,42 @@ export class PushError extends Error {
 }
 
 /**
+ * Error thrown when release branch cleanup fails after the merge was pushed.
+ */
+export class BranchCleanupError extends Error {
+  public __proto__: Error;
+  public readonly remoteDeleted: boolean;
+
+  public constructor(message: string, remoteDeleted: boolean) {
+    const trueProto = new.target.prototype;
+    super(message);
+    this.__proto__ = trueProto;
+    this.remoteDeleted = remoteDeleted;
+  }
+}
+
+/**
  * Deals with the release branch after publishing is done
  *
- * Leave the release branch unmerged, or merge it but not delete it if the
+ * Leave the release branch unmerged, or merge it but preserve it if the
  * corresponding flags are set.
  *
  * @param git Git client
  * @param remoteName The git remote name to interact with
  * @param branch Name of the release branch
+ * @param releaseRevision Expected release branch revision
  * @param [mergeTarget] Branch name to merge the release branch into
  * @param keepBranch If set to "true", the branch will not be deleted
+ * @param mergeSource Revision to merge, defaults to the release branch
  */
 export async function handleReleaseBranch(
   git: SimpleGit,
   remoteName: string,
   branch: string,
+  releaseRevision: string,
   mergeTarget?: string,
   keepBranch = false,
+  mergeSource = branch,
 ): Promise<void> {
   if (!mergeTarget) {
     mergeTarget = await getDefaultBranch(git, remoteName);
@@ -486,9 +505,9 @@ export async function handleReleaseBranch(
   }
 
   // Stage 1: Merge — if this fails, it's a merge conflict
-  logger.debug(`Merging ${branch} into: ${mergeTarget}`);
+  logger.debug(`Merging ${mergeSource} into: ${mergeTarget}`);
   try {
-    await git.merge(['--no-ff', '--no-edit', branch]);
+    await git.merge(['--no-ff', '--no-edit', mergeSource]);
   } catch (mergeError) {
     // Default strategy (ort) failed — abort and retry with resolve strategy
     logger.warn(
@@ -504,7 +523,7 @@ export async function handleReleaseBranch(
     // Retry with the resolve strategy which handles criss-cross ambiguities
     // differently and often succeeds where ort fails on files like CHANGELOG.md
     try {
-      await git.merge(['-s', 'resolve', '--no-ff', '--no-edit', branch]);
+      await git.merge(['-s', 'resolve', '--no-ff', '--no-edit', mergeSource]);
     } catch (resolveError) {
       // Resolve also failed — capture conflict details before aborting
       let conflictedFiles: string[] = [];
@@ -549,9 +568,42 @@ export async function handleReleaseBranch(
   if (keepBranch) {
     logger.info('Not deleting the release branch.');
   } else {
-    logger.debug(`Deleting the release branch: ${branch}`);
-    await git.branch(['-D', branch]).push([remoteName, '--delete', branch]);
+    logger.debug(`Deleting the remote release branch: ${branch}`);
+    const branchRef = `refs/heads/${branch}`;
+    try {
+      await git.push(remoteName, `:${branchRef}`, [
+        `--force-with-lease=${branchRef}:${releaseRevision}`,
+      ]);
+    } catch (cleanupError) {
+      throw new BranchCleanupError(
+        cleanupError instanceof Error
+          ? cleanupError.message
+          : String(cleanupError),
+        false,
+      );
+    }
     logger.info(`Removed the remote branch: "${branch}"`);
+
+    try {
+      const localBranches = await git.branchLocal();
+      if (localBranches.all.includes(branch)) {
+        const localRevision = (await git.revparse(branchRef)).trim();
+        if (localRevision !== releaseRevision) {
+          throw new Error(
+            `Local release branch is at ${localRevision}, expected ${releaseRevision}`,
+          );
+        }
+        await git.branch(['-d', '--', branch]);
+        logger.info(`Removed the local branch: "${branch}"`);
+      }
+    } catch (cleanupError) {
+      throw new BranchCleanupError(
+        cleanupError instanceof Error
+          ? cleanupError.message
+          : String(cleanupError),
+        true,
+      );
+    }
   }
 }
 
@@ -627,22 +679,15 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     config.releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
 
   const rev = argv.rev;
-  let checkoutTarget;
-  let branchName;
+  const branchName = `${branchPrefix}/${newVersion}`;
   if (rev) {
-    logger.debug(`Trying to get branch name for provided revision: "${rev}"`);
-    branchName = await getRevisionBranchName(git, rev);
-    checkoutTarget = branchName || rev;
-    logger.debug('Checking out revision', checkoutTarget);
-    await git.checkout(checkoutTarget);
+    logger.debug('Checking out revision', rev);
+    await git.checkout(rev);
   } else {
     // Find the remote branch
-    branchName = `${branchPrefix}/${newVersion}`;
-    checkoutTarget = branchName;
-
     try {
       logger.debug('Checking out release branch', branchName);
-      await git.checkout(checkoutTarget);
+      await git.checkout(branchName);
     } catch (err) {
       const { exactMatches, fuzzyMatches } = await findReleaseBranches(
         git,
@@ -677,7 +722,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     }
   }
 
-  const revision = await git.revparse('HEAD');
+  const revision = (await git.revparse('HEAD')).trim();
   logger.debug('Revision to publish: ', revision);
 
   const statusProvider = await getStatusProviderFromConfig();
@@ -830,10 +875,6 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
         ? 'auto-detection (compiled GitHub Action with dist/ folder)'
         : 'config';
     logger.info(`Not merging the release branch (${source}).`);
-  } else if (!branchName) {
-    logger.info(
-      'Not merging because cannot determine a branch name to merge from.',
-    );
   } else if (
     targetsToPublish.has(SpecialTarget.All) ||
     targetsToPublish.has(SpecialTarget.None) ||
@@ -845,8 +886,10 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
         git,
         argv.remote,
         branchName,
+        revision,
         argv.mergeTarget,
         argv.keepBranch,
+        rev ? revision : branchName,
       );
     } catch (mergeError) {
       // The merge is a housekeeping step — it must not block the success
@@ -854,10 +897,30 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       // observability but don't fail the command.
       captureException(mergeError);
 
-      const lines = [
-        `Failed to merge release branch "${branchName}" into the target branch.`,
-      ];
-      if (mergeError instanceof MergeConflictError) {
+      const lines: string[] = [];
+      if (mergeError instanceof BranchCleanupError) {
+        lines.push(
+          `Failed to clean up release branch "${branchName}" after merging it into the target branch.`,
+        );
+        if (mergeError.remoteDeleted) {
+          lines.push(
+            `The merge was pushed and the remote release branch was deleted, but deleting the local branch failed.`,
+            `Inspect the local branch before deleting it.`,
+            ``,
+            `To retry safely: git branch -d -- ${branchName}`,
+          );
+        } else {
+          lines.push(
+            `The merge was pushed, but deleting the remote release branch failed.`,
+            `The branch may have advanced beyond the expected release revision ${revision}. Inspect it before cleanup.`,
+            ``,
+            `To retry safely: git push --force-with-lease=refs/heads/${branchName}:${revision} ${argv.remote} :refs/heads/${branchName}`,
+          );
+        }
+      } else if (mergeError instanceof MergeConflictError) {
+        lines.push(
+          `Failed to merge release branch "${branchName}" into the target branch.`,
+        );
         lines.push(`Merge conflict — both ort and resolve strategies failed.`);
         if (mergeError.conflictedFiles.length > 0) {
           lines.push(``);
@@ -879,6 +942,9 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
         );
       } else if (mergeError instanceof PushError) {
         lines.push(
+          `Failed to merge release branch "${branchName}" into the target branch.`,
+        );
+        lines.push(
           `The merge succeeded locally but pushing to the remote failed.`,
           `This is likely due to an expired authentication token (common for long-running publishes > 1 hour).`,
           ``,
@@ -890,6 +956,9 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
           `  3. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
         );
       } else {
+        lines.push(
+          `Failed to merge release branch "${branchName}" into the target branch.`,
+        );
         lines.push(
           `All publish targets completed successfully — only the post-publish merge failed.`,
           ``,
@@ -928,20 +997,6 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   // Run the post-release script
   await runPostReleaseCommand(newVersion, config.postReleaseCommand);
-}
-
-export async function getRevisionBranchName(
-  git: SimpleGit,
-  revision: string,
-): Promise<string> {
-  try {
-    return (
-      await git.raw('name-rev', '--name-only', '--no-undefined', revision)
-    ).trim();
-  } catch {
-    // A CI-approved SHA can be checked out detached without a named ref.
-    return '';
-  }
 }
 
 export const handler = async (args: {

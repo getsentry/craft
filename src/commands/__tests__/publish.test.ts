@@ -1,11 +1,14 @@
+import { mkdir, mkdtemp, rm } from 'fs/promises';
+import { tmpdir } from 'os';
 import { vi, describe, test, expect, beforeEach, type Mock } from 'vitest';
 import { join as pathJoin } from 'path';
 import { spawnProcess, hasExecutable } from '../../utils/system';
+import { createGitClient } from '../../utils/git';
 import {
   getPublishStateGitHubConfig,
-  getRevisionBranchName,
   runPostReleaseCommand,
   handleReleaseBranch,
+  BranchCleanupError,
   MergeConflictError,
   PushError,
 } from '../publish';
@@ -13,7 +16,8 @@ import { getPublishStateFilename } from '../../utils/publishState';
 import type { SimpleGit } from 'simple-git';
 
 vi.mock('../../utils/system');
-vi.mock('../../utils/git', () => ({
+vi.mock('../../utils/git', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../utils/git')>()),
   getDefaultBranch: vi.fn().mockResolvedValue('main'),
   getGitClient: vi.fn(),
   isRepoDirty: vi.fn(),
@@ -210,33 +214,9 @@ describe('getPublishStateGitHubConfig', () => {
   });
 });
 
-describe('getRevisionBranchName', () => {
-  test('returns the named ref for a revision when available', async () => {
-    const git = {
-      raw: vi.fn().mockResolvedValue('release/1.2.3\n'),
-    } as unknown as SimpleGit;
-
-    await expect(getRevisionBranchName(git, 'abc123')).resolves.toBe(
-      'release/1.2.3',
-    );
-    expect(git.raw).toHaveBeenCalledWith(
-      'name-rev',
-      '--name-only',
-      '--no-undefined',
-      'abc123',
-    );
-  });
-
-  test('allows a detached CI-approved revision', async () => {
-    const git = {
-      raw: vi.fn().mockRejectedValue(new Error('Could not get ref name')),
-    } as unknown as SimpleGit;
-
-    await expect(getRevisionBranchName(git, 'abc123')).resolves.toBe('');
-  });
-});
-
 describe('handleReleaseBranch', () => {
+  const releaseRevision = 'abc123';
+
   /**
    * Creates a mock SimpleGit instance where each method returns
    * a chainable object (SimpleGit & Promise), matching simple-git's API.
@@ -264,13 +244,58 @@ describe('handleReleaseBranch', () => {
     mockGit.merge = makeChainable();
     mockGit.push = makeChainable();
     mockGit.branch = makeChainable();
+    mockGit.branchLocal = makeChainable({ all: ['release/1.0.0'] });
     mockGit.remote = makeChainable();
-    mockGit.revparse = makeChainable('main');
+    mockGit.revparse = makeChainable(releaseRevision);
     mockGit.raw = makeChainable('');
     mockGit.status = makeChainable({ conflicted: [] });
     mockGit.diff = makeChainable('');
 
     return mockGit as unknown as SimpleGit & Record<string, Mock>;
+  }
+
+  async function createReleaseRepository(
+    pushAdvanced: boolean,
+    advanceLocal = true,
+  ) {
+    const directory = await mkdtemp(
+      pathJoin(tmpdir(), 'craft-publish-cleanup-'),
+    );
+    const repository = pathJoin(directory, 'repository');
+    const remote = pathJoin(directory, 'remote.git');
+    const branch = 'release/1.0.0';
+    const branchRef = `refs/heads/${branch}`;
+
+    await createGitClient(directory).raw('init', '--bare', remote);
+    await mkdir(repository);
+    const git = createGitClient(repository);
+    await git.raw('init', '-b', 'main');
+    await git.addConfig('user.name', 'Craft Test');
+    await git.addConfig('user.email', 'craft@example.com');
+    await git.addConfig('commit.gpgsign', 'false');
+    await git.raw('commit', '--allow-empty', '-m', 'approved release');
+    const approvedRevision = (await git.revparse('HEAD')).trim();
+    await git.raw('branch', branch);
+    await git.addRemote('origin', remote);
+    await git.raw('push', 'origin', 'main', branch);
+    await git.checkout(branch);
+    if (advanceLocal) {
+      await git.raw('commit', '--allow-empty', '-m', 'advanced release');
+    }
+    const advancedRevision = (await git.revparse('HEAD')).trim();
+    if (pushAdvanced) {
+      await git.push('origin', branch);
+    }
+    await git.checkout('main');
+
+    return {
+      directory,
+      git,
+      branch,
+      branchRef,
+      approvedRevision,
+      advancedRevision,
+    };
   }
 
   beforeEach(() => {
@@ -280,7 +305,13 @@ describe('handleReleaseBranch', () => {
   test('successful merge with default strategy', async () => {
     const git = createMockGit();
 
-    await handleReleaseBranch(git, 'origin', 'release/1.0.0', 'main');
+    await handleReleaseBranch(
+      git,
+      'origin',
+      'release/1.0.0',
+      releaseRevision,
+      'main',
+    );
 
     expect(git.checkout).toHaveBeenCalledWith('main');
     expect(git.pull).toHaveBeenCalledWith('origin', 'main', ['--rebase']);
@@ -311,7 +342,13 @@ describe('handleReleaseBranch', () => {
         return Promise.resolve();
       });
 
-    await handleReleaseBranch(git, 'origin', 'release/1.0.0', 'main');
+    await handleReleaseBranch(
+      git,
+      'origin',
+      'release/1.0.0',
+      releaseRevision,
+      'main',
+    );
 
     expect(git.merge).toHaveBeenCalledTimes(3);
     // First attempt: default strategy
@@ -344,7 +381,13 @@ describe('handleReleaseBranch', () => {
       .mockImplementationOnce(() => Promise.reject(abortError))
       .mockImplementationOnce(() => Promise.resolve());
 
-    await handleReleaseBranch(git, 'origin', 'release/1.0.0', 'main');
+    await handleReleaseBranch(
+      git,
+      'origin',
+      'release/1.0.0',
+      releaseRevision,
+      'main',
+    );
 
     expect(git.merge).toHaveBeenCalledTimes(3);
     expect(git.merge).toHaveBeenNthCalledWith(2, ['--abort']);
@@ -382,6 +425,7 @@ describe('handleReleaseBranch', () => {
       git,
       'origin',
       'release/1.0.0',
+      releaseRevision,
       'main',
     ).catch((e: unknown) => e);
 
@@ -415,6 +459,7 @@ describe('handleReleaseBranch', () => {
       git,
       'origin',
       'release/1.0.0',
+      releaseRevision,
       'main',
     ).catch((e: unknown) => e);
 
@@ -431,7 +476,13 @@ describe('handleReleaseBranch', () => {
     (git.pull as Mock).mockImplementationOnce(() => Promise.reject(pullError));
 
     await expect(
-      handleReleaseBranch(git, 'origin', 'release/1.0.0', 'main'),
+      handleReleaseBranch(
+        git,
+        'origin',
+        'release/1.0.0',
+        releaseRevision,
+        'main',
+      ),
     ).rejects.toThrow('CONFLICT during rebase');
 
     // rebase --abort should have been called to clean up
@@ -441,26 +492,214 @@ describe('handleReleaseBranch', () => {
     expect(git.push).not.toHaveBeenCalledWith('origin', 'main');
   });
 
-  test('deletes branch after successful merge', async () => {
+  test('deletes the remote and local branches after successful merge', async () => {
     const git = createMockGit();
 
-    await handleReleaseBranch(git, 'origin', 'release/1.0.0', 'main', false);
-
-    expect(git.branch).toHaveBeenCalledWith(['-D', 'release/1.0.0']);
-    // push --delete is chained from branch()
-    expect(git.push).toHaveBeenCalledWith([
+    await handleReleaseBranch(
+      git,
       'origin',
-      '--delete',
       'release/1.0.0',
-    ]);
+      releaseRevision,
+      'main',
+      false,
+    );
+
+    expect(git.push).toHaveBeenCalledWith(
+      'origin',
+      ':refs/heads/release/1.0.0',
+      ['--force-with-lease=refs/heads/release/1.0.0:abc123'],
+    );
+    expect(git.branchLocal).toHaveBeenCalledOnce();
+    expect(git.branch).toHaveBeenCalledWith(['-d', '--', 'release/1.0.0']);
+  });
+
+  test('merges an approved revision and deletes its canonical remote branch', async () => {
+    const git = createMockGit();
+    await handleReleaseBranch(
+      git,
+      'origin',
+      'release/1.0.0',
+      releaseRevision,
+      'main',
+      false,
+      'abc123',
+    );
+
+    expect(git.merge).toHaveBeenCalledWith(['--no-ff', '--no-edit', 'abc123']);
+    expect(git.push).toHaveBeenCalledWith(
+      'origin',
+      ':refs/heads/release/1.0.0',
+      ['--force-with-lease=refs/heads/release/1.0.0:abc123'],
+    );
+    expect(git.branch).toHaveBeenCalledWith(['-d', '--', 'release/1.0.0']);
+  });
+
+  test('preserves an advanced remote branch when the deletion lease fails', async () => {
+    const git = createMockGit();
+    const cleanupError = new Error('stale info');
+    (git.push as Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(cleanupError);
+
+    const error = await handleReleaseBranch(
+      git,
+      'origin',
+      'release/1.0.0',
+      releaseRevision,
+      'main',
+    ).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(BranchCleanupError);
+    expect(git.push).toHaveBeenCalledWith(
+      'origin',
+      ':refs/heads/release/1.0.0',
+      ['--force-with-lease=refs/heads/release/1.0.0:abc123'],
+    );
+    expect(git.branchLocal).not.toHaveBeenCalled();
+  });
+
+  test('preserves an advanced remote branch when Git rejects the deletion lease', async () => {
+    const {
+      directory,
+      git,
+      branch,
+      branchRef,
+      approvedRevision,
+      advancedRevision,
+    } = await createReleaseRepository(true);
+
+    try {
+      const error = await handleReleaseBranch(
+        git,
+        'origin',
+        branch,
+        approvedRevision,
+        'main',
+        false,
+        approvedRevision,
+      ).catch((cleanupError: unknown) => cleanupError);
+
+      expect(error).toBeInstanceOf(BranchCleanupError);
+      expect((error as BranchCleanupError).remoteDeleted).toBe(false);
+      expect((await git.revparse(branchRef)).trim()).toBe(advancedRevision);
+      expect(
+        (await git.raw('ls-remote', '--heads', 'origin', branchRef)).split(
+          '\t',
+        )[0],
+      ).toBe(advancedRevision);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test('preserves an advanced local branch after deleting the remote branch', async () => {
+    const {
+      directory,
+      git,
+      branch,
+      branchRef,
+      approvedRevision,
+      advancedRevision,
+    } = await createReleaseRepository(false);
+
+    try {
+      const error = await handleReleaseBranch(
+        git,
+        'origin',
+        branch,
+        approvedRevision,
+        'main',
+        false,
+        approvedRevision,
+      ).catch((cleanupError: unknown) => cleanupError);
+
+      expect(error).toBeInstanceOf(BranchCleanupError);
+      expect((error as BranchCleanupError).remoteDeleted).toBe(true);
+      expect((await git.revparse(branchRef)).trim()).toBe(advancedRevision);
+      await expect(
+        git.raw('ls-remote', '--heads', 'origin', branchRef),
+      ).resolves.toBe('');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test('deletes matching local and remote branches with Git porcelain', async () => {
+    const { directory, git, branch, branchRef, approvedRevision } =
+      await createReleaseRepository(false, false);
+
+    try {
+      await handleReleaseBranch(
+        git,
+        'origin',
+        branch,
+        approvedRevision,
+        'main',
+        false,
+        approvedRevision,
+      );
+
+      await expect(git.revparse(branchRef)).rejects.toThrow();
+      await expect(
+        git.raw('ls-remote', '--heads', 'origin', branchRef),
+      ).resolves.toBe('');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test('reports local cleanup failure after deleting the remote branch', async () => {
+    const git = createMockGit();
+    (git.branch as Mock).mockRejectedValueOnce(
+      new Error('branch is checked out'),
+    );
+
+    const error = await handleReleaseBranch(
+      git,
+      'origin',
+      'release/1.0.0',
+      releaseRevision,
+      'main',
+    ).catch((cleanupError: unknown) => cleanupError);
+
+    expect(error).toBeInstanceOf(BranchCleanupError);
+    expect((error as BranchCleanupError).remoteDeleted).toBe(true);
+    expect(git.push).toHaveBeenCalledWith(
+      'origin',
+      ':refs/heads/release/1.0.0',
+      ['--force-with-lease=refs/heads/release/1.0.0:abc123'],
+    );
+  });
+
+  test('skips local deletion when the canonical branch does not exist', async () => {
+    const git = createMockGit();
+    (git.branchLocal as Mock).mockResolvedValueOnce({ all: [] });
+
+    await handleReleaseBranch(
+      git,
+      'origin',
+      'release/1.0.0',
+      releaseRevision,
+      'main',
+    );
+
+    expect(git.branch).not.toHaveBeenCalled();
   });
 
   test('does not delete branch when keepBranch is true', async () => {
     const git = createMockGit();
 
-    await handleReleaseBranch(git, 'origin', 'release/1.0.0', 'main', true);
+    await handleReleaseBranch(
+      git,
+      'origin',
+      'release/1.0.0',
+      releaseRevision,
+      'main',
+      true,
+    );
 
-    expect(git.branch).not.toHaveBeenCalledWith(['-D', 'release/1.0.0']);
+    expect(git.branchLocal).not.toHaveBeenCalled();
+    expect(git.branch).not.toHaveBeenCalled();
   });
 
   test('resolves default branch when mergeTarget is not provided', async () => {
@@ -469,7 +708,7 @@ describe('handleReleaseBranch', () => {
 
     const git = createMockGit();
 
-    await handleReleaseBranch(git, 'origin', 'release/1.0.0');
+    await handleReleaseBranch(git, 'origin', 'release/1.0.0', releaseRevision);
 
     expect(getDefaultBranch).toHaveBeenCalledWith(git, 'origin');
     expect(git.checkout).toHaveBeenCalledWith('master');
@@ -514,5 +753,16 @@ describe('PushError', () => {
   test('carries message', () => {
     const err = new PushError('could not read Username');
     expect(err.message).toBe('could not read Username');
+  });
+});
+
+describe('BranchCleanupError', () => {
+  test('records whether remote cleanup completed', () => {
+    const err = new BranchCleanupError('cleanup failed', true);
+
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(BranchCleanupError);
+    expect(err.message).toBe('cleanup failed');
+    expect(err.remoteDeleted).toBe(true);
   });
 });
