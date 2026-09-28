@@ -208,46 +208,83 @@ export function checkVersionOrPart(argv: Arguments<any>, _opt: any): boolean {
 }
 
 /**
- * Creates a new local release branch
- *
- * Throws an error if the branch already exists.
+ * Verifies that no push destination has the release branch.
  *
  * @param git Local git client
+ * @param remoteName Git remote used for the release
+ * @param branchName Release branch to check
  * @param newVersion Version we are releasing
- * @param releaseBranchPrefix Prefix of the release branch. Defaults to "release".
+ */
+async function checkRemoteReleaseBranch(
+  git: SimpleGit,
+  remoteName: string,
+  branchName: string,
+  newVersion: string,
+): Promise<void> {
+  const inspectionError = `Failed to inspect push destinations for remote "${remoteName}".`;
+  const pushUrlOutput = await git
+    .raw('remote', 'get-url', '--push', '--all', '--', remoteName)
+    .catch(() => {
+      throw new Error(inspectionError);
+    });
+  const pushUrls = pushUrlOutput.split(/\r?\n/).filter(Boolean);
+
+  if (pushUrls.length === 0) {
+    throw new Error(inspectionError);
+  }
+
+  for (const pushUrl of pushUrls) {
+    const remoteBranchHead = await git
+      .listRemote(['--heads', '--', pushUrl, `refs/heads/${branchName}`])
+      .catch(() => {
+        throw new Error(inspectionError);
+      });
+    if (remoteBranchHead.trim()) {
+      throw new Error(
+        `Release branch "${branchName}" already exists on remote "${remoteName}". ` +
+          `A release for version ${newVersion} is already pending. ` +
+          'Resume and publish it before preparing another release.',
+      );
+    }
+  }
+}
+
+/**
+ * Creates a new local release branch.
+ *
+ * Throws an error if the branch already exists locally.
+ *
+ * @param git Local git client
+ * @param rev Revision from which to create the branch
+ * @param branchName Release branch to create
  */
 async function createReleaseBranch(
   git: SimpleGit,
   rev: string,
-  newVersion: string,
-  remoteName: string,
-  releaseBranchPrefix?: string,
-): Promise<string> {
-  const branchPrefix = releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
-  const branchName = `${branchPrefix}/${newVersion}`;
-
+  branchName: string,
+): Promise<void> {
   const branchHead = await git.raw('show-ref', '--heads', branchName);
 
   // in case `show-ref` can't find a branch it returns `null`
   if (branchHead) {
     let errorMsg = `Branch already exists: ${branchName}. `;
     errorMsg +=
-      'Run the following commands to delete the branch, and then rerun "prepare":\n';
-    errorMsg += `    git branch -D ${branchName}; git push ${remoteName} --delete ${branchName}\n`;
+      'Run the following command to delete the local branch, and then rerun "prepare":\n';
+    errorMsg += `    git branch -D ${branchName}\n`;
     reportError(errorMsg, logger);
   }
 
   await git.checkoutBranch(branchName, rev);
   logger.info(`Created a new release branch: "${branchName}"`);
   logger.info(`Switched to branch "${branchName}"`);
-  return branchName;
 }
 
 /**
  * Pushes the release branch to the remote
  *
  * @param git Local git client
- * @param defaultBranch Default branch of the remote repository
+ * @param branchName Release branch to push
+ * @param remoteName Git remote used for the release
  * @param pushFlag If "true", push the release branch
  */
 async function pushReleaseBranch(
@@ -256,15 +293,18 @@ async function pushReleaseBranch(
   remoteName: string,
   pushFlag = true,
 ): Promise<any> {
+  const branchRef = `refs/heads/${branchName}`;
   if (pushFlag) {
     logger.info(`Pushing the release branch "${branchName}"...`);
-    // TODO check remote somehow
-    await git.push(remoteName, branchName, ['--set-upstream']);
+    await git.push(remoteName, `${branchRef}:${branchRef}`, [
+      '--set-upstream',
+      `--force-with-lease=${branchRef}:`,
+    ]);
   } else {
     logger.info('Not pushing the release branch.');
     logger.info(
       'You can push this branch later using the following command:',
-      `  $ git push -u ${remoteName} "${branchName}"`,
+      `  $ git push --set-upstream --force-with-lease=${branchRef}: ${remoteName} ${branchRef}:${branchRef}`,
     );
   }
 }
@@ -837,6 +877,11 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     versionArg: argv.newVersion,
     calverOffset: argv.calverOffset,
   });
+  const branchPrefix =
+    config.releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
+  const branchName = `${branchPrefix}/${newVersion}`;
+
+  await checkRemoteReleaseBranch(git, argv.remote, branchName, newVersion);
 
   // Emit resolved version for GitHub Actions
   setGitHubActionsOutput('version', newVersion);
@@ -855,13 +900,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
 
   try {
     // Create a new release branch and check it out. Fail if it already exists.
-    const branchName = await createReleaseBranch(
-      git,
-      rev,
-      newVersion,
-      argv.remote,
-      config.releaseBranchPrefix,
-    );
+    await createReleaseBranch(git, rev, branchName);
 
     // Do this once we are on the release branch as we might be releasing from
     // a custom revision and it is harder to tell git to give us the tag right
