@@ -964,16 +964,11 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     setGitHubActionsOutput('sha', releaseSha);
     setGitHubActionsOutput('previous_tag', oldVersion || '');
     if (changelogBody) {
-      // For CalVer releases, replace @-mentions with bold formatting in the
-      // changelog destined for publish issues, to avoid pinging many
-      // contributors on regular-cadence releases.  The committed CHANGELOG.md
-      // keeps the original @-mentions (they don't create notifications).
-      const isCalVer =
-        argv.newVersion === 'calver' ||
-        getVersioningPolicy() === VersioningPolicy.CalVer;
-      const issueChangelog = isCalVer
-        ? disableChangelogMentions(changelogBody)
-        : changelogBody;
+      // Replace @-mentions with bold formatting in the changelog destined for
+      // publish issues, otherwise every contributor in the release gets
+      // pinged. The committed CHANGELOG.md keeps the original @-mentions
+      // (they don't create notifications).
+      const issueChangelog = disableChangelogMentions(changelogBody);
 
       // Write full changelog to a file to avoid E2BIG when the action.yml
       // "Request publish" step expands it into an environment variable.
