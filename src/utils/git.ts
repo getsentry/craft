@@ -101,10 +101,11 @@ export async function getChangesSince(
     file: '.',
   };
 
-  if (rev) {
-    gitLogArgs.from = rev;
-  }
-  const { all: commits } = await git.log(gitLogArgs);
+  // simple-git interprets `to` without `from` as HEAD..HEAD and returns no
+  // commits. A first release has no previous tag, so log the full history.
+  const { all: commits } = rev
+    ? await git.log({ ...gitLogArgs, from: rev })
+    : await git.log(['--no-merges', until || 'HEAD', '--', '.']);
   return commits.map(commit => ({
     hash: commit.hash,
     title: commit.message,
