@@ -1,5 +1,15 @@
 import { vi } from 'vitest';
-import { getLatestTag, isRepoDirty, findReleaseBranches } from '../git';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  createGitClient,
+  getChangesSince,
+  getLatestTag,
+  isRepoDirty,
+  findReleaseBranches,
+} from '../git';
 import * as loggerModule from '../../logger';
 import type { StatusResult } from 'simple-git';
 
@@ -62,6 +72,62 @@ describe('getLatestTag', () => {
 
     const latestTag = await getLatestTag(git, 'mcp@');
     expect(latestTag).toBe('');
+  });
+});
+
+describe('getChangesSince', () => {
+  it('includes commits in a first release with no previous tag', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'craft-first-release-'));
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-C', dir, ...args], {
+        env: {
+          ...process.env,
+          GIT_CONFIG_GLOBAL: '/dev/null',
+          GIT_CONFIG_NOSYSTEM: '1',
+        },
+      });
+
+    try {
+      git('init', '--quiet');
+      git('config', 'user.name', 'Craft Test');
+      git('config', 'user.email', 'craft-test@example.com');
+      writeFileSync(join(dir, 'entry.md'), 'first\n');
+      git('add', 'entry.md');
+      git(
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '--quiet',
+        '-m',
+        'First change',
+      );
+      git('tag', 'cli@0.1.0');
+      writeFileSync(join(dir, 'entry.md'), 'second\n');
+      git('add', 'entry.md');
+      git(
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '--quiet',
+        '-m',
+        'Second change',
+      );
+
+      const client = createGitClient(dir);
+      expect(
+        (await getChangesSince(client, '')).map(({ title }) => title),
+      ).toEqual(['Second change', 'First change']);
+      expect(
+        (await getChangesSince(client, '', 'cli@0.1.0')).map(
+          ({ title }) => title,
+        ),
+      ).toEqual(['First change']);
+      expect(
+        (await getChangesSince(client, 'cli@0.1.0')).map(({ title }) => title),
+      ).toEqual(['Second change']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
