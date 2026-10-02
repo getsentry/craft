@@ -159,6 +159,104 @@ test('forwards workspace input to every Craft command', () => {
   );
 });
 
+test('resolves a moving major action tag to its matching release', () => {
+  const environment = createActionEnvironment();
+  writeFileSync(
+    join(environment.directory, 'package.json'),
+    JSON.stringify({ version: '2.33.0' }),
+  );
+
+  const result = spawnSync(
+    'bash',
+    [
+      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
+      '',
+      'v2',
+      environment.directory,
+    ],
+    { encoding: 'utf8' },
+  );
+
+  expect(result.status).toBe(0);
+  expect(result.stdout.trim()).toBe('2.33.0');
+});
+
+test.each(['3.0.0', '2.34.0-dev.0', 'not-a-version'])(
+  'refuses a v2 action tag pointing at %s instead of using latest',
+  version => {
+    const environment = createActionEnvironment();
+    writeFileSync(
+      join(environment.directory, 'package.json'),
+      JSON.stringify({ version }),
+    );
+
+    const result = spawnSync(
+      'bash',
+      [
+        join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
+        '',
+        'v2',
+        environment.directory,
+      ],
+      { encoding: 'utf8' },
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toBe('');
+  },
+);
+
+test('does not install the latest release when a major-tagged binary is missing', () => {
+  const environment = createActionEnvironment();
+  const curlCalls = join(environment.directory, 'curl-calls');
+  const scriptsDirectory = join(environment.directory, '.github/scripts');
+  mkdirSync(scriptsDirectory, { recursive: true });
+  writeFileSync(
+    join(scriptsDirectory, 'resolve-craft-version.sh'),
+    readFileSync(
+      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
+    ),
+  );
+  writeFileSync(
+    join(environment.directory, 'package.json'),
+    JSON.stringify({ version: '2.33.0' }),
+  );
+  writeFileSync(curlCalls, '');
+  writeFileSync(
+    join(environment.binDirectory, 'curl'),
+    '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$CURL_CALLS"\nexit 22\n',
+  );
+  writeFileSync(
+    join(environment.binDirectory, 'sudo'),
+    '#!/usr/bin/env bash\nexit 99\n',
+  );
+  chmodSync(join(environment.binDirectory, 'curl'), 0o755);
+  chmodSync(join(environment.binDirectory, 'sudo'), 0o755);
+
+  const result = spawnSync(
+    'bash',
+    ['-e', '-c', getActionStep('Install Craft from artifact or release').run!],
+    {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        ACTION_PATH: environment.directory,
+        ACTION_REF: 'v2',
+        CRAFT_VERSION_INPUT: '',
+        CURL_CALLS: curlCalls,
+        PATH: `${environment.binDirectory}:${process.env.PATH}`,
+      },
+    },
+  );
+
+  expect(result.status).toBe(1);
+  expect(result.stdout).toContain("Craft release '2.33.0'");
+  expect(readFileSync(curlCalls, 'utf8')).toContain(
+    '/releases/download/2.33.0/craft',
+  );
+  expect(readFileSync(curlCalls, 'utf8')).not.toContain('/releases/latest');
+});
+
 test.each([
   ['control', 'cli\tnext'],
   ['format', 'cli\u202enext'],
