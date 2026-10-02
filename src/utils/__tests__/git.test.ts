@@ -132,7 +132,7 @@ describe('getChangesSince', () => {
   });
 
   it('includes shared and selected workspace changes, with optional related paths', async () => {
-    const dir = mkdtempSync('/tmp/opencode/craft-changelog-workspaces-');
+    const dir = mkdtempSync(join(tmpdir(), 'craft-changelog-workspaces-'));
     const previousDirectory = process.cwd();
     const git = (...args: string[]) =>
       execFileSync('git', ['-C', dir, ...args], {
