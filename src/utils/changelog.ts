@@ -7,6 +7,7 @@ import { captureException, withScope } from '@sentry/node';
 import { logger } from '../logger';
 
 import {
+  getActiveWorkspace,
   getConfigFileDir,
   getGlobalGitHubConfig,
   getChangelogConfig,
@@ -1485,7 +1486,7 @@ interface RawChangelogResult {
 const changesetCache = new Map<string, Promise<ChangelogResult>>();
 
 function getChangesetCacheKey(rev: string, maxLeftovers: number): string {
-  return `${rev}:${maxLeftovers}`;
+  return JSON.stringify([getActiveWorkspace(), rev, maxLeftovers]);
 }
 
 /**

@@ -162,6 +162,28 @@ export const ChangelogConfigSchema = z.union([
     filePath: z.string().optional(),
     policy: z.enum(['auto', 'simple', 'none']).optional(),
     scopeGrouping: z.boolean().optional(),
+    includePaths: z
+      .array(
+        z
+          .string()
+          .refine(
+            name =>
+              name
+                .split('/')
+                .every(
+                  segment =>
+                    /^[A-Za-z0-9_.-]+$/.test(segment) &&
+                    segment !== '.' &&
+                    segment !== '..' &&
+                    segment !== '__proto__' &&
+                    !segment.startsWith('-'),
+                ),
+            {
+              message: 'Changelog paths must use safe relative ASCII segments.',
+            },
+          ),
+      )
+      .optional(),
   }),
 ]);
 

@@ -136,6 +136,24 @@ describe('generateChangesetFromGit', () => {
     }
   }
 
+  it('keeps cached changelogs separate for each selected workspace', async () => {
+    try {
+      config.setActiveWorkspace('packages/cli');
+      setup([{ hash: 'abcdef1234567890', title: 'fix: CLI', body: '' }], null);
+      const cli = await generateChangesetFromGit(dummyGit, '1.0.0');
+
+      config.setActiveWorkspace('packages/mcp');
+      setup([{ hash: 'bcdef1234567890a', title: 'fix: MCP', body: '' }], null);
+      const mcp = await generateChangesetFromGit(dummyGit, '1.0.0');
+
+      expect(cli.changelog).toContain('CLI');
+      expect(mcp.changelog).toContain('MCP');
+      expect(mockGetChangesSince).toHaveBeenCalledTimes(2);
+    } finally {
+      config.setActiveWorkspace(undefined);
+    }
+  });
+
   // ============================================================================
   // Basic output formatting tests - use snapshots
   // ============================================================================

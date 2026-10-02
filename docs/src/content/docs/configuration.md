@@ -396,6 +396,31 @@ Example output with scope grouping:
 - General improvement by @dave in [#4](https://github.com/...)
 ```
 
+### Workspace-aware changelogs
+
+When you select a Craft release workspace, automatic changelogs include commits
+that change files in that workspace and commits that change shared files outside
+all workspaces. Commits confined to another workspace are excluded. Craft detects
+package ownership from pnpm, npm, or Yarn workspaces as well as the release
+workspaces in `.craft.yml`. Commits spanning workspaces appear in each affected
+workspace's changelog. This also scopes automatic version detection; single-unit
+repositories keep their existing behavior.
+
+If a release includes files from another workspace, add its directory to
+`includePaths` on that release unit. Paths are relative to the repository root,
+match whole directory names, and cannot escape the repository:
+
+```yaml
+workspaces:
+  packages/cli:
+    changelog:
+      policy: auto
+      includePaths:
+        - apps/cli-docs
+```
+
+Most workspaces need no `includePaths` setting.
+
 ### Title Stripping (Default Behavior)
 
 By default, conventional commit prefixes are stripped from changelog entries.
@@ -455,12 +480,13 @@ changelog:
 
 ### Configuration Options
 
-| Option                    | Description                                             |
-| ------------------------- | ------------------------------------------------------- |
-| `changelog`               | Path to changelog file (string) OR configuration object |
-| `changelog.filePath`      | Path to changelog file. Default: `CHANGELOG.md`         |
-| `changelog.policy`        | Mode: `none`, `simple`, or `auto`. Default: `none`      |
-| `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true`            |
+| Option                    | Description                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------- |
+| `changelog`               | Path to changelog file (string) OR configuration object                      |
+| `changelog.filePath`      | Path to changelog file. Default: `CHANGELOG.md`                              |
+| `changelog.policy`        | Mode: `none`, `simple`, or `auto`. Default: `none`                           |
+| `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true`                                 |
+| `changelog.includePaths`  | Extra workspace directories to include in automatic changelogs. Default: `[]` |
 
 ## Versioning
 
