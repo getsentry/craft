@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.33.0
+
+### Bug Fixes 🐛
+
+- (changelog) Default workspace changelog to its directory by @BYK in [#888](https://github.com/getsentry/craft/pull/888)
+
 ## 2.32.0
 
 ### New Features ✨
