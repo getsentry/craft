@@ -672,6 +672,48 @@ targets: []
     expect(combinedOutput).toContain('release/1.1.0');
   }, 60000);
 
+  test('prepares a workspace changelog without changing the root changelog', async () => {
+    tempDir = await createTestRepo();
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const git = simpleGit(tempDir);
+    await mkdir(join(tempDir, 'packages', 'cli'), { recursive: true });
+    await writeFile(
+      join(tempDir, '.craft.yml'),
+      `minVersion: "2.29.0"
+github:
+  owner: test-owner
+  repo: test-repo
+preReleaseCommand: ""
+workspaces:
+  packages/cli:
+    changelog:
+      policy: auto
+    versioning:
+      policy: auto
+    targets: []
+`,
+    );
+    await writeFile(
+      join(tempDir, 'packages', 'cli', 'CHANGELOG.md'),
+      '# CLI changelog\n\n## 1.0.0\n\n- Initial release\n',
+    );
+    await git.add('.');
+    await git.commit('chore: Configure CLI workspace');
+    await git.push('origin', (await git.status()).current!);
+
+    const { stdout, stderr } = await execFileAsync(
+      CLI_BIN,
+      ['prepare', '--workspace=packages/cli', '--dry-run', '--no-input'],
+      { cwd: tempDir, env: { ...CLI_ENV, GITHUB_TOKEN: '' } },
+    );
+
+    expect(stdout + stderr).toContain('packages/cli/CHANGELOG.md');
+    expect(stdout + stderr).not.toContain('diff --git a/CHANGELOG.md');
+    expect(await readFile(join(tempDir, 'CHANGELOG.md'), 'utf8')).toContain(
+      '## 1.0.0',
+    );
+  }, 60000);
+
   test('auto changelog policy creates CHANGELOG.md if it does not exist', async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'craft-e2e-'));
     // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access

@@ -906,6 +906,33 @@ export interface NormalizedChangelogConfig {
 
 const DEFAULT_CHANGELOG_FILE_PATH = 'CHANGELOG.md';
 
+function getDefaultChangelogFilePath(): string {
+  const workspace = getActiveWorkspace();
+  if (!workspace) {
+    return DEFAULT_CHANGELOG_FILE_PATH;
+  }
+
+  if (!isSafeWorkspacePath(workspace)) {
+    throw new ConfigurationError(`Invalid workspace path: "${workspace}"`);
+  }
+
+  const root = getConfigFileDir() || process.cwd();
+  const directory = path.resolve(root, workspace);
+  if (!existsSync(directory) || !lstatSync(directory).isDirectory()) {
+    return DEFAULT_CHANGELOG_FILE_PATH;
+  }
+
+  const realRoot = realpathSync(root);
+  const realDirectory = realpathSync(directory);
+  if (!realDirectory.startsWith(`${realRoot}${path.sep}`)) {
+    throw new ConfigurationError(
+      `Workspace directory escapes the repository: "${workspace}"`,
+    );
+  }
+
+  return path.posix.join(workspace, DEFAULT_CHANGELOG_FILE_PATH);
+}
+
 /**
  * Returns the normalized changelog configuration from .craft.yml
  *
@@ -916,7 +943,7 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
   const config = getConfiguration();
 
   // Default values
-  let filePath = DEFAULT_CHANGELOG_FILE_PATH;
+  let filePath: string | undefined;
   let policy = ChangelogPolicy.None;
   let scopeGrouping = true;
   let includePaths: string[] = [];
@@ -952,7 +979,7 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
   }
 
   return {
-    filePath,
+    filePath: filePath ?? getDefaultChangelogFilePath(),
     policy,
     scopeGrouping,
     includePaths,

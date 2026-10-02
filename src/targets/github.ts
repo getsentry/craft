@@ -2,18 +2,14 @@ import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
 import { createReadStream, promises, statSync } from 'fs';
 import { basename } from 'path';
 
-import { getConfiguration } from '../config';
+import { getChangelogConfig } from '../config';
 import {
   ChangelogPolicy,
   GitHubGlobalConfig,
   TargetConfig,
   TypedTargetConfig,
 } from '../schemas/project_config';
-import {
-  Changeset,
-  DEFAULT_CHANGELOG_PATH,
-  findChangeset,
-} from '../utils/changelog';
+import { Changeset, findChangeset } from '../utils/changelog';
 import { getGitHubClient } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
 import { safeExec } from '../utils/dryRun';
@@ -110,11 +106,7 @@ export class GitHubTarget extends BaseTarget {
     const typedConfig = this.config as TypedTargetConfig<GitHubConfigFields>;
     const owner = typedConfig.owner || githubRepo.owner;
     const repo = typedConfig.repo || githubRepo.repo;
-    const configChangelog = getConfiguration().changelog;
-    const changelog =
-      typeof configChangelog === 'string'
-        ? configChangelog
-        : configChangelog?.filePath || DEFAULT_CHANGELOG_PATH;
+    const changelog = getChangelogConfig().filePath;
 
     this.githubConfig = {
       owner,
@@ -719,9 +711,8 @@ export class GitHubTarget extends BaseTarget {
       return;
     }
 
-    const config = getConfiguration();
     let changelog;
-    if (config.changelogPolicy !== ChangelogPolicy.None) {
+    if (getChangelogConfig().policy !== ChangelogPolicy.None) {
       changelog = await this.getChangelog(version);
     }
 
