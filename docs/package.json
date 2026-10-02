@@ -16,7 +16,7 @@
   "pnpm": {
     "overrides": {
       "h3": "^1.15.6",
-      "devalue": "^5.8.1",
+      "devalue": "^5.9.3",
       "rollup": "^4.59.0",
       "svgo": "^4.0.2",
       "postcss": "^8.5.18",
