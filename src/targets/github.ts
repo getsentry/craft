@@ -2,7 +2,7 @@ import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
 import { createReadStream, promises, statSync } from 'fs';
 import { basename } from 'path';
 
-import { getChangelogConfig } from '../config';
+import { getChangelogConfig, getConfiguration } from '../config';
 import {
   ChangelogPolicy,
   GitHubGlobalConfig,
@@ -712,7 +712,7 @@ export class GitHubTarget extends BaseTarget {
     }
 
     let changelog;
-    if (getChangelogConfig().policy !== ChangelogPolicy.None) {
+    if (getConfiguration().changelogPolicy !== ChangelogPolicy.None) {
       changelog = await this.getChangelog(version);
     }
 

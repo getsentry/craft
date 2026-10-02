@@ -6,6 +6,7 @@ import {
 } from '../github';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { setGlobals } from '../../utils/helpers';
+import { loadConfigurationFromString, setActiveWorkspace } from '../../config';
 
 describe('isLatestRelease', () => {
   it('works with missing latest release', () => {
@@ -90,6 +91,7 @@ describe('GitHubTarget', () => {
 
   afterEach(() => {
     process.env = cleanEnv;
+    setActiveWorkspace(undefined);
   });
 
   describe('publish', () => {
@@ -114,6 +116,17 @@ describe('GitHubTarget', () => {
       githubTarget.github.repos.getLatestRelease = vi.fn().mockRejectedValue({
         status: 404,
       }) as any;
+    });
+
+    it('includes release notes when only a changelog path is configured', async () => {
+      loadConfigurationFromString('changelog: CHANGELOG.md\n');
+      const getChangelog = vi
+        .spyOn(githubTarget, 'getChangelog')
+        .mockResolvedValue({ name: '1.0.0', body: 'Release notes' });
+
+      await githubTarget.publish('1.0.0', 'abc123');
+
+      expect(getChangelog).toHaveBeenCalledWith('1.0.0');
     });
 
     it('cleans up draft release when publishRelease fails', async () => {
