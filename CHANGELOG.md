@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.32.0
+
+### New Features ✨
+
+- (changelog) Scope commits to selected workspace by @BYK in [#887](https://github.com/getsentry/craft/pull/887)
+
+### Bug Fixes 🐛
+
+- (changelog) Include commits without a previous tag by @BYK in [#886](https://github.com/getsentry/craft/pull/886)
+- (prepare) Detect pending remote release branches by @BYK in [#883](https://github.com/getsentry/craft/pull/883)
+- (publish) Clean up release branches for revisions by @BYK in [#884](https://github.com/getsentry/craft/pull/884)
+
 ## 2.31.2
 
 ### Bug Fixes 🐛
