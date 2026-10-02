@@ -483,7 +483,7 @@ changelog:
 | Option                    | Description                                                                  |
 | ------------------------- | ---------------------------------------------------------------------------- |
 | `changelog`               | Path to changelog file (string) OR configuration object                      |
-| `changelog.filePath`      | Path to changelog file. Default: `CHANGELOG.md`                              |
+| `changelog.filePath`      | Path to changelog file. Defaults to `<workspace>/CHANGELOG.md` for a directory workspace, otherwise `CHANGELOG.md`. Explicit paths take precedence. |
 | `changelog.policy`        | Mode: `none`, `simple`, or `auto`. Default: `none`                           |
 | `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true`                                 |
 | `changelog.includePaths`  | Extra workspace directories to include in automatic changelogs. Default: `[]` |

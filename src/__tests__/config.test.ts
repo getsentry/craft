@@ -10,6 +10,7 @@ import { join } from 'path';
 
 import {
   getGitTagPrefix,
+  getChangelogConfig,
   loadConfigurationFromString,
   validateConfiguration,
   setActiveWorkspace,
@@ -21,6 +22,8 @@ import {
 } from '../config';
 import { CraftProjectConfigSchema } from '../schemas/project_config';
 import { logger } from '../logger';
+import { GitHubTarget } from '../targets/github';
+import { NoneArtifactProvider } from '../artifact_providers/none';
 
 describe('validateConfiguration', () => {
   test('parses minimal configuration', () => {
@@ -316,6 +319,7 @@ describe('workspaces', () => {
       rmSync(directory, { recursive: true, force: true });
     }
     setActiveWorkspace(undefined);
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -360,6 +364,97 @@ describe('workspaces', () => {
     expect(config.changelog).toBe('CHANGELOG.md');
     // `workspaces` is stripped from the resolved config.
     expect(config.workspaces).toBeUndefined();
+  });
+
+  test('defaults a directory workspace changelog to its own file', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspace-changelog-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    writeFileSync(join(directory, 'CHANGELOG.md'), '# Root changelog\n');
+    writeFileSync(
+      join(directory, 'packages', 'cli', 'CHANGELOG.md'),
+      '# CLI changelog\n',
+    );
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  packages/cli:',
+        '    changelog:',
+        '      policy: auto',
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    setActiveWorkspace('packages/cli');
+    expect(getChangelogConfig().filePath).toBe('packages/cli/CHANGELOG.md');
+    vi.stubEnv('GITHUB_TOKEN', 'test-token');
+    const target = new GitHubTarget(
+      { name: 'github' },
+      new NoneArtifactProvider(),
+      { owner: 'test-owner', repo: 'test-repo' },
+    );
+    expect(target.githubConfig.changelog).toBe('packages/cli/CHANGELOG.md');
+  });
+
+  test('uses a workspace changelog path before the file is created', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspace-changelog-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      `minVersion: ${WORKSPACES_MIN_VERSION}\nworkspaces:\n  packages/cli: {}\n`,
+    );
+    process.chdir(directory);
+
+    setActiveWorkspace('packages/cli');
+    expect(getChangelogConfig().filePath).toBe('packages/cli/CHANGELOG.md');
+  });
+
+  test('preserves an explicitly configured root changelog for a workspace', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspace-changelog-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      `minVersion: ${WORKSPACES_MIN_VERSION}\nchangelog: CHANGELOG.md\nworkspaces:\n  packages/cli: {}\n`,
+    );
+    process.chdir(directory);
+
+    setActiveWorkspace('packages/cli');
+    expect(getChangelogConfig().filePath).toBe('CHANGELOG.md');
+  });
+
+  test('keeps the root changelog default for a workspace alias', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspace-changelog-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      `minVersion: ${WORKSPACES_MIN_VERSION}\nworkspaces:\n  cli: {}\n`,
+    );
+    process.chdir(directory);
+
+    setActiveWorkspace('cli');
+    expect(getChangelogConfig().filePath).toBe('CHANGELOG.md');
+  });
+
+  test('rejects a workspace directory redirected outside the repository', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspace-changelog-'));
+    const outside = mkdtempSync(join(tmpdir(), 'craft-workspace-outside-'));
+    temporaryDirectories.push(directory, outside);
+    mkdirSync(join(outside, 'cli'));
+    symlinkSync(outside, join(directory, 'packages'), 'dir');
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      `minVersion: ${WORKSPACES_MIN_VERSION}\nworkspaces:\n  packages/cli: {}\n`,
+    );
+    process.chdir(directory);
+
+    setActiveWorkspace('packages/cli');
+    expect(() => getChangelogConfig()).toThrow(
+      'Workspace directory escapes the repository',
+    );
   });
 
   test('a different workspace resolves independently', () => {

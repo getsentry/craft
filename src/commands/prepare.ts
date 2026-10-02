@@ -9,6 +9,7 @@ import { createDryRunIsolation, safeFs } from '../utils/dryRun';
 import {
   CONFIG_FILE_NAME,
   DEFAULT_RELEASE_BRANCH_NAME,
+  getChangelogConfig,
   getConfigFileDir,
   getConfiguration,
   getGitTagPrefix,
@@ -909,18 +910,9 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     // The order matters here, do not move this command above createReleaseBranch!
     const oldVersion = await getLatestTag(git, getGitTagPrefix());
 
-    // Check & update the changelog
-    // Extract changelog path from config (can be string or object)
-    const changelogPath =
-      typeof config.changelog === 'string'
-        ? config.changelog
-        : config.changelog?.filePath;
-    // Get policy from new format or legacy changelogPolicy
-    const changelogPolicy = (
-      typeof config.changelog === 'object' && config.changelog?.policy
-        ? config.changelog.policy
-        : config.changelogPolicy
-    ) as ChangelogPolicy | undefined;
+    // Check & update the changelog with the selected workspace's default path.
+    const { filePath: changelogPath, policy: changelogPolicy } =
+      getChangelogConfig();
     const changelogBody = await prepareChangelog(
       git,
       oldVersion,
@@ -932,10 +924,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     // Explicitly stage the changelog file so it is committed even when no
     // pre-release command runs.  git-add on an unmodified file is a no-op.
     if (changelogBody) {
-      const resolvedChangelogPath = relative(
-        '',
-        changelogPath || DEFAULT_CHANGELOG_PATH,
-      );
+      const resolvedChangelogPath = relative('', changelogPath);
       await git.add(resolvedChangelogPath);
     }
 
@@ -984,7 +973,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       // Build a GitHub permalink to the changelog entry on the release
       // branch, including line numbers so GitHub renders it inline when
       // pasted into an issue body.
-      const resolvedChangelogPath = changelogPath || DEFAULT_CHANGELOG_PATH;
+      const resolvedChangelogPath = changelogPath;
       const lineRange = await getChangelogLineRange(
         git,
         resolvedChangelogPath,
