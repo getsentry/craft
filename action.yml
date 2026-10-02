@@ -41,7 +41,8 @@ inputs:
   craft_version:
     description: >
       Version of Craft to install (tag or "latest").
-      Defaults to the action ref (e.g., "v2") if not specified.
+      Defaults to the action ref; major refs such as "v2" select the
+      corresponding version from the action's package.json.
     required: false
     default: ''
 
@@ -130,6 +131,7 @@ runs:
       env:
         CRAFT_VERSION_INPUT: ${{ inputs.craft_version }}
         ACTION_REF: ${{ github.action_ref }}
+        ACTION_PATH: ${{ github.action_path }}
       run: |
         set -euo pipefail
 
@@ -138,13 +140,9 @@ runs:
           sudo install -m 755 /tmp/craft-artifact/dist/craft /usr/local/bin/craft
         else
           # Download from release (for external repos or if artifact unavailable)
-          # Use explicit craft_version input if provided, otherwise fall back to ACTION_REF
-          CRAFT_VERSION="$CRAFT_VERSION_INPUT"
-          if [[ -z "$CRAFT_VERSION" ]]; then
-            CRAFT_VERSION="$ACTION_REF"
-          fi
+          CRAFT_VERSION="$(bash "$ACTION_PATH/.github/scripts/resolve-craft-version.sh" "$CRAFT_VERSION_INPUT" "$ACTION_REF" "$ACTION_PATH")"
 
-          if [[ "$CRAFT_VERSION" == "latest" || -z "$CRAFT_VERSION" ]]; then
+          if [[ "$CRAFT_VERSION" == "latest" ]]; then
             echo "Downloading latest Craft release..."
             CRAFT_URL=$(curl -fsSL "https://api.github.com/repos/getsentry/craft/releases/latest" \
               | jq -r '.assets[] | select(.name == "craft") | .browser_download_url')
@@ -152,11 +150,9 @@ runs:
             CRAFT_URL="https://github.com/getsentry/craft/releases/download/${CRAFT_VERSION}/craft"
             echo "Downloading Craft ${CRAFT_VERSION} from: ${CRAFT_URL}"
 
-            # Fallback to latest if specified version doesn't have a release
             if ! curl -sfI "$CRAFT_URL" >/dev/null 2>&1; then
-              echo "Release not found for version '${CRAFT_VERSION}', falling back to latest..."
-              CRAFT_URL=$(curl -fsSL "https://api.github.com/repos/getsentry/craft/releases/latest" \
-                | jq -r '.assets[] | select(.name == "craft") | .browser_download_url')
+              echo "::error::Craft release '${CRAFT_VERSION}' has no downloadable binary."
+              exit 1
             fi
           fi
 
