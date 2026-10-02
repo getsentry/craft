@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.33.1
+
+### Bug Fixes 🐛
+
+- (action) Resolve major tag to matching binary by @BYK in [#889](https://github.com/getsentry/craft/pull/889)
+- (deps) Update vulnerable transitive packages by @BYK in [#890](https://github.com/getsentry/craft/pull/890)
+
 ## 2.33.0
 
 ### Bug Fixes 🐛
