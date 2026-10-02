@@ -900,6 +900,8 @@ export interface NormalizedChangelogConfig {
   policy: ChangelogPolicy;
   /** Whether to group entries by conventional commit scope */
   scopeGrouping: boolean;
+  /** Additional workspace paths to include in automatic changelogs */
+  includePaths: string[];
 }
 
 const DEFAULT_CHANGELOG_FILE_PATH = 'CHANGELOG.md';
@@ -917,6 +919,7 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
   let filePath = DEFAULT_CHANGELOG_FILE_PATH;
   let policy = ChangelogPolicy.None;
   let scopeGrouping = true;
+  let includePaths: string[] = [];
 
   // Handle legacy changelogPolicy (deprecated)
   if (config.changelogPolicy !== undefined) {
@@ -942,6 +945,9 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
       if (config.changelog.scopeGrouping !== undefined) {
         scopeGrouping = config.changelog.scopeGrouping;
       }
+      if (config.changelog.includePaths !== undefined) {
+        includePaths = config.changelog.includePaths;
+      }
     }
   }
 
@@ -949,6 +955,7 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
     filePath,
     policy,
     scopeGrouping,
+    includePaths,
   };
 }
 

@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -12,6 +12,7 @@ import {
 } from '../git';
 import * as loggerModule from '../../logger';
 import type { StatusResult } from 'simple-git';
+import { setActiveWorkspace } from '../../config';
 
 describe('getLatestTag', () => {
   it('returns latest tag in the repo by calling `git describe`', async () => {
@@ -126,6 +127,135 @@ describe('getChangesSince', () => {
         (await getChangesSince(client, 'cli@0.1.0')).map(({ title }) => title),
       ).toEqual(['Second change']);
     } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('includes shared and selected workspace changes, with optional related paths', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'craft-changelog-workspaces-'));
+    const previousDirectory = process.cwd();
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-C', dir, ...args], {
+        env: {
+          ...process.env,
+          GIT_CONFIG_GLOBAL: '/dev/null',
+          GIT_CONFIG_NOSYSTEM: '1',
+        },
+      });
+    const commit = (
+      file: string,
+      title: string,
+      additionalFiles: string[] = [],
+    ) => {
+      writeFileSync(join(dir, file), title);
+      git('add', '--', file, ...additionalFiles);
+      git('-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', title);
+    };
+
+    try {
+      git('init', '--quiet');
+      git('config', 'user.name', 'Craft Test');
+      git('config', 'user.email', 'craft-test@example.com');
+      for (const workspace of [
+        'packages/cli',
+        'packages/mcp',
+        'apps/cli-docs',
+        'apps/cli-docs-extra',
+      ]) {
+        mkdirSync(join(dir, workspace), { recursive: true });
+        writeFileSync(
+          join(dir, workspace, 'package.json'),
+          JSON.stringify({ name: workspace }),
+        );
+      }
+      mkdirSync(join(dir, 'docs'));
+      writeFileSync(
+        join(dir, '.craft.yml'),
+        'minVersion: 2.29.0\nworkspaces:\n  packages/cli:\n    changelog:\n      policy: auto\n  packages/mcp: {}\n',
+      );
+      writeFileSync(
+        join(dir, 'pnpm-workspace.yaml'),
+        'packages:\n  - packages/*\n  - apps/*\n',
+      );
+      git('add', '.');
+      git('-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'initial');
+      git('tag', 'cli@0.1.0');
+      commit('packages/cli/cli.ts', 'cli change');
+      commit('packages/mcp/mcp.ts', 'mcp change');
+      commit('apps/cli-docs/site.ts', 'cli docs change');
+      commit('apps/cli-docs-extra/site.ts', 'other docs change');
+      commit('docs/readme.md', 'unowned docs change');
+      commit('root.txt', 'root change');
+      writeFileSync(join(dir, 'packages/cli/cli.ts'), 'shared change');
+      commit('packages/mcp/mcp.ts', 'both change', ['packages/cli/cli.ts']);
+
+      process.chdir(dir);
+      setActiveWorkspace('packages/cli');
+      const client = createGitClient(dir);
+      const titles = async () =>
+        (await getChangesSince(client, 'cli@0.1.0')).map(({ title }) => title);
+
+      expect(await titles()).toEqual([
+        'both change',
+        'root change',
+        'unowned docs change',
+        'cli change',
+      ]);
+      expect(
+        (await getChangesSince(client, '', 'cli@0.1.0')).map(
+          ({ title }) => title,
+        ),
+      ).toEqual(['initial']);
+
+      setActiveWorkspace('packages/mcp');
+      expect(await titles()).toEqual([
+        'both change',
+        'root change',
+        'unowned docs change',
+        'mcp change',
+      ]);
+      setActiveWorkspace('packages/cli');
+
+      writeFileSync(
+        join(dir, '.craft.yml'),
+        'minVersion: 2.29.0\nworkspaces:\n  packages/cli:\n    changelog:\n      policy: auto\n      includePaths:\n        - apps/cli-docs\n  packages/mcp: {}\n',
+      );
+      setActiveWorkspace('packages/cli');
+      expect(await titles()).toEqual([
+        'both change',
+        'root change',
+        'unowned docs change',
+        'cli docs change',
+        'cli change',
+      ]);
+
+      git('mv', 'packages/cli/cli.ts', 'packages/mcp/moved.ts');
+      git(
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '--quiet',
+        '-m',
+        'moved across workspaces',
+      );
+      commit('packages/cli/line\nbreak.ts', 'newline filename');
+      expect(await titles()).toEqual([
+        'newline filename',
+        'moved across workspaces',
+        'both change',
+        'root change',
+        'unowned docs change',
+        'cli docs change',
+        'cli change',
+      ]);
+      setActiveWorkspace('packages/mcp');
+      expect((await titles()).slice(0, 2)).toEqual([
+        'moved across workspaces',
+        'both change',
+      ]);
+    } finally {
+      setActiveWorkspace(undefined);
+      process.chdir(previousDirectory);
       rmSync(dir, { recursive: true, force: true });
     }
   });

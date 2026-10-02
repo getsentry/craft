@@ -44,6 +44,7 @@ describe('validateConfiguration', () => {
         filePath: 'CHANGELOG.md',
         policy: 'auto',
         scopeGrouping: true,
+        includePaths: ['apps/cli-docs'],
       },
     };
 
@@ -87,6 +88,19 @@ describe('validateConfiguration', () => {
   test('fails with invalid changelog policy', () => {
     expect(() =>
       validateConfiguration({ changelog: { policy: 'invalid' } }),
+    ).toThrow(/changelog/);
+  });
+
+  test.each([
+    '../outside',
+    '/absolute',
+    'apps//docs',
+    'apps/../docs',
+    '-option',
+    'apps\\docs',
+  ])('rejects unsafe changelog include path %s', includePath => {
+    expect(() =>
+      validateConfiguration({ changelog: { includePaths: [includePath] } }),
     ).toThrow(/changelog/);
   });
 });
