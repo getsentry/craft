@@ -20,7 +20,7 @@ import { randomBytes } from 'crypto';
 import { existsSync, symlinkSync, lstatSync } from 'fs';
 import { rm } from 'fs/promises';
 
-import simpleGit, { type SimpleGit } from 'simple-git';
+import { simpleGit, type SimpleGit } from 'simple-git';
 import type { Octokit } from '@octokit/rest';
 
 import { logger } from '../logger';

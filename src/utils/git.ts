@@ -1,4 +1,5 @@
-import simpleGit, {
+import {
+  simpleGit,
   type SimpleGit,
   type LogOptions,
   type Options,
@@ -315,7 +316,7 @@ export async function findReleaseBranches(
 
   try {
     await git.fetch();
-  } catch (_err) {
+  } catch {
     logger.debug('Failed to fetch from remote, using locally cached refs');
   }
 
@@ -323,7 +324,7 @@ export async function findReleaseBranches(
   try {
     const output = await git.raw('branch', '-r');
     allBranches = parseGitBranchOutput(output);
-  } catch (_err) {
+  } catch {
     logger.debug('Failed to list remote branches');
     return { exactMatches: [], fuzzyMatches: [] };
   }

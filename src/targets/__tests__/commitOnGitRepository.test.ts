@@ -22,7 +22,7 @@ const mockCommit = vi.fn();
 const mockAddTag = vi.fn();
 
 vi.mock('simple-git', () => ({
-  default: () => ({
+  simpleGit: () => ({
     clone: mockClone,
     checkout: mockCheckout,
     raw: mockRaw,

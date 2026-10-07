@@ -498,7 +498,7 @@ export async function handleReleaseBranch(
     // Pull --rebase failure can leave the repo in an active rebase state
     try {
       await git.raw(['rebase', '--abort']);
-    } catch (_abortError) {
+    } catch {
       logger.trace('git rebase --abort failed (may be no rebase in progress)');
     }
     throw pullError;
@@ -515,7 +515,7 @@ export async function handleReleaseBranch(
     );
     try {
       await git.merge(['--abort']);
-    } catch (_abortError) {
+    } catch {
       // merge --abort can fail if no merge in progress (e.g. pull failed)
       logger.trace('git merge --abort failed (may be no merge in progress)');
     }
@@ -531,19 +531,19 @@ export async function handleReleaseBranch(
       try {
         const status = await git.status();
         conflictedFiles = status.conflicted;
-      } catch (_statusError) {
+      } catch {
         logger.trace('git status failed while collecting conflict info');
       }
       if (conflictedFiles.length > 0) {
         try {
           conflictDiff = await git.diff(conflictedFiles);
-        } catch (_diffError) {
+        } catch {
           logger.trace('git diff failed while collecting conflict diff');
         }
       }
       try {
         await git.merge(['--abort']);
-      } catch (_abortError) {
+      } catch {
         logger.trace('git merge --abort failed after resolve strategy');
       }
       throw new MergeConflictError(

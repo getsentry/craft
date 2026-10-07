@@ -13,7 +13,7 @@ import { resolve, join } from 'path';
 import { mkdtemp, rm, writeFile, readFile, mkdir, chmod } from 'fs/promises';
 import { existsSync } from 'fs';
 import { tmpdir } from 'os';
-import simpleGit from 'simple-git';
+import { simpleGit } from 'simple-git';
 
 const execFileAsync = promisify(execFile);
 
