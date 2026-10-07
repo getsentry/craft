@@ -87,63 +87,75 @@ fi
 
 function mockReleaseApi(
   environment: ReturnType<typeof createActionEnvironment>,
-  pages: unknown[],
+  release: unknown = {
+    tag_name: '2.33.1',
+    draft: false,
+    assets: [{ name: 'craft', state: 'uploaded' }],
+  },
+  options: { tagSha?: string; commitSha?: string; version?: string } = {},
 ) {
   const calls = join(environment.directory, 'release-api-calls');
+  const sha = '7fe142107c12ea31eaaba10e4985674490bf808b';
+  const version = options.version ?? '2.33.1';
   writeFileSync(calls, '');
-  const tags = pages.flatMap(page =>
-    Array.isArray(page)
-      ? page
-          .filter(release => typeof release.tag_name === 'string')
-          .map(release => ({
-            name: release.tag_name,
-            commit: {
-              sha: release.target_commitish,
-            },
-          }))
-      : [],
+  writeFileSync(
+    join(environment.directory, 'package.json'),
+    JSON.stringify({ version }),
   );
-  const tagPages = tags.length
-    ? tags
-    : [
-        {
-          name: '2.33.1',
-          commit: { sha: '7fe142107c12ea31eaaba10e4985674490bf808b' },
-        },
-      ];
-  Array.from({ length: Math.ceil(tagPages.length / 100) }, (_, index) =>
-    tagPages.slice(index * 100, (index + 1) * 100),
-  ).forEach((page, index) =>
-    writeFileSync(
-      join(environment.directory, `tags-page-${index + 1}`),
-      JSON.stringify(page),
-    ),
+  writeFileSync(
+    join(environment.directory, 'commit-response'),
+    JSON.stringify({ sha: options.commitSha ?? sha }),
   );
-  pages.forEach((page, index) =>
-    writeFileSync(
-      join(environment.directory, `releases-page-${index + 1}`),
-      JSON.stringify(page),
-    ),
+  writeFileSync(
+    join(environment.directory, 'tag-response'),
+    JSON.stringify({
+      ref: `refs/tags/${version}`,
+      object: { type: 'commit', sha: options.tagSha ?? sha },
+    }),
+  );
+  writeFileSync(
+    join(environment.directory, 'release-response'),
+    JSON.stringify(release),
   );
   writeFileSync(
     join(environment.binDirectory, 'gh'),
     `#!/usr/bin/env bash
 printf '%s\n' "$2" >> "$GH_API_CALLS"
-page="\${2##*page=}"
-if [[ "$2" == *'/tags?'* ]]; then
-  resource=tags
-else
-  resource=releases
-fi
-if [[ -f "$GH_RELEASES_DIRECTORY/$resource-page-$page" ]]; then
-  cat "$GH_RELEASES_DIRECTORY/$resource-page-$page"
-else
-  printf '[]'
-fi
+case "$2" in
+  repos/getsentry/craft/commits/*) cat "$GH_RELEASES_DIRECTORY/commit-response" ;;
+  repos/getsentry/craft/git/ref/tags/*) cat "$GH_RELEASES_DIRECTORY/tag-response" ;;
+  repos/getsentry/craft/releases/tags/*) cat "$GH_RELEASES_DIRECTORY/release-response" ;;
+  *) exit 1 ;;
+esac
 `,
   );
   chmodSync(join(environment.binDirectory, 'gh'), 0o755);
   return calls;
+}
+
+function resolveActionRef(
+  environment: ReturnType<typeof createActionEnvironment>,
+  calls: string,
+  actionRef = '7fe142107c12ea31eaaba10e4985674490bf808b',
+) {
+  return spawnSync(
+    'bash',
+    [
+      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
+      '',
+      actionRef,
+      environment.directory,
+    ],
+    {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GH_API_CALLS: calls,
+        GH_RELEASES_DIRECTORY: environment.directory,
+        PATH: `${environment.binDirectory}:${process.env.PATH}`,
+      },
+    },
+  );
 }
 
 function runRequestPublish(
@@ -244,87 +256,26 @@ test('resolves a moving major action tag to its matching release', () => {
 
 test('resolves a SHA-pinned action to its matching release', () => {
   const environment = createActionEnvironment();
-  const calls = mockReleaseApi(environment, [
-    [
-      {
-        tag_name: '2.33.1',
-        target_commitish: '7fe142107c12ea31eaaba10e4985674490bf808b',
-        draft: false,
-        assets: [{ name: 'craft', state: 'uploaded' }],
-      },
-    ],
-  ]);
-
-  const result = spawnSync(
-    'bash',
-    [
-      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
-      '',
-      '7fe142107c12ea31eaaba10e4985674490bf808b',
-      environment.directory,
-    ],
-    {
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        GH_API_CALLS: calls,
-        GH_RELEASES_DIRECTORY: environment.directory,
-        PATH: `${environment.binDirectory}:${process.env.PATH}`,
-      },
-    },
-  );
+  const calls = mockReleaseApi(environment);
+  const result = resolveActionRef(environment, calls);
 
   expect(result.status).toBe(0);
   expect(result.stdout.trim()).toBe('2.33.1');
   expect(readFileSync(calls, 'utf8')).toBe(
-    'repos/getsentry/craft/tags?per_page=100&page=1\n' +
-      'repos/getsentry/craft/releases?per_page=100&page=1\n',
+    'repos/getsentry/craft/git/ref/tags/2.33.1\n' +
+      'repos/getsentry/craft/releases/tags/2.33.1\n',
   );
 });
 
 test('resolves a published tag even when release target_commitish is a branch', () => {
   const environment = createActionEnvironment();
-  const calls = mockReleaseApi(environment, [
-    [
-      {
-        tag_name: '2.33.1',
-        target_commitish: 'master',
-        draft: false,
-        assets: [{ name: 'craft', state: 'uploaded' }],
-      },
-    ],
-  ]);
-  writeFileSync(
-    join(environment.directory, 'tags-page-1'),
-    JSON.stringify([
-      {
-        name: 'v2',
-        commit: { sha: '7fe142107c12ea31eaaba10e4985674490bf808b' },
-      },
-      {
-        name: '2.33.1',
-        commit: { sha: '7fe142107c12ea31eaaba10e4985674490bf808b' },
-      },
-    ]),
-  );
-  const result = spawnSync(
-    'bash',
-    [
-      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
-      '',
-      '7fe142107c12ea31eaaba10e4985674490bf808b',
-      environment.directory,
-    ],
-    {
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        GH_API_CALLS: calls,
-        GH_RELEASES_DIRECTORY: environment.directory,
-        PATH: `${environment.binDirectory}:${process.env.PATH}`,
-      },
-    },
-  );
+  const calls = mockReleaseApi(environment, {
+    tag_name: '2.33.1',
+    target_commitish: 'master',
+    draft: false,
+    assets: [{ name: 'craft', state: 'uploaded' }],
+  });
+  const result = resolveActionRef(environment, calls);
 
   expect(result.status).toBe(0);
   expect(result.stdout.trim()).toBe('2.33.1');
@@ -332,125 +283,88 @@ test('resolves a published tag even when release target_commitish is a branch', 
 
 test('refuses a SHA with no published release even if package.json has a version', () => {
   const environment = createActionEnvironment();
-  const calls = mockReleaseApi(environment, [[]]);
-  writeFileSync(
-    join(environment.directory, 'package.json'),
-    JSON.stringify({ version: '2.33.1' }),
-  );
-
-  const result = spawnSync(
-    'bash',
-    [
-      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
-      '',
-      '7fe142107c12ea31eaaba10e4985674490bf808b',
-      environment.directory,
-    ],
-    {
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        GH_API_CALLS: calls,
-        GH_RELEASES_DIRECTORY: environment.directory,
-        PATH: `${environment.binDirectory}:${process.env.PATH}`,
-      },
-    },
-  );
+  const calls = mockReleaseApi(environment, { message: 'Not Found' });
+  const result = resolveActionRef(environment, calls);
 
   expect(result.status).not.toBe(0);
   expect(result.stdout).toBe('');
   expect(result.stderr).toContain('No published Craft release');
 });
 
-test('finds a published release on a later API page', () => {
+test('resolves a short action SHA to the full commit before checking the release', () => {
   const environment = createActionEnvironment();
-  const calls = mockReleaseApi(environment, [
-    Array.from({ length: 100 }, () => ({
-      tag_name: 'unrelated',
-      target_commitish: 'other',
-      draft: false,
-      assets: [{ name: 'craft', state: 'uploaded' }],
-    })),
-    [
-      {
-        tag_name: '2.33.1',
-        target_commitish: '7fe142107c12ea31eaaba10e4985674490bf808b',
-        draft: false,
-        assets: [{ name: 'craft', state: 'uploaded' }],
-      },
-    ],
-  ]);
-  const result = spawnSync(
-    'bash',
-    [
-      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
-      '',
-      '7fe142107c12ea31eaaba10e4985674490bf808b',
-      environment.directory,
-    ],
-    {
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        GH_API_CALLS: calls,
-        GH_RELEASES_DIRECTORY: environment.directory,
-        PATH: `${environment.binDirectory}:${process.env.PATH}`,
-      },
-    },
-  );
+  const calls = mockReleaseApi(environment);
+  const result = resolveActionRef(environment, calls, '7fe1421');
 
   expect(result.status).toBe(0);
   expect(result.stdout.trim()).toBe('2.33.1');
-  expect(readFileSync(calls, 'utf8')).toContain(
-    'repos/getsentry/craft/tags?per_page=100&page=2\n',
+  expect(readFileSync(calls, 'utf8')).toBe(
+    'repos/getsentry/craft/commits/7fe1421\n' +
+      'repos/getsentry/craft/git/ref/tags/2.33.1\n' +
+      'repos/getsentry/craft/releases/tags/2.33.1\n',
   );
-  expect(readFileSync(calls, 'utf8')).toContain('page=2\n');
+});
+
+test('rejects a short action ref that does not resolve to its SHA prefix', () => {
+  const environment = createActionEnvironment();
+  const calls = mockReleaseApi(environment, undefined, {
+    commitSha: '8c1d36f152366f100b3178cffefd777ce59b3c0e',
+  });
+  const result = resolveActionRef(environment, calls, '7fe1421');
+
+  expect(result.status).not.toBe(0);
+  expect(result.stdout).toBe('');
+  expect(result.stderr).toContain('not an unambiguous Craft commit SHA');
+  expect(readFileSync(calls, 'utf8')).toBe(
+    'repos/getsentry/craft/commits/7fe1421\n',
+  );
+});
+
+test('accepts a longer future commit SHA when its tag and release match', () => {
+  const environment = createActionEnvironment();
+  const sha = 'a'.repeat(64);
+  const calls = mockReleaseApi(environment, undefined, { tagSha: sha });
+  const result = resolveActionRef(environment, calls, sha);
+
+  expect(result.status).toBe(0);
+  expect(result.stdout.trim()).toBe('2.33.1');
+  expect(readFileSync(calls, 'utf8')).not.toContain('/commits/');
 });
 
 test('does not trust release target_commitish when its tag points elsewhere', () => {
   const environment = createActionEnvironment();
-  const calls = mockReleaseApi(environment, [
-    [
-      {
-        tag_name: '2.33.1',
-        target_commitish: '7fe142107c12ea31eaaba10e4985674490bf808b',
-        draft: false,
-        assets: [{ name: 'craft', state: 'uploaded' }],
-      },
-    ],
-  ]);
-  writeFileSync(
-    join(environment.directory, 'tags-page-1'),
-    JSON.stringify([
-      {
-        name: '2.33.1',
-        commit: { sha: '8c1d36f152366f100b3178cffefd777ce59b3c0e' },
-      },
-    ]),
-  );
-  const result = spawnSync(
-    'bash',
-    [
-      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
-      '',
-      '7fe142107c12ea31eaaba10e4985674490bf808b',
-      environment.directory,
-    ],
+  const calls = mockReleaseApi(
+    environment,
     {
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        GH_API_CALLS: calls,
-        GH_RELEASES_DIRECTORY: environment.directory,
-        PATH: `${environment.binDirectory}:${process.env.PATH}`,
-      },
+      tag_name: '2.33.1',
+      target_commitish: '7fe142107c12ea31eaaba10e4985674490bf808b',
+      draft: false,
+      assets: [{ name: 'craft', state: 'uploaded' }],
     },
+    { tagSha: '8c1d36f152366f100b3178cffefd777ce59b3c0e' },
   );
+  const result = resolveActionRef(environment, calls);
 
   expect(result.status).not.toBe(0);
   expect(result.stdout).toBe('');
-  expect(result.stderr).toContain('No published Craft release');
-  expect(readFileSync(calls, 'utf8')).not.toContain('/releases?');
+  expect(result.stderr).toContain('does not point to action SHA');
+  expect(readFileSync(calls, 'utf8')).not.toContain('/releases/tags/');
+});
+
+test('does not accept an unpublished package version as a release', () => {
+  const environment = createActionEnvironment();
+  const calls = mockReleaseApi(environment, undefined, {
+    version: '2.34.0-dev.0',
+  });
+  writeFileSync(
+    join(environment.directory, 'tag-response'),
+    JSON.stringify({ message: 'Not Found' }),
+  );
+  const result = resolveActionRef(environment, calls);
+
+  expect(result.status).not.toBe(0);
+  expect(result.stdout).toBe('');
+  expect(readFileSync(calls, 'utf8')).not.toContain('/releases/tags/');
 });
 
 test.each([
@@ -459,33 +373,11 @@ test.each([
   { draft: false, assets: [{ name: 'craft', state: 'open' }] },
 ])('refuses a matching SHA without a published binary: %j', release => {
   const environment = createActionEnvironment();
-  const calls = mockReleaseApi(environment, [
-    [
-      {
-        tag_name: '2.33.1',
-        target_commitish: '7fe142107c12ea31eaaba10e4985674490bf808b',
-        ...release,
-      },
-    ],
-  ]);
-  const result = spawnSync(
-    'bash',
-    [
-      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
-      '',
-      '7fe142107c12ea31eaaba10e4985674490bf808b',
-      environment.directory,
-    ],
-    {
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        GH_API_CALLS: calls,
-        GH_RELEASES_DIRECTORY: environment.directory,
-        PATH: `${environment.binDirectory}:${process.env.PATH}`,
-      },
-    },
-  );
+  const calls = mockReleaseApi(environment, {
+    tag_name: '2.33.1',
+    ...release,
+  });
+  const result = resolveActionRef(environment, calls);
 
   expect(result.status).not.toBe(0);
   expect(result.stdout).toBe('');
@@ -494,56 +386,31 @@ test.each([
 
 test('refuses an invalid release API response', () => {
   const environment = createActionEnvironment();
-  const calls = mockReleaseApi(environment, [{ message: 'rate limited' }]);
-  const result = spawnSync(
-    'bash',
-    [
-      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
-      '',
-      '7fe142107c12ea31eaaba10e4985674490bf808b',
-      environment.directory,
-    ],
-    {
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        GH_API_CALLS: calls,
-        GH_RELEASES_DIRECTORY: environment.directory,
-        PATH: `${environment.binDirectory}:${process.env.PATH}`,
-      },
-    },
-  );
+  const calls = mockReleaseApi(environment, { message: 'rate limited' });
+  const result = resolveActionRef(environment, calls);
 
   expect(result.status).not.toBe(0);
   expect(result.stdout).toBe('');
-  expect(result.stderr).toContain('Invalid Craft releases response');
+  expect(result.stderr).toContain('No published Craft release');
 });
 
 test('refuses to resolve a SHA when the release API fails', () => {
   const environment = createActionEnvironment();
+  const calls = mockReleaseApi(environment);
+  const ghPath = join(environment.binDirectory, 'gh');
   writeFileSync(
-    join(environment.binDirectory, 'gh'),
-    '#!/usr/bin/env bash\nexit 1\n',
+    ghPath,
+    readFileSync(ghPath, 'utf8').replace(
+      'repos/getsentry/craft/releases/tags/*) cat "$GH_RELEASES_DIRECTORY/release-response" ;;',
+      'repos/getsentry/craft/releases/tags/*) exit 1 ;;',
+    ),
   );
-  const result = spawnSync(
-    'bash',
-    [
-      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
-      '',
-      '7fe142107c12ea31eaaba10e4985674490bf808b',
-      environment.directory,
-    ],
-    {
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        PATH: `${environment.binDirectory}:${process.env.PATH}`,
-      },
-    },
-  );
+  const result = resolveActionRef(environment, calls);
 
   expect(result.status).not.toBe(0);
   expect(result.stdout).toBe('');
+  expect(result.stderr).toContain('Could not verify published Craft release');
+  expect(readFileSync(calls, 'utf8')).toContain('/releases/tags/2.33.1');
 });
 
 test('honors an explicit Craft version for a SHA-pinned action', () => {
@@ -618,20 +485,15 @@ test.each(['v2', '7fe142107c12ea31eaaba10e4985674490bf808b'])(
         join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
       ),
     );
-    writeFileSync(
-      join(environment.directory, 'package.json'),
-      JSON.stringify({ version: '2.33.0' }),
+    const ghApiCalls = mockReleaseApi(
+      environment,
+      {
+        tag_name: '2.33.0',
+        draft: false,
+        assets: [{ name: 'craft', state: 'uploaded' }],
+      },
+      { version: '2.33.0' },
     );
-    const ghApiCalls = mockReleaseApi(environment, [
-      [
-        {
-          tag_name: '2.33.0',
-          target_commitish: actionRef,
-          draft: false,
-          assets: [{ name: 'craft', state: 'uploaded' }],
-        },
-      ],
-    ]);
     writeFileSync(curlCalls, '');
     writeFileSync(
       join(environment.binDirectory, 'curl'),
@@ -677,7 +539,7 @@ test.each(['v2', '7fe142107c12ea31eaaba10e4985674490bf808b'])(
 
 test('does not attempt a download for a SHA without a published Craft release', () => {
   const environment = createActionEnvironment();
-  const ghApiCalls = mockReleaseApi(environment, [[]]);
+  const ghApiCalls = mockReleaseApi(environment, { message: 'Not Found' });
   const curlCalls = join(environment.directory, 'curl-calls');
   const scriptsDirectory = join(environment.directory, '.github/scripts');
   mkdirSync(scriptsDirectory, { recursive: true });
