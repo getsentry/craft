@@ -10,11 +10,25 @@ version="$1"
 if [[ -z "$version" ]]; then
   version="$2"
   if [[ "$version" =~ ^[0-9a-f]{40}$ ]]; then
-    version="$(jq -er '.version | select(type == "string")' "$3/package.json")"
-    if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-      echo "The SHA-pinned action does not declare a stable Craft version" >&2
-      exit 1
-    fi
+    page=1
+    while :; do
+      releases="$(gh api "repos/getsentry/craft/releases?per_page=100&page=$page")"
+      if ! jq -e 'type == "array"' <<< "$releases" >/dev/null; then
+        echo "Invalid Craft releases response" >&2
+        exit 1
+      fi
+
+      tag="$(jq -r --arg sha "$version" '[.[] | select(.target_commitish == $sha and .draft == false and any(.assets[]?; .name == "craft" and .state == "uploaded")) | .tag_name] | first // empty' <<< "$releases")"
+      if [[ -n "$tag" ]]; then
+        version="$tag"
+        break
+      fi
+      if [[ "$(jq 'length' <<< "$releases")" -lt 100 ]]; then
+        echo "No published Craft release with a downloadable binary matches action SHA $version" >&2
+        exit 1
+      fi
+      page=$((page + 1))
+    done
   fi
 fi
 

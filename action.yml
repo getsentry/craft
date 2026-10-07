@@ -41,8 +41,8 @@ inputs:
   craft_version:
     description: >
       Version of Craft to install (tag or "latest").
-      Defaults to the action ref; major refs such as "v2" and SHA-pinned
-      refs select the corresponding version from the action's package.json.
+      Defaults to the action ref; major refs such as "v2" use the action's
+      package.json, while SHA refs select the matching published release.
     required: false
     default: ''
 
