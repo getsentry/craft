@@ -10,6 +10,26 @@ version="$1"
 if [[ -z "$version" ]]; then
   version="$2"
   if [[ "$version" =~ ^[0-9a-f]{40}$ ]]; then
+    matching_tags='[]'
+    page=1
+    while :; do
+      tags="$(gh api "repos/getsentry/craft/tags?per_page=100&page=$page")"
+      if ! jq -e 'type == "array"' <<< "$tags" >/dev/null; then
+        echo "Invalid Craft tags response" >&2
+        exit 1
+      fi
+      page_tags="$(jq -c --arg sha "$version" '[.[] | select(.commit.sha == $sha and (.name | test("^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"))) | .name]' <<< "$tags")"
+      matching_tags="$(jq -nc --argjson previous "$matching_tags" --argjson current "$page_tags" '$previous + $current')"
+      if [[ "$(jq 'length' <<< "$tags")" -lt 100 ]]; then
+        break
+      fi
+      page=$((page + 1))
+    done
+    if [[ "$matching_tags" == '[]' ]]; then
+      echo "No published Craft release with a downloadable binary matches action SHA $version" >&2
+      exit 1
+    fi
+
     page=1
     while :; do
       releases="$(gh api "repos/getsentry/craft/releases?per_page=100&page=$page")"
@@ -18,7 +38,7 @@ if [[ -z "$version" ]]; then
         exit 1
       fi
 
-      tag="$(jq -r --arg sha "$version" '[.[] | select(.target_commitish == $sha and .draft == false and any(.assets[]?; .name == "craft" and .state == "uploaded")) | .tag_name] | first // empty' <<< "$releases")"
+      tag="$(jq -r --argjson tags "$matching_tags" '[.[] | select(.draft == false and any(.assets[]?; .name == "craft" and .state == "uploaded") and (.tag_name as $name | $tags | index($name) != null)) | .tag_name] | first // empty' <<< "$releases")"
       if [[ -n "$tag" ]]; then
         version="$tag"
         break
