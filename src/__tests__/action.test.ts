@@ -220,6 +220,26 @@ afterEach(() => {
   }
 });
 
+test('provides the Git actor name to Craft dogfooding releases', () => {
+  const workflow = load(
+    readFileSync(
+      join(__dirname, '../../.github/workflows/release.yml'),
+      'utf8',
+    ),
+  ) as {
+    jobs?: {
+      release?: {
+        steps?: Array<{ name?: string; with?: Record<string, string> }>;
+      };
+    };
+  };
+  const prepareRelease = workflow.jobs?.release?.steps?.find(
+    step => step.name === 'Prepare release (dogfooding)',
+  );
+
+  expect(prepareRelease?.with?.git_user_name).toBe('${{ github.actor }}');
+});
+
 test('forwards workspace input to every Craft command', () => {
   expect(getActionStep('Validate workspace').env?.PATH_INPUT).toBe(
     '${{ inputs.path }}',

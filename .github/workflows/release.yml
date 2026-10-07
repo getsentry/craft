@@ -130,6 +130,7 @@ jobs:
           version: ${{ github.event.inputs.version }}
           force: ${{ github.event.inputs.force }}
           workspace: ${{ github.event.inputs.workspace }}
+          git_user_name: ${{ github.actor }}
 
       # For external repos: use published action
       - name: Prepare release
