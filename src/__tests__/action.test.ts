@@ -181,6 +181,84 @@ test('resolves a moving major action tag to its matching release', () => {
   expect(result.stdout.trim()).toBe('2.33.0');
 });
 
+test('resolves a SHA-pinned action to its matching release', () => {
+  const environment = createActionEnvironment();
+  writeFileSync(
+    join(environment.directory, 'package.json'),
+    JSON.stringify({ version: '2.33.1' }),
+  );
+
+  const result = spawnSync(
+    'bash',
+    [
+      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
+      '',
+      '7fe142107c12ea31eaaba10e4985674490bf808b',
+      environment.directory,
+    ],
+    { encoding: 'utf8' },
+  );
+
+  expect(result.status).toBe(0);
+  expect(result.stdout.trim()).toBe('2.33.1');
+});
+
+test('refuses a SHA-pinned action with an unpublished development version', () => {
+  const environment = createActionEnvironment();
+  writeFileSync(
+    join(environment.directory, 'package.json'),
+    JSON.stringify({ version: '2.34.0-dev.0' }),
+  );
+
+  const result = spawnSync(
+    'bash',
+    [
+      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
+      '',
+      '7fe142107c12ea31eaaba10e4985674490bf808b',
+      environment.directory,
+    ],
+    { encoding: 'utf8' },
+  );
+
+  expect(result.status).not.toBe(0);
+  expect(result.stdout).toBe('');
+});
+
+test('honors an explicit Craft version for a SHA-pinned action', () => {
+  const environment = createActionEnvironment();
+  const result = spawnSync(
+    'bash',
+    [
+      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
+      '2.33.0',
+      '7fe142107c12ea31eaaba10e4985674490bf808b',
+      environment.directory,
+    ],
+    { encoding: 'utf8' },
+  );
+
+  expect(result.status).toBe(0);
+  expect(result.stdout.trim()).toBe('2.33.0');
+});
+
+test('keeps ordinary release refs without reading package.json', () => {
+  const environment = createActionEnvironment();
+  const result = spawnSync(
+    'bash',
+    [
+      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
+      '',
+      '2.33.1',
+      environment.directory,
+    ],
+    { encoding: 'utf8' },
+  );
+
+  expect(result.status).toBe(0);
+  expect(result.stdout.trim()).toBe('2.33.1');
+});
+
 test.each(['3.0.0', '2.34.0-dev.0', 'not-a-version'])(
   'refuses a v2 action tag pointing at %s instead of using latest',
   version => {
@@ -206,56 +284,63 @@ test.each(['3.0.0', '2.34.0-dev.0', 'not-a-version'])(
   },
 );
 
-test('does not install the latest release when a major-tagged binary is missing', () => {
-  const environment = createActionEnvironment();
-  const curlCalls = join(environment.directory, 'curl-calls');
-  const scriptsDirectory = join(environment.directory, '.github/scripts');
-  mkdirSync(scriptsDirectory, { recursive: true });
-  writeFileSync(
-    join(scriptsDirectory, 'resolve-craft-version.sh'),
-    readFileSync(
-      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
-    ),
-  );
-  writeFileSync(
-    join(environment.directory, 'package.json'),
-    JSON.stringify({ version: '2.33.0' }),
-  );
-  writeFileSync(curlCalls, '');
-  writeFileSync(
-    join(environment.binDirectory, 'curl'),
-    '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$CURL_CALLS"\nexit 22\n',
-  );
-  writeFileSync(
-    join(environment.binDirectory, 'sudo'),
-    '#!/usr/bin/env bash\nexit 99\n',
-  );
-  chmodSync(join(environment.binDirectory, 'curl'), 0o755);
-  chmodSync(join(environment.binDirectory, 'sudo'), 0o755);
+test.each(['v2', '7fe142107c12ea31eaaba10e4985674490bf808b'])(
+  'does not install the latest release when the binary for %s is missing',
+  actionRef => {
+    const environment = createActionEnvironment();
+    const curlCalls = join(environment.directory, 'curl-calls');
+    const scriptsDirectory = join(environment.directory, '.github/scripts');
+    mkdirSync(scriptsDirectory, { recursive: true });
+    writeFileSync(
+      join(scriptsDirectory, 'resolve-craft-version.sh'),
+      readFileSync(
+        join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
+      ),
+    );
+    writeFileSync(
+      join(environment.directory, 'package.json'),
+      JSON.stringify({ version: '2.33.0' }),
+    );
+    writeFileSync(curlCalls, '');
+    writeFileSync(
+      join(environment.binDirectory, 'curl'),
+      '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$CURL_CALLS"\nexit 22\n',
+    );
+    writeFileSync(
+      join(environment.binDirectory, 'sudo'),
+      '#!/usr/bin/env bash\nexit 99\n',
+    );
+    chmodSync(join(environment.binDirectory, 'curl'), 0o755);
+    chmodSync(join(environment.binDirectory, 'sudo'), 0o755);
 
-  const result = spawnSync(
-    'bash',
-    ['-e', '-c', getActionStep('Install Craft from artifact or release').run!],
-    {
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        ACTION_PATH: environment.directory,
-        ACTION_REF: 'v2',
-        CRAFT_VERSION_INPUT: '',
-        CURL_CALLS: curlCalls,
-        PATH: `${environment.binDirectory}:${process.env.PATH}`,
+    const result = spawnSync(
+      'bash',
+      [
+        '-e',
+        '-c',
+        getActionStep('Install Craft from artifact or release').run!,
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          ACTION_PATH: environment.directory,
+          ACTION_REF: actionRef,
+          CRAFT_VERSION_INPUT: '',
+          CURL_CALLS: curlCalls,
+          PATH: `${environment.binDirectory}:${process.env.PATH}`,
+        },
       },
-    },
-  );
+    );
 
-  expect(result.status).toBe(1);
-  expect(result.stdout).toContain("Craft release '2.33.0'");
-  expect(readFileSync(curlCalls, 'utf8')).toContain(
-    '/releases/download/2.33.0/craft',
-  );
-  expect(readFileSync(curlCalls, 'utf8')).not.toContain('/releases/latest');
-});
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("Craft release '2.33.0'");
+    expect(readFileSync(curlCalls, 'utf8')).toContain(
+      '/releases/download/2.33.0/craft',
+    );
+    expect(readFileSync(curlCalls, 'utf8')).not.toContain('/releases/latest');
+  },
+);
 
 test.each([
   ['control', 'cli\tnext'],
