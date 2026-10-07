@@ -304,7 +304,17 @@ describe('cloneRepository', () => {
     const simpleGitMock = simpleGit as MockedFunction<typeof simpleGit>;
     const simpleGitMockRv = simpleGitMock.mock.results[0].value;
 
-    expect(simpleGitMock).toHaveBeenCalledWith(TMP_DIR);
+    expect(simpleGitMock).toHaveBeenCalledWith(
+      TMP_DIR,
+      expect.objectContaining({
+        allowEnvironment: expect.arrayContaining([
+          'GIT_AUTHOR_NAME',
+          'GIT_AUTHOR_EMAIL',
+          'GIT_COMMITTER_NAME',
+          'GIT_COMMITTER_EMAIL',
+        ]),
+      }),
+    );
     expect(simpleGitMockRv.clone).toHaveBeenCalledWith(
       `https://github.com/${target.githubRepo.owner}/${target.githubRepo.repo}.git`,
       TMP_DIR,

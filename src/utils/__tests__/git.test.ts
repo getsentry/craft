@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   createGitClient,
+  getGitClient,
   getChangesSince,
   getLatestTag,
   isRepoDirty,
@@ -73,6 +74,56 @@ describe('getLatestTag', () => {
 
     const latestTag = await getLatestTag(git, 'mcp@');
     expect(latestTag).toBe('');
+  });
+});
+
+describe('getGitClient', () => {
+  it('preserves Git identity environment variables for commits', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'craft-git-identity-'));
+    const previousDirectory = process.cwd();
+    const identity = {
+      GIT_AUTHOR_NAME: 'Craft Author',
+      GIT_AUTHOR_EMAIL: 'author@example.com',
+      GIT_COMMITTER_NAME: 'Craft Committer',
+      GIT_COMMITTER_EMAIL: 'committer@example.com',
+    };
+    const previousEnvironment = Object.fromEntries(
+      Object.keys(identity).map(key => [key, process.env[key]]),
+    );
+
+    try {
+      Object.assign(process.env, identity);
+      const setupGit = createGitClient(dir);
+      await setupGit.init();
+      writeFileSync(join(dir, '.craft.yml'), 'minVersion: "2.0.0"\n');
+      process.chdir(dir);
+      const git = await getGitClient();
+      await git.addConfig('user.useConfigOnly', 'true');
+      await git.addConfig('user.name', '');
+      await git.addConfig('user.email', '');
+      await git.addConfig('commit.gpgsign', 'false');
+      writeFileSync(join(dir, 'identity.txt'), 'identity\n');
+      await git.add('identity.txt');
+      await git.commit('commit using environment identity');
+
+      const identityResult = await git.show([
+        '-s',
+        '--format=%an <%ae>|%cn <%ce>',
+      ]);
+      expect(identityResult.trim()).toBe(
+        'Craft Author <author@example.com>|Craft Committer <committer@example.com>',
+      );
+    } finally {
+      process.chdir(previousDirectory);
+      for (const [key, value] of Object.entries(previousEnvironment)) {
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

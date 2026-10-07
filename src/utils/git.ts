@@ -14,6 +14,7 @@ import {
 } from '../config';
 import { ConfigurationError } from './errors';
 import { createDryRunGit } from './dryRun';
+import { GIT_IDENTITY_ENV } from './gitIdentityEnv';
 import { logger } from '../logger';
 import { distance as levenshtein } from 'fastest-levenshtein';
 import path from 'node:path';
@@ -210,7 +211,9 @@ export async function getGitClient(): Promise<SimpleGit> {
   logger.debug('Working directory:', process.cwd());
 
   // eslint-disable-next-line no-restricted-syntax -- This is the git wrapper module
-  const git = simpleGit(configFileDir);
+  const git = simpleGit(configFileDir, {
+    allowEnvironment: GIT_IDENTITY_ENV,
+  });
   const isRepo = await git.checkIsRepo();
   if (!isRepo) {
     throw new ConfigurationError('Not in a git repository!');
@@ -229,8 +232,10 @@ export async function getGitClient(): Promise<SimpleGit> {
  * @returns A SimpleGit instance wrapped with dry-run support
  */
 export function createGitClient(directory: string): SimpleGit {
-  // eslint-disable-next-line no-restricted-syntax -- This is the git wrapper module
-  return createDryRunGit(simpleGit(directory));
+  return createDryRunGit(
+    // eslint-disable-next-line no-restricted-syntax -- This is the git wrapper module
+    simpleGit(directory, { allowEnvironment: GIT_IDENTITY_ENV }),
+  );
 }
 
 /**
