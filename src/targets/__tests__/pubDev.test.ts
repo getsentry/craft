@@ -1,7 +1,7 @@
 import { vi, type MockedFunction } from 'vitest';
 import { promises as fsPromises } from 'fs';
 import { platform } from 'os';
-import simpleGit from 'simple-git';
+import { simpleGit } from 'simple-git';
 import { PubDevTarget, targetSecrets } from '../pubDev';
 import { spawnProcess } from '../../utils/system';
 import { isDryRun } from '../../utils/helpers';
@@ -42,8 +42,7 @@ vi.mock('fs', async importOriginal => {
 });
 
 vi.mock('simple-git', () => ({
-  __esModule: true, // this property makes default export work
-  default: vi.fn(() => ({
+  simpleGit: vi.fn(() => ({
     clone: vi.fn(async (): Promise<void> => Promise.resolve()),
     checkout: vi.fn(async (): Promise<void> => Promise.resolve()),
   })),
