@@ -25,6 +25,7 @@ import type { Octokit } from '@octokit/rest';
 
 import { logger } from '../logger';
 import { isDryRun } from './helpers';
+import { GIT_IDENTITY_ENV } from './gitIdentityEnv';
 
 // ============================================================================
 // Worktree Mode Context (Internal State)
@@ -258,8 +259,10 @@ export async function createDryRunIsolation(
   symlinkDependencyDirs(originalCwd, worktreePath);
 
   // Create git client for worktree
-  // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
-  const worktreeGit = createDryRunGit(simpleGit(worktreePath));
+  const worktreeGit = createDryRunGit(
+    // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
+    simpleGit(worktreePath, { allowEnvironment: GIT_IDENTITY_ENV }),
+  );
 
   // Enable worktree mode so local operations are allowed
   enableWorktreeMode();
