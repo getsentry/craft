@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.33.2
+
+### Bug Fixes 🐛
+
+- (action) Resolve SHA refs to matching Craft releases by @BYK in [#891](https://github.com/getsentry/craft/pull/891)
+
 ## 2.33.1
 
 ### Bug Fixes 🐛
