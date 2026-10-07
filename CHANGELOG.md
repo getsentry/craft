@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.33.3
+
+### Bug Fixes 🐛
+
+- (deps) Remediate open security alerts by @BYK in [#894](https://github.com/getsentry/craft/pull/894)
+- Allow Git identity environment for commits by @BYK in [#896](https://github.com/getsentry/craft/pull/896)
+- Pass Git actor name to release workflow by @BYK in [#895](https://github.com/getsentry/craft/pull/895)
+
 ## 2.33.2
 
 ### Bug Fixes 🐛
