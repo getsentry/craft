@@ -107,6 +107,21 @@ jobs:
 
 The action accepts the same inputs and produces the same outputs as the reusable workflow.
 
+### Test a Craft nightly
+
+Every successful push build on Craft’s `master` branch publishes its binary to `ghcr.io/getsentry/craft` as an OCI artifact. The `nightly` tag advances when the current master build finishes publishing; `nightly-<full commit SHA>` keeps each build available after master advances. These artifact tags are separate from the package’s Docker image tags.
+
+Pin the action to a master commit to test that exact build. When the action’s `package.json` declares a development version, the action automatically downloads `nightly-<action commit SHA>`:
+
+```yaml
+- uses: getsentry/craft@<full-master-commit-sha>
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+
+To use the newest successful master build with another action ref, set `craft_version: nightly`. You can also set `craft_version: nightly-<full commit SHA>` to select a specific build. The reusable Release workflow forwards its `craft_version` input to the action too. Nightlies are available only after the `Publish Craft nightly to GHCR` job succeeds. Missing or invalid artifacts stop the action; it never substitutes a different build or the latest stable release. Published action releases continue to select their matching stable Craft release by default.
+
 ### Auto-versioning Example
 
 When using auto-versioning, Craft analyzes conventional commits to determine the version bump. This works with both the workflow and the action:
