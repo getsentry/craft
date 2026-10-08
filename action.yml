@@ -40,9 +40,11 @@ inputs:
     default: 'false'
   craft_version:
     description: >
-      Version of Craft to install (tag or "latest").
+      Version of Craft to install (release tag, "latest", "nightly", or
+      "nightly-<full commit SHA>").
       Defaults to the action ref; major refs such as "v2" use the action's
-      package.json, while SHA refs select the matching published release.
+      package.json, while SHA refs select the matching published release or
+      their own development nightly.
     required: false
     default: ''
 
@@ -116,11 +118,12 @@ runs:
 
     # === Install Craft ===
     # For dogfooding (getsentry/craft): try build artifact from build job
-    # For all repos (or if artifact unavailable): download from release
+    # For all repos (or if artifact unavailable): download from release or GHCR
 
     - name: Download Craft from build artifact
       id: craft-artifact
-      if: github.repository == 'getsentry/craft'
+      if: github.repository == 'getsentry/craft' && inputs.craft_version == ''
+      continue-on-error: true
       uses: actions/download-artifact@v8
       with:
         name: craft-binary
@@ -135,41 +138,49 @@ runs:
       run: |
         set -euo pipefail
 
-        if [[ -f /tmp/craft-artifact/dist/craft ]]; then
+        if [[ -z "$CRAFT_VERSION_INPUT" && -f /tmp/craft-artifact/dist/craft ]]; then
           echo "Installing Craft from build artifact..."
           sudo install -m 755 /tmp/craft-artifact/dist/craft /usr/local/bin/craft
         else
-          # Download from release (for external repos or if artifact unavailable)
+          # Resolve the exact published release or development build.
           CRAFT_VERSION="$(bash "$ACTION_PATH/.github/scripts/resolve-craft-version.sh" "$CRAFT_VERSION_INPUT" "$ACTION_REF" "$ACTION_PATH")"
 
-          if [[ "$CRAFT_VERSION" == "latest" ]]; then
-            echo "Downloading latest Craft release..."
-            CRAFT_URL=$(curl -fsSL "https://api.github.com/repos/getsentry/craft/releases/latest" \
-              | jq -r '.assets[] | select(.name == "craft") | .browser_download_url')
+          if [[ "$CRAFT_VERSION" == 'nightly' || "$CRAFT_VERSION" == nightly-* ]]; then
+            echo "Downloading Craft ${CRAFT_VERSION} from GHCR..."
+            temporary_dir=$(mktemp -d)
+            trap 'rm -rf "$temporary_dir"' EXIT
+            node "$ACTION_PATH/.github/scripts/download-craft-nightly.mjs" "$CRAFT_VERSION" "$temporary_dir/craft"
+            sudo install -m 755 "$temporary_dir/craft" /usr/local/bin/craft
           else
-            CRAFT_URL="https://github.com/getsentry/craft/releases/download/${CRAFT_VERSION}/craft"
-            echo "Downloading Craft ${CRAFT_VERSION} from: ${CRAFT_URL}"
+            if [[ "$CRAFT_VERSION" == "latest" ]]; then
+              echo "Downloading latest Craft release..."
+              CRAFT_URL=$(curl -fsSL "https://api.github.com/repos/getsentry/craft/releases/latest" \
+                | jq -r '.assets[] | select(.name == "craft") | .browser_download_url')
+            else
+              CRAFT_URL="https://github.com/getsentry/craft/releases/download/${CRAFT_VERSION}/craft"
+              echo "Downloading Craft ${CRAFT_VERSION} from: ${CRAFT_URL}"
 
-            if ! curl -sfI "$CRAFT_URL" >/dev/null 2>&1; then
-              echo "::error::Craft release '${CRAFT_VERSION}' has no downloadable binary."
+              if ! curl -sfI "$CRAFT_URL" >/dev/null 2>&1; then
+                echo "::error::Craft release '${CRAFT_VERSION}' has no downloadable binary."
+                exit 1
+              fi
+            fi
+
+            # Verify we have a valid URL
+            if [[ -z "$CRAFT_URL" ]]; then
+              echo "::error::Failed to determine Craft download URL. The GitHub API may have failed or the release asset is missing."
               exit 1
             fi
-          fi
 
-          # Verify we have a valid URL
-          if [[ -z "$CRAFT_URL" ]]; then
-            echo "::error::Failed to determine Craft download URL. The GitHub API may have failed or the release asset is missing."
-            exit 1
-          fi
+            echo "Installing Craft from: ${CRAFT_URL}"
+            sudo curl -fsSL -o /usr/local/bin/craft "$CRAFT_URL"
+            sudo chmod +x /usr/local/bin/craft
 
-          echo "Installing Craft from: ${CRAFT_URL}"
-          sudo curl -fsSL -o /usr/local/bin/craft "$CRAFT_URL"
-          sudo chmod +x /usr/local/bin/craft
-
-          # Verify the binary was downloaded successfully
-          if [[ ! -s /usr/local/bin/craft ]]; then
-            echo "::error::Downloaded Craft binary is empty or missing"
-            exit 1
+            # Verify the binary was downloaded successfully
+            if [[ ! -s /usr/local/bin/craft ]]; then
+              echo "::error::Downloaded Craft binary is empty or missing"
+              exit 1
+            fi
           fi
         fi
 

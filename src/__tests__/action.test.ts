@@ -15,8 +15,10 @@ import { afterEach, expect, test } from 'vitest';
 
 interface ActionStep {
   env?: Record<string, string>;
+  if?: string;
   name?: string;
   run?: string;
+  'continue-on-error'?: boolean;
 }
 
 function getActionSteps(): ActionStep[] {
@@ -252,6 +254,18 @@ test('forwards workspace input to every Craft command', () => {
   );
 });
 
+test('allows the action to fetch a nightly when no local build artifact exists', () => {
+  const artifact = getActionSteps().find(
+    step => step.name === 'Download Craft from build artifact',
+  );
+
+  expect(artifact?.if).toContain("inputs.craft_version == ''");
+  expect(artifact?.['continue-on-error']).toBe(true);
+  expect(getActionStep('Install Craft from artifact or release').run).toContain(
+    '-z "$CRAFT_VERSION_INPUT" && -f /tmp/craft-artifact/dist/craft',
+  );
+});
+
 test('resolves a moving major action tag to its matching release', () => {
   const environment = createActionEnvironment();
   writeFileSync(
@@ -285,6 +299,76 @@ test('resolves a SHA-pinned action to its matching release', () => {
     'repos/getsentry/craft/git/ref/tags/2.33.1\n' +
       'repos/getsentry/craft/releases/tags/2.33.1\n',
   );
+});
+
+test('pins a development action SHA to its own nightly build', () => {
+  const environment = createActionEnvironment();
+  const calls = mockReleaseApi(environment, undefined, {
+    version: '2.34.0-dev.0',
+  });
+  const result = resolveActionRef(environment, calls);
+
+  expect(result.status).toBe(0);
+  expect(result.stdout.trim()).toBe(
+    'nightly-7fe142107c12ea31eaaba10e4985674490bf808b',
+  );
+  expect(readFileSync(calls, 'utf8')).toBe('');
+});
+
+test('pins a short development action ref to its resolved commit', () => {
+  const environment = createActionEnvironment();
+  const calls = mockReleaseApi(environment, undefined, {
+    version: '2.34.0-dev.0',
+  });
+  const result = resolveActionRef(environment, calls, '7fe1421');
+
+  expect(result.status).toBe(0);
+  expect(result.stdout.trim()).toBe(
+    'nightly-7fe142107c12ea31eaaba10e4985674490bf808b',
+  );
+  expect(readFileSync(calls, 'utf8')).toBe(
+    'repos/getsentry/craft/commits/7fe1421\n',
+  );
+});
+
+test.each([
+  ['nightly', 'nightly'],
+  [
+    'nightly-7fe142107c12ea31eaaba10e4985674490bf808b',
+    'nightly-7fe142107c12ea31eaaba10e4985674490bf808b',
+  ],
+])('resolves explicit Craft nightly input %s', (input, expected) => {
+  const environment = createActionEnvironment();
+  const result = spawnSync(
+    'bash',
+    [
+      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
+      input,
+      'v2',
+      environment.directory,
+    ],
+    { encoding: 'utf8' },
+  );
+
+  expect(result.status).toBe(0);
+  expect(result.stdout.trim()).toBe(expected);
+});
+
+test('refuses a truncated immutable nightly tag', () => {
+  const environment = createActionEnvironment();
+  const result = spawnSync(
+    'bash',
+    [
+      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
+      'nightly-7fe1421',
+      'v2',
+      environment.directory,
+    ],
+    { encoding: 'utf8' },
+  );
+
+  expect(result.status).not.toBe(0);
+  expect(result.stdout).toBe('');
 });
 
 test('resolves a published tag even when release target_commitish is a branch', () => {
@@ -374,7 +458,7 @@ test('does not trust release target_commitish when its tag points elsewhere', ()
 test('does not accept an unpublished package version as a release', () => {
   const environment = createActionEnvironment();
   const calls = mockReleaseApi(environment, undefined, {
-    version: '2.34.0-dev.0',
+    version: '2.34.0-dev.1',
   });
   writeFileSync(
     join(environment.directory, 'tag-response'),
@@ -597,6 +681,129 @@ test('does not attempt a download for a SHA without a published Craft release', 
   expect(result.status).not.toBe(0);
   expect(result.stderr).toContain('No published Craft release');
   expect(readFileSync(curlCalls, 'utf8')).toBe('');
+});
+
+test.each([
+  ['explicit rolling tag', 'nightly', 'v2', 'nightly'],
+  [
+    'pinned development commit',
+    '',
+    '7fe142107c12ea31eaaba10e4985674490bf808b',
+    'nightly-7fe142107c12ea31eaaba10e4985674490bf808b',
+  ],
+])(
+  'installs %s from GHCR without accessing releases',
+  (_name, input, ref, tag) => {
+    const environment = createActionEnvironment();
+    const calls = mockReleaseApi(environment, undefined, {
+      version: '2.34.0-dev.0',
+    });
+    const scriptsDirectory = join(environment.directory, '.github/scripts');
+    mkdirSync(scriptsDirectory, { recursive: true });
+    writeFileSync(
+      join(scriptsDirectory, 'resolve-craft-version.sh'),
+      readFileSync(
+        join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
+      ),
+    );
+    const nightlyCalls = join(environment.directory, 'nightly-calls');
+    const installCalls = join(environment.directory, 'install-calls');
+    writeFileSync(nightlyCalls, '');
+    writeFileSync(installCalls, '');
+    writeFileSync(
+      join(environment.binDirectory, 'node'),
+      '#!/usr/bin/env bash\nprintf "%s\\n" "$2" >> "$NIGHTLY_CALLS"\nprintf "Craft test binary" > "$3"\n',
+    );
+    writeFileSync(
+      join(environment.binDirectory, 'sudo'),
+      '#!/usr/bin/env bash\n[[ "$1" == install && -s "$4" ]] || exit 9\nprintf "%s\\n" "$5" >> "$INSTALL_CALLS"\n',
+    );
+    writeFileSync(
+      join(environment.binDirectory, 'curl'),
+      '#!/usr/bin/env bash\nexit 10\n',
+    );
+    for (const name of ['node', 'sudo', 'curl']) {
+      chmodSync(join(environment.binDirectory, name), 0o755);
+    }
+
+    const result = spawnSync(
+      'bash',
+      [
+        '-e',
+        '-c',
+        getActionStep('Install Craft from artifact or release').run!,
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          ACTION_PATH: environment.directory,
+          ACTION_REF: ref,
+          CRAFT_VERSION_INPUT: input,
+          GH_API_CALLS: calls,
+          GH_RELEASES_DIRECTORY: environment.directory,
+          NIGHTLY_CALLS: nightlyCalls,
+          INSTALL_CALLS: installCalls,
+          PATH: `${environment.binDirectory}:${process.env.PATH}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+    expect(readFileSync(nightlyCalls, 'utf8')).toBe(`${tag}\n`);
+    expect(readFileSync(installCalls, 'utf8')).toBe('/usr/local/bin/craft\n');
+    expect(readFileSync(calls, 'utf8')).toBe('');
+  },
+);
+
+test('fails closed when the pinned development nightly is unavailable', () => {
+  const environment = createActionEnvironment();
+  const calls = mockReleaseApi(environment, undefined, {
+    version: '2.34.0-dev.0',
+  });
+  const scriptsDirectory = join(environment.directory, '.github/scripts');
+  mkdirSync(scriptsDirectory, { recursive: true });
+  writeFileSync(
+    join(scriptsDirectory, 'resolve-craft-version.sh'),
+    readFileSync(
+      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
+    ),
+  );
+  const installCalls = join(environment.directory, 'install-calls');
+  writeFileSync(installCalls, '');
+  writeFileSync(
+    join(environment.binDirectory, 'node'),
+    '#!/usr/bin/env bash\nexit 1\n',
+  );
+  writeFileSync(
+    join(environment.binDirectory, 'sudo'),
+    '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$INSTALL_CALLS"\nexit 1\n',
+  );
+  for (const name of ['node', 'sudo']) {
+    chmodSync(join(environment.binDirectory, name), 0o755);
+  }
+
+  const result = spawnSync(
+    'bash',
+    ['-e', '-c', getActionStep('Install Craft from artifact or release').run!],
+    {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        ACTION_PATH: environment.directory,
+        ACTION_REF: '7fe142107c12ea31eaaba10e4985674490bf808b',
+        CRAFT_VERSION_INPUT: '',
+        GH_API_CALLS: calls,
+        GH_RELEASES_DIRECTORY: environment.directory,
+        INSTALL_CALLS: installCalls,
+        PATH: `${environment.binDirectory}:${process.env.PATH}`,
+      },
+    },
+  );
+
+  expect(result.status).not.toBe(0);
+  expect(readFileSync(installCalls, 'utf8')).toBe('');
+  expect(readFileSync(calls, 'utf8')).toBe('');
 });
 
 test.each([
