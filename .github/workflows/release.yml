@@ -92,11 +92,9 @@ jobs:
   build:
     if: github.repository == 'getsentry/craft'
     name: Build
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/release-build.yml
     permissions:
       contents: read
-      # GitHub validates nested job permissions even when nightly jobs are skipped.
-      packages: write
 
   release:
     needs: [build]
