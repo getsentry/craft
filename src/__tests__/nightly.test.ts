@@ -344,3 +344,33 @@ test('release workflow passes the requested Craft build to both action paths', (
     steps.find(step => step.id === 'craft-action')?.with?.craft_version,
   ).toBe('${{ inputs.craft_version }}');
 });
+
+test('release delegates nightly publication permissions without granting them to its release job', () => {
+  const release = load(
+    readFileSync(
+      join(__dirname, '../../.github/workflows/release.yml'),
+      'utf8',
+    ),
+  ) as {
+    jobs: {
+      build: { if: string; permissions: Record<string, string> };
+      release: { permissions: Record<string, string> };
+    };
+  };
+  const build = load(
+    readFileSync(join(__dirname, '../../.github/workflows/build.yml'), 'utf8'),
+  ) as {
+    jobs: Record<string, { if: string; permissions: Record<string, string> }>;
+  };
+
+  expect(release.jobs.build.if).toBe("github.repository == 'getsentry/craft'");
+  expect(release.jobs.build.permissions).toEqual({
+    contents: 'read',
+    packages: 'write',
+  });
+  expect(release.jobs.release.permissions).toEqual({ contents: 'write' });
+  for (const job of ['publish-nightly', 'advance-nightly']) {
+    expect(build.jobs[job].permissions.packages).toBe('write');
+    expect(build.jobs[job].if).toContain("github.event_name == 'push'");
+  }
+});

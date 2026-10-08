@@ -95,6 +95,8 @@ jobs:
     uses: ./.github/workflows/build.yml
     permissions:
       contents: read
+      # GitHub validates nested job permissions even when nightly jobs are skipped.
+      packages: write
 
   release:
     needs: [build]
