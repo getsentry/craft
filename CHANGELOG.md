@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.34.0
+
+### New Features ✨
+
+- (action) Publish commit-pinned Craft nightlies to GHCR by @BYK in [#897](https://github.com/getsentry/craft/pull/897)
+
+### Bug Fixes 🐛
+
+- Allow release build to validate nightly jobs by @BYK in [#898](https://github.com/getsentry/craft/pull/898)
+
 ## 2.33.3
 
 ### Bug Fixes 🐛
