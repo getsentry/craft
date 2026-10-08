@@ -344,3 +344,54 @@ test('release workflow passes the requested Craft build to both action paths', (
     steps.find(step => step.id === 'craft-action')?.with?.craft_version,
   ).toBe('${{ inputs.craft_version }}');
 });
+
+test('release callers retain read-only build permissions and the same artifacts', () => {
+  const release = load(
+    readFileSync(
+      join(__dirname, '../../.github/workflows/release.yml'),
+      'utf8',
+    ),
+  ) as {
+    jobs: {
+      build: {
+        if: string;
+        uses: string;
+        permissions: Record<string, string>;
+      };
+      release: { permissions: Record<string, string> };
+    };
+  };
+  const build = load(
+    readFileSync(join(__dirname, '../../.github/workflows/build.yml'), 'utf8'),
+  ) as {
+    jobs: Record<string, { if: string; permissions: Record<string, string> }>;
+  };
+  const releaseBuild = load(
+    readFileSync(
+      join(__dirname, '../../.github/workflows/release-build.yml'),
+      'utf8',
+    ),
+  ) as {
+    on: { workflow_call: unknown };
+    jobs: Record<string, { permissions: Record<string, string> }>;
+  };
+
+  expect(release.jobs.build.if).toBe("github.repository == 'getsentry/craft'");
+  expect(release.jobs.build.uses).toBe('./.github/workflows/release-build.yml');
+  expect(release.jobs.build.permissions).toEqual({ contents: 'read' });
+  expect(release.jobs.release.permissions).toEqual({ contents: 'write' });
+  expect(releaseBuild.on.workflow_call).toBeDefined();
+  expect(Object.keys(releaseBuild.jobs).sort()).toEqual([
+    'build',
+    'docs',
+    'test',
+  ]);
+  for (const job of ['test', 'build', 'docs']) {
+    expect(releaseBuild.jobs[job]).toEqual(build.jobs[job]);
+    expect(releaseBuild.jobs[job].permissions).toEqual({ contents: 'read' });
+  }
+  for (const job of ['publish-nightly', 'advance-nightly']) {
+    expect(build.jobs[job].permissions.packages).toBe('write');
+    expect(build.jobs[job].if).toContain("github.event_name == 'push'");
+  }
+});
