@@ -29,22 +29,26 @@ if [[ -z "$version" ]]; then
       exit 1
     fi
 
-    if ! ref="$(gh api "repos/getsentry/craft/git/ref/tags/$version")"; then
-      echo "Could not verify Craft release tag $version" >&2
-      exit 1
-    fi
-    if ! jq -e --arg tag "refs/tags/$version" --arg sha "$sha" '.ref == $tag and .object.type == "commit" and .object.sha == $sha' <<< "$ref" >/dev/null; then
-      echo "Craft release tag $version does not point to action SHA $sha" >&2
-      exit 1
-    fi
+    if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-dev\.0$ ]]; then
+      version="nightly-$sha"
+    else
+      if ! ref="$(gh api "repos/getsentry/craft/git/ref/tags/$version")"; then
+        echo "Could not verify Craft release tag $version" >&2
+        exit 1
+      fi
+      if ! jq -e --arg tag "refs/tags/$version" --arg sha "$sha" '.ref == $tag and .object.type == "commit" and .object.sha == $sha' <<< "$ref" >/dev/null; then
+        echo "Craft release tag $version does not point to action SHA $sha" >&2
+        exit 1
+      fi
 
-    if ! release="$(gh api "repos/getsentry/craft/releases/tags/$version")"; then
-      echo "Could not verify published Craft release $version" >&2
-      exit 1
-    fi
-    if ! jq -e --arg version "$version" '.tag_name == $version and .draft == false and any(.assets[]?; .name == "craft" and .state == "uploaded")' <<< "$release" >/dev/null; then
-      echo "No published Craft release with a downloadable binary matches action SHA $sha" >&2
-      exit 1
+      if ! release="$(gh api "repos/getsentry/craft/releases/tags/$version")"; then
+        echo "Could not verify published Craft release $version" >&2
+        exit 1
+      fi
+      if ! jq -e --arg version "$version" '.tag_name == $version and .draft == false and any(.assets[]?; .name == "craft" and .state == "uploaded")' <<< "$release" >/dev/null; then
+        echo "No published Craft release with a downloadable binary matches action SHA $sha" >&2
+        exit 1
+      fi
     fi
   fi
 fi
@@ -60,6 +64,15 @@ fi
 
 if [[ -z "$version" ]]; then
   version="latest"
+fi
+
+if [[ "$version" == 'master' ]]; then
+  version='nightly'
+fi
+
+if [[ "$version" == nightly-* && ! "$version" =~ ^nightly-([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
+  echo "Invalid Craft nightly tag" >&2
+  exit 1
 fi
 
 if [[ ! "$version" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then

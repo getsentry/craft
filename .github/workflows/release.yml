@@ -15,6 +15,9 @@ on:
       workspace:
         description: Named Craft release workspace to prepare and publish
         required: false
+      craft_version:
+        description: Craft release tag, latest, nightly, or nightly-<full commit SHA>
+        required: false
 
   # For external repos to call this workflow
   workflow_call:
@@ -56,6 +59,10 @@ on:
         default: '.'
       workspace:
         description: Named Craft release workspace to prepare and publish
+        type: string
+        required: false
+      craft_version:
+        description: Craft release tag, latest, nightly, or nightly-<full commit SHA>
         type: string
         required: false
       craft_config_from_merge_target:
@@ -130,6 +137,7 @@ jobs:
           version: ${{ github.event.inputs.version }}
           force: ${{ github.event.inputs.force }}
           workspace: ${{ github.event.inputs.workspace }}
+          craft_version: ${{ github.event.inputs.craft_version }}
           git_user_name: ${{ github.actor }}
 
       # For external repos: use published action
@@ -149,4 +157,5 @@ jobs:
           git_user_email: ${{ inputs.git_user_email }}
           path: ${{ inputs.path }}
           workspace: ${{ inputs.workspace }}
+          craft_version: ${{ inputs.craft_version }}
           craft_config_from_merge_target: ${{ inputs.craft_config_from_merge_target }}

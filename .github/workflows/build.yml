@@ -8,8 +8,9 @@ on:
   workflow_call:
 
 concurrency:
-  group: ${{ github.ref_name || github.sha }}
-  cancel-in-progress: true
+  # Never cancel a master build: every commit needs its own immutable nightly.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref == 'refs/heads/master' && github.sha || (github.ref || github.sha) }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
   test:
@@ -84,6 +85,110 @@ jobs:
           path: |
             ${{ github.workspace }}/*.tgz
             ${{ github.workspace }}/dist/craft
+
+  publish-nightly:
+    name: Publish Craft nightly to GHCR
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository == 'getsentry/craft'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: craft-binary
+          path: artifacts
+      - uses: oras-project/setup-oras@005458ad77f1c8facd38a094e4af2e69e5607ff4 # v2.0.2
+        with:
+          version: 1.3.4
+      - name: Publish the binary and immutable commit tag
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -s artifacts/dist/craft
+          cp artifacts/dist/craft craft
+          token=$(curl -fsS 'https://ghcr.io/token?scope=repository:getsentry/craft:pull' | jq -er '.token')
+          status=$(curl -sS -o "$RUNNER_TEMP/craft-nightly-existing.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $token" \
+            -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+            "https://ghcr.io/v2/getsentry/craft/manifests/nightly-$GITHUB_SHA")
+          if [[ "$status" == 200 ]]; then
+            digest="sha256:$(sha256sum craft | cut -d' ' -f1)"
+            size=$(wc -c < craft)
+            jq -e --arg sha "$GITHUB_SHA" --arg digest "$digest" --argjson size "$size" '
+              .schemaVersion == 2 and
+              .mediaType == "application/vnd.oci.image.manifest.v1+json" and
+              .artifactType == "application/vnd.getsentry.craft.binary.v1" and
+              .annotations["org.opencontainers.image.revision"] == $sha and
+              .annotations["org.opencontainers.image.source"] == "https://github.com/getsentry/craft" and
+              (.layers | length) == 1 and
+              .layers[0].annotations["org.opencontainers.image.title"] == "craft" and
+              .layers[0].mediaType == "application/octet-stream" and
+              .layers[0].digest == $digest and
+              .layers[0].size == $size
+            ' "$RUNNER_TEMP/craft-nightly-existing.json" > /dev/null || {
+              echo 'Existing Craft nightly tag differs from this build; refusing to overwrite it' >&2
+              exit 1
+            }
+          elif [[ "$status" == 404 ]]; then
+            printf '%s' "$GHCR_TOKEN" | oras login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            oras push --image-spec v1.1 \
+              --artifact-type application/vnd.getsentry.craft.binary.v1 \
+              --annotation 'org.opencontainers.image.source=https://github.com/getsentry/craft' \
+              --annotation "org.opencontainers.image.revision=$GITHUB_SHA" \
+              "ghcr.io/getsentry/craft:nightly-$GITHUB_SHA" \
+              craft:application/octet-stream
+          else
+            echo "Craft nightly preflight failed (HTTP $status)" >&2
+            exit 1
+          fi
+      - name: Verify anonymous access to the immutable artifact
+        run: |
+          set -euo pipefail
+          token=$(curl -fsS 'https://ghcr.io/token?scope=repository:getsentry/craft:pull' | jq -er '.token')
+          manifest=$(curl -fsS \
+            -H "Authorization: Bearer $token" \
+            -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+            "https://ghcr.io/v2/getsentry/craft/manifests/nightly-$GITHUB_SHA")
+          jq -e --arg sha "$GITHUB_SHA" '
+            .schemaVersion == 2 and
+            .artifactType == "application/vnd.getsentry.craft.binary.v1" and
+            .annotations["org.opencontainers.image.revision"] == $sha and
+            .annotations["org.opencontainers.image.source"] == "https://github.com/getsentry/craft" and
+            ([.layers[] | select(.annotations["org.opencontainers.image.title"] == "craft" and .mediaType == "application/octet-stream")] | length) == 1
+          ' <<< "$manifest" > /dev/null
+
+  advance-nightly:
+    name: Advance the rolling Craft nightly tag
+    needs: publish-nightly
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository == 'getsentry/craft'
+    # Serializing only the rolling tag avoids older builds overwriting newer ones.
+    # Immutable builds keep publishing independently even when a pending rolling
+    # update is superseded by a later master commit.
+    concurrency:
+      group: craft-nightly-rolling
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: oras-project/setup-oras@005458ad77f1c8facd38a094e4af2e69e5607ff4 # v2.0.2
+        with:
+          version: 1.3.4
+      - name: Advance the rolling tag only for the current master commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current=$(gh api repos/getsentry/craft/git/ref/heads/master --jq '.object.sha')
+          if [[ "$current" == "$GITHUB_SHA" ]]; then
+            printf '%s' "$GHCR_TOKEN" | oras login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            oras tag "ghcr.io/getsentry/craft:nightly-$GITHUB_SHA" nightly
+          fi
 
   docs:
     name: Build Docs
