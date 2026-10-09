@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.34.1
+
+### Bug Fixes 🐛
+
+- Archive Craft documentation in GCS by @BYK in [#899](https://github.com/getsentry/craft/pull/899)
+
 ## 2.34.0
 
 ### New Features ✨
