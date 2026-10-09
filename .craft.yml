@@ -24,7 +24,7 @@ requireNames:
 targets:
   - name: npm
   - name: gcs
-    includeNames: /^.*craft.*$/
+    includeNames: /^(?:.*craft.*|gh-pages\.zip)$/
     bucket: sentry-sdk-assets
     paths:
       - path: /craft/{{version}}/
