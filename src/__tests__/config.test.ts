@@ -1,6 +1,14 @@
 import { describe, test, expect, vi, afterEach, beforeEach } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'fs';
 import { globSync } from 'glob';
+import { load } from 'js-yaml';
 import { tmpdir } from 'os';
 import { join } from 'path';
 /**
@@ -24,8 +32,46 @@ import { CraftProjectConfigSchema } from '../schemas/project_config';
 import { logger } from '../logger';
 import { GitHubTarget } from '../targets/github';
 import { NoneArtifactProvider } from '../artifact_providers/none';
+import { BaseTarget } from '../targets/base';
 
 describe('validateConfiguration', () => {
+  test('Craft archives its release files and documentation at versioned GCS paths', async () => {
+    const rawConfig = load(
+      readFileSync(join(__dirname, '../../.craft.yml'), 'utf8'),
+    ) as Record<string, unknown>;
+    const config = validateConfiguration(rawConfig);
+    const gcsConfig = config.targets?.find(target => target.name === 'gcs');
+    if (!gcsConfig) {
+      throw new Error('Craft GCS target is missing');
+    }
+
+    expect(gcsConfig.paths).toContainEqual(
+      expect.objectContaining({ path: '/craft/{{version}}/' }),
+    );
+
+    const filenames = [
+      'craft',
+      'sentry-craft-2.35.0.tgz',
+      'gh-pages.zip',
+      'other.zip',
+      'gh-pages.zip.bak',
+    ];
+    const provider = new NoneArtifactProvider();
+    vi.spyOn(provider, 'listArtifactsForRevision').mockResolvedValue(
+      filenames.map(filename => ({
+        filename,
+        storedFile: { filename, downloadFilepath: filename, size: 1 },
+      })),
+    );
+
+    const gcs = new BaseTarget(gcsConfig, provider);
+    expect(
+      (await gcs.getArtifactsForRevision('release-commit')).map(
+        artifact => artifact.filename,
+      ),
+    ).toEqual(filenames.slice(0, 3));
+  });
+
   test('parses minimal configuration', () => {
     const data = { github: { owner: 'getsentry', repo: 'craft' } };
 
