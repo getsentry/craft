@@ -234,27 +234,25 @@ Auto mode uses `.github/release.yml` to categorize PRs. This file follows [GitHu
 
 #### AI summaries
 
-Opt in to configurable changelog summaries using GPT-6 Luna through GitHub Copilot (the default provider):
+Opt in to configurable changelog summaries using GPT-6 Luna through GitHub Copilot:
 
 ```yaml
 changelog:
   policy: auto
   aiSummary:
     enabled: true
-    provider: copilot # default
     model: gpt-6-luna # default for Copilot
     levels: [release, category, scope] # choose any combination
     kickInThreshold: 5 # summarize displayed groups with more than 5 entries
 ```
 
 
-Copilot uses the official `@github/copilot-sdk` bundled runtime. In Actions, Craft passes the built-in installation token through `COPILOT_GITHUB_TOKEN` in the runtime environment, with stored-user authentication disabled. No model API key is required. See the [Actions setup](#github-actions) below.
+Copilot uses the official `@github/copilot-sdk` bundled runtime. In Actions, Craft passes the built-in installation token through `COPILOT_GITHUB_TOKEN` in the runtime environment, with stored-user authentication disabled. See the [Actions setup](#github-actions) below.
 
 | Setting | Default | Behavior |
 | --- | --- | --- |
 | `enabled` | `false` | Enable summaries explicitly. |
-| `provider` | `copilot` | `copilot` or explicitly selected `openrouter`. Failures never switch providers. |
-| `model` | Provider-specific | `gpt-6-luna` for Copilot; `openai/gpt-6-luna` for OpenRouter. Copilot checks organization model availability. Overrides must support structured output; OpenRouter also requires `reasoning.effort: none`. |
+| `model` | `gpt-6-luna` | Copilot model ID. Craft checks organization model availability. Overrides must support structured output. |
 | `levels` | `[release]` | Any combination of `release`, `category`, and `scope`, without duplicates. Omitted or empty lists use `[release]`. Selects visible summaries; internal digests can still be generated for parent summaries. |
 | `kickInThreshold` | `5` | Nonnegative integer. Summaries appear only when original entry counts exceed this value. `0` summarizes every nonempty selected group. Category counts include descendants; release counts include the entire changelog. |
 
@@ -297,7 +295,7 @@ The original entries, nested details, author mentions, and links are preserved i
 
 Craft generates digests bottom-up and reuses them for higher levels. Small and unscoped groups contribute even when they do not qualify for a visible summary. Large groups are divided into complete bounded batches; oversized individual entries are split into Unicode-safe fragments. Higher levels use those digests, reducing repeated context. Breaking changes and security facts carry their source IDs through reductions and remain visible alongside the summary prose. Structural validation ensures category coverage; generated prose still needs human review for factual accuracy.
 
-Existing leftover-entry limits still apply. Enabling summaries sends the rendered changelog content to the selected provider. Copilot usage is billed to the organization; OpenRouter uses your OpenRouter credits. Large releases and additional levels can require multiple requests.
+Existing leftover-entry limits still apply. Enabling summaries sends the rendered changelog content to GitHub Copilot. Usage is billed to the organization. Large releases and additional levels can require multiple requests.
 
 Missing credentials, API errors, timeouts, refusals, invalid output, or exhausted budgets keep the entire original changelog. Craft makes no retries, allows at most 64 requests with 3 concurrent requests, and waits at most 30 seconds per request and 120 seconds overall. Each request carries at most 24,000 UTF-8 bytes of input data and allows at most 8,192 output tokens. Summaries are disabled during all dry runs, including worktree dry runs, highlighted `craft changelog --pr` previews, and automatic version analysis. `prepare --no-changelog` makes no model calls. The calculated version bump is unaffected.
 
@@ -305,7 +303,7 @@ Missing credentials, API errors, timeouts, refusals, invalid output, or exhauste
 
 Enable `changelog.aiSummary` in `.craft.yml`. For Copilot, the organization must enable **“Allow use of Copilot CLI billed to the organization.”** Do not assume this policy is enabled in `getsentry` or any other organization. Usage is billed to the organization. GPT-6 Luna must also be available under its model policy; Craft keeps the original changelog when access or model availability fails. See GitHub’s [Actions guide](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions) and [installation-token authentication guide](https://docs.github.com/en/copilot/how-tos/copilot-sdk/auth/server-to-server-tokens).
 
-Both direct Craft action users and callers of the reusable release workflow must grant `copilot-requests: write` in the calling job’s permissions, alongside their existing release permissions. A reusable workflow cannot increase permissions granted by its caller. The action installs the pinned SDK runtime and sets `COPILOT_GITHUB_TOKEN: ${{ github.token }}` separately from the token used for release API operations. These permissions authorize access; the SDK runtime performs the actual installation-token authentication flow.
+Both direct Craft action users and callers of the reusable release workflow must grant `copilot-requests: write` in the calling job’s permissions, alongside their existing release permissions. A reusable workflow cannot increase permissions granted by its caller. The action installs the pinned SDK runtime with a private pnpm installer, retains the caller’s Node and pnpm versions, and sets `COPILOT_GITHUB_TOKEN: ${{ github.token }}` separately from the token used for release API operations. These permissions authorize access; the SDK runtime performs the actual installation-token authentication flow.
 
 For a standalone CLI step that only generates notes:
 
@@ -339,46 +337,6 @@ jobs:
 
 
 Use a Craft version that includes this feature and replace `v1.0.0` with the base tag. The SDK supports Node 20.19+ or 22.12+ and newer supported major versions, with bundled native runtimes for Linux, macOS, and Windows on x64 and arm64 (Linux includes glibc and musl). Keep optional dependencies installed; do not bundle the SDK into a single file. The Craft npm package includes the SDK dependency; the composite release action installs a pinned runtime beside the action. A separately downloaded Craft binary needs an installed SDK and `CRAFT_COPILOT_SDK_DIR` pointing to its package directory. No separate Copilot CLI installation or local model download is required. On local runs, provide an approved Copilot token through `COPILOT_GITHUB_TOKEN` (or `GITHUB_TOKEN`); Craft does not fall back to stored login credentials.
-
-##### Explicit OpenRouter alternative
-
-Select OpenRouter in `.craft.yml`:
-
-```yaml
-changelog:
-  policy: auto
-  aiSummary:
-    enabled: true
-    provider: openrouter
-    # model defaults to openai/gpt-6-luna
-```
-
-
-Store the key as an Actions secret and map it to Craft’s environment:
-
-```yaml
-env:
-  CRAFT_AI_API_KEY: ${{ secrets.CRAFT_AI_API_KEY }}
-```
-
-
-The secret can have any name in GitHub; keep the environment variable name:
-
-```yaml
-env:
-  CRAFT_AI_API_KEY: ${{ secrets.OPENROUTER_RELEASE_TOKEN }}
-```
-
-
-Craft reads the environment and cannot discover GitHub secrets directly. Make the secret available to the repository running the workflow. For multiple repositories, an [organization Actions secret](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#creating-secrets-for-an-organization) with selected-repository access can share one configuration. Each repository maps it to `CRAFT_AI_API_KEY`; secrets are not automatically shared between repositories. Reusable workflow callers can use `secrets: inherit` or map a renamed secret explicitly:
-
-```yaml
-secrets:
-  CRAFT_AI_API_KEY: ${{ secrets.OPENROUTER_RELEASE_TOKEN }}
-```
-
-
-OpenRouter uses native fetch and does not require a Copilot token or API access. The supplied reusable release workflow still declares `copilot-requests: write`, so its callers must grant that permission. Custom direct CLI workflows using OpenRouter need no Copilot permission. Copilot never uses `CRAFT_AI_API_KEY`, even if that key is present; provider failures preserve original output.
 
 #### Craft Extensions to release.yml
 

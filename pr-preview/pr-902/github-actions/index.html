@@ -195,21 +195,18 @@
 <p>The action accepts the same inputs and produces the same outputs as the reusable workflow.</p>
 <div class="sl-heading-wrapper level-h3"><h3 id="ai-summary-authentication">AI summary authentication</h3><a class="sl-anchor-link" href="#ai-summary-authentication"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “AI summary authentication”</span></a></div>
 <p>AI summaries remain opt-in through <code dir="auto">changelog.aiSummary.enabled</code>. Copilot is the
-default provider and uses <code dir="auto">gpt-6-luna</code> when available under organization policy.
+summary provider and uses <code dir="auto">gpt-6-luna</code> when available under organization policy.
 The organization must enable <strong>“Allow use of Copilot CLI billed to the organization.”</strong>
 Usage is billed to the organization; this policy is not assumed enabled for
 <code dir="auto">getsentry</code>. Callers must grant <code dir="auto">copilot-requests: write</code>, including reusable
 workflow callers. The action installs the official SDK’s pinned bundled runtime
+with a private pnpm installer, preserving the caller’s Node and pnpm versions,
 and passes <code dir="auto">${{ github.token }}</code> via <code dir="auto">COPILOT_GITHUB_TOKEN</code>, independently of any
-release bot token in <code dir="auto">GITHUB_TOKEN</code>. No <code dir="auto">CRAFT_AI_API_KEY</code> is needed for Copilot.
+release bot token in <code dir="auto">GITHUB_TOKEN</code>.
 The runtime uses isolated sessions with tools and stored-login fallback disabled.</p>
-<p>For an explicit alternative, set <code dir="auto">provider: openrouter</code> and map
-<code dir="auto">CRAFT_AI_API_KEY: ${{ secrets.CRAFT_AI_API_KEY }}</code> in the direct action’s <code dir="auto">env</code>,
-or pass the optional <code dir="auto">CRAFT_AI_API_KEY</code> secret to the reusable workflow. Any
-secret name can be mapped to that environment variable. Provider failures keep
-original release notes; they never switch providers. See the
-<a href="../configuration/#ai-summaries">AI summary configuration</a> for policy, model,
-runtime, permissions, and shared organization-secret setup.</p>
+<p>See the <a href="../configuration/#ai-summaries">AI summary configuration</a> for model,
+runtime, permissions, and billing requirements. Access failures keep original
+release notes.</p>
 <p>The Build &amp; Test workflow includes credential-free runtime startup checks on
 Linux, macOS, and Windows. Its optional <code dir="auto">copilot_sample</code> dispatch runs the built
 CLI in a temporary repository using the actual SDK and built-in token, with
