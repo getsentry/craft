@@ -234,7 +234,6 @@ export class NugetTarget extends BaseTarget {
       '--skip-duplicate',
       '--source',
       this.nugetConfig.serverUrl,
-      // nuget.org can be slow; the 300s default has failed releases
       '--timeout',
       '1800',
     ];
