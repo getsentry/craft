@@ -161,7 +161,13 @@ class CopilotProvider implements SummaryProvider {
     if (!this.directory) throw new Error('Summary aborted');
     if (this.closing) {
       await safeExec(
-        () => rm(this.directory!, { recursive: true, force: true }),
+        () =>
+          rm(this.directory!, {
+            recursive: true,
+            force: true,
+            maxRetries: 6,
+            retryDelay: 50,
+          }),
         'Remove cancelled Copilot runtime directory',
       );
       throw new Error('Summary aborted');
@@ -173,7 +179,7 @@ class CopilotProvider implements SummaryProvider {
       useLoggedInUser: false,
       baseDirectory: this.directory,
       workingDirectory: this.directory,
-      logLevel: 'error',
+      logLevel: 'none',
     });
     await this.client.start();
     if (this.closing) {
@@ -260,7 +266,14 @@ class CopilotProvider implements SummaryProvider {
     // A pending initializer checks closing before starting or using a runtime.
     if (this.directory)
       await safeExec(
-        () => rm(this.directory!, { recursive: true, force: true }),
+        // Windows can retain the child's cwd briefly after forceStop().
+        () =>
+          rm(this.directory!, {
+            recursive: true,
+            force: true,
+            maxRetries: 6,
+            retryDelay: 50,
+          }),
         'Remove isolated Copilot runtime directory',
       ).catch(() => {});
   }

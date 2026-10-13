@@ -1,4 +1,12 @@
-import { readFileSync } from 'node:fs';
+import {
+  readFileSync,
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { load } from 'js-yaml';
 import { expect, test } from 'vitest';
@@ -58,4 +66,43 @@ test('live sample is manual-only, with read-only repository access and no model 
   );
   expect(sample.env.COPILOT_GITHUB_TOKEN).toBe('${{ github.token }}');
   expect(sample.env).not.toHaveProperty('CRAFT_AI_API_KEY');
+});
+
+test('authenticated probe suppresses native stderr and sanitizes startup failures', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'craft-probe-test-'));
+  try {
+    const module = join(directory, 'node_modules/@github/copilot-sdk');
+    mkdirSync(module, { recursive: true });
+    writeFileSync(join(directory, 'package.json'), '{"private":true}');
+    writeFileSync(join(module, 'package.json'), '{"main":"index.cjs"}');
+    writeFileSync(
+      join(module, 'index.cjs'),
+      `
+      exports.RuntimeConnection = { forStdio: () => ({}) };
+      exports.CopilotClient = class {
+        async start() { process.stderr.write('private-runtime-secret'); throw new Error('private-runtime-secret'); }
+        async forceStop() {}
+      };
+    `,
+    );
+    const probe = yaml('.github/workflows/build.yml').jobs[
+      'copilot-sample'
+    ].steps.find(
+      (step: any) =>
+        step.name ===
+        'Probe Copilot authentication and Luna model availability',
+    );
+    const result = spawnSync('bash', ['-c', probe.run], {
+      cwd: root,
+      env: { ...process.env, CRAFT_COPILOT_SDK_DIR: directory },
+      encoding: 'utf8',
+      timeout: 20000,
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('{"runtimeProbeFailed":true}');
+    expect(result.stdout).not.toContain('private-runtime-secret');
+    expect(result.stderr).toBe('');
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

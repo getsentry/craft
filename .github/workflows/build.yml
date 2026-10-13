@@ -60,6 +60,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm install --dir .github/copilot-sdk --frozen-lockfile --ignore-scripts
+      - name: Probe Copilot authentication and Luna model availability
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ github.token }}
+          CRAFT_COPILOT_SDK_DIR: ${{ github.workspace }}/.github/copilot-sdk
+        # The SDK forwards native stderr; keep authenticated diagnostics private.
+        run: node .github/scripts/copilot/runtime-smoke.mjs --check-model-access 2>/dev/null
       - name: Generate isolated release notes through Copilot
         env:
           COPILOT_GITHUB_TOKEN: ${{ github.token }}
