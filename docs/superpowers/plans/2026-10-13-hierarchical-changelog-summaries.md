@@ -71,3 +71,12 @@ Execution is authorized by the user's approval of the design and instruction to 
 - Validation: 206 targeted tests pass; typecheck, lint, build, and GitHub Markdown rendering pass. Ten isolated CLI E2Es pass. Full macOS suite: 1,344 pass, one skip, and three unchanged baseline failures (Bash associative arrays, temporary-path snapshot, BSD sed). A subsequent added concurrency test also passes.
 - Live public release-note replays: all four repositories succeeded, including the complete 1,617-entry Sentry release. Release-only previews preserve expanded originals and category coverage. One Sentry provider attempt fell back atomically before a successful repeat.
 - Delivery: pending commit, push, and new-head hosted CI. No merge.
+
+### Copilot provider revision
+
+- User authorized replacing the default Actions OpenRouter path with official Copilot SDK authentication. OpenRouter is explicitly selected and keeps CRAFT_AI_API_KEY; no provider failover.
+- SDK 1.0.21 APIs and bundled native runtime verified against installed source and GitHub installation-token docs. Actions pass the built-in token in COPILOT_GITHUB_TOKEN; callers grant copilot-requests: write. Organization billing policy and Luna model availability remain external requirements.
+- Action installs a pinned physical SDK tree; Linux/macOS/Windows runtime checks and a manual-only isolated live CLI sample are included. No organization policy changes or merge authorized.
+- Fresh independent review identified a late-start cancellation race. Initialization now repeats shutdown after startup resolves during cancellation; the regression passes. No outstanding high/medium findings.
+- Local validation: 220 targeted tests, 21 workflow tests, typecheck and lint pass; bundled runtime starts on macOS arm64. Full suite: 1,359 pass, one skipped, and the same three platform baseline failures. Built-CLI sample with mocked SDK passes; this is not live Copilot proof.
+- Hosted new-head checks and authenticated Actions inference remain pending delivery.

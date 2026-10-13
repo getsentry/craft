@@ -72,6 +72,9 @@ await esbuild.build({
   },
   outfile: 'dist/craft.js',
   plugins,
+  // Native Copilot runtime packages must retain their on-disk layout. The
+  // composite action installs the pinned SDK for standalone Craft artifacts.
+  external: ['@github/copilot-sdk'],
 });
 
 // Helper to check if file exists

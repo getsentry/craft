@@ -21,6 +21,10 @@ on:
 
   # For external repos to call this workflow
   workflow_call:
+    secrets:
+      CRAFT_AI_API_KEY:
+        description: Optional API key for explicitly configured OpenRouter summaries
+        required: false
     inputs:
       version:
         description: Version to release (semver, bump type, or "auto")
@@ -104,6 +108,7 @@ jobs:
     name: 'Release a new version'
     permissions:
       contents: write
+      copilot-requests: write
     outputs:
       version: ${{ steps.craft-local.outputs.version || steps.craft-action.outputs.version }}
       branch: ${{ steps.craft-local.outputs.branch || steps.craft-action.outputs.branch }}
@@ -133,6 +138,7 @@ jobs:
         uses: ./
         env:
           GITHUB_TOKEN: ${{ steps.token.outputs.token }}
+          CRAFT_AI_API_KEY: ${{ secrets.CRAFT_AI_API_KEY }}
         with:
           version: ${{ github.event.inputs.version }}
           force: ${{ github.event.inputs.force }}
@@ -147,6 +153,7 @@ jobs:
         uses: getsentry/craft@v2
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          CRAFT_AI_API_KEY: ${{ secrets.CRAFT_AI_API_KEY }}
         with:
           version: ${{ inputs.version }}
           force: ${{ inputs.force }}

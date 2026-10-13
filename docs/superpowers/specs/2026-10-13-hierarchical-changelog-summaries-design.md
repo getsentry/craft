@@ -23,7 +23,8 @@ changelog:
   policy: auto
   aiSummary:
     enabled: true
-    model: openai/gpt-6-luna
+    provider: copilot
+    model: gpt-6-luna
     levels: [release, category] # any nonempty subset of release/category/scope
     kickInThreshold: 5
 ```
@@ -95,16 +96,18 @@ request by serialized UTF-8 input bytes and expected structured output size;
 use conservative smaller batches than the old 120,000-character limit.
 Exact batch size is left to implementation and real-release validation.
 
-Runtime reads only `CRAFT_AI_API_KEY`; workflow secrets map to that environment
-variable. Differently named secrets can be mapped explicitly. Organization
-Actions secrets with selected-repository access can share the key across workflow
-repositories. Craft cannot discover GitHub secrets directly.
+Provider revision: Copilot is the default, using the official SDK bundled runtime
+and installation-token authentication via COPILOT_GITHUB_TOKEN. Actions require
+copilot-requests: write and the organization billing policy. GPT-6 Luna is used
+only when available; no alternate provider is selected after failure. OpenRouter
+remains explicit and reads CRAFT_AI_API_KEY. Workflow secrets map to environment
+variables; organization secrets need access to the workflow repository.
 
 No retries. Missing credentials, budget exhaustion, refusal, provider failure,
 timeout, or invalid output preserve the original changelog. Abort outstanding
 requests on failure or total deadline. Keep generic diagnostics that do not
 expose credentials, source changelog data, or raw provider errors. Continue
-using native fetch, OpenRouter, strict structured outputs, and dry-run wrappers.
+using provider adapters, strict structured outputs, and dry-run wrappers.
 
 ## Related review fixes
 

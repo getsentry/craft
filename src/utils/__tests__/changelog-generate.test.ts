@@ -174,6 +174,7 @@ describe('generateChangesetFromGit', () => {
       aiSummary: {
         enabled: true,
         model: 'openai/gpt-6-luna',
+        provider: 'openrouter' as const,
         kickInThreshold: 5,
         levels: ['release', 'category', 'scope'] as (
           | 'release'

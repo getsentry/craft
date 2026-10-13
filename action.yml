@@ -184,11 +184,31 @@ runs:
           fi
         fi
 
+    # The SDK owns a native runtime; keep its pinned dependency tree on disk.
+    - uses: actions/setup-node@v6
+      with:
+        node-version: '22'
+
+    - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      with:
+        version: '10.27.0'
+
+    - name: Install Copilot summary runtime
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        pnpm install --dir "$ACTION_PATH/.github/copilot-sdk" --frozen-lockfile --ignore-scripts
+        echo "CRAFT_COPILOT_SDK_DIR=$ACTION_PATH/.github/copilot-sdk" >> "$GITHUB_ENV"
+
     - name: Craft Prepare
       id: craft
       shell: bash
       env:
         CRAFT_LOG_LEVEL: Debug
+        # Installation tokens must reach the SDK runtime through this env var.
+        # Release API operations may use a separate app/bot GITHUB_TOKEN.
+        COPILOT_GITHUB_TOKEN: ${{ github.token }}
         CRAFT_CONFIG_FROM_MERGE_TARGET: ${{ inputs.craft_config_from_merge_target }}
         MERGE_TARGET: ${{ inputs.merge_target }}
         VERSION: ${{ inputs.version }}
