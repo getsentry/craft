@@ -28,15 +28,6 @@ export const NUGET_DOTNET_BIN = process.env.NUGET_DOTNET_BIN || 'dotnet';
 /** Default Nuget registry URL */
 export const DEFAULT_NUGET_SERVER_URL = 'https://api.nuget.org/v3/index.json';
 
-/**
- * Default timeout for a single `dotnet nuget push`, in seconds.
- *
- * `dotnet nuget push` defaults to 300 seconds, which nuget.org regularly
- * exceeds when it is slow, failing the whole release even though the packages
- * were uploaded. See https://github.com/getsentry/craft/issues/900
- */
-export const DEFAULT_NUGET_PUSH_TIMEOUT_SECONDS = 1800;
-
 /** A regular expression used to find the package tarball */
 const DEFAULT_NUGET_REGEX = /^.*\d\.\d.*\.nupkg$/;
 const SYMBOLS_NUGET_REGEX = /^.*\d\.\d.*\.snupkg$/;
@@ -53,14 +44,11 @@ export interface NugetTargetOptions {
   apiToken: string;
   /** Nuget server URL */
   serverUrl: string;
-  /** Timeout for each `dotnet nuget push`, in seconds */
-  timeout: number;
 }
 
 /** Config fields for nuget target from .craft.yml */
 interface NugetYamlConfig extends Record<string, unknown> {
   serverUrl?: string;
-  timeout?: number;
 }
 
 /**
@@ -219,16 +207,9 @@ export class NugetTarget extends BaseTarget {
       );
     }
     const config = this.config as TypedTargetConfig<NugetYamlConfig>;
-    const timeout = config.timeout ?? DEFAULT_NUGET_PUSH_TIMEOUT_SECONDS;
-    if (!Number.isInteger(timeout) || timeout <= 0) {
-      throw new ConfigurationError(
-        `Invalid "timeout" for the nuget target: expected a positive integer number of seconds, got ${JSON.stringify(timeout)}.`,
-      );
-    }
     return {
       apiToken: process.env.NUGET_API_TOKEN,
       serverUrl: config.serverUrl || DEFAULT_NUGET_SERVER_URL,
-      timeout,
     };
   }
 
@@ -253,8 +234,9 @@ export class NugetTarget extends BaseTarget {
       '--skip-duplicate',
       '--source',
       this.nugetConfig.serverUrl,
+      // nuget.org can be slow; the 300s default has failed releases
       '--timeout',
-      String(this.nugetConfig.timeout),
+      '1800',
     ];
     return spawnProcess(NUGET_DOTNET_BIN, args, DOTNET_SPAWN_OPTIONS);
   }
