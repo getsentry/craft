@@ -116,11 +116,11 @@ describe('validateConfiguration', () => {
       enabled: true,
       model: 'openai/gpt-6-luna',
       kickInThreshold: 5,
-      topLevel: 'threshold',
+      levels: ['release'],
     });
   });
 
-  test.each([0, -1, 1.5])(
+  test.each([-1, 1.5])(
     'rejects invalid summary threshold %s',
     kickInThreshold => {
       expect(() =>
@@ -131,11 +131,34 @@ describe('validateConfiguration', () => {
     },
   );
 
+  test('normalizes empty levels to release-only and accepts a zero threshold', () => {
+    loadConfigurationFromString(
+      'changelog:\n  policy: auto\n  aiSummary:\n    enabled: true\n    levels: []\n    kickInThreshold: 0',
+    );
+    expect(getChangelogConfig().aiSummary).toMatchObject({
+      enabled: true,
+      levels: ['release'],
+      kickInThreshold: 0,
+    });
+    expect(getChangelogConfig().aiSummary).not.toHaveProperty('topLevel');
+  });
+
   test('rejects an empty summary model', () => {
     expect(() =>
       validateConfiguration({ changelog: { aiSummary: { model: '  ' } } }),
     ).toThrow(/changelog/);
   });
+
+  test.each([[['invalid']], [['release', 'release']]])(
+    'rejects invalid summary levels %j',
+    levels => {
+      expect(() =>
+        validateConfiguration({
+          changelog: { aiSummary: { enabled: true, levels } },
+        }),
+      ).toThrow(/changelog/);
+    },
+  );
 
   test('inherits summary settings and allows a workspace to disable them', () => {
     const yaml = `minVersion: ${WORKSPACES_MIN_VERSION}\nchangelog:\n  policy: auto\n  aiSummary:\n    enabled: true\n    kickInThreshold: 8\nworkspaces:\n  cli: {}\n  mcp:\n    changelog:\n      policy: auto\n      aiSummary:\n        enabled: false`;

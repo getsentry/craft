@@ -225,7 +225,7 @@ Auto mode uses `.github/release.yml` to categorize PRs. This file follows [GitHu
 
 #### AI summaries through OpenRouter
 
-Opt in to summaries of verbose changelog sections using [GPT-6 Luna on OpenRouter](https://openrouter.ai/openai/gpt-6-luna):
+Opt in to configurable changelog summaries using [GPT-6 Luna on OpenRouter](https://openrouter.ai/openai/gpt-6-luna):
 
 ```yaml
 changelog:
@@ -233,11 +233,11 @@ changelog:
   aiSummary:
     enabled: true
     model: openai/gpt-6-luna # default
-    kickInThreshold: 5 # summarize sections with more than 5 entries
-    topLevel: threshold # always, never, or threshold (default)
+    levels: [release, category, scope] # choose any combination
+    kickInThreshold: 5 # summarize displayed groups with more than 5 entries
 ```
 
-Set `OPENROUTER_API_KEY` in the environment. Craft uses OpenRouter's chat
+Set `CRAFT_AI_API_KEY` in the environment. Craft uses OpenRouter's chat
 completions API; GitHub tokens do not authenticate these requests. No AI SDK,
 local model, or model download is required.
 
@@ -245,11 +245,27 @@ local model, or model download is required.
 | --- | --- | --- |
 | `enabled` | `false` | Enable summaries explicitly. |
 | `model` | `openai/gpt-6-luna` | OpenRouter model ID. Overrides must support structured outputs and `reasoning.effort: none`. |
-| `kickInThreshold` | `5` | Positive integer. Sections with this many entries or fewer keep their normal list. |
-| `topLevel` | `threshold` | `always`: add an overview to any nonempty changelog; `never`: omit it; `threshold`: add it when the total rendered entry count exceeds the threshold. |
+| `levels` | `[release]` | Any combination of `release`, `category`, and `scope`, without duplicates. Omitted or empty lists use `[release]`. Selects visible summaries; internal digests can still be generated for parent summaries. |
+| `kickInThreshold` | `5` | Nonnegative integer. Summaries appear only when original entry counts exceed this value. `0` summarizes every nonempty selected group. Category counts include descendants; release counts include the entire changelog. |
 
-A section is a rendered list under a category or scope heading. For example,
-six CLI entries under **New Features → CLI** become:
+The three levels follow the existing changelog hierarchy:
+
+- `release`: a labeled overview statement for every nonempty category.
+- `category`: a summary under a heading such as **New Features** or **Bug Fixes**.
+- `scope`: a summary under a subgroup such as **New Features → CLI**.
+
+For example, `levels: [release, category]` shows the release overview and
+category summaries. `levels: [scope]` summarizes eligible scope lists. With all
+three selected, scope summaries and their original entries are nested inside
+an expandable category block. Scope summaries require a visible scope heading;
+when `scopeGrouping: false`, category and release summaries still work.
+Unscoped entries always contribute to their category and the release overview.
+
+The default release-only output adds an overview and leaves all original entries
+expanded. Excluding `release` omits the overview while allowing the other selected
+levels. `enabled: false` disables all AI generation, including internal digests.
+
+Six CLI entries under **New Features → CLI** with `scope` selected become:
 
 ```markdown
 #### CLI
@@ -275,23 +291,35 @@ them before publishing. The optional overview appears above the first category.
 Workspace settings follow the normal `changelog` inheritance rules: a workspace
 either inherits the whole object or replaces it with its own configuration.
 
-Craft sends every rendered entry needed for the requested summaries in a single
-request, including entries after the fifth item. Existing leftover-entry limits
-still apply. Enabling summaries sends that changelog content to OpenRouter and
-its selected model provider and uses your OpenRouter credits.
+Craft generates digests bottom-up and reuses them for higher levels. Small
+and unscoped groups contribute even when they do not qualify for a visible
+summary. Large groups are divided into complete bounded batches; oversized
+individual entries are split into Unicode-safe fragments. Higher levels use
+those digests, reducing repeated context. Breaking changes and security facts
+carry their source IDs through reductions and remain visible alongside the
+summary prose. Structural validation ensures category coverage; generated
+prose still needs human review for factual accuracy.
 
-Missing credentials, API errors, timeouts, refusals, or invalid output keep the
-original changelog. Craft makes no retries and waits at most 30 seconds. Inputs
-over 120,000 characters or more than 100 eligible sections skip summarization;
-requests allow at most 8,192 output tokens. Summaries are disabled during all
-dry runs, including worktree dry runs, and highlighted `craft changelog --pr`
-previews. The calculated version bump is unaffected.
+Existing leftover-entry limits still apply. Enabling summaries sends the
+rendered changelog content to OpenRouter and its selected model provider and
+uses your OpenRouter credits. Large releases and additional levels can require
+multiple requests.
+
+Missing credentials, API errors, timeouts, refusals, invalid output, or exhausted
+budgets keep the entire original changelog. Craft makes no retries, allows at
+most 64 requests with 3 concurrent requests, and waits at most 30 seconds per
+request and 120 seconds overall. Each request carries at most 24,000 UTF-8 bytes
+of input data and allows at most 8,192 output tokens. Summaries are disabled
+during all dry runs, including worktree dry runs, highlighted `craft changelog
+--pr` previews, and automatic version analysis. `prepare --no-changelog` makes
+no model calls. The calculated version bump is unaffected.
 
 ##### GitHub Actions
 
 Store an OpenRouter API key as the repository or environment secret
-`OPENROUTER_API_KEY`, enable `changelog.aiSummary` in `.craft.yml`, and pass the
-secret to your existing Craft release step. For example, a workflow that
+`CRAFT_AI_API_KEY`, enable `changelog.aiSummary` in `.craft.yml`, and map the
+secret to the `CRAFT_AI_API_KEY` environment variable in your Craft release step.
+Craft reads the environment; it cannot discover or read GitHub secrets directly. For example, a workflow that
 generates release notes can use:
 
 ```yaml
@@ -317,13 +345,28 @@ jobs:
       - name: Generate release notes
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          CRAFT_AI_API_KEY: ${{ secrets.CRAFT_AI_API_KEY }}
         run: pnpm --package=@sentry/craft dlx craft changelog --since v1.0.0 > release-notes.md
       - uses: actions/upload-artifact@v7
         with:
           name: release-notes
           path: release-notes.md
 ```
+
+The secret can have any name in GitHub; keep the environment variable name
+`CRAFT_AI_API_KEY`. For example:
+
+```yaml
+env:
+  CRAFT_AI_API_KEY: ${{ secrets.OPENROUTER_RELEASE_TOKEN }}
+```
+
+Make the secret available to the repository that runs the workflow. To share
+one key across multiple repositories, create an [organization Actions secret](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#creating-secrets-for-an-organization)
+with access to the selected repositories. Each repository can then use the
+same `CRAFT_AI_API_KEY: ${{ secrets.CRAFT_AI_API_KEY }}` mapping. Secrets are not
+automatically shared between repositories.
+
 
 Replace `v1.0.0` with the release's base tag. Use a Craft version that includes
 this feature. For a `craft prepare` step or the Craft release action, pass the
@@ -594,7 +637,7 @@ changelog:
 | `changelog.policy`        | Mode: `none`, `simple`, or `auto`. Default: `none`                           |
 | `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true`                                 |
 | `changelog.includePaths`  | Extra workspace directories to include in automatic changelogs. Default: `[]` |
-| `changelog.aiSummary` | Opt-in OpenRouter section summaries and release overview. Default: disabled. |
+| `changelog.aiSummary` | Opt-in OpenRouter release, category, and scope summaries. Default: disabled. |
 
 ## Versioning
 

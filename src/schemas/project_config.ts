@@ -157,8 +157,19 @@ export type VersioningConfig = z.infer<typeof VersioningConfigSchema>;
 export const AiSummaryConfigSchema = z.object({
   enabled: z.boolean().default(false),
   model: z.string().trim().min(1).max(200).default('openai/gpt-6-luna'),
-  kickInThreshold: z.number().int().positive().default(5),
-  topLevel: z.enum(['always', 'never', 'threshold']).default('threshold'),
+  kickInThreshold: z.number().int().nonnegative().default(5),
+  levels: z
+    .array(z.enum(['release', 'category', 'scope']))
+    .refine(
+      levels => new Set(levels).size === levels.length,
+      'Duplicate summary levels',
+    )
+    .default(['release'])
+    .transform(levels =>
+      levels.length
+        ? levels
+        : (['release'] as ('release' | 'category' | 'scope')[]),
+    ),
 });
 
 export type AiSummaryConfig = z.infer<typeof AiSummaryConfigSchema>;

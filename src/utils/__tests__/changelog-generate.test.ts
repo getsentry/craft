@@ -175,53 +175,106 @@ describe('generateChangesetFromGit', () => {
         enabled: true,
         model: 'openai/gpt-6-luna',
         kickInThreshold: 5,
-        topLevel: 'threshold' as const,
+        levels: ['release', 'category', 'scope'] as (
+          | 'release'
+          | 'category'
+          | 'scope'
+        )[],
       },
     };
+    const provider = vi.fn(async (_url: unknown, options: RequestInit) => {
+      const input = JSON.parse(
+        JSON.parse(options.body as string).messages[1].content,
+      );
+      return Response.json({
+        choices: [
+          {
+            finish_reason: 'stop',
+            message: {
+              content: JSON.stringify({
+                summaries: input.nodes
+                  .map((node: any) => ({
+                    id: node.id,
+                    summary: `${input.level} summary for ${node.title}`,
+                    importantChanges: [],
+                  }))
+                  .reverse(),
+              }),
+            },
+          },
+        ],
+      });
+    });
     beforeEach(() => {
       vi.mocked(config.getChangelogConfig).mockReturnValue(summaryConfig);
-      vi.stubEnv('OPENROUTER_API_KEY', 'test-key');
+      vi.stubEnv('CRAFT_AI_API_KEY', 'test-key');
+      provider.mockClear();
+      vi.stubGlobal('fetch', provider);
     });
     afterEach(() => {
       vi.unstubAllGlobals();
       vi.unstubAllEnvs();
     });
 
-    it('adds Luna summaries while preserving all original entries and semver', async () => {
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(async () =>
-          Response.json({
-            choices: [
-              {
-                finish_reason: 'stop',
-                message: {
-                  content: JSON.stringify({
-                    topLevel: 'This release adds six commands.',
-                    sections: [{ id: 0, summary: 'Added six commands.' }],
-                  }),
-                },
-              },
-            ],
-          }),
-        ),
-      );
+    it('nests category and scope summaries while preserving every original entry and semver', async () => {
       setup(commits, null);
       const result = await generateChangesetFromGit(dummyGit, '1.0.0');
-      expect(result.changelog).toContain('This release adds six commands.');
       expect(result.changelog).toContain(
-        '#### Cli\n\nAdded six commands.\n\n<details>\n<summary>Show 6 items</summary>',
+        '**New Features ✨:** release summary for New Features ✨',
       );
+      expect(result.changelog).toContain(
+        '### New Features ✨\n\ncategory summary for New Features ✨\n\n<details>',
+      );
+      expect(result.changelog).toContain(
+        '#### Cli\n\nscope summary for New Features ✨ / Cli\n\n<details>',
+      );
+      expect(result.changelog.match(/<details>/g)).toHaveLength(2);
+      expect(result.changelog.match(/Show 6 items/g)).toHaveLength(2);
       for (let i = 1; i <= 6; i++)
-        expect(result.changelog).toContain(`- Add command ${i}`);
-      expect(result.changelog).toContain('</details>');
+        expect(
+          result.changelog.match(
+            new RegExp(`^- Add command ${i}(?: by| in|$)`, 'gm'),
+          ),
+        ).toHaveLength(1);
       expect(result.bumpType).toBe('minor');
       expect(result.totalCommits).toBe(6);
     });
 
-    it('keeps byte-for-byte original output when the provider fails', async () => {
-      const fetchMock = vi.fn().mockRejectedValue(new Error('Unavailable'));
-      vi.stubGlobal('fetch', fetchMock);
+    it.each([
+      [['release']],
+      [['category']],
+      [['scope']],
+      [['release', 'category']],
+      [['release', 'scope']],
+      [['category', 'scope']],
+      [['release', 'category', 'scope']],
+    ])('renders only selected levels %j', async levels => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        aiSummary: {
+          ...summaryConfig.aiSummary,
+          levels: levels as typeof summaryConfig.aiSummary.levels,
+        },
+      });
+      setup(commits, null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog.includes('release summary')).toBe(
+        levels.includes('release'),
+      );
+      expect(result.changelog.includes('category summary')).toBe(
+        levels.includes('category'),
+      );
+      expect(result.changelog.includes('scope summary')).toBe(
+        levels.includes('scope'),
+      );
+      if (levels.length === 1 && levels[0] === 'release') {
+        expect(result.changelog).not.toContain('<details>');
+        for (let i = 1; i <= 6; i++)
+          expect(result.changelog).toContain(`- Add command ${i}`);
+      }
+    });
+
+    it('keeps byte-for-byte original output when a later generation stage fails', async () => {
       vi.mocked(config.getChangelogConfig).mockReturnValue({
         ...summaryConfig,
         aiSummary: { ...summaryConfig.aiSummary, enabled: false },
@@ -231,65 +284,84 @@ describe('generateChangesetFromGit', () => {
       clearChangesetCache();
       vi.mocked(config.getChangelogConfig).mockReturnValue(summaryConfig);
       setup(commits, null);
-      expect(await generateChangesetFromGit(dummyGit, '1.0.0')).toEqual(
-        original,
-      );
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-    });
-
-    it('maps reordered summaries past an ineligible first section to their own headings', async () => {
-      vi.mocked(config.getChangelogConfig).mockReturnValue({
-        ...summaryConfig,
-        aiSummary: { ...summaryConfig.aiSummary, topLevel: 'never' },
-      });
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(async () =>
+      provider
+        .mockResolvedValueOnce(
           Response.json({
             choices: [
               {
                 finish_reason: 'stop',
                 message: {
                   content: JSON.stringify({
-                    topLevel: null,
-                    sections: [
-                      { id: 2, summary: 'Documented CLI commands.' },
-                      { id: 1, summary: 'Fixed API endpoints.' },
+                    summaries: [
+                      {
+                        id: 'group:0/r0/b0',
+                        summary: 'scope',
+                        importantChanges: [],
+                      },
                     ],
                   }),
                 },
               },
             ],
           }),
-        ),
+        )
+        .mockRejectedValueOnce(new Error('Unavailable'));
+      expect(await generateChangesetFromGit(dummyGit, '1.0.0')).toEqual(
+        original,
       );
+      provider.mockReset();
+    });
+
+    it('keeps version analysis AI-free and caches raw data for later rendering', async () => {
+      setup(commits, null);
+      const analyzed = await generateChangesetFromGit(
+        dummyGit,
+        '1.0.0',
+        100,
+        false,
+      );
+      expect(analyzed.bumpType).toBe('minor');
+      expect(analyzed.changelog).not.toContain('<details>');
+      expect(provider).not.toHaveBeenCalled();
+      const rendered = await generateChangesetFromGit(
+        dummyGit,
+        '1.0.0',
+        100,
+        true,
+      );
+      expect(rendered.changelog).toContain('release summary');
+      expect(mockGetChangesSince).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps independent Git clients and revisions out of each other’s caches', async () => {
+      setup(commits, null);
+      await generateChangesetFromGit(dummyGit, '1.0.0');
       setup(
         [
-          { hash: 'bbbbbbb1234567890', title: 'feat(ui): Add menu', body: '' },
-          ...commits.map((commit, i) => ({
-            ...commit,
-            title: `fix(api): Fix endpoint ${i + 1}`,
-          })),
-          ...commits.map((commit, i) => ({
-            ...commit,
-            hash: `cccccc${i}1234567890`,
-            title: `docs(cli): Document command ${i + 1}`,
-          })),
+          {
+            hash: 'dddd123456789012',
+            title: 'fix: Different checkout',
+            body: '',
+          },
         ],
         null,
       );
+      const other = await generateChangesetFromGit({} as SimpleGit, '1.0.0');
+      expect(other.changelog).toContain('Different checkout');
+      expect(other.changelog).not.toContain('Add command');
+    });
+
+    it('adds category summaries without inventing scopes when grouping is disabled', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        scopeGrouping: false,
+      });
+      setup(commits, null);
       const result = await generateChangesetFromGit(dummyGit, '1.0.0');
-      expect(result.changelog).toContain(
-        '### New Features ✨\n\n- (ui) Add menu',
-      );
-      expect(result.changelog).toContain(
-        '#### Api\n\nFixed API endpoints.\n\n<details>',
-      );
-      expect(result.changelog).toContain(
-        '#### Cli\n\nDocumented CLI commands.\n\n<details>',
-      );
-      expect(result.changelog).toContain('Fix endpoint 6');
-      expect(result.changelog).toContain('Document command 6');
+      expect(result.changelog).toContain('category summary');
+      expect(result.changelog).not.toContain('#### Cli');
+      expect(result.changelog).not.toContain('scope summary');
+      expect(result.changelog.match(/<details>/g)).toHaveLength(1);
     });
 
     it('leaves highlighted PR previews expanded and makes no model request', async () => {

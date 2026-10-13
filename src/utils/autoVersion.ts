@@ -55,7 +55,8 @@ export async function getChangelogWithBumpType(
     `Analyzing commits since ${rev || '(beginning of history)'} for auto-versioning...`,
   );
 
-  const result = await generateChangesetFromGit(git, rev);
+  // Version analysis must never spend model credits or transmit changelog data.
+  const result = await generateChangesetFromGit(git, rev, undefined, false);
 
   if (result.bumpType) {
     logger.info(
