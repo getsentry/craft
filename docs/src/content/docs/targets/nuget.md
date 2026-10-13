@@ -11,7 +11,10 @@ This target allows re-entrant publishing to handle interrupted releases when pub
 
 ## Configuration
 
-No additional configuration options.
+| Option | Description |
+|--------|-------------|
+| `serverUrl` | NuGet server URL. Default: `https://api.nuget.org/v3/index.json` |
+| `timeout` | Timeout in seconds for each `dotnet nuget push` (passed as `--timeout`). Default: `1800` |
 
 ## Environment Variables
 
@@ -25,4 +28,12 @@ No additional configuration options.
 ```yaml
 targets:
   - name: nuget
+```
+
+With a custom push timeout:
+
+```yaml
+targets:
+  - name: nuget
+    timeout: 3600
 ```
