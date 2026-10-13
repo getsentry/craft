@@ -234,6 +234,8 @@ export class NugetTarget extends BaseTarget {
       '--skip-duplicate',
       '--source',
       this.nugetConfig.serverUrl,
+      '--timeout',
+      '1800',
     ];
     return spawnProcess(NUGET_DOTNET_BIN, args, DOTNET_SPAWN_OPTIONS);
   }
