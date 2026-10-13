@@ -35,6 +35,9 @@ on:
 
 jobs:
   release:
+    permissions:
+      contents: write
+      copilot-requests: write
     uses: getsentry/craft/.github/workflows/release.yml@v2
     with:
       version: ${{ inputs.version }}
@@ -83,6 +86,9 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      copilot-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -106,6 +112,14 @@ jobs:
 
 
 The action accepts the same inputs and produces the same outputs as the reusable workflow.
+
+### AI summary authentication
+
+AI summaries remain opt-in through `changelog.aiSummary.enabled`. Copilot is the default provider and uses `gpt-6-luna` when available under organization policy. The organization must enable **“Allow use of Copilot CLI billed to the organization.”** Usage is billed to the organization; this policy is not assumed enabled for `getsentry`. Callers must grant `copilot-requests: write`, including reusable workflow callers. The action installs the official SDK’s pinned bundled runtime and passes `${{ github.token }}` via `COPILOT_GITHUB_TOKEN`, independently of any release bot token in `GITHUB_TOKEN`. No `CRAFT_AI_API_KEY` is needed for Copilot. The runtime uses isolated sessions with tools and stored-login fallback disabled.
+
+For an explicit alternative, set `provider: openrouter` and map `CRAFT_AI_API_KEY: ${{ secrets.CRAFT_AI_API_KEY }}` in the direct action’s `env`, or pass the optional `CRAFT_AI_API_KEY` secret to the reusable workflow. Any secret name can be mapped to that environment variable. Provider failures keep original release notes; they never switch providers. See the [AI summary configuration](https://craft.sentry.dev/pr-preview/pr-902/configuration.md#ai-summaries) for policy, model, runtime, permissions, and shared organization-secret setup.
+
+The Build & Test workflow includes credential-free runtime startup checks on Linux, macOS, and Windows. Its optional `copilot_sample` dispatch runs the built CLI in a temporary repository using the actual SDK and built-in token, with fixture GitHub metadata and real model inference. It verifies all hierarchy levels, release-only output, original-entry retention, and an unchanged version bump. It fails when access is unavailable or generation falls back. The sample writes no release branches or publish requests to GitHub. Run it on an authorized branch with `gh workflow run build.yml --ref <branch> -f copilot_sample=true`. This spends organization Copilot usage only when its policy and token permit it; unit tests and runtime startup checks do not prove model access.
 
 ### Test a Craft nightly
 
@@ -136,6 +150,9 @@ on:
 
 jobs:
   release:
+    permissions:
+      contents: write
+      copilot-requests: write
     uses: getsentry/craft/.github/workflows/release.yml@v2
     with:
       version: auto
@@ -440,6 +457,9 @@ on:
 
 jobs:
   release:
+    permissions:
+      contents: write
+      copilot-requests: write
     uses: getsentry/craft/.github/workflows/release.yml@v2
     with:
       version: ${{ inputs.version || 'auto' }}
