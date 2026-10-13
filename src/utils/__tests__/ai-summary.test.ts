@@ -3,11 +3,20 @@ import { summarizeChangelog, formatSummaryText } from '../ai-summary';
 import { setGlobals } from '../helpers';
 import { enableWorktreeMode, disableWorktreeMode } from '../dryRun';
 import { logger } from '../../logger';
+import type { SummaryRequest } from '../ai-provider';
+const { requestMock } = vi.hoisted(() => ({
+  requestMock: vi.fn<(request: SummaryRequest) => Promise<unknown>>(),
+}));
+vi.mock('../ai-provider', () => ({
+  createSummaryProvider: () => ({
+    request: requestMock,
+    close: async () => {},
+  }),
+}));
 
 const config = {
   enabled: true,
-  model: 'openai/gpt-6-luna',
-  provider: 'openrouter' as const,
+  model: 'gpt-6-luna',
   kickInThreshold: 5,
   levels: ['release', 'category', 'scope'] as (
     | 'release'
@@ -44,10 +53,8 @@ const categories = [
 ];
 
 // Only the external provider is simulated; reductions and validation remain real.
-function modelResponse(options: RequestInit) {
-  const input = JSON.parse(
-    JSON.parse(options.body as string).messages[1].content,
-  );
+function modelResponse(options: SummaryRequest) {
+  const input = JSON.parse(options.input);
   return {
     summaries: input.nodes.map((node: any) => ({
       id: node.id,
@@ -65,23 +72,14 @@ function modelResponse(options: RequestInit) {
   };
 }
 function completion(output: unknown) {
-  return Response.json({
-    choices: [
-      { finish_reason: 'stop', message: { content: JSON.stringify(output) } },
-    ],
-  });
+  return output;
 }
 
-describe('hierarchical OpenRouter changelog summaries', () => {
-  const fetchMock = vi.fn<typeof fetch>();
+describe('hierarchical Copilot changelog summaries', () => {
   beforeEach(() => {
-    fetchMock
+    requestMock
       .mockReset()
-      .mockImplementation(async (_url, options) =>
-        completion(modelResponse(options!)),
-      );
-    vi.stubGlobal('fetch', fetchMock);
-    vi.stubEnv('CRAFT_AI_API_KEY', 'test-key');
+      .mockImplementation(async options => completion(modelResponse(options!)));
     vi.spyOn(logger, 'warn').mockImplementation(() => {});
     setGlobals({ 'dry-run': false });
   });
@@ -123,8 +121,8 @@ describe('hierarchical OpenRouter changelog summaries', () => {
     const result = await summarizeChangelog(categories, config);
     expect(result!.categories.features).toContain('Small feature');
     expect(result!.release[0].summary).toContain('Small feature');
-    const inputs = fetchMock.mock.calls.map(([, options]) =>
-      JSON.parse(JSON.parse(options!.body as string).messages[1].content),
+    const inputs = requestMock.mock.calls.map(([options]) =>
+      JSON.parse(options.input),
     );
     expect(
       inputs.find(input => input.level === 'category').nodes[0].parts[0].text,
@@ -139,25 +137,15 @@ describe('hierarchical OpenRouter changelog summaries', () => {
     ).toEqual([7, 6]);
   });
 
-  it('keeps strict authentication, input and output bounds', async () => {
+  it('keeps strict structured-output and input bounds', async () => {
     await summarizeChangelog(categories, config);
-    for (const [url, options] of fetchMock.mock.calls) {
-      expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
-      expect(options).toMatchObject({
-        method: 'POST',
-        redirect: 'error',
-        headers: { Authorization: 'Bearer test-key' },
+    for (const [request] of requestMock.mock.calls) {
+      expect(request.schema).toMatchObject({
+        type: 'object',
+        additionalProperties: false,
+        required: ['summaries'],
       });
-      const body = JSON.parse(options!.body as string);
-      expect(body).toMatchObject({
-        model: config.model,
-        provider: { require_parameters: true },
-        response_format: { json_schema: { strict: true } },
-      });
-      expect(Buffer.byteLength(body.messages[1].content)).toBeLessThanOrEqual(
-        24000,
-      );
-      expect(body.max_tokens).toBeLessThanOrEqual(8192);
+      expect(Buffer.byteLength(request.input)).toBeLessThanOrEqual(24000);
     }
   });
 
@@ -181,12 +169,8 @@ describe('hierarchical OpenRouter changelog summaries', () => {
       { ...config, kickInThreshold: 0 },
     );
     expect(result!.release).toHaveLength(1);
-    const atoms = fetchMock.mock.calls
-      .flatMap(
-        ([, options]) =>
-          JSON.parse(JSON.parse(options!.body as string).messages[1].content)
-            .nodes,
-      )
+    const atoms = requestMock.mock.calls
+      .flatMap(([options]) => JSON.parse(options.input).nodes)
       .flatMap(node => node.parts)
       .filter(part => part.entryId === 'unicode:item:0');
     expect(atoms.map(part => part.text).join('')).toBe(entry);
@@ -231,10 +215,7 @@ describe('hierarchical OpenRouter changelog summaries', () => {
       { ...config, kickInThreshold: 1 },
     );
     expect(result!.release[0].summary).toContain('CVE-1234');
-    const input = JSON.parse(
-      JSON.parse(fetchMock.mock.calls.at(-1)![1]!.body as string).messages[1]
-        .content,
-    );
+    const input = JSON.parse(requestMock.mock.calls.at(-1)![0].input);
     expect(
       input.nodes[0].parts[0].importantChanges.map((fact: any) => fact.id),
     ).toEqual(['security:item:0', 'security:item:1']);
@@ -259,11 +240,11 @@ describe('hierarchical OpenRouter changelog summaries', () => {
         { ...config, levels: ['scope'] },
       ),
     ).toBeNull();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(requestMock).not.toHaveBeenCalled();
   });
 
   it('renders carried critical facts even when the final prose omits them', async () => {
-    fetchMock.mockImplementation(async (_url, options) => {
+    requestMock.mockImplementation(async options => {
       const output = modelResponse(options!);
       output.summaries.forEach((digest: any) => {
         digest.summary = 'General maintenance.';
@@ -284,7 +265,7 @@ describe('hierarchical OpenRouter changelog summaries', () => {
   });
 
   it('preserves different critical facts in separate fragments of one oversized entry', async () => {
-    fetchMock.mockImplementation(async (_url, options) => {
+    requestMock.mockImplementation(async options => {
       const output = modelResponse(options!);
       output.summaries.forEach((digest: any) => {
         digest.summary = 'General maintenance.';
@@ -313,8 +294,8 @@ describe('hierarchical OpenRouter changelog summaries', () => {
 
   it('enforces the total deadline across individually successful requests', async () => {
     vi.useFakeTimers();
-    fetchMock.mockImplementation(
-      async (_url, options) =>
+    requestMock.mockImplementation(
+      async options =>
         new Promise((resolve, reject) => {
           const timer = setTimeout(
             () => resolve(completion(modelResponse(options!))),
@@ -337,23 +318,16 @@ describe('hierarchical OpenRouter changelog summaries', () => {
     });
     await vi.advanceTimersByTimeAsync(120000);
     expect(await pending).toBeNull();
-    expect(fetchMock.mock.calls.at(-1)![1]!.signal!.aborted).toBe(true);
+    expect(requestMock.mock.calls.at(-1)![0]!.signal!.aborted).toBe(true);
   });
 
   it.each([
-    { choices: [{ finish_reason: 'length', message: { content: '{}' } }] },
-    { choices: [{ finish_reason: 'stop', message: { content: 'not JSON' } }] },
-    {
-      choices: [
-        {
-          finish_reason: 'stop',
-          message: { content: '{}', refusal: 'Refused' },
-        },
-      ],
-    },
-    { error: { message: 'test-key' }, choices: [] },
-  ])('rejects incomplete or refused completions (%j)', async payload => {
-    fetchMock.mockResolvedValue(Response.json(payload));
+    null,
+    {},
+    { summaries: [] },
+    { summaries: [{ id: 'unknown', summary: 'text', importantChanges: [] }] },
+  ])('rejects incomplete structured responses (%j)', async payload => {
+    requestMock.mockResolvedValue(payload);
     expect(await summarizeChangelog(categories, config)).toBeNull();
   });
 
@@ -418,19 +392,16 @@ describe('hierarchical OpenRouter changelog summaries', () => {
     });
   });
 
-  it('skips disabled, missing-key, strict and worktree dry-run requests', async () => {
+  it('skips disabled, strict and worktree dry-run requests', async () => {
     expect(await summarizeChangelog(categories, undefined)).toBeNull();
     expect(
       await summarizeChangelog(categories, { ...config, enabled: false }),
     ).toBeNull();
-    vi.stubEnv('CRAFT_AI_API_KEY', '');
-    expect(await summarizeChangelog(categories, config)).toBeNull();
-    vi.stubEnv('CRAFT_AI_API_KEY', 'test-key');
     setGlobals({ 'dry-run': true });
     expect(await summarizeChangelog(categories, config)).toBeNull();
     enableWorktreeMode();
     expect(await summarizeChangelog(categories, config)).toBeNull();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(requestMock).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -441,7 +412,7 @@ describe('hierarchical OpenRouter changelog summaries', () => {
     'unlinked-critical',
     'negative-claim',
   ])('rejects %s output atomically', async mode => {
-    fetchMock.mockImplementation(async (_url, options) => {
+    requestMock.mockImplementation(async options => {
       const output = modelResponse(options!);
       if (mode === 'missing') output.summaries.pop();
       if (mode === 'duplicate') output.summaries.push(output.summaries[0]);
@@ -471,22 +442,24 @@ describe('hierarchical OpenRouter changelog summaries', () => {
   });
 
   it.each([401, 402, 429, 503])(
-    'falls back without retries or secret logging on HTTP %s',
+    'falls back without retries or leaking SDK errors (%s)',
     async status => {
-      fetchMock.mockResolvedValue(new Response('test-key secret', { status }));
+      requestMock.mockRejectedValue(
+        new Error(`SDK failure ${status}: private-token`),
+      );
       expect(await summarizeChangelog(categories, config)).toBeNull();
-      expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(3);
+      expect(requestMock.mock.calls.length).toBeLessThanOrEqual(3);
       expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain(
-        'test-key',
+        'private-token',
       );
     },
   );
 
   it('aborts outstanding requests when a concurrent batch fails', async () => {
     let aborted = false;
-    fetchMock.mockImplementation(async (_url, options) => {
-      if (fetchMock.mock.calls.length === 1)
-        return new Response('', { status: 503 });
+    requestMock.mockImplementation(async options => {
+      if (requestMock.mock.calls.length === 1)
+        throw new Error('SDK unavailable');
       return new Promise((_resolve, reject) =>
         options!.signal!.addEventListener('abort', () => {
           aborted = true;
@@ -512,7 +485,7 @@ describe('hierarchical OpenRouter changelog summaries', () => {
   it('bounds concurrency and total requests for huge releases', async () => {
     let active = 0,
       peak = 0;
-    fetchMock.mockImplementation(async (_url, options) => {
+    requestMock.mockImplementation(async options => {
       active++;
       peak = Math.max(peak, active);
       await Promise.resolve();
@@ -531,14 +504,14 @@ describe('hierarchical OpenRouter changelog summaries', () => {
         kickInThreshold: 0,
       }),
     ).toBeNull();
-    expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(64);
+    expect(requestMock.mock.calls.length).toBeLessThanOrEqual(64);
     expect(peak).toBeLessThanOrEqual(3);
   });
 
   it('limits in-flight requests during a successful multi-batch release', async () => {
     let active = 0,
       peak = 0;
-    fetchMock.mockImplementation(async (_url, options) => {
+    requestMock.mockImplementation(async options => {
       active++;
       peak = Math.max(peak, active);
       await Promise.resolve();
@@ -562,8 +535,8 @@ describe('hierarchical OpenRouter changelog summaries', () => {
 
   it('aborts a stuck request at its deadline', async () => {
     vi.useFakeTimers();
-    fetchMock.mockImplementation(
-      async (_url, options) =>
+    requestMock.mockImplementation(
+      async options =>
         new Promise((_resolve, reject) =>
           options!.signal!.addEventListener('abort', () =>
             reject(new Error('test-key')),
@@ -573,7 +546,7 @@ describe('hierarchical OpenRouter changelog summaries', () => {
     const pending = summarizeChangelog(categories, config);
     await vi.advanceTimersByTimeAsync(30000);
     expect(await pending).toBeNull();
-    expect(fetchMock.mock.calls[0][1]!.signal!.aborted).toBe(true);
+    expect(requestMock.mock.calls[0][0]!.signal!.aborted).toBe(true);
   });
 });
 

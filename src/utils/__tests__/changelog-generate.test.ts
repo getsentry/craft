@@ -26,6 +26,16 @@ vi.mock('../../config', async importOriginal => {
 });
 import * as config from '../../config';
 import { readFileSync } from 'fs';
+import type { SummaryRequest } from '../ai-provider';
+const { modelRequest } = vi.hoisted(() => ({
+  modelRequest: vi.fn<(request: SummaryRequest) => Promise<unknown>>(),
+}));
+vi.mock('../ai-provider', () => ({
+  createSummaryProvider: () => ({
+    request: modelRequest,
+    close: async () => {},
+  }),
+}));
 import { ChangelogPolicy } from '../../schemas/project_config';
 import type { SimpleGit } from 'simple-git';
 
@@ -173,8 +183,7 @@ describe('generateChangesetFromGit', () => {
       includePaths: [],
       aiSummary: {
         enabled: true,
-        model: 'openai/gpt-6-luna',
-        provider: 'openrouter' as const,
+        model: 'gpt-6-luna',
         kickInThreshold: 5,
         levels: ['release', 'category', 'scope'] as (
           | 'release'
@@ -183,38 +192,126 @@ describe('generateChangesetFromGit', () => {
         )[],
       },
     };
-    const provider = vi.fn(async (_url: unknown, options: RequestInit) => {
-      const input = JSON.parse(
-        JSON.parse(options.body as string).messages[1].content,
-      );
-      return Response.json({
-        choices: [
-          {
-            finish_reason: 'stop',
-            message: {
-              content: JSON.stringify({
-                summaries: input.nodes
-                  .map((node: any) => ({
-                    id: node.id,
-                    summary: `${input.level} summary for ${node.title}`,
-                    importantChanges: [],
-                  }))
-                  .reverse(),
-              }),
-            },
-          },
-        ],
+    const provider = modelRequest;
+    beforeEach(() => {
+      provider.mockImplementation(async request => {
+        const input = JSON.parse(request.input);
+        return {
+          summaries: input.nodes
+            .map((node: any) => ({
+              id: node.id,
+              summary: `${input.level} summary for ${node.title}`,
+              importantChanges: [],
+            }))
+            .reverse(),
+        };
       });
     });
     beforeEach(() => {
       vi.mocked(config.getChangelogConfig).mockReturnValue(summaryConfig);
-      vi.stubEnv('CRAFT_AI_API_KEY', 'test-key');
       provider.mockClear();
-      vi.stubGlobal('fetch', provider);
     });
     afterEach(() => {
       vi.unstubAllGlobals();
       vi.unstubAllEnvs();
+    });
+
+    it.each([
+      [
+        'feat(cli)!: remove old API',
+        '## Changelog Entry\n- Remove legacy endpoint',
+      ],
+      ['security: patch XSS', ''],
+      [
+        'security(api): patch XSS',
+        '## Changelog Entry\n- Patch request handling',
+      ],
+    ])(
+      'retains critical source metadata before formatting %s',
+      async (title, body) => {
+        vi.mocked(config.getChangelogConfig).mockReturnValue({
+          ...summaryConfig,
+          aiSummary: {
+            ...summaryConfig.aiSummary,
+            kickInThreshold: 0,
+            levels: ['release'],
+          },
+        });
+        setup(
+          [
+            {
+              hash: 'abcdef1234567890',
+              title,
+              body: '',
+              pr: {
+                local: '1',
+                remote: { number: '1', title, body },
+              },
+            },
+          ],
+          null,
+        );
+        const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+        const input = JSON.parse(provider.mock.calls[0][0].input);
+        expect(input.nodes[0].parts[0].important).toBe(true);
+        // Our simulated model omits all critical facts: reject the whole attempt.
+        expect(result.changelog).not.toContain('release summary');
+        expect(result.changelog).not.toContain('<details>');
+        expect(result.bumpType).toBe(title.includes('!') ? 'major' : 'patch');
+      },
+    );
+
+    it('carries a valid critical digest through every reduction and keeps custom originals', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        aiSummary: { ...summaryConfig.aiSummary, kickInThreshold: 0 },
+      });
+      provider.mockImplementation(async request => {
+        const input = JSON.parse(request.input);
+        return {
+          summaries: input.nodes.map((node: any) => ({
+            id: node.id,
+            summary: 'General maintenance.',
+            importantChanges: node.parts.flatMap((part: any) => [
+              ...(part.importantChanges || []),
+              ...(part.important
+                ? [
+                    {
+                      id: part.sourceId,
+                      summary: 'Breaking change: legacy endpoint removed.',
+                    },
+                  ]
+                : []),
+            ]),
+          })),
+        };
+      });
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'feat(cli)!: remove old API',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                title: 'feat(cli)!: remove old API',
+                body: '## Changelog Entry\n- Remove legacy endpoint',
+              },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(provider).toHaveBeenCalledTimes(3);
+      expect(result.changelog.split('### Breaking Changes')[0]).toContain(
+        'Breaking change: legacy endpoint removed.',
+      );
+      expect(result.changelog).toContain('- Remove legacy endpoint');
+      expect(result.changelog).toContain('<details>');
+      expect(result.bumpType).toBe('major');
     });
 
     it('nests category and scope summaries while preserving every original entry and semver', async () => {
@@ -286,26 +383,11 @@ describe('generateChangesetFromGit', () => {
       vi.mocked(config.getChangelogConfig).mockReturnValue(summaryConfig);
       setup(commits, null);
       provider
-        .mockResolvedValueOnce(
-          Response.json({
-            choices: [
-              {
-                finish_reason: 'stop',
-                message: {
-                  content: JSON.stringify({
-                    summaries: [
-                      {
-                        id: 'group:0/r0/b0',
-                        summary: 'scope',
-                        importantChanges: [],
-                      },
-                    ],
-                  }),
-                },
-              },
-            ],
-          }),
-        )
+        .mockResolvedValueOnce({
+          summaries: [
+            { id: 'group:0/r0/b0', summary: 'scope', importantChanges: [] },
+          ],
+        })
         .mockRejectedValueOnce(new Error('Unavailable'));
       expect(await generateChangesetFromGit(dummyGit, '1.0.0')).toEqual(
         original,

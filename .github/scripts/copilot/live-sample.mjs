@@ -62,7 +62,6 @@ targets: []
     CRAFT_DRY_RUN: 'false',
     DRY_RUN: 'false',
   };
-  delete env.CRAFT_AI_API_KEY;
   const run = (...args) =>
     JSON.parse(
       execFileSync(

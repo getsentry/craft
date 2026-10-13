@@ -3,7 +3,6 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
-import { z } from 'zod';
 import type { AiSummaryConfig } from '../schemas/project_config';
 import { safeExec } from './dryRun';
 
@@ -16,65 +15,6 @@ export interface SummaryRequest {
 export interface SummaryProvider {
   request(request: SummaryRequest): Promise<unknown>;
   close(): Promise<void>;
-}
-
-const completionSchema = z.object({
-  error: z.null().optional(),
-  choices: z
-    .array(
-      z.object({
-        finish_reason: z.literal('stop'),
-        message: z.object({
-          content: z.string(),
-          refusal: z.null().optional(),
-        }),
-      }),
-    )
-    .min(1),
-});
-
-class OpenRouterProvider implements SummaryProvider {
-  constructor(private model: string) {}
-  async request(request: SummaryRequest): Promise<unknown> {
-    const key = process.env.CRAFT_AI_API_KEY?.trim();
-    if (!key) throw new Error('CRAFT_AI_API_KEY is required for OpenRouter');
-    const response = await safeExec(
-      () =>
-        fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          redirect: 'error',
-          signal: request.signal,
-          headers: {
-            Authorization: `Bearer ${key}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: this.model,
-            stream: false,
-            max_tokens: 8192,
-            reasoning: { effort: 'none' },
-            provider: { require_parameters: true },
-            messages: [
-              { role: 'system', content: request.system },
-              { role: 'user', content: request.input },
-            ],
-            response_format: {
-              type: 'json_schema',
-              json_schema: {
-                name: 'changelog_digests',
-                strict: true,
-                schema: request.schema,
-              },
-            },
-          }),
-        }),
-      'Generate changelog summaries via OpenRouter',
-    );
-    if (!response?.ok) throw new Error('Provider unavailable');
-    const completion = completionSchema.parse(await response.json());
-    return JSON.parse(completion.choices[0].message.content);
-  }
-  async close(): Promise<void> {}
 }
 
 /** Standalone action binaries load the pinned SDK installed beside the action. */
@@ -282,7 +222,5 @@ class CopilotProvider implements SummaryProvider {
 export function createSummaryProvider(
   config: AiSummaryConfig,
 ): SummaryProvider {
-  return config.provider === 'openrouter'
-    ? new OpenRouterProvider(config.model)
-    : new CopilotProvider(config.model);
+  return new CopilotProvider(config.model);
 }

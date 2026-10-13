@@ -115,7 +115,6 @@ describe('validateConfiguration', () => {
     expect(getChangelogConfig().aiSummary).toEqual({
       enabled: true,
       model: 'gpt-6-luna',
-      provider: 'copilot',
       kickInThreshold: 5,
       levels: ['release'],
     });

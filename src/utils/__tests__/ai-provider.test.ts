@@ -62,7 +62,6 @@ describe('AI summary providers', () => {
     vi.stubEnv('GITHUB_TOKEN', 'workflow-token');
     vi.stubEnv('COPILOT_GITHUB_TOKEN', '');
     vi.stubEnv('CRAFT_COPILOT_SDK_DIR', '');
-    vi.stubEnv('CRAFT_AI_API_KEY', '');
     setGlobals({ 'dry-run': false });
   });
   afterEach(() => {
@@ -72,7 +71,7 @@ describe('AI summary providers', () => {
     setGlobals({ 'dry-run': false });
   });
 
-  it('defaults to Copilot with the installation token in runtime env, without an API key', async () => {
+  it('defaults to Copilot with the installation token in runtime env', async () => {
     const provider = createSummaryProvider(config());
     try {
       expect(await provider.request(request)).toEqual({ summaries: [] });
@@ -83,7 +82,6 @@ describe('AI summary providers', () => {
         env: { COPILOT_GITHUB_TOKEN: 'workflow-token' },
       });
       expect(sdk.options[0]).not.toHaveProperty('gitHubToken');
-      expect(sdk.options[0].env).not.toHaveProperty('CRAFT_AI_API_KEY');
       expect(sdk.options[0].env).not.toHaveProperty('GITHUB_TOKEN');
       expect(sdk.options[0].env).not.toHaveProperty('NODE_OPTIONS');
       expect(sdk.sessions[0]).toMatchObject({
@@ -138,7 +136,7 @@ describe('AI summary providers', () => {
     }
   });
 
-  it('validates and reduces real hierarchy data through default Copilot without an API key', async () => {
+  it('validates and reduces real hierarchy data through default Copilot with the workflow token', async () => {
     const fetch = vi.fn();
     vi.stubGlobal('fetch', fetch);
     sdk.send.mockImplementation(async ({ prompt }) => {
@@ -204,12 +202,11 @@ describe('AI summary providers', () => {
   });
 
   it.each([[[]], [[{ id: 'gpt-6-luna', policy: { state: 'disabled' } }]]])(
-    'rejects unavailable org models without switching to OpenRouter (%j)',
+    'rejects unavailable org models without generation (%j)',
     async models => {
       sdk.listModels.mockResolvedValue(models);
       const fetch = vi.fn();
       vi.stubGlobal('fetch', fetch);
-      vi.stubEnv('CRAFT_AI_API_KEY', 'alternative-key');
       const provider = createSummaryProvider(config());
       try {
         await expect(provider.request(request)).rejects.toThrow();
@@ -270,36 +267,16 @@ describe('AI summary providers', () => {
     }
   });
 
-  it('requires explicit OpenRouter selection and its environment key', async () => {
-    const provider = createSummaryProvider(
-      AiSummaryConfigSchema.parse({ enabled: true, provider: 'openrouter' }),
-    );
+  it('fails without a GitHub token instead of using stored credentials', async () => {
+    vi.stubEnv('GITHUB_TOKEN', '');
+    const provider = createSummaryProvider(config());
     try {
-      await expect(provider.request(request)).rejects.toThrow();
-      expect(sdk.clients).toHaveLength(0);
-    } finally {
-      await provider.close();
-    }
-    vi.stubEnv('CRAFT_AI_API_KEY', 'alternative-key');
-    const fetch = vi.fn().mockResolvedValue(
-      Response.json({
-        choices: [
-          { finish_reason: 'stop', message: { content: '{"summaries":[]}' } },
-        ],
-      }),
-    );
-    vi.stubGlobal('fetch', fetch);
-    const alternative = createSummaryProvider(
-      AiSummaryConfigSchema.parse({ enabled: true, provider: 'openrouter' }),
-    );
-    try {
-      expect(await alternative.request(request)).toEqual({ summaries: [] });
-      expect(JSON.parse(fetch.mock.calls[0][1].body).model).toBe(
-        'openai/gpt-6-luna',
+      await expect(provider.request(request)).rejects.toThrow(
+        'Copilot requires a GitHub token',
       );
       expect(sdk.clients).toHaveLength(0);
     } finally {
-      await alternative.close();
+      await provider.close();
     }
   });
 });

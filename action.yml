@@ -184,22 +184,13 @@ runs:
           fi
         fi
 
-    # The SDK owns a native runtime; keep its pinned dependency tree on disk.
-    - uses: actions/setup-node@v6
-      with:
-        node-version: '22'
-
-    - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-      with:
-        version: '10.27.0'
-
+    # Keep SDK packages on disk without replacing the caller's Node or pnpm.
     - name: Install Copilot summary runtime
+      continue-on-error: true
       shell: bash
       env:
         ACTION_PATH: ${{ github.action_path }}
-      run: |
-        pnpm install --dir "$ACTION_PATH/.github/copilot-sdk" --frozen-lockfile --ignore-scripts
-        echo "CRAFT_COPILOT_SDK_DIR=$ACTION_PATH/.github/copilot-sdk" >> "$GITHUB_ENV"
+      run: node "$ACTION_PATH/.github/scripts/install-copilot-runtime.mjs"
 
     - name: Craft Prepare
       id: craft

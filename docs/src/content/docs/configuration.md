@@ -225,14 +225,13 @@ Auto mode uses `.github/release.yml` to categorize PRs. This file follows [GitHu
 
 #### AI summaries
 
-Opt in to configurable changelog summaries using GPT-6 Luna through GitHub Copilot (the default provider):
+Opt in to configurable changelog summaries using GPT-6 Luna through GitHub Copilot:
 
 ```yaml
 changelog:
   policy: auto
   aiSummary:
     enabled: true
-    provider: copilot # default
     model: gpt-6-luna # default for Copilot
     levels: [release, category, scope] # choose any combination
     kickInThreshold: 5 # summarize displayed groups with more than 5 entries
@@ -240,14 +239,13 @@ changelog:
 
 Copilot uses the official `@github/copilot-sdk` bundled runtime. In Actions,
 Craft passes the built-in installation token through `COPILOT_GITHUB_TOKEN`
-in the runtime environment, with stored-user authentication disabled. No model
-API key is required. See the [Actions setup](#github-actions) below.
+in the runtime environment, with stored-user authentication disabled. See the
+[Actions setup](#github-actions) below.
 
 | Setting | Default | Behavior |
 | --- | --- | --- |
 | `enabled` | `false` | Enable summaries explicitly. |
-| `provider` | `copilot` | `copilot` or explicitly selected `openrouter`. Failures never switch providers. |
-| `model` | Provider-specific | `gpt-6-luna` for Copilot; `openai/gpt-6-luna` for OpenRouter. Copilot checks organization model availability. Overrides must support structured output; OpenRouter also requires `reasoning.effort: none`. |
+| `model` | `gpt-6-luna` | Copilot model ID. Craft checks organization model availability. Overrides must support structured output. |
 | `levels` | `[release]` | Any combination of `release`, `category`, and `scope`, without duplicates. Omitted or empty lists use `[release]`. Selects visible summaries; internal digests can still be generated for parent summaries. |
 | `kickInThreshold` | `5` | Nonnegative integer. Summaries appear only when original entry counts exceed this value. `0` summarizes every nonempty selected group. Category counts include descendants; release counts include the entire changelog. |
 
@@ -304,8 +302,8 @@ summary prose. Structural validation ensures category coverage; generated
 prose still needs human review for factual accuracy.
 
 Existing leftover-entry limits still apply. Enabling summaries sends the
-rendered changelog content to the selected provider. Copilot usage is billed to
-the organization; OpenRouter uses your OpenRouter credits. Large releases and additional levels can require
+rendered changelog content to GitHub Copilot. Usage is billed to the
+organization. Large releases and additional levels can require
 multiple requests.
 
 Missing credentials, API errors, timeouts, refusals, invalid output, or exhausted
@@ -330,7 +328,8 @@ and [installation-token authentication guide](https://docs.github.com/en/copilot
 Both direct Craft action users and callers of the reusable release workflow must
 grant `copilot-requests: write` in the calling job's permissions, alongside their
 existing release permissions. A reusable workflow cannot increase permissions
-granted by its caller. The action installs the pinned SDK runtime and sets
+granted by its caller. The action installs the pinned SDK runtime with a private pnpm installer,
+retains the caller's Node and pnpm versions, and sets
 `COPILOT_GITHUB_TOKEN: ${{ github.token }}` separately from the token used for
 release API operations. These permissions authorize access; the SDK runtime
 performs the actual installation-token authentication flow.
@@ -376,52 +375,6 @@ the action. A separately downloaded Craft binary needs an installed SDK and
 CLI installation or local model download is required. On local runs, provide an
 approved Copilot token through `COPILOT_GITHUB_TOKEN` (or `GITHUB_TOKEN`);
 Craft does not fall back to stored login credentials.
-
-##### Explicit OpenRouter alternative
-
-Select OpenRouter in `.craft.yml`:
-
-```yaml
-changelog:
-  policy: auto
-  aiSummary:
-    enabled: true
-    provider: openrouter
-    # model defaults to openai/gpt-6-luna
-```
-
-Store the key as an Actions secret and map it to Craft's environment:
-
-```yaml
-env:
-  CRAFT_AI_API_KEY: ${{ secrets.CRAFT_AI_API_KEY }}
-```
-
-The secret can have any name in GitHub; keep the environment variable name:
-
-```yaml
-env:
-  CRAFT_AI_API_KEY: ${{ secrets.OPENROUTER_RELEASE_TOKEN }}
-```
-
-Craft reads the environment and cannot discover GitHub secrets directly. Make
-the secret available to the repository running the workflow. For multiple
-repositories, an [organization Actions secret](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#creating-secrets-for-an-organization)
-with selected-repository access can share one configuration. Each repository
-maps it to `CRAFT_AI_API_KEY`; secrets are not automatically shared between
-repositories. Reusable workflow callers can use `secrets: inherit` or map a
-renamed secret explicitly:
-
-```yaml
-secrets:
-  CRAFT_AI_API_KEY: ${{ secrets.OPENROUTER_RELEASE_TOKEN }}
-```
-
-OpenRouter uses native fetch and does not require a Copilot token or API access.
-The supplied reusable release workflow still declares `copilot-requests: write`,
-so its callers must grant that permission. Custom direct CLI workflows using
-OpenRouter need no Copilot permission. Copilot never uses `CRAFT_AI_API_KEY`,
-even if that key is present; provider failures preserve original output.
 
 #### Craft Extensions to release.yml
 
@@ -687,7 +640,7 @@ changelog:
 | `changelog.policy`        | Mode: `none`, `simple`, or `auto`. Default: `none`                           |
 | `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true`                                 |
 | `changelog.includePaths`  | Extra workspace directories to include in automatic changelogs. Default: `[]` |
-| `changelog.aiSummary` | Opt-in Copilot or OpenRouter release, category, and scope summaries. Default: disabled. |
+| `changelog.aiSummary` | Opt-in Copilot release, category, and scope summaries. Default: disabled. |
 
 ## Versioning
 

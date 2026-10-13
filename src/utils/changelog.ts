@@ -637,6 +637,8 @@ interface PullRequest {
   highlight?: boolean;
   /** The pattern that matched this PR (for title stripping) */
   matchedPattern?: RegExp;
+  /** Critical status retained before custom entries or prefix stripping. */
+  important?: boolean;
 }
 
 /**
@@ -659,7 +661,11 @@ function createPREntriesFromRaw(
   },
   defaultTitle: string,
   fallbackBody?: string,
+  important = false,
 ): PullRequest[] {
+  important ||= /^(?:\w+(?:\([^)]*\))?!:|security(?:\([^)]*\))?!?:)/i.test(
+    defaultTitle,
+  );
   const customEntries = extractChangelogEntry(raw.prBody);
 
   if (customEntries) {
@@ -670,6 +676,7 @@ function createPREntriesFromRaw(
       body: entry.nestedContent ?? '',
       title: entry.text,
       highlight: raw.highlight,
+      important,
     }));
   }
 
@@ -689,6 +696,7 @@ function createPREntriesFromRaw(
       body,
       title: defaultTitle,
       highlight: raw.highlight,
+      important,
     },
   ];
 }
@@ -1794,7 +1802,13 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
       }
 
       // Create PR entries (handles custom changelog entries if present)
-      const prEntries = createPREntriesFromRaw(raw, prTitle, raw.body);
+      const prEntries = createPREntriesFromRaw(
+        raw,
+        prTitle,
+        raw.body,
+        matchedCategory?.semver === 'major' ||
+          /\bsecurity\b/i.test(categoryTitle),
+      );
       // Add matched pattern to each entry for title stripping
       for (const entry of prEntries) {
         entry.matchedPattern = matchedPattern;
@@ -1995,7 +2009,7 @@ async function serializeChangelog(
         ),
       );
       const importantItems = prs.flatMap((pr, index) =>
-        /^\w+(?:\([^)]*\))?!:/.test(pr.title) ? [index] : [],
+        pr.important ? [index] : [],
       );
 
       if (scopeHeader) {
@@ -2030,6 +2044,7 @@ async function serializeChangelog(
     // Only add "Other" section header if there are other category sections
     beginCategory('Other', changelogSections.length > 0);
     const leftoverEntries: string[] = [];
+    const importantLeftovers: number[] = [];
     for (const commit of leftovers.slice(0, maxLeftovers)) {
       // Create PR entries (handles custom changelog entries if present)
       const prEntries = createPREntriesFromRaw(
@@ -2045,6 +2060,7 @@ async function serializeChangelog(
       );
 
       for (const pr of prEntries) {
+        if (pr.important) importantLeftovers.push(leftoverEntries.length);
         leftoverEntries.push(
           formatChangelogEntry(
             {
@@ -2062,7 +2078,7 @@ async function serializeChangelog(
         );
       }
     }
-    addEntries('Other', leftoverEntries);
+    addEntries('Other', leftoverEntries, undefined, importantLeftovers);
     if (nLeftovers > maxLeftovers) {
       changelogSections.push(`_Plus ${nLeftovers - maxLeftovers} more_`);
     }

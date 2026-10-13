@@ -153,32 +153,24 @@ export const VersioningConfigSchema = z.object({
 
 export type VersioningConfig = z.infer<typeof VersioningConfigSchema>;
 
-/** Opt-in summaries of automatic changelogs, generated through an explicitly configured provider. */
-export const AiSummaryConfigSchema = z
-  .object({
-    enabled: z.boolean().default(false),
-    provider: z.enum(['copilot', 'openrouter']).default('copilot'),
-    model: z.string().trim().min(1).max(200).optional(),
-    kickInThreshold: z.number().int().nonnegative().default(5),
-    levels: z
-      .array(z.enum(['release', 'category', 'scope']))
-      .refine(
-        levels => new Set(levels).size === levels.length,
-        'Duplicate summary levels',
-      )
-      .default(['release'])
-      .transform(levels =>
-        levels.length
-          ? levels
-          : (['release'] as ('release' | 'category' | 'scope')[]),
-      ),
-  })
-  .transform(config => ({
-    ...config,
-    model:
-      config.model ??
-      (config.provider === 'openrouter' ? 'openai/gpt-6-luna' : 'gpt-6-luna'),
-  }));
+/** Opt-in summaries of automatic changelogs, generated through GitHub Copilot. */
+export const AiSummaryConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  model: z.string().trim().min(1).max(200).default('gpt-6-luna'),
+  kickInThreshold: z.number().int().nonnegative().default(5),
+  levels: z
+    .array(z.enum(['release', 'category', 'scope']))
+    .refine(
+      levels => new Set(levels).size === levels.length,
+      'Duplicate summary levels',
+    )
+    .default(['release'])
+    .transform(levels =>
+      levels.length
+        ? levels
+        : (['release'] as ('release' | 'category' | 'scope')[]),
+    ),
+});
 
 export type AiSummaryConfig = z.infer<typeof AiSummaryConfigSchema>;
 
