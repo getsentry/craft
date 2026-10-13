@@ -15,6 +15,13 @@ import {
 import { getChangesSince } from './git';
 import { getGitHubClient } from './githubApi';
 import { getVersion } from './version';
+import type { AiSummaryConfig } from '../schemas/project_config';
+import {
+  summarizeChangelog,
+  formatSummaryText,
+  formatSummaryWithDetails,
+  type SummarySection,
+} from './ai-summary';
 
 /** Information about the current (unmerged) PR to inject into changelog */
 export interface CurrentPRInfo {
@@ -1844,14 +1851,23 @@ async function serializeChangelog(
   const { categories, leftovers, releaseConfig } = rawData;
 
   const changelogSections: string[] = [];
+  const summarySections: SummarySection[] = [];
+  const summaryPositions: number[] = [];
+  const addEntries = (title: string, items: string[]) => {
+    summaryPositions.push(changelogSections.length);
+    summarySections.push({ title, items });
+    changelogSections.push(items.join('\n'));
+  };
   const { repo, owner } = await getGlobalGitHubConfig();
   const repoUrl = `https://github.com/${owner}/${repo}`;
 
   // Get changelog config for scope grouping setting
   let scopeGroupingEnabled = true;
+  let aiSummary: AiSummaryConfig | undefined;
   try {
     const changelogConfig = getChangelogConfig();
     scopeGroupingEnabled = changelogConfig.scopeGrouping;
+    aiSummary = changelogConfig.aiSummary;
   } catch {
     // If config can't be read (e.g., no .craft.yml), use default
   }
@@ -1932,7 +1948,7 @@ async function serializeChangelog(
 
       if (scopeHeader) {
         changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, scopeHeader));
-        changelogSections.push(prEntries.join('\n'));
+        addEntries(`${category.title} / ${scopeHeader}`, prEntries);
       } else {
         // No header for this scope group - collect entries to combine later
         entriesWithoutHeaders.push(...prEntries);
@@ -1945,7 +1961,7 @@ async function serializeChangelog(
       if (hasScopeHeaders) {
         changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, 'Other'));
       }
-      changelogSections.push(entriesWithoutHeaders.join('\n'));
+      addEntries(category.title, entriesWithoutHeaders);
     }
   }
 
@@ -1988,12 +2004,34 @@ async function serializeChangelog(
         );
       }
     }
-    changelogSections.push(leftoverEntries.join('\n'));
+    addEntries('Other', leftoverEntries);
     if (nLeftovers > maxLeftovers) {
       changelogSections.push(`_Plus ${nLeftovers - maxLeftovers} more_`);
     }
   }
 
+  // Highlighted PR previews keep their original emphasis and never call a model.
+  const hasHighlights =
+    [...categories.values()].some(category =>
+      [...category.scopeGroups.values()].some(prs =>
+        prs.some(pr => pr.highlight),
+      ),
+    ) || leftovers.some(commit => commit.highlight);
+  const summary =
+    disablePRLinks || hasHighlights
+      ? null
+      : await summarizeChangelog(summarySections, aiSummary);
+  if (summary) {
+    for (const section of summary.sections) {
+      changelogSections[summaryPositions[section.id]] =
+        formatSummaryWithDetails(
+          section.summary,
+          summarySections[section.id].items,
+        );
+    }
+    if (summary.topLevel)
+      changelogSections.unshift(formatSummaryText(summary.topLevel));
+  }
   return changelogSections.join('\n\n');
 }
 

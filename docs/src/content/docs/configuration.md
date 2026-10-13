@@ -223,6 +223,113 @@ changelog:
 
 Auto mode uses `.github/release.yml` to categorize PRs. This file follows [GitHub's release.yml format](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes#configuring-automatically-generated-release-notes) with Craft-specific extensions.
 
+#### AI summaries through OpenRouter
+
+Opt in to summaries of verbose changelog sections using [GPT-6 Luna on OpenRouter](https://openrouter.ai/openai/gpt-6-luna):
+
+```yaml
+changelog:
+  policy: auto
+  aiSummary:
+    enabled: true
+    model: openai/gpt-6-luna # default
+    kickInThreshold: 5 # summarize sections with more than 5 entries
+    topLevel: threshold # always, never, or threshold (default)
+```
+
+Set `OPENROUTER_API_KEY` in the environment. Craft uses OpenRouter's chat
+completions API; GitHub tokens do not authenticate these requests. No AI SDK,
+local model, or model download is required.
+
+| Setting | Default | Behavior |
+| --- | --- | --- |
+| `enabled` | `false` | Enable summaries explicitly. |
+| `model` | `openai/gpt-6-luna` | OpenRouter model ID. Overrides must support structured outputs and `reasoning.effort: none`. |
+| `kickInThreshold` | `5` | Positive integer. Sections with this many entries or fewer keep their normal list. |
+| `topLevel` | `threshold` | `always`: add an overview to any nonempty changelog; `never`: omit it; `threshold`: add it when the total rendered entry count exceeds the threshold. |
+
+A section is a rendered list under a category or scope heading. For example,
+six CLI entries under **New Features → CLI** become:
+
+```markdown
+#### CLI
+
+Added commands for configuration, deployment, and authentication.
+
+<details>
+<summary>Show 6 items</summary>
+
+- Add configuration command by @author in [#101](https://github.com/org/repo/pull/101)
+- Add configuration export command
+- Add deployment command
+- Add deployment status command
+- Add login command
+- Add logout command
+
+</details>
+```
+
+The original entries, nested details, author mentions, and links are preserved
+inside the expandable block. Summaries are additional generated prose; review
+them before publishing. The optional overview appears above the first category.
+Workspace settings follow the normal `changelog` inheritance rules: a workspace
+either inherits the whole object or replaces it with its own configuration.
+
+Craft sends every rendered entry needed for the requested summaries in a single
+request, including entries after the fifth item. Existing leftover-entry limits
+still apply. Enabling summaries sends that changelog content to OpenRouter and
+its selected model provider and uses your OpenRouter credits.
+
+Missing credentials, API errors, timeouts, refusals, or invalid output keep the
+original changelog. Craft makes no retries and waits at most 30 seconds. Inputs
+over 120,000 characters or more than 100 eligible sections skip summarization;
+requests allow at most 8,192 output tokens. Summaries are disabled during all
+dry runs, including worktree dry runs, and highlighted `craft changelog --pr`
+previews. The calculated version bump is unaffected.
+
+##### GitHub Actions
+
+Store an OpenRouter API key as the repository or environment secret
+`OPENROUTER_API_KEY`, enable `changelog.aiSummary` in `.craft.yml`, and pass the
+secret to your existing Craft release step. For example, a workflow that
+generates release notes can use:
+
+```yaml
+name: Release notes
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: '10.27.0'
+      - name: Generate release notes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: pnpm --package=@sentry/craft dlx craft changelog --since v1.0.0 > release-notes.md
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: release-notes.md
+```
+
+Replace `v1.0.0` with the release's base tag. Use a Craft version that includes
+this feature. For a `craft prepare` step or the Craft release action, pass the
+same environment variable to that step. No `models: read`, Copilot permission,
+or OpenAI OIDC setup is needed for OpenRouter.
+
 #### Craft Extensions to release.yml
 
 Craft extends GitHub's format with two additional fields:
@@ -487,6 +594,7 @@ changelog:
 | `changelog.policy`        | Mode: `none`, `simple`, or `auto`. Default: `none`                           |
 | `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true`                                 |
 | `changelog.includePaths`  | Extra workspace directories to include in automatic changelogs. Default: `[]` |
+| `changelog.aiSummary` | Opt-in OpenRouter section summaries and release overview. Default: disabled. |
 
 ## Versioning
 

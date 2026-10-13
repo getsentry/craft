@@ -108,6 +108,49 @@ describe('validateConfiguration', () => {
     expect(validateConfiguration(data)).toEqual(data);
   });
 
+  test('normalizes opt-in Luna summary settings from the active schema', () => {
+    loadConfigurationFromString(
+      'changelog:\n  policy: auto\n  aiSummary:\n    enabled: true',
+    );
+    expect(getChangelogConfig().aiSummary).toEqual({
+      enabled: true,
+      model: 'openai/gpt-6-luna',
+      kickInThreshold: 5,
+      topLevel: 'threshold',
+    });
+  });
+
+  test.each([0, -1, 1.5])(
+    'rejects invalid summary threshold %s',
+    kickInThreshold => {
+      expect(() =>
+        validateConfiguration({
+          changelog: { aiSummary: { enabled: true, kickInThreshold } },
+        }),
+      ).toThrow(/changelog/);
+    },
+  );
+
+  test('rejects an empty summary model', () => {
+    expect(() =>
+      validateConfiguration({ changelog: { aiSummary: { model: '  ' } } }),
+    ).toThrow(/changelog/);
+  });
+
+  test('inherits summary settings and allows a workspace to disable them', () => {
+    const yaml = `minVersion: ${WORKSPACES_MIN_VERSION}\nchangelog:\n  policy: auto\n  aiSummary:\n    enabled: true\n    kickInThreshold: 8\nworkspaces:\n  cli: {}\n  mcp:\n    changelog:\n      policy: auto\n      aiSummary:\n        enabled: false`;
+    try {
+      setActiveWorkspace('cli');
+      loadConfigurationFromString(yaml);
+      expect(getChangelogConfig().aiSummary?.kickInThreshold).toBe(8);
+      setActiveWorkspace('mcp');
+      loadConfigurationFromString(yaml);
+      expect(getChangelogConfig().aiSummary?.enabled).toBe(false);
+    } finally {
+      setActiveWorkspace(undefined);
+    }
+  });
+
   test('parses configuration with versioning', () => {
     const data = {
       versioning: {

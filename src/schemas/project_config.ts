@@ -153,6 +153,16 @@ export const VersioningConfigSchema = z.object({
 
 export type VersioningConfig = z.infer<typeof VersioningConfigSchema>;
 
+/** Opt-in summaries of automatic changelogs, generated through OpenRouter. */
+export const AiSummaryConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  model: z.string().trim().min(1).max(200).default('openai/gpt-6-luna'),
+  kickInThreshold: z.number().int().positive().default(5),
+  topLevel: z.enum(['always', 'never', 'threshold']).default('threshold'),
+});
+
+export type AiSummaryConfig = z.infer<typeof AiSummaryConfigSchema>;
+
 /**
  * Changelog configuration
  */
@@ -162,6 +172,7 @@ export const ChangelogConfigSchema = z.union([
     filePath: z.string().optional(),
     policy: z.enum(['auto', 'simple', 'none']).optional(),
     scopeGrouping: z.boolean().optional(),
+    aiSummary: AiSummaryConfigSchema.optional(),
     includePaths: z
       .array(
         z

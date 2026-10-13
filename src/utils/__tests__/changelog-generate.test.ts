@@ -21,10 +21,12 @@ vi.mock('../../config', async importOriginal => {
     ...actual,
     getConfigFileDir: vi.fn(),
     getGlobalGitHubConfig: vi.fn(),
+    getChangelogConfig: vi.fn(),
   };
 });
 import * as config from '../../config';
 import { readFileSync } from 'fs';
+import { ChangelogPolicy } from '../../schemas/project_config';
 import type { SimpleGit } from 'simple-git';
 
 import {
@@ -157,6 +159,172 @@ describe('generateChangesetFromGit', () => {
   // ============================================================================
   // Basic output formatting tests - use snapshots
   // ============================================================================
+
+  describe('AI summaries in the real generator', () => {
+    const commits = Array.from({ length: 6 }, (_, i) => ({
+      hash: `abcdef${i}1234567890`,
+      title: `feat(cli): Add command ${i + 1}`,
+      body: '',
+    }));
+    const summaryConfig = {
+      filePath: 'CHANGELOG.md',
+      policy: ChangelogPolicy.Auto,
+      scopeGrouping: true,
+      includePaths: [],
+      aiSummary: {
+        enabled: true,
+        model: 'openai/gpt-6-luna',
+        kickInThreshold: 5,
+        topLevel: 'threshold' as const,
+      },
+    };
+    beforeEach(() => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue(summaryConfig);
+      vi.stubEnv('OPENROUTER_API_KEY', 'test-key');
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    });
+
+    it('adds Luna summaries while preserving all original entries and semver', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () =>
+          Response.json({
+            choices: [
+              {
+                finish_reason: 'stop',
+                message: {
+                  content: JSON.stringify({
+                    topLevel: 'This release adds six commands.',
+                    sections: [{ id: 0, summary: 'Added six commands.' }],
+                  }),
+                },
+              },
+            ],
+          }),
+        ),
+      );
+      setup(commits, null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog).toContain('This release adds six commands.');
+      expect(result.changelog).toContain(
+        '#### Cli\n\nAdded six commands.\n\n<details>\n<summary>Show 6 items</summary>',
+      );
+      for (let i = 1; i <= 6; i++)
+        expect(result.changelog).toContain(`- Add command ${i}`);
+      expect(result.changelog).toContain('</details>');
+      expect(result.bumpType).toBe('minor');
+      expect(result.totalCommits).toBe(6);
+    });
+
+    it('keeps byte-for-byte original output when the provider fails', async () => {
+      const fetchMock = vi.fn().mockRejectedValue(new Error('Unavailable'));
+      vi.stubGlobal('fetch', fetchMock);
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        aiSummary: { ...summaryConfig.aiSummary, enabled: false },
+      });
+      setup(commits, null);
+      const original = await generateChangesetFromGit(dummyGit, '1.0.0');
+      clearChangesetCache();
+      vi.mocked(config.getChangelogConfig).mockReturnValue(summaryConfig);
+      setup(commits, null);
+      expect(await generateChangesetFromGit(dummyGit, '1.0.0')).toEqual(
+        original,
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('maps reordered summaries past an ineligible first section to their own headings', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        aiSummary: { ...summaryConfig.aiSummary, topLevel: 'never' },
+      });
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () =>
+          Response.json({
+            choices: [
+              {
+                finish_reason: 'stop',
+                message: {
+                  content: JSON.stringify({
+                    topLevel: null,
+                    sections: [
+                      { id: 2, summary: 'Documented CLI commands.' },
+                      { id: 1, summary: 'Fixed API endpoints.' },
+                    ],
+                  }),
+                },
+              },
+            ],
+          }),
+        ),
+      );
+      setup(
+        [
+          { hash: 'bbbbbbb1234567890', title: 'feat(ui): Add menu', body: '' },
+          ...commits.map((commit, i) => ({
+            ...commit,
+            title: `fix(api): Fix endpoint ${i + 1}`,
+          })),
+          ...commits.map((commit, i) => ({
+            ...commit,
+            hash: `cccccc${i}1234567890`,
+            title: `docs(cli): Document command ${i + 1}`,
+          })),
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog).toContain(
+        '### New Features ✨\n\n- (ui) Add menu',
+      );
+      expect(result.changelog).toContain(
+        '#### Api\n\nFixed API endpoints.\n\n<details>',
+      );
+      expect(result.changelog).toContain(
+        '#### Cli\n\nDocumented CLI commands.\n\n<details>',
+      );
+      expect(result.changelog).toContain('Fix endpoint 6');
+      expect(result.changelog).toContain('Document command 6');
+    });
+
+    it('leaves highlighted PR previews expanded and makes no model request', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      (
+        getGitHubClient as MockedFunction<typeof getGitHubClient>
+      ).mockReturnValue({
+        graphql: mockClient,
+        pulls: {
+          get: vi.fn().mockResolvedValue({
+            data: {
+              number: 777,
+              title: 'feat(cli): Add preview command',
+              body: '',
+              user: { login: 'author' },
+              base: { ref: 'master' },
+              head: { sha: 'bbbbbbb1234567890' },
+            },
+          }),
+        },
+        issues: { listLabelsOnIssue: vi.fn().mockResolvedValue({ data: [] }) },
+      } as any);
+      setup(commits, null);
+      const result = await generateChangelogWithHighlight(
+        { fetch: vi.fn().mockResolvedValue(undefined) } as unknown as SimpleGit,
+        '1.0.0',
+        777,
+      );
+      expect(result.changelog).toContain('> - Add preview command');
+      expect(result.changelog).not.toContain('<details>');
+      expect(result.bumpType).toBe('minor');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
 
   describe('output formatting', () => {
     it('returns empty string for empty changeset', async () => {
