@@ -31,7 +31,7 @@ jobs:
           version: '10.27.0'
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:copilot
-      - name: Unpack and start packaged runtime without model access
+      - name: Verify trimmed runtime with local structured sessions and cancellation
         shell: bash
         env:
           CRAFT_COPILOT_SDK_DIR: ${{ runner.temp }}/copilot-runtime

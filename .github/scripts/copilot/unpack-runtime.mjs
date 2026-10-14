@@ -69,7 +69,7 @@ export async function unpackRuntime(archive, directory) {
     !entries.length ||
     entries.some(
       name =>
-        !/^(?:package\.json$|node_modules(?:\/|$))/.test(name) ||
+        !/^(?:package\.json$|(?:node_modules|licenses)(?:\/|$))/.test(name) ||
         name.includes('\\') ||
         name.split('/').some(part => part === '..' || part === '.'),
     )

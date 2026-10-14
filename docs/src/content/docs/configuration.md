@@ -332,6 +332,9 @@ The action ships a prebuilt Copilot SDK and native runtime archive with its
 Craft build. It unpacks that archive without running a package installer or
 changing the caller's Node or pnpm setup, and passes the built-in workflow token
 through `COPILOT_GITHUB_TOKEN` separately from any release bot token.
+The archive contains only the bundled JavaScript client, the matching headless
+runtime and authentication libraries, and license notices. It omits CLI tooling,
+plugins, search binaries, declarations, docs, and the unused in-process transport.
 
 ```yaml
 jobs:
@@ -346,7 +349,9 @@ jobs:
 The SDK is a development dependency used to build the action runtime; ordinary
 Craft package installations do not download it. The composite action requires
 Node 20.19+ or 22.12+ (or a newer supported major) and its existing Linux x64
-runner environment. Native archive startup is also tested on macOS and Windows.
+runner environment. The trimmed native archive is tested on Linux, macOS, and
+Windows for startup, structured sessions against a local model fixture, and
+cancellation. Those checks do not prove live Copilot authentication or inference.
 Missing runtime artifacts or Copilot access retain the original changelog.
 Craft never falls back to stored login credentials or another provider.
 

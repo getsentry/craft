@@ -102,10 +102,15 @@ test('unpacks a portable SDK archive without executing package scripts', async (
     JSON.stringify({ version: '1.0.21', scripts: { postinstall: 'exit 1' } }),
   );
   await writeFile(join(source, 'package.json'), '{}');
+  await mkdir(join(source, 'licenses/@github__copilot-sdk'), {
+    recursive: true,
+  });
+  await writeFile(join(source, 'licenses/@github__copilot-sdk/LICENSE'), 'MIT');
   const archive = join(await temporary(), 'runtime.tar.gz');
   await create({ file: archive, gzip: true, cwd: source }, [
     'package.json',
     'node_modules',
+    'licenses',
   ]);
   const output = await temporary();
   await unpackRuntime(archive, output);
@@ -117,6 +122,12 @@ test('unpacks a portable SDK archive without executing package scripts', async (
       ),
     ).version,
   ).toBe('1.0.21');
+  expect(
+    await readFile(
+      join(output, 'licenses/@github__copilot-sdk/LICENSE'),
+      'utf8',
+    ),
+  ).toBe('MIT');
 });
 
 test('rejects unrelated archive paths before extraction', async () => {
