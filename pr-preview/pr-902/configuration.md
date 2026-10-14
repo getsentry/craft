@@ -250,7 +250,7 @@ changelog:
 ```
 
 
-Craft contains only a shared HTTP summarizer, with no Copilot SDK, native runtime, bridge, package installer, or separate runtime artifact. Provide a credential in the selected environment variable; Craft never reads stored Copilot login or automatically takes a GitHub release token.
+Provide a credential in the selected environment variable. Craft sends requests directly to the configured endpoint; it does not read stored Copilot logins or automatically use a GitHub release token.
 
 | Setting | Default | Behavior |
 | --- | --- | --- |
@@ -261,7 +261,7 @@ Craft contains only a shared HTTP summarizer, with no Copilot SDK, native runtim
 | `levels` | `[release]` | Any combination of `release`, `category`, and `scope`, without duplicates. Omitted or empty lists use `[release]`. Selects visible summaries; internal digests can still be generated for parent summaries. |
 | `kickInThreshold` | `5` | Nonnegative integer. Summaries appear only when original entry counts exceed this value. `0` summarizes every nonempty selected group. Category counts include descendants; release counts include the entire changelog. |
 
-The request format is inferred from the URL: endpoints ending in `/responses` use OpenAI-compatible Responses; other endpoints use Chat Completions. There is no `api` setting or provider fallback. Both formats must support strict JSON schema output. Responses uses `store: false`; neither format supplies tools. The default was verified against Copilot’s live catalog: Luna advertises Responses and structured output, but not Chat Completions. Copilot hosts receive the integration and API-version headers; custom hosts do not.
+The request format is inferred from the URL: endpoints ending in `/responses` use OpenAI-compatible Responses; other endpoints use Chat Completions. There is no `api` setting or provider fallback. Both formats must support strict JSON schema output. Responses uses `store: false`; neither format supplies tools. Use Responses for Copilot’s Luna model. Copilot hosts receive the integration and API-version headers; custom hosts do not.
 
 The three levels follow the existing changelog hierarchy:
 
@@ -326,7 +326,7 @@ changelog:
 
 Supply `TEAM_MODEL_TOKEN` securely in the environment. CLI flags `--ai-endpoint`, `--ai-model`, and `--ai-api-key-env` override their corresponding `CRAFT_AI_ENDPOINT`, `CRAFT_AI_MODEL`, and `CRAFT_AI_API_KEY_ENV` environment variables. `CRAFT_AI_LLM` accepts a JSON object with `endpoint`, `model`, and `apiKeyEnv`. Per-field precedence is CLI flags, structured environment settings, scalar environment overrides, then the effective `.craft.yml` (including workspace overrides or `prepare --config-from`). Omitted fields use defaults; empty or invalid fields are rejected. Missing credentials make no request and retain the original changelog.
 
-Copilot inference endpoints are a backend HTTP interface rather than GitHub’s public REST API; their contract can change. The default direct Responses call was live-verified with an authorized user login. That does not prove access for another user, an organization’s workflow token, or a different organization policy. Craft makes no authentication exchanges, credential discovery, retries, or silent endpoint switches.
+Copilot inference endpoints are a backend HTTP interface rather than GitHub’s public REST API; their contract can change. Access depends on the supplied credential and model policy. Craft does not discover credentials or silently switch endpoints.
 
 ##### GitHub Actions
 
@@ -342,9 +342,9 @@ The Action uses the same CLI resolver and HTTP client. Pass connection settings 
 ```
 
 
-`llm` overrides `CRAFT_AI_LLM` in the step environment. For repository or organization variables, pass `llm: ${{ vars.CRAFT_AI_LLM }}` from the calling workflow; the reusable release workflow supplies this fallback automatically. Composite action metadata cannot access the `vars` context directly. Individual connection fields still follow the shared resolver’s precedence. `llm_api_key` maps to `AI_SUMMARY_TOKEN` and selects that variable over a configured `apiKeyEnv`. Alternatively, omit `llm_api_key` and map a secret to the configured environment variable. Craft reads the environment, not GitHub’s secret store. The secret must be available to the repository running the workflow; an organization secret with selected-repository access can provide shared configuration.
+`llm` overrides `CRAFT_AI_LLM` in the step environment. For repository or organization variables, pass `llm: ${{ vars.CRAFT_AI_LLM }}` from the calling workflow; the reusable release workflow supplies this fallback automatically. Individual connection fields follow the shared resolver’s precedence. `llm_api_key` maps to `AI_SUMMARY_TOKEN` and selects that variable over a configured `apiKeyEnv`. Alternatively, omit `llm_api_key` and map a secret to the configured environment variable. Craft reads the environment, not GitHub’s secret store. The secret must be available to the repository running the workflow; an organization secret with selected-repository access can provide shared configuration.
 
-For default Copilot settings, omit `llm` and provide an authorized Copilot credential via `llm_api_key` or `AI_SUMMARY_TOKEN`. The Action does not implicitly use `${{ github.token }}`. If choosing an organization workflow token explicitly, callers must grant `copilot-requests: write` and the organization must enable **“Allow use of Copilot CLI billed to the organization.”** Usage in that mode is billed to the organization. Do not assume this policy is enabled in `getsentry`; the direct workflow-token path requires authorized live validation. See [GitHub’s organization authentication guide](https://docs.github.com/en/copilot/how-tos/copilot-sdk/auth/server-to-server-tokens). Personal credentials follow their own Copilot access and billing. Custom provider credentials need no Copilot workflow permission.
+For default Copilot settings, omit `llm` and provide an authorized Copilot credential via `llm_api_key` or `AI_SUMMARY_TOKEN`. The Action does not implicitly use `${{ github.token }}`. If choosing an organization workflow token explicitly, callers must grant `copilot-requests: write` and the organization must enable **“Allow use of Copilot CLI billed to the organization.”** Usage in that mode is billed to the organization. Do not assume this policy is enabled for your organization; granting the workflow permission alone is insufficient. See [GitHub’s organization authentication guide](https://docs.github.com/en/copilot/how-tos/copilot-sdk/auth/server-to-server-tokens). Personal credentials follow their own Copilot access and billing. Custom provider credentials need no Copilot workflow permission.
 
 Reusable workflows accept the same structured `llm` input and an optional `llm_api_key` secret:
 
@@ -361,7 +361,7 @@ jobs:
 ```
 
 
-When using the reusable workflow’s secret, omit `apiKeyEnv` to use the standard mapping. Omit `llm` to use default Copilot settings with the supplied credential. The workflow cannot increase its caller’s token permissions. HTTP failures keep the original changelog and never select another provider. Ordinary Craft builds, release assets, nightly artifacts, and npm packages need no Copilot packages. Linux, macOS, and Windows CI runs isolated CLI and Actions-environment HTTP fixtures; fixture success is separate from live Copilot proof.
+When using the reusable workflow’s secret, omit `apiKeyEnv` to use the standard mapping. Omit `llm` to use default Copilot settings with the supplied credential. The workflow cannot increase its caller’s token permissions. HTTP failures keep the original changelog and never select another provider.
 
 #### Craft Extensions to release.yml
 

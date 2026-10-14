@@ -235,10 +235,9 @@ for the full monorepo pattern.</p>
 <div class="sl-heading-wrapper level-h4"><h4 id="ai-summaries">AI summaries</h4><a class="sl-anchor-link" href="#ai-summaries"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “AI summaries”</span></a></div>
 <p>Opt in to configurable changelog summaries. The CLI and Actions use the same HTTP client and connection settings:</p>
 <div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="yaml"><code><div class="ec-line"><div class="code"><span style="--0:#FFFFFF">changelog</span><span style="--0:#CFCFCF">:</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#FFFFFF">policy</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">auto</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#FFFFFF">aiSummary</span><span style="--0:#CFCFCF">:</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#FFFFFF">enabled</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFFFFF;--0fw:bold">true</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#FFFFFF">levels</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#CFCFCF">[</span><span style="--0:#FFD166">release</span><span style="--0:#CFCFCF">,</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">category</span><span style="--0:#CFCFCF">,</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">scope</span><span style="--0:#CFCFCF">]</span><span style="--0:#F5F5F5"> </span><span style="--0:#9E9E9E;--0fs:italic"># choose any combination</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#FFFFFF">kickInThreshold</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFB86C">5</span><span style="--0:#F5F5F5"> </span><span style="--0:#9E9E9E;--0fs:italic"># summarize displayed groups with more than 5 entries</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#FFFFFF">llm</span><span style="--0:#CFCFCF">:</span></div></div><div class="ec-line"><div class="code"><span class="indent">      </span><span style="--0:#FFFFFF">endpoint</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">https://api.githubcopilot.com/responses</span><span style="--0:#F5F5F5"> </span><span style="--0:#9E9E9E;--0fs:italic"># default</span></div></div><div class="ec-line"><div class="code"><span class="indent">      </span><span style="--0:#FFFFFF">model</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">gpt-6-luna</span><span style="--0:#F5F5F5"> </span><span style="--0:#9E9E9E;--0fs:italic"># default</span></div></div><div class="ec-line"><div class="code"><span class="indent">      </span><span style="--0:#FFFFFF">apiKeyEnv</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">AI_SUMMARY_TOKEN</span><span style="--0:#F5F5F5"> </span><span style="--0:#9E9E9E;--0fs:italic"># default; name of a credential environment variable</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="changelog:  policy: auto  aiSummary:    enabled: true    levels: [release, category, scope] # choose any combination    kickInThreshold: 5 # summarize displayed groups with more than 5 entries    llm:      endpoint: https://api.githubcopilot.com/responses # default      model: gpt-6-luna # default      apiKeyEnv: AI_SUMMARY_TOKEN # default; name of a credential environment variable"><div></div></button></div></figure></div>
-<p>Craft contains only a shared HTTP summarizer, with no Copilot SDK, native
-runtime, bridge, package installer, or separate runtime artifact. Provide a
-credential in the selected environment variable; Craft never reads stored
-Copilot login or automatically takes a GitHub release token.</p>
+<p>Provide a credential in the selected environment variable. Craft sends requests
+directly to the configured endpoint; it does not read stored Copilot logins or
+automatically use a GitHub release token.</p>
 <table>
 <thead>
 <tr>
@@ -284,9 +283,8 @@ Copilot login or automatically takes a GitHub release token.</p>
 use OpenAI-compatible Responses; other endpoints use Chat Completions. There
 is no <code dir="auto">api</code> setting or provider fallback. Both formats must support strict JSON
 schema output. Responses uses <code dir="auto">store: false</code>; neither format supplies tools.
-The default was verified against Copilot’s live catalog: Luna advertises
-Responses and structured output, but not Chat Completions. Copilot hosts receive
-the integration and API-version headers; custom hosts do not.</p>
+Use Responses for Copilot’s Luna model. Copilot hosts receive the integration
+and API-version headers; custom hosts do not.</p>
 <p>The three levels follow the existing changelog hierarchy:</p>
 <ul>
 <li><code dir="auto">release</code>: a labeled overview statement for every nonempty category.</li>
@@ -350,11 +348,9 @@ workspace overrides or <code dir="auto">prepare --config-from</code>). Omitted f
 empty or invalid fields are rejected. Missing credentials make no request and
 retain the original changelog.</p>
 <p>Copilot inference endpoints are a backend HTTP interface rather than GitHub’s
-public REST API; their contract can change. The default direct Responses call
-was live-verified with an authorized user login. That does not prove access for
-another user, an organization’s workflow token, or a different organization
-policy. Craft makes no authentication exchanges, credential discovery, retries,
-or silent endpoint switches.</p>
+public REST API; their contract can change. Access depends on the supplied
+credential and model policy. Craft does not discover credentials or silently
+switch endpoints.</p>
 <div class="sl-heading-wrapper level-h5"><h5 id="github-actions">GitHub Actions</h5><a class="sl-anchor-link" href="#github-actions"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “GitHub Actions”</span></a></div>
 <p>The Action uses the same CLI resolver and HTTP client. Pass connection settings
 as one <code dir="auto">llm</code> JSON object and map an explicit credential to <code dir="auto">llm_api_key</code>:</p>
@@ -362,9 +358,9 @@ as one <code dir="auto">llm</code> JSON object and map an explicit credential to
 <p><code dir="auto">llm</code> overrides <code dir="auto">CRAFT_AI_LLM</code> in the step environment. For repository or
 organization variables, pass <code dir="auto">llm: ${{ vars.CRAFT_AI_LLM }}</code> from the calling
 workflow; the reusable release workflow supplies this fallback automatically.
-Composite action metadata cannot access the <code dir="auto">vars</code> context directly. Individual connection fields still
-follow the shared resolver’s precedence. <code dir="auto">llm_api_key</code> maps to
-<code dir="auto">AI_SUMMARY_TOKEN</code> and selects that variable over a configured <code dir="auto">apiKeyEnv</code>.
+Individual connection fields follow the shared resolver’s precedence.
+<code dir="auto">llm_api_key</code> maps to <code dir="auto">AI_SUMMARY_TOKEN</code> and selects that variable over a
+configured <code dir="auto">apiKeyEnv</code>.
 Alternatively, omit <code dir="auto">llm_api_key</code> and map a secret to the configured environment
 variable. Craft reads the environment, not GitHub’s secret store. The secret
 must be available to the repository running the workflow; an organization
@@ -375,8 +371,8 @@ implicitly use <code dir="auto">${{ github.token }}</code>. If choosing an organ
 token explicitly, callers must grant <code dir="auto">copilot-requests: write</code> and the
 organization must enable <strong>“Allow use of Copilot CLI billed to the organization.”</strong>
 Usage in that mode is billed to the organization. Do not assume this policy is
-enabled in <code dir="auto">getsentry</code>; the direct workflow-token path requires authorized live
-validation. See <a href="https://docs.github.com/en/copilot/how-tos/copilot-sdk/auth/server-to-server-tokens">GitHub’s organization authentication guide</a>.
+enabled for your organization; granting the workflow permission alone is
+insufficient. See <a href="https://docs.github.com/en/copilot/how-tos/copilot-sdk/auth/server-to-server-tokens">GitHub’s organization authentication guide</a>.
 Personal credentials follow their own Copilot access and billing. Custom
 provider credentials need no Copilot workflow permission.</p>
 <p>Reusable workflows accept the same structured <code dir="auto">llm</code> input and an optional
@@ -385,10 +381,7 @@ provider credentials need no Copilot workflow permission.</p>
 <p>When using the reusable workflow’s secret, omit <code dir="auto">apiKeyEnv</code> to use the standard
 mapping. Omit <code dir="auto">llm</code> to use default Copilot settings with the supplied credential.
 The workflow cannot increase its caller’s token permissions. HTTP failures
-keep the original changelog and never select another provider. Ordinary Craft
-builds, release assets, nightly artifacts, and npm packages need no Copilot
-packages. Linux, macOS, and Windows CI runs isolated CLI and Actions-environment
-HTTP fixtures; fixture success is separate from live Copilot proof.</p>
+keep the original changelog and never select another provider.</p>
 <div class="sl-heading-wrapper level-h4"><h4 id="craft-extensions-to-releaseyml">Craft Extensions to release.yml</h4><a class="sl-anchor-link" href="#craft-extensions-to-releaseyml"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Craft Extensions to release.yml”</span></a></div>
 <p>Craft extends GitHub’s format with two additional fields:</p>
 <table>
