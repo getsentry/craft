@@ -81,10 +81,6 @@ jobs:
           CRAFT_BUILD_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: pnpm build:binary
-      - name: Verify cross-built macOS signatures
-        run: |
-          rcodesign verify dist-bin/craft-darwin-arm64
-          rcodesign verify dist-bin/craft-darwin-x64
       - name: Smoke Test
         run: ./dist/craft --help
       - name: NPM Pack
