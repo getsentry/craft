@@ -150,6 +150,11 @@ jobs:
         run: node .github/scripts/installer-smoke.mjs
       - name: Test running executable self-update
         run: node .github/scripts/updater-smoke.mjs
+      - name: Install test shells
+        if: matrix.platform == 'linux-x64'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends zsh fish
       - name: Test native shell integration
         run: node .github/scripts/setup-smoke.mjs
 

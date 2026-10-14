@@ -96,6 +96,40 @@ try {
     completion.stdout.split(/\r?\n/).includes('--install'),
     `Missing --install: ${completion.stdout}`,
   );
+  const middle = await execute(
+    'bash',
+    [
+      '-c',
+      `source ${quote(posix(script))}; COMP_WORDS=(${quote(posix(binary))} setup --sh --log-level Info); COMP_CWORD=2; _craft_completion; printf '%s\\n' "\${COMPREPLY[@]}"`,
+    ],
+    { cwd: root, env },
+  );
+  assert(
+    middle.stdout.split(/\r?\n/).includes('--shell'),
+    'Bash must complete the word at the cursor',
+  );
+  for (const shell of ['zsh', 'fish']) {
+    try {
+      await execute(shell, ['--version'], { env });
+    } catch (error) {
+      if (error.code !== 'ENOENT' || platform === 'linux-x64') throw error;
+      continue;
+    }
+    const shellScript = join(root, `completion.${shell}`);
+    await writeFile(shellScript, (await run(['completion', shell])).stdout);
+    await execute(shell, ['-n', shellScript], { env });
+    const context =
+      shell === 'zsh'
+        ? `compdef() { :; }; source ${quote(posix(shellScript))}; words=(${quote(posix(binary))} setup --sh --log-level Info); CURRENT=3; _describe() { print -l -- "\${reply[@]}"; }; _craft_completion`
+        : `source ${quote(posix(shellScript))}; function commandline; switch $argv[1]; case -opc; printf '%s\\n' ${quote(posix(binary))} setup; case -ct; printf '%s\\n' --sh; end; end; __craft_completion`;
+    const result = await execute(shell, ['-c', context], { cwd: root, env });
+    assert(
+      result.stdout
+        .split(/\r?\n/)
+        .some(line => line === '--shell' || line.startsWith('--shell:')),
+      `${shell} must offer --shell: ${result.stdout}`,
+    );
+  }
   const commands = (await run(['--get-yargs-completions', 'craft', ''])).stdout;
   assert.match(commands, /prepare/);
   assert.match(commands, /update/);

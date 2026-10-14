@@ -1,5 +1,7 @@
+import { execFileSync } from 'node:child_process';
 import {
   mkdtemp,
+  chmod,
   mkdir,
   readFile,
   writeFile,
@@ -90,5 +92,30 @@ test.skipIf(process.platform === 'win32')(
       /symlink/,
     );
     expect(await readFile(target, 'utf8')).toBe('user');
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'Bash completes at the cursor when later arguments have choice values',
+  async () => {
+    const dir = await home();
+    const cli = join(dir, 'mock cli');
+    const script = join(dir, 'completion.bash');
+    await writeFile(
+      cli,
+      '#!/bin/bash\nif [[ $# == 4 && "$4" == --sh ]]; then echo --shell; else echo Info; fi\n',
+    );
+    await chmod(cli, 0o755);
+    await writeFile(script, getCompletionScript('bash'));
+    const quote = (value: string) => `'${value.replace(/'/g, "'\\''")}'`;
+    const result = execFileSync(
+      'bash',
+      [
+        '-c',
+        `source ${quote(script)}; COMP_WORDS=(${quote(cli)} setup --sh --log-level Info); COMP_CWORD=2; _craft_completion; printf '%s\\n' "\${COMPREPLY[@]}"`,
+      ],
+      { encoding: 'utf8' },
+    );
+    expect(result.trim()).toBe('--shell');
   },
 );
