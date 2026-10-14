@@ -27,7 +27,8 @@ On macOS or Linux, download the archive and its checksum. In the download
 directory, verify with `shasum -a 256 -c craft-darwin-arm64.gz.sha256` on macOS
 or `sha256sum -c craft-linux-x64.gz.sha256` on Linux, substituting your filename.
 Only after verification succeeds, decompress with `gunzip <filename>.gz`, rename
-the executable to `craft`, and move it to a directory on your PATH.
+the executable to `craft`, run `chmod +x craft`, and move it to a directory on
+your PATH.
 
 On Windows, download the `.exe` and checksum, then verify in PowerShell:
 
