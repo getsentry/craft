@@ -76,15 +76,11 @@ function modelResponse(options: SummaryRequest) {
     })),
   };
 }
-function completion(output: unknown) {
-  return output;
-}
-
-describe('hierarchical Copilot changelog summaries', () => {
+describe('hierarchical HTTP changelog summaries', () => {
   beforeEach(() => {
     requestMock
       .mockReset()
-      .mockImplementation(async options => completion(modelResponse(options!)));
+      .mockImplementation(async options => modelResponse(options));
     vi.spyOn(logger, 'warn').mockImplementation(() => {});
     setGlobals({ 'dry-run': false });
   });
@@ -177,7 +173,7 @@ describe('hierarchical Copilot changelog summaries', () => {
     const atoms = requestMock.mock.calls
       .flatMap(([options]) => JSON.parse(options.input).nodes)
       .flatMap(node => node.parts)
-      .filter(part => part.entryId === 'unicode:item:0');
+      .filter(part => part.sourceId?.startsWith('unicode:item:0:part:'));
     expect(atoms.map(part => part.text).join('')).toBe(entry);
   });
 
@@ -254,7 +250,7 @@ describe('hierarchical Copilot changelog summaries', () => {
       output.summaries.forEach((digest: any) => {
         digest.summary = 'General maintenance.';
       });
-      return completion(output);
+      return output;
     });
     const result = await summarizeChangelog(
       [
@@ -280,7 +276,7 @@ describe('hierarchical Copilot changelog summaries', () => {
           ).values(),
         ];
       });
-      return completion(output);
+      return output;
     });
     const entry = `SECURITY: fix CVE-A ${'x'.repeat(16000)} BREAKING CHANGE: remove API-B ${'y'.repeat(16000)}`;
     const result = await summarizeChangelog(
@@ -303,7 +299,7 @@ describe('hierarchical Copilot changelog summaries', () => {
       async options =>
         new Promise((resolve, reject) => {
           const timer = setTimeout(
-            () => resolve(completion(modelResponse(options!))),
+            () => resolve(modelResponse(options)),
             25000,
           );
           options!.signal!.addEventListener('abort', () => {
@@ -430,7 +426,7 @@ describe('hierarchical Copilot changelog summaries', () => {
         ];
       if (mode === 'negative-claim')
         output.summaries[0].summary = 'No security fixes are included.';
-      return completion(output);
+      return output;
     });
     expect(
       await summarizeChangelog(
@@ -447,10 +443,10 @@ describe('hierarchical Copilot changelog summaries', () => {
   });
 
   it.each([401, 402, 429, 503])(
-    'falls back without retries or leaking SDK errors (%s)',
+    'falls back without retries or leaking provider errors (%s)',
     async status => {
       requestMock.mockRejectedValue(
-        new Error(`SDK failure ${status}: private-token`),
+        new Error(`Provider failure ${status}: private-token`),
       );
       expect(await summarizeChangelog(categories, config)).toBeNull();
       expect(requestMock.mock.calls.length).toBeLessThanOrEqual(3);
@@ -464,7 +460,7 @@ describe('hierarchical Copilot changelog summaries', () => {
     let aborted = false;
     requestMock.mockImplementation(async options => {
       if (requestMock.mock.calls.length === 1)
-        throw new Error('SDK unavailable');
+        throw new Error('Provider unavailable');
       return new Promise((_resolve, reject) =>
         options!.signal!.addEventListener('abort', () => {
           aborted = true;
@@ -539,7 +535,7 @@ describe('hierarchical Copilot changelog summaries', () => {
       peak = Math.max(peak, active);
       await Promise.resolve();
       active--;
-      return completion(modelResponse(options!));
+      return modelResponse(options);
     });
     const groups = Array.from({ length: 1000 }, (_, i) => ({
       id: `g${i}`,
@@ -565,7 +561,7 @@ describe('hierarchical Copilot changelog summaries', () => {
       peak = Math.max(peak, active);
       await Promise.resolve();
       active--;
-      return completion(modelResponse(options!));
+      return modelResponse(options);
     });
     const groups = Array.from({ length: 40 }, (_, i) => ({
       id: `g${i}`,

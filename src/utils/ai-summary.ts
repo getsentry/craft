@@ -40,7 +40,6 @@ interface Part {
   text: string;
   count: number;
   sourceId?: string;
-  entryId?: string;
   important?: boolean;
   importantChanges?: Fact[];
 }
@@ -374,7 +373,6 @@ export async function summarizeChangelog(
           id: `${group.id}:item:${index}:part:${part}`,
           // Distinct fragment facts must survive parent reductions independently.
           sourceId: `${group.id}:item:${index}${pieces.length > 1 ? `:part:${part}` : ''}`,
-          entryId: pieces.length > 1 ? `${group.id}:item:${index}` : undefined,
           text,
           count: part === 0 ? 1 : 0,
           important: Boolean(originalTitle) || isImportantChangelogText(item),

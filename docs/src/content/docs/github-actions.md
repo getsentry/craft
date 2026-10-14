@@ -105,17 +105,15 @@ The action accepts the same inputs and produces the same outputs as the reusable
 
 AI summaries remain opt-in through `changelog.aiSummary.enabled`. The CLI and
 Action share one HTTP client with nested `llm` settings. The default endpoint is
-Copilot Responses and the default model is `gpt-6-luna`; its live catalog lists
-Responses and structured output. No Copilot package, runtime, bridge, installer,
-or additional distribution artifact is required.
+Copilot Responses and the default model is `gpt-6-luna`.
 
 The `llm` input accepts JSON with `endpoint`, `model`, and `apiKeyEnv`. It
 overrides the `CRAFT_AI_LLM` step environment. Pass repository or organization
 variables through the caller with `llm: ${{ vars.CRAFT_AI_LLM }}`; the reusable
-release workflow provides that fallback automatically, since composite action
-metadata cannot read the `vars` context directly. `llm_api_key` accepts an explicit credential and maps it to
-`AI_SUMMARY_TOKEN`. Alternatively, map a secret to the configured environment
-variable. The reusable workflow forwards its `llm` input and optional
+release workflow provides that fallback automatically. `llm_api_key` accepts
+an explicit credential and maps it to `AI_SUMMARY_TOKEN`. Alternatively, map a
+secret to the configured environment variable. The reusable workflow forwards
+its `llm` input and optional
 `llm_api_key` secret to both Action paths. Credentials never belong in JSON
 configuration or CLI arguments. Missing credentials and HTTP failures retain
 the original changelog, without provider switching.
@@ -125,10 +123,9 @@ user-owned with **Copilot Requests: write**. The Action never implicitly uses a
 release or workflow token. If a workflow token is explicitly selected, callers
 must grant `copilot-requests: write`, including reusable workflow callers, and
 the organization must enable **“Allow use of Copilot CLI billed to the organization.”**
-That mode is billed to the organization; this policy is not assumed enabled in
-`getsentry`. Direct workflow-token access is separate from the verified user-token
-path and needs authorized live validation. Custom HTTP providers need no Copilot
-permission. See the [AI summary configuration](../configuration/#ai-summaries)
+That mode is billed to the organization. Granting the workflow permission alone
+is insufficient if the organization policy is disabled. Custom HTTP providers
+need no Copilot permission. See the [AI summary configuration](../configuration/#ai-summaries)
 for examples, precedence, authentication, and the direct-backend compatibility
 limits.
 
