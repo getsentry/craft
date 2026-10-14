@@ -83,7 +83,7 @@ fi
 chmod 755 "$candidate"
 if [[ "$platform" == darwin ]]; then codesign --verify --strict "$candidate"; fi
 actual_version=$("$candidate" --version)
-[[ "$actual_version" == "$version" ]] || fail "Downloaded executable reports $actual_version, expected $version"
+[[ "$actual_version" == "$version" || "$actual_version" =~ ^"$version"\ \([[:xdigit:]]{40}\)$ ]] || fail "Downloaded executable reports $actual_version, expected $version"
 args=(setup --install)
 if [[ -n "$directory" ]]; then args+=(--install-dir "$directory"); fi
 "$candidate" "${args[@]}"
