@@ -127,3 +127,18 @@ The post-release script (`scripts/post-release.sh`) runs after successful publis
 
 - Open an issue on [GitHub](https://github.com/getsentry/craft/issues)
 - Check existing issues and pull requests
+
+## Standalone executables
+
+`pnpm build` keeps producing the portable JavaScript bundle used by npm and
+existing downloads. `pnpm build:binary` additionally embeds the pinned Node
+version from `package.json` into a standalone executable for the current host.
+Use `pnpm build:binary linux-x64,linux-arm64` to build specific platforms.
+Supported platforms are Linux and macOS x64/arm64, and Windows x64.
+
+Executables are written to `dist-bin/`, with gzip archives for Unix, `.exe`
+files for Windows, and SHA-256 sidecars for each release file. The `.node-cache/`
+directory caches downloaded Node runtimes. Fossilize ad-hoc signs macOS binaries;
+Developer ID signing/notarization and Windows Authenticode are not configured.
+The native CI matrix runs each executable outside the checkout without Node on
+PATH, exercises a dry-run against a local Git remote, and tests the npm tarball.

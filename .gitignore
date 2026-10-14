@@ -18,3 +18,8 @@ npm-debug.log
 .eslintcache
 .tsbuildinfo
 .idea
+
+# Standalone executables and downloaded Node runtimes
+dist-bin/
+.node-cache/
+packed/
