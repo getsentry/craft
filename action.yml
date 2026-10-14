@@ -52,7 +52,7 @@ inputs:
     description: >
       JSON object with AI summary endpoint, model, and apiKeyEnv.
       Overrides CRAFT_AI_LLM and .craft.yml connection settings.
-      Omitted fields use Copilot Responses, gpt-6-luna, and AI_SUMMARY_TOKEN.
+      Omitted fields use Copilot Responses, gpt-6-luna, and GITHUB_TOKEN.
     required: false
   llm_api_key:
     description: >

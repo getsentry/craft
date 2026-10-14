@@ -6,7 +6,10 @@ import { setGlobals } from '../helpers';
 
 const endpoint = 'https://ai.example.com/v1/chat/completions';
 const config = () =>
-  AiSummaryConfigSchema.parse({ enabled: true, kickInThreshold: 0 });
+  AiSummaryConfigSchema.parse({
+    minItems: 0,
+    llm: { apiKeyEnv: 'AI_SUMMARY_TOKEN' },
+  });
 const request = {
   input: '{"level":"scope","nodes":[]}',
   system: 'Summarize only provided changes.',
@@ -96,7 +99,6 @@ test('reads endpoint and token-env from project configuration', async () => {
   vi.stubGlobal('fetch', fetch);
   const provider = createSummaryProvider(
     AiSummaryConfigSchema.parse({
-      enabled: true,
       llm: { endpoint, apiKeyEnv: 'TEAM_MODEL_TOKEN', model: 'custom-luna' },
     }),
   );
@@ -125,12 +127,16 @@ test.each(['endpoint', 'api-key-env'])(
   },
 );
 
-test('CLI without provider details does not try a GitHub API credential for inference', async () => {
+test('missing default GitHub credential makes no inference request', async () => {
   vi.stubEnv('CRAFT_AI_ENDPOINT', '');
   vi.stubEnv('AI_SUMMARY_TOKEN', '');
-  const provider = createSummaryProvider(config());
+  const fetch = vi.fn();
+  vi.stubGlobal('fetch', fetch);
+  vi.stubEnv('GITHUB_TOKEN', '');
+  const provider = createSummaryProvider(AiSummaryConfigSchema.parse({}));
   await expect(provider.request(request)).rejects.toThrow();
   await provider.close();
+  expect(fetch).not.toHaveBeenCalled();
 });
 
 test.each([401, 429, 500])(
@@ -263,9 +269,7 @@ test('disabled summaries and dry runs make no HTTP or Copilot calls', async () =
       groups: [{ id: 'cli', title: 'CLI', items: ['Add command'] }],
     },
   ];
-  expect(
-    await summarizeChangelog(categories, { ...config(), enabled: false }),
-  ).toBeNull();
+  expect(await summarizeChangelog(categories, false)).toBeNull();
   setGlobals({ 'dry-run': true });
   expect(await summarizeChangelog(categories, config())).toBeNull();
   expect(fetch).not.toHaveBeenCalled();
@@ -283,38 +287,42 @@ const responsesResult = (content = '{"summaries":[]}') => ({
   ],
 });
 
-test('default connection uses verified Copilot Responses and explicit credentials', async () => {
-  vi.stubEnv('CRAFT_AI_ENDPOINT', '');
-  const fetch = vi.fn().mockResolvedValue(Response.json(responsesResult()));
-  vi.stubGlobal('fetch', fetch);
-  const provider = createSummaryProvider(config());
-  expect(await provider.request(request)).toEqual({ summaries: [] });
-  await provider.close();
-  expect(fetch.mock.calls[0][0]).toBe(
-    'https://api.githubcopilot.com/responses',
-  );
-  expect(fetch.mock.calls[0][1].headers).toMatchObject({
-    'Copilot-Integration-Id': 'copilot-developer-cli',
-    'X-GitHub-Api-Version': '2026-07-01',
-    Authorization: 'Bearer provider-token',
-  });
-  const body = JSON.parse(fetch.mock.calls[0][1].body);
-  expect(body).toMatchObject({
-    model: 'gpt-6-luna',
-    stream: false,
-    store: false,
-    max_output_tokens: 8192,
-    input: [
-      { role: 'system', content: request.system },
-      { role: 'user', content: request.input },
-    ],
-    text: {
-      format: { type: 'json_schema', strict: true, schema: request.schema },
-    },
-  });
-  expect(body).not.toHaveProperty('tools');
-  expect(body).not.toHaveProperty('messages');
-});
+test.each(['false', 'true'])(
+  'default connection uses Copilot Responses and GITHUB_TOKEN in CLI/Actions (%s)',
+  async actions => {
+    vi.stubEnv('GITHUB_ACTIONS', actions);
+    vi.stubEnv('CRAFT_AI_ENDPOINT', '');
+    const fetch = vi.fn().mockResolvedValue(Response.json(responsesResult()));
+    vi.stubGlobal('fetch', fetch);
+    const provider = createSummaryProvider(AiSummaryConfigSchema.parse({}));
+    expect(await provider.request(request)).toEqual({ summaries: [] });
+    await provider.close();
+    expect(fetch.mock.calls[0][0]).toBe(
+      'https://api.githubcopilot.com/responses',
+    );
+    expect(fetch.mock.calls[0][1].headers).toMatchObject({
+      'Copilot-Integration-Id': 'copilot-developer-cli',
+      'X-GitHub-Api-Version': '2026-07-01',
+      Authorization: 'Bearer source-only-token',
+    });
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    expect(body).toMatchObject({
+      model: 'gpt-6-luna',
+      stream: false,
+      store: false,
+      max_output_tokens: 8192,
+      input: [
+        { role: 'system', content: request.system },
+        { role: 'user', content: request.input },
+      ],
+      text: {
+        format: { type: 'json_schema', strict: true, schema: request.schema },
+      },
+    });
+    expect(body).not.toHaveProperty('tools');
+    expect(body).not.toHaveProperty('messages');
+  },
+);
 
 test('custom endpoints do not receive Copilot-only headers', async () => {
   const fetch = vi.fn().mockResolvedValue(completion());

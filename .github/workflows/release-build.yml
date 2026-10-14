@@ -6,13 +6,33 @@ on:
 # External release callers must not need packages: write for skipped jobs.
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     permissions:
       contents: read
     strategy:
+      fail-fast: false
       matrix:
-        node: ['22', '24']
-    name: Node ${{ matrix.node }}
+        include:
+          - os: ubuntu-latest
+            node: '22'
+            name: Node 22
+            tests: ''
+          - os: ubuntu-latest
+            node: '24'
+            name: Node 24
+            tests: ''
+          - os: macos-latest
+            node: '24'
+            name: AI summary / macos-latest
+            tests: src/__tests__/ai-summary.e2e.test.ts
+          - os: windows-latest
+            node: '24'
+            name: AI summary / windows-latest
+            tests: src/__tests__/ai-summary.e2e.test.ts
+    name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -33,7 +53,7 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
       - name: Test
-        run: pnpm test
+        run: pnpm test ${{ matrix.tests }}
 
   build:
     name: Build

@@ -322,9 +322,9 @@ function displayDigest(digest: Digest): string {
 /** Generate requested display levels bottom-up, atomically preserving fallback. */
 export async function summarizeChangelog(
   categories: SummaryCategory[],
-  config?: AiSummaryConfig,
+  config?: AiSummaryConfig | false,
 ): Promise<ChangelogSummary | null> {
-  if (!config?.enabled || isDryRun()) return null;
+  if (!config || isDryRun()) return null;
   const nonempty = categories.filter(category =>
     category.groups.some(group => group.items.length),
   );
@@ -332,10 +332,10 @@ export async function summarizeChangelog(
     category.groups.reduce((n, group) => n + group.items.length, 0);
   const total = nonempty.reduce((n, category) => n + count(category), 0);
   const levels = config.levels?.length ? config.levels : ['release'];
-  const release = levels.includes('release') && total > config.kickInThreshold;
+  const release = levels.includes('release') && total > config.minItems;
   const visibleCategories = nonempty.filter(
     category =>
-      levels.includes('category') && count(category) > config.kickInThreshold,
+      levels.includes('category') && count(category) > config.minItems,
   );
   const visibleGroups = nonempty
     .flatMap(category => category.groups)
@@ -343,7 +343,7 @@ export async function summarizeChangelog(
       group =>
         levels.includes('scope') &&
         group.scope &&
-        group.items.length > config.kickInThreshold,
+        group.items.length > config.minItems,
     );
   if (
     !total ||

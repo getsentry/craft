@@ -76,7 +76,7 @@ on:
         required: false
     secrets:
       llm_api_key:
-        description: Optional AI summary credential, required when summaries are enabled
+        description: Optional AI summary credential override; defaults to GITHUB_TOKEN
         required: false
     outputs:
       version:

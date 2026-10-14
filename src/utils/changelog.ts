@@ -1929,7 +1929,7 @@ async function serializeChangelog(
 
   // Get changelog config for scope grouping setting
   let scopeGroupingEnabled = true;
-  let aiSummary: AiSummaryConfig | undefined;
+  let aiSummary: AiSummaryConfig | false | undefined;
   try {
     const changelogConfig = getChangelogConfig();
     scopeGroupingEnabled = changelogConfig.scopeGrouping;

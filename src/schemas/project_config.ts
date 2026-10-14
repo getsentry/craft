@@ -189,28 +189,29 @@ export const AiSummaryLlmSchema = z
       'https://api.githubcopilot.com/responses',
     ),
     model: z.string().trim().min(1).max(200).default('gpt-6-luna'),
-    apiKeyEnv: AiSummaryApiKeyEnvSchema.default('AI_SUMMARY_TOKEN'),
+    apiKeyEnv: AiSummaryApiKeyEnvSchema.default('GITHUB_TOKEN'),
   })
   .strict();
 
 /** Opt-in summaries through a configured HTTP endpoint. */
-export const AiSummaryConfigSchema = z.object({
-  enabled: z.boolean().default(false),
-  llm: AiSummaryLlmSchema.default({}),
-  kickInThreshold: z.number().int().nonnegative().default(5),
-  levels: z
-    .array(z.enum(['release', 'category', 'scope']))
-    .refine(
-      levels => new Set(levels).size === levels.length,
-      'Duplicate summary levels',
-    )
-    .default(['release'])
-    .transform(levels =>
-      levels.length
-        ? levels
-        : (['release'] as ('release' | 'category' | 'scope')[]),
-    ),
-});
+export const AiSummaryConfigSchema = z
+  .object({
+    llm: AiSummaryLlmSchema.default({}),
+    minItems: z.number().int().nonnegative().default(5),
+    levels: z
+      .array(z.enum(['release', 'category', 'scope']))
+      .refine(
+        levels => new Set(levels).size === levels.length,
+        'Duplicate summary levels',
+      )
+      .default(['release'])
+      .transform(levels =>
+        levels.length
+          ? levels
+          : (['release'] as ('release' | 'category' | 'scope')[]),
+      ),
+  })
+  .strict();
 
 export type AiSummaryConfig = z.infer<typeof AiSummaryConfigSchema>;
 
@@ -223,7 +224,7 @@ export const ChangelogConfigSchema = z.union([
     filePath: z.string().optional(),
     policy: z.enum(['auto', 'simple', 'none']).optional(),
     scopeGrouping: z.boolean().optional(),
-    aiSummary: AiSummaryConfigSchema.optional(),
+    aiSummary: z.union([AiSummaryConfigSchema, z.literal(false)]).optional(),
     includePaths: z
       .array(
         z

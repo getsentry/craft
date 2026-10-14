@@ -16,13 +16,12 @@ vi.mock('../ai-provider', () => ({
 }));
 
 const config = {
-  enabled: true,
   llm: {
     endpoint: 'https://api.githubcopilot.com/responses',
     model: 'gpt-6-luna',
     apiKeyEnv: 'AI_SUMMARY_TOKEN',
   },
-  kickInThreshold: 5,
+  minItems: 5,
   levels: ['release', 'category', 'scope'] as (
     | 'release'
     | 'category'
@@ -167,7 +166,7 @@ describe('hierarchical HTTP changelog summaries', () => {
           ],
         },
       ],
-      { ...config, kickInThreshold: 0 },
+      { ...config, minItems: 0 },
     );
     expect(result!.release).toHaveLength(1);
     const atoms = requestMock.mock.calls
@@ -213,7 +212,7 @@ describe('hierarchical HTTP changelog summaries', () => {
           ],
         },
       ],
-      { ...config, kickInThreshold: 1 },
+      { ...config, minItems: 1 },
     );
     expect(result!.release[0].summary).toContain('CVE-1234');
     const input = JSON.parse(requestMock.mock.calls.at(-1)![0].input);
@@ -260,7 +259,7 @@ describe('hierarchical HTTP changelog summaries', () => {
           groups: [{ id: 'g', title: 'G', items: ['SECURITY: fix CVE-1234'] }],
         },
       ],
-      { ...config, kickInThreshold: 0 },
+      { ...config, minItems: 0 },
     );
     expect(result!.release[0].summary).toContain('CVE-1234');
   });
@@ -287,7 +286,7 @@ describe('hierarchical HTTP changelog summaries', () => {
           groups: [{ id: 'g', title: 'G', items: [entry] }],
         },
       ],
-      { ...config, kickInThreshold: 0 },
+      { ...config, minItems: 0 },
     );
     expect(result!.release[0].summary).toContain('CVE-A');
     expect(result!.release[0].summary).toContain('API-B');
@@ -315,7 +314,7 @@ describe('hierarchical HTTP changelog summaries', () => {
     }));
     const pending = summarizeChangelog([{ id: 'a', title: 'A', groups }], {
       ...config,
-      kickInThreshold: 0,
+      minItems: 0,
     });
     await vi.advanceTimersByTimeAsync(120000);
     expect(await pending).toBeNull();
@@ -344,12 +343,12 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(
       await summarizeChangelog(small, {
         ...config,
-        kickInThreshold: 0,
+        minItems: 0,
         levels: [],
       }),
     ).toMatchObject({ release: [{ id: 'a' }], categories: {}, scopes: {} });
     expect(
-      await summarizeChangelog(small, { ...config, kickInThreshold: 0 }),
+      await summarizeChangelog(small, { ...config, minItems: 0 }),
     ).toMatchObject({
       release: [{ id: 'a' }],
       categories: { a: expect.any(String) },
@@ -358,9 +357,7 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(
       await summarizeChangelog(categories, { ...config, levels: ['category'] }),
     ).toMatchObject({ release: [] });
-    expect(
-      await summarizeChangelog([], { ...config, kickInThreshold: 0 }),
-    ).toBeNull();
+    expect(await summarizeChangelog([], { ...config, minItems: 0 })).toBeNull();
   });
 
   it('uses descendant counts and strictly exceeds the threshold at every level', async () => {
@@ -395,9 +392,7 @@ describe('hierarchical HTTP changelog summaries', () => {
 
   it('skips disabled, strict and worktree dry-run requests', async () => {
     expect(await summarizeChangelog(categories, undefined)).toBeNull();
-    expect(
-      await summarizeChangelog(categories, { ...config, enabled: false }),
-    ).toBeNull();
+    expect(await summarizeChangelog(categories, false)).toBeNull();
     setGlobals({ 'dry-run': true });
     expect(await summarizeChangelog(categories, config)).toBeNull();
     enableWorktreeMode();
@@ -437,7 +432,7 @@ describe('hierarchical HTTP changelog summaries', () => {
             groups: [{ id: 'g', title: 'G', items: ['SECURITY: fix CVE-1'] }],
           },
         ],
-        { ...config, kickInThreshold: 0 },
+        { ...config, minItems: 0 },
       ),
     ).toBeNull();
   });
@@ -477,7 +472,7 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(
       await summarizeChangelog([{ id: 'a', title: 'A', groups }], {
         ...config,
-        kickInThreshold: 0,
+        minItems: 0,
       }),
     ).toBeNull();
     expect(aborted).toBe(true);
@@ -520,7 +515,7 @@ describe('hierarchical HTTP changelog summaries', () => {
             ],
           },
         ],
-        { ...config, levels: ['scope'], kickInThreshold: 0 },
+        { ...config, levels: ['scope'], minItems: 0 },
       );
       expect(requestMock).toHaveBeenCalledTimes(1);
       expect(result).toBeNull();
@@ -546,7 +541,7 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(
       await summarizeChangelog([{ id: 'a', title: 'A', groups }], {
         ...config,
-        kickInThreshold: 0,
+        minItems: 0,
       }),
     ).toBeNull();
     expect(requestMock.mock.calls.length).toBeLessThanOrEqual(64);
@@ -571,7 +566,7 @@ describe('hierarchical HTTP changelog summaries', () => {
     const result = await summarizeChangelog([{ id: 'a', title: 'A', groups }], {
       ...config,
       levels: ['release'],
-      kickInThreshold: 0,
+      minItems: 0,
     });
     expect(result!.release.map(statement => statement.id)).toEqual(['a']);
     expect(peak).toBeGreaterThan(1);

@@ -66,3 +66,29 @@ test.each(['build.yml', 'release-build.yml'])(
     ).not.toContain('copilot');
   },
 );
+
+test('regular Node suites include the CLI E2E, with native platform coverage in the same job matrix', () => {
+  const workflow = yaml('.github/workflows/build.yml');
+  expect(workflow.jobs).not.toHaveProperty('ai-summary-platforms');
+  const job = workflow.jobs.test;
+  expect(job.steps.find((step: any) => step.name === 'Test').run).toBe(
+    'pnpm test ${{ matrix.tests }}',
+  );
+  const entries = job.strategy.matrix.include;
+  expect(
+    entries
+      .filter((entry: any) => entry.os === 'ubuntu-latest')
+      .map((entry: any) => [entry.node, entry.tests]),
+  ).toEqual([
+    ['22', ''],
+    ['24', ''],
+  ]);
+  expect(
+    entries
+      .filter((entry: any) => entry.os !== 'ubuntu-latest')
+      .map((entry: any) => [entry.os, entry.tests]),
+  ).toEqual([
+    ['macos-latest', 'src/__tests__/ai-summary.e2e.test.ts'],
+    ['windows-latest', 'src/__tests__/ai-summary.e2e.test.ts'],
+  ]);
+});

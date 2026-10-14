@@ -14,13 +14,33 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     permissions:
       contents: read
     strategy:
+      fail-fast: false
       matrix:
-        node: ['22', '24']
-    name: Node ${{ matrix.node }}
+        include:
+          - os: ubuntu-latest
+            node: '22'
+            name: Node 22
+            tests: ''
+          - os: ubuntu-latest
+            node: '24'
+            name: Node 24
+            tests: ''
+          - os: macos-latest
+            node: '24'
+            name: AI summary / macos-latest
+            tests: src/__tests__/ai-summary.e2e.test.ts
+          - os: windows-latest
+            node: '24'
+            name: AI summary / windows-latest
+            tests: src/__tests__/ai-summary.e2e.test.ts
+    name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -41,29 +61,7 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
       - name: Test
-        run: pnpm test
-
-  ai-summary-platforms:
-    name: AI summary / ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: package.json
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          version: 10.27.0
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      # The isolated sample runs without any AI SDK or runtime dependencies.
-      - run: node .github/scripts/ai-summary-smoke.mjs
+        run: pnpm test ${{ matrix.tests }}
 
   build:
     name: Build

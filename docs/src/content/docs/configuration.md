@@ -225,198 +225,133 @@ Auto mode uses `.github/release.yml` to categorize PRs. This file follows [GitHu
 
 #### AI summaries
 
-Opt in to configurable changelog summaries. The CLI and Actions use the same HTTP client and connection settings:
+Add an `aiSummary` object to enable summaries for automatic changelogs. Omit it
+or use `aiSummary: false` to disable generation.
 
 ```yaml
 changelog:
   policy: auto
   aiSummary:
-    enabled: true
-    levels: [release, category, scope] # choose any combination
-    kickInThreshold: 5 # summarize displayed groups with more than 5 entries
-    llm:
-      endpoint: https://api.githubcopilot.com/responses # default
-      model: gpt-6-luna # default
-      apiKeyEnv: AI_SUMMARY_TOKEN # default; name of a credential environment variable
+    levels: [release] # default; choose any combination of release, category, scope
+    minItems: 5 # summarize groups with more than 5 original entries
 ```
-
-Provide a credential in the selected environment variable. Craft sends requests
-directly to the configured endpoint; it does not read stored Copilot logins or
-automatically use a GitHub release token.
 
 | Setting | Default | Behavior |
 | --- | --- | --- |
-| `enabled` | `false` | Enable summaries explicitly. |
-| `llm.endpoint` | `https://api.githubcopilot.com/responses` | Full POST URL. HTTPS required except loopback HTTP. Credentials, fragments, and redirects in URLs are rejected. |
-| `llm.model` | `gpt-6-luna` | Model ID at the selected endpoint; access depends on the credential's policy. |
-| `llm.apiKeyEnv` | `AI_SUMMARY_TOKEN` | Name of the environment variable containing the credential. Never put a raw secret in configuration or CLI arguments. |
-| `levels` | `[release]` | Any combination of `release`, `category`, and `scope`, without duplicates. Omitted or empty lists use `[release]`. Selects visible summaries; internal digests can still be generated for parent summaries. |
-| `kickInThreshold` | `5` | Nonnegative integer. Summaries appear only when original entry counts exceed this value. `0` summarizes every nonempty selected group. Category counts include descendants; release counts include the entire changelog. |
+| `levels` | `[release]` | Select visible summaries; omitted or empty arrays use `[release]`. |
+| `minItems` | `5` | Strict entry-count threshold. `0` includes every nonempty selected group. Category counts include descendants; release counts include the whole changelog. |
+| `llm.endpoint` | `https://api.githubcopilot.com/responses` | Full POST URL; HTTPS required except loopback HTTP. |
+| `llm.model` | `gpt-6-luna` | Model ID supported by the endpoint and credential. |
+| `llm.apiKeyEnv` | `GITHUB_TOKEN` | Name of the environment variable containing the token. Never put the token in configuration or CLI arguments. |
 
-The request format is inferred from the URL: endpoints ending in `/responses`
-use OpenAI-compatible Responses; other endpoints use Chat Completions. There
-is no `api` setting or provider fallback. Both formats must support strict JSON
-schema output. Responses uses `store: false`; neither format supplies tools.
-Use Responses for Copilot's Luna model. Copilot hosts receive the integration
-and API-version headers; custom hosts do not.
+Lower-level digests are reused for parent summaries even when hidden. Release
+overviews cover every category. Category and scope summaries preserve originals
+in expandable blocks, including links and nested content. Scope summaries need
+an existing scope heading; `scopeGrouping: false` still allows category/release
+summaries. Unscoped entries contribute to both parent levels.
 
-The three levels follow the existing changelog hierarchy:
+##### Output examples
 
-- `release`: a labeled overview statement for every nonempty category.
-- `category`: a summary under a heading such as **New Features** or **Bug Fixes**.
-- `scope`: a summary under a subgroup such as **New Features → CLI**.
+These examples use two original entries and `minItems: 0`.
 
-For example, `levels: [release, category]` shows the release overview and
-category summaries. `levels: [scope]` summarizes eligible scope lists. With all
-three selected, scope summaries and their original entries are nested inside
-an expandable category block. Scope summaries require a visible scope heading;
-when `scopeGrouping: false`, category and release summaries still work.
-Unscoped entries always contribute to their category and the release overview.
-
-The default release-only output adds an overview and leaves all original entries
-expanded. Excluding `release` omits the overview while allowing the other selected
-levels. `enabled: false` disables all AI generation, including internal digests.
-
-Six CLI entries under **New Features → CLI** with `scope` selected become:
+**`levels: [release]`** adds an overview and leaves originals expanded:
 
 ```markdown
-#### CLI
+**New Features:** Added login and logout commands.
 
-Added commands for configuration, deployment, and authentication.
+### New Features
+#### CLI
+- Add login command
+- Add logout command
+```
+
+**`levels: [category]`** summarizes the category and folds its original content:
+
+```markdown
+### New Features
+Added login and logout commands.
 
 <details>
-<summary>Show 6 items</summary>
+<summary>Show 2 items</summary>
 
-- Add configuration command by @author in [#101](https://github.com/org/repo/pull/101)
-- Add configuration export command
-- Add deployment command
-- Add deployment status command
+#### CLI
 - Add login command
 - Add logout command
 
 </details>
 ```
 
-The original entries, nested details, author mentions, and links are preserved
-inside the expandable block. Summaries are additional generated prose; review
-them before publishing. The optional overview appears above the first category.
-Workspace settings follow the normal `changelog` inheritance rules: a workspace
-either inherits the whole object or replaces it with its own configuration.
+**`levels: [scope]`** summarizes each eligible scope:
 
-Craft generates digests bottom-up and reuses them for higher levels. Small
-and unscoped groups contribute even when they do not qualify for a visible
-summary. Large groups are divided into complete bounded batches; oversized
-individual entries are split into Unicode-safe fragments. Higher levels use
-those digests, reducing repeated context. Breaking changes and security facts
-carry their source IDs through reductions and remain visible alongside the
-summary prose. Structural validation ensures category coverage; generated
-prose still needs human review for factual accuracy.
+```markdown
+### New Features
+#### CLI
+Added login and logout commands.
 
-Existing leftover-entry limits still apply. Enabling summaries sends the
-rendered changelog content and original critical PR titles to the selected endpoint.
-Billing follows the supplied credential and provider. Large releases and additional levels can require
-multiple requests.
+<details>
+<summary>Show 2 items</summary>
 
-Missing credentials, API errors, timeouts, refusals, invalid output, or exhausted
-budgets keep the entire original changelog. Craft makes no retries, allows at
-most 64 requests with 3 concurrent requests, and waits at most 30 seconds per
-request and 120 seconds overall. Each request carries at most 24,000 UTF-8 bytes
-of input data and allows at most 8,192 output tokens. Summaries are disabled
-during all dry runs, including worktree dry runs, highlighted `craft changelog
---pr` previews, and automatic version analysis. `prepare --no-changelog` makes
-no model calls. The calculated version bump is unaffected.
+- Add login command
+- Add logout command
 
-##### CLI connection settings
+</details>
+```
 
-With summaries enabled, put an authorized Copilot credential in
-`AI_SUMMARY_TOKEN` and run `craft changelog --since 1.0.0`. The endpoint and
-model can be omitted to use Copilot Responses and GPT-6 Luna. A user-owned
-fine-grained PAT needs **Copilot Requests: write** and Copilot access; classic
-PATs are not supported. See [GitHub's authentication guide](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/authenticate-copilot-cli).
+**`levels: [release, scope]`** combines an overview with scope summaries:
 
-For a custom endpoint, configure all connection fields together:
+```markdown
+**New Features:** Added login and logout commands.
+
+### New Features
+#### CLI
+Added login and logout commands.
+
+<details>
+<summary>Show 2 items</summary>
+
+- Add login command
+- Add logout command
+
+</details>
+```
+
+Selecting all three levels nests scope summaries inside category blocks.
+Excluding `release` omits the overview.
+
+##### Connection settings
+
+The CLI and Actions share the HTTP client. With an authorized Copilot token in
+`GITHUB_TOKEN`, `aiSummary: {}` uses the default Luna Responses endpoint. For a
+custom provider, specify its connection and token variable:
 
 ```yaml
 changelog:
   policy: auto
   aiSummary:
-    enabled: true
     llm:
       endpoint: https://gateway.example.com/v1/chat/completions
       model: your-model
       apiKeyEnv: TEAM_MODEL_TOKEN
 ```
 
-Supply `TEAM_MODEL_TOKEN` securely in the environment. CLI flags
-`--ai-endpoint`, `--ai-model`, and `--ai-api-key-env` override their corresponding
-`CRAFT_AI_ENDPOINT`, `CRAFT_AI_MODEL`, and `CRAFT_AI_API_KEY_ENV` environment
-variables. `CRAFT_AI_LLM` accepts a JSON object with `endpoint`, `model`, and
-`apiKeyEnv`. Per-field precedence is CLI flags, structured environment settings,
-scalar environment overrides, then the effective `.craft.yml` (including
-workspace overrides or `prepare --config-from`). Omitted fields use defaults;
-empty or invalid fields are rejected. Missing credentials make no request and
-retain the original changelog.
+Per-field precedence is CLI flags (`--ai-endpoint`, `--ai-model`,
+`--ai-api-key-env`), `CRAFT_AI_LLM` JSON, scalar environment overrides
+(`CRAFT_AI_ENDPOINT`, `CRAFT_AI_MODEL`, `CRAFT_AI_API_KEY_ENV`), then effective
+project/workspace configuration. Workspace changelog objects replace the
+inherited object. Endpoints ending in `/responses` use Responses; others use
+Chat Completions. Both require structured JSON output. Invalid settings are
+rejected; missing tokens and provider errors retain the original output.
 
-Copilot inference endpoints are a backend HTTP interface rather than GitHub's
-public REST API; their contract can change. Access depends on the supplied
-credential and model policy. Craft does not discover credentials or silently
-switch endpoints.
+Generation sends changelog content and critical PR titles to the chosen
+provider. Breaking/security facts retain source IDs. Generated prose is escaped;
+review it for accuracy. Requests are bounded to 64 calls, 3 concurrent calls,
+30 seconds per request, 120 seconds total, 24,000 input bytes and 8,192 output
+tokens. Any failure preserves the entire original changelog without retries or
+provider switching. Existing leftover-entry limits still apply.
 
-##### GitHub Actions
-
-The Action uses the same CLI resolver and HTTP client. Pass connection settings
-as one `llm` JSON object and map an explicit credential to `llm_api_key`:
-
-```yaml
-- uses: getsentry/craft@v2
-  env:
-    GITHUB_TOKEN: ${{ github.token }} # release operations
-  with:
-    llm: '{"endpoint":"https://gateway.example.com/v1/responses","model":"your-model"}'
-    llm_api_key: ${{ secrets.TEAM_MODEL_TOKEN }}
-```
-
-`llm` overrides `CRAFT_AI_LLM` in the step environment. For repository or
-organization variables, pass `llm: ${{ vars.CRAFT_AI_LLM }}` from the calling
-workflow; the reusable release workflow supplies this fallback automatically.
-Individual connection fields follow the shared resolver's precedence.
-`llm_api_key` maps to `AI_SUMMARY_TOKEN` and selects that variable over a
-configured `apiKeyEnv`.
-Alternatively, omit `llm_api_key` and map a secret to the configured environment
-variable. Craft reads the environment, not GitHub's secret store. The secret
-must be available to the repository running the workflow; an organization
-secret with selected-repository access can provide shared configuration.
-
-For default Copilot settings, omit `llm` and provide an authorized Copilot
-credential via `llm_api_key` or `AI_SUMMARY_TOKEN`. The Action does not
-implicitly use `${{ github.token }}`. If choosing an organization workflow
-token explicitly, callers must grant `copilot-requests: write` and the
-organization must enable **“Allow use of Copilot CLI billed to the organization.”**
-Usage in that mode is billed to the organization. Do not assume this policy is
-enabled for your organization; granting the workflow permission alone is
-insufficient. See [GitHub's organization authentication guide](https://docs.github.com/en/copilot/how-tos/copilot-sdk/auth/server-to-server-tokens).
-Personal credentials follow their own Copilot access and billing. Custom
-provider credentials need no Copilot workflow permission.
-
-Reusable workflows accept the same structured `llm` input and an optional
-`llm_api_key` secret:
-
-```yaml
-jobs:
-  release:
-    permissions:
-      contents: write
-    uses: getsentry/craft/.github/workflows/release.yml@v2
-    with:
-      llm: '{"endpoint":"https://gateway.example.com/v1/chat/completions","model":"your-model"}'
-    secrets:
-      llm_api_key: ${{ secrets.TEAM_MODEL_TOKEN }}
-```
-
-When using the reusable workflow's secret, omit `apiKeyEnv` to use the standard
-mapping. Omit `llm` to use default Copilot settings with the supplied credential.
-The workflow cannot increase its caller's token permissions. HTTP failures
-keep the original changelog and never select another provider.
+Dry runs, highlighted PR previews, `prepare --no-changelog` and version analysis
+make zero model calls. See [AI summary authentication](../github-actions/#ai-summary-authentication)
+for Action inputs, secret mapping, Copilot permissions and billing.
 
 #### Craft Extensions to release.yml
 

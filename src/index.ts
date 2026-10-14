@@ -128,7 +128,7 @@ async function main(): Promise<void> {
       type: 'string',
       global: true,
       describe:
-        'Environment variable containing the endpoint token (default: AI_SUMMARY_TOKEN). Env: CRAFT_AI_API_KEY_ENV',
+        'Environment variable containing the endpoint token (default: GITHUB_TOKEN). Env: CRAFT_AI_API_KEY_ENV',
     })
     .option('ai-model', {
       type: 'string',

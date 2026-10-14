@@ -904,7 +904,7 @@ export interface NormalizedChangelogConfig {
   /** Additional workspace paths to include in automatic changelogs */
   includePaths: string[];
   /** Optional summaries; omitted unless configured explicitly. */
-  aiSummary?: AiSummaryConfig;
+  aiSummary?: AiSummaryConfig | false;
 }
 
 const DEFAULT_CHANGELOG_FILE_PATH = 'CHANGELOG.md';

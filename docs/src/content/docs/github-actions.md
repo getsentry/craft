@@ -103,31 +103,45 @@ The action accepts the same inputs and produces the same outputs as the reusable
 
 ### AI summary authentication
 
-AI summaries remain opt-in through `changelog.aiSummary.enabled`. The CLI and
-Action share one HTTP client with nested `llm` settings. The default endpoint is
-Copilot Responses and the default model is `gpt-6-luna`.
+Enable summaries with `changelog.aiSummary: {}`. The default connection is
+Copilot Responses, `gpt-6-luna` and the `GITHUB_TOKEN` environment variable.
+The model must be available to the supplied credential. Use `aiSummary: false`
+to disable generation.
 
-The `llm` input accepts JSON with `endpoint`, `model`, and `apiKeyEnv`. It
-overrides the `CRAFT_AI_LLM` step environment. Pass repository or organization
-variables through the caller with `llm: ${{ vars.CRAFT_AI_LLM }}`; the reusable
-release workflow provides that fallback automatically. `llm_api_key` accepts
-an explicit credential and maps it to `AI_SUMMARY_TOKEN`. Alternatively, map a
-secret to the configured environment variable. The reusable workflow forwards
-its `llm` input and optional
-`llm_api_key` secret to both Action paths. Credentials never belong in JSON
-configuration or CLI arguments. Missing credentials and HTTP failures retain
-the original changelog, without provider switching.
+For a custom provider, pass `llm` JSON and map a secret to `llm_api_key`:
 
-A personal Copilot token needs Copilot access; fine-grained PATs must be
-user-owned with **Copilot Requests: write**. The Action never implicitly uses a
-release or workflow token. If a workflow token is explicitly selected, callers
-must grant `copilot-requests: write`, including reusable workflow callers, and
-the organization must enable **“Allow use of Copilot CLI billed to the organization.”**
-That mode is billed to the organization. Granting the workflow permission alone
-is insufficient if the organization policy is disabled. Custom HTTP providers
-need no Copilot permission. See the [AI summary configuration](../configuration/#ai-summaries)
-for examples, precedence, authentication, and the direct-backend compatibility
-limits.
+```yaml
+- uses: getsentry/craft@v2
+  env:
+    GITHUB_TOKEN: ${{ github.token }} # release operations
+  with:
+    llm: '{"endpoint":"https://gateway.example.com/v1/chat/completions","model":"your-model"}'
+    llm_api_key: ${{ secrets.TEAM_MODEL_TOKEN }}
+```
+
+`llm_api_key` selects a dedicated environment variable over `llm.apiKeyEnv`;
+it never replaces the release token. Alternatively, map a secret to your
+configured `apiKeyEnv`. Craft reads environment variables, not GitHub's secret
+store. Secrets must be available to the workflow's repository; an organization
+secret can grant selected-repository access.
+
+Pass repository/organization configuration as `llm: ${{ vars.CRAFT_AI_LLM }}`.
+The reusable release workflow supplies this fallback and forwards its `llm`
+input and optional `llm_api_key` secret to both Action paths.
+
+For built-in-token Copilot access, callers (including reusable workflow callers)
+must grant `copilot-requests: write` alongside their release permissions. The
+organization must enable **“Allow use of Copilot CLI billed to the organization.”**
+Usage is billed to the organization; permissions alone do not enable access.
+Map `${{ github.token }}` to `GITHUB_TOKEN`, or pass it as `llm_api_key` when
+release operations use a different token. See [GitHub's workflow-token guide](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions).
+Personal Copilot credentials require Copilot access; fine-grained PATs need
+**Copilot Requests: write**. Custom provider credentials need no Copilot permission.
+
+Copilot's direct HTTP backend is outside GitHub's public REST API contract.
+Missing credentials or failed requests preserve the original changelog without
+switching providers. See [AI summary configuration](../configuration/#ai-summaries)
+for precedence, limits and output examples.
 
 ### Test a Craft nightly
 

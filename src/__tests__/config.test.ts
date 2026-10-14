@@ -109,40 +109,33 @@ describe('validateConfiguration', () => {
   });
 
   test('normalizes opt-in Luna summary settings from the active schema', () => {
-    loadConfigurationFromString(
-      'changelog:\n  policy: auto\n  aiSummary:\n    enabled: true',
-    );
+    loadConfigurationFromString('changelog:\n  policy: auto\n  aiSummary: {}');
     expect(getChangelogConfig().aiSummary).toEqual({
-      enabled: true,
       llm: {
         endpoint: 'https://api.githubcopilot.com/responses',
         model: 'gpt-6-luna',
-        apiKeyEnv: 'AI_SUMMARY_TOKEN',
+        apiKeyEnv: 'GITHUB_TOKEN',
       },
-      kickInThreshold: 5,
+      minItems: 5,
       levels: ['release'],
     });
   });
 
-  test.each([-1, 1.5])(
-    'rejects invalid summary threshold %s',
-    kickInThreshold => {
-      expect(() =>
-        validateConfiguration({
-          changelog: { aiSummary: { enabled: true, kickInThreshold } },
-        }),
-      ).toThrow(/changelog/);
-    },
-  );
+  test.each([-1, 1.5])('rejects invalid summary threshold %s', minItems => {
+    expect(() =>
+      validateConfiguration({
+        changelog: { aiSummary: { minItems } },
+      }),
+    ).toThrow(/changelog/);
+  });
 
   test('normalizes empty levels to release-only and accepts a zero threshold', () => {
     loadConfigurationFromString(
-      'changelog:\n  policy: auto\n  aiSummary:\n    enabled: true\n    levels: []\n    kickInThreshold: 0',
+      'changelog:\n  policy: auto\n  aiSummary:\n    levels: []\n    minItems: 0',
     );
     expect(getChangelogConfig().aiSummary).toMatchObject({
-      enabled: true,
       levels: ['release'],
-      kickInThreshold: 0,
+      minItems: 0,
     });
     expect(getChangelogConfig().aiSummary).not.toHaveProperty('topLevel');
   });
@@ -156,7 +149,6 @@ describe('validateConfiguration', () => {
       validateConfiguration({
         changelog: {
           aiSummary: {
-            enabled: true,
             llm: { endpoint, apiKeyEnv: 'TEAM_MODEL_TOKEN' },
           },
         },
@@ -202,25 +194,48 @@ describe('validateConfiguration', () => {
     levels => {
       expect(() =>
         validateConfiguration({
-          changelog: { aiSummary: { enabled: true, levels } },
+          changelog: { aiSummary: { levels } },
         }),
       ).toThrow(/changelog/);
     },
   );
 
   test('inherits summary settings and allows a workspace to disable them', () => {
-    const yaml = `minVersion: ${WORKSPACES_MIN_VERSION}\nchangelog:\n  policy: auto\n  aiSummary:\n    enabled: true\n    kickInThreshold: 8\nworkspaces:\n  cli: {}\n  mcp:\n    changelog:\n      policy: auto\n      aiSummary:\n        enabled: false`;
+    const yaml = `minVersion: ${WORKSPACES_MIN_VERSION}\nchangelog:\n  policy: auto\n  aiSummary:\n    minItems: 8\nworkspaces:\n  cli: {}\n  mcp:\n    changelog:\n      policy: auto\n      aiSummary: false`;
     try {
       setActiveWorkspace('cli');
       loadConfigurationFromString(yaml);
-      expect(getChangelogConfig().aiSummary?.kickInThreshold).toBe(8);
+      expect(getChangelogConfig().aiSummary).toMatchObject({ minItems: 8 });
       setActiveWorkspace('mcp');
       loadConfigurationFromString(yaml);
-      expect(getChangelogConfig().aiSummary?.enabled).toBe(false);
+      expect(getChangelogConfig().aiSummary).toBe(false);
     } finally {
       setActiveWorkspace(undefined);
     }
   });
+
+  test('omitting aiSummary leaves generation disabled; false is an explicit opt-out', () => {
+    loadConfigurationFromString('changelog:\n  policy: auto');
+    expect(getChangelogConfig().aiSummary).toBeUndefined();
+    loadConfigurationFromString(
+      'changelog:\n  policy: auto\n  aiSummary: false',
+    );
+    expect(getChangelogConfig().aiSummary).toBe(false);
+  });
+
+  test.each([
+    { enabled: false },
+    { enabled: true },
+    { kickInThreshold: 5 },
+    { topLevel: true },
+  ])(
+    'rejects obsolete summary configuration %j instead of silently enabling it',
+    aiSummary => {
+      expect(() => validateConfiguration({ changelog: { aiSummary } })).toThrow(
+        /changelog/,
+      );
+    },
+  );
 
   test('parses configuration with versioning', () => {
     const data = {

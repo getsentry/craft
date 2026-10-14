@@ -182,13 +182,12 @@ describe('generateChangesetFromGit', () => {
       scopeGrouping: true,
       includePaths: [],
       aiSummary: {
-        enabled: true,
         llm: {
           endpoint: 'https://api.githubcopilot.com/responses',
           model: 'gpt-6-luna',
           apiKeyEnv: 'AI_SUMMARY_TOKEN',
         },
-        kickInThreshold: 5,
+        minItems: 5,
         levels: ['release', 'category', 'scope'] as (
           | 'release'
           | 'category'
@@ -245,7 +244,7 @@ describe('generateChangesetFromGit', () => {
           ...summaryConfig,
           aiSummary: {
             ...summaryConfig.aiSummary,
-            kickInThreshold: 0,
+            minItems: 0,
             levels: ['release'],
           },
         });
@@ -279,7 +278,7 @@ describe('generateChangesetFromGit', () => {
     it('carries a valid critical digest through every reduction and keeps custom originals', async () => {
       vi.mocked(config.getChangelogConfig).mockReturnValue({
         ...summaryConfig,
-        aiSummary: { ...summaryConfig.aiSummary, kickInThreshold: 0 },
+        aiSummary: { ...summaryConfig.aiSummary, minItems: 0 },
       });
       provider.mockImplementation(async request => {
         const input = JSON.parse(request.input);
@@ -390,7 +389,7 @@ describe('generateChangesetFromGit', () => {
     it('keeps byte-for-byte original output when a later generation stage fails', async () => {
       vi.mocked(config.getChangelogConfig).mockReturnValue({
         ...summaryConfig,
-        aiSummary: { ...summaryConfig.aiSummary, enabled: false },
+        aiSummary: false,
       });
       setup(commits, null);
       const original = await generateChangesetFromGit(dummyGit, '1.0.0');
