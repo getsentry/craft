@@ -8,8 +8,7 @@ artifactProvider:
       Build & Test:
         - craft-binary
         - craft-docs
-        - /^craft-native-(darwin|linux)-(arm64|x64)$/
-        - /^craft-native-win-x64$/
+        - craft-native
 preReleaseCommand: >-
   node -p "
     const {execSync} = require('child_process');

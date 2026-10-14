@@ -31,27 +31,17 @@ const filenames = [
 ];
 
 describe('Craft native release configuration', () => {
-  test('collects all five native artifacts from the release revision workflow', () => {
+  test('collects the cross-built native artifact from the release revision workflow', () => {
     const filters = normalizeArtifactsConfig(
       config.artifactProvider?.config?.artifacts,
     );
-    for (const platform of [
-      'darwin-arm64',
-      'darwin-x64',
-      'linux-arm64',
-      'linux-x64',
-      'win-x64',
-    ]) {
-      expect(
-        filters.some(
-          filter =>
-            filter.workflow?.test('Build & Test') &&
-            filter.artifacts.some(pattern =>
-              pattern.test(`craft-native-${platform}`),
-            ),
-        ),
-      ).toBe(true);
-    }
+    expect(
+      filters.some(
+        filter =>
+          filter.workflow?.test('Build & Test') &&
+          filter.artifacts.some(pattern => pattern.test('craft-native')),
+      ),
+    ).toBe(true);
   });
 
   test('requires each native executable and checksum before publishing', () => {

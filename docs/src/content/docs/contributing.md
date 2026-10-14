@@ -132,13 +132,18 @@ The post-release script (`scripts/post-release.sh`) runs after successful publis
 
 `pnpm build` keeps producing the portable JavaScript bundle used by npm and
 existing downloads. `pnpm build:binary` additionally embeds the pinned Node
-version from `package.json` into a standalone executable for the current host.
-Use `pnpm build:binary linux-x64,linux-arm64` to build specific platforms.
-Supported platforms are Linux and macOS x64/arm64, and Windows x64.
+version into standalone executables for Linux and macOS x64/arm64, and Windows
+x64. Use the Node version pinned by Volta in `package.json`; Fossilize's CLI uses
+that local Node version for all five cross-built executables.
+Cross-building macOS executables from Linux or Windows also requires
+[`rcodesign`](https://github.com/indygreg/apple-platform-rs/releases) on PATH for
+ad-hoc signing. The Ubuntu CI build installs it and verifies both macOS signatures.
 
 Executables are written to `dist-bin/`, with gzip archives for Unix, `.exe`
 files for Windows, and SHA-256 sidecars for each release file. The `.node-cache/`
 directory caches downloaded Node runtimes. Fossilize ad-hoc signs macOS binaries;
 Developer ID signing/notarization and Windows Authenticode are not configured.
-The native CI matrix runs each executable outside the checkout without Node on
-PATH, exercises a dry-run against a local Git remote, and tests the npm tarball.
+The existing Ubuntu build job cross-builds all five executables once. Platform
+verification jobs download those artifacts and run each executable outside the
+checkout without Node on PATH, exercise a dry-run against a local Git remote,
+and test the npm tarball.

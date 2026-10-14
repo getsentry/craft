@@ -384,10 +384,10 @@ test('release callers retain read-only build permissions and the same artifacts'
   expect(Object.keys(releaseBuild.jobs).sort()).toEqual([
     'build',
     'docs',
-    'native-binaries',
+    'native-smoke',
     'test',
   ]);
-  for (const job of ['test', 'build', 'docs', 'native-binaries']) {
+  for (const job of ['test', 'build', 'docs', 'native-smoke']) {
     expect(releaseBuild.jobs[job]).toEqual(build.jobs[job]);
     expect(releaseBuild.jobs[job].permissions).toEqual({ contents: 'read' });
   }
@@ -397,7 +397,7 @@ test('release callers retain read-only build permissions and the same artifacts'
   }
 });
 
-test('native builds forward only the optional master Sentry upload credential', () => {
+test('native and npm builds share Sentry instrumentation and optional release auth', () => {
   const readWorkflow = (name: string) =>
     load(
       readFileSync(join(__dirname, '../../.github/workflows', name), 'utf8'),
@@ -410,36 +410,34 @@ test('native builds forward only the optional master Sentry upload credential', 
         {
           secrets?: Record<string, string>;
           environment?: string;
-          steps?: { name?: string; env?: Record<string, string> }[];
+          steps?: {
+            name?: string;
+            run?: string;
+            env?: Record<string, string>;
+          }[];
         }
       >;
     };
-  const token =
-    "${{ github.ref == 'refs/heads/master' && secrets.SENTRY_AUTH_TOKEN || '' }}";
   for (const name of ['build.yml', 'release-build.yml']) {
     const workflow = readWorkflow(name);
     expect(workflow.on.workflow_call?.secrets?.SENTRY_AUTH_TOKEN.required).toBe(
       false,
     );
-    expect(workflow.jobs['native-binaries'].secrets).toEqual({
-      SENTRY_AUTH_TOKEN: token,
+    const build = workflow.jobs.build;
+    expect(build.environment).toBe(
+      "${{ github.ref == 'refs/heads/master' && 'production' }}",
+    );
+    expect(build.steps?.find(step => step.name === 'Build')).toMatchObject({
+      run: 'pnpm build:binary',
+      env: { SENTRY_AUTH_TOKEN: '${{ secrets.SENTRY_AUTH_TOKEN }}' },
     });
   }
   const release = readWorkflow('release.yml');
   expect(release.on.workflow_call?.secrets?.SENTRY_AUTH_TOKEN.required).toBe(
     false,
   );
-  expect(release.jobs.build.secrets).toEqual({ SENTRY_AUTH_TOKEN: token });
-  const native = readWorkflow('native-binaries.yml');
-  expect(native.on.workflow_call?.secrets?.SENTRY_AUTH_TOKEN.required).toBe(
-    false,
-  );
-  expect(native.jobs.native.environment).toBe(
-    "${{ github.ref == 'refs/heads/master' && 'production' }}",
-  );
-  expect(
-    native.jobs.native.steps?.find(
-      step => step.name === 'Build standalone executable and npm bundle',
-    )?.env?.SENTRY_AUTH_TOKEN,
-  ).toBe(token);
+  expect(release.jobs.build.secrets).toEqual({
+    SENTRY_AUTH_TOKEN:
+      "${{ github.ref == 'refs/heads/master' && secrets.SENTRY_AUTH_TOKEN || '' }}",
+  });
 });

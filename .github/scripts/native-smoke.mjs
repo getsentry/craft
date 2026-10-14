@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
-  copyFile,
   chmod,
   mkdtemp,
   mkdir,
@@ -19,16 +18,14 @@ import { x } from 'tar';
 
 const execute = promisify(execFile);
 const platform = `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`;
-const filename = `craft-${platform}${process.platform === 'win32' ? '.exe' : ''}`;
+const filename = `craft-${platform}${process.platform === 'win32' ? '.exe' : '.gz'}`;
 const root = await mkdtemp(join(tmpdir(), 'craft native smoke '));
 try {
-  const source = resolve('dist-bin', filename);
-  const data = await readFile(source);
-  assert(data.length > 0, 'Native executable is empty');
-  const published = source + (process.platform === 'win32' ? '' : '.gz');
+  const published = resolve('dist-bin', filename);
   const publishedData = await readFile(published);
-  if (process.platform !== 'win32')
-    assert.deepEqual(gunzipSync(publishedData), data);
+  const data =
+    process.platform === 'win32' ? publishedData : gunzipSync(publishedData);
+  assert(data.length > 0, 'Native executable is empty');
   const digest = createHash('sha256').update(publishedData).digest('hex');
   assert.equal(
     await readFile(`${published}.sha256`, 'utf8'),
@@ -38,7 +35,7 @@ try {
     root,
     process.platform === 'win32' ? 'craft.exe' : 'craft',
   );
-  await copyFile(source, binary);
+  await writeFile(binary, data);
   await chmod(binary, 0o755);
   const config =
     "preReleaseCommand: ''\ngithub:\n  owner: fixture\n  repo: fixture\nchangelog:\n  policy: none\ntargets:\n  - name: github\n";
@@ -121,8 +118,7 @@ try {
   assert.equal(await readFile(join(root, '.craft.yml'), 'utf8'), config);
 
   // The tarball must remain a portable JS package, without embedded Node binaries.
-  const tarball = process.argv[2];
-  assert(tarball, 'Pass the npm tarball path');
+  const tarball = `packed/sentry-craft-${pkg.version}.tgz`;
   const unpacked = join(root, 'npm');
   await mkdir(unpacked);
   await x({ file: resolve(tarball), cwd: unpacked });
