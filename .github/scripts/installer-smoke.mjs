@@ -75,7 +75,9 @@ esac
   await assert.rejects(readFile(binary), { code: 'ENOENT' });
   await run();
   assert.equal(
-    (await execute(binary, ['--version'], { cwd: root })).stdout.trim(),
+    (await execute(binary, ['--version'], { cwd: root })).stdout
+      .trim()
+      .replace(/ \([0-9a-f]{40}\)$/i, ''),
     pkg.version,
   );
   const installed = await readFile(binary);

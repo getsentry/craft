@@ -24,6 +24,7 @@ function fixture(
   badChecksum = false,
   downloadFails = false,
   extraEnv: NodeJS.ProcessEnv = {},
+  displayedVersion = '9.1.0',
 ) {
   const dir = mkdtempSync(join(tmpdir(), 'craft bootstrap '));
   directories.push(dir);
@@ -33,7 +34,9 @@ function fixture(
   const archive = join(dir, 'archive.gz');
   const checksum = join(dir, 'checksum');
   const candidate = Buffer.from(
-    '#!/bin/bash\nif [[ "$1" == --version ]]; then echo 9.1.0; exit; fi\nmkdir -p "$CRAFT_INSTALL_DIR"\ncp "$0" "$CRAFT_INSTALL_DIR/craft"\n',
+    '#!/bin/bash\nif [[ "$1" == --version ]]; then echo ' +
+      quote(displayedVersion) +
+      '; exit; fi\nmkdir -p "$CRAFT_INSTALL_DIR"\ncp "$0" "$CRAFT_INSTALL_DIR/craft"\n',
   );
   const data = gzipSync(candidate);
   writeFileSync(archive, data);
@@ -140,3 +143,8 @@ test.each(['CRAFT_DRY_RUN', 'DRY_RUN'])(
     expect(existsSync(destination)).toBe(false);
   },
 );
+
+test('accepts Craft version output containing the CI commit SHA', () => {
+  const { run } = fixture(false, false, {}, `9.1.0 (${'a'.repeat(40)})`);
+  expect(run('--version', '9.1.0').status).toBe(0);
+});
