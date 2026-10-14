@@ -27,7 +27,21 @@ async function requestJson(request, url, headers, description) {
   }
 }
 
-export async function downloadCraftNightly(tag, outputPath, request = fetch) {
+export async function downloadCraftNightly(
+  tag,
+  outputPath,
+  request = fetch,
+  asset = 'craft',
+) {
+  if (!['craft', 'copilot-runtime.tar.gz'].includes(asset))
+    throw new Error('Invalid nightly asset');
+  const runtime = asset === 'copilot-runtime.tar.gz';
+  if (runtime && tag === 'nightly')
+    throw new Error('Runtime requires an exact nightly revision');
+  const artifactType = runtime
+    ? 'application/vnd.getsentry.craft.copilot-runtime.v1'
+    : ARTIFACT_TYPE;
+  const manifestTag = runtime ? `copilot-runtime-${tag}` : tag;
   if (
     tag !== 'nightly' &&
     !/^nightly-(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(tag)
@@ -47,7 +61,7 @@ export async function downloadCraftNightly(tag, outputPath, request = fetch) {
   const authorization = { Authorization: `Bearer ${auth.token}` };
   const manifest = await requestJson(
     request,
-    `${REGISTRY}/v2/${REPOSITORY}/manifests/${tag}`,
+    `${REGISTRY}/v2/${REPOSITORY}/manifests/${manifestTag}`,
     { ...authorization, Accept: MANIFEST_TYPE },
     'Craft nightly manifest lookup',
   );
@@ -56,7 +70,7 @@ export async function downloadCraftNightly(tag, outputPath, request = fetch) {
   if (
     manifest?.schemaVersion !== 2 ||
     manifest?.mediaType !== MANIFEST_TYPE ||
-    manifest?.artifactType !== ARTIFACT_TYPE ||
+    manifest?.artifactType !== artifactType ||
     manifest?.annotations?.['org.opencontainers.image.source'] !==
       'https://github.com/getsentry/craft' ||
     typeof revision !== 'string' ||
@@ -70,8 +84,9 @@ export async function downloadCraftNightly(tag, outputPath, request = fetch) {
 
   const [layer] = layers;
   if (
-    layer?.annotations?.['org.opencontainers.image.title'] !== 'craft' ||
-    layer?.mediaType !== 'application/octet-stream' ||
+    layer?.annotations?.['org.opencontainers.image.title'] !== asset ||
+    layer?.mediaType !==
+      (runtime ? 'application/gzip' : 'application/octet-stream') ||
     typeof layer?.digest !== 'string' ||
     !/^sha256:[0-9a-f]{64}$/.test(layer.digest) ||
     !Number.isSafeInteger(layer.size) ||
@@ -139,7 +154,7 @@ if (
     process.exitCode = 1;
   } else {
     try {
-      await downloadCraftNightly(process.argv[2], process.argv[3]);
+      console.log(await downloadCraftNightly(process.argv[2], process.argv[3]));
     } catch (error) {
       console.error(`Unable to download Craft nightly: ${error.message}`);
       process.exitCode = 1;

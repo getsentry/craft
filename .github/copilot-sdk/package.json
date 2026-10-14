@@ -1,7 +1,0 @@
-{
-  "name": "craft-copilot-runtime",
-  "private": true,
-  "dependencies": {
-    "@github/copilot-sdk": "1.0.21"
-  }
-}

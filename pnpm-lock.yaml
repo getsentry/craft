@@ -43,9 +43,6 @@ importers:
 
   .:
     dependencies:
-      '@github/copilot-sdk':
-        specifier: 1.0.21
-        version: 1.0.21
       '@vercel/client':
         specifier: ^18.2.5
         version: 18.2.5(vite@7.3.5(@types/node@24.13.2)(tsx@4.21.0))
@@ -71,6 +68,9 @@ importers:
       '@eslint/js':
         specifier: ^9.17.0
         version: 9.39.2
+      '@github/copilot-sdk':
+        specifier: 1.0.21
+        version: 1.0.21
       '@google-cloud/storage':
         specifier: ^7.14.0
         version: 7.18.0

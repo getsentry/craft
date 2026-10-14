@@ -17,7 +17,7 @@ export interface SummaryProvider {
   close(): Promise<void>;
 }
 
-/** Standalone action binaries load the pinned SDK installed beside the action. */
+/** Standalone action binaries load the pinned SDK packaged with the action. */
 async function loadSdk(): Promise<typeof import('@github/copilot-sdk')> {
   const directory = process.env.CRAFT_COPILOT_SDK_DIR;
   if (directory)

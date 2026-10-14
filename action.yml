@@ -130,6 +130,7 @@ runs:
         path: /tmp/craft-artifact
 
     - name: Install Craft from artifact or release
+      id: craft-install
       shell: bash
       env:
         CRAFT_VERSION_INPUT: ${{ inputs.craft_version }}
@@ -139,6 +140,7 @@ runs:
         set -euo pipefail
 
         if [[ -z "$CRAFT_VERSION_INPUT" && -f /tmp/craft-artifact/dist/craft ]]; then
+          echo "version=artifact" >> "$GITHUB_OUTPUT"
           echo "Installing Craft from build artifact..."
           sudo install -m 755 /tmp/craft-artifact/dist/craft /usr/local/bin/craft
         else
@@ -149,13 +151,15 @@ runs:
             echo "Downloading Craft ${CRAFT_VERSION} from GHCR..."
             temporary_dir=$(mktemp -d)
             trap 'rm -rf "$temporary_dir"' EXIT
-            node "$ACTION_PATH/.github/scripts/download-craft-nightly.mjs" "$CRAFT_VERSION" "$temporary_dir/craft"
+            nightly_sha=$(node "$ACTION_PATH/.github/scripts/download-craft-nightly.mjs" "$CRAFT_VERSION" "$temporary_dir/craft")
+            CRAFT_VERSION="nightly-$nightly_sha"
             sudo install -m 755 "$temporary_dir/craft" /usr/local/bin/craft
           else
             if [[ "$CRAFT_VERSION" == "latest" ]]; then
               echo "Downloading latest Craft release..."
-              CRAFT_URL=$(curl -fsSL "https://api.github.com/repos/getsentry/craft/releases/latest" \
-                | jq -r '.assets[] | select(.name == "craft") | .browser_download_url')
+              release=$(curl -fsSL "https://api.github.com/repos/getsentry/craft/releases/latest")
+              CRAFT_VERSION=$(jq -er '.tag_name' <<< "$release")
+              CRAFT_URL=$(jq -er '.assets[] | select(.name == "craft") | .browser_download_url' <<< "$release")
             else
               CRAFT_URL="https://github.com/getsentry/craft/releases/download/${CRAFT_VERSION}/craft"
               echo "Downloading Craft ${CRAFT_VERSION} from: ${CRAFT_URL}"
@@ -182,15 +186,17 @@ runs:
               exit 1
             fi
           fi
+          echo "version=$CRAFT_VERSION" >> "$GITHUB_OUTPUT"
         fi
 
-    # Keep SDK packages on disk without replacing the caller's Node or pnpm.
-    - name: Install Copilot summary runtime
+    - name: Unpack bundled Copilot runtime
+      id: copilot-runtime
       continue-on-error: true
       shell: bash
       env:
         ACTION_PATH: ${{ github.action_path }}
-      run: node "$ACTION_PATH/.github/scripts/install-copilot-runtime.mjs"
+        CRAFT_VERSION: ${{ steps.craft-install.outputs.version }}
+      run: node "$ACTION_PATH/.github/scripts/copilot/unpack-runtime.mjs" "$CRAFT_VERSION" /tmp/craft-artifact/dist/copilot-runtime.tar.gz
 
     - name: Craft Prepare
       id: craft
@@ -200,6 +206,7 @@ runs:
         # Installation tokens must reach the SDK runtime through this env var.
         # Release API operations may use a separate app/bot GITHUB_TOKEN.
         COPILOT_GITHUB_TOKEN: ${{ github.token }}
+        CRAFT_COPILOT_SDK_DIR: ${{ steps.copilot-runtime.outputs.directory || format('{0}/craft-copilot-unavailable', runner.temp) }}
         CRAFT_CONFIG_FROM_MERGE_TARGET: ${{ inputs.craft_config_from_merge_target }}
         MERGE_TARGET: ${{ inputs.merge_target }}
         VERSION: ${{ inputs.version }}

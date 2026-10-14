@@ -102,9 +102,7 @@ jobs:
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-latest
     name: 'Release a new version'
-    permissions:
-      contents: write
-      copilot-requests: write
+    # Inherit the caller's permissions, including optional Copilot access.
     outputs:
       version: ${{ steps.craft-local.outputs.version || steps.craft-action.outputs.version }}
       branch: ${{ steps.craft-local.outputs.branch || steps.craft-action.outputs.branch }}

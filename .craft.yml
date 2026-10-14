@@ -21,6 +21,7 @@ postReleaseCommand: >-
 requireNames:
   - /^sentry-craft.*\.tgz$/
   - /^craft$/
+  - /^copilot-runtime\.tar\.gz$/
 targets:
   - name: npm
   - name: gcs

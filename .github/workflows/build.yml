@@ -6,12 +6,6 @@ on:
       - release/**
   pull_request:
   workflow_call:
-  workflow_dispatch:
-    inputs:
-      copilot_sample:
-        description: Run isolated live Copilot sample (billed to organization)
-        type: boolean
-        default: false
 
 concurrency:
   # Never cancel a master build: every commit needs its own immutable nightly.
@@ -35,57 +29,15 @@ jobs:
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: '10.27.0'
-      - name: Install SDK without changing caller tools
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          before_node=$(node --version)
-          before_pnpm=$(pnpm --version)
-          node .github/scripts/install-copilot-runtime.mjs
-          test "$(node --version)" = "$before_node"
-          test "$(pnpm --version)" = "$before_pnpm"
-      - run: pnpm install --dir .github/copilot-sdk --frozen-lockfile --ignore-scripts
-        if: matrix.os != 'ubuntu-latest'
-      - name: Start bundled runtime without model access
-        env:
-          CRAFT_COPILOT_SDK_DIR: ${{ github.workspace }}/.github/copilot-sdk
-        run: node .github/scripts/copilot/runtime-smoke.mjs
-
-  copilot-sample:
-    name: Live Copilot sample
-    if: github.event_name == 'workflow_dispatch' && inputs.copilot_sample
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      copilot-requests: write
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          version: '10.27.0'
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: pnpm install --dir .github/copilot-sdk --frozen-lockfile --ignore-scripts
-      - name: Probe Copilot authentication and Luna model availability
-        env:
-          COPILOT_GITHUB_TOKEN: ${{ github.token }}
-          CRAFT_COPILOT_SDK_DIR: ${{ github.workspace }}/.github/copilot-sdk
-        # The SDK forwards native stderr; keep authenticated diagnostics private.
-        run: node .github/scripts/copilot/runtime-smoke.mjs --check-model-access 2>/dev/null
-      - name: Generate isolated release notes through Copilot
-        env:
-          COPILOT_GITHUB_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
-          CRAFT_COPILOT_SDK_DIR: ${{ github.workspace }}/.github/copilot-sdk
-        run: node .github/scripts/copilot/live-sample.mjs
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: copilot-sample
-          path: ${{ runner.temp }}/copilot-sample
+      - run: pnpm build:copilot
+      - name: Unpack and start packaged runtime without model access
+        shell: bash
+        run: |
+          directory="$RUNNER_TEMP/copilot-runtime"
+          mkdir -p "$directory"
+          DIRECTORY="$directory" node --input-type=module -e 'import { unpackRuntime } from "./.github/scripts/copilot/unpack-runtime.mjs"; await unpackRuntime("dist/copilot-runtime.tar.gz", process.env.DIRECTORY)'
+          CRAFT_COPILOT_SDK_DIR="$directory" node .github/scripts/copilot/runtime-smoke.mjs
 
   test:
     runs-on: ubuntu-latest
@@ -148,10 +100,17 @@ jobs:
           CRAFT_BUILD_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: pnpm build
+      - name: Package Copilot runtime
+        run: pnpm build:copilot
       - name: Smoke Test
         run: ./dist/craft --help
       - name: NPM Pack
-        run: npm pack
+        run: |
+          pnpm pack
+          if tar -tzf sentry-craft-*.tgz | grep -E '^package/dist/copilot-runtime([/.]|$)'; then
+            echo 'Copilot runtime must remain a separate action artifact' >&2
+            exit 1
+          fi
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v7
         with:
@@ -159,6 +118,7 @@ jobs:
           path: |
             ${{ github.workspace }}/*.tgz
             ${{ github.workspace }}/dist/craft
+            ${{ github.workspace }}/dist/copilot-runtime.tar.gz
 
   publish-nightly:
     name: Publish Craft nightly to GHCR
@@ -216,6 +176,46 @@ jobs:
               craft:application/octet-stream
           else
             echo "Craft nightly preflight failed (HTTP $status)" >&2
+            exit 1
+          fi
+      - name: Publish the matching prebuilt Copilot runtime
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cp artifacts/dist/copilot-runtime.tar.gz copilot-runtime.tar.gz
+          token=$(curl -fsS 'https://ghcr.io/token?scope=repository:getsentry/craft:pull' | jq -er '.token')
+          tag="copilot-runtime-nightly-$GITHUB_SHA"
+          status=$(curl -sS -o "$RUNNER_TEMP/copilot-runtime-existing.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $token" \
+            -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+            "https://ghcr.io/v2/getsentry/craft/manifests/$tag")
+          if [[ "$status" == 200 ]]; then
+            digest="sha256:$(sha256sum copilot-runtime.tar.gz | cut -d' ' -f1)"
+            size=$(wc -c < copilot-runtime.tar.gz)
+            jq -e --arg sha "$GITHUB_SHA" --arg digest "$digest" --argjson size "$size" '
+              .schemaVersion == 2 and
+              .mediaType == "application/vnd.oci.image.manifest.v1+json" and
+              .artifactType == "application/vnd.getsentry.craft.copilot-runtime.v1" and
+              .annotations["org.opencontainers.image.revision"] == $sha and
+              .annotations["org.opencontainers.image.source"] == "https://github.com/getsentry/craft" and
+              (.layers | length) == 1 and
+              .layers[0].annotations["org.opencontainers.image.title"] == "copilot-runtime.tar.gz" and
+              .layers[0].mediaType == "application/gzip" and
+              .layers[0].digest == $digest and .layers[0].size == $size
+            ' "$RUNNER_TEMP/copilot-runtime-existing.json" > /dev/null || {
+              echo 'Existing Copilot runtime differs from this build; refusing to overwrite it' >&2
+              exit 1
+            }
+          elif [[ "$status" == 404 ]]; then
+            printf '%s' "$GHCR_TOKEN" | oras login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            oras push --image-spec v1.1 \
+              --artifact-type application/vnd.getsentry.craft.copilot-runtime.v1 \
+              --annotation 'org.opencontainers.image.source=https://github.com/getsentry/craft' \
+              --annotation "org.opencontainers.image.revision=$GITHUB_SHA" \
+              "ghcr.io/getsentry/craft:$tag" copilot-runtime.tar.gz:application/gzip
+          else
+            echo "Copilot runtime preflight failed (HTTP $status)" >&2
             exit 1
           fi
       - name: Verify anonymous access to the immutable artifact

@@ -326,55 +326,29 @@ See GitHub's [Actions guide](https://docs.github.com/en/copilot/how-tos/copilot-
 and [installation-token authentication guide](https://docs.github.com/en/copilot/how-tos/copilot-sdk/auth/server-to-server-tokens).
 
 Both direct Craft action users and callers of the reusable release workflow must
-grant `copilot-requests: write` in the calling job's permissions, alongside their
-existing release permissions. A reusable workflow cannot increase permissions
-granted by its caller. The action installs the pinned SDK runtime with a private pnpm installer,
-retains the caller's Node and pnpm versions, and sets
-`COPILOT_GITHUB_TOKEN: ${{ github.token }}` separately from the token used for
-release API operations. These permissions authorize access; the SDK runtime
-performs the actual installation-token authentication flow.
-
-For a standalone CLI step that only generates notes:
+grant `copilot-requests: write` alongside their existing release permissions.
+A reusable workflow cannot increase permissions granted by its caller.
+The action ships a prebuilt Copilot SDK and native runtime archive with its
+Craft build. It unpacks that archive without running a package installer or
+changing the caller's Node or pnpm setup, and passes the built-in workflow token
+through `COPILOT_GITHUB_TOKEN` separately from any release bot token.
 
 ```yaml
-name: Release notes
-on:
-  workflow_dispatch:
-permissions:
-  contents: read
-  pull-requests: read
-  copilot-requests: write
 jobs:
-  changelog:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          version: '10.27.0'
-      - name: Generate release notes
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          COPILOT_GITHUB_TOKEN: ${{ github.token }}
-        run: pnpm --package=@sentry/craft dlx craft changelog --since v1.0.0 > release-notes.md
+  release:
+    permissions:
+      contents: write
+      copilot-requests: write
+    uses: getsentry/craft/.github/workflows/release.yml@v2
+    secrets: inherit
 ```
 
-Use a Craft version that includes this feature and replace `v1.0.0` with the
-base tag. The SDK supports Node 20.19+ or 22.12+ and newer supported major
-versions, with bundled native runtimes for Linux, macOS, and Windows on x64 and
-arm64 (Linux includes glibc and musl). Keep optional dependencies installed;
-do not bundle the SDK into a single file. The Craft npm package includes the
-SDK dependency; the composite release action installs a pinned runtime beside
-the action. A separately downloaded Craft binary needs an installed SDK and
-`CRAFT_COPILOT_SDK_DIR` pointing to its package directory. No separate Copilot
-CLI installation or local model download is required. On local runs, provide an
-approved Copilot token through `COPILOT_GITHUB_TOKEN` (or `GITHUB_TOKEN`);
-Craft does not fall back to stored login credentials.
+The SDK is a development dependency used to build the action runtime; ordinary
+Craft package installations do not download it. The composite action requires
+Node 20.19+ or 22.12+ (or a newer supported major) and its existing Linux x64
+runner environment. Native archive startup is also tested on macOS and Windows.
+Missing runtime artifacts or Copilot access retain the original changelog.
+Craft never falls back to stored login credentials or another provider.
 
 #### Craft Extensions to release.yml
 
