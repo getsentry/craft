@@ -43,6 +43,13 @@ jobs:
       - name: Test
         run: pnpm test
 
+  native-binaries:
+    name: Standalone binaries
+    needs: test
+    uses: ./.github/workflows/native-binaries.yml
+    permissions:
+      contents: read
+
   build:
     name: Build
     needs: test

@@ -17,7 +17,10 @@ Craft is a command line tool that helps automate and pipeline package releases. 
 
 ### Installation
 
-Download the [latest binary release](https://github.com/getsentry/craft/releases/latest), or install via npm:
+Download a standalone executable for your OS and architecture from the
+[latest release](https://github.com/getsentry/craft/releases/latest), or install
+the portable JavaScript package via npm. Standalone executables embed Node;
+npm installation requires Node. The legacy `craft` asset remains a JavaScript bundle.
 
 ```shell
 npm install -g @sentry/craft

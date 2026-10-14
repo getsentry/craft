@@ -8,6 +8,8 @@ artifactProvider:
       Build & Test:
         - craft-binary
         - craft-docs
+        - /^craft-native-(darwin|linux)-(arm64|x64)$/
+        - /^craft-native-win-x64$/
 preReleaseCommand: >-
   node -p "
     const {execSync} = require('child_process');
@@ -21,8 +23,19 @@ postReleaseCommand: >-
 requireNames:
   - /^sentry-craft.*\.tgz$/
   - /^craft$/
+  - /^craft-darwin-arm64\.gz$/
+  - /^craft-darwin-arm64\.gz\.sha256$/
+  - /^craft-darwin-x64\.gz$/
+  - /^craft-darwin-x64\.gz\.sha256$/
+  - /^craft-linux-arm64\.gz$/
+  - /^craft-linux-arm64\.gz\.sha256$/
+  - /^craft-linux-x64\.gz$/
+  - /^craft-linux-x64\.gz\.sha256$/
+  - /^craft-win-x64\.exe$/
+  - /^craft-win-x64\.exe\.sha256$/
 targets:
   - name: npm
+    includeNames: /^sentry-craft-[0-9].*\.tgz$/
   - name: gcs
     includeNames: /^(?:.*craft.*|gh-pages\.zip)$/
     bucket: sentry-sdk-assets

@@ -7,11 +7,46 @@ description: How to install and use Craft
 
 ### Binary
 
-Craft is [distributed as a minified single JS binary](https://github.com/getsentry/craft/releases/latest). Download the latest release and add it to your PATH.
+Craft provides [standalone executables](https://github.com/getsentry/craft/releases/latest)
+with Node embedded. Choose the file matching your operating system and CPU:
 
-### npm (not recommended)
+| Platform | Release file |
+| --- | --- |
+| macOS Apple Silicon | `craft-darwin-arm64.gz` |
+| macOS Intel | `craft-darwin-x64.gz` |
+| Linux arm64 | `craft-linux-arm64.gz` |
+| Linux x64 | `craft-linux-x64.gz` |
+| Windows x64 | `craft-win-x64.exe` |
 
-While the recommended approach is to use the binary directly, you can also install Craft as an [NPM package](https://www.npmjs.com/package/@sentry/craft):
+Each release file has a matching `.sha256` checksum file. Native downloads are
+available starting with the first release containing these assets. Linux builds
+use glibc; Alpine/musl is not supported. macOS binaries are ad-hoc signed, without
+Developer ID notarization. Windows binaries do not have Authenticode signatures.
+
+On macOS or Linux, download the archive and its checksum. In the download
+directory, verify with `shasum -a 256 -c craft-darwin-arm64.gz.sha256` on macOS
+or `sha256sum -c craft-linux-x64.gz.sha256` on Linux, substituting your filename.
+Only after verification succeeds, decompress with `gunzip <filename>.gz`, rename
+the executable to `craft`, and move it to a directory on your PATH.
+
+On Windows, download the `.exe` and checksum, then verify in PowerShell:
+
+```powershell
+$expected = ((Get-Content .\craft-win-x64.exe.sha256) -split '\s+')[0]
+$actual = (Get-FileHash .\craft-win-x64.exe -Algorithm SHA256).Hash
+if ($actual -ne $expected) { throw 'Craft checksum mismatch' }
+.\craft-win-x64.exe --version
+```
+
+Rename it to `craft.exe` and put it in a directory on your PATH.
+
+The existing release asset named `craft` remains a portable JavaScript bundle
+requiring Node. Existing action, CDN, and nightly consumers can continue using it.
+
+### npm / pnpm
+
+Install Craft as an [npm package](https://www.npmjs.com/package/@sentry/craft)
+when Node is already available. This uses the JavaScript bundle:
 
 ```shell
 pnpm add -g @sentry/craft
