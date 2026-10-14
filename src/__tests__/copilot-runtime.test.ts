@@ -89,7 +89,7 @@ test('rejects modified bytes before writing the runtime', async () => {
       join(await temporary(), 'runtime'),
       request,
     ),
-  ).rejects.toThrow('Runtime integrity mismatch');
+  ).rejects.toThrow('Runtime digest or size mismatch');
 });
 
 test('unpacks a portable SDK archive without executing package scripts', async () => {
@@ -154,3 +154,25 @@ test('rejects archive symlinks before extraction', async () => {
     'Runtime archive links are forbidden',
   );
 });
+
+test.each(['truncated', 'oversized', 'corrupt'])(
+  'rejects %s runtime bodies without writing a partial artifact',
+  async kind => {
+    const { downloadReleaseRuntime } = await import(script);
+    const { metadata, request, content } = fixture();
+    const body =
+      kind === 'truncated'
+        ? content.subarray(1)
+        : kind === 'oversized'
+          ? Buffer.concat([content, Buffer.from('extra')])
+          : Buffer.alloc(content.length);
+    request
+      .mockResolvedValueOnce(Response.json(metadata))
+      .mockResolvedValueOnce(new Response(body));
+    const output = join(await temporary(), 'runtime');
+    await expect(
+      downloadReleaseRuntime('2.35.0', output, request),
+    ).rejects.toThrow(/declared size|digest or size mismatch/);
+    await expect(readFile(output)).rejects.toMatchObject({ code: 'ENOENT' });
+  },
+);

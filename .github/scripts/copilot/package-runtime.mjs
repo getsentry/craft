@@ -1,10 +1,19 @@
 import process from 'node:process';
 import console from 'node:console';
-import { cp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import {
+  cp,
+  mkdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { create } from 'tar';
+import { MAX_ARTIFACT_SIZE } from '../download-verified-artifact.mjs';
 
 // Package only the SDK dependency tree, never Craft's other build dependencies.
 const output = resolve('dist/copilot-runtime');
@@ -58,4 +67,8 @@ await create(
   },
   ['package.json', 'node_modules'],
 );
+if (
+  (await stat(resolve('dist/copilot-runtime.tar.gz'))).size > MAX_ARTIFACT_SIZE
+)
+  throw new Error('Packaged Copilot runtime exceeds the download size limit');
 console.log(`Packaged Copilot runtime: ${process.platform}/${process.arch}`);

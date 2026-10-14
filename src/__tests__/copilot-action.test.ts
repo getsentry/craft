@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { load } from 'js-yaml';
-import { expect, test } from 'vitest';
+import { BaseTarget } from '../targets/base';
+import { NoneArtifactProvider } from '../artifact_providers/none';
+import type { RemoteArtifact } from '../artifact_providers/base';
+import { expect, test, vi } from 'vitest';
 
 const root = join(__dirname, '../..');
 const yaml = (path: string): any =>
@@ -54,3 +57,29 @@ test.each(['build.yml', 'release-build.yml'])(
     ).toContain('dist/copilot-runtime.tar.gz');
   },
 );
+
+test('runtime release asset does not produce an unpublished CDN registry link', async () => {
+  const configuration = yaml('.craft.yml');
+  const provider = new NoneArtifactProvider();
+  const artifacts = [
+    'craft',
+    'sentry-craft-2.35.0.tgz',
+    'gh-pages.zip',
+    'copilot-runtime.tar.gz',
+  ].map(filename => ({ filename }) as RemoteArtifact);
+  vi.spyOn(provider, 'listArtifactsForRevision').mockResolvedValue(artifacts);
+  const target = (name: string) =>
+    new BaseTarget(
+      configuration.targets.find((config: any) => config.name === name),
+      provider,
+    );
+  const registry = await target('registry').getArtifactsForRevision('revision');
+  const cdn = await target('gcs').getArtifactsForRevision('revision');
+  expect(registry.map(artifact => artifact.filename)).toEqual(
+    cdn.map(artifact => artifact.filename),
+  );
+  const github = await target('github').getArtifactsForRevision('revision');
+  expect(github.map(artifact => artifact.filename)).toContain(
+    'copilot-runtime.tar.gz',
+  );
+});

@@ -10,8 +10,8 @@ export interface SummaryGroup {
   /** Present only when this group has a visible scope heading. */
   scope?: string;
   items: string[];
-  /** Entry indexes known to contain breaking changes from the original PR title. */
-  importantItems?: number[];
+  /** Original critical PR titles, keyed by rendered entry index. */
+  importantEntries?: Record<number, string>;
 }
 export interface SummaryCategory {
   id: string;
@@ -93,7 +93,12 @@ const size = (value: unknown) =>
   Buffer.byteLength(JSON.stringify(value), 'utf8');
 const unsafeClaim = /\bno (?:breaking changes|security (?:fixes|changes))\b/i;
 const importantText =
-  /\b(?:breaking[ -]changes?|security|CVE-\d|vulnerabilit(?:y|ies))\b/i;
+  /\b(?:breaking[ -]changes?|security|CVE-\d{4}-\d+|vulnerabilit(?:y|ies))\b/i;
+
+/** Use the same critical-text rules before and after changelog formatting. */
+export function isImportantChangelogText(text: string): boolean {
+  return /^(?:\w+(?:\([^)]*\))?!:)/.test(text) || importantText.test(text);
+}
 
 /** Split by JSON-encoded UTF-8 size, keeping Unicode code points intact. */
 function fragments(text: string): string[] {
@@ -187,7 +192,8 @@ class SummaryAttempt {
           facts.size !== digest.importantChanges.length ||
           [...facts].some(id => !allowed.has(id)) ||
           [...required].some(id => !facts.has(id)) ||
-          unsafeClaim.test(digest.summary)
+          unsafeClaim.test(digest.summary) ||
+          digest.importantChanges.some(fact => unsafeClaim.test(fact.summary))
         )
           throw new Error('Invalid important-change coverage');
         // A parent cannot rewrite away a fact already established in a child.
@@ -358,7 +364,12 @@ export async function summarizeChangelog(
       id: group.id,
       title: `${nonempty.find(category => category.groups.includes(group))!.title} / ${group.title}`,
       parts: group.items.flatMap((item, index) => {
-        const pieces = fragments(item);
+        const originalTitle = group.importantEntries?.[index];
+        const pieces = fragments(
+          originalTitle
+            ? `Original PR title: ${originalTitle}\nChangelog entry: ${item}`
+            : item,
+        );
         return pieces.map((text, part) => ({
           id: `${group.id}:item:${index}:part:${part}`,
           // Distinct fragment facts must survive parent reductions independently.
@@ -366,10 +377,7 @@ export async function summarizeChangelog(
           entryId: pieces.length > 1 ? `${group.id}:item:${index}` : undefined,
           text,
           count: part === 0 ? 1 : 0,
-          important:
-            importantText.test(item) ||
-            group.importantItems?.includes(index) ||
-            false,
+          important: Boolean(originalTitle) || isImportantChangelogText(item),
         }));
       }),
     }));
@@ -432,7 +440,7 @@ export function formatSummaryText(summary: string): string {
     .replace(/[\\`*_[\]~]/g, '\\$&')
     .replace(/@/g, '@\u200b')
     .replace(/#/g, '#\u200b')
-    .replace(/https?:\/\/|www\./gi, prefix =>
+    .replace(/[a-z][a-z0-9+.-]*:\/\/|www\./gi, prefix =>
       prefix.replace(':', '&#58;').replace('.', '&#46;'),
     );
 }

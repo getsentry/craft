@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { summarizeChangelog, formatSummaryText } from '../ai-summary';
+import { marked } from 'marked';
 import { setGlobals } from '../helpers';
 import { enableWorktreeMode, disableWorktreeMode } from '../dryRun';
 import { logger } from '../../logger';
@@ -482,6 +483,50 @@ describe('hierarchical Copilot changelog summaries', () => {
     expect(aborted).toBe(true);
   });
 
+  it.each([
+    'No security fixes.',
+    'No security changes.',
+    'No breaking changes.',
+  ])(
+    'rejects misleading negative claims in important-change facts: %s',
+    async claim => {
+      requestMock.mockImplementation(async options => {
+        const input = JSON.parse(options.input);
+        return {
+          summaries: input.nodes.map((node: any) => ({
+            id: node.id,
+            summary: 'General maintenance.',
+            importantChanges: node.parts
+              .filter((part: any) => part.important)
+              .map((part: any) => ({
+                id: part.sourceId,
+                summary: claim,
+              })),
+          })),
+        };
+      });
+      const result = await summarizeChangelog(
+        [
+          {
+            id: 'security',
+            title: 'Security',
+            groups: [
+              {
+                id: 'fix',
+                title: 'Fixes',
+                scope: 'Fixes',
+                items: ['Security fix for a vulnerability'],
+              },
+            ],
+          },
+        ],
+        { ...config, levels: ['scope'], kickInThreshold: 0 },
+      );
+      expect(requestMock).toHaveBeenCalledTimes(1);
+      expect(result).toBeNull();
+    },
+  );
+
   it('bounds concurrency and total requests for huge releases', async () => {
     let active = 0,
       peak = 0;
@@ -559,4 +604,17 @@ it('neutralizes generated mentions, references, links and HTML', () => {
   expect(formatted).not.toContain('&#64;');
   expect(formatted).toContain('https&#58;//');
   expect(formatted).toContain('&lt;script&gt;');
+});
+
+it.each([
+  'ftp://example.com',
+  'https://example.com',
+  'http://example.com',
+  'www.example.com',
+  'person@example.com',
+  '<ftp://example.com>',
+  '[download](ftp://example.com)',
+])('generated prose stays inert when rendered: %s', text => {
+  const html = marked.parse(formatSummaryText(text));
+  expect(html).not.toContain('<a ');
 });

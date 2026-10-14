@@ -35,6 +35,7 @@ targets:
         metadata:
           cacheControl: 'public, max-age=300'
   - name: registry
+    excludeNames: /^copilot-runtime\.tar\.gz$/
     apps:
       'app:craft':
         urlTemplate: 'https://downloads.sentry-cdn.com/craft/{{version}}/{{file}}'

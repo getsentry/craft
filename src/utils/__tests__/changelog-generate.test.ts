@@ -223,6 +223,14 @@ describe('generateChangesetFromGit', () => {
       ],
       ['security: patch XSS', ''],
       [
+        'fix(api): patch CVE-2026-1234',
+        '## Changelog Entry\n- Improve request handling',
+      ],
+      [
+        'fix: address a security vulnerability',
+        '## Changelog Entry\n- Improve request handling',
+      ],
+      [
         'security(api): patch XSS',
         '## Changelog Entry\n- Patch request handling',
       ],
@@ -254,6 +262,9 @@ describe('generateChangesetFromGit', () => {
         const result = await generateChangesetFromGit(dummyGit, '1.0.0');
         const input = JSON.parse(provider.mock.calls[0][0].input);
         expect(input.nodes[0].parts[0].important).toBe(true);
+        expect(
+          input.nodes[0].parts.map((part: any) => part.text).join(''),
+        ).toContain(title);
         // Our simulated model omits all critical facts: reject the whole attempt.
         expect(result.changelog).not.toContain('release summary');
         expect(result.changelog).not.toContain('<details>');

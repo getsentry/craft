@@ -18,6 +18,7 @@ import { getVersion } from './version';
 import type { AiSummaryConfig } from '../schemas/project_config';
 import {
   summarizeChangelog,
+  isImportantChangelogText,
   formatSummaryText,
   formatSummaryWithDetails,
   type SummaryCategory,
@@ -638,7 +639,7 @@ interface PullRequest {
   /** The pattern that matched this PR (for title stripping) */
   matchedPattern?: RegExp;
   /** Critical status retained before custom entries or prefix stripping. */
-  important?: boolean;
+  importantTitle?: string;
 }
 
 /**
@@ -663,9 +664,10 @@ function createPREntriesFromRaw(
   fallbackBody?: string,
   important = false,
 ): PullRequest[] {
-  important ||= /^(?:\w+(?:\([^)]*\))?!:|security(?:\([^)]*\))?!?:)/i.test(
-    defaultTitle,
-  );
+  const importantTitle =
+    important || isImportantChangelogText(defaultTitle)
+      ? defaultTitle
+      : undefined;
   const customEntries = extractChangelogEntry(raw.prBody);
 
   if (customEntries) {
@@ -676,7 +678,7 @@ function createPREntriesFromRaw(
       body: entry.nestedContent ?? '',
       title: entry.text,
       highlight: raw.highlight,
-      important,
+      importantTitle,
     }));
   }
 
@@ -696,7 +698,7 @@ function createPREntriesFromRaw(
       body,
       title: defaultTitle,
       highlight: raw.highlight,
-      important,
+      importantTitle,
     },
   ];
 }
@@ -1915,11 +1917,11 @@ async function serializeChangelog(
     title: string,
     items: string[],
     scope?: string,
-    importantItems?: number[],
+    importantEntries?: Record<number, string>,
   ) => {
     const id = `group:${groupIndex++}`;
     summaryPositions.set(id, changelogSections.length);
-    currentCategory.groups.push({ id, title, items, scope, importantItems });
+    currentCategory.groups.push({ id, title, items, scope, importantEntries });
     changelogSections.push(items.join('\n'));
   };
   const { repo, owner } = await getGlobalGitHubConfig();
@@ -1975,7 +1977,7 @@ async function serializeChangelog(
 
     // Collect entries without headers to combine them into a single section
     const entriesWithoutHeaders: string[] = [];
-    const importantWithoutHeaders: number[] = [];
+    const importantWithoutHeaders: Record<number, string> = {};
 
     for (const [scope, prs] of sortedScopes) {
       // Determine scope header:
@@ -2008,18 +2010,21 @@ async function serializeChangelog(
           disablePRLinks,
         ),
       );
-      const importantItems = prs.flatMap((pr, index) =>
-        pr.important ? [index] : [],
+      const importantEntries = Object.fromEntries(
+        prs.flatMap((pr, index) =>
+          pr.importantTitle ? [[index, pr.importantTitle]] : [],
+        ),
       );
 
       if (scopeHeader) {
         changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, scopeHeader));
-        addEntries(scopeHeader, prEntries, scopeHeader, importantItems);
+        addEntries(scopeHeader, prEntries, scopeHeader, importantEntries);
       } else {
         // No header for this scope group - collect entries to combine later
-        importantWithoutHeaders.push(
-          ...importantItems.map(index => entriesWithoutHeaders.length + index),
-        );
+        for (const [index, title] of Object.entries(importantEntries))
+          importantWithoutHeaders[
+            entriesWithoutHeaders.length + Number(index)
+          ] = title;
         entriesWithoutHeaders.push(...prEntries);
       }
     }
@@ -2044,7 +2049,7 @@ async function serializeChangelog(
     // Only add "Other" section header if there are other category sections
     beginCategory('Other', changelogSections.length > 0);
     const leftoverEntries: string[] = [];
-    const importantLeftovers: number[] = [];
+    const importantLeftovers: Record<number, string> = {};
     for (const commit of leftovers.slice(0, maxLeftovers)) {
       // Create PR entries (handles custom changelog entries if present)
       const prEntries = createPREntriesFromRaw(
@@ -2060,7 +2065,8 @@ async function serializeChangelog(
       );
 
       for (const pr of prEntries) {
-        if (pr.important) importantLeftovers.push(leftoverEntries.length);
+        if (pr.importantTitle)
+          importantLeftovers[leftoverEntries.length] = pr.importantTitle;
         leftoverEntries.push(
           formatChangelogEntry(
             {

@@ -1,17 +1,18 @@
 import process from 'node:process';
 import console from 'node:console';
-import { Buffer } from 'node:buffer';
-import { createHash } from 'node:crypto';
-import { readFile, writeFile, mkdtemp, rm, appendFile } from 'node:fs/promises';
+import { readFile, mkdtemp, rm, appendFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
+import {
+  validArtifactMetadata,
+  writeVerifiedArtifact,
+} from '../download-verified-artifact.mjs';
 import { downloadCraftNightly } from '../download-craft-nightly.mjs';
 
 const { fetch, AbortSignal } = globalThis;
-const MAX_SIZE = 128 * 1024 * 1024;
 const execute = promisify(execFile);
 // Git Bash's tar parses Windows drive paths as remote archive locations.
 const tar =
@@ -47,10 +48,7 @@ export async function downloadReleaseRuntime(version, output, request = fetch) {
   const asset = assets?.[0];
   if (
     assets?.length !== 1 ||
-    !/^sha256:[a-f0-9]{64}$/.test(asset.digest) ||
-    !Number.isSafeInteger(asset.size) ||
-    asset.size < 1 ||
-    asset.size > MAX_SIZE ||
+    !validArtifactMetadata(asset) ||
     asset.browser_download_url !==
       `https://github.com/getsentry/craft/releases/download/${release.tag_name}/copilot-runtime.tar.gz`
   )
@@ -58,20 +56,7 @@ export async function downloadReleaseRuntime(version, output, request = fetch) {
   const response = await request(asset.browser_download_url, {
     signal: AbortSignal.timeout(120000),
   });
-  if (!response.ok || !response.body)
-    throw new Error('Runtime download failed');
-  const chunks = [];
-  const hash = createHash('sha256');
-  let size = 0;
-  for await (const chunk of response.body) {
-    size += chunk.byteLength;
-    if (size > asset.size) throw new Error('Runtime exceeds declared size');
-    hash.update(chunk);
-    chunks.push(chunk);
-  }
-  if (size !== asset.size || `sha256:${hash.digest('hex')}` !== asset.digest)
-    throw new Error('Runtime integrity mismatch');
-  await writeFile(output, Buffer.concat(chunks, size), { flag: 'wx' });
+  await writeVerifiedArtifact(response, output, asset, 'Runtime');
 }
 
 export async function unpackRuntime(archive, directory) {

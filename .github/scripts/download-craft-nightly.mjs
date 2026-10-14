@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-import { createHash } from 'node:crypto';
-import { writeFile } from 'node:fs/promises';
+import {
+  validArtifactMetadata,
+  writeVerifiedArtifact,
+} from './download-verified-artifact.mjs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -8,7 +10,6 @@ const REGISTRY = 'https://ghcr.io';
 const REPOSITORY = 'getsentry/craft';
 const ARTIFACT_TYPE = 'application/vnd.getsentry.craft.binary.v1';
 const MANIFEST_TYPE = 'application/vnd.oci.image.manifest.v1+json';
-const MAX_BINARY_SIZE = 128 * 1024 * 1024;
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 
 async function requestJson(request, url, headers, description) {
@@ -87,11 +88,7 @@ export async function downloadCraftNightly(
     layer?.annotations?.['org.opencontainers.image.title'] !== asset ||
     layer?.mediaType !==
       (runtime ? 'application/gzip' : 'application/octet-stream') ||
-    typeof layer?.digest !== 'string' ||
-    !/^sha256:[0-9a-f]{64}$/.test(layer.digest) ||
-    !Number.isSafeInteger(layer.size) ||
-    layer.size < 1 ||
-    layer.size > MAX_BINARY_SIZE
+    !validArtifactMetadata(layer)
   ) {
     throw new Error('Invalid Craft nightly binary layer');
   }
@@ -117,31 +114,12 @@ export async function downloadCraftNightly(
         });
       })()
     : blob;
-  if (!response.ok || !response.body) {
-    throw new Error(
-      `Craft nightly binary download failed (HTTP ${response.status})`,
-    );
-  }
-
-  const chunks = [];
-  const hash = createHash('sha256');
-  let size = 0;
-  for await (const chunk of response.body) {
-    size += chunk.byteLength;
-    if (size > layer.size || size > MAX_BINARY_SIZE) {
-      throw new Error('Craft nightly binary exceeds its declared size');
-    }
-    hash.update(chunk);
-    chunks.push(chunk);
-  }
-  if (size !== layer.size || `sha256:${hash.digest('hex')}` !== layer.digest) {
-    throw new Error('Craft nightly binary digest or size mismatch');
-  }
-
-  await writeFile(outputPath, Buffer.concat(chunks, size), {
-    flag: 'wx',
-    mode: 0o600,
-  });
+  await writeVerifiedArtifact(
+    response,
+    outputPath,
+    layer,
+    'Craft nightly binary',
+  );
   return revision;
 }
 

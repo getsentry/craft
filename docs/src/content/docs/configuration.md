@@ -302,7 +302,7 @@ summary prose. Structural validation ensures category coverage; generated
 prose still needs human review for factual accuracy.
 
 Existing leftover-entry limits still apply. Enabling summaries sends the
-rendered changelog content to GitHub Copilot. Usage is billed to the
+rendered changelog content and original critical PR titles to GitHub Copilot. Usage is billed to the
 organization. Large releases and additional levels can require
 multiple requests.
 
