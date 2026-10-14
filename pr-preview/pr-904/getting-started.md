@@ -22,7 +22,7 @@ Craft provides [standalone executables](https://github.com/getsentry/craft/relea
 
 Each release file has a matching `.sha256` checksum file. Native downloads are available starting with the first release containing these assets. Linux builds use glibc; Alpine/musl is not supported. macOS binaries are ad-hoc signed, without Developer ID notarization. Windows binaries do not have Authenticode signatures.
 
-On macOS or Linux, download the archive and its checksum. In the download directory, verify with `shasum -a 256 -c craft-darwin-arm64.gz.sha256` on macOS or `sha256sum -c craft-linux-x64.gz.sha256` on Linux, substituting your filename. Only after verification succeeds, decompress with `gunzip <filename>.gz`, rename the executable to `craft`, and move it to a directory on your PATH.
+On macOS or Linux, download the archive and its checksum. In the download directory, verify with `shasum -a 256 -c craft-darwin-arm64.gz.sha256` on macOS or `sha256sum -c craft-linux-x64.gz.sha256` on Linux, substituting your filename. Only after verification succeeds, decompress with `gunzip <filename>.gz`, rename the executable to `craft`, run `chmod +x craft`, and move it to a directory on your PATH.
 
 On Windows, download the `.exe` and checksum, then verify in PowerShell:
 
