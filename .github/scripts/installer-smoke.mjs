@@ -40,6 +40,10 @@ esac
 `,
   );
   await chmod(curl, 0o755);
+  const toolsPath = shellPath(tools).replace(
+    /^([a-z]):\//i,
+    (_, drive) => `/${drive.toLowerCase()}/`,
+  );
   const destination = join(root, 'user bin');
   const binary = join(
     destination,
@@ -50,7 +54,7 @@ esac
       'bash',
       [
         '-c',
-        `export PATH=${quote(shellPath(tools))}:"$PATH"; exec bash ${quote(shellPath(resolve('install')))} "$@"`,
+        `export PATH=${quote(toolsPath)}:"$PATH"; exec bash ${quote(shellPath(resolve('install')))} "$@"`,
         'installer',
         '--version',
         pkg.version,
