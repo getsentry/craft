@@ -66,6 +66,10 @@ esac
         cwd: root,
         env: {
           ...process.env,
+          HOME: root,
+          USERPROFILE: root,
+          XDG_DATA_HOME: join(root, 'share'),
+          XDG_CONFIG_HOME: join(root, 'config'),
           NODE_OPTIONS: '',
           CRAFT_WORKSPACE: '',
           CRAFT_CONFIG: '',

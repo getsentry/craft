@@ -91,6 +91,10 @@ globalThis.fetch = (url, init) => {
   await chmod(binary, 0o755);
   const env = {
     ...process.env,
+    HOME: root,
+    USERPROFILE: root,
+    XDG_DATA_HOME: join(root, 'share'),
+    XDG_CONFIG_HOME: join(root, 'config'),
     CRAFT_WORKSPACE: '',
     CRAFT_CONFIG: '',
     CRAFT_DRY_RUN: '',

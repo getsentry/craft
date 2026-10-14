@@ -158,6 +158,8 @@ jobs:
         run: node .github/scripts/installer-smoke.mjs
       - name: Test running executable self-update
         run: node .github/scripts/updater-smoke.mjs
+      - name: Test native shell integration
+        run: node .github/scripts/setup-smoke.mjs
 
   publish-nightly:
     name: Publish Craft nightly to GHCR
