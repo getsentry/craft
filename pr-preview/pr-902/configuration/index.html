@@ -326,16 +326,19 @@ and <a href="https://docs.github.com/en/copilot/how-tos/copilot-sdk/auth/server-
 <p>Both direct Craft action users and callers of the reusable release workflow must
 grant <code dir="auto">copilot-requests: write</code> alongside their existing release permissions.
 A reusable workflow cannot increase permissions granted by its caller.
-The action ships a prebuilt Copilot SDK and native runtime archive with its
-Craft build. It unpacks that archive without running a package installer or
+Craft bundles the Copilot SDK JavaScript into its executable. The action ships
+a separate prebuilt archive containing only the matching native runtime. It
+unpacks that archive without running a package installer or
 changing the caller’s Node or pnpm setup, and passes the built-in workflow token
 through <code dir="auto">COPILOT_GITHUB_TOKEN</code> separately from any release bot token.
-The archive contains only the bundled JavaScript client, the matching headless
-runtime and authentication libraries, and license notices. It omits CLI tooling,
+The archive contains the headless runtime, its adjacent authentication libraries,
+and license notices. The SDK launches that executable through an explicit path.
+The archive omits CLI tooling,
 plugins, search binaries, declarations, docs, and the unused in-process transport.</p>
 <div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="yaml"><code><div class="ec-line"><div class="code"><span style="--0:#FFFFFF">jobs</span><span style="--0:#CFCFCF">:</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#FFFFFF">release</span><span style="--0:#CFCFCF">:</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#FFFFFF">permissions</span><span style="--0:#CFCFCF">:</span></div></div><div class="ec-line"><div class="code"><span class="indent">      </span><span style="--0:#FFFFFF">contents</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">write</span></div></div><div class="ec-line"><div class="code"><span class="indent">      </span><span style="--0:#FFFFFF">copilot-requests</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">write</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#FFFFFF">uses</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">getsentry/craft/.github/workflows/release.yml@v2</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#FFFFFF">secrets</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">inherit</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="jobs:  release:    permissions:      contents: write      copilot-requests: write    uses: getsentry/craft/.github/workflows/release.yml@v2    secrets: inherit"><div></div></button></div></figure></div>
-<p>The SDK is a development dependency used to build the action runtime; ordinary
-Craft package installations do not download it. The composite action requires
+<p>The SDK is a development dependency bundled during the Craft build; ordinary
+Craft package installations do not install the SDK package or native runtime.
+The composite action requires
 Node 20.19+ or 22.12+ (or a newer supported major) and its existing Linux x64
 runner environment. The trimmed native archive is tested on Linux, macOS, and
 Windows for startup, structured sessions against a local model fixture, and
