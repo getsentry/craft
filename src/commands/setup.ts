@@ -7,11 +7,12 @@ import {
   installNativeBinary,
 } from '../utils/nativeInstallation';
 import { configureCompletions, SHELLS } from '../utils/completions';
+import { configureAgentSkills } from '../utils/agentSkills';
 import { logger } from '../logger';
 
 export const command = 'setup';
 export const description =
-  'Configure Craft shell integration and install standalone binaries';
+  'Configure Craft shell/agent integration and install standalone binaries';
 export const builder = (argv: Argv) =>
   argv
     .option('install', {
@@ -29,6 +30,16 @@ export const builder = (argv: Argv) =>
       default: false,
       description: 'Skip shell completion installation',
     })
+    .option('agent-skills', {
+      type: 'boolean',
+      description: 'Enable agent skills and remember the preference',
+    })
+    .option('no-agent-skills', {
+      type: 'boolean',
+      default: false,
+      description:
+        'Skip agent skill installation/refresh and remember the preference',
+    })
     .option('install-dir', {
       type: 'string',
       description: 'Installation directory (env: CRAFT_INSTALL_DIR)',
@@ -39,6 +50,8 @@ export async function handler(argv: {
   installDir?: string;
   shell?: string;
   noCompletions?: boolean;
+  agentSkills?: boolean;
+  noAgentSkills?: boolean;
 }): Promise<void> {
   if (argv.install && !isSea())
     throw new Error(
@@ -54,4 +67,5 @@ export async function handler(argv: {
     logger.info(`Ensure ${directory} is on your PATH to run craft.`);
   }
   if (!argv.noCompletions) await configureCompletions(argv.shell);
+  await configureAgentSkills(argv.noAgentSkills ? false : argv.agentSkills);
 }

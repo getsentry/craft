@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
   mkdtemp,
+  mkdir,
   readFile,
   writeFile,
   chmod,
@@ -122,6 +123,21 @@ globalThis.fetch = (url, init) => {
       .replace(/ \([0-9a-f]{40}\)$/i, ''),
     pkg.version,
   );
+  await mkdir(join(root, '.agents'));
+  const skillPath = join(root, '.agents/skills/craft-cli/SKILL.md');
+  await run();
+  assert(
+    (await readFile(skillPath, 'utf8')).includes(
+      `version: ${JSON.stringify(pkg.version)}`,
+    ),
+  );
+  await execute(binary, ['setup', '--no-agent-skills', '--no-completions'], {
+    cwd: root,
+    env,
+  });
+  await rm(skillPath);
+  await run();
+  await assert.rejects(readFile(skillPath), { code: 'ENOENT' });
   const installed = await readFile(binary);
   await assert.rejects(
     execute(binary, ['update', pkg.version, '--force'], {
