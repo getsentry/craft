@@ -6,6 +6,10 @@ on:
       - release/**
   pull_request:
   workflow_call:
+    secrets:
+      SENTRY_AUTH_TOKEN:
+        description: Optional Sentry source-map upload credential for master builds
+        required: false
 
 concurrency:
   # Never cancel a master build: every commit needs its own immutable nightly.
@@ -47,6 +51,8 @@ jobs:
     name: Standalone binaries
     needs: test
     uses: ./.github/workflows/native-binaries.yml
+    secrets:
+      SENTRY_AUTH_TOKEN: ${{ github.ref == 'refs/heads/master' && secrets.SENTRY_AUTH_TOKEN || '' }}
     permissions:
       contents: read
 

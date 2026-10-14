@@ -70,6 +70,10 @@ on:
         type: string
         required: false
         default: 'false'
+    secrets:
+      SENTRY_AUTH_TOKEN:
+        description: Optional Sentry source-map upload credential for master builds
+        required: false
     outputs:
       version:
         description: The resolved version being released
@@ -93,6 +97,8 @@ jobs:
     if: github.repository == 'getsentry/craft'
     name: Build
     uses: ./.github/workflows/release-build.yml
+    secrets:
+      SENTRY_AUTH_TOKEN: ${{ github.ref == 'refs/heads/master' && secrets.SENTRY_AUTH_TOKEN || '' }}
     permissions:
       contents: read
 

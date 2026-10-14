@@ -1,6 +1,10 @@
 name: Build Craft for release
 on:
   workflow_call:
+    secrets:
+      SENTRY_AUTH_TOKEN:
+        description: Optional Sentry source-map upload credential for master builds
+        required: false
 
 # Keep the release build separate from build.yml's GHCR publishing jobs.
 # External release callers must not need packages: write for skipped jobs.
@@ -39,6 +43,8 @@ jobs:
     name: Standalone binaries
     needs: test
     uses: ./.github/workflows/native-binaries.yml
+    secrets:
+      SENTRY_AUTH_TOKEN: ${{ github.ref == 'refs/heads/master' && secrets.SENTRY_AUTH_TOKEN || '' }}
     permissions:
       contents: read
 
