@@ -83,6 +83,7 @@ try {
   await git('tag', '1.0.0');
   const remote = join(root, 'remote.git');
   await git('init', '--bare', remote);
+  await git('--git-dir', remote, 'symbolic-ref', 'HEAD', 'refs/heads/main');
   await git('remote', 'add', 'origin', remote);
   await git('push', 'origin', 'main', '--tags');
   const head = await git('rev-parse', 'HEAD');
