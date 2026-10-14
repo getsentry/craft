@@ -194,29 +194,32 @@
 </div></div><div class="ec-line"><div class="code"><span class="indent">      </span><span style="--0:#9E9E9E;--0fs:italic"># Custom post-release steps</span></div></div><div class="ec-line"><div class="code"><span class="indent">      </span><span style="--0:#CFCFCF">-</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFFFFF">run</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">echo "Release prepared!"</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="name: Releaseon:  workflow_dispatch:    inputs:      version:        description: &#x27;Version to release (or &quot;auto&quot;)&#x27;        required: falsejobs:  release:    runs-on: ubuntu-latest    permissions:      contents: write    steps:      - uses: actions/checkout@v4        with:          fetch-depth: 0      # Custom pre-release steps      - run: echo &quot;Running pre-release checks...&quot;      - uses: getsentry/craft@v2        with:          version: ${{ github.event.inputs.version }}        env:          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}      # Custom post-release steps      - run: echo &quot;Release prepared!&quot;"><div></div></button></div></figure></div>
 <p>The action accepts the same inputs and produces the same outputs as the reusable workflow.</p>
 <div class="sl-heading-wrapper level-h3"><h3 id="ai-summary-authentication">AI summary authentication</h3><a class="sl-anchor-link" href="#ai-summary-authentication"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “AI summary authentication”</span></a></div>
-<p>AI summaries remain opt-in through <code dir="auto">changelog.aiSummary.enabled</code>. The CLI and
-Action share one HTTP client with nested <code dir="auto">llm</code> settings. The default endpoint is
-Copilot Responses and the default model is <code dir="auto">gpt-6-luna</code>.</p>
-<p>The <code dir="auto">llm</code> input accepts JSON with <code dir="auto">endpoint</code>, <code dir="auto">model</code>, and <code dir="auto">apiKeyEnv</code>. It
-overrides the <code dir="auto">CRAFT_AI_LLM</code> step environment. Pass repository or organization
-variables through the caller with <code dir="auto">llm: ${{ vars.CRAFT_AI_LLM }}</code>; the reusable
-release workflow provides that fallback automatically. <code dir="auto">llm_api_key</code> accepts
-an explicit credential and maps it to <code dir="auto">AI_SUMMARY_TOKEN</code>. Alternatively, map a
-secret to the configured environment variable. The reusable workflow forwards
-its <code dir="auto">llm</code> input and optional
-<code dir="auto">llm_api_key</code> secret to both Action paths. Credentials never belong in JSON
-configuration or CLI arguments. Missing credentials and HTTP failures retain
-the original changelog, without provider switching.</p>
-<p>A personal Copilot token needs Copilot access; fine-grained PATs must be
-user-owned with <strong>Copilot Requests: write</strong>. The Action never implicitly uses a
-release or workflow token. If a workflow token is explicitly selected, callers
-must grant <code dir="auto">copilot-requests: write</code>, including reusable workflow callers, and
-the organization must enable <strong>“Allow use of Copilot CLI billed to the organization.”</strong>
-That mode is billed to the organization. Granting the workflow permission alone
-is insufficient if the organization policy is disabled. Custom HTTP providers
-need no Copilot permission. See the <a href="../configuration/#ai-summaries">AI summary configuration</a>
-for examples, precedence, authentication, and the direct-backend compatibility
-limits.</p>
+<p>Enable summaries with <code dir="auto">changelog.aiSummary: {}</code>. The default connection is
+Copilot Responses, <code dir="auto">gpt-6-luna</code> and the <code dir="auto">GITHUB_TOKEN</code> environment variable.
+The model must be available to the supplied credential. Use <code dir="auto">aiSummary: false</code>
+to disable generation.</p>
+<p>For a custom provider, pass <code dir="auto">llm</code> JSON and map a secret to <code dir="auto">llm_api_key</code>:</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="yaml"><code><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">-</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFFFFF">uses</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">getsentry/craft@v2</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#FFFFFF">env</span><span style="--0:#CFCFCF">:</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#FFFFFF">GITHUB_TOKEN</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">${{ github.token }}</span><span style="--0:#F5F5F5"> </span><span style="--0:#9E9E9E;--0fs:italic"># release operations</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#FFFFFF">with</span><span style="--0:#CFCFCF">:</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#FFFFFF">llm</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#CFCFCF">'</span><span style="--0:#FFD166">{"endpoint":"https://gateway.example.com/v1/chat/completions","model":"your-model"}</span><span style="--0:#CFCFCF">'</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#FFFFFF">llm_api_key</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">${{ secrets.TEAM_MODEL_TOKEN }}</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="- uses: getsentry/craft@v2  env:    GITHUB_TOKEN: ${{ github.token }} # release operations  with:    llm: &#x27;{&quot;endpoint&quot;:&quot;https://gateway.example.com/v1/chat/completions&quot;,&quot;model&quot;:&quot;your-model&quot;}&#x27;    llm_api_key: ${{ secrets.TEAM_MODEL_TOKEN }}"><div></div></button></div></figure></div>
+<p><code dir="auto">llm_api_key</code> selects a dedicated environment variable over <code dir="auto">llm.apiKeyEnv</code>;
+it never replaces the release token. Alternatively, map a secret to your
+configured <code dir="auto">apiKeyEnv</code>. Craft reads environment variables, not GitHub’s secret
+store. Secrets must be available to the workflow’s repository; an organization
+secret can grant selected-repository access.</p>
+<p>Pass repository/organization configuration as <code dir="auto">llm: ${{ vars.CRAFT_AI_LLM }}</code>.
+The reusable release workflow supplies this fallback and forwards its <code dir="auto">llm</code>
+input and optional <code dir="auto">llm_api_key</code> secret to both Action paths.</p>
+<p>For built-in-token Copilot access, callers (including reusable workflow callers)
+must grant <code dir="auto">copilot-requests: write</code> alongside their release permissions. The
+organization must enable <strong>“Allow use of Copilot CLI billed to the organization.”</strong>
+Usage is billed to the organization; permissions alone do not enable access.
+Map <code dir="auto">${{ github.token }}</code> to <code dir="auto">GITHUB_TOKEN</code>, or pass it as <code dir="auto">llm_api_key</code> when
+release operations use a different token. See <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions">GitHub’s workflow-token guide</a>.
+Personal Copilot credentials require Copilot access; fine-grained PATs need
+<strong>Copilot Requests: write</strong>. Custom provider credentials need no Copilot permission.</p>
+<p>Copilot’s direct HTTP backend is outside GitHub’s public REST API contract.
+Missing credentials or failed requests preserve the original changelog without
+switching providers. See <a href="../configuration/#ai-summaries">AI summary configuration</a>
+for precedence, limits and output examples.</p>
 <div class="sl-heading-wrapper level-h3"><h3 id="test-a-craft-nightly">Test a Craft nightly</h3><a class="sl-anchor-link" href="#test-a-craft-nightly"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Test a Craft nightly”</span></a></div>
 <p>Every successful push build on Craft’s <code dir="auto">master</code> branch publishes its binary to
 <code dir="auto">ghcr.io/getsentry/craft</code> as an OCI artifact. The <code dir="auto">nightly</code> tag advances when the
