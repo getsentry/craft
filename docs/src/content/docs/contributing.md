@@ -137,7 +137,8 @@ x64. Use the Node version pinned by Volta in `package.json`; Fossilize's CLI use
 that local Node version for all five cross-built executables.
 Cross-building macOS executables from Linux or Windows also requires
 [`rcodesign`](https://github.com/indygreg/apple-platform-rs/releases) on PATH for
-ad-hoc signing. The Ubuntu CI build installs it and verifies both macOS signatures.
+ad-hoc signing. The Ubuntu CI build installs it; the macOS verification jobs use
+Apple's `codesign` to verify the shipped signatures before execution.
 
 Executables are written to `dist-bin/`, with gzip archives for Unix, `.exe`
 files for Windows, and SHA-256 sidecars for each release file. The `.node-cache/`

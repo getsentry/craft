@@ -37,6 +37,9 @@ try {
   );
   await writeFile(binary, data);
   await chmod(binary, 0o755);
+  // rcodesign's verifier rejects valid ad-hoc signatures; use Apple's verifier.
+  if (process.platform === 'darwin')
+    await execute('codesign', ['--verify', '--strict', binary]);
   const config =
     "preReleaseCommand: ''\ngithub:\n  owner: fixture\n  repo: fixture\nchangelog:\n  policy: none\ntargets:\n  - name: github\n";
   await writeFile(join(root, '.craft.yml'), config);
