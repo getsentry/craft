@@ -225,29 +225,42 @@ Auto mode uses `.github/release.yml` to categorize PRs. This file follows [GitHu
 
 #### AI summaries
 
-Opt in to configurable changelog summaries using GPT-6 Luna through GitHub Copilot:
+Opt in to configurable changelog summaries. The CLI and Actions use the same HTTP client and connection settings:
 
 ```yaml
 changelog:
   policy: auto
   aiSummary:
     enabled: true
-    model: gpt-6-luna # default for Copilot
     levels: [release, category, scope] # choose any combination
     kickInThreshold: 5 # summarize displayed groups with more than 5 entries
+    llm:
+      endpoint: https://api.githubcopilot.com/responses # default
+      model: gpt-6-luna # default
+      apiKeyEnv: AI_SUMMARY_TOKEN # default; name of a credential environment variable
 ```
 
-Copilot uses the official `@github/copilot-sdk` bundled runtime. In Actions,
-Craft passes the built-in installation token through `COPILOT_GITHUB_TOKEN`
-in the runtime environment, with stored-user authentication disabled. See the
-[Actions setup](#github-actions) below.
+Craft contains only a shared HTTP summarizer, with no Copilot SDK, native
+runtime, bridge, package installer, or separate runtime artifact. Provide a
+credential in the selected environment variable; Craft never reads stored
+Copilot login or automatically takes a GitHub release token.
 
 | Setting | Default | Behavior |
 | --- | --- | --- |
 | `enabled` | `false` | Enable summaries explicitly. |
-| `model` | `gpt-6-luna` | Copilot model ID. Craft checks organization model availability. Overrides must support structured output. |
+| `llm.endpoint` | `https://api.githubcopilot.com/responses` | Full POST URL. HTTPS required except loopback HTTP. Credentials, fragments, and redirects in URLs are rejected. |
+| `llm.model` | `gpt-6-luna` | Model ID at the selected endpoint; access depends on the credential's policy. |
+| `llm.apiKeyEnv` | `AI_SUMMARY_TOKEN` | Name of the environment variable containing the credential. Never put a raw secret in configuration or CLI arguments. |
 | `levels` | `[release]` | Any combination of `release`, `category`, and `scope`, without duplicates. Omitted or empty lists use `[release]`. Selects visible summaries; internal digests can still be generated for parent summaries. |
 | `kickInThreshold` | `5` | Nonnegative integer. Summaries appear only when original entry counts exceed this value. `0` summarizes every nonempty selected group. Category counts include descendants; release counts include the entire changelog. |
+
+The request format is inferred from the URL: endpoints ending in `/responses`
+use OpenAI-compatible Responses; other endpoints use Chat Completions. There
+is no `api` setting or provider fallback. Both formats must support strict JSON
+schema output. Responses uses `store: false`; neither format supplies tools.
+The default was verified against Copilot's live catalog: Luna advertises
+Responses and structured output, but not Chat Completions. Copilot hosts receive
+the integration and API-version headers; custom hosts do not.
 
 The three levels follow the existing changelog hierarchy:
 
@@ -302,8 +315,8 @@ summary prose. Structural validation ensures category coverage; generated
 prose still needs human review for factual accuracy.
 
 Existing leftover-entry limits still apply. Enabling summaries sends the
-rendered changelog content and original critical PR titles to GitHub Copilot. Usage is billed to the
-organization. Large releases and additional levels can require
+rendered changelog content and original critical PR titles to the selected endpoint.
+Billing follows the supplied credential and provider. Large releases and additional levels can require
 multiple requests.
 
 Missing credentials, API errors, timeouts, refusals, invalid output, or exhausted
@@ -315,48 +328,100 @@ during all dry runs, including worktree dry runs, highlighted `craft changelog
 --pr` previews, and automatic version analysis. `prepare --no-changelog` makes
 no model calls. The calculated version bump is unaffected.
 
+##### CLI connection settings
+
+With summaries enabled, put an authorized Copilot credential in
+`AI_SUMMARY_TOKEN` and run `craft changelog --since 1.0.0`. The endpoint and
+model can be omitted to use Copilot Responses and GPT-6 Luna. A user-owned
+fine-grained PAT needs **Copilot Requests: write** and Copilot access; classic
+PATs are not supported. See [GitHub's authentication guide](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/authenticate-copilot-cli).
+
+For a custom endpoint, configure all connection fields together:
+
+```yaml
+changelog:
+  policy: auto
+  aiSummary:
+    enabled: true
+    llm:
+      endpoint: https://gateway.example.com/v1/chat/completions
+      model: your-model
+      apiKeyEnv: TEAM_MODEL_TOKEN
+```
+
+Supply `TEAM_MODEL_TOKEN` securely in the environment. CLI flags
+`--ai-endpoint`, `--ai-model`, and `--ai-api-key-env` override their corresponding
+`CRAFT_AI_ENDPOINT`, `CRAFT_AI_MODEL`, and `CRAFT_AI_API_KEY_ENV` environment
+variables. `CRAFT_AI_LLM` accepts a JSON object with `endpoint`, `model`, and
+`apiKeyEnv`. Per-field precedence is CLI flags, structured environment settings,
+scalar environment overrides, then the effective `.craft.yml` (including
+workspace overrides or `prepare --config-from`). Omitted fields use defaults;
+empty or invalid fields are rejected. Missing credentials make no request and
+retain the original changelog.
+
+Copilot inference endpoints are a backend HTTP interface rather than GitHub's
+public REST API; their contract can change. The default direct Responses call
+was live-verified with an authorized user login. That does not prove access for
+another user, an organization's workflow token, or a different organization
+policy. Craft makes no authentication exchanges, credential discovery, retries,
+or silent endpoint switches.
+
 ##### GitHub Actions
 
-Enable `changelog.aiSummary` in `.craft.yml`. For Copilot, the organization must
-enable **“Allow use of Copilot CLI billed to the organization.”** Do not assume
-this policy is enabled in `getsentry` or any other organization. Usage is billed
-to the organization. GPT-6 Luna must also be available under its model policy;
-Craft keeps the original changelog when access or model availability fails.
-See GitHub's [Actions guide](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions)
-and [installation-token authentication guide](https://docs.github.com/en/copilot/how-tos/copilot-sdk/auth/server-to-server-tokens).
+The Action uses the same CLI resolver and HTTP client. Pass connection settings
+as one `llm` JSON object and map an explicit credential to `llm_api_key`:
 
-Both direct Craft action users and callers of the reusable release workflow must
-grant `copilot-requests: write` alongside their existing release permissions.
-A reusable workflow cannot increase permissions granted by its caller.
-Craft bundles the Copilot SDK JavaScript into its executable. The action ships
-a separate prebuilt archive containing only the matching native runtime. It
-unpacks that archive without running a package installer or
-changing the caller's Node or pnpm setup, and passes the built-in workflow token
-through `COPILOT_GITHUB_TOKEN` separately from any release bot token.
-The archive contains the headless runtime, its adjacent authentication libraries,
-and license notices. The SDK launches that executable through an explicit path.
-The archive omits CLI tooling,
-plugins, search binaries, declarations, docs, and the unused in-process transport.
+```yaml
+- uses: getsentry/craft@v2
+  env:
+    GITHUB_TOKEN: ${{ github.token }} # release operations
+  with:
+    llm: '{"endpoint":"https://gateway.example.com/v1/responses","model":"your-model"}'
+    llm_api_key: ${{ secrets.TEAM_MODEL_TOKEN }}
+```
+
+`llm` overrides `CRAFT_AI_LLM` in the step environment, then the repository or
+organization variable `vars.CRAFT_AI_LLM`. Individual connection fields still
+follow the shared resolver's precedence. `llm_api_key` maps to
+`AI_SUMMARY_TOKEN` and selects that variable over a configured `apiKeyEnv`.
+Alternatively, omit `llm_api_key` and map a secret to the configured environment
+variable. Craft reads the environment, not GitHub's secret store. The secret
+must be available to the repository running the workflow; an organization
+secret with selected-repository access can provide shared configuration.
+
+For default Copilot settings, omit `llm` and provide an authorized Copilot
+credential via `llm_api_key` or `AI_SUMMARY_TOKEN`. The Action does not
+implicitly use `${{ github.token }}`. If choosing an organization workflow
+token explicitly, callers must grant `copilot-requests: write` and the
+organization must enable **“Allow use of Copilot CLI billed to the organization.”**
+Usage in that mode is billed to the organization. Do not assume this policy is
+enabled in `getsentry`; the direct workflow-token path requires authorized live
+validation. See [GitHub's organization authentication guide](https://docs.github.com/en/copilot/how-tos/copilot-sdk/auth/server-to-server-tokens).
+Personal credentials follow their own Copilot access and billing. Custom
+provider credentials need no Copilot workflow permission.
+
+Reusable workflows accept the same structured `llm` input and an optional
+`llm_api_key` secret:
 
 ```yaml
 jobs:
   release:
     permissions:
       contents: write
-      copilot-requests: write
     uses: getsentry/craft/.github/workflows/release.yml@v2
-    secrets: inherit
+    with:
+      llm: '{"endpoint":"https://gateway.example.com/v1/chat/completions","model":"your-model"}'
+    secrets:
+      llm_api_key: ${{ secrets.TEAM_MODEL_TOKEN }}
 ```
 
-The SDK is a development dependency bundled during the Craft build; ordinary
-Craft package installations do not install the SDK package or native runtime.
-The composite action requires
-Node 20.19+ or 22.12+ (or a newer supported major) and its existing Linux x64
-runner environment. The trimmed native archive is tested on Linux, macOS, and
-Windows for startup, structured sessions against a local model fixture, and
-cancellation. Those checks do not prove live Copilot authentication or inference.
-Missing runtime artifacts or Copilot access retain the original changelog.
-Craft never falls back to stored login credentials or another provider.
+When using the reusable workflow's secret, omit `apiKeyEnv` to use the standard
+mapping. Omit `llm` to use default Copilot settings with the supplied credential.
+The workflow cannot increase its caller's token permissions. HTTP failures
+keep the original changelog and never select another provider. Ordinary Craft
+builds, release assets, nightly artifacts, and npm packages need no Copilot
+packages. Linux, macOS, and Windows CI runs isolated CLI and Actions-environment
+HTTP fixtures; fixture success is separate from live Copilot proof.
 
 #### Craft Extensions to release.yml
 
@@ -622,7 +687,7 @@ changelog:
 | `changelog.policy`        | Mode: `none`, `simple`, or `auto`. Default: `none`                           |
 | `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true`                                 |
 | `changelog.includePaths`  | Extra workspace directories to include in automatic changelogs. Default: `[]` |
-| `changelog.aiSummary` | Opt-in Copilot release, category, and scope summaries. Default: disabled. |
+| `changelog.aiSummary` | Opt-in HTTP release, category, and scope summaries. Default: disabled. |
 
 ## Versioning
 

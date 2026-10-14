@@ -1,7 +1,5 @@
 import { chmod, readFile, rename, stat, unlink, writeFile } from 'fs/promises';
 import esbuild from 'esbuild';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
 import { sentryEsbuildPlugin } from '@sentry/esbuild-plugin';
 
 // jsonc-parser ships a UMD entry (its `main`) whose body does runtime
@@ -35,19 +33,6 @@ const jsoncParserEsmPlugin = {
 };
 
 const plugins = [jsoncParserEsmPlugin];
-const require = createRequire(import.meta.url);
-const jsonrpc = dirname(
-  createRequire(require.resolve('@github/copilot-sdk')).resolve(
-    'vscode-jsonrpc/package.json',
-  ),
-);
-// The SDK and JSON-RPC client are bundled into the executable, so their notices
-// must travel with it even when the native runtime archive is not installed.
-const copilotNotices = await Promise.all([
-  readFile('.github/scripts/copilot/SDK-LICENSE.txt', 'utf8'),
-  readFile(join(jsonrpc, 'License.txt'), 'utf8'),
-  readFile(join(jsonrpc, 'thirdpartynotices.txt'), 'utf8'),
-]);
 
 // Only add Sentry plugin if auth token is available (production builds on master)
 if (process.env.SENTRY_AUTH_TOKEN) {
@@ -87,11 +72,6 @@ await esbuild.build({
   },
   outfile: 'dist/craft.js',
   plugins,
-  banner: {
-    js: `/*! Copilot SDK and JSON-RPC notices\n${copilotNotices.join('\n')}\n*/`,
-  },
-  // Craft uses stdio exclusively; the SDK's in-process FFI transport is unused.
-  external: ['./ffiRuntimeHost.js'],
 });
 
 // Helper to check if file exists

@@ -103,20 +103,32 @@ The action accepts the same inputs and produces the same outputs as the reusable
 
 ### AI summary authentication
 
-AI summaries remain opt-in through `changelog.aiSummary.enabled`. Copilot is the
-summary provider and uses `gpt-6-luna` when available under organization policy.
-The organization must enable **“Allow use of Copilot CLI billed to the organization.”**
-Usage is billed to the organization; this policy is not assumed enabled for
-`getsentry`. Callers must grant `copilot-requests: write`, including reusable
-workflow callers. The action ships the pinned SDK and native runtime as part of
-its build and unpacks them without a package installer or changes to the caller's
-Node or pnpm setup. It passes `${{ github.token }}` via `COPILOT_GITHUB_TOKEN`,
-independently of any release bot token in `GITHUB_TOKEN`. Sessions run with tools
-and stored-login fallback disabled. Runtime or access failures retain the original
-release notes.
+AI summaries remain opt-in through `changelog.aiSummary.enabled`. The CLI and
+Action share one HTTP client with nested `llm` settings. The default endpoint is
+Copilot Responses and the default model is `gpt-6-luna`; its live catalog lists
+Responses and structured output. No Copilot package, runtime, bridge, installer,
+or additional distribution artifact is required.
 
-See the [AI summary configuration](../configuration/#ai-summaries) for the
-opt-in settings and an AI-enabled caller permissions example.
+The `llm` input accepts JSON with `endpoint`, `model`, and `apiKeyEnv`. It
+overrides the `CRAFT_AI_LLM` step environment or repository/organization variable
+of that name. `llm_api_key` accepts an explicit credential and maps it to
+`AI_SUMMARY_TOKEN`. Alternatively, map a secret to the configured environment
+variable. The reusable workflow forwards its `llm` input and optional
+`llm_api_key` secret to both Action paths. Credentials never belong in JSON
+configuration or CLI arguments. Missing credentials and HTTP failures retain
+the original changelog, without provider switching.
+
+A personal Copilot token needs Copilot access; fine-grained PATs must be
+user-owned with **Copilot Requests: write**. The Action never implicitly uses a
+release or workflow token. If a workflow token is explicitly selected, callers
+must grant `copilot-requests: write`, including reusable workflow callers, and
+the organization must enable **“Allow use of Copilot CLI billed to the organization.”**
+That mode is billed to the organization; this policy is not assumed enabled in
+`getsentry`. Direct workflow-token access is separate from the verified user-token
+path and needs authorized live validation. Custom HTTP providers need no Copilot
+permission. See the [AI summary configuration](../configuration/#ai-summaries)
+for examples, precedence, authentication, and the direct-backend compatibility
+limits.
 
 ### Test a Craft nightly
 

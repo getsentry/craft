@@ -70,6 +70,14 @@ on:
         type: string
         required: false
         default: 'false'
+      llm:
+        description: JSON object with AI summary endpoint, model, and apiKeyEnv
+        type: string
+        required: false
+    secrets:
+      llm_api_key:
+        description: Optional AI summary credential, required when summaries are enabled
+        required: false
     outputs:
       version:
         description: The resolved version being released
@@ -138,6 +146,8 @@ jobs:
           workspace: ${{ github.event.inputs.workspace }}
           craft_version: ${{ github.event.inputs.craft_version }}
           git_user_name: ${{ github.actor }}
+          llm: ${{ inputs.llm }}
+          llm_api_key: ${{ secrets.llm_api_key }}
 
       # For external repos: use published action
       - name: Prepare release
@@ -158,3 +168,5 @@ jobs:
           workspace: ${{ inputs.workspace }}
           craft_version: ${{ inputs.craft_version }}
           craft_config_from_merge_target: ${{ inputs.craft_config_from_merge_target }}
+          llm: ${{ inputs.llm }}
+          llm_api_key: ${{ secrets.llm_api_key }}

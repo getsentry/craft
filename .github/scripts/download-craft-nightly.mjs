@@ -1,8 +1,6 @@
 #!/usr/bin/env node
-import {
-  validArtifactMetadata,
-  writeVerifiedArtifact,
-} from './download-verified-artifact.mjs';
+import { createHash } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -10,6 +8,7 @@ const REGISTRY = 'https://ghcr.io';
 const REPOSITORY = 'getsentry/craft';
 const ARTIFACT_TYPE = 'application/vnd.getsentry.craft.binary.v1';
 const MANIFEST_TYPE = 'application/vnd.oci.image.manifest.v1+json';
+const MAX_BINARY_SIZE = 128 * 1024 * 1024;
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 
 async function requestJson(request, url, headers, description) {
@@ -28,21 +27,7 @@ async function requestJson(request, url, headers, description) {
   }
 }
 
-export async function downloadCraftNightly(
-  tag,
-  outputPath,
-  request = fetch,
-  asset = 'craft',
-) {
-  if (!['craft', 'copilot-runtime.tar.gz'].includes(asset))
-    throw new Error('Invalid nightly asset');
-  const runtime = asset === 'copilot-runtime.tar.gz';
-  if (runtime && tag === 'nightly')
-    throw new Error('Runtime requires an exact nightly revision');
-  const artifactType = runtime
-    ? 'application/vnd.getsentry.craft.copilot-runtime.v1'
-    : ARTIFACT_TYPE;
-  const manifestTag = runtime ? `copilot-runtime-${tag}` : tag;
+export async function downloadCraftNightly(tag, outputPath, request = fetch) {
   if (
     tag !== 'nightly' &&
     !/^nightly-(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(tag)
@@ -62,7 +47,7 @@ export async function downloadCraftNightly(
   const authorization = { Authorization: `Bearer ${auth.token}` };
   const manifest = await requestJson(
     request,
-    `${REGISTRY}/v2/${REPOSITORY}/manifests/${manifestTag}`,
+    `${REGISTRY}/v2/${REPOSITORY}/manifests/${tag}`,
     { ...authorization, Accept: MANIFEST_TYPE },
     'Craft nightly manifest lookup',
   );
@@ -71,7 +56,7 @@ export async function downloadCraftNightly(
   if (
     manifest?.schemaVersion !== 2 ||
     manifest?.mediaType !== MANIFEST_TYPE ||
-    manifest?.artifactType !== artifactType ||
+    manifest?.artifactType !== ARTIFACT_TYPE ||
     manifest?.annotations?.['org.opencontainers.image.source'] !==
       'https://github.com/getsentry/craft' ||
     typeof revision !== 'string' ||
@@ -85,10 +70,13 @@ export async function downloadCraftNightly(
 
   const [layer] = layers;
   if (
-    layer?.annotations?.['org.opencontainers.image.title'] !== asset ||
-    layer?.mediaType !==
-      (runtime ? 'application/gzip' : 'application/octet-stream') ||
-    !validArtifactMetadata(layer)
+    layer?.annotations?.['org.opencontainers.image.title'] !== 'craft' ||
+    layer?.mediaType !== 'application/octet-stream' ||
+    typeof layer?.digest !== 'string' ||
+    !/^sha256:[0-9a-f]{64}$/.test(layer.digest) ||
+    !Number.isSafeInteger(layer.size) ||
+    layer.size < 1 ||
+    layer.size > MAX_BINARY_SIZE
   ) {
     throw new Error('Invalid Craft nightly binary layer');
   }
@@ -114,12 +102,31 @@ export async function downloadCraftNightly(
         });
       })()
     : blob;
-  await writeVerifiedArtifact(
-    response,
-    outputPath,
-    layer,
-    'Craft nightly binary',
-  );
+  if (!response.ok || !response.body) {
+    throw new Error(
+      `Craft nightly binary download failed (HTTP ${response.status})`,
+    );
+  }
+
+  const chunks = [];
+  const hash = createHash('sha256');
+  let size = 0;
+  for await (const chunk of response.body) {
+    size += chunk.byteLength;
+    if (size > layer.size || size > MAX_BINARY_SIZE) {
+      throw new Error('Craft nightly binary exceeds its declared size');
+    }
+    hash.update(chunk);
+    chunks.push(chunk);
+  }
+  if (size !== layer.size || `sha256:${hash.digest('hex')}` !== layer.digest) {
+    throw new Error('Craft nightly binary digest or size mismatch');
+  }
+
+  await writeFile(outputPath, Buffer.concat(chunks, size), {
+    flag: 'wx',
+    mode: 0o600,
+  });
   return revision;
 }
 
@@ -132,7 +139,7 @@ if (
     process.exitCode = 1;
   } else {
     try {
-      console.log(await downloadCraftNightly(process.argv[2], process.argv[3]));
+      await downloadCraftNightly(process.argv[2], process.argv[3]);
     } catch (error) {
       console.error(`Unable to download Craft nightly: ${error.message}`);
       process.exitCode = 1;

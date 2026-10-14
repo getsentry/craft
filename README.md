@@ -41,7 +41,7 @@ craft publish 1.2.3
 - **Auto Versioning** - Automatically determine version bumps from conventional commits
 - **Multiple Targets** - Publish to GitHub, NPM, PyPI, Docker, Crates.io, NuGet, and more
 - **Changelog Management** - Auto-generate changelogs from commits or validate manual entries
-- **AI Changelog Summaries** - Choose release, category, and scope summaries through GitHub Copilot, with bounded Luna requests and expandable original entries ([configuration](https://craft.sentry.dev/configuration/#ai-summaries))
+- **AI Changelog Summaries** - Choose release, category, and scope summaries through a shared HTTP client, defaulting to Copilot Responses, with bounded requests and expandable original entries ([configuration](https://craft.sentry.dev/configuration/#ai-summaries))
 - **Workspace Support** - Handle monorepos with NPM/Yarn workspaces
 - **CI Integration** - Wait for CI to pass, download artifacts, and publish
 - **GitHub Actions** - Built-in actions for release preparation and changelog previews

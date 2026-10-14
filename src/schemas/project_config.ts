@@ -153,10 +153,50 @@ export const VersioningConfigSchema = z.object({
 
 export type VersioningConfig = z.infer<typeof VersioningConfigSchema>;
 
-/** Opt-in summaries of automatic changelogs, generated through GitHub Copilot. */
+export const AiSummaryEndpointSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(2048)
+  .url()
+  .refine(value => {
+    try {
+      const url = new URL(value);
+      return (
+        !url.username &&
+        !url.password &&
+        !url.hash &&
+        (url.protocol === 'https:' ||
+          (url.protocol === 'http:' &&
+            ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))
+      );
+    } catch {
+      return false;
+    }
+  }, 'AI endpoint must use HTTPS (HTTP only for loopback) without URL credentials or fragments');
+
+export const AiSummaryApiKeyEnvSchema = z
+  .string()
+  .regex(
+    /^[A-Za-z_][A-Za-z0-9_]{0,127}$/,
+    'Invalid AI token environment variable name',
+  );
+
+/** Connection settings contain an environment variable name, never a secret. */
+export const AiSummaryLlmSchema = z
+  .object({
+    endpoint: AiSummaryEndpointSchema.default(
+      'https://api.githubcopilot.com/responses',
+    ),
+    model: z.string().trim().min(1).max(200).default('gpt-6-luna'),
+    apiKeyEnv: AiSummaryApiKeyEnvSchema.default('AI_SUMMARY_TOKEN'),
+  })
+  .strict();
+
+/** Opt-in summaries through a configured HTTP endpoint. */
 export const AiSummaryConfigSchema = z.object({
   enabled: z.boolean().default(false),
-  model: z.string().trim().min(1).max(200).default('gpt-6-luna'),
+  llm: AiSummaryLlmSchema.default({}),
   kickInThreshold: z.number().int().nonnegative().default(5),
   levels: z
     .array(z.enum(['release', 'category', 'scope']))

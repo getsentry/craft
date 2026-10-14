@@ -114,7 +114,11 @@ describe('validateConfiguration', () => {
     );
     expect(getChangelogConfig().aiSummary).toEqual({
       enabled: true,
-      model: 'gpt-6-luna',
+      llm: {
+        endpoint: 'https://api.githubcopilot.com/responses',
+        model: 'gpt-6-luna',
+        apiKeyEnv: 'AI_SUMMARY_TOKEN',
+      },
       kickInThreshold: 5,
       levels: ['release'],
     });
@@ -143,9 +147,53 @@ describe('validateConfiguration', () => {
     expect(getChangelogConfig().aiSummary).not.toHaveProperty('topLevel');
   });
 
+  test.each([
+    'https://gateway.example/chat',
+    'http://127.0.0.1:1234/chat',
+    'http://[::1]:1234/chat',
+  ])('accepts a configured HTTP endpoint %s and token variable', endpoint => {
+    expect(
+      validateConfiguration({
+        changelog: {
+          aiSummary: {
+            enabled: true,
+            llm: { endpoint, apiKeyEnv: 'TEAM_MODEL_TOKEN' },
+          },
+        },
+      }),
+    ).toMatchObject({
+      changelog: {
+        aiSummary: { llm: { endpoint, apiKeyEnv: 'TEAM_MODEL_TOKEN' } },
+      },
+    });
+  });
+  test.each([
+    'http://external.example/chat',
+    'https://user:pass@example.com/chat',
+    'https://example.com/chat#fragment',
+  ])('rejects unsafe configured endpoint %s', endpoint => {
+    expect(() =>
+      validateConfiguration({
+        changelog: { aiSummary: { llm: { endpoint } } },
+      }),
+    ).toThrow(/changelog/);
+  });
+  test.each(['invalid-name', '', '1TOKEN'])(
+    'rejects invalid token variable %s',
+    apiKeyEnv => {
+      expect(() =>
+        validateConfiguration({
+          changelog: { aiSummary: { llm: { apiKeyEnv } } },
+        }),
+      ).toThrow(/changelog/);
+    },
+  );
+
   test('rejects an empty summary model', () => {
     expect(() =>
-      validateConfiguration({ changelog: { aiSummary: { model: '  ' } } }),
+      validateConfiguration({
+        changelog: { aiSummary: { llm: { model: '  ' } } },
+      }),
     ).toThrow(/changelog/);
   });
 

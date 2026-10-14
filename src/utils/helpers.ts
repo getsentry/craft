@@ -83,6 +83,9 @@ interface InternalGlobalFlags {
   'dry-run': boolean;
   'no-input': boolean;
   'log-level': keyof typeof LogLevel;
+  'ai-endpoint'?: string;
+  'ai-api-key-env'?: string;
+  'ai-model'?: string;
 }
 
 const GLOBAL_FLAGS: InternalGlobalFlags = {
@@ -91,7 +94,24 @@ const GLOBAL_FLAGS: InternalGlobalFlags = {
   'log-level': 'Info',
 };
 
-export function setGlobals(argv: GlobalFlags): void {
+/** yargs .env('CRAFT') must not make environment values look like CLI overrides. */
+export function extractAiSummaryFlags(argv: string[]): GlobalFlags {
+  const keys = ['ai-endpoint', 'ai-api-key-env', 'ai-model'] as const;
+  const { values } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    strict: false,
+    options: Object.fromEntries(
+      keys.map(key => [key, { type: 'string' as const }]),
+    ),
+  });
+  return Object.fromEntries(keys.map(key => [key, values[key]]));
+}
+
+export function setGlobals(
+  argv: GlobalFlags,
+  aiFlags: GlobalFlags = argv,
+): void {
   if (argv['dry-run'] !== undefined) {
     GLOBAL_FLAGS['dry-run'] = argv['dry-run'];
   }
@@ -101,9 +121,25 @@ export function setGlobals(argv: GlobalFlags): void {
   if (argv['log-level'] !== undefined) {
     GLOBAL_FLAGS['log-level'] = argv['log-level'];
   }
+  for (const key of ['ai-endpoint', 'ai-api-key-env', 'ai-model'] as const)
+    GLOBAL_FLAGS[key] =
+      typeof aiFlags[key] === 'string' ? (aiFlags[key] as string) : undefined;
   logger.trace('Global flags:', GLOBAL_FLAGS);
   setLevel(LogLevel[GLOBAL_FLAGS['log-level']]);
-  logger.trace('Argv: ', argv);
+  // .env('CRAFT') adds arbitrary environment values to argv, including secrets.
+  // Trace only the known non-secret flags above.
+}
+
+export function getAiSummaryOverrides(): {
+  endpoint?: string;
+  apiKeyEnv?: string;
+  model?: string;
+} {
+  return {
+    endpoint: GLOBAL_FLAGS['ai-endpoint'],
+    apiKeyEnv: GLOBAL_FLAGS['ai-api-key-env'],
+    model: GLOBAL_FLAGS['ai-model'],
+  };
 }
 
 export function isDryRun(): boolean {

@@ -183,7 +183,11 @@ describe('generateChangesetFromGit', () => {
       includePaths: [],
       aiSummary: {
         enabled: true,
-        model: 'gpt-6-luna',
+        llm: {
+          endpoint: 'https://api.githubcopilot.com/responses',
+          model: 'gpt-6-luna',
+          apiKeyEnv: 'AI_SUMMARY_TOKEN',
+        },
         kickInThreshold: 5,
         levels: ['release', 'category', 'scope'] as (
           | 'release'

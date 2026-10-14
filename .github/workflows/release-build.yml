@@ -66,17 +66,10 @@ jobs:
           CRAFT_BUILD_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: pnpm build
-      - name: Package Copilot runtime
-        run: pnpm build:copilot
       - name: Smoke Test
         run: ./dist/craft --help
       - name: NPM Pack
-        run: |
-          pnpm pack
-          if tar -tzf sentry-craft-*.tgz | grep -E '^package/dist/copilot-runtime([/.]|$)'; then
-            echo 'Copilot runtime must remain a separate action artifact' >&2
-            exit 1
-          fi
+        run: npm pack
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v7
         with:
@@ -84,7 +77,6 @@ jobs:
           path: |
             ${{ github.workspace }}/*.tgz
             ${{ github.workspace }}/dist/craft
-            ${{ github.workspace }}/dist/copilot-runtime.tar.gz
 
   docs:
     name: Build Docs

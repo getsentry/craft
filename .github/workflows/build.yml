@@ -13,40 +13,6 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
-  copilot-runtime:
-    name: Copilot runtime / ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    permissions:
-      contents: read
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ matrix.os == 'ubuntu-latest' && '24' || '22' }}
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          version: '10.27.0'
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: pnpm build:copilot
-      - name: Verify trimmed runtime with local structured sessions and cancellation
-        shell: bash
-        env:
-          CRAFT_RUNTIME_TEST_DIR: ${{ runner.temp }}/copilot-runtime
-        run: |
-          node --input-type=module -e 'import { mkdir } from "node:fs/promises"; import { unpackRuntime } from "./.github/scripts/copilot/unpack-runtime.mjs"; await mkdir(process.env.CRAFT_RUNTIME_TEST_DIR, { recursive: true }); const path = await unpackRuntime("dist/copilot-runtime.tar.gz", process.env.CRAFT_RUNTIME_TEST_DIR); import { appendFile } from "node:fs/promises"; await appendFile(process.env.GITHUB_ENV, `CRAFT_COPILOT_RUNTIME_PATH=${path}\n`)'
-          # Exercise the same embedded SDK and unused-FFI exclusion as Craft.
-          pnpm exec esbuild .github/scripts/copilot/runtime-smoke.mjs --bundle --platform=node --format=cjs --target=node22 --external:./ffiRuntimeHost.js --outfile="$RUNNER_TEMP/runtime-smoke.cjs"
-      - name: Verify standalone Craft and embedded SDK
-        shell: bash
-        run: |
-          cp dist/craft "$RUNNER_TEMP/craft"
-          NODE_PATH='' node "$RUNNER_TEMP/craft" --help
-          node "$RUNNER_TEMP/runtime-smoke.cjs"
-
   test:
     runs-on: ubuntu-latest
     permissions:
@@ -76,6 +42,28 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Test
         run: pnpm test
+
+  ai-summary-platforms:
+    name: AI summary / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.27.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # The isolated sample runs without any AI SDK or runtime dependencies.
+      - run: node .github/scripts/ai-summary-smoke.mjs
 
   build:
     name: Build
@@ -108,17 +96,10 @@ jobs:
           CRAFT_BUILD_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: pnpm build
-      - name: Package Copilot runtime
-        run: pnpm build:copilot
       - name: Smoke Test
         run: ./dist/craft --help
       - name: NPM Pack
-        run: |
-          pnpm pack
-          if tar -tzf sentry-craft-*.tgz | grep -E '^package/dist/copilot-runtime([/.]|$)'; then
-            echo 'Copilot runtime must remain a separate action artifact' >&2
-            exit 1
-          fi
+        run: npm pack
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v7
         with:
@@ -126,7 +107,6 @@ jobs:
           path: |
             ${{ github.workspace }}/*.tgz
             ${{ github.workspace }}/dist/craft
-            ${{ github.workspace }}/dist/copilot-runtime.tar.gz
 
   publish-nightly:
     name: Publish Craft nightly to GHCR
@@ -184,46 +164,6 @@ jobs:
               craft:application/octet-stream
           else
             echo "Craft nightly preflight failed (HTTP $status)" >&2
-            exit 1
-          fi
-      - name: Publish the matching prebuilt Copilot runtime
-        env:
-          GHCR_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          cp artifacts/dist/copilot-runtime.tar.gz copilot-runtime.tar.gz
-          token=$(curl -fsS 'https://ghcr.io/token?scope=repository:getsentry/craft:pull' | jq -er '.token')
-          tag="copilot-runtime-nightly-$GITHUB_SHA"
-          status=$(curl -sS -o "$RUNNER_TEMP/copilot-runtime-existing.json" -w '%{http_code}' \
-            -H "Authorization: Bearer $token" \
-            -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
-            "https://ghcr.io/v2/getsentry/craft/manifests/$tag")
-          if [[ "$status" == 200 ]]; then
-            digest="sha256:$(sha256sum copilot-runtime.tar.gz | cut -d' ' -f1)"
-            size=$(wc -c < copilot-runtime.tar.gz)
-            jq -e --arg sha "$GITHUB_SHA" --arg digest "$digest" --argjson size "$size" '
-              .schemaVersion == 2 and
-              .mediaType == "application/vnd.oci.image.manifest.v1+json" and
-              .artifactType == "application/vnd.getsentry.craft.copilot-runtime.v1" and
-              .annotations["org.opencontainers.image.revision"] == $sha and
-              .annotations["org.opencontainers.image.source"] == "https://github.com/getsentry/craft" and
-              (.layers | length) == 1 and
-              .layers[0].annotations["org.opencontainers.image.title"] == "copilot-runtime.tar.gz" and
-              .layers[0].mediaType == "application/gzip" and
-              .layers[0].digest == $digest and .layers[0].size == $size
-            ' "$RUNNER_TEMP/copilot-runtime-existing.json" > /dev/null || {
-              echo 'Existing Copilot runtime differs from this build; refusing to overwrite it' >&2
-              exit 1
-            }
-          elif [[ "$status" == 404 ]]; then
-            printf '%s' "$GHCR_TOKEN" | oras login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-            oras push --image-spec v1.1 \
-              --artifact-type application/vnd.getsentry.craft.copilot-runtime.v1 \
-              --annotation 'org.opencontainers.image.source=https://github.com/getsentry/craft' \
-              --annotation "org.opencontainers.image.revision=$GITHUB_SHA" \
-              "ghcr.io/getsentry/craft:$tag" copilot-runtime.tar.gz:application/gzip
-          else
-            echo "Copilot runtime preflight failed (HTTP $status)" >&2
             exit 1
           fi
       - name: Verify anonymous access to the immutable artifact

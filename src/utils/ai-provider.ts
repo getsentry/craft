@@ -1,13 +1,9 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import {
-  CopilotClient,
-  RuntimeConnection,
-  type CopilotSession,
-} from '@github/copilot-sdk';
-import type { AiSummaryConfig } from '../schemas/project_config';
+  AiSummaryLlmSchema,
+  type AiSummaryConfig,
+} from '../schemas/project_config';
 import { safeExec } from './dryRun';
+import { getAiSummaryOverrides } from './helpers';
 
 export interface SummaryRequest {
   input: string;
@@ -18,42 +14,6 @@ export interface SummaryRequest {
 export interface SummaryProvider {
   request(request: SummaryRequest): Promise<unknown>;
   close(): Promise<void>;
-}
-
-/** Only runtime prerequisites and Actions identity metadata reach the child. */
-function runtimeEnvironment(token: string): Record<string, string> {
-  const env: Record<string, string> = { COPILOT_GITHUB_TOKEN: token };
-  for (const name of [
-    'PATH',
-    'HOME',
-    'USERPROFILE',
-    'SystemRoot',
-    'SYSTEMROOT',
-    'WINDIR',
-    'ComSpec',
-    'TMPDIR',
-    'TMP',
-    'TEMP',
-    'LANG',
-    'LC_ALL',
-    'HTTP_PROXY',
-    'HTTPS_PROXY',
-    'NO_PROXY',
-    'http_proxy',
-    'https_proxy',
-    'no_proxy',
-    'NODE_EXTRA_CA_CERTS',
-    'SSL_CERT_FILE',
-    'SSL_CERT_DIR',
-    'GITHUB_ACTIONS',
-    'GITHUB_REPOSITORY',
-    'GITHUB_SERVER_URL',
-    'GITHUB_API_URL',
-    'GITHUB_RUN_ID',
-    'GITHUB_RUN_ATTEMPT',
-  ])
-    if (process.env[name] !== undefined) env[name] = process.env[name]!;
-  return env;
 }
 
 function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -73,148 +33,188 @@ function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   });
 }
 
-class CopilotProvider implements SummaryProvider {
-  private client?: CopilotClient;
-  private starting?: Promise<CopilotClient>;
-  private directory?: string;
-  private closing = false;
-  constructor(private model: string) {}
-
-  private async initialize(): Promise<CopilotClient> {
-    const token =
-      process.env.COPILOT_GITHUB_TOKEN?.trim() ||
-      process.env.GITHUB_TOKEN?.trim();
-    if (!token) throw new Error('Copilot requires a GitHub token');
-    if (this.closing) throw new Error('Summary aborted');
-    this.directory = await safeExec(
-      () => mkdtemp(join(tmpdir(), 'craft-copilot-')),
-      'Create isolated Copilot runtime directory',
+/** Resolve the connection once through the same path for CLI and Actions. */
+export function resolveAiSummaryLlm(config: AiSummaryConfig) {
+  const settings = process.env.CRAFT_AI_LLM;
+  if (settings && Buffer.byteLength(settings) > 8192)
+    throw new Error('AI connection configuration exceeds limit');
+  const environment = settings
+    ? AiSummaryLlmSchema.partial().parse(JSON.parse(settings))
+    : {};
+  const defined = (
+    values: Record<string, string | undefined>,
+    ignoreEmpty = false,
+  ) =>
+    Object.fromEntries(
+      Object.entries(values).filter(
+        ([, value]) => value !== undefined && (!ignoreEmpty || value !== ''),
+      ),
     );
-    if (!this.directory) throw new Error('Summary aborted');
-    if (this.closing) {
-      await safeExec(
-        () =>
-          rm(this.directory!, {
-            recursive: true,
-            force: true,
-            maxRetries: 6,
-            retryDelay: 50,
-          }),
-        'Remove cancelled Copilot runtime directory',
-      );
-      throw new Error('Summary aborted');
-    }
-    this.client = new CopilotClient({
-      connection: RuntimeConnection.forStdio({
-        path: process.env.CRAFT_COPILOT_RUNTIME_PATH,
-      }),
-      mode: 'empty',
-      env: runtimeEnvironment(token),
-      useLoggedInUser: false,
-      baseDirectory: this.directory,
-      workingDirectory: this.directory,
-      logLevel: 'none',
-    });
-    await this.client.start();
-    if (this.closing) {
-      // start() resolves its bundled executable asynchronously. Cancellation
-      // can stop an as-yet-unspawned child; kill any child spawned afterwards.
-      await this.close();
-      throw new Error('Summary aborted');
-    }
-    const models = await this.client.listModels();
-    if (
-      !models.some(
-        model => model.id === this.model && model.policy?.state !== 'disabled',
-      )
-    )
-      throw new Error('Requested model unavailable under organization policy');
-    if (this.closing) {
-      await this.close();
-      throw new Error('Summary aborted');
-    }
-    return this.client;
-  }
+  return AiSummaryLlmSchema.parse({
+    ...config.llm,
+    ...defined(
+      {
+        endpoint: process.env.CRAFT_AI_ENDPOINT,
+        model: process.env.CRAFT_AI_MODEL,
+        apiKeyEnv: process.env.CRAFT_AI_API_KEY_ENV,
+      },
+      true,
+    ),
+    ...environment,
+    ...defined(getAiSummaryOverrides()),
+  });
+}
+
+const MAX_HTTP_RESPONSE_BYTES = 256 * 1024;
+class HttpSummaryProvider implements SummaryProvider {
+  private controller = new AbortController();
+  constructor(private config: AiSummaryConfig) {}
 
   async request(request: SummaryRequest): Promise<unknown> {
-    if (this.closing || request.signal.aborted)
-      throw new Error('Summary aborted');
-    const abort = () => {
-      this.closing = true;
-      void this.client?.forceStop().catch(() => {});
+    const signal = AbortSignal.any([request.signal, this.controller.signal]);
+    if (signal.aborted) throw new Error('Summary aborted');
+    const llm = resolveAiSummaryLlm(this.config);
+    const token = process.env[llm.apiKeyEnv]?.trim();
+    if (!token || token.length > 16384 || /[\r\n]/.test(token))
+      throw new Error('HTTP summaries require an endpoint credential');
+    const endpoint = new URL(llm.endpoint);
+    const responses = endpoint.pathname
+      .replace(/\/+$/, '')
+      .endsWith('/responses');
+    const format = {
+      name: 'changelog_summary',
+      strict: true,
+      schema: request.schema,
     };
-    request.signal.addEventListener('abort', abort, { once: true });
-    let session: CopilotSession | undefined;
-    try {
-      return await safeExec(async () => {
-        this.starting ??= this.initialize();
-        const client = await abortable(this.starting, request.signal);
-        if (this.closing) throw new Error('Summary aborted');
-        session = await abortable(
-          client.createSession({
-            model: this.model,
-            allowedModels: [this.model],
-            clientName: 'sentry-craft',
-            modelCapabilities: { limits: { max_output_tokens: 8192 } },
-            availableTools: [],
-            excludedTools: ['builtin:*', 'mcp:*', 'custom:*'],
-            systemMessage: { mode: 'replace', content: request.system },
-            workingDirectory: this.directory,
-            enableConfigDiscovery: false,
-            infiniteSessions: { enabled: false },
-            enableSessionStore: false,
-            onPermissionRequest: async () => ({
-              kind: 'reject',
-              feedback: 'Tools are disabled for changelog summarization.',
-            }),
-            hooks: {
-              onPreToolUse: async () => ({ permissionDecision: 'deny' }),
-              onErrorOccurred: async () => ({ errorHandling: 'abort' }),
-            },
-          }),
-          request.signal,
+    const messages = [
+      { role: 'system', content: request.system },
+      { role: 'user', content: request.input },
+    ];
+    const body = responses
+      ? {
+          model: llm.model,
+          stream: false,
+          store: false,
+          max_output_tokens: 8192,
+          input: messages,
+          text: { format: { type: 'json_schema', ...format } },
+        }
+      : {
+          model: llm.model,
+          stream: false,
+          max_completion_tokens: 8192,
+          messages,
+          response_format: { type: 'json_schema', json_schema: format },
+        };
+    const copilot =
+      endpoint.hostname === 'api.githubcopilot.com' ||
+      endpoint.hostname.endsWith('.githubcopilot.com');
+    return safeExec(async () => {
+      const response = await fetch(llm.endpoint, {
+        method: 'POST',
+        redirect: 'error',
+        signal,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          ...(copilot
+            ? {
+                'Copilot-Integration-Id': 'copilot-developer-cli',
+                'X-GitHub-Api-Version': '2026-07-01',
+              }
+            : {}),
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => {});
+        throw new Error(`HTTP summary request failed (${response.status})`);
+      }
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Empty HTTP summary response');
+      const chunks: Uint8Array[] = [];
+      let bytes = 0;
+      try {
+        while (true) {
+          const { done, value } = await abortable(reader.read(), signal);
+          if (done) break;
+          bytes += value.byteLength;
+          if (bytes > MAX_HTTP_RESPONSE_BYTES)
+            throw new Error('HTTP summary response exceeds limit');
+          chunks.push(value);
+        }
+      } catch {
+        await reader.cancel().catch(() => {});
+        throw new Error('Invalid HTTP summary response');
+      } finally {
+        reader.releaseLock();
+      }
+      let output;
+      try {
+        output = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      } catch {
+        throw new Error('Invalid HTTP summary response');
+      }
+      let content: string;
+      if (responses) {
+        if (
+          output?.status !== 'completed' ||
+          output.error ||
+          output.incomplete_details ||
+          !Array.isArray(output.output)
+        )
+          throw new Error('Incomplete HTTP summary response');
+        const messages = output.output.filter(
+          (item: any) => item?.type === 'message',
         );
-        if (this.closing) throw new Error('Summary aborted');
-        // The SDK emits strict json_schema. Its timeout only stops waiting;
-        // our AbortSignal also force-stops the runtime to cancel actual work.
-        const message = await abortable(
-          session.sendAndWait(
-            { prompt: request.input, responseSchema: request.schema },
-            30000,
-          ),
-          request.signal,
-        );
-        if (!message?.data.content) throw new Error('Empty Copilot completion');
-        return JSON.parse(message.data.content);
-      }, 'Generate changelog summaries via GitHub Copilot');
-    } finally {
-      request.signal.removeEventListener('abort', abort);
-      if (session && !this.closing)
-        await abortable(session.disconnect(), request.signal);
-    }
+        if (
+          messages.length !== 1 ||
+          output.output.some(
+            (item: any) => !['message', 'reasoning'].includes(item?.type),
+          )
+        )
+          throw new Error('Invalid HTTP summary response');
+        const message = messages[0];
+        if (
+          message.role !== 'assistant' ||
+          message.status !== 'completed' ||
+          !Array.isArray(message.content) ||
+          message.content.length !== 1 ||
+          message.content[0]?.type !== 'output_text' ||
+          typeof message.content[0].text !== 'string'
+        )
+          throw new Error('Invalid HTTP summary response');
+        content = message.content[0].text;
+      } else {
+        const choice = output?.choices?.[0];
+        const message = choice?.message;
+        if (
+          !Array.isArray(output?.choices) ||
+          output.choices.length !== 1 ||
+          choice?.finish_reason !== 'stop' ||
+          message?.role !== 'assistant' ||
+          typeof message.content !== 'string' ||
+          message.refusal ||
+          message.tool_calls?.length ||
+          message.function_call
+        )
+          throw new Error('Incomplete HTTP summary response');
+        content = message.content;
+      }
+      try {
+        return JSON.parse(content);
+      } catch {
+        throw new Error('Invalid HTTP summary content');
+      }
+    }, 'Generate changelog summaries via configured HTTP endpoint');
   }
-
   async close(): Promise<void> {
-    this.closing = true;
-    await this.client?.forceStop().catch(() => {});
-    // A pending initializer checks closing before starting or using a runtime.
-    if (this.directory)
-      await safeExec(
-        // Windows can retain the child's cwd briefly after forceStop().
-        () =>
-          rm(this.directory!, {
-            recursive: true,
-            force: true,
-            maxRetries: 6,
-            retryDelay: 50,
-          }),
-        'Remove isolated Copilot runtime directory',
-      ).catch(() => {});
+    this.controller.abort();
   }
 }
 
 export function createSummaryProvider(
   config: AiSummaryConfig,
 ): SummaryProvider {
-  return new CopilotProvider(config.model);
+  return new HttpSummaryProvider(config);
 }

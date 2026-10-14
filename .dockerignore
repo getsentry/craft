@@ -10,4 +10,3 @@
 !/src
 !/pnpm-lock.yaml
 !/build.mjs
-!/.github/scripts/copilot/SDK-LICENSE.txt

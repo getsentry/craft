@@ -156,38 +156,6 @@ test('rejects a corrupt blob without writing an executable', async () => {
   expect(existsSync(output)).toBe(false);
 });
 
-test('downloads the packaged runtime from a matching nightly and verifies its digest', async () => {
-  const { downloadCraftNightly } = await import(script);
-  const { output, request, manifest } = fixture();
-  manifest.artifactType = 'application/vnd.getsentry.craft.copilot-runtime.v1';
-  manifest.layers[0].mediaType = 'application/gzip';
-  manifest.layers[0].annotations['org.opencontainers.image.title'] =
-    'copilot-runtime.tar.gz';
-  expect(
-    await downloadCraftNightly(
-      `nightly-${sha}`,
-      output,
-      request,
-      'copilot-runtime.tar.gz',
-    ),
-  ).toBe(sha);
-  expect(readFileSync(output)).toEqual(binary);
-});
-
-test('older nightlies retain binary support but fail closed for missing runtime assets', async () => {
-  const { downloadCraftNightly } = await import(script);
-  const { output, request } = fixture();
-  await expect(
-    downloadCraftNightly(
-      `nightly-${sha}`,
-      output,
-      request,
-      'copilot-runtime.tar.gz',
-    ),
-  ).rejects.toThrow('Invalid Craft nightly manifest');
-  expect(request).toHaveBeenCalledTimes(2);
-});
-
 test('rejects extra layers and never downloads them', async () => {
   const { downloadCraftNightly } = await import(script);
   const { output, request, manifest } = fixture();
@@ -236,37 +204,15 @@ test.each([
   ['another binary occupies the commit tag', '200', true, 1, 0],
   ['the tag is absent', '404', false, 0, 2],
   ['the registry preflight fails', '500', false, 1, 0],
-  ['the identical runtime exists', '200', false, 0, 0, true],
-  ['another runtime occupies the commit tag', '200', true, 1, 0, true],
-  ['the runtime tag is absent', '404', false, 0, 2, true],
-  ['the runtime registry preflight fails', '500', false, 1, 0, true],
 ])(
   'publishing when %s never overwrites an existing commit tag',
-  (
-    _case,
-    status,
-    changedDigest,
-    expectedExit,
-    expectedOrasCalls,
-    runtime = false,
-  ) => {
+  (_case, status, changedDigest, expectedExit, expectedOrasCalls) => {
     const { output, manifest } = fixture();
     const directory = join(output, '..');
     const bin = join(directory, 'bin');
     mkdirSync(bin);
     mkdirSync(join(directory, 'artifacts/dist'), { recursive: true });
     writeFileSync(join(directory, 'artifacts/dist/craft'), binary);
-    if (runtime) {
-      writeFileSync(
-        join(directory, 'artifacts/dist/copilot-runtime.tar.gz'),
-        binary,
-      );
-      manifest.artifactType =
-        'application/vnd.getsentry.craft.copilot-runtime.v1';
-      manifest.layers[0].mediaType = 'application/gzip';
-      manifest.layers[0].annotations['org.opencontainers.image.title'] =
-        'copilot-runtime.tar.gz';
-    }
     if (changedDigest) {
       manifest.layers[0].digest = 'sha256:' + 'f'.repeat(64);
     }
@@ -296,9 +242,7 @@ test.each([
       };
     };
     const run = workflow.jobs['publish-nightly'].steps.find(step =>
-      step.name?.startsWith(
-        runtime ? 'Publish the matching prebuilt' : 'Publish the binary',
-      ),
+      step.name?.startsWith('Publish the binary'),
     )?.run;
     expect(run).toBeDefined();
     const result = spawnSync('bash', ['-e', '-c', run!], {
