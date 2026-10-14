@@ -1,6 +1,10 @@
 name: Native binaries
 on:
   workflow_call:
+    secrets:
+      SENTRY_AUTH_TOKEN:
+        description: Optional Sentry source-map upload credential for master builds
+        required: false
 
 permissions:
   contents: read
@@ -10,6 +14,7 @@ jobs:
     name: Native / ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    environment: ${{ github.ref == 'refs/heads/master' && 'production' }}
     strategy:
       fail-fast: false
       matrix:
@@ -43,6 +48,7 @@ jobs:
       - name: Build standalone executable and npm bundle
         env:
           CRAFT_BUILD_SHA: ${{ github.sha }}
+          SENTRY_AUTH_TOKEN: ${{ github.ref == 'refs/heads/master' && secrets.SENTRY_AUTH_TOKEN || '' }}
         run: pnpm build:binary ${{ matrix.platform }}
       - name: Pack and test shipped artifacts
         run: |
