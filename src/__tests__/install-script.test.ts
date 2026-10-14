@@ -130,7 +130,10 @@ test.skipIf(process.platform === 'win32')(
 test.each(['CRAFT_DRY_RUN', 'DRY_RUN'])(
   'honors %s before any download or staging',
   name => {
-    const { destination, run } = fixture(false, true, { [name]: 'true' });
+    const { destination, run } = fixture(false, true, {
+      CRAFT_DRY_RUN: undefined,
+      [name]: 'true',
+    });
     const result = run('--version', '9.1.0');
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('Would install');
