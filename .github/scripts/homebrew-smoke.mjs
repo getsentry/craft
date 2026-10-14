@@ -56,7 +56,7 @@ const env = {
 const brew = async (...args) => {
   const result = await execute('brew', args, {
     env,
-    timeout: 300000,
+    timeout: 600000,
     maxBuffer: 1024 * 1024,
   });
   console.log(result.stdout);
@@ -67,13 +67,8 @@ await brew('trust', '--tap', 'craft-ci/native');
 try {
   const tap = await brew('--repository', 'craft-ci/native');
   await writeFile(join(tap, 'Formula/craft.rb'), formula);
-  // Git is already exercised by native-smoke; avoid installing unrelated tools.
-  await brew(
-    'install',
-    '--formula',
-    '--ignore-dependencies',
-    'craft-ci/native/craft',
-  );
+  // Install declared dependencies too, matching the user installation path.
+  await brew('install', '--formula', 'craft-ci/native/craft');
   await brew('test', 'craft-ci/native/craft');
   const prefix = await brew('--prefix', 'craft-ci/native/craft');
   const { stdout } = await execute(join(prefix, 'bin/craft'), ['--help'], {
