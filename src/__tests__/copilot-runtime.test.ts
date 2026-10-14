@@ -92,43 +92,49 @@ test('rejects modified bytes before writing the runtime', async () => {
   ).rejects.toThrow('Runtime digest or size mismatch');
 });
 
-test('unpacks a portable SDK archive without executing package scripts', async () => {
+test('unpacks native assets and returns the executable path', async () => {
   const { unpackRuntime } = await import(script);
   const source = await temporary();
-  const module = join(source, 'node_modules/@github/copilot-sdk');
-  await mkdir(module, { recursive: true });
-  await writeFile(
-    join(module, 'package.json'),
-    JSON.stringify({ version: '1.0.21', scripts: { postinstall: 'exit 1' } }),
-  );
-  await writeFile(join(source, 'package.json'), '{}');
-  await mkdir(join(source, 'licenses/@github__copilot-sdk'), {
-    recursive: true,
-  });
-  await writeFile(join(source, 'licenses/@github__copilot-sdk/LICENSE'), 'MIT');
+  const wrapper =
+    process.platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime';
+  await mkdir(join(source, 'runtime'));
+  await writeFile(join(source, 'runtime', wrapper), 'native executable');
+  await writeFile(join(source, 'runtime/runtime.node'), 'native library');
+  await mkdir(join(source, 'licenses'));
+  await writeFile(join(source, 'licenses/Copilot-LICENSE.txt'), 'MIT');
   const archive = join(await temporary(), 'runtime.tar.gz');
   await create({ file: archive, gzip: true, cwd: source }, [
-    'package.json',
-    'node_modules',
+    'runtime',
     'licenses',
   ]);
   const output = await temporary();
-  await unpackRuntime(archive, output);
+  expect(await unpackRuntime(archive, output)).toBe(
+    join(output, 'runtime', wrapper),
+  );
+  expect(await readFile(join(output, 'runtime/runtime.node'), 'utf8')).toBe(
+    'native library',
+  );
   expect(
-    JSON.parse(
-      await readFile(
-        join(output, 'node_modules/@github/copilot-sdk/package.json'),
-        'utf8',
-      ),
-    ).version,
-  ).toBe('1.0.21');
-  expect(
-    await readFile(
-      join(output, 'licenses/@github__copilot-sdk/LICENSE'),
-      'utf8',
-    ),
+    await readFile(join(output, 'licenses/Copilot-LICENSE.txt'), 'utf8'),
   ).toBe('MIT');
 });
+
+test.each(['missing', 'empty'])(
+  'rejects a %s native runtime library',
+  async kind => {
+    const { unpackRuntime } = await import(script);
+    const source = await temporary();
+    await mkdir(join(source, 'runtime'));
+    const wrapper =
+      process.platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime';
+    await writeFile(join(source, 'runtime', wrapper), 'native executable');
+    if (kind === 'empty')
+      await writeFile(join(source, 'runtime/runtime.node'), '');
+    const archive = join(await temporary(), 'runtime.tar.gz');
+    await create({ file: archive, gzip: true, cwd: source }, ['runtime']);
+    await expect(unpackRuntime(archive, await temporary())).rejects.toThrow();
+  },
+);
 
 test('rejects unrelated archive paths before extraction', async () => {
   const { unpackRuntime } = await import(script);
@@ -157,10 +163,10 @@ test('rejects release metadata for a different version', async () => {
 test('rejects archive symlinks before extraction', async () => {
   const { unpackRuntime } = await import(script);
   const source = await temporary();
-  await mkdir(join(source, 'node_modules'));
-  await symlink('../../outside', join(source, 'node_modules/link'));
+  await mkdir(join(source, 'runtime'));
+  await symlink('../../outside', join(source, 'runtime/link'));
   const archive = join(await temporary(), 'runtime.tar.gz');
-  await create({ file: archive, gzip: true, cwd: source }, ['node_modules']);
+  await create({ file: archive, gzip: true, cwd: source }, ['runtime']);
   await expect(unpackRuntime(archive, await temporary())).rejects.toThrow(
     'Runtime archive links are forbidden',
   );

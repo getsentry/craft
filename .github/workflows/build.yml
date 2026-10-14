@@ -30,14 +30,22 @@ jobs:
         with:
           version: '10.27.0'
       - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - run: pnpm build:copilot
       - name: Verify trimmed runtime with local structured sessions and cancellation
         shell: bash
         env:
-          CRAFT_COPILOT_SDK_DIR: ${{ runner.temp }}/copilot-runtime
+          CRAFT_RUNTIME_TEST_DIR: ${{ runner.temp }}/copilot-runtime
         run: |
-          node --input-type=module -e 'import { mkdir } from "node:fs/promises"; import { unpackRuntime } from "./.github/scripts/copilot/unpack-runtime.mjs"; await mkdir(process.env.CRAFT_COPILOT_SDK_DIR, { recursive: true }); await unpackRuntime("dist/copilot-runtime.tar.gz", process.env.CRAFT_COPILOT_SDK_DIR)'
-          node .github/scripts/copilot/runtime-smoke.mjs
+          node --input-type=module -e 'import { mkdir } from "node:fs/promises"; import { unpackRuntime } from "./.github/scripts/copilot/unpack-runtime.mjs"; await mkdir(process.env.CRAFT_RUNTIME_TEST_DIR, { recursive: true }); const path = await unpackRuntime("dist/copilot-runtime.tar.gz", process.env.CRAFT_RUNTIME_TEST_DIR); import { appendFile } from "node:fs/promises"; await appendFile(process.env.GITHUB_ENV, `CRAFT_COPILOT_RUNTIME_PATH=${path}\n`)'
+          # Exercise the same embedded SDK and unused-FFI exclusion as Craft.
+          pnpm exec esbuild .github/scripts/copilot/runtime-smoke.mjs --bundle --platform=node --format=cjs --target=node22 --external:./ffiRuntimeHost.js --outfile="$RUNNER_TEMP/runtime-smoke.cjs"
+      - name: Verify standalone Craft and embedded SDK
+        shell: bash
+        run: |
+          cp dist/craft "$RUNNER_TEMP/craft"
+          NODE_PATH='' node "$RUNNER_TEMP/craft" --help
+          node "$RUNNER_TEMP/runtime-smoke.cjs"
 
   test:
     runs-on: ubuntu-latest

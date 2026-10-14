@@ -1,6 +1,6 @@
 import process from 'node:process';
 import console from 'node:console';
-import { readFile, mkdtemp, rm, appendFile } from 'node:fs/promises';
+import { stat, mkdtemp, rm, appendFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -69,7 +69,7 @@ export async function unpackRuntime(archive, directory) {
     !entries.length ||
     entries.some(
       name =>
-        !/^(?:package\.json$|(?:node_modules|licenses)(?:\/|$))/.test(name) ||
+        !/^(?:runtime|licenses)(?:\/|$)/.test(name) ||
         name.includes('\\') ||
         name.split('/').some(part => part === '..' || part === '.'),
     )
@@ -84,13 +84,17 @@ export async function unpackRuntime(archive, directory) {
   )
     throw new Error('Runtime archive links are forbidden');
   await execute(tar, ['-xzf', archive, '-C', directory], options);
-  const pkg = JSON.parse(
-    await readFile(
-      join(directory, 'node_modules/@github/copilot-sdk/package.json'),
-      'utf8',
-    ),
+  const path = join(
+    directory,
+    'runtime',
+    process.platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime',
   );
-  if (typeof pkg.version !== 'string') throw new Error('Missing packaged SDK');
+  for (const file of [path, join(directory, 'runtime/runtime.node')]) {
+    const info = await stat(file);
+    if (!info.isFile() || !info.size)
+      throw new Error('Missing native runtime asset');
+  }
+  return path;
 }
 
 if (
@@ -113,9 +117,9 @@ if (
       );
     else if (version !== 'artifact')
       await downloadReleaseRuntime(version, archive);
-    await unpackRuntime(archive, directory);
+    const path = await unpackRuntime(archive, directory);
     if (version !== 'artifact') await rm(archive);
-    await appendFile(process.env.GITHUB_OUTPUT, `directory=${directory}\n`);
+    await appendFile(process.env.GITHUB_OUTPUT, `path=${path}\n`);
   } catch {
     await rm(directory, { recursive: true, force: true });
     console.error(

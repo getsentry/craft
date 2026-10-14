@@ -16,7 +16,9 @@ const sdk = vi.hoisted(() => ({
   disconnect: vi.fn(),
 }));
 vi.mock('@github/copilot-sdk', () => ({
-  RuntimeConnection: { forStdio: () => ({ kind: 'stdio' }) },
+  RuntimeConnection: {
+    forStdio: (options: any) => ({ kind: 'stdio', ...options }),
+  },
   CopilotClient: class {
     constructor(options: any) {
       sdk.options.push(options);
@@ -61,7 +63,7 @@ describe('AI summary providers', () => {
     sdk.disconnect.mockReset().mockResolvedValue(undefined);
     vi.stubEnv('GITHUB_TOKEN', 'workflow-token');
     vi.stubEnv('COPILOT_GITHUB_TOKEN', '');
-    vi.stubEnv('CRAFT_COPILOT_SDK_DIR', '');
+    vi.stubEnv('CRAFT_COPILOT_RUNTIME_PATH', '');
     setGlobals({ 'dry-run': false });
   });
   afterEach(() => {
@@ -105,6 +107,21 @@ describe('AI summary providers', () => {
       await provider.close();
     }
     expect(sdk.forceStop).toHaveBeenCalled();
+  });
+
+  it('passes the separately packaged native executable to the embedded SDK', async () => {
+    const path = '/path with spaces/copilot-runtime';
+    vi.stubEnv('CRAFT_COPILOT_RUNTIME_PATH', path);
+    const provider = createSummaryProvider(config());
+    try {
+      await provider.request(request);
+      expect(sdk.options[0].connection).toEqual({ kind: 'stdio', path });
+      expect(sdk.options[0].env).not.toHaveProperty(
+        'CRAFT_COPILOT_RUNTIME_PATH',
+      );
+    } finally {
+      await provider.close();
+    }
   });
 
   it('uses the separately wired Copilot token instead of a release bot token', async () => {

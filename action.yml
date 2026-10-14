@@ -206,7 +206,7 @@ runs:
         # Installation tokens must reach the SDK runtime through this env var.
         # Release API operations may use a separate app/bot GITHUB_TOKEN.
         COPILOT_GITHUB_TOKEN: ${{ github.token }}
-        CRAFT_COPILOT_SDK_DIR: ${{ steps.copilot-runtime.outputs.directory || format('{0}/craft-copilot-unavailable', runner.temp) }}
+        CRAFT_COPILOT_RUNTIME_PATH: ${{ steps.copilot-runtime.outputs.path || format('{0}/craft-copilot-unavailable', runner.temp) }}
         CRAFT_CONFIG_FROM_MERGE_TARGET: ${{ inputs.craft_config_from_merge_target }}
         MERGE_TARGET: ${{ inputs.merge_target }}
         VERSION: ${{ inputs.version }}

@@ -1,8 +1,11 @@
-import { createRequire } from 'node:module';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
+import {
+  CopilotClient,
+  RuntimeConnection,
+  type CopilotSession,
+} from '@github/copilot-sdk';
 import type { AiSummaryConfig } from '../schemas/project_config';
 import { safeExec } from './dryRun';
 
@@ -15,16 +18,6 @@ export interface SummaryRequest {
 export interface SummaryProvider {
   request(request: SummaryRequest): Promise<unknown>;
   close(): Promise<void>;
-}
-
-/** Standalone action binaries load the pinned SDK packaged with the action. */
-async function loadSdk(): Promise<typeof import('@github/copilot-sdk')> {
-  const directory = process.env.CRAFT_COPILOT_SDK_DIR;
-  if (directory)
-    return createRequire(join(directory, 'package.json'))(
-      '@github/copilot-sdk',
-    );
-  return import('@github/copilot-sdk');
 }
 
 /** Only runtime prerequisites and Actions identity metadata reach the child. */
@@ -92,7 +85,6 @@ class CopilotProvider implements SummaryProvider {
       process.env.COPILOT_GITHUB_TOKEN?.trim() ||
       process.env.GITHUB_TOKEN?.trim();
     if (!token) throw new Error('Copilot requires a GitHub token');
-    const sdk = await loadSdk();
     if (this.closing) throw new Error('Summary aborted');
     this.directory = await safeExec(
       () => mkdtemp(join(tmpdir(), 'craft-copilot-')),
@@ -112,8 +104,10 @@ class CopilotProvider implements SummaryProvider {
       );
       throw new Error('Summary aborted');
     }
-    this.client = new sdk.CopilotClient({
-      connection: sdk.RuntimeConnection.forStdio(),
+    this.client = new CopilotClient({
+      connection: RuntimeConnection.forStdio({
+        path: process.env.CRAFT_COPILOT_RUNTIME_PATH,
+      }),
       mode: 'empty',
       env: runtimeEnvironment(token),
       useLoggedInUser: false,

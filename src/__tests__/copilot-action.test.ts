@@ -20,8 +20,8 @@ test('action consumes the prebuilt runtime and authenticates with its built-in t
   );
   const prepare = steps.find((step: any) => step.name === 'Craft Prepare');
   expect(prepare.env.COPILOT_GITHUB_TOKEN).toBe('${{ github.token }}');
-  expect(prepare.env.CRAFT_COPILOT_SDK_DIR).toContain(
-    'steps.copilot-runtime.outputs.directory',
+  expect(prepare.env.CRAFT_COPILOT_RUNTIME_PATH).toContain(
+    'steps.copilot-runtime.outputs.path',
   );
   expect(prepare.env).not.toHaveProperty('CRAFT_COPILOT_INSTALLER');
   expect(

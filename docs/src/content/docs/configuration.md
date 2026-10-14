@@ -328,12 +328,14 @@ and [installation-token authentication guide](https://docs.github.com/en/copilot
 Both direct Craft action users and callers of the reusable release workflow must
 grant `copilot-requests: write` alongside their existing release permissions.
 A reusable workflow cannot increase permissions granted by its caller.
-The action ships a prebuilt Copilot SDK and native runtime archive with its
-Craft build. It unpacks that archive without running a package installer or
+Craft bundles the Copilot SDK JavaScript into its executable. The action ships
+a separate prebuilt archive containing only the matching native runtime. It
+unpacks that archive without running a package installer or
 changing the caller's Node or pnpm setup, and passes the built-in workflow token
 through `COPILOT_GITHUB_TOKEN` separately from any release bot token.
-The archive contains only the bundled JavaScript client, the matching headless
-runtime and authentication libraries, and license notices. It omits CLI tooling,
+The archive contains the headless runtime, its adjacent authentication libraries,
+and license notices. The SDK launches that executable through an explicit path.
+The archive omits CLI tooling,
 plugins, search binaries, declarations, docs, and the unused in-process transport.
 
 ```yaml
@@ -346,8 +348,9 @@ jobs:
     secrets: inherit
 ```
 
-The SDK is a development dependency used to build the action runtime; ordinary
-Craft package installations do not download it. The composite action requires
+The SDK is a development dependency bundled during the Craft build; ordinary
+Craft package installations do not install the SDK package or native runtime.
+The composite action requires
 Node 20.19+ or 22.12+ (or a newer supported major) and its existing Linux x64
 runner environment. The trimmed native archive is tested on Linux, macOS, and
 Windows for startup, structured sessions against a local model fixture, and
