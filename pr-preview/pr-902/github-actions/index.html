@@ -200,8 +200,10 @@ Copilot Responses and the default model is <code dir="auto">gpt-6-luna</code>; i
 Responses and structured output. No Copilot package, runtime, bridge, installer,
 or additional distribution artifact is required.</p>
 <p>The <code dir="auto">llm</code> input accepts JSON with <code dir="auto">endpoint</code>, <code dir="auto">model</code>, and <code dir="auto">apiKeyEnv</code>. It
-overrides the <code dir="auto">CRAFT_AI_LLM</code> step environment or repository/organization variable
-of that name. <code dir="auto">llm_api_key</code> accepts an explicit credential and maps it to
+overrides the <code dir="auto">CRAFT_AI_LLM</code> step environment. Pass repository or organization
+variables through the caller with <code dir="auto">llm: ${{ vars.CRAFT_AI_LLM }}</code>; the reusable
+release workflow provides that fallback automatically, since composite action
+metadata cannot read the <code dir="auto">vars</code> context directly. <code dir="auto">llm_api_key</code> accepts an explicit credential and maps it to
 <code dir="auto">AI_SUMMARY_TOKEN</code>. Alternatively, map a secret to the configured environment
 variable. The reusable workflow forwards its <code dir="auto">llm</code> input and optional
 <code dir="auto">llm_api_key</code> secret to both Action paths. Credentials never belong in JSON
