@@ -59,10 +59,10 @@ Craft's stable release pipeline updates the formula in `getsentry/homebrew-tools
 after uploading the release assets. Pre-release versions do not update Homebrew.
 Publishing requires the release credential to have write access to that tap.
 
-### npm / pnpm
+### npm / pnpm (not recommended)
 
-Install Craft as an [npm package](https://www.npmjs.com/package/@sentry/craft)
-when Node is already available. This uses the JavaScript bundle:
+Standalone executables are recommended. The [npm package](https://www.npmjs.com/package/@sentry/craft)
+remains supported when Node is already available and uses the JavaScript bundle:
 
 ```shell
 pnpm add -g @sentry/craft

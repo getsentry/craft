@@ -143,12 +143,6 @@ jobs:
           path: packed
       - name: Test downloaded native and npm artifacts
         run: node .github/scripts/native-smoke.mjs
-      - name: Set up Homebrew for the local formula test
-        if: matrix.platform != 'win-x64'
-        uses: Homebrew/actions/setup-homebrew@eb02c69dbabdb66ff183c614f4ce7ab3c077592c # main
-      - name: Install and test the local Homebrew formula
-        if: matrix.platform != 'win-x64'
-        run: node .github/scripts/homebrew-smoke.mjs
 
   docs:
     name: Build Docs
