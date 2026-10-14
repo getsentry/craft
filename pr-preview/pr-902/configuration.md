@@ -295,7 +295,7 @@ The original entries, nested details, author mentions, and links are preserved i
 
 Craft generates digests bottom-up and reuses them for higher levels. Small and unscoped groups contribute even when they do not qualify for a visible summary. Large groups are divided into complete bounded batches; oversized individual entries are split into Unicode-safe fragments. Higher levels use those digests, reducing repeated context. Breaking changes and security facts carry their source IDs through reductions and remain visible alongside the summary prose. Structural validation ensures category coverage; generated prose still needs human review for factual accuracy.
 
-Existing leftover-entry limits still apply. Enabling summaries sends the rendered changelog content to GitHub Copilot. Usage is billed to the organization. Large releases and additional levels can require multiple requests.
+Existing leftover-entry limits still apply. Enabling summaries sends the rendered changelog content and original critical PR titles to GitHub Copilot. Usage is billed to the organization. Large releases and additional levels can require multiple requests.
 
 Missing credentials, API errors, timeouts, refusals, invalid output, or exhausted budgets keep the entire original changelog. Craft makes no retries, allows at most 64 requests with 3 concurrent requests, and waits at most 30 seconds per request and 120 seconds overall. Each request carries at most 24,000 UTF-8 bytes of input data and allows at most 8,192 output tokens. Summaries are disabled during all dry runs, including worktree dry runs, highlighted `craft changelog --pr` previews, and automatic version analysis. `prepare --no-changelog` makes no model calls. The calculated version bump is unaffected.
 
