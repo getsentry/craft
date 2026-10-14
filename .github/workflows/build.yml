@@ -69,15 +69,30 @@ jobs:
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v5
+        with:
+          path: .node-cache
+          key: node-sea-${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
+      - name: Install macOS signing tool for cross-builds
+        run: |
+          curl -fsSL https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.29.0/apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz -o "$RUNNER_TEMP/rcodesign.tar.gz"
+          echo "dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002  $RUNNER_TEMP/rcodesign.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/rcodesign"
+          tar -xzf "$RUNNER_TEMP/rcodesign.tar.gz" --strip-components=1 -C "$RUNNER_TEMP/rcodesign"
+          echo "$RUNNER_TEMP/rcodesign" >> "$GITHUB_PATH"
       - name: Build
         env:
           CRAFT_BUILD_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        run: pnpm build
+        run: pnpm build:binary
+      - name: Verify cross-built macOS signatures
+        run: |
+          rcodesign verify dist-bin/craft-darwin-arm64
+          rcodesign verify dist-bin/craft-darwin-x64
       - name: Smoke Test
         run: ./dist/craft --help
       - name: NPM Pack
-        run: npm pack
+        run: pnpm pack
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v7
         with:
@@ -85,6 +100,57 @@ jobs:
           path: |
             ${{ github.workspace }}/*.tgz
             ${{ github.workspace }}/dist/craft
+
+      - name: Upload standalone release files
+        uses: actions/upload-artifact@v7
+        with:
+          name: craft-native
+          if-no-files-found: error
+          path: |
+            dist-bin/*.gz
+            dist-bin/*.exe
+            dist-bin/*.sha256
+
+  native-smoke:
+    name: Verify / ${{ matrix.platform }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux-x64
+          - os: ubuntu-24.04-arm
+            platform: linux-arm64
+          - os: macos-15
+            platform: darwin-arm64
+          - os: macos-15-intel
+            platform: darwin-x64
+          - os: windows-2025
+            platform: win-x64
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.27.0
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v8
+        with:
+          name: craft-native
+          path: dist-bin
+      - uses: actions/download-artifact@v8
+        with:
+          name: craft-binary
+          path: packed
+      - name: Test downloaded native and npm artifacts
+        run: node .github/scripts/native-smoke.mjs
 
   publish-nightly:
     name: Publish Craft nightly to GHCR

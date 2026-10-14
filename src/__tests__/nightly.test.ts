@@ -384,9 +384,10 @@ test('release callers retain read-only build permissions and the same artifacts'
   expect(Object.keys(releaseBuild.jobs).sort()).toEqual([
     'build',
     'docs',
+    'native-smoke',
     'test',
   ]);
-  for (const job of ['test', 'build', 'docs']) {
+  for (const job of ['test', 'build', 'docs', 'native-smoke']) {
     expect(releaseBuild.jobs[job]).toEqual(build.jobs[job]);
     expect(releaseBuild.jobs[job].permissions).toEqual({ contents: 'read' });
   }
