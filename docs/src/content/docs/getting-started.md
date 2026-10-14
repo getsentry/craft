@@ -44,6 +44,21 @@ Rename it to `craft.exe` and put it in a directory on your PATH.
 The existing release asset named `craft` remains a portable JavaScript bundle
 requiring Node. Existing action, CDN, and nightly consumers can continue using it.
 
+### Homebrew
+
+After the first stable release containing standalone binaries and the formula:
+
+```shell
+brew install getsentry/tools/craft
+```
+
+The formula selects the native macOS/Linux x64 or arm64 archive and verifies its
+SHA-256 checksum. Node is embedded; Git is a formula dependency. Other publishing
+targets still require their own tools (for example, npm, Docker, or Python).
+Craft's stable release pipeline updates the formula in `getsentry/homebrew-tools`
+after uploading the release assets. Pre-release versions do not update Homebrew.
+Publishing requires the release credential to have write access to that tap.
+
 ### npm / pnpm
 
 Install Craft as an [npm package](https://www.npmjs.com/package/@sentry/craft)

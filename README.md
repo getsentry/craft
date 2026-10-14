@@ -26,6 +26,13 @@ npm installation requires Node. The legacy `craft` asset remains a JavaScript bu
 npm install -g @sentry/craft
 ```
 
+Homebrew installation will be available after the first stable release publishing
+these binaries and its formula:
+
+```shell
+brew install getsentry/tools/craft
+```
+
 ### Usage
 
 ```shell

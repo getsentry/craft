@@ -48,6 +48,12 @@ jobs:
         run: |
           pnpm pack --pack-destination packed
           node .github/scripts/native-smoke.mjs packed/sentry-craft-$(node -p "require('./package.json').version").tgz
+      - name: Set up Homebrew for the local formula test
+        if: matrix.platform != 'win-x64'
+        uses: Homebrew/actions/setup-homebrew@eb02c69dbabdb66ff183c614f4ce7ab3c077592c # main
+      - name: Install and test the local Homebrew formula
+        if: matrix.platform != 'win-x64'
+        run: node .github/scripts/homebrew-smoke.mjs
       - name: Upload standalone release files
         uses: actions/upload-artifact@v7
         with:
