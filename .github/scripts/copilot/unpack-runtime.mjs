@@ -13,6 +13,11 @@ import { downloadCraftNightly } from '../download-craft-nightly.mjs';
 const { fetch, AbortSignal } = globalThis;
 const MAX_SIZE = 128 * 1024 * 1024;
 const execute = promisify(execFile);
+// Git Bash's tar parses Windows drive paths as remote archive locations.
+const tar =
+  process.platform === 'win32'
+    ? join(process.env.SystemRoot || 'C:/Windows', 'System32', 'tar.exe')
+    : 'tar';
 
 export async function downloadReleaseRuntime(version, output, request = fetch) {
   if (
@@ -73,7 +78,7 @@ export async function unpackRuntime(archive, directory) {
   // Our build emits only regular files/directories, never links. Reject unsafe
   // paths and links before invoking the system tar supplied by Actions runners.
   const options = { timeout: 60000, maxBuffer: 16 * 1024 * 1024 };
-  const { stdout: names } = await execute('tar', ['-tzf', archive], options);
+  const { stdout: names } = await execute(tar, ['-tzf', archive], options);
   const entries = names.trim().split(/\r?\n/);
   if (
     !entries.length ||
@@ -85,7 +90,7 @@ export async function unpackRuntime(archive, directory) {
     )
   )
     throw new Error('Unsafe runtime archive path');
-  const { stdout: listing } = await execute('tar', ['-tvzf', archive], options);
+  const { stdout: listing } = await execute(tar, ['-tvzf', archive], options);
   if (
     listing
       .trim()
@@ -93,7 +98,7 @@ export async function unpackRuntime(archive, directory) {
       .some(line => !/^[d-]/.test(line))
   )
     throw new Error('Runtime archive links are forbidden');
-  await execute('tar', ['-xzf', archive, '-C', directory], options);
+  await execute(tar, ['-xzf', archive, '-C', directory], options);
   const pkg = JSON.parse(
     await readFile(
       join(directory, 'node_modules/@github/copilot-sdk/package.json'),

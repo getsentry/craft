@@ -33,11 +33,11 @@ jobs:
       - run: pnpm build:copilot
       - name: Unpack and start packaged runtime without model access
         shell: bash
+        env:
+          CRAFT_COPILOT_SDK_DIR: ${{ runner.temp }}/copilot-runtime
         run: |
-          directory="$RUNNER_TEMP/copilot-runtime"
-          mkdir -p "$directory"
-          DIRECTORY="$directory" node --input-type=module -e 'import { unpackRuntime } from "./.github/scripts/copilot/unpack-runtime.mjs"; await unpackRuntime("dist/copilot-runtime.tar.gz", process.env.DIRECTORY)'
-          CRAFT_COPILOT_SDK_DIR="$directory" node .github/scripts/copilot/runtime-smoke.mjs
+          node --input-type=module -e 'import { mkdir } from "node:fs/promises"; import { unpackRuntime } from "./.github/scripts/copilot/unpack-runtime.mjs"; await mkdir(process.env.CRAFT_COPILOT_SDK_DIR, { recursive: true }); await unpackRuntime("dist/copilot-runtime.tar.gz", process.env.CRAFT_COPILOT_SDK_DIR)'
+          node .github/scripts/copilot/runtime-smoke.mjs
 
   test:
     runs-on: ubuntu-latest

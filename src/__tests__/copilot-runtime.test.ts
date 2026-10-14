@@ -43,7 +43,7 @@ function fixture(content = Buffer.from('runtime archive')) {
     ],
   };
   const request = vi.fn(async (url: string) =>
-    url.includes('api.github.com')
+    new URL(url).hostname === 'api.github.com'
       ? Response.json(metadata)
       : new Response(content),
   );
