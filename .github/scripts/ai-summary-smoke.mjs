@@ -64,9 +64,9 @@ const server = createServer(async (request, response) => {
             },
       ),
     );
-  } catch (error) {
-    response.writeHead(500);
-    response.end(JSON.stringify({ error: String(error) }));
+  } catch {
+    response.writeHead(500, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ error: 'Fixture request failed' }));
   }
 });
 const git = (...args) =>
