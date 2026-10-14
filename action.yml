@@ -201,7 +201,7 @@ runs:
       shell: bash
       env:
         CRAFT_LOG_LEVEL: Debug
-        CRAFT_AI_LLM: ${{ inputs.llm || env.CRAFT_AI_LLM || vars.CRAFT_AI_LLM }}
+        CRAFT_AI_LLM: ${{ inputs.llm || env.CRAFT_AI_LLM }}
         LLM_API_KEY_INPUT_SET: ${{ inputs.llm_api_key != '' }}
         AI_SUMMARY_TOKEN: ${{ inputs.llm_api_key || env.AI_SUMMARY_TOKEN }}
         CRAFT_CONFIG_FROM_MERGE_TARGET: ${{ inputs.craft_config_from_merge_target }}

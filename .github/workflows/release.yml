@@ -146,7 +146,7 @@ jobs:
           workspace: ${{ github.event.inputs.workspace }}
           craft_version: ${{ github.event.inputs.craft_version }}
           git_user_name: ${{ github.actor }}
-          llm: ${{ inputs.llm }}
+          llm: ${{ inputs.llm || vars.CRAFT_AI_LLM }}
           llm_api_key: ${{ secrets.llm_api_key }}
 
       # For external repos: use published action
@@ -168,5 +168,5 @@ jobs:
           workspace: ${{ inputs.workspace }}
           craft_version: ${{ inputs.craft_version }}
           craft_config_from_merge_target: ${{ inputs.craft_config_from_merge_target }}
-          llm: ${{ inputs.llm }}
+          llm: ${{ inputs.llm || vars.CRAFT_AI_LLM }}
           llm_api_key: ${{ secrets.llm_api_key }}

@@ -380,8 +380,10 @@ as one `llm` JSON object and map an explicit credential to `llm_api_key`:
     llm_api_key: ${{ secrets.TEAM_MODEL_TOKEN }}
 ```
 
-`llm` overrides `CRAFT_AI_LLM` in the step environment, then the repository or
-organization variable `vars.CRAFT_AI_LLM`. Individual connection fields still
+`llm` overrides `CRAFT_AI_LLM` in the step environment. For repository or
+organization variables, pass `llm: ${{ vars.CRAFT_AI_LLM }}` from the calling
+workflow; the reusable release workflow supplies this fallback automatically.
+Composite action metadata cannot access the `vars` context directly. Individual connection fields still
 follow the shared resolver's precedence. `llm_api_key` maps to
 `AI_SUMMARY_TOKEN` and selects that variable over a configured `apiKeyEnv`.
 Alternatively, omit `llm_api_key` and map a secret to the configured environment

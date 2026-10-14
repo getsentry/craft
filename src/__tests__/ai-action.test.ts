@@ -28,7 +28,7 @@ test('Action maps structured settings and an explicit credential to the shared C
     (step: any) => step.name === 'Craft Prepare',
   );
   expect(prepare.env.CRAFT_AI_LLM).toBe(
-    '${{ inputs.llm || env.CRAFT_AI_LLM || vars.CRAFT_AI_LLM }}',
+    '${{ inputs.llm || env.CRAFT_AI_LLM }}',
   );
   expect(prepare.env.AI_SUMMARY_TOKEN).toBe(
     '${{ inputs.llm_api_key || env.AI_SUMMARY_TOKEN }}',
@@ -41,6 +41,8 @@ test('Action maps structured settings and an explicit credential to the shared C
     /copilot-bridge|copilot-runtime|pnpm|unpack-runtime/,
   );
   expect(prepare.env).not.toHaveProperty('COPILOT_GITHUB_TOKEN');
+  // Runner metadata evaluation does not expose workflow vars inside a composite.
+  expect(JSON.stringify(action)).not.toContain('vars.');
 });
 
 test('reusable workflow forwards structured connection and optional secret to both Action paths', () => {
@@ -49,7 +51,7 @@ test('reusable workflow forwards structured connection and optional secret to bo
   for (const step of workflow.jobs.release.steps.filter((step: any) =>
     ['craft-local', 'craft-action'].includes(step.id),
   )) {
-    expect(step.with.llm).toBe('${{ inputs.llm }}');
+    expect(step.with.llm).toBe('${{ inputs.llm || vars.CRAFT_AI_LLM }}');
     expect(step.with.llm_api_key).toBe('${{ secrets.llm_api_key }}');
   }
 });

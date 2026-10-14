@@ -110,8 +110,10 @@ Responses and structured output. No Copilot package, runtime, bridge, installer,
 or additional distribution artifact is required.
 
 The `llm` input accepts JSON with `endpoint`, `model`, and `apiKeyEnv`. It
-overrides the `CRAFT_AI_LLM` step environment or repository/organization variable
-of that name. `llm_api_key` accepts an explicit credential and maps it to
+overrides the `CRAFT_AI_LLM` step environment. Pass repository or organization
+variables through the caller with `llm: ${{ vars.CRAFT_AI_LLM }}`; the reusable
+release workflow provides that fallback automatically, since composite action
+metadata cannot read the `vars` context directly. `llm_api_key` accepts an explicit credential and maps it to
 `AI_SUMMARY_TOKEN`. Alternatively, map a secret to the configured environment
 variable. The reusable workflow forwards its `llm` input and optional
 `llm_api_key` secret to both Action paths. Credentials never belong in JSON
