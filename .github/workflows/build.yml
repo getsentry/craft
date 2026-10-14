@@ -89,6 +89,8 @@ jobs:
           CRAFT_BUILD_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: pnpm build:binary
+      - name: Package installer
+        run: cp install craft-install
       - name: Smoke Test
         run: ./dist/craft --help
       - name: NPM Pack
@@ -100,6 +102,7 @@ jobs:
           path: |
             ${{ github.workspace }}/*.tgz
             ${{ github.workspace }}/dist/craft
+            ${{ github.workspace }}/craft-install
 
       - name: Upload standalone release files
         uses: actions/upload-artifact@v7
@@ -151,6 +154,8 @@ jobs:
           path: packed
       - name: Test downloaded native and npm artifacts
         run: node .github/scripts/native-smoke.mjs
+      - name: Test verified bootstrap installation
+        run: node .github/scripts/installer-smoke.mjs
 
   publish-nightly:
     name: Publish Craft nightly to GHCR

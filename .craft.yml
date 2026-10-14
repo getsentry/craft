@@ -22,6 +22,7 @@ postReleaseCommand: >-
 requireNames:
   - /^sentry-craft.*\.tgz$/
   - /^craft$/
+  - /^craft-install$/
   - /^craft-darwin-arm64\.gz$/
   - /^craft-darwin-arm64\.gz\.sha256$/
   - /^craft-darwin-x64\.gz$/

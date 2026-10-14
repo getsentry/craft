@@ -59,6 +59,29 @@ Craft's stable release pipeline updates the formula in `getsentry/homebrew-tools
 after uploading the release assets. Pre-release versions do not update Homebrew.
 Publishing requires the release credential to have write access to that tap.
 
+### Shell installer
+
+After the first release with native binaries, install the latest stable release
+on macOS/Linux, or Windows x64 using Git Bash:
+
+```bash
+curl -fsSL https://craft.sentry.dev/install | bash
+```
+
+To pin a version or choose a directory, download the script first:
+
+```bash
+curl -fsSL https://craft.sentry.dev/install -o craft-install
+bash craft-install --version 2.35.0 --install-dir "$HOME/.local/bin"
+```
+
+The installer checks SHA-256 and the executable's version before installing.
+It uses `CRAFT_INSTALL_DIR`, an absolute `XDG_BIN_HOME`, an existing user bin
+folder on PATH, or `~/.local/bin`. Add the printed directory to PATH yourself.
+It does not use sudo or modify shell profiles. `--dry-run` prints the selected
+version and platform without creating installation files. `CRAFT_VERSION`
+can also pin a release. Linux binaries require glibc.
+
 ### npm / pnpm (not recommended)
 
 Standalone executables are recommended. The [npm package](https://www.npmjs.com/package/@sentry/craft)

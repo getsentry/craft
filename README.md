@@ -33,6 +33,17 @@ these binaries and its formula:
 brew install getsentry/tools/craft
 ```
 
+Once the first native release and installer website are published:
+
+```shell
+curl -fsSL https://craft.sentry.dev/install | bash
+```
+
+The Bash installer supports macOS/Linux and Windows x64 through Git Bash. It
+verifies the download and installs to a user bin directory; add the printed
+path to PATH. Use `--version`, `--install-dir`, or `--dry-run` by downloading
+and running the script locally.
+
 ### Usage
 
 ```shell

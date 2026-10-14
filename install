@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Bootstrap a verified standalone Craft binary, which installs itself.
+set -euo pipefail
+fail() { echo "Craft installer: $*" >&2; exit 1; }
+version=${CRAFT_VERSION:-}
+directory=${CRAFT_INSTALL_DIR:-}
+dry_run=false
+case "$(printf '%s' "${CRAFT_DRY_RUN-${DRY_RUN:-}}" | tr '[:upper:]' '[:lower:]')" in
+  ''|undefined|null|0|false|no) ;;
+  *) dry_run=true ;;
+esac
+while (( $# )); do
+  case "$1" in
+    --version|--install-dir)
+      (( $# >= 2 )) || fail "Missing value for $1"
+      [[ -n "$2" && "$2" != --* ]] || fail "Missing value for $1"
+      if [[ "$1" == --version ]]; then version=$2; else directory=$2; fi
+      shift 2 ;;
+    --dry-run) dry_run=true; shift ;;
+    --help|-h)
+      echo 'Usage: install [--version VERSION] [--install-dir DIRECTORY] [--dry-run]'
+      echo 'Requires Bash. Installs macOS/Linux or Windows x64 through Git Bash.'
+      exit 0 ;;
+    *) fail "Unknown option: $1" ;;
+  esac
+done
+validate_version() {
+  [[ "$1" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?(\+[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]] || fail "Invalid version: $1"
+}
+if [[ -n "$version" ]]; then validate_version "$version"; fi
+case "$(uname -s)" in
+  Darwin) platform=darwin ;;
+  Linux) platform=linux ;;
+  MINGW*|MSYS*|CYGWIN*) platform=win ;;
+  *) fail 'Unsupported operating system' ;;
+esac
+case "$(uname -m)" in
+  x86_64|amd64) arch=x64 ;;
+  aarch64|arm64) arch=arm64 ;;
+  *) fail 'Unsupported CPU architecture' ;;
+esac
+[[ "$platform-$arch" != win-arm64 ]] || fail 'Windows ARM64 is unsupported'
+if [[ "$platform" == linux ]] && compgen -G '/lib/ld-musl-*.so.1' > /dev/null; then
+  fail 'Standalone Linux binaries require glibc; use the npm package on musl systems'
+fi
+command -v curl > /dev/null || fail 'curl is required'
+if [[ -z "$version" ]]; then
+  latest=$(curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL --max-time 30 -o /dev/null -w '%{url_effective}' https://github.com/getsentry/craft/releases/latest)
+  prefix=https://github.com/getsentry/craft/releases/tag/
+  [[ "$latest" == "$prefix"* ]] || fail 'Unexpected latest release URL'
+  version=${latest#"$prefix"}
+  validate_version "$version"
+  [[ "$version" != *-* ]] || fail 'Latest release must be stable'
+fi
+if [[ "$platform" == win ]]; then asset="craft-win-$arch.exe"; else asset="craft-$platform-$arch.gz"; fi
+if $dry_run; then
+  echo "Would install Craft $version ($platform-$arch) to ${directory:-the default user bin directory}"
+  exit 0
+fi
+if command -v sha256sum > /dev/null; then
+  hash() { sha256sum "$1"; }
+elif command -v shasum > /dev/null; then
+  hash() { shasum -a 256 "$1"; }
+else fail 'sha256sum or shasum is required'; fi
+if [[ "$platform" != win ]]; then command -v gzip > /dev/null || fail 'gzip is required'; fi
+root=$(mktemp -d "${TMPDIR:-/tmp}/craft-install.XXXXXXXX")
+trap 'rm -rf "$root"' EXIT
+url="https://github.com/getsentry/craft/releases/download/$version/$asset"
+curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL --max-time 180 --max-filesize 268435456 "$url" -o "$root/$asset"
+curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL --max-time 30 --max-filesize 4096 "$url.sha256" -o "$root/checksum"
+checksum=$(cat "$root/checksum")
+expected=${checksum%%  *}
+[[ "$expected" =~ ^[0-9a-fA-F]{64}$ && "$checksum" == "$expected  $asset" ]] || fail 'Invalid checksum sidecar'
+actual=$(hash "$root/$asset")
+actual=${actual%% *}
+[[ "$(echo "$actual" | tr A-F a-f)" == "$(echo "$expected" | tr A-F a-f)" ]] || fail 'Checksum mismatch; existing installation was preserved'
+candidate="$root/craft"
+if [[ "$platform" == win ]]; then candidate="$root/craft.exe"; mv "$root/$asset" "$candidate"
+else
+  gzip -dc "$root/$asset" | head -c 536870913 > "$candidate"
+  (( $(wc -c < "$candidate") <= 536870912 )) || fail 'Decompressed executable is too large'
+fi
+chmod 755 "$candidate"
+if [[ "$platform" == darwin ]]; then codesign --verify --strict "$candidate"; fi
+actual_version=$("$candidate" --version)
+[[ "$actual_version" == "$version" ]] || fail "Downloaded executable reports $actual_version, expected $version"
+args=(setup --install)
+if [[ -n "$directory" ]]; then args+=(--install-dir "$directory"); fi
+"$candidate" "${args[@]}"

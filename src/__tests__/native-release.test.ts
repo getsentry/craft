@@ -23,6 +23,7 @@ const binaries = [
 ];
 const filenames = [
   'craft',
+  'craft-install',
   'sentry-craft-2.35.0.tgz',
   'gh-pages.zip',
   ...binaries,
@@ -47,6 +48,7 @@ describe('Craft native release configuration', () => {
   test('requires each native executable and checksum before publishing', () => {
     const required = (config.requireNames || []).map(stringToRegexp);
     for (const filename of [
+      'craft-install',
       ...binaries,
       ...binaries.map(name => `${name}.sha256`),
     ]) {
