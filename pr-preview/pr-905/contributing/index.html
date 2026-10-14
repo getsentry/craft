@@ -166,13 +166,18 @@
 <div class="sl-heading-wrapper level-h2"><h2 id="standalone-executables">Standalone executables</h2><a class="sl-anchor-link" href="#standalone-executables"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Standalone executables”</span></a></div>
 <p><code dir="auto">pnpm build</code> keeps producing the portable JavaScript bundle used by npm and
 existing downloads. <code dir="auto">pnpm build:binary</code> additionally embeds the pinned Node
-version from <code dir="auto">package.json</code> into a standalone executable for the current host.
-Use <code dir="auto">pnpm build:binary linux-x64,linux-arm64</code> to build specific platforms.
-Supported platforms are Linux and macOS x64/arm64, and Windows x64.</p>
+version into standalone executables for Linux and macOS x64/arm64, and Windows
+x64. Use the Node version pinned by Volta in <code dir="auto">package.json</code>; Fossilize’s CLI uses
+that local Node version for all five cross-built executables.
+Cross-building macOS executables from Linux or Windows also requires
+<a href="https://github.com/indygreg/apple-platform-rs/releases"><code dir="auto">rcodesign</code></a> on PATH for
+ad-hoc signing. The Ubuntu CI build installs it and verifies both macOS signatures.</p>
 <p>Executables are written to <code dir="auto">dist-bin/</code>, with gzip archives for Unix, <code dir="auto">.exe</code>
 files for Windows, and SHA-256 sidecars for each release file. The <code dir="auto">.node-cache/</code>
 directory caches downloaded Node runtimes. Fossilize ad-hoc signs macOS binaries;
 Developer ID signing/notarization and Windows Authenticode are not configured.
-The native CI matrix runs each executable outside the checkout without Node on
-PATH, exercises a dry-run against a local Git remote, and tests the npm tarball.</p>
+The existing Ubuntu build job cross-builds all five executables once. Platform
+verification jobs download those artifacts and run each executable outside the
+checkout without Node on PATH, exercise a dry-run against a local Git remote,
+and test the npm tarball.</p>
 </div><footer><table role="presentation" width="100%" height="32" cellspacing="0" cellpadding="0"><tbody><tr><td></td></tr></tbody></table><div class="pagination-links sentry-pagination-links print:hidden" dir="ltr"><a href="/pr-preview/pr-905/targets/vercel/" rel="prev"><svg aria-hidden="true" class=" astro-ltzesgbh" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg><span>Previous<br><span class="link-title">Vercel</span></span></a><span class="pagination-placeholder sentry-pagination-placeholder" aria-hidden="true"></span></div><table role="presentation" width="100%" height="72" cellspacing="0" cellpadding="0"><tbody><tr><td align="center" valign="bottom"><nav aria-label="Project links"><a href="https://github.com/getsentry/craft" rel="me" aria-label="GitHub" title="GitHub"><font color="#888888"><svg aria-hidden="true" class=" astro-ltzesgbh" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></font></a></nav></td></tr></tbody></table></footer></div></div></main></div></div></div></div></body></html>
