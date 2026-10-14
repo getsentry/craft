@@ -156,6 +156,8 @@ jobs:
         run: node .github/scripts/native-smoke.mjs
       - name: Test verified bootstrap installation
         run: node .github/scripts/installer-smoke.mjs
+      - name: Test running executable self-update
+        run: node .github/scripts/updater-smoke.mjs
 
   publish-nightly:
     name: Publish Craft nightly to GHCR
