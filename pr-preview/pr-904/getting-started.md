@@ -38,9 +38,9 @@ Rename it to `craft.exe` and put it in a directory on your PATH.
 
 The existing release asset named `craft` remains a portable JavaScript bundle requiring Node. Existing action, CDN, and nightly consumers can continue using it.
 
-### npm / pnpm
+### npm / pnpm (not recommended)
 
-Install Craft as an [npm package](https://www.npmjs.com/package/@sentry/craft) when Node is already available. This uses the JavaScript bundle:
+Standalone executables are recommended. The [npm package](https://www.npmjs.com/package/@sentry/craft) remains supported when Node is already available and uses the JavaScript bundle:
 
 ```shell
 pnpm add -g @sentry/craft
