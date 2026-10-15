@@ -1,17 +1,19 @@
 import { mkdtemp, readFile, writeFile, rm, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { gzipSync } from 'node:zlib';
+import { gzipSync, zstdCompressSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { safeFs } from '../utils/dryRun';
 import { execFileSync } from 'node:child_process';
 import { afterEach, expect, test, vi } from 'vitest';
+import * as binpatch from 'binpatch';
 import {
   resolveNativeRelease,
   updateNativeBinary,
 } from '../utils/nativeUpdate';
 const state = vi.hoisted(() => ({ dry: false }));
+vi.mock('binpatch', { spy: true });
 vi.mock('../utils/helpers', () => ({ isDryRun: () => state.dry }));
 vi.mock('node:child_process', () => ({
   execFileSync: vi.fn(() => Buffer.from('9.1.0\n')),
@@ -36,7 +38,12 @@ function release(version = '9.1.0') {
     assets: [
       { name, browser_download_url: url },
       { name: `${name}.sha256`, browser_download_url: `${url}.sha256` },
-    ],
+    ] as {
+      name: string;
+      browser_download_url: string;
+      size?: number;
+      digest?: string;
+    }[],
   };
 }
 function network(
@@ -295,4 +302,148 @@ test('optional skill refresh failure does not undo or fail a verified binary upd
   });
   await expect(updateNativeBinary({}, runtime)).resolves.toBeUndefined();
   expect(await readFile(executable, 'utf8')).toBe('new');
+});
+// A real TRDIFF10 patch changes the three bytes read from the installed image.
+function deltaNetwork(mode = 'valid') {
+  const old = Buffer.from('old');
+  const target = Buffer.from('new');
+  const control = Buffer.alloc(24);
+  control.writeBigUInt64LE(mode === 'control-overrun' ? 1048576n : 3n);
+  const blocks = [
+    zstdCompressSync(
+      mode === 'control-bomb' ? Buffer.alloc(16 * 1024 * 1024 + 1) : control,
+    ),
+    zstdCompressSync(
+      mode === 'control-overrun' || mode === 'diff-bomb'
+        ? Buffer.alloc(1048576)
+        : Buffer.from(target.map((byte, i) => (byte - old[i]) & 255)),
+    ),
+    zstdCompressSync(Buffer.alloc(mode === 'extra-bomb' ? 1048576 : 0)),
+  ];
+  const header = Buffer.alloc(32);
+  header.write('TRDIFF10');
+  header.writeBigUInt64LE(BigInt(blocks[0].length), 8);
+  header.writeBigUInt64LE(BigInt(blocks[1].length), 16);
+  header.writeBigUInt64LE(mode === 'oversized' ? 536870913n : 3n, 24);
+  const patch = Buffer.concat([header, ...blocks]);
+  const metadata = release(mode === 'prerelease' ? '9.1.0-beta.1' : '9.1.0');
+  metadata.prerelease = false;
+  const base = `https://github.com/getsentry/craft/releases/download/${metadata.tag_name}/`;
+  Object.assign(metadata.assets[0], {
+    size: mode === 'actual-over-budget' ? 100 : 4096,
+  });
+  metadata.assets.push(
+    {
+      name: 'craft-linux-x64',
+      browser_download_url: `${base}craft-linux-x64`,
+      size: 3,
+      digest: `sha256:${createHash('sha256').update(target).digest('hex')}`,
+    },
+    {
+      name: 'craft-linux-x64.patch',
+      browser_download_url:
+        mode === 'foreign'
+          ? 'https://example.com/evil.patch'
+          : `${base}craft-linux-x64.patch`,
+      size:
+        mode === 'over-budget'
+          ? 4096
+          : mode === 'actual-over-budget'
+            ? 1
+            : patch.length,
+    },
+  );
+  const fetch = network({ metadata });
+  const fallback = fetch.getMockImplementation()!;
+  fetch.mockImplementation(async url => {
+    if (url.endsWith('/releases?per_page=12'))
+      return Response.json([metadata, { ...release('9.0.0'), assets: [] }]);
+    if (url.endsWith('.patch'))
+      return new Response(
+        mode === 'corrupt' ? Buffer.from('bad patch') : patch,
+      );
+    if (mode === 'valid' && url.endsWith('.gz'))
+      throw new Error('A valid delta must avoid the full binary download');
+    return fallback(url);
+  });
+  return fetch;
+}
+test('applies a real binpatch delta without downloading the full binary', async () => {
+  deltaNetwork();
+  const { executable, runtime } = await fixture();
+  await updateNativeBinary({}, runtime);
+  expect(await readFile(executable, 'utf8')).toBe('new');
+});
+test.each([
+  'corrupt',
+  'foreign',
+  'over-budget',
+  'actual-over-budget',
+  'oversized',
+  'wrong-base',
+])('falls back to verified full download for a %s patch', async mode => {
+  const fetch = deltaNetwork(mode);
+  const { executable, runtime } = await fixture();
+  if (mode === 'wrong-base') await writeFile(executable, 'bad');
+  await updateNativeBinary({}, runtime);
+  expect(await readFile(executable, 'utf8')).toBe('new');
+  expect(fetch.mock.calls.some(([url]) => url.endsWith('.gz'))).toBe(true);
+  expect(fetch.mock.calls.some(([url]) => url.endsWith('.patch'))).toBe(
+    !['foreign', 'over-budget'].includes(mode),
+  );
+  expect(
+    fetch.mock.calls.some(([url]) => url.startsWith('https://example.com/')),
+  ).toBe(false);
+});
+
+test('a failed patch and invalid full checksum preserve the installed binary', async () => {
+  const fetch = deltaNetwork('corrupt');
+  const original = fetch.getMockImplementation()!;
+  fetch.mockImplementation(async url =>
+    url.endsWith('.sha256')
+      ? new Response(`${'0'.repeat(64)}  craft-linux-x64.gz\n`)
+      : original(url),
+  );
+  const { executable, runtime, dir } = await fixture();
+  await expect(updateNativeBinary({}, runtime)).rejects.toThrow(
+    /Checksum mismatch/,
+  );
+  expect(await readFile(executable, 'utf8')).toBe('old');
+  expect(await readdir(dir)).toEqual(['craft']);
+});
+test.each(['check', 'dry-run'])(
+  '%s never discovers or applies available patches',
+  async mode => {
+    const fetch = deltaNetwork();
+    const { executable, runtime } = await fixture();
+    state.dry = mode === 'dry-run';
+    await updateNativeBinary({ check: mode === 'check' }, runtime);
+    expect(await readFile(executable, 'utf8')).toBe('old');
+    expect(fetch).toHaveBeenCalledTimes(1);
+  },
+);
+
+test.each(['control-overrun', 'control-bomb', 'diff-bomb', 'extra-bomb'])(
+  'rejects %s before invoking binpatch application',
+  async mode => {
+    deltaNetwork(mode);
+    const apply = vi.mocked(binpatch.applyPatchChainInMemory);
+    const applyMemory = vi.mocked(binpatch.applyPatchToMemory);
+    const { executable, runtime } = await fixture();
+    await updateNativeBinary({}, runtime);
+    expect(await readFile(executable, 'utf8')).toBe('new');
+    expect(apply).not.toHaveBeenCalled();
+    expect(applyMemory).not.toHaveBeenCalled();
+  },
+);
+
+test('explicit SemVer prereleases use full downloads even when mislabeled stable', async () => {
+  const fetch = deltaNetwork('prerelease');
+  const { runtime, executable } = await fixture();
+  vi.mocked(execFileSync).mockReturnValue(Buffer.from('9.1.0-beta.1\n'));
+  await updateNativeBinary({ version: '9.1.0-beta.1' }, runtime);
+  expect(await readFile(executable, 'utf8')).toBe('new');
+  expect(fetch.mock.calls.some(([url]) => url.includes('/releases?'))).toBe(
+    false,
+  );
 });

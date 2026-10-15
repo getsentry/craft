@@ -1,11 +1,20 @@
 import { isSea } from 'node:sea';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { lstat, mkdtemp } from 'node:fs/promises';
+import { lstat, mkdtemp, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { gunzipSync } from 'node:zlib';
+import { gunzipSync, zstdDecompressSync } from 'node:zlib';
 import semver from 'semver';
+import {
+  applyPatchToMemory,
+  offtin,
+  extractStableChain,
+  MAX_STABLE_CHAIN_DEPTH,
+  parsePatchHeader,
+  SIZE_THRESHOLD_RATIO,
+  type GitHubRelease,
+} from 'binpatch';
 import { getPackage } from './version';
 import { getNativeFilename, installNativeBinary } from './nativeInstallation';
 import { safeExec, safeExecSync, safeFs, safeFsPromises } from './dryRun';
@@ -20,6 +29,8 @@ interface Release {
   filename: string;
   url: string;
   checksumUrl: string;
+  rawDigest?: string;
+  compressedSize?: number;
 }
 interface UpdateOptions {
   version?: string;
@@ -143,12 +154,151 @@ export async function resolveNativeRelease(
       throw new Error(`Missing or invalid release asset: ${name}`);
     }
   }
+  const rawName = filename.replace(/\.gz$/, '');
+  const raw = release.assets.find(asset => asset?.name === rawName);
+  const compressed = release.assets.find(
+    asset => asset?.name === `${rawName}.gz`,
+  );
   return {
+    rawDigest: /^sha256:[a-f0-9]{64}$/i.test(raw?.digest)
+      ? raw.digest.slice(7).toLowerCase()
+      : undefined,
+    compressedSize:
+      Number.isSafeInteger(compressed?.size) &&
+      compressed.size > 0 &&
+      compressed.size <= MAX_BINARY_BYTES
+        ? compressed.size
+        : undefined,
     version: release.tag_name,
     filename,
     url,
     checksumUrl: `${url}.sha256`,
   };
+}
+
+// binpatch 0.4.2 trusts decoded control lengths and streams eagerly. Validate
+// every compressed block before application, including unused trailing data.
+function validateNativePatch(patch: Buffer): void {
+  const { controlLen, diffLen, newSize } = parsePatchHeader(patch);
+  if (newSize > MAX_EXECUTABLE_BYTES)
+    throw new Error('Patch output exceeds executable size limit');
+  const control = zstdDecompressSync(patch.subarray(32, 32 + controlLen), {
+    maxOutputLength: 16 * 1024 * 1024,
+  });
+  if (control.length % 24 !== 0)
+    throw new Error('Invalid patch control tuples');
+  let diffBytes = 0;
+  let extraBytes = 0;
+  let oldPosition = 0;
+  for (let offset = 0; offset < control.length; offset += 24) {
+    const diff = offtin(control, offset);
+    const extra = offtin(control, offset + 8);
+    const seek = offtin(control, offset + 16);
+    if (
+      ![diff, extra, seek].every(Number.isSafeInteger) ||
+      diff < 0 ||
+      extra < 0 ||
+      diff + extra > newSize - diffBytes - extraBytes
+    )
+      throw new Error('Patch control exceeds declared output');
+    diffBytes += diff;
+    extraBytes += extra;
+    oldPosition += diff + seek;
+    if (!Number.isSafeInteger(oldPosition))
+      throw new Error('Invalid patch source offset');
+  }
+  if (diffBytes + extraBytes !== newSize)
+    throw new Error('Patch output size mismatch');
+  for (const [compressed, size] of [
+    [patch.subarray(32 + controlLen, 32 + controlLen + diffLen), diffBytes],
+    [patch.subarray(32 + controlLen + diffLen), extraBytes],
+  ] as const) {
+    if (
+      zstdDecompressSync(compressed, { maxOutputLength: Math.max(1, size) })
+        .length !== size
+    )
+      throw new Error('Patch block size mismatch');
+  }
+}
+
+// Patches are an optimization: every failure falls back to the verified archive.
+async function tryNativePatch(
+  release: Release,
+  runtime: Runtime,
+  candidate: string,
+): Promise<boolean> {
+  if (
+    !release.rawDigest ||
+    !release.compressedSize ||
+    semver.prerelease(release.version) ||
+    semver.prerelease(runtime.currentVersion)
+  )
+    return false;
+  try {
+    const metadata: unknown = JSON.parse(
+      (
+        await download(
+          `https://api.github.com/repos/getsentry/craft/releases?per_page=${MAX_STABLE_CHAIN_DEPTH + 2}`,
+          1024 * 1024,
+        )
+      ).toString('utf8'),
+    );
+    if (!Array.isArray(metadata)) return false;
+    const releases: GitHubRelease[] = metadata.filter(
+      item => item?.draft === false && item?.prerelease === false,
+    );
+    for (const item of releases) {
+      validateVersion(item.tag_name);
+      if (!Array.isArray(item.assets)) return false;
+    }
+    const binaryName = release.filename.replace(/\.gz$/, '');
+    const chain = extractStableChain({
+      releases,
+      binaryName,
+      currentVersion: runtime.currentVersion,
+      targetVersion: release.version,
+      fullGzSize: release.compressedSize,
+    });
+    if ('failure' in chain || chain.expectedSha256 !== release.rawDigest)
+      return false;
+    const patches: Buffer[] = [];
+    let budget = Math.floor(release.compressedSize * SIZE_THRESHOLD_RATIO);
+    for (const [index, url] of chain.patchUrls.entries()) {
+      const expected = new URL(
+        `${REPOSITORY}/${encodeURIComponent(chain.steps[index].toVersion)}/${binaryName}.patch`,
+      );
+      const actual = new URL(url);
+      if (
+        actual.origin !== expected.origin ||
+        actual.username ||
+        actual.password ||
+        actual.search ||
+        actual.hash ||
+        decodeURIComponent(actual.pathname) !==
+          decodeURIComponent(expected.pathname)
+      )
+        throw new Error('Invalid patch asset URL');
+      const patch = await download(url, budget);
+      budget -= patch.length;
+      validateNativePatch(patch);
+      patches.push(patch);
+    }
+    if ((await lstat(runtime.executable)).size > MAX_EXECUTABLE_BYTES)
+      return false;
+    let bytes: Uint8Array = await readFile(runtime.executable);
+    for (const patch of patches) bytes = await applyPatchToMemory(bytes, patch);
+    if (createHash('sha256').update(bytes).digest('hex') !== release.rawDigest)
+      throw new Error('Patched executable checksum mismatch');
+    // Keep all writes inside Craft's staging directory and dry-run abstraction.
+    await safeFs.writeFile(candidate, bytes, { mode: 0o700 });
+    logger.info(`Applied ${patches.length} binary delta patch(es).`);
+    return true;
+  } catch (error) {
+    logger.debug(
+      `Delta update unavailable; downloading the full binary: ${String(error)}`,
+    );
+    return false;
+  }
 }
 
 export async function updateNativeBinary(
@@ -194,21 +344,6 @@ export async function updateNativeBinary(
   const before = await lstat(runtime.executable);
   if (before.isSymbolicLink() || !before.isFile())
     throw new Error('Refusing to update a symlink or non-file executable');
-  const checksum = (await download(release.checksumUrl, 4096)).toString('utf8');
-  const match = /^([a-fA-F0-9]{64}) {2}([^\r\n]+)\n?$/.exec(checksum);
-  if (!match || match[2] !== release.filename)
-    throw new Error('Invalid checksum sidecar');
-  const archive = await download(release.url, MAX_BINARY_BYTES);
-  if (
-    createHash('sha256').update(archive).digest('hex') !==
-    match[1].toLowerCase()
-  )
-    throw new Error('Checksum mismatch; existing installation was preserved');
-  const bytes =
-    runtime.platform === 'win32'
-      ? archive
-      : gunzipSync(archive, { maxOutputLength: MAX_EXECUTABLE_BYTES });
-  if (bytes.length === 0) throw new Error('Empty executable');
   const root = await safeExec(
     () => mkdtemp(join(tmpdir(), 'craft-update-')),
     'Create updater staging directory',
@@ -219,7 +354,28 @@ export async function updateNativeBinary(
       root,
       getNativeFilename(runtime.platform, runtime.arch),
     );
-    await safeFs.writeFile(candidate, bytes, { mode: 0o700 });
+    if (!(await tryNativePatch(release, runtime, candidate))) {
+      const checksum = (await download(release.checksumUrl, 4096)).toString(
+        'utf8',
+      );
+      const match = /^([a-fA-F0-9]{64}) {2}([^\r\n]+)\n?$/.exec(checksum);
+      if (!match || match[2] !== release.filename)
+        throw new Error('Invalid checksum sidecar');
+      const archive = await download(release.url, MAX_BINARY_BYTES);
+      if (
+        createHash('sha256').update(archive).digest('hex') !==
+        match[1].toLowerCase()
+      )
+        throw new Error(
+          'Checksum mismatch; existing installation was preserved',
+        );
+      const bytes =
+        runtime.platform === 'win32'
+          ? archive
+          : gunzipSync(archive, { maxOutputLength: MAX_EXECUTABLE_BYTES });
+      if (bytes.length === 0) throw new Error('Empty executable');
+      await safeFs.writeFile(candidate, bytes, { mode: 0o700 });
+    }
     await safeFsPromises.chmod(candidate, 0o700);
     if (runtime.platform === 'darwin')
       execFileSync('codesign', ['--verify', '--strict', candidate], {
