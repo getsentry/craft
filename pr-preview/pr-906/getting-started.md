@@ -20,21 +20,9 @@ Craft provides [standalone executables](https://github.com/getsentry/craft/relea
 | Linux x64 | `craft-linux-x64.gz` |
 | Windows x64 | `craft-win-x64.exe` |
 
-Each release file has a matching `.sha256` checksum file. Native downloads are available starting with the first release containing these assets. Linux builds use glibc; Alpine/musl is not supported. macOS binaries are ad-hoc signed, without Developer ID notarization. Windows binaries do not have Authenticode signatures.
+Native downloads are available starting with the first release containing these assets. Linux builds use glibc; Alpine/musl is not supported. macOS binaries are ad-hoc signed, without Developer ID notarization. Windows binaries do not have Authenticode signatures.
 
-On macOS or Linux, download the archive and its checksum. In the download directory, verify with `shasum -a 256 -c craft-darwin-arm64.gz.sha256` on macOS or `sha256sum -c craft-linux-x64.gz.sha256` on Linux, substituting your filename. Only after verification succeeds, decompress with `gunzip <filename>.gz`, rename the executable to `craft`, run `chmod +x craft`, and move it to a directory on your PATH.
-
-On Windows, download the `.exe` and checksum, then verify in PowerShell:
-
-```powershell
-$expected = ((Get-Content .\craft-win-x64.exe.sha256) -split '\s+')[0]
-$actual = (Get-FileHash .\craft-win-x64.exe -Algorithm SHA256).Hash
-if ($actual -ne $expected) { throw 'Craft checksum mismatch' }
-.\craft-win-x64.exe --version
-```
-
-
-Rename it to `craft.exe` and put it in a directory on your PATH.
+Download the matching asset over HTTPS from the release page. On macOS or Linux, decompress with `gunzip <filename>.gz`, rename the executable to `craft`, run `chmod +x craft`, and move it to a directory on your PATH. On Windows, rename the downloaded executable to `craft.exe` and put it on your PATH. Run `craft --version` to check the installed version.
 
 The existing release asset named `craft` remains a portable JavaScript bundle requiring Node. Existing action, CDN, and nightly consumers can continue using it.
 
@@ -66,7 +54,7 @@ bash craft-install --version 2.35.0 --install-dir "$HOME/.local/bin"
 ```
 
 
-The installer checks SHA-256 and the executable’s version before installing. It uses `CRAFT_INSTALL_DIR`, an absolute `XDG_BIN_HOME`, an existing user bin folder on PATH, or `~/.local/bin`. Add the printed directory to PATH yourself. It does not use sudo or modify shell profiles. `--dry-run` prints the selected version and platform without creating installation files. `CRAFT_VERSION` can also pin a release. Linux binaries require glibc.
+The installer downloads over HTTPS and checks the executable’s version before installing. It uses `CRAFT_INSTALL_DIR`, an absolute `XDG_BIN_HOME`, an existing user bin folder on PATH, or `~/.local/bin`. Add the printed directory to PATH yourself. It does not use sudo or modify shell profiles. `--dry-run` prints the selected version and platform without creating installation files. `CRAFT_VERSION` can also pin a release. Linux binaries require glibc.
 
 ### npm / pnpm (not recommended)
 
