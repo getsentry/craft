@@ -84,7 +84,23 @@ jobs:
       - name: Package standalone release files
         working-directory: dist-bin
         run: |
-          gzip -n -9 craft-{darwin,linux}-{arm64,x64}
+          gzip -n -9 -k craft-{darwin,linux}-{arm64,x64} craft-win-x64.exe
+      - name: Generate optional stable delta patches
+        id: patches
+        continue-on-error: true
+        uses: BYK/binpatch/action@9ba6bbb8227fcbd2521852d2311c82afac5e9573 # 0.4.2
+        with:
+          mode: generate-release
+          github-repo: getsentry/craft
+          new-binaries-dir: dist-bin
+          new-gz-dir: dist-bin
+          binary-glob: 'craft-*'
+          patches-dir: dist-bin/patches
+      - name: Stage generated patches
+        if: steps.patches.outputs.has-patches == 'true'
+        run: cp dist-bin/patches/*.patch dist-bin/
+      - name: Package installer
+        run: cp install craft-install
       - name: Smoke Test
         run: ./dist/craft --help
       - name: NPM Pack
@@ -96,15 +112,14 @@ jobs:
           path: |
             ${{ github.workspace }}/*.tgz
             ${{ github.workspace }}/dist/craft
+            ${{ github.workspace }}/craft-install
 
       - name: Upload standalone release files
         uses: actions/upload-artifact@v7
         with:
           name: craft-native
           if-no-files-found: error
-          path: |
-            dist-bin/*.gz
-            dist-bin/*.exe
+          path: dist-bin/craft-*
 
   native-smoke:
     name: Verify / darwin-arm64
@@ -114,16 +129,26 @@ jobs:
       contents: read
     timeout-minutes: 20
     steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
       - uses: actions/download-artifact@v8
         with:
           name: craft-native
           path: dist-bin
+      - uses: actions/download-artifact@v8
+        with:
+          name: craft-binary
+          path: packed
       - name: Verify standalone executable
         run: |
           gzip -dc dist-bin/craft-darwin-arm64.gz > "$RUNNER_TEMP/craft"
           chmod +x "$RUNNER_TEMP/craft"
           codesign --verify --strict "$RUNNER_TEMP/craft"
           "$RUNNER_TEMP/craft" --version
+      - name: Test verified bootstrap installation
+        run: node .github/scripts/installer-smoke.mjs
 
   docs:
     name: Build Docs
