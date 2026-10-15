@@ -1,6 +1,9 @@
 minVersion: '2.14.0'
 changelog:
   policy: auto
+  aiSummary:
+    levels: [release, category, scope]
+    minItems: 2
 artifactProvider:
   name: github
   config:

@@ -1893,12 +1893,10 @@ async function serializeChangelog(
   const changelogSections: string[] = [];
   const summaryCategories: SummaryCategory[] = [];
   const summaryPositions = new Map<string, number>();
-  const ranges: { category: SummaryCategory; start: number; end: number }[] =
-    [];
+  const categoryPositions = new Map<string, number>();
   let currentCategory: SummaryCategory;
   let groupIndex = 0;
   const beginCategory = (title: string, heading: boolean) => {
-    if (ranges.length) ranges[ranges.length - 1].end = changelogSections.length;
     currentCategory = {
       id: `category:${summaryCategories.length}`,
       title,
@@ -1907,11 +1905,7 @@ async function serializeChangelog(
     summaryCategories.push(currentCategory);
     if (heading)
       changelogSections.push(markdownHeader(SUBSECTION_HEADER_LEVEL, title));
-    ranges.push({
-      category: currentCategory,
-      start: changelogSections.length,
-      end: 0,
-    });
+    categoryPositions.set(currentCategory.id, changelogSections.length);
   };
   const addEntries = (
     title: string,
@@ -2089,7 +2083,6 @@ async function serializeChangelog(
       changelogSections.push(`_Plus ${nLeftovers - maxLeftovers} more_`);
     }
   }
-  if (ranges.length) ranges[ranges.length - 1].end = changelogSections.length;
 
   // Highlighted PR previews keep their original emphasis and never call a model.
   const hasHighlights =
@@ -2103,29 +2096,21 @@ async function serializeChangelog(
       ? null
       : await summarizeChangelog(summaryCategories, aiSummary);
   if (summary) {
-    for (const category of summaryCategories) {
+    for (const category of [...summaryCategories].reverse()) {
+      const categorySummary = summary.categories[category.id];
       for (const group of category.groups) {
-        if (summary.scopes[group.id])
+        const scopeSummary = summary.scopes[group.id];
+        if (scopeSummary || categorySummary)
           changelogSections[summaryPositions.get(group.id)!] =
-            formatSummaryWithDetails(summary.scopes[group.id], group.items);
+            formatSummaryWithDetails(scopeSummary || '', group.items);
       }
-    }
-    for (const { category, start, end } of [...ranges].reverse()) {
-      if (summary.categories[category.id]) {
-        const count = category.groups.reduce(
-          (n, group) => n + group.items.length,
-          0,
-        );
+      // Keep scope headings and prose visible instead of nesting details blocks.
+      if (categorySummary)
         changelogSections.splice(
-          start,
-          end - start,
-          formatSummaryWithDetails(
-            summary.categories[category.id],
-            [changelogSections.slice(start, end).join('\n\n')],
-            count,
-          ),
+          categoryPositions.get(category.id)!,
+          0,
+          formatSummaryText(categorySummary),
         );
-      }
     }
     if (summary.release.length)
       changelogSections.unshift(

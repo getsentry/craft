@@ -246,8 +246,9 @@ changelog:
 
 Lower-level digests are reused for parent summaries even when hidden. Release
 overviews cover every category. Category and scope summaries preserve originals
-in expandable blocks, including links and nested content. Scope summaries need
-an existing scope heading; `scopeGrouping: false` still allows category/release
+in expandable blocks, including links and nested content. Category prose and
+scope headings stay expanded; each original entry is folded only once. Scope
+summaries need an existing scope heading; `scopeGrouping: false` still allows category/release
 summaries. Unscoped entries contribute to both parent levels.
 
 ##### Output examples
@@ -257,7 +258,7 @@ These examples use two original entries and `minItems: 0`.
 **`levels: [release]`** adds an overview and leaves originals expanded:
 
 ```markdown
-**New Features:** Added login and logout commands.
+**New Features:** Added login and logout commands to CLI.
 
 ### New Features
 #### CLI
@@ -265,16 +266,18 @@ These examples use two original entries and `minItems: 0`.
 - Add logout command
 ```
 
-**`levels: [category]`** summarizes the category and folds its original content:
+**`levels: [category]`** keeps scope headings visible and folds original entries:
 
 ```markdown
 ### New Features
-Added login and logout commands.
+
+Added login and logout commands to CLI.
+
+#### CLI
 
 <details>
 <summary>Show 2 items</summary>
 
-#### CLI
 - Add login command
 - Add logout command
 
@@ -300,7 +303,7 @@ Added login and logout commands.
 **`levels: [release, scope]`** combines an overview with scope summaries:
 
 ```markdown
-**New Features:** Added login and logout commands.
+**New Features:** Added login and logout commands to CLI.
 
 ### New Features
 #### CLI
@@ -315,8 +318,29 @@ Added login and logout commands.
 </details>
 ```
 
-Selecting all three levels nests scope summaries inside category blocks.
-Excluding `release` omits the overview.
+**`levels: [category, scope]`** keeps both summaries visible:
+
+```markdown
+### New Features
+
+Added login and logout commands to CLI.
+
+#### CLI
+
+Added login and logout commands.
+
+<details>
+<summary>Show 2 items</summary>
+
+- Add login command
+- Add logout command
+
+</details>
+```
+
+Selecting all three levels also adds the release overview. Excluding `release`
+omits it. Category/release summaries retain scope context; scope summaries can
+omit the scope name because their heading supplies it.
 
 ##### Connection settings
 

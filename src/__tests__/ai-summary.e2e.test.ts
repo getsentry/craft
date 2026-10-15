@@ -177,7 +177,7 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
     assert.ok(calls > 0);
     assert.equal(generated.bumpType, 'minor');
     assert.equal(original.bumpType, generated.bumpType);
-    assert.equal((generated.changelog.match(/<details>/g) || []).length, 4);
+    assert.equal((generated.changelog.match(/<details>/g) || []).length, 2);
     for (const title of ['Add command', 'Fix endpoint'])
       for (let i = 1; i <= 6; i++)
         assert.ok(generated.changelog.includes(`${title} ${i}`));

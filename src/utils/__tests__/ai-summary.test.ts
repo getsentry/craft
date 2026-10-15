@@ -137,6 +137,24 @@ describe('hierarchical HTTP changelog summaries', () => {
     ).toEqual([7, 6]);
   });
 
+  it('retains child scope labels when reusing scope digests in a category', async () => {
+    requestMock.mockImplementation(async request => ({
+      summaries: JSON.parse(request.input).nodes.map((node: any) => ({
+        id: node.id,
+        summary: 'Added commands.',
+        importantChanges: [],
+      })),
+    }));
+    expect(await summarizeChangelog(categories, config)).not.toBeNull();
+    const categoryRequest = requestMock.mock.calls
+      .map(([request]) => JSON.parse(request.input))
+      .find(input => input.level === 'category');
+    expect(categoryRequest.nodes[0].parts).toMatchObject([
+      { title: 'API', text: 'Added commands.' },
+      { title: 'Other', text: 'Added commands.' },
+    ]);
+  });
+
   it('keeps strict structured-output and input bounds', async () => {
     await summarizeChangelog(categories, config);
     for (const [request] of requestMock.mock.calls) {

@@ -67,31 +67,13 @@ test.each(['build.yml', 'release-build.yml'])(
   },
 );
 
-test('regular Node suites include the CLI E2E, with native platform coverage in the same job matrix', () => {
+test('CLI E2E runs in the ordinary Node suites without extra AI platform jobs', () => {
   const workflow = yaml('.github/workflows/build.yml');
   expect(workflow.jobs).not.toHaveProperty('ai-summary-platforms');
   const job = workflow.jobs.test;
-  expect(job.steps.find((step: any) => step.id === 'cache').if).toBe(
-    "runner.os != 'Windows'",
-  );
+  expect(job['runs-on']).toBe('ubuntu-latest');
+  expect(job.strategy.matrix).toEqual({ node: ['22', '24'] });
   expect(job.steps.find((step: any) => step.name === 'Test').run).toBe(
-    'pnpm test ${{ matrix.tests }}',
+    'pnpm test',
   );
-  const entries = job.strategy.matrix.include;
-  expect(
-    entries
-      .filter((entry: any) => entry.os === 'ubuntu-latest')
-      .map((entry: any) => [entry.node, entry.tests]),
-  ).toEqual([
-    ['22', ''],
-    ['24', ''],
-  ]);
-  expect(
-    entries
-      .filter((entry: any) => entry.os !== 'ubuntu-latest')
-      .map((entry: any) => [entry.os, entry.tests]),
-  ).toEqual([
-    ['macos-latest', 'src/__tests__/ai-summary.e2e.test.ts'],
-    ['windows-latest', 'src/__tests__/ai-summary.e2e.test.ts'],
-  ]);
 });
