@@ -174,7 +174,7 @@ Cross-building macOS executables from Linux or Windows also requires
 ad-hoc signing. The Ubuntu CI build installs it; the macOS verification jobs use
 Apple’s <code dir="auto">codesign</code> to verify the shipped signatures before execution.</p>
 <p>Executables are written to <code dir="auto">dist-bin/</code>, with gzip archives for Unix, <code dir="auto">.exe</code>
-files for Windows, and SHA-256 sidecars for each release file. The <code dir="auto">.node-cache/</code>
+files for Windows. The <code dir="auto">.node-cache/</code>
 directory caches downloaded Node runtimes. Fossilize ad-hoc signs macOS binaries;
 Developer ID signing/notarization and Windows Authenticode are not configured.
 The existing Ubuntu build job cross-builds all five executables once. Platform
