@@ -12,7 +12,6 @@ import {
 } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { x } from 'tar';
 
@@ -29,11 +28,6 @@ test('native and npm artifacts retain CLI and dry-run behavior', async () => {
     const data =
       process.platform === 'win32' ? publishedData : gunzipSync(publishedData);
     assert(data.length > 0, 'Native executable is empty');
-    const digest = createHash('sha256').update(publishedData).digest('hex');
-    assert.equal(
-      await readFile(`${published}.sha256`, 'utf8'),
-      `${digest}  ${published.split(/[\\/]/).pop()}\n`,
-    );
     const binary = join(
       root,
       process.platform === 'win32' ? 'craft.exe' : 'craft',

@@ -36,7 +36,6 @@ const filenames = [
   'craft-linux-x64.patch',
   ...patchSources,
   ...binaries,
-  ...binaries.map(name => `${name}.sha256`),
   'other.tgz',
 ];
 
@@ -54,14 +53,9 @@ describe('Craft native release configuration', () => {
     ).toBe(true);
   });
 
-  test('requires each native executable and checksum before publishing', () => {
+  test('requires each native executable before publishing', () => {
     const required = (config.requireNames || []).map(stringToRegexp);
-    for (const filename of [
-      'craft-install',
-      ...patchSources,
-      ...binaries,
-      ...binaries.map(name => `${name}.sha256`),
-    ]) {
+    for (const filename of ['craft-install', ...patchSources, ...binaries]) {
       // Missing any one release file must leave an unsatisfied requirement.
       const remaining = filenames.filter(name => name !== filename);
       expect(

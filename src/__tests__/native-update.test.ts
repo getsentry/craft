@@ -35,10 +35,7 @@ function release(version = '9.1.0') {
     tag_name: version,
     draft: false,
     prerelease: version.includes('-'),
-    assets: [
-      { name, browser_download_url: url },
-      { name: `${name}.sha256`, browser_download_url: `${url}.sha256` },
-    ] as {
+    assets: [{ name, browser_download_url: url }] as {
       name: string;
       browser_download_url: string;
       size?: number;
@@ -47,17 +44,15 @@ function release(version = '9.1.0') {
   };
 }
 function network(
-  options: { metadata?: unknown; checksum?: string; status?: number } = {},
+  options: { metadata?: unknown; binary?: Buffer; status?: number } = {},
 ) {
   const data = gzipSync(Buffer.from('new'));
-  const checksum = `${createHash('sha256').update(data).digest('hex')}  craft-linux-x64.gz\n`;
   const fetch = vi.fn(async (url: string) => {
     if (options.status) return new Response('', { status: options.status });
     if (url.startsWith('https://api.github.com/'))
       return Response.json(options.metadata ?? release());
-    if (url.endsWith('.sha256'))
-      return new Response(options.checksum ?? checksum);
-    return new Response(data);
+    if (url.endsWith('.sha256')) throw new Error('Unexpected checksum request');
+    return new Response(options.binary ?? data);
   });
   vi.stubGlobal('fetch', fetch);
   return fetch;
@@ -152,12 +147,13 @@ test('HTTP failures and body limits fail closed', async () => {
     /large|limit/i,
   );
 });
-test('installs verified bytes and cleans all staging files', async () => {
-  network();
+test('downloads without checksum sidecars and cleans all staging files', async () => {
+  const fetch = network();
   const { dir, executable, runtime } = await fixture();
   await updateNativeBinary({}, runtime);
   expect(await readFile(executable, 'utf8')).toBe('new');
   expect(await readdir(dir)).toEqual(['craft']);
+  expect(fetch).toHaveBeenCalledTimes(2);
 });
 test.each(['check', 'dry'])(
   '%s resolves metadata without downloading or writing',
@@ -171,16 +167,12 @@ test.each(['check', 'dry'])(
     expect(await readdir(dir)).toEqual(['craft']);
   },
 );
-test.each([
-  ['mismatch', `${'0'.repeat(64)}  craft-linux-x64.gz\n`],
-  ['wrong name', `${'0'.repeat(64)}  evil.gz\n`],
-  ['malformed', 'bad'],
-])(
-  'checksum %s preserves old bytes without executing candidate',
-  async (_name, checksum) => {
-    network({ checksum });
+test.each([Buffer.from('invalid gzip'), Buffer.alloc(0)])(
+  'an unusable archive preserves old bytes without executing the candidate',
+  async binary => {
+    network({ binary });
     const { executable, runtime } = await fixture();
-    await expect(updateNativeBinary({}, runtime)).rejects.toThrow(/checksum/i);
+    await expect(updateNativeBinary({}, runtime)).rejects.toThrow();
     expect(await readFile(executable, 'utf8')).toBe('old');
     expect(execFileSync).not.toHaveBeenCalled();
   },
@@ -386,18 +378,14 @@ test.each([
   ).toBe(false);
 });
 
-test('a failed patch and invalid full checksum preserve the installed binary', async () => {
+test('a failed patch and invalid full download preserve the installed binary', async () => {
   const fetch = deltaNetwork('corrupt');
   const original = fetch.getMockImplementation()!;
   fetch.mockImplementation(async url =>
-    url.endsWith('.sha256')
-      ? new Response(`${'0'.repeat(64)}  craft-linux-x64.gz\n`)
-      : original(url),
+    url.endsWith('.gz') ? new Response('invalid gzip') : original(url),
   );
   const { executable, runtime, dir } = await fixture();
-  await expect(updateNativeBinary({}, runtime)).rejects.toThrow(
-    /Checksum mismatch/,
-  );
+  await expect(updateNativeBinary({}, runtime)).rejects.toThrow();
   expect(await readFile(executable, 'utf8')).toBe('old');
   expect(await readdir(dir)).toEqual(['craft']);
 });

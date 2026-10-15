@@ -141,7 +141,7 @@ ad-hoc signing. The Ubuntu CI build installs it; the macOS verification jobs use
 Apple's `codesign` to verify the shipped signatures before execution.
 
 Executables are written to `dist-bin/`, with gzip archives for Unix, `.exe`
-files for Windows, and SHA-256 sidecars for each release file. The `.node-cache/`
+files for Windows. The `.node-cache/`
 directory caches downloaded Node runtimes. Fossilize ad-hoc signs macOS binaries;
 Developer ID signing/notarization and Windows Authenticode are not configured.
 The existing Ubuntu build job cross-builds all five executables once. Platform
