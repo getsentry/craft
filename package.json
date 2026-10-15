@@ -90,7 +90,8 @@
     "typecheck": "tsc --noEmit",
     "docs:dev": "cd docs && pnpm dev",
     "docs:build": "cd docs && pnpm build",
-    "build:binary": "pnpm build && fossilize --node-version local --no-bundle --no-code-cache --no-sign --no-hole-punch --output-name craft --platforms darwin-arm64 --platforms darwin-x64 --platforms linux-arm64 --platforms linux-x64 --platforms win-x64 dist/craft"
+    "build:binary": "pnpm build && fossilize --node-version local --no-bundle --no-code-cache --no-sign --no-hole-punch --output-name craft --platforms darwin-arm64 --platforms darwin-x64 --platforms linux-arm64 --platforms linux-x64 --platforms win-x64 dist/craft",
+    "test:distribution": "vitest run --config vitest.distribution.config.mts"
   },
   "volta": {
     "node": "24.18.0",

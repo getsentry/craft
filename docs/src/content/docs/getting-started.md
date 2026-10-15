@@ -92,6 +92,48 @@ only after checking that no installation/update is still running.
 Homebrew installations receive instructions to use their package manager.
 Explicit prerelease versions are allowed, while the default selects stable.
 
+### Shell completion
+
+`craft setup` installs completions for the shell detected from `$SHELL`.
+Choose a shell explicitly with `craft setup --shell bash` (also `zsh` or `fish`).
+This works with standalone, npm/pnpm, and Homebrew installations. The installer
+runs setup automatically; `craft setup --no-completions` skips this step.
+
+To print scripts without writing files:
+
+```bash
+craft completion bash
+craft completion zsh
+craft completion fish
+```
+
+Bash files live under `$XDG_DATA_HOME/bash-completion/completions`, defaulting to
+`~/.local/share`; source the printed file if your shell does not load it automatically.
+For zsh, add the printed `zsh/site-functions` directory to `fpath` before `compinit`.
+Fish files live under `$XDG_CONFIG_HOME/fish/completions`, defaulting to `~/.config`.
+Relative XDG paths are ignored. Both `craft` and `sentry-craft` aliases are supported.
+Setup prints instructions and does not modify shell profiles. Dry-run writes no
+completion files; custom files and symlink destinations are preserved.
+
+### Agent skills
+
+`craft setup` installs an embedded, version-pinned `craft-cli` skill into
+`~/.agents/skills/craft-cli` and `~/.claude/skills/craft-cli` when those agent
+roots already exist and are writable. No network download is needed. This works
+with standalone and npm/pnpm/Homebrew installations.
+
+```bash
+craft setup --no-agent-skills # remember an opt-out from installation/refresh
+craft setup --agent-skills    # re-enable installation/refresh
+```
+
+The preference is saved in `$XDG_CONFIG_HOME/craft/setup.json`, defaulting to
+`~/.config/craft/setup.json`. Standalone updates refresh the skill using the new
+binary and honor the saved opt-out. Package-manager users rerun `craft setup`
+after upgrading. Opt-out preserves existing skill files; remove them manually
+if you want agents to stop discovering the skill. Custom files and file symlinks
+are preserved. Dry-run writes neither preferences nor skill files.
+
 ### npm / pnpm (not recommended)
 
 Standalone executables are recommended. The [npm package](https://www.npmjs.com/package/@sentry/craft)

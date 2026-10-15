@@ -17,7 +17,7 @@ import {
 } from 'binpatch';
 import { getPackage } from './version';
 import { getNativeFilename, installNativeBinary } from './nativeInstallation';
-import { safeExec, safeFs, safeFsPromises } from './dryRun';
+import { safeExec, safeExecSync, safeFs, safeFsPromises } from './dryRun';
 import { isDryRun } from './helpers';
 import { logger } from '../logger';
 
@@ -392,6 +392,21 @@ export async function updateNativeBinary(
       },
     );
     logger.info(`Updated Craft to ${release.version}: ${runtime.executable}`);
+    // Use the new binary's embedded skill/version, while honoring saved opt-out.
+    try {
+      safeExecSync(
+        () =>
+          execFileSync(runtime.executable, ['setup', '--no-completions'], {
+            timeout: 30000,
+            stdio: ['ignore', 'ignore', 'inherit'],
+          }),
+        'Refresh agent skills using the updated Craft',
+      );
+    } catch (error) {
+      logger.warn(
+        `Craft updated, but agent skill refresh failed: ${String(error)}`,
+      );
+    }
   } finally {
     await safeFs.rm(root, { recursive: true, force: true });
   }

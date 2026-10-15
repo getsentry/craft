@@ -7,59 +7,62 @@ import { getPackageVersion } from './utils/version';
 const isCIEnv =
   isCI || process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
 
-init({
-  dsn: 'https://965f09d9d64681174a6617b1e11d7572@o1.ingest.us.sentry.io/4510674351620096',
-  environment: isCIEnv ? 'github-ci' : process.env.NODE_ENV || 'development',
-  release: `craft@${getPackageVersion()}`,
-  tracesSampleRate: 1,
-  debug: Boolean(process.env.SENTRY_DEBUG),
+// Internal tab lookups are frequent and must not start a telemetry transport.
+if (!process.argv.includes('--get-yargs-completions')) {
+  init({
+    dsn: 'https://965f09d9d64681174a6617b1e11d7572@o1.ingest.us.sentry.io/4510674351620096',
+    environment: isCIEnv ? 'github-ci' : process.env.NODE_ENV || 'development',
+    release: `craft@${getPackageVersion()}`,
+    tracesSampleRate: 1,
+    debug: Boolean(process.env.SENTRY_DEBUG),
 
-  beforeSendTransaction: event => {
-    event.server_name = undefined; // Server name might contain PII
-    return event;
-  },
-
-  beforeSend: event => {
-    const exceptions = event.exception?.values;
-    if (!exceptions) {
+    beforeSendTransaction: event => {
+      event.server_name = undefined; // Server name might contain PII
       return event;
-    }
-    for (const exception of exceptions) {
-      if (!exception.stacktrace || !exception.stacktrace.frames) {
-        continue;
-      }
+    },
 
-      for (const frame of exception.stacktrace.frames) {
-        if (!frame.filename) {
+    beforeSend: event => {
+      const exceptions = event.exception?.values;
+      if (!exceptions) {
+        return event;
+      }
+      for (const exception of exceptions) {
+        if (!exception.stacktrace || !exception.stacktrace.frames) {
           continue;
         }
 
-        const homeDir = process.env.HOME || process.env.USERPROFILE;
-        if (homeDir) {
-          frame.filename = frame.filename?.replace(homeDir, '~');
+        for (const frame of exception.stacktrace.frames) {
+          if (!frame.filename) {
+            continue;
+          }
+
+          const homeDir = process.env.HOME || process.env.USERPROFILE;
+          if (homeDir) {
+            frame.filename = frame.filename?.replace(homeDir, '~');
+          }
         }
       }
-    }
 
-    event.server_name = undefined; // Server name might contain PII
-    return event;
-  },
-});
+      event.server_name = undefined; // Server name might contain PII
+      return event;
+    },
+  });
 
-const scope = getCurrentScope();
-scope.setTag('os-username', userInfo().username);
-scope.setTag('os-hostname', hostname());
-scope.setTag('os-platform', platform());
-scope.setTag('os-arch', arch());
-scope.setTag('os-release', release());
+  const scope = getCurrentScope();
+  scope.setTag('os-username', userInfo().username);
+  scope.setTag('os-hostname', hostname());
+  scope.setTag('os-platform', platform());
+  scope.setTag('os-arch', arch());
+  scope.setTag('os-release', release());
 
-scope.setExtra('argv', process.argv);
-scope.setExtra('craft-version', getPackageVersion());
-scope.setExtra('working-directory', process.cwd());
+  scope.setExtra('argv', process.argv);
+  scope.setExtra('craft-version', getPackageVersion());
+  scope.setExtra('working-directory', process.cwd());
 
-function shutdown() {
-  close();
+  function shutdown() {
+    close();
+  }
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 }
-
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);

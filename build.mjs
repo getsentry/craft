@@ -58,6 +58,7 @@ await esbuild.build({
   entryPoints: ['src/index.ts'],
   sourcemap: true,
   bundle: true,
+  loader: { '.md': 'text' },
   platform: 'node',
   target: 'node22',
   inject: ['./src/utils/import-meta-url.js'],

@@ -80,7 +80,8 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
     // Build in a private directory so concurrent E2E builds cannot overwrite this binary.
     const buildDir = join(directory, 'build');
     await mkdir(buildDir);
-    await cp(join(root, 'src'), join(buildDir, 'src'), { recursive: true });
+    for (const source of ['src', 'skills'])
+      await cp(join(root, source), join(buildDir, source), { recursive: true });
     for (const file of ['build.mjs', 'package.json'])
       await copyFile(join(root, file), join(buildDir, file));
     await symlink(
