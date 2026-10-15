@@ -11,7 +11,6 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
-import { createHash } from 'node:crypto';
 import { afterEach, expect, test } from 'vitest';
 
 const directories: string[] = [];
@@ -21,7 +20,7 @@ afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
 });
 function fixture(
-  badChecksum = false,
+  badArchive = false,
   downloadFails = false,
   extraEnv: NodeJS.ProcessEnv = {},
   displayedVersion = '9.1.0',
@@ -32,22 +31,19 @@ function fixture(
   const destination = join(dir, 'installed');
   mkdirSync(bin);
   const archive = join(dir, 'archive.gz');
-  const checksum = join(dir, 'checksum');
   const candidate = Buffer.from(
     '#!/bin/bash\nif [[ "$1" == --version ]]; then echo ' +
       quote(displayedVersion) +
       '; exit; fi\nmkdir -p "$CRAFT_INSTALL_DIR"\ncp "$0" "$CRAFT_INSTALL_DIR/craft"\n',
   );
-  const data = gzipSync(candidate);
+  const data = badArchive
+    ? Buffer.from('invalid gzip archive')
+    : gzipSync(candidate);
   writeFileSync(archive, data);
-  writeFileSync(
-    checksum,
-    `${badChecksum ? '0'.repeat(64) : createHash('sha256').update(data).digest('hex')}  craft-linux-x64.gz\n`,
-  );
   const curl = join(bin, 'curl');
   writeFileSync(
     curl,
-    `#!/bin/bash\n${downloadFails ? 'exit 22\n' : ''}output=''\nurl=''\nwhile (( $# )); do case "$1" in -o) output="$2"; shift ;; https:*) url="$1" ;; esac; shift; done\ncase "$url" in */latest) echo https://github.com/getsentry/craft/releases/tag/9.1.0 ;; *.sha256) cp ${quote(checksum)} "$output" ;; *.gz) cp ${quote(archive)} "$output" ;; *) exit 22 ;; esac\n`,
+    `#!/bin/bash\n${downloadFails ? 'exit 22\n' : ''}output=''\nurl=''\nwhile (( $# )); do case "$1" in -o) output="$2"; shift ;; https:*) url="$1" ;; esac; shift; done\ncase "$url" in */latest) echo https://github.com/getsentry/craft/releases/tag/9.1.0 ;; *.gz) cp ${quote(archive)} "$output" ;; *) exit 22 ;; esac\n`,
   );
   const uname = join(bin, 'uname');
   writeFileSync(
@@ -73,7 +69,7 @@ function fixture(
   return { destination, run };
 }
 test.skipIf(process.platform === 'win32')(
-  'installs a checksum-verified pinned release through the native helper',
+  'installs a pinned HTTPS release without requesting checksum files',
   () => {
     const { destination, run } = fixture();
     const result = run('--version', '9.1.0');
@@ -90,7 +86,7 @@ test.skipIf(process.platform === 'win32')(
   },
 );
 test.skipIf(process.platform === 'win32')(
-  'checksum failure preserves an existing executable',
+  'invalid archive preserves an existing executable',
   () => {
     const { destination, run } = fixture(true);
     mkdirSync(destination);
@@ -148,3 +144,14 @@ test('accepts Craft version output containing the CI commit SHA', () => {
   const { run } = fixture(false, false, {}, `9.1.0 (${'a'.repeat(40)})`);
   expect(run('--version', '9.1.0').status).toBe(0);
 });
+
+test.skipIf(process.platform === 'win32')(
+  'a mismatched downloaded version preserves an existing executable',
+  () => {
+    const { destination, run } = fixture(false, false, {}, '8.0.0');
+    mkdirSync(destination);
+    writeFileSync(join(destination, 'craft'), 'old');
+    expect(run('--version', '9.1.0').status).not.toBe(0);
+    expect(readFileSync(join(destination, 'craft'), 'utf8')).toBe('old');
+  },
+);

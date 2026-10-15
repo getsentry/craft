@@ -28,7 +28,6 @@ interface Release {
   version: string;
   filename: string;
   url: string;
-  checksumUrl: string;
   rawDigest?: string;
   compressedSize?: number;
 }
@@ -124,10 +123,7 @@ export async function resolveNativeRelease(
   const filename = `craft-${platform === 'win32' ? 'win' : platform}-${arch}${platform === 'win32' ? '.exe' : '.gz'}`;
   const url = `${REPOSITORY}/${encodeURIComponent(release.tag_name)}/${filename}`;
   if (!Array.isArray(release.assets)) throw new Error('Missing release assets');
-  for (const [name, expectedUrl] of [
-    [filename, url],
-    [`${filename}.sha256`, `${url}.sha256`],
-  ]) {
+  for (const [name, expectedUrl] of [[filename, url]]) {
     const matches = release.assets.filter(
       asset => asset && typeof asset === 'object' && asset.name === name,
     );
@@ -172,7 +168,6 @@ export async function resolveNativeRelease(
     version: release.tag_name,
     filename,
     url,
-    checksumUrl: `${url}.sha256`,
   };
 }
 
@@ -355,20 +350,7 @@ export async function updateNativeBinary(
       getNativeFilename(runtime.platform, runtime.arch),
     );
     if (!(await tryNativePatch(release, runtime, candidate))) {
-      const checksum = (await download(release.checksumUrl, 4096)).toString(
-        'utf8',
-      );
-      const match = /^([a-fA-F0-9]{64}) {2}([^\r\n]+)\n?$/.exec(checksum);
-      if (!match || match[2] !== release.filename)
-        throw new Error('Invalid checksum sidecar');
       const archive = await download(release.url, MAX_BINARY_BYTES);
-      if (
-        createHash('sha256').update(archive).digest('hex') !==
-        match[1].toLowerCase()
-      )
-        throw new Error(
-          'Checksum mismatch; existing installation was preserved',
-        );
       const bytes =
         runtime.platform === 'win32'
           ? archive
