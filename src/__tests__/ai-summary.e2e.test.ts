@@ -35,9 +35,9 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
       assert.equal(body.model, 'fixture-model');
       calls++;
       const responses = request.url?.endsWith('/responses');
-      const input = JSON.parse(
-        (responses ? body.input : body.messages)[1].content,
-      );
+      const messages = responses ? body.input : body.messages;
+      assert.ok(messages[0].content.includes('Concise and friendly.'));
+      const input = JSON.parse(messages[1].content);
       const summaries = input.nodes.map((node: { id: string }) => ({
         id: node.id,
         summary: 'Fixture changes for this group.',
@@ -106,7 +106,7 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
     git('config', 'user.name', 'Craft fixture');
     git('config', 'user.email', 'fixture@example.invalid');
     git('config', 'commit.gpgsign', 'false');
-    const config = `github:\n  owner: getsentry\n  repo: craft\nchangelog:\n  policy: auto\n  aiSummary:\n    minItems: 0\n    levels: [release, category, scope]\ntargets: []\n`;
+    const config = `github:\n  owner: getsentry\n  repo: craft\nchangelog:\n  policy: auto\n  aiSummary:\n    minItems: 0\n    style: Concise and friendly.\n    levels: [release, category, scope]\ntargets: []\n`;
     await writeFile(join(directory, '.craft.yml'), config);
     await writeFile(
       join(directory, 'package.json'),
@@ -181,8 +181,10 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
     for (const title of ['Add command', 'Fix endpoint'])
       for (let i = 1; i <= 6; i++)
         assert.ok(generated.changelog.includes(`${title} ${i}`));
-    assert.ok(generated.changelog.includes('**New Features ✨:**'));
-    assert.ok(generated.changelog.includes('**Bug Fixes 🐛:**'));
+    const overview = generated.changelog.split('### ')[0].trim();
+    assert.equal(overview.split('\n\n').length, 2);
+    assert.ok(!overview.includes('**'));
+    assert.ok(overview.includes('Fixture changes for this group.'));
     const before = calls;
     await run(['--dry-run']);
     assert.equal(calls, before);
@@ -205,7 +207,7 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
     );
     const release = await run();
     assert.ok(!release.changelog.includes('<details>'));
-    assert.ok(release.changelog.includes('**Bug Fixes 🐛:**'));
+    assert.equal(release.changelog.split('### ')[0].trim(), overview);
     // Match the structured environment passed by the Action. Actual CLI config
     // resolution and HTTP transport execute; only GitHub metadata/model are fixtures.
     const action = await run([], {

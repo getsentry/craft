@@ -331,9 +331,7 @@ describe('generateChangesetFromGit', () => {
     it('keeps category and scope prose visible while preserving every original entry and semver', async () => {
       setup(commits, null);
       const result = await generateChangesetFromGit(dummyGit, '1.0.0');
-      expect(result.changelog).toContain(
-        '**New Features ✨:** release summary for New Features ✨',
-      );
+      expect(result.changelog).toContain('release summary for New Features ✨');
       expect(result.changelog).toContain(
         '### New Features ✨\n\ncategory summary for New Features ✨\n\n#### Cli',
       );
@@ -391,6 +389,38 @@ describe('generateChangesetFromGit', () => {
         for (let i = 1; i <= 6; i++)
           expect(result.changelog).toContain(`- Add command ${i}`);
       }
+    });
+
+    it('renders a prose overview of at most three paragraphs covering every category', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        aiSummary: {
+          ...summaryConfig.aiSummary,
+          levels: ['release'],
+          minItems: 0,
+        },
+      });
+      setup(
+        Array.from({ length: 10 }, (_, i) => ({
+          hash: `category${i}`,
+          title: `change${i}: Add capability ${i}`,
+          body: '',
+        })),
+        `changelog:\n  categories:\n${Array.from(
+          { length: 10 },
+          (_, i) =>
+            `    - title: Category ${i}\n      commit_patterns: ['^change${i}:']`,
+        ).join('\n')}`,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      const overview = result.changelog.split('### ')[0].trim();
+      expect(overview.split('\n\n')).toHaveLength(3);
+      expect(overview).not.toMatch(/\*\*|^[-#]/m);
+      for (let i = 0; i < 10; i++) {
+        expect(overview).toContain(`release summary for Category ${i}`);
+        expect(result.changelog).toContain(`Add capability ${i}`);
+      }
+      expect(result.changelog).not.toContain('<details>');
     });
 
     it('folds unsummarized scopes and unscoped entries once beneath visible category prose', async () => {

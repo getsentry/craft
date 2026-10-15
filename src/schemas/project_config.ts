@@ -198,6 +198,7 @@ export const AiSummaryConfigSchema = z
   .object({
     llm: AiSummaryLlmSchema.default({}),
     minItems: z.number().int().nonnegative().default(5),
+    style: z.string().trim().min(1).max(500).optional(),
     levels: z
       .array(z.enum(['release', 'category', 'scope']))
       .refine(

@@ -121,6 +121,24 @@ describe('validateConfiguration', () => {
     });
   });
 
+  test('normalizes optional AI writing style', () => {
+    loadConfigurationFromString(
+      'changelog:\n  policy: auto\n  aiSummary:\n    style: "  Concise and friendly.  "',
+    );
+    expect(getChangelogConfig().aiSummary).toMatchObject({
+      style: 'Concise and friendly.',
+    });
+  });
+
+  test.each(['', '   ', 'a'.repeat(501), 42])(
+    'rejects invalid AI writing style %j',
+    style => {
+      expect(() =>
+        validateConfiguration({ changelog: { aiSummary: { style } } }),
+      ).toThrow(/changelog/);
+    },
+  );
+
   test.each([-1, 1.5])('rejects invalid summary threshold %s', minItems => {
     expect(() =>
       validateConfiguration({

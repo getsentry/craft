@@ -155,6 +155,21 @@ describe('hierarchical HTTP changelog summaries', () => {
     ]);
   });
 
+  it('applies writing style at every level while retaining the base constraints', async () => {
+    await summarizeChangelog(categories, config);
+    const base = requestMock.mock.calls[0][0].system;
+    requestMock.mockClear();
+    const style = 'Concise and friendly for developers.';
+    expect(
+      await summarizeChangelog(categories, { ...config, style }),
+    ).not.toBeNull();
+    for (const [request] of requestMock.mock.calls) {
+      expect(request.system.startsWith(base)).toBe(true);
+      expect(request.system).toContain(JSON.stringify(style));
+      expect(request.system).toContain('requirements above still apply');
+    }
+  });
+
   it('keeps strict structured-output and input bounds', async () => {
     await summarizeChangelog(categories, config);
     for (const [request] of requestMock.mock.calls) {

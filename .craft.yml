@@ -4,6 +4,7 @@ changelog:
   aiSummary:
     levels: [release, category, scope]
     minItems: 2
+    style: Keep it concise and friendly for developers; avoid hype.
 artifactProvider:
   name: github
   config:
