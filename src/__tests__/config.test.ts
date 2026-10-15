@@ -108,6 +108,153 @@ describe('validateConfiguration', () => {
     expect(validateConfiguration(data)).toEqual(data);
   });
 
+  test('normalizes opt-in Luna summary settings from the active schema', () => {
+    loadConfigurationFromString('changelog:\n  policy: auto\n  aiSummary: {}');
+    expect(getChangelogConfig().aiSummary).toEqual({
+      llm: {
+        endpoint: 'https://api.githubcopilot.com/responses',
+        model: 'gpt-6-luna',
+        apiKeyEnv: 'GITHUB_TOKEN',
+      },
+      minItems: 5,
+      levels: ['release'],
+    });
+  });
+
+  test('normalizes optional AI writing style', () => {
+    loadConfigurationFromString(
+      'changelog:\n  policy: auto\n  aiSummary:\n    style: "  Concise and friendly.  "',
+    );
+    expect(getChangelogConfig().aiSummary).toMatchObject({
+      style: 'Concise and friendly.',
+    });
+  });
+
+  test.each(['', '   ', 'a'.repeat(501), 42])(
+    'rejects invalid AI writing style %j',
+    style => {
+      expect(() =>
+        validateConfiguration({ changelog: { aiSummary: { style } } }),
+      ).toThrow(/changelog/);
+    },
+  );
+
+  test.each([-1, 1.5])('rejects invalid summary threshold %s', minItems => {
+    expect(() =>
+      validateConfiguration({
+        changelog: { aiSummary: { minItems } },
+      }),
+    ).toThrow(/changelog/);
+  });
+
+  test('normalizes empty levels to release-only and accepts a zero threshold', () => {
+    loadConfigurationFromString(
+      'changelog:\n  policy: auto\n  aiSummary:\n    levels: []\n    minItems: 0',
+    );
+    expect(getChangelogConfig().aiSummary).toMatchObject({
+      levels: ['release'],
+      minItems: 0,
+    });
+    expect(getChangelogConfig().aiSummary).not.toHaveProperty('topLevel');
+  });
+
+  test.each([
+    'https://gateway.example/chat',
+    'http://127.0.0.1:1234/chat',
+    'http://[::1]:1234/chat',
+  ])('accepts a configured HTTP endpoint %s and token variable', endpoint => {
+    expect(
+      validateConfiguration({
+        changelog: {
+          aiSummary: {
+            llm: { endpoint, apiKeyEnv: 'TEAM_MODEL_TOKEN' },
+          },
+        },
+      }),
+    ).toMatchObject({
+      changelog: {
+        aiSummary: { llm: { endpoint, apiKeyEnv: 'TEAM_MODEL_TOKEN' } },
+      },
+    });
+  });
+  test.each([
+    'http://external.example/chat',
+    'https://user:pass@example.com/chat',
+    'https://example.com/chat#fragment',
+  ])('rejects unsafe configured endpoint %s', endpoint => {
+    expect(() =>
+      validateConfiguration({
+        changelog: { aiSummary: { llm: { endpoint } } },
+      }),
+    ).toThrow(/changelog/);
+  });
+  test.each(['invalid-name', '', '1TOKEN'])(
+    'rejects invalid token variable %s',
+    apiKeyEnv => {
+      expect(() =>
+        validateConfiguration({
+          changelog: { aiSummary: { llm: { apiKeyEnv } } },
+        }),
+      ).toThrow(/changelog/);
+    },
+  );
+
+  test('rejects an empty summary model', () => {
+    expect(() =>
+      validateConfiguration({
+        changelog: { aiSummary: { llm: { model: '  ' } } },
+      }),
+    ).toThrow(/changelog/);
+  });
+
+  test.each([[['invalid']], [['release', 'release']]])(
+    'rejects invalid summary levels %j',
+    levels => {
+      expect(() =>
+        validateConfiguration({
+          changelog: { aiSummary: { levels } },
+        }),
+      ).toThrow(/changelog/);
+    },
+  );
+
+  test('inherits summary settings and allows a workspace to disable them', () => {
+    const yaml = `minVersion: ${WORKSPACES_MIN_VERSION}\nchangelog:\n  policy: auto\n  aiSummary:\n    minItems: 8\nworkspaces:\n  cli: {}\n  mcp:\n    changelog:\n      policy: auto\n      aiSummary: false`;
+    try {
+      setActiveWorkspace('cli');
+      loadConfigurationFromString(yaml);
+      expect(getChangelogConfig().aiSummary).toMatchObject({ minItems: 8 });
+      setActiveWorkspace('mcp');
+      loadConfigurationFromString(yaml);
+      expect(getChangelogConfig().aiSummary).toBe(false);
+    } finally {
+      setActiveWorkspace(undefined);
+    }
+  });
+
+  test('omitting aiSummary leaves generation disabled; false is an explicit opt-out', () => {
+    loadConfigurationFromString('changelog:\n  policy: auto');
+    expect(getChangelogConfig().aiSummary).toBeUndefined();
+    loadConfigurationFromString(
+      'changelog:\n  policy: auto\n  aiSummary: false',
+    );
+    expect(getChangelogConfig().aiSummary).toBe(false);
+  });
+
+  test.each([
+    { enabled: false },
+    { enabled: true },
+    { kickInThreshold: 5 },
+    { topLevel: true },
+  ])(
+    'rejects obsolete summary configuration %j instead of silently enabling it',
+    aiSummary => {
+      expect(() => validateConfiguration({ changelog: { aiSummary } })).toThrow(
+        /changelog/,
+      );
+    },
+  );
+
   test('parses configuration with versioning', () => {
     const data = {
       versioning: {

@@ -48,6 +48,18 @@ inputs:
     required: false
     default: ''
 
+  llm:
+    description: >
+      JSON object with AI summary endpoint, model, and apiKeyEnv.
+      Overrides CRAFT_AI_LLM and .craft.yml connection settings.
+      Omitted fields use Copilot Responses, gpt-6-luna, and GITHUB_TOKEN.
+    required: false
+  llm_api_key:
+    description: >
+      AI summary credential (map a secret or an authorized GitHub token here).
+      Alternatively provide the credential in the configured environment variable.
+    required: false
+
 outputs:
   version:
     description: The resolved version being released
@@ -189,6 +201,9 @@ runs:
       shell: bash
       env:
         CRAFT_LOG_LEVEL: Debug
+        CRAFT_AI_LLM: ${{ inputs.llm || env.CRAFT_AI_LLM }}
+        LLM_API_KEY_INPUT_SET: ${{ inputs.llm_api_key != '' }}
+        AI_SUMMARY_TOKEN: ${{ inputs.llm_api_key || env.AI_SUMMARY_TOKEN }}
         CRAFT_CONFIG_FROM_MERGE_TARGET: ${{ inputs.craft_config_from_merge_target }}
         MERGE_TARGET: ${{ inputs.merge_target }}
         VERSION: ${{ inputs.version }}
@@ -206,6 +221,10 @@ runs:
         fi
         if [[ -n "$WORKSPACE" ]]; then
           CRAFT_ARGS+=("--workspace=$WORKSPACE")
+        fi
+
+        if [[ "$LLM_API_KEY_INPUT_SET" == 'true' ]]; then
+          CRAFT_ARGS+=(--ai-api-key-env AI_SUMMARY_TOKEN)
         fi
 
         # Version is optional - if not provided, Craft uses versioning.policy from config
