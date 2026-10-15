@@ -70,6 +70,28 @@ It does not use sudo or modify shell profiles. `--dry-run` prints the selected
 version and platform without creating installation files. `CRAFT_VERSION`
 can also pin a release. Linux binaries require glibc.
 
+### Updating a standalone installation
+
+```bash
+craft update                 # latest stable release
+craft update --check         # metadata only, without downloading the binary
+craft update 2.35.0           # a specific published version
+craft update 2.35.0 --force   # reinstall or allow a downgrade
+craft update --dry-run       # metadata only; no files changed
+```
+
+The updater validates the HTTPS release assets and candidate version before
+replacing the running executable. macOS signatures are verified too. Unix uses
+atomic replacement; Windows keeps a backup until replacement succeeds and
+restores it if replacement fails. A running Windows process can prevent deletion
+of the old backup; Craft prints its path so you can remove it after those
+processes exit. A stale `.craft-install.lock` after a crash must be removed
+only after checking that no installation/update is still running.
+
+`craft update` is manual; it does not run background updates. npm/pnpm and
+Homebrew installations receive instructions to use their package manager.
+Explicit prerelease versions are allowed, while the default selects stable.
+
 ### npm / pnpm (not recommended)
 
 Standalone executables are recommended. The [npm package](https://www.npmjs.com/package/@sentry/craft)
@@ -345,3 +367,10 @@ Credentials and other configuration (`GITHUB_TOKEN`, `NPM_TOKEN`, etc.) must be 
 5. **Configure environment variables** for your targets.
 
 6. **Run** `craft prepare <version> --publish`!
+
+Stable standalone upgrades use [binpatch](https://github.com/BYK/binpatch) delta
+chains when available and smaller than the full download. Craft verifies the
+patched executable against the target release digest before checking its version
+and installing it. Missing, oversized, corrupt, or incompatible patches fall back
+to the normal HTTPS download. The first native release and explicit
+prerelease installs use full downloads.

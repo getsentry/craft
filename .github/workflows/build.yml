@@ -92,7 +92,21 @@ jobs:
       - name: Package standalone release files
         working-directory: dist-bin
         run: |
-          gzip -n -9 craft-{darwin,linux}-{arm64,x64}
+          gzip -n -9 -k craft-{darwin,linux}-{arm64,x64} craft-win-x64.exe
+      - name: Generate optional stable delta patches
+        id: patches
+        continue-on-error: true
+        uses: BYK/binpatch/action@9ba6bbb8227fcbd2521852d2311c82afac5e9573 # 0.4.2
+        with:
+          mode: generate-release
+          github-repo: getsentry/craft
+          new-binaries-dir: dist-bin
+          new-gz-dir: dist-bin
+          binary-glob: 'craft-*'
+          patches-dir: dist-bin/patches
+      - name: Stage generated patches
+        if: steps.patches.outputs.has-patches == 'true'
+        run: cp dist-bin/patches/*.patch dist-bin/
       - name: Package installer
         run: cp install craft-install
       - name: Smoke Test
@@ -113,9 +127,7 @@ jobs:
         with:
           name: craft-native
           if-no-files-found: error
-          path: |
-            dist-bin/*.gz
-            dist-bin/*.exe
+          path: dist-bin/craft-*
 
   native-smoke:
     name: Verify / darwin-arm64

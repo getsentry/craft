@@ -35,6 +35,7 @@ export async function installNativeBinary(
   source: string,
   destination: string,
   platform = process.platform as string,
+  beforeReplace?: () => Promise<void>,
 ): Promise<{ path: string; backup?: string }> {
   const target = resolve(destination);
   if (isDryRun()) {
@@ -69,6 +70,7 @@ export async function installNativeBinary(
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
+    await beforeReplace?.();
     await safeFs.copyFile(source, staged);
     await safeFsPromises.chmod(staged, 0o755);
     if (platform === 'win32' && existing) {
