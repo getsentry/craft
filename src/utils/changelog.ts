@@ -15,6 +15,14 @@ import {
 import { getChangesSince } from './git';
 import { getGitHubClient } from './githubApi';
 import { getVersion } from './version';
+import type { AiSummaryConfig } from '../schemas/project_config';
+import {
+  summarizeChangelog,
+  isImportantChangelogText,
+  formatSummaryText,
+  formatSummaryWithDetails,
+  type SummaryCategory,
+} from './ai-summary';
 
 /** Information about the current (unmerged) PR to inject into changelog */
 export interface CurrentPRInfo {
@@ -630,6 +638,8 @@ interface PullRequest {
   highlight?: boolean;
   /** The pattern that matched this PR (for title stripping) */
   matchedPattern?: RegExp;
+  /** Critical status retained before custom entries or prefix stripping. */
+  importantTitle?: string;
 }
 
 /**
@@ -652,7 +662,12 @@ function createPREntriesFromRaw(
   },
   defaultTitle: string,
   fallbackBody?: string,
+  important = false,
 ): PullRequest[] {
+  const importantTitle =
+    important || isImportantChangelogText(defaultTitle)
+      ? defaultTitle
+      : undefined;
   const customEntries = extractChangelogEntry(raw.prBody);
 
   if (customEntries) {
@@ -663,6 +678,7 @@ function createPREntriesFromRaw(
       body: entry.nestedContent ?? '',
       title: entry.text,
       highlight: raw.highlight,
+      importantTitle,
     }));
   }
 
@@ -682,6 +698,7 @@ function createPREntriesFromRaw(
       body,
       title: defaultTitle,
       highlight: raw.highlight,
+      importantTitle,
     },
   ];
 }
@@ -1483,10 +1500,21 @@ interface RawChangelogResult {
 
 // Memoization cache for generateChangesetFromGit
 // Caches promises to coalesce concurrent calls with the same arguments
-const changesetCache = new Map<string, Promise<ChangelogResult>>();
+let changesetCache = new WeakMap<
+  SimpleGit,
+  Map<string, Promise<ChangelogResult>>
+>();
+let rawChangesetCache = new WeakMap<
+  SimpleGit,
+  Map<string, Promise<RawChangelogResult>>
+>();
 
-function getChangesetCacheKey(rev: string, maxLeftovers: number): string {
-  return JSON.stringify([getActiveWorkspace(), rev, maxLeftovers]);
+function getChangesetCacheKey(
+  rev: string,
+  maxLeftovers: number,
+  summarize: boolean,
+): string {
+  return JSON.stringify([getActiveWorkspace(), rev, maxLeftovers, summarize]);
 }
 
 /**
@@ -1494,25 +1522,37 @@ function getChangesetCacheKey(rev: string, maxLeftovers: number): string {
  * Primarily used for testing.
  */
 export function clearChangesetCache(): void {
-  changesetCache.clear();
+  changesetCache = new WeakMap();
+  rawChangesetCache = new WeakMap();
 }
 
 export async function generateChangesetFromGit(
   git: SimpleGit,
   rev: string,
   maxLeftovers: number = MAX_LEFTOVERS,
+  summarize = true,
 ): Promise<ChangelogResult> {
-  const cacheKey = getChangesetCacheKey(rev, maxLeftovers);
+  const cacheKey = getChangesetCacheKey(rev, maxLeftovers, summarize);
+  let cache = changesetCache.get(git);
+  if (!cache) {
+    cache = new Map();
+    changesetCache.set(git, cache);
+  }
 
   // Return cached promise if available (coalesces concurrent calls)
-  const cached = changesetCache.get(cacheKey);
+  const cached = cache.get(cacheKey);
   if (cached) {
     return cached;
   }
 
   // Create and cache the promise
-  const promise = generateChangesetFromGitImpl(git, rev, maxLeftovers);
-  changesetCache.set(cacheKey, promise);
+  const promise = generateChangesetFromGitImpl(
+    git,
+    rev,
+    maxLeftovers,
+    summarize,
+  );
+  cache.set(cacheKey, promise);
 
   return promise;
 }
@@ -1764,7 +1804,13 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
       }
 
       // Create PR entries (handles custom changelog entries if present)
-      const prEntries = createPREntriesFromRaw(raw, prTitle, raw.body);
+      const prEntries = createPREntriesFromRaw(
+        raw,
+        prTitle,
+        raw.body,
+        matchedCategory?.semver === 'major' ||
+          /\bsecurity\b/i.test(categoryTitle),
+      );
       // Add matched pattern to each entry for title stripping
       for (const entry of prEntries) {
         entry.matchedPattern = matchedPattern;
@@ -1840,18 +1886,48 @@ async function serializeChangelog(
   maxLeftovers: number,
   disableMentions = false,
   disablePRLinks = false,
+  summarize = true,
 ): Promise<string> {
   const { categories, leftovers, releaseConfig } = rawData;
 
   const changelogSections: string[] = [];
+  const summaryCategories: SummaryCategory[] = [];
+  const summaryPositions = new Map<string, number>();
+  const categoryPositions = new Map<string, number>();
+  let currentCategory: SummaryCategory;
+  let groupIndex = 0;
+  const beginCategory = (title: string, heading: boolean) => {
+    currentCategory = {
+      id: `category:${summaryCategories.length}`,
+      title,
+      groups: [],
+    };
+    summaryCategories.push(currentCategory);
+    if (heading)
+      changelogSections.push(markdownHeader(SUBSECTION_HEADER_LEVEL, title));
+    categoryPositions.set(currentCategory.id, changelogSections.length);
+  };
+  const addEntries = (
+    title: string,
+    items: string[],
+    scope?: string,
+    importantEntries?: Record<number, string>,
+  ) => {
+    const id = `group:${groupIndex++}`;
+    summaryPositions.set(id, changelogSections.length);
+    currentCategory.groups.push({ id, title, items, scope, importantEntries });
+    changelogSections.push(items.join('\n'));
+  };
   const { repo, owner } = await getGlobalGitHubConfig();
   const repoUrl = `https://github.com/${owner}/${repo}`;
 
   // Get changelog config for scope grouping setting
   let scopeGroupingEnabled = true;
+  let aiSummary: AiSummaryConfig | false | undefined;
   try {
     const changelogConfig = getChangelogConfig();
     scopeGroupingEnabled = changelogConfig.scopeGrouping;
+    aiSummary = changelogConfig.aiSummary;
   } catch {
     // If config can't be read (e.g., no .craft.yml), use default
   }
@@ -1874,9 +1950,7 @@ async function serializeChangelog(
       continue;
     }
 
-    changelogSections.push(
-      markdownHeader(SUBSECTION_HEADER_LEVEL, category.title),
-    );
+    beginCategory(category.title, true);
 
     // Sort scope groups: scoped entries first (alphabetically), scopeless (null) last
     const sortedScopes = [...category.scopeGroups.entries()].sort((a, b) => {
@@ -1897,6 +1971,7 @@ async function serializeChangelog(
 
     // Collect entries without headers to combine them into a single section
     const entriesWithoutHeaders: string[] = [];
+    const importantWithoutHeaders: Record<number, string> = {};
 
     for (const [scope, prs] of sortedScopes) {
       // Determine scope header:
@@ -1929,12 +2004,21 @@ async function serializeChangelog(
           disablePRLinks,
         ),
       );
+      const importantEntries = Object.fromEntries(
+        prs.flatMap((pr, index) =>
+          pr.importantTitle ? [[index, pr.importantTitle]] : [],
+        ),
+      );
 
       if (scopeHeader) {
         changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, scopeHeader));
-        changelogSections.push(prEntries.join('\n'));
+        addEntries(scopeHeader, prEntries, scopeHeader, importantEntries);
       } else {
         // No header for this scope group - collect entries to combine later
+        for (const [index, title] of Object.entries(importantEntries))
+          importantWithoutHeaders[
+            entriesWithoutHeaders.length + Number(index)
+          ] = title;
         entriesWithoutHeaders.push(...prEntries);
       }
     }
@@ -1945,17 +2029,21 @@ async function serializeChangelog(
       if (hasScopeHeaders) {
         changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, 'Other'));
       }
-      changelogSections.push(entriesWithoutHeaders.join('\n'));
+      addEntries(
+        category.title,
+        entriesWithoutHeaders,
+        undefined,
+        importantWithoutHeaders,
+      );
     }
   }
 
   const nLeftovers = leftovers.length;
   if (nLeftovers > 0) {
     // Only add "Other" section header if there are other category sections
-    if (changelogSections.length > 0) {
-      changelogSections.push(markdownHeader(SUBSECTION_HEADER_LEVEL, 'Other'));
-    }
+    beginCategory('Other', changelogSections.length > 0);
     const leftoverEntries: string[] = [];
+    const importantLeftovers: Record<number, string> = {};
     for (const commit of leftovers.slice(0, maxLeftovers)) {
       // Create PR entries (handles custom changelog entries if present)
       const prEntries = createPREntriesFromRaw(
@@ -1971,6 +2059,8 @@ async function serializeChangelog(
       );
 
       for (const pr of prEntries) {
+        if (pr.importantTitle)
+          importantLeftovers[leftoverEntries.length] = pr.importantTitle;
         leftoverEntries.push(
           formatChangelogEntry(
             {
@@ -1988,12 +2078,52 @@ async function serializeChangelog(
         );
       }
     }
-    changelogSections.push(leftoverEntries.join('\n'));
+    addEntries('Other', leftoverEntries, undefined, importantLeftovers);
     if (nLeftovers > maxLeftovers) {
       changelogSections.push(`_Plus ${nLeftovers - maxLeftovers} more_`);
     }
   }
 
+  // Highlighted PR previews keep their original emphasis and never call a model.
+  const hasHighlights =
+    [...categories.values()].some(category =>
+      [...category.scopeGroups.values()].some(prs =>
+        prs.some(pr => pr.highlight),
+      ),
+    ) || leftovers.some(commit => commit.highlight);
+  const summary =
+    !summarize || disablePRLinks || hasHighlights
+      ? null
+      : await summarizeChangelog(summaryCategories, aiSummary);
+  if (summary) {
+    for (const category of [...summaryCategories].reverse()) {
+      const categorySummary = summary.categories[category.id];
+      for (const group of category.groups) {
+        const scopeSummary = summary.scopes[group.id];
+        if (scopeSummary || categorySummary)
+          changelogSections[summaryPositions.get(group.id)!] =
+            formatSummaryWithDetails(scopeSummary || '', group.items);
+      }
+      // Keep scope headings and prose visible instead of nesting details blocks.
+      if (categorySummary)
+        changelogSections.splice(
+          categoryPositions.get(category.id)!,
+          0,
+          formatSummaryText(categorySummary),
+        );
+    }
+    if (summary.release.length) {
+      // Retain validated coverage for every category without displaying a breakdown.
+      const statements = summary.release.map(statement =>
+        formatSummaryText(statement.summary),
+      );
+      const perParagraph = Math.ceil(statements.length / 3);
+      const paragraphs: string[] = [];
+      for (let i = 0; i < statements.length; i += perParagraph)
+        paragraphs.push(statements.slice(i, i + perParagraph).join(' '));
+      changelogSections.unshift(paragraphs.join('\n\n'));
+    }
+  }
   return changelogSections.join('\n\n');
 }
 
@@ -2005,9 +2135,27 @@ async function generateChangesetFromGitImpl(
   git: SimpleGit,
   rev: string,
   maxLeftovers: number,
+  summarize: boolean,
 ): Promise<ChangelogResult> {
-  const { data: rawData, stats } = await generateRawChangelog(git, rev);
-  const changelog = await serializeChangelog(rawData, maxLeftovers);
+  let cache = rawChangesetCache.get(git);
+  if (!cache) {
+    cache = new Map();
+    rawChangesetCache.set(git, cache);
+  }
+  const key = JSON.stringify([getActiveWorkspace(), rev]);
+  let promise = cache.get(key);
+  if (!promise) {
+    promise = generateRawChangelog(git, rev);
+    cache.set(key, promise);
+  }
+  const { data: rawData, stats } = await promise;
+  const changelog = await serializeChangelog(
+    rawData,
+    maxLeftovers,
+    false,
+    false,
+    summarize,
+  );
 
   return {
     changelog,

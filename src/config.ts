@@ -18,6 +18,7 @@ import {
   ChangelogPolicy,
   VersioningPolicy,
   Workspace,
+  type AiSummaryConfig,
 } from './schemas/project_config';
 import { ConfigurationError } from './utils/errors';
 import { isCompiledGitHubAction } from './utils/detection';
@@ -902,6 +903,8 @@ export interface NormalizedChangelogConfig {
   scopeGrouping: boolean;
   /** Additional workspace paths to include in automatic changelogs */
   includePaths: string[];
+  /** Optional summaries; omitted unless configured explicitly. */
+  aiSummary?: AiSummaryConfig | false;
 }
 
 const DEFAULT_CHANGELOG_FILE_PATH = 'CHANGELOG.md';
@@ -983,6 +986,10 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
     policy,
     scopeGrouping,
     includePaths,
+    aiSummary:
+      typeof config.changelog === 'object'
+        ? config.changelog.aiSummary
+        : undefined,
   };
 }
 

@@ -21,10 +21,22 @@ vi.mock('../../config', async importOriginal => {
     ...actual,
     getConfigFileDir: vi.fn(),
     getGlobalGitHubConfig: vi.fn(),
+    getChangelogConfig: vi.fn(),
   };
 });
 import * as config from '../../config';
 import { readFileSync } from 'fs';
+import type { SummaryRequest } from '../ai-provider';
+const { modelRequest } = vi.hoisted(() => ({
+  modelRequest: vi.fn<(request: SummaryRequest) => Promise<unknown>>(),
+}));
+vi.mock('../ai-provider', () => ({
+  createSummaryProvider: () => ({
+    request: modelRequest,
+    close: async () => {},
+  }),
+}));
+import { ChangelogPolicy } from '../../schemas/project_config';
 import type { SimpleGit } from 'simple-git';
 
 import {
@@ -157,6 +169,406 @@ describe('generateChangesetFromGit', () => {
   // ============================================================================
   // Basic output formatting tests - use snapshots
   // ============================================================================
+
+  describe('AI summaries in the real generator', () => {
+    const commits = Array.from({ length: 6 }, (_, i) => ({
+      hash: `abcdef${i}1234567890`,
+      title: `feat(cli): Add command ${i + 1}`,
+      body: '',
+    }));
+    const summaryConfig = {
+      filePath: 'CHANGELOG.md',
+      policy: ChangelogPolicy.Auto,
+      scopeGrouping: true,
+      includePaths: [],
+      aiSummary: {
+        llm: {
+          endpoint: 'https://api.githubcopilot.com/responses',
+          model: 'gpt-6-luna',
+          apiKeyEnv: 'AI_SUMMARY_TOKEN',
+        },
+        minItems: 5,
+        levels: ['release', 'category', 'scope'] as (
+          | 'release'
+          | 'category'
+          | 'scope'
+        )[],
+      },
+    };
+    const provider = modelRequest;
+    beforeEach(() => {
+      provider.mockImplementation(async request => {
+        const input = JSON.parse(request.input);
+        return {
+          summaries: input.nodes
+            .map((node: any) => ({
+              id: node.id,
+              summary: `${input.level} summary for ${node.title}`,
+              importantChanges: [],
+            }))
+            .reverse(),
+        };
+      });
+    });
+    beforeEach(() => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue(summaryConfig);
+      provider.mockClear();
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    });
+
+    it.each([
+      [
+        'feat(cli)!: remove old API',
+        '## Changelog Entry\n- Remove legacy endpoint',
+      ],
+      ['security: patch XSS', ''],
+      [
+        'fix(api): patch CVE-2026-1234',
+        '## Changelog Entry\n- Improve request handling',
+      ],
+      [
+        'fix: address a security vulnerability',
+        '## Changelog Entry\n- Improve request handling',
+      ],
+      [
+        'security(api): patch XSS',
+        '## Changelog Entry\n- Patch request handling',
+      ],
+    ])(
+      'retains critical source metadata before formatting %s',
+      async (title, body) => {
+        vi.mocked(config.getChangelogConfig).mockReturnValue({
+          ...summaryConfig,
+          aiSummary: {
+            ...summaryConfig.aiSummary,
+            minItems: 0,
+            levels: ['release'],
+          },
+        });
+        setup(
+          [
+            {
+              hash: 'abcdef1234567890',
+              title,
+              body: '',
+              pr: {
+                local: '1',
+                remote: { number: '1', title, body },
+              },
+            },
+          ],
+          null,
+        );
+        const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+        const input = JSON.parse(provider.mock.calls[0][0].input);
+        expect(input.nodes[0].parts[0].important).toBe(true);
+        expect(
+          input.nodes[0].parts.map((part: any) => part.text).join(''),
+        ).toContain(title);
+        // Our simulated model omits all critical facts: reject the whole attempt.
+        expect(result.changelog).not.toContain('release summary');
+        expect(result.changelog).not.toContain('<details>');
+        expect(result.bumpType).toBe(title.includes('!') ? 'major' : 'patch');
+      },
+    );
+
+    it('carries a valid critical digest through every reduction and keeps custom originals', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        aiSummary: { ...summaryConfig.aiSummary, minItems: 0 },
+      });
+      provider.mockImplementation(async request => {
+        const input = JSON.parse(request.input);
+        return {
+          summaries: input.nodes.map((node: any) => ({
+            id: node.id,
+            summary: 'General maintenance.',
+            importantChanges: node.parts.flatMap((part: any) => [
+              ...(part.importantChanges || []),
+              ...(part.important
+                ? [
+                    {
+                      id: part.sourceId,
+                      summary: 'Breaking change: legacy endpoint removed.',
+                    },
+                  ]
+                : []),
+            ]),
+          })),
+        };
+      });
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'feat(cli)!: remove old API',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                title: 'feat(cli)!: remove old API',
+                body: '## Changelog Entry\n- Remove legacy endpoint',
+              },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(provider).toHaveBeenCalledTimes(3);
+      expect(result.changelog.split('### Breaking Changes')[0]).toContain(
+        'Breaking change: legacy endpoint removed.',
+      );
+      expect(result.changelog).toContain('- Remove legacy endpoint');
+      expect(result.changelog).toContain('<details>');
+      expect(result.bumpType).toBe('major');
+    });
+
+    it('keeps category and scope prose visible while preserving every original entry and semver', async () => {
+      setup(commits, null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog).toContain('release summary for New Features ✨');
+      expect(result.changelog).toContain(
+        '### New Features ✨\n\ncategory summary for New Features ✨\n\n#### Cli',
+      );
+      expect(result.changelog).toContain(
+        '#### Cli\n\nscope summary for New Features ✨ / Cli\n\n<details>',
+      );
+      expect(result.changelog.match(/<details>/g)).toHaveLength(1);
+      expect(result.changelog.match(/Show 6 items/g)).toHaveLength(1);
+      for (let i = 1; i <= 6; i++)
+        expect(
+          result.changelog.match(
+            new RegExp(`^- Add command ${i}(?: by| in|$)`, 'gm'),
+          ),
+        ).toHaveLength(1);
+      expect(result.bumpType).toBe('minor');
+      expect(result.totalCommits).toBe(6);
+    });
+
+    it.each([
+      [['release']],
+      [['category']],
+      [['scope']],
+      [['release', 'category']],
+      [['release', 'scope']],
+      [['category', 'scope']],
+      [['release', 'category', 'scope']],
+    ])('renders only selected levels %j', async levels => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        aiSummary: {
+          ...summaryConfig.aiSummary,
+          levels: levels as typeof summaryConfig.aiSummary.levels,
+        },
+      });
+      setup(commits, null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog.includes('release summary')).toBe(
+        levels.includes('release'),
+      );
+      expect(result.changelog.includes('category summary')).toBe(
+        levels.includes('category'),
+      );
+      expect(result.changelog.includes('scope summary')).toBe(
+        levels.includes('scope'),
+      );
+      // Every displayed scope remains outside any collapsed original entries.
+      expect(result.changelog).toContain('#### Cli');
+      expect(result.changelog.indexOf('#### Cli')).toBeLessThan(
+        result.changelog.indexOf('<details>') === -1
+          ? Infinity
+          : result.changelog.indexOf('<details>'),
+      );
+      if (levels.length === 1 && levels[0] === 'release') {
+        expect(result.changelog).not.toContain('<details>');
+        for (let i = 1; i <= 6; i++)
+          expect(result.changelog).toContain(`- Add command ${i}`);
+      }
+    });
+
+    it('renders a prose overview of at most three paragraphs covering every category', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        aiSummary: {
+          ...summaryConfig.aiSummary,
+          levels: ['release'],
+          minItems: 0,
+        },
+      });
+      setup(
+        Array.from({ length: 10 }, (_, i) => ({
+          hash: `category${i}`,
+          title: `change${i}: Add capability ${i}`,
+          body: '',
+        })),
+        `changelog:\n  categories:\n${Array.from(
+          { length: 10 },
+          (_, i) =>
+            `    - title: Category ${i}\n      commit_patterns: ['^change${i}:']`,
+        ).join('\n')}`,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      const overview = result.changelog.split('### ')[0].trim();
+      expect(overview.split('\n\n')).toHaveLength(3);
+      expect(overview).not.toMatch(/\*\*|^[-#]/m);
+      for (let i = 0; i < 10; i++) {
+        expect(overview).toContain(`release summary for Category ${i}`);
+        expect(result.changelog).toContain(`Add capability ${i}`);
+      }
+      expect(result.changelog).not.toContain('<details>');
+    });
+
+    it('folds unsummarized scopes and unscoped entries once beneath visible category prose', async () => {
+      setup(
+        [
+          ...commits,
+          { hash: 'api1', title: 'feat(api): Add endpoint 1', body: '' },
+          { hash: 'api2', title: 'feat(api): Add endpoint 2', body: '' },
+          { hash: 'other', title: 'feat: Add other feature', body: '' },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog).toContain(
+        'category summary for New Features ✨\n\n#### Api\n\n<details>',
+      );
+      expect(result.changelog).toContain(
+        '#### Cli\n\nscope summary for New Features ✨ / Cli\n\n<details>',
+      );
+      expect(result.changelog).not.toContain(
+        'scope summary for New Features ✨ / Api',
+      );
+      expect(result.changelog.match(/<details>/g)).toHaveLength(3);
+      let depth = 0;
+      for (const [tag] of result.changelog.matchAll(/<details>|<\/details>/g)) {
+        depth += tag === '<details>' ? 1 : -1;
+        expect(depth).toBeGreaterThanOrEqual(0);
+        expect(depth).toBeLessThanOrEqual(1);
+      }
+      expect(depth).toBe(0);
+      for (const title of [
+        'Add endpoint 1',
+        'Add endpoint 2',
+        'Add other feature',
+      ])
+        expect(result.changelog.split(title)).toHaveLength(2);
+      expect(result.totalCommits).toBe(9);
+      expect(result.bumpType).toBe('minor');
+    });
+
+    it('keeps byte-for-byte original output when a later generation stage fails', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        aiSummary: false,
+      });
+      setup(commits, null);
+      const original = await generateChangesetFromGit(dummyGit, '1.0.0');
+      clearChangesetCache();
+      vi.mocked(config.getChangelogConfig).mockReturnValue(summaryConfig);
+      setup(commits, null);
+      provider
+        .mockResolvedValueOnce({
+          summaries: [
+            { id: 'group:0/r0/b0', summary: 'scope', importantChanges: [] },
+          ],
+        })
+        .mockRejectedValueOnce(new Error('Unavailable'));
+      expect(await generateChangesetFromGit(dummyGit, '1.0.0')).toEqual(
+        original,
+      );
+      provider.mockReset();
+    });
+
+    it('keeps version analysis AI-free and caches raw data for later rendering', async () => {
+      setup(commits, null);
+      const analyzed = await generateChangesetFromGit(
+        dummyGit,
+        '1.0.0',
+        100,
+        false,
+      );
+      expect(analyzed.bumpType).toBe('minor');
+      expect(analyzed.changelog).not.toContain('<details>');
+      expect(provider).not.toHaveBeenCalled();
+      const rendered = await generateChangesetFromGit(
+        dummyGit,
+        '1.0.0',
+        100,
+        true,
+      );
+      expect(rendered.changelog).toContain('release summary');
+      expect(mockGetChangesSince).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps independent Git clients and revisions out of each other’s caches', async () => {
+      setup(commits, null);
+      await generateChangesetFromGit(dummyGit, '1.0.0');
+      setup(
+        [
+          {
+            hash: 'dddd123456789012',
+            title: 'fix: Different checkout',
+            body: '',
+          },
+        ],
+        null,
+      );
+      const other = await generateChangesetFromGit({} as SimpleGit, '1.0.0');
+      expect(other.changelog).toContain('Different checkout');
+      expect(other.changelog).not.toContain('Add command');
+    });
+
+    it('adds category summaries without inventing scopes when grouping is disabled', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        scopeGrouping: false,
+      });
+      setup(commits, null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog).toContain('category summary');
+      expect(result.changelog).not.toContain('#### Cli');
+      expect(result.changelog).not.toContain('scope summary');
+      expect(result.changelog.match(/<details>/g)).toHaveLength(1);
+    });
+
+    it('leaves highlighted PR previews expanded and makes no model request', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      (
+        getGitHubClient as MockedFunction<typeof getGitHubClient>
+      ).mockReturnValue({
+        graphql: mockClient,
+        pulls: {
+          get: vi.fn().mockResolvedValue({
+            data: {
+              number: 777,
+              title: 'feat(cli): Add preview command',
+              body: '',
+              user: { login: 'author' },
+              base: { ref: 'master' },
+              head: { sha: 'bbbbbbb1234567890' },
+            },
+          }),
+        },
+        issues: { listLabelsOnIssue: vi.fn().mockResolvedValue({ data: [] }) },
+      } as any);
+      setup(commits, null);
+      const result = await generateChangelogWithHighlight(
+        { fetch: vi.fn().mockResolvedValue(undefined) } as unknown as SimpleGit,
+        '1.0.0',
+        777,
+      );
+      expect(result.changelog).toContain('> - Add preview command');
+      expect(result.changelog).not.toContain('<details>');
+      expect(result.bumpType).toBe('minor');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
 
   describe('output formatting', () => {
     it('returns empty string for empty changeset', async () => {
