@@ -81,7 +81,6 @@ jobs:
         working-directory: dist-bin
         run: |
           gzip -n -9 craft-{darwin,linux}-{arm64,x64}
-          for file in *.gz *.exe; do sha256sum "$file" > "$file.sha256"; done
       - name: Smoke Test
         run: ./dist/craft --help
       - name: NPM Pack
@@ -102,7 +101,6 @@ jobs:
           path: |
             dist-bin/*.gz
             dist-bin/*.exe
-            dist-bin/*.sha256
 
   native-smoke:
     name: Verify / darwin-arm64
