@@ -140,6 +140,9 @@ importers:
       aws4:
         specifier: ^1.11.0
         version: 1.13.2
+      binpatch:
+        specifier: 0.4.2
+        version: 0.4.2
       chalk:
         specifier: 4.1.1
         version: 4.1.1
@@ -1836,6 +1839,10 @@ packages:
   binary-extensions@2.3.0:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
     engines: {node: '>=8'}
+
+  binpatch@0.4.2:
+    resolution: {integrity: sha512-aShVdFVzDrqVRlyhDQabzKV6b9suWegARr0IPTer58eNQoo1KqpuCr+VtbwwuirmfXqmWuuxsoZlXJN1tTZBcw==}
+    engines: {node: '>=22.15.0'}
 
   binpunch@1.0.0:
     resolution: {integrity: sha512-ghxdoerLN3WN64kteDJuL4d9dy7gbvcqoADNRWBk6aQ5FrYH1EmPmREAdcdIdTNAA3uW3V38Env5OqH2lj+i+g==}
@@ -5398,6 +5405,8 @@ snapshots:
   bignumber.js@9.3.1: {}
 
   binary-extensions@2.3.0: {}
+
+  binpatch@0.4.2: {}
 
   binpunch@1.0.0: {}
 

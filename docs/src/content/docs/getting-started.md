@@ -402,3 +402,10 @@ Credentials and other configuration (`GITHUB_TOKEN`, `NPM_TOKEN`, etc.) must be 
 5. **Configure environment variables** for your targets.
 
 6. **Run** `craft prepare <version> --publish`!
+
+Stable standalone upgrades use [binpatch](https://github.com/BYK/binpatch) delta
+chains when available and smaller than the full download. Craft verifies the
+patched executable against the target release digest before checking its version
+and installing it. Missing, oversized, corrupt, or incompatible patches fall back
+to the normal checksum-verified download. The first native release and explicit
+prerelease installs use full downloads.
