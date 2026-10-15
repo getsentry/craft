@@ -242,6 +242,7 @@ changelog:
   aiSummary:
     levels: [release] # default; choose any combination of release, category, scope
     minItems: 5 # summarize groups with more than 5 original entries
+    style: Concise and friendly for developers. # optional tone guidance
 ```
 
 
@@ -249,11 +250,12 @@ changelog:
 | --- | --- | --- |
 | `levels` | `[release]` | Select visible summaries; omitted or empty arrays use `[release]`. |
 | `minItems` | `5` | Strict entry-count threshold. `0` includes every nonempty selected group. Category counts include descendants; release counts include the whole changelog. |
+| `style` | Neutral | Optional writing guidance (1–500 characters), applied at every level. Facts, coverage, length and plain-text safeguards still apply. |
 | `llm.endpoint` | `https://api.githubcopilot.com/responses` | Full POST URL; HTTPS required except loopback HTTP. |
 | `llm.model` | `gpt-6-luna` | Model ID supported by the endpoint and credential. |
 | `llm.apiKeyEnv` | `GITHUB_TOKEN` | Name of the environment variable containing the token. Never put the token in configuration or CLI arguments. |
 
-Lower-level digests are reused for parent summaries even when hidden. Release overviews cover every category. Category and scope summaries preserve originals in expandable blocks, including links and nested content. Category prose and scope headings stay expanded; each original entry is folded only once. Scope summaries need an existing scope heading; `scopeGrouping: false` still allows category/release summaries. Unscoped entries contribute to both parent levels.
+Lower-level digests are reused for parent summaries even when hidden. Release overviews use up to three prose paragraphs and cover every category. Category and scope summaries preserve originals in expandable blocks, including links and nested content. Category prose and scope headings stay expanded; each original entry is folded only once. Scope summaries need an existing scope heading; `scopeGrouping: false` still allows category/release summaries. Unscoped entries contribute to both parent levels.
 
 ##### Output examples
 
@@ -262,7 +264,7 @@ These examples use two original entries and `minItems: 0`.
 **`levels: [release]`** adds an overview and leaves originals expanded:
 
 ```markdown
-**New Features:** Added login and logout commands to CLI.
+Added login and logout commands to CLI.
 
 
 ### New Features
@@ -319,7 +321,7 @@ Added login and logout commands.
 **`levels: [release, scope]`** combines an overview with scope summaries:
 
 ```markdown
-**New Features:** Added login and logout commands to CLI.
+Added login and logout commands to CLI.
 
 
 ### New Features
