@@ -232,6 +232,113 @@ for the full monorepo pattern.</p>
 <p>Automatically generates changelog from commits:</p>
 <div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="yaml"><code><div class="ec-line"><div class="code"><span style="--0:#FFFFFF">changelog</span><span style="--0:#CFCFCF">:</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#FFFFFF">policy</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">auto</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="changelog:  policy: auto"><div></div></button></div></figure></div>
 <p>Auto mode uses <code dir="auto">.github/release.yml</code> to categorize PRs. This file follows <a href="https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes#configuring-automatically-generated-release-notes">GitHub’s release.yml format</a> with Craft-specific extensions.</p>
+<div class="sl-heading-wrapper level-h4"><h4 id="ai-summaries">AI summaries</h4><a class="sl-anchor-link" href="#ai-summaries"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “AI summaries”</span></a></div>
+<p>Add an <code dir="auto">aiSummary</code> object to enable summaries for automatic changelogs. Omit it
+or use <code dir="auto">aiSummary: false</code> to disable generation.</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="yaml"><code><div class="ec-line"><div class="code"><span style="--0:#FFFFFF">changelog</span><span style="--0:#CFCFCF">:</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#FFFFFF">policy</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">auto</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#FFFFFF">aiSummary</span><span style="--0:#CFCFCF">:</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#FFFFFF">levels</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#CFCFCF">[</span><span style="--0:#FFD166">release</span><span style="--0:#CFCFCF">]</span><span style="--0:#F5F5F5"> </span><span style="--0:#9E9E9E;--0fs:italic"># default; choose any combination of release, category, scope</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#FFFFFF">minItems</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFB86C">5</span><span style="--0:#F5F5F5"> </span><span style="--0:#9E9E9E;--0fs:italic"># summarize groups with more than 5 original entries</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#FFFFFF">style</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">Concise and friendly for developers.</span><span style="--0:#F5F5F5"> </span><span style="--0:#9E9E9E;--0fs:italic"># optional tone guidance</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="changelog:  policy: auto  aiSummary:    levels: [release] # default; choose any combination of release, category, scope    minItems: 5 # summarize groups with more than 5 original entries    style: Concise and friendly for developers. # optional tone guidance"><div></div></button></div></figure></div>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code dir="auto">levels</code></td>
+<td><code dir="auto">[release]</code></td>
+<td>Select visible summaries; omitted or empty arrays use <code dir="auto">[release]</code>.</td>
+</tr>
+<tr>
+<td><code dir="auto">minItems</code></td>
+<td><code dir="auto">5</code></td>
+<td>Strict entry-count threshold. <code dir="auto">0</code> includes every nonempty selected group. Category counts include descendants; release counts include the whole changelog.</td>
+</tr>
+<tr>
+<td><code dir="auto">style</code></td>
+<td>Neutral</td>
+<td>Optional writing guidance (1–500 characters), applied at every level. Facts, coverage, length and plain-text safeguards still apply.</td>
+</tr>
+<tr>
+<td><code dir="auto">llm.endpoint</code></td>
+<td><code dir="auto">https://api.githubcopilot.com/responses</code></td>
+<td>Full POST URL; HTTPS required except loopback HTTP.</td>
+</tr>
+<tr>
+<td><code dir="auto">llm.model</code></td>
+<td><code dir="auto">gpt-6-luna</code></td>
+<td>Model ID supported by the endpoint and credential.</td>
+</tr>
+<tr>
+<td><code dir="auto">llm.apiKeyEnv</code></td>
+<td><code dir="auto">GITHUB_TOKEN</code></td>
+<td>Name of the environment variable containing the token. Never put the token in configuration or CLI arguments.</td>
+</tr>
+</tbody>
+</table>
+<p>Lower-level digests are reused for parent summaries even when hidden. Release
+overviews use up to three prose paragraphs and cover every category. Category
+and scope summaries preserve originals in expandable blocks, including links
+and nested content. Category prose and
+scope headings stay expanded; each original entry is folded only once. Scope
+summaries need an existing scope heading; <code dir="auto">scopeGrouping: false</code> still allows
+category/release summaries. Unscoped entries contribute to both parent levels.</p>
+<div class="sl-heading-wrapper level-h5"><h5 id="output-examples">Output examples</h5><a class="sl-anchor-link" href="#output-examples"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Output examples”</span></a></div>
+<p>These examples use two original entries and <code dir="auto">minItems: 0</code>.</p>
+<p><strong><code dir="auto">levels: [release]</code></strong> adds an overview and leaves originals expanded:</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="markdown"><code><div class="ec-line"><div class="code"><span style="--0:#F5F5F5">Added login and logout commands to CLI.</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">###</span><span style="--0:#FFFFFF"> New Features</span></div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">####</span><span style="--0:#FFFFFF"> CLI</span></div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">-</span><span style="--0:#F5F5F5"> Add login command</span></div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">-</span><span style="--0:#F5F5F5"> Add logout command</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="Added login and logout commands to CLI.### New Features#### CLI- Add login command- Add logout command"><div></div></button></div></figure></div>
+<p><strong><code dir="auto">levels: [category]</code></strong> keeps scope headings visible and folds original entries:</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="markdown"><code><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">###</span><span style="--0:#FFFFFF"> New Features</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#F5F5F5">Added login and logout commands to CLI.</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">####</span><span style="--0:#FFFFFF"> CLI</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">&lt;</span><span style="--0:#FFFFFF">details</span><span style="--0:#CFCFCF">&gt;</span></div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">&lt;</span><span style="--0:#FFFFFF">summary</span><span style="--0:#CFCFCF">&gt;</span><span style="--0:#F5F5F5">Show 2 items</span><span style="--0:#CFCFCF">&lt;/</span><span style="--0:#FFFFFF">summary</span><span style="--0:#CFCFCF">&gt;</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#F5F5F5">- Add login command</span></div></div><div class="ec-line"><div class="code"><span style="--0:#F5F5F5">- Add logout command</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">&lt;/</span><span style="--0:#FFFFFF">details</span><span style="--0:#CFCFCF">&gt;</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="### New FeaturesAdded login and logout commands to CLI.#### CLI<details><summary>Show 2 items</summary>- Add login command- Add logout command</details>"><div></div></button></div></figure></div>
+<p><strong><code dir="auto">levels: [scope]</code></strong> summarizes each eligible scope:</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="markdown"><code><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">###</span><span style="--0:#FFFFFF"> New Features</span></div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">####</span><span style="--0:#FFFFFF"> CLI</span></div></div><div class="ec-line"><div class="code"><span style="--0:#F5F5F5">Added login and logout commands.</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">&lt;</span><span style="--0:#FFFFFF">details</span><span style="--0:#CFCFCF">&gt;</span></div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">&lt;</span><span style="--0:#FFFFFF">summary</span><span style="--0:#CFCFCF">&gt;</span><span style="--0:#F5F5F5">Show 2 items</span><span style="--0:#CFCFCF">&lt;/</span><span style="--0:#FFFFFF">summary</span><span style="--0:#CFCFCF">&gt;</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#F5F5F5">- Add login command</span></div></div><div class="ec-line"><div class="code"><span style="--0:#F5F5F5">- Add logout command</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">&lt;/</span><span style="--0:#FFFFFF">details</span><span style="--0:#CFCFCF">&gt;</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="### New Features#### CLIAdded login and logout commands.<details><summary>Show 2 items</summary>- Add login command- Add logout command</details>"><div></div></button></div></figure></div>
+<p><strong><code dir="auto">levels: [release, scope]</code></strong> combines an overview with scope summaries:</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="markdown"><code><div class="ec-line"><div class="code"><span style="--0:#F5F5F5">Added login and logout commands to CLI.</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">###</span><span style="--0:#FFFFFF"> New Features</span></div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">####</span><span style="--0:#FFFFFF"> CLI</span></div></div><div class="ec-line"><div class="code"><span style="--0:#F5F5F5">Added login and logout commands.</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">&lt;</span><span style="--0:#FFFFFF">details</span><span style="--0:#CFCFCF">&gt;</span></div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">&lt;</span><span style="--0:#FFFFFF">summary</span><span style="--0:#CFCFCF">&gt;</span><span style="--0:#F5F5F5">Show 2 items</span><span style="--0:#CFCFCF">&lt;/</span><span style="--0:#FFFFFF">summary</span><span style="--0:#CFCFCF">&gt;</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#F5F5F5">- Add login command</span></div></div><div class="ec-line"><div class="code"><span style="--0:#F5F5F5">- Add logout command</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">&lt;/</span><span style="--0:#FFFFFF">details</span><span style="--0:#CFCFCF">&gt;</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="Added login and logout commands to CLI.### New Features#### CLIAdded login and logout commands.<details><summary>Show 2 items</summary>- Add login command- Add logout command</details>"><div></div></button></div></figure></div>
+<p><strong><code dir="auto">levels: [category, scope]</code></strong> keeps both summaries visible:</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="markdown"><code><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">###</span><span style="--0:#FFFFFF"> New Features</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#F5F5F5">Added login and logout commands to CLI.</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">####</span><span style="--0:#FFFFFF"> CLI</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#F5F5F5">Added login and logout commands.</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">&lt;</span><span style="--0:#FFFFFF">details</span><span style="--0:#CFCFCF">&gt;</span></div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">&lt;</span><span style="--0:#FFFFFF">summary</span><span style="--0:#CFCFCF">&gt;</span><span style="--0:#F5F5F5">Show 2 items</span><span style="--0:#CFCFCF">&lt;/</span><span style="--0:#FFFFFF">summary</span><span style="--0:#CFCFCF">&gt;</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#F5F5F5">- Add login command</span></div></div><div class="ec-line"><div class="code"><span style="--0:#F5F5F5">- Add logout command</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#CFCFCF">&lt;/</span><span style="--0:#FFFFFF">details</span><span style="--0:#CFCFCF">&gt;</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="### New FeaturesAdded login and logout commands to CLI.#### CLIAdded login and logout commands.<details><summary>Show 2 items</summary>- Add login command- Add logout command</details>"><div></div></button></div></figure></div>
+<p>Selecting all three levels also adds the release overview. Excluding <code dir="auto">release</code>
+omits it. Category/release summaries retain scope context; scope summaries can
+omit the scope name because their heading supplies it.</p>
+<div class="sl-heading-wrapper level-h5"><h5 id="connection-settings">Connection settings</h5><a class="sl-anchor-link" href="#connection-settings"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Connection settings”</span></a></div>
+<p>The CLI and Actions share the HTTP client. With an authorized Copilot token in
+<code dir="auto">GITHUB_TOKEN</code>, <code dir="auto">aiSummary: {}</code> uses the default Luna Responses endpoint. For a
+custom provider, specify its connection and token variable:</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="yaml"><code><div class="ec-line"><div class="code"><span style="--0:#FFFFFF">changelog</span><span style="--0:#CFCFCF">:</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#FFFFFF">policy</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">auto</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#FFFFFF">aiSummary</span><span style="--0:#CFCFCF">:</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#FFFFFF">llm</span><span style="--0:#CFCFCF">:</span></div></div><div class="ec-line"><div class="code"><span class="indent">      </span><span style="--0:#FFFFFF">endpoint</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">https://gateway.example.com/v1/chat/completions</span></div></div><div class="ec-line"><div class="code"><span class="indent">      </span><span style="--0:#FFFFFF">model</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">your-model</span></div></div><div class="ec-line"><div class="code"><span class="indent">      </span><span style="--0:#FFFFFF">apiKeyEnv</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">TEAM_MODEL_TOKEN</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="changelog:  policy: auto  aiSummary:    llm:      endpoint: https://gateway.example.com/v1/chat/completions      model: your-model      apiKeyEnv: TEAM_MODEL_TOKEN"><div></div></button></div></figure></div>
+<p>Per-field precedence is CLI flags (<code dir="auto">--ai-endpoint</code>, <code dir="auto">--ai-model</code>,
+<code dir="auto">--ai-api-key-env</code>), <code dir="auto">CRAFT_AI_LLM</code> JSON, scalar environment overrides
+(<code dir="auto">CRAFT_AI_ENDPOINT</code>, <code dir="auto">CRAFT_AI_MODEL</code>, <code dir="auto">CRAFT_AI_API_KEY_ENV</code>), then effective
+project/workspace configuration. Workspace changelog objects replace the
+inherited object. Endpoints ending in <code dir="auto">/responses</code> use Responses; others use
+Chat Completions. Both require structured JSON output. Invalid settings are
+rejected; missing tokens and provider errors retain the original output.</p>
+<p>Generation sends changelog content and critical PR titles to the chosen
+provider. Breaking/security facts retain source IDs. Generated prose is escaped;
+review it for accuracy. Requests are bounded to 64 calls, 3 concurrent calls,
+30 seconds per request, 120 seconds total, 24,000 input bytes and 8,192 output
+tokens. Any failure preserves the entire original changelog without retries or
+provider switching. Existing leftover-entry limits still apply.</p>
+<p>Dry runs, highlighted PR previews, <code dir="auto">prepare --no-changelog</code> and version analysis
+make zero model calls. See <a href="../github-actions/#ai-summary-authentication">AI summary authentication</a>
+for Action inputs, secret mapping, Copilot permissions and billing.</p>
 <div class="sl-heading-wrapper level-h4"><h4 id="craft-extensions-to-releaseyml">Craft Extensions to release.yml</h4><a class="sl-anchor-link" href="#craft-extensions-to-releaseyml"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Craft Extensions to release.yml”</span></a></div>
 <p>Craft extends GitHub’s format with two additional fields:</p>
 <table>
@@ -405,6 +512,10 @@ aren’t grouped under a scope header.</p>
 <tr>
 <td><code dir="auto">changelog.includePaths</code></td>
 <td>Extra workspace directories to include in automatic changelogs. Default: <code dir="auto">[]</code></td>
+</tr>
+<tr>
+<td><code dir="auto">changelog.aiSummary</code></td>
+<td>Opt-in HTTP release, category, and scope summaries. Default: disabled.</td>
 </tr>
 </tbody>
 </table>

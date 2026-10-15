@@ -35,6 +35,8 @@ on:
 
 jobs:
   release:
+    permissions:
+      contents: write
     uses: getsentry/craft/.github/workflows/release.yml@v2
     with:
       version: ${{ inputs.version }}
@@ -83,6 +85,8 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -106,6 +110,30 @@ jobs:
 
 
 The action accepts the same inputs and produces the same outputs as the reusable workflow.
+
+### AI summary authentication
+
+Enable summaries with `changelog.aiSummary: {}`. The default connection is Copilot Responses, `gpt-6-luna` and the `GITHUB_TOKEN` environment variable. The model must be available to the supplied credential. Use `aiSummary: false` to disable generation.
+
+For a custom provider, pass `llm` JSON and map a secret to `llm_api_key`:
+
+```yaml
+- uses: getsentry/craft@v2
+  env:
+    GITHUB_TOKEN: ${{ github.token }} # release operations
+  with:
+    llm: '{"endpoint":"https://gateway.example.com/v1/chat/completions","model":"your-model"}'
+    llm_api_key: ${{ secrets.TEAM_MODEL_TOKEN }}
+```
+
+
+`llm_api_key` selects a dedicated environment variable over `llm.apiKeyEnv`; it never replaces the release token. Alternatively, map a secret to your configured `apiKeyEnv`. Craft reads environment variables, not GitHub’s secret store. Secrets must be available to the workflow’s repository; an organization secret can grant selected-repository access.
+
+Pass repository/organization configuration as `llm: ${{ vars.CRAFT_AI_LLM }}`. The reusable release workflow supplies this fallback and forwards its `llm` input and optional `llm_api_key` secret to both Action paths.
+
+For built-in-token Copilot access, callers (including reusable workflow callers) must grant `copilot-requests: write` alongside their release permissions. The organization must enable **“Allow use of Copilot CLI billed to the organization.”** Usage is billed to the organization; permissions alone do not enable access. Map `${{ github.token }}` to `GITHUB_TOKEN`, or pass it as `llm_api_key` when release operations use a different token. See [GitHub’s workflow-token guide](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions). Personal Copilot credentials require Copilot access; fine-grained PATs need **Copilot Requests: write**. Custom provider credentials need no Copilot permission.
+
+Copilot’s direct HTTP backend is outside GitHub’s public REST API contract. Missing credentials or failed requests preserve the original changelog without switching providers. See [AI summary configuration](https://craft.sentry.dev/pr-preview/pr-904/configuration.md#ai-summaries) for precedence, limits and output examples.
 
 ### Test a Craft nightly
 
@@ -136,6 +164,8 @@ on:
 
 jobs:
   release:
+    permissions:
+      contents: write
     uses: getsentry/craft/.github/workflows/release.yml@v2
     with:
       version: auto
@@ -440,6 +470,8 @@ on:
 
 jobs:
   release:
+    permissions:
+      contents: write
     uses: getsentry/craft/.github/workflows/release.yml@v2
     with:
       version: ${{ inputs.version || 'auto' }}
