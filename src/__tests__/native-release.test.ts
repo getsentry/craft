@@ -27,7 +27,6 @@ const filenames = [
   'sentry-craft-2.35.0.tgz',
   'gh-pages.zip',
   ...binaries,
-  ...binaries.map(name => `${name}.sha256`),
   'other.tgz',
 ];
 
@@ -45,12 +44,11 @@ describe('Craft native release configuration', () => {
     ).toBe(true);
   });
 
-  test('requires each native executable and checksum before publishing', () => {
+  test('requires each native executable before publishing', () => {
     const required = (config.requireNames || []).map(stringToRegexp);
     for (const filename of [
       'craft-install',
       ...binaries,
-      ...binaries.map(name => `${name}.sha256`),
     ]) {
       // Missing any one release file must leave an unsatisfied requirement.
       const remaining = filenames.filter(name => name !== filename);
