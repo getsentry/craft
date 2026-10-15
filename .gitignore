@@ -23,3 +23,6 @@ npm-debug.log
 dist-bin/
 .node-cache/
 packed/
+
+# Generated installer copies
+craft-install
