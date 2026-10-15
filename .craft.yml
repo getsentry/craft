@@ -12,6 +12,7 @@ artifactProvider:
       Build & Test:
         - craft-binary
         - craft-docs
+        - craft-native
 preReleaseCommand: >-
   node -p "
     const {execSync} = require('child_process');
@@ -25,8 +26,20 @@ postReleaseCommand: >-
 requireNames:
   - /^sentry-craft.*\.tgz$/
   - /^craft$/
+  - /^craft-install$/
+  - /^craft-darwin-arm64\.gz$/
+  - /^craft-darwin-x64\.gz$/
+  - /^craft-linux-arm64\.gz$/
+  - /^craft-linux-x64\.gz$/
+  - /^craft-win-x64\.exe$/
+  - /^craft-darwin-arm64$/
+  - /^craft-darwin-x64$/
+  - /^craft-linux-arm64$/
+  - /^craft-linux-x64$/
+  - /^craft-win-x64\.exe\.gz$/
 targets:
   - name: npm
+    includeNames: /^sentry-craft-[0-9].*\.tgz$/
   - name: gcs
     includeNames: /^(?:.*craft.*|gh-pages\.zip)$/
     bucket: sentry-sdk-assets
@@ -56,4 +69,49 @@ targets:
   - name: github
     floatingTags:
       - 'v{major}'
+  - name: brew
+    tap: getsentry/tools
+    formula: craft
+    path: Formula
+    includeNames: /^craft-(darwin|linux)-(arm64|x64)\.gz$/
+    template: |
+      class Craft < Formula
+        desc "Universal release tool"
+        homepage "https://craft.sentry.dev"
+        version "{{version}}"
+        license "MIT"
+        depends_on "git"
+
+        if OS.mac?
+          if Hardware::CPU.arm?
+            url "https://github.com/getsentry/craft/releases/download/{{version}}/craft-darwin-arm64.gz"
+            sha256 "{{checksums.craft-darwin-arm64__gz}}"
+          elsif Hardware::CPU.intel?
+            url "https://github.com/getsentry/craft/releases/download/{{version}}/craft-darwin-x64.gz"
+            sha256 "{{checksums.craft-darwin-x64__gz}}"
+          else
+            raise "Unsupported macOS CPU architecture"
+          end
+        elsif OS.linux?
+          if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
+            url "https://github.com/getsentry/craft/releases/download/{{version}}/craft-linux-arm64.gz"
+            sha256 "{{checksums.craft-linux-arm64__gz}}"
+          elsif Hardware::CPU.intel? && Hardware::CPU.is_64_bit?
+            url "https://github.com/getsentry/craft/releases/download/{{version}}/craft-linux-x64.gz"
+            sha256 "{{checksums.craft-linux-x64__gz}}"
+          else
+            raise "Unsupported Linux CPU architecture"
+          end
+        else
+          raise "Unsupported operating system"
+        end
+
+        def install
+          bin.install Dir["craft-*"].first => "craft"
+        end
+
+        test do
+          assert_match version.to_s, shell_output("#{bin}/craft --version").chomp
+        end
+      end
   - name: gh-pages

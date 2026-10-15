@@ -396,3 +396,48 @@ test('release callers retain read-only build permissions and the same artifacts'
     expect(build.jobs[job].if).toContain("github.event_name == 'push'");
   }
 });
+
+test('native and npm builds share Sentry instrumentation and optional release auth', () => {
+  const readWorkflow = (name: string) =>
+    load(
+      readFileSync(join(__dirname, '../../.github/workflows', name), 'utf8'),
+    ) as {
+      on: {
+        workflow_call: { secrets?: Record<string, { required: boolean }> };
+      };
+      jobs: Record<
+        string,
+        {
+          secrets?: Record<string, string>;
+          environment?: string;
+          steps?: {
+            name?: string;
+            run?: string;
+            env?: Record<string, string>;
+          }[];
+        }
+      >;
+    };
+  for (const name of ['build.yml', 'release-build.yml']) {
+    const workflow = readWorkflow(name);
+    expect(workflow.on.workflow_call?.secrets?.SENTRY_AUTH_TOKEN.required).toBe(
+      false,
+    );
+    const build = workflow.jobs.build;
+    expect(build.environment).toBe(
+      "${{ github.ref == 'refs/heads/master' && 'production' }}",
+    );
+    expect(build.steps?.find(step => step.name === 'Build')).toMatchObject({
+      run: 'pnpm build:binary',
+      env: { SENTRY_AUTH_TOKEN: '${{ secrets.SENTRY_AUTH_TOKEN }}' },
+    });
+  }
+  const release = readWorkflow('release.yml');
+  expect(release.on.workflow_call?.secrets?.SENTRY_AUTH_TOKEN.required).toBe(
+    false,
+  );
+  expect(release.jobs.build.secrets).toEqual({
+    SENTRY_AUTH_TOKEN:
+      "${{ github.ref == 'refs/heads/master' && secrets.SENTRY_AUTH_TOKEN || '' }}",
+  });
+});

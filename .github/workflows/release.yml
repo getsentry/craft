@@ -75,6 +75,9 @@ on:
         type: string
         required: false
     secrets:
+      SENTRY_AUTH_TOKEN:
+        description: Optional Sentry source-map upload credential for master builds
+        required: false
       llm_api_key:
         description: Optional AI summary credential override; defaults to GITHUB_TOKEN
         required: false
@@ -101,6 +104,8 @@ jobs:
     if: github.repository == 'getsentry/craft'
     name: Build
     uses: ./.github/workflows/release-build.yml
+    secrets:
+      SENTRY_AUTH_TOKEN: ${{ github.ref == 'refs/heads/master' && secrets.SENTRY_AUTH_TOKEN || '' }}
     permissions:
       contents: read
 

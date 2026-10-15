@@ -28,6 +28,9 @@ import * as config from './commands/config';
 import * as artifacts from './commands/artifacts';
 import * as changelog from './commands/changelog';
 import * as workspace from './commands/workspace';
+import * as update from './commands/update';
+import * as completion from './commands/completion';
+import * as setup from './commands/setup';
 
 function printVersion(): void {
   if (!process.argv.includes('-v') && !process.argv.includes('--version')) {
@@ -112,6 +115,10 @@ async function main(): Promise<void> {
     .command(artifacts)
     .command(changelog)
     .command(workspace)
+    .command(setup)
+    .command(completion)
+    .completion('__complete', false)
+    .command(update)
     .demandCommand()
     .version(getPackageVersion())
     .alias('v', 'version')

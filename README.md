@@ -17,11 +17,32 @@ Craft is a command line tool that helps automate and pipeline package releases. 
 
 ### Installation
 
-Download the [latest binary release](https://github.com/getsentry/craft/releases/latest), or install via npm:
+Download a standalone executable for your OS and architecture from the
+[latest release](https://github.com/getsentry/craft/releases/latest), or install
+the portable JavaScript package via npm. Standalone executables embed Node;
+npm installation requires Node. The legacy `craft` asset remains a JavaScript bundle.
 
 ```shell
 npm install -g @sentry/craft
 ```
+
+Homebrew installation will be available after the first stable release publishing
+these binaries and its formula:
+
+```shell
+brew install getsentry/tools/craft
+```
+
+Once the first native release and installer website are published:
+
+```shell
+curl -fsSL https://craft.sentry.dev/install | bash
+```
+
+The Bash installer supports macOS/Linux and Windows x64 through Git Bash. It
+verifies the download and installs to a user bin directory; add the printed
+path to PATH. Use `--version`, `--install-dir`, or `--dry-run` by downloading
+and running the script locally.
 
 ### Usage
 
