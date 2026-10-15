@@ -25,9 +25,8 @@ test('bootstrap verifies downloads before installation', async () => {
   try {
     const tools = join(root, 'tools');
     await mkdir(tools);
-    const archive = shellPath(resolve('dist-bin', asset));
-    const sidecar = join(root, 'checksum');
-    await writeFile(sidecar, await readFile(`${archive}.sha256`));
+    const archive = shellPath(join(root, 'download'));
+    await writeFile(archive, await readFile(resolve('dist-bin', asset)));
     const curl = join(tools, 'curl');
     await writeFile(
       curl,
@@ -36,7 +35,6 @@ output=''
 url=''
 while (( $# )); do case "$1" in -o) output="$2"; shift ;; https:*) url="$1" ;; esac; shift; done
 case "$url" in
-  https://github.com/getsentry/craft/releases/download/${pkg.version}/${asset}.sha256) cp ${quote(shellPath(sidecar))} "$output" ;;
   https://github.com/getsentry/craft/releases/download/${pkg.version}/${asset}) cp ${quote(archive)} "$output" ;;
   *) echo "Unexpected fixture request: $url" >&2; exit 22 ;;
 esac
@@ -92,11 +90,11 @@ esac
       pkg.version,
     );
     const installed = await readFile(binary);
-    await writeFile(sidecar, `${'0'.repeat(64)}  ${asset}\n`);
-    await assert.rejects(run(), /Checksum mismatch/);
+    await writeFile(archive, Buffer.from('invalid native download'));
+    await assert.rejects(run());
     assert.deepEqual(await readFile(binary), installed);
     console.log(
-      `Verified native bootstrap and checksum failure preservation: ${platform}`,
+      `Verified native bootstrap and invalid-download preservation: ${platform}`,
     );
   } finally {
     await rm(root, { recursive: true, force: true });
