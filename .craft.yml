@@ -33,6 +33,11 @@ requireNames:
   - /^craft-linux-x64\.gz\.sha256$/
   - /^craft-win-x64\.exe$/
   - /^craft-win-x64\.exe\.sha256$/
+  - /^craft-darwin-arm64$/
+  - /^craft-darwin-x64$/
+  - /^craft-linux-arm64$/
+  - /^craft-linux-x64$/
+  - /^craft-win-x64\.exe\.gz$/
 targets:
   - name: npm
     includeNames: /^sentry-craft-[0-9].*\.tgz$/

@@ -92,8 +92,22 @@ jobs:
       - name: Package standalone release files
         working-directory: dist-bin
         run: |
-          gzip -n -9 craft-{darwin,linux}-{arm64,x64}
-          for file in *.gz *.exe; do sha256sum "$file" > "$file.sha256"; done
+          gzip -n -9 -k craft-{darwin,linux}-{arm64,x64} craft-win-x64.exe
+          for file in craft-{darwin,linux}-{arm64,x64}.gz craft-win-x64.exe; do sha256sum "$file" > "$file.sha256"; done
+      - name: Generate optional stable delta patches
+        id: patches
+        continue-on-error: true
+        uses: BYK/binpatch/action@9ba6bbb8227fcbd2521852d2311c82afac5e9573 # 0.4.2
+        with:
+          mode: generate-release
+          github-repo: getsentry/craft
+          new-binaries-dir: dist-bin
+          new-gz-dir: dist-bin
+          binary-glob: 'craft-*'
+          patches-dir: dist-bin/patches
+      - name: Stage generated patches
+        if: steps.patches.outputs.has-patches == 'true'
+        run: cp dist-bin/patches/*.patch dist-bin/
       - name: Package installer
         run: cp install craft-install
       - name: Smoke Test
@@ -114,10 +128,7 @@ jobs:
         with:
           name: craft-native
           if-no-files-found: error
-          path: |
-            dist-bin/*.gz
-            dist-bin/*.exe
-            dist-bin/*.sha256
+          path: dist-bin/craft-*
 
   native-smoke:
     name: Verify / darwin-arm64
@@ -131,6 +142,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: package.json
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.27.0
+      - run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@v8
         with:
           name: craft-native
@@ -149,6 +164,8 @@ jobs:
         run: node .github/scripts/installer-smoke.mjs
       - name: Test running executable self-update
         run: node .github/scripts/updater-smoke.mjs
+      - name: Test native delta update artifacts
+        run: pnpm test:distribution
 
   publish-nightly:
     name: Publish Craft nightly to GHCR

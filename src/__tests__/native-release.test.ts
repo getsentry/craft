@@ -21,11 +21,20 @@ const binaries = [
   'craft-linux-x64.gz',
   'craft-win-x64.exe',
 ];
+const patchSources = [
+  'craft-darwin-arm64',
+  'craft-darwin-x64',
+  'craft-linux-arm64',
+  'craft-linux-x64',
+  'craft-win-x64.exe.gz',
+];
 const filenames = [
   'craft',
   'craft-install',
   'sentry-craft-2.35.0.tgz',
   'gh-pages.zip',
+  'craft-linux-x64.patch',
+  ...patchSources,
   ...binaries,
   ...binaries.map(name => `${name}.sha256`),
   'other.tgz',
@@ -49,6 +58,7 @@ describe('Craft native release configuration', () => {
     const required = (config.requireNames || []).map(stringToRegexp);
     for (const filename of [
       'craft-install',
+      ...patchSources,
       ...binaries,
       ...binaries.map(name => `${name}.sha256`),
     ]) {
