@@ -69,15 +69,30 @@ jobs:
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v5
+        with:
+          path: .node-cache
+          key: node-sea-${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
+      - name: Install macOS signing tool for cross-builds
+        run: |
+          curl -fsSL https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.29.0/apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz -o "$RUNNER_TEMP/rcodesign.tar.gz"
+          echo "dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002  $RUNNER_TEMP/rcodesign.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/rcodesign"
+          tar -xzf "$RUNNER_TEMP/rcodesign.tar.gz" --strip-components=1 -C "$RUNNER_TEMP/rcodesign"
+          echo "$RUNNER_TEMP/rcodesign" >> "$GITHUB_PATH"
       - name: Build
         env:
           CRAFT_BUILD_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        run: pnpm build
+        run: pnpm build:binary
+      - name: Package standalone release files
+        working-directory: dist-bin
+        run: |
+          gzip -n -9 craft-{darwin,linux}-{arm64,x64}
       - name: Smoke Test
         run: ./dist/craft --help
       - name: NPM Pack
-        run: npm pack
+        run: pnpm pack
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v7
         with:
@@ -85,6 +100,34 @@ jobs:
           path: |
             ${{ github.workspace }}/*.tgz
             ${{ github.workspace }}/dist/craft
+
+      - name: Upload standalone release files
+        uses: actions/upload-artifact@v7
+        with:
+          name: craft-native
+          if-no-files-found: error
+          path: |
+            dist-bin/*.gz
+            dist-bin/*.exe
+
+  native-smoke:
+    name: Verify / darwin-arm64
+    needs: build
+    runs-on: macos-15
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: craft-native
+          path: dist-bin
+      - name: Verify standalone executable
+        run: |
+          gzip -dc dist-bin/craft-darwin-arm64.gz > "$RUNNER_TEMP/craft"
+          chmod +x "$RUNNER_TEMP/craft"
+          codesign --verify --strict "$RUNNER_TEMP/craft"
+          "$RUNNER_TEMP/craft" --version
 
   publish-nightly:
     name: Publish Craft nightly to GHCR
