@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
   mkdtemp,
+  mkdir,
   readFile,
   writeFile,
   chmod,
@@ -77,6 +78,53 @@ test('shell integration follows CLI metadata and respects dry-run', async () => 
     const files = await readdir(root);
     await run(['setup', '--shell', 'bash', '--dry-run']);
     assert.deepEqual(await readdir(root), files);
+    await mkdir(join(root, '.agents'));
+    await mkdir(join(root, '.claude'));
+    await run(['setup', '--no-agent-skills', '--no-completions']);
+    await run(['setup', '--no-completions']);
+    await assert.rejects(
+      readFile(join(root, '.agents/skills/craft-cli/SKILL.md')),
+      { code: 'ENOENT' },
+    );
+    await run(['setup', '--agent-skills', '--no-completions']);
+    const pkg = JSON.parse(await readFile('package.json', 'utf8'));
+    for (const agent of ['.agents', '.claude']) {
+      const installed = await readFile(
+        join(root, agent, 'skills/craft-cli/SKILL.md'),
+        'utf8',
+      );
+      assert(
+        installed.includes(`version: ${JSON.stringify(pkg.version)}`),
+        'Skill must use the binary version',
+      );
+      assert.match(installed, /craft publish/);
+    }
+    const npmHome = join(root, 'npm home');
+    await mkdir(join(npmHome, '.agents'), { recursive: true });
+    await execute(
+      process.execPath,
+      [resolve('packed/dist/craft'), 'setup', '--no-completions'],
+      {
+        cwd: root,
+        env: {
+          ...env,
+          HOME: npmHome,
+          USERPROFILE: npmHome,
+          XDG_DATA_HOME: join(npmHome, 'share'),
+          XDG_CONFIG_HOME: join(npmHome, 'config'),
+        },
+        timeout: 30000,
+      },
+    );
+    assert(
+      (
+        await readFile(
+          join(npmHome, '.agents/skills/craft-cli/SKILL.md'),
+          'utf8',
+        )
+      ).includes(`version: ${JSON.stringify(pkg.version)}`),
+      'Portable JS must embed/install the version-pinned skill',
+    );
     const profile = join(root, '.bashrc');
     await writeFile(profile, 'user profile');
     await run(['setup', '--shell', 'bash']);

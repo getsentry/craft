@@ -285,6 +285,16 @@ test('accepts canonical SemVer build metadata and rejects prefixed versions', as
   expect(fetch).toHaveBeenCalledTimes(1);
 });
 
+test('optional skill refresh failure does not undo or fail a verified binary update', async () => {
+  network();
+  const { executable, runtime } = await fixture();
+  vi.mocked(execFileSync).mockImplementation((_file, args) => {
+    if (args?.[0] === 'setup') throw new Error('skill refresh denied');
+    return Buffer.from('9.1.0\n');
+  });
+  await expect(updateNativeBinary({}, runtime)).resolves.toBeUndefined();
+  expect(await readFile(executable, 'utf8')).toBe('new');
+});
 // A real TRDIFF10 patch changes the three bytes read from the installed image.
 function deltaNetwork(mode = 'valid') {
   const old = Buffer.from('old');
