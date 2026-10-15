@@ -71,6 +71,9 @@ test('regular Node suites include the CLI E2E, with native platform coverage in 
   const workflow = yaml('.github/workflows/build.yml');
   expect(workflow.jobs).not.toHaveProperty('ai-summary-platforms');
   const job = workflow.jobs.test;
+  expect(job.steps.find((step: any) => step.id === 'cache').if).toBe(
+    "runner.os != 'Windows'",
+  );
   expect(job.steps.find((step: any) => step.name === 'Test').run).toBe(
     'pnpm test ${{ matrix.tests }}',
   );

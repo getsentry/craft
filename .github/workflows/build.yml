@@ -52,7 +52,9 @@ jobs:
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: ${{ steps.pnpm-version.outputs.version }}
+      # Install fresh on Windows instead of restoring archived pnpm junctions.
       - uses: actions/cache@v5
+        if: runner.os != 'Windows'
         id: cache
         with:
           path: node_modules
