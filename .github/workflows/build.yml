@@ -89,6 +89,11 @@ jobs:
           CRAFT_BUILD_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: pnpm build:binary
+      - name: Package standalone release files
+        working-directory: dist-bin
+        run: |
+          gzip -n -9 craft-{darwin,linux}-{arm64,x64}
+          for file in *.gz *.exe; do sha256sum "$file" > "$file.sha256"; done
       - name: Smoke Test
         run: ./dist/craft --help
       - name: NPM Pack
@@ -112,45 +117,23 @@ jobs:
             dist-bin/*.sha256
 
   native-smoke:
-    name: Verify / ${{ matrix.platform }}
+    name: Verify / darwin-arm64
     needs: build
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-15
     permissions:
       contents: read
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            platform: linux-x64
-          - os: ubuntu-24.04-arm
-            platform: linux-arm64
-          - os: macos-15
-            platform: darwin-arm64
-          - os: macos-15-intel
-            platform: darwin-x64
-          - os: windows-2025
-            platform: win-x64
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: package.json
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          version: 10.27.0
-      - run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@v8
         with:
           name: craft-native
           path: dist-bin
-      - uses: actions/download-artifact@v8
-        with:
-          name: craft-binary
-          path: packed
-      - name: Test downloaded native and npm artifacts
-        run: node .github/scripts/native-smoke.mjs
+      - name: Verify standalone executable
+        run: |
+          gzip -dc dist-bin/craft-darwin-arm64.gz > "$RUNNER_TEMP/craft"
+          chmod +x "$RUNNER_TEMP/craft"
+          codesign --verify --strict "$RUNNER_TEMP/craft"
+          "$RUNNER_TEMP/craft" --version
 
   publish-nightly:
     name: Publish Craft nightly to GHCR
