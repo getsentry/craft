@@ -70,6 +70,14 @@ on:
         type: string
         required: false
         default: 'false'
+      llm:
+        description: JSON object with AI summary endpoint, model, and apiKeyEnv
+        type: string
+        required: false
+    secrets:
+      llm_api_key:
+        description: Optional AI summary credential override; defaults to GITHUB_TOKEN
+        required: false
     outputs:
       version:
         description: The resolved version being released
@@ -102,8 +110,7 @@ jobs:
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-latest
     name: 'Release a new version'
-    permissions:
-      contents: write
+    # Inherit the caller's permissions, including optional Copilot access.
     outputs:
       version: ${{ steps.craft-local.outputs.version || steps.craft-action.outputs.version }}
       branch: ${{ steps.craft-local.outputs.branch || steps.craft-action.outputs.branch }}
@@ -139,6 +146,8 @@ jobs:
           workspace: ${{ github.event.inputs.workspace }}
           craft_version: ${{ github.event.inputs.craft_version }}
           git_user_name: ${{ github.actor }}
+          llm: ${{ inputs.llm || vars.CRAFT_AI_LLM }}
+          llm_api_key: ${{ secrets.llm_api_key }}
 
       # For external repos: use published action
       - name: Prepare release
@@ -159,3 +168,5 @@ jobs:
           workspace: ${{ inputs.workspace }}
           craft_version: ${{ inputs.craft_version }}
           craft_config_from_merge_target: ${{ inputs.craft_config_from_merge_target }}
+          llm: ${{ inputs.llm || vars.CRAFT_AI_LLM }}
+          llm_api_key: ${{ secrets.llm_api_key }}

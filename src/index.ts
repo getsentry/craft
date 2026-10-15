@@ -13,6 +13,7 @@ import {
 import {
   envToBool,
   setGlobals,
+  extractAiSummaryFlags,
   extractWorkspaceSelection,
 } from './utils/helpers';
 import { getPackageVersion } from './utils/version';
@@ -88,6 +89,7 @@ async function main(): Promise<void> {
   warnIfCraftEnvFileExists();
 
   const argv = fixGlobalBooleanFlags(process.argv.slice(2));
+  const aiFlags = extractAiSummaryFlags(argv);
 
   // Resolve the active workspace BEFORE parsing. yargs runs command `builder`s
   // (which may read the configuration, e.g. `publish` derives its --target
@@ -116,6 +118,23 @@ async function main(): Promise<void> {
     .help()
     .alias('h', 'help')
     .options(GLOBAL_BOOLEAN_FLAGS)
+    .option('ai-endpoint', {
+      type: 'string',
+      global: true,
+      describe:
+        'AI summary Responses or Chat Completions POST URL. Env: CRAFT_AI_ENDPOINT',
+    })
+    .option('ai-api-key-env', {
+      type: 'string',
+      global: true,
+      describe:
+        'Environment variable containing the endpoint token (default: GITHUB_TOKEN). Env: CRAFT_AI_API_KEY_ENV',
+    })
+    .option('ai-model', {
+      type: 'string',
+      global: true,
+      describe: 'AI summary model override. Env: CRAFT_AI_MODEL',
+    })
     .option('log-level', {
       default: 'Info',
       choices: Object.keys(LogLevel).filter(level => isNaN(Number(level))),
@@ -132,7 +151,7 @@ async function main(): Promise<void> {
     })
     .strictCommands()
     .showHelpOnFail(true)
-    .middleware(setGlobals)
+    .middleware(parsed => setGlobals(parsed, aiFlags))
     .parse(argv);
 }
 

@@ -379,7 +379,7 @@ test('release callers retain read-only build permissions and the same artifacts'
   expect(release.jobs.build.if).toBe("github.repository == 'getsentry/craft'");
   expect(release.jobs.build.uses).toBe('./.github/workflows/release-build.yml');
   expect(release.jobs.build.permissions).toEqual({ contents: 'read' });
-  expect(release.jobs.release.permissions).toEqual({ contents: 'write' });
+  expect(release.jobs.release.permissions).toBeUndefined();
   expect(releaseBuild.on.workflow_call).toBeDefined();
   expect(Object.keys(releaseBuild.jobs).sort()).toEqual([
     'build',
