@@ -22,7 +22,7 @@ import { createServer } from 'node:http';
 
 test('standalone CLI and Action settings preserve summaries, originals and fallback', async () => {
   const root = resolve(__dirname, '../..');
-  const directory = await mkdtemp(join(tmpdir(), 'craft-http-cli-'));
+  const directory = await mkdtemp(join(tmpdir(), 'craft http cli '));
   const binary = join(directory, 'craft');
   const execute = promisify(execFile);
   let calls = 0;
@@ -131,7 +131,7 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
     );
     const env = {
       ...process.env,
-      NODE_OPTIONS: `--require=${hook}`,
+      NODE_OPTIONS: '',
       GITHUB_TOKEN: 'source-fixture-token',
       CRAFT_WORKSPACE: '',
       CRAFT_DRY_RUN: 'false',
@@ -151,6 +151,8 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
           await execute(
             process.execPath,
             [
+              '--require',
+              hook,
               binary,
               'changelog',
               '--since',
@@ -187,10 +189,6 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
     const missing = await run([], { AI_SUMMARY_TOKEN: '' });
     assert.equal(missing.changelog, original.changelog);
     assert.equal(calls, before);
-    await writeFile(
-      join(directory, '.craft.yml'),
-      config.replace('levels: [release, category, scope]', 'levels: []'),
-    );
     await writeFile(
       join(directory, '.craft.yml'),
       config.replace(
