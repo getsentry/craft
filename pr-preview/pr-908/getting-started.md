@@ -86,6 +86,18 @@ craft completion fish
 
 Bash files live under `$XDG_DATA_HOME/bash-completion/completions`, defaulting to `~/.local/share`; source the printed file if your shell does not load it automatically. For zsh, add the printed `zsh/site-functions` directory to `fpath` before `compinit`. Fish files live under `$XDG_CONFIG_HOME/fish/completions`, defaulting to `~/.config`. Relative XDG paths are ignored. Both `craft` and `sentry-craft` aliases are supported. Setup prints instructions and does not modify shell profiles. Dry-run writes no completion files; custom files and symlink destinations are preserved.
 
+### Agent skills
+
+`craft setup` installs an embedded, version-pinned `craft-cli` skill into `~/.agents/skills/craft-cli` and `~/.claude/skills/craft-cli` when those agent roots already exist and are writable. No network download is needed. This works with standalone and npm/pnpm/Homebrew installations.
+
+```bash
+craft setup --no-agent-skills # remember an opt-out from installation/refresh
+craft setup --agent-skills    # re-enable installation/refresh
+```
+
+
+The preference is saved in `$XDG_CONFIG_HOME/craft/setup.json`, defaulting to `~/.config/craft/setup.json`. Standalone updates refresh the skill using the new binary and honor the saved opt-out. Package-manager users rerun `craft setup` after upgrading. Opt-out preserves existing skill files; remove them manually if you want agents to stop discovering the skill. Custom files and file symlinks are preserved. Dry-run writes neither preferences nor skill files.
+
 ### npm / pnpm (not recommended)
 
 Standalone executables are recommended. The [npm package](https://www.npmjs.com/package/@sentry/craft) remains supported when Node is already available and uses the JavaScript bundle:
