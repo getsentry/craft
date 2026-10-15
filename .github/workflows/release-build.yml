@@ -81,6 +81,11 @@ jobs:
           CRAFT_BUILD_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: pnpm build:binary
+      - name: Package standalone release files
+        working-directory: dist-bin
+        run: |
+          gzip -n -9 craft-{darwin,linux}-{arm64,x64}
+          for file in *.gz *.exe; do sha256sum "$file" > "$file.sha256"; done
       - name: Package installer
         run: cp install craft-install
       - name: Smoke Test
