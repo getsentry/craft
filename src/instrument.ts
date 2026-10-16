@@ -14,6 +14,24 @@ if (!process.argv.includes('--get-yargs-completions')) {
     environment: isCIEnv ? 'github-ci' : process.env.NODE_ENV || 'development',
     release: `craft@${getPackageVersion()}`,
     tracesSampleRate: 1,
+    // Retain transaction hooks and scope metadata when upgrading to SDK v11.
+    traceLifecycle: 'static',
+    // SDK v11 defaults collect more data; preserve the previous privacy baseline.
+    dataCollection: {
+      userInfo: false,
+      cookies: false,
+      httpHeaders: {
+        request: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+        response: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+      },
+      httpBodies: [],
+      urlQueryParams: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+      genAI: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      graphQL: { document: false, variables: false },
+      frameContextLines: 7,
+    },
     debug: Boolean(process.env.SENTRY_DEBUG),
 
     beforeSendTransaction: event => {
