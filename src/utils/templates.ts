@@ -105,7 +105,7 @@ function generateReleaseJob(context: TemplateContext): Record<string, unknown> {
   if (context.workflowSetup?.node) {
     if (context.workflowSetup.node.packageManager === 'pnpm') {
       const pnpmStep: Record<string, unknown> = {
-        uses: 'pnpm/action-setup@v4',
+        uses: 'pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320', // v4.4.0
       };
       // Avoid conflicting with packageManager pins, including integrity hashes.
       if (!context.workflowSetup.node.pnpmVersionFromPackageJson) {

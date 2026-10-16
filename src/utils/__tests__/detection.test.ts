@@ -264,7 +264,7 @@ describe('Target Detection', () => {
       writeFileSync(join(tempDir, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0');
       const step = releaseStep(
         NpmTarget.detect(createContext()),
-        'pnpm/action-setup@v4',
+        'pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320',
       );
       expect(step.with?.version).toBe('10');
     });
@@ -279,9 +279,12 @@ describe('Target Detection', () => {
       );
       writeFileSync(join(tempDir, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0');
       const result = NpmTarget.detect(createContext());
-      expect(releaseStep(result, 'pnpm/action-setup@v4').with?.version).toBe(
-        '9.15.9',
-      );
+      expect(
+        releaseStep(
+          result,
+          'pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320',
+        ).with?.version,
+      ).toBe('9.15.9');
       expect(
         releaseStep(result, 'actions/setup-node@v4').with?.[
           'node-version-file'
@@ -302,7 +305,7 @@ describe('Target Detection', () => {
         );
         const step = releaseStep(
           NpmTarget.detect(createContext()),
-          'pnpm/action-setup@v4',
+          'pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320',
         );
         expect(step.with ?? {}).not.toHaveProperty('version');
       },
