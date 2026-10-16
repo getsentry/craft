@@ -481,7 +481,8 @@ JavaScript compatibility path, so Node remains required by the composite Action.
 The native candidate must report the selected version before installation;
 a broken native download does not silently switch to JavaScript.
 
-The **AI summary integration** workflow makes one live request using public fixture
-facts when the AI connection/release wiring changes in an internal pull request.
-Fork pull requests skip that credentialed check. Ordinary tests use HTTP fixtures;
-a green release with fallback warnings alone does not prove AI summaries worked.
+The **AI summary integration** workflow is optional and runs a real request only
+when manually dispatched from Actions. Pull requests skip the credentialed job,
+so unavailable Copilot access does not block them. Regular AI unit, HTTP-fixture,
+and CLI/Action integration tests still run in the Node 22/24 CI suites. A green
+release with fallback warnings alone does not prove live AI summaries worked.

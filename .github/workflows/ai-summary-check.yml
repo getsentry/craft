@@ -11,7 +11,8 @@ on:
       - 'src/__tests__/ai-summary-live.test.ts'
 jobs:
   check:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    # Keep a skipped PR check; only an explicit manual run calls Copilot.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
