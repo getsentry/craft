@@ -2,6 +2,8 @@ minVersion: '2.14.0'
 changelog:
   policy: auto
   aiSummary:
+    llm:
+      model: gpt-5.6-luna-utility
     levels: [release, category, scope]
     minItems: 0
     style: Keep it concise and friendly for developers; avoid hype.

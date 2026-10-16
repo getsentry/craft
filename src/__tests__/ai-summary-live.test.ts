@@ -1,12 +1,30 @@
 // Opt-in live check; ordinary unit tests never require credentials or inference.
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { load } from 'js-yaml';
 import { expect, test, vi } from 'vitest';
-import { AiSummaryConfigSchema } from '../schemas/project_config';
+import {
+  AiSummaryConfigSchema,
+  CraftProjectConfigSchema,
+} from '../schemas/project_config';
 import { createSummaryProvider } from '../utils/ai-provider';
 import { describeCopilotRejection } from './helpers/copilot-diagnostics';
 
-test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true')(
-  'the workflow token and default model return a valid changelog digest',
-  async () => {
+test
+  .skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true')
+  .each(['default', 'repository'])(
+  'the workflow token and %s settings return a valid changelog digest',
+  async settings => {
+    let config = AiSummaryConfigSchema.parse({});
+    if (settings === 'repository') {
+      const project = CraftProjectConfigSchema.parse(
+        load(readFileSync(join(__dirname, '../../.craft.yml'), 'utf8')),
+      );
+      const summary =
+        typeof project.changelog === 'object' && project.changelog.aiSummary;
+      if (!summary) throw new Error('Repository AI summaries must be enabled');
+      config = summary;
+    }
     const originalFetch = globalThis.fetch;
     const request = vi
       .spyOn(globalThis, 'fetch')
@@ -24,7 +42,7 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true')(
         }
         return response;
       });
-    const provider = createSummaryProvider(AiSummaryConfigSchema.parse({}));
+    const provider = createSummaryProvider(config);
     try {
       const output = await provider.request({
         input: JSON.stringify({

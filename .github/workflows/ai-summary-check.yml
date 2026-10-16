@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
+      - '.craft.yml'
       - '.github/workflows/ai-summary-check.yml'
       - '.github/workflows/release.yml'
       - 'action.yml'
