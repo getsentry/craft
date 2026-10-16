@@ -1,211 +1,252 @@
-import { mkdtemp, readFile, writeFile, rm, mkdir } from 'node:fs/promises';
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  rmSync,
+  chmodSync,
+  existsSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { join, resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
-import { createHash } from 'node:crypto';
-import { afterEach, expect, test, vi } from 'vitest';
+import { afterEach, expect, test } from 'vitest';
 
-const moduleUrl = pathToFileURL(
-  join(__dirname, '../../.github/scripts/install-craft.mjs'),
-).href;
 const directories: string[] = [];
-afterEach(async () => {
+const quote = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
+afterEach(() => {
   for (const dir of directories.splice(0))
-    await rm(dir, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true });
 });
-async function fixture() {
-  const dir = await mkdtemp(join(tmpdir(), 'craft action '));
+function fixture(platform = 'linux', arch = 'x64', native = true) {
+  const dir = mkdtempSync(join(tmpdir(), 'craft action install '));
   directories.push(dir);
-  return dir;
-}
-const bytes = Buffer.from('native Craft fixture');
-function network(asset: string | undefined) {
-  return vi.fn(async (url: string) => {
-    if (url.startsWith('https://api.github.com/'))
-      return Response.json({
-        tag_name: '2.35.0',
-        draft: false,
-        assets: [asset, 'craft'].filter(Boolean).map(name => ({
-          name,
-          state: 'uploaded',
-          browser_download_url: `https://github.com/getsentry/craft/releases/download/2.35.0/${name}`,
-        })),
-      });
-    return new Response(url.endsWith('.gz') ? gzipSync(bytes) : bytes);
-  });
-}
-test.each([
-  ['linux', 'x64', 'craft-linux-x64.gz'],
-  ['linux', 'arm64', 'craft-linux-arm64.gz'],
-  ['darwin', 'x64', 'craft-darwin-x64.gz'],
-  ['darwin', 'arm64', 'craft-darwin-arm64.gz'],
-  ['win32', 'x64', 'craft-win-x64.exe'],
-])(
-  'installs the matching %s/%s native release instead of JavaScript',
-  async (platform, arch, asset) => {
-    const { installCraft } = await import(moduleUrl);
-    const dir = await fixture();
-    const request = network(asset);
-    const verify = vi.fn();
-    const result = await installCraft({
-      version: '2.35.0',
-      directory: dir,
-      platform,
-      arch,
-      request,
-      verify,
-    });
-    expect(await readFile(result.path)).toEqual(bytes);
-    expect(result.native).toBe(true);
-    expect(verify).toHaveBeenCalledWith(expect.any(String), '2.35.0', platform);
-    expect(request.mock.calls[1][0]).toContain(asset);
-  },
-);
-test('old releases without a native asset keep the JavaScript compatibility path', async () => {
-  const { installCraft } = await import(moduleUrl);
-  const dir = await fixture();
-  const result = await installCraft({
-    version: '2.35.0',
-    directory: dir,
-    platform: 'linux',
-    arch: 'x64',
-    request: network(undefined),
-    verify: vi.fn(),
-  });
-  expect(result.native).toBe(false);
-  expect(await readFile(result.path)).toEqual(bytes);
-});
-test('an invalid native executable fails instead of silently using JavaScript', async () => {
-  const { installCraft } = await import(moduleUrl);
-  const dir = await fixture();
-  const request = network('craft-linux-x64.gz');
-  await expect(
-    installCraft({
-      version: '2.35.0',
-      directory: dir,
-      platform: 'linux',
-      arch: 'x64',
-      request,
-      verify: () => {
-        throw new Error('wrong executable version');
-      },
-    }),
-  ).rejects.toThrow('wrong executable version');
-  expect(request).toHaveBeenCalledTimes(2);
-});
-test('same-run native artifacts take precedence without a network download', async () => {
-  const { installCraft } = await import(moduleUrl);
-  const dir = await fixture();
-  const artifacts = join(dir, 'artifacts');
-  await mkdir(artifacts);
-  await writeFile(join(artifacts, 'craft-linux-arm64.gz'), gzipSync(bytes));
-  const request = vi.fn();
-  const verify = vi.fn();
-  const result = await installCraft({
-    version: 'latest',
-    expectedVersion: '2.36.0-dev.0',
-    directory: join(dir, 'bin'),
-    artifactDirectory: artifacts,
-    platform: 'linux',
-    arch: 'arm64',
-    request,
-    verify,
-  });
-  expect(result.native).toBe(true);
-  expect(await readFile(result.path)).toEqual(bytes);
-  expect(request).not.toHaveBeenCalled();
-  expect(verify).toHaveBeenCalledWith(
-    expect.any(String),
-    '2.36.0-dev.0',
-    'linux',
+  const tools = join(dir, 'tools');
+  const bin = join(dir, 'bin');
+  const archive = join(dir, 'archive');
+  const calls = join(dir, 'calls');
+  const pathFile = join(dir, 'github-path');
+  const metadata = join(dir, 'release.json');
+  const asset = `craft-${platform}-${arch}${platform === 'win' ? '.exe' : '.gz'}`;
+  const binary = join(
+    bin,
+    platform === 'win' && native ? 'craft.exe' : 'craft',
   );
-});
-test('a release cannot redirect the installer to an unrelated executable URL', async () => {
-  const { installCraft } = await import(moduleUrl);
-  const dir = await fixture();
-  const request = vi.fn(async () =>
-    Response.json({
+  const bytes = Buffer.from(
+    `#!/bin/bash\nif [[ "$1" == --version ]]; then echo 2.35.0; else touch ${quote(join(dir, 'setup-called'))}; fi\n`,
+  );
+  mkdirSync(tools);
+  writeFileSync(archive, platform === 'win' ? bytes : gzipSync(bytes));
+  writeFileSync(calls, '');
+  writeFileSync(pathFile, '');
+  writeFileSync(
+    metadata,
+    JSON.stringify({
       tag_name: '2.35.0',
       draft: false,
-      assets: [
-        {
-          name: 'craft-linux-x64.gz',
-          state: 'uploaded',
-          browser_download_url: 'https://example.com/untrusted',
-        },
-      ],
+      assets: (native ? [asset, 'craft'] : ['craft']).map(name => ({
+        name,
+        state: 'uploaded',
+      })),
     }),
   );
-  await expect(
-    installCraft({
-      version: '2.35.0',
-      directory: dir,
-      platform: 'linux',
-      arch: 'x64',
-      request,
-      verify: vi.fn(),
-    }),
-  ).rejects.toThrow(/asset URL/);
-  expect(request).toHaveBeenCalledTimes(1);
+  const script = (name: string, source: string) => {
+    writeFileSync(join(tools, name), `#!/bin/bash\n${source}\n`);
+    chmodSync(join(tools, name), 0o755);
+  };
+  script(
+    'node',
+    `if [[ "$1" == -p ]]; then
+  if [[ "$2" == process.arch ]]; then echo ${quote(arch)}; else echo ${quote(platform)}; fi
+else
+  [[ "$1" == */download-craft-nightly.mjs ]] || exit 19
+  printf '%s\\n' "$2" >> ${quote(calls)}
+  printf '%s' ${quote(bytes.toString())} > "$3"
+fi`,
+  );
+  script(
+    'uname',
+    `if [[ "$1" == -s ]]; then echo ${quote(platform === 'win' ? 'MINGW64_NT' : platform === 'darwin' ? 'Darwin' : 'Linux')}; else echo ${quote(arch === 'arm64' ? 'aarch64' : 'x86_64')}; fi`,
+  );
+  script('codesign', 'exit 0');
+  script(
+    'gh',
+    `printf '%s\\n' "$2" >> ${quote(calls)}
+cat ${quote(metadata)}`,
+  );
+  script(
+    'curl',
+    `output=''
+url=''
+while (( $# )); do case "$1" in -o) output="$2"; shift ;; https:*) url="$1" ;; esac; shift; done
+printf '%s\\n' "$url" >> ${quote(calls)}
+case "$url" in
+  https://github.com/getsentry/craft/releases/download/2.35.0/${asset}) cp ${quote(archive)} "$output" ;;
+  https://github.com/getsentry/craft/releases/download/2.35.0/craft) printf '%s' ${quote(bytes.toString())} > "$output" ;;
+  *) exit 22 ;;
+esac`,
+  );
+  const run = (version = '2.35.0', extra: NodeJS.ProcessEnv = {}) =>
+    spawnSync(
+      'bash',
+      [resolve('.github/scripts/install-craft.sh'), version, bin],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PATH: `${tools}:${process.env.PATH}`,
+          GITHUB_PATH: pathFile,
+          CRAFT_NATIVE_ARTIFACT_DIRECTORY: '',
+          CRAFT_LEGACY_ARTIFACT: '',
+          CRAFT_ARTIFACT_VERSION: '',
+          CRAFT_DRY_RUN: '',
+          DRY_RUN: '',
+          NODE_OPTIONS: '',
+          ...extra,
+        },
+      },
+    );
+  return {
+    dir,
+    bin,
+    binary,
+    archive,
+    asset,
+    calls,
+    pathFile,
+    bytes,
+    metadata,
+    script,
+    run,
+  };
+}
+
+test.each([
+  ['linux', 'x64'],
+  ['linux', 'arm64'],
+  ['darwin', 'x64'],
+  ['darwin', 'arm64'],
+  ['win', 'x64'],
+])(
+  'uses the shared installer for the %s/%s native release without setup',
+  (platform, arch) => {
+    const f = fixture(platform, arch);
+    const result = f.run();
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+    expect(readFileSync(f.binary)).toEqual(f.bytes);
+    expect(existsSync(join(f.dir, 'setup-called'))).toBe(false);
+    expect(readFileSync(f.pathFile, 'utf8')).toBe(`${f.bin}\n`);
+  },
+);
+
+test('latest resolves once and installs the exact selected native release', () => {
+  const f = fixture();
+  expect(f.run('latest').status).toBe(0);
+  expect(readFileSync(f.binary)).toEqual(f.bytes);
+  expect(readFileSync(f.calls, 'utf8')).toBe(
+    'repos/getsentry/craft/releases/latest\nhttps://github.com/getsentry/craft/releases/download/2.35.0/craft-linux-x64.gz\n',
+  );
 });
 
-test('an unavailable pinned release never falls back to latest', async () => {
-  const { installCraft } = await import(moduleUrl);
-  const request = vi.fn(
-    async (_url: string) => new Response('not found', { status: 404 }),
-  );
-  await expect(
-    installCraft({
-      version: '2.33.0',
-      directory: await fixture(),
-      request,
-      verify: vi.fn(),
-    }),
-  ).rejects.toThrow('HTTP 404');
-  expect(request).toHaveBeenCalledTimes(1);
-  expect(request.mock.calls[0][0]).toContain('/tags/2.33.0');
+test('old releases retain the JavaScript compatibility path', () => {
+  const f = fixture('linux', 'x64', false);
+  expect(f.run().status).toBe(0);
+  expect(readFileSync(f.binary)).toEqual(f.bytes);
 });
-test('an exact GHCR nightly retains its verified JavaScript path without release requests', async () => {
-  const { installCraft } = await import(moduleUrl);
-  const sha = 'a'.repeat(40);
-  const digest = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
-  const request = vi.fn(async (url: string) => {
-    if (url.includes('/token?'))
-      return Response.json({ token: 'registry-fixture-token' });
-    if (url.includes('/manifests/'))
-      return Response.json({
-        schemaVersion: 2,
-        mediaType: 'application/vnd.oci.image.manifest.v1+json',
-        artifactType: 'application/vnd.getsentry.craft.binary.v1',
-        annotations: {
-          'org.opencontainers.image.source':
-            'https://github.com/getsentry/craft',
-          'org.opencontainers.image.revision': sha,
-        },
-        layers: [
-          {
-            digest,
-            size: bytes.length,
-            mediaType: 'application/octet-stream',
-            annotations: { 'org.opencontainers.image.title': 'craft' },
-          },
-        ],
-      });
-    if (url.includes('/blobs/')) return new Response(bytes);
-    throw new Error(`Unexpected request: ${url}`);
+
+test('same-run native artifacts use the shared verifier without network requests', () => {
+  const f = fixture();
+  const artifacts = join(f.dir, 'artifacts');
+  mkdirSync(artifacts);
+  writeFileSync(join(artifacts, f.asset), readFileSync(f.archive));
+  const result = f.run('latest', {
+    CRAFT_NATIVE_ARTIFACT_DIRECTORY: artifacts,
+    CRAFT_ARTIFACT_VERSION: '2.35.0',
   });
-  const verify = vi.fn();
-  const result = await installCraft({
-    version: `nightly-${sha}`,
-    directory: await fixture(),
-    request,
-    verify,
-  });
-  expect(result.native).toBe(false);
-  expect(await readFile(result.path)).toEqual(bytes);
-  expect(request.mock.calls.some(([url]) => url.includes('/releases/'))).toBe(
-    false,
+  expect(result.stderr).toBe('');
+  expect(result.status).toBe(0);
+  expect(readFileSync(f.binary)).toEqual(f.bytes);
+  expect(readFileSync(f.calls, 'utf8')).toBe('');
+});
+
+test('invalid native downloads fail without replacing the existing binary or falling back', () => {
+  const f = fixture();
+  writeFileSync(f.archive, gzipSync(Buffer.from('#!/bin/bash\necho 1.0.0\n')));
+  mkdirSync(f.bin);
+  writeFileSync(f.binary, 'old');
+  const result = f.run();
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain('expected 2.35.0');
+  expect(readFileSync(f.binary, 'utf8')).toBe('old');
+  expect(readFileSync(f.pathFile, 'utf8')).toBe('');
+});
+
+test('same-run JavaScript artifacts remain available without network requests', () => {
+  const f = fixture();
+  const legacy = join(f.dir, 'craft');
+  writeFileSync(legacy, f.bytes);
+  expect(f.run('latest', { CRAFT_LEGACY_ARTIFACT: legacy }).status).toBe(0);
+  expect(readFileSync(f.binary)).toEqual(f.bytes);
+  expect(readFileSync(f.calls, 'utf8')).toBe('');
+});
+
+test('an unavailable pinned release never falls back to latest', () => {
+  const f = fixture();
+  f.script('gh', 'exit 1');
+  expect(f.run('2.34.1').status).not.toBe(0);
+  expect(existsSync(f.binary)).toBe(false);
+  expect(readFileSync(f.pathFile, 'utf8')).toBe('');
+});
+
+test('an exact nightly uses the existing GHCR downloader without release requests', () => {
+  const f = fixture();
+  const tag = `nightly-${'a'.repeat(40)}`;
+  const result = f.run(tag);
+  expect(result.stderr).toBe('');
+  expect(result.status).toBe(0);
+  expect(readFileSync(f.binary)).toEqual(f.bytes);
+  expect(readFileSync(f.calls, 'utf8')).toBe(`${tag}\n`);
+});
+
+test('release metadata must match the requested version', () => {
+  const f = fixture();
+  expect(f.run('2.34.1').status).not.toBe(0);
+  expect(existsSync(f.binary)).toBe(false);
+});
+
+test('release dry-run settings still provision the Craft executable', () => {
+  const f = fixture();
+  expect(
+    f.run('2.35.0', { CRAFT_DRY_RUN: 'true', DRY_RUN: 'true' }).status,
+  ).toBe(0);
+  expect(readFileSync(f.binary)).toEqual(f.bytes);
+  expect(existsSync(join(f.dir, 'setup-called'))).toBe(false);
+});
+
+test('duplicate native assets fail instead of using the legacy executable', () => {
+  const f = fixture();
+  writeFileSync(
+    f.metadata,
+    JSON.stringify({
+      tag_name: '2.35.0',
+      draft: false,
+      assets: [f.asset, f.asset, 'craft'].map(name => ({
+        name,
+        state: 'uploaded',
+      })),
+    }),
   );
-  expect(verify).not.toHaveBeenCalled();
+  const result = f.run();
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain('Duplicate Craft native asset');
+  expect(existsSync(f.binary)).toBe(false);
+});
+
+test('legacy installation refuses a directory destination without copying into it', () => {
+  const f = fixture('linux', 'x64', false);
+  mkdirSync(f.binary, { recursive: true });
+  expect(f.run().status).not.toBe(0);
+  expect(existsSync(join(f.binary, 'craft'))).toBe(false);
 });

@@ -70,6 +70,12 @@ It does not use sudo or modify shell profiles. `--dry-run` prints the selected
 version and platform without creating installation files. `CRAFT_VERSION`
 can also pin a release. Linux binaries require glibc.
 
+For CI, use `--install-only --install-dir "$RUNNER_TEMP/craft-bin"` to place
+only the executable, without configuring completions or agent skills. Add that
+directory to `$GITHUB_PATH` yourself. To install a previously downloaded native
+archive offline, also pass `--archive /path/to/archive --version VERSION`.
+The archive still undergoes the platform's signature and version checks.
+
 ### Updating a standalone installation
 
 ```bash

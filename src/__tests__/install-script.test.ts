@@ -34,7 +34,9 @@ function fixture(
   const candidate = Buffer.from(
     '#!/bin/bash\nif [[ "$1" == --version ]]; then echo ' +
       quote(displayedVersion) +
-      '; exit; fi\nmkdir -p "$CRAFT_INSTALL_DIR"\ncp "$0" "$CRAFT_INSTALL_DIR/craft"\n',
+      '; exit; fi\nprintf setup > ' +
+      quote(join(dir, 'setup-called')) +
+      '\nmkdir -p "$CRAFT_INSTALL_DIR"\ncp "$0" "$CRAFT_INSTALL_DIR/craft"\n',
   );
   const data = badArchive
     ? Buffer.from('invalid gzip archive')
@@ -66,7 +68,7 @@ function fixture(
         ...extraEnv,
       },
     });
-  return { destination, run };
+  return { destination, run, archive, dir };
 }
 test.skipIf(process.platform === 'win32')(
   'installs a pinned HTTPS release without requesting checksum files',
@@ -155,3 +157,69 @@ test.skipIf(process.platform === 'win32')(
     expect(readFileSync(join(destination, 'craft'), 'utf8')).toBe('old');
   },
 );
+
+// CI must install the executable without running interactive integration setup.
+test.skipIf(process.platform === 'win32')(
+  'install-only places the verified executable without running setup',
+  () => {
+    const { destination, run, dir } = fixture();
+    const result = run('--version', '9.1.0', '--install-only');
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+    expect(readFileSync(join(destination, 'craft'), 'utf8')).toContain('9.1.0');
+    expect(existsSync(join(dir, 'setup-called'))).toBe(false);
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'a local native archive installs offline through the same verifier',
+  () => {
+    const { destination, run, archive, dir } = fixture(false, true);
+    const result = run(
+      '--version',
+      '9.1.0',
+      '--archive',
+      archive,
+      '--install-only',
+    );
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+    expect(readFileSync(join(destination, 'craft'), 'utf8')).toContain('9.1.0');
+    expect(existsSync(join(dir, 'setup-called'))).toBe(false);
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'install-only rejects a mismatched archive without replacing an existing executable',
+  () => {
+    const { destination, run, archive } = fixture(false, true, {}, '8.0.0');
+    mkdirSync(destination);
+    writeFileSync(join(destination, 'craft'), 'old');
+    const result = run(
+      '--version',
+      '9.1.0',
+      '--archive',
+      archive,
+      '--install-only',
+    );
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('expected 9.1.0');
+    expect(readFileSync(join(destination, 'craft'), 'utf8')).toBe('old');
+  },
+);
+
+test('a local archive requires an explicit version instead of fetching latest', () => {
+  const { run, archive, destination } = fixture(false, true);
+  const result = run('--archive', archive, '--install-only');
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain('--archive requires --version');
+  expect(existsSync(destination)).toBe(false);
+});
+
+test('install-only requires an explicit installation directory', () => {
+  const { run, destination } = fixture(false, true, { CRAFT_INSTALL_DIR: '' });
+  const result = run('--version', '9.1.0', '--install-only');
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain('--install-only requires --install-dir');
+  expect(existsSync(destination)).toBe(false);
+});

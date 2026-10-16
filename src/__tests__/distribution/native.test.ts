@@ -44,8 +44,12 @@ test('native and npm artifacts retain CLI and dry-run behavior', async () => {
     // Exercise the Action's same-run native installation on every native runner.
     const actionBin = join(root, 'action-bin');
     await execute(
-      process.execPath,
-      [resolve('.github/scripts/install-craft.mjs'), 'latest', actionBin],
+      'bash',
+      [
+        resolve('.github/scripts/install-craft.sh').replace(/\\/g, '/'),
+        'latest',
+        actionBin.replace(/\\/g, '/'),
+      ],
       {
         cwd: root,
         env: {

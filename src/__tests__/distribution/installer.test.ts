@@ -82,7 +82,8 @@ esac
       );
     await run('--dry-run');
     await assert.rejects(readFile(binary), { code: 'ENOENT' });
-    await run();
+    // The CI mode must work even with versions predating these script options.
+    await run('--install-only');
     assert.equal(
       (await execute(binary, ['--version'], { cwd: root })).stdout
         .trim()
@@ -90,8 +91,11 @@ esac
       pkg.version,
     );
     const installed = await readFile(binary);
+    await run();
+    assert.deepEqual(await readFile(binary), installed);
+
     await writeFile(archive, Buffer.from('invalid native download'));
-    await assert.rejects(run());
+    await assert.rejects(run('--install-only'));
     assert.deepEqual(await readFile(binary), installed);
     console.log(
       `Verified native bootstrap and invalid-download preservation: ${platform}`,

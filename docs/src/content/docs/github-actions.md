@@ -478,6 +478,9 @@ The Action uses the matching standalone executable when the selected Craft relea
 includes one. Craft's own release workflow prefers the native build artifact from
 the same run. Versions before standalone binaries and GHCR nightlies retain the
 JavaScript compatibility path, so Node remains required by the composite Action.
+Native releases and same-run native archives use the shared `install` script in
+`--install-only` mode, so CI skips shell completions and agent skill setup. A small
+shell wrapper selects the source and handles JavaScript/nightly compatibility.
 The native candidate must report the selected version before installation;
 a broken native download does not silently switch to JavaScript.
 

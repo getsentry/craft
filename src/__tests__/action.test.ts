@@ -590,8 +590,8 @@ test.each(['v2', '7fe142107c12ea31eaaba10e4985674490bf808b'])(
       ),
     );
     writeFileSync(
-      join(scriptsDirectory, 'install-craft.mjs'),
-      `import { appendFileSync } from 'node:fs'; appendFileSync(process.env.INSTALLER_CALLS, process.argv[2] + '\\n'); process.exitCode = 1;`,
+      join(scriptsDirectory, 'install-craft.sh'),
+      '#!/usr/bin/env bash\nprintf \'%s\\n\' "$1" >> "$INSTALLER_CALLS"\nexit 1\n',
     );
     writeFileSync(calls, '');
     const ghApiCalls = mockReleaseApi(
@@ -701,8 +701,8 @@ test.each([
     writeFileSync(nightlyCalls, '');
     writeFileSync(installCalls, '');
     writeFileSync(
-      join(environment.binDirectory, 'node'),
-      '#!/usr/bin/env bash\n[[ "$1" == */install-craft.mjs ]] || exit 11\nprintf "%s\\n" "$2" >> "$NIGHTLY_CALLS"\nprintf "%s\\n" "$3" >> "$INSTALL_CALLS"\n',
+      join(scriptsDirectory, 'install-craft.sh'),
+      '#!/usr/bin/env bash\nprintf "%s\\n" "$1" >> "$NIGHTLY_CALLS"\nprintf "%s\\n" "$2" >> "$INSTALL_CALLS"\n',
     );
     writeFileSync(
       join(environment.binDirectory, 'sudo'),
@@ -712,7 +712,7 @@ test.each([
       join(environment.binDirectory, 'curl'),
       '#!/usr/bin/env bash\nexit 10\n',
     );
-    for (const name of ['node', 'sudo', 'curl']) {
+    for (const name of ['sudo', 'curl']) {
       chmodSync(join(environment.binDirectory, name), 0o755);
     }
 
@@ -762,6 +762,10 @@ test('fails closed when the pinned development nightly is unavailable', () => {
     readFileSync(
       join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
     ),
+  );
+  writeFileSync(
+    join(scriptsDirectory, 'install-craft.sh'),
+    readFileSync(join(__dirname, '../../.github/scripts/install-craft.sh')),
   );
   const installCalls = join(environment.directory, 'install-calls');
   writeFileSync(installCalls, '');
