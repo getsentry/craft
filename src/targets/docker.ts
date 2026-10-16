@@ -299,20 +299,17 @@ export class DockerTarget extends BaseTarget {
     return {
       config,
       priority: DockerTarget.priority,
-      // ghcr.io uses GITHUB_TOKEN, Docker Hub needs explicit credentials
-      requiredSecrets:
-        githubOwner && githubRepo
-          ? []
-          : [
-              {
-                name: 'DOCKER_USERNAME',
-                description: 'Docker Hub username',
-              },
-              {
-                name: 'DOCKER_PASSWORD',
-                description: 'Docker Hub password or access token',
-              },
-            ],
+      // The target is Docker Hub even when the source image is in GHCR.
+      requiredSecrets: [
+        {
+          name: 'DOCKER_USERNAME',
+          description: 'Docker Hub username',
+        },
+        {
+          name: 'DOCKER_PASSWORD',
+          description: 'Docker Hub password or access token',
+        },
+      ],
     };
   }
 

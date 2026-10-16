@@ -196,7 +196,7 @@ export class NpmTarget extends BaseTarget {
       workspaces?: string[] | { packages: string[] };
       name?: string;
       packageManager?: string;
-      volta?: { node?: string };
+      volta?: { node?: string; pnpm?: string };
     }>(rootDir, 'package.json');
 
     if (!pkg) {
@@ -222,7 +222,7 @@ export class NpmTarget extends BaseTarget {
       packageManager = 'pnpm';
     } else if (pkg.packageManager?.startsWith('yarn')) {
       packageManager = 'yarn';
-    } else if (fileExists(rootDir, 'pnpm-lock.yaml')) {
+    } else if (pkg.volta?.pnpm || fileExists(rootDir, 'pnpm-lock.yaml')) {
       packageManager = 'pnpm';
     } else if (fileExists(rootDir, 'yarn.lock')) {
       packageManager = 'yarn';
@@ -242,7 +242,12 @@ export class NpmTarget extends BaseTarget {
       config,
       priority: NpmTarget.priority,
       workflowSetup: {
-        node: { packageManager, versionFile },
+        node: {
+          packageManager,
+          versionFile,
+          pnpmVersion: pkg.volta?.pnpm,
+          pnpmVersionFromPackageJson: pkg.packageManager?.startsWith('pnpm@'),
+        },
       },
       requiredSecrets: [
         { name: 'NPM_TOKEN', description: 'npm access token for publishing' },

@@ -104,9 +104,16 @@ function generateReleaseJob(context: TemplateContext): Record<string, unknown> {
   // Node.js setup (if needed)
   if (context.workflowSetup?.node) {
     if (context.workflowSetup.node.packageManager === 'pnpm') {
-      steps.push({
+      const pnpmStep: Record<string, unknown> = {
         uses: 'pnpm/action-setup@v4',
-      });
+      };
+      // Avoid conflicting with packageManager pins, including integrity hashes.
+      if (!context.workflowSetup.node.pnpmVersionFromPackageJson) {
+        pnpmStep.with = {
+          version: context.workflowSetup.node.pnpmVersion || '10',
+        };
+      }
+      steps.push(pnpmStep);
     }
 
     const nodeStep: Record<string, unknown> = {
@@ -121,6 +128,11 @@ function generateReleaseJob(context: TemplateContext): Record<string, unknown> {
         ...(nodeStep.with as Record<string, unknown>),
         'node-version-file': context.workflowSetup.node.versionFile,
       };
+    } else {
+      nodeStep.with = {
+        ...(nodeStep.with as Record<string, unknown>),
+        'node-version': 'lts/*',
+      };
     }
 
     steps.push(nodeStep);
@@ -130,13 +142,10 @@ function generateReleaseJob(context: TemplateContext): Record<string, unknown> {
   if (context.workflowSetup?.python) {
     const pythonStep: Record<string, unknown> = {
       uses: 'actions/setup-python@v5',
+      with: {
+        'python-version': context.workflowSetup.python.version || '3.x',
+      },
     };
-
-    if (context.workflowSetup.python.version) {
-      pythonStep.with = {
-        'python-version': context.workflowSetup.python.version,
-      };
-    }
 
     steps.push(pythonStep);
   }

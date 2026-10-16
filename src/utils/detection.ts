@@ -47,6 +47,10 @@ export interface WorkflowSetup {
     packageManager: 'npm' | 'pnpm' | 'yarn';
     /** Node version file path (e.g., .nvmrc, package.json for volta) */
     versionFile?: string;
+    /** pnpm version declared in Volta (when not using packageManager) */
+    pnpmVersion?: string;
+    /** Let pnpm/action-setup read the packageManager field directly */
+    pnpmVersionFromPackageJson?: boolean;
   };
   /** Python setup (if applicable) */
   python?: {

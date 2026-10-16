@@ -2,6 +2,8 @@ import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { load } from 'js-yaml';
+import { generateReleaseWorkflow } from '../templates';
 
 import { isCompiledGitHubAction } from '../detection';
 import { NpmTarget } from '../../targets/npm';
@@ -11,7 +13,7 @@ import { DockerTarget } from '../../targets/docker';
 import { GemTarget } from '../../targets/gem';
 import { PubDevTarget } from '../../targets/pubDev';
 import { GitHubTarget } from '../../targets/github';
-import { DetectionContext } from '../detection';
+import { DetectionContext, DetectionResult } from '../detection';
 
 describe('isCompiledGitHubAction', () => {
   let tempDir: string;
@@ -214,6 +216,126 @@ describe('Target Detection', () => {
     ...overrides,
   });
 
+  function releaseStep(result: DetectionResult | null, action: string) {
+    expect(result).not.toBeNull();
+    const workflow = load(
+      generateReleaseWorkflow({
+        githubOwner: 'test-owner',
+        githubRepo: 'test-repo',
+        targets: [result!.config],
+        workflowSetup: result!.workflowSetup,
+      }),
+    ) as {
+      jobs: {
+        release: { steps: { uses: string; with?: Record<string, unknown> }[] };
+      };
+    };
+    const step = workflow.jobs.release.steps.find(step => step.uses === action);
+    expect(step).toBeDefined();
+    return step!;
+  }
+
+  describe('detected release workflow versions', () => {
+    test('selects Node LTS when the package has no version file', () => {
+      writeFileSync(join(tempDir, 'package.json'), '{"name":"test-pkg"}');
+      const step = releaseStep(
+        NpmTarget.detect(createContext()),
+        'actions/setup-node@v4',
+      );
+      expect(step.with?.['node-version']).toBe('lts/*');
+    });
+
+    test.each(['.nvmrc', '.node-version'])(
+      'keeps the detected Node version file %s',
+      file => {
+        writeFileSync(join(tempDir, 'package.json'), '{"name":"test-pkg"}');
+        writeFileSync(join(tempDir, file), '22');
+        const step = releaseStep(
+          NpmTarget.detect(createContext()),
+          'actions/setup-node@v4',
+        );
+        expect(step.with?.['node-version-file']).toBe(file);
+        expect(step.with).not.toHaveProperty('node-version');
+      },
+    );
+
+    test('selects a pnpm version for projects detected only by their lockfile', () => {
+      writeFileSync(join(tempDir, 'package.json'), '{"name":"test-pkg"}');
+      writeFileSync(join(tempDir, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0');
+      const step = releaseStep(
+        NpmTarget.detect(createContext()),
+        'pnpm/action-setup@v4',
+      );
+      expect(step.with?.version).toBe('10');
+    });
+
+    test('uses the Volta pnpm version when packageManager is absent', () => {
+      writeFileSync(
+        join(tempDir, 'package.json'),
+        JSON.stringify({
+          name: 'test-pkg',
+          volta: { node: '22.12.0', pnpm: '9.15.9' },
+        }),
+      );
+      writeFileSync(join(tempDir, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0');
+      const result = NpmTarget.detect(createContext());
+      expect(releaseStep(result, 'pnpm/action-setup@v4').with?.version).toBe(
+        '9.15.9',
+      );
+      expect(
+        releaseStep(result, 'actions/setup-node@v4').with?.[
+          'node-version-file'
+        ],
+      ).toBe('package.json');
+    });
+
+    test.each(['pnpm@9.15.9', 'pnpm@9.15.9+sha512.test'])(
+      'lets pnpm/action-setup read %s without a conflicting version input',
+      packageManager => {
+        writeFileSync(
+          join(tempDir, 'package.json'),
+          JSON.stringify({
+            name: 'test-pkg',
+            packageManager,
+            volta: { pnpm: '10.0.0' },
+          }),
+        );
+        const step = releaseStep(
+          NpmTarget.detect(createContext()),
+          'pnpm/action-setup@v4',
+        );
+        expect(step.with ?? {}).not.toHaveProperty('version');
+      },
+    );
+
+    test.each(['setup.py', 'pyproject.toml'])(
+      'selects Python 3 when %s has no version constraint',
+      file => {
+        writeFileSync(
+          join(tempDir, file),
+          file === 'setup.py'
+            ? 'from setuptools import setup'
+            : '[project]\nname = "test-pkg"',
+        );
+        const step = releaseStep(
+          PypiTarget.detect(createContext()),
+          'actions/setup-python@v5',
+        );
+        expect(step.with?.['python-version']).toBe('3.x');
+      },
+    );
+
+    test('preserves the detected Python version', () => {
+      writeFileSync(join(tempDir, 'setup.py'), 'from setuptools import setup');
+      writeFileSync(join(tempDir, '.python-version'), '3.11');
+      const step = releaseStep(
+        PypiTarget.detect(createContext()),
+        'actions/setup-python@v5',
+      );
+      expect(step.with?.['python-version']).toBe('3.11');
+    });
+  });
+
   describe('NpmTarget.detect', () => {
     test('returns null when no package.json exists', () => {
       const result = NpmTarget.detect(createContext());
@@ -341,6 +463,10 @@ describe('Target Detection', () => {
       expect(result).not.toBeNull();
       expect(result?.config.source).toBe('ghcr.io/getsentry/craft');
       expect(result?.config.target).toBe('getsentry/craft');
+      expect(result?.requiredSecrets?.map(secret => secret.name)).toEqual([
+        'DOCKER_USERNAME',
+        'DOCKER_PASSWORD',
+      ]);
     });
   });
 
