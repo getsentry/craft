@@ -393,6 +393,9 @@ See <a href="/configuration/#auto-mode">Auto Mode configuration</a> for details.
 includes one. Craft’s own release workflow prefers the native build artifact from
 the same run. Versions before standalone binaries and GHCR nightlies retain the
 JavaScript compatibility path, so Node remains required by the composite Action.
+Native releases and same-run native archives use the shared <code dir="auto">install</code> script in
+<code dir="auto">--install-only</code> mode, so CI skips shell completions and agent skill setup. A small
+shell wrapper selects the source and handles JavaScript/nightly compatibility.
 The native candidate must report the selected version before installation;
 a broken native download does not silently switch to JavaScript.</p>
 <p>The <strong>AI summary integration</strong> workflow is optional and runs a real request only

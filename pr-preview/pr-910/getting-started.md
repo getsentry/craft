@@ -56,6 +56,8 @@ bash craft-install --version 2.35.0 --install-dir "$HOME/.local/bin"
 
 The installer downloads over HTTPS and checks the executable’s version before installing. It uses `CRAFT_INSTALL_DIR`, an absolute `XDG_BIN_HOME`, an existing user bin folder on PATH, or `~/.local/bin`. Add the printed directory to PATH yourself. It does not use sudo or modify shell profiles. `--dry-run` prints the selected version and platform without creating installation files. `CRAFT_VERSION` can also pin a release. Linux binaries require glibc.
 
+For CI, use `--install-only --install-dir "$RUNNER_TEMP/craft-bin"` to place only the executable, without configuring completions or agent skills. Add that directory to `$GITHUB_PATH` yourself. To install a previously downloaded native archive offline, also pass `--archive /path/to/archive --version VERSION`. The archive still undergoes the platform’s signature and version checks.
+
 ### Updating a standalone installation
 
 ```bash
