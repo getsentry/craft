@@ -198,11 +198,11 @@
 includes one. Craft’s own release workflow prefers the native build artifact from
 the same run. Versions before standalone binaries and GHCR nightlies retain the
 JavaScript compatibility path, so Node remains required by the composite Action.
-Native releases and same-run native archives use the shared <code dir="auto">install</code> script in
-<code dir="auto">--install-only</code> mode, so CI skips shell completions and agent skill setup. A small
-shell wrapper selects the source and handles JavaScript/nightly compatibility.
-The native candidate must report the selected version before installation;
-a broken native download does not silently switch to JavaScript.</p>
+The Action invokes the same <code dir="auto">install</code> script served on the website. That script
+selects the source, detects <code dir="auto">GITHUB_ACTIONS</code> or <code dir="auto">CI</code>, and skips shell completions
+and agent skill setup automatically. Missing native release assets use the
+JavaScript compatibility path; other download or verification failures stop
+installation. Native candidates must report the selected version before placement.</p>
 <div class="sl-heading-wrapper level-h3"><h3 id="ai-summary-authentication">AI summary authentication</h3><a class="sl-anchor-link" href="#ai-summary-authentication"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “AI summary authentication”</span></a></div>
 <p>Enable summaries with <code dir="auto">changelog.aiSummary: {}</code>. The default connection is
 Copilot Responses, <code dir="auto">gpt-6-luna</code> and the <code dir="auto">GITHUB_TOKEN</code> environment variable.
