@@ -3,7 +3,7 @@ changelog:
   policy: auto
   aiSummary:
     levels: [release, category, scope]
-    minItems: 2
+    minItems: 0
     style: Keep it concise and friendly for developers; avoid hype.
 artifactProvider:
   name: github
