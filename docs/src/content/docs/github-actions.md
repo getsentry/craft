@@ -101,6 +101,18 @@ jobs:
 
 The action accepts the same inputs and produces the same outputs as the reusable workflow.
 
+### Native executable selection
+
+The Action uses the matching standalone executable when the selected Craft release
+includes one. Craft's own release workflow prefers the native build artifact from
+the same run. Versions before standalone binaries and GHCR nightlies retain the
+JavaScript compatibility path, so Node remains required by the composite Action.
+Native releases and same-run native archives use the shared `install` script in
+`--install-only` mode, so CI skips shell completions and agent skill setup. A small
+shell wrapper selects the source and handles JavaScript/nightly compatibility.
+The native candidate must report the selected version before installation;
+a broken native download does not silently switch to JavaScript.
+
 ### AI summary authentication
 
 Enable summaries with `changelog.aiSummary: {}`. The default connection is
@@ -146,6 +158,12 @@ Copilot's direct HTTP backend is outside GitHub's public REST API contract.
 Missing credentials or failed requests preserve the original changelog without
 switching providers. See [AI summary configuration](../configuration/#ai-summaries)
 for precedence, limits and output examples.
+
+The **AI summary integration** workflow is optional and runs a real request only
+when manually dispatched from Actions. Pull requests skip the credentialed job,
+so unavailable Copilot access does not block them. Regular AI unit, HTTP-fixture,
+and CLI/Action integration tests still run in the Node 22/24 CI suites. A green
+release with fallback warnings alone does not prove live AI summaries worked.
 
 ### Test a Craft nightly
 
@@ -471,21 +489,3 @@ jobs:
       version: ${{ inputs.version || 'auto' }}
     secrets: inherit
 ```
-
-### Native executable selection
-
-The Action uses the matching standalone executable when the selected Craft release
-includes one. Craft's own release workflow prefers the native build artifact from
-the same run. Versions before standalone binaries and GHCR nightlies retain the
-JavaScript compatibility path, so Node remains required by the composite Action.
-Native releases and same-run native archives use the shared `install` script in
-`--install-only` mode, so CI skips shell completions and agent skill setup. A small
-shell wrapper selects the source and handles JavaScript/nightly compatibility.
-The native candidate must report the selected version before installation;
-a broken native download does not silently switch to JavaScript.
-
-The **AI summary integration** workflow is optional and runs a real request only
-when manually dispatched from Actions. Pull requests skip the credentialed job,
-so unavailable Copilot access does not block them. Regular AI unit, HTTP-fixture,
-and CLI/Action integration tests still run in the Node 22/24 CI suites. A green
-release with fallback warnings alone does not prove live AI summaries worked.

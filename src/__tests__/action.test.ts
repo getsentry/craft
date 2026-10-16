@@ -1,5 +1,6 @@
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -577,7 +578,7 @@ test.each(['3.0.0', '2.34.0-dev.0', 'not-a-version'])(
 );
 
 test.each(['v2', '7fe142107c12ea31eaaba10e4985674490bf808b'])(
-  'does not install the latest release when the binary for %s is missing',
+  'keeps the exact version and propagates installer failure for %s',
   actionRef => {
     const environment = createActionEnvironment();
     const calls = join(environment.directory, 'installer-calls');
@@ -682,7 +683,7 @@ test.each([
     'nightly-7fe142107c12ea31eaaba10e4985674490bf808b',
   ],
 ])(
-  'installs %s from GHCR without accessing releases',
+  'forwards %s to the installer without release lookups',
   (_name, input, ref, tag) => {
     const environment = createActionEnvironment();
     const calls = mockReleaseApi(environment, undefined, {
@@ -704,17 +705,6 @@ test.each([
       join(scriptsDirectory, 'install-craft.sh'),
       '#!/usr/bin/env bash\nprintf "%s\\n" "$1" >> "$NIGHTLY_CALLS"\nprintf "%s\\n" "$2" >> "$INSTALL_CALLS"\n',
     );
-    writeFileSync(
-      join(environment.binDirectory, 'sudo'),
-      '#!/usr/bin/env bash\n[[ "$1" == install && -s "$4" ]] || exit 9\nprintf "%s\\n" "$5" >> "$INSTALL_CALLS"\n',
-    );
-    writeFileSync(
-      join(environment.binDirectory, 'curl'),
-      '#!/usr/bin/env bash\nexit 10\n',
-    );
-    for (const name of ['sudo', 'curl']) {
-      chmodSync(join(environment.binDirectory, name), 0o755);
-    }
 
     const result = spawnSync(
       'bash',
@@ -757,29 +747,24 @@ test('fails closed when the pinned development nightly is unavailable', () => {
   });
   const scriptsDirectory = join(environment.directory, '.github/scripts');
   mkdirSync(scriptsDirectory, { recursive: true });
-  writeFileSync(
-    join(scriptsDirectory, 'resolve-craft-version.sh'),
-    readFileSync(
-      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
-    ),
-  );
-  writeFileSync(
-    join(scriptsDirectory, 'install-craft.sh'),
-    readFileSync(join(__dirname, '../../.github/scripts/install-craft.sh')),
-  );
-  const installCalls = join(environment.directory, 'install-calls');
-  writeFileSync(installCalls, '');
-  writeFileSync(
-    join(environment.binDirectory, 'node'),
-    '#!/usr/bin/env bash\nexit 1\n',
-  );
-  writeFileSync(
-    join(environment.binDirectory, 'sudo'),
-    '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$INSTALL_CALLS"\nexit 1\n',
-  );
-  for (const name of ['node', 'sudo']) {
-    chmodSync(join(environment.binDirectory, name), 0o755);
+  for (const name of ['resolve-craft-version.sh', 'install-craft.sh']) {
+    writeFileSync(
+      join(scriptsDirectory, name),
+      readFileSync(join(__dirname, '../../.github/scripts', name)),
+    );
   }
+  const nightlyCalls = join(environment.directory, 'nightly-calls');
+  const githubPath = join(environment.directory, 'github-path');
+  writeFileSync(nightlyCalls, '');
+  writeFileSync(githubPath, '');
+  // Keep platform detection and source selection real; fail only the download.
+  writeFileSync(
+    join(scriptsDirectory, 'download-craft-nightly.mjs'),
+    `import { appendFileSync } from 'node:fs';
+appendFileSync(process.env.NIGHTLY_CALLS, process.argv[2] + '\\n');
+console.error('Nightly fixture unavailable');
+process.exitCode = 1;`,
+  );
 
   const result = spawnSync(
     'bash',
@@ -791,16 +776,28 @@ test('fails closed when the pinned development nightly is unavailable', () => {
         ACTION_PATH: environment.directory,
         ACTION_REF: '7fe142107c12ea31eaaba10e4985674490bf808b',
         CRAFT_VERSION_INPUT: '',
+        CRAFT_USE_ARTIFACTS: 'false',
+        RUNNER_TEMP: environment.directory,
+        GITHUB_PATH: githubPath,
         GH_API_CALLS: calls,
         GH_RELEASES_DIRECTORY: environment.directory,
-        INSTALL_CALLS: installCalls,
+        NIGHTLY_CALLS: nightlyCalls,
         PATH: `${environment.binDirectory}:${process.env.PATH}`,
       },
     },
   );
 
   expect(result.status).not.toBe(0);
-  expect(readFileSync(installCalls, 'utf8')).toBe('');
+  expect(result.stderr).toContain('Nightly fixture unavailable');
+  expect(readFileSync(nightlyCalls, 'utf8')).toBe(
+    'nightly-7fe142107c12ea31eaaba10e4985674490bf808b\n',
+  );
+  expect(readFileSync(githubPath, 'utf8')).toBe('');
+  for (const name of ['craft', 'craft.exe']) {
+    expect(existsSync(join(environment.directory, 'craft-bin', name))).toBe(
+      false,
+    );
+  }
   expect(readFileSync(calls, 'utf8')).toBe('');
 });
 
