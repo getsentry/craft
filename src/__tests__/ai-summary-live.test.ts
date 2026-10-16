@@ -13,11 +13,14 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true')(
         const response = await originalFetch(input, options);
         if (!response.ok) {
           const token = process.env.GITHUB_TOKEN || '';
-          const body = (await response.clone().text()).slice(0, 2000);
+          const body = await response.clone().text();
           console.error(
             'Live Copilot rejection:',
             response.status,
-            token ? body.split(token).join('[redacted]') : body,
+            (token ? body.split(token).join('[redacted]') : body).slice(
+              0,
+              2000,
+            ),
           );
         }
         return response;
