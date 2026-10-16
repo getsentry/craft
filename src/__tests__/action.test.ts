@@ -262,7 +262,7 @@ test('allows the action to fetch a nightly when no local build artifact exists',
   expect(artifact?.if).toContain("inputs.craft_version == ''");
   expect(artifact?.['continue-on-error']).toBe(true);
   expect(getActionStep('Install Craft from artifact or release').run).toContain(
-    '-z "$CRAFT_VERSION_INPUT" && -f /tmp/craft-artifact/dist/craft',
+    'CRAFT_USE_ARTIFACTS',
   );
 });
 
@@ -580,7 +580,7 @@ test.each(['v2', '7fe142107c12ea31eaaba10e4985674490bf808b'])(
   'does not install the latest release when the binary for %s is missing',
   actionRef => {
     const environment = createActionEnvironment();
-    const curlCalls = join(environment.directory, 'curl-calls');
+    const calls = join(environment.directory, 'installer-calls');
     const scriptsDirectory = join(environment.directory, '.github/scripts');
     mkdirSync(scriptsDirectory, { recursive: true });
     writeFileSync(
@@ -589,6 +589,11 @@ test.each(['v2', '7fe142107c12ea31eaaba10e4985674490bf808b'])(
         join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
       ),
     );
+    writeFileSync(
+      join(scriptsDirectory, 'install-craft.mjs'),
+      `import { appendFileSync } from 'node:fs'; appendFileSync(process.env.INSTALLER_CALLS, process.argv[2] + '\\n'); process.exitCode = 1;`,
+    );
+    writeFileSync(calls, '');
     const ghApiCalls = mockReleaseApi(
       environment,
       {
@@ -598,18 +603,6 @@ test.each(['v2', '7fe142107c12ea31eaaba10e4985674490bf808b'])(
       },
       { version: '2.33.0' },
     );
-    writeFileSync(curlCalls, '');
-    writeFileSync(
-      join(environment.binDirectory, 'curl'),
-      '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$CURL_CALLS"\nexit 22\n',
-    );
-    writeFileSync(
-      join(environment.binDirectory, 'sudo'),
-      '#!/usr/bin/env bash\nexit 99\n',
-    );
-    chmodSync(join(environment.binDirectory, 'curl'), 0o755);
-    chmodSync(join(environment.binDirectory, 'sudo'), 0o755);
-
     const result = spawnSync(
       'bash',
       [
@@ -624,20 +617,17 @@ test.each(['v2', '7fe142107c12ea31eaaba10e4985674490bf808b'])(
           ACTION_PATH: environment.directory,
           ACTION_REF: actionRef,
           CRAFT_VERSION_INPUT: '',
-          CURL_CALLS: curlCalls,
+          CRAFT_USE_ARTIFACTS: 'false',
+          RUNNER_TEMP: environment.directory,
+          INSTALLER_CALLS: calls,
           GH_API_CALLS: ghApiCalls,
           GH_RELEASES_DIRECTORY: environment.directory,
           PATH: `${environment.binDirectory}:${process.env.PATH}`,
         },
       },
     );
-
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Craft release '2.33.0'");
-    expect(readFileSync(curlCalls, 'utf8')).toContain(
-      '/releases/download/2.33.0/craft',
-    );
-    expect(readFileSync(curlCalls, 'utf8')).not.toContain('/releases/latest');
+    expect(readFileSync(calls, 'utf8')).toBe('2.33.0\n');
   },
 );
 
@@ -712,7 +702,7 @@ test.each([
     writeFileSync(installCalls, '');
     writeFileSync(
       join(environment.binDirectory, 'node'),
-      '#!/usr/bin/env bash\nprintf "%s\\n" "$2" >> "$NIGHTLY_CALLS"\nprintf "Craft test binary" > "$3"\n',
+      '#!/usr/bin/env bash\n[[ "$1" == */install-craft.mjs ]] || exit 11\nprintf "%s\\n" "$2" >> "$NIGHTLY_CALLS"\nprintf "%s\\n" "$3" >> "$INSTALL_CALLS"\n',
     );
     writeFileSync(
       join(environment.binDirectory, 'sudo'),
@@ -740,6 +730,8 @@ test.each([
           ACTION_PATH: environment.directory,
           ACTION_REF: ref,
           CRAFT_VERSION_INPUT: input,
+          CRAFT_USE_ARTIFACTS: 'false',
+          RUNNER_TEMP: environment.directory,
           GH_API_CALLS: calls,
           GH_RELEASES_DIRECTORY: environment.directory,
           NIGHTLY_CALLS: nightlyCalls,
@@ -751,7 +743,9 @@ test.each([
 
     expect(result.status).toBe(0);
     expect(readFileSync(nightlyCalls, 'utf8')).toBe(`${tag}\n`);
-    expect(readFileSync(installCalls, 'utf8')).toBe('/usr/local/bin/craft\n');
+    expect(readFileSync(installCalls, 'utf8')).toBe(
+      `${environment.directory}/craft-bin\n`,
+    );
     expect(readFileSync(calls, 'utf8')).toBe('');
   },
 );

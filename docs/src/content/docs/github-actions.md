@@ -133,6 +133,10 @@ For built-in-token Copilot access, callers (including reusable workflow callers)
 must grant `copilot-requests: write` alongside their release permissions. The
 organization must enable **“Allow use of Copilot CLI billed to the organization.”**
 Usage is billed to the organization; permissions alone do not enable access.
+Craft’s own release workflow keeps its release-bot token for Git operations and
+passes the workflow token separately for AI requests. An explicit `llm_api_key`
+secret takes precedence.
+
 Map `${{ github.token }}` to `GITHUB_TOKEN`, or pass it as `llm_api_key` when
 release operations use a different token. See [GitHub's workflow-token guide](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions).
 Personal Copilot credentials require Copilot access; fine-grained PATs need
@@ -467,3 +471,17 @@ jobs:
       version: ${{ inputs.version || 'auto' }}
     secrets: inherit
 ```
+
+### Native executable selection
+
+The Action uses the matching standalone executable when the selected Craft release
+includes one. Craft's own release workflow prefers the native build artifact from
+the same run. Versions before standalone binaries and GHCR nightlies retain the
+JavaScript compatibility path, so Node remains required by the composite Action.
+The native candidate must report the selected version before installation;
+a broken native download does not silently switch to JavaScript.
+
+The **AI summary integration** workflow makes one live request using public fixture
+facts when the AI connection/release wiring changes in an internal pull request.
+Fork pull requests skip that credentialed check. Ordinary tests use HTTP fixtures;
+a green release with fallback warnings alone does not prove AI summaries worked.

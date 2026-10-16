@@ -152,7 +152,7 @@ jobs:
           craft_version: ${{ github.event.inputs.craft_version }}
           git_user_name: ${{ github.actor }}
           llm: ${{ inputs.llm || vars.CRAFT_AI_LLM }}
-          llm_api_key: ${{ secrets.llm_api_key }}
+          llm_api_key: ${{ secrets.llm_api_key || github.token }}
 
       # For external repos: use published action
       - name: Prepare release
