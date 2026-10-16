@@ -117,7 +117,7 @@ The Action uses the matching standalone executable when the selected Craft relea
 
 ### AI summary authentication
 
-Enable summaries with `changelog.aiSummary: {}`. The default connection is Copilot Responses, `gpt-6-luna` and the `GITHUB_TOKEN` environment variable. The model must be available to the supplied credential. Use `aiSummary: false` to disable generation.
+Enable summaries with `changelog.aiSummary: {}`. The default connection is Copilot Responses, `gpt-5.4-nano` and the `GITHUB_TOKEN` environment variable. The model must be available to the supplied credential. Use `aiSummary: false` to disable generation.
 
 For a custom provider, pass `llm` JSON and map a secret to `llm_api_key`:
 
