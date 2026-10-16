@@ -243,7 +243,7 @@ changelog:
 | `minItems` | `5` | Strict entry-count threshold. `0` includes every nonempty selected group. Category counts include descendants; release counts include the whole changelog. |
 | `style` | Neutral | Optional writing guidance (1–500 characters), applied at every level. Facts, coverage, length and plain-text safeguards still apply. |
 | `llm.endpoint` | `https://api.githubcopilot.com/responses` | Full POST URL; HTTPS required except loopback HTTP. |
-| `llm.model` | `gpt-6-luna` | Model ID supported by the endpoint and credential. |
+| `llm.model` | `gpt-5.4-nano` | Model ID supported by the endpoint and credential. |
 | `llm.apiKeyEnv` | `GITHUB_TOKEN` | Name of the environment variable containing the token. Never put the token in configuration or CLI arguments. |
 
 Lower-level digests are reused for parent summaries even when hidden. Release

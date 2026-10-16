@@ -34,7 +34,9 @@ function fixture(
   const candidate = Buffer.from(
     '#!/bin/bash\nif [[ "$1" == --version ]]; then echo ' +
       quote(displayedVersion) +
-      '; exit; fi\nmkdir -p "$CRAFT_INSTALL_DIR"\ncp "$0" "$CRAFT_INSTALL_DIR/craft"\n',
+      '; exit; fi\nprintf setup > ' +
+      quote(join(dir, 'setup-called')) +
+      '\nmkdir -p "$CRAFT_INSTALL_DIR"\ncp "$0" "$CRAFT_INSTALL_DIR/craft"\n',
   );
   const data = badArchive
     ? Buffer.from('invalid gzip archive')
@@ -43,7 +45,7 @@ function fixture(
   const curl = join(bin, 'curl');
   writeFileSync(
     curl,
-    `#!/bin/bash\n${downloadFails ? 'exit 22\n' : ''}output=''\nurl=''\nwhile (( $# )); do case "$1" in -o) output="$2"; shift ;; https:*) url="$1" ;; esac; shift; done\ncase "$url" in */latest) echo https://github.com/getsentry/craft/releases/tag/9.1.0 ;; *.gz) cp ${quote(archive)} "$output" ;; *) exit 22 ;; esac\n`,
+    `#!/bin/bash\n${downloadFails ? 'exit 22\n' : ''}output=''\nurl=''\nwhile (( $# )); do case "$1" in -o) output="$2"; shift ;; https:*) url="$1" ;; esac; shift; done\ncase "$url" in */latest) echo https://github.com/getsentry/craft/releases/tag/9.1.0 ;; *.gz) cp ${quote(archive)} "$output"; printf 200 ;; *) exit 22 ;; esac\n`,
   );
   const uname = join(bin, 'uname');
   writeFileSync(
@@ -60,13 +62,15 @@ function fixture(
         PATH: `${bin}:${process.env.PATH}`,
         CRAFT_INSTALL_DIR: destination,
         CRAFT_VERSION: '',
+        CI: '',
+        GITHUB_ACTIONS: '',
         NODE_OPTIONS: '',
         CRAFT_DRY_RUN: '',
         DRY_RUN: '',
         ...extraEnv,
       },
     });
-  return { destination, run };
+  return { destination, run, archive, dir };
 }
 test.skipIf(process.platform === 'win32')(
   'installs a pinned HTTPS release without requesting checksum files',
@@ -153,5 +157,83 @@ test.skipIf(process.platform === 'win32')(
     writeFileSync(join(destination, 'craft'), 'old');
     expect(run('--version', '9.1.0').status).not.toBe(0);
     expect(readFileSync(join(destination, 'craft'), 'utf8')).toBe('old');
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'a local native archive installs offline through the same verifier',
+  () => {
+    const { destination, run, archive, dir } = fixture(false, true, {
+      CI: 'true',
+    });
+    const result = run('--version', '9.1.0', '--archive', archive);
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+    expect(readFileSync(join(destination, 'craft'), 'utf8')).toContain('9.1.0');
+    expect(existsSync(join(dir, 'setup-called'))).toBe(false);
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'CI rejects a mismatched archive without replacing an existing executable',
+  () => {
+    const { destination, run, archive } = fixture(
+      false,
+      true,
+      { CI: 'true' },
+      '8.0.0',
+    );
+    mkdirSync(destination);
+    writeFileSync(join(destination, 'craft'), 'old');
+    const result = run('--version', '9.1.0', '--archive', archive);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('expected 9.1.0');
+    expect(readFileSync(join(destination, 'craft'), 'utf8')).toBe('old');
+  },
+);
+
+test('a local archive requires an explicit version instead of fetching latest', () => {
+  const { run, archive, destination } = fixture(false, true);
+  const result = run('--archive', archive);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain('--archive requires --version');
+  expect(existsSync(destination)).toBe(false);
+});
+
+test('CI defaults to the runner temporary bin directory', () => {
+  const environment: NodeJS.ProcessEnv = { CI: 'true', CRAFT_INSTALL_DIR: '' };
+  const { run, dir } = fixture(false, false, environment);
+  environment.RUNNER_TEMP = dir;
+  expect(run('--version', '9.1.0').status).toBe(0);
+  expect(existsSync(join(dir, 'bin', 'craft'))).toBe(true);
+  expect(existsSync(join(dir, 'setup-called'))).toBe(false);
+});
+
+test.each(['GITHUB_ACTIONS', 'CI'])(
+  '%s automatically installs the executable without shell or agent setup',
+  name => {
+    const { run, destination, dir } = fixture(false, false, { [name]: 'true' });
+    const result = run('--version', '9.1.0');
+    expect(result.status).toBe(0);
+    expect(readFileSync(join(destination, 'craft'), 'utf8')).toContain('9.1.0');
+    expect(existsSync(join(dir, 'setup-called'))).toBe(false);
+  },
+);
+
+test('interactive installation still runs shell and agent setup', () => {
+  const { run, dir } = fixture();
+  expect(run('--version', '9.1.0').status).toBe(0);
+  expect(existsSync(join(dir, 'setup-called'))).toBe(true);
+});
+
+test.each(['false', '0', 'no'])(
+  'CI flags set to %s preserve interactive setup',
+  value => {
+    const { run, dir } = fixture(false, false, {
+      CI: value,
+      GITHUB_ACTIONS: value,
+    });
+    expect(run('--version', '9.1.0').status).toBe(0);
+    expect(existsSync(join(dir, 'setup-called'))).toBe(true);
   },
 );

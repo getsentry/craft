@@ -101,10 +101,22 @@ jobs:
 
 The action accepts the same inputs and produces the same outputs as the reusable workflow.
 
+### Native executable selection
+
+The Action uses the matching standalone executable when the selected Craft release
+includes one. Craft's own release workflow prefers the native build artifact from
+the same run. Versions before standalone binaries and GHCR nightlies retain the
+JavaScript compatibility path, so Node remains required by the composite Action.
+The Action invokes the same `install` script served on the website. That script
+selects the source, detects `GITHUB_ACTIONS` or `CI`, and skips shell completions
+and agent skill setup automatically. Missing native release assets use the
+JavaScript compatibility path; other download or verification failures stop
+installation. Native candidates must report the selected version before placement.
+
 ### AI summary authentication
 
 Enable summaries with `changelog.aiSummary: {}`. The default connection is
-Copilot Responses, `gpt-6-luna` and the `GITHUB_TOKEN` environment variable.
+Copilot Responses, `gpt-5.4-nano` and the `GITHUB_TOKEN` environment variable.
 The model must be available to the supplied credential. Use `aiSummary: false`
 to disable generation.
 
@@ -133,6 +145,10 @@ For built-in-token Copilot access, callers (including reusable workflow callers)
 must grant `copilot-requests: write` alongside their release permissions. The
 organization must enable **“Allow use of Copilot CLI billed to the organization.”**
 Usage is billed to the organization; permissions alone do not enable access.
+Craft’s own release workflow keeps its release-bot token for Git operations and
+passes the workflow token separately for AI requests. An explicit `llm_api_key`
+secret takes precedence.
+
 Map `${{ github.token }}` to `GITHUB_TOKEN`, or pass it as `llm_api_key` when
 release operations use a different token. See [GitHub's workflow-token guide](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions).
 Personal Copilot credentials require Copilot access; fine-grained PATs need
@@ -142,6 +158,12 @@ Copilot's direct HTTP backend is outside GitHub's public REST API contract.
 Missing credentials or failed requests preserve the original changelog without
 switching providers. See [AI summary configuration](../configuration/#ai-summaries)
 for precedence, limits and output examples.
+
+The **AI summary integration** workflow makes one live request using public fixture
+facts when the AI connection/release wiring changes in an internal pull request.
+Fork pull requests skip that credentialed check. Regular AI unit, HTTP-fixture,
+and CLI/Action integration tests still run in the Node 22/24 CI suites. A green
+release with fallback warnings alone does not prove live AI summaries worked.
 
 ### Test a Craft nightly
 

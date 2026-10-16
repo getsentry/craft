@@ -188,7 +188,7 @@ export const AiSummaryLlmSchema = z
     endpoint: AiSummaryEndpointSchema.default(
       'https://api.githubcopilot.com/responses',
     ),
-    model: z.string().trim().min(1).max(200).default('gpt-6-luna'),
+    model: z.string().trim().min(1).max(200).default('gpt-5.4-nano'),
     apiKeyEnv: AiSummaryApiKeyEnvSchema.default('GITHUB_TOKEN'),
   })
   .strict();
