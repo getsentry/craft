@@ -58,7 +58,7 @@ test.each(['false', 'true'])(
       },
     });
     expect(JSON.parse(options.body)).toMatchObject({
-      model: 'gpt-6-luna',
+      model: 'gpt-5.4-nano',
       stream: false,
       max_completion_tokens: 8192,
       messages: [
@@ -307,7 +307,7 @@ test.each(['false', 'true'])(
     });
     const body = JSON.parse(fetch.mock.calls[0][1].body);
     expect(body).toMatchObject({
-      model: 'gpt-6-luna',
+      model: 'gpt-5.4-nano',
       stream: false,
       store: false,
       max_output_tokens: 8192,

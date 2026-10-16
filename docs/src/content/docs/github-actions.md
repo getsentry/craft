@@ -116,7 +116,7 @@ installation. Native candidates must report the selected version before placemen
 ### AI summary authentication
 
 Enable summaries with `changelog.aiSummary: {}`. The default connection is
-Copilot Responses, `gpt-6-luna` and the `GITHUB_TOKEN` environment variable.
+Copilot Responses, `gpt-5.4-nano` and the `GITHUB_TOKEN` environment variable.
 The model must be available to the supplied credential. Use `aiSummary: false`
 to disable generation.
 

@@ -18,7 +18,7 @@ vi.mock('../ai-provider', () => ({
 const config = {
   llm: {
     endpoint: 'https://api.githubcopilot.com/responses',
-    model: 'gpt-6-luna',
+    model: 'gpt-5.4-nano',
     apiKeyEnv: 'AI_SUMMARY_TOKEN',
   },
   minItems: 5,

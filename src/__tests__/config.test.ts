@@ -108,12 +108,12 @@ describe('validateConfiguration', () => {
     expect(validateConfiguration(data)).toEqual(data);
   });
 
-  test('normalizes opt-in Luna summary settings from the active schema', () => {
+  test('normalizes opt-in AI summary settings from the active schema', () => {
     loadConfigurationFromString('changelog:\n  policy: auto\n  aiSummary: {}');
     expect(getChangelogConfig().aiSummary).toEqual({
       llm: {
         endpoint: 'https://api.githubcopilot.com/responses',
-        model: 'gpt-6-luna',
+        model: 'gpt-5.4-nano',
         apiKeyEnv: 'GITHUB_TOKEN',
       },
       minItems: 5,
