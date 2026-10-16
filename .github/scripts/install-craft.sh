@@ -13,7 +13,7 @@ if [[ "$platform" == win ]]; then asset="craft-win-$arch.exe"; fi
 
 install_native() {
   # Dry-run applies to release operations, not provisioning Craft itself.
-  CRAFT_DRY_RUN= DRY_RUN= bash "$action_path/install" --version "$version" --install-dir "$directory" --install-only "$@"
+  NODE_OPTIONS= CRAFT_DRY_RUN= DRY_RUN= bash "$action_path/install" --version "$version" --install-dir "$directory" --install-only "$@"
 }
 
 CRAFT_NATIVE_ARTIFACT_DIRECTORY=${CRAFT_NATIVE_ARTIFACT_DIRECTORY:-}
@@ -35,7 +35,7 @@ else
   else
     endpoint="tags/$version"
     if [[ "$version" == latest ]]; then endpoint=latest; fi
-    gh api "repos/getsentry/craft/releases/$endpoint" > "$stage/release.json"
+    curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL --max-time 30 --max-filesize 1048576 "https://api.github.com/repos/getsentry/craft/releases/$endpoint" -o "$stage/release.json"
     jq -e --arg version "$version" '.draft == false and (.tag_name | type == "string") and ($version == "latest" or .tag_name == $version) and (.assets | type == "array")' "$stage/release.json" >/dev/null
     version=$(jq -er '.tag_name' "$stage/release.json")
     [[ "$version" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || exit 1

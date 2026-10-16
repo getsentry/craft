@@ -72,8 +72,7 @@ fi`,
   script('codesign', 'exit 0');
   script(
     'gh',
-    `printf '%s\\n' "$2" >> ${quote(calls)}
-cat ${quote(metadata)}`,
+    'echo Public downloads must not use gh authentication >&2; exit 19',
   );
   script(
     'curl',
@@ -82,6 +81,7 @@ url=''
 while (( $# )); do case "$1" in -o) output="$2"; shift ;; https:*) url="$1" ;; esac; shift; done
 printf '%s\\n' "$url" >> ${quote(calls)}
 case "$url" in
+  https://api.github.com/repos/getsentry/craft/releases/*) cp ${quote(metadata)} "$output" ;;
   https://github.com/getsentry/craft/releases/download/2.35.0/${asset}) cp ${quote(archive)} "$output" ;;
   https://github.com/getsentry/craft/releases/download/2.35.0/craft) printf '%s' ${quote(bytes.toString())} > "$output" ;;
   *) exit 22 ;;
@@ -146,7 +146,7 @@ test('latest resolves once and installs the exact selected native release', () =
   expect(f.run('latest').status).toBe(0);
   expect(readFileSync(f.binary)).toEqual(f.bytes);
   expect(readFileSync(f.calls, 'utf8')).toBe(
-    'repos/getsentry/craft/releases/latest\nhttps://github.com/getsentry/craft/releases/download/2.35.0/craft-linux-x64.gz\n',
+    'https://api.github.com/repos/getsentry/craft/releases/latest\nhttps://github.com/getsentry/craft/releases/download/2.35.0/craft-linux-x64.gz\n',
   );
 });
 
@@ -194,7 +194,7 @@ test('same-run JavaScript artifacts remain available without network requests', 
 
 test('an unavailable pinned release never falls back to latest', () => {
   const f = fixture();
-  f.script('gh', 'exit 1');
+  f.script('curl', 'exit 22');
   expect(f.run('2.34.1').status).not.toBe(0);
   expect(existsSync(f.binary)).toBe(false);
   expect(readFileSync(f.pathFile, 'utf8')).toBe('');
@@ -249,4 +249,36 @@ test('legacy installation refuses a directory destination without copying into i
   mkdirSync(f.binary, { recursive: true });
   expect(f.run().status).not.toBe(0);
   expect(existsSync(join(f.binary, 'craft'))).toBe(false);
+});
+
+test('public releases install independently of an enterprise host and credentials', () => {
+  const f = fixture();
+  f.script(
+    'gh',
+    'echo Enterprise API must not handle public downloads >&2; exit 19',
+  );
+  const result = f.run('2.35.0', {
+    GH_HOST: 'github.enterprise.example',
+    GH_TOKEN: 'enterprise-fixture-token',
+  });
+  expect(result.stderr).toBe('');
+  expect(result.status).toBe(0);
+  expect(readFileSync(f.binary)).toEqual(f.bytes);
+});
+
+test('native verification ignores host Node options', () => {
+  const f = fixture();
+  writeFileSync(
+    f.archive,
+    gzipSync(
+      Buffer.from(
+        '#!/bin/bash\n[[ -z "${NODE_OPTIONS:-}" ]] || exit 42\necho 2.35.0\n',
+      ),
+    ),
+  );
+  const result = f.run('2.35.0', {
+    NODE_OPTIONS: '--require=host-only-file.cjs',
+  });
+  expect(result.stderr).toBe('');
+  expect(result.status).toBe(0);
 });
