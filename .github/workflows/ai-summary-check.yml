@@ -33,17 +33,3 @@ jobs:
         env:
           CRAFT_TEST_LIVE_AI: 'true'
           GITHUB_TOKEN: ${{ github.token }}
-      - name: Trial gpt-5.6-luna summary response
-        continue-on-error: true
-        run: pnpm test src/__tests__/ai-summary-live.test.ts
-        env:
-          CRAFT_TEST_LIVE_AI: 'true'
-          CRAFT_AI_MODEL: 'gpt-5.6-luna'
-          GITHUB_TOKEN: ${{ github.token }}
-      - name: Trial gpt-5.6-luna-utility summary response
-        continue-on-error: true
-        run: pnpm test src/__tests__/ai-summary-live.test.ts
-        env:
-          CRAFT_TEST_LIVE_AI: 'true'
-          CRAFT_AI_MODEL: 'gpt-5.6-luna-utility'
-          GITHUB_TOKEN: ${{ github.token }}
