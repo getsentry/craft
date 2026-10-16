@@ -49,15 +49,17 @@ const run = (...args: string[]) =>
     killSignal: 'SIGKILL',
   });
 test('targets exits naturally when telemetry cannot connect', async () => {
-  const { stdout } = await run('targets', '--no-input');
+  const { stdout, stderr } = await run('targets', '--no-input');
   expect(JSON.parse(stdout)).toEqual(['github']);
+  expect(stderr).not.toContain('[Sentry]');
 }, 10000);
 test('config exits naturally when telemetry cannot connect', async () => {
-  const { stdout } = await run('config', '--no-input');
+  const { stdout, stderr } = await run('config', '--no-input');
   expect(JSON.parse(stdout).github).toEqual({
     owner: 'example',
     repo: 'fixture',
   });
+  expect(stderr).not.toContain('[Sentry]');
 }, 10000);
 test('invalid configuration retains a failing exit status', async () => {
   await writeFile(join(directory, '.craft.yml'), 'targets: invalid\n');

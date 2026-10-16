@@ -16,6 +16,9 @@ if (!process.argv.includes('--get-yargs-completions')) {
     tracesSampleRate: 1,
     // Retain transaction hooks and scope metadata when upgrading to SDK v11.
     traceLifecycle: 'static',
+    // Craft ships as one bundle/SEA, without runtime-loadable SDK hook files.
+    // Keep explicit spans and built-in diagnostics; module rewriting cannot run here.
+    enableRuntimeChannelInjection: false,
     // SDK v11 defaults collect more data; preserve the previous privacy baseline.
     dataCollection: {
       userInfo: false,
