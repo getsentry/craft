@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.35.0
+
+### New Features ✨
+
+- (changelog) Add configurable AI summaries for CLI and Actions by @MathurAditya724 in [#902](https://github.com/getsentry/craft/pull/902)
+- (distribution) Release native Craft with install and setup tools by @MathurAditya724 in [#904](https://github.com/getsentry/craft/pull/904)
+
+### Bug Fixes 🐛
+
+- (nuget) Pass --timeout to dotnet nuget push by @sentry-junior in [#901](https://github.com/getsentry/craft/pull/901)
+
+### Internal Changes 🔧
+
+- Add standalone Fossilize binaries and native smoke tests by @MathurAditya724 in [#903](https://github.com/getsentry/craft/pull/903)
+
 ## 2.34.1
 
 ### Bug Fixes 🐛
