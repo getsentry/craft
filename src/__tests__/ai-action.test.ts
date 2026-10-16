@@ -52,7 +52,11 @@ test('reusable workflow forwards structured connection and optional secret to bo
     ['craft-local', 'craft-action'].includes(step.id),
   )) {
     expect(step.with.llm).toBe('${{ inputs.llm || vars.CRAFT_AI_LLM }}');
-    expect(step.with.llm_api_key).toBe('${{ secrets.llm_api_key }}');
+    expect(step.with.llm_api_key).toBe(
+      step.id === 'craft-local'
+        ? '${{ secrets.llm_api_key || github.token }}'
+        : '${{ secrets.llm_api_key }}',
+    );
   }
 });
 

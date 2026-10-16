@@ -70,6 +70,14 @@ It does not use sudo or modify shell profiles. `--dry-run` prints the selected
 version and platform without creating installation files. `CRAFT_VERSION`
 can also pin a release. Linux binaries require glibc.
 
+The installer detects `GITHUB_ACTIONS` or `CI` and skips shell completions and
+agent skills automatically. In CI, it installs to `--install-dir`,
+`CRAFT_INSTALL_DIR`, or the runner's temporary `bin` directory (falling back to
+`~/.local/bin`) and adds the directory to `$GITHUB_PATH` when available.
+
+To install a previously downloaded native archive offline, pass `--archive /path/to/archive --version VERSION`.
+Archives still undergo executable version checks and macOS signature verification.
+
 ### Updating a standalone installation
 
 ```bash

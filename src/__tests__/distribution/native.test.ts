@@ -41,6 +41,39 @@ test('native and npm artifacts retain CLI and dry-run behavior', async () => {
       "preReleaseCommand: ''\ngithub:\n  owner: fixture\n  repo: fixture\nchangelog:\n  policy: none\ntargets:\n  - name: github\n";
     await writeFile(join(root, '.craft.yml'), config);
     const pkg = JSON.parse(await readFile('package.json', 'utf8'));
+    // Exercise the Action's same-run native installation on every native runner.
+    const actionBin = join(root, 'action-bin');
+    await execute(
+      'bash',
+      [
+        resolve('install').replace(/\\/g, '/'),
+        '--version',
+        'latest',
+        '--install-dir',
+        actionBin.replace(/\\/g, '/'),
+      ],
+      {
+        cwd: root,
+        env: {
+          ...process.env,
+          GITHUB_PATH: '',
+          GITHUB_ACTIONS: 'true',
+          CRAFT_NATIVE_ARTIFACT_DIRECTORY: resolve('dist-bin'),
+          CRAFT_LEGACY_ARTIFACT: '',
+          CRAFT_ARTIFACT_VERSION: pkg.version,
+        },
+        timeout: 30000,
+      },
+    );
+    assert.equal(
+      (
+        await readFile(
+          join(actionBin, process.platform === 'win32' ? 'craft.exe' : 'craft'),
+        )
+      ).length,
+      data.length,
+      'Action must install the standalone artifact',
+    );
     const env = {
       ...process.env,
       CRAFT_WORKSPACE: '',
