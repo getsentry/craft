@@ -165,7 +165,7 @@ runs:
           export CRAFT_LEGACY_ARTIFACT=/tmp/craft-artifact/dist/craft
           export CRAFT_ARTIFACT_VERSION="$(node -p 'require(process.env.ACTION_PATH + "/package.json").version')"
         fi
-        bash "$ACTION_PATH/.github/scripts/install-craft.sh" "$CRAFT_VERSION" "$RUNNER_TEMP/craft-bin"
+        CRAFT_DRY_RUN= DRY_RUN= bash "$ACTION_PATH/install" --version "$CRAFT_VERSION" --install-dir "$RUNNER_TEMP/craft-bin"
 
     - name: Craft Prepare
       id: craft

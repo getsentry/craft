@@ -35,7 +35,7 @@ output=''
 url=''
 while (( $# )); do case "$1" in -o) output="$2"; shift ;; https:*) url="$1" ;; esac; shift; done
 case "$url" in
-  https://github.com/getsentry/craft/releases/download/${pkg.version}/${asset}) cp ${quote(archive)} "$output" ;;
+  https://github.com/getsentry/craft/releases/download/${pkg.version}/${asset}) cp ${quote(archive)} "$output"; printf 200 ;;
   *) echo "Unexpected fixture request: $url" >&2; exit 22 ;;
 esac
 `,
@@ -50,7 +50,7 @@ esac
       destination,
       process.platform === 'win32' ? 'craft.exe' : 'craft',
     );
-    const run = async (...args: string[]) =>
+    const run = async (ci: boolean, ...args: string[]) =>
       execute(
         'bash',
         [
@@ -76,14 +76,18 @@ esac
             CRAFT_CONFIG: '',
             CRAFT_VERSION: '',
             CRAFT_DRY_RUN: '',
+            DRY_RUN: '',
+            CI: ci ? 'true' : '',
+            GITHUB_ACTIONS: '',
+            GITHUB_PATH: '',
           },
           timeout: 180000,
         },
       );
-    await run('--dry-run');
+    await run(true, '--dry-run');
     await assert.rejects(readFile(binary), { code: 'ENOENT' });
-    // The CI mode must work even with versions predating these script options.
-    await run('--install-only');
+    // CI detection belongs to the script, so older native binaries work too.
+    await run(true);
     assert.equal(
       (await execute(binary, ['--version'], { cwd: root })).stdout
         .trim()
@@ -91,11 +95,11 @@ esac
       pkg.version,
     );
     const installed = await readFile(binary);
-    await run();
+    await run(false);
     assert.deepEqual(await readFile(binary), installed);
 
     await writeFile(archive, Buffer.from('invalid native download'));
-    await assert.rejects(run('--install-only'));
+    await assert.rejects(run(true));
     assert.deepEqual(await readFile(binary), installed);
     console.log(
       `Verified native bootstrap and invalid-download preservation: ${platform}`,

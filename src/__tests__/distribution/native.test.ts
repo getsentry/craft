@@ -46,8 +46,10 @@ test('native and npm artifacts retain CLI and dry-run behavior', async () => {
     await execute(
       'bash',
       [
-        resolve('.github/scripts/install-craft.sh').replace(/\\/g, '/'),
+        resolve('install').replace(/\\/g, '/'),
+        '--version',
         'latest',
+        '--install-dir',
         actionBin.replace(/\\/g, '/'),
       ],
       {
@@ -55,6 +57,7 @@ test('native and npm artifacts retain CLI and dry-run behavior', async () => {
         env: {
           ...process.env,
           GITHUB_PATH: '',
+          GITHUB_ACTIONS: 'true',
           CRAFT_NATIVE_ARTIFACT_DIRECTORY: resolve('dist-bin'),
           CRAFT_LEGACY_ARTIFACT: '',
           CRAFT_ARTIFACT_VERSION: pkg.version,

@@ -591,8 +591,8 @@ test.each(['v2', '7fe142107c12ea31eaaba10e4985674490bf808b'])(
       ),
     );
     writeFileSync(
-      join(scriptsDirectory, 'install-craft.sh'),
-      '#!/usr/bin/env bash\nprintf \'%s\\n\' "$1" >> "$INSTALLER_CALLS"\nexit 1\n',
+      join(environment.directory, 'install'),
+      '#!/usr/bin/env bash\nprintf \'%s\\n\' "$2" >> "$INSTALLER_CALLS"\nexit 1\n',
     );
     writeFileSync(calls, '');
     const ghApiCalls = mockReleaseApi(
@@ -619,6 +619,7 @@ test.each(['v2', '7fe142107c12ea31eaaba10e4985674490bf808b'])(
           ACTION_REF: actionRef,
           CRAFT_VERSION_INPUT: '',
           CRAFT_USE_ARTIFACTS: 'false',
+          GITHUB_ACTIONS: 'true',
           RUNNER_TEMP: environment.directory,
           INSTALLER_CALLS: calls,
           GH_API_CALLS: ghApiCalls,
@@ -702,8 +703,8 @@ test.each([
     writeFileSync(nightlyCalls, '');
     writeFileSync(installCalls, '');
     writeFileSync(
-      join(scriptsDirectory, 'install-craft.sh'),
-      '#!/usr/bin/env bash\nprintf "%s\\n" "$1" >> "$NIGHTLY_CALLS"\nprintf "%s\\n" "$2" >> "$INSTALL_CALLS"\n',
+      join(environment.directory, 'install'),
+      '#!/usr/bin/env bash\nprintf "%s\\n" "$2" >> "$NIGHTLY_CALLS"\nprintf "%s\\n" "$4" >> "$INSTALL_CALLS"\n',
     );
 
     const result = spawnSync(
@@ -721,6 +722,7 @@ test.each([
           ACTION_REF: ref,
           CRAFT_VERSION_INPUT: input,
           CRAFT_USE_ARTIFACTS: 'false',
+          GITHUB_ACTIONS: 'true',
           RUNNER_TEMP: environment.directory,
           GH_API_CALLS: calls,
           GH_RELEASES_DIRECTORY: environment.directory,
@@ -747,12 +749,16 @@ test('fails closed when the pinned development nightly is unavailable', () => {
   });
   const scriptsDirectory = join(environment.directory, '.github/scripts');
   mkdirSync(scriptsDirectory, { recursive: true });
-  for (const name of ['resolve-craft-version.sh', 'install-craft.sh']) {
-    writeFileSync(
-      join(scriptsDirectory, name),
-      readFileSync(join(__dirname, '../../.github/scripts', name)),
-    );
-  }
+  writeFileSync(
+    join(scriptsDirectory, 'resolve-craft-version.sh'),
+    readFileSync(
+      join(__dirname, '../../.github/scripts/resolve-craft-version.sh'),
+    ),
+  );
+  writeFileSync(
+    join(environment.directory, 'install'),
+    readFileSync(join(__dirname, '../../install')),
+  );
   const nightlyCalls = join(environment.directory, 'nightly-calls');
   const githubPath = join(environment.directory, 'github-path');
   writeFileSync(nightlyCalls, '');
@@ -777,6 +783,7 @@ process.exitCode = 1;`,
         ACTION_REF: '7fe142107c12ea31eaaba10e4985674490bf808b',
         CRAFT_VERSION_INPUT: '',
         CRAFT_USE_ARTIFACTS: 'false',
+        GITHUB_ACTIONS: 'true',
         RUNNER_TEMP: environment.directory,
         GITHUB_PATH: githubPath,
         GH_API_CALLS: calls,
