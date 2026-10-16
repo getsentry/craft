@@ -27,6 +27,8 @@ import * as targets from './commands/targets';
 import * as config from './commands/config';
 import * as artifacts from './commands/artifacts';
 import * as changelog from './commands/changelog';
+import * as init from './commands/init';
+import * as validate from './commands/validate';
 import * as workspace from './commands/workspace';
 import * as update from './commands/update';
 import * as completion from './commands/completion';
@@ -114,6 +116,8 @@ async function main(): Promise<void> {
     .command(config)
     .command(artifacts)
     .command(changelog)
+    .command(init)
+    .command(validate)
     .command(workspace)
     .command(setup)
     .command(completion)

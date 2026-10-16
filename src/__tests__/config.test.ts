@@ -602,7 +602,10 @@ describe('workspaces', () => {
     process.chdir(directory);
 
     setActiveWorkspace('packages/cli');
-    expect(getChangelogConfig().filePath).toBe('packages/cli/CHANGELOG.md');
+    expect(getChangelogConfig()).toMatchObject({
+      filePath: 'packages/cli/CHANGELOG.md',
+      policy: 'auto',
+    });
   });
 
   test('preserves an explicitly configured root changelog for a workspace', () => {

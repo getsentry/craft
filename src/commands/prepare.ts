@@ -82,6 +82,9 @@ const AUTO_VERSION_MIN_VERSION = '2.14.0';
 /** Minimum craft version required for automatic version bumping from targets */
 const AUTO_BUMP_MIN_VERSION = '2.21.0';
 
+/** Default bump type for first release when using auto-versioning */
+const DEFAULT_FIRST_RELEASE_BUMP: BumpType = 'minor';
+
 export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
     .positional('NEW-VERSION', {
@@ -801,13 +804,28 @@ async function resolveVersion(
     }
 
     const latestTag = await getLatestTag(git, getGitTagPrefix());
+    const isFirstRelease = !latestTag;
+
+    if (isFirstRelease) {
+      logger.info(
+        `No previous releases found. This appears to be the first release.`,
+      );
+    }
 
     // Determine bump type - either from arg or from commit analysis
     let bumpType: BumpType;
     if (version === 'auto') {
-      const changelogResult = await getChangelogWithBumpType(git, latestTag);
-      validateBumpType(changelogResult);
-      bumpType = changelogResult.bumpType;
+      if (isFirstRelease) {
+        // For first release with auto, default to minor bump (0.0.0 -> 0.1.0)
+        logger.info(
+          `Using default bump type for first release: ${DEFAULT_FIRST_RELEASE_BUMP}`,
+        );
+        bumpType = DEFAULT_FIRST_RELEASE_BUMP;
+      } else {
+        const changelogResult = await getChangelogWithBumpType(git, latestTag);
+        validateBumpType(changelogResult);
+        bumpType = changelogResult.bumpType;
+      }
     } else {
       bumpType = version as BumpType;
     }
