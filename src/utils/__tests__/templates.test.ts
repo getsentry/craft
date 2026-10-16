@@ -146,7 +146,7 @@ describe('Template Generation', () => {
       expect(parsed.on).toHaveProperty('pull_request_target');
     });
 
-    test('uses craft reusable workflow', () => {
+    test('pins the reusable workflow without inheriting repository secrets', () => {
       const yaml = generateChangelogPreviewWorkflow();
       const parsed = load(yaml) as Record<string, unknown>;
       const job = (parsed.jobs as Record<string, unknown>)[
@@ -154,9 +154,9 @@ describe('Template Generation', () => {
       ] as Record<string, unknown>;
 
       expect(job.uses).toBe(
-        'getsentry/craft/.github/workflows/changelog-preview.yml@v2',
+        'getsentry/craft/.github/workflows/changelog-preview.yml@7a7857552e2cdc08b502de96e6076849c01fba32',
       );
-      expect(job.secrets).toBe('inherit');
+      expect(job).not.toHaveProperty('secrets');
     });
 
     test('sets required permissions', () => {
@@ -166,6 +166,7 @@ describe('Template Generation', () => {
 
       expect(permissions.contents).toBe('read');
       expect(permissions['pull-requests']).toBe('write');
+      expect(permissions.statuses).toBe('write');
     });
   });
 });

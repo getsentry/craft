@@ -191,11 +191,13 @@ export function generateChangelogPreviewWorkflow(): string {
     permissions: {
       contents: 'read',
       'pull-requests': 'write',
+      // Required by the pinned reusable workflow's preview job.
+      statuses: 'write',
     },
     jobs: {
       'changelog-preview': {
-        uses: 'getsentry/craft/.github/workflows/changelog-preview.yml@v2',
-        secrets: 'inherit',
+        uses: 'getsentry/craft/.github/workflows/changelog-preview.yml@7a7857552e2cdc08b502de96e6076849c01fba32',
+        // The callee receives GITHUB_TOKEN automatically; no repository secrets needed.
       },
     },
   };
