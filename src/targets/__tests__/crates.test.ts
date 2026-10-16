@@ -76,4 +76,27 @@ describe('getPublishOrder', () => {
     const sortedPackages = [p2, p1];
     expect(target.getPublishOrder(packages)).toEqual(sortedPackages);
   });
+
+  test('excludes versioned dev dependencies when noDevDeps is false', () => {
+    const targetWithoutNoDevDeps = new CratesTarget(
+      {
+        name: 'crates',
+        noDevDeps: false,
+      },
+      new NoneArtifactProvider(),
+      { owner: 'getsentry', repo: 'craft' },
+    );
+    const packages = ['p1', 'p2'].map(cratePackageFactory);
+    const [p1, p2] = packages;
+
+    p1.dependencies = [cratePackageToDependency(p2)];
+    p2.dependencies = [
+      makeDev({
+        ...cratePackageToDependency(p1),
+        req: '^1.0.0',
+      }),
+    ];
+
+    expect(targetWithoutNoDevDeps.getPublishOrder(packages)).toEqual([p2, p1]);
+  });
 });

@@ -1,7 +1,7 @@
 import { vi, type MockedFunction } from 'vitest';
 import { promises as fsPromises } from 'fs';
 import { platform } from 'os';
-import simpleGit from 'simple-git';
+import { simpleGit } from 'simple-git';
 import { PubDevTarget, targetSecrets } from '../pubDev';
 import { spawnProcess } from '../../utils/system';
 import { isDryRun } from '../../utils/helpers';
@@ -42,8 +42,7 @@ vi.mock('fs', async importOriginal => {
 });
 
 vi.mock('simple-git', () => ({
-  __esModule: true, // this property makes default export work
-  default: vi.fn(() => ({
+  simpleGit: vi.fn(() => ({
     clone: vi.fn(async (): Promise<void> => Promise.resolve()),
     checkout: vi.fn(async (): Promise<void> => Promise.resolve()),
   })),
@@ -305,7 +304,17 @@ describe('cloneRepository', () => {
     const simpleGitMock = simpleGit as MockedFunction<typeof simpleGit>;
     const simpleGitMockRv = simpleGitMock.mock.results[0].value;
 
-    expect(simpleGitMock).toHaveBeenCalledWith(TMP_DIR);
+    expect(simpleGitMock).toHaveBeenCalledWith(
+      TMP_DIR,
+      expect.objectContaining({
+        allowEnvironment: expect.arrayContaining([
+          'GIT_AUTHOR_NAME',
+          'GIT_AUTHOR_EMAIL',
+          'GIT_COMMITTER_NAME',
+          'GIT_COMMITTER_EMAIL',
+        ]),
+      }),
+    );
     expect(simpleGitMockRv.clone).toHaveBeenCalledWith(
       `https://github.com/${target.githubRepo.owner}/${target.githubRepo.repo}.git`,
       TMP_DIR,

@@ -1,6 +1,6 @@
-import { vi } from 'vitest';
+import { vi, type Mock } from 'vitest';
 
-export const logger = {
+export const logger: Record<string, Mock> = {
   trace: vi.fn(),
   debug: vi.fn(),
   info: vi.fn(),
@@ -26,4 +26,4 @@ export const LogLevel = {
   Verbose: Infinity,
 };
 
-export const setLevel = vi.fn();
+export const setLevel: Mock = vi.fn();

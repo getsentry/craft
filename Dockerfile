@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim AS builder
+FROM node:24.18.0-bookworm-slim AS builder
 
 WORKDIR /usr/local/lib
 
@@ -17,7 +17,7 @@ RUN \
   PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/lib/node_modules/.bin" \
   pnpm build
 
-FROM node:22-bookworm
+FROM node:24.18.0-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive \
   DOTNET_CLI_TELEMETRY_OPTOUT=1 \
@@ -99,6 +99,10 @@ RUN curl -fsSL https://github.com/PowerShell/PowerShell/releases/download/v7.4.1
   && apt-get install -f \
   && apt-get clean \
   && rm /opt/powershell.deb
+
+# Wrangler CLI for the "cloudflare" target (pinned; pulls the workerd binary)
+RUN npm install -g wrangler@4.111.0 \
+  && wrangler --version
 
 # craft does `git` things against mounted directories as root
 RUN git config --global --add safe.directory '*'

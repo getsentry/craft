@@ -11,6 +11,7 @@ import {
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { getFile, getGitHubClient } from '../utils/githubApi';
+import { withRetry, sleep } from '../utils/async';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
@@ -22,6 +23,51 @@ const DEFAULT_COCOAPODS_BIN = 'pod';
  * Command to launch cocoapods
  */
 const COCOAPODS_BIN = process.env.COCOAPODS_BIN || DEFAULT_COCOAPODS_BIN;
+
+/**
+ * Patterns in pod trunk push stderr/stdout that indicate transient errors.
+ * Matched case-insensitively against the full error message (which includes
+ * both stdout and stderr from the failed process).
+ *
+ * Permanent errors (spec validation, authentication, "already published")
+ * will NOT match any of these and will fail immediately without retry.
+ */
+const COCOAPODS_TRANSIENT_ERROR_PATTERNS = [
+  'timed out',
+  'cdn.cocoapods.org',
+  'trunk.cocoapods.org',
+  'etimedout',
+  'econnreset',
+  'econnrefused',
+  'econnaborted',
+  'socketerror',
+  'socket hang up',
+  'network error',
+  'connection reset',
+  'connection refused',
+  // CocoaPods trunk server errors include the HTTP status in the message
+  'server error (5',
+  '500 internal server error',
+  '502 bad gateway',
+  '503 service unavailable',
+  '504 gateway timeout',
+];
+
+/** Maximum number of attempts (including the initial one) for `pod trunk push` */
+const COCOAPODS_MAX_ATTEMPTS = 5;
+
+/** Initial delay between retries in seconds */
+const COCOAPODS_INITIAL_DELAY_SECS = 5;
+
+/** Exponential backoff factor applied to the retry delay */
+const COCOAPODS_RETRY_EXP_FACTOR = 2;
+
+/**
+ * Pattern in pod trunk push output indicating the version was already published.
+ * This can happen when a retry succeeds on the server but the response times
+ * out — the next attempt fails with this message even though the pod is live.
+ */
+const COCOAPODS_ALREADY_PUBLISHED = 'has already been pushed';
 
 /** Options for "cocoapods" target */
 export interface CocoapodsTargetOptions {
@@ -107,14 +153,65 @@ export class CocoapodsTarget extends BaseTarget {
 
         this.logger.info(`Pushing podspec "${fileName}" to cocoapods...`);
         await spawnProcess(COCOAPODS_BIN, ['setup']);
-        await spawnProcess(
-          COCOAPODS_BIN,
-          ['trunk', 'push', fileName, '--allow-warnings', '--synchronous'],
-          {
-            cwd: directory,
-            env: {
-              ...process.env,
-            },
+
+        let delay = COCOAPODS_INITIAL_DELAY_SECS;
+        await withRetry(
+          async () => {
+            try {
+              await spawnProcess(
+                COCOAPODS_BIN,
+                [
+                  'trunk',
+                  'push',
+                  fileName,
+                  '--allow-warnings',
+                  '--synchronous',
+                ],
+                {
+                  cwd: directory,
+                  env: {
+                    ...process.env,
+                  },
+                },
+              );
+            } catch (err) {
+              // Handle "already published" errors as success. This covers:
+              // 1. A previous attempt succeeded on the server but the
+              //    response timed out, so the retry fails with this error.
+              // 2. A re-run of the entire publish pipeline where the pod
+              //    was already published by a previous run.
+              // Same pattern as the Crates target's REPUBLISH_ERROR.
+              if (
+                err instanceof Error &&
+                err.message.toLowerCase().includes(COCOAPODS_ALREADY_PUBLISHED)
+              ) {
+                this.logger.info(
+                  `Podspec "${fileName}" was already published, skipping`,
+                );
+              } else {
+                throw err;
+              }
+            }
+          },
+          COCOAPODS_MAX_ATTEMPTS,
+          async err => {
+            const message = (err.message || '').toLowerCase();
+            const isTransient = COCOAPODS_TRANSIENT_ERROR_PATTERNS.some(
+              pattern => message.includes(pattern),
+            );
+            if (!isTransient) {
+              this.logger.warn(
+                'pod trunk push failed with a non-transient error, not retrying',
+              );
+              return false;
+            }
+            this.logger.warn(
+              `pod trunk push failed with a transient error, retrying in ${delay}s...`,
+            );
+            this.logger.debug('Error details:', err.message);
+            await sleep(delay * 1000);
+            delay *= COCOAPODS_RETRY_EXP_FACTOR;
+            return true;
           },
         );
       },

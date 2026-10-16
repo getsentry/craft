@@ -1,5 +1,9 @@
 import { vi, type Mock, type MockedFunction } from 'vitest';
 vi.mock('../../utils/githubApi.ts');
+vi.mock('../../utils/async.ts', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../utils/async')>();
+  return { ...actual, sleep: vi.fn().mockResolvedValue(undefined) };
+});
 import { getGitHubClient } from '../../utils/githubApi';
 import { RegistryConfig, RegistryTarget } from '../registry';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
@@ -11,16 +15,15 @@ describe('getUpdatedManifest', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockClient = vi.fn();
-    (getGitHubClient as MockedFunction<
-      typeof getGitHubClient
-      // @ts-ignore we only need to mock a subset
-    >).mockReturnValue({ graphql: mockClient });
+    (getGitHubClient as MockedFunction<typeof getGitHubClient>)
+      // @ts-ignore -- we only need to mock a subset
+      .mockReturnValue({ graphql: mockClient });
   });
 
   const target = new RegistryTarget(
     { name: 'pypi' },
     new NoneArtifactProvider(),
-    { owner: 'testSourceOwner', repo: 'testSourceRepo' }
+    { owner: 'testSourceOwner', repo: 'testSourceRepo' },
   );
 
   it('check if created_at exists', async () => {
@@ -40,7 +43,7 @@ describe('getUpdatedManifest', () => {
       packageManifest,
       canonical,
       version,
-      revision
+      revision,
     );
 
     // check if property created_at exists
@@ -62,11 +65,11 @@ describe('getUpdatedManifest', () => {
       packageManifest,
       'example-package',
       '1.0.0',
-      'abc123'
+      'abc123',
     );
 
     expect(updatedManifest.repo_url).toBe(
-      'https://github.com/testSourceOwner/testSourceRepo'
+      'https://github.com/testSourceOwner/testSourceRepo',
     );
   });
 
@@ -88,11 +91,13 @@ describe('getUpdatedManifest', () => {
       packageManifest,
       'example-package',
       '1.0.0',
-      'abc123'
+      'abc123',
     );
 
     expect(updatedManifest.name).toBe('Example Package');
-    expect(updatedManifest.package_url).toBe('https://npmjs.com/package/example');
+    expect(updatedManifest.package_url).toBe(
+      'https://npmjs.com/package/example',
+    );
     expect(updatedManifest.main_docs_url).toBe('https://docs.example.com');
     expect(updatedManifest.api_docs_url).toBe('https://api.example.com/docs');
   });
@@ -116,14 +121,16 @@ describe('getUpdatedManifest', () => {
       packageManifest,
       'example-package',
       '1.0.0',
-      'abc123'
+      'abc123',
     );
 
     // Config values should override
     expect(updatedManifest.name).toBe('New Name');
     expect(updatedManifest.main_docs_url).toBe('https://new-docs.example.com');
     // Existing value not in config should be preserved
-    expect(updatedManifest.package_url).toBe('https://npmjs.com/package/example');
+    expect(updatedManifest.package_url).toBe(
+      'https://npmjs.com/package/example',
+    );
   });
 
   it('does not set optional fields when not specified in config', async () => {
@@ -140,12 +147,75 @@ describe('getUpdatedManifest', () => {
       packageManifest,
       'example-package',
       '1.0.0',
-      'abc123'
+      'abc123',
     );
 
     expect(updatedManifest.name).toBeUndefined();
     expect(updatedManifest.package_url).toBeUndefined();
     expect(updatedManifest.main_docs_url).toBeUndefined();
     expect(updatedManifest.api_docs_url).toBeUndefined();
+  });
+});
+
+describe('pushToRegistry', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    (getGitHubClient as MockedFunction<typeof getGitHubClient>)
+      // @ts-ignore -- we only need to mock a subset
+      .mockReturnValue({ graphql: vi.fn() });
+  });
+
+  const target = new RegistryTarget(
+    { name: 'pypi' },
+    new NoneArtifactProvider(),
+    { owner: 'testSourceOwner', repo: 'testSourceRepo' },
+  );
+
+  function mockGit(push: Mock) {
+    const git = {
+      pull: vi.fn(() => git),
+      push,
+    };
+    return git;
+  }
+
+  it('retries the push when the remote has advanced', async () => {
+    const push = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('failed to push some refs'))
+      .mockRejectedValueOnce(new Error('failed to push some refs'))
+      .mockResolvedValueOnce(undefined);
+    const git = mockGit(push);
+
+    // @ts-ignore -- pushToRegistry is private
+    await target.pushToRegistry(git);
+
+    expect(git.pull).toHaveBeenCalledTimes(3);
+    expect(push).toHaveBeenCalledTimes(3);
+  });
+
+  it('re-pulls before each retry to integrate remote changes', async () => {
+    const push = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('failed to push some refs'))
+      .mockResolvedValueOnce(undefined);
+    const git = mockGit(push);
+
+    // @ts-ignore -- pushToRegistry is private
+    await target.pushToRegistry(git);
+
+    expect(git.pull).toHaveBeenCalledWith('origin', 'master', ['--rebase']);
+    expect(git.pull).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws after exhausting all attempts', async () => {
+    const push = vi
+      .fn()
+      .mockRejectedValue(new Error('failed to push some refs'));
+    const git = mockGit(push);
+
+    // @ts-ignore -- pushToRegistry is private
+    await expect(target.pushToRegistry(git)).rejects.toThrow();
+    expect(push).toHaveBeenCalledTimes(5);
   });
 });

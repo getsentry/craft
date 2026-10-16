@@ -62,7 +62,7 @@ export function formatCalVerDate(date: Date, format: string): string {
  */
 export async function calculateCalVer(
   git: SimpleGit,
-  config: CalVerConfig
+  config: CalVerConfig,
 ): Promise<string> {
   // Calculate date with offset
   const date = new Date();
@@ -71,7 +71,9 @@ export async function calculateCalVer(
   // Format date part
   const datePart = formatCalVerDate(date, config.format);
 
-  logger.debug(`CalVer: using date ${date.toISOString()}, date part: ${datePart}`);
+  logger.debug(
+    `CalVer: using date ${date.toISOString()}, date part: ${datePart}`,
+  );
 
   // Find existing tags and determine next patch version
   // Account for git tag prefix (e.g., 'v') when searching

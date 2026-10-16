@@ -42,6 +42,7 @@ interface AwsLambdaTargetConfig {
 interface AwsLambdaTargetYamlConfig extends Record<string, unknown> {
   linkPrereleases?: boolean;
   compatibleRuntimes?: CompatibleRuntime[];
+  compatibleArchitectures?: string[];
   license?: string;
 }
 
@@ -290,6 +291,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
     this.logger.debug(`Resolved layer name: ${resolvedLayerName}`);
 
     const config = this.config as TypedTargetConfig<AwsLambdaTargetYamlConfig>;
+    const compatibleArchitectures = config.compatibleArchitectures;
     await Promise.all(
       config.compatibleRuntimes!.map(async (runtime: CompatibleRuntime) => {
         this.logger.debug(`Publishing runtime ${runtime.name}...`);
@@ -300,6 +302,7 @@ export class AwsLambdaLayerTarget extends BaseTarget {
           artifactBuffer,
           awsRegions,
           version,
+          compatibleArchitectures,
         );
 
         let publishedLayers = [];
@@ -345,13 +348,26 @@ export class AwsLambdaLayerTarget extends BaseTarget {
         });
 
         // Common data specific to all the layers in the current runtime.
-        const runtimeData = {
+        const runtimeData: {
+          canonical: string;
+          sdk_version: string;
+          account_number: string;
+          layer_name: string;
+          regions: { region: string; version: string }[];
+          compatible_runtimes: string[];
+          compatible_architectures?: string[];
+        } = {
           canonical: layerManager.getCanonicalName(),
           sdk_version: version,
           account_number: getAccountFromArn(publishedLayers[0].arn),
           layer_name: resolvedLayerName,
           regions: regionsVersions,
+          compatible_runtimes: runtime.versions,
         };
+
+        if (compatibleArchitectures?.length) {
+          runtimeData.compatible_architectures = compatibleArchitectures;
+        }
 
         const baseFilepath = path.posix.join(
           runtimeBaseDir,

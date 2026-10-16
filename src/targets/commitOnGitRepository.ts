@@ -4,7 +4,7 @@ import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { cloneRepo } from '../utils/git';
 import { BaseTarget } from './base';
-import childProcess from 'child_process';
+import * as tar from 'tar';
 import type { Consola } from 'consola';
 import { URL } from 'url';
 
@@ -145,9 +145,20 @@ export async function pushArchiveToGitRepository({
         throw e;
       }
 
-      if (parsedUrl.host === 'github.com' && process.env.GITHUB_API_TOKEN) {
-        logger?.info('Using provided github PAT token for authentication.');
-        parsedUrl.username = process.env.GITHUB_API_TOKEN;
+      if (parsedUrl.host === 'github.com') {
+        const ghToken =
+          process.env.GITHUB_API_TOKEN || process.env.GITHUB_TOKEN;
+        if (ghToken) {
+          logger?.info('Using provided github PAT token for authentication.');
+          parsedUrl.password = ghToken;
+          if (!parsedUrl.username) {
+            // `x-access-token` works for both classic PATs and GitHub App
+            // installation tokens (the token type used by getsentry/publish
+            // and craft's own release workflow). The docker target uses the
+            // same username for these tokens.
+            parsedUrl.username = 'x-access-token';
+          }
+        }
       }
 
       const authenticatedUrl = parsedUrl.toString();
@@ -164,12 +175,20 @@ export async function pushArchiveToGitRepository({
         logger?.info(`Defined --strip-components depth as ${stripComponents}`);
       }
       logger?.info(`Unpack tarball archive at "${archivePath}"...`);
-      const stripComponentsArg =
-        stripComponents && stripComponents > 0
-          ? ` --strip-components ${stripComponents}`
-          : '';
-      childProcess.execSync(`tar -zxvf ${archivePath}${stripComponentsArg}`, {
+      // Use the `tar` npm package (already a dependency) instead of
+      // shelling out to the `tar` binary. The previous implementation
+      // interpolated `archivePath` into a shell command string; while
+      // `archivePath` is currently craft-constructed and not
+      // attacker-controllable, the pattern is fragile against future
+      // refactors (e.g. an artifact provider that returns a path
+      // containing `;` or `$()` would become a command-injection
+      // vector). `tar.x` takes a file path as a parameter, with no
+      // shell parsing at any layer.
+      await tar.x({
+        file: archivePath,
         cwd: directory,
+        gzip: true,
+        strip: stripComponents && stripComponents > 0 ? stripComponents : 0,
       });
 
       logger?.info(`Staging files...`);

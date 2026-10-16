@@ -18,6 +18,8 @@ Targets define where Craft publishes your release artifacts. Configure them in `
 | [Homebrew](./brew/) | Update Homebrew formulas |
 | [GCS](./gcs/) | Upload to Google Cloud Storage |
 | [GitHub Pages](./gh-pages/) | Deploy static sites |
+| [Cloudflare](./cloudflare/) | Deploy static sites or Workers to Cloudflare |
+| [Vercel](./vercel/) | Deploy a prebuilt static site to Vercel |
 | [CocoaPods](./cocoapods/) | Publish iOS/macOS pods |
 | [Ruby Gems](./gem/) | Publish Ruby gems |
 | [Maven](./maven/) | Publish to Maven Central |

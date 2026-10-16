@@ -68,41 +68,49 @@ on:
         required: false
         type: boolean
         default: true
+      require-conventional-title:
+        description: 'Fail the workflow if the PR title does not match a conventional commit type (opt-in enforcement)'
+        required: false
+        type: boolean
+        default: false
 
   # Also run on PRs in this repository (dogfooding)
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled]
-
-permissions:
-  contents: read
-  pull-requests: write # For comment mode
-  statuses: write # For status check mode
 
 jobs:
   preview:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # For comment mode
+      statuses: write # For status check mode
     steps:
       # For pull_request_target, we must explicitly specify the ref to get the PR commits.
       # Try the merge ref first; fall back to head ref if PR has merge conflicts.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         id: checkout-merge
         continue-on-error: true
         with:
           fetch-depth: 0
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          persist-credentials: false
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: steps.checkout-merge.outcome == 'failure'
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
 
       - name: Install Craft
         shell: bash
+        env:
+          CRAFT_VERSION_INPUT: ${{ inputs.craft-version || 'latest' }}
         run: |
           set -euo pipefail
 
-          CRAFT_VERSION="${{ inputs.craft-version || 'latest' }}"
+          CRAFT_VERSION="$CRAFT_VERSION_INPUT"
 
           if [[ "$CRAFT_VERSION" == "latest" || -z "$CRAFT_VERSION" ]]; then
             echo "Downloading latest Craft release..."
@@ -111,7 +119,7 @@ jobs:
           else
             CRAFT_URL="https://github.com/getsentry/craft/releases/download/${CRAFT_VERSION}/craft"
             echo "Downloading Craft ${CRAFT_VERSION}..."
-            
+
             # Fallback to latest if specified version doesn't exist
             if ! curl -sfI "$CRAFT_URL" >/dev/null 2>&1; then
               echo "Release not found for version '${CRAFT_VERSION}', falling back to latest..."
@@ -139,21 +147,30 @@ jobs:
           craft --version
 
       - name: Generate Changelog Preview
+        id: preview
         shell: bash
         working-directory: ${{ inputs.working-directory }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CRAFT_LOG_LEVEL: Warn
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-
           echo "Running craft changelog --pr $PR_NUMBER --format json..."
           RESULT=$(craft changelog --pr "$PR_NUMBER" --format json 2>/dev/null || echo '{"changelog":"","bumpType":null}')
 
           CHANGELOG=$(echo "$RESULT" | jq -r '.changelog // ""')
           BUMP_TYPE=$(echo "$RESULT" | jq -r '.bumpType // "none"')
           PR_SKIPPED=$(echo "$RESULT" | jq -r '.prSkipped // false')
+          VERSIONING_POLICY=$(echo "$RESULT" | jq -r '.versioningPolicy // "auto"')
+
+          # Export for downstream steps (e.g., title enforcement)
+          {
+            echo "bump_type=${BUMP_TYPE}"
+            echo "pr_skipped=${PR_SKIPPED}"
+            echo "versioning_policy=${VERSIONING_POLICY}"
+          } >> "$GITHUB_OUTPUT"
 
           if [[ "$PR_SKIPPED" == "true" ]]; then
             CHANGELOG="_This PR will not appear in the changelog._"
@@ -161,39 +178,37 @@ jobs:
             CHANGELOG="_No changelog entries will be generated from this PR._"
           fi
 
-          case "$BUMP_TYPE" in
-            major) BUMP_BADGE="🔴 **Major** (breaking changes)" ;;
-            minor) BUMP_BADGE="🟡 **Minor** (new features)" ;;
-            patch) BUMP_BADGE="🟢 **Patch** (bug fixes)" ;;
-            *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
-          esac
+          # CalVer projects don't use semver bumps — skip the impact badge
+          if [[ "$VERSIONING_POLICY" == "calver" ]]; then
+            BUMP_BADGE=""
+            BUMP_SHORT="CalVer"
+            SECTION_HEADING="Changelog Preview"
+            STATUS_CONTEXT="Changelog Preview"
+          else
+            case "$BUMP_TYPE" in
+              major) BUMP_BADGE="🔴 **Major** (breaking changes)" ;;
+              minor) BUMP_BADGE="🟡 **Minor** (new features)" ;;
+              patch) BUMP_BADGE="🟢 **Patch** (bug fixes)" ;;
+              *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
+            esac
 
-          case "$BUMP_TYPE" in
-            major) 
-              BUMP_SHORT="Major"
-              BUMP_EMOJI="🔴"
-              ;;
-            minor) 
-              BUMP_SHORT="Minor"
-              BUMP_EMOJI="🟡"
-              ;;
-            patch) 
-              BUMP_SHORT="Patch"
-              BUMP_EMOJI="🟢"
-              ;;
-            *) 
-              BUMP_SHORT="None"
-              BUMP_EMOJI="⚪"
-              ;;
-          esac
+            case "$BUMP_TYPE" in
+              major) BUMP_SHORT="Major" ;;
+              minor) BUMP_SHORT="Minor" ;;
+              patch) BUMP_SHORT="Patch" ;;
+              *) BUMP_SHORT="None" ;;
+            esac
+
+            SECTION_HEADING="Semver Impact of This PR"
+            STATUS_CONTEXT="Changelog Preview / Semver Impact"
+          fi
 
           # Determine mode: use status check mode when comment is false OR when running internally (no input)
           USE_COMMENT_MODE="${{ inputs.comment }}"
           if [[ "$USE_COMMENT_MODE" == "false" ]] || [[ -z "$USE_COMMENT_MODE" ]]; then
             # Status check mode (new feature or internal dogfooding)
             echo "Using status check mode..."
-            
-            HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+
             TARGET_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             PR_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/${PR_NUMBER}"
             
@@ -204,7 +219,7 @@ jobs:
               -H "X-GitHub-Api-Version: 2022-11-28" \
               "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
               -f state="success" \
-              -f context="Changelog Preview / Semver Impact" \
+              -f context="$STATUS_CONTEXT" \
               -f description="$BUMP_SHORT" \
               -f target_url="$TARGET_URL"
             
@@ -216,7 +231,7 @@ jobs:
 
           [→ View PR #${PR_NUMBER}](${PR_URL})
 
-          ## Semver Impact of This PR
+          ## ${SECTION_HEADING}
 
           ${BUMP_BADGE}
 
@@ -243,7 +258,7 @@ jobs:
             COMMENT_FILE=$(mktemp)
             cat > "$COMMENT_FILE" << CRAFT_CHANGELOG_COMMENT_END
           <!-- craft-changelog-preview -->
-          ## Semver Impact of This PR
+          ## ${SECTION_HEADING}
 
           ${BUMP_BADGE}
 
@@ -284,3 +299,38 @@ jobs:
             rm -f "$COMMENT_FILE"
             echo "✓ Comment posted"
           fi
+
+      - name: Enforce conventional title
+        if: inputs.require-conventional-title == true
+        shell: bash
+        env:
+          BUMP_TYPE: ${{ steps.preview.outputs.bump_type }}
+          PR_SKIPPED: ${{ steps.preview.outputs.pr_skipped }}
+          VERSIONING_POLICY: ${{ steps.preview.outputs.versioning_policy }}
+        run: |
+          if [[ "$PR_SKIPPED" == "true" ]]; then
+            echo "PR is skip-changelog — skipping title enforcement"
+            exit 0
+          fi
+
+          if [[ "$VERSIONING_POLICY" == "manual" ]]; then
+            echo "Manual versioning policy — skipping title enforcement"
+            exit 0
+          fi
+
+          if [[ "$BUMP_TYPE" == "null" || "$BUMP_TYPE" == "none" || -z "$BUMP_TYPE" ]]; then
+            echo "::error::PR title does not follow the conventional commits format."
+            echo ""
+            echo "Your PR title must start with a recognized type prefix:"
+            echo "  feat:, fix:, docs:, refactor:, chore:, ci:, test:, perf:,"
+            echo "  build:, style:, meta:, ref:, security:"
+            echo ""
+            echo "Optional scope: feat(ui): Add button component"
+            echo "Breaking change: feat!: Remove deprecated API"
+            echo ""
+            echo "To skip this check, add the 'skip-changelog' label"
+            echo "or include '#skip-changelog' in the PR body."
+            exit 1
+          fi
+
+          echo "PR title matches conventional commit format (bump: $BUMP_TYPE)"

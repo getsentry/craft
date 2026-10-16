@@ -4,13 +4,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import split from 'split';
 import * as tar from 'tar';
-import extract from 'extract-zip';
+import StreamZip from 'node-stream-zip';
 
 import { logger } from '../logger';
 
 import { reportError } from './errors';
 import { isDryRun } from './helpers';
 import { isInWorktreeMode } from './dryRun';
+import { sanitizeSpawnEnv } from './dynamicLinkerEnv';
 
 /**
  * Types of supported hashing algorithms
@@ -105,6 +106,8 @@ export function replaceEnvVariable(
 export interface SpawnProcessOptions {
   /** Do not buffer standard output */
   showStdout?: boolean;
+  /** Log standard error at info level instead of trace */
+  showStderr?: boolean;
   /** Force the process to run in dry-run mode */
   enableInDryRunMode?: boolean;
   /** Data to write to stdin (process will receive 'pipe' for stdin instead of 'inherit') */
@@ -167,6 +170,15 @@ export async function spawnProcess(
         replaceEnvVariable(arg, { ...process.env, ...options.env }),
       );
 
+      // Defence-in-depth: strip dynamic-linker env vars (LD_PRELOAD,
+      // DYLD_*, etc.) from whatever env the child process will see.
+      // Startup already sanitises process.env, so the only way one of
+      // these keys reaches this point is via a later mutation (hostile
+      // or accidental) or via an explicit `options.env` that spreads
+      // in attacker-controlled values. Either way, we refuse to
+      // propagate them. See sanitizeSpawnEnv() in ../utils/env.ts.
+      options.env = sanitizeSpawnEnv(options.env ?? process.env);
+
       // Allow child to accept input (use 'pipe' for stdin if we need to write to it)
       options.stdio = [
         spawnProcessOptions.stdin !== undefined ? 'pipe' : 'inherit',
@@ -200,7 +212,11 @@ export async function spawnProcess(
       });
       child.stderr.pipe(split()).on('data', (data: any) => {
         const output = `${command}: ${data}`;
-        logger.trace(output);
+        if (spawnProcessOptions.showStderr) {
+          logger.info(output);
+        } else {
+          logger.trace(output);
+        }
         stderr += `${output}\n`;
       });
     } catch (e) {
@@ -526,7 +542,49 @@ export async function extractZipArchive(
   filePath: string,
   dir: string,
 ): Promise<void> {
-  await extract(filePath, { dir: dir });
+  await fs.promises.mkdir(dir, { recursive: true });
+  const zip = new StreamZip.async({ file: filePath });
+  try {
+    await zip.extract(null, dir);
+  } finally {
+    await zip.close();
+  }
+}
+
+/**
+ * Extracts a ZIP archive into the specified directory and, if the archive
+ * contains a single top-level directory, moves its contents up into `dir`.
+ *
+ * This "flatten" behavior is useful for static-site archives that wrap all
+ * their files in a single parent folder (e.g. `my-site/index.html`), so that
+ * the caller ends up with the files directly under `dir`.
+ *
+ * @param filePath Path to the ZIP archive
+ * @param dir Path to the directory to extract into
+ * @returns A promise that resolves when extraction (and flattening) completes
+ * @async
+ */
+export async function extractZipArchiveWithFlattening(
+  filePath: string,
+  dir: string,
+): Promise<void> {
+  await extractZipArchive(filePath, dir);
+
+  // If there's a single top-level directory, move its contents to `dir`
+  const dirContents = fs.readdirSync(dir).filter(f => f !== '.git');
+  if (
+    dirContents.length === 1 &&
+    fs.statSync(path.join(dir, dirContents[0])).isDirectory()
+  ) {
+    logger.debug('Single top-level directory found, moving files from it...');
+    const innerDirPath = path.join(dir, dirContents[0]);
+    fs.readdirSync(innerDirPath).forEach(item => {
+      const srcPath = path.join(innerDirPath, item);
+      const destPath = path.join(dir, item);
+      fs.renameSync(srcPath, destPath);
+    });
+    fs.rmdirSync(innerDirPath);
+  }
 }
 
 /**

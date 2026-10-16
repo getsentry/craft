@@ -1,4 +1,9 @@
-import { stringToRegexp, escapeRegex, patternToRegexp } from '../filters';
+import {
+  stringToRegexp,
+  escapeRegex,
+  patternToRegexp,
+  globToRegex,
+} from '../filters';
 
 describe('stringToRegexp', () => {
   test('converts string without special characters', () => {
@@ -47,6 +52,32 @@ describe('escapeRegex', () => {
   });
 });
 
+describe('globToRegex', () => {
+  test('converts * to .*', () => {
+    expect(globToRegex('sentry-*')).toBe('sentry-.*');
+  });
+
+  test('converts ? to .', () => {
+    expect(globToRegex('build-?.zip')).toBe('build-.\\.zip');
+  });
+
+  test('escapes special regex characters', () => {
+    expect(globToRegex('output.tar.gz')).toBe('output\\.tar\\.gz');
+  });
+
+  test('handles multiple globs', () => {
+    expect(globToRegex('*-build-*')).toBe('.*-build-.*');
+  });
+
+  test('handles mixed * and ?', () => {
+    expect(globToRegex('build-?-*.zip')).toBe('build-.-.*\\.zip');
+  });
+
+  test('leaves plain alphanumeric strings unchanged', () => {
+    expect(globToRegex('simple')).toBe('simple');
+  });
+});
+
 describe('patternToRegexp', () => {
   test('converts regex string to RegExp', () => {
     const result = patternToRegexp('/^build-.*$/');
@@ -73,5 +104,44 @@ describe('patternToRegexp', () => {
     const result = patternToRegexp('output.tar.gz');
     expect(result.test('output.tar.gz')).toBe(true);
     expect(result.test('outputXtarXgz')).toBe(false);
+  });
+
+  test('converts glob pattern with * to matching RegExp', () => {
+    const result = patternToRegexp('sentry-*');
+    expect(result).toBeInstanceOf(RegExp);
+    expect(result.test('sentry-linux-x64')).toBe(true);
+    expect(result.test('sentry-darwin-arm64')).toBe(true);
+    expect(result.test('sentry-')).toBe(true);
+    expect(result.test('other-thing')).toBe(false);
+    expect(result.test('my-sentry-linux')).toBe(false);
+  });
+
+  test('converts glob pattern with ? to matching RegExp', () => {
+    const result = patternToRegexp('build-?.zip');
+    expect(result.test('build-a.zip')).toBe(true);
+    expect(result.test('build-1.zip')).toBe(true);
+    expect(result.test('build-ab.zip')).toBe(false);
+    expect(result.test('build-.zip')).toBe(false);
+  });
+
+  test('converts glob pattern with * preserving other special chars', () => {
+    const result = patternToRegexp('output.*.tar.gz');
+    expect(result.test('output.v2.tar.gz')).toBe(true);
+    expect(result.test('output.release.tar.gz')).toBe(true);
+    expect(result.test('outputXv2XtarXgz')).toBe(false);
+  });
+
+  test('converts glob pattern *.tgz to match any .tgz file', () => {
+    const result = patternToRegexp('*.tgz');
+    expect(result.test('package-1.0.0.tgz')).toBe(true);
+    expect(result.test('my-lib.tgz')).toBe(true);
+    expect(result.test('package-1.0.0.zip')).toBe(false);
+  });
+
+  test('glob * does not match across nothing when anchored', () => {
+    const result = patternToRegexp('prefix-*-suffix');
+    expect(result.test('prefix--suffix')).toBe(true);
+    expect(result.test('prefix-middle-suffix')).toBe(true);
+    expect(result.test('prefix-suffix')).toBe(false);
   });
 });

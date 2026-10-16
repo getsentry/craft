@@ -78,9 +78,15 @@ describe('spawnProcess', () => {
   test('does not write to output by default', async () => {
     const mockedLogInfo = logger.info as Mock;
 
-    await spawnProcess(process.execPath, ['-e', 'console.log("test-string")']);
+    await spawnProcess(process.execPath, [
+      '-e',
+      'console.log("test-string"); process.stderr.write("test-warning")',
+    ]);
 
     expect(mockedLogInfo).toHaveBeenCalledTimes(0);
+    expect(logger.trace).toHaveBeenCalledWith(
+      `${process.execPath}: test-warning`,
+    );
   });
 
   test('writes to output if told so', async () => {
@@ -95,6 +101,101 @@ describe('spawnProcess', () => {
 
     expect(mockedLogInfo).toHaveBeenCalledTimes(1);
     expect(mockedLogInfo.mock.calls[0][0]).toMatch(/test-string/);
+  });
+
+  test.each([0, 1])(
+    'shows stderr without changing stdout or exit code %i',
+    async exitCode => {
+      const result = spawnProcess(
+        process.execPath,
+        [
+          '-e',
+          `process.stdout.write("result"); process.stderr.write("publish-notice"); process.exitCode = ${exitCode}`,
+        ],
+        {},
+        { showStderr: true },
+      );
+
+      if (exitCode === 0) {
+        expect((await result)?.toString()).toBe('result');
+      } else {
+        await expect(result).rejects.toMatchObject({
+          code: exitCode,
+          message: expect.stringContaining('publish-notice'),
+        });
+      }
+
+      expect(logger.info).toHaveBeenCalledWith(
+        `${process.execPath}: publish-notice`,
+      );
+      expect(logger.info).not.toHaveBeenCalledWith(
+        `${process.execPath}: result`,
+      );
+    },
+  );
+
+  describe('env sanitisation (defence-in-depth)', () => {
+    const savedEnv = { ...process.env };
+
+    afterEach(() => {
+      process.env = { ...savedEnv };
+    });
+
+    test('strips LD_PRELOAD from an explicit options.env', async () => {
+      const stdout =
+        (await spawnProcess(
+          process.execPath,
+          [
+            '-e',
+            'process.stdout.write(JSON.stringify({ ld: process.env.LD_PRELOAD, marker: process.env.CHILD_MARKER }))',
+          ],
+          {
+            env: {
+              PATH: process.env.PATH,
+              LD_PRELOAD: '/tmp/evil.so',
+              CHILD_MARKER: 'reached',
+            },
+          },
+        )) || '';
+
+      const parsed = JSON.parse(stdout.toString());
+      expect(parsed.ld).toBeUndefined();
+      // Other env vars still propagate.
+      expect(parsed.marker).toBe('reached');
+    });
+
+    test('strips LD_PRELOAD set on process.env after startup', async () => {
+      // Simulate a post-startup mutation of process.env (hostile or
+      // accidental). startup-level sanitizeDynamicLinkerEnv() cannot
+      // catch this; the spawn-level sanitiser must.
+      process.env.LD_PRELOAD = '/tmp/later-evil.so';
+
+      const stdout =
+        (await spawnProcess(process.execPath, [
+          '-e',
+          'process.stdout.write(process.env.LD_PRELOAD || "undef")',
+        ])) || '';
+
+      expect(stdout.toString()).toBe('undef');
+    });
+
+    test('honours CRAFT_ALLOW_DYNAMIC_LINKER_ENV=1 opt-out', async () => {
+      process.env.CRAFT_ALLOW_DYNAMIC_LINKER_ENV = '1';
+
+      const stdout =
+        (await spawnProcess(
+          process.execPath,
+          ['-e', 'process.stdout.write(process.env.LD_PRELOAD || "undef")'],
+          {
+            env: {
+              PATH: process.env.PATH,
+              LD_PRELOAD: '/tmp/allowed.so',
+            },
+          },
+        )) || '';
+
+      expect(stdout.toString()).toBe('/tmp/allowed.so');
+    });
   });
 });
 
@@ -190,30 +291,29 @@ describe('extractZipArchive', () => {
     await withTempDir(async tmpdir => {
       const zip = `${tmpdir}/out.zip`;
 
-      const zipf = await fs.promises.open(zip, 'w');
-      await zipf.writeFile(
-        Buffer.from([
-          80, 75, 3, 4, 10, 0, 0, 0, 0, 0, 99, 150, 109, 88, 220, 199, 60, 159,
-          40, 11, 4, 0, 40, 11, 4, 0, 5, 0, 28, 0, 116, 46, 116, 120, 116, 85,
-          84, 9, 0, 3, 153, 245, 241, 101, 140, 245, 241, 101, 117, 120, 11, 0,
-          1, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0,
-        ]),
+      // Build the entire zip content in memory to avoid 5000+ individual async
+      // writes which can exceed the test timeout on slow CI runners.
+      const header = Buffer.from([
+        80, 75, 3, 4, 10, 0, 0, 0, 0, 0, 99, 150, 109, 88, 220, 199, 60, 159,
+        40, 11, 4, 0, 40, 11, 4, 0, 5, 0, 28, 0, 116, 46, 116, 120, 116, 85, 84,
+        9, 0, 3, 153, 245, 241, 101, 140, 245, 241, 101, 117, 120, 11, 0, 1, 4,
+        0, 0, 0, 0, 4, 0, 0, 0, 0,
+      ]);
+      const line = Buffer.from(
+        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\n',
       );
+      const body = Buffer.alloc(line.length * 5000);
       for (let i = 0; i < 5000; i += 1) {
-        await zipf.writeFile(
-          'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\n',
-        );
+        line.copy(body, i * line.length);
       }
-      await zipf.writeFile(
-        Buffer.from([
-          80, 75, 1, 2, 30, 3, 10, 0, 0, 0, 0, 0, 99, 150, 109, 88, 220, 199,
-          60, 159, 40, 11, 4, 0, 40, 11, 4, 0, 5, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 164, 129, 0, 0, 0, 0, 116, 46, 116, 120, 116, 85, 84, 5, 0, 3, 153,
-          245, 241, 101, 117, 120, 11, 0, 1, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0, 80,
-          75, 5, 6, 0, 0, 0, 0, 1, 0, 1, 0, 75, 0, 0, 0, 103, 11, 4, 0, 0, 0,
-        ]),
-      );
-      await zipf.close();
+      const footer = Buffer.from([
+        80, 75, 1, 2, 30, 3, 10, 0, 0, 0, 0, 0, 99, 150, 109, 88, 220, 199, 60,
+        159, 40, 11, 4, 0, 40, 11, 4, 0, 5, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        164, 129, 0, 0, 0, 0, 116, 46, 116, 120, 116, 85, 84, 5, 0, 3, 153, 245,
+        241, 101, 117, 120, 11, 0, 1, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0, 80, 75, 5,
+        6, 0, 0, 0, 0, 1, 0, 1, 0, 75, 0, 0, 0, 103, 11, 4, 0, 0, 0,
+      ]);
+      await fs.promises.writeFile(zip, Buffer.concat([header, body, footer]));
 
       await extractZipArchive(zip, `${tmpdir}/out`);
 

@@ -8,9 +8,15 @@ on:
       version:
         description: Version to release
         required: true
-        default: "auto"
+        default: 'auto'
       force:
         description: Force a release even when there are release-blockers (optional)
+        required: false
+      workspace:
+        description: Named Craft release workspace to prepare and publish
+        required: false
+      craft_version:
+        description: Craft release tag, latest, nightly, or nightly-<full commit SHA>
         required: false
 
   # For external repos to call this workflow
@@ -24,7 +30,7 @@ on:
         description: Force a release even when there are release-blockers
         type: string
         required: false
-        default: "false"
+        default: 'false'
       merge_target:
         description: Target branch to merge into
         type: string
@@ -33,7 +39,7 @@ on:
         description: Label that blocks releases
         type: string
         required: false
-        default: "release-blocker"
+        default: 'release-blocker'
       publish_repo:
         description: Repository for publish issues (owner/repo format)
         type: string
@@ -50,12 +56,31 @@ on:
         description: The path that Craft will run inside
         type: string
         required: false
-        default: "."
+        default: '.'
+      workspace:
+        description: Named Craft release workspace to prepare and publish
+        type: string
+        required: false
+      craft_version:
+        description: Craft release tag, latest, nightly, or nightly-<full commit SHA>
+        type: string
+        required: false
       craft_config_from_merge_target:
         description: Use the craft config from the merge target branch
         type: string
         required: false
-        default: "false"
+        default: 'false'
+      llm:
+        description: JSON object with AI summary endpoint, model, and apiKeyEnv
+        type: string
+        required: false
+    secrets:
+      SENTRY_AUTH_TOKEN:
+        description: Optional Sentry source-map upload credential for master builds
+        required: false
+      llm_api_key:
+        description: Optional AI summary credential override; defaults to GITHUB_TOKEN
+        required: false
     outputs:
       version:
         description: The resolved version being released
@@ -70,7 +95,7 @@ on:
         description: The tag before this release (for diff links)
         value: ${{ jobs.release.outputs.previous_tag }}
       changelog:
-        description: The changelog for this release
+        description: The changelog for this release (may be truncated for large repos)
         value: ${{ jobs.release.outputs.changelog }}
 
 jobs:
@@ -78,7 +103,9 @@ jobs:
   build:
     if: github.repository == 'getsentry/craft'
     name: Build
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/release-build.yml
+    secrets:
+      SENTRY_AUTH_TOKEN: ${{ github.ref == 'refs/heads/master' && secrets.SENTRY_AUTH_TOKEN || '' }}
     permissions:
       contents: read
 
@@ -88,8 +115,7 @@ jobs:
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-latest
     name: 'Release a new version'
-    permissions:
-      contents: write
+    # Inherit the caller's permissions, including optional Copilot access.
     outputs:
       version: ${{ steps.craft-local.outputs.version || steps.craft-action.outputs.version }}
       branch: ${{ steps.craft-local.outputs.branch || steps.craft-action.outputs.branch }}
@@ -101,12 +127,12 @@ jobs:
       - name: Get auth token
         id: token
         if: github.event_name == 'workflow_dispatch' && github.repository == 'getsentry/craft'
-        uses: actions/create-github-app-token@5d869da34e18e7287c1daad50e0b8ea0f506ce69 # v1.11.0
+        uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.SENTRY_RELEASE_BOT_CLIENT_ID }}
+          client-id: ${{ vars.SENTRY_RELEASE_BOT_CLIENT_ID }}
           private-key: ${{ secrets.SENTRY_RELEASE_BOT_PRIVATE_KEY }}
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # Use release bot token for Craft repo, inherited token for external repos
           token: ${{ steps.token.outputs.token || github.token }}
@@ -122,6 +148,11 @@ jobs:
         with:
           version: ${{ github.event.inputs.version }}
           force: ${{ github.event.inputs.force }}
+          workspace: ${{ github.event.inputs.workspace }}
+          craft_version: ${{ github.event.inputs.craft_version }}
+          git_user_name: ${{ github.actor }}
+          llm: ${{ inputs.llm || vars.CRAFT_AI_LLM }}
+          llm_api_key: ${{ secrets.llm_api_key || github.token }}
 
       # For external repos: use published action
       - name: Prepare release
@@ -139,4 +170,8 @@ jobs:
           git_user_name: ${{ inputs.git_user_name }}
           git_user_email: ${{ inputs.git_user_email }}
           path: ${{ inputs.path }}
+          workspace: ${{ inputs.workspace }}
+          craft_version: ${{ inputs.craft_version }}
           craft_config_from_merge_target: ${{ inputs.craft_config_from_merge_target }}
+          llm: ${{ inputs.llm || vars.CRAFT_AI_LLM }}
+          llm_api_key: ${{ secrets.llm_api_key }}

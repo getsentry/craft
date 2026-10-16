@@ -53,12 +53,14 @@ const mockGCSUpload = vi.fn();
 const mockGCSDownload = vi.fn();
 const mockGCSGetFiles = vi.fn();
 vi.mock('@google-cloud/storage', () => ({
-  Bucket: vi.fn(() => ({
-    file: vi.fn(() => ({ download: mockGCSDownload })),
-    getFiles: mockGCSGetFiles,
-    upload: mockGCSUpload,
-  })),
-  Storage: vi.fn(() => ({})),
+  Bucket: vi.fn().mockImplementation(function (this: any) {
+    this.file = vi.fn(() => ({ download: mockGCSDownload }));
+    this.getFiles = mockGCSGetFiles;
+    this.upload = mockGCSUpload;
+  }),
+  Storage: vi.fn().mockImplementation(function () {
+    // empty mock constructor
+  }),
 }));
 
 const cleanEnv = { ...process.env };

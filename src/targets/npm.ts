@@ -1,11 +1,12 @@
 import { SpawnOptions, spawnSync } from 'child_process';
 import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { join, relative, sep as pathSep } from 'path';
 import prompts from 'prompts';
 
 import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
+import { safeFs } from '../utils/dryRun';
 import { ConfigurationError, reportError } from '../utils/errors';
-import { stringToRegexp } from '../utils/filters';
+import { escapeRegex, stringToRegexp } from '../utils/filters';
 import { isDryRun } from '../utils/helpers';
 import {
   hasExecutable,
@@ -15,6 +16,7 @@ import {
 import {
   isPreviewRelease,
   parseVersion,
+  SemVer,
   versionGreaterOrEqualThan,
 } from '../utils/version';
 import {
@@ -23,6 +25,7 @@ import {
   packageNameToArtifactPattern,
   packageNameToArtifactFromTemplate,
   topologicalSortPackages,
+  WorkspacePackage,
 } from '../utils/workspaces';
 import { BaseTarget } from './base';
 import {
@@ -54,7 +57,26 @@ export const YARN_BIN = process.env.YARN_BIN || 'yarn';
 const NPM_MIN_MAJOR = 5;
 const NPM_MIN_MINOR = 6;
 
+/** Minimum npm version required for OIDC trusted publishing support */
+const NPM_OIDC_MIN_VERSION: SemVer = { major: 11, minor: 5, patch: 1 };
+
 const NPM_TOKEN_ENV_VAR = 'NPM_TOKEN';
+
+/**
+ * Detect whether the current CI environment exposes OIDC credentials that npm
+ * can use for trusted publishing.
+ *
+ * - GitHub Actions: sets ACTIONS_ID_TOKEN_REQUEST_URL + ACTIONS_ID_TOKEN_REQUEST_TOKEN
+ *   when the workflow has `id-token: write` permission.
+ * - GitLab CI/CD: sets NPM_ID_TOKEN when `id_tokens` is configured with the npm audience.
+ */
+function isOidcEnvironment(): boolean {
+  return !!(
+    (process.env.ACTIONS_ID_TOKEN_REQUEST_URL &&
+      process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN) ||
+    process.env.NPM_ID_TOKEN
+  );
+}
 
 /** A regular expression used to find the package tarball */
 const DEFAULT_PACKAGE_REGEX = /^.*\d\.\d.*\.tgz$/;
@@ -71,6 +93,16 @@ export interface NpmTargetConfig extends TargetConfig {
   access?: NpmPackageAccess;
   /** If defined, lookup this package name on the registry to get the current latest version. */
   checkPackageName?: string;
+  /**
+   * Enable OIDC trusted publishing (no long-lived NPM_TOKEN required).
+   * When set to `true`, forces OIDC mode and errors if the environment does not
+   * support it or npm < 11.5.1.
+   * When omitted, OIDC is auto-detected from CI environment variables:
+   *   - GitHub Actions: ACTIONS_ID_TOKEN_REQUEST_URL + ACTIONS_ID_TOKEN_REQUEST_TOKEN
+   *   - GitLab CI/CD: NPM_ID_TOKEN
+   * If auto-detected and NPM_TOKEN is absent, OIDC is used automatically.
+   */
+  oidc?: boolean;
   /**
    * Enable workspace discovery to auto-generate npm targets for all workspace packages.
    * When enabled, this target will be expanded into multiple targets, one per workspace package.
@@ -104,14 +136,21 @@ export interface NpmTargetOptions {
   useOtp?: boolean;
   /** Do we use Yarn instead of NPM? */
   useYarn: boolean;
-  /** Value of NPM_TOKEN so we can pass it to npm executable */
-  token: string;
+  /**
+   * Value of NPM_TOKEN to pass to the npm executable.
+   * Undefined when using OIDC without a token (publish auth is handled by npm
+   * natively; getLatestVersion will run without auth and works for public packages).
+   */
+  token?: string;
+  /** Whether to use OIDC trusted publishing instead of token-based auth */
+  useOidc: boolean;
 }
 
 /** Fields on the npm target config accessed at runtime */
 interface NpmTargetConfigFields extends Record<string, unknown> {
   access?: NpmPackageAccess;
   checkPackageName?: string;
+  oidc?: boolean;
 }
 
 /** Options for running the NPM publish command */
@@ -132,6 +171,8 @@ export class NpmTarget extends BaseTarget {
   public readonly name: string = 'npm';
   /** Target options */
   public readonly npmConfig: NpmTargetOptions;
+  /** Parsed npm version, set during checkRequirements() */
+  protected npmVersion: SemVer | null = null;
 
   /** Priority for ordering in config (package registries appear first) */
   public static readonly priority = 10;
@@ -335,6 +376,9 @@ export class NpmTarget extends BaseTarget {
       if (config.checkPackageName) {
         expandedTarget.checkPackageName = config.checkPackageName;
       }
+      if (config.oidc) {
+        expandedTarget.oidc = config.oidc;
+      }
 
       return expandedTarget;
     });
@@ -390,17 +434,55 @@ export class NpmTarget extends BaseTarget {
         );
         try {
           await spawnProcess(bin, workspaceArgs, { cwd: rootDir });
-        } catch {
-          // If --workspaces fails (npm < 7), fall back to individual package bumping
-          logger.debug(
-            'npm --workspaces failed, falling back to individual package bumping',
-          );
-          await NpmTarget.bumpWorkspacePackagesIndividually(
-            bin,
-            workspaces.packages,
-            newVersion,
-            baseArgs,
-          );
+        } catch (err) {
+          // `npm version --workspaces` fails with EUNSUPPORTEDPROTOCOL when any
+          // workspace package declares a "workspace:*" dependency, because npm
+          // rejects that URL protocol while validating deps AFTER it has already
+          // rewritten every package.json version on disk.
+          // See: https://github.com/npm/cli/issues/8845
+          //
+          // Rather than parsing stderr (which changes across npm versions), we
+          // check the observable state: if every relevant package.json now has
+          // the target version, the bump succeeded and we continue. Otherwise
+          // we fall back to per-package bumping.
+          //
+          // In dry-run mode, spawnProcess is a no-op and no files were written,
+          // so we skip the post-check and just return success (matching the
+          // existing "dry-run version bump is a noop" contract).
+          if (isDryRun()) {
+            logger.debug('npm --workspaces failed in dry-run mode, skipping');
+          } else if (
+            NpmTarget.allWorkspacePackageJsonsMatch(
+              rootDir,
+              workspaces.packages,
+              newVersion,
+            )
+          ) {
+            logger.warn(
+              'npm version --workspaces exited non-zero but every workspace ' +
+                'package.json was successfully bumped to the target version. ' +
+                'This is likely caused by "workspace:*" dependency protocols ' +
+                "tripping npm's URL validator — see https://github.com/npm/cli/issues/8845. " +
+                'Treating the bump as successful.',
+            );
+            logger.debug(
+              `npm --workspaces error (ignored): ${
+                (err as Error)?.message ?? err
+              }`,
+            );
+          } else {
+            // Files were not bumped — genuine failure. Fall back to individual
+            // package bumping, which may still succeed on a subset.
+            logger.debug(
+              'npm --workspaces failed, falling back to individual package bumping',
+            );
+            await NpmTarget.bumpWorkspacePackagesIndividually(
+              bin,
+              workspaces.packages,
+              newVersion,
+              baseArgs,
+            );
+          }
         }
       } else {
         // yarn doesn't have --workspaces for version command, bump individually
@@ -415,18 +497,79 @@ export class NpmTarget extends BaseTarget {
       logger.info(
         `Bumped version in root and ${workspaces.packages.length} workspace packages`,
       );
+
+      // Patch bun.lock workspace entries so that `bun pm pack` emits tarballs
+      // pointing at the new workspace versions. See patchBunLock() doc comment.
+      // Only relevant for workspace repos — a single-package bun project has
+      // no workspace entries to patch, so we skip the call entirely to avoid
+      // emitting a spurious "lockfile out of sync" warning.
+      NpmTarget.patchBunLock(rootDir, workspaces.packages, newVersion);
     }
 
     return true;
   }
 
   /**
-   * Bump version in each workspace package individually
+   * Read the `version` field from a package.json file.
+   * Returns undefined if the file is missing, unreadable, or malformed.
+   */
+  private static readPackageJsonVersion(
+    packageJsonPath: string,
+  ): string | undefined {
+    try {
+      const parsed = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as {
+        version?: unknown;
+      };
+      return typeof parsed.version === 'string' ? parsed.version : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Check whether every package.json file (root + each workspace package that
+   * exists on disk and is not private) has the expected version string.
+   *
+   * Used to detect the npm/cli#8845 case where `npm version --workspaces`
+   * successfully writes every version field but then exits non-zero.
+   */
+  private static allWorkspacePackageJsonsMatch(
+    rootDir: string,
+    packages: WorkspacePackage[],
+    expectedVersion: string,
+  ): boolean {
+    const rootVersion = NpmTarget.readPackageJsonVersion(
+      join(rootDir, 'package.json'),
+    );
+    if (rootVersion !== expectedVersion) {
+      return false;
+    }
+    for (const pkg of packages) {
+      const pkgJsonPath = join(pkg.location, 'package.json');
+      if (!existsSync(pkgJsonPath)) {
+        continue;
+      }
+      // npm version --workspaces bumps ALL workspace packages, including
+      // private ones, so we verify every package regardless of privacy.
+      if (NpmTarget.readPackageJsonVersion(pkgJsonPath) !== expectedVersion) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Bump version in each workspace package individually.
+   *
+   * Applies the same post-check as the --workspaces path: if a per-package
+   * `npm version` spawn fails but the file on disk already has the target
+   * version (npm/cli#8845), treat it as success and continue. Otherwise
+   * rethrow so the caller fails loudly.
    */
   private static async bumpWorkspacePackagesIndividually(
     bin: string,
-    packages: { name: string; location: string }[],
-    _newVersion: string,
+    packages: WorkspacePackage[],
+    newVersion: string,
     baseArgs: string[],
   ): Promise<void> {
     for (const pkg of packages) {
@@ -448,8 +591,130 @@ export class NpmTarget extends BaseTarget {
       }
 
       logger.debug(`Bumping version for workspace package: ${pkg.name}`);
-      await spawnProcess(bin, baseArgs, { cwd: pkg.location });
+      try {
+        await spawnProcess(bin, baseArgs, { cwd: pkg.location });
+      } catch (err) {
+        // Same npm/cli#8845 workaround as above, but for a single package:
+        // if the file was bumped despite the non-zero exit, continue.
+        if (isDryRun()) {
+          continue;
+        }
+        const actualVersion = NpmTarget.readPackageJsonVersion(pkgJsonPath);
+        if (actualVersion === newVersion) {
+          logger.warn(
+            `npm version for ${pkg.name} exited non-zero but package.json ` +
+              `was successfully bumped to ${newVersion}. Likely caused by ` +
+              '"workspace:*" dependency protocols — see ' +
+              'https://github.com/npm/cli/issues/8845. Continuing.',
+          );
+          logger.debug(
+            `npm version error for ${pkg.name} (ignored): ${
+              (err as Error)?.message ?? err
+            }`,
+          );
+        } else {
+          throw err;
+        }
+      }
     }
+  }
+
+  /**
+   * Patch workspace `version` entries in `bun.lock` if the file exists.
+   *
+   * `bun pm pack` rewrites `workspace:*` dependency specifiers to concrete
+   * versions at pack time, reading those versions FROM `bun.lock` — not from
+   * the workspace `package.json`. Neither `npm version` nor `bun install`
+   * updates those lockfile entries, so after a version bump the lockfile
+   * still records the old workspace version, and published tarballs ship
+   * with stale `dependencies` that fail to install.
+   *
+   * We patch the lockfile in-place with a per-workspace regex that matches
+   * the workspace's path-relative key ("packages/foo": {) and replaces the
+   * first subsequent `"version": "..."` line. This leaves nested dependency
+   * version pins inside the same block untouched.
+   *
+   * Writes go through `safeFs.writeFileSync` so dry-run mode is respected.
+   *
+   * No-op if bun.lock is absent or no workspace entries match (logged).
+   *
+   * See https://github.com/getsentry/craft/issues/804
+   */
+  private static patchBunLock(
+    rootDir: string,
+    packages: WorkspacePackage[],
+    newVersion: string,
+  ): void {
+    const bunLockPath = join(rootDir, 'bun.lock');
+    if (!existsSync(bunLockPath)) {
+      return;
+    }
+
+    let content: string;
+    try {
+      content = readFileSync(bunLockPath, 'utf-8');
+    } catch (err) {
+      logger.warn(
+        `Could not read bun.lock: ${(err as Error)?.message ?? err}. ` +
+          'Skipping lockfile patch.',
+      );
+      return;
+    }
+
+    let patchedCount = 0;
+    for (const pkg of packages) {
+      // bun.lock always uses forward slashes even on Windows.
+      const relPath = relative(rootDir, pkg.location).split(pathSep).join('/');
+      if (!relPath || relPath.startsWith('..')) {
+        // Package lives outside rootDir; skip.
+        continue;
+      }
+
+      const escapedPath = escapeRegex(relPath);
+      // Match: start of workspace block (path key), then any number of chars
+      // that are NOT `{` or `}`, then the first `"version": "x.y.z"` line.
+      // Using `[^{}]*?` (rather than `[\s\S]*?`) is critical: it stops at
+      // either the workspace block's closing `}` or the opener of a nested
+      // object (e.g. `"dependencies": {`). This guarantees:
+      //   1. If this workspace has no `"version"` field, the regex does not
+      //      match and we do NOT walk into the next workspace's block and
+      //      corrupt its version line.
+      //   2. Nested dependency version pins stay untouched regardless of
+      //      field ordering within the workspace block.
+      // bun.lock fields are emitted before nested objects, so the top-level
+      // `"version"` always precedes any `{` and is therefore reachable under
+      // the `[^{}]*?` bound.
+      const pattern = new RegExp(
+        `("${escapedPath}":\\s*\\{[^{}]*?)"version":\\s*"[^"]*"`,
+      );
+      const replaced = content.replace(
+        pattern,
+        (_m, prefix: string) => `${prefix}"version": "${newVersion}"`,
+      );
+      if (replaced !== content) {
+        content = replaced;
+        patchedCount += 1;
+        logger.debug(
+          `Patched bun.lock workspace version for ${pkg.name} (${relPath})`,
+        );
+      }
+    }
+
+    if (patchedCount === 0) {
+      logger.warn(
+        'bun.lock exists but no workspace entries matched the discovered ' +
+          'packages; leaving it untouched. Your lockfile may be out of sync ' +
+          'with package.json workspaces.',
+      );
+      return;
+    }
+
+    safeFs.writeFileSync(bunLockPath, content);
+    logger.info(
+      `Patched ${patchedCount} workspace version entr${
+        patchedCount === 1 ? 'y' : 'ies'
+      } in bun.lock`,
+    );
   }
 
   public constructor(
@@ -462,33 +727,45 @@ export class NpmTarget extends BaseTarget {
   }
 
   /**
-   * Check that NPM executable exists and is not too old
+   * Check that NPM executable exists and is not too old.
+   * Stores the parsed npm version for later OIDC version validation in getNpmConfig().
    */
   protected checkRequirements(): void {
+    const config = this.config as TypedTargetConfig<NpmTargetConfigFields>;
+
     if (hasExecutable(NPM_BIN)) {
       this.logger.debug('Checking that NPM has recent version...');
-      const npmVersion = spawnSync(NPM_BIN, ['--version'])
+      const npmVersionStr = spawnSync(NPM_BIN, ['--version'])
         .stdout.toString()
         .trim();
-      const parsedVersion = parseVersion(npmVersion);
+      const parsedVersion = parseVersion(npmVersionStr);
       if (!parsedVersion) {
-        reportError(`Cannot parse NPM version: "${npmVersion}"`);
+        reportError(`Cannot parse NPM version: "${npmVersionStr}"`);
       }
-      const { major, minor } = parsedVersion || { major: 0, minor: 0 };
+      const { major = 0, minor = 0 } = parsedVersion ?? {};
       if (
         major < NPM_MIN_MAJOR ||
         (major === NPM_MIN_MAJOR && minor < NPM_MIN_MINOR)
       ) {
         reportError(
-          `NPM version is too old: ${npmVersion}. Please update your NodeJS`,
+          `NPM version is too old: ${npmVersionStr}. Please update your NodeJS`,
         );
       }
-      this.logger.debug(`Found NPM version ${npmVersion}`);
+      this.npmVersion = parsedVersion;
+      this.logger.debug(`Found NPM version ${npmVersionStr}`);
     } else if (hasExecutable(YARN_BIN)) {
       const yarnVersion = spawnSync(YARN_BIN, ['--version'])
         .stdout.toString()
         .trim();
       this.logger.debug(`Found Yarn version ${yarnVersion}`);
+
+      // OIDC requires npm — yarn cannot exchange OIDC tokens
+      if (config.oidc) {
+        throw new ConfigurationError(
+          'npm target: OIDC trusted publishing requires npm, but only yarn was found. ' +
+            'Install npm >= 11.5.1 to use OIDC.',
+        );
+      }
     } else {
       reportError('No "npm" or "yarn" found!');
     }
@@ -509,19 +786,85 @@ export class NpmTarget extends BaseTarget {
   }
 
   /**
-   * Extracts NPM target options from the raw configuration
+   * Extracts NPM target options from the raw configuration.
+   *
+   * Auth strategy decision table:
+   *
+   * | oidc config | NPM_TOKEN set | OIDC env detected | Result              |
+   * |-------------|---------------|-------------------|---------------------|
+   * | true        | any           | any               | Force OIDC          |
+   * | unset/false | yes           | any               | Token auth          |
+   * | unset/false | no            | yes               | Auto-detect OIDC    |
+   * | unset/false | no            | no                | Error (no auth)     |
    */
   protected getNpmConfig(): NpmTargetOptions {
+    const config = this.config as TypedTargetConfig<NpmTargetConfigFields>;
     const token = process.env.NPM_TOKEN;
-    if (!token) {
-      throw new Error('NPM target: NPM_TOKEN not found in the environment');
+    const oidcEnv = isOidcEnvironment();
+
+    let useOidc = false;
+
+    if (config.oidc) {
+      // Explicit OIDC mode — validate hard requirements
+      if (!this.npmVersion) {
+        throw new ConfigurationError(
+          'npm target: OIDC trusted publishing requires npm, but only yarn was found. ' +
+            'Install npm >= 11.5.1 to use OIDC.',
+        );
+      }
+      const { major, minor, patch } = this.npmVersion;
+      if (!versionGreaterOrEqualThan(this.npmVersion, NPM_OIDC_MIN_VERSION)) {
+        const {
+          major: minMaj,
+          minor: minMin,
+          patch: minPat,
+        } = NPM_OIDC_MIN_VERSION;
+        throw new ConfigurationError(
+          `npm target: OIDC trusted publishing requires npm >= ${minMaj}.${minMin}.${minPat}, ` +
+            `but found ${major}.${minor}.${patch}. Update npm (or Node.js) to use OIDC.`,
+        );
+      }
+      useOidc = true;
+    } else if (!token) {
+      // No explicit token — check if we can auto-detect OIDC
+      if (oidcEnv) {
+        if (this.npmVersion) {
+          if (
+            versionGreaterOrEqualThan(this.npmVersion, NPM_OIDC_MIN_VERSION)
+          ) {
+            this.logger.info(
+              'NPM_TOKEN not set but OIDC environment detected — using trusted publishing.',
+            );
+            useOidc = true;
+          } else {
+            // OIDC detected but npm too old — fall through to token error below
+            const { major, minor, patch } = this.npmVersion;
+            const {
+              major: minMaj,
+              minor: minMin,
+              patch: minPat,
+            } = NPM_OIDC_MIN_VERSION;
+            this.logger.warn(
+              `OIDC environment detected but npm ${major}.${minor}.${patch} is too old for trusted publishing ` +
+                `(requires >= ${minMaj}.${minMin}.${minPat}). ` +
+                'Falling through to token-based auth.',
+            );
+          }
+        }
+        // yarn-only + OIDC env: also falls through to token error below
+      }
+
+      if (!useOidc) {
+        throw new Error('NPM target: NPM_TOKEN not found in the environment');
+      }
     }
 
-    const config = this.config as TypedTargetConfig<NpmTargetConfigFields>;
     const npmConfig: NpmTargetOptions = {
-      useYarn: !!process.env.USE_YARN || !hasExecutable(NPM_BIN),
-      token,
+      useYarn: !useOidc && (!!process.env.USE_YARN || !hasExecutable(NPM_BIN)),
+      token: token || undefined,
+      useOidc,
     };
+
     if (config.access) {
       if (Object.values(NpmPackageAccess).includes(config.access)) {
         npmConfig.access = config.access;
@@ -573,6 +916,26 @@ export class NpmTarget extends BaseTarget {
       args.push(`--tag=${options.tag}`);
     }
 
+    // The path has to be pushed always as the last arg
+    args.push(path);
+
+    if (this.npmConfig.useOidc) {
+      // OIDC trusted publishing: let npm handle authentication natively via
+      // the OIDC environment (ACTIONS_ID_TOKEN_REQUEST_URL on GitHub Actions,
+      // NPM_ID_TOKEN on GitLab CI). Do NOT inject a custom .npmrc or NPM_TOKEN —
+      // that would override npm's OIDC detection.
+      const spawnOptions: SpawnOptions = {};
+      spawnOptions.env = { ...process.env };
+      if (options.otp) {
+        spawnOptions.env.NPM_CONFIG_OTP = options.otp;
+      }
+      // Disable output buffering because npm can ask for one-time passwords
+      return spawnProcess(bin, args, spawnOptions, {
+        showStdout: true,
+        showStderr: true,
+      });
+    }
+
     return withTempFile(filePath => {
       // Pass OTP if configured
       const spawnOptions: SpawnOptions = {};
@@ -588,12 +951,10 @@ export class NpmTarget extends BaseTarget {
         `//registry.npmjs.org/:_authToken=\${${NPM_TOKEN_ENV_VAR}}`,
       );
 
-      // The path has to be pushed always as the last arg
-      args.push(path);
-
       // Disable output buffering because NPM/Yarn can ask us for one-time passwords
       return spawnProcess(bin, args, spawnOptions, {
         showStdout: true,
+        showStderr: true,
       });
     });
   }
@@ -646,6 +1007,10 @@ export class NpmTarget extends BaseTarget {
 
 /**
  * Get the latest version for the given package.
+ *
+ * When a token is available, uses token-based auth via a temporary .npmrc.
+ * When no token is available (OIDC mode without NPM_TOKEN), runs without auth —
+ * this works for public packages but will fail silently for private ones.
  */
 export async function getLatestVersion(
   packageName: string,
@@ -656,23 +1021,36 @@ export async function getLatestVersion(
   const bin = NPM_BIN;
 
   try {
-    const response = await withTempFile(filePath => {
-      // Pass OTP if configured
+    let response: Buffer | string | undefined;
+
+    if (npmConfig.token) {
+      // Token available: authenticate via temporary .npmrc
+      response = await withTempFile(filePath => {
+        const spawnOptions: SpawnOptions = {};
+        spawnOptions.env = { ...process.env };
+        if (otp) {
+          spawnOptions.env.NPM_CONFIG_OTP = otp;
+        }
+        spawnOptions.env[NPM_TOKEN_ENV_VAR] = npmConfig.token;
+        // NOTE(byk): Use npm_config_userconfig instead of --userconfig for yarn compat
+        spawnOptions.env.npm_config_userconfig = filePath;
+        writeFileSync(
+          filePath,
+          `//registry.npmjs.org/:_authToken=\${${NPM_TOKEN_ENV_VAR}}`,
+        );
+
+        return spawnProcess(bin, args, spawnOptions);
+      });
+    } else {
+      // No token (OIDC mode without NPM_TOKEN): run without auth.
+      // Works for public packages; private packages will fail and return undefined.
       const spawnOptions: SpawnOptions = {};
       spawnOptions.env = { ...process.env };
       if (otp) {
         spawnOptions.env.NPM_CONFIG_OTP = otp;
       }
-      spawnOptions.env[NPM_TOKEN_ENV_VAR] = npmConfig.token;
-      // NOTE(byk): Use npm_config_userconfig instead of --userconfig for yarn compat
-      spawnOptions.env.npm_config_userconfig = filePath;
-      writeFileSync(
-        filePath,
-        `//registry.npmjs.org/:_authToken=\${${NPM_TOKEN_ENV_VAR}}`,
-      );
-
-      return spawnProcess(bin, args, spawnOptions);
-    });
+      response = await spawnProcess(bin, args, spawnOptions);
+    }
 
     if (!response) {
       return undefined;

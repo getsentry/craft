@@ -176,6 +176,22 @@ releaseBranchPrefix: publish
 
 Full branch name: `{releaseBranchPrefix}/{version}`
 
+The prefix may contain slashes, which is useful for monorepos that release
+several independently-versioned products from one repository. Pairing a slashed
+`releaseBranchPrefix` with a per-product `github.tagPrefix` keeps each product's
+release branches and tags separate:
+
+```yaml
+releaseBranchPrefix: release/cli
+targets:
+  - name: github
+    tagPrefix: "cli@"
+```
+
+This produces branches like `release/cli/1.2.3` and tags like `cli@1.2.3`. See
+the [GitHub target docs](./targets/github/#monorepo-independently-versioned-products)
+for the full monorepo pattern.
+
 ## Changelog Policies
 
 Craft supports `simple` and `auto` changelog management modes.
@@ -207,6 +223,163 @@ changelog:
 
 Auto mode uses `.github/release.yml` to categorize PRs. This file follows [GitHub's release.yml format](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes#configuring-automatically-generated-release-notes) with Craft-specific extensions.
 
+#### AI summaries
+
+Add an `aiSummary` object to enable summaries for automatic changelogs. Omit it
+or use `aiSummary: false` to disable generation.
+
+```yaml
+changelog:
+  policy: auto
+  aiSummary:
+    levels: [release] # default; choose any combination of release, category, scope
+    minItems: 5 # summarize groups with more than 5 original entries
+    style: Concise and friendly for developers. # optional tone guidance
+```
+
+| Setting | Default | Behavior |
+| --- | --- | --- |
+| `levels` | `[release]` | Select visible summaries; omitted or empty arrays use `[release]`. |
+| `minItems` | `5` | Strict entry-count threshold. `0` includes every nonempty selected group. Category counts include descendants; release counts include the whole changelog. |
+| `style` | Neutral | Optional writing guidance (1–500 characters), applied at every level. Facts, coverage, length and plain-text safeguards still apply. |
+| `llm.endpoint` | `https://api.githubcopilot.com/responses` | Full POST URL; HTTPS required except loopback HTTP. |
+| `llm.model` | `gpt-5.4-nano` | Model ID supported by the endpoint and credential. |
+| `llm.apiKeyEnv` | `GITHUB_TOKEN` | Name of the environment variable containing the token. Never put the token in configuration or CLI arguments. |
+
+Lower-level digests are reused for parent summaries even when hidden. Release
+overviews use up to three prose paragraphs and cover every category. Category
+and scope summaries preserve originals in expandable blocks, including links
+and nested content. Category prose and
+scope headings stay expanded; each original entry is folded only once. Scope
+summaries need an existing scope heading; `scopeGrouping: false` still allows
+category/release summaries. Unscoped entries contribute to both parent levels.
+
+##### Output examples
+
+These examples use two original entries and `minItems: 0`.
+
+**`levels: [release]`** adds an overview and leaves originals expanded:
+
+```markdown
+Added login and logout commands to CLI.
+
+### New Features
+#### CLI
+- Add login command
+- Add logout command
+```
+
+**`levels: [category]`** keeps scope headings visible and folds original entries:
+
+```markdown
+### New Features
+
+Added login and logout commands to CLI.
+
+#### CLI
+
+<details>
+<summary>Show 2 items</summary>
+
+- Add login command
+- Add logout command
+
+</details>
+```
+
+**`levels: [scope]`** summarizes each eligible scope:
+
+```markdown
+### New Features
+#### CLI
+Added login and logout commands.
+
+<details>
+<summary>Show 2 items</summary>
+
+- Add login command
+- Add logout command
+
+</details>
+```
+
+**`levels: [release, scope]`** combines an overview with scope summaries:
+
+```markdown
+Added login and logout commands to CLI.
+
+### New Features
+#### CLI
+Added login and logout commands.
+
+<details>
+<summary>Show 2 items</summary>
+
+- Add login command
+- Add logout command
+
+</details>
+```
+
+**`levels: [category, scope]`** keeps both summaries visible:
+
+```markdown
+### New Features
+
+Added login and logout commands to CLI.
+
+#### CLI
+
+Added login and logout commands.
+
+<details>
+<summary>Show 2 items</summary>
+
+- Add login command
+- Add logout command
+
+</details>
+```
+
+Selecting all three levels also adds the release overview. Excluding `release`
+omits it. Category/release summaries retain scope context; scope summaries can
+omit the scope name because their heading supplies it.
+
+##### Connection settings
+
+The CLI and Actions share the HTTP client. With an authorized Copilot token in
+`GITHUB_TOKEN`, `aiSummary: {}` uses the default Luna Responses endpoint. For a
+custom provider, specify its connection and token variable:
+
+```yaml
+changelog:
+  policy: auto
+  aiSummary:
+    llm:
+      endpoint: https://gateway.example.com/v1/chat/completions
+      model: your-model
+      apiKeyEnv: TEAM_MODEL_TOKEN
+```
+
+Per-field precedence is CLI flags (`--ai-endpoint`, `--ai-model`,
+`--ai-api-key-env`), `CRAFT_AI_LLM` JSON, scalar environment overrides
+(`CRAFT_AI_ENDPOINT`, `CRAFT_AI_MODEL`, `CRAFT_AI_API_KEY_ENV`), then effective
+project/workspace configuration. Workspace changelog objects replace the
+inherited object. Endpoints ending in `/responses` use Responses; others use
+Chat Completions. Both require structured JSON output. Invalid settings are
+rejected; missing tokens and provider errors retain the original output.
+
+Generation sends changelog content and critical PR titles to the chosen
+provider. Breaking/security facts retain source IDs. Generated prose is escaped;
+review it for accuracy. Requests are bounded to 64 calls, 3 concurrent calls,
+30 seconds per request, 120 seconds total, 24,000 input bytes and 8,192 output
+tokens. Any failure preserves the entire original changelog without retries or
+provider switching. Existing leftover-entry limits still apply.
+
+Dry runs, highlighted PR previews, `prepare --no-changelog` and version analysis
+make zero model calls. See [AI summary authentication](../github-actions/#ai-summary-authentication)
+for Action inputs, secret mapping, Copilot permissions and billing.
+
 #### Craft Extensions to release.yml
 
 Craft extends GitHub's format with two additional fields:
@@ -237,6 +410,10 @@ changelog:
       commit_patterns:
         - "^(?<type>\\w+(?:\\((?<scope>[^)]+)\\))?!:\\s*)"
       semver: major
+    - title: Security 🔒
+      commit_patterns:
+        - "^(?<type>security(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+      semver: patch
     - title: New Features ✨
       commit_patterns:
         - "^(?<type>feat(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
@@ -252,7 +429,7 @@ changelog:
       semver: patch
     - title: Internal Changes 🔧
       commit_patterns:
-        - "^(?<type>(?:build|refactor|meta|chore|ci|ref|perf)(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+        - "^(?<type>(?:build|refactor|meta|chore|ci|ref|perf|tests?|style)(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
       semver: patch
 ```
 
@@ -376,6 +553,31 @@ Example output with scope grouping:
 - General improvement by @dave in [#4](https://github.com/...)
 ```
 
+### Workspace-aware changelogs
+
+When you select a Craft release workspace, automatic changelogs include commits
+that change files in that workspace and commits that change shared files outside
+all workspaces. Commits confined to another workspace are excluded. Craft detects
+package ownership from pnpm, npm, or Yarn workspaces as well as the release
+workspaces in `.craft.yml`. Commits spanning workspaces appear in each affected
+workspace's changelog. This also scopes automatic version detection; single-unit
+repositories keep their existing behavior.
+
+If a release includes files from another workspace, add its directory to
+`includePaths` on that release unit. Paths are relative to the repository root,
+match whole directory names, and cannot escape the repository:
+
+```yaml
+workspaces:
+  packages/cli:
+    changelog:
+      policy: auto
+      includePaths:
+        - apps/cli-docs
+```
+
+Most workspaces need no `includePaths` setting.
+
 ### Title Stripping (Default Behavior)
 
 By default, conventional commit prefixes are stripped from changelog entries.
@@ -435,12 +637,14 @@ changelog:
 
 ### Configuration Options
 
-| Option                    | Description                                             |
-| ------------------------- | ------------------------------------------------------- |
-| `changelog`               | Path to changelog file (string) OR configuration object |
-| `changelog.filePath`      | Path to changelog file. Default: `CHANGELOG.md`         |
-| `changelog.policy`        | Mode: `none`, `simple`, or `auto`. Default: `none`      |
-| `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true`            |
+| Option                    | Description                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------- |
+| `changelog`               | Path to changelog file (string) OR configuration object                      |
+| `changelog.filePath`      | Path to changelog file. Defaults to `<workspace>/CHANGELOG.md` for a directory workspace, otherwise `CHANGELOG.md`. Explicit paths take precedence. |
+| `changelog.policy`        | Mode: `none`, `simple`, or `auto`. Default: `none`                           |
+| `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true`                                 |
+| `changelog.includePaths`  | Extra workspace directories to include in automatic changelogs. Default: `[]` |
+| `changelog.aiSummary` | Opt-in HTTP release, category, and scope summaries. Default: disabled. |
 
 ## Versioning
 

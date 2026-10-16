@@ -10,12 +10,12 @@ This file provides guidance for AI coding assistants working with the Craft code
 
 ## Development Commands
 
-| Command | Description |
-|---------|-------------|
+| Command      | Description                                 |
+| ------------ | ------------------------------------------- |
 | `pnpm build` | Build the project (outputs to `dist/craft`) |
-| `pnpm test` | Run tests |
-| `pnpm lint` | Run ESLint |
-| `pnpm fix` | Auto-fix lint issues |
+| `pnpm test`  | Run tests                                   |
+| `pnpm lint`  | Run ESLint                                  |
+| `pnpm fix`   | Auto-fix lint issues                        |
 
 To manually test changes:
 
@@ -111,3 +111,9 @@ Some operations need explicit `isDryRun()` checks:
 - Commands with their own `--dry-run` flag (e.g., `dart pub publish --dry-run` in pubDev target)
 - Operations that need to return mock data in dry-run mode
 - User experience optimizations (e.g., skipping sleep timers)
+
+<!-- This section is maintained by the coding agent via lore (https://github.com/BYK/loreai) -->
+## Long-term Knowledge
+
+For long-term knowledge entries managed by [lore](https://github.com/BYK/loreai) (gotchas, patterns, decisions, architecture), see [`.lore.md`](.lore.md) in the project root.
+<!-- End lore-managed section -->

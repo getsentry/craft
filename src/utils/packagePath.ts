@@ -23,7 +23,7 @@ function getAppPackagePath(canonical: string): string {
   const packageDirs = parseCanonical(canonical);
   if (packageDirs[0] !== 'app') {
     throw new ConfigurationError(
-      `Invalid canonical entry for an app: ${canonical}`
+      `Invalid canonical entry for an app: ${canonical}`,
     );
   }
   return path.join('apps', ...packageDirs.slice(1));
@@ -37,7 +37,7 @@ function getAppPackagePath(canonical: string): string {
  */
 export function getPackageDirPath(
   packageType: RegistryPackageType,
-  canonical: string
+  canonical: string,
 ): string {
   switch (packageType) {
     case RegistryPackageType.SDK:
@@ -46,7 +46,7 @@ export function getPackageDirPath(
       return getAppPackagePath(canonical);
     default:
       throw new ConfigurationError(
-        `Unknown registry package type: ${packageType}`
+        `Unknown registry package type: ${packageType}`,
       );
   }
 }
@@ -67,7 +67,7 @@ export function parseCanonical(canonicalName: string): string[] {
   const registrySepPosition = canonicalName.indexOf(':');
   if (registrySepPosition === -1) {
     throw new ConfigurationError(
-      `Cannot parse canonical name for the package: ${canonicalName}`
+      `Cannot parse canonical name for the package: ${canonicalName}`,
     );
   }
   const registry = canonicalName.slice(0, registrySepPosition);
@@ -76,7 +76,7 @@ export function parseCanonical(canonicalName: string): string[] {
   const packageDirs = packageName.split(/[:/]/);
   if (packageDirs.some(x => !x)) {
     throw new ConfigurationError(
-      `Cannot parse canonical name for the package: ${canonicalName}`
+      `Cannot parse canonical name for the package: ${canonicalName}`,
     );
   }
   return [registry, ...packageDirs];

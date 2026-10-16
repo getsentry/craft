@@ -1,17 +1,18 @@
-import { existsSync, statSync } from 'fs';
+import { existsSync } from 'fs';
 import { join } from 'path';
 // XXX(BYK): This is to be able to spy on `homedir()` in tests
 // TODO(BYK): Convert this to ES6 imports
 import os = require('os');
 
-import nvar from 'nvar';
-
-import { CONFIG_FILE_NAME, getConfigFileDir } from '../config';
+import { getConfigFileDir } from '../config';
 import { ConfigurationError } from './errors';
 import { logger } from '../logger';
 
-/** File name where additional environment variables are stored */
-export const ENV_FILE_NAME = '.craft.env';
+/**
+ * Legacy filename no longer read by Craft. Retained as a constant for the
+ * startup warning helper below.
+ */
+const LEGACY_ENV_FILE_NAME = '.craft.env';
 
 /**
  * A token, key, or other value which can be stored either in an env file or
@@ -57,13 +58,13 @@ function envHasVar(envVar: RequiredConfigVar): boolean {
   // the less simple cases - only using legacy name or using both
   else if (process.env[legacyName] && !process.env[name]) {
     logger.warn(
-      `Usage of ${legacyName} is deprecated, and will be removed in later versions. Please use ${name} instead.`
+      `Usage of ${legacyName} is deprecated, and will be removed in later versions. Please use ${name} instead.`,
     );
     logger.debug(`Moving legacy environment variable ${legacyName} to ${name}`);
     process.env[name] = process.env[legacyName];
   } else if (process.env[legacyName] && process.env[name]) {
     logger.warn(
-      `When searching configuration files and your environment, found ${name} but also found legacy ${legacyName}. Do you mean to be using both?`
+      `When searching configuration files and your environment, found ${name} but also found legacy ${legacyName}. Do you mean to be using both?`,
     );
   }
 
@@ -71,87 +72,49 @@ function envHasVar(envVar: RequiredConfigVar): boolean {
   return true;
 }
 
-/**
- * Checks that the file is only readable for the owner
- *
- * It is assumed that the file already exists
- * @param path File path
- * @returns true if file is private, false otherwise
- */
-function checkFileIsPrivate(path: string): boolean {
-  const FULL_MODE_MASK = 0o777;
-  const GROUP_MODE_MASK = 0o070;
-  const OTHER_MODE_MASK = 0o007;
-  const mode = statSync(path).mode;
-  if (mode & GROUP_MODE_MASK || mode & OTHER_MODE_MASK) {
-    const perms = (mode & FULL_MODE_MASK).toString(8);
-    logger.warn(
-      `Permissions 0${perms} for file "${path}" are too open. Consider making it readable only for the user.`
-    );
-    return false;
-  }
-  return true;
-}
+// Re-exported from `./dynamicLinkerEnv` so that existing callers
+// (notably `src/index.ts`) keep working without edits. The logic now
+// lives in a leaf module with minimal imports to avoid circular deps
+// with `src/utils/system.ts` (see the file header in
+// `./dynamicLinkerEnv`).
+export {
+  ALLOW_DYNAMIC_LINKER_ENV_VAR,
+  DYNAMIC_LINKER_ENV_VARS,
+  sanitizeDynamicLinkerEnv,
+  sanitizeSpawnEnv,
+} from './dynamicLinkerEnv';
 
 /**
- * Loads environment variables from ".craft.env" files in certain locations
+ * Warns the user if a legacy `.craft.env` file is present in the home
+ * directory or the configuration file directory.
  *
- * The following two places are checked:
- * - The user's home directory
- * - The configuration file directory
- *
- * @param overwriteExisting If set to true, overwrite the existing environment
- * variables
+ * Craft used to load environment variables from these files, but the behavior
+ * was removed for security reasons: arbitrary values (including credentials)
+ * could be silently injected into `process.env` based on the current working
+ * directory. This helper emits a one-time warning per location pointing users
+ * at their shell / CI environment for credential management.
  */
-export function readEnvironmentConfig(overwriteExisting = false): void {
-  let newEnv = {} as any;
+export function warnIfCraftEnvFileExists(): void {
+  const candidatePaths: string[] = [];
 
-  // Read from home dir
-  const homedirEnvFile = join(os.homedir(), ENV_FILE_NAME);
-  if (existsSync(homedirEnvFile)) {
-    logger.debug(
-      'Found environment file in the home directory:',
-      homedirEnvFile
-    );
-    checkFileIsPrivate(homedirEnvFile);
-    const homedirEnv = {};
-    nvar({ path: homedirEnvFile, target: homedirEnv });
-    newEnv = { ...newEnv, ...homedirEnv };
-    logger.trace('Read the following variables from env file:', homedirEnv);
-  } else {
-    logger.debug(
-      'No environment file found in the home directory:',
-      homedirEnvFile
-    );
+  try {
+    candidatePaths.push(join(os.homedir(), LEGACY_ENV_FILE_NAME));
+  } catch {
+    // os.homedir() can throw in edge cases; skip silently.
   }
-
-  // Read from the directory where the configuration file is located
 
   const configFileDir = getConfigFileDir();
-  const configDirEnvFile = configFileDir && join(configFileDir, ENV_FILE_NAME);
-  if (!configDirEnvFile) {
-    logger.debug('No configuration file found:', CONFIG_FILE_NAME);
-  } else if (configDirEnvFile && existsSync(configDirEnvFile)) {
-    logger.debug(
-      'Found environment file in the configuration directory:',
-      configDirEnvFile
-    );
-    checkFileIsPrivate(configDirEnvFile);
-    const configDirEnv = {};
-    nvar({ path: configDirEnvFile, target: configDirEnv });
-    newEnv = { ...newEnv, ...configDirEnv };
-    logger.trace('Read the following variables from env file:', configDirEnv);
-  } else {
-    logger.debug(
-      'No environment file found in the configuration directory:',
-      configDirEnvFile
-    );
+  if (configFileDir) {
+    candidatePaths.push(join(configFileDir, LEGACY_ENV_FILE_NAME));
   }
 
-  // Add non-existing values to env
-  for (const key of Object.keys(newEnv)) {
-    if (overwriteExisting || process.env[key] === undefined) {
-      process.env[key] = newEnv[key];
+  for (const path of candidatePaths) {
+    if (existsSync(path)) {
+      logger.warn(
+        `Found legacy "${LEGACY_ENV_FILE_NAME}" file at "${path}". ` +
+          `Craft no longer reads this file for security reasons. ` +
+          `Please set the required variables in your shell or CI environment instead.`,
+      );
     }
   }
 }
@@ -174,7 +137,7 @@ export function checkEnvForPrerequisite(...varList: RequiredConfigVar[]): void {
     // all of the places they might have stuck these variables.
     throw new ConfigurationError(
       `Required value(s) ${varNames} not found in configuration files or ` +
-        `the environment. See the documentation for more details.`
+        `the environment. See the documentation for more details.`,
     );
   }
 }

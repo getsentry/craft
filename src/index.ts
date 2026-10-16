@@ -6,10 +6,19 @@ import isCI from 'is-ci';
 import yargs from 'yargs';
 
 import { logger, LogLevel } from './logger';
-import { readEnvironmentConfig } from './utils/env';
-import { envToBool, setGlobals } from './utils/helpers';
+import {
+  sanitizeDynamicLinkerEnv,
+  warnIfCraftEnvFileExists,
+} from './utils/env';
+import {
+  envToBool,
+  setGlobals,
+  extractAiSummaryFlags,
+  extractWorkspaceSelection,
+} from './utils/helpers';
 import { getPackageVersion } from './utils/version';
 import { withTracing } from './utils/tracing';
+import { setActiveWorkspace } from './config';
 
 // Commands
 import * as prepare from './commands/prepare';
@@ -20,6 +29,10 @@ import * as artifacts from './commands/artifacts';
 import * as changelog from './commands/changelog';
 import * as init from './commands/init';
 import * as validate from './commands/validate';
+import * as workspace from './commands/workspace';
+import * as update from './commands/update';
+import * as completion from './commands/completion';
+import * as setup from './commands/setup';
 
 function printVersion(): void {
   if (!process.argv.includes('-v') && !process.argv.includes('--version')) {
@@ -72,11 +85,25 @@ function fixGlobalBooleanFlags(argv: string[]): string[] {
  * Main entrypoint
  */
 async function main(): Promise<void> {
+  // Strip dynamic-linker env vars (LD_PRELOAD, DYLD_*, ...) before anything
+  // else so they cannot leak into subprocesses Craft spawns.
+  sanitizeDynamicLinkerEnv();
+
   printVersion();
 
-  readEnvironmentConfig();
+  warnIfCraftEnvFileExists();
 
   const argv = fixGlobalBooleanFlags(process.argv.slice(2));
+  const aiFlags = extractAiSummaryFlags(argv);
+
+  // Resolve the active workspace BEFORE parsing. yargs runs command `builder`s
+  // (which may read the configuration, e.g. `publish` derives its --target
+  // choices from config.targets) *before* middleware, so setting the workspace
+  // via middleware would be too late — the builder would resolve/validate the
+  // config without a selection and fail. We therefore extract --workspace (or
+  // CRAFT_WORKSPACE) from the raw argv/env up front, which is the single source
+  // of truth for the selection (see extractWorkspaceSelection for precedence).
+  setActiveWorkspace(extractWorkspaceSelection(argv));
 
   await yargs()
     .parserConfiguration({
@@ -91,12 +118,34 @@ async function main(): Promise<void> {
     .command(changelog)
     .command(init)
     .command(validate)
+    .command(workspace)
+    .command(setup)
+    .command(completion)
+    .completion('__complete', false)
+    .command(update)
     .demandCommand()
     .version(getPackageVersion())
     .alias('v', 'version')
     .help()
     .alias('h', 'help')
     .options(GLOBAL_BOOLEAN_FLAGS)
+    .option('ai-endpoint', {
+      type: 'string',
+      global: true,
+      describe:
+        'AI summary Responses or Chat Completions POST URL. Env: CRAFT_AI_ENDPOINT',
+    })
+    .option('ai-api-key-env', {
+      type: 'string',
+      global: true,
+      describe:
+        'Environment variable containing the endpoint token (default: GITHUB_TOKEN). Env: CRAFT_AI_API_KEY_ENV',
+    })
+    .option('ai-model', {
+      type: 'string',
+      global: true,
+      describe: 'AI summary model override. Env: CRAFT_AI_MODEL',
+    })
     .option('log-level', {
       default: 'Info',
       choices: Object.keys(LogLevel).filter(level => isNaN(Number(level))),
@@ -104,9 +153,16 @@ async function main(): Promise<void> {
       describe: 'Logging level',
       global: true,
     })
+    .option('workspace', {
+      type: 'string',
+      describe:
+        'Select a named workspace (release unit) from the configuration. ' +
+        'Required when the config defines "workspaces". Env: CRAFT_WORKSPACE',
+      global: true,
+    })
     .strictCommands()
     .showHelpOnFail(true)
-    .middleware(setGlobals)
+    .middleware(parsed => setGlobals(parsed, aiFlags))
     .parse(argv);
 }
 

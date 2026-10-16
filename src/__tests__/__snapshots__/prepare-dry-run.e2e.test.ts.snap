@@ -33,7 +33,7 @@ index HASH..HASH 100644
 [info] Switched to branch "release/1.0.1"
 [info] Running the pre-release command...
 [info] Pushing the release branch "release/1.0.1"...
-[info] [dry-run] Would execute: git.push(origin release/1.0.1 ["--set-upstream"])
+[info] [dry-run] Would execute: git.push(origin refs/heads/release/1.0.1:refs/heads/release/1.0.1 ["--set-upstream","--force-with-lease=refs/heads/release/1.0.1:"])
 [info] View diff at: https://github.com/test-owner/test-repo/compare/release/1.0.1
 [success] Done. Do not forget to run "craft publish" to publish the artifacts:   $ craft publish 1.0.1
 "
@@ -50,7 +50,7 @@ exports[`prepare --dry-run e2e > produces consistent output format > dry-run-out
 [info] 
 [dry-run] No changes would be made.
 [info] Pushing the release branch "release/1.0.1"...
-[info] [dry-run] Would execute: git.push(origin release/1.0.1 ["--set-upstream"])
+[info] [dry-run] Would execute: git.push(origin refs/heads/release/1.0.1:refs/heads/release/1.0.1 ["--set-upstream","--force-with-lease=refs/heads/release/1.0.1:"])
 [info] View diff at: https://github.com/test-owner/test-repo/compare/release/1.0.1
 [success] Done. Do not forget to run "craft publish" to publish the artifacts:   $ craft publish 1.0.1
 "

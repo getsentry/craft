@@ -12,7 +12,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+      - uses: actions/checkout@v6
       - name: builder-image
         run: |
           set -euxo pipefail

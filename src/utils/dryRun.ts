@@ -20,11 +20,12 @@ import { randomBytes } from 'crypto';
 import { existsSync, symlinkSync, lstatSync } from 'fs';
 import { rm } from 'fs/promises';
 
-import simpleGit, { type SimpleGit } from 'simple-git';
+import { simpleGit, type SimpleGit } from 'simple-git';
 import type { Octokit } from '@octokit/rest';
 
 import { logger } from '../logger';
 import { isDryRun } from './helpers';
+import { GIT_IDENTITY_ENV } from './gitIdentityEnv';
 
 // ============================================================================
 // Worktree Mode Context (Internal State)
@@ -178,7 +179,7 @@ const SYMLINK_DIRS = [
  */
 function symlinkDependencyDirs(
   originalCwd: string,
-  worktreePath: string
+  worktreePath: string,
 ): void {
   for (const dir of SYMLINK_DIRS) {
     const srcPath = join(originalCwd, dir);
@@ -225,7 +226,7 @@ function symlinkDependencyDirs(
  */
 export async function createDryRunIsolation(
   git: SimpleGit,
-  rev?: string
+  rev?: string,
 ): Promise<DryRunIsolation> {
   // If not in dry-run mode, return a passthrough that does nothing
   if (!isDryRun()) {
@@ -258,8 +259,10 @@ export async function createDryRunIsolation(
   symlinkDependencyDirs(originalCwd, worktreePath);
 
   // Create git client for worktree
-  // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
-  const worktreeGit = createDryRunGit(simpleGit(worktreePath));
+  const worktreeGit = createDryRunGit(
+    // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
+    simpleGit(worktreePath, { allowEnvironment: GIT_IDENTITY_ENV }),
+  );
 
   // Enable worktree mode so local operations are allowed
   enableWorktreeMode();
@@ -279,7 +282,7 @@ export async function createDryRunIsolation(
       await cleanupGit.raw(['worktree', 'remove', '--force', worktreePath]);
     } catch (err) {
       logger.debug(
-        `[dry-run] Git worktree remove failed, cleaning up manually: ${err}`
+        `[dry-run] Git worktree remove failed, cleaning up manually: ${err}`,
       );
       try {
         await rm(worktreePath, { recursive: true, force: true });
@@ -520,7 +523,7 @@ const GITHUB_MUTATING_PREFIXES = [
  */
 function isGitHubMutatingMethod(methodName: string): boolean {
   return GITHUB_MUTATING_PREFIXES.some(prefix =>
-    methodName.toLowerCase().startsWith(prefix.toLowerCase())
+    methodName.toLowerCase().startsWith(prefix.toLowerCase()),
   );
 }
 
@@ -529,7 +532,7 @@ function isGitHubMutatingMethod(methodName: string): boolean {
  */
 function createGitHubNamespaceProxy(
   target: Record<string, unknown>,
-  path: string[] = []
+  path: string[] = [],
 ): Record<string, unknown> {
   return new Proxy(target, {
     get(obj, prop: string) {
@@ -555,7 +558,7 @@ function createGitHubNamespaceProxy(
       if (typeof value === 'object' && value !== null) {
         return createGitHubNamespaceProxy(
           value as Record<string, unknown>,
-          currentPath
+          currentPath,
         );
       }
 
@@ -575,7 +578,7 @@ function createGitHubNamespaceProxy(
  */
 export function createDryRunOctokit(octokit: Octokit): Octokit {
   return createGitHubNamespaceProxy(
-    octokit as unknown as Record<string, unknown>
+    octokit as unknown as Record<string, unknown>,
   ) as unknown as Octokit;
 }
 
@@ -619,7 +622,7 @@ const FS_MUTATING_METHODS: Record<string, number> = {
  * Creates a proxy handler for file system modules.
  */
 function createFsProxyHandler(
-  isAsync: boolean
+  isAsync: boolean,
 ): ProxyHandler<typeof fs | typeof fsPromises> {
   return {
     get(target, prop: string) {
@@ -651,7 +654,7 @@ function createFsProxyHandler(
  */
 export const safeFsPromises = new Proxy(
   fsPromises,
-  createFsProxyHandler(true)
+  createFsProxyHandler(true),
 ) as typeof fsPromises;
 
 /**
@@ -659,7 +662,7 @@ export const safeFsPromises = new Proxy(
  */
 export const safeFsSync = new Proxy(
   fs,
-  createFsProxyHandler(false)
+  createFsProxyHandler(false),
 ) as typeof fs;
 
 /**
@@ -696,7 +699,7 @@ export const safeFs = {
  */
 export async function safeExec<T>(
   action: () => Promise<T>,
-  description: string
+  description: string,
 ): Promise<T | undefined> {
   if (isDryRun() && !isInWorktreeMode()) {
     logDryRun(description);
@@ -714,7 +717,7 @@ export async function safeExec<T>(
  */
 export function safeExecSync<T>(
   action: () => T,
-  description: string
+  description: string,
 ): T | undefined {
   if (isDryRun() && !isInWorktreeMode()) {
     logDryRun(description);

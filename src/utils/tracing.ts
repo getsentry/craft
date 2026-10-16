@@ -18,7 +18,7 @@ export function withTracing<T extends (...args: any[]) => any>(
     Sentry.startSpan(
       {
         name: fn.name || 'anonymous',
-        attributes: { args: JSON.stringify(args) },
+        // Parsed CLI arguments can include environment credentials; never serialize them.
         ...spanOptions,
       },
       () => fn(...args),

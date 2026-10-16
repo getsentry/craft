@@ -31,6 +31,7 @@ function setTestingProjectConfig(awsTarget: AwsLambdaLayerTarget) {
       versions: ['nodejs10.x', 'nodejs12.x'],
     },
   ];
+  awsTarget.config.compatibleArchitectures = ['x86_64', 'arm64'];
   awsTarget.config.license = 'MIT';
 }
 
@@ -80,6 +81,7 @@ describe('project config parameters', () => {
   function clearConfig(awsTarget: AwsLambdaLayerTarget): void {
     delete awsTarget.config.layerName;
     delete awsTarget.config.compatibleRuntimes;
+    delete awsTarget.config.compatibleArchitectures;
     delete awsTarget.config.license;
   }
 

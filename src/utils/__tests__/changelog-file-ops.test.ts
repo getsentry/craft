@@ -40,7 +40,7 @@ describe('findChangeset', () => {
       `Changelog\n====\n${SAMPLE_CHANGESET.name}\n----\n${SAMPLE_CHANGESET.body}\n`,
     ],
   ])('extracts %s', (_testName, markdown) => {
-    expect(findChangeset(markdown, 'v1.0.0')).toEqual(SAMPLE_CHANGESET);
+    expect(findChangeset(markdown, 'v1.0.0')).toMatchObject(SAMPLE_CHANGESET);
   });
 
   test('supports sub-headings within version section', () => {
@@ -50,7 +50,7 @@ describe('findChangeset', () => {
         body: SAMPLE_CHANGESET_WITH_SUBHEADING.body,
       },
     ]);
-    expect(findChangeset(markdown, 'v1.0.0')).toEqual(
+    expect(findChangeset(markdown, 'v1.0.0')).toMatchObject(
       SAMPLE_CHANGESET_WITH_SUBHEADING,
     );
   });
@@ -64,6 +64,52 @@ describe('findChangeset', () => {
       { version: '0.9.0', body: 'older' },
     ]);
     expect(findChangeset(markdown, version)).toEqual(null);
+  });
+
+  test('returns correct startLine and endLine for first section', () => {
+    // Line 1: # Changelog
+    // Line 2: (empty)
+    // Line 3: ## 1.0.0
+    // Line 4: (empty)
+    // Line 5: first release
+    const markdown = createFullChangelog('Changelog', [
+      { version: '1.0.0', body: 'first release' },
+    ]);
+    const result = findChangeset(markdown, 'v1.0.0');
+    expect(result).toMatchObject({ startLine: 3, endLine: 5 });
+  });
+
+  test('returns correct startLine and endLine for middle section', () => {
+    // Line 1: # Changelog
+    // Line 2: (empty)
+    // Line 3: ## 2.0.0
+    // Line 4: (empty)
+    // Line 5: newer
+    // Line 6: (empty)
+    // Line 7: ## 1.0.0
+    // Line 8: (empty)
+    // Line 9: target
+    // Line 10: (empty)
+    // Line 11: ## 0.9.0
+    // ...
+    const markdown = createFullChangelog('Changelog', [
+      { version: '2.0.0', body: 'newer' },
+      { version: '1.0.0', body: 'target' },
+      { version: '0.9.0', body: 'older' },
+    ]);
+    const result = findChangeset(markdown, 'v1.0.0');
+    expect(result).toMatchObject({ startLine: 7, endLine: 10 });
+  });
+
+  test('returns correct startLine and endLine for setext-style headings', () => {
+    // Line 1: Changelog
+    // Line 2: ====
+    // Line 3: 1.0.0
+    // Line 4: ----
+    // Line 5: setext body
+    const markdown = `Changelog\n====\n1.0.0\n----\nsetext body\n`;
+    const result = findChangeset(markdown, 'v1.0.0');
+    expect(result).toMatchObject({ startLine: 3, endLine: 5 });
   });
 });
 

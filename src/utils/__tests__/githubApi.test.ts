@@ -8,7 +8,9 @@ const mockRepos = {
 };
 
 vi.mock('@octokit/rest', () => ({
-  Octokit: vi.fn().mockImplementation(() => ({ repos: mockRepos })),
+  Octokit: vi.fn().mockImplementation(function (this: any) {
+    this.repos = mockRepos;
+  }),
 }));
 
 describe('getFile', () => {

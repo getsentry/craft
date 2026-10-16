@@ -21,7 +21,7 @@ const DEFAULT_GITHUB_REPO = {
 /** Returns a new BrewTarget test instance. */
 function getBrewTarget(
   config: Record<string, unknown> = {},
-  githubRepo = DEFAULT_GITHUB_REPO
+  githubRepo = DEFAULT_GITHUB_REPO,
 ): BrewTarget {
   return new BrewTarget(
     {
@@ -31,7 +31,7 @@ function getBrewTarget(
       ...config,
     },
     new NoneArtifactProvider(),
-    githubRepo
+    githubRepo,
   );
 }
 
@@ -41,7 +41,7 @@ describe('BrewTarget configuration', () => {
       new BrewTarget(
         { name: 'brew' },
         new NoneArtifactProvider(),
-        DEFAULT_GITHUB_REPO
+        DEFAULT_GITHUB_REPO,
       );
     }).toThrow(ConfigurationError);
   });
@@ -111,7 +111,7 @@ describe('formula name templating', () => {
   test('repo name with version template', () => {
     const brewTarget = getBrewTarget(
       { formula: undefined },
-      { owner: 'getsentry', repo: 'craft-v{{{major}}}' }
+      { owner: 'getsentry', repo: 'craft-v{{{major}}}' },
     );
     const resolved = brewTarget.resolveFormulaName('2.5.0');
     expect(resolved).toBe('craft-v2');

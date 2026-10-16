@@ -1,4 +1,4 @@
-import { promises as fsPromises, existsSync, mkdirSync } from 'fs';
+import { promises as fsPromises, existsSync, mkdirSync, symlinkSync } from 'fs';
 import * as path from 'path';
 
 import { logger } from '../logger';
@@ -29,6 +29,8 @@ export interface InitialManifestData {
   mainDocsUrl?: string;
   /** Link to API documentation */
   apiDocsUrl?: string;
+  /** SDK identifier used in the `sdk_info.name` field of the event (e.g. "sentry.javascript.react"). Used to create an entry in the registry's sdks/ directory. */
+  sdkName?: string;
 }
 
 /**
@@ -100,6 +102,37 @@ export async function getPackageManifest(
       throw new Error('Unreachable');
     }
 
+    let effectiveManifestData = initialManifestData;
+
+    // Required for all new packages
+    if (!initialManifestData.name) {
+      reportError(
+        `"name" is required for new package "${canonicalName}". ` +
+          `Add \`name\` to the registry target config in your .craft.yml.`,
+      );
+      throw new Error('Unreachable');
+    }
+    if (!initialManifestData.mainDocsUrl) {
+      logger.warn(
+        `"mainDocsUrl" is not set for "${canonicalName}". ` +
+          `Falling back to repo_url ("${initialManifestData.repoUrl}"). ` +
+          `Set \`mainDocsUrl\` in the registry target config in .craft.yml to avoid this warning.`,
+      );
+      effectiveManifestData = {
+        ...initialManifestData,
+        mainDocsUrl: initialManifestData.repoUrl,
+      };
+    }
+
+    // Additional requirement for SDK packages
+    if (initialManifestData.sdkName && !initialManifestData.packageUrl) {
+      reportError(
+        `"packageUrl" is required for new SDK "${canonicalName}". ` +
+          `Add \`packageUrl\` to the registry target config in your .craft.yml.`,
+      );
+      throw new Error('Unreachable');
+    }
+
     // Create directory structure if it doesn't exist
     if (!existsSync(fullPackageDir)) {
       logger.info(
@@ -108,16 +141,35 @@ export async function getPackageManifest(
       mkdirSync(fullPackageDir, { recursive: true });
     }
 
+    // Create the `sdks/` symlink when an sdkName is provided
+    if (effectiveManifestData.sdkName) {
+      const sdkSymlinkPath = path.join(
+        baseDir,
+        'sdks',
+        effectiveManifestData.sdkName,
+      );
+      if (!existsSync(sdkSymlinkPath)) {
+        const relativeTarget = path.join('..', packageDirPath);
+        logger.info(
+          `Creating sdks symlink "${effectiveManifestData.sdkName}" -> "${relativeTarget}"...`,
+        );
+        symlinkSync(relativeTarget, sdkSymlinkPath);
+      }
+    }
+
     logger.info(
       `Creating initial manifest for new package "${canonicalName}"...`,
     );
     return {
       versionFilePath,
-      packageManifest: createInitialManifest(initialManifestData),
+      packageManifest: createInitialManifest(effectiveManifestData),
     };
   }
 
-  logger.debug('Reading the current configuration from', packageManifestPath);
+  logger.debug(
+    'Reading the already existing configuration from',
+    packageManifestPath,
+  );
   return {
     versionFilePath,
     packageManifest:

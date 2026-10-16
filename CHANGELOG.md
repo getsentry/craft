@@ -1,5 +1,486 @@
 # Changelog
 
+## 2.35.0
+
+### New Features ✨
+
+- (changelog) Add configurable AI summaries for CLI and Actions by @MathurAditya724 in [#902](https://github.com/getsentry/craft/pull/902)
+- (distribution) Release native Craft with install and setup tools by @MathurAditya724 in [#904](https://github.com/getsentry/craft/pull/904)
+
+### Bug Fixes 🐛
+
+- (nuget) Pass --timeout to dotnet nuget push by @sentry-junior in [#901](https://github.com/getsentry/craft/pull/901)
+
+### Internal Changes 🔧
+
+- Add standalone Fossilize binaries and native smoke tests by @MathurAditya724 in [#903](https://github.com/getsentry/craft/pull/903)
+
+## 2.34.1
+
+### Bug Fixes 🐛
+
+- Archive Craft documentation in GCS by @BYK in [#899](https://github.com/getsentry/craft/pull/899)
+
+## 2.34.0
+
+### New Features ✨
+
+- (action) Publish commit-pinned Craft nightlies to GHCR by @BYK in [#897](https://github.com/getsentry/craft/pull/897)
+
+### Bug Fixes 🐛
+
+- Allow release build to validate nightly jobs by @BYK in [#898](https://github.com/getsentry/craft/pull/898)
+
+## 2.33.3
+
+### Bug Fixes 🐛
+
+- (deps) Remediate open security alerts by @BYK in [#894](https://github.com/getsentry/craft/pull/894)
+- Allow Git identity environment for commits by @BYK in [#896](https://github.com/getsentry/craft/pull/896)
+- Pass Git actor name to release workflow by @BYK in [#895](https://github.com/getsentry/craft/pull/895)
+
+## 2.33.2
+
+### Bug Fixes 🐛
+
+- (action) Resolve SHA refs to matching Craft releases by @BYK in [#891](https://github.com/getsentry/craft/pull/891)
+
+## 2.33.1
+
+### Bug Fixes 🐛
+
+- (action) Resolve major tag to matching binary by @BYK in [#889](https://github.com/getsentry/craft/pull/889)
+- (deps) Update vulnerable transitive packages by @BYK in [#890](https://github.com/getsentry/craft/pull/890)
+
+## 2.33.0
+
+### Bug Fixes 🐛
+
+- (changelog) Default workspace changelog to its directory by @BYK in [#888](https://github.com/getsentry/craft/pull/888)
+
+## 2.32.0
+
+### New Features ✨
+
+- (changelog) Scope commits to selected workspace by @BYK in [#887](https://github.com/getsentry/craft/pull/887)
+
+### Bug Fixes 🐛
+
+- (changelog) Include commits without a previous tag by @BYK in [#886](https://github.com/getsentry/craft/pull/886)
+- (prepare) Detect pending remote release branches by @BYK in [#883](https://github.com/getsentry/craft/pull/883)
+- (publish) Clean up release branches for revisions by @BYK in [#884](https://github.com/getsentry/craft/pull/884)
+
+## 2.31.2
+
+### Bug Fixes 🐛
+
+- (deps) Remediate open security alerts by @BYK in [#881](https://github.com/getsentry/craft/pull/881)
+- (github) Filter artifacts by name when fetching revision artifact by @itaybre in [#880](https://github.com/getsentry/craft/pull/880)
+
+## 2.31.1
+
+### Bug Fixes 🐛
+
+- (npm) Show publish stderr at info level by @sentry-junior in [#877](https://github.com/getsentry/craft/pull/877)
+
+### Internal Changes 🔧
+
+#### Deps
+
+- Bump sharp from 0.35.0 to 0.35.4 in /docs by @dependabot in [#874](https://github.com/getsentry/craft/pull/874)
+- Bump astro from 7.1.4 to 7.2.8 in /docs by @dependabot in [#873](https://github.com/getsentry/craft/pull/873)
+
+#### Deps Dev
+
+- Bump vitest from 4.1.8 to 4.1.11 by @dependabot in [#875](https://github.com/getsentry/craft/pull/875)
+- Bump js-yaml from 4.3.1 to 4.3.2 by @dependabot in [#876](https://github.com/getsentry/craft/pull/876)
+
+## 2.31.0
+
+### New Features ✨
+
+- (config) Top-level workspaces schema + --workspace selector by @BYK in [#848](https://github.com/getsentry/craft/pull/848)
+- Propagate release workspaces by @BYK in [#872](https://github.com/getsentry/craft/pull/872)
+
+### Bug Fixes 🐛
+
+- (git) Prevent fatal error for missing 'origin' remote by @sentry in [#871](https://github.com/getsentry/craft/pull/871)
+- (registry) Retry registry push with backoff on concurrent updates by @jared-outpost in [#870](https://github.com/getsentry/craft/pull/870)
+
+## 2.30.1
+
+### Bug Fixes 🐛
+
+- (vercel) Pass prebuilt output directory by @BYK in [#868](https://github.com/getsentry/craft/pull/868)
+
+## 2.30.0
+
+### New Features ✨
+
+- (vercel) Allow project ID in target config by @BYK in [#867](https://github.com/getsentry/craft/pull/867)
+
+## 2.29.0
+
+### New Features ✨
+
+- (targets) Add vercel deploy target by @jared-outpost in [#865](https://github.com/getsentry/craft/pull/865)
+
+### Bug Fixes 🐛
+
+- (deps) Bump vulnerable packages and add overrides by @BYK in [#866](https://github.com/getsentry/craft/pull/866)
+
+### Documentation 📚
+
+- Document Cloudflare token permissions by @BYK in [#863](https://github.com/getsentry/craft/pull/863)
+
+## 2.28.0
+
+### New Features ✨
+
+- (aws-lambda-layer) Add CompatibleArchitectures and per-region failure improvements by @pabloDeputter in [#861](https://github.com/getsentry/craft/pull/861)
+
+## 2.27.2
+
+### Bug Fixes 🐛
+
+- (commit-on-git) Use proper username and pass for by @BYK in [#862](https://github.com/getsentry/craft/pull/862)
+
+## 2.27.1
+
+### Bug Fixes 🐛
+
+- (crates) Recognize more already-published error messages by @szokeasaurusrex in [#859](https://github.com/getsentry/craft/pull/859)
+
+## 2.27.0
+
+### New Features ✨
+
+- (targets) Add cloudflare deploy target by @BYK in [#843](https://github.com/getsentry/craft/pull/843)
+- Prefix-aware read paths for monorepo multi-product releases by @BYK in [#847](https://github.com/getsentry/craft/pull/847)
+
+### Bug Fixes 🐛
+
+- (cloudflare) Default to worker, optional account id, infer prod branch by @BYK in [#846](https://github.com/getsentry/craft/pull/846)
+- (crates) Ignore dev dependencies when ordering packages by @szokeasaurusrex in [#858](https://github.com/getsentry/craft/pull/858)
+- Bump postcss to ^8.5.18 (high-severity Dependabot alert) by @BYK in [#855](https://github.com/getsentry/craft/pull/855)
+- Resolve 9 Dependabot security alerts by @BYK in [#854](https://github.com/getsentry/craft/pull/854)
+
+### Documentation 📚
+
+- Adopt the Sentry Starlight theme by @sentry-junior in [#849](https://github.com/getsentry/craft/pull/849)
+
+### Internal Changes 🔧
+
+#### Deps Dev
+
+- Bump tar from 7.5.16 to 7.5.19 by @dependabot in [#852](https://github.com/getsentry/craft/pull/852)
+- Bump js-yaml from 4.2.0 to 4.3.0 by @dependabot in [#853](https://github.com/getsentry/craft/pull/853)
+- Bump shell-quote from 1.8.4 to 1.9.0 by @dependabot in [#851](https://github.com/getsentry/craft/pull/851)
+
+#### Other
+
+- (deps) Bump sharp from 0.33.5 to 0.35.0 in /docs by @dependabot in [#850](https://github.com/getsentry/craft/pull/850)
+
+## 2.26.14
+
+### Bug Fixes 🐛
+
+#### Deps
+
+- Bump js-yaml to >=4.2.0 to resolve GHSA-h67p-54hq-rp68 by @BYK in [#841](https://github.com/getsentry/craft/pull/841)
+- Bump @babel/core to ^7.29.6 to resolve GHSA-4x5r-pxfx-6jf8 by @BYK in [#839](https://github.com/getsentry/craft/pull/839)
+
+## 2.26.13
+
+### Internal Changes 🔧
+
+- Upgrade to Node 24.18.0 (LTS Krypton) by @BYK in [#838](https://github.com/getsentry/craft/pull/838)
+
+## 2.26.12
+
+### Bug Fixes 🐛
+
+- Pin Node to 22.23.1 to avoid node-fetch premature-close regression by @BYK in [#837](https://github.com/getsentry/craft/pull/837)
+
+## 2.26.11
+
+### Bug Fixes 🐛
+
+- Resolve 10 Dependabot security alerts by @BYK in [#836](https://github.com/getsentry/craft/pull/836)
+
+### Internal Changes 🔧
+
+- (deps-dev) Bump esbuild from 0.25.12 to 0.28.1 by @dependabot in [#834](https://github.com/getsentry/craft/pull/834)
+
+## 2.26.10
+
+### Bug Fixes 🐛
+
+- Bump shell-quote 1.7.3 → ^1.8.4 (GHSA-w7jw-789q-3m8p) by @BYK in [#833](https://github.com/getsentry/craft/pull/833)
+
+## 2.26.9
+
+### Bug Fixes 🐛
+
+- Replace extract-zip with node-stream-zip to fix Node 24.16.0 hang by @BYK in [#831](https://github.com/getsentry/craft/pull/831)
+
+## 2.26.8
+
+### New Features ✨
+
+- (pypi) Support TWINE_VERBOSE env var to pass --verbose to twine upload by @sentry-junior in [#829](https://github.com/getsentry/craft/pull/829)
+
+### Bug Fixes 🐛
+
+- Avoid test timeout in extractZipArchive by batching writes by @BYK in [#830](https://github.com/getsentry/craft/pull/830)
+
+## 2.26.7
+
+### Bug Fixes 🐛
+
+- (nuget) Use unique suffix for global.json backup by @jamescrosswell in [#823](https://github.com/getsentry/craft/pull/823)
+- (security) Upgrade vitest to ^4.1.0 and tmp to ^0.2.6 by @BYK in [#828](https://github.com/getsentry/craft/pull/828)
+
+## 2.26.6
+
+### Bug Fixes 🐛
+
+- (nuget) Move global.json aside during `dotnet setversion` by @jamescrosswell in [#820](https://github.com/getsentry/craft/pull/820)
+- (security) Override @tootallnate/once to ^2.0.1 (CVE-2026-3449) by @BYK in [#822](https://github.com/getsentry/craft/pull/822)
+- Improve partial publishing recovery for CocoaPods and GitHub targets by @BYK in [#821](https://github.com/getsentry/craft/pull/821)
+
+## 2.26.5
+
+### Bug Fixes 🐛
+
+- (security) Bump devalue override to ^5.8.1 (CVE-2026-42570) by @BYK in [#818](https://github.com/getsentry/craft/pull/818)
+
+## 2.26.4
+
+### Bug Fixes 🐛
+
+- (security) Prevent script injection in changelog-preview workflow by @fix-it-felix-sentry in [#813](https://github.com/getsentry/craft/pull/813)
+- Resolve open dependabot security alerts by @BYK in [#816](https://github.com/getsentry/craft/pull/816)
+
+### Internal Changes 🔧
+
+- (deps-dev) Bump simple-git from 3.33.0 to 3.36.0 by @dependabot in [#814](https://github.com/getsentry/craft/pull/814)
+
+## 2.26.3
+
+### Bug Fixes 🐛
+
+- Prevent shell injection vulnerabilities in GitHub Actions workflows by @fix-it-felix-sentry in [#811](https://github.com/getsentry/craft/pull/811)
+
+## 2.26.2
+
+### Security 🔒
+
+- (deps) Bump uuid to ^14.0.0 (fix GHSA-w5hq-g745-h8pq) by @BYK in [#810](https://github.com/getsentry/craft/pull/810)
+
+### Bug Fixes 🐛
+
+- (prepare) Remove --allow-remote-config gate by @BYK in [#809](https://github.com/getsentry/craft/pull/809)
+
+### Internal Changes 🔧
+
+- (deps) Bump astro from 5.18.1 to 6.1.6 in /docs by @dependabot in [#806](https://github.com/getsentry/craft/pull/806)
+- (deps-dev) Bump fast-xml-parser from 5.5.7 to 5.7.0 by @dependabot in [#808](https://github.com/getsentry/craft/pull/808)
+
+## 2.26.1
+
+### Security 🔒
+
+- (release-env) Allowlist GITHUB_* and RUNNER_* by prefix by @BYK in [#807](https://github.com/getsentry/craft/pull/807)
+
+### Bug Fixes 🐛
+
+- (npm) Tolerate workspace:* deps in version bump and bun.lock patching by @BYK in [#805](https://github.com/getsentry/craft/pull/805)
+
+### Internal Changes 🔧
+
+- Fix Node 20 + app-id deprecation warnings, refresh Node matrix by @BYK in [#803](https://github.com/getsentry/craft/pull/803)
+
+## 2.26.0
+
+### Security 🔒
+
+- (ci) Pin third-party GitHub Actions to commit SHAs by @BYK in [#801](https://github.com/getsentry/craft/pull/801)
+- (commit-repo) Replace execSync tar with node-tar by @BYK in [#799](https://github.com/getsentry/craft/pull/799)
+- (gpg) Pipe private key via stdin instead of writing to /tmp by @BYK in [#798](https://github.com/getsentry/craft/pull/798)
+- (publish) Move publish-state file out of repo cwd by @BYK in [#797](https://github.com/getsentry/craft/pull/797)
+- (spawn) Strip dynamic-linker env vars from subprocess env by @BYK in [#800](https://github.com/getsentry/craft/pull/800)
+
+### New Features ✨
+
+- Recognize `security:` commit prefix for changelog and versioning by @BYK in [#802](https://github.com/getsentry/craft/pull/802)
+
+## 2.25.5
+
+### Bug Fixes 🐛
+
+#### Security
+
+- Move workflow to pull_request and do not persist creds by @geoffg-sentry in [#796](https://github.com/getsentry/craft/pull/796)
+- Disable .craft.env reading and harden release subprocess env by @BYK in [#794](https://github.com/getsentry/craft/pull/794)
+
+## 2.25.4
+
+### Bug Fixes 🐛
+
+- (publish) Replace CRAFT_NEW_VERSION with CRAFT_RELEASED_VERSION in post-release env by @BYK in [#793](https://github.com/getsentry/craft/pull/793)
+
+## 2.25.3
+
+### Bug Fixes 🐛
+
+- (deps) Address security vulnerabilities in vite, picomatch, and defu by @BYK in [#791](https://github.com/getsentry/craft/pull/791)
+- (publish) Distinguish auth failures from merge conflicts in post-publish merge by @BYK in [#788](https://github.com/getsentry/craft/pull/788)
+
+## 2.25.2
+
+### Bug Fixes 🐛
+
+- Preserve HTML blocks (e.g., `<img>` tags from GitHub image uploads) in custom `## Changelog Entry` PR sections instead of silently dropping them. by @BYK in [#786](https://github.com/getsentry/craft/pull/786)
+- (deps) Bump brace-expansion from 5.0.4 to 5.0.5 by @BYK in [#787](https://github.com/getsentry/craft/pull/787)
+- Upgrade GitHub Actions to Node.js 24 compatible versions by @BYK in [#784](https://github.com/getsentry/craft/pull/784)
+
+### Internal Changes 🔧
+
+- (deps) Bump astro from 5.16.11 to 5.18.1 in /docs by @dependabot in [#785](https://github.com/getsentry/craft/pull/785)
+
+## 2.25.1
+
+### Bug Fixes 🐛
+
+- (deps) Address smol-toml DoS vulnerability (GHSA-v3rj-xjv7-4jmq) by @BYK in [#783](https://github.com/getsentry/craft/pull/783)
+- Commit changelog even when preReleaseCommand returns false by @BYK in [#781](https://github.com/getsentry/craft/pull/781)
+
+### Internal Changes 🔧
+
+- Reformat codebase with Prettier and add CI enforcement by @BYK in [#782](https://github.com/getsentry/craft/pull/782)
+
+## 2.25.0
+
+### New Features ✨
+
+- (registry) Require and validate registry metadata on first publish by @s1gr1d in [#777](https://github.com/getsentry/craft/pull/777)
+
+### Bug Fixes 🐛
+
+- (deps) Address security advisories for fast-xml-parser, h3, and flatted by @BYK in [#780](https://github.com/getsentry/craft/pull/780)
+- (publish) Make post-publish merge failure non-fatal with resolve strategy retry by @BYK in [#778](https://github.com/getsentry/craft/pull/778)
+
+### Internal Changes 🔧
+
+- (deps-dev) Bump fast-xml-parser from 5.3.8 to 5.5.7 by @dependabot in [#779](https://github.com/getsentry/craft/pull/779)
+
+## 2.24.2
+
+### Bug Fixes 🐛
+
+- (deps) Address security advisories for flatted and devalue by @BYK in [#775](https://github.com/getsentry/craft/pull/775)
+- (prepare) Handle scoped tag prefixes in auto version resolution by @BYK in [#773](https://github.com/getsentry/craft/pull/773)
+
+### Internal Changes 🔧
+
+- Update CI actions from Node.js 20 SHA pins to latest by @BYK in [#774](https://github.com/getsentry/craft/pull/774)
+
+## 2.24.1
+
+### Bug Fixes 🐛
+
+- Fix fenced code blocks being silently dropped from custom changelog entries in PR descriptions by @BYK in [#771](https://github.com/getsentry/craft/pull/771)
+- Update simple-git and tar to address security vulnerabilities by @BYK in [#772](https://github.com/getsentry/craft/pull/772)
+
+## 2.24.0
+
+### New Features ✨
+
+- Add `sdkName` option and symlink creation for SDK packages in registry by @s1gr1d in [#769](https://github.com/getsentry/craft/pull/769)
+
+### Internal Changes 🔧
+
+- (deps-dev) Bump tar from 7.5.8 to 7.5.10 by @dependabot in [#768](https://github.com/getsentry/craft/pull/768)
+
+## 2.23.2
+
+### Bug Fixes 🐛
+
+- Resolve 4 open Dependabot security alerts via pnpm overrides by @BYK in [#767](https://github.com/getsentry/craft/pull/767)
+
+### Documentation 📚
+
+- Clarify urlTemplate usage and repo_url derivation for registry target by @BYK in [#766](https://github.com/getsentry/craft/pull/766)
+
+## 2.23.1
+
+### Bug Fixes 🐛
+
+- (changelog) Categorize direct commits (no PR) by commit_patterns by @BYK in [#764](https://github.com/getsentry/craft/pull/764)
+
+### Internal Changes 🔧
+
+- (deps-dev) Bump fast-xml-parser from 5.3.6 to 5.3.8 by @dependabot in [#762](https://github.com/getsentry/craft/pull/762)
+
+## 2.23.0
+
+### New Features ✨
+
+- (npm) Support OIDC trusted publishing by @BYK in [#763](https://github.com/getsentry/craft/pull/763)
+
+## 2.22.0
+
+### New Features ✨
+
+- (actions) Support `publish_repo: self` for single-repo setups by @BYK in [#760](https://github.com/getsentry/craft/pull/760)
+- (changelog) Add test/tests/style to default internal changes categories by @BYK in [#759](https://github.com/getsentry/craft/pull/759)
+
+### Bug Fixes 🐛
+
+- (deps) Address Dependabot security vulnerabilities by @BYK in [#761](https://github.com/getsentry/craft/pull/761)
+
+## 2.21.7
+
+### Internal Changes 🔧
+
+#### Deps Dev
+
+- Bump fast-xml-parser from 5.3.4 to 5.3.6 by @dependabot in [#757](https://github.com/getsentry/craft/pull/757)
+- Bump tar from 7.5.7 to 7.5.8 by @dependabot in [#758](https://github.com/getsentry/craft/pull/758)
+
+## 2.21.6
+
+### Bug Fixes 🐛
+
+- (changelog) Disable @-mention pings in publish issues for calver releases by @BYK in [#755](https://github.com/getsentry/craft/pull/755)
+- (github) Truncate release body exceeding GitHub 125k char limit by @BYK in [#754](https://github.com/getsentry/craft/pull/754)
+- (ux) Show failed check details on status provider failures by @BYK in [#756](https://github.com/getsentry/craft/pull/756)
+
+## 2.21.5
+
+### Bug Fixes 🐛
+
+- (action) Write changelog to file to avoid E2BIG on large repos by @BYK in [#753](https://github.com/getsentry/craft/pull/753)
+- (gh-pages) Add CNAME file to preserve custom domain on deploy by @BYK in [#751](https://github.com/getsentry/craft/pull/751)
+
+## 2.21.4
+
+### Bug Fixes 🐛
+
+- (ux) Improve error messages for artifact mismatches and missing release branches by @BYK in [#750](https://github.com/getsentry/craft/pull/750)
+
+## 2.21.3
+
+### Bug Fixes 🐛
+
+- (artifacts) Support glob patterns and validate all configured patterns match by @BYK in [#748](https://github.com/getsentry/craft/pull/748)
+- (changelog) Tailor preview output to versioning policy by @BYK in [#749](https://github.com/getsentry/craft/pull/749)
+
+### Other
+
+- fix: Retract is no more by @BYK in [1aa1e5c1](https://github.com/getsentry/craft/commit/1aa1e5c18fe59a7ac942e9db68adb1d418da91ac)
+
 ## 2.21.2
 
 ### Bug Fixes 🐛
@@ -235,7 +716,7 @@
 
 ### Bug Fixes 🐛
 
-- fix(changelog): Unscoped entries should be grouped under "other"  by @BYK in [#659](https://github.com/getsentry/craft/pull/659)
+- fix(changelog): Unscoped entries should be grouped under "other" by @BYK in [#659](https://github.com/getsentry/craft/pull/659)
 
 ### Build / dependencies / internal 🔧
 
@@ -243,7 +724,7 @@
 
 ### Other
 
--  fix(docker): Support regional Artifact Registry endpoints in isGoogleCloudRegistry by @BYK in [#661](https://github.com/getsentry/craft/pull/661)
+- fix(docker): Support regional Artifact Registry endpoints in isGoogleCloudRegistry by @BYK in [#661](https://github.com/getsentry/craft/pull/661)
 
 ## 2.13.1
 
@@ -658,7 +1139,7 @@
 
 ### Various fixes & improvements
 
-- ref: Pin cocoapods version  (#496) by @brustolin
+- ref: Pin cocoapods version (#496) by @brustolin
 
 ## 1.6.0
 
@@ -674,14 +1155,14 @@
 - build(deps): bump semver from 6.3.0 to 6.3.1 (#470) by @dependabot
 - build(deps): bump @babel/traverse from 7.22.5 to 7.23.2 (#494) by @dependabot
 - ref: remove volta from CI (#493) by @asottile-sentry
-- fix: Handle `{major}.json` and `{minor}.json`  symlinks when publishing older versions (#483) by @cleptric
+- fix: Handle `{major}.json` and `{minor}.json` symlinks when publishing older versions (#483) by @cleptric
 - Bump symbol collector 1.12.0 (#491) by @bruno-garcia
 
 ## 1.4.4
 
 ### Various fixes & improvements
 
-- fix(brew): Replace version in artifact names with '__VERSION__' to access checksums from mustache (#488) by @romtsn
+- fix(brew): Replace version in artifact names with '**VERSION**' to access checksums from mustache (#488) by @romtsn
 
 ## 1.4.3
 

@@ -134,6 +134,45 @@ describe('getBumpTypeForPR', () => {
     expect(getBumpTypeForPR(prInfo)).toBe('patch');
   });
 
+  it('returns patch for security commits', () => {
+    const prInfo = { ...basePRInfo, title: 'security: patch XSS' };
+    expect(getBumpTypeForPR(prInfo)).toBe('patch');
+  });
+
+  it('returns patch for scoped security commits', () => {
+    const prInfo = { ...basePRInfo, title: 'security(auth): patch login' };
+    expect(getBumpTypeForPR(prInfo)).toBe('patch');
+  });
+
+  it('returns major for breaking security commits', () => {
+    const prInfo = { ...basePRInfo, title: 'security!: rotate keys' };
+    expect(getBumpTypeForPR(prInfo)).toBe('major');
+  });
+
+  it('returns major for scoped breaking security commits', () => {
+    const prInfo = { ...basePRInfo, title: 'security(auth)!: rotate keys' };
+    expect(getBumpTypeForPR(prInfo)).toBe('major');
+  });
+
+  it('matches security prefix case-insensitively', () => {
+    // commit_patterns are compiled with /i in normalizeReleaseConfig.
+    const prInfo = { ...basePRInfo, title: 'Security(Auth): Fix bypass' };
+    expect(getBumpTypeForPR(prInfo)).toBe('patch');
+  });
+
+  it('does not match security-lookalike prefixes', () => {
+    // Guard against accidentally widening the pattern (e.g. to `security\w*:`).
+    expect(
+      getBumpTypeForPR({ ...basePRInfo, title: 'securityfix: foo' }),
+    ).toBeNull();
+    expect(
+      getBumpTypeForPR({ ...basePRInfo, title: 'securityaudit: foo' }),
+    ).toBeNull();
+    expect(
+      getBumpTypeForPR({ ...basePRInfo, title: 'secure: foo' }),
+    ).toBeNull();
+  });
+
   it('returns null for unrecognized commit types', () => {
     const prInfo = { ...basePRInfo, title: 'random commit' };
     expect(getBumpTypeForPR(prInfo)).toBeNull();
@@ -260,9 +299,22 @@ describe('stripTitle', () => {
       );
     });
 
-    it('works with build/chore types', () => {
+    it('works with security type', () => {
+      const pattern = /^(?<type>security(?:\((?<scope>[^)]+)\))?!?:\s*)/;
+      expect(stripTitle('security: patch xss', pattern, false)).toBe(
+        'Patch xss',
+      );
+      expect(stripTitle('security(auth): patch login', pattern, false)).toBe(
+        'Patch login',
+      );
+      expect(stripTitle('security(auth): patch login', pattern, true)).toBe(
+        '(auth) Patch login',
+      );
+    });
+
+    it('works with build/chore/test/style types', () => {
       const pattern =
-        /^(?<type>(?:build|refactor|meta|chore|ci|ref|perf)(?:\((?<scope>[^)]+)\))?!?:\s*)/;
+        /^(?<type>(?:build|refactor|meta|chore|ci|ref|perf|tests?|style)(?:\((?<scope>[^)]+)\))?!?:\s*)/;
       expect(stripTitle('chore(deps): update deps', pattern, false)).toBe(
         'Update deps',
       );
@@ -271,6 +323,15 @@ describe('stripTitle', () => {
       );
       expect(stripTitle('refactor(api): simplify logic', pattern, true)).toBe(
         '(api) Simplify logic',
+      );
+      expect(stripTitle('test(auth): add unit tests', pattern, false)).toBe(
+        'Add unit tests',
+      );
+      expect(stripTitle('tests(auth): add unit tests', pattern, false)).toBe(
+        'Add unit tests',
+      );
+      expect(stripTitle('style(button): fix formatting', pattern, false)).toBe(
+        'Fix formatting',
       );
     });
   });

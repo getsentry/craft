@@ -1,4 +1,5 @@
-import simpleGit, {
+import {
+  simpleGit,
   type SimpleGit,
   type LogOptions,
   type Options,
@@ -6,10 +7,19 @@ import simpleGit, {
 } from 'simple-git';
 import GitUrlParse from 'git-url-parse';
 
-import { getConfigFileDir } from '../config';
+import {
+  getActiveWorkspace,
+  getChangelogConfig,
+  getConfigFileDir,
+  getWorkspaceNames,
+} from '../config';
 import { ConfigurationError } from './errors';
 import { createDryRunGit } from './dryRun';
+import { GIT_IDENTITY_ENV } from './gitIdentityEnv';
 import { logger } from '../logger';
+import { distance as levenshtein } from 'fastest-levenshtein';
+import path from 'node:path';
+import { discoverWorkspaces } from './workspaces';
 
 export interface GitHubInfo {
   owner: string;
@@ -38,6 +48,16 @@ export async function getDefaultBranch(
   git: SimpleGit,
   remoteName: string,
 ): Promise<string> {
+  // Verify the remote exists before attempting to contact it, so we can
+  // surface a clear error instead of a raw git exit-code-128 failure.
+  const remotes = await git.getRemotes(false);
+  if (!remotes.some(r => r.name === remoteName)) {
+    throw new ConfigurationError(
+      `Remote '${remoteName}' is not configured in this repository. ` +
+        `Ensure the repository has a remote named '${remoteName}' before running craft.`,
+    );
+  }
+
   // This part is courtesy of https://stackoverflow.com/a/62397081/90297
   return stripRemoteName(
     await git
@@ -47,10 +67,21 @@ export async function getDefaultBranch(
   );
 }
 
-export async function getLatestTag(git: SimpleGit): Promise<string> {
+export async function getLatestTag(
+  git: SimpleGit,
+  tagPrefix = '',
+): Promise<string> {
   try {
     // This part is courtesy of https://stackoverflow.com/a/7261049/90297
-    return (await git.raw('describe', '--tags', '--abbrev=0')).trim();
+    const args = ['describe', '--tags', '--abbrev=0'];
+    if (tagPrefix) {
+      // In a monorepo, tags for multiple products (e.g. `cli@1.2.3`,
+      // `mcp@2.0.0`) are interleaved. `--match '<prefix>*'` scopes
+      // `git describe` to a single product's tag namespace so the latest tag
+      // is resolved per-product instead of picking whatever is newest overall.
+      args.push('--match', `${tagPrefix}*`);
+    }
+    return (await git.raw(args)).trim();
   } catch (err) {
     // If there are no tags, return an empty string
     if (
@@ -85,16 +116,86 @@ export async function getChangesSince(
     file: '.',
   };
 
-  if (rev) {
-    gitLogArgs.from = rev;
-  }
-  const { all: commits } = await git.log(gitLogArgs);
-  return commits.map(commit => ({
+  // simple-git interprets `to` without `from` as HEAD..HEAD and returns no
+  // commits. A first release has no previous tag, so log the full history.
+  const { all: commits } = rev
+    ? await git.log({ ...gitLogArgs, from: rev })
+    : await git.log(['--no-merges', until || 'HEAD', '--', '.']);
+  const changes = commits.map(commit => ({
     hash: commit.hash,
     title: commit.message,
     body: commit.body,
     pr: commit.message.match(PRExtractor)?.[0] || null,
   }));
+  const workspace = getActiveWorkspace();
+  if (!workspace || changes.length === 0) {
+    return changes;
+  }
+
+  const root = getConfigFileDir() || process.cwd();
+  const discovered = await discoverWorkspaces(root);
+  const ownedPaths = new Set(getWorkspaceNames());
+  for (const pkg of discovered.packages) {
+    const relative = path
+      .relative(root, pkg.location)
+      .split(path.sep)
+      .join('/');
+    if (relative === '' || relative === '..' || relative.startsWith('../')) {
+      throw new ConfigurationError(
+        `Workspace package is outside the repository: ${pkg.name}`,
+      );
+    }
+    ownedPaths.add(relative);
+  }
+  const orderedOwners = [...ownedPaths].sort(
+    (left, right) => right.length - left.length,
+  );
+  const { includePaths } = getChangelogConfig();
+  const contains = (directory: string, file: string) =>
+    file === directory || file.startsWith(`${directory}/`);
+
+  // NUL-delimited filenames remain unambiguous even when they contain spaces
+  // or newlines. Disabling renames includes both sides of a moved file.
+  const raw = await git.raw([
+    'log',
+    '--no-merges',
+    '--no-renames',
+    '--format=%x00%x00%H%x00',
+    '--name-only',
+    '-z',
+    '--end-of-options',
+    rev ? `${rev}..${until || 'HEAD'}` : until || 'HEAD',
+    '--',
+    '.',
+  ]);
+  const sections = raw.split(/\0\0([a-f0-9]{40})\0\0\n/g);
+  if (sections[0] !== '' || sections.length !== commits.length * 2 + 1) {
+    throw new Error('Could not parse the changelog commit paths');
+  }
+  const pathsByHash = new Map<string, string[]>();
+  for (const index of commits.keys()) {
+    const sectionIndex = index * 2 + 1;
+    const hash = sections[sectionIndex];
+    const names = sections[sectionIndex + 1];
+    if (hash === undefined || names === undefined || !names.endsWith('\0')) {
+      throw new Error('Could not parse the changelog commit paths');
+    }
+    pathsByHash.set(hash, names.slice(0, -1).split('\0'));
+  }
+
+  return changes.filter(commit => {
+    const files = pathsByHash.get(commit.hash);
+    if (!files) {
+      throw new Error(`Missing changelog paths for commit ${commit.hash}`);
+    }
+    return files.some(file => {
+      if (includePaths.some(directory => contains(directory, file))) {
+        return true;
+      }
+      const owner = orderedOwners.find(directory => contains(directory, file));
+      return owner === undefined || owner === workspace;
+    });
+  });
 }
 
 export function stripRemoteName(
@@ -116,7 +217,9 @@ export async function getGitClient(): Promise<SimpleGit> {
   logger.debug('Working directory:', process.cwd());
 
   // eslint-disable-next-line no-restricted-syntax -- This is the git wrapper module
-  const git = simpleGit(configFileDir);
+  const git = simpleGit(configFileDir, {
+    allowEnvironment: GIT_IDENTITY_ENV,
+  });
   const isRepo = await git.checkIsRepo();
   if (!isRepo) {
     throw new ConfigurationError('Not in a git repository!');
@@ -135,8 +238,10 @@ export async function getGitClient(): Promise<SimpleGit> {
  * @returns A SimpleGit instance wrapped with dry-run support
  */
 export function createGitClient(directory: string): SimpleGit {
-  // eslint-disable-next-line no-restricted-syntax -- This is the git wrapper module
-  return createDryRunGit(simpleGit(directory));
+  return createDryRunGit(
+    // eslint-disable-next-line no-restricted-syntax -- This is the git wrapper module
+    simpleGit(directory, { allowEnvironment: GIT_IDENTITY_ENV }),
+  );
 }
 
 /**
@@ -214,4 +319,90 @@ export async function getGitHubInfoFromRemote(
   }
 
   return null;
+}
+
+export interface ReleaseBranchSearchResult {
+  /** Branches that exactly match the configured prefix */
+  exactMatches: string[];
+  /** Branches with a similar prefix (Levenshtein distance ≤ 3), excluding exact matches */
+  fuzzyMatches: string[];
+}
+
+/**
+ * Parses the output of `git branch -r` into an array of trimmed branch names,
+ * filtering out HEAD pointer entries.
+ */
+function parseGitBranchOutput(output: string): string[] {
+  return output
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line && !line.includes('->'));
+}
+
+/**
+ * Searches remote branches for those matching or similar to a given prefix.
+ *
+ * Fetches from remote first to get up-to-date refs, then:
+ * - `exactMatches`: branches whose prefix segment matches exactly
+ * - `fuzzyMatches`: branches whose prefix is within edit distance 3
+ *   (catches typos like "relaese" → "release", "releases" → "release")
+ *
+ * @param git SimpleGit instance
+ * @param prefix The release branch prefix to search for
+ * @param limit Maximum number of branches to return per category
+ * @returns Object with exactMatches and fuzzyMatches arrays
+ */
+export async function findReleaseBranches(
+  git: SimpleGit,
+  prefix: string,
+  limit: number = 10,
+): Promise<ReleaseBranchSearchResult> {
+  const MAX_EDIT_DISTANCE = 3;
+
+  try {
+    await git.fetch();
+  } catch {
+    logger.debug('Failed to fetch from remote, using locally cached refs');
+  }
+
+  let allBranches: string[];
+  try {
+    const output = await git.raw('branch', '-r');
+    allBranches = parseGitBranchOutput(output);
+  } catch {
+    logger.debug('Failed to list remote branches');
+    return { exactMatches: [], fuzzyMatches: [] };
+  }
+
+  const exactMatches: string[] = [];
+  const fuzzyMatches: string[] = [];
+
+  for (const branch of allBranches) {
+    // "origin/release/1.2.3" → strip remote → "release/1.2.3"
+    const withoutRemote = branch.replace(/^[^/]+\//, '');
+
+    // A release branch is "<prefix>/<version>". Treat the prefix as an opaque
+    // string (slashes carry no special meaning) and recover the branch's own
+    // prefix by cutting at the LAST "/": everything before it is the prefix,
+    // everything after is the version. This handles slashed prefixes
+    // (e.g. "release/cli" → "release/cli/1.2.3") without segment arithmetic.
+    const lastSlash = withoutRemote.lastIndexOf('/');
+    if (lastSlash <= 0) {
+      // No version part after a prefix (or nothing before the slash): skip.
+      continue;
+    }
+    const branchPrefix = withoutRemote.slice(0, lastSlash);
+
+    if (branchPrefix === prefix) {
+      exactMatches.push(branch);
+    } else if (levenshtein(branchPrefix, prefix) <= MAX_EDIT_DISTANCE) {
+      fuzzyMatches.push(branch);
+    }
+  }
+
+  // git branch -r lists alphabetically; for semver branches, taking from the end gives roughly the highest versions
+  return {
+    exactMatches: exactMatches.slice(-limit).reverse(),
+    fuzzyMatches: fuzzyMatches.slice(-limit).reverse(),
+  };
 }

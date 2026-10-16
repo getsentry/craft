@@ -7,6 +7,7 @@ import { captureException, withScope } from '@sentry/node';
 import { logger } from '../logger';
 
 import {
+  getActiveWorkspace,
   getConfigFileDir,
   getGlobalGitHubConfig,
   getChangelogConfig,
@@ -14,6 +15,14 @@ import {
 import { getChangesSince } from './git';
 import { getGitHubClient } from './githubApi';
 import { getVersion } from './version';
+import type { AiSummaryConfig } from '../schemas/project_config';
+import {
+  summarizeChangelog,
+  isImportantChangelogText,
+  formatSummaryText,
+  formatSummaryWithDetails,
+  type SummaryCategory,
+} from './ai-summary';
 
 /** Information about the current (unmerged) PR to inject into changelog */
 export interface CurrentPRInfo {
@@ -112,6 +121,10 @@ export interface Changeset {
   name: string;
   /** The markdown body describing the changeset */
   body: string;
+  /** The 1-indexed line number where this changeset starts in the source file */
+  startLine?: number;
+  /** The 1-indexed line number where this changeset ends in the source file */
+  endLine?: number;
 }
 
 /**
@@ -128,6 +141,19 @@ interface ChangesetLoc {
   headingLength: number;
   /** Whether this was a setext-style heading */
   isSetext: boolean;
+}
+
+/**
+ * Returns the 1-indexed line number for a given character index in the text.
+ */
+function getLineNumber(text: string, charIndex: number): number {
+  let count = 1;
+  for (let i = 0; i < charIndex && i < text.length; i++) {
+    if (text[i] === '\n') {
+      count++;
+    }
+  }
+  return count;
 }
 
 function escapeMarkdownPound(text: string): string {
@@ -296,6 +322,23 @@ export function extractChangelogEntry(
 }
 
 /**
+ * Renders a fenced code block token as indented markdown lines.
+ * Each line (opening fence, content lines, closing fence) is prefixed with `indent`.
+ */
+function renderIndentedCodeBlock(
+  codeToken: Tokens.Code,
+  indent = '  ',
+): string[] {
+  const fence = codeToken.lang ? `\`\`\`${codeToken.lang}` : '```';
+  const lines = [`${indent}${fence}`];
+  for (const line of codeToken.text.split('\n')) {
+    lines.push(`${indent}${line}`);
+  }
+  lines.push(`${indent}\`\`\``);
+  return lines;
+}
+
+/**
  * Recursively extracts nested content from a list item's tokens.
  */
 function extractNestedContent(tokens: Token[]): string {
@@ -320,6 +363,9 @@ function extractNestedContent(tokens: Token[]): string {
           nestedLines.push(indentedDeeper);
         }
       }
+    } else if (token.type === 'code') {
+      // Preserve fenced code blocks (e.g., ```go ... ```) as nested content
+      nestedLines.push(...renderIndentedCodeBlock(token as Tokens.Code));
     }
   }
 
@@ -373,6 +419,42 @@ function parseTokensToEntries(tokens: Token[]): ChangelogEntryItem[] | null {
       if (text) {
         entries.push({ text });
       }
+    } else if (token.type === 'code') {
+      // Standalone code blocks become nested content on the previous entry,
+      // or a new entry if there is no previous entry.
+      // Indent with 2 spaces so the block nests properly under the list item
+      // in the final markdown (consistent with extractNestedContent).
+      const codeBlock = renderIndentedCodeBlock(token as Tokens.Code).join(
+        '\n',
+      );
+
+      if (entries.length > 0) {
+        // Attach to previous entry as nested content
+        const prev = entries[entries.length - 1];
+        prev.nestedContent = prev.nestedContent
+          ? `${prev.nestedContent}\n${codeBlock}`
+          : codeBlock;
+      }
+      // If no previous entry exists, skip the orphaned code block — a bare
+      // code block without descriptive text isn't a meaningful changelog entry.
+    } else if (token.type === 'html') {
+      // HTML blocks (e.g., <img> tags from GitHub image uploads) become
+      // nested content on the previous entry, similar to code blocks.
+      // Indent every line with 2 spaces so multi-line HTML (e.g., <details>,
+      // <table>) nests properly under the list item in the final markdown.
+      const htmlContent = (token as Tokens.HTML).raw.trim();
+      if (htmlContent && entries.length > 0) {
+        const indented = htmlContent
+          .split('\n')
+          .map(line => `  ${line}`)
+          .join('\n');
+        const prev = entries[entries.length - 1];
+        prev.nestedContent = prev.nestedContent
+          ? `${prev.nestedContent}\n${indented}`
+          : indented;
+      }
+      // If no previous entry exists, skip — an orphaned HTML block
+      // without descriptive text isn't a meaningful changelog entry.
     }
   }
 
@@ -391,7 +473,14 @@ function extractChangeset(markdown: string, location: ChangesetLoc): Changeset {
   const body = markdown.substring(bodyStart, location.endIndex).trim();
   // Remove trailing parenthetical content (e.g., dates) from the title
   const name = location.title.replace(/\(.*\)$/, '').trim();
-  return { name, body };
+  const startLine = getLineNumber(markdown, location.startIndex);
+  // endIndex points to the start of the next heading (or end of file).
+  // We want the last line of the current section's content.
+  const endLine = getLineNumber(
+    markdown,
+    Math.max(location.startIndex, location.endIndex - 1),
+  );
+  return { name, body, startLine, endLine };
 }
 
 /**
@@ -549,6 +638,8 @@ interface PullRequest {
   highlight?: boolean;
   /** The pattern that matched this PR (for title stripping) */
   matchedPattern?: RegExp;
+  /** Critical status retained before custom entries or prefix stripping. */
+  importantTitle?: string;
 }
 
 /**
@@ -571,7 +662,12 @@ function createPREntriesFromRaw(
   },
   defaultTitle: string,
   fallbackBody?: string,
+  important = false,
 ): PullRequest[] {
+  const importantTitle =
+    important || isImportantChangelogText(defaultTitle)
+      ? defaultTitle
+      : undefined;
   const customEntries = extractChangelogEntry(raw.prBody);
 
   if (customEntries) {
@@ -582,6 +678,7 @@ function createPREntriesFromRaw(
       body: entry.nestedContent ?? '',
       title: entry.text,
       highlight: raw.highlight,
+      importantTitle,
     }));
   }
 
@@ -601,6 +698,7 @@ function createPREntriesFromRaw(
       body,
       title: defaultTitle,
       highlight: raw.highlight,
+      importantTitle,
     },
   ];
 }
@@ -798,6 +896,13 @@ export const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
         semver: 'major',
       },
       {
+        title: 'Security 🔒',
+        commit_patterns: [
+          '^(?<type>security(?:\\((?<scope>[^)]+)\\))?!?:\\s*)',
+        ],
+        semver: 'patch',
+      },
+      {
         title: 'New Features ✨',
         commit_patterns: ['^(?<type>feat(?:\\((?<scope>[^)]+)\\))?!?:\\s*)'],
         semver: 'minor',
@@ -820,7 +925,7 @@ export const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
       {
         title: 'Internal Changes 🔧',
         commit_patterns: [
-          '^(?<type>(?:build|refactor|meta|chore|ci|ref|perf)(?:\\((?<scope>[^)]+)\\))?!?:\\s*)',
+          '^(?<type>(?:build|refactor|meta|chore|ci|ref|perf|tests?|style)(?:\\((?<scope>[^)]+)\\))?!?:\\s*)',
         ],
         semver: 'patch',
       },
@@ -1395,10 +1500,21 @@ interface RawChangelogResult {
 
 // Memoization cache for generateChangesetFromGit
 // Caches promises to coalesce concurrent calls with the same arguments
-const changesetCache = new Map<string, Promise<ChangelogResult>>();
+let changesetCache = new WeakMap<
+  SimpleGit,
+  Map<string, Promise<ChangelogResult>>
+>();
+let rawChangesetCache = new WeakMap<
+  SimpleGit,
+  Map<string, Promise<RawChangelogResult>>
+>();
 
-function getChangesetCacheKey(rev: string, maxLeftovers: number): string {
-  return `${rev}:${maxLeftovers}`;
+function getChangesetCacheKey(
+  rev: string,
+  maxLeftovers: number,
+  summarize: boolean,
+): string {
+  return JSON.stringify([getActiveWorkspace(), rev, maxLeftovers, summarize]);
 }
 
 /**
@@ -1406,25 +1522,37 @@ function getChangesetCacheKey(rev: string, maxLeftovers: number): string {
  * Primarily used for testing.
  */
 export function clearChangesetCache(): void {
-  changesetCache.clear();
+  changesetCache = new WeakMap();
+  rawChangesetCache = new WeakMap();
 }
 
 export async function generateChangesetFromGit(
   git: SimpleGit,
   rev: string,
   maxLeftovers: number = MAX_LEFTOVERS,
+  summarize = true,
 ): Promise<ChangelogResult> {
-  const cacheKey = getChangesetCacheKey(rev, maxLeftovers);
+  const cacheKey = getChangesetCacheKey(rev, maxLeftovers, summarize);
+  let cache = changesetCache.get(git);
+  if (!cache) {
+    cache = new Map();
+    changesetCache.set(git, cache);
+  }
 
   // Return cached promise if available (coalesces concurrent calls)
-  const cached = changesetCache.get(cacheKey);
+  const cached = cache.get(cacheKey);
   if (cached) {
     return cached;
   }
 
   // Create and cache the promise
-  const promise = generateChangesetFromGitImpl(git, rev, maxLeftovers);
-  changesetCache.set(cacheKey, promise);
+  const promise = generateChangesetFromGitImpl(
+    git,
+    rev,
+    maxLeftovers,
+    summarize,
+  );
+  cache.set(cacheKey, promise);
 
   return promise;
 }
@@ -1640,8 +1768,8 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
       missing.push(raw);
     }
 
-    if (!categoryTitle || !raw.pr) {
-      // No category match or no PR - goes to leftovers
+    if (!categoryTitle) {
+      // No category match - goes to leftovers
       leftovers.push({
         author: raw.author,
         hash: raw.hash,
@@ -1676,7 +1804,13 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
       }
 
       // Create PR entries (handles custom changelog entries if present)
-      const prEntries = createPREntriesFromRaw(raw, prTitle, raw.body);
+      const prEntries = createPREntriesFromRaw(
+        raw,
+        prTitle,
+        raw.body,
+        matchedCategory?.semver === 'major' ||
+          /\bsecurity\b/i.test(categoryTitle),
+      );
       // Add matched pattern to each entry for title stripping
       for (const entry of prEntries) {
         entry.matchedPattern = matchedPattern;
@@ -1752,18 +1886,48 @@ async function serializeChangelog(
   maxLeftovers: number,
   disableMentions = false,
   disablePRLinks = false,
+  summarize = true,
 ): Promise<string> {
   const { categories, leftovers, releaseConfig } = rawData;
 
   const changelogSections: string[] = [];
+  const summaryCategories: SummaryCategory[] = [];
+  const summaryPositions = new Map<string, number>();
+  const categoryPositions = new Map<string, number>();
+  let currentCategory: SummaryCategory;
+  let groupIndex = 0;
+  const beginCategory = (title: string, heading: boolean) => {
+    currentCategory = {
+      id: `category:${summaryCategories.length}`,
+      title,
+      groups: [],
+    };
+    summaryCategories.push(currentCategory);
+    if (heading)
+      changelogSections.push(markdownHeader(SUBSECTION_HEADER_LEVEL, title));
+    categoryPositions.set(currentCategory.id, changelogSections.length);
+  };
+  const addEntries = (
+    title: string,
+    items: string[],
+    scope?: string,
+    importantEntries?: Record<number, string>,
+  ) => {
+    const id = `group:${groupIndex++}`;
+    summaryPositions.set(id, changelogSections.length);
+    currentCategory.groups.push({ id, title, items, scope, importantEntries });
+    changelogSections.push(items.join('\n'));
+  };
   const { repo, owner } = await getGlobalGitHubConfig();
   const repoUrl = `https://github.com/${owner}/${repo}`;
 
   // Get changelog config for scope grouping setting
   let scopeGroupingEnabled = true;
+  let aiSummary: AiSummaryConfig | false | undefined;
   try {
     const changelogConfig = getChangelogConfig();
     scopeGroupingEnabled = changelogConfig.scopeGrouping;
+    aiSummary = changelogConfig.aiSummary;
   } catch {
     // If config can't be read (e.g., no .craft.yml), use default
   }
@@ -1786,9 +1950,7 @@ async function serializeChangelog(
       continue;
     }
 
-    changelogSections.push(
-      markdownHeader(SUBSECTION_HEADER_LEVEL, category.title),
-    );
+    beginCategory(category.title, true);
 
     // Sort scope groups: scoped entries first (alphabetically), scopeless (null) last
     const sortedScopes = [...category.scopeGroups.entries()].sort((a, b) => {
@@ -1809,6 +1971,7 @@ async function serializeChangelog(
 
     // Collect entries without headers to combine them into a single section
     const entriesWithoutHeaders: string[] = [];
+    const importantWithoutHeaders: Record<number, string> = {};
 
     for (const [scope, prs] of sortedScopes) {
       // Determine scope header:
@@ -1841,12 +2004,21 @@ async function serializeChangelog(
           disablePRLinks,
         ),
       );
+      const importantEntries = Object.fromEntries(
+        prs.flatMap((pr, index) =>
+          pr.importantTitle ? [[index, pr.importantTitle]] : [],
+        ),
+      );
 
       if (scopeHeader) {
         changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, scopeHeader));
-        changelogSections.push(prEntries.join('\n'));
+        addEntries(scopeHeader, prEntries, scopeHeader, importantEntries);
       } else {
         // No header for this scope group - collect entries to combine later
+        for (const [index, title] of Object.entries(importantEntries))
+          importantWithoutHeaders[
+            entriesWithoutHeaders.length + Number(index)
+          ] = title;
         entriesWithoutHeaders.push(...prEntries);
       }
     }
@@ -1857,17 +2029,21 @@ async function serializeChangelog(
       if (hasScopeHeaders) {
         changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, 'Other'));
       }
-      changelogSections.push(entriesWithoutHeaders.join('\n'));
+      addEntries(
+        category.title,
+        entriesWithoutHeaders,
+        undefined,
+        importantWithoutHeaders,
+      );
     }
   }
 
   const nLeftovers = leftovers.length;
   if (nLeftovers > 0) {
     // Only add "Other" section header if there are other category sections
-    if (changelogSections.length > 0) {
-      changelogSections.push(markdownHeader(SUBSECTION_HEADER_LEVEL, 'Other'));
-    }
+    beginCategory('Other', changelogSections.length > 0);
     const leftoverEntries: string[] = [];
+    const importantLeftovers: Record<number, string> = {};
     for (const commit of leftovers.slice(0, maxLeftovers)) {
       // Create PR entries (handles custom changelog entries if present)
       const prEntries = createPREntriesFromRaw(
@@ -1883,6 +2059,8 @@ async function serializeChangelog(
       );
 
       for (const pr of prEntries) {
+        if (pr.importantTitle)
+          importantLeftovers[leftoverEntries.length] = pr.importantTitle;
         leftoverEntries.push(
           formatChangelogEntry(
             {
@@ -1900,12 +2078,52 @@ async function serializeChangelog(
         );
       }
     }
-    changelogSections.push(leftoverEntries.join('\n'));
+    addEntries('Other', leftoverEntries, undefined, importantLeftovers);
     if (nLeftovers > maxLeftovers) {
       changelogSections.push(`_Plus ${nLeftovers - maxLeftovers} more_`);
     }
   }
 
+  // Highlighted PR previews keep their original emphasis and never call a model.
+  const hasHighlights =
+    [...categories.values()].some(category =>
+      [...category.scopeGroups.values()].some(prs =>
+        prs.some(pr => pr.highlight),
+      ),
+    ) || leftovers.some(commit => commit.highlight);
+  const summary =
+    !summarize || disablePRLinks || hasHighlights
+      ? null
+      : await summarizeChangelog(summaryCategories, aiSummary);
+  if (summary) {
+    for (const category of [...summaryCategories].reverse()) {
+      const categorySummary = summary.categories[category.id];
+      for (const group of category.groups) {
+        const scopeSummary = summary.scopes[group.id];
+        if (scopeSummary || categorySummary)
+          changelogSections[summaryPositions.get(group.id)!] =
+            formatSummaryWithDetails(scopeSummary || '', group.items);
+      }
+      // Keep scope headings and prose visible instead of nesting details blocks.
+      if (categorySummary)
+        changelogSections.splice(
+          categoryPositions.get(category.id)!,
+          0,
+          formatSummaryText(categorySummary),
+        );
+    }
+    if (summary.release.length) {
+      // Retain validated coverage for every category without displaying a breakdown.
+      const statements = summary.release.map(statement =>
+        formatSummaryText(statement.summary),
+      );
+      const perParagraph = Math.ceil(statements.length / 3);
+      const paragraphs: string[] = [];
+      for (let i = 0; i < statements.length; i += perParagraph)
+        paragraphs.push(statements.slice(i, i + perParagraph).join(' '));
+      changelogSections.unshift(paragraphs.join('\n\n'));
+    }
+  }
   return changelogSections.join('\n\n');
 }
 
@@ -1917,9 +2135,27 @@ async function generateChangesetFromGitImpl(
   git: SimpleGit,
   rev: string,
   maxLeftovers: number,
+  summarize: boolean,
 ): Promise<ChangelogResult> {
-  const { data: rawData, stats } = await generateRawChangelog(git, rev);
-  const changelog = await serializeChangelog(rawData, maxLeftovers);
+  let cache = rawChangesetCache.get(git);
+  if (!cache) {
+    cache = new Map();
+    rawChangesetCache.set(git, cache);
+  }
+  const key = JSON.stringify([getActiveWorkspace(), rev]);
+  let promise = cache.get(key);
+  if (!promise) {
+    promise = generateRawChangelog(git, rev);
+    cache.set(key, promise);
+  }
+  const { data: rawData, stats } = await promise;
+  const changelog = await serializeChangelog(
+    rawData,
+    maxLeftovers,
+    false,
+    false,
+    summarize,
+  );
 
   return {
     changelog,

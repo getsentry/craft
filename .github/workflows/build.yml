@@ -6,10 +6,15 @@ on:
       - release/**
   pull_request:
   workflow_call:
+    secrets:
+      SENTRY_AUTH_TOKEN:
+        description: Optional Sentry source-map upload credential for master builds
+        required: false
 
 concurrency:
-  group: ${{ github.ref_name || github.sha }}
-  cancel-in-progress: true
+  # Never cancel a master build: every commit needs its own immutable nightly.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref == 'refs/heads/master' && github.sha || (github.ref || github.sha) }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
   test:
@@ -18,20 +23,20 @@ jobs:
       contents: read
     strategy:
       matrix:
-        node: ['20','22']
+        node: ['22', '24']
     name: Node ${{ matrix.node }}
     steps:
-      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
-      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '${{ matrix.node }}'
       - name: Get pnpm version from Volta config
         id: pnpm-version
         run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: ${{ steps.pnpm-version.outputs.version }}
-      - uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
+      - uses: actions/cache@v5
         id: cache
         with:
           path: node_modules
@@ -50,17 +55,17 @@ jobs:
       contents: read
     environment: ${{ github.ref == 'refs/heads/master' && 'production' }}
     steps:
-      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
-      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version-file: package.json
       - name: Get pnpm version from Volta config
         id: pnpm-version
         run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: ${{ steps.pnpm-version.outputs.version }}
-      - uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
+      - uses: actions/cache@v5
         id: cache
         with:
           path: node_modules
@@ -68,22 +73,211 @@ jobs:
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v5
+        with:
+          path: .node-cache
+          key: node-sea-${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
+      - name: Install macOS signing tool for cross-builds
+        run: |
+          curl -fsSL https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.29.0/apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz -o "$RUNNER_TEMP/rcodesign.tar.gz"
+          echo "dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002  $RUNNER_TEMP/rcodesign.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/rcodesign"
+          tar -xzf "$RUNNER_TEMP/rcodesign.tar.gz" --strip-components=1 -C "$RUNNER_TEMP/rcodesign"
+          echo "$RUNNER_TEMP/rcodesign" >> "$GITHUB_PATH"
       - name: Build
         env:
           CRAFT_BUILD_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        run: pnpm build
+        run: pnpm build:binary
+      - name: Package standalone release files
+        working-directory: dist-bin
+        run: |
+          gzip -n -9 -k craft-{darwin,linux}-{arm64,x64} craft-win-x64.exe
+      - name: Generate optional stable delta patches
+        id: patches
+        continue-on-error: true
+        uses: BYK/binpatch/action@9ba6bbb8227fcbd2521852d2311c82afac5e9573 # 0.4.2
+        with:
+          mode: generate-release
+          github-repo: getsentry/craft
+          new-binaries-dir: dist-bin
+          new-gz-dir: dist-bin
+          binary-glob: 'craft-*'
+          patches-dir: dist-bin/patches
+      - name: Stage generated patches
+        if: steps.patches.outputs.has-patches == 'true'
+        run: cp dist-bin/patches/*.patch dist-bin/
+      - name: Package installer
+        run: cp install craft-install
       - name: Smoke Test
         run: ./dist/craft --help
       - name: NPM Pack
-        run: npm pack
+        run: pnpm pack
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@v7
         with:
           name: craft-binary
           path: |
             ${{ github.workspace }}/*.tgz
             ${{ github.workspace }}/dist/craft
+            ${{ github.workspace }}/craft-install
+
+      - name: Upload standalone release files
+        uses: actions/upload-artifact@v7
+        with:
+          name: craft-native
+          if-no-files-found: error
+          path: dist-bin/craft-*
+
+  native-smoke:
+    name: Verify / ${{ matrix.platform }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux-x64
+          - os: ubuntu-24.04-arm
+            platform: linux-arm64
+          - os: macos-15
+            platform: darwin-arm64
+          - os: macos-15-intel
+            platform: darwin-x64
+          - os: windows-2025
+            platform: win-x64
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.27.0
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v8
+        with:
+          name: craft-native
+          path: dist-bin
+      - uses: actions/download-artifact@v8
+        with:
+          name: craft-binary
+          path: packed
+      - name: Install test shells
+        if: matrix.platform == 'linux-x64'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends zsh fish
+      - name: Test distribution artifacts
+        run: pnpm test:distribution
+
+  publish-nightly:
+    name: Publish Craft nightly to GHCR
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository == 'getsentry/craft'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: craft-binary
+          path: artifacts
+      - uses: oras-project/setup-oras@005458ad77f1c8facd38a094e4af2e69e5607ff4 # v2.0.2
+        with:
+          version: 1.3.4
+      - name: Publish the binary and immutable commit tag
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -s artifacts/dist/craft
+          cp artifacts/dist/craft craft
+          token=$(curl -fsS 'https://ghcr.io/token?scope=repository:getsentry/craft:pull' | jq -er '.token')
+          status=$(curl -sS -o "$RUNNER_TEMP/craft-nightly-existing.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $token" \
+            -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+            "https://ghcr.io/v2/getsentry/craft/manifests/nightly-$GITHUB_SHA")
+          if [[ "$status" == 200 ]]; then
+            digest="sha256:$(sha256sum craft | cut -d' ' -f1)"
+            size=$(wc -c < craft)
+            jq -e --arg sha "$GITHUB_SHA" --arg digest "$digest" --argjson size "$size" '
+              .schemaVersion == 2 and
+              .mediaType == "application/vnd.oci.image.manifest.v1+json" and
+              .artifactType == "application/vnd.getsentry.craft.binary.v1" and
+              .annotations["org.opencontainers.image.revision"] == $sha and
+              .annotations["org.opencontainers.image.source"] == "https://github.com/getsentry/craft" and
+              (.layers | length) == 1 and
+              .layers[0].annotations["org.opencontainers.image.title"] == "craft" and
+              .layers[0].mediaType == "application/octet-stream" and
+              .layers[0].digest == $digest and
+              .layers[0].size == $size
+            ' "$RUNNER_TEMP/craft-nightly-existing.json" > /dev/null || {
+              echo 'Existing Craft nightly tag differs from this build; refusing to overwrite it' >&2
+              exit 1
+            }
+          elif [[ "$status" == 404 ]]; then
+            printf '%s' "$GHCR_TOKEN" | oras login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            oras push --image-spec v1.1 \
+              --artifact-type application/vnd.getsentry.craft.binary.v1 \
+              --annotation 'org.opencontainers.image.source=https://github.com/getsentry/craft' \
+              --annotation "org.opencontainers.image.revision=$GITHUB_SHA" \
+              "ghcr.io/getsentry/craft:nightly-$GITHUB_SHA" \
+              craft:application/octet-stream
+          else
+            echo "Craft nightly preflight failed (HTTP $status)" >&2
+            exit 1
+          fi
+      - name: Verify anonymous access to the immutable artifact
+        run: |
+          set -euo pipefail
+          token=$(curl -fsS 'https://ghcr.io/token?scope=repository:getsentry/craft:pull' | jq -er '.token')
+          manifest=$(curl -fsS \
+            -H "Authorization: Bearer $token" \
+            -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+            "https://ghcr.io/v2/getsentry/craft/manifests/nightly-$GITHUB_SHA")
+          jq -e --arg sha "$GITHUB_SHA" '
+            .schemaVersion == 2 and
+            .artifactType == "application/vnd.getsentry.craft.binary.v1" and
+            .annotations["org.opencontainers.image.revision"] == $sha and
+            .annotations["org.opencontainers.image.source"] == "https://github.com/getsentry/craft" and
+            ([.layers[] | select(.annotations["org.opencontainers.image.title"] == "craft" and .mediaType == "application/octet-stream")] | length) == 1
+          ' <<< "$manifest" > /dev/null
+
+  advance-nightly:
+    name: Advance the rolling Craft nightly tag
+    needs: publish-nightly
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository == 'getsentry/craft'
+    # Serializing only the rolling tag avoids older builds overwriting newer ones.
+    # Immutable builds keep publishing independently even when a pending rolling
+    # update is superseded by a later master commit.
+    concurrency:
+      group: craft-nightly-rolling
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: oras-project/setup-oras@005458ad77f1c8facd38a094e4af2e69e5607ff4 # v2.0.2
+        with:
+          version: 1.3.4
+      - name: Advance the rolling tag only for the current master commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current=$(gh api repos/getsentry/craft/git/ref/heads/master --jq '.object.sha')
+          if [[ "$current" == "$GITHUB_SHA" ]]; then
+            printf '%s' "$GHCR_TOKEN" | oras login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            oras tag "ghcr.io/getsentry/craft:nightly-$GITHUB_SHA" nightly
+          fi
 
   docs:
     name: Build Docs
@@ -92,14 +286,14 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
-      - uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version-file: package.json
       - name: Get pnpm version from Volta config
         id: pnpm-version
         run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: ${{ steps.pnpm-version.outputs.version }}
       - name: Build Docs
@@ -112,7 +306,7 @@ jobs:
           cp .nojekyll docs/dist/
           cd docs/dist && zip -r ../../gh-pages.zip .
       - name: Upload Docs Artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@v7
         with:
           name: craft-docs
           path: ${{ github.workspace }}/gh-pages.zip

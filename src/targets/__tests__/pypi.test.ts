@@ -65,4 +65,34 @@ describe('pypi', () => {
       '/path/to/pkg.tar.gz',
     ]);
   });
+
+  test('uploadAssets omits --verbose when TWINE_VERBOSE is not set', async () => {
+    delete process.env.TWINE_VERBOSE;
+    vi.mocked(spawnProcess).mockResolvedValueOnce(Buffer.from(''));
+
+    const target = new PypiTarget({ name: 'pypi' }, new NoneArtifactProvider());
+    await target.uploadAssets(['/path/to/pkg.whl']);
+
+    expect(spawnProcess).toHaveBeenCalledWith('twine', [
+      'upload',
+      '/path/to/pkg.whl',
+    ]);
+  });
+
+  test('uploadAssets includes --verbose when TWINE_VERBOSE is set', async () => {
+    process.env.TWINE_VERBOSE = 'true';
+    vi.mocked(spawnProcess).mockResolvedValueOnce(Buffer.from(''));
+
+    const target = new PypiTarget({ name: 'pypi' }, new NoneArtifactProvider());
+    await target.uploadAssets(['/path/to/pkg.whl', '/path/to/pkg.tar.gz']);
+
+    expect(spawnProcess).toHaveBeenCalledWith('twine', [
+      'upload',
+      '--verbose',
+      '/path/to/pkg.whl',
+      '/path/to/pkg.tar.gz',
+    ]);
+
+    delete process.env.TWINE_VERBOSE;
+  });
 });

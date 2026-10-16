@@ -100,8 +100,8 @@ export function versionGreaterOrEqualThan(v1: SemVer, v2: SemVer): boolean {
   } else if (v1.build || v2.build || v1.pre || v2.pre) {
     throw new Error(
       `Cannot compare the two versions: "${JSON.stringify(
-        v1
-      )}" and "${JSON.stringify(v2)}"`
+        v1,
+      )}" and "${JSON.stringify(v2)}"`,
     );
   }
   return true;
@@ -110,7 +110,8 @@ export function versionGreaterOrEqualThan(v1: SemVer, v2: SemVer): boolean {
 /**
  * A regular expression to detect that a version is a pre-release version.
  */
-export const PREVIEW_RELEASE_REGEX = /(?:[^a-z])(preview|pre|rc|dev|alpha|beta|unstable|a|b)(?:[^a-z]|$)/i;
+export const PREVIEW_RELEASE_REGEX =
+  /(?:[^a-z])(preview|pre|rc|dev|alpha|beta|unstable|a|b)(?:[^a-z]|$)/i;
 
 /**
  * Checks that the provided string is a pre-release version.

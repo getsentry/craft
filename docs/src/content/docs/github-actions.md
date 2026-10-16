@@ -31,6 +31,8 @@ on:
 
 jobs:
   release:
+    permissions:
+      contents: write
     uses: getsentry/craft/.github/workflows/release.yml@v2
     with:
       version: ${{ inputs.version }}
@@ -45,7 +47,7 @@ jobs:
 | `merge_target`                   | Target branch to merge into.                                                                                                            | Default branch                       |
 | `force`                          | Force a release even when there are release-blockers.                                                                                   | `false`                              |
 | `blocker_label`                  | Label that blocks releases.                                                                                                             | `release-blocker`                    |
-| `publish_repo`                   | Repository for publish issues (owner/repo format).                                                                                      | `{owner}/publish`                    |
+| `publish_repo`                   | Repository for publish issues (owner/repo format). Use `"self"` to create issues in the source repository itself.                       | `{owner}/publish`                    |
 | `git_user_name`                  | Git committer name.                                                                                                                     | GitHub actor                         |
 | `git_user_email`                 | Git committer email.                                                                                                                    | Actor's noreply email                |
 | `path`                           | The path that Craft will run inside.                                                                                                    | `.`                                  |
@@ -77,6 +79,8 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -97,6 +101,97 @@ jobs:
 
 The action accepts the same inputs and produces the same outputs as the reusable workflow.
 
+### Native executable selection
+
+The Action uses the matching standalone executable when the selected Craft release
+includes one. Craft's own release workflow prefers the native build artifact from
+the same run. Versions before standalone binaries and GHCR nightlies retain the
+JavaScript compatibility path, so Node remains required by the composite Action.
+The Action invokes the same `install` script served on the website. That script
+selects the source, detects `GITHUB_ACTIONS` or `CI`, and skips shell completions
+and agent skill setup automatically. Missing native release assets use the
+JavaScript compatibility path; other download or verification failures stop
+installation. Native candidates must report the selected version before placement.
+
+### AI summary authentication
+
+Enable summaries with `changelog.aiSummary: {}`. The default connection is
+Copilot Responses, `gpt-5.4-nano` and the `GITHUB_TOKEN` environment variable.
+The model must be available to the supplied credential. Use `aiSummary: false`
+to disable generation.
+
+For a custom provider, pass `llm` JSON and map a secret to `llm_api_key`:
+
+```yaml
+- uses: getsentry/craft@v2
+  env:
+    GITHUB_TOKEN: ${{ github.token }} # release operations
+  with:
+    llm: '{"endpoint":"https://gateway.example.com/v1/chat/completions","model":"your-model"}'
+    llm_api_key: ${{ secrets.TEAM_MODEL_TOKEN }}
+```
+
+`llm_api_key` selects a dedicated environment variable over `llm.apiKeyEnv`;
+it never replaces the release token. Alternatively, map a secret to your
+configured `apiKeyEnv`. Craft reads environment variables, not GitHub's secret
+store. Secrets must be available to the workflow's repository; an organization
+secret can grant selected-repository access.
+
+Pass repository/organization configuration as `llm: ${{ vars.CRAFT_AI_LLM }}`.
+The reusable release workflow supplies this fallback and forwards its `llm`
+input and optional `llm_api_key` secret to both Action paths.
+
+For built-in-token Copilot access, callers (including reusable workflow callers)
+must grant `copilot-requests: write` alongside their release permissions. The
+organization must enable **“Allow use of Copilot CLI billed to the organization.”**
+Usage is billed to the organization; permissions alone do not enable access.
+Craft’s own release workflow keeps its release-bot token for Git operations and
+passes the workflow token separately for AI requests. An explicit `llm_api_key`
+secret takes precedence.
+
+Map `${{ github.token }}` to `GITHUB_TOKEN`, or pass it as `llm_api_key` when
+release operations use a different token. See [GitHub's workflow-token guide](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions).
+Personal Copilot credentials require Copilot access; fine-grained PATs need
+**Copilot Requests: write**. Custom provider credentials need no Copilot permission.
+
+Copilot's direct HTTP backend is outside GitHub's public REST API contract.
+Missing credentials or failed requests preserve the original changelog without
+switching providers. See [AI summary configuration](../configuration/#ai-summaries)
+for precedence, limits and output examples.
+
+The **AI summary integration** workflow makes one live request using public fixture
+facts when the AI connection/release wiring changes in an internal pull request.
+Fork pull requests skip that credentialed check. Regular AI unit, HTTP-fixture,
+and CLI/Action integration tests still run in the Node 22/24 CI suites. A green
+release with fallback warnings alone does not prove live AI summaries worked.
+
+### Test a Craft nightly
+
+Every successful push build on Craft's `master` branch publishes its binary to
+`ghcr.io/getsentry/craft` as an OCI artifact. The `nightly` tag advances when the
+current master build finishes publishing; `nightly-<full commit SHA>` keeps each
+build available after master advances. These artifact tags are separate from the
+package's Docker image tags.
+
+Pin the action to a master commit to test that exact build. When the action's
+`package.json` declares a development version, the action automatically downloads
+`nightly-<action commit SHA>`:
+
+```yaml
+- uses: getsentry/craft@<full-master-commit-sha>
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+To use the newest successful master build with another action ref, set
+`craft_version: nightly`. You can also set `craft_version: nightly-<full commit SHA>`
+to select a specific build. The reusable Release workflow forwards its
+`craft_version` input to the action too. Nightlies are available only after the
+`Publish Craft nightly to GHCR` job succeeds. Missing or invalid artifacts stop
+the action; it never substitutes a different build or the latest stable release.
+Published action releases continue to select their matching stable Craft release
+by default.
+
 ### Auto-versioning Example
 
 When using auto-versioning, Craft analyzes conventional commits to determine the version bump. This works with both the workflow and the action:
@@ -110,6 +205,8 @@ on:
 
 jobs:
   release:
+    permissions:
+      contents: write
     uses: getsentry/craft/.github/workflows/release.yml@v2
     with:
       version: auto
@@ -385,6 +482,8 @@ on:
 
 jobs:
   release:
+    permissions:
+      contents: write
     uses: getsentry/craft/.github/workflows/release.yml@v2
     with:
       version: ${{ inputs.version || 'auto' }}
