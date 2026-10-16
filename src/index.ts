@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // Import Sentry instrumentation first, before any other code
 import './instrument';
-import { close } from '@sentry/node';
 
 import isCI from 'is-ci';
 import yargs from 'yargs';
@@ -163,8 +162,4 @@ async function main(): Promise<void> {
     .parse(argv);
 }
 
-// Dispose telemetry before the event loop becomes idle: a failed client report
-// must not schedule another report from every beforeExit event.
-withTracing(main, { name: 'craft.cli', op: 'cli' })().finally(() =>
-  close(2000),
-);
+withTracing(main, { name: 'craft.cli', op: 'cli' })();
