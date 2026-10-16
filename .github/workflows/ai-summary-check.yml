@@ -29,15 +29,7 @@ jobs:
           version: 10.27.0
       - run: pnpm install --frozen-lockfile
       - name: Verify real Copilot summary response
-        id: live
         run: pnpm test src/__tests__/ai-summary-live.test.ts
         env:
           CRAFT_TEST_LIVE_AI: 'true'
-          GITHUB_TOKEN: ${{ github.token }}
-      - name: Compare official Copilot CLI authentication
-        if: failure() && steps.live.conclusion == 'failure'
-        timeout-minutes: 2
-        working-directory: ${{ runner.temp }}
-        run: pnpm dlx @github/copilot@1.0.98 -p 'Reply with OK. Do not use any tools.' -s
-        env:
           GITHUB_TOKEN: ${{ github.token }}
