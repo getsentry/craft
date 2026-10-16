@@ -28,6 +28,32 @@ jobs:
         with:
           version: 10.27.0
       - run: pnpm install --frozen-lockfile
+      - name: Inspect available Copilot model IDs
+        run: |
+          node --input-type=module <<'NODE'
+          const response = await fetch('https://api.githubcopilot.com/models', {
+            headers: {
+              Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+              'Copilot-Integration-Id': 'copilot-developer-cli',
+              'X-GitHub-Api-Version': '2026-07-01',
+            },
+            signal: AbortSignal.timeout(10000),
+          });
+          console.log(`Model catalog HTTP ${response.status}`);
+          if (response.ok) {
+            const catalog = await response.json();
+            console.log(JSON.stringify((catalog.data || []).filter(model =>
+              typeof model.id === 'string' && /^gpt-[a-z0-9._-]{1,100}$/.test(model.id)
+            ).map(model => ({
+              id: model.id,
+              responses: model.supported_endpoints?.includes('/responses') ?? null,
+              chat: model.supported_endpoints?.includes('/chat/completions') ?? null,
+              policy: ['enabled', 'disabled', 'unconfigured'].includes(model.policy?.state) ? model.policy.state : null,
+            }))));
+          }
+          NODE
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Verify real Copilot summary response
         run: pnpm test src/__tests__/ai-summary-live.test.ts
         env:
