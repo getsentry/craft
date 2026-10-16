@@ -92,3 +92,18 @@ test('times out stalled diagnostics without hiding the original HTTP status', as
   expect(await result).toContain('omitted');
   expect(cancelled).toBe(true);
 });
+
+test('captures plain-text Copilot policy errors with credential redaction', async () => {
+  const result = await describeCopilotRejection(
+    new Response(
+      'Organization policy denied access for Bearer test-credential',
+      {
+        status: 403,
+      },
+    ),
+    'test-credential',
+  );
+  expect(result).toContain('Organization policy denied access');
+  expect(result).not.toContain('test-credential');
+  expect(result).toContain('[redacted]');
+});

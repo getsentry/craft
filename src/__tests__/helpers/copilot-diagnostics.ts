@@ -21,7 +21,15 @@ export async function describeCopilotRejection(
       if (bytes > 32 * 1024) return omitted;
       chunks.push(value);
     }
-    const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    const text = Buffer.concat(chunks).toString('utf8');
+    if (text.trimStart().startsWith('<')) return omitted;
+    let body;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      // Copilot's policy/authorization failures are plain text, not JSON.
+      body = { message: text };
+    }
     const fields = {
       message: body?.message,
       code: body?.code,
