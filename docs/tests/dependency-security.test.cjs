@@ -65,3 +65,67 @@ test('preserves ordinary stale-while-revalidate for public responses', () => {
   assert.ok(result.response);
   assert.equal(result.revalidation.synchronous, false);
 });
+
+for (const headers of [
+  { 'set-cookie': 'session=private', 'cache-control': 'max-age=60' },
+  { 'cache-control': 'no-cache, max-age=60' },
+  { 'cache-control': 'proxy-revalidate, max-age=60' },
+  { 'cache-control': 'private, max-age=60' },
+  { 'cache-control': 'no-store, max-age=60' },
+  { vary: '*', 'cache-control': 'max-age=60' },
+  { vary: ' * ', 'cache-control': 'max-age=60' },
+  { vary: 'accept, *', 'cache-control': 'max-age=60' },
+]) {
+  test(`all stale paths respect reuse restrictions for ${JSON.stringify(headers)}`, () => {
+    const cache = policy({
+      ...headers,
+      'cache-control': headers['cache-control'] + ', stale-if-error=600, stale-while-revalidate=600',
+    });
+    // Astro uses TTL directly without calling evaluateRequest().
+    assert.equal(cache.timeToLive(), 0);
+    assert.equal(cache.useStaleWhileRevalidate(), false);
+    const result = cache.revalidatedPolicy(request, { status: 503, headers: {} });
+    assert.equal(result.modified, true);
+    assert.notEqual(result.policy, cache);
+  });
+}
+
+test('retains stale fallback for ordinary public responses', () => {
+  const cache = policy({ 'cache-control': 'public, max-age=0, stale-if-error=60, stale-while-revalidate=60' });
+  assert.equal(cache.timeToLive(), 58000);
+  assert.equal(cache.useStaleWhileRevalidate(), true);
+  const result = cache.revalidatedPolicy(request, { status: 503, headers: {} });
+  assert.equal(result.modified, false);
+  assert.equal(result.policy, cache);
+});
+
+test('must-revalidate keeps the fresh lifetime without stale extensions', () => {
+  const cache = policy({ 'cache-control': 'public, max-age=60, must-revalidate, stale-if-error=600, stale-while-revalidate=600' });
+  assert.equal(cache.timeToLive(), 58000);
+  cache.now = () => cache._responseTime + 61000;
+  assert.equal(cache.timeToLive(), 0);
+  assert.equal(cache.useStaleWhileRevalidate(), false);
+  assert.equal(cache.revalidatedPolicy(request, { status: 503, headers: {} }).modified, true);
+});
+
+test('Astro remote images do not retain cookie responses via stale TTL extensions', async () => {
+  const { dirname, join } = require('node:path');
+  const { pathToFileURL } = require('node:url');
+  const remote = pathToFileURL(join(dirname(require.resolve('astro/package.json')), 'dist/assets/build/remote.js'));
+  const { loadRemoteImage } = await import(remote.href);
+  const image = await loadRemoteImage('https://example.com/image.png', async () => new Response('image fixture', {
+    headers: { 'set-cookie': 'session=fixture', 'cache-control': 'max-age=60, stale-if-error=600' },
+  }));
+  assert.ok(image.expires <= Date.now());
+});
+
+test('retains ordinary shared/private freshness precedence', () => {
+  for (const [headers, shared, expected] of [
+    [{ 'cache-control': 'public, max-age=60, s-maxage=40' }, true, 38000],
+    [{ 'cache-control': 'public, max-age=60, s-maxage=40' }, false, 58000],
+    [{ 'cache-control': 'proxy-revalidate, max-age=60' }, false, 58000],
+    [{ date: 'Tue, 01 Jan 2030 00:00:00 GMT', expires: 'Tue, 01 Jan 2030 00:01:00 GMT' }, true, 58000],
+  ]) {
+    assert.equal(policy(headers, shared).timeToLive(), expected);
+  }
+});

@@ -9,9 +9,12 @@ watcher dependency paths use this patch. Run `pnpm test src/__tests__/dependency
 `../docs/patches/http-cache-semantics@4.3.0.patch` mitigates
 [GHSA-ch52-4w7c-c8xp](https://github.com/advisories/GHSA-ch52-4w7c-c8xp).
 Version 4.3.0 still allows client `max-stale` to override cache reuse prohibitions.
-The patch makes `evaluateRequest()` require revalidation for non-storable,
-`no-cache`, shared-cookie, and shared `proxy-revalidate` responses. Normally
-expired public responses can still use `max-stale`. Run `pnpm --dir docs test`;
+The patch shares one reuse guard across `maxAge()`, `evaluateRequest()`,
+`timeToLive()` (used directly by Astro), and the stale fallback APIs. Non-storable,
+`no-cache`, shared-cookie, shared `proxy-revalidate`, and wildcard-`Vary`
+responses cannot gain a lifetime from stale directives. `must-revalidate` keeps
+its fresh lifetime but forbids stale extensions. Normally expired public
+responses retain their stale fallback behavior. Run `pnpm --dir docs test`;
 the docs build runs these tests too.
 
 Keep the patches until upstream releases pass these regressions without them.
