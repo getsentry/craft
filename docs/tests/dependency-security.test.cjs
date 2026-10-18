@@ -129,3 +129,31 @@ test('retains ordinary shared/private freshness precedence', () => {
     assert.equal(policy(headers, shared).timeToLive(), expected);
   }
 });
+
+for (const [name, next] of [
+  ['URL', { url: 'https://example.com/other', headers: { host: 'example.com', cookie: 'user=a' } }],
+  ['Vary cookie', { url: 'https://example.com/font', headers: { host: 'example.com', cookie: 'user=b' } }],
+  ['method', { url: 'https://example.com/font', method: 'POST', headers: { host: 'example.com', cookie: 'user=a' } }],
+  ['host', { url: 'https://example.com/font', headers: { host: 'other.example.com', cookie: 'user=a' } }],
+]) {
+  test(`stale-if-error never reuses a mismatched ${name}`, () => {
+    const cache = new CachePolicy({ ...request, headers: { ...request.headers, cookie: 'user=a' } }, {
+      status: 200, headers: { vary: 'cookie', 'cache-control': 'public, max-age=0, stale-if-error=60' },
+    });
+    cache.now = () => cache._responseTime + 2000;
+    const result = cache.revalidatedPolicy(next, { status: 503, headers: {} });
+    assert.equal(result.modified, true);
+    assert.notEqual(result.policy, cache);
+  });
+}
+
+test('stale-if-error retains matching Vary variants and valid HEAD reuse', () => {
+  const same = { ...request, headers: { ...request.headers, cookie: 'user=a' } };
+  const cache = new CachePolicy(same, {
+    status: 200, headers: { vary: 'cookie', 'cache-control': 'public, max-age=0, stale-if-error=60' },
+  });
+  cache.now = () => cache._responseTime + 2000;
+  for (const method of ['GET', 'HEAD']) {
+    assert.equal(cache.revalidatedPolicy({ ...same, method }, { status: 503, headers: {} }).policy, cache);
+  }
+});

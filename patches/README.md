@@ -13,7 +13,8 @@ The patch shares one reuse guard across `maxAge()`, `evaluateRequest()`,
 `timeToLive()` (used directly by Astro), and the stale fallback APIs. Non-storable,
 `no-cache`, shared-cookie, shared `proxy-revalidate`, and wildcard-`Vary`
 responses cannot gain a lifetime from stale directives. `must-revalidate` keeps
-its fresh lifetime but forbids stale extensions. Normally expired public
+its fresh lifetime but forbids stale extensions. Error fallback also requires
+the URL, host, method, and `Vary` variant to match the cached request. Normally expired public
 responses retain their stale fallback behavior. Run `pnpm --dir docs test`;
 the docs build runs these tests too.
 
