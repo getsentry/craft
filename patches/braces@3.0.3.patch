@@ -1,0 +1,16 @@
+diff --git a/lib/parse.js b/lib/parse.js
+index 3a6988e629f52aee6609dc5ec290a5e9ff47cecb..ce5df1566c43c579d79b05fed8d0da9f5caba2c7 100644
+--- a/lib/parse.js
++++ b/lib/parse.js
+@@ -55,6 +55,11 @@ const parse = (input, options = {}) => {
+ 
+   const advance = () => input[index++];
+   const push = node => {
++    // Bound every recursive AST walker, including parentheses mixed with braces.
++    if (node.nodes && stack.length > 100) {
++      throw new SyntaxError('Input exceeds maximum nesting depth (100)');
++    }
++
+     if (node.type === 'text' && prev.type === 'dot') {
+       prev.type = 'text';
+     }
