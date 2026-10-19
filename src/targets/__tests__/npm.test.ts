@@ -368,6 +368,40 @@ describe('NpmTarget.expand', () => {
     expect(result).toHaveLength(1);
     expect((result[0] as any).oidc).toBe(true);
   });
+  it('throws when no workspace packages are found', async () => {
+    discoverWorkspacesMock = vi
+      .spyOn(workspaces, 'discoverWorkspaces')
+      .mockResolvedValue({ type: 'none', packages: [] });
+
+    const config = { name: 'npm', workspaces: true };
+
+    await expect(NpmTarget.expand(config, '/root')).rejects.toThrow(
+      /no workspace packages were found/,
+    );
+  });
+
+  it('throws when no publishable packages are left', async () => {
+    discoverWorkspacesMock = vi
+      .spyOn(workspaces, 'discoverWorkspaces')
+      .mockResolvedValue({
+        type: 'npm',
+        packages: [
+          {
+            name: '@sentry-internal/test-utils',
+            location: '/root/packages/test-utils',
+            private: true,
+            hasPublicAccess: false,
+            workspaceDependencies: [],
+          },
+        ],
+      });
+
+    const config = { name: 'npm', workspaces: true };
+
+    await expect(NpmTarget.expand(config, '/root')).rejects.toThrow(
+      /no publishable packages are left/,
+    );
+  });
 });
 
 describe('getLatestVersion OIDC mode', () => {

@@ -8,8 +8,6 @@ import {
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 
-import pLimit from 'p-limit';
-
 import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
@@ -27,7 +25,6 @@ import {
   discoverDotnetPackages,
   sortDotnetPackages,
   packageIdToNugetArtifactPattern,
-  packageIdToNugetArtifactFromTemplate,
 } from '../utils/dotnetWorkspaces';
 import { filterWorkspacePackages } from '../utils/workspaces';
 import { logger } from '../logger';
@@ -72,12 +69,6 @@ export interface NugetTargetConfig extends TargetConfig {
    * Example: '/\\.Tests$/'
    */
   excludeWorkspaces?: string;
-  /**
-   * Template for generating artifact filenames from package IDs.
-   * Variables: {{packageId}}, {{version}}
-   * Default convention: Sentry.Core -> Sentry.Core.{version}.nupkg
-   */
-  artifactTemplate?: string;
   /** NuGet server URL */
   serverUrl?: string;
 }
@@ -116,10 +107,11 @@ export class NugetTarget extends BaseTarget {
     const result = await discoverDotnetPackages(rootDir, config.solutionPath);
 
     if (!result || result.packages.length === 0) {
-      logger.warn(
-        'nuget target has workspaces enabled but no packable projects were found',
+      throw new ConfigurationError(
+        'nuget target has workspaces enabled but no packable projects were found' +
+          (result ? ` in ${result.solutionPath}` : '') +
+          '. Check that the solution file exists and lists your projects, or set "solutionPath".',
       );
-      return [];
     }
 
     const workspacePackages = result.packages.map(pkg => ({
@@ -147,8 +139,9 @@ export class NugetTarget extends BaseTarget {
     );
 
     if (filteredWorkspacePackages.length === 0) {
-      logger.warn('No publishable NuGet packages found after filtering');
-      return [];
+      throw new ConfigurationError(
+        'nuget target has workspaces enabled but no packages are left after applying "includeWorkspaces"/"excludeWorkspaces"',
+      );
     }
 
     const filteredNames = new Set(filteredWorkspacePackages.map(p => p.name));
@@ -170,20 +163,10 @@ export class NugetTarget extends BaseTarget {
     );
 
     return sortedPackages.map(pkg => {
-      let includeNames: string;
-      if (config.artifactTemplate) {
-        includeNames = packageIdToNugetArtifactFromTemplate(
-          pkg.packageId,
-          config.artifactTemplate,
-        );
-      } else {
-        includeNames = packageIdToNugetArtifactPattern(pkg.packageId);
-      }
-
       const expandedTarget: TargetConfig = {
         name: 'nuget',
         id: pkg.packageId,
-        includeNames,
+        includeNames: packageIdToNugetArtifactPattern(pkg.packageId),
       };
 
       if (config.excludeNames) {
@@ -405,41 +388,32 @@ export class NugetTarget extends BaseTarget {
       DOTNET_SPAWN_OPTIONS,
     );
 
-    // Publish packages with limited concurrency to avoid overwhelming NuGet.org
-    // while still being faster than fully sequential publishing.
-    // When using workspace expansion, packages are already sorted in dependency order.
-    const limit = pLimit(3);
-
     await Promise.all(
-      packageFiles.map((file: RemoteArtifact) =>
-        limit(async () => {
-          const path = await this.artifactProvider.downloadArtifact(file);
+      packageFiles.map(async (file: RemoteArtifact) => {
+        const path = await this.artifactProvider.downloadArtifact(file);
 
-          // If an artifact containing a .snupkg file exists with the same base
-          // name as the .nupkg file, then download it to the same location.
-          // It will be picked up automatically when pushing the .nupkg.
+        // If an artifact containing a .snupkg file exists with the same base
+        // name as the .nupkg file, then download it to the same location.
+        // It will be picked up automatically when pushing the .nupkg.
 
-          // Note, this approach is required vs sending them separately, because
-          // we need to send the .nupkg *first*, and it must succeed before the
-          // .snupkg is sent.
+        // Note, this approach is required vs sending them separately, because
+        // we need to send the .nupkg *first*, and it must succeed before the
+        // .snupkg is sent.
 
-          const symbolFileName = file.filename.replace('.nupkg', '.snupkg');
-          const symbolFile = symbolFiles.find(
-            f => f.filename === symbolFileName,
-          );
-          if (symbolFile) {
-            await this.artifactProvider.downloadArtifact(symbolFile);
-          }
+        const symbolFileName = file.filename.replace('.nupkg', '.snupkg');
+        const symbolFile = symbolFiles.find(f => f.filename === symbolFileName);
+        if (symbolFile) {
+          await this.artifactProvider.downloadArtifact(symbolFile);
+        }
 
-          this.logger.info(
-            `Uploading file "${file.filename}" via "dotnet nuget"` +
-              (symbolFile
-                ? `, including symbol file "${symbolFile.filename}"`
-                : ''),
-          );
-          await this.uploadAsset(path);
-        }),
-      ),
+        this.logger.info(
+          `Uploading file "${file.filename}" via "dotnet nuget"` +
+            (symbolFile
+              ? `, including symbol file "${symbolFile.filename}"`
+              : ''),
+        );
+        return this.uploadAsset(path);
+      }),
     );
 
     this.logger.info('Nuget release complete');

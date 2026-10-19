@@ -7,7 +7,6 @@ import {
   parseCsprojFile,
   sortDotnetPackages,
   packageIdToNugetArtifactPattern,
-  packageIdToNugetArtifactFromTemplate,
   DotnetPackage,
 } from '../dotnetWorkspaces';
 
@@ -224,43 +223,6 @@ describe('packageIdToNugetArtifactPattern', () => {
     expect(packageIdToNugetArtifactPattern('Sentry.Extensions.Logging')).toBe(
       '/^Sentry\\.Extensions\\.Logging\\.\\d.*\\.s?nupkg$/',
     );
-  });
-});
-
-describe('packageIdToNugetArtifactFromTemplate', () => {
-  test('replaces placeholders and escapes special characters', () => {
-    // Basic packageId replacement
-    expect(
-      packageIdToNugetArtifactFromTemplate(
-        'Sentry.Core',
-        '{{packageId}}.nupkg',
-      ),
-    ).toBe('/^Sentry\\.Core\\.nupkg$/');
-
-    // Version with regex pattern
-    expect(
-      packageIdToNugetArtifactFromTemplate(
-        'Sentry.Core',
-        '{{packageId}}.{{version}}.nupkg',
-      ),
-    ).toBe('/^Sentry\\.Core\\.\\d.*\\.nupkg$/');
-
-    // Version with specific value
-    expect(
-      packageIdToNugetArtifactFromTemplate(
-        'Sentry.Core',
-        '{{packageId}}.{{version}}.nupkg',
-        '1.0.0',
-      ),
-    ).toBe('/^Sentry\\.Core\\.1\\.0\\.0\\.nupkg$/');
-
-    // Complex template with paths
-    expect(
-      packageIdToNugetArtifactFromTemplate(
-        'Sentry.Core',
-        'packages/{{packageId}}/{{packageId}}.{{version}}.nupkg',
-      ),
-    ).toBe('/^packages\\/Sentry\\.Core\\/Sentry\\.Core\\.\\d.*\\.nupkg$/');
   });
 });
 

@@ -4,6 +4,7 @@ import * as dotnetWorkspaces from '../../utils/dotnetWorkspaces';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { RemoteArtifact } from '../../artifact_providers/base';
 import { spawnProcess } from '../../utils/system';
+import { ConfigurationError } from '../../utils/errors';
 
 vi.mock('../../utils/system');
 
@@ -21,15 +22,42 @@ describe('NugetTarget.expand', () => {
     expect(result).toEqual([config]);
   });
 
-  it('returns empty array when no packages found', async () => {
+  it('throws when no packages are found', async () => {
     discoverDotnetPackagesMock = vi
       .spyOn(dotnetWorkspaces, 'discoverDotnetPackages')
       .mockResolvedValue(null);
 
     const config = { name: 'nuget', workspaces: true };
-    const result = await NugetTarget.expand(config, '/root');
 
-    expect(result).toEqual([]);
+    await expect(NugetTarget.expand(config, '/root')).rejects.toThrow(
+      ConfigurationError,
+    );
+  });
+
+  it('throws when filters exclude every package', async () => {
+    discoverDotnetPackagesMock = vi
+      .spyOn(dotnetWorkspaces, 'discoverDotnetPackages')
+      .mockResolvedValue({
+        solutionPath: '/root/Sentry.slnx',
+        packages: [
+          {
+            packageId: 'Sentry',
+            projectPath: '/root/src/Sentry/Sentry.csproj',
+            isPackable: true,
+            projectDependencies: [],
+          },
+        ],
+      });
+
+    const config = {
+      name: 'nuget',
+      workspaces: true,
+      includeWorkspaces: '/^Other/',
+    };
+
+    await expect(NugetTarget.expand(config, '/root')).rejects.toThrow(
+      /no packages are left/,
+    );
   });
 
   it('expands to individual targets for each package', async () => {
@@ -160,34 +188,6 @@ describe('NugetTarget.expand', () => {
     expect(result).toHaveLength(1);
     expect(result[0].serverUrl).toBe(
       'https://custom.nuget.server/v3/index.json',
-    );
-  });
-
-  it('uses artifactTemplate when provided', async () => {
-    discoverDotnetPackagesMock = vi
-      .spyOn(dotnetWorkspaces, 'discoverDotnetPackages')
-      .mockResolvedValue({
-        solutionPath: '/root/Sentry.sln',
-        packages: [
-          {
-            packageId: 'Sentry.Core',
-            projectPath: '/root/src/Sentry.Core/Sentry.Core.csproj',
-            isPackable: true,
-            projectDependencies: [],
-          },
-        ],
-      });
-
-    const config = {
-      name: 'nuget',
-      workspaces: true,
-      artifactTemplate: 'packages/{{packageId}}.{{version}}.nupkg',
-    };
-    const result = await NugetTarget.expand(config, '/root');
-
-    expect(result).toHaveLength(1);
-    expect(result[0].includeNames).toBe(
-      '/^packages\\/Sentry\\.Core\\.\\d.*\\.nupkg$/',
     );
   });
 
