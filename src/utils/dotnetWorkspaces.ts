@@ -1,10 +1,14 @@
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import * as path from 'path';
 import { glob } from 'glob';
 import { XMLParser } from 'fast-xml-parser';
 
 import { logger } from '../logger';
-import { WorkspacePackage, topologicalSortPackages, escapeRegex } from './workspaces';
+import {
+  WorkspacePackage,
+  topologicalSortPackages,
+  escapeRegex,
+} from './workspaces';
 
 /**
  * Check if an error is a "file not found" error
@@ -33,32 +37,261 @@ export interface DotnetDiscoveryResult {
   solutionPath: string;
 }
 
-/** Parsed .csproj PropertyGroup structure */
-interface CsprojPropertyGroup {
-  PackageId?: string;
-  IsPackable?: boolean | string;
+/**
+ * A parsed MSBuild property value. Elements with attributes (e.g. a
+ * `Condition`) are parsed into objects rather than plain scalars.
+ */
+type MsbuildValue =
+  | string
+  | number
+  | boolean
+  | { '#text'?: string | number | boolean; '@_Condition'?: string };
+
+/** Parsed MSBuild PropertyGroup structure */
+interface MsbuildPropertyGroup {
+  '@_Condition'?: string;
+  PackageId?: MsbuildValue;
+  IsPackable?: MsbuildValue;
 }
 
-/** Parsed .csproj ItemGroup structure */
-interface CsprojItemGroup {
-  ProjectReference?:
-    | Array<{ '@_Include': string }>
-    | { '@_Include': string };
+/** Parsed MSBuild ItemGroup structure */
+interface MsbuildItemGroup {
+  ProjectReference?: Array<{ '@_Include'?: string }>;
 }
 
-/** Parsed .csproj structure */
-interface CsprojProject {
+/** Parsed MSBuild project file (.csproj, Directory.Build.props, ...) */
+interface MsbuildProject {
   Project?: {
-    PropertyGroup?: CsprojPropertyGroup | CsprojPropertyGroup[];
-    ItemGroup?: CsprojItemGroup | CsprojItemGroup[];
+    PropertyGroup?: MsbuildPropertyGroup[];
+    ItemGroup?: MsbuildItemGroup[];
+    Import?: Array<{ '@_Project'?: string; '@_Condition'?: string }>;
   };
+}
+
+/** A parsed .slnx Folder or Solution node; both may contain projects */
+interface SlnxContainer {
+  Project?: Array<{ '@_Path'?: string }>;
+  Folder?: SlnxContainer[];
 }
 
 /** Parsed .slnx structure */
 interface SlnxSolution {
-  Solution?: {
-    Project?: Array<{ '@_Path': string }> | { '@_Path': string };
-  };
+  Solution?: SlnxContainer;
+}
+
+/** Name of the MSBuild file the .NET SDK auto-imports into every project */
+const DIRECTORY_BUILD_PROPS = 'Directory.Build.props';
+
+/** Properties craft reads from MSBuild files */
+interface MsbuildProperties {
+  packageId?: string;
+  isPackable?: boolean;
+}
+
+/** Elements that may repeat, so the parser always yields arrays for them */
+const MSBUILD_ARRAY_TAGS = new Set([
+  'PropertyGroup',
+  'ItemGroup',
+  'ProjectReference',
+  'Import',
+]);
+const SLNX_ARRAY_TAGS = new Set(['Project', 'Folder']);
+
+function createXmlParser(arrayTags: Set<string>): XMLParser {
+  return new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '@_',
+    isArray: name => arrayTags.has(name),
+  });
+}
+
+/**
+ * Returns the unconditional scalar value of an MSBuild property, or
+ * `undefined` if it is conditional, empty, or depends on other properties.
+ * Craft does not evaluate MSBuild, so only static values are trusted.
+ */
+function staticPropertyValue(
+  value: MsbuildValue | undefined,
+): string | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value === 'object') {
+    // Element has attributes; a Condition means the value is not static.
+    if (value['@_Condition'] !== undefined || value['#text'] === undefined) {
+      return undefined;
+    }
+    value = value['#text'];
+  }
+  const str = String(value).trim();
+  if (!str || str.includes('$(')) {
+    return undefined;
+  }
+  return str;
+}
+
+/**
+ * Collects static `PackageId` / `IsPackable` values from the unconditional
+ * property groups of a parsed MSBuild project. Later values win, matching
+ * MSBuild's evaluation order.
+ */
+function readMsbuildProperties(
+  project: NonNullable<MsbuildProject['Project']>,
+  into: MsbuildProperties = {},
+): MsbuildProperties {
+  for (const pg of project.PropertyGroup ?? []) {
+    if (pg['@_Condition'] !== undefined) {
+      continue;
+    }
+    const packageId = staticPropertyValue(pg.PackageId);
+    if (packageId) {
+      into.packageId = packageId;
+    }
+    const isPackable = staticPropertyValue(pg.IsPackable);
+    if (isPackable !== undefined) {
+      into.isPackable = isPackable.toLowerCase() === 'true';
+    }
+  }
+  return into;
+}
+
+/** Reads and parses an MSBuild file, returning its Project element */
+function readMsbuildFile(
+  filePath: string,
+): NonNullable<MsbuildProject['Project']> | null {
+  let parsed: MsbuildProject;
+  try {
+    parsed = createXmlParser(MSBUILD_ARRAY_TAGS).parse(
+      readFileSync(filePath, 'utf-8'),
+    );
+  } catch (err) {
+    if (!isNotFoundError(err)) {
+      logger.warn(`Failed to parse ${filePath}:`, err);
+    }
+    return null;
+  }
+  return parsed.Project ?? null;
+}
+
+/**
+ * Resolves the `<Import Project="..." />` paths of an MSBuild file that can
+ * be determined statically (no `$(...)` properties) and exist on disk.
+ */
+function staticImportPaths(
+  project: NonNullable<MsbuildProject['Project']>,
+  filePath: string,
+  { includeConditional }: { includeConditional: boolean },
+): string[] {
+  const result: string[] = [];
+  for (const imp of project.Import ?? []) {
+    const importPath = imp['@_Project'];
+    if (
+      !importPath ||
+      importPath.includes('$(') ||
+      (!includeConditional && imp['@_Condition'] !== undefined)
+    ) {
+      continue;
+    }
+    const resolved = path.resolve(
+      path.dirname(filePath),
+      importPath.replace(/\\/g, '/'),
+    );
+    if (/\.(props|targets)$/.test(resolved) && existsSync(resolved)) {
+      result.push(resolved);
+    }
+  }
+  return result;
+}
+
+/**
+ * Evaluates a props file (e.g. Directory.Build.props) for the properties
+ * craft cares about, following unconditional static imports so that a
+ * nested Directory.Build.props importing its parent is handled.
+ */
+function evaluatePropsFile(
+  propsPath: string,
+  into: MsbuildProperties,
+  visited: Set<string>,
+): void {
+  if (visited.has(propsPath)) {
+    return;
+  }
+  visited.add(propsPath);
+
+  const project = readMsbuildFile(propsPath);
+  if (!project) {
+    return;
+  }
+  // Imports normally precede property groups, so evaluate them first.
+  for (const importPath of staticImportPaths(project, propsPath, {
+    includeConditional: false,
+  })) {
+    evaluatePropsFile(importPath, into, visited);
+  }
+  readMsbuildProperties(project, into);
+}
+
+/**
+ * Collects the names of all projects referenced via `<ProjectReference>`,
+ * including references in statically imported files. Conditions are
+ * ignored on purpose: a reference that only applies to some target
+ * frameworks (e.g. Android bindings) is still a NuGet dependency that must
+ * be published first.
+ */
+function collectProjectReferences(
+  project: NonNullable<MsbuildProject['Project']>,
+  filePath: string,
+  into: Set<string>,
+  visited: Set<string>,
+): void {
+  visited.add(filePath);
+  for (const ig of project.ItemGroup ?? []) {
+    for (const ref of ig.ProjectReference ?? []) {
+      const includePath = ref['@_Include'];
+      if (includePath) {
+        const normalizedPath = includePath.replace(/\\/g, '/');
+        into.add(path.basename(normalizedPath, '.csproj'));
+      }
+    }
+  }
+  for (const importPath of staticImportPaths(project, filePath, {
+    includeConditional: true,
+  })) {
+    if (visited.has(importPath)) {
+      continue;
+    }
+    const imported = readMsbuildFile(importPath);
+    if (imported) {
+      collectProjectReferences(imported, importPath, into, visited);
+    }
+  }
+}
+
+/**
+ * Finds the Directory.Build.props the .NET SDK would auto-import for a
+ * project: the nearest one walking up from the project directory, without
+ * leaving `rootDir`.
+ */
+function findDirectoryBuildProps(
+  projectPath: string,
+  rootDir: string,
+): string | null {
+  const root = path.resolve(rootDir);
+  let dir = path.dirname(path.resolve(projectPath));
+  for (;;) {
+    const candidate = path.join(dir, DIRECTORY_BUILD_PROPS);
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+    if (dir === root) {
+      return null;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir || !parent.startsWith(root)) {
+      return null;
+    }
+    dir = parent;
+  }
 }
 
 /**
@@ -119,14 +352,9 @@ export function parseSlnxFile(solutionPath: string): string[] {
     throw err;
   }
 
-  const parser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: '@_',
-  });
-
   let parsed: SlnxSolution;
   try {
-    parsed = parser.parse(content);
+    parsed = createXmlParser(SLNX_ARRAY_TAGS).parse(content);
   } catch (err) {
     logger.warn(`Failed to parse slnx file ${solutionPath}:`, err);
     return [];
@@ -135,7 +363,7 @@ export function parseSlnxFile(solutionPath: string): string[] {
   const solution = parsed.Solution;
   if (!solution) {
     logger.warn(
-      `Invalid slnx structure in ${solutionPath}: missing Solution element`
+      `Invalid slnx structure in ${solutionPath}: missing Solution element`,
     );
     return [];
   }
@@ -143,20 +371,20 @@ export function parseSlnxFile(solutionPath: string): string[] {
   const solutionDir = path.dirname(solutionPath);
   const projectPaths: string[] = [];
 
-  const projects = solution.Project
-    ? Array.isArray(solution.Project)
-      ? solution.Project
-      : [solution.Project]
-    : [];
-
-  for (const project of projects) {
-    const projectPath = project['@_Path'];
-    if (projectPath && projectPath.endsWith('.csproj')) {
-      const normalizedPath = projectPath.replace(/\\/g, '/');
-      const absolutePath = path.resolve(solutionDir, normalizedPath);
-      projectPaths.push(absolutePath);
+  // Projects can live at the top level or inside (nested) Folder elements.
+  const collect = (container: SlnxContainer): void => {
+    for (const project of container.Project ?? []) {
+      const projectPath = project['@_Path'];
+      if (projectPath && projectPath.endsWith('.csproj')) {
+        const normalizedPath = projectPath.replace(/\\/g, '/');
+        projectPaths.push(path.resolve(solutionDir, normalizedPath));
+      }
     }
-  }
+    for (const folder of container.Folder ?? []) {
+      collect(folder);
+    }
+  };
+  collect(solution);
 
   return projectPaths;
 }
@@ -165,10 +393,19 @@ export function parseSlnxFile(solutionPath: string): string[] {
  * Parse a .csproj file and extract package information.
  * Uses XML parsing - no code execution.
  *
+ * When `rootDir` is given, `PackageId` and `IsPackable` defaults are also
+ * read from the Directory.Build.props the .NET SDK would import for the
+ * project (and any props files it statically imports), since repos commonly
+ * set `IsPackable` there for whole directories such as `test/`.
+ *
  * @param projectPath Absolute path to the .csproj file
+ * @param rootDir Optional repository root bounding the Directory.Build.props lookup
  * @returns DotnetPackage info or null if not found/parseable
  */
-export function parseCsprojFile(projectPath: string): DotnetPackage | null {
+export function parseCsprojFile(
+  projectPath: string,
+  rootDir?: string,
+): DotnetPackage | null {
   let content: string;
   try {
     content = readFileSync(projectPath, 'utf-8');
@@ -180,14 +417,9 @@ export function parseCsprojFile(projectPath: string): DotnetPackage | null {
     throw err;
   }
 
-  const parser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: '@_',
-  });
-
-  let parsed: CsprojProject;
+  let parsed: MsbuildProject;
   try {
-    parsed = parser.parse(content);
+    parsed = createXmlParser(MSBUILD_ARRAY_TAGS).parse(content);
   } catch (err) {
     logger.warn(`Failed to parse csproj file ${projectPath}:`, err);
     return null;
@@ -195,63 +427,31 @@ export function parseCsprojFile(projectPath: string): DotnetPackage | null {
 
   const project = parsed.Project;
   if (!project) {
-    logger.warn(`Invalid csproj structure in ${projectPath}: missing Project element`);
+    logger.warn(
+      `Invalid csproj structure in ${projectPath}: missing Project element`,
+    );
     return null;
   }
 
-  // Extract PackageId and IsPackable from PropertyGroup(s)
-  let packageId: string | undefined;
-  let isPackable = true; // Default to true for SDK-style projects
-
-  const propertyGroups = Array.isArray(project.PropertyGroup)
-    ? project.PropertyGroup
-    : project.PropertyGroup
-      ? [project.PropertyGroup]
-      : [];
-
-  for (const pg of propertyGroups) {
-    if (pg.PackageId && !packageId) {
-      packageId = pg.PackageId;
-    }
-    if (pg.IsPackable !== undefined) {
-      // IsPackable can be boolean or string "true"/"false"
-      isPackable =
-        pg.IsPackable === true ||
-        pg.IsPackable === 'true' ||
-        pg.IsPackable === 'True';
+  // Directory.Build.props is imported before the project body, so the
+  // project's own properties override it.
+  const properties: MsbuildProperties = {};
+  if (rootDir) {
+    const propsPath = findDirectoryBuildProps(projectPath, rootDir);
+    if (propsPath) {
+      evaluatePropsFile(propsPath, properties, new Set());
     }
   }
+  readMsbuildProperties(project, properties);
 
-  // Use project filename (without extension) as fallback for PackageId
-  if (!packageId) {
-    packageId = path.basename(projectPath, '.csproj');
-  }
+  const packageId =
+    properties.packageId ?? path.basename(projectPath, '.csproj');
+  // SDK-style projects are packable unless stated otherwise
+  const isPackable = properties.isPackable ?? true;
 
-  // Extract ProjectReference dependencies
-  const projectDependencies: string[] = [];
-  const itemGroups = Array.isArray(project.ItemGroup)
-    ? project.ItemGroup
-    : project.ItemGroup
-      ? [project.ItemGroup]
-      : [];
-
-  for (const ig of itemGroups) {
-    if (!ig.ProjectReference) continue;
-
-    const refs = Array.isArray(ig.ProjectReference)
-      ? ig.ProjectReference
-      : [ig.ProjectReference];
-
-    for (const ref of refs) {
-      const includePath = ref['@_Include'];
-      if (includePath) {
-        // Normalize and extract the project name from the reference path
-        const normalizedPath = includePath.replace(/\\/g, '/');
-        const refProjectName = path.basename(normalizedPath, '.csproj');
-        projectDependencies.push(refProjectName);
-      }
-    }
-  }
+  const references = new Set<string>();
+  collectProjectReferences(project, projectPath, references, new Set());
+  const projectDependencies = [...references];
 
   return {
     packageId,
@@ -269,7 +469,7 @@ export function parseCsprojFile(projectPath: string): DotnetPackage | null {
  * @returns Path to the solution file found, or null
  */
 export async function findSolutionFile(
-  rootDir: string
+  rootDir: string,
 ): Promise<string | null> {
   // Check for .slnx first (newer XML format)
   const slnxMatches = await glob('*.slnx', {
@@ -280,7 +480,7 @@ export async function findSolutionFile(
   if (slnxMatches.length > 0) {
     if (slnxMatches.length > 1) {
       logger.warn(
-        `Multiple .slnx files found in ${rootDir}, using first one: ${slnxMatches[0]}`
+        `Multiple .slnx files found in ${rootDir}, using first one: ${slnxMatches[0]}`,
       );
     }
     return slnxMatches[0];
@@ -298,7 +498,7 @@ export async function findSolutionFile(
 
   if (slnMatches.length > 1) {
     logger.warn(
-      `Multiple .sln files found in ${rootDir}, using first one: ${slnMatches[0]}`
+      `Multiple .sln files found in ${rootDir}, using first one: ${slnMatches[0]}`,
     );
   }
 
@@ -316,7 +516,7 @@ export async function findSolutionFile(
  */
 export async function discoverDotnetPackages(
   rootDir: string,
-  solutionPath?: string
+  solutionPath?: string,
 ): Promise<DotnetDiscoveryResult | null> {
   // Resolve solution path
   let resolvedSolutionPath: string;
@@ -348,26 +548,30 @@ export async function discoverDotnetPackages(
 
   // Parse each project file
   const packages: DotnetPackage[] = [];
-  const packageIdSet = new Set<string>();
+  // ProjectReference points at project files, whose name may differ from
+  // the PackageId, so map project names to package IDs.
+  const projectNameToPackageId = new Map<string, string>();
 
   for (const projectPath of projectPaths) {
-    const pkg = parseCsprojFile(projectPath);
+    const pkg = parseCsprojFile(projectPath, rootDir);
     if (pkg && pkg.isPackable) {
       packages.push(pkg);
-      packageIdSet.add(pkg.packageId);
+      projectNameToPackageId.set(
+        path.basename(projectPath, '.csproj'),
+        pkg.packageId,
+      );
     }
   }
 
-  // Filter projectDependencies to only include packages in our set
-  // (convert project names to package IDs where possible)
+  // Only keep dependencies on other packable projects in the solution
   for (const pkg of packages) {
-    pkg.projectDependencies = pkg.projectDependencies.filter(dep =>
-      packageIdSet.has(dep)
-    );
+    pkg.projectDependencies = pkg.projectDependencies
+      .map(dep => projectNameToPackageId.get(dep))
+      .filter((dep): dep is string => dep !== undefined);
   }
 
   logger.debug(
-    `Discovered ${packages.length} packable projects: ${packages.map(p => p.packageId).join(', ')}`
+    `Discovered ${packages.length} packable projects: ${packages.map(p => p.packageId).join(', ')}`,
   );
 
   return {
@@ -384,7 +588,7 @@ export async function discoverDotnetPackages(
  * @returns Array of WorkspacePackage
  */
 export function dotnetPackagesToWorkspacePackages(
-  packages: DotnetPackage[]
+  packages: DotnetPackage[],
 ): WorkspacePackage[] {
   return packages.map(pkg => ({
     name: pkg.packageId,
@@ -445,7 +649,7 @@ export function packageIdToNugetArtifactPattern(packageId: string): string {
 export function packageIdToNugetArtifactFromTemplate(
   packageId: string,
   template: string,
-  version = '\\d.*'
+  version = '\\d.*',
 ): string {
   const PACKAGE_ID_PLACEHOLDER = '\x00PKGID\x00';
   const VERSION_PLACEHOLDER = '\x00VERSION\x00';
@@ -461,7 +665,10 @@ export function packageIdToNugetArtifactFromTemplate(
   // Replace placeholders with escaped values
   const versionValue = version === '\\d.*' ? version : escapeRegex(version);
   result = result
-    .replace(new RegExp(escapeRegex(PACKAGE_ID_PLACEHOLDER), 'g'), escapeRegex(packageId))
+    .replace(
+      new RegExp(escapeRegex(PACKAGE_ID_PLACEHOLDER), 'g'),
+      escapeRegex(packageId),
+    )
     .replace(new RegExp(escapeRegex(VERSION_PLACEHOLDER), 'g'), versionValue);
 
   return `/^${result}$/`;

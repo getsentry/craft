@@ -22,13 +22,16 @@ describe('parseSolutionFile', () => {
 
     // Paths should be absolute and normalized
     expect(projectPaths).toContain(
-      resolve(fixturesDir, 'simple-solution/src/Sentry.Core/Sentry.Core.csproj')
+      resolve(
+        fixturesDir,
+        'simple-solution/src/Sentry.Core/Sentry.Core.csproj',
+      ),
     );
     expect(projectPaths).toContain(
       resolve(
         fixturesDir,
-        'simple-solution/src/Sentry.AspNetCore/Sentry.AspNetCore.csproj'
-      )
+        'simple-solution/src/Sentry.AspNetCore/Sentry.AspNetCore.csproj',
+      ),
     );
   });
 
@@ -47,13 +50,13 @@ describe('parseSlnxFile', () => {
 
     expect(projectPaths).toHaveLength(2);
     expect(projectPaths).toContain(
-      resolve(fixturesDir, 'slnx-solution/src/Sentry.Core/Sentry.Core.csproj')
+      resolve(fixturesDir, 'slnx-solution/src/Sentry.Core/Sentry.Core.csproj'),
     );
     expect(projectPaths).toContain(
       resolve(
         fixturesDir,
-        'slnx-solution/src/Sentry.AspNetCore/Sentry.AspNetCore.csproj'
-      )
+        'slnx-solution/src/Sentry.AspNetCore/Sentry.AspNetCore.csproj',
+      ),
     );
   });
 
@@ -69,7 +72,7 @@ describe('parseCsprojFile', () => {
   test('parses csproj file and extracts package info', () => {
     const projectPath = resolve(
       fixturesDir,
-      'simple-solution/src/Sentry.Core/Sentry.Core.csproj'
+      'simple-solution/src/Sentry.Core/Sentry.Core.csproj',
     );
     const pkg = parseCsprojFile(projectPath);
 
@@ -82,7 +85,7 @@ describe('parseCsprojFile', () => {
   test('extracts project references from csproj', () => {
     const projectPath = resolve(
       fixturesDir,
-      'simple-solution/src/Sentry.AspNetCore/Sentry.AspNetCore.csproj'
+      'simple-solution/src/Sentry.AspNetCore/Sentry.AspNetCore.csproj',
     );
     const pkg = parseCsprojFile(projectPath);
 
@@ -102,7 +105,7 @@ describe('parseCsprojFile', () => {
 describe('discoverDotnetPackages', () => {
   test('discovers packages from solution file', async () => {
     const result = await discoverDotnetPackages(
-      resolve(fixturesDir, 'simple-solution')
+      resolve(fixturesDir, 'simple-solution'),
     );
 
     expect(result).not.toBeNull();
@@ -115,7 +118,7 @@ describe('discoverDotnetPackages', () => {
   test('discovers packages with explicit solution path', async () => {
     const result = await discoverDotnetPackages(
       fixturesDir,
-      'simple-solution/Sentry.sln'
+      'simple-solution/Sentry.sln',
     );
 
     expect(result).not.toBeNull();
@@ -124,7 +127,7 @@ describe('discoverDotnetPackages', () => {
 
   test('returns null when no solution file found', async () => {
     const result = await discoverDotnetPackages(
-      resolve(fixturesDir, 'no-solution')
+      resolve(fixturesDir, 'no-solution'),
     );
 
     expect(result).toBeNull();
@@ -132,7 +135,7 @@ describe('discoverDotnetPackages', () => {
 
   test('returns null for non-existent directory', async () => {
     const result = await discoverDotnetPackages(
-      resolve(fixturesDir, 'does-not-exist')
+      resolve(fixturesDir, 'does-not-exist'),
     );
 
     expect(result).toBeNull();
@@ -140,11 +143,11 @@ describe('discoverDotnetPackages', () => {
 
   test('filters dependencies to only include workspace packages', async () => {
     const result = await discoverDotnetPackages(
-      resolve(fixturesDir, 'simple-solution')
+      resolve(fixturesDir, 'simple-solution'),
     );
 
     const aspNetCore = result?.packages.find(
-      p => p.packageId === 'Sentry.AspNetCore'
+      p => p.packageId === 'Sentry.AspNetCore',
     );
 
     // Sentry.AspNetCore depends on Sentry.Core (which is in the workspace)
@@ -179,7 +182,7 @@ describe('sortDotnetPackages', () => {
 
   test('sorts complex dependency graph', async () => {
     const result = await discoverDotnetPackages(
-      resolve(fixturesDir, 'complex-solution')
+      resolve(fixturesDir, 'complex-solution'),
     );
 
     expect(result).not.toBeNull();
@@ -216,10 +219,10 @@ describe('packageIdToNugetArtifactPattern', () => {
 
   test('escapes dots in package ID', () => {
     expect(packageIdToNugetArtifactPattern('Sentry')).toBe(
-      '/^Sentry\\.\\d.*\\.s?nupkg$/'
+      '/^Sentry\\.\\d.*\\.s?nupkg$/',
     );
     expect(packageIdToNugetArtifactPattern('Sentry.Extensions.Logging')).toBe(
-      '/^Sentry\\.Extensions\\.Logging\\.\\d.*\\.s?nupkg$/'
+      '/^Sentry\\.Extensions\\.Logging\\.\\d.*\\.s?nupkg$/',
     );
   });
 });
@@ -228,15 +231,18 @@ describe('packageIdToNugetArtifactFromTemplate', () => {
   test('replaces placeholders and escapes special characters', () => {
     // Basic packageId replacement
     expect(
-      packageIdToNugetArtifactFromTemplate('Sentry.Core', '{{packageId}}.nupkg')
+      packageIdToNugetArtifactFromTemplate(
+        'Sentry.Core',
+        '{{packageId}}.nupkg',
+      ),
     ).toBe('/^Sentry\\.Core\\.nupkg$/');
 
     // Version with regex pattern
     expect(
       packageIdToNugetArtifactFromTemplate(
         'Sentry.Core',
-        '{{packageId}}.{{version}}.nupkg'
-      )
+        '{{packageId}}.{{version}}.nupkg',
+      ),
     ).toBe('/^Sentry\\.Core\\.\\d.*\\.nupkg$/');
 
     // Version with specific value
@@ -244,16 +250,76 @@ describe('packageIdToNugetArtifactFromTemplate', () => {
       packageIdToNugetArtifactFromTemplate(
         'Sentry.Core',
         '{{packageId}}.{{version}}.nupkg',
-        '1.0.0'
-      )
+        '1.0.0',
+      ),
     ).toBe('/^Sentry\\.Core\\.1\\.0\\.0\\.nupkg$/');
 
     // Complex template with paths
     expect(
       packageIdToNugetArtifactFromTemplate(
         'Sentry.Core',
-        'packages/{{packageId}}/{{packageId}}.{{version}}.nupkg'
-      )
+        'packages/{{packageId}}/{{packageId}}.{{version}}.nupkg',
+      ),
     ).toBe('/^packages\\/Sentry\\.Core\\/Sentry\\.Core\\.\\d.*\\.nupkg$/');
+  });
+});
+
+describe('MSBuild-aware discovery', () => {
+  const rootDir = resolve(fixturesDir, 'msbuild-solution');
+
+  test('finds projects nested in slnx Folder elements', () => {
+    const projectPaths = parseSlnxFile(resolve(rootDir, 'Sentry.slnx'));
+
+    expect(projectPaths).toHaveLength(5);
+    expect(projectPaths).toContain(
+      resolve(rootDir, 'test/Sentry.Tests/Sentry.Tests.csproj'),
+    );
+  });
+
+  test('inherits IsPackable from Directory.Build.props', () => {
+    const pkg = parseCsprojFile(
+      resolve(rootDir, 'test/Sentry.Tests/Sentry.Tests.csproj'),
+      rootDir,
+    );
+
+    expect(pkg?.isPackable).toBe(false);
+  });
+
+  test('ignores Directory.Build.props without rootDir', () => {
+    const pkg = parseCsprojFile(
+      resolve(rootDir, 'test/Sentry.Tests/Sentry.Tests.csproj'),
+    );
+
+    expect(pkg?.isPackable).toBe(true);
+  });
+
+  test('ignores conditional IsPackable values', () => {
+    const pkg = parseCsprojFile(
+      resolve(rootDir, 'src/Sentry.Maui/Sentry.Maui.csproj'),
+      rootDir,
+    );
+
+    expect(pkg?.isPackable).toBe(true);
+  });
+
+  test('collects project references from conditionally imported files', () => {
+    const pkg = parseCsprojFile(
+      resolve(rootDir, 'src/Sentry/Sentry.csproj'),
+      rootDir,
+    );
+
+    expect(pkg?.projectDependencies).toEqual(['Sentry.Bindings.Android']);
+  });
+
+  test('discovers only packable projects and maps references to package IDs', async () => {
+    const result = await discoverDotnetPackages(rootDir);
+
+    expect(result?.solutionPath).toBe(resolve(rootDir, 'Sentry.slnx'));
+    const sorted = sortDotnetPackages(result!.packages);
+    expect(sorted.map(p => [p.packageId, p.projectDependencies])).toEqual([
+      ['Sentry.Android.Bindings', []],
+      ['Sentry', ['Sentry.Android.Bindings']],
+      ['Sentry.Maui', ['Sentry']],
+    ]);
   });
 });

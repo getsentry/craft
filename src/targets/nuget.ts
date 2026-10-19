@@ -56,8 +56,8 @@ export interface NugetTargetConfig extends TargetConfig {
    */
   workspaces?: boolean;
   /**
-   * Path to the solution file (.sln) relative to the repository root.
-   * If not specified, auto-discovers the first .sln file in the root directory.
+   * Path to the solution file (.slnx or .sln) relative to the repository root.
+   * If not specified, auto-discovers a solution file in the root directory, preferring .slnx.
    */
   solutionPath?: string;
   /**
@@ -107,7 +107,7 @@ export class NugetTarget extends BaseTarget {
    */
   public static async expand(
     config: NugetTargetConfig,
-    rootDir: string
+    rootDir: string,
   ): Promise<TargetConfig[]> {
     if (!config.workspaces) {
       return [config];
@@ -117,7 +117,7 @@ export class NugetTarget extends BaseTarget {
 
     if (!result || result.packages.length === 0) {
       logger.warn(
-        'nuget target has workspaces enabled but no packable projects were found'
+        'nuget target has workspaces enabled but no packable projects were found',
       );
       return [];
     }
@@ -143,7 +143,7 @@ export class NugetTarget extends BaseTarget {
     const filteredWorkspacePackages = filterWorkspacePackages(
       workspacePackages,
       includePattern,
-      excludePattern
+      excludePattern,
     );
 
     if (filteredWorkspacePackages.length === 0) {
@@ -153,20 +153,20 @@ export class NugetTarget extends BaseTarget {
 
     const filteredNames = new Set(filteredWorkspacePackages.map(p => p.name));
     const filteredPackages = result.packages.filter(p =>
-      filteredNames.has(p.packageId)
+      filteredNames.has(p.packageId),
     );
 
     const sortedPackages = sortDotnetPackages(filteredPackages);
 
     logger.info(
-      `Discovered ${sortedPackages.length} publishable NuGet packages from ${result.solutionPath}`
+      `Discovered ${sortedPackages.length} publishable NuGet packages from ${result.solutionPath}`,
     );
     logger.debug(
       `Expanding nuget workspace target to ${
         sortedPackages.length
       } packages (dependency order): ${sortedPackages
         .map(p => p.packageId)
-        .join(', ')}`
+        .join(', ')}`,
     );
 
     return sortedPackages.map(pkg => {
@@ -174,7 +174,7 @@ export class NugetTarget extends BaseTarget {
       if (config.artifactTemplate) {
         includeNames = packageIdToNugetArtifactFromTemplate(
           pkg.packageId,
-          config.artifactTemplate
+          config.artifactTemplate,
         );
       } else {
         includeNames = packageIdToNugetArtifactPattern(pkg.packageId);
@@ -373,12 +373,20 @@ export class NugetTarget extends BaseTarget {
    */
   public async publish(_version: string, revision: string): Promise<any> {
     this.logger.debug('Fetching artifact list...');
-    const packageFiles = await this.getArtifactsForRevision(revision, {
-      includeNames: DEFAULT_NUGET_REGEX,
-    });
-    const symbolFiles = await this.getArtifactsForRevision(revision, {
-      includeNames: SYMBOLS_NUGET_REGEX,
-    });
+    // A target-level `includeNames` (e.g. from workspace expansion) overrides
+    // the default regexes and may match both .nupkg and .snupkg files, so
+    // split by extension. Symbol packages are pushed alongside their .nupkg
+    // and must never be pushed on their own.
+    const packageFiles = (
+      await this.getArtifactsForRevision(revision, {
+        includeNames: DEFAULT_NUGET_REGEX,
+      })
+    ).filter(file => file.filename.endsWith('.nupkg'));
+    const symbolFiles = (
+      await this.getArtifactsForRevision(revision, {
+        includeNames: SYMBOLS_NUGET_REGEX,
+      })
+    ).filter(file => file.filename.endsWith('.snupkg'));
 
     if (!packageFiles.length) {
       reportError(
@@ -416,7 +424,9 @@ export class NugetTarget extends BaseTarget {
           // .snupkg is sent.
 
           const symbolFileName = file.filename.replace('.nupkg', '.snupkg');
-          const symbolFile = symbolFiles.find(f => f.filename === symbolFileName);
+          const symbolFile = symbolFiles.find(
+            f => f.filename === symbolFileName,
+          );
           if (symbolFile) {
             await this.artifactProvider.downloadArtifact(symbolFile);
           }
@@ -425,11 +435,11 @@ export class NugetTarget extends BaseTarget {
             `Uploading file "${file.filename}" via "dotnet nuget"` +
               (symbolFile
                 ? `, including symbol file "${symbolFile.filename}"`
-                : '')
+                : ''),
           );
           await this.uploadAsset(path);
-        })
-      )
+        }),
+      ),
     );
 
     this.logger.info('Nuget release complete');
