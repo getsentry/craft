@@ -1,11 +1,14 @@
-FROM node:22-bookworm-slim AS builder
+FROM node:24.18.0-bookworm-slim AS builder
 
 WORKDIR /usr/local/lib
 
-COPY package.json yarn.lock ./
-RUN export YARN_CACHE_FOLDER="$(mktemp -d)" \
-  && yarn install --frozen-lockfile --quiet \
-  && rm -r "$YARN_CACHE_FOLDER"
+# Install pnpm (version from Volta config in package.json)
+COPY package.json ./
+RUN npm install -g pnpm@$(node -p "require('./package.json').volta.pnpm")
+
+COPY package.json pnpm-lock.yaml ./
+COPY patches ./patches
+RUN pnpm install --frozen-lockfile --quiet
 
 COPY . .
 
@@ -13,9 +16,9 @@ RUN \
   NODE_ENV=production \
   NODE_PATH=/usr/local/lib/node_modules \
   PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/lib/node_modules/.bin" \
-  yarn --modules-folder /usr/local/lib/node_modules build
+  pnpm build
 
-FROM node:22-bookworm
+FROM node:24.18.0-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive \
   DOTNET_CLI_TELEMETRY_OPTOUT=1 \
@@ -97,6 +100,10 @@ RUN curl -fsSL https://github.com/PowerShell/PowerShell/releases/download/v7.4.1
   && apt-get install -f \
   && apt-get clean \
   && rm /opt/powershell.deb
+
+# Wrangler CLI for the "cloudflare" target (pinned; pulls the workerd binary)
+RUN npm install -g wrangler@4.111.0 \
+  && wrangler --version
 
 # craft does `git` things against mounted directories as root
 RUN git config --global --add safe.directory '*'

@@ -1,0 +1,200 @@
+name: Build Craft for release
+on:
+  workflow_call:
+    secrets:
+      SENTRY_AUTH_TOKEN:
+        description: Optional Sentry source-map upload credential for master builds
+        required: false
+
+# Keep the release build separate from build.yml's GHCR publishing jobs.
+# External release callers must not need packages: write for skipped jobs.
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        node: ['22', '24']
+    name: Node ${{ matrix.node }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '${{ matrix.node }}'
+      - name: Get pnpm version from Volta config
+        id: pnpm-version
+        run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: ${{ steps.pnpm-version.outputs.version }}
+      - uses: actions/cache@v5
+        id: cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
+      - name: Install Dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Test
+        run: pnpm test
+
+  build:
+    name: Build
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment: ${{ github.ref == 'refs/heads/master' && 'production' }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+      - name: Get pnpm version from Volta config
+        id: pnpm-version
+        run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: ${{ steps.pnpm-version.outputs.version }}
+      - uses: actions/cache@v5
+        id: cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
+      - name: Install Dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v5
+        with:
+          path: .node-cache
+          key: node-sea-${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
+      - name: Install macOS signing tool for cross-builds
+        run: |
+          curl -fsSL https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.29.0/apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz -o "$RUNNER_TEMP/rcodesign.tar.gz"
+          echo "dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002  $RUNNER_TEMP/rcodesign.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/rcodesign"
+          tar -xzf "$RUNNER_TEMP/rcodesign.tar.gz" --strip-components=1 -C "$RUNNER_TEMP/rcodesign"
+          echo "$RUNNER_TEMP/rcodesign" >> "$GITHUB_PATH"
+      - name: Build
+        env:
+          CRAFT_BUILD_SHA: ${{ github.sha }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: pnpm build:binary
+      - name: Package standalone release files
+        working-directory: dist-bin
+        run: |
+          gzip -n -9 -k craft-{darwin,linux}-{arm64,x64} craft-win-x64.exe
+      - name: Generate optional stable delta patches
+        id: patches
+        continue-on-error: true
+        uses: BYK/binpatch/action@9ba6bbb8227fcbd2521852d2311c82afac5e9573 # 0.4.2
+        with:
+          mode: generate-release
+          github-repo: getsentry/craft
+          new-binaries-dir: dist-bin
+          new-gz-dir: dist-bin
+          binary-glob: 'craft-*'
+          patches-dir: dist-bin/patches
+      - name: Stage generated patches
+        if: steps.patches.outputs.has-patches == 'true'
+        run: cp dist-bin/patches/*.patch dist-bin/
+      - name: Package installer
+        run: cp install craft-install
+      - name: Smoke Test
+        run: ./dist/craft --help
+      - name: NPM Pack
+        run: pnpm pack
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: craft-binary
+          path: |
+            ${{ github.workspace }}/*.tgz
+            ${{ github.workspace }}/dist/craft
+            ${{ github.workspace }}/craft-install
+
+      - name: Upload standalone release files
+        uses: actions/upload-artifact@v7
+        with:
+          name: craft-native
+          if-no-files-found: error
+          path: dist-bin/craft-*
+
+  native-smoke:
+    name: Verify / ${{ matrix.platform }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux-x64
+          - os: ubuntu-24.04-arm
+            platform: linux-arm64
+          - os: macos-15
+            platform: darwin-arm64
+          - os: macos-15-intel
+            platform: darwin-x64
+          - os: windows-2025
+            platform: win-x64
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.27.0
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v8
+        with:
+          name: craft-native
+          path: dist-bin
+      - uses: actions/download-artifact@v8
+        with:
+          name: craft-binary
+          path: packed
+      - name: Install test shells
+        if: matrix.platform == 'linux-x64'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends zsh fish
+      - name: Test distribution artifacts
+        run: pnpm test:distribution
+
+  docs:
+    name: Build Docs
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+      - name: Get pnpm version from Volta config
+        id: pnpm-version
+        run: echo "version=$(jq -r '.volta.pnpm' package.json)" >> $GITHUB_OUTPUT
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: ${{ steps.pnpm-version.outputs.version }}
+      - name: Build Docs
+        working-directory: docs
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Package Docs
+        run: |
+          cp .nojekyll docs/dist/
+          cd docs/dist && zip -r ../../gh-pages.zip .
+      - name: Upload Docs Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: craft-docs
+          path: ${{ github.workspace }}/gh-pages.zip

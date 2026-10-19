@@ -1,12 +1,24 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import {
+  vi,
+  type Mock,
+  type MockedFunction,
+  describe,
+  test,
+  expect,
+  beforeEach,
+} from 'vitest';
 vi.mock('../../utils/githubApi.ts');
 import { getGitHubClient } from '../../utils/githubApi';
 import {
   GitHubArtifactProvider,
   ArtifactItem,
+  WorkflowRun,
   lazyRequest,
   lazyRequestCallback,
+  normalizeArtifactsConfig,
+  NormalizedArtifactFilter,
 } from '../github';
+import { patternToRegexp } from '../../utils/filters';
 import { sleep } from '../../utils/async';
 
 class TestGitHubArtifactProvider extends GitHubArtifactProvider {
@@ -15,9 +27,36 @@ class TestGitHubArtifactProvider extends GitHubArtifactProvider {
   }
   public testSearchForRevisionArtifact(
     revision: string,
-    getRevisionDate: lazyRequestCallback<string>
+    getRevisionDate: lazyRequestCallback<string>,
   ): Promise<ArtifactItem | null> {
     return this.searchForRevisionArtifact(revision, getRevisionDate);
+  }
+  public testGetWorkflowRunsForCommit(
+    revision: string,
+  ): Promise<WorkflowRun[]> {
+    return this.getWorkflowRunsForCommit(revision);
+  }
+  public testFilterWorkflowRuns(
+    runs: WorkflowRun[],
+    filters: NormalizedArtifactFilter[],
+  ): WorkflowRun[] {
+    return this.filterWorkflowRuns(runs, filters);
+  }
+  public testGetArtifactsFromWorkflowRuns(
+    runs: WorkflowRun[],
+    filters: NormalizedArtifactFilter[],
+  ): Promise<{ matching: ArtifactItem[]; allNames: string[] }> {
+    return this.getArtifactsFromWorkflowRuns(runs, filters);
+  }
+  public testFormatArtifactConfigForError(): string {
+    return this.formatArtifactConfigForError();
+  }
+  public testValidateAllPatternsMatched(
+    filters: NormalizedArtifactFilter[],
+    allRuns: WorkflowRun[],
+    matchingArtifacts: ArtifactItem[],
+  ): string[] {
+    return this.validateAllPatternsMatched(filters, allRuns, matchingArtifacts);
   }
 }
 
@@ -28,24 +67,29 @@ describe('GitHub Artifact Provider', () => {
   let mockClient: {
     actions: {
       listArtifactsForRepo: Mock;
+      listWorkflowRunsForRepo: Mock;
+      listWorkflowRunArtifacts: Mock;
     };
     git: {
       getCommit: Mock;
     };
   };
-  let mockedSleep;
+  let mockedSleep: Mock;
 
   beforeEach(() => {
     vi.resetAllMocks();
 
     mockClient = {
-      actions: { listArtifactsForRepo: vi.fn() },
+      actions: {
+        listArtifactsForRepo: vi.fn(),
+        listWorkflowRunsForRepo: vi.fn(),
+        listWorkflowRunArtifacts: vi.fn(),
+      },
       git: { getCommit: vi.fn() },
     };
-    (getGitHubClient as MockedFunction<
-      typeof getGitHubClient
+    (getGitHubClient as MockedFunction<typeof getGitHubClient>)
       // @ts-ignore we only need to mock a subset
-    >).mockReturnValueOnce(mockClient);
+      .mockReturnValueOnce(mockClient);
 
     githubArtifactProvider = new TestGitHubArtifactProvider({
       name: 'github-test',
@@ -56,6 +100,107 @@ describe('GitHub Artifact Provider', () => {
     mockedSleep = sleep as Mock;
     mockedSleep.mockImplementation(() => {
       return new Promise(resolve => setTimeout(resolve, 10));
+    });
+  });
+
+  describe('patternToRegexp', () => {
+    test('converts regex string to RegExp', () => {
+      const result = patternToRegexp('/^build-.*$/');
+      expect(result).toBeInstanceOf(RegExp);
+      expect(result.test('build-linux')).toBe(true);
+      expect(result.test('build-macos')).toBe(true);
+      expect(result.test('test-linux')).toBe(false);
+    });
+
+    test('converts regex string with modifiers', () => {
+      const result = patternToRegexp('/BUILD/i');
+      expect(result.test('build')).toBe(true);
+      expect(result.test('BUILD')).toBe(true);
+    });
+
+    test('converts exact string to exact match RegExp', () => {
+      const result = patternToRegexp('build');
+      expect(result.test('build')).toBe(true);
+      expect(result.test('build-linux')).toBe(false);
+      expect(result.test('test')).toBe(false);
+    });
+
+    test('escapes special characters in exact match', () => {
+      const result = patternToRegexp('output.tar.gz');
+      expect(result.test('output.tar.gz')).toBe(true);
+      expect(result.test('outputXtarXgz')).toBe(false);
+    });
+  });
+
+  describe('normalizeArtifactsConfig', () => {
+    test('returns empty array for undefined config', () => {
+      expect(normalizeArtifactsConfig(undefined)).toEqual([]);
+    });
+
+    test('normalizes string config to array with single filter', () => {
+      const result = normalizeArtifactsConfig('/^sentry-.*\\.tgz$/');
+      expect(result).toHaveLength(1);
+      expect(result[0].workflow).toBeUndefined();
+      expect(result[0].artifacts).toHaveLength(1);
+      expect(result[0].artifacts[0].test('sentry-browser-7.0.0.tgz')).toBe(
+        true,
+      );
+    });
+
+    test('normalizes array config to single filter with multiple patterns', () => {
+      const result = normalizeArtifactsConfig([
+        '/^sentry-.*\\.tgz$/',
+        'release-bundle',
+      ]);
+      expect(result).toHaveLength(1);
+      expect(result[0].workflow).toBeUndefined();
+      expect(result[0].artifacts).toHaveLength(2);
+      expect(result[0].artifacts[0].test('sentry-browser-7.0.0.tgz')).toBe(
+        true,
+      );
+      expect(result[0].artifacts[1].test('release-bundle')).toBe(true);
+      expect(result[0].artifacts[1].test('release-bundle-extra')).toBe(false);
+    });
+
+    test('normalizes object config with exact workflow names', () => {
+      const result = normalizeArtifactsConfig({
+        build: 'release-artifacts',
+        ci: ['output', 'bundle'],
+      });
+      expect(result).toHaveLength(2);
+
+      // First filter: build -> release-artifacts
+      expect(result[0].workflow!.test('build')).toBe(true);
+      expect(result[0].workflow!.test('build-linux')).toBe(false);
+      expect(result[0].artifacts).toHaveLength(1);
+      expect(result[0].artifacts[0].test('release-artifacts')).toBe(true);
+
+      // Second filter: ci -> [output, bundle]
+      expect(result[1].workflow!.test('ci')).toBe(true);
+      expect(result[1].artifacts).toHaveLength(2);
+      expect(result[1].artifacts[0].test('output')).toBe(true);
+      expect(result[1].artifacts[1].test('bundle')).toBe(true);
+    });
+
+    test('normalizes object config with workflow patterns', () => {
+      const result = normalizeArtifactsConfig({
+        '/^build-.*$/': '/^output-.*$/',
+        '/^release-.*$/': ['/^dist-.*$/', 'checksums'],
+      });
+      expect(result).toHaveLength(2);
+
+      // First filter: /^build-.*$/ -> /^output-.*$/
+      expect(result[0].workflow!.test('build-linux')).toBe(true);
+      expect(result[0].workflow!.test('build-macos')).toBe(true);
+      expect(result[0].workflow!.test('test-linux')).toBe(false);
+      expect(result[0].artifacts[0].test('output-x86')).toBe(true);
+      expect(result[0].artifacts[0].test('output-arm')).toBe(true);
+
+      // Second filter: /^release-.*$/ -> [/^dist-.*$/, checksums]
+      expect(result[1].workflow!.test('release-production')).toBe(true);
+      expect(result[1].artifacts).toHaveLength(2);
+      expect(result[1].artifacts[0].test('dist-linux')).toBe(true);
+      expect(result[1].artifacts[1].test('checksums')).toBe(true);
     });
   });
 
@@ -71,8 +216,7 @@ describe('GitHub Artifact Provider', () => {
               node_id: 'MDg6QXJ0aWZhY3Q2MDIzMzcxMA==',
               name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
               size_in_bytes: 6511029,
-              url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
+              url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
               archive_download_url:
                 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip',
               expired: false,
@@ -85,8 +229,7 @@ describe('GitHub Artifact Provider', () => {
               node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
               name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
               size_in_bytes: 6511029,
-              url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
+              url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
               archive_download_url:
                 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
               expired: false,
@@ -98,10 +241,9 @@ describe('GitHub Artifact Provider', () => {
         },
       });
       await expect(
-        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testGetRevisionArtifact(
-          '1b843f2cbb20fdda99ef749e29e75e43e6e43b38'
-        )
+          '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+        ),
       ).resolves.toMatchInlineSnapshot(`
               {
                 "archive_download_url": "https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip",
@@ -139,8 +281,7 @@ describe('GitHub Artifact Provider', () => {
                 node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
                 name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
                 size_in_bytes: 6511029,
-                url:
-                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
+                url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
                 archive_download_url:
                   'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
                 expired: false,
@@ -161,8 +302,7 @@ describe('GitHub Artifact Provider', () => {
                 node_id: 'MDg6QXJ0aWZhY3Q2MDIzMzcxMA==',
                 name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
                 size_in_bytes: 6511029,
-                url:
-                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
+                url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
                 archive_download_url:
                   'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip',
                 expired: false,
@@ -174,10 +314,9 @@ describe('GitHub Artifact Provider', () => {
           },
         });
       await expect(
-        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testGetRevisionArtifact(
-          '1b843f2cbb20fdda99ef749e29e75e43e6e43b38'
-        )
+          '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+        ),
       ).resolves.toMatchInlineSnapshot(`
               {
                 "archive_download_url": "https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip",
@@ -206,8 +345,7 @@ describe('GitHub Artifact Provider', () => {
               node_id: 'MDg6QXJ0aWZhY3Q2MDIzMzcxMA==',
               name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
               size_in_bytes: 6511029,
-              url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
+              url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
               archive_download_url:
                 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip',
               expired: false,
@@ -220,8 +358,7 @@ describe('GitHub Artifact Provider', () => {
               node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
               name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
               size_in_bytes: 6511029,
-              url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
+              url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
               archive_download_url:
                 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
               expired: false,
@@ -233,10 +370,9 @@ describe('GitHub Artifact Provider', () => {
         },
       });
       await expect(
-        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testGetRevisionArtifact(
-          '1b843f2cbb20fdda99ef749e29e75e43e6e43b38'
-        )
+          '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+        ),
       ).resolves.toMatchInlineSnapshot(`
               {
                 "archive_download_url": "https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip",
@@ -263,16 +399,40 @@ describe('GitHub Artifact Provider', () => {
       });
 
       await expect(
-        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testGetRevisionArtifact(
-          '1b843f2cbb20fdda99ef749e29e75e43e6e43b38'
-        )
+          '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+        ),
       ).rejects.toThrowErrorMatchingInlineSnapshot(
-        `[Error: Can't find any artifacts for revision "1b843f2cbb20fdda99ef749e29e75e43e6e43b38" (tries: 3)]`
+        `[Error: Can't find any artifacts for revision "1b843f2cbb20fdda99ef749e29e75e43e6e43b38" (tries: 3)]`,
       );
 
       expect(mockClient.actions.listArtifactsForRepo).toBeCalledTimes(3);
       expect(sleep).toBeCalledTimes(2);
+    });
+
+    test('it should filter artifacts by revision name on every retry', async () => {
+      mockClient.actions.listArtifactsForRepo.mockResolvedValue({
+        status: 200,
+        data: {
+          total_count: 0,
+          artifacts: [],
+        },
+      });
+
+      await expect(
+        githubArtifactProvider.testGetRevisionArtifact(
+          '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+        ),
+      ).rejects.toThrow();
+
+      expect(mockClient.actions.listArtifactsForRepo).toBeCalledTimes(3);
+      for (const call of mockClient.actions.listArtifactsForRepo.mock.calls) {
+        expect(call[0]).toMatchObject({
+          owner: 'getsentry',
+          repo: 'craft',
+          name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+        });
+      }
     });
 
     test('it should throw when no artifacts with the name can be found', async () => {
@@ -286,8 +446,7 @@ describe('GitHub Artifact Provider', () => {
               node_id: 'MDg6QXJ0aWZhY3Q2MDIzMzcxMA==',
               name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
               size_in_bytes: 6511029,
-              url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
+              url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
               archive_download_url:
                 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip',
               expired: false,
@@ -300,8 +459,7 @@ describe('GitHub Artifact Provider', () => {
               node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
               name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
               size_in_bytes: 6511029,
-              url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
+              url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
               archive_download_url:
                 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
               expired: false,
@@ -313,18 +471,64 @@ describe('GitHub Artifact Provider', () => {
         },
       });
       await expect(
-        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testGetRevisionArtifact(
-          '3c2e87573d3bd16f61cf08fece0638cc47a4fc22'
-        )
+          '3c2e87573d3bd16f61cf08fece0638cc47a4fc22',
+        ),
       ).rejects.toThrowErrorMatchingInlineSnapshot(
-        `[Error: Can't find any artifacts for revision "3c2e87573d3bd16f61cf08fece0638cc47a4fc22" (tries: 3)]`
+        `[Error: Can't find any artifacts for revision "3c2e87573d3bd16f61cf08fece0638cc47a4fc22" (tries: 3)]`,
       );
       expect(sleep).toBeCalledTimes(2);
     });
   });
 
   describe('searchForRevisionArtifact', () => {
+    test('it should filter artifacts by revision name server-side', async () => {
+      // Listing all artifacts of a repository can fail with HTTP 500 on
+      // repositories with many artifacts, so the API must be asked to filter
+      // by name (see https://github.com/getsentry/craft/issues/879).
+      mockClient.actions.listArtifactsForRepo.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          total_count: 1,
+          artifacts: [
+            {
+              id: 60233710,
+              node_id: 'MDg6QXJ0aWZhY3Q2MDIzMzcxMA==',
+              name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+              size_in_bytes: 6511029,
+              url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
+              archive_download_url:
+                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip',
+              expired: false,
+              created_at: '2021-05-12T21:50:35Z',
+              updated_at: '2021-05-12T21:50:38Z',
+              expires_at: '2021-08-10T21:50:31Z',
+            },
+          ],
+        },
+      });
+
+      const getRevisionDateCallback = vi.fn();
+
+      const artifact =
+        await githubArtifactProvider.testSearchForRevisionArtifact(
+          '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+          lazyRequest<string>(getRevisionDateCallback),
+        );
+
+      expect(artifact?.id).toBe(60233710);
+      expect(mockClient.actions.listArtifactsForRepo).toBeCalledTimes(1);
+      expect(mockClient.actions.listArtifactsForRepo).toBeCalledWith({
+        owner: 'getsentry',
+        repo: 'craft',
+        name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
+        per_page: 100,
+        page: 0,
+      });
+      // A single page of filtered results should not require the commit date.
+      expect(getRevisionDateCallback).not.toBeCalled();
+    });
+
     test('it should get the artifact from second page', async () => {
       mockClient.actions.listArtifactsForRepo
         .mockResolvedValueOnce({
@@ -338,8 +542,7 @@ describe('GitHub Artifact Provider', () => {
                 node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
                 name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
                 size_in_bytes: 6511029,
-                url:
-                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
+                url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
                 archive_download_url:
                   'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
                 expired: false,
@@ -360,8 +563,7 @@ describe('GitHub Artifact Provider', () => {
                 node_id: 'MDg6QXJ0aWZhY3Q2MDIzMzcxMA==',
                 name: '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
                 size_in_bytes: 6511029,
-                url:
-                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
+                url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710',
                 archive_download_url:
                   'https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip',
                 expired: false,
@@ -378,13 +580,12 @@ describe('GitHub Artifact Provider', () => {
         .mockResolvedValueOnce('2020-05-12T21:45:04Z');
 
       await expect(
-        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testSearchForRevisionArtifact(
           '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
           lazyRequest<string>(() => {
             return getRevisionDateCallback();
-          })
-        )
+          }),
+        ),
       ).resolves.toMatchInlineSnapshot(`
         {
           "archive_download_url": "https://api.github.com/repos/getsentry/craft/actions/artifacts/60233710/zip",
@@ -416,8 +617,7 @@ describe('GitHub Artifact Provider', () => {
                 node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
                 name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
                 size_in_bytes: 6511029,
-                url:
-                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
+                url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
                 archive_download_url:
                   'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
                 expired: false,
@@ -438,8 +638,7 @@ describe('GitHub Artifact Provider', () => {
                 node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
                 name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
                 size_in_bytes: 6511029,
-                url:
-                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
+                url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
                 archive_download_url:
                   'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
                 expired: false,
@@ -460,8 +659,7 @@ describe('GitHub Artifact Provider', () => {
                 node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
                 name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
                 size_in_bytes: 6511029,
-                url:
-                  'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
+                url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
                 archive_download_url:
                   'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
                 expired: false,
@@ -478,11 +676,10 @@ describe('GitHub Artifact Provider', () => {
         .mockResolvedValueOnce('2020-05-12T21:45:04Z');
 
       await expect(
-        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testSearchForRevisionArtifact(
           '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
-          lazyRequest<string>(getRevisionDateCallback)
-        )
+          lazyRequest<string>(getRevisionDateCallback),
+        ),
       ).resolves.toMatchInlineSnapshot(`null`);
       expect(mockClient.actions.listArtifactsForRepo).toBeCalledTimes(3);
       expect(getRevisionDateCallback).toBeCalledTimes(1);
@@ -500,8 +697,7 @@ describe('GitHub Artifact Provider', () => {
               node_id: 'MDg6QXJ0aWZhY3Q2MDIzMjY5MQ==',
               name: 'e4bcfe450e0460ec5f20b20868664171effef6f9',
               size_in_bytes: 6511029,
-              url:
-                'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
+              url: 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691',
               archive_download_url:
                 'https://api.github.com/repos/getsentry/craft/actions/artifacts/60232691/zip',
               expired: false,
@@ -518,16 +714,586 @@ describe('GitHub Artifact Provider', () => {
         .mockResolvedValueOnce('2021-05-12T21:45:04Z');
 
       await expect(
-        // TODO(sentry): Could not automatically migrate - see https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#deprecate-hub
         githubArtifactProvider.testSearchForRevisionArtifact(
           '1b843f2cbb20fdda99ef749e29e75e43e6e43b38',
           lazyRequest<string>(() => {
             return getRevisionDateCallback();
-          })
-        )
+          }),
+        ),
       ).resolves.toMatchInlineSnapshot(`null`);
       expect(mockClient.actions.listArtifactsForRepo).toBeCalledTimes(1);
       expect(getRevisionDateCallback).toBeCalledTimes(1);
+    });
+  });
+
+  describe('getWorkflowRunsForCommit', () => {
+    test('fetches workflow runs for a commit', async () => {
+      mockClient.actions.listWorkflowRunsForRepo.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          total_count: 2,
+          workflow_runs: [
+            { id: 1, name: 'Build & Test' },
+            { id: 2, name: 'Lint' },
+          ],
+        },
+      });
+
+      const runs =
+        await githubArtifactProvider.testGetWorkflowRunsForCommit('abc123');
+
+      expect(runs).toHaveLength(2);
+      expect(runs[0].name).toBe('Build & Test');
+      expect(runs[1].name).toBe('Lint');
+      expect(mockClient.actions.listWorkflowRunsForRepo).toBeCalledWith({
+        owner: 'getsentry',
+        repo: 'craft',
+        head_sha: 'abc123',
+        per_page: 100,
+        page: 1,
+      });
+    });
+
+    test('handles pagination for workflow runs', async () => {
+      // Create array of 100 runs for first page
+      const firstPageRuns = Array.from({ length: 100 }, (_, i) => ({
+        id: i + 1,
+        name: `Workflow ${i + 1}`,
+      }));
+
+      mockClient.actions.listWorkflowRunsForRepo
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            total_count: 105,
+            workflow_runs: firstPageRuns,
+          },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            total_count: 105,
+            workflow_runs: [
+              { id: 101, name: 'Workflow 101' },
+              { id: 102, name: 'Workflow 102' },
+              { id: 103, name: 'Workflow 103' },
+              { id: 104, name: 'Workflow 104' },
+              { id: 105, name: 'Workflow 105' },
+            ],
+          },
+        });
+
+      const runs =
+        await githubArtifactProvider.testGetWorkflowRunsForCommit('abc123');
+
+      expect(runs).toHaveLength(105);
+      expect(mockClient.actions.listWorkflowRunsForRepo).toBeCalledTimes(2);
+    });
+  });
+
+  describe('filterWorkflowRuns', () => {
+    const mockRuns = [
+      { id: 1, name: 'Build & Test' },
+      { id: 2, name: 'build-linux' },
+      { id: 3, name: 'build-macos' },
+      { id: 4, name: 'Lint' },
+    ] as WorkflowRun[];
+
+    test('returns all runs when no workflow filters are specified', () => {
+      const filters: NormalizedArtifactFilter[] = [
+        { workflow: undefined, artifacts: [/^output$/] },
+      ];
+
+      const result = githubArtifactProvider.testFilterWorkflowRuns(
+        mockRuns,
+        filters,
+      );
+      expect(result).toHaveLength(4);
+    });
+
+    test('filters runs by exact workflow name', () => {
+      const filters: NormalizedArtifactFilter[] = [
+        { workflow: /^Build & Test$/, artifacts: [/^output$/] },
+      ];
+
+      const result = githubArtifactProvider.testFilterWorkflowRuns(
+        mockRuns,
+        filters,
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Build & Test');
+    });
+
+    test('filters runs by workflow pattern', () => {
+      const filters: NormalizedArtifactFilter[] = [
+        { workflow: /^build-.*$/, artifacts: [/^output$/] },
+      ];
+
+      const result = githubArtifactProvider.testFilterWorkflowRuns(
+        mockRuns,
+        filters,
+      );
+      expect(result).toHaveLength(2);
+      expect(result.map(r => r.name)).toEqual(['build-linux', 'build-macos']);
+    });
+
+    test('combines multiple workflow filters', () => {
+      const filters: NormalizedArtifactFilter[] = [
+        { workflow: /^Build & Test$/, artifacts: [/^output$/] },
+        { workflow: /^Lint$/, artifacts: [/^report$/] },
+      ];
+
+      const result = githubArtifactProvider.testFilterWorkflowRuns(
+        mockRuns,
+        filters,
+      );
+      expect(result).toHaveLength(2);
+      expect(result.map(r => r.name)).toEqual(['Build & Test', 'Lint']);
+    });
+  });
+
+  describe('getArtifactsFromWorkflowRuns', () => {
+    test('fetches and filters artifacts from workflow runs', async () => {
+      const mockRuns = [
+        { id: 1, name: 'Build & Test' },
+        { id: 2, name: 'Lint' },
+      ] as WorkflowRun[];
+
+      mockClient.actions.listWorkflowRunArtifacts
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            total_count: 2,
+            artifacts: [
+              { id: 101, name: 'craft-binary' },
+              { id: 102, name: 'craft-docs' },
+            ],
+          },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            total_count: 1,
+            artifacts: [{ id: 201, name: 'lint-report' }],
+          },
+        });
+
+      const filters: NormalizedArtifactFilter[] = [
+        { workflow: /^Build & Test$/, artifacts: [/^craft-/] },
+      ];
+
+      const { matching: artifacts } =
+        await githubArtifactProvider.testGetArtifactsFromWorkflowRuns(
+          mockRuns,
+          filters,
+        );
+
+      expect(artifacts).toHaveLength(2);
+      expect(artifacts.map(a => a.name)).toEqual([
+        'craft-binary',
+        'craft-docs',
+      ]);
+    });
+
+    test('matches artifacts without workflow filter (all workflows)', async () => {
+      const mockRuns = [
+        { id: 1, name: 'Build & Test' },
+        { id: 2, name: 'Lint' },
+      ] as WorkflowRun[];
+
+      mockClient.actions.listWorkflowRunArtifacts
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            total_count: 1,
+            artifacts: [{ id: 101, name: 'craft-binary' }],
+          },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            total_count: 1,
+            artifacts: [{ id: 201, name: 'craft-report' }],
+          },
+        });
+
+      const filters: NormalizedArtifactFilter[] = [
+        { workflow: undefined, artifacts: [/^craft-/] },
+      ];
+
+      const { matching: artifacts } =
+        await githubArtifactProvider.testGetArtifactsFromWorkflowRuns(
+          mockRuns,
+          filters,
+        );
+
+      expect(artifacts).toHaveLength(2);
+      expect(artifacts.map(a => a.name)).toEqual([
+        'craft-binary',
+        'craft-report',
+      ]);
+    });
+
+    test('does not add duplicate artifacts', async () => {
+      const mockRuns = [{ id: 1, name: 'Build & Test' }] as WorkflowRun[];
+
+      mockClient.actions.listWorkflowRunArtifacts.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          total_count: 1,
+          artifacts: [{ id: 101, name: 'craft-binary' }],
+        },
+      });
+
+      // Two filters that both match the same artifact
+      const filters: NormalizedArtifactFilter[] = [
+        { workflow: /^Build/, artifacts: [/^craft-/] },
+        { workflow: undefined, artifacts: [/binary$/] },
+      ];
+
+      const { matching: artifacts } =
+        await githubArtifactProvider.testGetArtifactsFromWorkflowRuns(
+          mockRuns,
+          filters,
+        );
+
+      expect(artifacts).toHaveLength(1);
+    });
+  });
+
+  describe('normalizeArtifactsConfig with glob patterns', () => {
+    test('glob pattern in artifact names matches correctly', () => {
+      const result = normalizeArtifactsConfig({
+        Build: 'craft-*',
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0].artifacts).toHaveLength(1);
+      expect(result[0].artifacts[0].test('craft-binary')).toBe(true);
+      expect(result[0].artifacts[0].test('craft-docs')).toBe(true);
+      expect(result[0].artifacts[0].test('other-artifact')).toBe(false);
+    });
+
+    test('glob pattern in workflow names matches correctly', () => {
+      const result = normalizeArtifactsConfig({
+        'Build*': 'output',
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0].workflow!.test('Build')).toBe(true);
+      expect(result[0].workflow!.test('Build & Test')).toBe(true);
+      expect(result[0].workflow!.test('Lint')).toBe(false);
+    });
+
+    test('mixed glob and exact patterns', () => {
+      const result = normalizeArtifactsConfig({
+        'Build & Test': ['craft-*', 'exact-name'],
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0].artifacts).toHaveLength(2);
+      expect(result[0].artifacts[0].test('craft-binary')).toBe(true);
+      expect(result[0].artifacts[0].test('craft-docs')).toBe(true);
+      expect(result[0].artifacts[1].test('exact-name')).toBe(true);
+      expect(result[0].artifacts[1].test('exact-name-extra')).toBe(false);
+    });
+  });
+
+  describe('validateAllPatternsMatched', () => {
+    const mockRuns = [
+      { id: 1, name: 'Build & Test' },
+      { id: 2, name: 'Lint' },
+    ] as WorkflowRun[];
+
+    test('returns no errors when all patterns have matches', () => {
+      const filters: NormalizedArtifactFilter[] = [
+        {
+          workflow: /^Build & Test$/,
+          artifacts: [/^craft-binary$/, /^craft-docs$/],
+        },
+      ];
+      const artifacts = [
+        { id: 101, name: 'craft-binary', workflow_run: { id: 1 } },
+        { id: 102, name: 'craft-docs', workflow_run: { id: 1 } },
+      ] as ArtifactItem[];
+
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors).toEqual([]);
+    });
+
+    test('returns error when an artifact pattern has no match', () => {
+      const filters: NormalizedArtifactFilter[] = [
+        {
+          workflow: /^Build & Test$/,
+          artifacts: [/^craft-binary$/, /^craft-docs$/],
+        },
+      ];
+      // Only craft-binary exists, craft-docs is missing
+      const artifacts = [
+        { id: 101, name: 'craft-binary', workflow_run: { id: 1 } },
+      ] as ArtifactItem[];
+
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatch(/Artifact pattern.*craft-docs.*did not match/);
+    });
+
+    test('returns error when a workflow pattern has no match', () => {
+      const filters: NormalizedArtifactFilter[] = [
+        {
+          workflow: /^Release$/,
+          artifacts: [/^output$/],
+        },
+      ];
+      const artifacts = [
+        { id: 101, name: 'output', workflow_run: { id: 1 } },
+      ] as ArtifactItem[];
+
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatch(
+        /Workflow pattern.*Release.*did not match any workflow runs/,
+      );
+    });
+
+    test('includes available names in error message for artifacts', () => {
+      const filters: NormalizedArtifactFilter[] = [
+        {
+          workflow: /^Build & Test$/,
+          artifacts: [/^craft-binary$/, /^missing-artifact$/],
+        },
+      ];
+      const artifacts = [
+        { id: 101, name: 'craft-binary', workflow_run: { id: 1 } },
+      ] as ArtifactItem[];
+
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors.join('\n')).toMatch(
+        /Available artifact names: craft-binary/,
+      );
+    });
+
+    test('includes available names in error message for workflows', () => {
+      const filters: NormalizedArtifactFilter[] = [
+        {
+          workflow: /^NonExistent$/,
+          artifacts: [/^output$/],
+        },
+      ];
+      const artifacts = [] as ArtifactItem[];
+
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors.join('\n')).toMatch(
+        /Available workflows: Build & Test, Lint/,
+      );
+    });
+
+    test('reports multiple errors at once', () => {
+      const filters: NormalizedArtifactFilter[] = [
+        {
+          workflow: /^Build & Test$/,
+          artifacts: [/^missing-one$/, /^missing-two$/],
+        },
+      ];
+      const artifacts = [
+        { id: 101, name: 'craft-binary', workflow_run: { id: 1 } },
+      ] as ArtifactItem[];
+
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors).toHaveLength(2);
+      expect(errors.join('\n')).toMatch(/missing-one/);
+      expect(errors.join('\n')).toMatch(/missing-two/);
+    });
+
+    test('skips artifact validation for unmatched workflow', () => {
+      // When a workflow pattern doesn't match, we report the workflow error
+      // but don't also report artifact errors for that filter
+      const filters: NormalizedArtifactFilter[] = [
+        {
+          workflow: /^NonExistent$/,
+          artifacts: [/^should-not-report$/],
+        },
+      ];
+      const artifacts = [] as ArtifactItem[];
+
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatch(/Workflow pattern/);
+      expect(errors[0]).not.toMatch(/should-not-report/);
+    });
+
+    test('returns no errors with no workflow filter (matches all runs)', () => {
+      const filters: NormalizedArtifactFilter[] = [
+        {
+          workflow: undefined,
+          artifacts: [/^craft-binary$/],
+        },
+      ];
+      const artifacts = [
+        { id: 101, name: 'craft-binary', workflow_run: { id: 1 } },
+      ] as ArtifactItem[];
+
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        mockRuns,
+        artifacts,
+      );
+      expect(errors).toEqual([]);
+    });
+
+    test('scopes artifact validation to matching workflow runs', () => {
+      // Two workflows produce different artifacts. Workflow A's artifact
+      // should not satisfy workflow B's artifact pattern.
+      const filters: NormalizedArtifactFilter[] = [
+        {
+          workflow: /^Build$/,
+          artifacts: [/^build-output$/],
+        },
+        {
+          workflow: /^Release$/,
+          artifacts: [/^release-output$/],
+        },
+      ];
+      const runs = [
+        { id: 10, name: 'Build' },
+        { id: 20, name: 'Release' },
+      ] as WorkflowRun[];
+      // build-output comes from Build, release-output is missing from Release
+      const artifacts = [
+        { id: 101, name: 'build-output', workflow_run: { id: 10 } },
+      ] as ArtifactItem[];
+
+      const errors = githubArtifactProvider.testValidateAllPatternsMatched(
+        filters,
+        runs,
+        artifacts,
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatch(/release-output/);
+      expect(errors[0]).toMatch(/from workflow/);
+      expect(errors[0]).toMatch(/Release/);
+    });
+  });
+
+  describe('formatArtifactConfigForError', () => {
+    test('formats object config as YAML', () => {
+      const provider = new TestGitHubArtifactProvider({
+        name: 'github',
+        repoName: 'test',
+        repoOwner: 'owner',
+        artifacts: {
+          'Build & Test': ['craft-binary', 'craft-docs'],
+        },
+      });
+
+      const result = provider.testFormatArtifactConfigForError();
+
+      expect(result).toContain('Your .craft.yml artifact configuration:');
+      expect(result).toContain('artifacts');
+      expect(result).toContain('Build & Test');
+      expect(result).toContain('craft-binary');
+      expect(result).toContain('craft-docs');
+    });
+
+    test('returns empty string when no artifacts config', () => {
+      const provider = new TestGitHubArtifactProvider({
+        name: 'github',
+        repoName: 'test',
+        repoOwner: 'owner',
+      });
+
+      const result = provider.testFormatArtifactConfigForError();
+
+      expect(result).toBe('');
+    });
+  });
+
+  describe('getArtifactsFromWorkflowRuns returns allNames', () => {
+    test('returns all artifact names including non-matching ones', async () => {
+      const mockRuns = [{ id: 1, name: 'Build' }] as WorkflowRun[];
+
+      mockClient.actions.listWorkflowRunArtifacts.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          total_count: 3,
+          artifacts: [
+            { id: 101, name: 'craft-binary' },
+            { id: 102, name: 'craft-docs' },
+            { id: 103, name: 'unrelated-artifact' },
+          ],
+        },
+      });
+
+      const filters: NormalizedArtifactFilter[] = [
+        { workflow: /^Build$/, artifacts: [/^craft-/] },
+      ];
+
+      const { matching, allNames } =
+        await githubArtifactProvider.testGetArtifactsFromWorkflowRuns(
+          mockRuns,
+          filters,
+        );
+
+      expect(matching).toHaveLength(2);
+      expect(matching.map(a => a.name)).toEqual(['craft-binary', 'craft-docs']);
+      expect(allNames).toEqual([
+        'craft-binary',
+        'craft-docs',
+        'unrelated-artifact',
+      ]);
+    });
+
+    test('returns all names even when no artifacts match', async () => {
+      const mockRuns = [{ id: 1, name: 'Build' }] as WorkflowRun[];
+
+      mockClient.actions.listWorkflowRunArtifacts.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          total_count: 2,
+          artifacts: [
+            { id: 101, name: 'something-else' },
+            { id: 102, name: 'another-thing' },
+          ],
+        },
+      });
+
+      const filters: NormalizedArtifactFilter[] = [
+        { workflow: /^Build$/, artifacts: [/^craft-/] },
+      ];
+
+      const { matching, allNames } =
+        await githubArtifactProvider.testGetArtifactsFromWorkflowRuns(
+          mockRuns,
+          filters,
+        );
+
+      expect(matching).toHaveLength(0);
+      expect(allNames).toEqual(['something-else', 'another-thing']);
     });
   });
 });

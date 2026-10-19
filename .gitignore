@@ -16,4 +16,13 @@ npm-debug.log
 .Trashes
 *.env
 .eslintcache
+.tsbuildinfo
 .idea
+
+# Standalone executables and downloaded Node runtimes
+dist-bin/
+.node-cache/
+packed/
+
+# Generated installer copies
+craft-install

@@ -1,10 +1,4 @@
-import {
-  vi,
-  type Mock,
-  type MockInstance,
-  type Mocked,
-  type MockedFunction,
-} from 'vitest';
+import { vi, type Mock, type MockedFunction } from 'vitest';
 /**
  * Tests for generateChangesetFromGit - the main changelog generation function.
  * Uses snapshot testing for output validation to reduce test file size.
@@ -27,16 +21,29 @@ vi.mock('../../config', async importOriginal => {
     ...actual,
     getConfigFileDir: vi.fn(),
     getGlobalGitHubConfig: vi.fn(),
+    getChangelogConfig: vi.fn(),
   };
 });
 import * as config from '../../config';
 import { readFileSync } from 'fs';
+import type { SummaryRequest } from '../ai-provider';
+const { modelRequest } = vi.hoisted(() => ({
+  modelRequest: vi.fn<(request: SummaryRequest) => Promise<unknown>>(),
+}));
+vi.mock('../ai-provider', () => ({
+  createSummaryProvider: () => ({
+    request: modelRequest,
+    close: async () => {},
+  }),
+}));
+import { ChangelogPolicy } from '../../schemas/project_config';
 import type { SimpleGit } from 'simple-git';
 
 import {
   generateChangesetFromGit,
   generateChangelogWithHighlight,
   clearChangesetCache,
+  clearReleaseConfigCache,
 } from '../changelog';
 import { type TestCommit } from './fixtures/changelog';
 
@@ -59,6 +66,7 @@ describe('generateChangesetFromGit', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     clearChangesetCache();
+    clearReleaseConfigCache();
     mockClient = vi.fn();
     (getGitHubClient as MockedFunction<typeof getGitHubClient>).mockReturnValue(
       {
@@ -140,9 +148,427 @@ describe('generateChangesetFromGit', () => {
     }
   }
 
+  it('keeps cached changelogs separate for each selected workspace', async () => {
+    try {
+      config.setActiveWorkspace('packages/cli');
+      setup([{ hash: 'abcdef1234567890', title: 'fix: CLI', body: '' }], null);
+      const cli = await generateChangesetFromGit(dummyGit, '1.0.0');
+
+      config.setActiveWorkspace('packages/mcp');
+      setup([{ hash: 'bcdef1234567890a', title: 'fix: MCP', body: '' }], null);
+      const mcp = await generateChangesetFromGit(dummyGit, '1.0.0');
+
+      expect(cli.changelog).toContain('CLI');
+      expect(mcp.changelog).toContain('MCP');
+      expect(mockGetChangesSince).toHaveBeenCalledTimes(2);
+    } finally {
+      config.setActiveWorkspace(undefined);
+    }
+  });
+
   // ============================================================================
   // Basic output formatting tests - use snapshots
   // ============================================================================
+
+  describe('AI summaries in the real generator', () => {
+    const commits = Array.from({ length: 6 }, (_, i) => ({
+      hash: `abcdef${i}1234567890`,
+      title: `feat(cli): Add command ${i + 1}`,
+      body: '',
+    }));
+    const summaryConfig = {
+      filePath: 'CHANGELOG.md',
+      policy: ChangelogPolicy.Auto,
+      scopeGrouping: true,
+      includePaths: [],
+      aiSummary: {
+        llm: {
+          endpoint: 'https://api.githubcopilot.com/responses',
+          model: 'gpt-5.4-nano',
+          apiKeyEnv: 'AI_SUMMARY_TOKEN',
+        },
+        minItems: 5,
+        levels: ['release', 'category', 'scope'] as (
+          | 'release'
+          | 'category'
+          | 'scope'
+        )[],
+      },
+    };
+    const provider = modelRequest;
+    beforeEach(() => {
+      provider.mockImplementation(async request => {
+        const input = JSON.parse(request.input);
+        return {
+          summaries: input.nodes
+            .map((node: any) => ({
+              id: node.id,
+              summary: `${input.level} summary for ${node.title}`,
+              importantChanges: [],
+            }))
+            .reverse(),
+        };
+      });
+    });
+    beforeEach(() => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue(summaryConfig);
+      provider.mockClear();
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    });
+
+    it.each([
+      [
+        'feat(cli)!: remove old API',
+        '## Changelog Entry\n- Remove legacy endpoint',
+      ],
+      ['security: patch XSS', ''],
+      [
+        'fix(api): patch CVE-2026-1234',
+        '## Changelog Entry\n- Improve request handling',
+      ],
+      [
+        'fix: address a security vulnerability',
+        '## Changelog Entry\n- Improve request handling',
+      ],
+      [
+        'security(api): patch XSS',
+        '## Changelog Entry\n- Patch request handling',
+      ],
+    ])(
+      'retains critical source metadata before formatting %s',
+      async (title, body) => {
+        vi.mocked(config.getChangelogConfig).mockReturnValue({
+          ...summaryConfig,
+          aiSummary: {
+            ...summaryConfig.aiSummary,
+            minItems: 0,
+            levels: ['release'],
+          },
+        });
+        setup(
+          [
+            {
+              hash: 'abcdef1234567890',
+              title,
+              body: '',
+              pr: {
+                local: '1',
+                remote: { number: '1', title, body },
+              },
+            },
+          ],
+          null,
+        );
+        const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+        const input = JSON.parse(provider.mock.calls[0][0].input);
+        expect(input.nodes[0].parts[0].important).toBe(true);
+        expect(
+          input.nodes[0].parts.map((part: any) => part.text).join(''),
+        ).toContain(title);
+        // Our simulated model omits all critical facts: reject the whole attempt.
+        expect(result.changelog).not.toContain('release summary');
+        expect(result.changelog).not.toContain('<details>');
+        expect(result.bumpType).toBe(title.includes('!') ? 'major' : 'patch');
+      },
+    );
+
+    it('carries a valid critical digest through every reduction and keeps custom originals', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        aiSummary: { ...summaryConfig.aiSummary, minItems: 0 },
+      });
+      provider.mockImplementation(async request => {
+        const input = JSON.parse(request.input);
+        return {
+          summaries: input.nodes.map((node: any) => ({
+            id: node.id,
+            summary: 'General maintenance.',
+            importantChanges: node.parts.flatMap((part: any) => [
+              ...(part.importantChanges || []),
+              ...(part.important
+                ? [
+                    {
+                      id: part.sourceId,
+                      summary: 'Breaking change: legacy endpoint removed.',
+                    },
+                  ]
+                : []),
+            ]),
+          })),
+        };
+      });
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'feat(cli)!: remove old API',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                title: 'feat(cli)!: remove old API',
+                body: '## Changelog Entry\n- Remove legacy endpoint',
+              },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(provider).toHaveBeenCalledTimes(3);
+      expect(result.changelog.split('### Breaking Changes')[0]).toContain(
+        'Breaking change: legacy endpoint removed.',
+      );
+      expect(result.changelog).toContain('- Remove legacy endpoint');
+      expect(result.changelog).toContain('<details>');
+      expect(result.bumpType).toBe('major');
+    });
+
+    it('keeps category and scope prose visible while preserving every original entry and semver', async () => {
+      setup(commits, null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog).toContain('release summary for New Features ✨');
+      expect(result.changelog).toContain(
+        '### New Features ✨\n\ncategory summary for New Features ✨\n\n#### Cli',
+      );
+      expect(result.changelog).toContain(
+        '#### Cli\n\nscope summary for New Features ✨ / Cli\n\n<details>',
+      );
+      expect(result.changelog.match(/<details>/g)).toHaveLength(1);
+      expect(result.changelog.match(/Show 6 items/g)).toHaveLength(1);
+      for (let i = 1; i <= 6; i++)
+        expect(
+          result.changelog.match(
+            new RegExp(`^- Add command ${i}(?: by| in|$)`, 'gm'),
+          ),
+        ).toHaveLength(1);
+      expect(result.bumpType).toBe('minor');
+      expect(result.totalCommits).toBe(6);
+    });
+
+    it.each([
+      [['release']],
+      [['category']],
+      [['scope']],
+      [['release', 'category']],
+      [['release', 'scope']],
+      [['category', 'scope']],
+      [['release', 'category', 'scope']],
+    ])('renders only selected levels %j', async levels => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        aiSummary: {
+          ...summaryConfig.aiSummary,
+          levels: levels as typeof summaryConfig.aiSummary.levels,
+        },
+      });
+      setup(commits, null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog.includes('release summary')).toBe(
+        levels.includes('release'),
+      );
+      expect(result.changelog.includes('category summary')).toBe(
+        levels.includes('category'),
+      );
+      expect(result.changelog.includes('scope summary')).toBe(
+        levels.includes('scope'),
+      );
+      // Every displayed scope remains outside any collapsed original entries.
+      expect(result.changelog).toContain('#### Cli');
+      expect(result.changelog.indexOf('#### Cli')).toBeLessThan(
+        result.changelog.indexOf('<details>') === -1
+          ? Infinity
+          : result.changelog.indexOf('<details>'),
+      );
+      if (levels.length === 1 && levels[0] === 'release') {
+        expect(result.changelog).not.toContain('<details>');
+        for (let i = 1; i <= 6; i++)
+          expect(result.changelog).toContain(`- Add command ${i}`);
+      }
+    });
+
+    it('renders a prose overview of at most three paragraphs covering every category', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        aiSummary: {
+          ...summaryConfig.aiSummary,
+          levels: ['release'],
+          minItems: 0,
+        },
+      });
+      setup(
+        Array.from({ length: 10 }, (_, i) => ({
+          hash: `category${i}`,
+          title: `change${i}: Add capability ${i}`,
+          body: '',
+        })),
+        `changelog:\n  categories:\n${Array.from(
+          { length: 10 },
+          (_, i) =>
+            `    - title: Category ${i}\n      commit_patterns: ['^change${i}:']`,
+        ).join('\n')}`,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      const overview = result.changelog.split('### ')[0].trim();
+      expect(overview.split('\n\n')).toHaveLength(3);
+      expect(overview).not.toMatch(/\*\*|^[-#]/m);
+      for (let i = 0; i < 10; i++) {
+        expect(overview).toContain(`release summary for Category ${i}`);
+        expect(result.changelog).toContain(`Add capability ${i}`);
+      }
+      expect(result.changelog).not.toContain('<details>');
+    });
+
+    it('folds unsummarized scopes and unscoped entries once beneath visible category prose', async () => {
+      setup(
+        [
+          ...commits,
+          { hash: 'api1', title: 'feat(api): Add endpoint 1', body: '' },
+          { hash: 'api2', title: 'feat(api): Add endpoint 2', body: '' },
+          { hash: 'other', title: 'feat: Add other feature', body: '' },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog).toContain(
+        'category summary for New Features ✨\n\n#### Api\n\n<details>',
+      );
+      expect(result.changelog).toContain(
+        '#### Cli\n\nscope summary for New Features ✨ / Cli\n\n<details>',
+      );
+      expect(result.changelog).not.toContain(
+        'scope summary for New Features ✨ / Api',
+      );
+      expect(result.changelog.match(/<details>/g)).toHaveLength(3);
+      let depth = 0;
+      for (const [tag] of result.changelog.matchAll(/<details>|<\/details>/g)) {
+        depth += tag === '<details>' ? 1 : -1;
+        expect(depth).toBeGreaterThanOrEqual(0);
+        expect(depth).toBeLessThanOrEqual(1);
+      }
+      expect(depth).toBe(0);
+      for (const title of [
+        'Add endpoint 1',
+        'Add endpoint 2',
+        'Add other feature',
+      ])
+        expect(result.changelog.split(title)).toHaveLength(2);
+      expect(result.totalCommits).toBe(9);
+      expect(result.bumpType).toBe('minor');
+    });
+
+    it('keeps byte-for-byte original output when a later generation stage fails', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        aiSummary: false,
+      });
+      setup(commits, null);
+      const original = await generateChangesetFromGit(dummyGit, '1.0.0');
+      clearChangesetCache();
+      vi.mocked(config.getChangelogConfig).mockReturnValue(summaryConfig);
+      setup(commits, null);
+      provider
+        .mockResolvedValueOnce({
+          summaries: [
+            { id: 'group:0/r0/b0', summary: 'scope', importantChanges: [] },
+          ],
+        })
+        .mockRejectedValueOnce(new Error('Unavailable'));
+      expect(await generateChangesetFromGit(dummyGit, '1.0.0')).toEqual(
+        original,
+      );
+      provider.mockReset();
+    });
+
+    it('keeps version analysis AI-free and caches raw data for later rendering', async () => {
+      setup(commits, null);
+      const analyzed = await generateChangesetFromGit(
+        dummyGit,
+        '1.0.0',
+        100,
+        false,
+      );
+      expect(analyzed.bumpType).toBe('minor');
+      expect(analyzed.changelog).not.toContain('<details>');
+      expect(provider).not.toHaveBeenCalled();
+      const rendered = await generateChangesetFromGit(
+        dummyGit,
+        '1.0.0',
+        100,
+        true,
+      );
+      expect(rendered.changelog).toContain('release summary');
+      expect(mockGetChangesSince).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps independent Git clients and revisions out of each other’s caches', async () => {
+      setup(commits, null);
+      await generateChangesetFromGit(dummyGit, '1.0.0');
+      setup(
+        [
+          {
+            hash: 'dddd123456789012',
+            title: 'fix: Different checkout',
+            body: '',
+          },
+        ],
+        null,
+      );
+      const other = await generateChangesetFromGit({} as SimpleGit, '1.0.0');
+      expect(other.changelog).toContain('Different checkout');
+      expect(other.changelog).not.toContain('Add command');
+    });
+
+    it('adds category summaries without inventing scopes when grouping is disabled', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        scopeGrouping: false,
+      });
+      setup(commits, null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog).toContain('category summary');
+      expect(result.changelog).not.toContain('#### Cli');
+      expect(result.changelog).not.toContain('scope summary');
+      expect(result.changelog.match(/<details>/g)).toHaveLength(1);
+    });
+
+    it('leaves highlighted PR previews expanded and makes no model request', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      (
+        getGitHubClient as MockedFunction<typeof getGitHubClient>
+      ).mockReturnValue({
+        graphql: mockClient,
+        pulls: {
+          get: vi.fn().mockResolvedValue({
+            data: {
+              number: 777,
+              title: 'feat(cli): Add preview command',
+              body: '',
+              user: { login: 'author' },
+              base: { ref: 'master' },
+              head: { sha: 'bbbbbbb1234567890' },
+            },
+          }),
+        },
+        issues: { listLabelsOnIssue: vi.fn().mockResolvedValue({ data: [] }) },
+      } as any);
+      setup(commits, null);
+      const result = await generateChangelogWithHighlight(
+        { fetch: vi.fn().mockResolvedValue(undefined) } as unknown as SimpleGit,
+        '1.0.0',
+        777,
+      );
+      expect(result.changelog).toContain('> - Add preview command');
+      expect(result.changelog).not.toContain('<details>');
+      expect(result.bumpType).toBe('minor');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
 
   describe('output formatting', () => {
     it('returns empty string for empty changeset', async () => {
@@ -509,6 +935,72 @@ changelog:
       expect(result.changelog).toMatchSnapshot();
     });
 
+    it('categorizes direct commits (no PR) by commit_patterns', async () => {
+      // Commits pushed directly without a PR should be grouped into categories
+      // if their title matches commit_patterns, not dumped into leftovers.
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: add new feature directly',
+            body: '',
+            // No PR association
+          },
+          {
+            hash: 'def456',
+            title: 'fix: patch a bug directly',
+            body: '',
+            // No PR association
+          },
+          {
+            hash: 'ghi789',
+            title: 'some unrecognized commit',
+            body: '',
+            // No PR association, no pattern match -> leftovers
+          },
+        ],
+        PATTERN_CONFIG,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      // Categorized commits should appear under their category headers
+      expect(result.changelog).toContain('Features');
+      expect(result.changelog).toContain('add new feature directly');
+      expect(result.changelog).toContain('Bug Fixes');
+      expect(result.changelog).toContain('patch a bug directly');
+      // Unrecognized commit goes to Other
+      expect(result.changelog).toContain('some unrecognized commit');
+    });
+
+    it('mixes direct commits and PR commits in the same category', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: direct feature commit',
+            body: '',
+            // No PR
+          },
+          {
+            hash: 'def456',
+            title: 'feat: feature via PR',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        PATTERN_CONFIG,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      // Both should be under Features, not just the PR one
+      expect(result.changelog).toContain('Features');
+      expect(result.changelog).toContain('direct feature commit');
+      expect(result.changelog).toContain('feature via PR');
+      // Should NOT have an "Other" section for the direct commit
+      expect(result.changelog).not.toContain('Other');
+    });
+
     it('uses default conventional commits config when no config exists', async () => {
       setup(
         [
@@ -544,6 +1036,136 @@ changelog:
       );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toMatchSnapshot();
+    });
+
+    it('categorizes security commits under Security section with patch bump', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'security: patch XSS in renderer',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'security(auth): fix login bypass',
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      expect(result.changelog).toContain('### Security 🔒');
+      expect(result.changelog).toContain('Patch XSS in renderer');
+      expect(result.changelog).toContain('Fix login bypass');
+      expect(result.bumpType).toBe('patch');
+    });
+
+    it('renders Security section above New Features and Bug Fixes', async () => {
+      setup(
+        [
+          {
+            hash: 'aaa111',
+            title: 'feat: new widget',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'bbb222',
+            title: 'security: patch XSS',
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'ccc333',
+            title: 'fix: off-by-one',
+            body: '',
+            pr: {
+              local: '3',
+              remote: { number: '3', author: { login: 'charlie' } },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const securityIdx = result.changelog.indexOf('### Security 🔒');
+      const featuresIdx = result.changelog.indexOf('### New Features ✨');
+      const fixesIdx = result.changelog.indexOf('### Bug Fixes 🐛');
+      expect(securityIdx).toBeGreaterThanOrEqual(0);
+      expect(featuresIdx).toBeGreaterThanOrEqual(0);
+      expect(fixesIdx).toBeGreaterThanOrEqual(0);
+      expect(securityIdx).toBeLessThan(featuresIdx);
+      expect(featuresIdx).toBeLessThan(fixesIdx);
+      // A feat: commit dominates aggregation: security is patch, feat is minor.
+      // If Security were accidentally tagged as minor, this would still be minor
+      // so we test that separately below.
+      expect(result.bumpType).toBe('minor');
+    });
+
+    it('security alone does not escalate above patch when mixed with docs', async () => {
+      // Guards against accidentally setting semver: 'minor' on the Security category.
+      // docs: is patch, security: is patch -> aggregate must be patch.
+      setup(
+        [
+          {
+            hash: 'aaa111',
+            title: 'security: patch XSS',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'bbb222',
+            title: 'docs: update readme',
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      expect(result.bumpType).toBe('patch');
+    });
+
+    it('escalates breaking security commits to major via Breaking Changes', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'security!: rotate signing keys',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      expect(result.changelog).toContain('### Breaking Changes 🛠');
+      expect(result.changelog).not.toContain('### Security 🔒');
+      expect(result.bumpType).toBe('major');
     });
   });
 
@@ -824,20 +1446,29 @@ changelog:
     it('cancels out a simple revert via SHA match', async () => {
       // Commit A and Revert A should cancel each other out
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'def456',
-          title: 'Revert "feat: add new feature"',
-          body: 'This reverts commit abc123.',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'abc123',
-          title: 'feat: add new feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'def456',
+            title: 'Revert "feat: add new feature"',
+            body: 'This reverts commit abc123.',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'abc123',
+            title: 'feat: add new feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // Both commits should cancel out, resulting in empty changelog
       expect(result.changelog).toBe('');
@@ -847,20 +1478,29 @@ changelog:
     it('cancels out a simple revert via title fallback', async () => {
       // When no SHA in body, fall back to title matching
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'def456',
-          title: 'Revert "feat: add new feature"',
-          body: '', // No SHA in body
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'abc123',
-          title: 'feat: add new feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'def456',
+            title: 'Revert "feat: add new feature"',
+            body: '', // No SHA in body
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'abc123',
+            title: 'feat: add new feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toBe('');
       expect(result.bumpType).toBeNull();
@@ -868,18 +1508,26 @@ changelog:
 
     it('keeps standalone revert when original is not in changelog', async () => {
       // Revert without corresponding original commit stays as bug fix
-      setup([
-        {
-          hash: 'def456',
-          title: 'Revert "feat: add feature from previous release"',
-          body: 'This reverts commit oldsha123.',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'def456',
+            title: 'Revert "feat: add feature from previous release"',
+            body: 'This reverts commit oldsha123.',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // Revert should appear in Bug Fixes category with full title
       expect(result.changelog).toContain('Bug Fixes');
-      expect(result.changelog).toContain('Revert "feat: add feature from previous release"');
+      expect(result.changelog).toContain(
+        'Revert "feat: add feature from previous release"',
+      );
       expect(result.bumpType).toBe('patch');
     });
 
@@ -887,26 +1535,38 @@ changelog:
       // A -> B (Revert A) -> C (Revert B)
       // Expected: C cancels B, A remains
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'ccc333',
-          title: 'Revert "Revert "feat: add feature""',
-          body: 'This reverts commit bbb222.',
-          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
-        },
-        {
-          hash: 'bbb222',
-          title: 'Revert "feat: add feature"',
-          body: 'This reverts commit aaa111.',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'aaa111',
-          title: 'feat: add feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'ccc333',
+            title: 'Revert "Revert "feat: add feature""',
+            body: 'This reverts commit bbb222.',
+            pr: {
+              local: '3',
+              remote: { number: '3', author: { login: 'charlie' } },
+            },
+          },
+          {
+            hash: 'bbb222',
+            title: 'Revert "feat: add feature"',
+            body: 'This reverts commit aaa111.',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'aaa111',
+            title: 'feat: add feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // B and C cancel out, A remains
       expect(result.changelog).toContain('New Features');
@@ -920,32 +1580,47 @@ changelog:
       // Processing newest first:
       // D cancels C, B cancels A -> nothing remains
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'ddd444',
-          title: 'Revert "Revert "Revert "feat: add feature"""',
-          body: 'This reverts commit ccc333.',
-          pr: { local: '4', remote: { number: '4', author: { login: 'dave' } } },
-        },
-        {
-          hash: 'ccc333',
-          title: 'Revert "Revert "feat: add feature""',
-          body: 'This reverts commit bbb222.',
-          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
-        },
-        {
-          hash: 'bbb222',
-          title: 'Revert "feat: add feature"',
-          body: 'This reverts commit aaa111.',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'aaa111',
-          title: 'feat: add feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'ddd444',
+            title: 'Revert "Revert "Revert "feat: add feature"""',
+            body: 'This reverts commit ccc333.',
+            pr: {
+              local: '4',
+              remote: { number: '4', author: { login: 'dave' } },
+            },
+          },
+          {
+            hash: 'ccc333',
+            title: 'Revert "Revert "feat: add feature""',
+            body: 'This reverts commit bbb222.',
+            pr: {
+              local: '3',
+              remote: { number: '3', author: { login: 'charlie' } },
+            },
+          },
+          {
+            hash: 'bbb222',
+            title: 'Revert "feat: add feature"',
+            body: 'This reverts commit aaa111.',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'aaa111',
+            title: 'feat: add feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // D cancels C, B cancels A -> empty
       expect(result.changelog).toBe('');
@@ -957,38 +1632,56 @@ changelog:
       // Processing newest first:
       // E cancels D, C cancels B, A remains
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'eee555',
-          title: 'Revert "Revert "Revert "Revert "feat: add feature""""',
-          body: 'This reverts commit ddd444.',
-          pr: { local: '5', remote: { number: '5', author: { login: 'eve' } } },
-        },
-        {
-          hash: 'ddd444',
-          title: 'Revert "Revert "Revert "feat: add feature"""',
-          body: 'This reverts commit ccc333.',
-          pr: { local: '4', remote: { number: '4', author: { login: 'dave' } } },
-        },
-        {
-          hash: 'ccc333',
-          title: 'Revert "Revert "feat: add feature""',
-          body: 'This reverts commit bbb222.',
-          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
-        },
-        {
-          hash: 'bbb222',
-          title: 'Revert "feat: add feature"',
-          body: 'This reverts commit aaa111.',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'aaa111',
-          title: 'feat: add feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'eee555',
+            title: 'Revert "Revert "Revert "Revert "feat: add feature""""',
+            body: 'This reverts commit ddd444.',
+            pr: {
+              local: '5',
+              remote: { number: '5', author: { login: 'eve' } },
+            },
+          },
+          {
+            hash: 'ddd444',
+            title: 'Revert "Revert "Revert "feat: add feature"""',
+            body: 'This reverts commit ccc333.',
+            pr: {
+              local: '4',
+              remote: { number: '4', author: { login: 'dave' } },
+            },
+          },
+          {
+            hash: 'ccc333',
+            title: 'Revert "Revert "feat: add feature""',
+            body: 'This reverts commit bbb222.',
+            pr: {
+              local: '3',
+              remote: { number: '3', author: { login: 'charlie' } },
+            },
+          },
+          {
+            hash: 'bbb222',
+            title: 'Revert "feat: add feature"',
+            body: 'This reverts commit aaa111.',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'aaa111',
+            title: 'feat: add feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // E cancels D, C cancels B, A remains
       expect(result.changelog).toContain('New Features');
@@ -1001,26 +1694,38 @@ changelog:
       // Two commits with same title, revert SHA points to first one
       // Only first one should be canceled, second remains
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'ccc333',
-          title: 'Revert "feat: add feature"',
-          body: 'This reverts commit aaa111.', // SHA points to first
-          pr: { local: '3', remote: { number: '3', author: { login: 'charlie' } } },
-        },
-        {
-          hash: 'bbb222',
-          title: 'feat: add feature', // Same title as first
-          body: '',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'aaa111',
-          title: 'feat: add feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'ccc333',
+            title: 'Revert "feat: add feature"',
+            body: 'This reverts commit aaa111.', // SHA points to first
+            pr: {
+              local: '3',
+              remote: { number: '3', author: { login: 'charlie' } },
+            },
+          },
+          {
+            hash: 'bbb222',
+            title: 'feat: add feature', // Same title as first
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'aaa111',
+            title: 'feat: add feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // First feat and revert cancel, second feat remains
       expect(result.changelog).toContain('Add feature');
@@ -1031,20 +1736,29 @@ changelog:
     it('handles revert with PR number suffix in title', async () => {
       // GitHub often includes PR number in title like: Revert "feat: add feature (#1)"
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'def456',
-          title: 'Revert "feat: add feature (#1)" (#2)',
-          body: 'This reverts commit abc123.',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'abc123',
-          title: 'feat: add feature (#1)',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+      setup(
+        [
+          {
+            hash: 'def456',
+            title: 'Revert "feat: add feature (#1)" (#2)',
+            body: 'This reverts commit abc123.',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'abc123',
+            title: 'feat: add feature (#1)',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toBe('');
     });
@@ -1052,27 +1766,33 @@ changelog:
     it('uses PR title for matching when available', async () => {
       // PR title differs from commit title, should use PR title for matching
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'def456',
-          title: 'Revert "feat: add feature"', // Matches PR title, not commit title
-          body: '',
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'abc123',
-          title: 'wip commit message',
-          body: '',
-          pr: {
-            local: '1',
-            remote: {
-              number: '1',
-              author: { login: 'alice' },
-              title: 'feat: add feature', // PR title is different
+      setup(
+        [
+          {
+            hash: 'def456',
+            title: 'Revert "feat: add feature"', // Matches PR title, not commit title
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
             },
           },
-        },
-      ], null);
+          {
+            hash: 'abc123',
+            title: 'wip commit message',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                title: 'feat: add feature', // PR title is different
+              },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       expect(result.changelog).toBe('');
     });
@@ -1080,25 +1800,34 @@ changelog:
     it('extracts SHA from body with additional explanation text', async () => {
       // Revert body often contains explanation in addition to the "This reverts commit" line
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'def456abc123',
-          title: 'Revert "feat: add new feature"',
-          body: `This reverts commit abc123def456.
+      setup(
+        [
+          {
+            hash: 'def456abc123',
+            title: 'Revert "feat: add new feature"',
+            body: `This reverts commit abc123def456.
 
 The feature caused performance issues in production.
 We need to investigate further before re-enabling.
 
 See incident report: https://example.com/incident/123`,
-          pr: { local: '2', remote: { number: '2', author: { login: 'bob' } } },
-        },
-        {
-          hash: 'abc123def456',
-          title: 'feat: add new feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+          {
+            hash: 'abc123def456',
+            title: 'feat: add new feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // Both should cancel out despite the additional text in the body
       expect(result.changelog).toBe('');
@@ -1109,31 +1838,123 @@ See incident report: https://example.com/incident/123`,
       // Sometimes the title may not follow the "Revert "..."" format,
       // but the body still contains "This reverts commit <sha>"
       // Commits in newest-first order (git log order)
-      setup([
-        {
-          hash: 'def456abc123',
-          title: 'fix: undo the new feature due to issues', // Non-standard revert title
-          body: '',
-          pr: {
-            local: '2',
-            remote: {
-              number: '2',
-              author: { login: 'bob' },
-              body: 'This reverts commit abc123def456.\n\nThe feature caused problems.',
+      setup(
+        [
+          {
+            hash: 'def456abc123',
+            title: 'fix: undo the new feature due to issues', // Non-standard revert title
+            body: '',
+            pr: {
+              local: '2',
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                body: 'This reverts commit abc123def456.\n\nThe feature caused problems.',
+              },
             },
           },
-        },
-        {
-          hash: 'abc123def456',
-          title: 'feat: add new feature',
-          body: '',
-          pr: { local: '1', remote: { number: '1', author: { login: 'alice' } } },
-        },
-      ], null);
+          {
+            hash: 'abc123def456',
+            title: 'feat: add new feature',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // Both should cancel out because body contains the revert magic string with SHA
       expect(result.changelog).toBe('');
       expect(result.bumpType).toBeNull();
+    });
+  });
+
+  describe('PR deduplication', () => {
+    it('deduplicates commits with same PR number from rebase-merge workflows', async () => {
+      // When using rebase-merge, all individual commits from a PR are added to
+      // the base branch and each gets associated with the same PR number.
+      // We should only show the PR once in the changelog.
+      setup(
+        [
+          {
+            hash: 'commit1',
+            title: 'feat(ui): add button component',
+            body: '',
+            pr: {
+              local: '42',
+              remote: {
+                number: '42',
+                title: 'feat(ui): add button component',
+                author: { login: 'alice' },
+              },
+            },
+          },
+          {
+            hash: 'commit2',
+            title: 'feat(ui): add button styles',
+            body: '',
+            pr: {
+              local: '42',
+              remote: {
+                number: '42',
+                title: 'feat(ui): add button component', // Same PR, same title from API
+                author: { login: 'alice' },
+              },
+            },
+          },
+          {
+            hash: 'commit3',
+            title: 'feat(ui): add button tests',
+            body: '',
+            pr: {
+              local: '42',
+              remote: {
+                number: '42',
+                title: 'feat(ui): add button component', // Same PR, same title from API
+                author: { login: 'alice' },
+              },
+            },
+          },
+        ],
+        null,
+      );
+
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+
+      // PR #42 should appear only once, not three times
+      const matches = result.changelog.match(/#42/g);
+      expect(matches).toHaveLength(1);
+      expect(result.changelog).toContain('Add button component');
+    });
+
+    it('keeps commits without PR association even if they share hashes', async () => {
+      // Commits without PR association should all be kept
+      setup(
+        [
+          {
+            hash: 'commit1',
+            title: 'chore: update dependencies',
+            body: '',
+            // No PR association
+          },
+          {
+            hash: 'commit2',
+            title: 'chore: fix typo',
+            body: '',
+            // No PR association
+          },
+        ],
+        null,
+      );
+
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+
+      // Both commits should appear, categorized under Internal Changes via the chore: pattern
+      expect(result.changelog).toContain('Update dependencies');
+      expect(result.changelog).toContain('Fix typo');
     });
   });
 });
@@ -1154,6 +1975,7 @@ describe('generateChangelogWithHighlight', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     clearChangesetCache();
+    clearReleaseConfigCache();
     mockGraphqlClient = vi.fn();
     mockRestClient = {
       pulls: { get: vi.fn() },
@@ -1544,6 +2366,57 @@ describe('generateChangelogWithHighlight', () => {
       expect(result.changelog).toContain('by **alice**');
       expect(result.changelog).not.toContain('@bob');
       expect(result.changelog).not.toContain('@alice');
+    });
+
+    it('deduplicates already-merged PRs to avoid duplicate entries (PR 648 fix)', async () => {
+      // When a PR is already merged but its title/description is updated,
+      // the changelog preview would show the PR twice:
+      // 1. From git history (via fetchRawCommitInfo)
+      // 2. From the current PR fetch (with highlight: true)
+      // This test verifies the deduplication fix.
+      setup({
+        currentPR: {
+          number: 2,
+          title: 'feat: updated title after merge', // Title updated after merge
+          body: 'Updated description.',
+          author: 'bob',
+          headSha: 'def456', // Same SHA as in existingCommits
+        },
+        existingCommits: [
+          {
+            hash: 'abc123',
+            title: 'fix: other bug fix',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'def456', // Same PR, appears in git history
+            title: 'feat: original title before merge',
+            body: '',
+            pr: {
+              local: '2',
+              remote: {
+                number: '2',
+                title: 'feat: original title before merge',
+                author: { login: 'bob' },
+              },
+            },
+          },
+        ],
+      });
+
+      const result = await generateChangelogWithHighlight(dummyGit, '1.0.0', 2);
+
+      // PR #2 should appear only once (with the updated title from current PR fetch)
+      expect(result.changelog).toContain('Updated title after merge');
+      expect(result.changelog).not.toContain('Original title before merge');
+      // The highlighted entry should use the fresh PR data
+      expect(result.changelog).toContain('> - Updated title after merge');
+      // Other PRs should still appear normally
+      expect(result.changelog).toContain('Other bug fix');
     });
   });
 

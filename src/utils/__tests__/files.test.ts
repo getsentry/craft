@@ -1,4 +1,3 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { existsSync, rmdirSync } from 'fs';
 import { join, resolve } from 'path';
 
@@ -18,7 +17,7 @@ describe('listFiles', () => {
 describe('withTempDir', () => {
   async function testDirectories(
     callback: (arg: any) => any,
-    cleanupEnabled = true
+    cleanupEnabled = true,
   ): Promise<any> {
     let directory = '';
     try {

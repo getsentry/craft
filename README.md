@@ -17,11 +17,32 @@ Craft is a command line tool that helps automate and pipeline package releases. 
 
 ### Installation
 
-Download the [latest binary release](https://github.com/getsentry/craft/releases/latest), or install via npm:
+Download a standalone executable for your OS and architecture from the
+[latest release](https://github.com/getsentry/craft/releases/latest), or install
+the portable JavaScript package via npm. Standalone executables embed Node;
+npm installation requires Node. The legacy `craft` asset remains a JavaScript bundle.
 
 ```shell
 npm install -g @sentry/craft
 ```
+
+Homebrew installation will be available after the first stable release publishing
+these binaries and its formula:
+
+```shell
+brew install getsentry/tools/craft
+```
+
+Once the first native release and installer website are published:
+
+```shell
+curl -fsSL https://craft.sentry.dev/install | bash
+```
+
+The Bash installer supports macOS/Linux and Windows x64 through Git Bash. It
+verifies the download and installs to a user bin directory; add the printed
+path to PATH. Use `--version`, `--install-dir`, or `--dry-run` by downloading
+and running the script locally.
 
 ### Usage
 
@@ -41,6 +62,7 @@ craft publish 1.2.3
 - **Auto Versioning** - Automatically determine version bumps from conventional commits
 - **Multiple Targets** - Publish to GitHub, NPM, PyPI, Docker, Crates.io, NuGet, and more
 - **Changelog Management** - Auto-generate changelogs from commits or validate manual entries
+- **AI Changelog Summaries** - Choose release, category, and scope summaries through a shared HTTP client, defaulting to Copilot Responses, with bounded requests and expandable original entries ([configuration](https://craft.sentry.dev/configuration/#ai-summaries))
 - **Workspace Support** - Handle monorepos with NPM/Yarn workspaces
 - **CI Integration** - Wait for CI to pass, download artifacts, and publish
 - **GitHub Actions** - Built-in actions for release preparation and changelog previews
@@ -50,7 +72,7 @@ craft publish 1.2.3
 Create a `.craft.yml` in your project root:
 
 ```yaml
-minVersion: "2.0.0"
+minVersion: '2.0.0'
 changelog:
   policy: auto
 targets:
@@ -63,24 +85,24 @@ See the [configuration reference](https://getsentry.github.io/craft/configuratio
 
 ## Supported Targets
 
-| Target | Description |
-|--------|-------------|
-| `github` | GitHub releases and tags |
-| `npm` | NPM registry (with workspace support) |
-| `pypi` | Python Package Index |
-| `crates` | Rust crates.io |
-| `nuget` | .NET NuGet |
-| `docker` | Docker registries |
-| `brew` | Homebrew formulas |
-| `gcs` | Google Cloud Storage |
-| `gh-pages` | GitHub Pages |
-| `cocoapods` | CocoaPods |
-| `gem` | RubyGems |
-| `maven` | Maven Central |
-| `hex` | Elixir Hex |
-| `pub-dev` | Dart/Flutter pub.dev |
-| `aws-lambda-layer` | AWS Lambda layers |
-| `powershell` | PowerShell Gallery |
+| Target             | Description                           |
+| ------------------ | ------------------------------------- |
+| `github`           | GitHub releases and tags              |
+| `npm`              | NPM registry (with workspace support) |
+| `pypi`             | Python Package Index                  |
+| `crates`           | Rust crates.io                        |
+| `nuget`            | .NET NuGet                            |
+| `docker`           | Docker registries                     |
+| `brew`             | Homebrew formulas                     |
+| `gcs`              | Google Cloud Storage                  |
+| `gh-pages`         | GitHub Pages                          |
+| `cocoapods`        | CocoaPods                             |
+| `gem`              | RubyGems                              |
+| `maven`            | Maven Central                         |
+| `hex`              | Elixir Hex                            |
+| `pub-dev`          | Dart/Flutter pub.dev                  |
+| `aws-lambda-layer` | AWS Lambda layers                     |
+| `powershell`       | PowerShell Gallery                    |
 
 See the [targets documentation](https://getsentry.github.io/craft/targets/) for configuration details.
 
@@ -117,22 +139,22 @@ jobs:
 
 **Inputs:**
 
-| Input | Description | Default |
-|-------|-------------|---------|
-| `version` | Version to release (semver, "auto", "major", "minor", "patch") | Uses `versioning.policy` from config |
-| `merge_target` | Target branch to merge into | Default branch |
-| `force` | Force release even with blockers | `false` |
-| `blocker_label` | Label that blocks releases | `release-blocker` |
-| `publish_repo` | Repository for publish issues | `{owner}/publish` |
+| Input           | Description                                                                                   | Default                              |
+| --------------- | --------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `version`       | Version to release (semver, "auto", "major", "minor", "patch")                                | Uses `versioning.policy` from config |
+| `merge_target`  | Target branch to merge into                                                                   | Default branch                       |
+| `force`         | Force release even with blockers                                                              | `false`                              |
+| `blocker_label` | Label that blocks releases                                                                    | `release-blocker`                    |
+| `publish_repo`  | Repository for publish issues. Use `"self"` to create issues in the source repository itself. | `{owner}/publish`                    |
 
 **Outputs:**
 
-| Output | Description |
-|--------|-------------|
-| `version` | The resolved version being released |
-| `branch` | The release branch name |
-| `sha` | The commit SHA on the release branch |
-| `changelog` | The changelog for this release |
+| Output      | Description                          |
+| ----------- | ------------------------------------ |
+| `version`   | The resolved version being released  |
+| `branch`    | The release branch name              |
+| `sha`       | The commit SHA on the release branch |
+| `changelog` | The changelog for this release       |
 
 ### Changelog Preview (Reusable Workflow)
 
@@ -151,6 +173,7 @@ jobs:
 ```
 
 The workflow will:
+
 - Generate the upcoming changelog including the PR's changes
 - Highlight entries from the PR using blockquote style (left border)
 - Post a comment on the PR with the preview

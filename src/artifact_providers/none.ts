@@ -13,7 +13,7 @@ export class NoneArtifactProvider extends BaseArtifactProvider {
       repoName: 'none',
       repoOwner: 'none',
       name: 'none',
-    }
+    },
   ) {
     super(config);
   }
@@ -24,10 +24,10 @@ export class NoneArtifactProvider extends BaseArtifactProvider {
    */
   protected async doDownloadArtifact(
     _artifact: RemoteArtifact,
-    _downloadDirectory: string
+    _downloadDirectory: string,
   ): Promise<string> {
     return Promise.reject(
-      new Error('NoneProvider does not suuport file downloads!')
+      new Error('NoneProvider does not suuport file downloads!'),
     );
   }
 
@@ -37,7 +37,7 @@ export class NoneArtifactProvider extends BaseArtifactProvider {
    * @returns An empty array
    */
   protected async doListArtifactsForRevision(
-    _revision: string
+    _revision: string,
   ): Promise<RemoteArtifact[]> {
     return [];
   }

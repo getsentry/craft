@@ -1,10 +1,10 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import {
   renderTemplateSafe,
   sanitizeObject,
   formatSize,
   formatJson,
 } from '../strings';
+import { ConfigurationError } from '../errors';
 
 describe('sanitizeObject', () => {
   test('processes empty object', () => {
@@ -59,18 +59,41 @@ describe('renderTemplateSafe', () => {
 
   test('renders nested values', () => {
     expect(renderTemplateSafe('x{{ var.d }}', { var: { d: 123 } })).toBe(
-      'x123'
+      'x123',
     );
   });
 
   test('renders nested values with dotted keys', () => {
     expect(renderTemplateSafe('x{{ var.d__1 }}', { var: { 'd.1': 123 } })).toBe(
-      'x123'
+      'x123',
     );
   });
 
-  test('does not render globals', () => {
-    expect(renderTemplateSafe('{{ process }}', {})).toBe('');
+  test('throws error on unknown variable', () => {
+    expect(() =>
+      renderTemplateSafe('{{ unknown }}', { known: 'value' }),
+    ).toThrow(ConfigurationError);
+    expect(() =>
+      renderTemplateSafe('{{ unknown }}', { known: 'value' }),
+    ).toThrow(/Unknown template variable\(s\): unknown/);
+  });
+
+  test('throws error with available variables in message', () => {
+    expect(() =>
+      renderTemplateSafe('{{ missing }}', { foo: 1, bar: 2 }),
+    ).toThrow(/Available variables: foo, bar/);
+  });
+
+  test('throws error for globals (prevents accidental access)', () => {
+    expect(() => renderTemplateSafe('{{ process }}', {})).toThrow(
+      ConfigurationError,
+    );
+  });
+
+  test('throws error listing all unknown variables', () => {
+    expect(() =>
+      renderTemplateSafe('{{ a }} {{ b }} {{ c }}', { x: 1 }),
+    ).toThrow(/Unknown template variable\(s\): a, b, c/);
   });
 });
 
@@ -100,7 +123,7 @@ describe('formatJson', () => {
         3,
         4
     ]
-}`
+}`,
     );
   });
   test('serializes an error', () => {

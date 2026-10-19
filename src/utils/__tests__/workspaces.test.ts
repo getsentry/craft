@@ -1,4 +1,3 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { resolve } from 'path';
 
 import {
@@ -15,7 +14,9 @@ const fixturesDir = resolve(__dirname, '../__fixtures__/workspaces');
 
 describe('discoverWorkspaces', () => {
   test('discovers npm workspaces', async () => {
-    const result = await discoverWorkspaces(resolve(fixturesDir, 'npm-workspace'));
+    const result = await discoverWorkspaces(
+      resolve(fixturesDir, 'npm-workspace'),
+    );
 
     expect(result.type).toBe('npm');
     expect(result.packages).toHaveLength(2);
@@ -35,7 +36,9 @@ describe('discoverWorkspaces', () => {
   });
 
   test('discovers pnpm workspaces', async () => {
-    const result = await discoverWorkspaces(resolve(fixturesDir, 'pnpm-workspace'));
+    const result = await discoverWorkspaces(
+      resolve(fixturesDir, 'pnpm-workspace'),
+    );
 
     expect(result.type).toBe('pnpm');
     expect(result.packages).toHaveLength(2);
@@ -45,14 +48,18 @@ describe('discoverWorkspaces', () => {
   });
 
   test('returns none type when no workspaces found', async () => {
-    const result = await discoverWorkspaces(resolve(fixturesDir, 'no-workspace'));
+    const result = await discoverWorkspaces(
+      resolve(fixturesDir, 'no-workspace'),
+    );
 
     expect(result.type).toBe('none');
     expect(result.packages).toHaveLength(0);
   });
 
   test('returns none type for non-existent directory', async () => {
-    const result = await discoverWorkspaces(resolve(fixturesDir, 'does-not-exist'));
+    const result = await discoverWorkspaces(
+      resolve(fixturesDir, 'does-not-exist'),
+    );
 
     expect(result.type).toBe('none');
     expect(result.packages).toHaveLength(0);
@@ -61,10 +68,34 @@ describe('discoverWorkspaces', () => {
 
 describe('filterWorkspacePackages', () => {
   const testPackages: WorkspacePackage[] = [
-    { name: '@sentry/browser', location: '/path/browser', private: false, hasPublicAccess: true, workspaceDependencies: ['@sentry-internal/utils'] },
-    { name: '@sentry/node', location: '/path/node', private: false, hasPublicAccess: true, workspaceDependencies: ['@sentry-internal/utils'] },
-    { name: '@sentry-internal/utils', location: '/path/utils', private: false, hasPublicAccess: true, workspaceDependencies: [] },
-    { name: '@other/package', location: '/path/other', private: false, hasPublicAccess: false, workspaceDependencies: [] },
+    {
+      name: '@sentry/browser',
+      location: '/path/browser',
+      private: false,
+      hasPublicAccess: true,
+      workspaceDependencies: ['@sentry-internal/utils'],
+    },
+    {
+      name: '@sentry/node',
+      location: '/path/node',
+      private: false,
+      hasPublicAccess: true,
+      workspaceDependencies: ['@sentry-internal/utils'],
+    },
+    {
+      name: '@sentry-internal/utils',
+      location: '/path/utils',
+      private: false,
+      hasPublicAccess: true,
+      workspaceDependencies: [],
+    },
+    {
+      name: '@other/package',
+      location: '/path/other',
+      private: false,
+      hasPublicAccess: false,
+      workspaceDependencies: [],
+    },
   ];
 
   test('returns all packages when no filters provided', () => {
@@ -73,20 +104,20 @@ describe('filterWorkspacePackages', () => {
   });
 
   test('filters packages by include pattern', () => {
-    const result = filterWorkspacePackages(
-      testPackages,
-      /^@sentry\//
-    );
+    const result = filterWorkspacePackages(testPackages, /^@sentry\//);
 
     expect(result).toHaveLength(2);
-    expect(result.map(p => p.name)).toEqual(['@sentry/browser', '@sentry/node']);
+    expect(result.map(p => p.name)).toEqual([
+      '@sentry/browser',
+      '@sentry/node',
+    ]);
   });
 
   test('filters packages by exclude pattern', () => {
     const result = filterWorkspacePackages(
       testPackages,
       undefined,
-      /^@sentry-internal\//
+      /^@sentry-internal\//,
     );
 
     expect(result).toHaveLength(3);
@@ -101,11 +132,14 @@ describe('filterWorkspacePackages', () => {
     const result = filterWorkspacePackages(
       testPackages,
       /^@sentry/,
-      /^@sentry-internal\//
+      /^@sentry-internal\//,
     );
 
     expect(result).toHaveLength(2);
-    expect(result.map(p => p.name)).toEqual(['@sentry/browser', '@sentry/node']);
+    expect(result.map(p => p.name)).toEqual([
+      '@sentry/browser',
+      '@sentry/node',
+    ]);
   });
 });
 
@@ -116,7 +150,9 @@ describe('packageNameToArtifactPattern', () => {
   });
 
   test('converts nested scoped package name to pattern', () => {
-    const pattern = packageNameToArtifactPattern('@sentry-internal/browser-utils');
+    const pattern = packageNameToArtifactPattern(
+      '@sentry-internal/browser-utils',
+    );
     expect(pattern).toBe('/^sentry-internal-browser-utils-\\d.*\\.tgz$/');
   });
 
@@ -130,7 +166,7 @@ describe('packageNameToArtifactFromTemplate', () => {
   test('replaces {{name}} with full package name', () => {
     const result = packageNameToArtifactFromTemplate(
       '@sentry/browser',
-      '{{name}}.tgz'
+      '{{name}}.tgz',
     );
     expect(result).toBe('/^@sentry\\/browser\\.tgz$/');
   });
@@ -138,7 +174,7 @@ describe('packageNameToArtifactFromTemplate', () => {
   test('replaces {{simpleName}} with normalized name', () => {
     const result = packageNameToArtifactFromTemplate(
       '@sentry/browser',
-      '{{simpleName}}.tgz'
+      '{{simpleName}}.tgz',
     );
     expect(result).toBe('/^sentry-browser\\.tgz$/');
   });
@@ -146,7 +182,7 @@ describe('packageNameToArtifactFromTemplate', () => {
   test('replaces {{version}} with version placeholder', () => {
     const result = packageNameToArtifactFromTemplate(
       '@sentry/browser',
-      '{{simpleName}}-{{version}}.tgz'
+      '{{simpleName}}-{{version}}.tgz',
     );
     expect(result).toBe('/^sentry-browser-\\d.*\\.tgz$/');
   });
@@ -155,7 +191,7 @@ describe('packageNameToArtifactFromTemplate', () => {
     const result = packageNameToArtifactFromTemplate(
       '@sentry/browser',
       '{{simpleName}}-{{version}}.tgz',
-      '1.0.0'
+      '1.0.0',
     );
     expect(result).toBe('/^sentry-browser-1\\.0\\.0\\.tgz$/');
   });
@@ -163,34 +199,72 @@ describe('packageNameToArtifactFromTemplate', () => {
   test('handles complex templates', () => {
     const result = packageNameToArtifactFromTemplate(
       '@sentry/browser',
-      'dist/{{simpleName}}/{{simpleName}}-{{version}}.tgz'
+      'dist/{{simpleName}}/{{simpleName}}-{{version}}.tgz',
     );
-    expect(result).toBe('/^dist\\/sentry-browser\\/sentry-browser-\\d.*\\.tgz$/');
+    expect(result).toBe(
+      '/^dist\\/sentry-browser\\/sentry-browser-\\d.*\\.tgz$/',
+    );
   });
 });
 
 describe('topologicalSortPackages', () => {
   test('returns packages in dependency order', () => {
     const packages: WorkspacePackage[] = [
-      { name: '@sentry/browser', location: '/path/browser', private: false, hasPublicAccess: true, workspaceDependencies: ['@sentry/core'] },
-      { name: '@sentry/core', location: '/path/core', private: false, hasPublicAccess: true, workspaceDependencies: ['@sentry/types'] },
-      { name: '@sentry/types', location: '/path/types', private: false, hasPublicAccess: true, workspaceDependencies: [] },
+      {
+        name: '@sentry/browser',
+        location: '/path/browser',
+        private: false,
+        hasPublicAccess: true,
+        workspaceDependencies: ['@sentry/core'],
+      },
+      {
+        name: '@sentry/core',
+        location: '/path/core',
+        private: false,
+        hasPublicAccess: true,
+        workspaceDependencies: ['@sentry/types'],
+      },
+      {
+        name: '@sentry/types',
+        location: '/path/types',
+        private: false,
+        hasPublicAccess: true,
+        workspaceDependencies: [],
+      },
     ];
 
     const sorted = topologicalSortPackages(packages);
 
     expect(sorted.map(p => p.name)).toEqual([
-      '@sentry/types',  // no dependencies, comes first
-      '@sentry/core',   // depends on types
+      '@sentry/types', // no dependencies, comes first
+      '@sentry/core', // depends on types
       '@sentry/browser', // depends on core
     ]);
   });
 
   test('handles packages with no dependencies', () => {
     const packages: WorkspacePackage[] = [
-      { name: 'pkg-a', location: '/path/a', private: false, hasPublicAccess: false, workspaceDependencies: [] },
-      { name: 'pkg-b', location: '/path/b', private: false, hasPublicAccess: false, workspaceDependencies: [] },
-      { name: 'pkg-c', location: '/path/c', private: false, hasPublicAccess: false, workspaceDependencies: [] },
+      {
+        name: 'pkg-a',
+        location: '/path/a',
+        private: false,
+        hasPublicAccess: false,
+        workspaceDependencies: [],
+      },
+      {
+        name: 'pkg-b',
+        location: '/path/b',
+        private: false,
+        hasPublicAccess: false,
+        workspaceDependencies: [],
+      },
+      {
+        name: 'pkg-c',
+        location: '/path/c',
+        private: false,
+        hasPublicAccess: false,
+        workspaceDependencies: [],
+      },
     ];
 
     const sorted = topologicalSortPackages(packages);
@@ -202,10 +276,34 @@ describe('topologicalSortPackages', () => {
   test('handles diamond dependencies', () => {
     // Diamond: A depends on B and C, both B and C depend on D
     const packages: WorkspacePackage[] = [
-      { name: 'A', location: '/path/a', private: false, hasPublicAccess: false, workspaceDependencies: ['B', 'C'] },
-      { name: 'B', location: '/path/b', private: false, hasPublicAccess: false, workspaceDependencies: ['D'] },
-      { name: 'C', location: '/path/c', private: false, hasPublicAccess: false, workspaceDependencies: ['D'] },
-      { name: 'D', location: '/path/d', private: false, hasPublicAccess: false, workspaceDependencies: [] },
+      {
+        name: 'A',
+        location: '/path/a',
+        private: false,
+        hasPublicAccess: false,
+        workspaceDependencies: ['B', 'C'],
+      },
+      {
+        name: 'B',
+        location: '/path/b',
+        private: false,
+        hasPublicAccess: false,
+        workspaceDependencies: ['D'],
+      },
+      {
+        name: 'C',
+        location: '/path/c',
+        private: false,
+        hasPublicAccess: false,
+        workspaceDependencies: ['D'],
+      },
+      {
+        name: 'D',
+        location: '/path/d',
+        private: false,
+        hasPublicAccess: false,
+        workspaceDependencies: [],
+      },
     ];
 
     const sorted = topologicalSortPackages(packages);
@@ -216,8 +314,20 @@ describe('topologicalSortPackages', () => {
 
   test('ignores dependencies not in the package list', () => {
     const packages: WorkspacePackage[] = [
-      { name: 'pkg-a', location: '/path/a', private: false, hasPublicAccess: false, workspaceDependencies: ['external-dep', 'pkg-b'] },
-      { name: 'pkg-b', location: '/path/b', private: false, hasPublicAccess: false, workspaceDependencies: ['lodash'] },
+      {
+        name: 'pkg-a',
+        location: '/path/a',
+        private: false,
+        hasPublicAccess: false,
+        workspaceDependencies: ['external-dep', 'pkg-b'],
+      },
+      {
+        name: 'pkg-b',
+        location: '/path/b',
+        private: false,
+        hasPublicAccess: false,
+        workspaceDependencies: ['lodash'],
+      },
     ];
 
     const sorted = topologicalSortPackages(packages);
@@ -228,24 +338,80 @@ describe('topologicalSortPackages', () => {
 
   test('throws error on circular dependencies', () => {
     const packages: WorkspacePackage[] = [
-      { name: 'pkg-a', location: '/path/a', private: false, hasPublicAccess: false, workspaceDependencies: ['pkg-b'] },
-      { name: 'pkg-b', location: '/path/b', private: false, hasPublicAccess: false, workspaceDependencies: ['pkg-c'] },
-      { name: 'pkg-c', location: '/path/c', private: false, hasPublicAccess: false, workspaceDependencies: ['pkg-a'] },
+      {
+        name: 'pkg-a',
+        location: '/path/a',
+        private: false,
+        hasPublicAccess: false,
+        workspaceDependencies: ['pkg-b'],
+      },
+      {
+        name: 'pkg-b',
+        location: '/path/b',
+        private: false,
+        hasPublicAccess: false,
+        workspaceDependencies: ['pkg-c'],
+      },
+      {
+        name: 'pkg-c',
+        location: '/path/c',
+        private: false,
+        hasPublicAccess: false,
+        workspaceDependencies: ['pkg-a'],
+      },
     ];
 
-    expect(() => topologicalSortPackages(packages)).toThrow(/Circular dependency/);
+    expect(() => topologicalSortPackages(packages)).toThrow(
+      /Circular dependency/,
+    );
   });
 
   test('handles complex dependency graph with multiple branches', () => {
     // Real-world-like setup similar to sentry-javascript:
     // types -> core -> (browser, node-core -> node) -> nextjs (depends on browser and node)
     const packages: WorkspacePackage[] = [
-      { name: '@sentry/nextjs', location: '/path/nextjs', private: false, hasPublicAccess: true, workspaceDependencies: ['@sentry/browser', '@sentry/node'] },
-      { name: '@sentry/browser', location: '/path/browser', private: false, hasPublicAccess: true, workspaceDependencies: ['@sentry/core'] },
-      { name: '@sentry/node', location: '/path/node', private: false, hasPublicAccess: true, workspaceDependencies: ['@sentry/node-core'] },
-      { name: '@sentry/node-core', location: '/path/node-core', private: false, hasPublicAccess: true, workspaceDependencies: ['@sentry/core'] },
-      { name: '@sentry/core', location: '/path/core', private: false, hasPublicAccess: true, workspaceDependencies: ['@sentry/types'] },
-      { name: '@sentry/types', location: '/path/types', private: false, hasPublicAccess: true, workspaceDependencies: [] },
+      {
+        name: '@sentry/nextjs',
+        location: '/path/nextjs',
+        private: false,
+        hasPublicAccess: true,
+        workspaceDependencies: ['@sentry/browser', '@sentry/node'],
+      },
+      {
+        name: '@sentry/browser',
+        location: '/path/browser',
+        private: false,
+        hasPublicAccess: true,
+        workspaceDependencies: ['@sentry/core'],
+      },
+      {
+        name: '@sentry/node',
+        location: '/path/node',
+        private: false,
+        hasPublicAccess: true,
+        workspaceDependencies: ['@sentry/node-core'],
+      },
+      {
+        name: '@sentry/node-core',
+        location: '/path/node-core',
+        private: false,
+        hasPublicAccess: true,
+        workspaceDependencies: ['@sentry/core'],
+      },
+      {
+        name: '@sentry/core',
+        location: '/path/core',
+        private: false,
+        hasPublicAccess: true,
+        workspaceDependencies: ['@sentry/types'],
+      },
+      {
+        name: '@sentry/types',
+        location: '/path/types',
+        private: false,
+        hasPublicAccess: true,
+        workspaceDependencies: [],
+      },
     ];
 
     const sorted = topologicalSortPackages(packages);
@@ -256,12 +422,12 @@ describe('topologicalSortPackages', () => {
     // types -> core -> node-core -> node (branch 2)
     // nextjs depends on both browser and node
     expect(names).toEqual([
-      '@sentry/types',     // depth 0: no dependencies
-      '@sentry/core',      // depth 1: depends on types
-      '@sentry/browser',   // depth 2: depends on core
+      '@sentry/types', // depth 0: no dependencies
+      '@sentry/core', // depth 1: depends on types
+      '@sentry/browser', // depth 2: depends on core
       '@sentry/node-core', // depth 2: depends on core
-      '@sentry/node',      // depth 3: depends on node-core
-      '@sentry/nextjs',    // depth 4: depends on browser and node
+      '@sentry/node', // depth 3: depends on node-core
+      '@sentry/nextjs', // depth 4: depends on browser and node
     ]);
   });
 });

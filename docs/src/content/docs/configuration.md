@@ -23,23 +23,140 @@ This command runs on your release branch as part of `craft prepare`. Default: `b
 preReleaseCommand: bash scripts/bump-version.sh
 ```
 
+The command is executed with the following environment variables:
+
+- `CRAFT_OLD_VERSION`: The previous version (or `0.0.0` if no previous version exists)
+- `CRAFT_NEW_VERSION`: The new version being released
+
 The script should:
-- Accept old and new version as the last two arguments
+
+- Use these environment variables to perform version replacement
 - Replace version occurrences
 - Not commit changes
 - Not change git state
+
+> **Note:** For backward compatibility, the old and new versions are also passed as the last two command-line arguments to the script, but using environment variables is safer and recommended.
 
 Example script:
 
 ```bash
 #!/bin/bash
 set -eux
-OLD_VERSION="${1}"
-NEW_VERSION="${2}"
 
+# Use CRAFT_NEW_VERSION provided by craft
 export npm_config_git_tag_version=false
-npm version "${NEW_VERSION}"
+npm version "${CRAFT_NEW_VERSION}"
 ```
+
+## Automatic Version Bumping
+
+When `minVersion: "2.21.0"` or higher is set and no custom `preReleaseCommand` is defined, Craft automatically bumps version numbers based on your configured publish targets. This eliminates the need for a `scripts/bump-version.sh` script in most cases.
+
+### How It Works
+
+1. Craft examines your configured `targets` in `.craft.yml`
+2. For each target that supports version bumping, Craft updates the appropriate project files
+3. Targets are processed in the order they appear in your configuration
+4. Each target type is only processed once (e.g., multiple npm targets won't bump `package.json` twice)
+
+### Supported Targets
+
+| Target    | Detection               | Version Bump Method                                         |
+| --------- | ----------------------- | ----------------------------------------------------------- |
+| `npm`     | `package.json` exists   | `npm version --no-git-tag-version` (with workspace support) |
+| `pypi`    | `pyproject.toml` exists | hatch, poetry, setuptools-scm, or direct edit               |
+| `crates`  | `Cargo.toml` exists     | `cargo set-version` (requires cargo-edit)                   |
+| `gem`     | `*.gemspec` exists      | Direct edit of gemspec and `lib/**/version.rb`              |
+| `pub-dev` | `pubspec.yaml` exists   | Direct edit of pubspec.yaml                                 |
+| `hex`     | `mix.exs` exists        | Direct edit of mix.exs                                      |
+| `nuget`   | `*.csproj` exists       | dotnet-setversion or direct XML edit                        |
+
+### npm Workspace Support
+
+For npm/yarn/pnpm monorepos, Craft automatically detects and bumps versions in all workspace packages:
+
+- **npm 7+**: Uses `npm version --workspaces` to bump all packages at once
+- **yarn/pnpm or npm < 7**: Falls back to bumping each non-private package individually
+
+Workspace detection checks for:
+
+- `workspaces` field in root `package.json` (npm/yarn)
+- `pnpm-workspace.yaml` (pnpm)
+
+Private packages (`"private": true`) are skipped during workspace version bumping.
+
+### Python (pypi) Detection Priority
+
+For Python projects, Craft detects the build tool and uses the appropriate method:
+
+1. **Hatch** - If `[tool.hatch]` section exists → `hatch version <version>`
+2. **Poetry** - If `[tool.poetry]` section exists → `poetry version <version>`
+3. **setuptools-scm** - If `[tool.setuptools_scm]` section exists → No-op (version derived from git tags)
+4. **Direct edit** - If `[project]` section with `version` field exists → Edit `pyproject.toml` directly
+
+### Enabling Automatic Version Bumping
+
+To enable automatic version bumping, ensure your `.craft.yml` has:
+
+```yaml
+minVersion: '2.21.0'
+targets:
+  - name: npm # or pypi, crates, etc.
+  # ... other targets
+```
+
+And either:
+
+- Remove any custom `preReleaseCommand`, or
+- Don't define `preReleaseCommand` at all
+
+### Disabling Automatic Version Bumping
+
+To disable automatic version bumping while still using minVersion 2.21.0+:
+
+```yaml
+minVersion: '2.21.0'
+preReleaseCommand: '' # Explicitly set to empty string
+```
+
+Or define a custom script:
+
+```yaml
+minVersion: '2.21.0'
+preReleaseCommand: bash scripts/my-custom-bump.sh
+```
+
+### Error Handling
+
+If automatic version bumping fails:
+
+- **Missing tool**: Craft reports which tool is missing (e.g., "Cannot find 'npm' for version bumping")
+- **Command failure**: Craft shows the error from the failed command
+- **No supported targets**: Craft warns that no targets support automatic bumping
+
+In all error cases, Craft suggests defining a custom `preReleaseCommand` as a fallback.
+
+### Recovery from Failed Prepare
+
+If version bumping succeeds but `craft prepare` fails mid-way (e.g., during changelog generation or git operations), you may need to clean up manually:
+
+1. **Check the release branch**: If a release branch was created, you can delete it:
+
+   ```bash
+   git branch -D release/<version>
+   ```
+
+2. **Revert version changes**: If files were modified but not committed, reset them:
+
+   ```bash
+   git checkout -- package.json pyproject.toml Cargo.toml  # or whichever files were changed
+   ```
+
+3. **Re-run prepare**: Once the issue is fixed, run `craft prepare` again. Version bumping is idempotent—running it multiple times with the same version is safe.
+
+:::tip
+Use `craft prepare --dry-run` first to preview what changes will be made without modifying any files.
+:::
 
 ## Post-release Command
 
@@ -58,6 +175,22 @@ releaseBranchPrefix: publish
 ```
 
 Full branch name: `{releaseBranchPrefix}/{version}`
+
+The prefix may contain slashes, which is useful for monorepos that release
+several independently-versioned products from one repository. Pairing a slashed
+`releaseBranchPrefix` with a per-product `github.tagPrefix` keeps each product's
+release branches and tags separate:
+
+```yaml
+releaseBranchPrefix: release/cli
+targets:
+  - name: github
+    tagPrefix: "cli@"
+```
+
+This produces branches like `release/cli/1.2.3` and tags like `cli@1.2.3`. See
+the [GitHub target docs](./targets/github/#monorepo-independently-versioned-products)
+for the full monorepo pattern.
 
 ## Changelog Policies
 
@@ -88,17 +221,219 @@ changelog:
   policy: auto
 ```
 
-Auto mode uses `.github/release.yml` to categorize PRs by labels or commit patterns. If not present, it uses default [Conventional Commits](https://www.conventionalcommits.org/) patterns:
+Auto mode uses `.github/release.yml` to categorize PRs. This file follows [GitHub's release.yml format](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes#configuring-automatically-generated-release-notes) with Craft-specific extensions.
 
-| Category | Pattern |
-|----------|---------|
-| Breaking Changes | `^(?<type>\w+(?:\((?<scope>[^)]+)\))?!:\s*)` |
-| New Features | `^(?<type>feat(?:\((?<scope>[^)]+)\))?!?:\s*)` |
-| Bug Fixes | `^(?<type>fix(?:\((?<scope>[^)]+)\))?!?:\s*)` |
-| Documentation | `^(?<type>docs?(?:\((?<scope>[^)]+)\))?!?:\s*)` |
-| Build / dependencies | `^(?<type>(?:build\|refactor\|chore\|ci)(?:\((?<scope>[^)]+)\))?!?:\s*)` |
+#### AI summaries
 
-Example `.github/release.yml`:
+Add an `aiSummary` object to enable summaries for automatic changelogs. Omit it
+or use `aiSummary: false` to disable generation.
+
+```yaml
+changelog:
+  policy: auto
+  aiSummary:
+    levels: [release] # default; choose any combination of release, category, scope
+    minItems: 5 # summarize groups with more than 5 original entries
+    style: Concise and friendly for developers. # optional tone guidance
+```
+
+| Setting | Default | Behavior |
+| --- | --- | --- |
+| `levels` | `[release]` | Select visible summaries; omitted or empty arrays use `[release]`. |
+| `minItems` | `5` | Strict entry-count threshold. `0` includes every nonempty selected group. Category counts include descendants; release counts include the whole changelog. |
+| `style` | Neutral | Optional writing guidance (1–500 characters), applied at every level. Facts, coverage, length and plain-text safeguards still apply. |
+| `llm.endpoint` | `https://api.githubcopilot.com/responses` | Full POST URL; HTTPS required except loopback HTTP. |
+| `llm.model` | `gpt-5.4-nano` | Model ID supported by the endpoint and credential. |
+| `llm.apiKeyEnv` | `GITHUB_TOKEN` | Name of the environment variable containing the token. Never put the token in configuration or CLI arguments. |
+
+Lower-level digests are reused for parent summaries even when hidden. Release
+overviews use up to three prose paragraphs and cover every category. Category
+and scope summaries preserve originals in expandable blocks, including links
+and nested content. Category prose and
+scope headings stay expanded; each original entry is folded only once. Scope
+summaries need an existing scope heading; `scopeGrouping: false` still allows
+category/release summaries. Unscoped entries contribute to both parent levels.
+
+##### Output examples
+
+These examples use two original entries and `minItems: 0`.
+
+**`levels: [release]`** adds an overview and leaves originals expanded:
+
+```markdown
+Added login and logout commands to CLI.
+
+### New Features
+#### CLI
+- Add login command
+- Add logout command
+```
+
+**`levels: [category]`** keeps scope headings visible and folds original entries:
+
+```markdown
+### New Features
+
+Added login and logout commands to CLI.
+
+#### CLI
+
+<details>
+<summary>Show 2 items</summary>
+
+- Add login command
+- Add logout command
+
+</details>
+```
+
+**`levels: [scope]`** summarizes each eligible scope:
+
+```markdown
+### New Features
+#### CLI
+Added login and logout commands.
+
+<details>
+<summary>Show 2 items</summary>
+
+- Add login command
+- Add logout command
+
+</details>
+```
+
+**`levels: [release, scope]`** combines an overview with scope summaries:
+
+```markdown
+Added login and logout commands to CLI.
+
+### New Features
+#### CLI
+Added login and logout commands.
+
+<details>
+<summary>Show 2 items</summary>
+
+- Add login command
+- Add logout command
+
+</details>
+```
+
+**`levels: [category, scope]`** keeps both summaries visible:
+
+```markdown
+### New Features
+
+Added login and logout commands to CLI.
+
+#### CLI
+
+Added login and logout commands.
+
+<details>
+<summary>Show 2 items</summary>
+
+- Add login command
+- Add logout command
+
+</details>
+```
+
+Selecting all three levels also adds the release overview. Excluding `release`
+omits it. Category/release summaries retain scope context; scope summaries can
+omit the scope name because their heading supplies it.
+
+##### Connection settings
+
+The CLI and Actions share the HTTP client. With an authorized Copilot token in
+`GITHUB_TOKEN`, `aiSummary: {}` uses the default Luna Responses endpoint. For a
+custom provider, specify its connection and token variable:
+
+```yaml
+changelog:
+  policy: auto
+  aiSummary:
+    llm:
+      endpoint: https://gateway.example.com/v1/chat/completions
+      model: your-model
+      apiKeyEnv: TEAM_MODEL_TOKEN
+```
+
+Per-field precedence is CLI flags (`--ai-endpoint`, `--ai-model`,
+`--ai-api-key-env`), `CRAFT_AI_LLM` JSON, scalar environment overrides
+(`CRAFT_AI_ENDPOINT`, `CRAFT_AI_MODEL`, `CRAFT_AI_API_KEY_ENV`), then effective
+project/workspace configuration. Workspace changelog objects replace the
+inherited object. Endpoints ending in `/responses` use Responses; others use
+Chat Completions. Both require structured JSON output. Invalid settings are
+rejected; missing tokens and provider errors retain the original output.
+
+Generation sends changelog content and critical PR titles to the chosen
+provider. Breaking/security facts retain source IDs. Generated prose is escaped;
+review it for accuracy. Requests are bounded to 64 calls, 3 concurrent calls,
+30 seconds per request, 120 seconds total, 24,000 input bytes and 8,192 output
+tokens. Any failure preserves the entire original changelog without retries or
+provider switching. Existing leftover-entry limits still apply.
+
+Dry runs, highlighted PR previews, `prepare --no-changelog` and version analysis
+make zero model calls. See [AI summary authentication](../github-actions/#ai-summary-authentication)
+for Action inputs, secret mapping, Copilot permissions and billing.
+
+#### Craft Extensions to release.yml
+
+Craft extends GitHub's format with two additional fields:
+
+| Field             | Description                                                               |
+| ----------------- | ------------------------------------------------------------------------- |
+| `commit_patterns` | Array of regex patterns to match commit/PR titles (in addition to labels) |
+| `semver`          | Version bump type for auto-versioning: `major`, `minor`, or `patch`       |
+
+:::caution[Required for Version Detection]
+The `semver` field is required for Craft's automatic version detection to work.
+If you define a custom `.github/release.yml` without `semver` fields, PRs will
+still appear in the changelog but won't contribute to suggested version bumps.
+The [changelog preview](/github-actions/#changelog-preview) will show "None" for semver impact.
+:::
+
+#### Default Configuration
+
+If `.github/release.yml` doesn't exist, Craft uses these defaults based on [Conventional Commits](https://www.conventionalcommits.org/):
+
+```yaml
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+  categories:
+    - title: Breaking Changes 🛠
+      commit_patterns:
+        - "^(?<type>\\w+(?:\\((?<scope>[^)]+)\\))?!:\\s*)"
+      semver: major
+    - title: Security 🔒
+      commit_patterns:
+        - "^(?<type>security(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+      semver: patch
+    - title: New Features ✨
+      commit_patterns:
+        - "^(?<type>feat(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+      semver: minor
+    - title: Bug Fixes 🐛
+      commit_patterns:
+        - "^(?<type>fix(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+        - '^Revert "'
+      semver: patch
+    - title: Documentation 📚
+      commit_patterns:
+        - "^(?<type>docs?(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+      semver: patch
+    - title: Internal Changes 🔧
+      commit_patterns:
+        - "^(?<type>(?:build|refactor|meta|chore|ci|ref|perf|tests?|style)(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+      semver: patch
+```
+
+#### Example Configuration
 
 ```yaml
 changelog:
@@ -108,11 +443,13 @@ changelog:
         - enhancement
       commit_patterns:
         - "^(?<type>feat(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+      semver: minor
     - title: Bug Fixes
       labels:
         - bug
       commit_patterns:
         - "^(?<type>fix(?:\\((?<scope>[^)]+)\\))?!?:\\s*)"
+      semver: patch
 ```
 
 ### Custom Changelog Entries from PR Descriptions
@@ -162,12 +499,13 @@ of the PR title. If no such section is present, the PR title is used as usual.
    ### Changelog Entry
 
    - Add authentication system
-       - OAuth2 support
-       - Two-factor authentication
-       - Session management
+     - OAuth2 support
+     - Two-factor authentication
+     - Session management
    ```
 
    This will generate:
+
    ```markdown
    - Add authentication system by @user in [#123](url)
      - OAuth2 support
@@ -192,7 +530,7 @@ Changes are automatically grouped by scope (e.g., `feat(api):` groups under "Api
 ```yaml
 changelog:
   policy: auto
-  scopeGrouping: true  # default
+  scopeGrouping: true # default
 ```
 
 Scope headers are only shown for scopes with more than one entry. Entries without
@@ -215,6 +553,31 @@ Example output with scope grouping:
 - General improvement by @dave in [#4](https://github.com/...)
 ```
 
+### Workspace-aware changelogs
+
+When you select a Craft release workspace, automatic changelogs include commits
+that change files in that workspace and commits that change shared files outside
+all workspaces. Commits confined to another workspace are excluded. Craft detects
+package ownership from pnpm, npm, or Yarn workspaces as well as the release
+workspaces in `.craft.yml`. Commits spanning workspaces appear in each affected
+workspace's changelog. This also scopes automatic version detection; single-unit
+repositories keep their existing behavior.
+
+If a release includes files from another workspace, add its directory to
+`includePaths` on that release unit. Paths are relative to the repository root,
+match whole directory names, and cannot escape the repository:
+
+```yaml
+workspaces:
+  packages/cli:
+    changelog:
+      policy: auto
+      includePaths:
+        - apps/cli-docs
+```
+
+Most workspaces need no `includePaths` setting.
+
 ### Title Stripping (Default Behavior)
 
 By default, conventional commit prefixes are stripped from changelog entries.
@@ -226,27 +589,62 @@ This behavior is controlled by named capture groups in `commit_patterns`:
 - `(?<type>...)` - The type prefix to strip (includes type, scope, and colon)
 - `(?<scope>...)` - Scope to preserve when not under a scope header
 
-| Original Title | Scope Header | Displayed Title |
-|----------------|--------------|-----------------|
-| `feat(api): add endpoint` | Yes (Api) | `Add endpoint` |
-| `feat(api): add endpoint` | No | `(api) Add endpoint` |
-| `feat: add endpoint` | N/A | `Add endpoint` |
+| Original Title            | Scope Header | Displayed Title      |
+| ------------------------- | ------------ | -------------------- |
+| `feat(api): add endpoint` | Yes (Api)    | `Add endpoint`       |
+| `feat(api): add endpoint` | No           | `(api) Add endpoint` |
+| `feat: add endpoint`      | N/A          | `Add endpoint`       |
 
 To disable stripping, provide custom patterns using non-capturing groups:
 
 ```yaml
 commit_patterns:
-  - "^feat(?:\\([^)]+\\))?!?:"  # No named groups = no stripping
+  - "^feat(?:\\([^)]+\\))?!?:" # No named groups = no stripping
+```
+
+### Skipping Changelog Entries
+
+You can exclude PRs or commits from the changelog in several ways:
+
+#### Magic Word
+
+Add `#skip-changelog` anywhere in your commit message or PR body:
+
+```
+chore: Update dependencies
+
+#skip-changelog
+```
+
+#### Skip Label
+
+PRs with the `skip-changelog` label are automatically excluded.
+
+#### Configuration
+
+Configure exclusions in `.github/release.yml`:
+
+```yaml
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+      - dependencies
+    authors:
+      - dependabot[bot]
+      - renovate[bot]
 ```
 
 ### Configuration Options
 
-| Option | Description |
-|--------|-------------|
-| `changelog` | Path to changelog file (string) OR configuration object |
-| `changelog.filePath` | Path to changelog file. Default: `CHANGELOG.md` |
-| `changelog.policy` | Mode: `none`, `simple`, or `auto`. Default: `none` |
-| `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true` |
+| Option                    | Description                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------- |
+| `changelog`               | Path to changelog file (string) OR configuration object                      |
+| `changelog.filePath`      | Path to changelog file. Defaults to `<workspace>/CHANGELOG.md` for a directory workspace, otherwise `CHANGELOG.md`. Explicit paths take precedence. |
+| `changelog.policy`        | Mode: `none`, `simple`, or `auto`. Default: `none`                           |
+| `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true`                                 |
+| `changelog.includePaths`  | Extra workspace directories to include in automatic changelogs. Default: `[]` |
+| `changelog.aiSummary` | Opt-in HTTP release, category, and scope summaries. Default: disabled. |
 
 ## Versioning
 
@@ -254,16 +652,16 @@ Configure default versioning behavior:
 
 ```yaml
 versioning:
-  policy: auto  # auto, manual, or calver
+  policy: auto # auto, manual, or calver
 ```
 
 ### Versioning Policies
 
-| Policy | Description |
-|--------|-------------|
-| `auto` | Analyze commits to determine version bump (default when using `craft prepare auto`) |
-| `manual` | Require explicit version argument |
-| `calver` | Use calendar-based versioning |
+| Policy   | Description                                                                         |
+| -------- | ----------------------------------------------------------------------------------- |
+| `auto`   | Analyze commits to determine version bump (default when using `craft prepare auto`) |
+| `manual` | Require explicit version argument                                                   |
+| `calver` | Use calendar-based versioning                                                       |
 
 ### Calendar Versioning (CalVer)
 
@@ -273,11 +671,12 @@ For projects using calendar-based versions:
 versioning:
   policy: calver
   calver:
-    format: "%y.%-m"  # e.g., 24.12 for December 2024
-    offset: 14        # Days to look back for date calculation
+    format: '%y.%-m' # e.g., 24.12 for December 2024
+    offset: 14 # Days to look back for date calculation
 ```
 
 Format supports:
+
 - `%y` - 2-digit year
 - `%m` - Zero-padded month
 - `%-m` - Month without padding
@@ -318,8 +717,83 @@ Configure where to fetch artifacts from:
 
 ```yaml
 artifactProvider:
-  name: github  # or 'gcs' or 'none'
+  name: github # or 'gcs' or 'none'
 ```
+
+### GitHub Artifact Provider Configuration
+
+By default, the GitHub artifact provider looks for artifacts named exactly as the commit SHA. You can customize this with the `artifacts` configuration option.
+
+#### Pattern Syntax
+
+- **Regex patterns**: Wrapped in `/` (e.g., `/^build-.*$/`)
+- **Exact strings**: Plain text (e.g., `build`, `release-artifacts`)
+
+#### Configuration Formats
+
+**1. Single artifact pattern** - searches all workflows:
+
+```yaml
+artifactProvider:
+  name: github
+  config:
+    artifacts: /^sentry-.*\.tgz$/
+```
+
+**2. Multiple artifact patterns** - searches all workflows:
+
+```yaml
+artifactProvider:
+  name: github
+  config:
+    artifacts:
+      - /^sentry-.*\.tgz$/
+      - release-bundle
+```
+
+**3. Workflow-scoped patterns** - filter by workflow name:
+
+```yaml
+artifactProvider:
+  name: github
+  config:
+    artifacts:
+      build: release-artifacts # exact workflow → exact artifact
+      /^build-.*$/: artifacts # workflow pattern → exact artifact
+      ci: # exact workflow → multiple artifacts
+        - /^output-.*$/
+        - bundle
+      /^release-.*$/: # workflow pattern → multiple artifacts
+        - /^dist-.*$/
+        - checksums
+```
+
+#### Common Examples
+
+Fetch artifacts named `craft-binary` and `craft-docs` from the "Build & Test" workflow:
+
+```yaml
+artifactProvider:
+  name: github
+  config:
+    artifacts:
+      Build & Test:
+        - craft-binary
+        - craft-docs
+```
+
+Fetch all `.tgz` files from any workflow:
+
+```yaml
+artifactProvider:
+  name: github
+  config:
+    artifacts: /\.tgz$/
+```
+
+#### Backward Compatibility
+
+When `artifacts` is not configured, the provider uses the legacy behavior where it searches for an artifact with a name matching the commit SHA exactly. This ensures existing configurations continue to work without changes.
 
 ## Targets
 
@@ -341,11 +815,11 @@ See [Target Configurations](./targets/) for details on each target.
 
 These options apply to all targets:
 
-| Option | Description |
-|--------|-------------|
-| `includeNames` | Regex: only matched files are processed |
-| `excludeNames` | Regex: matched files are skipped |
-| `id` | Unique ID for the target (use with `-t target[id]`) |
+| Option         | Description                                         |
+| -------------- | --------------------------------------------------- |
+| `includeNames` | Regex: only matched files are processed             |
+| `excludeNames` | Regex: matched files are skipped                    |
+| `id`           | Unique ID for the target (use with `-t target[id]`) |
 
 Example:
 

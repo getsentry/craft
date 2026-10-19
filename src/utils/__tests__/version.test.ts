@@ -1,13 +1,10 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
-
-
 import {
+  type SemVer,
   getPackage,
   getVersion,
   isPreviewRelease,
   isValidVersion,
   parseVersion,
-  SemVer,
   semVerToString,
   versionGreaterOrEqualThan,
 } from '../version';
@@ -27,6 +24,19 @@ describe('getVersion', () => {
 
   test('extracts a SemVer, but ignores subpatch level', () => {
     expect(getVersion('1.0.0.1')).toBe('1.0.0');
+  });
+
+  test('extracts a SemVer version from scoped package tag', () => {
+    expect(getVersion('@spotlightjs/spotlight@4.10.0')).toBe('4.10.0');
+  });
+
+  test('extracts a SemVer version from a monorepo prefixed tag', () => {
+    expect(getVersion('cli@1.2.3')).toBe('1.2.3');
+    expect(getVersion('mcp@2.0.0-dev.1')).toBe('2.0.0-dev.1');
+    // Prefix ending in a digit still works ("@" provides the boundary)
+    expect(getVersion('sentry-cli@10.20.30')).toBe('10.20.30');
+    // Prefixed tag that also carries a leading "v"
+    expect(getVersion('cli@v1.2.3')).toBe('1.2.3');
   });
 });
 
@@ -130,6 +140,23 @@ describe('parseVersion', () => {
     expect(parseVersion('v1.2')).toBeNull();
   });
 
+  test('parses a version out of a monorepo prefixed tag', () => {
+    expect(parseVersion('cli@1.2.3')).toEqual({
+      major: 1,
+      minor: 2,
+      patch: 3,
+      build: undefined,
+      pre: undefined,
+    });
+    expect(parseVersion('mcp@2.0.0-dev.1')).toEqual({
+      major: 2,
+      minor: 0,
+      patch: 0,
+      build: undefined,
+      pre: 'dev.1',
+    });
+  });
+
   test('cannot parse empty value', () => {
     expect(parseVersion('')).toBeNull();
   });
@@ -140,7 +167,7 @@ describe('isPreviewRelease', () => {
     'accepts semver preview release',
     previewSuffix => {
       expect(isPreviewRelease(`2.3.4-${previewSuffix}1`)).toBe(true);
-    }
+    },
   );
 
   test('accepts Python-style preview release', () => {
@@ -166,7 +193,7 @@ describe('versionGreaterOrEqualThan', () => {
     minor: number,
     patch: number,
     pre?: string,
-    build?: string
+    build?: string,
   ): SemVer {
     return { major, minor, patch, pre, build };
   }
@@ -206,7 +233,6 @@ describe('versionGreaterOrEqualThan', () => {
   });
 
   test('can compare pre parts', () => {
-     
     const v1 = parseVersion('1.2.3-1')!;
     const v2 = parseVersion('1.2.3-2')!;
     expect(versionGreaterOrEqualThan(v1, v2)).toBe(false);
@@ -257,6 +283,6 @@ describe('semVerToString', () => {
     'converts a SemVer object (%s) to a string',
     (_, semver, expectedString) => {
       expect(semVerToString(semver)).toBe(expectedString);
-    }
+    },
   );
 });

@@ -1,4 +1,3 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
 import { parseFilterOptions, RawFilterOptions } from '../base';
 
 describe('parseFilterOptions', () => {
@@ -29,12 +28,12 @@ describe('parseFilterOptions', () => {
       const parsedFilters = parseFilterOptions(rawFilters);
 
       expect(parsedFilters.includeNames).toStrictEqual(
-        includeNames && /include/
+        includeNames && /include/,
       );
 
       expect(parsedFilters.excludeNames).toStrictEqual(
-        excludeNames && /exclude/
+        excludeNames && /exclude/,
       );
-    }
+    },
   );
 });

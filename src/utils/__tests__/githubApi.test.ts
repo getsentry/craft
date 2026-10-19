@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi, type Mock } from 'vitest';
 import { Octokit } from '@octokit/rest';
 
 import { getFile } from '../githubApi';
@@ -8,15 +8,18 @@ const mockRepos = {
 };
 
 vi.mock('@octokit/rest', () => ({
-  Octokit: vi.fn().mockImplementation(() => ({ repos: mockRepos })),
+  Octokit: vi.fn().mockImplementation(function (this: any) {
+    this.repos = mockRepos;
+  }),
 }));
 
 describe('getFile', () => {
+  // eslint-disable-next-line no-restricted-syntax -- Testing with mock Octokit
   const github = new Octokit();
   const owner = 'owner';
   const repo = 'repo';
 
-  const getContent = (github.repos.getContent as unknown) as Mock;
+  const getContent = github.repos.getContent as unknown as Mock;
 
   test('loads and decodes the file', async () => {
     expect.assertions(2);
@@ -31,7 +34,7 @@ describe('getFile', () => {
       owner,
       repo,
       '/path/to/file',
-      'v1.0.0'
+      'v1.0.0',
     );
     expect(getContent).toHaveBeenCalledWith({
       owner: 'owner',
@@ -57,7 +60,7 @@ describe('getFile', () => {
       owner,
       repo,
       '/path/to/missing',
-      'v1.0.0'
+      'v1.0.0',
     );
     expect(content).toBe(undefined);
   });

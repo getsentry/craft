@@ -10,7 +10,7 @@ Thank you for your interest in contributing to Craft! This guide will help you g
 ### Prerequisites
 
 - Node.js v22+ (managed by [Volta](https://volta.sh/))
-- Yarn v1
+- pnpm
 
 ### Installation
 
@@ -20,24 +20,24 @@ git clone https://github.com/getsentry/craft.git
 cd craft
 
 # Install dependencies
-yarn install --frozen-lockfile
+pnpm install --frozen-lockfile
 ```
 
 ## Development Commands
 
 | Command | Description |
 |---------|-------------|
-| `yarn build` | Build the project (outputs to `dist/craft`) |
-| `yarn test` | Run tests |
-| `yarn lint` | Run ESLint |
-| `yarn fix` | Auto-fix lint issues |
+| `pnpm build` | Build the project (outputs to `dist/craft`) |
+| `pnpm test` | Run tests |
+| `pnpm lint` | Run ESLint |
+| `pnpm fix` | Auto-fix lint issues |
 
 ### Manual Testing
 
 To test your changes locally:
 
 ```bash
-yarn build && ./dist/craft
+pnpm build && ./dist/craft
 ```
 
 ## Project Structure
@@ -72,10 +72,10 @@ src/
 
 ```bash
 # Run all tests
-yarn test
+pnpm test
 
 # Run tests in watch mode
-yarn test:watch
+pnpm test:watch
 ```
 
 ## Adding a New Target
@@ -127,3 +127,24 @@ The post-release script (`scripts/post-release.sh`) runs after successful publis
 
 - Open an issue on [GitHub](https://github.com/getsentry/craft/issues)
 - Check existing issues and pull requests
+
+## Standalone executables
+
+`pnpm build` keeps producing the portable JavaScript bundle used by npm and
+existing downloads. `pnpm build:binary` additionally embeds the pinned Node
+version into standalone executables for Linux and macOS x64/arm64, and Windows
+x64. Use the Node version pinned by Volta in `package.json`; Fossilize's CLI uses
+that local Node version for all five cross-built executables.
+Cross-building macOS executables from Linux or Windows also requires
+[`rcodesign`](https://github.com/indygreg/apple-platform-rs/releases) on PATH for
+ad-hoc signing. The Ubuntu CI build installs it; the macOS verification jobs use
+Apple's `codesign` to verify the shipped signatures before execution.
+
+Executables are written to `dist-bin/`, with gzip archives for Unix, `.exe`
+files for Windows. The `.node-cache/`
+directory caches downloaded Node runtimes. Fossilize ad-hoc signs macOS binaries;
+Developer ID signing/notarization and Windows Authenticode are not configured.
+The existing Ubuntu build job cross-builds all five executables once. Platform
+verification jobs download those artifacts and run each executable outside the
+checkout without Node on PATH, exercise a dry-run against a local Git remote,
+and test the npm tarball.

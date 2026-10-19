@@ -26,7 +26,7 @@ consola.setReporters([new StderrReporter()]);
  */
 export function formatTable(
   options: Record<string, any>,
-  values: any[]
+  values: any[],
 ): string {
   const table = new Table(options);
   table.push(...values);

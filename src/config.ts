@@ -1,9 +1,10 @@
-import { existsSync, lstatSync, readFileSync } from 'fs';
+import { existsSync, lstatSync, readFileSync, realpathSync } from 'fs';
 import path from 'path';
+import { globSync, hasMagic } from 'glob';
 
 import { load } from 'js-yaml';
 import GitUrlParse from 'git-url-parse';
-import simpleGit from 'simple-git';
+import { createGitClient } from './utils/git';
 import { ZodError } from 'zod';
 
 import { logger } from './logger';
@@ -16,12 +17,16 @@ import {
   TargetConfig,
   ChangelogPolicy,
   VersioningPolicy,
+  Workspace,
+  type AiSummaryConfig,
 } from './schemas/project_config';
 import { ConfigurationError } from './utils/errors';
+import { isCompiledGitHubAction } from './utils/detection';
 import {
   getPackageVersion,
   parseVersion,
   versionGreaterOrEqualThan,
+  SemVer,
 } from './utils/version';
 // Note: We import getTargetByName lazily in expandWorkspaceTargets to avoid
 // circular dependency: config -> targets -> registry -> utils/registry -> symlink -> version -> config
@@ -55,14 +60,446 @@ let _configPathCache: string;
 let _configCache: CraftProjectConfig;
 
 /**
+ * The minimum craft version required to use the top-level `workspaces` config.
+ *
+ * This is the release the workspaces feature ships in. A dev build of that
+ * release (e.g. `2.29.0-dev.0`) satisfies it via the pre-release relaxation in
+ * `checkMinimalConfigVersion`.
+ */
+export const WORKSPACES_MIN_VERSION = '2.29.0';
+
+/**
+ * The name of the currently-selected workspace, or undefined for the default
+ * (single implicit release unit). Set once via `setActiveWorkspace` from the
+ * `--workspace` CLI option / `CRAFT_WORKSPACE` env before any config access.
+ */
+let _activeWorkspaceName: string | undefined;
+
+/**
+ * Selects the active workspace for subsequent configuration reads.
+ *
+ * Passing `undefined` (or omitting) clears the selection (default behavior).
+ * Must be called before the configuration is first resolved/cached; it clears
+ * the caches so a later read re-resolves against the new selection.
+ */
+export function setActiveWorkspace(name: string | undefined): void {
+  _activeWorkspaceName = name;
+  // Invalidate resolved caches so the next read applies the new selection.
+  _configCache = undefined as unknown as CraftProjectConfig;
+  _globalGitHubConfigCache = undefined;
+  _configPathCache = undefined as unknown as string;
+}
+
+/**
+ * Returns the name of the currently-selected workspace, if any.
+ */
+export function getActiveWorkspace(): string | undefined {
+  return _activeWorkspaceName;
+}
+
+/**
+ * Merges a workspace's overrides onto the top-level (base) config, producing a
+ * flat `CraftProjectConfig` that the rest of craft consumes unchanged.
+ *
+ * Resolution rules:
+ * - Every release-relevant field defined on the workspace replaces the
+ *   top-level value (shallow override; a workspace either declares a field or
+ *   inherits it wholesale — we do not deep-merge arrays/objects, to keep
+ *   behavior predictable).
+ * - `github` is shallow-merged (owner/repo) so a workspace can override either
+ *   value while inheriting the other.
+ * - `minVersion` and `workspaces` themselves are stripped from the result.
+ */
+function resolveWorkspaceConfig(
+  base: CraftProjectConfig,
+  workspaceName: string,
+  workspaceDirectory: string,
+): CraftProjectConfig {
+  const workspaces = base.workspaces || {};
+  const workspace = getWorkspaceConfig(
+    workspaces,
+    workspaceName,
+    workspaceDirectory,
+  );
+  if (!workspace) {
+    const available = getWorkspaceNamesFromConfig(base, workspaceDirectory);
+    throw new ConfigurationError(
+      `Unknown workspace "${workspaceName}". ` +
+        (available.length
+          ? `Available workspaces: ${available.join(', ')}.`
+          : 'No workspaces are defined in the configuration.'),
+    );
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { workspaces: _ignoredWorkspaces, ...baseWithoutWorkspaces } = base;
+
+  const resolved: CraftProjectConfig = { ...baseWithoutWorkspaces };
+  for (const [key, value] of Object.entries(workspace) as [
+    keyof Workspace,
+    unknown,
+  ][]) {
+    if (value === undefined) {
+      continue;
+    }
+    if (key === 'github') {
+      // Shallow-merge github so a workspace can override owner or repo while
+      // inheriting the other value from the base configuration.
+      const mergedGithub = {
+        ...(base.github as GitHubGlobalConfig | undefined),
+        ...(value as Partial<GitHubGlobalConfig>),
+      };
+      // Only adopt the merged github if it is complete (has owner + repo).
+      // Otherwise leave `github` unset so getGlobalGitHubConfig() can still
+      // fall back to git-remote detection instead of seeing a truthy-but-
+      // incomplete object and skipping the fallback.
+      if (mergedGithub.owner && mergedGithub.repo) {
+        resolved.github = mergedGithub as GitHubGlobalConfig;
+      } else {
+        delete (resolved as { github?: unknown }).github;
+      }
+    } else {
+      (resolved as Record<string, unknown>)[key] = value;
+    }
+  }
+
+  return resolved;
+}
+
+function getWorkspaceConfig(
+  workspaces: NonNullable<CraftProjectConfig['workspaces']>,
+  workspaceName: string,
+  workspaceDirectory: string,
+): Workspace | undefined {
+  if (isWorkspacePattern(workspaceName)) {
+    return undefined;
+  }
+  const matchingKeys = Object.keys(workspaces).filter(key =>
+    workspaceKeyMatches(key, workspaceName, workspaceDirectory),
+  );
+  if (matchingKeys.length === 1) {
+    return workspaces[matchingKeys[0]];
+  }
+  if (matchingKeys.length > 1) {
+    throw new ConfigurationError(
+      `Workspace "${workspaceName}" matches multiple workspace patterns: ` +
+        `${matchingKeys.join(', ')}.`,
+    );
+  }
+  return undefined;
+}
+
+function workspaceKeyMatches(
+  key: string,
+  workspaceName: string,
+  workspaceDirectory: string,
+): boolean {
+  return isWorkspacePattern(key)
+    ? getWorkspaceGlobMatches(key, workspaceDirectory).includes(workspaceName)
+    : key === workspaceName;
+}
+
+function getWorkspaceNamesFromConfig(
+  config: CraftProjectConfig,
+  workspaceDirectory: string,
+): string[] {
+  const workspaces = config.workspaces || {};
+  const keysByWorkspaceName = new Map<string, string[]>();
+
+  for (const key of Object.keys(workspaces)) {
+    const workspaceNames = isWorkspacePattern(key)
+      ? getWorkspaceGlobMatches(key, workspaceDirectory)
+      : [key];
+    for (const workspaceName of workspaceNames) {
+      const matchingKeys = keysByWorkspaceName.get(workspaceName) || [];
+      matchingKeys.push(key);
+      keysByWorkspaceName.set(workspaceName, matchingKeys);
+    }
+  }
+
+  for (const [workspaceName, matchingKeys] of keysByWorkspaceName) {
+    if (matchingKeys.length > 1) {
+      throw new ConfigurationError(
+        `Workspace "${workspaceName}" matches multiple workspace patterns: ` +
+          `${matchingKeys.join(', ')}.`,
+      );
+    }
+  }
+
+  return Array.from(keysByWorkspaceName.keys()).sort();
+}
+
+function getWorkspaceGlobMatches(
+  workspaceGlob: string,
+  workspaceDirectory: string,
+): string[] {
+  if (!isSafeWorkspaceGlob(workspaceGlob)) {
+    throw new ConfigurationError(
+      `Workspace glob "${workspaceGlob}" must remain inside the repository root.`,
+    );
+  }
+
+  const root = path.resolve(workspaceDirectory);
+  const realRoot = realpathSync(root);
+  return globSync(workspaceGlob, {
+    absolute: false,
+    cwd: root,
+    dot: true,
+    ignore: ['**/node_modules/**'],
+    posix: true,
+  })
+    .filter(match => {
+      const resolvedMatch = path.resolve(root, match);
+      let realMatch: string;
+      try {
+        realMatch = realpathSync(resolvedMatch);
+      } catch (error) {
+        // Glob candidates may disappear or be broken symlinks before resolution.
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          return false;
+        }
+        throw error;
+      }
+      return (
+        isSafeWorkspacePath(match) &&
+        (resolvedMatch === root ||
+          resolvedMatch.startsWith(`${root}${path.sep}`)) &&
+        (realMatch === realRoot ||
+          realMatch.startsWith(`${realRoot}${path.sep}`)) &&
+        lstatSync(resolvedMatch).isDirectory()
+      );
+    })
+    .sort();
+}
+
+function isWorkspacePattern(name: string): boolean {
+  return hasMagic(name, { magicalBraces: true });
+}
+
+function isSafeWorkspacePath(name: string): boolean {
+  return (
+    !path.isAbsolute(name) &&
+    !name.includes('\\') &&
+    name
+      .split('/')
+      .every(
+        segment =>
+          /^[A-Za-z0-9_.-]+$/.test(segment) &&
+          segment !== '' &&
+          segment !== '.' &&
+          segment !== '..' &&
+          segment !== '__proto__' &&
+          !segment.startsWith('-'),
+      )
+  );
+}
+
+function isSafeWorkspaceGlob(name: string): boolean {
+  const alternatives = expandBraceAlternatives(name);
+  return (
+    !path.isAbsolute(name) &&
+    !name.includes('\\') &&
+    alternatives !== undefined &&
+    alternatives.length > 0 &&
+    alternatives.every(expanded =>
+      expanded.split('/').every(isSafeWorkspaceGlobSegment),
+    )
+  );
+}
+
+function isSafeWorkspaceGlobSegment(segment: string): boolean {
+  if (
+    segment === '' ||
+    segment === '.' ||
+    segment === '..' ||
+    segment === '__proto__' ||
+    segment.startsWith('-')
+  ) {
+    return false;
+  }
+
+  return isSafeWorkspaceGlobPattern(segment);
+}
+
+function isSafeWorkspaceGlobPattern(segment: string): boolean {
+  if (
+    segment === '' ||
+    segment === '.' ||
+    segment === '..' ||
+    segment === '__proto__' ||
+    segment.startsWith('-')
+  ) {
+    return false;
+  }
+
+  return hasMagic(segment, { magicalBraces: true })
+    ? /^[A-Za-z0-9_.?*[\]!^-]+$/.test(segment)
+    : /^[A-Za-z0-9_.-]+$/.test(segment);
+}
+
+function expandBraceAlternatives(pattern: string): string[] | undefined {
+  const opening = pattern.indexOf('{');
+  if (opening === -1) {
+    return [pattern];
+  }
+
+  let depth = 0;
+  let closing = -1;
+  for (let index = opening; index < pattern.length; index++) {
+    if (pattern[index] === '{') {
+      depth++;
+    } else if (pattern[index] === '}' && --depth === 0) {
+      closing = index;
+      break;
+    }
+  }
+  if (closing === -1) {
+    return undefined;
+  }
+
+  const choices = splitBraceAlternatives(pattern.slice(opening + 1, closing));
+  if (!choices) {
+    return undefined;
+  }
+
+  const prefix = pattern.slice(0, opening);
+  const suffix = pattern.slice(closing + 1);
+  const alternatives: string[] = [];
+  for (const choice of choices) {
+    const expanded = expandBraceAlternatives(`${prefix}${choice}${suffix}`);
+    if (!expanded) {
+      return undefined;
+    }
+    alternatives.push(...expanded);
+  }
+  return alternatives;
+}
+
+function splitBraceAlternatives(content: string): string[] | undefined {
+  const choices: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < content.length; index++) {
+    if (content[index] === '{') {
+      depth++;
+    } else if (content[index] === '}') {
+      if (depth === 0) {
+        return undefined;
+      }
+      depth--;
+    } else if (content[index] === ',' && depth === 0) {
+      choices.push(content.slice(start, index));
+      start = index + 1;
+    }
+  }
+  if (depth !== 0) {
+    return undefined;
+  }
+  choices.push(content.slice(start));
+  return choices.length > 1 ? choices : undefined;
+}
+
+/**
+ * Pure check: is `minVersionRaw` (a configured minVersion) >= `requiredVersion`?
+ *
+ * Unlike `requiresMinVersion`, this does not read the (possibly not-yet-resolved)
+ * global configuration, so it is safe to call during config resolution.
+ */
+function isVersionGteMinVersion(
+  minVersionRaw: string | undefined,
+  requiredVersion: string,
+): boolean {
+  if (!minVersionRaw) {
+    return false;
+  }
+  const configuredMinVersion = parseVersion(minVersionRaw);
+  const required = parseVersion(requiredVersion);
+  if (!configuredMinVersion || !required) {
+    return false;
+  }
+  return versionGreaterOrEqualThan(
+    withoutBuildMetadata(configuredMinVersion),
+    withoutBuildMetadata(required),
+  );
+}
+
+function checkWorkspacesMinVersion(config: CraftProjectConfig): void {
+  if (!isVersionGteMinVersion(config.minVersion, WORKSPACES_MIN_VERSION)) {
+    throw new ConfigurationError(
+      `Using "workspaces" requires minVersion >= ${WORKSPACES_MIN_VERSION} ` +
+        'in the configuration file.',
+    );
+  }
+}
+
+/**
+ * SemVer build metadata does not affect precedence, but the comparison helper
+ * intentionally rejects versions carrying it. Strip it before compatibility
+ * checks so config values such as `2.29.0+linux` remain valid.
+ */
+function withoutBuildMetadata(version: SemVer): SemVer {
+  return version.build ? { ...version, build: undefined } : version;
+}
+
+/**
+ * Applies workspace selection + validation to a freshly-parsed config.
+ *
+ * - No `workspaces` in config, no active selection → returns the config as-is.
+ * - `workspaces` present but no selection → error (must pick one explicitly).
+ * - Selection present but no `workspaces` in config → error.
+ * - Both present → returns the resolved (merged) config for the selection and
+ *   enforces the `WORKSPACES_MIN_VERSION` gate.
+ */
+function applyWorkspaceSelection(
+  config: CraftProjectConfig,
+  workspaceDirectory: string,
+): CraftProjectConfig {
+  const hasWorkspaces =
+    !!config.workspaces && Object.keys(config.workspaces).length > 0;
+
+  if (!hasWorkspaces) {
+    if (_activeWorkspaceName) {
+      throw new ConfigurationError(
+        `--workspace "${_activeWorkspaceName}" was given but no "workspaces" ` +
+          'are defined in the configuration file.',
+      );
+    }
+    return config;
+  }
+
+  // Workspaces are defined: require an explicit selection (no implicit first).
+  if (!_activeWorkspaceName) {
+    const available = getWorkspaceNamesFromConfig(
+      config,
+      workspaceDirectory,
+    ).join(', ');
+    throw new ConfigurationError(
+      'This configuration defines workspaces; select one with ' +
+        `--workspace <name> (or the CRAFT_WORKSPACE env var). ` +
+        `Available workspaces: ${available}.`,
+    );
+  }
+
+  // Gate the feature behind minVersion, mirroring auto-versioning.
+  checkWorkspacesMinVersion(config);
+
+  return resolveWorkspaceConfig(
+    config,
+    _activeWorkspaceName,
+    workspaceDirectory,
+  );
+}
+
+/**
  * Searches the current and parent directories for the configuration file
  *
  * Returns "undefined" if no file was found.
  */
 export function findConfigFile(): string | undefined {
-  if (_configPathCache) {
+  if (_configPathCache && existsSync(_configPathCache)) {
     return _configPathCache;
   }
+  _configPathCache = undefined as unknown as string;
 
   const cwd = process.cwd();
   const MAX_DEPTH = 1024;
@@ -95,7 +532,7 @@ export function getConfigFilePath(): string {
   const configFilePath = findConfigFile();
   if (!configFilePath) {
     throw new ConfigurationError(
-      `Cannot find Craft configuration file. Have you added "${CONFIG_FILE_NAME}" to your project?`
+      `Cannot find Craft configuration file. Have you added "${CONFIG_FILE_NAME}" to your project?`,
     );
   }
   return configFilePath;
@@ -122,7 +559,7 @@ export function getConfigFileDir(): string | undefined {
  * @param rawConfig Raw project configuration object
  */
 export function validateConfiguration(
-  rawConfig: Record<string, any>
+  rawConfig: Record<string, any>,
 ): CraftProjectConfig {
   logger.debug('Parsing and validating the configuration file...');
   try {
@@ -133,7 +570,7 @@ export function validateConfiguration(
         .map(e => `${e.path.join('.')}: ${e.message}`)
         .join('\n');
       throw new ConfigurationError(
-        `Cannot parse configuration file:\n${messages}`
+        `Cannot parse configuration file:\n${messages}`,
       );
     }
     throw error;
@@ -154,8 +591,9 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
     string,
     any
   >;
-  _configCache = validateConfiguration(rawConfig);
-  checkMinimalConfigVersion(_configCache);
+  const parsed = validateConfiguration(rawConfig);
+  checkMinimalConfigVersion(parsed);
+  _configCache = applyWorkspaceSelection(parsed, path.dirname(configPath));
   return _configCache;
 }
 
@@ -166,12 +604,39 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
  *
  * @param configContent The raw YAML configuration content
  */
-export function loadConfigurationFromString(configContent: string): CraftProjectConfig {
+export function loadConfigurationFromString(
+  configContent: string,
+  workspaceDirectory = process.cwd(),
+): CraftProjectConfig {
   logger.debug('Loading configuration from provided content...');
   const rawConfig = load(configContent) as Record<string, any>;
-  _configCache = validateConfiguration(rawConfig);
-  checkMinimalConfigVersion(_configCache);
+  const parsed = validateConfiguration(rawConfig);
+  checkMinimalConfigVersion(parsed);
+  _configCache = applyWorkspaceSelection(parsed, workspaceDirectory);
   return _configCache;
+}
+
+/**
+ * Lists concrete workspace names from the validated configuration without
+ * applying a selection. Glob patterns expand relative to the configuration
+ * file, allowing external controllers to discover valid release paths.
+ */
+export function getWorkspaceNames(): string[] {
+  const configPath = getConfigFilePath();
+  const rawConfig = load(readFileSync(configPath, 'utf-8')) as Record<
+    string,
+    any
+  >;
+  const parsed = validateConfiguration(rawConfig);
+  checkMinimalConfigVersion(parsed);
+  const workspaceNames = getWorkspaceNamesFromConfig(
+    parsed,
+    path.dirname(configPath),
+  );
+  if (workspaceNames.length > 0) {
+    checkWorkspacesMinVersion(parsed);
+  }
+  return workspaceNames;
 }
 
 /**
@@ -184,7 +649,7 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
   const minVersionRaw = config.minVersion;
   if (!minVersionRaw) {
     logger.debug(
-      'No minimal version specified in the configuration, skpipping the check'
+      'No minimal version specified in the configuration, skpipping the check',
     );
     return;
   }
@@ -203,13 +668,28 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
     throw new Error(`Cannot parse the current version: "${currentVersionRaw}"`);
   }
 
-  if (versionGreaterOrEqualThan(currentVersion, minVersion)) {
+  // A dev/pre-release build of X.Y.Z (e.g. "2.29.0-dev.0") already contains the
+  // features slated for X.Y.Z, so treat it as satisfying a minVersion of up to
+  // X.Y.Z. Without this, running a local dev build would reject any config
+  // whose minVersion targets the very release that build is heading toward,
+  // making it impossible to dogfood a new feature before its release is cut.
+  // We only relax the CURRENT side (never the configured minVersion side).
+  const effectiveCurrentVersion: SemVer = currentVersion.pre
+    ? { ...currentVersion, pre: undefined, build: undefined }
+    : withoutBuildMetadata(currentVersion);
+
+  if (
+    versionGreaterOrEqualThan(
+      effectiveCurrentVersion,
+      withoutBuildMetadata(minVersion),
+    )
+  ) {
     logger.debug(
-      `"craft" version is compatible with the minimal version from the configuration file.`
+      `"craft" version is compatible with the minimal version from the configuration file.`,
     );
   } else {
     throw new ConfigurationError(
-      `Incompatible "craft" versions. Current version: ${currentVersionRaw},  minimal version: ${minVersionRaw} (taken from .craft.yml).`
+      `Incompatible "craft" versions. Current version: ${currentVersionRaw},  minimal version: ${minVersionRaw} (taken from .craft.yml).`,
     );
   }
 }
@@ -225,21 +705,7 @@ function checkMinimalConfigVersion(config: CraftProjectConfig): void {
  */
 export function requiresMinVersion(requiredVersion: string): boolean {
   const config = getConfiguration();
-  const minVersionRaw = config.minVersion;
-
-  if (!minVersionRaw) {
-    // If no minVersion is configured, the feature is not available
-    return false;
-  }
-
-  const configuredMinVersion = parseVersion(minVersionRaw);
-  const required = parseVersion(requiredVersion);
-
-  if (!configuredMinVersion || !required) {
-    return false;
-  }
-
-  return versionGreaterOrEqualThan(configuredMinVersion, required);
+  return isVersionGteMinVersion(config.minVersion, requiredVersion);
 }
 
 /** Minimum craft version required for auto-versioning and CalVer */
@@ -265,7 +731,7 @@ export function getVersioningPolicy(): VersioningPolicy {
 
   // Use explicitly configured policy if available
   if (config.versioning?.policy) {
-    return config.versioning.policy;
+    return config.versioning.policy as VersioningPolicy;
   }
 
   // Default based on minVersion
@@ -277,14 +743,14 @@ export function getVersioningPolicy(): VersioningPolicy {
 /**
  * Return the parsed global GitHub configuration
  */
-let _globalGitHubConfigCache: GitHubGlobalConfig | null;
+let _globalGitHubConfigCache: GitHubGlobalConfig | null | undefined;
 export async function getGlobalGitHubConfig(
-  clearCache = false
+  clearCache = false,
 ): Promise<GitHubGlobalConfig> {
   if (!clearCache && _globalGitHubConfigCache !== undefined) {
     if (_globalGitHubConfigCache === null) {
       throw new ConfigurationError(
-        'GitHub configuration not found in the config file and cannot be determined from Git'
+        'GitHub configuration not found in the config file and cannot be determined from Git',
       );
     }
 
@@ -297,7 +763,7 @@ export async function getGlobalGitHubConfig(
 
   if (!repoGitHubConfig) {
     const configDir = getConfigFileDir() || '.';
-    const git = simpleGit(configDir);
+    const git = createGitClient(configDir);
     let remoteUrl;
     try {
       const remotes = await git.getRemotes(true);
@@ -325,11 +791,34 @@ export async function getGlobalGitHubConfig(
 
 /**
  * Gets git tag prefix from configuration
+ *
+ * Returns the `tagPrefix` of the first `github` target of the *active*
+ * configuration. When a `--workspace` is selected, the configuration has
+ * already been narrowed to that workspace's targets, so this resolves the
+ * correct per-product prefix. Without workspaces, a repo may still use a
+ * separate `.craft.yml` per product. If the active config declares multiple
+ * `github` targets with *differing* prefixes, it is ambiguous: the first prefix
+ * is returned and a warning is emitted.
  */
 export function getGitTagPrefix(): string {
   const targets = getConfiguration().targets || [];
-  const githubTarget = targets.find(target => target.name === 'github');
-  return githubTarget?.tagPrefix || '';
+  const githubTargets = targets.filter(target => target.name === 'github');
+  const firstPrefix = (githubTargets[0]?.tagPrefix as string | undefined) || '';
+
+  const hasConflictingPrefix = githubTargets.some(
+    target => ((target.tagPrefix as string | undefined) || '') !== firstPrefix,
+  );
+  if (hasConflictingPrefix) {
+    logger.warn(
+      'Multiple "github" targets with different "tagPrefix" values found. ' +
+        `Using "${firstPrefix}". For independently-versioned products in a ` +
+        'monorepo, use a top-level "workspaces" entry per product (or a ' +
+        'separate .craft.yml), each with a single "github" target and its own ' +
+        '"tagPrefix".',
+    );
+  }
+
+  return firstPrefix;
 }
 
 /**
@@ -412,9 +901,40 @@ export interface NormalizedChangelogConfig {
   policy: ChangelogPolicy;
   /** Whether to group entries by conventional commit scope */
   scopeGrouping: boolean;
+  /** Additional workspace paths to include in automatic changelogs */
+  includePaths: string[];
+  /** Optional summaries; omitted unless configured explicitly. */
+  aiSummary?: AiSummaryConfig | false;
 }
 
 const DEFAULT_CHANGELOG_FILE_PATH = 'CHANGELOG.md';
+
+function getDefaultChangelogFilePath(): string {
+  const workspace = getActiveWorkspace();
+  if (!workspace) {
+    return DEFAULT_CHANGELOG_FILE_PATH;
+  }
+
+  if (!isSafeWorkspacePath(workspace)) {
+    throw new ConfigurationError(`Invalid workspace path: "${workspace}"`);
+  }
+
+  const root = getConfigFileDir() || process.cwd();
+  const directory = path.resolve(root, workspace);
+  if (!existsSync(directory) || !lstatSync(directory).isDirectory()) {
+    return DEFAULT_CHANGELOG_FILE_PATH;
+  }
+
+  const realRoot = realpathSync(root);
+  const realDirectory = realpathSync(directory);
+  if (!realDirectory.startsWith(`${realRoot}${path.sep}`)) {
+    throw new ConfigurationError(
+      `Workspace directory escapes the repository: "${workspace}"`,
+    );
+  }
+
+  return path.posix.join(workspace, DEFAULT_CHANGELOG_FILE_PATH);
+}
 
 /**
  * Returns the normalized changelog configuration from .craft.yml
@@ -426,16 +946,17 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
   const config = getConfiguration();
 
   // Default values
-  let filePath = DEFAULT_CHANGELOG_FILE_PATH;
+  let filePath: string | undefined;
   let policy = ChangelogPolicy.None;
   let scopeGrouping = true;
+  let includePaths: string[] = [];
 
   // Handle legacy changelogPolicy (deprecated)
   if (config.changelogPolicy !== undefined) {
     logger.warn(
-      'The "changelogPolicy" option is deprecated. Please use "changelog.policy" instead.'
+      'The "changelogPolicy" option is deprecated. Please use "changelog.policy" instead.',
     );
-    policy = config.changelogPolicy;
+    policy = config.changelogPolicy as ChangelogPolicy;
   }
 
   // Handle changelog config
@@ -454,13 +975,76 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
       if (config.changelog.scopeGrouping !== undefined) {
         scopeGrouping = config.changelog.scopeGrouping;
       }
+      if (config.changelog.includePaths !== undefined) {
+        includePaths = config.changelog.includePaths;
+      }
     }
   }
 
   return {
-    filePath,
+    filePath: filePath ?? getDefaultChangelogFilePath(),
     policy,
     scopeGrouping,
+    includePaths,
+    aiSummary:
+      typeof config.changelog === 'object'
+        ? config.changelog.aiSummary
+        : undefined,
+  };
+}
+
+/**
+ * Result of noMerge configuration resolution
+ */
+export interface NoMergeConfig {
+  /** Whether to skip merging the release branch */
+  noMerge: boolean;
+  /** The source of the noMerge value */
+  source: 'config' | 'auto-detected' | 'default';
+}
+
+/**
+ * Returns whether the release branch should be merged after publishing.
+ *
+ * Resolution order:
+ * 1. Explicit `noMerge` value in .craft.yml takes precedence
+ * 2. Auto-detect compiled GitHub Actions (Node.js actions with dist/ folder)
+ * 3. Default to false (merge the branch)
+ *
+ * Compiled GitHub Actions typically have their `dist/` folder gitignored on
+ * main/master but need it in release branches for the action to work. Merging
+ * the release branch back would overwrite the clean main branch with compiled
+ * artifacts.
+ *
+ * @returns Configuration object with noMerge value and its source
+ */
+export function getNoMergeConfig(): NoMergeConfig {
+  const config = getConfiguration();
+
+  // Explicit config takes precedence
+  if (config.noMerge !== undefined) {
+    return {
+      noMerge: config.noMerge,
+      source: 'config',
+    };
+  }
+
+  // Auto-detect compiled GitHub Action
+  const rootDir = getConfigFileDir() || process.cwd();
+  if (isCompiledGitHubAction(rootDir)) {
+    logger.debug(
+      'Detected compiled GitHub Action (Node.js action with dist/ folder), defaulting noMerge to true',
+    );
+    return {
+      noMerge: true,
+      source: 'auto-detected',
+    };
+  }
+
+  // Default: merge the branch
+  return {
+    noMerge: false,
+    source: 'default',
   };
 }
 
@@ -475,7 +1059,7 @@ interface ExpandableTargetClass {
  * Check if a target class has an expand method
  */
 function isExpandableTarget(
-  targetClass: unknown
+  targetClass: unknown,
 ): targetClass is ExpandableTargetClass {
   return (
     typeof targetClass === 'function' &&
@@ -495,7 +1079,7 @@ function isExpandableTarget(
  * @returns The expanded list of target configs
  */
 export async function expandWorkspaceTargets(
-  targets: TargetConfig[]
+  targets: TargetConfig[],
 ): Promise<TargetConfig[]> {
   // Lazy import to avoid circular dependency
 

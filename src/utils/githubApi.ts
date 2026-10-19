@@ -1,8 +1,10 @@
 import { Octokit } from '@octokit/rest';
 
 import { LogLevel, logger } from '../logger';
+import { withTracing } from './tracing';
 
 import { ConfigurationError } from './errors';
+import { createDryRunOctokit } from './dryRun';
 
 /**
  * Abstraction for GitHub remotes
@@ -76,7 +78,8 @@ export function getGitHubApiToken(): string {
     process.env.GITHUB_TOKEN || process.env.GITHUB_API_TOKEN;
   if (!githubApiToken) {
     throw new ConfigurationError(
-      'GitHub target: GITHUB_TOKEN not found in the environment'
+      'GITHUB_TOKEN not found. This is required to fetch PR information from GitHub.\n' +
+        'Tip: Run `gh auth token` if you have GitHub CLI installed.',
     );
   }
   return githubApiToken;
@@ -109,10 +112,11 @@ export function getGitHubClient(token = ''): Octokit {
       };
     }
 
-     
     const { retry } = require('@octokit/plugin-retry');
     const octokitWithRetries = Octokit.plugin(retry);
-    _GitHubClientCache[githubApiToken] = new octokitWithRetries(attrs);
+    const client = new octokitWithRetries(attrs);
+    // Wrap with dry-run-aware proxy
+    _GitHubClientCache[githubApiToken] = createDryRunOctokit(client);
   }
 
   return _GitHubClientCache[githubApiToken];
@@ -133,24 +137,38 @@ export async function getFile(
   owner: string,
   repo: string,
   path: string,
-  ref: string
+  ref: string,
 ): Promise<string | undefined> {
-  try {
-    const response = await github.repos.getContent({
-      owner,
-      path,
-      ref,
-      repo,
-    });
-    // Response theoretically could be a list of files
-    if (response.data instanceof Array || !('content' in response.data)) {
-      return undefined;
-    }
-    return Buffer.from(response.data.content, 'base64').toString();
-  } catch (e: any) {
-    if (e.status === 404) {
-      return undefined;
-    }
-    throw e;
-  }
+  return withTracing(
+    async () => {
+      try {
+        const response = await github.repos.getContent({
+          owner,
+          path,
+          ref,
+          repo,
+        });
+        // Response theoretically could be a list of files
+        if (response.data instanceof Array || !('content' in response.data)) {
+          return undefined;
+        }
+        return Buffer.from(response.data.content, 'base64').toString();
+      } catch (e: any) {
+        if (e.status === 404) {
+          return undefined;
+        }
+        throw e;
+      }
+    },
+    {
+      name: 'craft.github.getFile',
+      op: 'craft.github.api',
+      attributes: {
+        'github.owner': owner,
+        'github.repo': repo,
+        'github.path': path,
+        'github.ref': ref,
+      },
+    },
+  )();
 }

@@ -1,12 +1,11 @@
-import simpleGit from 'simple-git';
 import { BaseArtifactProvider } from '../artifact_providers/base';
-import { TargetConfig } from '../schemas/project_config';
+import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
+import { cloneRepo } from '../utils/git';
 import { BaseTarget } from './base';
-import childProcess from 'child_process';
+import * as tar from 'tar';
 import type { Consola } from 'consola';
-import { isDryRun } from '../utils/helpers';
 import { URL } from 'url';
 
 interface GitRepositoryTargetConfig {
@@ -14,6 +13,12 @@ interface GitRepositoryTargetConfig {
   repositoryUrl: string;
   branch: string;
   createTag: boolean;
+  stripComponents?: number;
+}
+
+/** Config fields for commit-on-git-repository target from .craft.yml */
+interface GitRepositoryYamlConfig extends Record<string, unknown> {
+  createTag?: boolean;
   stripComponents?: number;
 }
 
@@ -26,7 +31,7 @@ export class CommitOnGitRepositoryTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
   }
@@ -38,13 +43,8 @@ export class CommitOnGitRepositoryTarget extends BaseTarget {
    * @param revision Git commit SHA to be published
    */
   public async publish(version: string, revision: string): Promise<void> {
-    const {
-      archive,
-      branch,
-      repositoryUrl,
-      createTag,
-      stripComponents,
-    } = this.getGitRepositoryTargetConfig();
+    const { archive, branch, repositoryUrl, createTag, stripComponents } =
+      this.getGitRepositoryTargetConfig();
 
     this.logger.info(`Finding archive with regexp "${archive}"...`);
 
@@ -65,7 +65,7 @@ export class CommitOnGitRepositoryTarget extends BaseTarget {
     this.logger.debug('Downloading archive...');
 
     const archivePath = await this.artifactProvider.downloadArtifact(
-      archives[0]
+      archives[0],
     );
 
     this.logger.info('Downloading archive complete');
@@ -84,28 +84,29 @@ export class CommitOnGitRepositoryTarget extends BaseTarget {
   private getGitRepositoryTargetConfig(): GitRepositoryTargetConfig {
     if (typeof this.config['archive'] !== 'string') {
       throw new ConfigurationError(
-        `\`archive\` option has invalid value ${this.config['archive']}. Needs to be RegExp in the form of a string.`
+        `\`archive\` option has invalid value ${this.config['archive']}. Needs to be RegExp in the form of a string.`,
       );
     }
 
     if (typeof this.config['repositoryUrl'] !== 'string') {
       throw new ConfigurationError(
-        `\`repositoryUrl\` option has invalid value ${this.config['repositoryUrl']}. Needs to be string.`
+        `\`repositoryUrl\` option has invalid value ${this.config['repositoryUrl']}. Needs to be string.`,
       );
     }
 
     if (typeof this.config['branch'] !== 'string') {
       throw new ConfigurationError(
-        `\`repositoryUrl\` option has invalid value ${this.config['branch']}. Needs to be string.`
+        `\`repositoryUrl\` option has invalid value ${this.config['branch']}. Needs to be string.`,
       );
     }
 
+    const config = this.config as TypedTargetConfig<GitRepositoryYamlConfig>;
     return {
       archive: this.config['archive'],
       repositoryUrl: this.config['repositoryUrl'],
       branch: this.config['branch'],
-      createTag: this.config['createTag'] ?? true,
-      stripComponents: this.config['stripComponents'],
+      createTag: config.createTag ?? true,
+      stripComponents: config.stripComponents,
     };
   }
 }
@@ -132,8 +133,6 @@ export async function pushArchiveToGitRepository({
 }) {
   await withTempDir(
     async directory => {
-      const git = simpleGit(directory);
-
       logger?.info(`Cloning ${repositoryUrl} into ${directory}...`);
 
       let parsedUrl;
@@ -141,19 +140,30 @@ export async function pushArchiveToGitRepository({
         parsedUrl = new URL(repositoryUrl);
       } catch (e) {
         logger?.error(
-          `Error while parsing \`repositoryUrl\`. Make sure this is a valid URL using the http or https protocol!`
+          `Error while parsing \`repositoryUrl\`. Make sure this is a valid URL using the http or https protocol!`,
         );
         throw e;
       }
 
-      if (parsedUrl.host === 'github.com' && process.env.GITHUB_API_TOKEN) {
-        logger?.info('Using provided github PAT token for authentication.');
-        parsedUrl.username = process.env.GITHUB_API_TOKEN;
+      if (parsedUrl.host === 'github.com') {
+        const ghToken =
+          process.env.GITHUB_API_TOKEN || process.env.GITHUB_TOKEN;
+        if (ghToken) {
+          logger?.info('Using provided github PAT token for authentication.');
+          parsedUrl.password = ghToken;
+          if (!parsedUrl.username) {
+            // `x-access-token` works for both classic PATs and GitHub App
+            // installation tokens (the token type used by getsentry/publish
+            // and craft's own release workflow). The docker target uses the
+            // same username for these tokens.
+            parsedUrl.username = 'x-access-token';
+          }
+        }
       }
 
       const authenticatedUrl = parsedUrl.toString();
 
-      await git.clone(authenticatedUrl, directory);
+      const git = await cloneRepo(authenticatedUrl, directory);
 
       logger?.info(`Checking out branch "${branch}"...`);
       await git.checkout(branch);
@@ -165,44 +175,44 @@ export async function pushArchiveToGitRepository({
         logger?.info(`Defined --strip-components depth as ${stripComponents}`);
       }
       logger?.info(`Unpack tarball archive at "${archivePath}"...`);
-      const stripComponentsArg =
-        stripComponents && stripComponents > 0
-          ? ` --strip-components ${stripComponents}`
-          : '';
-      childProcess.execSync(`tar -zxvf ${archivePath}${stripComponentsArg}`, {
+      // Use the `tar` npm package (already a dependency) instead of
+      // shelling out to the `tar` binary. The previous implementation
+      // interpolated `archivePath` into a shell command string; while
+      // `archivePath` is currently craft-constructed and not
+      // attacker-controllable, the pattern is fragile against future
+      // refactors (e.g. an artifact provider that returns a path
+      // containing `;` or `$()` would become a command-injection
+      // vector). `tar.x` takes a file path as a parameter, with no
+      // shell parsing at any layer.
+      await tar.x({
+        file: archivePath,
         cwd: directory,
+        gzip: true,
+        strip: stripComponents && stripComponents > 0 ? stripComponents : 0,
       });
 
       logger?.info(`Staging files...`);
       await git.raw('add', '--all');
 
       logger?.info(`Creating commit...`);
-      if (!isDryRun()) {
-        await git.commit(`release: ${version}`);
-      }
+      await git.commit(`release: ${version}`);
 
       if (createTag) {
         logger?.info(`Adding a tag "${version}"...`);
-        if (!isDryRun()) {
-          await git.addTag(version);
-        }
+        await git.addTag(version);
       } else {
         logger?.info(`Not adding a tag because it was disabled.`);
       }
 
       logger?.info(`Pushing changes to repository...`);
-      if (!isDryRun()) {
-        await git.raw('push', authenticatedUrl, '--force');
-      }
+      await git.raw('push', authenticatedUrl, '--force');
 
       if (createTag) {
         logger?.info(`Pushing tag...`);
-        if (!isDryRun()) {
-          await git.raw('push', authenticatedUrl, '--tags');
-        }
+        await git.raw('push', authenticatedUrl, '--tags');
       }
     },
     true,
-    'craft-git-repository-target-'
+    'craft-git-repository-target-',
   );
 }

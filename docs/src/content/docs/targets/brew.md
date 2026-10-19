@@ -15,8 +15,12 @@ Formulas on `homebrew/core` are not supported. Use your own tap repository.
 |--------|-------------|
 | `tap` | Homebrew tap name (e.g., `octocat/tools` → `github.com:octocat/homebrew-tools`) |
 | `template` | Formula template (Ruby code) with Mustache interpolation |
-| `formula` | Formula name. Default: repository name |
+| `formula` | Formula name (supports Mustache templating with `{{version}}`). Default: repository name |
 | `path` | Path to store formula. Default: `Formula` |
+
+:::note[Pre-release Versions]
+The Brew target automatically skips pre-release versions (e.g., `1.0.0-alpha.1`, `2.0.0-rc.1`). Homebrew formulas are only updated for stable releases.
+:::
 
 ### Template Variables
 

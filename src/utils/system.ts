@@ -3,13 +3,15 @@ import { createHash, Hash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import split from 'split';
-import tar from 'tar';
-import extract from 'extract-zip';
+import * as tar from 'tar';
+import StreamZip from 'node-stream-zip';
 
 import { logger } from '../logger';
 
 import { reportError } from './errors';
 import { isDryRun } from './helpers';
+import { isInWorktreeMode } from './dryRun';
+import { sanitizeSpawnEnv } from './dynamicLinkerEnv';
 
 /**
  * Types of supported hashing algorithms
@@ -61,10 +63,10 @@ function processError(
   args?: string[],
   options?: any,
   stdout?: string,
-  stderr?: string
+  stderr?: string,
 ): Error {
   const error = new Error(
-    `Process "${command}" errored with code ${code}\n\nSTDOUT: ${stdout}\n\nSTDERR:${stderr}`
+    `Process "${command}" errored with code ${code}\n\nSTDOUT: ${stdout}\n\nSTDERR:${stderr}`,
   ) as any;
   error.code = code;
   error.args = args;
@@ -83,7 +85,7 @@ function processError(
  */
 export function replaceEnvVariable(
   arg: string,
-  env: Record<string, any>
+  env: Record<string, any>,
 ): string {
   if (!env || !arg || arg[0] !== '$') {
     return arg;
@@ -104,6 +106,8 @@ export function replaceEnvVariable(
 export interface SpawnProcessOptions {
   /** Do not buffer standard output */
   showStdout?: boolean;
+  /** Log standard error at info level instead of trace */
+  showStderr?: boolean;
   /** Force the process to run in dry-run mode */
   enableInDryRunMode?: boolean;
   /** Data to write to stdin (process will receive 'pipe' for stdin instead of 'inherit') */
@@ -130,11 +134,16 @@ export async function spawnProcess(
   command: string,
   args: string[] = [],
   options: SpawnOptions = {},
-  spawnProcessOptions: SpawnProcessOptions = {}
+  spawnProcessOptions: SpawnProcessOptions = {},
 ): Promise<Buffer | undefined> {
   const argsString = args.map(arg => `"${arg}"`).join(' ');
 
-  if (isDryRun() && !spawnProcessOptions.enableInDryRunMode) {
+  // Allow spawning in worktree mode (isolated environment) or when explicitly enabled
+  if (
+    isDryRun() &&
+    !spawnProcessOptions.enableInDryRunMode &&
+    !isInWorktreeMode()
+  ) {
     logger.info('[dry-run] Not spawning process:', `${command} ${argsString}`);
     return undefined;
   }
@@ -158,8 +167,17 @@ export async function spawnProcess(
 
       // Do a shell-like replacement of arguments that look like environment variables
       const processedArgs = args.map(arg =>
-        replaceEnvVariable(arg, { ...process.env, ...options.env })
+        replaceEnvVariable(arg, { ...process.env, ...options.env }),
       );
+
+      // Defence-in-depth: strip dynamic-linker env vars (LD_PRELOAD,
+      // DYLD_*, etc.) from whatever env the child process will see.
+      // Startup already sanitises process.env, so the only way one of
+      // these keys reaches this point is via a later mutation (hostile
+      // or accidental) or via an explicit `options.env` that spreads
+      // in attacker-controlled values. Either way, we refuse to
+      // propagate them. See sanitizeSpawnEnv() in ../utils/env.ts.
+      options.env = sanitizeSpawnEnv(options.env ?? process.env);
 
       // Allow child to accept input (use 'pipe' for stdin if we need to write to it)
       options.stdio = [
@@ -194,7 +212,11 @@ export async function spawnProcess(
       });
       child.stderr.pipe(split()).on('data', (data: any) => {
         const output = `${command}: ${data}`;
-        logger.trace(output);
+        if (spawnProcessOptions.showStderr) {
+          logger.info(output);
+        } else {
+          logger.trace(output);
+        }
         stderr += `${output}\n`;
       });
     } catch (e) {
@@ -217,7 +239,7 @@ export async function calculateChecksum(
     algorithm?: HashAlgorithm;
     /** Hash format */
     format?: HashOutputFormat;
-  }
+  },
 ): Promise<string> {
   const { algorithm = HashAlgorithm.SHA256, format = HashOutputFormat.Hex } =
     options || {};
@@ -265,7 +287,7 @@ function getPotentialPaths(fileName: string): string[] {
     .replace(/"/g, '')
     .split(path.delimiter)
     .map(chunk =>
-      envExt.split(path.delimiter).map(ext => path.join(chunk, fileName + ext))
+      envExt.split(path.delimiter).map(ext => path.join(chunk, fileName + ext)),
     )
     .reduce((a, b) => a.concat(b));
 }
@@ -280,7 +302,7 @@ function isExecutable(filePath: string): boolean {
   try {
     fs.accessSync(filePath, fs.constants.F_OK | fs.constants.X_OK);
     return true;
-  } catch (e) {
+  } catch {
     return false;
   }
 }
@@ -315,6 +337,170 @@ export function checkExecutableIsPresent(name: string): void {
 }
 
 /**
+ * Configuration for runWithExecutable helper
+ */
+export interface ExecutableConfig {
+  /** Default binary name (e.g., 'npm', 'cargo') */
+  name: string;
+  /** Optional environment variable for custom binary path (e.g., 'NPM_BIN') */
+  envVar?: string;
+  /** Hint to show in error message when executable is not found */
+  errorHint?: string;
+}
+
+/**
+ * Resolves the executable path from config, checking env var override first
+ *
+ * @param config Executable configuration
+ * @returns The resolved binary name/path
+ */
+export function resolveExecutable(config: ExecutableConfig): string {
+  const { name, envVar } = config;
+  return envVar ? process.env[envVar] || name : name;
+}
+
+/**
+ * Result from findFirstExecutable when an executable is found
+ */
+export interface FoundExecutable {
+  /** The resolved binary path */
+  bin: string;
+  /** The config that matched */
+  config: ExecutableConfig;
+  /** Index in the original array */
+  index: number;
+}
+
+/**
+ * Finds the first available executable from an array of configs
+ *
+ * @param configs Array of executable configurations to try in order
+ * @returns The first found executable info, or undefined if none found
+ *
+ * @example
+ * ```typescript
+ * const found = findFirstExecutable([
+ *   { name: 'npm', envVar: 'NPM_BIN' },
+ *   { name: 'yarn', envVar: 'YARN_BIN' },
+ * ]);
+ * if (found) {
+ *   console.log(`Using ${found.bin}`);
+ * }
+ * ```
+ */
+export function findFirstExecutable(
+  configs: ExecutableConfig[],
+): FoundExecutable | undefined {
+  for (let i = 0; i < configs.length; i++) {
+    const config = configs[i];
+    const bin = resolveExecutable(config);
+    if (hasExecutable(bin)) {
+      return { bin, config, index: i };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Requires at least one executable from an array of configs to be present
+ *
+ * @param configs Array of executable configurations to try in order
+ * @param errorHint Optional hint to show in error message
+ * @returns The first found executable info
+ * @throws Error if no executable is found
+ *
+ * @example
+ * ```typescript
+ * const { bin } = requireFirstExecutable(
+ *   [{ name: 'npm' }, { name: 'yarn' }],
+ *   'Install npm or yarn'
+ * );
+ * ```
+ */
+export function requireFirstExecutable(
+  configs: ExecutableConfig[],
+  errorHint?: string,
+): FoundExecutable {
+  const found = findFirstExecutable(configs);
+  if (!found) {
+    const names = configs.map(c => `"${resolveExecutable(c)}"`).join(' or ');
+    const hint = errorHint ? ` ${errorHint}` : '';
+    throw new Error(`Cannot find ${names}.${hint}`);
+  }
+  return found;
+}
+
+/**
+ * Checks if an executable exists and runs it with the provided arguments
+ *
+ * This helper abstracts the common pattern of:
+ * 1. Checking for an executable (with optional env var override)
+ * 2. Throwing a helpful error if not found
+ * 3. Running the command with provided arguments
+ *
+ * Accepts either a single config or an array of configs (tries in order).
+ *
+ * @param config Executable configuration or array of configs to try in order
+ * @param args Arguments to pass to the executable
+ * @param options Optional spawn options (cwd, env, etc.)
+ * @param spawnOpts Optional spawn process options
+ * @returns Promise resolving to stdout buffer
+ * @throws Error if executable is not found
+ *
+ * @example
+ * ```typescript
+ * // Single executable
+ * await runWithExecutable(
+ *   { name: 'cargo', envVar: 'CARGO_BIN', errorHint: 'Install Rust toolchain' },
+ *   ['build', '--release'],
+ *   { cwd: projectDir }
+ * );
+ *
+ * // Multiple executables (tries in order)
+ * await runWithExecutable(
+ *   [
+ *     { name: 'npm', envVar: 'NPM_BIN' },
+ *     { name: 'yarn', envVar: 'YARN_BIN' },
+ *   ],
+ *   ['install'],
+ *   { cwd: projectDir }
+ * );
+ * ```
+ */
+export async function runWithExecutable(
+  config: ExecutableConfig | ExecutableConfig[],
+  args: string[],
+  options: SpawnOptions = {},
+  spawnOpts: SpawnProcessOptions = {},
+): Promise<Buffer | undefined> {
+  let bin: string;
+  let errorHint: string | undefined;
+
+  if (Array.isArray(config)) {
+    const found = findFirstExecutable(config);
+    if (!found) {
+      const names = config.map(c => `"${resolveExecutable(c)}"`).join(' or ');
+      // Use errorHint from the first config if available
+      errorHint = config[0]?.errorHint;
+      const hint = errorHint ? ` ${errorHint}` : ' Is it installed?';
+      throw new Error(`Cannot find ${names}.${hint}`);
+    }
+    bin = found.bin;
+  } else {
+    bin = resolveExecutable(config);
+    errorHint = config.errorHint;
+
+    if (!hasExecutable(bin)) {
+      const hint = errorHint ? ` ${errorHint}` : ' Is it installed?';
+      throw new Error(`Cannot find "${bin}".${hint}`);
+    }
+  }
+
+  logger.debug(`Running: ${bin} ${args.join(' ')}`);
+  return spawnProcess(bin, args, options, spawnOpts);
+}
+
+/**
  * Extracts a source code tarball in the specified directory
  *
  * The tarball should contain a top level directory that contains all source
@@ -328,7 +514,7 @@ export function checkExecutableIsPresent(name: string): void {
  */
 export async function extractSourcesFromTarStream(
   stream: NodeJS.ReadableStream,
-  dir: string
+  dir: string,
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     try {
@@ -354,9 +540,51 @@ export async function extractSourcesFromTarStream(
  */
 export async function extractZipArchive(
   filePath: string,
-  dir: string
+  dir: string,
 ): Promise<void> {
-  await extract(filePath, { dir: dir });
+  await fs.promises.mkdir(dir, { recursive: true });
+  const zip = new StreamZip.async({ file: filePath });
+  try {
+    await zip.extract(null, dir);
+  } finally {
+    await zip.close();
+  }
+}
+
+/**
+ * Extracts a ZIP archive into the specified directory and, if the archive
+ * contains a single top-level directory, moves its contents up into `dir`.
+ *
+ * This "flatten" behavior is useful for static-site archives that wrap all
+ * their files in a single parent folder (e.g. `my-site/index.html`), so that
+ * the caller ends up with the files directly under `dir`.
+ *
+ * @param filePath Path to the ZIP archive
+ * @param dir Path to the directory to extract into
+ * @returns A promise that resolves when extraction (and flattening) completes
+ * @async
+ */
+export async function extractZipArchiveWithFlattening(
+  filePath: string,
+  dir: string,
+): Promise<void> {
+  await extractZipArchive(filePath, dir);
+
+  // If there's a single top-level directory, move its contents to `dir`
+  const dirContents = fs.readdirSync(dir).filter(f => f !== '.git');
+  if (
+    dirContents.length === 1 &&
+    fs.statSync(path.join(dir, dirContents[0])).isDirectory()
+  ) {
+    logger.debug('Single top-level directory found, moving files from it...');
+    const innerDirPath = path.join(dir, dirContents[0]);
+    fs.readdirSync(innerDirPath).forEach(item => {
+      const srcPath = path.join(innerDirPath, item);
+      const destPath = path.join(dir, item);
+      fs.renameSync(srcPath, destPath);
+    });
+    fs.rmdirSync(innerDirPath);
+  }
 }
 
 /**
@@ -371,7 +599,7 @@ export async function extractZipArchive(
 export function catchKeyboardInterrupt(maxTimeDiff = 1000): void {
   if (process.env.CRAFT_CATCH_KEYBOARD_INTERRUPT !== '1') {
     logger.debug(
-      'Catching Ctrl-C is disabled by default. See https://github.com/getsentry/craft/issues/21'
+      'Catching Ctrl-C is disabled by default. See https://github.com/getsentry/craft/issues/21',
     );
     return;
   }

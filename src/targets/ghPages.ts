@@ -1,10 +1,12 @@
 import * as fs from 'fs';
-import * as path from 'path';
 
 import { Octokit } from '@octokit/rest';
-import simpleGit from 'simple-git';
 
-import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import {
+  GitHubGlobalConfig,
+  TargetConfig,
+  TypedTargetConfig,
+} from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
@@ -12,10 +14,17 @@ import {
   getGitHubClient,
   GitHubRemote,
 } from '../utils/githubApi';
-import { isDryRun } from '../utils/helpers';
-import { extractZipArchive } from '../utils/system';
+import { cloneRepo } from '../utils/git';
+import { extractZipArchiveWithFlattening } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
+
+/** GH Pages target configuration fields */
+interface GhPagesConfigFields extends Record<string, unknown> {
+  branch?: string;
+  githubOwner?: string;
+  githubRepo?: string;
+}
 
 /**
  * Regex for docs archives
@@ -50,7 +59,7 @@ export class GhPagesTarget extends BaseTarget {
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GitHubGlobalConfig
+    githubRepo: GitHubGlobalConfig,
   ) {
     super(config, artifactProvider, githubRepo);
     this.github = getGitHubClient();
@@ -62,21 +71,22 @@ export class GhPagesTarget extends BaseTarget {
    * Extracts "gh-pages" target options from the raw configuration
    */
   public getGhPagesConfig(): GhPagesConfig {
+    const config = this.config as TypedTargetConfig<GhPagesConfigFields>;
     let githubOwner;
     let githubRepo;
-    if (this.config.githubOwner && this.config.githubRepo) {
-      githubOwner = this.config.githubOwner;
-      githubRepo = this.config.githubRepo;
-    } else if (!this.config.githubOwner && !this.config.githubRepo) {
+    if (config.githubOwner && config.githubRepo) {
+      githubOwner = config.githubOwner;
+      githubRepo = config.githubRepo;
+    } else if (!config.githubOwner && !config.githubRepo) {
       githubOwner = this.githubRepo.owner;
       githubRepo = this.githubRepo.repo;
     } else {
       throw new ConfigurationError(
-        '[gh-pages] Invalid repository configuration: check repo owner and name'
+        '[gh-pages] Invalid repository configuration: check repo owner and name',
       );
     }
 
-    const branch = this.config.branch || DEFAULT_DEPLOY_BRANCH;
+    const branch = config.branch || DEFAULT_DEPLOY_BRANCH;
 
     return {
       branch,
@@ -98,37 +108,19 @@ export class GhPagesTarget extends BaseTarget {
    */
   public async extractAssets(
     archivePath: string,
-    directory: string
+    directory: string,
   ): Promise<void> {
     // Check that the directory is empty
     const dirContents = fs.readdirSync(directory).filter(f => f !== '.git');
     if (dirContents.length > 0) {
       throw new Error(
-        'Destination directory is not empty: cannot extract the acrhive!'
+        'Destination directory is not empty: cannot extract the acrhive!',
       );
     }
 
-    // Extract the archive
+    // Extract the archive (flattening a single top-level directory if present)
     this.logger.info(`Extracting "${archivePath}" to "${directory}"...`);
-    await extractZipArchive(archivePath, directory);
-
-    // If there's a single top-level directory -- move its contents to the git root
-    const newDirContents = fs.readdirSync(directory).filter(f => f !== '.git');
-    if (
-      newDirContents.length === 1 &&
-      fs.statSync(path.join(directory, newDirContents[0])).isDirectory()
-    ) {
-      this.logger.debug(
-        'Single top-level directory found, moving files from it...'
-      );
-      const innerDirPath = path.join(directory, newDirContents[0]);
-      fs.readdirSync(innerDirPath).forEach(item => {
-        const srcPath = path.join(innerDirPath, item);
-        const destPath = path.join(directory, item);
-        fs.renameSync(srcPath, destPath);
-      });
-      fs.rmdirSync(innerDirPath);
-    }
+    await extractZipArchiveWithFlattening(archivePath, directory);
   }
 
   /**
@@ -145,13 +137,12 @@ export class GhPagesTarget extends BaseTarget {
     remote: GitHubRemote,
     branch: string,
     archivePath: string,
-    version: string
+    version: string,
   ): Promise<void> {
     this.logger.info(
-      `Cloning "${remote.getRemoteString()}" to "${directory}"...`
+      `Cloning "${remote.getRemoteString()}" to "${directory}"...`,
     );
-    await simpleGit().clone(remote.getRemoteStringWithAuth(), directory);
-    const git = simpleGit(directory);
+    const git = await cloneRepo(remote.getRemoteStringWithAuth(), directory);
     this.logger.debug(`Checking out branch: "${branch}"`);
     try {
       await git.checkout([branch]);
@@ -160,7 +151,7 @@ export class GhPagesTarget extends BaseTarget {
         throw e;
       }
       this.logger.debug(
-        `Branch ${branch} does not exist, creating a new orphaned branch...`
+        `Branch ${branch} does not exist, creating a new orphaned branch...`,
       );
       await git.checkout(['--orphan', branch]);
     }
@@ -169,7 +160,7 @@ export class GhPagesTarget extends BaseTarget {
     const repoStatus = await git.status();
     if (repoStatus.current !== 'No' && repoStatus.current !== branch) {
       throw new Error(
-        `Something went very wrong: cannot switch to branch "${branch}"`
+        `Something went very wrong: cannot switch to branch "${branch}"`,
       );
     }
 
@@ -180,17 +171,11 @@ export class GhPagesTarget extends BaseTarget {
     // Extract the archive
     await this.extractAssets(archivePath, directory);
 
-    // Commit
     await git.add(['.']);
     await git.commit(`craft(gh-pages): update, version "${version}"`);
 
-    // Push!
     this.logger.info(`Pushing branch "${branch}"...`);
-    if (!isDryRun()) {
-      await git.push('origin', branch, ['--set-upstream']);
-    } else {
-      this.logger.info('[dry-run] Not pushing the branch.');
-    }
+    await git.push('origin', branch, ['--set-upstream']);
   }
 
   /**
@@ -209,19 +194,19 @@ export class GhPagesTarget extends BaseTarget {
     } else if (packageFiles.length > 1) {
       reportError(
         `Not implemented: more than one gh-pages archive found\nDetails: ${JSON.stringify(
-          packageFiles
-        )}`
+          packageFiles,
+        )}`,
       );
       return undefined;
     }
     const archivePath = await this.artifactProvider.downloadArtifact(
-      packageFiles[0]
+      packageFiles[0],
     );
 
     const remote = new GitHubRemote(
       githubOwner,
       githubRepo,
-      getGitHubApiToken()
+      getGitHubApiToken(),
     );
 
     await withTempDir(
@@ -231,10 +216,10 @@ export class GhPagesTarget extends BaseTarget {
           remote,
           branch,
           archivePath,
-          version
+          version,
         ),
       true,
-      'craft-gh-pages-'
+      'craft-gh-pages-',
     );
 
     this.logger.info('GitHub pages release complete');

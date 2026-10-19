@@ -3,9 +3,11 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { load } from 'js-yaml';
 import { marked, type Token, type Tokens } from 'marked';
+import { captureException, withScope } from '@sentry/node';
 import { logger } from '../logger';
 
 import {
+  getActiveWorkspace,
   getConfigFileDir,
   getGlobalGitHubConfig,
   getChangelogConfig,
@@ -13,6 +15,14 @@ import {
 import { getChangesSince } from './git';
 import { getGitHubClient } from './githubApi';
 import { getVersion } from './version';
+import type { AiSummaryConfig } from '../schemas/project_config';
+import {
+  summarizeChangelog,
+  isImportantChangelogText,
+  formatSummaryText,
+  formatSummaryWithDetails,
+  type SummaryCategory,
+} from './ai-summary';
 
 /** Information about the current (unmerged) PR to inject into changelog */
 export interface CurrentPRInfo {
@@ -87,6 +97,7 @@ export function isBumpType(value: string): value is BumpType {
  * Path to the changelog file in the target repository
  */
 export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
+
 export const DEFAULT_UNRELEASED_TITLE = 'Unreleased';
 export const SKIP_CHANGELOG_MAGIC_WORD = '#skip-changelog';
 export const BODY_IN_CHANGELOG_MAGIC_WORD = '#body-in-changelog';
@@ -110,6 +121,10 @@ export interface Changeset {
   name: string;
   /** The markdown body describing the changeset */
   body: string;
+  /** The 1-indexed line number where this changeset starts in the source file */
+  startLine?: number;
+  /** The 1-indexed line number where this changeset ends in the source file */
+  endLine?: number;
 }
 
 /**
@@ -126,6 +141,19 @@ interface ChangesetLoc {
   headingLength: number;
   /** Whether this was a setext-style heading */
   isSetext: boolean;
+}
+
+/**
+ * Returns the 1-indexed line number for a given character index in the text.
+ */
+function getLineNumber(text: string, charIndex: number): number {
+  let count = 1;
+  for (let i = 0; i < charIndex && i < text.length; i++) {
+    if (text[i] === '\n') {
+      count++;
+    }
+  }
+  return count;
 }
 
 function escapeMarkdownPound(text: string): string {
@@ -246,7 +274,9 @@ export interface ChangelogEntryItem {
  * @param prBody The PR description/body text
  * @returns Array of changelog entry items, or null if no "Changelog Entry" section is found
  */
-export function extractChangelogEntry(prBody: string | null | undefined): ChangelogEntryItem[] | null {
+export function extractChangelogEntry(
+  prBody: string | null | undefined,
+): ChangelogEntryItem[] | null {
   if (!prBody) {
     return null;
   }
@@ -259,7 +289,7 @@ export function extractChangelogEntry(prBody: string | null | undefined): Change
     (t): t is Tokens.Heading =>
       t.type === 'heading' &&
       (t.depth === 2 || t.depth === 3) &&
-      t.text.toLowerCase() === 'changelog entry'
+      t.text.toLowerCase() === 'changelog entry',
   );
 
   if (headingIndex === -1) {
@@ -273,7 +303,10 @@ export function extractChangelogEntry(prBody: string | null | undefined): Change
   for (let i = headingIndex + 1; i < tokens.length; i++) {
     const token = tokens[i];
     // Stop at next heading of same or higher level
-    if (token.type === 'heading' && (token as Tokens.Heading).depth <= headingDepth) {
+    if (
+      token.type === 'heading' &&
+      (token as Tokens.Heading).depth <= headingDepth
+    ) {
       break;
     }
     contentTokens.push(token);
@@ -286,6 +319,23 @@ export function extractChangelogEntry(prBody: string | null | undefined): Change
 
   // Process the content tokens into changelog entries
   return parseTokensToEntries(contentTokens);
+}
+
+/**
+ * Renders a fenced code block token as indented markdown lines.
+ * Each line (opening fence, content lines, closing fence) is prefixed with `indent`.
+ */
+function renderIndentedCodeBlock(
+  codeToken: Tokens.Code,
+  indent = '  ',
+): string[] {
+  const fence = codeToken.lang ? `\`\`\`${codeToken.lang}` : '```';
+  const lines = [`${indent}${fence}`];
+  for (const line of codeToken.text.split('\n')) {
+    lines.push(`${indent}${line}`);
+  }
+  lines.push(`${indent}\`\`\``);
+  return lines;
 }
 
 /**
@@ -313,6 +363,9 @@ function extractNestedContent(tokens: Token[]): string {
           nestedLines.push(indentedDeeper);
         }
       }
+    } else if (token.type === 'code') {
+      // Preserve fenced code blocks (e.g., ```go ... ```) as nested content
+      nestedLines.push(...renderIndentedCodeBlock(token as Tokens.Code));
     }
   }
 
@@ -325,7 +378,9 @@ function extractNestedContent(tokens: Token[]): string {
 function getListItemText(item: Tokens.ListItem): string {
   // The item.text contains the raw text, but we want just the first line
   // (before any nested lists)
-  const firstToken = item.tokens.find(t => t.type === 'text' || t.type === 'paragraph');
+  const firstToken = item.tokens.find(
+    t => t.type === 'text' || t.type === 'paragraph',
+  );
   if (firstToken && 'text' in firstToken) {
     return firstToken.text.split('\n')[0].trim();
   }
@@ -364,6 +419,42 @@ function parseTokensToEntries(tokens: Token[]): ChangelogEntryItem[] | null {
       if (text) {
         entries.push({ text });
       }
+    } else if (token.type === 'code') {
+      // Standalone code blocks become nested content on the previous entry,
+      // or a new entry if there is no previous entry.
+      // Indent with 2 spaces so the block nests properly under the list item
+      // in the final markdown (consistent with extractNestedContent).
+      const codeBlock = renderIndentedCodeBlock(token as Tokens.Code).join(
+        '\n',
+      );
+
+      if (entries.length > 0) {
+        // Attach to previous entry as nested content
+        const prev = entries[entries.length - 1];
+        prev.nestedContent = prev.nestedContent
+          ? `${prev.nestedContent}\n${codeBlock}`
+          : codeBlock;
+      }
+      // If no previous entry exists, skip the orphaned code block — a bare
+      // code block without descriptive text isn't a meaningful changelog entry.
+    } else if (token.type === 'html') {
+      // HTML blocks (e.g., <img> tags from GitHub image uploads) become
+      // nested content on the previous entry, similar to code blocks.
+      // Indent every line with 2 spaces so multi-line HTML (e.g., <details>,
+      // <table>) nests properly under the list item in the final markdown.
+      const htmlContent = (token as Tokens.HTML).raw.trim();
+      if (htmlContent && entries.length > 0) {
+        const indented = htmlContent
+          .split('\n')
+          .map(line => `  ${line}`)
+          .join('\n');
+        const prev = entries[entries.length - 1];
+        prev.nestedContent = prev.nestedContent
+          ? `${prev.nestedContent}\n${indented}`
+          : indented;
+      }
+      // If no previous entry exists, skip — an orphaned HTML block
+      // without descriptive text isn't a meaningful changelog entry.
     }
   }
 
@@ -382,7 +473,14 @@ function extractChangeset(markdown: string, location: ChangesetLoc): Changeset {
   const body = markdown.substring(bodyStart, location.endIndex).trim();
   // Remove trailing parenthetical content (e.g., dates) from the title
   const name = location.title.replace(/\(.*\)$/, '').trim();
-  return { name, body };
+  const startLine = getLineNumber(markdown, location.startIndex);
+  // endIndex points to the start of the next heading (or end of file).
+  // We want the last line of the current section's content.
+  const endLine = getLineNumber(
+    markdown,
+    Math.max(location.startIndex, location.endIndex - 1),
+  );
+  return { name, body, startLine, endLine };
 }
 
 /**
@@ -395,7 +493,7 @@ function extractChangeset(markdown: string, location: ChangesetLoc): Changeset {
  */
 function locateChangeset(
   markdown: string,
-  predicate: (match: string) => boolean
+  predicate: (match: string) => boolean,
 ): ChangesetLoc | null {
   const tokens = marked.lexer(markdown);
 
@@ -461,7 +559,7 @@ function locateChangeset(
 export function findChangeset(
   markdown: string,
   tag: string,
-  fallbackToUnreleased = false
+  fallbackToUnreleased = false,
 ): Changeset | null {
   const version = getVersion(tag);
   if (version === null) {
@@ -470,12 +568,12 @@ export function findChangeset(
 
   let changesetLoc = locateChangeset(
     markdown,
-    match => getVersion(match) === version
+    match => getVersion(match) === version,
   );
   if (!changesetLoc && fallbackToUnreleased) {
     changesetLoc = locateChangeset(
       markdown,
-      match => match === DEFAULT_UNRELEASED_TITLE
+      match => match === DEFAULT_UNRELEASED_TITLE,
     );
   }
 
@@ -494,7 +592,9 @@ export function removeChangeset(markdown: string, header: string): string {
     return markdown;
   }
 
-  return markdown.slice(0, location.startIndex) + markdown.slice(location.endIndex);
+  return (
+    markdown.slice(0, location.startIndex) + markdown.slice(location.endIndex)
+  );
 }
 
 /**
@@ -510,7 +610,7 @@ export function removeChangeset(markdown: string, header: string): string {
  */
 export function prependChangeset(
   markdown: string,
-  changeset: Changeset
+  changeset: Changeset,
 ): string {
   // Try to locate the top-most non-empty header, no matter what is inside
   const firstHeading = locateChangeset(markdown, Boolean);
@@ -538,6 +638,8 @@ interface PullRequest {
   highlight?: boolean;
   /** The pattern that matched this PR (for title stripping) */
   matchedPattern?: RegExp;
+  /** Critical status retained before custom entries or prefix stripping. */
+  importantTitle?: string;
 }
 
 /**
@@ -559,8 +661,13 @@ function createPREntriesFromRaw(
     highlight?: boolean;
   },
   defaultTitle: string,
-  fallbackBody?: string
+  fallbackBody?: string,
+  important = false,
 ): PullRequest[] {
+  const importantTitle =
+    important || isImportantChangelogText(defaultTitle)
+      ? defaultTitle
+      : undefined;
   const customEntries = extractChangelogEntry(raw.prBody);
 
   if (customEntries) {
@@ -571,6 +678,7 @@ function createPREntriesFromRaw(
       body: entry.nestedContent ?? '',
       title: entry.text,
       highlight: raw.highlight,
+      importantTitle,
     }));
   }
 
@@ -590,6 +698,7 @@ function createPREntriesFromRaw(
       body,
       title: defaultTitle,
       highlight: raw.highlight,
+      importantTitle,
     },
   ];
 }
@@ -728,7 +837,7 @@ export function processReverts(rawCommits: RawCommitInfo[]): RawCommitInfo[] {
       remaining.delete(commit);
       remaining.delete(revertedCommit);
       logger.debug(
-        `Revert cancellation: "${effectiveTitle}" cancels "${(revertedCommit.prTitle ?? revertedCommit.title).trim()}"`
+        `Revert cancellation: "${effectiveTitle}" cancels "${(revertedCommit.prTitle ?? revertedCommit.title).trim()}"`,
       );
     }
   }
@@ -787,6 +896,13 @@ export const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
         semver: 'major',
       },
       {
+        title: 'Security 🔒',
+        commit_patterns: [
+          '^(?<type>security(?:\\((?<scope>[^)]+)\\))?!?:\\s*)',
+        ],
+        semver: 'patch',
+      },
+      {
         title: 'New Features ✨',
         commit_patterns: ['^(?<type>feat(?:\\((?<scope>[^)]+)\\))?!?:\\s*)'],
         semver: 'minor',
@@ -807,9 +923,9 @@ export const DEFAULT_RELEASE_CONFIG: ReleaseConfig = {
         semver: 'patch',
       },
       {
-        title: 'Build / dependencies / internal 🔧',
+        title: 'Internal Changes 🔧',
         commit_patterns: [
-          '^(?<type>(?:build|refactor|meta|chore|ci|ref|perf)(?:\\((?<scope>[^)]+)\\))?!?:\\s*)',
+          '^(?<type>(?:build|refactor|meta|chore|ci|ref|perf|tests?|style)(?:\\((?<scope>[^)]+)\\))?!?:\\s*)',
         ],
         semver: 'patch',
       },
@@ -848,39 +964,48 @@ type CategoryWithPRs = {
   scopeGroups: Map<string | null, PullRequest[]>;
 };
 
+/** Result of reading release config, including whether it's a custom config */
+export interface ReleaseConfigResult {
+  config: ReleaseConfig;
+  /** True if a custom .github/release.yml was loaded (not using defaults) */
+  isCustomConfig: boolean;
+}
+
 /**
  * Reads and parses .github/release.yml from the repository root
- * @returns Parsed release configuration, or the default config if file doesn't exist
+ * @returns Parsed release configuration with metadata about source
  */
-export function readReleaseConfig(): ReleaseConfig {
+export function readReleaseConfig(): ReleaseConfigResult {
   const configFileDir = getConfigFileDir();
   if (!configFileDir) {
-    return DEFAULT_RELEASE_CONFIG;
+    return { config: DEFAULT_RELEASE_CONFIG, isCustomConfig: false };
   }
 
   const releaseConfigPath = join(configFileDir, '.github', 'release.yml');
   try {
     const fileContents = readFileSync(releaseConfigPath, 'utf8');
     const config = load(fileContents) as ReleaseConfig;
-    return config;
+    return { config, isCustomConfig: true };
   } catch (error: any) {
     if (error.code === 'ENOENT') {
       // File doesn't exist, return default config
-      return DEFAULT_RELEASE_CONFIG;
+      return { config: DEFAULT_RELEASE_CONFIG, isCustomConfig: false };
     }
     logger.warn(
       `Failed to read release config from ${releaseConfigPath}:`,
-      error
+      error,
     );
-    return DEFAULT_RELEASE_CONFIG;
+    return { config: DEFAULT_RELEASE_CONFIG, isCustomConfig: false };
   }
 }
 
 /**
- * Normalizes the release config by converting arrays to Sets and compiling regex patterns
+ * Normalizes the release config by converting arrays to Sets and compiling regex patterns.
+ *
+ * @param config The raw release configuration
  */
 export function normalizeReleaseConfig(
-  config: ReleaseConfig
+  config: ReleaseConfig,
 ): NormalizedReleaseConfig | null {
   if (!config?.changelog) {
     return null;
@@ -902,7 +1027,7 @@ export function normalizeReleaseConfig(
       config.changelog.exclude.labels.length > 0
     ) {
       normalized.changelog.exclude.labels = new Set(
-        config.changelog.exclude.labels
+        config.changelog.exclude.labels,
       );
     }
     if (
@@ -910,7 +1035,7 @@ export function normalizeReleaseConfig(
       config.changelog.exclude.authors.length > 0
     ) {
       normalized.changelog.exclude.authors = new Set(
-        config.changelog.exclude.authors
+        config.changelog.exclude.authors,
       );
     }
   }
@@ -930,7 +1055,7 @@ export function normalizeReleaseConfig(
                 return new RegExp(pattern, 'i');
               } catch {
                 logger.warn(
-                  `Invalid regex pattern in release config: ${pattern}`
+                  `Invalid regex pattern in release config: ${pattern}`,
                 );
                 return null;
               }
@@ -946,21 +1071,64 @@ export function normalizeReleaseConfig(
         if (category.exclude) {
           if (category.exclude.labels && category.exclude.labels.length > 0) {
             normalizedCategory.exclude.labels = new Set(
-              category.exclude.labels
+              category.exclude.labels,
             );
           }
           if (category.exclude.authors && category.exclude.authors.length > 0) {
             normalizedCategory.exclude.authors = new Set(
-              category.exclude.authors
+              category.exclude.authors,
             );
           }
         }
 
         return normalizedCategory;
-      }
+      },
     );
   }
 
+  return normalized;
+}
+
+// Memoization cache for getNormalizedReleaseConfig
+let releaseConfigCache: NormalizedReleaseConfig | null | undefined;
+
+/**
+ * Clears the release config cache. Primarily used for testing.
+ */
+export function clearReleaseConfigCache(): void {
+  releaseConfigCache = undefined;
+}
+
+/**
+ * Reads, normalizes, and caches the release configuration.
+ * Warns once if a custom config has categories without semver fields.
+ *
+ * @returns Normalized release configuration, or null if invalid
+ */
+export function getNormalizedReleaseConfig(): NormalizedReleaseConfig | null {
+  if (releaseConfigCache !== undefined) {
+    return releaseConfigCache;
+  }
+
+  const { config, isCustomConfig } = readReleaseConfig();
+  const normalized = normalizeReleaseConfig(config);
+
+  // Warn about missing semver fields in custom configs
+  if (isCustomConfig && normalized) {
+    const categoriesWithoutSemver = normalized.changelog.categories
+      .filter(cat => !cat.semver)
+      .map(cat => cat.title);
+
+    if (categoriesWithoutSemver.length > 0) {
+      logger.warn(
+        `The following changelog categories have no 'semver' field and won't contribute to ` +
+          `version bump detection: ${categoriesWithoutSemver.map(t => `"${t}"`).join(', ')}. ` +
+          `See: https://getsentry.github.io/craft/configuration/#auto-mode`,
+      );
+    }
+  }
+
+  releaseConfigCache = normalized;
   return normalized;
 }
 
@@ -980,7 +1148,7 @@ export function shouldExcludePR(
   labels: Set<string>,
   author: string | undefined,
   config: NormalizedReleaseConfig | null,
-  body?: string
+  body?: string,
 ): boolean {
   // Check for magic word in body
   if (body?.includes(SKIP_CHANGELOG_MAGIC_WORD)) {
@@ -1014,8 +1182,7 @@ export function shouldExcludePR(
  * @returns true if the PR should be skipped
  */
 export function shouldSkipCurrentPR(prInfo: CurrentPRInfo): boolean {
-  const rawConfig = readReleaseConfig();
-  const releaseConfig = normalizeReleaseConfig(rawConfig);
+  const releaseConfig = getNormalizedReleaseConfig();
   const labels = new Set(prInfo.labels);
 
   return shouldExcludePR(labels, prInfo.author, releaseConfig, prInfo.body);
@@ -1030,15 +1197,14 @@ export function shouldSkipCurrentPR(prInfo: CurrentPRInfo): boolean {
  * @returns The bump type (major, minor, patch) or null if no match
  */
 export function getBumpTypeForPR(prInfo: CurrentPRInfo): BumpType | null {
-  const rawConfig = readReleaseConfig();
-  const releaseConfig = normalizeReleaseConfig(rawConfig);
+  const releaseConfig = getNormalizedReleaseConfig();
   const labels = new Set(prInfo.labels);
 
   const match = matchCommitToCategory(
     labels,
     prInfo.author,
     prInfo.title.trim(),
-    releaseConfig
+    releaseConfig,
   );
 
   return match?.category.semver ?? null;
@@ -1050,7 +1216,7 @@ export function getBumpTypeForPR(prInfo: CurrentPRInfo): BumpType | null {
 export function isCategoryExcluded(
   category: NormalizedCategory,
   labels: Set<string>,
-  author: string | undefined
+  author: string | undefined,
 ): boolean {
   if (labels.size > 0) {
     for (const excludeLabel of category.exclude.labels) {
@@ -1087,7 +1253,7 @@ export function matchCommitToCategory(
   labels: Set<string>,
   author: string | undefined,
   title: string,
-  config: NormalizedReleaseConfig | null
+  config: NormalizedReleaseConfig | null,
 ): CategoryMatchResult | null {
   if (!config?.changelog || config.changelog.categories.length === 0) {
     return null;
@@ -1178,7 +1344,7 @@ interface ChangelogEntry {
 export function stripTitle(
   title: string,
   pattern: RegExp | undefined,
-  preserveScope: boolean
+  preserveScope: boolean,
 ): string {
   if (!pattern) return title;
 
@@ -1202,10 +1368,12 @@ export function stripTitle(
  * Format: `- Title by @author in [#123](pr-url)` or `- Title in [abcdef12](commit-url)`
  * When highlight is true, the entry is prefixed with `> ` (blockquote).
  * When disableMentions is true, uses `**author**` instead of `@author` to avoid pinging.
+ * When disablePRLinks is true, uses plain `#123` instead of markdown links to avoid cross-references.
  */
 function formatChangelogEntry(
   entry: ChangelogEntry,
-  disableMentions = false
+  disableMentions = false,
+  disablePRLinks = false,
 ): string {
   let title = entry.title;
 
@@ -1228,12 +1396,14 @@ function formatChangelogEntry(
     : null;
 
   if (entry.prNumber) {
-    // Full markdown link format for PRs
-    const prLink = `${entry.repoUrl}/pull/${entry.prNumber}`;
+    // Format PR reference: use backticks to prevent GitHub auto-linking when disablePRLinks is true
+    const prRef = disablePRLinks
+      ? `\`#${entry.prNumber}\``
+      : `[#${entry.prNumber}](${entry.repoUrl}/pull/${entry.prNumber})`;
     if (authorRef) {
-      text += ` by ${authorRef} in [#${entry.prNumber}](${prLink})`;
+      text += ` by ${authorRef} in ${prRef}`;
     } else {
-      text += ` in [#${entry.prNumber}](${prLink})`;
+      text += ` in ${prRef}`;
     }
   } else {
     // Commits without PRs: link to commit
@@ -1330,10 +1500,21 @@ interface RawChangelogResult {
 
 // Memoization cache for generateChangesetFromGit
 // Caches promises to coalesce concurrent calls with the same arguments
-const changesetCache = new Map<string, Promise<ChangelogResult>>();
+let changesetCache = new WeakMap<
+  SimpleGit,
+  Map<string, Promise<ChangelogResult>>
+>();
+let rawChangesetCache = new WeakMap<
+  SimpleGit,
+  Map<string, Promise<RawChangelogResult>>
+>();
 
-function getChangesetCacheKey(rev: string, maxLeftovers: number): string {
-  return `${rev}:${maxLeftovers}`;
+function getChangesetCacheKey(
+  rev: string,
+  maxLeftovers: number,
+  summarize: boolean,
+): string {
+  return JSON.stringify([getActiveWorkspace(), rev, maxLeftovers, summarize]);
 }
 
 /**
@@ -1341,25 +1522,37 @@ function getChangesetCacheKey(rev: string, maxLeftovers: number): string {
  * Primarily used for testing.
  */
 export function clearChangesetCache(): void {
-  changesetCache.clear();
+  changesetCache = new WeakMap();
+  rawChangesetCache = new WeakMap();
 }
 
 export async function generateChangesetFromGit(
   git: SimpleGit,
   rev: string,
-  maxLeftovers: number = MAX_LEFTOVERS
+  maxLeftovers: number = MAX_LEFTOVERS,
+  summarize = true,
 ): Promise<ChangelogResult> {
-  const cacheKey = getChangesetCacheKey(rev, maxLeftovers);
+  const cacheKey = getChangesetCacheKey(rev, maxLeftovers, summarize);
+  let cache = changesetCache.get(git);
+  if (!cache) {
+    cache = new Map();
+    changesetCache.set(git, cache);
+  }
 
   // Return cached promise if available (coalesces concurrent calls)
-  const cached = changesetCache.get(cacheKey);
+  const cached = cache.get(cacheKey);
   if (cached) {
     return cached;
   }
 
   // Create and cache the promise
-  const promise = generateChangesetFromGitImpl(git, rev, maxLeftovers);
-  changesetCache.set(cacheKey, promise);
+  const promise = generateChangesetFromGitImpl(
+    git,
+    rev,
+    maxLeftovers,
+    summarize,
+  );
+  cache.set(cacheKey, promise);
 
   return promise;
 }
@@ -1381,7 +1574,7 @@ export async function generateChangesetFromGit(
 export async function generateChangelogWithHighlight(
   git: SimpleGit,
   rev: string,
-  currentPRNumber: number
+  currentPRNumber: number,
 ): Promise<ChangelogResult> {
   // Step 1: Fetch PR info from GitHub
   const prInfo = await fetchPRInfo(currentPRNumber);
@@ -1408,21 +1601,29 @@ export async function generateChangelogWithHighlight(
   // Step 5: Fetch raw commit info up to base branch
   const rawCommits = await fetchRawCommitInfo(git, rev, baseRef);
 
-  // Step 6: Add current PR to the list with highlight flag (at the beginning)
-  const currentPRCommit: RawCommitInfo = {
-    hash: prInfo.headSha,
-    title: prInfo.title.trim(),
-    body: prInfo.body,
-    author: prInfo.author,
-    pr: String(prInfo.number),
-    prTitle: prInfo.title,
-    prBody: prInfo.body,
-    labels: prInfo.labels,
-    highlight: true,
-  };
-  // Prepend current PR to make it newest in the list.
-  // Git log returns commits newest-first, so this maintains that order.
-  const allCommits = [currentPRCommit, ...rawCommits];
+  // Step 6: Build combined commit list with current PR highlighted at the beginning.
+  // Filter out the current PR from git history if already merged - this ensures we use
+  // the freshly-fetched PR data (with highlight) instead of potentially stale data
+  // from git history (e.g., if PR title was edited after merge).
+  const currentPRStr = String(currentPRNumber);
+  const allCommits: RawCommitInfo[] = [
+    {
+      hash: prInfo.headSha,
+      title: prInfo.title.trim(),
+      body: prInfo.body,
+      author: prInfo.author,
+      pr: currentPRStr,
+      prTitle: prInfo.title,
+      prBody: prInfo.body,
+      labels: prInfo.labels,
+      highlight: true,
+    },
+  ];
+  for (const commit of rawCommits) {
+    if (commit.pr !== currentPRStr) {
+      allCommits.push(commit);
+    }
+  }
 
   // Step 7: Process reverts - cancel out revert/reverted pairs
   const filteredCommits = processReverts(allCommits);
@@ -1433,8 +1634,13 @@ export async function generateChangelogWithHighlight(
   // Step 9: Run categorization on filtered list
   const { data: rawData, stats } = categorizeCommits(filteredCommits);
 
-  // Step 10: Serialize to markdown (disable mentions to avoid pinging in PR preview comments)
-  const changelog = await serializeChangelog(rawData, MAX_LEFTOVERS, true);
+  // Step 10: Serialize to markdown (disable mentions and PR links to avoid pinging/cross-referencing in PR preview comments)
+  const changelog = await serializeChangelog(
+    rawData,
+    MAX_LEFTOVERS,
+    true,
+    true,
+  );
 
   // Determine bump type:
   // - If current PR survived revert processing, use its specific bump type (PR 676 fix)
@@ -1464,31 +1670,49 @@ export async function generateChangelogWithHighlight(
 async function fetchRawCommitInfo(
   git: SimpleGit,
   rev: string,
-  until?: string
+  until?: string,
 ): Promise<RawCommitInfo[]> {
   // Early filter: skip commits with magic word in commit body (optimization to avoid GitHub API calls)
   const gitCommits = (await getChangesSince(git, rev, until)).filter(
-    ({ body }) => !body.includes(SKIP_CHANGELOG_MAGIC_WORD)
+    ({ body }) => !body.includes(SKIP_CHANGELOG_MAGIC_WORD),
   );
 
   const githubCommits = await getPRAndLabelsFromCommit(
-    gitCommits.map(({ hash }) => hash)
+    gitCommits.map(({ hash }) => hash),
   );
 
+  // Build commit list with deduplication by PR number in a single pass.
+  // Keep first occurrence (newest commit since git log is newest-first).
+  // This handles:
+  // 1. Rebase-merge workflows where multiple commits share the same PR number
+  // 2. Already-merged PRs that appear in git history when generating previews
   // Note: PR body magic word check is handled by shouldExcludePR in categorizeCommits
-  return gitCommits.map(gitCommit => {
+  const seenPRs = new Set<string>();
+  const result: RawCommitInfo[] = [];
+
+  for (const gitCommit of gitCommits) {
     const githubCommit = githubCommits[gitCommit.hash];
-    return {
+    const pr = githubCommit?.pr ?? gitCommit.pr ?? undefined;
+
+    // Deduplicate by PR number, but keep all commits without PR association
+    if (pr) {
+      if (seenPRs.has(pr)) continue;
+      seenPRs.add(pr);
+    }
+
+    result.push({
       hash: gitCommit.hash,
       title: gitCommit.title,
       body: gitCommit.body,
       author: githubCommit?.author,
-      pr: githubCommit?.pr ?? gitCommit.pr ?? undefined,
+      pr,
       prTitle: githubCommit?.prTitle ?? undefined,
       prBody: githubCommit?.prBody ?? undefined,
       labels: githubCommit?.labels ?? [],
-    };
-  });
+    });
+  }
+
+  return result;
 }
 
 /**
@@ -1499,8 +1723,7 @@ async function fetchRawCommitInfo(
  * @returns Categorized changelog data and stats
  */
 function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
-  const rawConfig = readReleaseConfig();
-  const releaseConfig = normalizeReleaseConfig(rawConfig);
+  const releaseConfig = getNormalizedReleaseConfig();
 
   const categories = new Map<string, CategoryWithPRs>();
   const leftovers: Commit[] = [];
@@ -1525,7 +1748,7 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
       labels,
       raw.author,
       titleForMatching,
-      releaseConfig
+      releaseConfig,
     );
     const matchedCategory = match?.category ?? null;
     const matchedPattern = match?.matchedPattern;
@@ -1545,8 +1768,8 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
       missing.push(raw);
     }
 
-    if (!categoryTitle || !raw.pr) {
-      // No category match or no PR - goes to leftovers
+    if (!categoryTitle) {
+      // No category match - goes to leftovers
       leftovers.push({
         author: raw.author,
         hash: raw.hash,
@@ -1581,7 +1804,13 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
       }
 
       // Create PR entries (handles custom changelog entries if present)
-      const prEntries = createPREntriesFromRaw(raw, prTitle, raw.body);
+      const prEntries = createPREntriesFromRaw(
+        raw,
+        prTitle,
+        raw.body,
+        matchedCategory?.semver === 'major' ||
+          /\bsecurity\b/i.test(categoryTitle),
+      );
       // Add matched pattern to each entry for title stripping
       for (const entry of prEntries) {
         entry.matchedPattern = matchedPattern;
@@ -1604,7 +1833,7 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
   if (missing.length > 0) {
     logger.warn(
       'The following commits were not found on GitHub:',
-      missing.map(c => `${c.hash.slice(0, 8)} ${c.title}`)
+      missing.map(c => `${c.hash.slice(0, 8)} ${c.title}`),
     );
   }
 
@@ -1634,7 +1863,7 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
 async function generateRawChangelog(
   git: SimpleGit,
   rev: string,
-  until?: string
+  until?: string,
 ): Promise<RawChangelogResult> {
   const rawCommits = await fetchRawCommitInfo(git, rev, until);
   // Process reverts: cancel out revert/reverted pairs
@@ -1649,24 +1878,56 @@ async function generateRawChangelog(
  * @param rawData The raw changelog data to serialize
  * @param maxLeftovers Maximum number of leftover entries to include
  * @param disableMentions When true, uses bold formatting instead of @ mentions for authors
+ * @param disablePRLinks When true, uses plain text PR references to avoid GitHub cross-references
  * @returns Formatted markdown changelog string
  */
 async function serializeChangelog(
   rawData: RawChangelogData,
   maxLeftovers: number,
-  disableMentions = false
+  disableMentions = false,
+  disablePRLinks = false,
+  summarize = true,
 ): Promise<string> {
   const { categories, leftovers, releaseConfig } = rawData;
 
   const changelogSections: string[] = [];
+  const summaryCategories: SummaryCategory[] = [];
+  const summaryPositions = new Map<string, number>();
+  const categoryPositions = new Map<string, number>();
+  let currentCategory: SummaryCategory;
+  let groupIndex = 0;
+  const beginCategory = (title: string, heading: boolean) => {
+    currentCategory = {
+      id: `category:${summaryCategories.length}`,
+      title,
+      groups: [],
+    };
+    summaryCategories.push(currentCategory);
+    if (heading)
+      changelogSections.push(markdownHeader(SUBSECTION_HEADER_LEVEL, title));
+    categoryPositions.set(currentCategory.id, changelogSections.length);
+  };
+  const addEntries = (
+    title: string,
+    items: string[],
+    scope?: string,
+    importantEntries?: Record<number, string>,
+  ) => {
+    const id = `group:${groupIndex++}`;
+    summaryPositions.set(id, changelogSections.length);
+    currentCategory.groups.push({ id, title, items, scope, importantEntries });
+    changelogSections.push(items.join('\n'));
+  };
   const { repo, owner } = await getGlobalGitHubConfig();
   const repoUrl = `https://github.com/${owner}/${repo}`;
 
   // Get changelog config for scope grouping setting
   let scopeGroupingEnabled = true;
+  let aiSummary: AiSummaryConfig | false | undefined;
   try {
     const changelogConfig = getChangelogConfig();
     scopeGroupingEnabled = changelogConfig.scopeGrouping;
+    aiSummary = changelogConfig.aiSummary;
   } catch {
     // If config can't be read (e.g., no .craft.yml), use default
   }
@@ -1689,9 +1950,7 @@ async function serializeChangelog(
       continue;
     }
 
-    changelogSections.push(
-      markdownHeader(SUBSECTION_HEADER_LEVEL, category.title)
-    );
+    beginCategory(category.title, true);
 
     // Sort scope groups: scoped entries first (alphabetically), scopeless (null) last
     const sortedScopes = [...category.scopeGroups.entries()].sort((a, b) => {
@@ -1707,11 +1966,12 @@ async function serializeChangelog(
 
     // Check if any scope has multiple entries (would get its own header)
     const hasScopeHeaders = [...category.scopeGroups.entries()].some(
-      ([s, entries]) => s !== null && entries.length > 1
+      ([s, entries]) => s !== null && entries.length > 1,
     );
 
     // Collect entries without headers to combine them into a single section
     const entriesWithoutHeaders: string[] = [];
+    const importantWithoutHeaders: Record<number, string> = {};
 
     for (const [scope, prs] of sortedScopes) {
       // Determine scope header:
@@ -1740,15 +2000,25 @@ async function serializeChangelog(
             repoUrl,
             highlight: pr.highlight,
           },
-          disableMentions
-        )
+          disableMentions,
+          disablePRLinks,
+        ),
+      );
+      const importantEntries = Object.fromEntries(
+        prs.flatMap((pr, index) =>
+          pr.importantTitle ? [[index, pr.importantTitle]] : [],
+        ),
       );
 
       if (scopeHeader) {
         changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, scopeHeader));
-        changelogSections.push(prEntries.join('\n'));
+        addEntries(scopeHeader, prEntries, scopeHeader, importantEntries);
       } else {
         // No header for this scope group - collect entries to combine later
+        for (const [index, title] of Object.entries(importantEntries))
+          importantWithoutHeaders[
+            entriesWithoutHeaders.length + Number(index)
+          ] = title;
         entriesWithoutHeaders.push(...prEntries);
       }
     }
@@ -1759,17 +2029,21 @@ async function serializeChangelog(
       if (hasScopeHeaders) {
         changelogSections.push(markdownHeader(SCOPE_HEADER_LEVEL, 'Other'));
       }
-      changelogSections.push(entriesWithoutHeaders.join('\n'));
+      addEntries(
+        category.title,
+        entriesWithoutHeaders,
+        undefined,
+        importantWithoutHeaders,
+      );
     }
   }
 
   const nLeftovers = leftovers.length;
   if (nLeftovers > 0) {
     // Only add "Other" section header if there are other category sections
-    if (changelogSections.length > 0) {
-      changelogSections.push(markdownHeader(SUBSECTION_HEADER_LEVEL, 'Other'));
-    }
+    beginCategory('Other', changelogSections.length > 0);
     const leftoverEntries: string[] = [];
+    const importantLeftovers: Record<number, string> = {};
     for (const commit of leftovers.slice(0, maxLeftovers)) {
       // Create PR entries (handles custom changelog entries if present)
       const prEntries = createPREntriesFromRaw(
@@ -1781,10 +2055,12 @@ async function serializeChangelog(
           highlight: commit.highlight,
         },
         (commit.prTitle ?? commit.title).trim(),
-        commit.body // fallback for magic word check
+        commit.body, // fallback for magic word check
       );
 
       for (const pr of prEntries) {
+        if (pr.importantTitle)
+          importantLeftovers[leftoverEntries.length] = pr.importantTitle;
         leftoverEntries.push(
           formatChangelogEntry(
             {
@@ -1796,17 +2072,58 @@ async function serializeChangelog(
               body: pr.body || undefined,
               highlight: pr.highlight,
             },
-            disableMentions
-          )
+            disableMentions,
+            disablePRLinks,
+          ),
         );
       }
     }
-    changelogSections.push(leftoverEntries.join('\n'));
+    addEntries('Other', leftoverEntries, undefined, importantLeftovers);
     if (nLeftovers > maxLeftovers) {
       changelogSections.push(`_Plus ${nLeftovers - maxLeftovers} more_`);
     }
   }
 
+  // Highlighted PR previews keep their original emphasis and never call a model.
+  const hasHighlights =
+    [...categories.values()].some(category =>
+      [...category.scopeGroups.values()].some(prs =>
+        prs.some(pr => pr.highlight),
+      ),
+    ) || leftovers.some(commit => commit.highlight);
+  const summary =
+    !summarize || disablePRLinks || hasHighlights
+      ? null
+      : await summarizeChangelog(summaryCategories, aiSummary);
+  if (summary) {
+    for (const category of [...summaryCategories].reverse()) {
+      const categorySummary = summary.categories[category.id];
+      for (const group of category.groups) {
+        const scopeSummary = summary.scopes[group.id];
+        if (scopeSummary || categorySummary)
+          changelogSections[summaryPositions.get(group.id)!] =
+            formatSummaryWithDetails(scopeSummary || '', group.items);
+      }
+      // Keep scope headings and prose visible instead of nesting details blocks.
+      if (categorySummary)
+        changelogSections.splice(
+          categoryPositions.get(category.id)!,
+          0,
+          formatSummaryText(categorySummary),
+        );
+    }
+    if (summary.release.length) {
+      // Retain validated coverage for every category without displaying a breakdown.
+      const statements = summary.release.map(statement =>
+        formatSummaryText(statement.summary),
+      );
+      const perParagraph = Math.ceil(statements.length / 3);
+      const paragraphs: string[] = [];
+      for (let i = 0; i < statements.length; i += perParagraph)
+        paragraphs.push(statements.slice(i, i + perParagraph).join(' '));
+      changelogSections.unshift(paragraphs.join('\n\n'));
+    }
+  }
   return changelogSections.join('\n\n');
 }
 
@@ -1817,10 +2134,28 @@ async function serializeChangelog(
 async function generateChangesetFromGitImpl(
   git: SimpleGit,
   rev: string,
-  maxLeftovers: number
+  maxLeftovers: number,
+  summarize: boolean,
 ): Promise<ChangelogResult> {
-  const { data: rawData, stats } = await generateRawChangelog(git, rev);
-  const changelog = await serializeChangelog(rawData, maxLeftovers);
+  let cache = rawChangesetCache.get(git);
+  if (!cache) {
+    cache = new Map();
+    rawChangesetCache.set(git, cache);
+  }
+  const key = JSON.stringify([getActiveWorkspace(), rev]);
+  let promise = cache.get(key);
+  if (!promise) {
+    promise = generateRawChangelog(git, rev);
+    cache.set(key, promise);
+  }
+  const { data: rawData, stats } = await promise;
+  const changelog = await serializeChangelog(
+    rawData,
+    maxLeftovers,
+    false,
+    false,
+    summarize,
+  );
 
   return {
     changelog,
@@ -1880,7 +2215,7 @@ export async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
   for (let chunk = 0; chunk < chunkCount; chunk += 1) {
     const subset = hashes.slice(
       chunk * MAX_COMMITS_PER_QUERY,
-      (chunk + 1) * MAX_COMMITS_PER_QUERY
+      (chunk + 1) * MAX_COMMITS_PER_QUERY,
     );
 
     const commitsQuery = subset
@@ -1917,12 +2252,45 @@ export async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
       }
     }`;
     logger.trace('Running graphql query:', graphqlQuery);
-    Object.assign(
-      commitInfo,
-      ((await getGitHubClient().graphql(graphqlQuery)) as CommitInfoResult)
-        .repository
-    );
-    logger.trace('Query result:', commitInfo);
+
+    try {
+      const response = await getGitHubClient().graphql(graphqlQuery);
+      const typedResponse = response as CommitInfoResult;
+
+      if (!typedResponse?.repository) {
+        throw new Error('GraphQL response missing "repository" property');
+      }
+
+      Object.assign(commitInfo, typedResponse.repository);
+      logger.trace('Query result:', commitInfo);
+    } catch (error: any) {
+      // Capture to Sentry with context for tracking GraphQL failures
+      withScope(scope => {
+        scope.setTag('error_type', 'graphql_changelog_failure');
+        scope.setTag('chunk_number', `${chunk + 1}`);
+        scope.setTag('total_chunks', `${chunkCount}`);
+        scope.setContext('graphql_chunk', {
+          chunkIndex: chunk + 1,
+          totalChunks: chunkCount,
+          commitsInChunk: subset.length,
+          totalHashes: hashes.length,
+          httpStatus: error.status || error.response?.status,
+          errorName: error.name,
+          query: graphqlQuery,
+        });
+        captureException(error);
+      });
+
+      logger.warn(
+        `Failed to fetch PR info for chunk ${chunk + 1}/${chunkCount} ` +
+          `(${subset.length} commits): ${error.message || error}. ` +
+          `Skipping this chunk and continuing with remaining commits.`,
+      );
+
+      for (const hash of subset) {
+        commitInfo[`C${hash}`] = null;
+      }
+    }
   }
 
   return Object.fromEntries(
@@ -1947,6 +2315,6 @@ export async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
               labels: [],
             },
       ];
-    })
+    }),
   );
 }

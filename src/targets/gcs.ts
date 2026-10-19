@@ -1,4 +1,4 @@
-import { TargetConfig } from '../schemas/project_config';
+import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
 import { forEachChained } from '../utils/async';
 import { ConfigurationError, reportError } from '../utils/errors';
 import {
@@ -36,6 +36,11 @@ export interface GCSTargetConfig extends GCSBucketConfig {
   pathTemplates: PathTemplate[];
 }
 
+/** Config fields for gcs target from .craft.yml */
+interface GcsYamlConfig extends Record<string, unknown> {
+  bucket?: string;
+}
+
 /**
  * Target responsible for uploading files to GCS
  */
@@ -49,7 +54,7 @@ export class GcsTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
     this.targetConfig = this.getGCSTargetConfig();
@@ -68,17 +73,20 @@ export class GcsTarget extends BaseTarget {
       {
         name: 'CRAFT_GCS_TARGET_CREDS_PATH',
         legacyName: 'CRAFT_GCS_CREDENTIALS_PATH',
-      }
+      },
     );
 
-    const bucketName = this.config.bucket;
+    const config = this.config as TypedTargetConfig<GcsYamlConfig>;
+    const bucketName = config.bucket;
     // TODO (kmclb) get rid of this check once config validation is working
     if (!bucketName) {
       reportError('No GCS bucket provided!');
+      // TypeScript can't infer that reportError throws
+      throw new Error('No GCS bucket provided!');
     }
 
     const pathTemplates: PathTemplate[] = this.parseRawPathConfig(
-      this.config.paths
+      this.config.paths,
     );
 
     return {
@@ -127,8 +135,8 @@ export class GcsTarget extends BaseTarget {
         if (typeof configEntry !== 'object') {
           reportError(
             `Invalid bucket destination: ${JSON.stringify(
-              configEntry
-            )}. Use object notation to specify bucket paths!`
+              configEntry,
+            )}. Use object notation to specify bucket paths!`,
           );
         }
 
@@ -140,8 +148,8 @@ export class GcsTarget extends BaseTarget {
         if (metadata && typeof metadata !== 'object') {
           reportError(
             `Invalid metadata for path "${template}": "${JSON.stringify(
-              metadata
-            )}. Use object notation to specify metadata!"`
+              metadata,
+            )}. Use object notation to specify metadata!"`,
           );
         }
 
@@ -172,7 +180,7 @@ export class GcsTarget extends BaseTarget {
   private materializePathTemplate(
     pathTemplate: PathTemplate,
     version: string,
-    revision: string
+    revision: string,
   ): BucketPath {
     const { template, metadata } = pathTemplate;
 
@@ -190,7 +198,7 @@ export class GcsTarget extends BaseTarget {
       realPath = `/${realPath}`;
     }
     this.logger.debug(
-      `Processed path template \`${template}\` and got \`${realPath}\``
+      `Processed path template \`${template}\` and got \`${realPath}\``,
     );
     return { path: realPath, metadata };
   }
@@ -208,7 +216,7 @@ export class GcsTarget extends BaseTarget {
     const artifacts = await this.getArtifactsForRevision(revision);
     if (!artifacts.length) {
       throw new ConfigurationError(
-        'No artifacts to publish: please check your configuration!'
+        'No artifacts to publish: please check your configuration!',
       );
     }
 
@@ -221,8 +229,8 @@ export class GcsTarget extends BaseTarget {
     const localFilePaths = await Promise.all(
       artifacts.map(
         async (artifact: RemoteArtifact): Promise<string> =>
-          this.artifactProvider.downloadArtifact(artifact)
-      )
+          this.artifactProvider.downloadArtifact(artifact),
+      ),
     );
 
     // We intentionally do not make all requests concurrent here, instead
@@ -234,7 +242,7 @@ export class GcsTarget extends BaseTarget {
         const bucketPath = this.materializePathTemplate(
           pathTemplate,
           version,
-          revision
+          revision,
         );
 
         this.logger.info(`Uploading files to ${bucketPath.path}.`);
@@ -245,10 +253,10 @@ export class GcsTarget extends BaseTarget {
 
         return Promise.all(
           localFilePaths.map(async localPath =>
-            this.gcsClient.uploadArtifact(localPath, bucketPath)
-          )
+            this.gcsClient.uploadArtifact(localPath, bucketPath),
+          ),
         );
-      }
+      },
     );
 
     this.logger.info('Upload to GCS complete.');

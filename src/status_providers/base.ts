@@ -36,7 +36,7 @@ export interface StatusProviderConfig {
 }
 
 /** Repository information */
- 
+
 export interface RepositoryInfo {}
 
 /**
@@ -47,7 +47,7 @@ export abstract class BaseStatusProvider {
 
   public constructor(
     public readonly config: StatusProviderConfig,
-    public readonly githubConfig: GitHubGlobalConfig
+    public readonly githubConfig: GitHubGlobalConfig,
   ) {
     this.logger = loggerRaw.withScope(`[status-provider/${config.name}]`);
   }
@@ -62,6 +62,17 @@ export abstract class BaseStatusProvider {
    * Gets repository information (as seen by the provider)
    */
   public abstract getRepositoryInfo(): Promise<RepositoryInfo>;
+
+  /**
+   * Returns human-readable details about failed checks for the given revision.
+   * Subclasses should override this to provide provider-specific information.
+   *
+   * @param _revision Git revision SHA
+   * @returns Array of formatted strings describing each failed check
+   */
+  public getFailureDetails(_revision: string): string[] {
+    return [];
+  }
 
   /**
    * Waits for the builds to finish for the revision
@@ -88,21 +99,30 @@ export abstract class BaseStatusProvider {
         if (spinner.isSpinning) {
           spinner.fail();
         }
+
+        const failureDetails = this.getFailureDetails(revision);
+        if (failureDetails.length > 0) {
+          this.logger.error(
+            'The following check(s) have not succeeded:\n' +
+              failureDetails.join('\n'),
+          );
+        }
+
         reportError(
-          `Build(s) for revision ${revision} have not succeeded. Please check the revision's status.`
+          `Build(s) for revision ${revision} have not succeeded. Please check the revision's status.`,
         );
         return;
       } else if (firstIteration) {
         this.logger.info(
           status === CommitStatus.NOT_FOUND
             ? `Revision ${revision} has not been found, waiting for a bit.`
-            : `Revision ${revision} has been found.`
+            : `Revision ${revision} has been found.`,
         );
       }
 
       if (Date.now() - startTime > BUILD_STATUS_POLLING_MAX) {
         throw new Error(
-          `Waited for more than ${BUILD_STATUS_POLLING_MAX} seconds for the build to finish. Aborting.`
+          `Waited for more than ${BUILD_STATUS_POLLING_MAX} seconds for the build to finish. Aborting.`,
         );
       }
 

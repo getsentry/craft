@@ -1,11 +1,15 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import sentryStarlightTheme, {
+  monochromeCodeTheme,
+  sentryAgentMarkdown,
+} from '@sentry/starlight-theme';
 
 // Allow base path override via environment variable for PR previews
-const base = process.env.DOCS_BASE_PATH || '/craft';
+const base = process.env.DOCS_BASE_PATH || '/';
 
 export default defineConfig({
-  site: 'https://getsentry.github.io',
+  site: 'https://craft.sentry.dev',
   base: base,
   integrations: [
     starlight({
@@ -13,14 +17,18 @@ export default defineConfig({
       logo: {
         src: './src/assets/logo.svg',
       },
-      social: {
-        github: 'https://github.com/getsentry/craft',
-      },
+      social: [
+        {
+          icon: 'github',
+          label: 'GitHub',
+          href: 'https://github.com/getsentry/craft',
+        },
+      ],
       sidebar: [
         {
           label: 'Getting Started',
           items: [
-            { label: 'Introduction', slug: '' },
+            { label: 'Introduction', slug: 'index' },
             { label: 'Installation', slug: 'getting-started' },
             { label: 'Configuration', slug: 'configuration' },
             { label: 'GitHub Actions', slug: 'github-actions' },
@@ -28,16 +36,19 @@ export default defineConfig({
         },
         {
           label: 'Targets',
-          autogenerate: { directory: 'targets' },
+          items: [{ autogenerate: { directory: 'targets' } }],
         },
         {
           label: 'Resources',
-          items: [
-            { label: 'Contributing', slug: 'contributing' },
-          ],
+          items: [{ label: 'Contributing', slug: 'contributing' }],
         },
       ],
-      customCss: [],
+      plugins: [sentryStarlightTheme(), sentryAgentMarkdown()],
     }),
   ],
+  markdown: {
+    shikiConfig: {
+      theme: monochromeCodeTheme,
+    },
+  },
 });

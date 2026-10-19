@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi, type MockedFunction } from 'vitest';
 import { URL } from 'url';
 import nock from 'nock';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
@@ -19,7 +19,7 @@ import * as fs from 'fs';
 vi.mock('../../utils/files');
 vi.mock('../../utils/gpg');
 
-vi.mock('fs', async (importOriginal) => {
+vi.mock('fs', async importOriginal => {
   const actual = await importOriginal<typeof import('fs')>();
   return {
     ...actual,
@@ -33,7 +33,7 @@ vi.mock('fs', async (importOriginal) => {
   };
 });
 
-vi.mock('../../utils/system', async (importOriginal) => {
+vi.mock('../../utils/system', async importOriginal => {
   const actual = await importOriginal<typeof import('../../utils/system')>();
   return {
     ...actual,
@@ -42,7 +42,7 @@ vi.mock('../../utils/system', async (importOriginal) => {
   };
 });
 
-vi.mock('../../utils/async', async (importOriginal) => {
+vi.mock('../../utils/async', async importOriginal => {
   const actual = await importOriginal<typeof import('../../utils/async')>();
   return {
     ...actual,
@@ -50,7 +50,7 @@ vi.mock('../../utils/async', async (importOriginal) => {
     sleep: vi.fn(() =>
       setTimeout(() => {
         Promise.resolve();
-      }, 10)
+      }, 10),
     ),
   };
 });
@@ -106,7 +106,7 @@ function getRequiredTargetConfig(): any {
 }
 
 function createMavenTarget(
-  targetConfig?: Record<string, unknown>
+  targetConfig?: Record<string, unknown>,
 ): MavenTarget {
   const finalConfig = targetConfig ? targetConfig : getRequiredTargetConfig();
   const mergedConfig = {
@@ -137,13 +137,13 @@ describe('Maven target configuration', () => {
   test('no env vars and no options', () => {
     removeTargetSecretsFromEnv();
     expect(createMavenTarget).toThrowErrorMatchingInlineSnapshot(
-      `[Error: Required value(s) GPG_PASSPHRASE not found in configuration files or the environment. See the documentation for more details.]`
+      `[Error: Required value(s) GPG_PASSPHRASE not found in configuration files or the environment. See the documentation for more details.]`,
     );
   });
 
   test('env vars without options', () => {
     expect(() => createMavenTarget({})).toThrowErrorMatchingInlineSnapshot(
-      `[Error: Required configuration mavenCliPath not found in configuration file. See the documentation for more details.]`
+      `[Error: Required configuration mavenCliPath not found in configuration file. See the documentation for more details.]`,
     );
   });
 
@@ -151,7 +151,7 @@ describe('Maven target configuration', () => {
     const config = getRequiredTargetConfig();
     delete config.android;
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
-      `[Error: Required Android configuration was not found in the configuration file. See the documentation for more details]`
+      `[Error: Required Android configuration was not found in the configuration file. See the documentation for more details]`,
     );
   });
 
@@ -165,7 +165,7 @@ describe('Maven target configuration', () => {
     const config = getRequiredTargetConfig();
     config.android = 'yes';
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
-      `[Error: Required Android configuration is incorrect. See the documentation for more details.]`
+      `[Error: Required Android configuration is incorrect. See the documentation for more details.]`,
     );
   });
 
@@ -173,7 +173,7 @@ describe('Maven target configuration', () => {
     const config = getRequiredTargetConfig();
     config.kmp = 'yes';
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
-      `[Error: Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.]`
+      `[Error: Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.]`,
     );
   });
 
@@ -193,7 +193,7 @@ describe('Maven target configuration', () => {
     const config = getFullTargetConfig();
     delete config.android.distDirRegex;
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
-      `[Error: Required Android configuration is incorrect. See the documentation for more details.]`
+      `[Error: Required Android configuration is incorrect. See the documentation for more details.]`,
     );
   });
 
@@ -202,7 +202,7 @@ describe('Maven target configuration', () => {
     delete config.kmp.rootDistDirRegex;
     config.kmp.anotherParam = 'unused';
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
-      `[Error: Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.]`
+      `[Error: Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.]`,
     );
   });
 
@@ -211,7 +211,7 @@ describe('Maven target configuration', () => {
     delete config.kmp.appleDistDirRegex;
     config.kmp.anotherParam = 'unused';
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
-      `[Error: Required apple configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.]`
+      `[Error: Required apple configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.]`,
     );
   });
 
@@ -220,7 +220,7 @@ describe('Maven target configuration', () => {
     delete config.android.distDirRegex;
     config.android.anotherParam = 'unused';
     expect(() => createMavenTarget(config)).toThrowErrorMatchingInlineSnapshot(
-      `[Error: Required Android configuration is incorrect. See the documentation for more details.]`
+      `[Error: Required Android configuration is incorrect. See the documentation for more details.]`,
     );
   });
 
@@ -248,8 +248,8 @@ describe('Maven target configuration', () => {
       expect(mvnTarget.config).toEqual(
         expect.objectContaining({
           [secret]: DEFAULT_OPTION_VALUE,
-        })
-      )
+        }),
+      ),
     );
   });
 
@@ -260,15 +260,27 @@ describe('Maven target configuration', () => {
       expect(mvnTarget.config).toEqual(
         expect.objectContaining({
           [secret]: DEFAULT_OPTION_VALUE,
-        })
-      )
+        }),
+      ),
     );
-    expect(typeof mvnTarget.config.android.distDirRegex).toBe('string');
-    expect(typeof mvnTarget.config.android.fileReplaceeRegex).toBe('string');
-    expect(typeof mvnTarget.config.android.fileReplacerStr).toBe('string');
-    expect(typeof mvnTarget.config.kmp.rootDistDirRegex).toBe('string');
-    expect(typeof mvnTarget.config.kmp.appleDistDirRegex).toBe('string');
-    expect(typeof mvnTarget.config.kmp.klibDistDirRegex).toBe('string');
+    expect(typeof (mvnTarget.config.android as any).distDirRegex).toBe(
+      'string',
+    );
+    expect(typeof (mvnTarget.config.android as any).fileReplaceeRegex).toBe(
+      'string',
+    );
+    expect(typeof (mvnTarget.config.android as any).fileReplacerStr).toBe(
+      'string',
+    );
+    expect(typeof (mvnTarget.config.kmp as any).rootDistDirRegex).toBe(
+      'string',
+    );
+    expect(typeof (mvnTarget.config.kmp as any).appleDistDirRegex).toBe(
+      'string',
+    );
+    expect(typeof (mvnTarget.config.kmp as any).klibDistDirRegex).toBe(
+      'string',
+    );
   });
 
   test('import GPG private key if one is present in the environment', async () => {
@@ -278,7 +290,7 @@ describe('Maven target configuration', () => {
     const mvnTarget = createMavenTarget(getFullTargetConfig());
     mvnTarget.upload = vi.fn(async () => void callOrder.push('upload'));
     mvnTarget.closeAndReleaseRepository = vi.fn(
-      async () => void callOrder.push('closeAndReleaseRepository')
+      async () => void callOrder.push('closeAndReleaseRepository'),
     );
     await mvnTarget.publish('1.0.0', 'r3v1s10n');
     expect(importGPGKey).toHaveBeenCalledWith(DEFAULT_OPTION_VALUE);
@@ -291,7 +303,7 @@ describe('publish', () => {
     const mvnTarget = createMavenTarget();
     mvnTarget.upload = vi.fn(async () => void callOrder.push('upload'));
     mvnTarget.closeAndReleaseRepository = vi.fn(
-      async () => void callOrder.push('closeAndReleaseRepository')
+      async () => void callOrder.push('closeAndReleaseRepository'),
     );
     const revision = 'r3v1s10n';
     await mvnTarget.publish('1.0.0', revision);
@@ -309,7 +321,7 @@ describe('transform KMP artifacts', () => {
     (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
-      }
+      },
     );
 
     const mvnTarget = createMavenTarget(getFullTargetConfig());
@@ -321,13 +333,10 @@ describe('transform KMP artifacts', () => {
       metadataFile: ``,
       moduleFile: `${tmpDirName}.module`,
     };
-    const {
-      sideArtifacts,
-      classifiers,
-      types,
-    } = mvnTarget.transformKmpSideArtifacts(false, false, true, files);
+    const { sideArtifacts, classifiers, types } =
+      mvnTarget.transformKmpSideArtifacts(false, false, true, files);
     expect(sideArtifacts).toEqual(
-      `${files.javadocFile},${files.sourcesFile},${files.klibFiles},${files.moduleFile}`
+      `${files.javadocFile},${files.sourcesFile},${files.klibFiles},${files.moduleFile}`,
     );
     expect(classifiers).toEqual('javadoc,sources,,');
     expect(types).toEqual('jar,jar,klib,module');
@@ -337,7 +346,7 @@ describe('transform KMP artifacts', () => {
     (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
-      }
+      },
     );
 
     const mvnTarget = createMavenTarget(getFullTargetConfig());
@@ -352,16 +361,13 @@ describe('transform KMP artifacts', () => {
       metadataFile: `${tmpDirName}-metadata.jar`,
       moduleFile: `${tmpDirName}.module`,
     };
-    const {
-      sideArtifacts,
-      classifiers,
-      types,
-    } = mvnTarget.transformKmpSideArtifacts(false, true, false, files);
+    const { sideArtifacts, classifiers, types } =
+      mvnTarget.transformKmpSideArtifacts(false, true, false, files);
     expect(sideArtifacts).toEqual(
-      `${files.javadocFile},${files.sourcesFile},${files.klibFiles},${files.metadataFile},${files.moduleFile}`
+      `${files.javadocFile},${files.sourcesFile},${files.klibFiles},${files.metadataFile},${files.moduleFile}`,
     );
     expect(classifiers).toEqual(
-      'javadoc,sources,cinterop-Sentry.NSException,cinterop-Sentry,metadata,'
+      'javadoc,sources,cinterop-Sentry.NSException,cinterop-Sentry,metadata,',
     );
     expect(types).toEqual('jar,jar,klib,klib,jar,module');
   });
@@ -370,7 +376,7 @@ describe('transform KMP artifacts', () => {
     (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
-      }
+      },
     );
 
     const mvnTarget = createMavenTarget(getFullTargetConfig());
@@ -383,13 +389,10 @@ describe('transform KMP artifacts', () => {
       moduleFile: `${tmpDirName}.module`,
       kotlinToolingMetadataFile: `${tmpDirName}-kotlin-tooling-metadata.json`,
     };
-    const {
-      sideArtifacts,
-      classifiers,
-      types,
-    } = mvnTarget.transformKmpSideArtifacts(true, false, false, files);
+    const { sideArtifacts, classifiers, types } =
+      mvnTarget.transformKmpSideArtifacts(true, false, false, files);
     expect(sideArtifacts).toEqual(
-      `${files.javadocFile},${files.sourcesFile},${files.allFile},${files.kotlinToolingMetadataFile},${files.moduleFile}`
+      `${files.javadocFile},${files.sourcesFile},${files.allFile},${files.kotlinToolingMetadataFile},${files.moduleFile}`,
     );
     expect(classifiers).toEqual('javadoc,sources,all,kotlin-tooling-metadata,');
     expect(types).toEqual('jar,jar,jar,json,module');
@@ -405,7 +408,7 @@ describe('upload', () => {
     (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
-      }
+      },
     );
 
     const mvnTarget = createMavenTarget();
@@ -423,9 +426,9 @@ describe('upload', () => {
     await mvnTarget.upload('r3v1s10n');
 
     expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
-    const callArgs = (retrySpawnProcess as MockedFunction<
-      typeof retrySpawnProcess
-    >).mock.calls[0];
+    const callArgs = (
+      retrySpawnProcess as MockedFunction<typeof retrySpawnProcess>
+    ).mock.calls[0];
 
     expect(callArgs).toHaveLength(2);
     expect(callArgs[0]).toEqual(DEFAULT_OPTION_VALUE);
@@ -436,13 +439,13 @@ describe('upload', () => {
     expect(cmdArgs[1]).toMatch(new RegExp(`-Dfile=${tmpDirName}.+`));
     expect(cmdArgs[2]).toMatch(
       new RegExp(
-        `-Dfiles=${tmpDirName}.+-javadoc\\.jar,${tmpDirName}.+-sources\\.jar`
-      )
+        `-Dfiles=${tmpDirName}.+-javadoc\\.jar,${tmpDirName}.+-sources\\.jar`,
+      ),
     );
     expect(cmdArgs[3]).toBe(`-Dclassifiers=javadoc,sources`);
     expect(cmdArgs[4]).toBe(`-Dtypes=jar,jar`);
     expect(cmdArgs[5]).toMatch(
-      new RegExp(`-DpomFile=${tmpDirName}.+pom-default\\.xml`)
+      new RegExp(`-DpomFile=${tmpDirName}.+pom-default\\.xml`),
     );
     expect(cmdArgs[6]).toBe(`-DrepositoryId=${DEFAULT_OPTION_VALUE}`);
     expect(cmdArgs[7]).toBe(`-Durl=${DEFAULT_OPTION_VALUE}`);
@@ -457,7 +460,7 @@ describe('upload', () => {
     (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
-      }
+      },
     );
 
     const mvnTarget = createMavenTarget();
@@ -476,9 +479,9 @@ describe('upload', () => {
     await mvnTarget.upload('r3v1s10n');
 
     expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
-    const callArgs = (retrySpawnProcess as MockedFunction<
-      typeof retrySpawnProcess
-    >).mock.calls[0];
+    const callArgs = (
+      retrySpawnProcess as MockedFunction<typeof retrySpawnProcess>
+    ).mock.calls[0];
 
     expect(callArgs).toHaveLength(2);
     expect(callArgs[0]).toEqual(DEFAULT_OPTION_VALUE);
@@ -489,13 +492,13 @@ describe('upload', () => {
     expect(cmdArgs[1]).toMatch(new RegExp(`-Dfile=${tmpDirName}.+`));
     expect(cmdArgs[2]).toMatch(
       new RegExp(
-        `-Dfiles=${tmpDirName}.+-javadoc\\.jar,${tmpDirName}.+-sources\\.jar,${tmpDirName}.+\\.module`
-      )
+        `-Dfiles=${tmpDirName}.+-javadoc\\.jar,${tmpDirName}.+-sources\\.jar,${tmpDirName}.+\\.module`,
+      ),
     );
     expect(cmdArgs[3]).toBe(`-Dclassifiers=javadoc,sources,`);
     expect(cmdArgs[4]).toBe(`-Dtypes=jar,jar,module`);
     expect(cmdArgs[5]).toMatch(
-      new RegExp(`-DpomFile=${tmpDirName}.+pom-default\\.xml`)
+      new RegExp(`-DpomFile=${tmpDirName}.+pom-default\\.xml`),
     );
     expect(cmdArgs[6]).toBe(`-DrepositoryId=${DEFAULT_OPTION_VALUE}`);
     expect(cmdArgs[7]).toBe(`-Durl=${DEFAULT_OPTION_VALUE}`);
@@ -510,7 +513,7 @@ describe('upload', () => {
     (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
-      }
+      },
     );
 
     const mvnTarget = createMavenTarget();
@@ -526,9 +529,9 @@ describe('upload', () => {
     await mvnTarget.upload('r3v1s10n');
 
     expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
-    const callArgs = (retrySpawnProcess as MockedFunction<
-      typeof retrySpawnProcess
-    >).mock.calls[0];
+    const callArgs = (
+      retrySpawnProcess as MockedFunction<typeof retrySpawnProcess>
+    ).mock.calls[0];
 
     expect(callArgs).toHaveLength(2);
     expect(callArgs[0]).toEqual(DEFAULT_OPTION_VALUE);
@@ -537,10 +540,10 @@ describe('upload', () => {
     expect(cmdArgs).toHaveLength(8);
     expect(cmdArgs[0]).toBe('gpg:sign-and-deploy-file');
     expect(cmdArgs[1]).toMatch(
-      new RegExp(`-Dfile=${tmpDirName}.+${POM_DEFAULT_FILENAME}`)
+      new RegExp(`-Dfile=${tmpDirName}.+${POM_DEFAULT_FILENAME}`),
     );
     expect(cmdArgs[2]).toMatch(
-      new RegExp(`-DpomFile=${tmpDirName}.*${POM_DEFAULT_FILENAME}`)
+      new RegExp(`-DpomFile=${tmpDirName}.*${POM_DEFAULT_FILENAME}`),
     );
     expect(cmdArgs[3]).toBe(`-DrepositoryId=${DEFAULT_OPTION_VALUE}`);
     expect(cmdArgs[4]).toBe(`-Durl=${DEFAULT_OPTION_VALUE}`);
@@ -553,7 +556,7 @@ describe('upload', () => {
     (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
-      }
+      },
     );
 
     const mvnTarget = createMavenTarget();
@@ -580,7 +583,7 @@ describe('upload', () => {
     (withTempDir as MockedFunction<typeof withTempDir>).mockImplementation(
       async cb => {
         return await cb(tmpDirName);
-      }
+      },
     );
 
     // Override fs.promises.readdir for this test to return klib files
@@ -615,9 +618,9 @@ describe('upload', () => {
     await mvnTarget.upload('r3v1s10n');
 
     expect(retrySpawnProcess).toHaveBeenCalledTimes(1);
-    const callArgs = (retrySpawnProcess as MockedFunction<
-      typeof retrySpawnProcess
-    >).mock.calls[0];
+    const callArgs = (
+      retrySpawnProcess as MockedFunction<typeof retrySpawnProcess>
+    ).mock.calls[0];
 
     expect(callArgs).toHaveLength(2);
     expect(callArgs[0]).toEqual(DEFAULT_OPTION_VALUE);
@@ -626,15 +629,15 @@ describe('upload', () => {
     expect(cmdArgs).toHaveLength(11);
     expect(cmdArgs[0]).toBe('gpg:sign-and-deploy-file');
     expect(cmdArgs[1]).toMatch(
-      new RegExp(`-Dfile=${klibDistDir}/${klibDistDirName}`)
+      new RegExp(`-Dfile=${klibDistDir}/${klibDistDirName}`),
     );
     expect(cmdArgs[2]).toBe(
-      `-Dfiles=${klibDistDir}/${klibDistDirName}-javadoc.jar,${klibDistDir}/${klibDistDirName}-sources.jar,${klibDistDir}/${klibDistDirName}.klib,${klibDistDir}/${klibDistDirName}.module`
+      `-Dfiles=${klibDistDir}/${klibDistDirName}-javadoc.jar,${klibDistDir}/${klibDistDirName}-sources.jar,${klibDistDir}/${klibDistDirName}.klib,${klibDistDir}/${klibDistDirName}.module`,
     );
     expect(cmdArgs[3]).toBe(`-Dclassifiers=javadoc,sources,,`);
     expect(cmdArgs[4]).toBe(`-Dtypes=jar,jar,klib,module`);
     expect(cmdArgs[5]).toMatch(
-      new RegExp(`-DpomFile=${klibDistDir}/pom-default\\.xml`)
+      new RegExp(`-DpomFile=${klibDistDir}/pom-default\\.xml`),
     );
     expect(cmdArgs[6]).toBe(`-DrepositoryId=${DEFAULT_OPTION_VALUE}`);
     expect(cmdArgs[7]).toBe(`-Durl=${DEFAULT_OPTION_VALUE}`);
@@ -651,7 +654,7 @@ describe('closeAndReleaseRepository', () => {
   test('should throw if repository is not opened', async () => {
     const mvnTarget = createMavenTarget();
     mvnTarget.getRepository = vi.fn(() =>
-      Promise.resolve(getRepositoryInfo('closed'))
+      Promise.resolve(getRepositoryInfo('closed')),
     );
     await expect(mvnTarget.closeAndReleaseRepository()).rejects.toThrow();
   });
@@ -659,7 +662,7 @@ describe('closeAndReleaseRepository', () => {
   test('should call closeRepository and releaseRepository with fetched repository ID', async () => {
     const mvnTarget = createMavenTarget();
     mvnTarget.getRepository = vi.fn(() =>
-      Promise.resolve(getRepositoryInfo('open'))
+      Promise.resolve(getRepositoryInfo('open')),
     );
     const callOrder: string[] = [];
     mvnTarget.closeRepository = vi.fn(async () => {
@@ -681,14 +684,14 @@ describe('closeAndReleaseRepository', () => {
   test('should not release repostiory if it was not closed properly', async () => {
     const mvnTarget = createMavenTarget();
     mvnTarget.getRepository = vi.fn(() =>
-      Promise.resolve(getRepositoryInfo('open'))
+      Promise.resolve(getRepositoryInfo('open')),
     );
     mvnTarget.closeRepository = vi.fn(() => Promise.reject());
     mvnTarget.releaseRepository = vi.fn(() => Promise.resolve(true));
 
     try {
       await mvnTarget.closeAndReleaseRepository();
-    } catch (e) {
+    } catch {
       // We only use `closeAndReleaseRepository` to trigger the expected behavior
       // however, the assertion itself is done on `closeRepository` and `releaseRepository`
     }
@@ -713,7 +716,7 @@ describe('getRepository', () => {
 
     const mvnTarget = createMavenTarget();
     await expect(mvnTarget.getRepository()).resolves.toStrictEqual(
-      repositoryInfo
+      repositoryInfo,
     );
   });
 
@@ -724,7 +727,7 @@ describe('getRepository', () => {
 
     const mvnTarget = createMavenTarget();
     await expect(mvnTarget.getRepository()).rejects.toThrow(
-      new Error('No available repositories. Nothing to publish.')
+      new Error('No available repositories. Nothing to publish.'),
     );
   });
 
@@ -738,8 +741,8 @@ describe('getRepository', () => {
     const mvnTarget = createMavenTarget();
     await expect(mvnTarget.getRepository()).rejects.toThrow(
       new Error(
-        'There are more than 1 active repositories. Please close unwanted deployments.'
-      )
+        'There are more than 1 active repositories. Please close unwanted deployments.',
+      ),
     );
   });
 
@@ -748,7 +751,7 @@ describe('getRepository', () => {
 
     const mvnTarget = createMavenTarget();
     await expect(mvnTarget.getRepository()).rejects.toThrow(
-      new Error('Unable to fetch repositories: 500, Internal Server Error')
+      new Error('Unable to fetch repositories: 500, Internal Server Error'),
     );
   });
 });
@@ -770,7 +773,7 @@ describe('closeRepository', () => {
 
     const mvnTarget = createMavenTarget();
     mvnTarget.getRepository = vi.fn(() =>
-      Promise.resolve(getRepositoryInfo('closed'))
+      Promise.resolve(getRepositoryInfo('closed')),
     );
 
     await expect(mvnTarget.closeRepository(repositoryId)).resolves.toBe(true);
@@ -790,8 +793,8 @@ describe('closeRepository', () => {
     const mvnTarget = createMavenTarget();
     await expect(mvnTarget.closeRepository(repositoryId)).rejects.toThrow(
       new Error(
-        'Unable to close repository sentry-java: 500, Internal Server Error'
-      )
+        'Unable to close repository sentry-java: 500, Internal Server Error',
+      ),
     );
   });
 
@@ -812,7 +815,7 @@ describe('closeRepository', () => {
       .mockImplementationOnce(() => Promise.resolve(getRepositoryInfo('open')))
       .mockImplementationOnce(() => Promise.resolve(getRepositoryInfo('open')))
       .mockImplementationOnce(() =>
-        Promise.resolve(getRepositoryInfo('closed'))
+        Promise.resolve(getRepositoryInfo('closed')),
       );
 
     await expect(mvnTarget.closeRepository(repositoryId)).resolves.toBe(true);
@@ -833,19 +836,18 @@ describe('closeRepository', () => {
 
     const mvnTarget = createMavenTarget();
     mvnTarget.getRepository = vi.fn(() =>
-      Promise.resolve(getRepositoryInfo('open'))
+      Promise.resolve(getRepositoryInfo('open')),
     );
 
     // Deadline is 2h, so we fake pooling start time and initial read to 1min
     // and second iteration to something over 2h
-    vi
-      .spyOn(Date, 'now')
+    vi.spyOn(Date, 'now')
       .mockImplementationOnce(() => 1 * 60 * 1000)
       .mockImplementationOnce(() => 1 * 60 * 1000)
       .mockImplementationOnce(() => 122 * 60 * 1000);
 
     await expect(mvnTarget.closeRepository(repositoryId)).rejects.toThrow(
-      new Error('Deadline for Nexus repository status change reached.')
+      new Error('Deadline for Nexus repository status change reached.'),
     );
     expect(sleep).toHaveBeenCalledTimes(1);
     expect(mvnTarget.getRepository).toHaveBeenCalledTimes(1);
@@ -877,7 +879,7 @@ describe('releaseRepository', () => {
 
     const mvnTarget = createMavenTarget();
     mvnTarget.getRepository = vi.fn(() =>
-      Promise.resolve(getRepositoryInfo('closed'))
+      Promise.resolve(getRepositoryInfo('closed')),
     );
     await expect(mvnTarget.releaseRepository(repositoryId)).resolves.toBe(true);
   });
@@ -895,12 +897,12 @@ describe('releaseRepository', () => {
 
     const mvnTarget = createMavenTarget();
     mvnTarget.getRepository = vi.fn(() =>
-      Promise.resolve(getRepositoryInfo('closed'))
+      Promise.resolve(getRepositoryInfo('closed')),
     );
     await expect(mvnTarget.releaseRepository(repositoryId)).rejects.toThrow(
       new Error(
-        'Unable to release repository sentry-java: 500, Internal Server Error'
-      )
+        'Unable to release repository sentry-java: 500, Internal Server Error',
+      ),
     );
   });
 
@@ -917,7 +919,7 @@ describe('releaseRepository', () => {
 
     const mvnTarget = createMavenTarget();
     mvnTarget.getRepository = vi.fn(() =>
-      Promise.resolve(getRepositoryInfo('closed'))
+      Promise.resolve(getRepositoryInfo('closed')),
     );
 
     nock(centralUrl.origin)
@@ -950,7 +952,7 @@ describe('releaseRepository', () => {
 
     const mvnTarget = createMavenTarget();
     mvnTarget.getRepository = vi.fn(() =>
-      Promise.resolve(getRepositoryInfo('closed'))
+      Promise.resolve(getRepositoryInfo('closed')),
     );
 
     nock(centralUrl.origin)
@@ -961,14 +963,13 @@ describe('releaseRepository', () => {
 
     // Deadline is 2h, so we fake pooling start time and initial read to 1min
     // and second iteration to something over 2h
-    vi
-      .spyOn(Date, 'now')
+    vi.spyOn(Date, 'now')
       .mockImplementationOnce(() => 1 * 60 * 1000)
       .mockImplementationOnce(() => 1 * 60 * 1000)
       .mockImplementationOnce(() => 122 * 60 * 1000);
 
     await expect(mvnTarget.releaseRepository(repositoryId)).rejects.toThrow(
-      new Error('Deadline for Central repository status change reached.')
+      new Error('Deadline for Central repository status change reached.'),
     );
     expect(sleep).toHaveBeenCalledTimes(1);
     expect(mvnTarget.getRepository).toHaveBeenCalledTimes(1);

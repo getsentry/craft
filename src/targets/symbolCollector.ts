@@ -1,5 +1,5 @@
 import { BaseArtifactProvider } from '../artifact_providers/base';
-import { TargetConfig } from '../schemas/project_config';
+import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
 import { ConfigurationError } from '../utils/errors';
 import { BaseTarget } from './base';
 import { withTempDir } from '../utils/files';
@@ -25,6 +25,13 @@ interface SymbolCollectorTargetConfig {
   bundleIdPrefix: string;
 }
 
+/** Config fields for symbol-collector target from .craft.yml */
+interface SymbolCollectorYamlConfig extends Record<string, unknown> {
+  serverEndpoint?: string;
+  batchType?: string;
+  bundleIdPrefix?: string;
+}
+
 export class SymbolCollector extends BaseTarget {
   /** Target name */
   public readonly name: string = 'symbol-collector';
@@ -33,7 +40,7 @@ export class SymbolCollector extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
     this.symbolCollectorConfig = this.getSymbolCollectorConfig();
@@ -43,24 +50,25 @@ export class SymbolCollector extends BaseTarget {
     // The Symbol Collector should be available in the path
     checkExecutableIsPresent(SYM_COLLECTOR_BIN_NAME);
 
-    if (!this.config.batchType) {
+    const config = this.config as TypedTargetConfig<SymbolCollectorYamlConfig>;
+    if (!config.batchType) {
       throw new ConfigurationError(
         'The required `batchType` parameter is missing in the configuration file. ' +
-          'See the documentation for more details.'
+          'See the documentation for more details.',
       );
     }
-    if (!this.config.bundleIdPrefix) {
+    if (!config.bundleIdPrefix) {
       throw new ConfigurationError(
         'The required `bundleIdPrefix` parameter is missing in the configuration file. ' +
-          'See the documentation for more details.'
+          'See the documentation for more details.',
       );
     }
 
     return {
       serverEndpoint:
-        this.config.serverEndpoint || DEFAULT_SYM_COLLECTOR_SERVER_ENDPOINT,
-      batchType: this.config.batchType,
-      bundleIdPrefix: this.config.bundleIdPrefix,
+        config.serverEndpoint || DEFAULT_SYM_COLLECTOR_SERVER_ENDPOINT,
+      batchType: config.batchType,
+      bundleIdPrefix: config.bundleIdPrefix,
     };
   }
 
@@ -89,7 +97,7 @@ export class SymbolCollector extends BaseTarget {
           const subdirPath = join(dir, String(index));
           await fsPromises.mkdir(subdirPath);
           await this.artifactProvider.downloadArtifact(artifact, subdirPath);
-        })
+        }),
       );
 
       const cmdOutput = await spawnProcess(SYM_COLLECTOR_BIN_NAME, [

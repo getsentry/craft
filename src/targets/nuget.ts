@@ -1,9 +1,23 @@
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  writeFileSync,
+} from 'fs';
+import { join } from 'path';
+import { randomUUID } from 'crypto';
+
 import pLimit from 'p-limit';
 
-import { TargetConfig } from '../schemas/project_config';
+import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { stringToRegexp } from '../utils/filters';
-import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
+import {
+  checkExecutableIsPresent,
+  hasExecutable,
+  spawnProcess,
+} from '../utils/system';
 import { BaseTarget } from './base';
 import {
   BaseArtifactProvider,
@@ -74,6 +88,11 @@ export interface NugetTargetOptions {
   apiToken: string;
   /** Nuget server URL */
   serverUrl: string;
+}
+
+/** Config fields for nuget target from .craft.yml */
+interface NugetYamlConfig extends Record<string, unknown> {
+  serverUrl?: string;
 }
 
 /**
@@ -178,9 +197,136 @@ export class NugetTarget extends BaseTarget {
     });
   }
 
+  /**
+   * Bump version in .NET project files (.csproj, Directory.Build.props).
+   *
+   * Tries dotnet-setversion first if available, otherwise edits XML directly.
+   *
+   * @param rootDir - Project root directory
+   * @param newVersion - New version string to set
+   * @returns true if version was bumped, false if no .NET project found
+   * @throws Error if version cannot be updated
+   */
+  public static async bumpVersion(
+    rootDir: string,
+    newVersion: string,
+  ): Promise<boolean> {
+    // Check for .NET project files
+    const csprojFiles = readdirSync(rootDir).filter(f => f.endsWith('.csproj'));
+    const hasDotNet =
+      csprojFiles.length > 0 ||
+      existsSync(join(rootDir, 'Directory.Build.props'));
+
+    if (!hasDotNet) {
+      return false;
+    }
+
+    if (hasExecutable(NUGET_DOTNET_BIN)) {
+      // `dotnet-setversion` operates in cwd and will pickup global.json,
+      // which breaks if the pinned SDK isn't installed on the craft runner.
+      // See: https://github.com/getsentry/craft/issues/819
+      const globalJsonPath = join(rootDir, 'global.json');
+      const globalJsonBackup = `${globalJsonPath}.craft-bak-${randomUUID()}`;
+      const globalJsonMoved = existsSync(globalJsonPath);
+      if (globalJsonMoved) {
+        renameSync(globalJsonPath, globalJsonBackup);
+      }
+      try {
+        const result = await spawnProcess(
+          NUGET_DOTNET_BIN,
+          ['setversion', newVersion],
+          { cwd: rootDir },
+          { enableInDryRunMode: true },
+        );
+        if (result !== null) {
+          return true;
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (
+          !message.includes('not installed') &&
+          !message.includes('Could not execute')
+        ) {
+          throw error;
+        }
+        logger.debug(
+          'dotnet-setversion not available, falling back to manual edit',
+        );
+      } finally {
+        if (globalJsonMoved) {
+          renameSync(globalJsonBackup, globalJsonPath);
+        }
+      }
+    }
+
+    let bumped = false;
+
+    // Try Directory.Build.props first (centralized version management)
+    const buildPropsPath = join(rootDir, 'Directory.Build.props');
+    if (existsSync(buildPropsPath)) {
+      if (NugetTarget.updateVersionInXml(buildPropsPath, newVersion)) {
+        bumped = true;
+      }
+    }
+
+    if (!bumped) {
+      for (const csproj of csprojFiles) {
+        const csprojPath = join(rootDir, csproj);
+        if (NugetTarget.updateVersionInXml(csprojPath, newVersion)) {
+          bumped = true;
+        }
+      }
+    }
+
+    return bumped;
+  }
+
+  /**
+   * Update version in an XML project file (.csproj or Directory.Build.props)
+   */
+  private static updateVersionInXml(
+    filePath: string,
+    newVersion: string,
+  ): boolean {
+    const content = readFileSync(filePath, 'utf-8');
+
+    // Match <Version>x.y.z</Version> or <PackageVersion>x.y.z</PackageVersion>
+    const versionPatterns = [
+      /(<Version>)([^<]+)(<\/Version>)/g,
+      /(<PackageVersion>)([^<]+)(<\/PackageVersion>)/g,
+      /(<AssemblyVersion>)([^<]+)(<\/AssemblyVersion>)/g,
+      /(<FileVersion>)([^<]+)(<\/FileVersion>)/g,
+    ];
+
+    let newContent = content;
+    let updated = false;
+
+    for (const pattern of versionPatterns) {
+      if (pattern.test(newContent)) {
+        // Reset lastIndex for global regex
+        pattern.lastIndex = 0;
+        newContent = newContent.replace(pattern, `$1${newVersion}$3`);
+        updated = true;
+      }
+    }
+
+    if (!updated) {
+      return false;
+    }
+
+    if (newContent === content) {
+      return true; // Already at target version
+    }
+
+    logger.debug(`Updating version in ${filePath} to ${newVersion}`);
+    writeFileSync(filePath, newContent);
+
+    return true;
+  }
+
   public constructor(
-    config: NugetTargetConfig,
-    artifactProvider: BaseArtifactProvider
+    config: TargetConfig,
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
     this.nugetConfig = this.getNugetConfig();
@@ -194,12 +340,13 @@ export class NugetTarget extends BaseTarget {
     if (!process.env.NUGET_API_TOKEN) {
       throw new ConfigurationError(
         `Cannot perform Nuget release: missing credentials.
-         Please use NUGET_API_TOKEN environment variable.`
+         Please use NUGET_API_TOKEN environment variable.`,
       );
     }
+    const config = this.config as TypedTargetConfig<NugetYamlConfig>;
     return {
       apiToken: process.env.NUGET_API_TOKEN,
-      serverUrl: this.config.serverUrl || DEFAULT_NUGET_SERVER_URL,
+      serverUrl: config.serverUrl || DEFAULT_NUGET_SERVER_URL,
     };
   }
 
@@ -215,6 +362,8 @@ export class NugetTarget extends BaseTarget {
       '${NUGET_API_TOKEN}',
       '--source',
       this.nugetConfig.serverUrl,
+      '--timeout',
+      '1800',
     ];
     return spawnProcess(NUGET_DOTNET_BIN, args, DOTNET_SPAWN_OPTIONS);
   }
@@ -233,7 +382,7 @@ export class NugetTarget extends BaseTarget {
 
     if (!packageFiles.length) {
       reportError(
-        'Cannot release to Nuget: there are no Nuget packages found!'
+        'Cannot release to Nuget: there are no Nuget packages found!',
       );
     }
 
@@ -245,7 +394,7 @@ export class NugetTarget extends BaseTarget {
     await spawnProcess(
       NUGET_DOTNET_BIN,
       ['nuget', '--version'],
-      DOTNET_SPAWN_OPTIONS
+      DOTNET_SPAWN_OPTIONS,
     );
 
     // Publish packages with limited concurrency to avoid overwhelming NuGet.org

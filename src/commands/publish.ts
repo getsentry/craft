@@ -1,13 +1,10 @@
 import { Arguments, Argv, CommandBuilder } from 'yargs';
 import chalk from 'chalk';
-import {
-  existsSync,
-  readFileSync,
-  writeFileSync,
-  promises as fsPromises,
-} from 'fs';
-import { join } from 'path';
-import shellQuote from 'shell-quote';
+import { existsSync, mkdirSync, readFileSync } from 'fs';
+
+import { safeFs } from '../utils/dryRun';
+import { dirname, join } from 'path';
+import * as shellQuote from 'shell-quote';
 import stringLength from 'string-length';
 
 import {
@@ -17,16 +14,25 @@ import {
   DEFAULT_RELEASE_BRANCH_NAME,
   getGlobalGitHubConfig,
   expandWorkspaceTargets,
+  getNoMergeConfig,
+  getActiveWorkspace,
 } from '../config';
 import { formatTable, logger } from '../logger';
-import { TargetConfig } from '../schemas/project_config';
+import {
+  type GitHubGlobalConfig,
+  TargetConfig,
+} from '../schemas/project_config';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
-import { handleGlobalError, reportError } from '../utils/errors';
+import {
+  ConfigurationError,
+  handleGlobalError,
+  reportError,
+} from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
-import { isDryRun, promptConfirmation } from '../utils/helpers';
-import { formatSize } from '../utils/strings';
+import { promptConfirmation } from '../utils/helpers';
+import { formatArtifactConfigForError, formatSize } from '../utils/strings';
 import {
   catchKeyboardInterrupt,
   hasExecutable,
@@ -35,36 +41,42 @@ import {
 import { isValidVersion } from '../utils/version';
 import { BaseStatusProvider } from '../status_providers/base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
+import { captureException } from '@sentry/node';
 import { SimpleGit } from 'simple-git';
-import { getGitClient, getDefaultBranch, isRepoDirty } from '../utils/git';
+import {
+  getGitClient,
+  getDefaultBranch,
+  isRepoDirty,
+  findReleaseBranches,
+} from '../utils/git';
+import { withTracing } from '../utils/tracing';
+import { buildReleaseCommandEnv } from '../utils/releaseCommandEnv';
+import { getPublishStatePath } from '../utils/publishState';
 
 /** Default path to post-release script, relative to project root */
 const DEFAULT_POST_RELEASE_SCRIPT_PATH = join('scripts', 'post-release.sh');
-
-/**
- * Environment variables to pass through to the post-release command.
- * HOME is needed so Git can find ~/.gitconfig with safe.directory settings,
- * which fixes "fatal: detected dubious ownership in repository" errors.
- * The git identity vars help with commit operations in post-release scripts.
- */
-const ALLOWED_ENV_VARS = [
-  'HOME',
-  'USER',
-  'GIT_COMMITTER_NAME',
-  'GIT_AUTHOR_NAME',
-  'EMAIL',
-] as const;
 
 export const command = ['publish NEW-VERSION'];
 export const aliases = ['pp', 'publish'];
 export const description = '🛫 Publish artifacts';
 
 export const builder: CommandBuilder = (yargs: Argv) => {
-  const definedTargets = getConfiguration().targets || [];
-  const possibleTargetNames = new Set(getAllTargetNames());
-  const allowedTargetNames = definedTargets
-    .filter(target => target.name && possibleTargetNames.has(target.name))
-    .map(BaseTarget.getId);
+  // Compute the allowed --target choices from the (workspace-resolved) config.
+  // The active workspace is selected before parsing (see index.ts), so this
+  // reflects the selected workspace's targets. If the config can't be resolved
+  // at parse time (e.g. missing/invalid file, or a workspaces config with no
+  // selection yet during shell completion), fall back to all known target
+  // names rather than aborting argument parsing.
+  let allowedTargetNames: string[];
+  try {
+    const definedTargets = getConfiguration().targets || [];
+    const possibleTargetNames = new Set(getAllTargetNames());
+    allowedTargetNames = definedTargets
+      .filter(target => target.name && possibleTargetNames.has(target.name))
+      .map(BaseTarget.getId);
+  } catch {
+    allowedTargetNames = getAllTargetNames();
+  }
 
   return yargs
     .positional('NEW-VERSION', {
@@ -158,6 +170,32 @@ export interface PublishState {
 }
 
 /**
+ * The Publish controller prepopulates a secure state file using the issue's
+ * checkout repository. That can differ from a workspace's release GitHub
+ * configuration, so this override is deliberately limited to state identity.
+ */
+export function getPublishStateGitHubConfig(
+  githubConfig: GitHubGlobalConfig | null,
+  stateRepository: string | undefined = process.env
+    .CRAFT_PUBLISH_STATE_GITHUB_REPO,
+): GitHubGlobalConfig | null {
+  if (!stateRepository) {
+    return githubConfig;
+  }
+
+  const match = stateRepository.match(
+    /^(?<owner>[A-Za-z0-9_.-]+)\/(?<repo>[A-Za-z0-9_.-]+)$/,
+  );
+  if (!match?.groups) {
+    throw new ConfigurationError(
+      'CRAFT_PUBLISH_STATE_GITHUB_REPO must be a GitHub owner/repository pair.',
+    );
+  }
+
+  return { owner: match.groups.owner, repo: match.groups.repo };
+}
+
+/**
  * Checks that the passed version is a valid version string
  *
  * @param argv Parsed yargs arguments
@@ -182,17 +220,31 @@ function checkVersion(argv: Arguments<any>, _opt: any): any {
 async function publishToTarget(
   target: BaseTarget,
   version: string,
-  revision: string
+  revision: string,
 ): Promise<void> {
   const publishMessage = `=== Publishing to target: ${chalk.bold.cyan(
-    target.id
+    target.id,
   )} ===`;
   const delim = Array(stringLength(publishMessage) + 1).join('=');
   logger.info(' ');
   logger.info(delim);
   logger.info(publishMessage);
   logger.info(delim);
-  await target.publish(version, revision);
+  await withTracing(
+    async () => {
+      await target.publish(version, revision);
+    },
+    {
+      name: `craft.target.${target.id}`,
+      op: 'craft.target.publish',
+      attributes: {
+        'target.id': target.id,
+        'target.name': target.config.name,
+        version,
+        revision,
+      },
+    },
+  )();
 }
 
 /**
@@ -203,7 +255,7 @@ async function publishToTarget(
  */
 async function printRevisionSummary(
   artifactProvider: BaseArtifactProvider,
-  revision: string
+  revision: string,
 ): Promise<void> {
   const artifacts = await artifactProvider.listArtifactsForRevision(revision);
   if (artifacts.length > 0) {
@@ -224,18 +276,31 @@ async function printRevisionSummary(
         head: ['File Name', 'Size', 'Updated', 'ContentType'],
         style: { head: ['cyan'] },
       },
-      artifactData
+      artifactData,
     );
     logger.info(' ');
     logger.info(`Available artifacts: \n${table.toString()}\n`);
   } else {
-    logger.warn('No artifacts found for the revision.');
+    const config = getConfiguration();
+    const artifactsConfig = config?.artifactProvider?.config?.artifacts;
+    if (artifactsConfig) {
+      const configSnippet = formatArtifactConfigForError(artifactsConfig);
+      reportError(
+        `No artifacts found for the revision, but your .craft.yml defines artifact patterns.\n\n` +
+          `Check that:\n` +
+          `  1. Your CI workflow has completed successfully for this commit\n` +
+          `  2. The artifact names in your CI match your .craft.yml configuration` +
+          configSnippet,
+      );
+    } else {
+      logger.warn('No artifacts found for the revision.');
+    }
   }
 }
 
 async function getTargetList(
   targetConfigList: TargetConfig[],
-  artifactProvider: BaseArtifactProvider
+  artifactProvider: BaseArtifactProvider,
 ): Promise<BaseTarget[]> {
   logger.trace('Initializing targets');
   const githubRepo = await getGlobalGitHubConfig();
@@ -253,7 +318,7 @@ async function getTargetList(
       const target = new targetClass(
         targetConfig,
         artifactProvider,
-        githubRepo
+        githubRepo,
       );
       targetList.push(target);
     } catch (err) {
@@ -281,7 +346,7 @@ async function getTargetList(
 async function checkRequiredArtifacts(
   artifactProvider: BaseArtifactProvider,
   revision: string,
-  requiredNames?: string[]
+  requiredNames?: string[],
 ): Promise<void> {
   if (!requiredNames || requiredNames.length === 0) {
     return;
@@ -295,16 +360,16 @@ async function checkRequiredArtifacts(
   for (const requiredNameRegexString of requiredNames) {
     const requiredNameRegex = stringToRegexp(requiredNameRegexString);
     const matchedArtifacts = artifacts.filter(artifact =>
-      requiredNameRegex.test(artifact.filename)
+      requiredNameRegex.test(artifact.filename),
     );
     if (matchedArtifacts.length === 0) {
       checkPassed = false;
       reportError(
-        `No matching artifact found for the required pattern: ${requiredNameRegexString}`
+        `No matching artifact found for the required pattern: ${requiredNameRegexString}`,
       );
     } else {
       logger.debug(
-        `Artifact "${matchedArtifacts[0].filename}" matches pattern ${requiredNameRegexString}`
+        `Artifact "${matchedArtifacts[0].filename}" matches pattern ${requiredNameRegexString}`,
       );
     }
   }
@@ -327,7 +392,7 @@ async function checkRequiredArtifacts(
 async function checkRevisionStatus(
   statusProvider: BaseStatusProvider,
   revision: string,
-  skipStatusCheckFlag = false
+  skipStatusCheckFlag = false,
 ): Promise<void> {
   if (skipStatusCheckFlag) {
     logger.warn(`Skipping build status checks for revision ${revision}`);
@@ -342,7 +407,7 @@ async function checkRevisionStatus(
     logger.trace(repositoryInfo);
   } catch (e) {
     logger.error(
-      `Cannot get repository information from ${statusProvider.config.name}. Check your configuration and credentials.`
+      `Cannot get repository information from ${statusProvider.config.name}. Check your configuration and credentials.`,
     );
     reportError(e);
   }
@@ -351,23 +416,74 @@ async function checkRevisionStatus(
 }
 
 /**
+ * Error thrown when the release branch merge fails due to conflicts.
+ * Contains the list of conflicting file paths and a unified diff for diagnostics.
+ */
+export class MergeConflictError extends Error {
+  public __proto__: Error;
+
+  public constructor(
+    message: string,
+    public readonly conflictedFiles: string[],
+    public readonly diff: string,
+  ) {
+    const trueProto = new.target.prototype;
+    super(message);
+    this.__proto__ = trueProto;
+  }
+}
+
+/**
+ * Error thrown when the post-merge push fails (e.g., expired token).
+ * The merge itself succeeded — only the push to the remote failed.
+ */
+export class PushError extends Error {
+  public __proto__: Error;
+
+  public constructor(message: string) {
+    const trueProto = new.target.prototype;
+    super(message);
+    this.__proto__ = trueProto;
+  }
+}
+
+/**
+ * Error thrown when release branch cleanup fails after the merge was pushed.
+ */
+export class BranchCleanupError extends Error {
+  public __proto__: Error;
+  public readonly remoteDeleted: boolean;
+
+  public constructor(message: string, remoteDeleted: boolean) {
+    const trueProto = new.target.prototype;
+    super(message);
+    this.__proto__ = trueProto;
+    this.remoteDeleted = remoteDeleted;
+  }
+}
+
+/**
  * Deals with the release branch after publishing is done
  *
- * Leave the release branch unmerged, or merge it but not delete it if the
+ * Leave the release branch unmerged, or merge it but preserve it if the
  * corresponding flags are set.
  *
  * @param git Git client
  * @param remoteName The git remote name to interact with
  * @param branch Name of the release branch
+ * @param releaseRevision Expected release branch revision
  * @param [mergeTarget] Branch name to merge the release branch into
  * @param keepBranch If set to "true", the branch will not be deleted
+ * @param mergeSource Revision to merge, defaults to the release branch
  */
-async function handleReleaseBranch(
+export async function handleReleaseBranch(
   git: SimpleGit,
   remoteName: string,
   branch: string,
+  releaseRevision: string,
   mergeTarget?: string,
-  keepBranch = false
+  keepBranch = false,
+  mergeSource = branch,
 ): Promise<void> {
   if (!mergeTarget) {
     mergeTarget = await getDefaultBranch(git, remoteName);
@@ -375,25 +491,118 @@ async function handleReleaseBranch(
   logger.debug(`Checking out merge target branch:`, mergeTarget);
   await git.checkout(mergeTarget);
 
-  logger.debug(`Merging ${branch} into: ${mergeTarget}`);
-  if (!isDryRun()) {
-    await git
-      .pull(remoteName, mergeTarget, ['--rebase'])
-      .merge(['--no-ff', '--no-edit', branch])
-      .push(remoteName, mergeTarget);
-  } else {
-    logger.info('[dry-run] Not merging the release branch');
+  logger.debug(`Pulling latest changes from ${remoteName}/${mergeTarget}`);
+  try {
+    await git.pull(remoteName, mergeTarget, ['--rebase']);
+  } catch (pullError) {
+    // Pull --rebase failure can leave the repo in an active rebase state
+    try {
+      await git.raw(['rebase', '--abort']);
+    } catch {
+      logger.trace('git rebase --abort failed (may be no rebase in progress)');
+    }
+    throw pullError;
+  }
+
+  // Stage 1: Merge — if this fails, it's a merge conflict
+  logger.debug(`Merging ${mergeSource} into: ${mergeTarget}`);
+  try {
+    await git.merge(['--no-ff', '--no-edit', mergeSource]);
+  } catch (mergeError) {
+    // Default strategy (ort) failed — abort and retry with resolve strategy
+    logger.warn(
+      `Merge with default strategy failed (${mergeError instanceof Error ? mergeError.message : mergeError}), retrying with "resolve" strategy...`,
+    );
+    try {
+      await git.merge(['--abort']);
+    } catch {
+      // merge --abort can fail if no merge in progress (e.g. pull failed)
+      logger.trace('git merge --abort failed (may be no merge in progress)');
+    }
+
+    // Retry with the resolve strategy which handles criss-cross ambiguities
+    // differently and often succeeds where ort fails on files like CHANGELOG.md
+    try {
+      await git.merge(['-s', 'resolve', '--no-ff', '--no-edit', mergeSource]);
+    } catch (resolveError) {
+      // Resolve also failed — capture conflict details before aborting
+      let conflictedFiles: string[] = [];
+      let conflictDiff = '';
+      try {
+        const status = await git.status();
+        conflictedFiles = status.conflicted;
+      } catch {
+        logger.trace('git status failed while collecting conflict info');
+      }
+      if (conflictedFiles.length > 0) {
+        try {
+          conflictDiff = await git.diff(conflictedFiles);
+        } catch {
+          logger.trace('git diff failed while collecting conflict diff');
+        }
+      }
+      try {
+        await git.merge(['--abort']);
+      } catch {
+        logger.trace('git merge --abort failed after resolve strategy');
+      }
+      throw new MergeConflictError(
+        resolveError instanceof Error
+          ? resolveError.message
+          : String(resolveError),
+        conflictedFiles,
+        conflictDiff,
+      );
+    }
+  }
+
+  // Stage 2: Push — merge succeeded, any error here is auth/network
+  try {
+    await git.push(remoteName, mergeTarget);
+  } catch (pushError) {
+    throw new PushError(
+      pushError instanceof Error ? pushError.message : String(pushError),
+    );
   }
 
   if (keepBranch) {
     logger.info('Not deleting the release branch.');
   } else {
-    logger.debug(`Deleting the release branch: ${branch}`);
-    if (!isDryRun()) {
-      await git.branch(['-D', branch]).push([remoteName, '--delete', branch]);
-      logger.info(`Removed the remote branch: "${branch}"`);
-    } else {
-      logger.info('[dry-run] Not deleting the remote branch');
+    logger.debug(`Deleting the remote release branch: ${branch}`);
+    const branchRef = `refs/heads/${branch}`;
+    try {
+      await git.push(remoteName, `:${branchRef}`, [
+        `--force-with-lease=${branchRef}:${releaseRevision}`,
+      ]);
+    } catch (cleanupError) {
+      throw new BranchCleanupError(
+        cleanupError instanceof Error
+          ? cleanupError.message
+          : String(cleanupError),
+        false,
+      );
+    }
+    logger.info(`Removed the remote branch: "${branch}"`);
+
+    try {
+      const localBranches = await git.branchLocal();
+      if (localBranches.all.includes(branch)) {
+        const localRevision = (await git.revparse(branchRef)).trim();
+        if (localRevision !== releaseRevision) {
+          throw new Error(
+            `Local release branch is at ${localRevision}, expected ${releaseRevision}`,
+          );
+        }
+        await git.branch(['-d', '--', branch]);
+        logger.info(`Removed the local branch: "${branch}"`);
+      }
+    } catch (cleanupError) {
+      throw new BranchCleanupError(
+        cleanupError instanceof Error
+          ? cleanupError.message
+          : String(cleanupError),
+        true,
+      );
     }
   }
 }
@@ -409,7 +618,7 @@ async function handleReleaseBranch(
  */
 export async function runPostReleaseCommand(
   newVersion: string,
-  postReleaseCommand?: string
+  postReleaseCommand?: string,
 ): Promise<boolean> {
   let sysCommand: shellQuote.ParseEntry;
   let args: shellQuote.ParseEntry[];
@@ -425,22 +634,14 @@ export async function runPostReleaseCommand(
   } else {
     // Not running post-release command
     logger.info(
-      `Not running the optional post-release command: '${DEFAULT_POST_RELEASE_SCRIPT_PATH}' not found`
+      `Not running the optional post-release command: '${DEFAULT_POST_RELEASE_SCRIPT_PATH}' not found`,
     );
     return false;
   }
   args = [...args, '', newVersion];
   logger.info(`Running the post-release command...`);
   await spawnProcess(sysCommand as string, args as string[], {
-    env: {
-      CRAFT_NEW_VERSION: newVersion,
-      CRAFT_OLD_VERSION: '',
-      PATH: process.env.PATH,
-      GITHUB_TOKEN: process.env.GITHUB_TOKEN,
-      ...Object.fromEntries(
-        ALLOWED_ENV_VARS.map(key => [key, process.env[key]])
-      ),
-    },
+    env: buildReleaseCommandEnv({ CRAFT_RELEASED_VERSION: newVersion }),
   });
   return true;
 }
@@ -469,32 +670,59 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       reportError(
         'Your repository is in a dirty state. ' +
           'Please stash or commit the pending changes.',
-        logger
+        logger,
       );
     }
   }
 
+  const branchPrefix =
+    config.releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
+
   const rev = argv.rev;
-  let checkoutTarget;
-  let branchName;
+  const branchName = `${branchPrefix}/${newVersion}`;
   if (rev) {
-    logger.debug(`Trying to get branch name for provided revision: "${rev}"`);
-    branchName = (
-      await git.raw('name-rev', '--name-only', '--no-undefined', rev)
-    ).trim();
-    checkoutTarget = branchName || rev;
+    logger.debug('Checking out revision', rev);
+    await git.checkout(rev);
   } else {
     // Find the remote branch
-    const branchPrefix =
-      config.releaseBranchPrefix || DEFAULT_RELEASE_BRANCH_NAME;
-    branchName = `${branchPrefix}/${newVersion}`;
-    checkoutTarget = branchName;
+    try {
+      logger.debug('Checking out release branch', branchName);
+      await git.checkout(branchName);
+    } catch (err) {
+      const { exactMatches, fuzzyMatches } = await findReleaseBranches(
+        git,
+        branchPrefix,
+      );
+
+      let message =
+        `Could not find the release branch "${branchName}".\n\n` +
+        `Have you run \`craft prepare\` for version ${newVersion}?\n\n` +
+        `Release branch prefix: "${branchPrefix}"` +
+        (config.releaseBranchPrefix ? '' : ' (default)');
+
+      if (exactMatches.length > 0) {
+        message +=
+          `\n\nExisting release branches:\n` +
+          exactMatches.map(b => `  - ${b}`).join('\n');
+      }
+
+      if (fuzzyMatches.length > 0) {
+        message +=
+          `\n\nDid you mean one of these? (similar branch prefix):\n` +
+          fuzzyMatches.map(b => `  - ${b}`).join('\n');
+      }
+
+      if (exactMatches.length === 0 && fuzzyMatches.length === 0) {
+        message += `\n\nNo release branches found on the remote.`;
+      }
+
+      message += `\n\nOriginal error: ${err instanceof Error ? err.message : String(err)}`;
+
+      throw new ConfigurationError(message);
+    }
   }
 
-  logger.debug('Checking out release branch', branchName);
-  await git.checkout(checkoutTarget);
-
-  const revision = await git.revparse('HEAD');
+  const revision = (await git.revparse('HEAD')).trim();
   logger.debug('Revision to publish: ', revision);
 
   const statusProvider = await getStatusProviderFromConfig();
@@ -504,20 +732,21 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   await checkRevisionStatus(statusProvider, revision, argv.noStatusCheck);
 
   await printRevisionSummary(artifactProvider, revision);
+
   await checkRequiredArtifacts(artifactProvider, revision, config.requireNames);
 
   // Find targets
   let targetsToPublish: Set<string> = new Set(
     (typeof argv.target === 'string' ? [argv.target] : argv.target) || [
       SpecialTarget.All,
-    ]
+    ],
   );
 
   // Treat "all"/"none" specially
   for (const specialTarget of [SpecialTarget.All, SpecialTarget.None]) {
     if (targetsToPublish.size > 1 && targetsToPublish.has(specialTarget)) {
       logger.error(
-        `Target "${specialTarget}" specified together with other targets. Exiting.`
+        `Target "${specialTarget}" specified together with other targets. Exiting.`,
       );
       return undefined;
     }
@@ -526,8 +755,42 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
   // Expand any npm workspace targets into individual package targets
   let targetConfigList = await expandWorkspaceTargets(config.targets || []);
 
+  // Resolve the GitHub config up front so we can key the publish-state
+  // file by owner/repo. `getGlobalGitHubConfig()` returns cached data on
+  // subsequent calls, so this is effectively free.
+  let publishStateGithubConfig = null;
+  try {
+    publishStateGithubConfig = await getGlobalGitHubConfig();
+  } catch {
+    // Fall through with null — getPublishStatePath() handles this by
+    // falling back to a cwd-hash-only filename, keeping the file in
+    // $XDG_STATE_HOME/craft/ rather than the repo.
+  }
+  const publishStateFile = getPublishStatePath(
+    newVersion,
+    getPublishStateGitHubConfig(publishStateGithubConfig),
+    process.cwd(),
+    getActiveWorkspace(),
+  );
+
   logger.info(`Looking for publish state file for ${newVersion}...`);
-  const publishStateFile = `.craft-publish-${newVersion}.json`;
+  logger.debug(`Publish state file path: ${publishStateFile}`);
+
+  // Warn when a file at the legacy cwd location is detected. We never
+  // read it (see security/move-publish-state-to-xdg): repo-contents are
+  // attacker-influenceable via PRs and could pre-populate the "already
+  // published" set. Users / workflows that were writing to the legacy
+  // path need to migrate to $XDG_STATE_HOME/craft/.
+  const legacyStateFile = `.craft-publish-${newVersion}.json`;
+  if (existsSync(legacyStateFile)) {
+    logger.warn(
+      `Found legacy publish state file at "${legacyStateFile}" in the project directory. ` +
+        `This file is no longer read for security reasons. ` +
+        `Craft now stores publish state at "${publishStateFile}". ` +
+        `If you were pre-seeding published targets, update your workflow to write to the new location.`,
+    );
+  }
+
   const earlierStateExists = existsSync(publishStateFile);
   let publishState: PublishState;
   if (earlierStateExists) {
@@ -540,14 +803,14 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
 
   for (const published of Object.keys(publishState.published)) {
     logger.info(
-      `Skipping target ${published} as it is marked as successful in state file.`
+      `Skipping target ${published} as it is marked as successful in state file.`,
     );
     targetsToPublish.delete(published);
   }
 
   if (!targetsToPublish.has(SpecialTarget.All)) {
     targetConfigList = targetConfigList.filter(targetConf =>
-      targetsToPublish.has(BaseTarget.getId(targetConf))
+      targetsToPublish.has(BaseTarget.getId(targetConf)),
     );
   }
 
@@ -571,19 +834,22 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     await withTempDir(async (downloadDirectory: string) => {
       artifactProvider.setDownloadDirectory(downloadDirectory);
 
+      // Ensure the state directory exists. `mkdirSync` with
+      // `recursive: true` is idempotent, so this is safe on resumed
+      // runs where the directory was already created.
+      mkdirSync(dirname(publishStateFile), { recursive: true });
+
       // Publish to all targets
       for (const target of targetList) {
         await publishToTarget(target, newVersion, revision);
         publishState.published[BaseTarget.getId(target.config)] = true;
-        if (!isDryRun()) {
-          writeFileSync(publishStateFile, JSON.stringify(publishState));
-        }
+        safeFs.writeFileSync(publishStateFile, JSON.stringify(publishState));
       }
 
       if (argv.keepDownloads) {
         logger.info(
           'Directory with the downloaded artifacts will not be removed',
-          `Path: ${downloadDirectory}`
+          `Path: ${downloadDirectory}`,
         );
       }
     }, !argv.keepDownloads);
@@ -591,38 +857,134 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     logger.info(' ');
   }
 
-  if (argv.noMerge) {
-    logger.info('Not merging per user request via no-merge option.');
-  } else if (!branchName) {
-    logger.info(
-      'Not merging because cannot determine a branch name to merge from.'
+  // Check both CLI flag and config option for noMerge
+  const noMergeConfig = getNoMergeConfig();
+  const noMerge = argv.noMerge || noMergeConfig.noMerge;
+
+  // Warn if --merge-target was specified but noMerge is true from config
+  if (noMergeConfig.noMerge && !argv.noMerge && argv.mergeTarget) {
+    logger.warn(
+      `The --merge-target option will be ignored because noMerge is enabled via ${noMergeConfig.source === 'auto-detected' ? 'auto-detection (compiled GitHub Action)' : 'config'}.`,
     );
+  }
+
+  if (noMerge) {
+    const source = argv.noMerge
+      ? 'CLI option'
+      : noMergeConfig.source === 'auto-detected'
+        ? 'auto-detection (compiled GitHub Action with dist/ folder)'
+        : 'config';
+    logger.info(`Not merging the release branch (${source}).`);
   } else if (
     targetsToPublish.has(SpecialTarget.All) ||
     targetsToPublish.has(SpecialTarget.None) ||
     earlierStateExists
   ) {
     // Publishing done, MERGE DAT BRANCH!
-    await handleReleaseBranch(
-      git,
-      argv.remote,
-      branchName,
-      argv.mergeTarget,
-      argv.keepBranch
-    );
-    if (!isDryRun()) {
-      // XXX(BYK): intentionally DO NOT await unlinking as we do not want
-      // to block (both in terms of waiting for IO and the success of the
-      // operation) finishing the publish flow on the removal of a temporary
-      // file. If unlinking fails, we honestly don't care, at least to fail
-      // the final steps. And it doesn't make sense to wait until this op
-      // finishes then as nothing relies on the removal of this file.
-      fsPromises
-        .unlink(publishStateFile)
-        .catch(err =>
-          logger.trace("Couldn't remove publish state file: ", err)
+    try {
+      await handleReleaseBranch(
+        git,
+        argv.remote,
+        branchName,
+        revision,
+        argv.mergeTarget,
+        argv.keepBranch,
+        rev ? revision : branchName,
+      );
+    } catch (mergeError) {
+      // The merge is a housekeeping step — it must not block the success
+      // signal for a fully-published release. Report to Sentry for
+      // observability but don't fail the command.
+      captureException(mergeError);
+
+      const lines: string[] = [];
+      if (mergeError instanceof BranchCleanupError) {
+        lines.push(
+          `Failed to clean up release branch "${branchName}" after merging it into the target branch.`,
         );
+        if (mergeError.remoteDeleted) {
+          lines.push(
+            `The merge was pushed and the remote release branch was deleted, but deleting the local branch failed.`,
+            `Inspect the local branch before deleting it.`,
+            ``,
+            `To retry safely: git branch -d -- ${branchName}`,
+          );
+        } else {
+          lines.push(
+            `The merge was pushed, but deleting the remote release branch failed.`,
+            `The branch may have advanced beyond the expected release revision ${revision}. Inspect it before cleanup.`,
+            ``,
+            `To retry safely: git push --force-with-lease=refs/heads/${branchName}:${revision} ${argv.remote} :refs/heads/${branchName}`,
+          );
+        }
+      } else if (mergeError instanceof MergeConflictError) {
+        lines.push(
+          `Failed to merge release branch "${branchName}" into the target branch.`,
+        );
+        lines.push(`Merge conflict — both ort and resolve strategies failed.`);
+        if (mergeError.conflictedFiles.length > 0) {
+          lines.push(``);
+          lines.push(`Conflicting files:`);
+          for (const file of mergeError.conflictedFiles) {
+            lines.push(`  - ${file}`);
+          }
+        }
+        if (mergeError.diff) {
+          lines.push(``, `Diff:`, mergeError.diff);
+        }
+        lines.push(
+          ``,
+          `All publish targets completed successfully — only the post-publish merge failed.`,
+          ``,
+          `To resolve manually:`,
+          `  1. Merge the release branch into the target branch, resolving conflicts`,
+          `  2. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
+        );
+      } else if (mergeError instanceof PushError) {
+        lines.push(
+          `Failed to merge release branch "${branchName}" into the target branch.`,
+        );
+        lines.push(
+          `The merge succeeded locally but pushing to the remote failed.`,
+          `This is likely due to an expired authentication token (common for long-running publishes > 1 hour).`,
+          ``,
+          `All publish targets completed successfully — only the post-publish push failed.`,
+          ``,
+          `To resolve manually:`,
+          `  1. Re-authenticate (e.g., generate a fresh token)`,
+          `  2. Merge the release branch into the target branch`,
+          `  3. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
+        );
+      } else {
+        lines.push(
+          `Failed to merge release branch "${branchName}" into the target branch.`,
+        );
+        lines.push(
+          `All publish targets completed successfully — only the post-publish merge failed.`,
+          ``,
+          `To resolve manually:`,
+          `  1. Merge the release branch into the target branch`,
+          `  2. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
+        );
+      }
+      lines.push(
+        ``,
+        `Error: ${mergeError instanceof Error ? mergeError.message : String(mergeError)}`,
+      );
+      logger.warn(lines.join('\n'));
     }
+
+    // XXX(BYK): intentionally DO NOT await unlinking as we do not want
+    // to block (both in terms of waiting for IO and the success of the
+    // operation) finishing the publish flow on the removal of a temporary
+    // file. If unlinking fails, we honestly don't care, at least to fail
+    // the final steps. And it doesn't make sense to wait until this op
+    // finishes then as nothing relies on the removal of this file.
+    safeFs
+      .unlink(publishStateFile)
+      .catch((err: unknown) =>
+        logger.trace("Couldn't remove publish state file: ", err),
+      );
     logger.success(`Version ${newVersion} has been published!`);
   } else {
     const msg = [
@@ -642,7 +1004,10 @@ export const handler = async (args: {
 }): Promise<any> => {
   try {
     catchKeyboardInterrupt();
-    return await publishMain(args as PublishOptions);
+    return await withTracing(publishMain, {
+      name: 'craft.publish',
+      op: 'craft.publish',
+    })(args as PublishOptions);
   } catch (e) {
     handleGlobalError(e);
   }

@@ -1,5 +1,6 @@
 import { BaseTarget } from './base';
 import { BrewTarget } from './brew';
+import { CloudflareTarget } from './cloudflare';
 import { CocoapodsTarget } from './cocoapods';
 import { CratesTarget } from './crates';
 import { DockerTarget } from './docker';
@@ -20,9 +21,11 @@ import { PubDevTarget } from './pubDev';
 import { HexTarget } from './hex';
 import { CommitOnGitRepositoryTarget } from './commitOnGitRepository';
 import { PowerShellTarget } from './powershell';
+import { VercelTarget } from './vercel';
 
 export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   brew: BrewTarget,
+  cloudflare: CloudflareTarget,
   cocoapods: CocoapodsTarget,
   crates: CratesTarget,
   docker: DockerTarget,
@@ -43,6 +46,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   hex: HexTarget,
   'commit-on-git-repository': CommitOnGitRepositoryTarget,
   powershell: PowerShellTarget,
+  vercel: VercelTarget,
 };
 
 /** Targets that are treated specially */
@@ -69,7 +73,7 @@ export function getAllTargetNames(): string[] {
  * @returns Corresponding target class or undefined
  */
 export function getTargetByName(
-  targetName: string
+  targetName: string,
 ): typeof BaseTarget | undefined {
   return TARGET_MAP[targetName];
 }

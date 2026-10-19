@@ -1,4 +1,4 @@
-import { vi, type Mock, type MockInstance, type Mocked, type MockedFunction } from 'vitest';
+import { vi } from 'vitest';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 // XXX(BYK): This is to be able to spy on `homedir()` in tests
@@ -8,8 +8,9 @@ import os = require('os');
 import * as config from '../../config';
 import {
   checkEnvForPrerequisite,
-  readEnvironmentConfig,
-  ENV_FILE_NAME,
+  sanitizeDynamicLinkerEnv,
+  sanitizeSpawnEnv,
+  warnIfCraftEnvFileExists,
 } from '../env';
 import { ConfigurationError } from '../errors';
 import { logger } from '../../logger';
@@ -33,7 +34,7 @@ describe('env utils functions', () => {
       checkEnvForPrerequisite({ name: 'DOGS' });
       expect(logger.debug).toHaveBeenCalledWith(
         'Checking for environment variable:',
-        'DOGS'
+        'DOGS',
       );
     });
 
@@ -46,7 +47,7 @@ describe('env utils functions', () => {
 
       it('errors if var not set', () => {
         expect(() => checkEnvForPrerequisite({ name: 'DOGS' })).toThrowError(
-          ConfigurationError
+          ConfigurationError,
         );
       });
     }); // end describe('no legacy name')
@@ -58,7 +59,7 @@ describe('env utils functions', () => {
         checkEnvForPrerequisite({ name: 'DOGS', legacyName: 'CATS' });
         expect(logger.warn).toHaveBeenCalledWith(
           `When searching configuration files and your environment, found DOGS ` +
-            `but also found legacy CATS. Do you mean to be using both?`
+            `but also found legacy CATS. Do you mean to be using both?`,
         );
       });
 
@@ -73,14 +74,14 @@ describe('env utils functions', () => {
         checkEnvForPrerequisite({ name: 'DOGS', legacyName: 'CATS' });
         expect(logger.warn).toHaveBeenCalledWith(
           `Usage of CATS is deprecated, and will be removed in later versions. ` +
-            `Please use DOGS instead.`
+            `Please use DOGS instead.`,
         );
         expect(process.env.DOGS).toEqual('DROOL');
       });
 
       it('errors if neither is set', () => {
         expect(() =>
-          checkEnvForPrerequisite({ name: 'DOGS', legacyName: 'CATS' })
+          checkEnvForPrerequisite({ name: 'DOGS', legacyName: 'CATS' }),
         ).toThrowError(ConfigurationError);
       });
     }); // end describe('with legacy name')
@@ -91,33 +92,33 @@ describe('env utils functions', () => {
         // it error, so `expect` the error to catch it so it doesn't break the
         // test)
         expect(() =>
-          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' })
+          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' }),
         ).toThrowError(ConfigurationError);
         expect(logger.debug).toHaveBeenCalledWith(
           'Checking for environment variable(s):',
-          'MAISEY or CHARLIE'
+          'MAISEY or CHARLIE',
         );
         expect(logger.debug).toHaveBeenCalledWith(
           'Checking for environment variable:',
-          'MAISEY'
+          'MAISEY',
         );
         expect(logger.debug).toHaveBeenCalledWith(
           'Checking for environment variable:',
-          'CHARLIE'
+          'CHARLIE',
         );
       });
 
       it('is happy if either option is defined', () => {
         process.env.MAISEY = 'GOOD DOG';
         expect(() =>
-          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' })
+          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' }),
         ).not.toThrowError(ConfigurationError);
         expect(logger.debug).toHaveBeenCalledWith('Found MAISEY');
 
         delete process.env.MAISEY;
         process.env.CHARLIE = 'ALSO GOOD DOG';
         expect(() =>
-          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' })
+          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' }),
         ).not.toThrowError(ConfigurationError);
         expect(logger.debug).toHaveBeenCalledWith('Found CHARLIE');
       });
@@ -125,7 +126,7 @@ describe('env utils functions', () => {
       it('throws if neither one is defined', () => {
         // skip defining vars here
         expect(() =>
-          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' })
+          checkEnvForPrerequisite({ name: 'MAISEY' }, { name: 'CHARLIE' }),
         ).toThrowError(ConfigurationError);
       });
 
@@ -134,8 +135,8 @@ describe('env utils functions', () => {
         expect(() =>
           checkEnvForPrerequisite(
             { name: 'MAISEY' },
-            { name: 'CHARLIE', legacyName: 'OPAL' }
-          )
+            { name: 'CHARLIE', legacyName: 'OPAL' },
+          ),
         ).not.toThrowError(ConfigurationError);
         expect(logger.debug).toHaveBeenCalledWith('Found MAISEY');
 
@@ -144,123 +145,280 @@ describe('env utils functions', () => {
         expect(() =>
           checkEnvForPrerequisite(
             { name: 'MAISEY' },
-            { name: 'CHARLIE', legacyName: 'OPAL' }
-          )
+            { name: 'CHARLIE', legacyName: 'OPAL' },
+          ),
         ).not.toThrowError(ConfigurationError);
         expect(logger.warn).toHaveBeenCalledWith(
           `Usage of OPAL is deprecated, and will be removed in later versions. ` +
-            `Please use CHARLIE instead.`
+            `Please use CHARLIE instead.`,
         );
         expect(process.env.CHARLIE).toEqual('GOOD PUPPY');
       });
     }); // end describe('multiple variables')
   }); // end describe('checkEnvForPrerequisites')
 
-  describe('readEnvironmentConfig', () => {
+  describe('warnIfCraftEnvFileExists', () => {
     const invalidDir = '/invalid/invalid';
+    const LEGACY_FILE = '.craft.env';
 
-    function writeConfigFileSync(directory: string): void {
-      const outConfigFile = join(directory, config.CONFIG_FILE_NAME);
-      writeFileSync(outConfigFile, '');
-    }
-
-    test('calls homedir/findConfigFile', () => {
-      process.env.TEST_BLA = '123';
-
+    test('does not warn when no files exist', () => {
       homedirMock.mockReturnValue(invalidDir);
       getConfigFileDirMock.mockReturnValue(invalidDir);
 
-      readEnvironmentConfig();
+      warnIfCraftEnvFileExists();
 
-      expect(getConfigFileDirMock).toHaveBeenCalledTimes(1);
-      expect(homedirMock).toHaveBeenCalledTimes(1);
-      expect(process.env.TEST_BLA).toBe('123');
-      expect(ENV_FILE_NAME.length).toBeGreaterThanOrEqual(1);
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
-    test('checks the config directory', async () => {
+    test('does not warn when getConfigFileDir returns undefined', () => {
       homedirMock.mockReturnValue(invalidDir);
+      getConfigFileDirMock.mockReturnValue(undefined);
 
-      await withTempDir(directory => {
-        getConfigFileDirMock.mockReturnValue(directory);
+      warnIfCraftEnvFileExists();
 
-        writeConfigFileSync(directory);
-
-        const outFile = join(directory, ENV_FILE_NAME);
-        writeFileSync(outFile, 'export TEST_BLA=234\nexport TEST_ANOTHER=345');
-
-        readEnvironmentConfig();
-
-        expect(process.env.TEST_BLA).toBe('234');
-      });
+      expect(logger.warn).not.toHaveBeenCalled();
     });
-    test('checks home directory', async () => {
+
+    test('warns when a legacy file exists in the home directory', async () => {
       getConfigFileDirMock.mockReturnValue(invalidDir);
 
       await withTempDir(directory => {
         homedirMock.mockReturnValue(directory);
-        const outFile = join(directory, ENV_FILE_NAME);
+        const outFile = join(directory, LEGACY_FILE);
         writeFileSync(outFile, 'export TEST_BLA=234\n');
 
-        readEnvironmentConfig();
+        warnIfCraftEnvFileExists();
 
-        expect(process.env.TEST_BLA).toBe('234');
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(outFile),
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('no longer reads this file'),
+        );
       });
     });
 
-    test('checks home directory first, and then the config directory', async () => {
-      await withTempDir(async dir1 => {
-        await withTempDir(dir2 => {
-          homedirMock.mockReturnValue(dir1);
+    test('warns when a legacy file exists in the config directory', async () => {
+      homedirMock.mockReturnValue(invalidDir);
 
-          const outHome = join(dir1, ENV_FILE_NAME);
-          writeFileSync(outHome, 'export TEST_BLA=from_home');
+      await withTempDir(directory => {
+        getConfigFileDirMock.mockReturnValue(directory);
+        const outFile = join(directory, LEGACY_FILE);
+        writeFileSync(outFile, 'export TEST_BLA=234\n');
 
-          getConfigFileDirMock.mockReturnValue(dir2);
-          writeConfigFileSync(dir2);
-          const configDirFile = join(dir2, ENV_FILE_NAME);
-          writeFileSync(configDirFile, 'export TEST_BLA=from_config_dir');
+        warnIfCraftEnvFileExists();
 
-          readEnvironmentConfig();
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(outFile),
+        );
+      });
+    });
 
-          expect(process.env.TEST_BLA).toBe('from_config_dir');
+    test('warns once per location when both files exist', async () => {
+      await withTempDir(async homeDir => {
+        await withTempDir(configDir => {
+          homedirMock.mockReturnValue(homeDir);
+          getConfigFileDirMock.mockReturnValue(configDir);
+
+          const homeFile = join(homeDir, LEGACY_FILE);
+          const configFile = join(configDir, LEGACY_FILE);
+          writeFileSync(homeFile, 'export TEST_BLA=from_home');
+          writeFileSync(configFile, 'export TEST_BLA=from_config_dir');
+
+          warnIfCraftEnvFileExists();
+
+          expect(logger.warn).toHaveBeenCalledTimes(2);
+          expect(logger.warn).toHaveBeenCalledWith(
+            expect.stringContaining(homeFile),
+          );
+          expect(logger.warn).toHaveBeenCalledWith(
+            expect.stringContaining(configFile),
+          );
         });
       });
     });
 
-    test('does not overwrite existing variables by default', async () => {
+    test('does not mutate process.env', async () => {
       homedirMock.mockReturnValue(invalidDir);
-
-      process.env.TEST_BLA = 'existing';
 
       await withTempDir(directory => {
         getConfigFileDirMock.mockReturnValue(directory);
-        const outFile = join(directory, ENV_FILE_NAME);
+        const outFile = join(directory, LEGACY_FILE);
         writeFileSync(outFile, 'export TEST_BLA=new_value');
 
-        readEnvironmentConfig();
-
-        expect(process.env.TEST_BLA).toBe('existing');
+        const before = process.env.TEST_BLA;
+        warnIfCraftEnvFileExists();
+        expect(process.env.TEST_BLA).toBe(before);
       });
     });
+  }); // end describe('warnIfCraftEnvFileExists')
 
-    test('overwrites existing variables if explicitly stated', async () => {
-      homedirMock.mockReturnValue(invalidDir);
+  describe('sanitizeDynamicLinkerEnv', () => {
+    const DYNAMIC_LINKER_KEYS = [
+      'LD_PRELOAD',
+      'LD_LIBRARY_PATH',
+      'LD_AUDIT',
+      'DYLD_INSERT_LIBRARIES',
+      'DYLD_LIBRARY_PATH',
+      'DYLD_FRAMEWORK_PATH',
+      'DYLD_FALLBACK_LIBRARY_PATH',
+      'DYLD_FALLBACK_FRAMEWORK_PATH',
+    ];
 
-      process.env.TEST_BLA = 'existing';
-
-      await withTempDir(directory => {
-        getConfigFileDirMock.mockReturnValue(directory);
-
-        writeConfigFileSync(directory);
-
-        const outFile = join(directory, ENV_FILE_NAME);
-        writeFileSync(outFile, 'export TEST_BLA=new_value');
-
-        readEnvironmentConfig(true);
-
-        expect(process.env.TEST_BLA).toBe('new_value');
-      });
+    beforeEach(() => {
+      for (const key of DYNAMIC_LINKER_KEYS) {
+        delete process.env[key];
+      }
+      delete process.env.CRAFT_ALLOW_DYNAMIC_LINKER_ENV;
     });
-  }); // end describe('readEnvironmentConfig')
+
+    test('does nothing when no dynamic-linker vars are set', () => {
+      sanitizeDynamicLinkerEnv();
+
+      expect(logger.warn).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    test('strips LD_PRELOAD and warns without logging the value', () => {
+      const secret = '/tmp/attacker-preload.so';
+      process.env.LD_PRELOAD = secret;
+
+      sanitizeDynamicLinkerEnv();
+
+      expect(process.env.LD_PRELOAD).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const warnArgs = (logger.warn as any).mock.calls[0];
+      const combined = warnArgs.join(' ');
+      expect(combined).toContain('LD_PRELOAD');
+      // Value must NOT appear anywhere in the log call.
+      expect(combined).not.toContain(secret);
+    });
+
+    test('strips every known dynamic-linker var when set', () => {
+      for (const key of DYNAMIC_LINKER_KEYS) {
+        process.env[key] = `value-for-${key}`;
+      }
+
+      sanitizeDynamicLinkerEnv();
+
+      for (const key of DYNAMIC_LINKER_KEYS) {
+        expect(process.env[key]).toBeUndefined();
+      }
+      expect(logger.warn).toHaveBeenCalledTimes(DYNAMIC_LINKER_KEYS.length);
+    });
+
+    test('preserves vars when CRAFT_ALLOW_DYNAMIC_LINKER_ENV=1', () => {
+      process.env.CRAFT_ALLOW_DYNAMIC_LINKER_ENV = '1';
+      process.env.LD_PRELOAD = '/tmp/legit.so';
+      process.env.LD_LIBRARY_PATH = '/opt/lib';
+
+      sanitizeDynamicLinkerEnv();
+
+      expect(process.env.LD_PRELOAD).toBe('/tmp/legit.so');
+      expect(process.env.LD_LIBRARY_PATH).toBe('/opt/lib');
+      expect(logger.warn).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledTimes(1);
+      const infoArgs = (logger.info as any).mock.calls[0];
+      const combined = infoArgs.join(' ');
+      expect(combined).toContain('LD_PRELOAD');
+      expect(combined).toContain('LD_LIBRARY_PATH');
+    });
+
+    test('opt-out only applies when value is exactly "1"', () => {
+      process.env.CRAFT_ALLOW_DYNAMIC_LINKER_ENV = 'true';
+      process.env.LD_PRELOAD = '/tmp/x.so';
+
+      sanitizeDynamicLinkerEnv();
+
+      // "true" is not the magic opt-out value; var should still be stripped.
+      expect(process.env.LD_PRELOAD).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+    });
+  }); // end describe('sanitizeDynamicLinkerEnv')
+
+  describe('sanitizeSpawnEnv', () => {
+    beforeEach(() => {
+      delete process.env.CRAFT_ALLOW_DYNAMIC_LINKER_ENV;
+    });
+
+    test('returns undefined for undefined input', () => {
+      expect(sanitizeSpawnEnv(undefined)).toBeUndefined();
+    });
+
+    test('returns a shallow copy without dynamic-linker keys', () => {
+      const input = {
+        PATH: '/usr/bin',
+        HOME: '/home/runner',
+        LD_PRELOAD: '/tmp/evil.so',
+        LD_LIBRARY_PATH: '/opt/lib',
+        GITHUB_TOKEN: 'gho_xxx',
+      };
+
+      const result = sanitizeSpawnEnv(input);
+
+      expect(result).toEqual({
+        PATH: '/usr/bin',
+        HOME: '/home/runner',
+        GITHUB_TOKEN: 'gho_xxx',
+      });
+      // Input must not be mutated — callers may reuse it.
+      expect(input.LD_PRELOAD).toBe('/tmp/evil.so');
+      expect(input.LD_LIBRARY_PATH).toBe('/opt/lib');
+    });
+
+    test('strips all DYLD_* variants on macOS layouts', () => {
+      const input = {
+        PATH: '/usr/bin',
+        DYLD_INSERT_LIBRARIES: '/tmp/a.dylib',
+        DYLD_LIBRARY_PATH: '/opt/a',
+        DYLD_FRAMEWORK_PATH: '/opt/b',
+        DYLD_FALLBACK_LIBRARY_PATH: '/opt/c',
+        DYLD_FALLBACK_FRAMEWORK_PATH: '/opt/d',
+      };
+
+      const result = sanitizeSpawnEnv(input);
+
+      expect(result).toEqual({ PATH: '/usr/bin' });
+    });
+
+    test('warns once when any dynamic-linker key is stripped', () => {
+      sanitizeSpawnEnv({ PATH: '/u', LD_PRELOAD: '/x', LD_LIBRARY_PATH: '/y' });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const msg = (logger.warn as any).mock.calls[0].join(' ');
+      expect(msg).toContain('subprocess');
+      // Value must never appear in the log.
+      expect(msg).not.toContain('/x');
+      expect(msg).not.toContain('/y');
+    });
+
+    test('does not warn when no dynamic-linker keys are present', () => {
+      sanitizeSpawnEnv({ PATH: '/u', HOME: '/h' });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    test('honours CRAFT_ALLOW_DYNAMIC_LINKER_ENV=1 opt-out', () => {
+      process.env.CRAFT_ALLOW_DYNAMIC_LINKER_ENV = '1';
+      const input = { PATH: '/u', LD_PRELOAD: '/tmp/legit.so' };
+
+      const result = sanitizeSpawnEnv(input);
+
+      expect(result).toEqual(input);
+      expect(result).toBe(input); // same reference — explicit no-op
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    test('opt-out only applies when value is exactly "1"', () => {
+      process.env.CRAFT_ALLOW_DYNAMIC_LINKER_ENV = 'yes';
+      const result = sanitizeSpawnEnv({
+        PATH: '/u',
+        LD_PRELOAD: '/tmp/x.so',
+      });
+
+      expect(result).toEqual({ PATH: '/u' });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+    });
+  }); // end describe('sanitizeSpawnEnv')
 }); // end describe('env utils functions')

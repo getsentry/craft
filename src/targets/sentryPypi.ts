@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { Octokit } from '@octokit/rest';
-import { TargetConfig } from '../schemas/project_config';
+import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { withTempDir } from '../utils/files';
 import { ConfigurationError, reportError } from '../utils/errors';
@@ -13,6 +13,11 @@ import { getGitHubClient } from '../utils/githubApi';
  * RegExp for Python packages
  */
 export const WHEEL_REGEX = /^([^-]+)-([^-]+)-[^-]+-[^-]+-[^-]+\.whl$/;
+
+/** Config fields for sentry-pypi target from .craft.yml */
+interface SentryPypiYamlConfig extends Record<string, unknown> {
+  internalPypiRepo?: string;
+}
 
 export function uniquePackages(filenames: Array<string>): Array<string> {
   const versions = filenames.map(filename => {
@@ -33,13 +38,13 @@ export class SentryPypiTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
 
     if (!('internalPypiRepo' in this.config)) {
       throw new ConfigurationError(
-        'Missing project configuration parameter: internalPypiRepo'
+        'Missing project configuration parameter: internalPypiRepo',
       );
     }
 
@@ -65,7 +70,8 @@ export class SentryPypiTarget extends BaseTarget {
 
     const versions = uniquePackages(packageFiles.map(f => f.filename));
 
-    const [owner, repo] = this.config.internalPypiRepo.split('/');
+    const typedConfig = this.config as TypedTargetConfig<SentryPypiYamlConfig>;
+    const [owner, repo] = typedConfig.internalPypiRepo!.split('/');
 
     const [contents, tree, commit] = await withTempDir(async directory => {
       await spawnProcess(
@@ -74,37 +80,41 @@ export class SentryPypiTarget extends BaseTarget {
           'clone',
           '--quiet',
           '--depth=1',
-          `https://github.com/${this.config.internalPypiRepo}`,
+          `https://github.com/${typedConfig.internalPypiRepo}`,
           directory,
         ],
         {},
-        { enableInDryRunMode: true }
+        { enableInDryRunMode: true },
       );
 
       await spawnProcess(
         'python3',
         ['-m', 'add_pkg', '--skip-resolve', ...versions],
         { cwd: directory },
-        { enableInDryRunMode: true }
+        { enableInDryRunMode: true },
       );
 
       const contents = fs.readFileSync(path.join(directory, 'packages.ini'), {
         encoding: 'utf-8',
       });
-      const tree = ((await spawnProcess(
-        'git',
-        ['-C', directory, 'rev-parse', 'HEAD:'],
-        {},
-        { enableInDryRunMode: true }
-      )) as Buffer)
+      const tree = (
+        (await spawnProcess(
+          'git',
+          ['-C', directory, 'rev-parse', 'HEAD:'],
+          {},
+          { enableInDryRunMode: true },
+        )) as Buffer
+      )
         .toString('utf-8')
         .trim();
-      const commit = ((await spawnProcess(
-        'git',
-        ['-C', directory, 'rev-parse', 'HEAD'],
-        {},
-        { enableInDryRunMode: true }
-      )) as Buffer)
+      const commit = (
+        (await spawnProcess(
+          'git',
+          ['-C', directory, 'rev-parse', 'HEAD'],
+          {},
+          { enableInDryRunMode: true },
+        )) as Buffer
+      )
         .toString('utf-8')
         .trim();
       return [contents, tree, commit];

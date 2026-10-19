@@ -2,52 +2,176 @@ name: Changelog Preview
 
 on:
   # Allow this workflow to be called from other repositories
+  #
+  # USAGE REQUIREMENTS:
+  # When calling this workflow from another repository, you must:
+  #
+  # 1. Use pull_request_target (NOT pull_request):
+  #    - This is required to post comments on PRs from forks
+  #    - pull_request event has read-only GITHUB_TOKEN for fork PRs
+  #
+  # 2. Grant required permissions:
+  #    - contents: read        (to checkout repo and read git history)
+  #    - pull-requests: write  (to post/update PR comments in comment mode)
+  #    - statuses: write       (to create commit statuses in status check mode)
+  #
+  # 3. Inherit secrets:
+  #    - secrets: inherit      (ensures caller's GITHUB_TOKEN is used)
+  #
+  # Example caller workflow (comment mode):
+  #
+  #   on:
+  #     pull_request_target:
+  #       types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+  #
+  #   permissions:
+  #     contents: read
+  #     pull-requests: write
+  #
+  #   jobs:
+  #     changelog-preview:
+  #       uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
+  #       secrets: inherit
+  #
+  # Example caller workflow (status check mode):
+  #
+  #   permissions:
+  #     contents: read
+  #     statuses: write
+  #
+  #   jobs:
+  #     changelog-preview:
+  #       uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
+  #       with:
+  #         comment: false
+  #       secrets: inherit
+  #
+  # SECURITY NOTE:
+  # This workflow is safe to use with pull_request_target because:
+  # - The Craft binary is downloaded from releases, NOT from the PR
+  # - Only git metadata (commits, tags) and .craft.yml config are read
+  # - No code from the PR is ever executed
+  #
   workflow_call:
     inputs:
+      working-directory:
+        description: 'Directory to run Craft in (relative to repo root)'
+        required: false
+        type: string
+        default: '.'
       craft-version:
         description: 'Version of Craft to use (tag or "latest")'
         required: false
         type: string
+      comment:
+        description: 'Post changelog as PR comment (true) or as check run with job summary (false)'
+        required: false
+        type: boolean
+        default: true
+      require-conventional-title:
+        description: 'Fail the workflow if the PR title does not match a conventional commit type (opt-in enforcement)'
+        required: false
+        type: boolean
+        default: false
 
-  # Also run on PRs in this repository (for dogfooding)
-  # Includes 'edited' and 'labeled' to update when PR title/description/labels change
+  # Also run on PRs in this repository (dogfooding)
   pull_request:
-    types: [opened, synchronize, reopened, edited, labeled]
-
-permissions:
-  pull-requests: write
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 jobs:
   preview:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # For comment mode
+      statuses: write # For status check mode
     steps:
-      - uses: actions/checkout@v4
+      # For pull_request_target, we must explicitly specify the ref to get the PR commits.
+      # Try the merge ref first; fall back to head ref if PR has merge conflicts.
+      - uses: actions/checkout@v6
+        id: checkout-merge
+        continue-on-error: true
         with:
           fetch-depth: 0
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          persist-credentials: false
 
-      # Install Craft using the shared install action
-      - name: Install Craft
-        uses: getsentry/craft/install@master
+      - uses: actions/checkout@v6
+        if: steps.checkout-merge.outcome == 'failure'
         with:
-          craft-version: ${{ inputs.craft-version || 'latest' }}
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Install Craft
+        shell: bash
+        env:
+          CRAFT_VERSION_INPUT: ${{ inputs.craft-version || 'latest' }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          CRAFT_VERSION="$CRAFT_VERSION_INPUT"
+
+          if [[ "$CRAFT_VERSION" == "latest" || -z "$CRAFT_VERSION" ]]; then
+            echo "Downloading latest Craft release..."
+            CRAFT_URL=$(gh api repos/getsentry/craft/releases/latest \
+              --jq '.assets[] | select(.name == "craft") | .browser_download_url')
+          else
+            CRAFT_URL="https://github.com/getsentry/craft/releases/download/${CRAFT_VERSION}/craft"
+            echo "Downloading Craft ${CRAFT_VERSION}..."
+
+            # Fallback to latest if specified version doesn't exist
+            if ! curl -sfI "$CRAFT_URL" >/dev/null 2>&1; then
+              echo "Release not found for version '${CRAFT_VERSION}', falling back to latest..."
+              CRAFT_URL=$(gh api repos/getsentry/craft/releases/latest \
+                --jq '.assets[] | select(.name == "craft") | .browser_download_url')
+            fi
+          fi
+
+          # Verify we have a valid URL
+          if [[ -z "$CRAFT_URL" ]]; then
+            echo "::error::Failed to determine Craft download URL"
+            exit 1
+          fi
+
+          echo "Installing Craft from: ${CRAFT_URL}"
+          sudo curl -fsSL -o /usr/local/bin/craft "$CRAFT_URL"
+          sudo chmod +x /usr/local/bin/craft
+
+          # Verify installation
+          if [[ ! -s /usr/local/bin/craft ]]; then
+            echo "::error::Downloaded Craft binary is empty or missing"
+            exit 1
+          fi
+
+          craft --version
 
       - name: Generate Changelog Preview
+        id: preview
         shell: bash
+        working-directory: ${{ inputs.working-directory }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CRAFT_LOG_LEVEL: Warn
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-
-          # Generate changelog with current PR injected and highlighted (JSON format)
           echo "Running craft changelog --pr $PR_NUMBER --format json..."
           RESULT=$(craft changelog --pr "$PR_NUMBER" --format json 2>/dev/null || echo '{"changelog":"","bumpType":null}')
 
-          # Extract fields from JSON
           CHANGELOG=$(echo "$RESULT" | jq -r '.changelog // ""')
           BUMP_TYPE=$(echo "$RESULT" | jq -r '.bumpType // "none"')
           PR_SKIPPED=$(echo "$RESULT" | jq -r '.prSkipped // false')
+          VERSIONING_POLICY=$(echo "$RESULT" | jq -r '.versioningPolicy // "auto"')
+
+          # Export for downstream steps (e.g., title enforcement)
+          {
+            echo "bump_type=${BUMP_TYPE}"
+            echo "pr_skipped=${PR_SKIPPED}"
+            echo "versioning_policy=${VERSIONING_POLICY}"
+          } >> "$GITHUB_OUTPUT"
 
           if [[ "$PR_SKIPPED" == "true" ]]; then
             CHANGELOG="_This PR will not appear in the changelog._"
@@ -55,23 +179,65 @@ jobs:
             CHANGELOG="_No changelog entries will be generated from this PR._"
           fi
 
-          # Format bump type for display
-          case "$BUMP_TYPE" in
-            major) BUMP_BADGE="🔴 **Major** (breaking changes)" ;;
-            minor) BUMP_BADGE="🟡 **Minor** (new features)" ;;
-            patch) BUMP_BADGE="🟢 **Patch** (bug fixes)" ;;
-            *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
-          esac
+          # CalVer projects don't use semver bumps — skip the impact badge
+          if [[ "$VERSIONING_POLICY" == "calver" ]]; then
+            BUMP_BADGE=""
+            BUMP_SHORT="CalVer"
+            SECTION_HEADING="Changelog Preview"
+            STATUS_CONTEXT="Changelog Preview"
+          else
+            case "$BUMP_TYPE" in
+              major) BUMP_BADGE="🔴 **Major** (breaking changes)" ;;
+              minor) BUMP_BADGE="🟡 **Minor** (new features)" ;;
+              patch) BUMP_BADGE="🟢 **Patch** (bug fixes)" ;;
+              *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
+            esac
 
-          # Build comment body using a temp file (safer than heredoc)
-          COMMENT_FILE=$(mktemp)
-          cat > "$COMMENT_FILE" << CRAFT_CHANGELOG_COMMENT_END
-          <!-- craft-changelog-preview -->
-          ## Semver Impact of This PR
+            case "$BUMP_TYPE" in
+              major) BUMP_SHORT="Major" ;;
+              minor) BUMP_SHORT="Minor" ;;
+              patch) BUMP_SHORT="Patch" ;;
+              *) BUMP_SHORT="None" ;;
+            esac
+
+            SECTION_HEADING="Semver Impact of This PR"
+            STATUS_CONTEXT="Changelog Preview / Semver Impact"
+          fi
+
+          # Determine mode: use status check mode when comment is false OR when running internally (no input)
+          USE_COMMENT_MODE="${{ inputs.comment }}"
+          if [[ "$USE_COMMENT_MODE" == "false" ]] || [[ -z "$USE_COMMENT_MODE" ]]; then
+            # Status check mode (new feature or internal dogfooding)
+            echo "Using status check mode..."
+
+            TARGET_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            PR_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/${PR_NUMBER}"
+            
+            # Create commit status via GitHub API
+            echo "Creating commit status..."
+            gh api --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+              -f state="success" \
+              -f context="$STATUS_CONTEXT" \
+              -f description="$BUMP_SHORT" \
+              -f target_url="$TARGET_URL"
+            
+            echo "✓ Commit status created"
+            
+            # 2. Write to job summary
+            cat >> $GITHUB_STEP_SUMMARY << CRAFT_CHANGELOG_SUMMARY_END
+          # Changelog Preview for PR #${PR_NUMBER}
+
+          [→ View PR #${PR_NUMBER}](${PR_URL})
+
+          ## ${SECTION_HEADING}
 
           ${BUMP_BADGE}
 
-          ## 📋 Changelog Preview
+          <details>
+          <summary>📋 Changelog Preview</summary>
 
           This is how your changes will appear in the changelog.
           Entries from this PR are highlighted with a left border (blockquote style).
@@ -82,25 +248,90 @@ jobs:
 
           ---
 
+          </details>
+          CRAFT_CHANGELOG_SUMMARY_END
+            
+            echo "✓ Job summary written"
+          else
+            # Comment mode (original behavior)
+            echo "Using comment mode..."
+            
+            COMMENT_FILE=$(mktemp)
+            cat > "$COMMENT_FILE" << CRAFT_CHANGELOG_COMMENT_END
+          <!-- craft-changelog-preview -->
+          ## ${SECTION_HEADING}
+
+          ${BUMP_BADGE}
+
+          <details>
+          <summary>📋 Changelog Preview</summary>
+
+          This is how your changes will appear in the changelog.
+          Entries from this PR are highlighted with a left border (blockquote style).
+
+          ---
+
+          ${CHANGELOG}
+
+          ---
+
+          </details>
+
           <sub>🤖 This preview updates automatically when you update the PR.</sub>
           CRAFT_CHANGELOG_COMMENT_END
 
-          # Find existing comment with our marker
-          COMMENT_ID=$(gh api \
-            "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-            --jq '.[] | select(.body | contains("<!-- craft-changelog-preview -->")) | .id' \
-            | head -1)
-
-          if [[ -n "$COMMENT_ID" ]]; then
-            echo "Updating existing comment $COMMENT_ID..."
-            gh api -X PATCH \
-              "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" \
-              -F body=@"$COMMENT_FILE"
-          else
-            echo "Creating new comment..."
-            gh api -X POST \
+            COMMENT_ID=$(gh api \
               "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-              -F body=@"$COMMENT_FILE"
+              --jq '.[] | select(.body | contains("<!-- craft-changelog-preview -->")) | .id' \
+              | head -1)
+
+            if [[ -n "$COMMENT_ID" ]]; then
+              echo "Updating existing comment $COMMENT_ID..."
+              gh api -X PATCH \
+                "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" \
+                -F body=@"$COMMENT_FILE"
+            else
+              echo "Creating new comment..."
+              gh api -X POST \
+                "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+                -F body=@"$COMMENT_FILE"
+            fi
+
+            rm -f "$COMMENT_FILE"
+            echo "✓ Comment posted"
           fi
 
-          rm -f "$COMMENT_FILE"
+      - name: Enforce conventional title
+        if: inputs.require-conventional-title == true
+        shell: bash
+        env:
+          BUMP_TYPE: ${{ steps.preview.outputs.bump_type }}
+          PR_SKIPPED: ${{ steps.preview.outputs.pr_skipped }}
+          VERSIONING_POLICY: ${{ steps.preview.outputs.versioning_policy }}
+        run: |
+          if [[ "$PR_SKIPPED" == "true" ]]; then
+            echo "PR is skip-changelog — skipping title enforcement"
+            exit 0
+          fi
+
+          if [[ "$VERSIONING_POLICY" == "manual" ]]; then
+            echo "Manual versioning policy — skipping title enforcement"
+            exit 0
+          fi
+
+          if [[ "$BUMP_TYPE" == "null" || "$BUMP_TYPE" == "none" || -z "$BUMP_TYPE" ]]; then
+            echo "::error::PR title does not follow the conventional commits format."
+            echo ""
+            echo "Your PR title must start with a recognized type prefix:"
+            echo "  feat:, fix:, docs:, refactor:, chore:, ci:, test:, perf:,"
+            echo "  build:, style:, meta:, ref:, security:"
+            echo ""
+            echo "Optional scope: feat(ui): Add button component"
+            echo "Breaking change: feat!: Remove deprecated API"
+            echo ""
+            echo "To skip this check, add the 'skip-changelog' label"
+            echo "or include '#skip-changelog' in the PR body."
+            exit 1
+          fi
+
+          echo "PR title matches conventional commit format (bump: $BUMP_TYPE)"

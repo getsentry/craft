@@ -1,4 +1,7 @@
-import simpleGit from 'simple-git';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
+
+import { createGitClient } from '../utils/git';
 
 import { BaseTarget } from './base';
 import { withTempDir } from '../utils/files';
@@ -6,6 +9,7 @@ import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { reportError } from '../utils/errors';
+import { logger } from '../logger';
 
 const DEFAULT_MIX_BIN = 'mix';
 
@@ -30,10 +34,59 @@ export class HexTarget extends BaseTarget {
   /** GitHub repo configuration */
   public readonly githubRepo: GitHubGlobalConfig;
 
+  /**
+   * Bump version in mix.exs for Elixir projects.
+   *
+   * @param rootDir - Project root directory
+   * @param newVersion - New version string to set
+   * @returns true if version was bumped, false if no mix.exs exists
+   * @throws Error if file cannot be updated
+   */
+  public static async bumpVersion(
+    rootDir: string,
+    newVersion: string,
+  ): Promise<boolean> {
+    const mixExsPath = join(rootDir, 'mix.exs');
+    if (!existsSync(mixExsPath)) {
+      return false;
+    }
+
+    const content = readFileSync(mixExsPath, 'utf-8');
+    const versionPatterns = [
+      /^(\s*version:\s*["'])([^"']+)(["'])/m,
+      /^(\s*@version\s+["'])([^"']+)(["'])/m,
+    ];
+
+    let newContent = content;
+    let updated = false;
+
+    for (const pattern of versionPatterns) {
+      if (pattern.test(newContent)) {
+        newContent = newContent.replace(pattern, `$1${newVersion}$3`);
+        updated = true;
+      }
+    }
+
+    if (!updated) {
+      logger.debug('No version pattern found in mix.exs');
+      return false;
+    }
+
+    if (newContent === content) {
+      logger.debug('Version already set to target value');
+      return true;
+    }
+
+    logger.debug(`Updating version in ${mixExsPath} to ${newVersion}`);
+    writeFileSync(mixExsPath, newContent);
+
+    return true;
+  }
+
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GitHubGlobalConfig
+    githubRepo: GitHubGlobalConfig,
   ) {
     super(config, artifactProvider, githubRepo);
     checkExecutableIsPresent(MIX_BIN);
@@ -48,7 +101,7 @@ export class HexTarget extends BaseTarget {
     if (!process.env.HEX_API_KEY) {
       reportError(
         `Cannot publish to hex.pm: missing credentials.
-         Please use HEX_API_KEY environment variable to pass the API token.`
+         Please use HEX_API_KEY environment variable to pass the API token.`,
       );
     }
   }
@@ -63,10 +116,10 @@ export class HexTarget extends BaseTarget {
   async cloneRepository(
     config: GitHubGlobalConfig,
     revision: string,
-    directory: string
+    directory: string,
   ): Promise<any> {
     const { owner, repo } = config;
-    const git = simpleGit(directory);
+    const git = createGitClient(directory);
     const url = `https://github.com/${owner}/${repo}.git`;
 
     this.logger.info(`Cloning ${owner}/${repo} into ${directory}`);
@@ -91,29 +144,29 @@ export class HexTarget extends BaseTarget {
           MIX_BIN,
           ['local.hex', '--force'],
           spawnOptions,
-          spawnProcessOptions
+          spawnProcessOptions,
         );
         await spawnProcess(
           MIX_BIN,
           ['local.rebar', '--force'],
           spawnOptions,
-          spawnProcessOptions
+          spawnProcessOptions,
         );
         await spawnProcess(
           MIX_BIN,
           ['deps.get'],
           spawnOptions,
-          spawnProcessOptions
+          spawnProcessOptions,
         );
         await spawnProcess(
           MIX_BIN,
           ['hex.publish', '--yes'],
           spawnOptions,
-          spawnProcessOptions
+          spawnProcessOptions,
         );
       },
       true,
-      'craft-hex-'
+      'craft-hex-',
     );
 
     this.logger.info('Hex release complete');

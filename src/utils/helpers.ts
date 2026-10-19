@@ -1,7 +1,19 @@
-import { appendFileSync } from 'fs';
+import { appendFileSync, mkdirSync, writeFileSync } from 'fs';
+import path from 'path';
+import { parseArgs } from 'node:util';
 
 import prompts from 'prompts';
 import { logger, LogLevel, setLevel } from '../logger';
+
+/**
+ * Maximum size (in bytes) for step output values passed through GITHUB_OUTPUT.
+ * Values exceeding this are truncated to avoid E2BIG errors when GitHub Actions
+ * expands them into environment variables for subsequent steps.
+ *
+ * 64 KB is well under the ~2 MB ARG_MAX kernel limit and also under GitHub's
+ * ~65 536-character issue body limit, so truncated changelogs still render.
+ */
+export const MAX_STEP_OUTPUT_BYTES = 64 * 1024;
 
 const FALSY_ENV_VALUES = new Set(['', 'undefined', 'null', '0', 'false', 'no']);
 export function envToBool(envVar: unknown): boolean {
@@ -9,26 +21,125 @@ export function envToBool(envVar: unknown): boolean {
   return !FALSY_ENV_VALUES.has(normalized);
 }
 
-interface GlobalFlags {
-  [flag: string]: any;
+/**
+ * Extracts the `--workspace` selection from the raw argv (or the
+ * `CRAFT_WORKSPACE` env var) before yargs parsing.
+ *
+ * This is needed because yargs runs command `builder`s (which may read the
+ * configuration, e.g. `publish` derives its --target choices from
+ * config.targets) *before* middleware, so the workspace must be resolved up
+ * front rather than in a middleware.
+ *
+ * Supports `--workspace foo` and `--workspace=foo`. It uses Node's built-in
+ * argument parser and checks its token stream so a following option (such as
+ * `--workspace --dry-run`) is never mistaken for a workspace name. The CLI
+ * flag wins over the env var only when it carries a value; otherwise this falls
+ * back to `CRAFT_WORKSPACE`.
+ *
+ * @param argv The raw argv array (process.argv.slice(2))
+ * @param env The environment to read CRAFT_WORKSPACE from (defaults to process.env)
+ */
+export function extractWorkspaceSelection(
+  argv: string[],
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  const envWorkspace = env.CRAFT_WORKSPACE || undefined;
+  const { tokens } = parseArgs({
+    args: argv,
+    options: { workspace: { type: 'string' } },
+    allowPositionals: true,
+    strict: false,
+    tokens: true,
+  });
+  let workspace: string | undefined;
+  for (const token of tokens) {
+    if (token.kind !== 'option' || token.name !== 'workspace') {
+      continue;
+    }
+    // The last occurrence decides. An empty/bare final option must not leave
+    // an earlier value selected; it falls back to CRAFT_WORKSPACE instead.
+    workspace = undefined;
+    if (
+      typeof token.value === 'string' &&
+      token.value &&
+      // `--workspace=-foo` is a valid inline value; `--workspace --foo` is not.
+      (token.inlineValue || !token.value.startsWith('-'))
+    ) {
+      workspace = token.value;
+    }
+  }
+  return workspace || envWorkspace;
+}
+
+export interface GlobalFlags {
+  [flag: string]: unknown;
+  'dry-run'?: boolean;
+  'no-input'?: boolean;
+  'log-level'?: keyof typeof LogLevel;
+}
+
+/** Internal type with required values (initialized with defaults) */
+interface InternalGlobalFlags {
   'dry-run': boolean;
   'no-input': boolean;
   'log-level': keyof typeof LogLevel;
+  'ai-endpoint'?: string;
+  'ai-api-key-env'?: string;
+  'ai-model'?: string;
 }
 
-const GLOBAL_FLAGS: GlobalFlags = {
+const GLOBAL_FLAGS: InternalGlobalFlags = {
   'dry-run': false,
   'no-input': false,
   'log-level': 'Info',
 };
 
-export function setGlobals(argv: GlobalFlags): void {
-  for (const globalFlag of Object.keys(GLOBAL_FLAGS)) {
-    GLOBAL_FLAGS[globalFlag] = argv[globalFlag];
+/** yargs .env('CRAFT') must not make environment values look like CLI overrides. */
+export function extractAiSummaryFlags(argv: string[]): GlobalFlags {
+  const keys = ['ai-endpoint', 'ai-api-key-env', 'ai-model'] as const;
+  const { values } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    strict: false,
+    options: Object.fromEntries(
+      keys.map(key => [key, { type: 'string' as const }]),
+    ),
+  });
+  return Object.fromEntries(keys.map(key => [key, values[key]]));
+}
+
+export function setGlobals(
+  argv: GlobalFlags,
+  aiFlags: GlobalFlags = argv,
+): void {
+  if (argv['dry-run'] !== undefined) {
+    GLOBAL_FLAGS['dry-run'] = argv['dry-run'];
   }
+  if (argv['no-input'] !== undefined) {
+    GLOBAL_FLAGS['no-input'] = argv['no-input'];
+  }
+  if (argv['log-level'] !== undefined) {
+    GLOBAL_FLAGS['log-level'] = argv['log-level'];
+  }
+  for (const key of ['ai-endpoint', 'ai-api-key-env', 'ai-model'] as const)
+    GLOBAL_FLAGS[key] =
+      typeof aiFlags[key] === 'string' ? (aiFlags[key] as string) : undefined;
   logger.trace('Global flags:', GLOBAL_FLAGS);
   setLevel(LogLevel[GLOBAL_FLAGS['log-level']]);
-  logger.trace('Argv: ', argv);
+  // .env('CRAFT') adds arbitrary environment values to argv, including secrets.
+  // Trace only the known non-secret flags above.
+}
+
+export function getAiSummaryOverrides(): {
+  endpoint?: string;
+  apiKeyEnv?: string;
+  model?: string;
+} {
+  return {
+    endpoint: GLOBAL_FLAGS['ai-endpoint'],
+    apiKeyEnv: GLOBAL_FLAGS['ai-api-key-env'],
+    model: GLOBAL_FLAGS['ai-model'],
+  };
 }
 
 export function isDryRun(): boolean {
@@ -78,9 +189,88 @@ export function setGitHubActionsOutput(name: string, value: string): void {
     const delimiter = `EOF_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     appendFileSync(
       outputFile,
-      `${name}<<${delimiter}\n${value}\n${delimiter}\n`
+      `${name}<<${delimiter}\n${value}\n${delimiter}\n`,
     );
   } else {
     appendFileSync(outputFile, `${name}=${value}\n`);
   }
+}
+
+/**
+ * Writes a large value to a file under RUNNER_TEMP and sets a `{name}_file`
+ * GitHub Actions output pointing to it.
+ *
+ * This avoids the Linux E2BIG error that occurs when a large step output is
+ * expanded into an environment variable in a subsequent composite-action step.
+ *
+ * No-op when not running in GitHub Actions (RUNNER_TEMP is unset).
+ *
+ * @returns The absolute path of the written file, or `undefined` outside CI.
+ */
+export function writeGitHubActionsFile(
+  name: string,
+  content: string,
+): string | undefined {
+  const runnerTemp = process.env.RUNNER_TEMP;
+  if (!runnerTemp) {
+    return undefined;
+  }
+
+  const dir = path.join(runnerTemp, 'craft');
+  mkdirSync(dir, { recursive: true });
+
+  const filePath = path.join(dir, `${name}.md`);
+  writeFileSync(filePath, content, 'utf-8');
+  setGitHubActionsOutput(`${name}_file`, filePath);
+
+  return filePath;
+}
+
+/**
+ * Truncates `value` to `MAX_STEP_OUTPUT_BYTES` (including the notice) and
+ * appends a notice.
+ *
+ * When `changelogUrl` is provided the notice links to the full changelog on
+ * GitHub (e.g. the CHANGELOG.md file on the release branch) so readers of the
+ * truncated output in a publish issue can jump straight to the source.
+ */
+export function truncateForOutput(
+  value: string,
+  changelogUrl?: string,
+): string {
+  const notice = changelogUrl
+    ? `\n\n---\n*Changelog truncated. [View full changelog](${changelogUrl}).*`
+    : '\n\n---\n*Changelog truncated.*';
+
+  const noticeBytes = Buffer.byteLength(notice, 'utf-8');
+  const contentBudget = MAX_STEP_OUTPUT_BYTES - noticeBytes;
+
+  if (Buffer.byteLength(value, 'utf-8') <= MAX_STEP_OUTPUT_BYTES) {
+    return value;
+  }
+
+  // Truncate at a safe byte boundary by encoding then slicing
+  let truncated = Buffer.from(value, 'utf-8')
+    .subarray(0, contentBudget)
+    .toString('utf-8');
+
+  // Drop the last character only if the byte slice split a multi-byte
+  // codepoint, which surfaces as the Unicode replacement character U+FFFD.
+  if (truncated.length > 0 && truncated[truncated.length - 1] === '\uFFFD') {
+    truncated = truncated.slice(0, -1);
+  }
+
+  return truncated + notice;
+}
+
+/**
+ * Replaces `@author` mentions in changelog text with bold formatting
+ * (`**author**`) to avoid pinging contributors when the changelog is
+ * embedded in a GitHub issue body.
+ *
+ * Targets the exact output format of `formatChangelogEntry()`:
+ * `- Title by @author in [#123](url)`
+ */
+export function disableChangelogMentions(changelog: string): string {
+  return changelog.replace(/ by @(\S+) in /g, ' by **$1** in ');
 }

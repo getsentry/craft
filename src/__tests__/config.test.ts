@@ -1,13 +1,77 @@
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, vi, afterEach, beforeEach } from 'vitest';
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'fs';
+import { globSync } from 'glob';
+import { load } from 'js-yaml';
+import { tmpdir } from 'os';
+import { join } from 'path';
 /**
  * Tests of our ability to read craft config files. (This is NOT general test
  * configuration).
  */
 
-import { validateConfiguration } from '../config';
+import {
+  getGitTagPrefix,
+  getChangelogConfig,
+  loadConfigurationFromString,
+  validateConfiguration,
+  setActiveWorkspace,
+  getActiveWorkspace,
+  getConfiguration,
+  getVersioningPolicy,
+  getWorkspaceNames,
+  WORKSPACES_MIN_VERSION,
+} from '../config';
 import { CraftProjectConfigSchema } from '../schemas/project_config';
+import { logger } from '../logger';
+import { GitHubTarget } from '../targets/github';
+import { NoneArtifactProvider } from '../artifact_providers/none';
+import { BaseTarget } from '../targets/base';
 
 describe('validateConfiguration', () => {
+  test('Craft archives its release files and documentation at versioned GCS paths', async () => {
+    const rawConfig = load(
+      readFileSync(join(__dirname, '../../.craft.yml'), 'utf8'),
+    ) as Record<string, unknown>;
+    const config = validateConfiguration(rawConfig);
+    const gcsConfig = config.targets?.find(target => target.name === 'gcs');
+    if (!gcsConfig) {
+      throw new Error('Craft GCS target is missing');
+    }
+
+    expect(gcsConfig.paths).toContainEqual(
+      expect.objectContaining({ path: '/craft/{{version}}/' }),
+    );
+
+    const filenames = [
+      'craft',
+      'sentry-craft-2.35.0.tgz',
+      'gh-pages.zip',
+      'other.zip',
+      'gh-pages.zip.bak',
+    ];
+    const provider = new NoneArtifactProvider();
+    vi.spyOn(provider, 'listArtifactsForRevision').mockResolvedValue(
+      filenames.map(filename => ({
+        filename,
+        storedFile: { filename, downloadFilepath: filename, size: 1 },
+      })),
+    );
+
+    const gcs = new BaseTarget(gcsConfig, provider);
+    expect(
+      (await gcs.getArtifactsForRevision('release-commit')).map(
+        artifact => artifact.filename,
+      ),
+    ).toEqual(filenames.slice(0, 3));
+  });
+
   test('parses minimal configuration', () => {
     const data = { github: { owner: 'getsentry', repo: 'craft' } };
 
@@ -17,10 +81,7 @@ describe('validateConfiguration', () => {
   test('parses configuration with targets', () => {
     const data = {
       github: { owner: 'getsentry', repo: 'craft' },
-      targets: [
-        { name: 'npm' },
-        { name: 'github', tagPrefix: 'v' },
-      ],
+      targets: [{ name: 'npm' }, { name: 'github', tagPrefix: 'v' }],
     };
 
     expect(validateConfiguration(data)).toEqual(data);
@@ -32,6 +93,7 @@ describe('validateConfiguration', () => {
         filePath: 'CHANGELOG.md',
         policy: 'auto',
         scopeGrouping: true,
+        includePaths: ['apps/cli-docs'],
       },
     };
 
@@ -45,6 +107,153 @@ describe('validateConfiguration', () => {
 
     expect(validateConfiguration(data)).toEqual(data);
   });
+
+  test('normalizes opt-in AI summary settings from the active schema', () => {
+    loadConfigurationFromString('changelog:\n  policy: auto\n  aiSummary: {}');
+    expect(getChangelogConfig().aiSummary).toEqual({
+      llm: {
+        endpoint: 'https://api.githubcopilot.com/responses',
+        model: 'gpt-5.4-nano',
+        apiKeyEnv: 'GITHUB_TOKEN',
+      },
+      minItems: 5,
+      levels: ['release'],
+    });
+  });
+
+  test('normalizes optional AI writing style', () => {
+    loadConfigurationFromString(
+      'changelog:\n  policy: auto\n  aiSummary:\n    style: "  Concise and friendly.  "',
+    );
+    expect(getChangelogConfig().aiSummary).toMatchObject({
+      style: 'Concise and friendly.',
+    });
+  });
+
+  test.each(['', '   ', 'a'.repeat(501), 42])(
+    'rejects invalid AI writing style %j',
+    style => {
+      expect(() =>
+        validateConfiguration({ changelog: { aiSummary: { style } } }),
+      ).toThrow(/changelog/);
+    },
+  );
+
+  test.each([-1, 1.5])('rejects invalid summary threshold %s', minItems => {
+    expect(() =>
+      validateConfiguration({
+        changelog: { aiSummary: { minItems } },
+      }),
+    ).toThrow(/changelog/);
+  });
+
+  test('normalizes empty levels to release-only and accepts a zero threshold', () => {
+    loadConfigurationFromString(
+      'changelog:\n  policy: auto\n  aiSummary:\n    levels: []\n    minItems: 0',
+    );
+    expect(getChangelogConfig().aiSummary).toMatchObject({
+      levels: ['release'],
+      minItems: 0,
+    });
+    expect(getChangelogConfig().aiSummary).not.toHaveProperty('topLevel');
+  });
+
+  test.each([
+    'https://gateway.example/chat',
+    'http://127.0.0.1:1234/chat',
+    'http://[::1]:1234/chat',
+  ])('accepts a configured HTTP endpoint %s and token variable', endpoint => {
+    expect(
+      validateConfiguration({
+        changelog: {
+          aiSummary: {
+            llm: { endpoint, apiKeyEnv: 'TEAM_MODEL_TOKEN' },
+          },
+        },
+      }),
+    ).toMatchObject({
+      changelog: {
+        aiSummary: { llm: { endpoint, apiKeyEnv: 'TEAM_MODEL_TOKEN' } },
+      },
+    });
+  });
+  test.each([
+    'http://external.example/chat',
+    'https://user:pass@example.com/chat',
+    'https://example.com/chat#fragment',
+  ])('rejects unsafe configured endpoint %s', endpoint => {
+    expect(() =>
+      validateConfiguration({
+        changelog: { aiSummary: { llm: { endpoint } } },
+      }),
+    ).toThrow(/changelog/);
+  });
+  test.each(['invalid-name', '', '1TOKEN'])(
+    'rejects invalid token variable %s',
+    apiKeyEnv => {
+      expect(() =>
+        validateConfiguration({
+          changelog: { aiSummary: { llm: { apiKeyEnv } } },
+        }),
+      ).toThrow(/changelog/);
+    },
+  );
+
+  test('rejects an empty summary model', () => {
+    expect(() =>
+      validateConfiguration({
+        changelog: { aiSummary: { llm: { model: '  ' } } },
+      }),
+    ).toThrow(/changelog/);
+  });
+
+  test.each([[['invalid']], [['release', 'release']]])(
+    'rejects invalid summary levels %j',
+    levels => {
+      expect(() =>
+        validateConfiguration({
+          changelog: { aiSummary: { levels } },
+        }),
+      ).toThrow(/changelog/);
+    },
+  );
+
+  test('inherits summary settings and allows a workspace to disable them', () => {
+    const yaml = `minVersion: ${WORKSPACES_MIN_VERSION}\nchangelog:\n  policy: auto\n  aiSummary:\n    minItems: 8\nworkspaces:\n  cli: {}\n  mcp:\n    changelog:\n      policy: auto\n      aiSummary: false`;
+    try {
+      setActiveWorkspace('cli');
+      loadConfigurationFromString(yaml);
+      expect(getChangelogConfig().aiSummary).toMatchObject({ minItems: 8 });
+      setActiveWorkspace('mcp');
+      loadConfigurationFromString(yaml);
+      expect(getChangelogConfig().aiSummary).toBe(false);
+    } finally {
+      setActiveWorkspace(undefined);
+    }
+  });
+
+  test('omitting aiSummary leaves generation disabled; false is an explicit opt-out', () => {
+    loadConfigurationFromString('changelog:\n  policy: auto');
+    expect(getChangelogConfig().aiSummary).toBeUndefined();
+    loadConfigurationFromString(
+      'changelog:\n  policy: auto\n  aiSummary: false',
+    );
+    expect(getChangelogConfig().aiSummary).toBe(false);
+  });
+
+  test.each([
+    { enabled: false },
+    { enabled: true },
+    { kickInThreshold: 5 },
+    { topLevel: true },
+  ])(
+    'rejects obsolete summary configuration %j instead of silently enabling it',
+    aiSummary => {
+      expect(() => validateConfiguration({ changelog: { aiSummary } })).toThrow(
+        /changelog/,
+      );
+    },
+  );
 
   test('parses configuration with versioning', () => {
     const data = {
@@ -61,18 +270,34 @@ describe('validateConfiguration', () => {
   });
 
   test('fails with invalid github config', () => {
-    expect(() => validateConfiguration({ github: { owner: 'getsentry' } }))
-      .toThrow(/repo.*Required/);
+    expect(() =>
+      validateConfiguration({ github: { owner: 'getsentry' } }),
+    ).toThrow(/repo.*Required/);
   });
 
   test('fails with invalid minVersion format', () => {
-    expect(() => validateConfiguration({ minVersion: 'invalid' }))
-      .toThrow(/minVersion/);
+    expect(() => validateConfiguration({ minVersion: 'invalid' })).toThrow(
+      /minVersion/,
+    );
   });
 
   test('fails with invalid changelog policy', () => {
-    expect(() => validateConfiguration({ changelog: { policy: 'invalid' } }))
-      .toThrow(/changelog/);
+    expect(() =>
+      validateConfiguration({ changelog: { policy: 'invalid' } }),
+    ).toThrow(/changelog/);
+  });
+
+  test.each([
+    '../outside',
+    '/absolute',
+    'apps//docs',
+    'apps/../docs',
+    '-option',
+    'apps\\docs',
+  ])('rejects unsafe changelog include path %s', includePath => {
+    expect(() =>
+      validateConfiguration({ changelog: { includePaths: [includePath] } }),
+    ).toThrow(/changelog/);
   });
 });
 
@@ -94,5 +319,686 @@ describe('CraftProjectConfigSchema', () => {
 
     const result = CraftProjectConfigSchema.safeParse(data);
     expect(result.success).toBe(false);
+  });
+});
+
+describe('noMerge config', () => {
+  test('parses configuration with noMerge: true', () => {
+    const data = { noMerge: true };
+    expect(validateConfiguration(data)).toEqual(data);
+  });
+
+  test('parses configuration with noMerge: false', () => {
+    const data = { noMerge: false };
+    expect(validateConfiguration(data)).toEqual(data);
+  });
+
+  test('noMerge defaults to undefined when not specified', () => {
+    const data = { github: { owner: 'getsentry', repo: 'craft' } };
+    const result = validateConfiguration(data);
+    expect(result.noMerge).toBeUndefined();
+  });
+
+  test('fails with invalid noMerge type', () => {
+    expect(() => validateConfiguration({ noMerge: 'yes' })).toThrow(/noMerge/);
+  });
+
+  test('parses configuration with workspaces', () => {
+    const data = {
+      minVersion: '2.27.0',
+      github: { owner: 'getsentry', repo: 'toolkit' },
+      workspaces: {
+        cli: {
+          releaseBranchPrefix: 'release/cli',
+          targets: [{ name: 'github', tagPrefix: 'cli@' }],
+        },
+        mcp: {
+          targets: [{ name: 'github', tagPrefix: 'mcp@' }],
+        },
+      },
+    };
+
+    expect(validateConfiguration(data)).toEqual(data);
+  });
+
+  test('allows a workspace github owner/repo override', () => {
+    const data = {
+      workspaces: {
+        cli: { github: { owner: 'getsentry', repo: 'toolkit' } },
+      },
+    };
+
+    // Workspace github is partial; owner/repo are not required together here.
+    expect(() => validateConfiguration(data)).not.toThrow();
+  });
+
+  test('allows multi-segment workspace paths', () => {
+    expect(() =>
+      validateConfiguration({ workspaces: { 'cli/v2': {} } }),
+    ).not.toThrow();
+  });
+
+  test.each(['.', '..'])('rejects traversal workspace name %j', name => {
+    expect(() => validateConfiguration({ workspaces: { [name]: {} } })).toThrow(
+      'Workspace names cannot be "." or "..".',
+    );
+  });
+
+  test('rejects the __proto__ workspace key', () => {
+    expect(() =>
+      loadConfigurationFromString(
+        [
+          `minVersion: ${WORKSPACES_MIN_VERSION}`,
+          'workspaces:',
+          '  __proto__: {}',
+        ].join('\n'),
+      ),
+    ).toThrow('Workspace name "__proto__" is not supported.');
+  });
+
+  test('rejects workspace github.projectPath', () => {
+    expect(() =>
+      validateConfiguration({
+        workspaces: { cli: { github: { projectPath: 'cli' } } },
+      }),
+    ).toThrow('Workspace github.projectPath is not supported.');
+  });
+
+  test('rejects a base github.projectPath when workspaces are configured', () => {
+    expect(() =>
+      validateConfiguration({
+        github: {
+          owner: 'getsentry',
+          repo: 'toolkit',
+          projectPath: 'packages/cli',
+        },
+        workspaces: { cli: {} },
+      }),
+    ).toThrow('Workspace configurations cannot use github.projectPath.');
+  });
+
+  test('allows github.projectPath with an empty workspace map', () => {
+    expect(() =>
+      validateConfiguration({
+        github: {
+          owner: 'getsentry',
+          repo: 'toolkit',
+          projectPath: 'packages/cli',
+        },
+        workspaces: {},
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe('getGitTagPrefix', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function loadWithTargets(targets: unknown[]): void {
+    loadConfigurationFromString(
+      [
+        'github:',
+        '  owner: getsentry',
+        '  repo: craft',
+        'targets:',
+        ...targets.map(t => `  - ${JSON.stringify(t)}`),
+      ].join('\n'),
+    );
+  }
+
+  test('returns empty string when no github target has a tagPrefix', () => {
+    loadWithTargets([{ name: 'npm' }, { name: 'github' }]);
+    expect(getGitTagPrefix()).toBe('');
+  });
+
+  test("returns the github target's tagPrefix", () => {
+    loadWithTargets([{ name: 'npm' }, { name: 'github', tagPrefix: 'cli@' }]);
+    expect(getGitTagPrefix()).toBe('cli@');
+  });
+
+  test('does not warn for a single github target', () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    loadWithTargets([{ name: 'github', tagPrefix: 'cli@' }]);
+    expect(getGitTagPrefix()).toBe('cli@');
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  test('does not warn when multiple github targets share the same prefix', () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    loadWithTargets([
+      { name: 'github', tagPrefix: 'cli@' },
+      { name: 'github', tagPrefix: 'cli@', id: 'second' },
+    ]);
+    expect(getGitTagPrefix()).toBe('cli@');
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  test('warns and returns the first prefix when github targets disagree', () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    loadWithTargets([
+      { name: 'github', tagPrefix: 'cli@' },
+      { name: 'github', tagPrefix: 'mcp@', id: 'second' },
+    ]);
+    expect(getGitTagPrefix()).toBe('cli@');
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toMatch(/different "tagPrefix"/);
+  });
+
+  test('warns when one github target has a prefix and another omits it', () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    loadWithTargets([
+      { name: 'github', tagPrefix: 'cli@' },
+      { name: 'github', id: 'second' },
+    ]);
+    // A mixed defined/undefined prefix is still ambiguous.
+    expect(getGitTagPrefix()).toBe('cli@');
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('workspaces', () => {
+  let originalCwd: string;
+  const temporaryDirectories: string[] = [];
+
+  beforeEach(() => {
+    originalCwd = process.cwd();
+  });
+
+  afterEach(() => {
+    process.chdir(originalCwd);
+    for (const directory of temporaryDirectories.splice(0)) {
+      rmSync(directory, { recursive: true, force: true });
+    }
+    setActiveWorkspace(undefined);
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  const WS_CONFIG = [
+    `minVersion: ${WORKSPACES_MIN_VERSION}`,
+    'github:',
+    '  owner: getsentry',
+    '  repo: toolkit',
+    'changelog: CHANGELOG.md',
+    'workspaces:',
+    '  cli:',
+    '    releaseBranchPrefix: release/cli',
+    '    targets:',
+    '      - name: github',
+    '        tagPrefix: "cli@"',
+    '  mcp:',
+    '    releaseBranchPrefix: release/mcp',
+    '    versioning:',
+    '      policy: calver',
+    '    targets:',
+    '      - name: github',
+    '        tagPrefix: "mcp@"',
+  ].join('\n');
+
+  test('backward compatible: no workspaces, no selection resolves normally', () => {
+    setActiveWorkspace(undefined);
+    loadConfigurationFromString(
+      ['github:', '  owner: getsentry', '  repo: craft'].join('\n'),
+    );
+    expect(getActiveWorkspace()).toBeUndefined();
+  });
+
+  test('resolves the selected workspace: overrides win, base inherited', () => {
+    setActiveWorkspace('cli');
+    const config = loadConfigurationFromString(WS_CONFIG);
+
+    // Overridden by the workspace.
+    expect(config.releaseBranchPrefix).toBe('release/cli');
+    expect(getGitTagPrefix()).toBe('cli@');
+    expect(config.github).toEqual({ owner: 'getsentry', repo: 'toolkit' });
+    // Inherited from the top level.
+    expect(config.changelog).toBe('CHANGELOG.md');
+    // `workspaces` is stripped from the resolved config.
+    expect(config.workspaces).toBeUndefined();
+  });
+
+  test('defaults a directory workspace changelog to its own file', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspace-changelog-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    writeFileSync(join(directory, 'CHANGELOG.md'), '# Root changelog\n');
+    writeFileSync(
+      join(directory, 'packages', 'cli', 'CHANGELOG.md'),
+      '# CLI changelog\n',
+    );
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  packages/cli:',
+        '    changelog:',
+        '      policy: auto',
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    setActiveWorkspace('packages/cli');
+    expect(getChangelogConfig().filePath).toBe('packages/cli/CHANGELOG.md');
+    vi.stubEnv('GITHUB_TOKEN', 'test-token');
+    const target = new GitHubTarget(
+      { name: 'github' },
+      new NoneArtifactProvider(),
+      { owner: 'test-owner', repo: 'test-repo' },
+    );
+    expect(target.githubConfig.changelog).toBe('packages/cli/CHANGELOG.md');
+  });
+
+  test('uses a workspace changelog path before the file is created', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspace-changelog-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      `minVersion: ${WORKSPACES_MIN_VERSION}\nworkspaces:\n  packages/cli: {}\n`,
+    );
+    process.chdir(directory);
+
+    setActiveWorkspace('packages/cli');
+    expect(getChangelogConfig().filePath).toBe('packages/cli/CHANGELOG.md');
+  });
+
+  test('preserves an explicitly configured root changelog for a workspace', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspace-changelog-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      `minVersion: ${WORKSPACES_MIN_VERSION}\nchangelog: CHANGELOG.md\nworkspaces:\n  packages/cli: {}\n`,
+    );
+    process.chdir(directory);
+
+    setActiveWorkspace('packages/cli');
+    expect(getChangelogConfig().filePath).toBe('CHANGELOG.md');
+  });
+
+  test('keeps the root changelog default for a workspace alias', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspace-changelog-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      `minVersion: ${WORKSPACES_MIN_VERSION}\nworkspaces:\n  cli: {}\n`,
+    );
+    process.chdir(directory);
+
+    setActiveWorkspace('cli');
+    expect(getChangelogConfig().filePath).toBe('CHANGELOG.md');
+  });
+
+  test('rejects a workspace directory redirected outside the repository', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspace-changelog-'));
+    const outside = mkdtempSync(join(tmpdir(), 'craft-workspace-outside-'));
+    temporaryDirectories.push(directory, outside);
+    mkdirSync(join(outside, 'cli'));
+    symlinkSync(outside, join(directory, 'packages'), 'dir');
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      `minVersion: ${WORKSPACES_MIN_VERSION}\nworkspaces:\n  packages/cli: {}\n`,
+    );
+    process.chdir(directory);
+
+    setActiveWorkspace('packages/cli');
+    expect(() => getChangelogConfig()).toThrow(
+      'Workspace directory escapes the repository',
+    );
+  });
+
+  test('a different workspace resolves independently', () => {
+    setActiveWorkspace('mcp');
+    const config = loadConfigurationFromString(WS_CONFIG);
+    expect(config.releaseBranchPrefix).toBe('release/mcp');
+    expect(getGitTagPrefix()).toBe('mcp@');
+    expect(getVersioningPolicy()).toBe('calver');
+    expect(config.github).toEqual({ owner: 'getsentry', repo: 'toolkit' });
+  });
+
+  test('errors when workspaces are defined but none is selected', () => {
+    setActiveWorkspace(undefined);
+    expect(() => loadConfigurationFromString(WS_CONFIG)).toThrow(
+      /defines workspaces; select one/,
+    );
+  });
+
+  test('lists concrete workspace names without requiring a selection', () => {
+    setActiveWorkspace(undefined);
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    const configPath = join(directory, '.craft.yml');
+    writeFileSync(configPath, WS_CONFIG);
+    process.chdir(directory);
+
+    expect(getWorkspaceNames()).toEqual(['cli', 'mcp']);
+    writeFileSync(
+      configPath,
+      ['minVersion: 2.14.0', 'workspaces:', '  cli: {}'].join('\n'),
+    );
+
+    expect(() => getWorkspaceNames()).toThrow(
+      `requires minVersion >= ${WORKSPACES_MIN_VERSION}`,
+    );
+  });
+
+  test('expands a workspace glob into concrete directory paths', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    mkdirSync(join(directory, 'packages', 'mcp'), { recursive: true });
+    writeFileSync(join(directory, 'packages', 'README.md'), 'not a workspace');
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  packages/*:',
+        '    releaseBranchPrefix: release/package',
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    expect(getWorkspaceNames()).toEqual(['packages/cli', 'packages/mcp']);
+
+    setActiveWorkspace('packages/cli');
+    expect(getConfiguration(true).releaseBranchPrefix).toBe('release/package');
+  });
+
+  test('expands remote configuration globs from the repository root', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    const nestedDirectory = join(directory, 'nested');
+    mkdirSync(nestedDirectory);
+    process.chdir(nestedDirectory);
+
+    setActiveWorkspace('packages/cli');
+    expect(
+      loadConfigurationFromString(
+        [
+          `minVersion: ${WORKSPACES_MIN_VERSION}`,
+          'workspaces:',
+          '  packages/*:',
+          '    releaseBranchPrefix: release/package',
+        ].join('\n'),
+        directory,
+      ).releaseBranchPrefix,
+    ).toBe('release/package');
+  });
+
+  test.each(['packages/[!a]*', 'packages/[^a]*'])(
+    'expands negated character-class workspace glob %s',
+    workspaceGlob => {
+      const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+      temporaryDirectories.push(directory);
+      mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+      mkdirSync(join(directory, 'packages', 'api'), { recursive: true });
+      writeFileSync(
+        join(directory, '.craft.yml'),
+        [
+          `minVersion: ${WORKSPACES_MIN_VERSION}`,
+          'workspaces:',
+          `  "${workspaceGlob}": {}`,
+        ].join('\n'),
+      );
+      process.chdir(directory);
+
+      expect(getWorkspaceNames()).toEqual(['packages/cli']);
+    },
+  );
+
+  test.each([
+    ['packages/{cli,mcp}', ['packages/cli', 'packages/mcp']],
+    [
+      'packages/{cli,{mcp,api}}',
+      ['packages/api', 'packages/cli', 'packages/mcp'],
+    ],
+    ['packages/?li', ['packages/cli']],
+    ['packages/[cm]*', ['packages/cli', 'packages/mcp']],
+    ['packages/**/cli', ['packages/cli', 'packages/nested/cli']],
+  ])('expands supported workspace glob %s', (workspaceGlob, expectedNames) => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    mkdirSync(join(directory, 'packages', 'mcp'), { recursive: true });
+    mkdirSync(join(directory, 'packages', 'api'), { recursive: true });
+    mkdirSync(join(directory, 'packages', 'nested', 'cli'), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        `  "${workspaceGlob}": {}`,
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    expect(getWorkspaceNames()).toEqual(expectedNames);
+  });
+
+  test('does not expand workspace globs through symlinked directories', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    const outsideDirectory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory, outsideDirectory);
+    mkdirSync(join(directory, 'packages', 'internal', 'release'), {
+      recursive: true,
+    });
+    mkdirSync(join(outsideDirectory, 'release'), { recursive: true });
+    symlinkSync(outsideDirectory, join(directory, 'packages', 'external'));
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  packages/**/release: {}',
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    expect(getWorkspaceNames()).toEqual(['packages/internal/release']);
+  });
+
+  test('ignores broken symlinks matched by workspace globs', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    symlinkSync(
+      join(directory, 'missing-workspace'),
+      join(directory, 'packages', 'broken'),
+    );
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  packages/*: {}',
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    expect(
+      globSync('packages/*', { cwd: directory, dot: true, posix: true }),
+    ).toContain('packages/broken');
+    expect(getWorkspaceNames()).toEqual(['packages/cli']);
+  });
+
+  test('fails on unexpected workspace glob resolution errors', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    symlinkSync('loop', join(directory, 'packages', 'loop'));
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  packages/*: {}',
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    expect(() => getWorkspaceNames()).toThrow(/ELOOP/);
+  });
+
+  test.each(['{../outside/*,packages/*}', '{/tmp/*,packages/*}'])(
+    'rejects a glob with an unsafe alternative: %s',
+    workspaceGlob => {
+      const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+      temporaryDirectories.push(directory);
+      process.chdir(directory);
+
+      expect(() =>
+        loadConfigurationFromString(
+          [
+            `minVersion: ${WORKSPACES_MIN_VERSION}`,
+            'workspaces:',
+            `  "${workspaceGlob}": {}`,
+          ].join('\n'),
+        ),
+      ).toThrow('Workspace paths must use safe ASCII segments.');
+    },
+  );
+
+  test.each([
+    'packages/{cli',
+    'packages/{cli}',
+    'packages/{cli,{mcp}}',
+    'packages/{cli,{{},mcp}}',
+  ])('rejects a malformed brace glob: %s', workspaceGlob => {
+    expect(() =>
+      validateConfiguration({ workspaces: { [workspaceGlob]: {} } }),
+    ).toThrow('Workspace paths must use safe ASCII segments.');
+  });
+
+  test.each([
+    'packages/./cli',
+    'packages/../cli',
+    'packages/__proto__/cli',
+    'packages/foo]',
+    'packages/foo!',
+    'packages/foo^',
+  ])('rejects an unsafe literal workspace path: %s', workspaceName => {
+    expect(() =>
+      validateConfiguration({ workspaces: { [workspaceName]: {} } }),
+    ).toThrow('Workspace paths must use safe ASCII segments.');
+  });
+
+  test('rejects concrete workspace paths that match multiple globs', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  packages/*: {}',
+        '  packages/cli*: {}',
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    expect(() => getWorkspaceNames()).toThrow(
+      /matches multiple workspace patterns: packages\/\*, packages\/cli\*/,
+    );
+
+    setActiveWorkspace('packages/cli');
+    expect(() => getConfiguration(true)).toThrow(
+      /matches multiple workspace patterns: packages\/\*, packages\/cli\*/,
+    );
+  });
+
+  test('errors on an unknown workspace name', () => {
+    setActiveWorkspace('nope');
+    expect(() => loadConfigurationFromString(WS_CONFIG)).toThrow(
+      /Unknown workspace "nope"/,
+    );
+  });
+
+  test.each(['constructor', 'toString', '__proto__'])(
+    'rejects prototype-named workspace %s',
+    workspace => {
+      setActiveWorkspace(workspace);
+      expect(() => loadConfigurationFromString(WS_CONFIG)).toThrow(
+        new RegExp(`Unknown workspace "${workspace}"`),
+      );
+    },
+  );
+
+  test('errors when a workspace is selected but none are defined', () => {
+    setActiveWorkspace('cli');
+    expect(() =>
+      loadConfigurationFromString(
+        ['github:', '  owner: getsentry', '  repo: craft'].join('\n'),
+      ),
+    ).toThrow(/no "workspaces" are defined/);
+  });
+
+  test('errors when minVersion is below the workspaces gate', () => {
+    setActiveWorkspace('cli');
+    const belowGate = WS_CONFIG.replace(
+      `minVersion: ${WORKSPACES_MIN_VERSION}`,
+      'minVersion: 2.14.0',
+    );
+    expect(() => loadConfigurationFromString(belowGate)).toThrow(
+      new RegExp(`requires minVersion >= ${WORKSPACES_MIN_VERSION}`),
+    );
+  });
+
+  test('accepts build metadata in a workspace minVersion', () => {
+    setActiveWorkspace('cli');
+    const config = loadConfigurationFromString(
+      WS_CONFIG.replace(
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        `minVersion: ${WORKSPACES_MIN_VERSION}+linux`,
+      ),
+    );
+    expect(config.releaseBranchPrefix).toBe('release/cli');
+  });
+
+  test('setActiveWorkspace re-resolves against a new selection', () => {
+    setActiveWorkspace('cli');
+    loadConfigurationFromString(WS_CONFIG);
+    expect(getGitTagPrefix()).toBe('cli@');
+
+    setActiveWorkspace('mcp');
+    loadConfigurationFromString(WS_CONFIG);
+    expect(getGitTagPrefix()).toBe('mcp@');
+  });
+
+  test('resolved config exposes the workspace targets (publish builder contract)', () => {
+    // Regression for the parse-time interaction: the `publish` builder reads
+    // getConfiguration().targets to compute --target choices. With a workspace
+    // selected up front, this must resolve to that workspace's targets and must
+    // not throw the "select a workspace" error.
+    setActiveWorkspace('cli');
+    const config = loadConfigurationFromString(WS_CONFIG);
+    expect(config.targets).toEqual([{ name: 'github', tagPrefix: 'cli@' }]);
+  });
+
+  test('shallow-merges a workspace github owner/repo override', () => {
+    setActiveWorkspace('cli');
+    const config = loadConfigurationFromString(
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  cli:',
+        '    github:',
+        '      owner: getsentry',
+        '      repo: toolkit',
+        '    targets:',
+        '      - name: github',
+      ].join('\n'),
+    );
+    expect(config.github).toEqual({
+      owner: 'getsentry',
+      repo: 'toolkit',
+    });
   });
 });

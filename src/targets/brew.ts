@@ -1,18 +1,30 @@
 import { mapLimit } from 'async';
 import { Octokit } from '@octokit/rest';
 
-import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
+import {
+  GitHubGlobalConfig,
+  TargetConfig,
+  TypedTargetConfig,
+} from '../schemas/project_config';
 import { ConfigurationError } from '../utils/errors';
 import { getGitHubClient } from '../utils/githubApi';
-import { isDryRun } from '../utils/helpers';
 import { renderTemplateSafe } from '../utils/strings';
 import { HashAlgorithm, HashOutputFormat } from '../utils/system';
+import { isPreviewRelease, parseVersion } from '../utils/version';
 import { BaseTarget } from './base';
 import {
   BaseArtifactProvider,
   MAX_DOWNLOAD_CONCURRENCY,
   RemoteArtifact,
 } from '../artifact_providers/base';
+
+/** Brew target configuration fields */
+interface BrewConfigFields extends Record<string, unknown> {
+  tap?: string;
+  template?: string;
+  formula?: string;
+  path?: string;
+}
 
 /**
  * Regex used to parse homebrew taps (github repositories)
@@ -55,7 +67,7 @@ export class BrewTarget extends BaseTarget {
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GitHubGlobalConfig
+    githubRepo: GitHubGlobalConfig,
   ) {
     super(config, artifactProvider, githubRepo);
     this.brewConfig = this.getBrewConfig();
@@ -67,13 +79,14 @@ export class BrewTarget extends BaseTarget {
    * Extracts Brew target options from the raw configuration
    */
   public getBrewConfig(): BrewTargetOptions {
-    const template = this.config.template;
+    const config = this.config as TypedTargetConfig<BrewConfigFields>;
+    const template = config.template;
     if (!template) {
       throw new ConfigurationError(
-        'Please specify Formula template in the "brew" target configuration.'
+        'Please specify Formula template in the "brew" target configuration.',
       );
     }
-    const { formula, path } = this.config;
+    const { formula, path } = config;
     return {
       formula,
       path,
@@ -92,7 +105,8 @@ export class BrewTarget extends BaseTarget {
    * @returns The owner and repository of the tap
    */
   public getTapRepo(): TapRepo {
-    const { tap } = this.config;
+    const config = this.config as TypedTargetConfig<BrewConfigFields>;
+    const { tap } = config;
     if (!tap) {
       return {
         owner: 'homebrew',
@@ -109,6 +123,34 @@ export class BrewTarget extends BaseTarget {
       owner: match[1],
       repo: `homebrew-${match[2]}`,
     };
+  }
+
+  /**
+   * Resolves the formula name by interpolating version variables.
+   *
+   * Supports Mustache-style templates with the following variables:
+   * - `{{{version}}}`: Full version string (e.g., "10.2.3")
+   * - `{{{major}}}`: Major version number (e.g., "10")
+   * - `{{{minor}}}`: Minor version number (e.g., "2")
+   * - `{{{patch}}}`: Patch version number (e.g., "3")
+   *
+   * Example: `sentry-cli-v{{{major}}}` becomes `sentry-cli-v10`
+   *
+   * @param version The version string to interpolate
+   * @returns The resolved formula name with variables substituted
+   */
+  public resolveFormulaName(version: string): string {
+    const formulaTemplate = this.brewConfig.formula || this.githubRepo.repo;
+    const parsedVersion = parseVersion(version);
+
+    const context = {
+      version,
+      major: parsedVersion?.major ?? '',
+      minor: parsedVersion?.minor ?? '',
+      patch: parsedVersion?.patch ?? '',
+    };
+
+    return renderTemplateSafe(formulaTemplate, context);
   }
 
   /**
@@ -147,11 +189,18 @@ export class BrewTarget extends BaseTarget {
    * @param revision The SHA revision of the new version
    */
   public async publish(version: string, revision: string): Promise<any> {
-    const { formula, path, template, tapRepo } = this.brewConfig;
-    const { owner, repo } = this.githubRepo;
+    // Skip pre-release versions as Homebrew doesn't understand them
+    if (isPreviewRelease(version)) {
+      this.logger.info(
+        'Skipping Homebrew release for pre-release version: ' + version,
+      );
+      return undefined;
+    }
 
-    // Get default formula name and location from the config
-    const formulaName = formula || repo;
+    const { path, template, tapRepo } = this.brewConfig;
+
+    // Get formula name (supports mustache templates with version variables)
+    const formulaName = this.resolveFormulaName(version);
     const formulaPath = path
       ? `${path}/${formulaName}.rb`
       : `Formula/${formulaName}.rb`;
@@ -163,14 +212,18 @@ export class BrewTarget extends BaseTarget {
 
     const checksums: any = {};
 
-    await mapLimit(filesList, MAX_DOWNLOAD_CONCURRENCY, async (file: RemoteArtifact) => {
-      const key = file.filename.replace(version, '__VERSION__');
-      checksums[key] = await this.artifactProvider.getChecksum(
-        file,
-        HashAlgorithm.SHA256,
-        HashOutputFormat.Hex
-      );
-    });
+    await mapLimit(
+      filesList,
+      MAX_DOWNLOAD_CONCURRENCY,
+      async (file: RemoteArtifact) => {
+        const key = file.filename.replace(version, '__VERSION__');
+        checksums[key] = await this.artifactProvider.getChecksum(
+          file,
+          HashAlgorithm.SHA256,
+          HashOutputFormat.Hex,
+        );
+      },
+    );
 
     const data = renderTemplateSafe(template, {
       checksums,
@@ -180,7 +233,7 @@ export class BrewTarget extends BaseTarget {
     this.logger.debug(`Homebrew formula for ${formulaName}:\n${data}`);
 
     // Try to find the repository to publish in
-    if (tapRepo.owner !== owner) {
+    if (tapRepo.owner !== this.githubRepo.owner) {
       // TODO: Create a PR if we have no push rights to this repo
       this.logger.warn('Skipping homebrew release: PRs not supported yet');
       return undefined;
@@ -196,21 +249,17 @@ export class BrewTarget extends BaseTarget {
     };
 
     this.logger.info(
-      `Releasing ${owner}/${repo} tag ${version} ` +
+      `Releasing ${this.githubRepo.owner}/${this.githubRepo.repo} tag ${version} ` +
         `to homebrew tap ${tapRepo.owner}/${tapRepo.repo} ` +
-        `formula ${formulaName}`
+        `formula ${formulaName}`,
     );
 
     const action = params.sha ? 'Updating' : 'Creating';
     this.logger.debug(
-      `${action} file ${params.owner}/${params.repo}:${params.path} (${params.sha})`
+      `${action} file ${params.owner}/${params.repo}:${params.path} (${params.sha})`,
     );
 
-    if (!isDryRun()) {
-      await this.github.repos.createOrUpdateFileContents(params);
-    } else {
-      this.logger.info(`[dry-run] Skipping file action: ${action}`);
-    }
+    await this.github.repos.createOrUpdateFileContents(params);
     this.logger.info('Homebrew release complete');
   }
 }

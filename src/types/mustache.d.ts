@@ -79,7 +79,7 @@ declare module 'mustache' {
       template: string,
       view: any | MustacheContext,
       partials?: any,
-      tags?: string[]
+      tags?: string[],
     ): string;
 
     /**
@@ -102,14 +102,14 @@ declare module 'mustache' {
       template: string,
       view: any | MustacheContext,
       partials?: any,
-      send?: any
+      send?: any,
     ): any;
   }
 
   /**
    * A simple string scanner that is used by the template parser to find tokens in template strings.
    */
-  class MustacheScanner {
+  export class MustacheScanner {
     string: string;
     tail: string;
     pos: number;
@@ -150,7 +150,7 @@ declare module 'mustache' {
   /**
    * Represents a rendering context by wrapping a view object and maintaining a reference to the parent context.
    */
-  class MustacheContext {
+  export class MustacheContext {
     view: any;
     parentContext: MustacheContext;
 

@@ -1,4 +1,4 @@
-import { TargetConfig } from '../schemas/project_config';
+import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
 import {
   BaseArtifactProvider,
   RemoteArtifact,
@@ -38,7 +38,7 @@ export const targetSecrets = [
   'OSSRH_USERNAME',
   'OSSRH_PASSWORD',
 ] as const;
-type SecretsType = typeof targetSecrets[number];
+type SecretsType = (typeof targetSecrets)[number];
 
 export const targetOptions = [
   'mavenCliPath',
@@ -46,7 +46,7 @@ export const targetOptions = [
   'mavenRepoId',
   'mavenRepoUrl',
 ] as const;
-type OptionsType = typeof targetOptions[number];
+type OptionsType = (typeof targetOptions)[number];
 
 type AndroidFields = {
   android:
@@ -70,6 +70,30 @@ type KotlinMultiplatformFields = {
 
 type TargetSettingType = SecretsType | OptionsType;
 
+/** KMP (Kotlin Multiplatform) config fields from .craft.yml */
+interface KmpConfigFields {
+  rootDistDirRegex?: string;
+  appleDistDirRegex?: string;
+  klibDistDirRegex?: string;
+}
+
+/** Android config fields from .craft.yml */
+interface AndroidConfigFields {
+  distDirRegex?: string;
+  fileReplaceeRegex?: string;
+  fileReplacerStr?: string;
+}
+
+/** Maven target configuration fields from .craft.yml */
+interface MavenConfigFields extends Record<string, unknown> {
+  kmp?: KmpConfigFields | false;
+  android?: AndroidConfigFields | false;
+  mavenCliPath?: string;
+  mavenSettingsPath?: string;
+  mavenRepoId?: string;
+  mavenRepoUrl?: string;
+}
+
 /**
  * Config options for the "maven" target.
  */
@@ -90,7 +114,7 @@ export class MavenTarget extends BaseTarget {
 
   public constructor(
     config: TargetConfig,
-    artifactProvider: BaseArtifactProvider
+    artifactProvider: BaseArtifactProvider,
   ) {
     super(config, artifactProvider);
     this.mavenConfig = this.getMavenConfig();
@@ -137,86 +161,87 @@ export class MavenTarget extends BaseTarget {
   }
 
   private getOuterTargetSettings(): Record<TargetSettingType, string> {
+    const config = this.config as TypedTargetConfig<MavenConfigFields>;
     const settings = targetOptions.map(setting => {
-      if (!this.config[setting]) {
+      if (!config[setting]) {
         throw new ConfigurationError(
           `Required configuration ${setting} not found in configuration file. ` +
-            `See the documentation for more details.`
+            `See the documentation for more details.`,
         );
       }
       return {
         name: setting,
-        value: this.config[setting],
+        value: config[setting],
       };
     });
     return this.reduceConfig(settings);
   }
 
   private getKotlinMultiplatformSettings(): KotlinMultiplatformFields {
-    if (this.config.kmp === false || !this.config.kmp) {
+    const config = this.config as TypedTargetConfig<MavenConfigFields>;
+    if (config.kmp === false || !config.kmp) {
       return {
         kmp: false,
       };
     }
 
-    if (!this.config.kmp.rootDistDirRegex) {
+    if (!config.kmp.rootDistDirRegex) {
       throw new ConfigurationError(
-        'Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.'
+        'Required root configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.',
       );
     }
 
-    if (!this.config.kmp.appleDistDirRegex) {
+    if (!config.kmp.appleDistDirRegex) {
       throw new ConfigurationError(
-        'Required apple configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.'
+        'Required apple configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.',
       );
     }
 
-    if (!this.config.kmp.klibDistDirRegex) {
+    if (!config.kmp.klibDistDirRegex) {
       throw new ConfigurationError(
-        'Required klib configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.'
+        'Required klib configuration for Kotlin Multiplatform is incorrect. See the documentation for more details.',
       );
     }
 
     return {
       kmp: {
-        appleDistDirRegex: stringToRegexp(this.config.kmp.appleDistDirRegex),
-        rootDistDirRegex: stringToRegexp(this.config.kmp.rootDistDirRegex),
-        klibDistDirRegex: stringToRegexp(this.config.kmp.klibDistDirRegex),
+        appleDistDirRegex: stringToRegexp(config.kmp.appleDistDirRegex),
+        rootDistDirRegex: stringToRegexp(config.kmp.rootDistDirRegex),
+        klibDistDirRegex: stringToRegexp(config.kmp.klibDistDirRegex),
       },
     };
   }
 
   private getAndroidSettings(): AndroidFields {
-    if (this.config.android === false) {
+    const config = this.config as TypedTargetConfig<MavenConfigFields>;
+    if (config.android === false) {
       return {
         android: false,
       };
     }
 
-    if (!this.config.android) {
+    if (!config.android) {
       throw new ConfigurationError(
         'Required Android configuration was not found in the configuration file. ' +
-          'See the documentation for more details'
+          'See the documentation for more details',
       );
     }
 
     if (
-      !this.config.android.distDirRegex ||
-      !this.config.android.fileReplaceeRegex ||
-      !this.config.android.fileReplacerStr
+      !config.android.distDirRegex ||
+      !config.android.fileReplaceeRegex ||
+      !config.android.fileReplacerStr
     ) {
       throw new ConfigurationError(
-        'Required Android configuration is incorrect. See the documentation for more details.'
+        'Required Android configuration is incorrect. See the documentation for more details.',
       );
     }
 
     return {
       android: {
-        distDirRegex: stringToRegexp(this.config.android.distDirRegex),
-        fileReplaceeRegex: stringToRegexp(
-          this.config.android.fileReplaceeRegex
-        ),
-        fileReplacerStr: this.config.android.fileReplacerStr,
+        distDirRegex: stringToRegexp(config.android.distDirRegex),
+        fileReplaceeRegex: stringToRegexp(config.android.fileReplaceeRegex),
+        fileReplacerStr: config.android.fileReplacerStr,
       },
     };
   }
@@ -229,7 +254,7 @@ export class MavenTarget extends BaseTarget {
   private checkRequiredSoftware(config: MavenTargetConfig): void {
     this.logger.debug(
       'Checking if Maven CLI is available: ',
-      config.mavenCliPath
+      config.mavenCliPath,
     );
     checkExecutableIsPresent(config.mavenCliPath);
     this.logger.debug('Checking if GPG is available');
@@ -276,9 +301,8 @@ export class MavenTarget extends BaseTarget {
    */
   private async uploadArtifact(artifact: RemoteArtifact): Promise<void> {
     this.logger.debug('Downloading:', artifact.filename);
-    const downloadedPkgPath = await this.artifactProvider.downloadArtifact(
-      artifact
-    );
+    const downloadedPkgPath =
+      await this.artifactProvider.downloadArtifact(artifact);
     this.logger.debug(`Extracting ${artifact.filename}: `, downloadedPkgPath);
 
     await withTempDir(async dir => {
@@ -307,7 +331,7 @@ export class MavenTarget extends BaseTarget {
       await this.uploadPomDistribution(distDir);
     } else {
       this.logger.warn(
-        `No BOM/POM file found in: ${distDir}, skipping directory`
+        `No BOM/POM file found in: ${distDir}, skipping directory`,
       );
     }
   }
@@ -358,7 +382,7 @@ export class MavenTarget extends BaseTarget {
       this.logger.warn(
         `Could not determine if path corresponds to a BOM file: ${pomFilepath}\n` +
           'Error:\n',
-        error
+        error,
       );
       return false;
     }
@@ -380,27 +404,21 @@ export class MavenTarget extends BaseTarget {
   private async uploadKmpPomDistribution(distDir: string): Promise<void> {
     if (this.mavenConfig.kmp !== false) {
       const moduleName = parse(distDir).base;
-      const isRootDistDir = this.mavenConfig.kmp.rootDistDirRegex.test(
-        moduleName
-      );
-      const isAppleDistDir = this.mavenConfig.kmp.appleDistDirRegex.test(
-        moduleName
-      );
-      const isKlibDistDir = this.mavenConfig.kmp.klibDistDirRegex.test(
-        moduleName
-      );
+      const isRootDistDir =
+        this.mavenConfig.kmp.rootDistDirRegex.test(moduleName);
+      const isAppleDistDir =
+        this.mavenConfig.kmp.appleDistDirRegex.test(moduleName);
+      const isKlibDistDir =
+        this.mavenConfig.kmp.klibDistDirRegex.test(moduleName);
       const files = await this.getFilesForKmpMavenPomDist(distDir);
       const { targetFile, pomFile } = files;
-      const {
-        sideArtifacts,
-        classifiers,
-        types,
-      } = this.transformKmpSideArtifacts(
-        isRootDistDir,
-        isAppleDistDir,
-        isKlibDistDir,
-        files
-      );
+      const { sideArtifacts, classifiers, types } =
+        this.transformKmpSideArtifacts(
+          isRootDistDir,
+          isAppleDistDir,
+          isKlibDistDir,
+          files,
+        );
 
       await retrySpawnProcess(this.mavenConfig.mavenCliPath, [
         'gpg:sign-and-deploy-file',
@@ -447,7 +465,7 @@ export class MavenTarget extends BaseTarget {
     isRootDistDir: boolean,
     isAppleDistDir: boolean,
     isKlibDistDir: boolean,
-    files: Record<string, string | string[]>
+    files: Record<string, string | string[]>,
   ): Record<string, string | string[]> {
     const {
       javadocFile,
@@ -469,7 +487,7 @@ export class MavenTarget extends BaseTarget {
     } else if (isAppleDistDir) {
       if (!Array.isArray(klibFiles)) {
         throw new ConfigurationError(
-          'klib files in apple distributions must be an array'
+          'klib files in apple distributions must be an array',
         );
       }
       sideArtifacts += `,${klibFiles}`;
@@ -493,7 +511,7 @@ export class MavenTarget extends BaseTarget {
     } else if (isKlibDistDir) {
       if (!Array.isArray(klibFiles) || klibFiles.length !== 1) {
         throw new ConfigurationError(
-          'klib files in klib-only distributions must be an array with exactly one element'
+          'klib files in klib-only distributions must be an array with exactly one element',
         );
       }
       sideArtifacts += `,${klibFiles}`;
@@ -525,7 +543,7 @@ export class MavenTarget extends BaseTarget {
       if (stat.isFile()) {
         return pomFilepath;
       }
-    } catch (e) {
+    } catch {
       // ignored
     }
     return undefined;
@@ -540,7 +558,7 @@ export class MavenTarget extends BaseTarget {
       if (stat.isFile()) {
         return true;
       }
-    } catch (e) {
+    } catch {
       // ignored
     }
     return false;
@@ -556,7 +574,7 @@ export class MavenTarget extends BaseTarget {
    */
   public async fixModuleFileName(
     distDir: string,
-    moduleFile: string
+    moduleFile: string,
   ): Promise<void> {
     const fallbackFile = join(distDir, 'module.json');
     if (
@@ -571,13 +589,8 @@ export class MavenTarget extends BaseTarget {
     if (this.mavenConfig.kmp !== false) {
       await this.uploadKmpPomDistribution(distDir);
     } else {
-      const {
-        targetFile,
-        javadocFile,
-        sourcesFile,
-        pomFile,
-        moduleFile,
-      } = this.getFilesForMavenPomDist(distDir);
+      const { targetFile, javadocFile, sourcesFile, pomFile, moduleFile } =
+        this.getFilesForMavenPomDist(distDir);
       await this.fixModuleFileName(distDir, moduleFile);
       const hasModule = await this.fileExists(moduleFile);
 
@@ -627,7 +640,7 @@ export class MavenTarget extends BaseTarget {
    * @returns record of required files.
    */
   private async getFilesForKmpMavenPomDist(
-    distDir: string
+    distDir: string,
   ): Promise<Record<string, string | string[]>> {
     const files = this.getFilesForMavenPomDist(distDir) as Record<
       string,
@@ -637,11 +650,8 @@ export class MavenTarget extends BaseTarget {
 
     const moduleName = parse(distDir).base;
     if (this.mavenConfig.kmp !== false) {
-      const {
-        klibDistDirRegex,
-        appleDistDirRegex,
-        rootDistDirRegex,
-      } = this.mavenConfig.kmp;
+      const { klibDistDirRegex, appleDistDirRegex, rootDistDirRegex } =
+        this.mavenConfig.kmp;
 
       const isRootDistDir = rootDistDirRegex.test(moduleName);
       const isAppleDistDir = appleDistDirRegex.test(moduleName);
@@ -651,7 +661,7 @@ export class MavenTarget extends BaseTarget {
         files['allFile'] = join(distDir, `${moduleName}-all.jar`);
         files['kotlinToolingMetadataFile'] = join(
           distDir,
-          `${moduleName}-kotlin-tooling-metadata.json`
+          `${moduleName}-kotlin-tooling-metadata.json`,
         );
       } else if (isAppleDistDir) {
         files['metadataFile'] = join(distDir, `${moduleName}-metadata.jar`);
@@ -685,13 +695,12 @@ export class MavenTarget extends BaseTarget {
     const moduleName = parse(distDir).base;
 
     if (this.mavenConfig.android !== false) {
-      const isAndroidDistDir = this.mavenConfig.android.distDirRegex.test(
-        moduleName
-      );
+      const isAndroidDistDir =
+        this.mavenConfig.android.distDirRegex.test(moduleName);
       if (isAndroidDistDir) {
         return moduleName.replace(
           this.mavenConfig.android.fileReplaceeRegex,
-          this.mavenConfig.android.fileReplacerStr
+          this.mavenConfig.android.fileReplacerStr,
         );
       }
     }
@@ -717,7 +726,7 @@ export class MavenTarget extends BaseTarget {
 
     if (state !== 'open') {
       throw new Error(
-        'No open repositories available. Go to Nexus Repository Manager to see what happened.'
+        'No open repositories available. Go to Nexus Repository Manager to see what happened.',
       );
     }
 
@@ -730,12 +739,12 @@ export class MavenTarget extends BaseTarget {
       `${NEXUS_API_BASE_URL}/manual/search/repositories`,
       {
         headers: this.getNexusRequestHeaders(),
-      }
+      },
     );
 
     if (!response.ok) {
       throw new Error(
-        `Unable to fetch repositories: ${response.status}, ${response.statusText}`
+        `Unable to fetch repositories: ${response.status}, ${response.statusText}`,
       );
     }
 
@@ -748,7 +757,7 @@ export class MavenTarget extends BaseTarget {
 
     if (repositories.length > 1) {
       throw new Error(
-        `There are more than 1 active repositories. Please close unwanted deployments.`
+        `There are more than 1 active repositories. Please close unwanted deployments.`,
       );
     }
 
@@ -780,12 +789,12 @@ export class MavenTarget extends BaseTarget {
             autoDropAfterRelease: true,
           },
         }),
-      }
+      },
     );
 
     if (!response.ok) {
       throw new Error(
-        `Unable to close repository ${repositoryId}: ${response.status}, ${response.statusText}`
+        `Unable to close repository ${repositoryId}: ${response.status}, ${response.statusText}`,
       );
     }
 
@@ -808,7 +817,7 @@ export class MavenTarget extends BaseTarget {
       this.logger.info(
         `Nexus repository still not closed. Waiting for ${
           NEXUS_RETRY_DELAY / 1000
-        }s to try again.`
+        }s to try again.`,
       );
     }
   }
@@ -830,12 +839,12 @@ export class MavenTarget extends BaseTarget {
             autoDropAfterRelease: true,
           },
         }),
-      }
+      },
     );
 
     if (!response.ok) {
       throw new Error(
-        `Unable to release repository ${repositoryId}: ${response.status}, ${response.statusText}`
+        `Unable to release repository ${repositoryId}: ${response.status}, ${response.statusText}`,
       );
     }
 
@@ -844,7 +853,7 @@ export class MavenTarget extends BaseTarget {
     while (true) {
       if (Date.now() - poolingStartTime > SONATYPE_RETRY_DEADLINE) {
         throw new Error(
-          'Deadline for Central repository status change reached.'
+          'Deadline for Central repository status change reached.',
         );
       }
 
@@ -856,7 +865,7 @@ export class MavenTarget extends BaseTarget {
         {
           method: 'POST',
           headers: this.getNexusRequestHeaders(),
-        }
+        },
       );
 
       if (
@@ -870,7 +879,7 @@ export class MavenTarget extends BaseTarget {
       this.logger.info(
         `Central repository still not published. Waiting for ${
           CENTRAL_RETRY_DELAY / 1000
-        }s to try again.`
+        }s to try again.`,
       );
     }
   }
@@ -881,7 +890,7 @@ export class MavenTarget extends BaseTarget {
       'Content-Type': 'application/json',
       Accept: 'application/json',
       Authorization: `Basic ${Buffer.from(
-        `${this.mavenConfig.OSSRH_USERNAME}:${this.mavenConfig.OSSRH_PASSWORD}`
+        `${this.mavenConfig.OSSRH_USERNAME}:${this.mavenConfig.OSSRH_PASSWORD}`,
       ).toString(`base64`)}`,
     };
   }

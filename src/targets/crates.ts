@@ -1,22 +1,30 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import simpleGit from 'simple-git';
+import { createGitClient } from '../utils/git';
 
 import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { forEachChained, sleep, withRetry } from '../utils/async';
 import { ConfigurationError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
-import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
+import {
+  checkExecutableIsPresent,
+  resolveExecutable,
+  runWithExecutable,
+  spawnProcess,
+} from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 
-const DEFAULT_CARGO_BIN = 'cargo';
+/** Cargo executable configuration */
+const CARGO_CONFIG = {
+  name: 'cargo',
+  envVar: 'CARGO_BIN',
+  errorHint: 'Install cargo or define a custom preReleaseCommand in .craft.yml',
+} as const;
 
-/**
- * Command to launch cargo
- */
-const CARGO_BIN = process.env.CARGO_BIN || DEFAULT_CARGO_BIN;
+/** Resolved cargo binary path */
+const CARGO_BIN = resolveExecutable(CARGO_CONFIG);
 
 /**
  * A message fragment emitted by cargo when publishing fails due to a missing
@@ -26,11 +34,18 @@ const CARGO_BIN = process.env.CARGO_BIN || DEFAULT_CARGO_BIN;
 const VERSION_ERROR = 'failed to select a version for the requirement';
 
 /**
- * A message fragment emitted by cargo when publishing fails because the crate
- * had already been published in this exact version. This happens especially
- * when rerunning a workspace publish after it has failed in the middle.
+ * Message fragments that likely indicate the crate version is already on
+ * crates.io. This happens especially when rerunning a workspace publish after
+ * it has failed in the middle.
  */
-const REPUBLISH_ERROR = 'is already uploaded';
+const REPUBLISH_ERRORS = [
+  'is already uploaded',
+  'already exists on crates.io index',
+] as const;
+
+function isAlreadyPublishedError(message: string): boolean {
+  return REPUBLISH_ERRORS.some(fragment => message.includes(fragment));
+}
 
 /**
  * Maximum number of attempts including the initial one when publishing fails
@@ -107,10 +122,47 @@ export class CratesTarget extends BaseTarget {
   /** GitHub repo configuration */
   public readonly githubRepo: GitHubGlobalConfig;
 
+  /**
+   * Bump version in Cargo.toml using cargo set-version (from cargo-edit).
+   *
+   * @param rootDir - Project root directory
+   * @param newVersion - New version string to set
+   * @returns true if version was bumped, false if no Cargo.toml exists
+   * @throws Error if cargo is not found or command fails
+   */
+  public static async bumpVersion(
+    rootDir: string,
+    newVersion: string,
+  ): Promise<boolean> {
+    const cargoTomlPath = path.join(rootDir, 'Cargo.toml');
+    if (!fs.existsSync(cargoTomlPath)) {
+      return false;
+    }
+
+    try {
+      await runWithExecutable(CARGO_CONFIG, ['set-version', newVersion], {
+        cwd: rootDir,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (
+        message.includes('no such command') ||
+        message.includes('no such subcommand')
+      ) {
+        throw new Error(
+          'cargo set-version not found. Install cargo-edit: cargo install cargo-edit',
+        );
+      }
+      throw error;
+    }
+
+    return true;
+  }
+
   public constructor(
     config: TargetConfig,
     artifactProvider: BaseArtifactProvider,
-    githubRepo: GitHubGlobalConfig
+    githubRepo: GitHubGlobalConfig,
   ) {
     super(config, artifactProvider, githubRepo);
     this.cratesConfig = this.getCratesConfig();
@@ -125,7 +177,7 @@ export class CratesTarget extends BaseTarget {
     if (!process.env.CRATES_IO_TOKEN) {
       throw new ConfigurationError(
         `Cannot publish to Crates.io: missing credentials.
-         Please use CRATES_IO_TOKEN environment variable to pass the API token.`
+         Please use CRATES_IO_TOKEN environment variable to pass the API token.`,
       );
     }
     return {
@@ -155,13 +207,13 @@ export class CratesTarget extends BaseTarget {
     ];
 
     this.logger.info(
-      `Loading workspace information from ${directory}/Cargo.toml`
+      `Loading workspace information from ${directory}/Cargo.toml`,
     );
     const metadata = await spawnProcess(
       CARGO_BIN,
       args,
       {},
-      { enableInDryRunMode: true }
+      { enableInDryRunMode: true },
     );
     if (!metadata) {
       throw new ConfigurationError('Empty Cargo metadata!');
@@ -183,21 +235,20 @@ export class CratesTarget extends BaseTarget {
    * @returns The sorted list of packages
    */
   public getPublishOrder(packages: CratePackage[]): CratePackage[] {
-    const remaining = packages.reduce((dict, p) => {
-      dict[p.name] = p;
-      return dict;
-    }, {} as { [index: string]: CratePackage });
+    const remaining = packages.reduce(
+      (dict, p) => {
+        dict[p.name] = p;
+        return dict;
+      },
+      {} as { [index: string]: CratePackage },
+    );
     const ordered: CratePackage[] = [];
 
     const isWorkspaceDependency = (dep: CrateDependency) => {
-      // Optionally exclude dev dependencies from dependency resolution. When
-      // this flag is provided, these usually lead to circular dependencies.
-      // Path-only dependencies are designated by `req = *`, and are not being
-      // validated by cargo on publish.
-      if (
-        dep.kind === 'dev' &&
-        (dep.req === '*' || this.cratesConfig.noDevDeps)
-      ) {
+      // Dev dependencies are not required to publish a crate, regardless of
+      // whether noDevDeps removes them from the package. They must not affect
+      // publication order, including path-only and versioned dependencies.
+      if (dep.kind === 'dev') {
         return false;
       }
 
@@ -209,7 +260,7 @@ export class CratesTarget extends BaseTarget {
     while (Object.keys(remaining).length > 0) {
       const leafDependencies = Object.values(remaining).filter(
         // Find all packages with no remaining workspace dependencies
-        p => p.dependencies.filter(isWorkspaceDependency).length === 0
+        p => p.dependencies.filter(isWorkspaceDependency).length === 0,
       );
 
       if (leafDependencies.length === 0) {
@@ -246,7 +297,7 @@ export class CratesTarget extends BaseTarget {
     this.logger.debug(
       `Publishing packages in the following order: ${crates
         .map(c => c.name)
-        .join(', ')}`
+        .join(', ')}`,
     );
     return forEachChained(crates, async crate => this.publishPackage(crate));
   }
@@ -265,7 +316,7 @@ export class CratesTarget extends BaseTarget {
     args.push(
       '--no-verify', // Verification should be done on the CI stage
       '--manifest-path',
-      crate.manifest_path
+      crate.manifest_path,
     );
 
     const env = {
@@ -280,9 +331,9 @@ export class CratesTarget extends BaseTarget {
         try {
           await spawnProcess(CARGO_BIN, args, { env });
         } catch (err) {
-          if (err instanceof Error && err.message.includes(REPUBLISH_ERROR)) {
+          if (err instanceof Error && isAlreadyPublishedError(err.message)) {
             this.logger.info(
-              `Skipping ${crate.name}, version ${crate.version} already published`
+              `Skipping ${crate.name}, version ${crate.version} already published`,
             );
           } else {
             throw err;
@@ -299,7 +350,7 @@ export class CratesTarget extends BaseTarget {
         await sleep(delay * 1000);
         delay *= RETRY_EXP_FACTOR;
         return true;
-      }
+      },
     );
   }
 
@@ -313,10 +364,10 @@ export class CratesTarget extends BaseTarget {
   public async cloneWithSubmodules(
     config: GitHubGlobalConfig,
     revision: string,
-    directory: string
+    directory: string,
   ): Promise<any> {
     const { owner, repo } = config;
-    const git = simpleGit(directory);
+    const git = createGitClient(directory);
     const url = `https://github.com/${owner}/${repo}.git`;
 
     this.logger.info(`Cloning ${owner}/${repo} into ${directory}`);
@@ -349,7 +400,7 @@ export class CratesTarget extends BaseTarget {
         await this.publishWorkspace(directory);
       },
       true,
-      'craft-crates-'
+      'craft-crates-',
     );
 
     this.logger.info('Crates release complete');
