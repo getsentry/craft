@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.35.1
+
+### Bug Fixes 🐛
+
+#### Deps
+
+- Mitigate brace recursion and shared-cache disclosure by @MathurAditya724 in [#912](https://github.com/getsentry/craft/pull/912)
+- Upgrade Sentry to fix telemetry exit loop by @MathurAditya724 in [#911](https://github.com/getsentry/craft/pull/911)
+
+### Internal Changes 🔧
+
+- (release) Use native Craft binaries and separate AI credentials by @MathurAditya724 in [#910](https://github.com/getsentry/craft/pull/910)
+
 ## 2.35.0
 
 ### New Features ✨
