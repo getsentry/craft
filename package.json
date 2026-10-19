@@ -140,6 +140,9 @@
       "@opentelemetry/instrumentation-mongoose": "^0.67.0",
       "@opentelemetry/instrumentation-tedious": "^0.40.0",
       "esbuild@<0.28.1": "^0.28.1"
+    },
+    "patchedDependencies": {
+      "braces@3.0.3": "patches/braces@3.0.3.patch"
     }
   }
 }

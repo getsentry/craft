@@ -107,6 +107,7 @@ jobs:
         shell: bash
         env:
           CRAFT_VERSION_INPUT: ${{ inputs.craft-version || 'latest' }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -114,8 +115,8 @@ jobs:
 
           if [[ "$CRAFT_VERSION" == "latest" || -z "$CRAFT_VERSION" ]]; then
             echo "Downloading latest Craft release..."
-            CRAFT_URL=$(curl -fsSL "https://api.github.com/repos/getsentry/craft/releases/latest" \
-              | jq -r '.assets[] | select(.name == "craft") | .browser_download_url')
+            CRAFT_URL=$(gh api repos/getsentry/craft/releases/latest \
+              --jq '.assets[] | select(.name == "craft") | .browser_download_url')
           else
             CRAFT_URL="https://github.com/getsentry/craft/releases/download/${CRAFT_VERSION}/craft"
             echo "Downloading Craft ${CRAFT_VERSION}..."
@@ -123,8 +124,8 @@ jobs:
             # Fallback to latest if specified version doesn't exist
             if ! curl -sfI "$CRAFT_URL" >/dev/null 2>&1; then
               echo "Release not found for version '${CRAFT_VERSION}', falling back to latest..."
-              CRAFT_URL=$(curl -fsSL "https://api.github.com/repos/getsentry/craft/releases/latest" \
-                | jq -r '.assets[] | select(.name == "craft") | .browser_download_url')
+              CRAFT_URL=$(gh api repos/getsentry/craft/releases/latest \
+                --jq '.assets[] | select(.name == "craft") | .browser_download_url')
             fi
           fi
 

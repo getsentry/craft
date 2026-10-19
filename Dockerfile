@@ -7,6 +7,7 @@ COPY package.json ./
 RUN npm install -g pnpm@$(node -p "require('./package.json').volta.pnpm")
 
 COPY package.json pnpm-lock.yaml ./
+COPY patches ./patches
 RUN pnpm install --frozen-lockfile --quiet
 
 COPY . .
