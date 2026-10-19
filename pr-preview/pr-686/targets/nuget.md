@@ -16,7 +16,6 @@ Uploads packages to [NuGet](https://www.nuget.org/) via .NET Core.
 | `solutionPath` | `string` | Path to the solution file (`.slnx` or `.sln`) relative to repo root. Auto-discovers if not specified, preferring `.slnx` |
 | `includeWorkspaces` | `string` | Regex pattern to filter which packages to include. Example: `'/^Sentry\\./'` |
 | `excludeWorkspaces` | `string` | Regex pattern to filter which packages to exclude. Example: `'/\\.Tests$/'` |
-| `artifactTemplate` | `string` | Template for artifact filenames. Variables: `{{packageId}}`, `{{version}}` |
 | `serverUrl` | `string` | NuGet server URL. Default: `https://api.nuget.org/v3/index.json` |
 
 ## Workspace Support
@@ -45,6 +44,10 @@ Workspace discovery uses static file parsing only and does not execute any code 
 Caution
 
 Projects such as test apps or samples that don’t set `IsPackable` to `false` are treated as packages. Since no artifact is built for them, publishing them would fail. Exclude them with `excludeWorkspaces`.
+
+The opposite mistake fails silently: a real package that discovery skips (because a filter is too strict or its `IsPackable` is conditional) is simply not published, and the release still succeeds. Run `craft targets` after changing the solution or the filters to check the expanded list.
+
+If `workspaces: true` is set but discovery finds no packages, or the filters exclude all of them, Craft fails with a configuration error instead of skipping the target.
 
 ## Environment Variables
 
@@ -87,18 +90,6 @@ targets:
     solutionPath: Sentry.slnx
     includeWorkspaces: '/^Sentry/'
     excludeWorkspaces: '/(TrimTest|CrashableApp)$/'
-```
-
-
-### Custom Artifact Template
-
-Use a custom artifact filename pattern:
-
-```yaml
-targets:
-  - name: nuget
-    workspaces: true
-    artifactTemplate: 'packages/{{packageId}}.{{version}}.nupkg'
 ```
 
 ## Navigation

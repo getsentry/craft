@@ -153,7 +153,7 @@
 <li><strong>Auto-discovery</strong>: Detects packages from <code dir="auto">package.json</code> workspaces field (npm/yarn workspaces)</li>
 <li><strong>Dependency ordering</strong>: Publishes packages in topological order (dependencies before dependents)</li>
 <li><strong>Private package filtering</strong>: Automatically excludes packages marked as <code dir="auto">private: true</code></li>
-<li><strong>Validation</strong>: Errors if public packages depend on private workspace packages</li>
+<li><strong>Validation</strong>: Errors if public packages depend on private workspace packages, or if no publishable packages are found</li>
 <li><strong>Scoped package warnings</strong>: Warns if scoped packages don’t have <code dir="auto">publishConfig.access: 'public'</code></li>
 </ul>
 <div class="sl-heading-wrapper level-h3"><h3 id="artifact-naming">Artifact Naming</h3><a class="sl-anchor-link" href="#artifact-naming"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Artifact Naming”</span></a></div>
