@@ -599,3 +599,61 @@ test.each(['missing', 'unknown', 'duplicate', 'unsafe'])(
     expect(log).not.toContain('Critical fact.');
   },
 );
+
+test('HTTP rejection reports its status even if response cancellation stalls', async () => {
+  const cancel = vi.fn(() => new Promise<void>(() => {}));
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockResolvedValue(
+        new Response(new ReadableStream({ cancel }), { status: 403 }),
+      ),
+  );
+  const provider = createSummaryProvider(config());
+  try {
+    await expect(provider.request(request)).rejects.toThrow(
+      'HTTP summary request failed (403)',
+    );
+    expect(cancel).toHaveBeenCalledOnce();
+  } finally {
+    await provider.close();
+  }
+}, 1000);
+
+test('the full summarizer reports its request deadline without exposing the abort error', async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(
+      (_url, options) =>
+        new Promise((_resolve, reject) => {
+          options.signal.addEventListener(
+            'abort',
+            () => reject(new Error('private-source-token')),
+            { once: true },
+          );
+        }),
+    ),
+  );
+  const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+  try {
+    const result = summarizeChangelog(
+      [
+        {
+          id: 'features',
+          title: 'Features',
+          groups: [{ id: 'cli', title: 'CLI', items: ['Add command'] }],
+        },
+      ],
+      config(),
+    );
+    await vi.advanceTimersByTimeAsync(30001);
+    expect(await result).toBeNull();
+    const log = warn.mock.calls.flat().join(' ');
+    expect(log).toContain('stage=scope; reason=deadline');
+    expect(log).not.toContain('private-source-token');
+  } finally {
+    vi.useRealTimers();
+  }
+});
