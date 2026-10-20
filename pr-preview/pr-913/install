@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# Install Craft for interactive use or CI, from a release or local build artifact.
+set -euo pipefail
+fail() { echo "Craft installer: $*" >&2; exit 1; }
+enabled() {
+  case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
+    ''|undefined|null|0|false|no) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+version=${CRAFT_VERSION:-latest}
+directory=${CRAFT_INSTALL_DIR:-}
+archive=''
+ci_install=false
+if enabled "${GITHUB_ACTIONS:-}" || enabled "${CI:-}"; then ci_install=true; fi
+dry_run=false
+if enabled "${CRAFT_DRY_RUN-${DRY_RUN:-}}"; then dry_run=true; fi
+while (( $# )); do
+  case "$1" in
+    --version|--install-dir|--archive)
+      (( $# >= 2 )) || fail "Missing value for $1"
+      [[ -n "$2" && "$2" != --* ]] || fail "Missing value for $1"
+      case "$1" in --version) version=$2 ;; --install-dir) directory=$2 ;; --archive) archive=$2 ;; esac
+      shift 2 ;;
+    --dry-run) dry_run=true; shift ;;
+    --help|-h)
+      echo 'Usage: install [--version VERSION] [--install-dir DIRECTORY] [--dry-run]'
+      echo 'GITHUB_ACTIONS or CI automatically skips shell/agent setup.'
+      echo 'Offline: --archive FILE --version VERSION uses a local native archive.'
+      echo 'Requires Bash. Installs macOS/Linux or Windows x64 through Git Bash.'
+      exit 0 ;;
+    *) fail "Unknown option: $1" ;;
+  esac
+done
+version=${version:-latest}
+validate_version() {
+  [[ "$1" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?(\+[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]] || fail "Invalid version: $1"
+}
+if [[ "$version" != latest && "$version" != nightly && ! "$version" =~ ^nightly-([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then validate_version "$version"; fi
+[[ -z "$archive" || "$version" != latest ]] || fail '--archive requires --version'
+native_supported=true
+case "$(uname -s)" in
+  Darwin) platform=darwin ;;
+  Linux) platform=linux ;;
+  MINGW*|MSYS*|CYGWIN*) platform=win ;;
+  *) platform=unsupported; native_supported=false ;;
+esac
+case "$(uname -m)" in
+  x86_64|amd64) arch=x64 ;;
+  aarch64|arm64) arch=arm64 ;;
+  *) arch=unsupported; native_supported=false ;;
+esac
+if [[ "$platform-$arch" == win-arm64 ]]; then native_supported=false; fi
+if [[ "$platform" == linux ]] && compgen -G '/lib/ld-musl-*.so.1' > /dev/null; then native_supported=false; fi
+if ! $native_supported && ! $ci_install; then fail 'Unsupported standalone platform (Linux requires glibc); use the npm package'; fi
+asset="craft-$platform-$arch.gz"
+if [[ "$platform" == win ]]; then asset="craft-win-$arch.exe"; fi
+# These sources are supplied by the Action only for its own workflow's builds.
+artifacts=${CRAFT_NATIVE_ARTIFACT_DIRECTORY:-}
+artifacts=${artifacts//\\//}
+legacy=${CRAFT_LEGACY_ARTIFACT:-}
+legacy=${legacy//\\//}
+archive=${archive//\\//}
+directory=${directory//\\//}
+if [[ -z "$archive" && -n "$artifacts" && -f "$artifacts/$asset" ]] && $native_supported; then
+  archive="$artifacts/$asset"
+  version=${CRAFT_ARTIFACT_VERSION:?Missing native artifact version}
+fi
+if [[ -n "$archive" ]]; then
+  $native_supported || fail 'Unsupported standalone platform'
+  validate_version "$version"
+elif [[ "$version" == latest && ! -f "$legacy" ]]; then
+  latest=$(curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL --max-time 30 -o /dev/null -w '%{url_effective}' https://github.com/getsentry/craft/releases/latest)
+  prefix=https://github.com/getsentry/craft/releases/tag/
+  [[ "$latest" == "$prefix"* ]] || fail 'Unexpected latest release URL'
+  version=${latest#"$prefix"}
+  validate_version "$version"
+  [[ "$version" != *-* ]] || fail 'Latest release must be stable'
+fi
+if $dry_run; then
+  echo "Would install Craft $version ($platform-$arch) to ${directory:-the default user bin directory}"
+  exit 0
+fi
+root=$(mktemp -d "${TMPDIR:-/tmp}/craft-install.XXXXXXXX")
+stage=''
+trap 'rm -rf "$root"; if [[ -n "$stage" ]]; then rm -rf "$stage"; fi' EXIT
+candidate="$root/craft"
+native=true
+base="https://github.com/getsentry/craft/releases/download/$version"
+curl_args=(--proto '=https' --proto-redir '=https' --tlsv1.2 -sSL --max-time 180 --max-filesize 268435456)
+if [[ -n "$archive" ]]; then
+  [[ -f "$archive" ]] || fail 'Native archive does not exist'
+  (( $(wc -c < "$archive") <= 268435456 )) || fail 'Native archive is too large'
+  cp "$archive" "$root/$asset"
+elif [[ -n "$legacy" && -f "$legacy" ]]; then
+  native=false
+  cp "$legacy" "$candidate"
+elif [[ "$version" == nightly || "$version" == nightly-* ]]; then
+  native=false
+  source_path=${BASH_SOURCE[0]:-}
+  [[ -n "$source_path" ]] || fail 'Nightly installation requires a Craft checkout'
+  script_dir=$(cd "$(dirname "$source_path")" && pwd)
+  downloader="$script_dir/.github/scripts/download-craft-nightly.mjs"
+  [[ -f "$downloader" ]] || fail 'Nightly installation requires a Craft checkout'
+  node "$downloader" "$version" "$candidate"
+elif ! $native_supported; then
+  native=false
+  curl "${curl_args[@]}" -f "$base/craft" -o "$candidate"
+else
+  status=$(curl "${curl_args[@]}" -w '%{http_code}' "$base/$asset" -o "$root/$asset") || fail 'Native download failed'
+  if [[ "$status" == 404 ]] && $ci_install; then
+    native=false
+    curl "${curl_args[@]}" -f "$base/craft" -o "$candidate"
+  elif [[ "$status" != 200 ]]; then
+    fail "Native download failed (HTTP $status)"
+  fi
+fi
+if $native; then
+  if [[ "$platform" == win ]]; then candidate="$root/craft.exe"; mv "$root/$asset" "$candidate"
+  else
+    gzip -dc "$root/$asset" | head -c 536870913 > "$candidate"
+    (( $(wc -c < "$candidate") <= 536870912 )) || fail 'Decompressed executable is too large'
+  fi
+  chmod 755 "$candidate"
+  if [[ "$platform" == darwin ]]; then codesign --verify --strict "$candidate"; fi
+  actual_version=$(NODE_OPTIONS= "$candidate" --version)
+  [[ "$actual_version" == "$version" || "$actual_version" =~ ^"$version"\ \([[:xdigit:]]{40}\)$ ]] || fail "Downloaded executable reports $actual_version, expected $version"
+fi
+[[ -s "$candidate" ]] || fail 'Empty Craft executable'
+(( $(wc -c < "$candidate") <= 536870912 )) || fail 'Craft executable is too large'
+if $ci_install || ! $native; then
+  directory=${directory:-${RUNNER_TEMP:-${HOME:?}/.local}/bin}
+  directory=${directory//\\//}
+  mkdir -p "$directory"
+  filename=craft
+  if [[ "$platform" == win ]] && $native; then filename=craft.exe; fi
+  target="$directory/$filename"
+  [[ ! -L "$target" && ! -d "$target" ]] || fail 'Installation target must be a regular file'
+  stage=$(mktemp -d "$directory/.craft-install.XXXXXXXX")
+  cp "$candidate" "$stage/$filename"
+  chmod 755 "$stage/$filename"
+  mv -f "$stage/$filename" "$target"
+  if [[ -n "${GITHUB_PATH:-}" ]]; then printf '%s\n' "$directory" >> "$GITHUB_PATH"; fi
+  echo "Installed Craft $version: $target"
+  echo "Ensure $directory is on your PATH to run craft."
+else
+  args=(setup --install)
+  if [[ -n "$directory" ]]; then args+=(--install-dir "$directory"); fi
+  "$candidate" "${args[@]}"
+fi
