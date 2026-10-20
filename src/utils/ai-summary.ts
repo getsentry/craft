@@ -173,8 +173,28 @@ class SummaryAttempt {
         ids.size !== summaries.length ||
         ids.size !== nodes.length ||
         nodes.some(node => !ids.has(node.id))
-      )
-        throw new SummaryFailure('coverage');
+      ) {
+        const requested = new Set(nodes.map(node => node.id));
+        const childIds = new Set(
+          nodes.flatMap(node => node.parts.map(part => part.id)),
+        );
+        const unexpected = summaries.filter(
+          digest => !requested.has(digest.id),
+        );
+        throw new SummaryFailure(
+          unexpected.some(digest => childIds.has(digest.id))
+            ? 'coverage-child-id'
+            : unexpected.some(digest =>
+                  nodes.some(node => node.id.startsWith(`${digest.id}/`)),
+                )
+              ? 'coverage-short-id'
+              : unexpected.length
+                ? 'coverage-unknown-id'
+                : ids.size !== summaries.length
+                  ? 'coverage-duplicate-id'
+                  : 'coverage',
+        );
+      }
       const byId = new Map(nodes.map(node => [node.id, node]));
       for (const digest of summaries) {
         const parts = byId.get(digest.id)!.parts;
