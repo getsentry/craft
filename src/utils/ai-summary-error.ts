@@ -10,7 +10,7 @@ export type SummaryFailureReason =
   | 'response-envelope'
   | 'response-json'
   | 'response-schema'
-  | 'coverage'
+  | 'coverage-missing-id'
   | 'coverage-child-id'
   | 'coverage-short-id'
   | 'coverage-unknown-id'

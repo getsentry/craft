@@ -367,7 +367,9 @@ Per-field precedence is CLI flags (`--ai-endpoint`, `--ai-model`,
 project/workspace configuration. Workspace changelog objects replace the
 inherited object. Endpoints ending in `/responses` use Responses; others use
 Chat Completions. Both require structured JSON output. Invalid settings are
-rejected; missing tokens and provider errors retain the original output.
+rejected; missing tokens and provider errors retain the original output. Failure
+warnings identify the generation stage and a fixed reason code, plus HTTP status
+for rejected requests. Credentials, source content and provider bodies are omitted.
 
 Generation sends changelog content and critical PR titles to the chosen
 provider. Breaking/security facts retain source IDs. Generated prose is escaped;

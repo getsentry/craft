@@ -170,6 +170,21 @@ describe('hierarchical HTTP changelog summaries', () => {
     }
   });
 
+  it('constrains generated digest IDs and counts to the requested nodes at every level', async () => {
+    expect(await summarizeChangelog(categories, config)).not.toBeNull();
+    for (const [request] of requestMock.mock.calls) {
+      const nodes = JSON.parse(request.input).nodes;
+      const entries = (request.schema as any).properties.summaries;
+      expect(entries.minItems).toBe(nodes.length);
+      expect(entries.maxItems).toBe(nodes.length);
+      expect(entries.items.properties.id.enum).toEqual(
+        nodes.map((node: any) => node.id),
+      );
+      for (const part of nodes.flatMap((node: any) => node.parts))
+        expect(entries.items.properties.id.enum).not.toContain(part.id);
+    }
+  });
+
   it('keeps strict structured-output and input bounds', async () => {
     await summarizeChangelog(categories, config);
     for (const [request] of requestMock.mock.calls) {

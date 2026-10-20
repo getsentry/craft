@@ -494,3 +494,45 @@ test.each(['http', 'coverage', 'schema', 'network'])(
     for (const value of sensitive.split(' ')) expect(log).not.toContain(value);
   },
 );
+
+test.each([
+  ['child-id', ['cli:item:0:part:0']],
+  ['short-id', ['cli']],
+  ['unknown-id', ['private-source-token']],
+  ['duplicate-id', ['cli/r0/b0', 'cli/r0/b0']],
+])(
+  'classifies %s coverage failures without logging returned IDs',
+  async (reason, ids) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        completion(
+          JSON.stringify({
+            summaries: ids.map(id => ({
+              id,
+              summary: 'Digest.',
+              importantChanges: [],
+            })),
+          }),
+        ),
+      ),
+    );
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    expect(
+      await summarizeChangelog(
+        [
+          {
+            id: 'features',
+            title: 'Features',
+            groups: [{ id: 'cli', title: 'CLI', items: ['Add command'] }],
+          },
+        ],
+        config(),
+      ),
+    ).toBeNull();
+    const log = warn.mock.calls.flat().join(' ');
+    expect(log).toContain(`reason=coverage-${reason}`);
+    expect(log).not.toContain('private-source-token');
+    expect(log).not.toContain('cli/');
+  },
+);
