@@ -49,6 +49,26 @@ The opposite mistake fails silently: a real package that discovery skips (becaus
 
 If `workspaces: true` is set but discovery finds no packages, or the filters exclude all of them, Craft fails with a configuration error instead of skipping the target.
 
+## Retrying a Partial Publish
+
+Craft does not pass `--skip-duplicate` to `dotnet nuget push`: pushing a version that already exists fails, because Craft can’t otherwise tell whether the existing package is the one it’s trying to publish.
+
+Instead, before pushing each `.nupkg`, Craft checks whether the server already has that version:
+
+- **Not published:** the `.nupkg` is pushed, and `dotnet nuget push` pushes the `.snupkg` next to it right after.
+- **Published with identical contents:** the `.nupkg` is not pushed again. Craft downloads the published package from the feed’s `PackageBaseAddress` and compares every file in it with the local package, ignoring `.signature.p7s` (the repository signature the server adds). If there is a `.snupkg` and the server doesn’t have it yet, only the `.snupkg` is pushed.
+- **Published with different contents:** the target fails. NuGet versions are immutable, so publish a new version instead.
+
+This lets you retry a release that failed halfway, for example when the `.nupkg` was uploaded but its `.snupkg` wasn’t, by rerunning the target, instead of someone pushing the missing file by hand.
+
+Note
+
+Symbol packages can only be checked on nuget.org. On other feeds, if the `.nupkg` is already published, Craft pushes the `.snupkg` again, and it’s up to the server whether that succeeds or is rejected as a duplicate.
+
+If Craft can’t reach the feed’s service index (for example a private feed that requires authentication), it pushes the `.nupkg` as usual, so an existing version fails the push.
+
+NuGet.org validates new packages before serving them, which usually takes a few minutes. A retry right after a partial upload can’t see the package yet and fails with a conflict; wait a few minutes and retry.
+
 ## Environment Variables
 
 | Name | Description |
