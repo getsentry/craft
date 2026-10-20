@@ -536,3 +536,66 @@ test.each([
     expect(log).not.toContain('cli/');
   },
 );
+
+test.each(['missing', 'unknown', 'duplicate', 'unsafe'])(
+  'reports %s important-fact failures without exposing facts',
+  async failure => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((_url, options) => {
+        const node = JSON.parse(JSON.parse(options.body).messages[1].content)
+          .nodes[0];
+        const fact = { id: node.parts[0].sourceId, summary: 'Critical fact.' };
+        const importantChanges =
+          failure === 'missing'
+            ? []
+            : failure === 'unknown'
+              ? [{ ...fact, id: 'private-source-token' }]
+              : failure === 'duplicate'
+                ? [fact, fact]
+                : [fact];
+        return Promise.resolve(
+          completion(
+            JSON.stringify({
+              summaries: [
+                {
+                  id: node.id,
+                  summary:
+                    failure === 'unsafe'
+                      ? 'No breaking changes.'
+                      : 'Maintenance.',
+                  importantChanges,
+                },
+              ],
+            }),
+          ),
+        );
+      }),
+    );
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    expect(
+      await summarizeChangelog(
+        [
+          {
+            id: 'features',
+            title: 'Features',
+            groups: [
+              {
+                id: 'cli',
+                title: 'CLI',
+                items: ['Breaking change: private-source removed.'],
+              },
+            ],
+          },
+        ],
+        config(),
+      ),
+    ).toBeNull();
+    const log = warn.mock.calls.flat().join(' ');
+    expect(log).toContain(
+      `reason=${failure === 'unsafe' ? 'unsafe-claim' : `important-${failure}`}`,
+    );
+    expect(log).not.toContain('private-source');
+    expect(log).not.toContain('Critical fact.');
+  },
+);

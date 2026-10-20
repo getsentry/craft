@@ -236,14 +236,17 @@ class SummaryAttempt {
           ]),
         );
         const facts = new Set(digest.importantChanges.map(fact => fact.id));
+        if (facts.size !== digest.importantChanges.length)
+          throw new SummaryFailure('important-duplicate');
+        if ([...facts].some(id => !allowed.has(id)))
+          throw new SummaryFailure('important-unknown');
+        if ([...required].some(id => !facts.has(id)))
+          throw new SummaryFailure('important-missing');
         if (
-          facts.size !== digest.importantChanges.length ||
-          [...facts].some(id => !allowed.has(id)) ||
-          [...required].some(id => !facts.has(id)) ||
           unsafeClaim.test(digest.summary) ||
           digest.importantChanges.some(fact => unsafeClaim.test(fact.summary))
         )
-          throw new SummaryFailure('important-coverage');
+          throw new SummaryFailure('unsafe-claim');
         // A parent cannot rewrite away a fact already established in a child.
         digest.importantChanges = digest.importantChanges.map(
           fact => carried.get(fact.id) || fact,
