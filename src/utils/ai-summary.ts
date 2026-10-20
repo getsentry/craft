@@ -3,6 +3,7 @@ import type { AiSummaryConfig } from '../schemas/project_config';
 import { logger } from '../logger';
 import { createSummaryProvider, type SummaryProvider } from './ai-provider';
 import { isDryRun } from './helpers';
+import { SummaryFailure, summaryFailureDiagnostic } from './ai-summary-error';
 
 export interface SummaryGroup {
   id: string;
@@ -143,7 +144,7 @@ class SummaryAttempt {
       Date.now() >= this.deadline ||
       this.requests >= MAX_REQUESTS
     )
-      throw new Error('Summary budget exhausted');
+      throw new SummaryFailure('request-budget', level);
     this.requests++;
     const requestController = new AbortController();
     const abort = () => requestController.abort();
@@ -155,7 +156,7 @@ class SummaryAttempt {
     try {
       const input = { level, nodes };
       if (size(input) > MAX_INPUT_BYTES)
-        throw new Error('Summary input exceeds budget');
+        throw new SummaryFailure('input-budget', level);
       const output = await this.provider.request({
         input: JSON.stringify(input),
         signal: requestController.signal,
@@ -164,14 +165,16 @@ class SummaryAttempt {
           : SUMMARY_INSTRUCTIONS,
         schema: SUMMARY_JSON_SCHEMA,
       });
-      const { summaries } = responseSchema.parse(output);
+      const parsed = responseSchema.safeParse(output);
+      if (!parsed.success) throw new SummaryFailure('response-schema');
+      const { summaries } = parsed.data;
       const ids = new Set(summaries.map(digest => digest.id));
       if (
         ids.size !== summaries.length ||
         ids.size !== nodes.length ||
         nodes.some(node => !ids.has(node.id))
       )
-        throw new Error('Incomplete summary coverage');
+        throw new SummaryFailure('coverage');
       const byId = new Map(nodes.map(node => [node.id, node]));
       for (const digest of summaries) {
         const parts = byId.get(digest.id)!.parts;
@@ -200,7 +203,7 @@ class SummaryAttempt {
           unsafeClaim.test(digest.summary) ||
           digest.importantChanges.some(fact => unsafeClaim.test(fact.summary))
         )
-          throw new Error('Invalid important-change coverage');
+          throw new SummaryFailure('important-coverage');
         // A parent cannot rewrite away a fact already established in a child.
         digest.importantChanges = digest.importantChanges.map(
           fact => carried.get(fact.id) || fact,
@@ -212,6 +215,12 @@ class SummaryAttempt {
           .get(digest.id)!
           .parts.reduce((n, part) => n + part.count, 0),
       }));
+    } catch (error) {
+      throw new SummaryFailure(
+        error instanceof SummaryFailure ? error.reason : 'unexpected',
+        level,
+        error instanceof SummaryFailure ? error.status : undefined,
+      );
     } finally {
       clearTimeout(timer);
       this.controller.signal.removeEventListener('abort', abort);
@@ -237,7 +246,7 @@ class SummaryAttempt {
     }
     if (current.length) batches.push(current);
     if (this.requests + batches.length > MAX_REQUESTS)
-      throw new Error('Summary budget exhausted');
+      throw new SummaryFailure('request-budget', level);
     const results = new Map<string, Digest>();
     let next = 0;
     try {
@@ -286,7 +295,7 @@ class SummaryAttempt {
           const id = `${node.id}/r${round}/b${i}`;
           const job = { id, title: node.title, parts: chunk };
           if (size({ level, nodes: [job] }) > MAX_INPUT_BYTES)
-            throw new Error('Summary part exceeds budget');
+            throw new SummaryFailure('input-budget', level);
           jobs.push(job);
           return id;
         });
@@ -302,7 +311,7 @@ class SummaryAttempt {
       }
       pending = remaining;
     }
-    if (pending.length) throw new Error('Summary reduction did not converge');
+    if (pending.length) throw new SummaryFailure('reduction-budget', level);
     return completed;
   }
 }
@@ -430,9 +439,10 @@ export async function summarizeChangelog(
           }))
         : [],
     };
-  } catch {
-    // Never expose provider diagnostics, credentials, or source entries.
-    logger.warn('AI changelog summary failed; keeping original entries.');
+  } catch (error) {
+    logger.warn(
+      `AI changelog summary failed; keeping original entries. (${summaryFailureDiagnostic(error)})`,
+    );
     return null;
   } finally {
     await attempt.close();

@@ -3,6 +3,7 @@ import { createSummaryProvider } from '../ai-provider';
 import { AiSummaryConfigSchema } from '../../schemas/project_config';
 import { summarizeChangelog } from '../ai-summary';
 import { setGlobals } from '../helpers';
+import { logger } from '../../logger';
 
 const endpoint = 'https://ai.example.com/v1/chat/completions';
 const config = () =>
@@ -33,6 +34,7 @@ beforeEach(() => {
   vi.stubEnv('AI_SUMMARY_TOKEN', 'provider-token');
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   setGlobals({ 'dry-run': false });
@@ -449,5 +451,46 @@ test.each(['ai-endpoint', 'ai-model', 'ai-api-key-env'])(
     await expect(provider.request(request)).rejects.toThrow();
     await provider.close();
     expect(fetch).not.toHaveBeenCalled();
+  },
+);
+
+test.each(['http', 'coverage', 'schema', 'network'])(
+  'fallback reports a sanitized stage and %s failure reason',
+  async failure => {
+    const sensitive =
+      'provider-token private-source https://secret.invalid/?key=credential';
+    const fetch = vi.fn();
+    if (failure === 'http')
+      fetch.mockResolvedValue(new Response(sensitive, { status: 403 }));
+    else if (failure === 'network')
+      fetch.mockRejectedValue(new Error(sensitive));
+    else
+      fetch.mockResolvedValue(
+        completion(
+          failure === 'schema' ? JSON.stringify({ sensitive }) : undefined,
+        ),
+      );
+    vi.stubGlobal('fetch', fetch);
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    expect(
+      await summarizeChangelog(
+        [
+          {
+            id: 'features',
+            title: 'Features',
+            groups: [{ id: 'cli', title: 'CLI', items: [sensitive] }],
+          },
+        ],
+        config(),
+      ),
+    ).toBeNull();
+    const log = warn.mock.calls.flat().join(' ');
+    expect(log).toContain('keeping original entries');
+    expect(log).toContain('stage=scope');
+    expect(log).toContain(
+      `reason=${failure === 'coverage' ? 'coverage' : failure === 'schema' ? 'response-schema' : failure}`,
+    );
+    if (failure === 'http') expect(log).toContain('HTTP 403');
+    for (const value of sensitive.split(' ')) expect(log).not.toContain(value);
   },
 );

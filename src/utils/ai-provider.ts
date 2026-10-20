@@ -4,6 +4,7 @@ import {
 } from '../schemas/project_config';
 import { safeExec } from './dryRun';
 import { getAiSummaryOverrides } from './helpers';
+import { SummaryFailure } from './ai-summary-error';
 
 export interface SummaryRequest {
   input: string;
@@ -72,11 +73,16 @@ class HttpSummaryProvider implements SummaryProvider {
 
   async request(request: SummaryRequest): Promise<unknown> {
     const signal = AbortSignal.any([request.signal, this.controller.signal]);
-    if (signal.aborted) throw new Error('Summary aborted');
-    const llm = resolveAiSummaryLlm(this.config);
+    if (signal.aborted) throw new SummaryFailure('deadline');
+    let llm;
+    try {
+      llm = resolveAiSummaryLlm(this.config);
+    } catch {
+      throw new SummaryFailure('configuration');
+    }
     const token = process.env[llm.apiKeyEnv]?.trim();
     if (!token || token.length > 16384 || /[\r\n]/.test(token))
-      throw new Error('HTTP summaries require an endpoint credential');
+      throw new SummaryFailure('credential');
     const endpoint = new URL(llm.endpoint);
     const responses = endpoint.pathname
       .replace(/\/+$/, '')
@@ -127,11 +133,11 @@ class HttpSummaryProvider implements SummaryProvider {
         body: JSON.stringify(body),
       });
       if (!response.ok) {
-        await response.body?.cancel().catch(() => {});
-        throw new Error(`HTTP summary request failed (${response.status})`);
+        void response.body?.cancel().catch(() => {});
+        throw new SummaryFailure('http', undefined, response.status);
       }
       const reader = response.body?.getReader();
-      if (!reader) throw new Error('Empty HTTP summary response');
+      if (!reader) throw new SummaryFailure('response-body');
       const chunks: Uint8Array[] = [];
       let bytes = 0;
       try {
@@ -140,12 +146,13 @@ class HttpSummaryProvider implements SummaryProvider {
           if (done) break;
           bytes += value.byteLength;
           if (bytes > MAX_HTTP_RESPONSE_BYTES)
-            throw new Error('HTTP summary response exceeds limit');
+            throw new SummaryFailure('response-size');
           chunks.push(value);
         }
-      } catch {
-        await reader.cancel().catch(() => {});
-        throw new Error('Invalid HTTP summary response');
+      } catch (error) {
+        void reader.cancel().catch(() => {});
+        if (error instanceof SummaryFailure) throw error;
+        throw new SummaryFailure(signal.aborted ? 'deadline' : 'response-body');
       } finally {
         reader.releaseLock();
       }
@@ -153,7 +160,7 @@ class HttpSummaryProvider implements SummaryProvider {
       try {
         output = JSON.parse(Buffer.concat(chunks).toString('utf8'));
       } catch {
-        throw new Error('Invalid HTTP summary response');
+        throw new SummaryFailure('response-json');
       }
       let content: string;
       if (responses) {
@@ -163,7 +170,7 @@ class HttpSummaryProvider implements SummaryProvider {
           output.incomplete_details ||
           !Array.isArray(output.output)
         )
-          throw new Error('Incomplete HTTP summary response');
+          throw new SummaryFailure('response-envelope');
         const messages = output.output.filter(
           (item: any) => item?.type === 'message',
         );
@@ -173,7 +180,7 @@ class HttpSummaryProvider implements SummaryProvider {
             (item: any) => !['message', 'reasoning'].includes(item?.type),
           )
         )
-          throw new Error('Invalid HTTP summary response');
+          throw new SummaryFailure('response-envelope');
         const message = messages[0];
         if (
           message.role !== 'assistant' ||
@@ -183,7 +190,7 @@ class HttpSummaryProvider implements SummaryProvider {
           message.content[0]?.type !== 'output_text' ||
           typeof message.content[0].text !== 'string'
         )
-          throw new Error('Invalid HTTP summary response');
+          throw new SummaryFailure('response-envelope');
         content = message.content[0].text;
       } else {
         const choice = output?.choices?.[0];
@@ -198,15 +205,20 @@ class HttpSummaryProvider implements SummaryProvider {
           message.tool_calls?.length ||
           message.function_call
         )
-          throw new Error('Incomplete HTTP summary response');
+          throw new SummaryFailure('response-envelope');
         content = message.content;
       }
       try {
         return JSON.parse(content);
       } catch {
-        throw new Error('Invalid HTTP summary content');
+        throw new SummaryFailure('response-json');
       }
-    }, 'Generate changelog summaries via configured HTTP endpoint');
+    }, 'Generate changelog summaries via configured HTTP endpoint').catch(
+      error => {
+        if (error instanceof SummaryFailure) throw error;
+        throw new SummaryFailure(signal.aborted ? 'deadline' : 'network');
+      },
+    );
   }
   async close(): Promise<void> {
     this.controller.abort();
