@@ -233,6 +233,47 @@ describe('hierarchical HTTP changelog summaries', () => {
     }
   });
 
+  it('does not emit an empty fact-ID enum for parents without critical facts', async () => {
+    expect(await summarizeChangelog(categories, config)).not.toBeNull();
+    const parents = requestMock.mock.calls.filter(
+      ([request]) => JSON.parse(request.input).level !== 'scope',
+    );
+    expect(parents.length).toBeGreaterThan(0);
+    for (const [request] of parents) {
+      const branches = (request.schema as any).properties.summaries.items.anyOf;
+      for (const branch of branches) {
+        const facts = branch.properties.importantChanges;
+        expect(facts.minItems).toBe(0);
+        expect(facts.maxItems).toBe(0);
+        expect(facts.items.properties.id).toEqual({ type: 'string' });
+      }
+    }
+  });
+
+  it('preserves fallback without making a request when required facts exceed the response limit', async () => {
+    const result = await summarizeChangelog(
+      [
+        {
+          id: 'critical',
+          title: 'Critical',
+          groups: [
+            {
+              id: 'fix',
+              title: 'Fix',
+              items: Array.from({ length: 101 }, (_, i) => `Security fix ${i}`),
+            },
+          ],
+        },
+      ],
+      { ...config, minItems: 0 },
+    );
+    expect(result).toBeNull();
+    expect(requestMock).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('stage=scope; reason=input-budget'),
+    );
+  });
+
   it('keeps strict structured-output and input bounds', async () => {
     await summarizeChangelog(categories, config);
     for (const [request] of requestMock.mock.calls) {

@@ -4,8 +4,12 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
+import { load } from 'js-yaml';
 import { expect, test } from 'vitest';
-import { AiSummaryConfigSchema } from '../schemas/project_config';
+import {
+  AiSummaryConfigSchema,
+  CraftProjectConfigSchema,
+} from '../schemas/project_config';
 
 const execute = promisify(execFile);
 const root = resolve(__dirname, '../..');
@@ -14,7 +18,7 @@ const base = '2.35.0';
 
 test
   .skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true')
-  .each(['repository', 'default'])(
+  .each(['release', 'repository', 'default'])(
   'full CLI replay of 2.35.1 with %s settings preserves every original entry',
   async settings => {
     const directory = await mkdtemp(join(tmpdir(), 'craft live 2351 '));
@@ -44,6 +48,21 @@ test
         (await execute('git', args, { cwd: checkout })).stdout.trim();
       expect(await git('rev-parse', 'HEAD')).toBe(sourceHead);
       const config = await readFile(join(checkout, '.craft.yml'), 'utf8');
+      let connection =
+        settings === 'default'
+          ? JSON.stringify(AiSummaryConfigSchema.parse({}).llm)
+          : '';
+      if (settings === 'repository') {
+        const project = CraftProjectConfigSchema.parse(
+          load(await readFile(join(root, '.craft.yml'), 'utf8')),
+        );
+        const summary =
+          typeof project.changelog === 'object' && project.changelog.aiSummary;
+        if (!summary)
+          throw new Error('Repository AI summaries must be enabled');
+        // Retain historical release inputs while also checking today's connection.
+        connection = JSON.stringify(summary.llm);
+      }
       const cli = async (dryRun: boolean) => {
         const args = [
           resolve(root, 'dist/craft'),
@@ -57,15 +76,13 @@ test
           'AI_SUMMARY_TOKEN',
         ];
         if (dryRun) args.push('--dry-run');
-        if (settings === 'default')
-          args.push('--ai-model', AiSummaryConfigSchema.parse({}).llm.model);
         const result = await execute(process.execPath, args, {
           cwd: checkout,
           env: {
             ...process.env,
             CI: 'true',
             CRAFT_LOG_LEVEL: 'Warn',
-            CRAFT_AI_LLM: '',
+            CRAFT_AI_LLM: connection,
             CRAFT_AI_ENDPOINT: '',
             CRAFT_AI_MODEL: '',
             CRAFT_AI_API_KEY_ENV: '',
@@ -86,48 +103,55 @@ test
         .split('\n')
         .filter((line: string) => line.startsWith('- '));
       const overview = generated.changelog.split('### ')[0].trim();
-      const passed =
-        generated.changelog !== original.changelog && Boolean(overview);
-      if (process.env.CRAFT_AI_E2E_OUTPUT) {
-        await mkdir(process.env.CRAFT_AI_E2E_OUTPUT, { recursive: true });
-        await writeFile(
-          join(process.env.CRAFT_AI_E2E_OUTPUT, `${settings}.json`),
-          JSON.stringify(
-            {
-              sourceHead,
-              base,
-              settings,
-              passed,
-              totalCommits: generated.totalCommits,
-              bumpType: generated.bumpType,
-              originalsRetained: originals.every((entry: string) =>
-                generated.changelog.includes(entry),
-              ),
-            },
-            null,
-            2,
-          ),
+      let passed = false;
+      try {
+        expect(
+          generated.changelog !== original.changelog && Boolean(overview),
+          'full summarizer returned fallback instead of summaries',
+        ).toBe(true);
+        expect(generated.totalCommits).toBe(3);
+        expect(generated.bumpType).toBe('patch');
+        expect(generated.bumpType).toBe(original.bumpType);
+        expect(originals).toHaveLength(3);
+        for (const entry of originals)
+          expect(generated.changelog.includes(entry)).toBe(true);
+        expect((generated.changelog.match(/<details>/g) || []).length).toBe(2);
+        expect(generated.changelog).toContain(
+          '<summary>Show 2 items</summary>',
         );
-        await writeFile(
-          join(process.env.CRAFT_AI_E2E_OUTPUT, `${settings}.md`),
-          generated.changelog,
+        expect(generated.changelog).toContain('<summary>Show 1 item</summary>');
+        expect(await readFile(join(checkout, '.craft.yml'), 'utf8')).toBe(
+          config,
         );
+        expect(await git('status', '--porcelain')).toBe('');
+        passed = true;
+      } finally {
+        if (process.env.CRAFT_AI_E2E_OUTPUT) {
+          await mkdir(process.env.CRAFT_AI_E2E_OUTPUT, { recursive: true });
+          await writeFile(
+            join(process.env.CRAFT_AI_E2E_OUTPUT, `${settings}.json`),
+            JSON.stringify(
+              {
+                sourceHead,
+                base,
+                settings,
+                passed,
+                totalCommits: generated.totalCommits,
+                bumpType: generated.bumpType,
+                originalsRetained: originals.every((entry: string) =>
+                  generated.changelog.includes(entry),
+                ),
+              },
+              null,
+              2,
+            ),
+          );
+          await writeFile(
+            join(process.env.CRAFT_AI_E2E_OUTPUT, `${settings}.md`),
+            generated.changelog,
+          );
+        }
       }
-      expect(
-        passed,
-        'full summarizer returned fallback instead of summaries',
-      ).toBe(true);
-      expect(generated.totalCommits).toBe(3);
-      expect(generated.bumpType).toBe('patch');
-      expect(generated.bumpType).toBe(original.bumpType);
-      expect(originals).toHaveLength(3);
-      for (const entry of originals)
-        expect(generated.changelog.includes(entry)).toBe(true);
-      expect((generated.changelog.match(/<details>/g) || []).length).toBe(2);
-      expect(generated.changelog).toContain('<summary>Show 2 items</summary>');
-      expect(generated.changelog).toContain('<summary>Show 1 item</summary>');
-      expect(await readFile(join(checkout, '.craft.yml'), 'utf8')).toBe(config);
-      expect(await git('status', '--porcelain')).toBe('');
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
