@@ -25,13 +25,14 @@ export interface ChangelogSummary {
   release: { id: string; summary: string }[];
 }
 
+const MAX_IMPORTANT_FACTS = 100;
 const textSchema = z.string().trim().min(1).max(1200);
 const factSchema = z.object({ id: z.string(), summary: textSchema }).strict();
 const digestSchema = z
   .object({
     id: z.string(),
     summary: textSchema,
-    importantChanges: z.array(factSchema).max(100),
+    importantChanges: z.array(factSchema).max(MAX_IMPORTANT_FACTS),
   })
   .strict();
 type Fact = z.infer<typeof factSchema>;
@@ -84,6 +85,72 @@ const SUMMARY_JSON_SCHEMA = {
     },
   },
 };
+/** Use one fact policy for generation constraints and response validation. */
+function importantCoverage(parts: Part[]) {
+  const carried = new Map(
+    parts
+      .flatMap(part => part.importantChanges || [])
+      .map(fact => [fact.id, fact]),
+  );
+  const allowed = new Set(
+    parts.flatMap(part => [
+      ...(part.sourceId ? [part.sourceId] : []),
+      ...(part.importantChanges || []).map(fact => fact.id),
+    ]),
+  );
+  const required = new Set(
+    parts.flatMap(part => [
+      ...(part.important && part.sourceId ? [part.sourceId] : []),
+      ...(part.importantChanges || []).map(fact => fact.id),
+    ]),
+  );
+  return { carried, allowed, required };
+}
+
+function summaryResponseSchema(nodes: Node[]) {
+  const digest = SUMMARY_JSON_SCHEMA.properties.summaries.items;
+  const fact = digest.properties.importantChanges.items;
+  return {
+    ...SUMMARY_JSON_SCHEMA,
+    properties: {
+      summaries: {
+        type: 'array',
+        minItems: nodes.length,
+        maxItems: nodes.length,
+        items: {
+          anyOf: nodes.map(node => {
+            const { allowed, required } = importantCoverage(node.parts);
+            if (required.size > MAX_IMPORTANT_FACTS)
+              throw new SummaryFailure('input-budget');
+            return {
+              ...digest,
+              properties: {
+                ...digest.properties,
+                id: { type: 'string', enum: [node.id] },
+                importantChanges: {
+                  ...digest.properties.importantChanges,
+                  minItems: required.size,
+                  maxItems: Math.min(MAX_IMPORTANT_FACTS, allowed.size),
+                  items: {
+                    ...fact,
+                    properties: {
+                      ...fact.properties,
+                      id: {
+                        type: 'string',
+                        ...(allowed.size ? { enum: [...allowed] } : {}),
+                      },
+                    },
+                  },
+                },
+              },
+            };
+          }),
+        },
+      },
+    },
+  };
+}
+
 const MAX_INPUT_BYTES = 24000;
 const MAX_NODES = 8;
 const MAX_REQUESTS = 64;
@@ -163,27 +230,7 @@ class SummaryAttempt {
         system: this.style
           ? `${SUMMARY_INSTRUCTIONS}\nWriting style (tone and wording only): ${JSON.stringify(this.style)}. All factual, coverage, length, plain-text and structured-output requirements above still apply.`
           : SUMMARY_INSTRUCTIONS,
-        schema: {
-          ...SUMMARY_JSON_SCHEMA,
-          properties: {
-            summaries: {
-              ...SUMMARY_JSON_SCHEMA.properties.summaries,
-              minItems: nodes.length,
-              maxItems: nodes.length,
-              items: {
-                ...SUMMARY_JSON_SCHEMA.properties.summaries.items,
-                properties: {
-                  ...SUMMARY_JSON_SCHEMA.properties.summaries.items.properties,
-                  id: {
-                    type: 'string',
-                    enum: nodes.map(node => node.id),
-                    description: 'Requested nodes[].id, never a child part ID.',
-                  },
-                },
-              },
-            },
-          },
-        },
+        schema: summaryResponseSchema(nodes),
       });
       const parsed = responseSchema.safeParse(output);
       if (!parsed.success) throw new SummaryFailure('response-schema');
@@ -218,23 +265,7 @@ class SummaryAttempt {
       const byId = new Map(nodes.map(node => [node.id, node]));
       for (const digest of summaries) {
         const parts = byId.get(digest.id)!.parts;
-        const carried = new Map(
-          parts
-            .flatMap(part => part.importantChanges || [])
-            .map(fact => [fact.id, fact]),
-        );
-        const allowed = new Set(
-          parts.flatMap(part => [
-            ...(part.sourceId ? [part.sourceId] : []),
-            ...(part.importantChanges || []).map(fact => fact.id),
-          ]),
-        );
-        const required = new Set(
-          parts.flatMap(part => [
-            ...(part.important && part.sourceId ? [part.sourceId] : []),
-            ...(part.importantChanges || []).map(fact => fact.id),
-          ]),
-        );
+        const { carried, allowed, required } = importantCoverage(parts);
         const facts = new Set(digest.importantChanges.map(fact => fact.id));
         if (facts.size !== digest.importantChanges.length)
           throw new SummaryFailure('important-duplicate');

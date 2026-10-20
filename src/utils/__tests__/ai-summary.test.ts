@@ -177,11 +177,59 @@ describe('hierarchical HTTP changelog summaries', () => {
       const entries = (request.schema as any).properties.summaries;
       expect(entries.minItems).toBe(nodes.length);
       expect(entries.maxItems).toBe(nodes.length);
-      expect(entries.items.properties.id.enum).toEqual(
-        nodes.map((node: any) => node.id),
-      );
+      expect(
+        entries.items.anyOf.map((branch: any) => branch.properties.id.enum[0]),
+      ).toEqual(nodes.map((node: any) => node.id));
       for (const part of nodes.flatMap((node: any) => node.parts))
-        expect(entries.items.properties.id.enum).not.toContain(part.id);
+        expect(
+          entries.items.anyOf.flatMap(
+            (branch: any) => branch.properties.id.enum,
+          ),
+        ).not.toContain(part.id);
+    }
+  });
+
+  it('constrains critical fact IDs and minimum coverage separately for each node', async () => {
+    const input = [
+      {
+        id: 'critical',
+        title: 'Critical',
+        groups: [
+          {
+            id: 'fix',
+            title: 'Fix',
+            items: ['Breaking change: remove legacy API.'],
+          },
+        ],
+      },
+    ];
+    expect(
+      await summarizeChangelog(input, { ...config, minItems: 0 }),
+    ).not.toBeNull();
+    for (const [request] of requestMock.mock.calls) {
+      const nodes = JSON.parse(request.input).nodes;
+      const branches = (request.schema as any).properties.summaries.items.anyOf;
+      expect(Array.isArray(branches)).toBe(true);
+      for (const [index, node] of nodes.entries()) {
+        const allowed = [
+          ...new Set(
+            node.parts.flatMap((part: any) => [
+              ...(part.sourceId ? [part.sourceId] : []),
+              ...(part.importantChanges || []).map((fact: any) => fact.id),
+            ]),
+          ),
+        ];
+        const required = new Set(
+          node.parts.flatMap((part: any) => [
+            ...(part.important && part.sourceId ? [part.sourceId] : []),
+            ...(part.importantChanges || []).map((fact: any) => fact.id),
+          ]),
+        );
+        const facts = branches[index].properties.importantChanges;
+        expect(facts.minItems).toBe(required.size);
+        expect(facts.maxItems).toBe(Math.min(100, allowed.length));
+        expect(facts.items.properties.id.enum).toEqual(allowed);
+      }
     }
   });
 
