@@ -27,6 +27,10 @@ import {
   packageIdToNugetArtifactPattern,
 } from '../utils/dotnetWorkspaces';
 import { filterWorkspacePackages } from '../utils/workspaces';
+import {
+  getRemotePackageState,
+  isSymbolPackagePublished,
+} from '../utils/nugetRegistry';
 import { logger } from '../logger';
 
 /** Command to launch dotnet tools */
@@ -352,6 +356,110 @@ export class NugetTarget extends BaseTarget {
   }
 
   /**
+   * Pushes a file, adding a hint when NuGet rejects it as a duplicate.
+   */
+  private async push(path: string): Promise<void> {
+    try {
+      await this.uploadAsset(path);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/\b409\b|already (contains|exists)/i.test(message)) {
+        throw new Error(
+          `${message}\n\nNuGet rejected the push because this version already exists. ` +
+            'If it was uploaded in the last few minutes, NuGet may still be validating it ' +
+            'and not serving it yet. Wait a few minutes and retry, so Craft can compare the ' +
+            'published package with the local one. Otherwise, publish a new version.',
+          { cause: error },
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Publishes one .nupkg and, if there is one, its .snupkg.
+   *
+   * Before pushing, checks whether the version is already on the server, so
+   * that a retried release can recover from a partially completed publish
+   * without `--skip-duplicate`:
+   *
+   * - not published: push the .nupkg, which also pushes the .snupkg next to it
+   * - published with identical contents (ignoring the repository signature
+   *   the server adds): skip the .nupkg, and push the .snupkg on its own if
+   *   the server doesn't have it yet
+   * - published with different contents: fail, since NuGet versions are
+   *   immutable and the release must not look successful
+   *
+   * If the server state can't be determined, the .nupkg is pushed as usual,
+   * so an existing version still makes the push fail loudly.
+   */
+  private async publishPackage(
+    file: RemoteArtifact,
+    symbolFile?: RemoteArtifact,
+  ): Promise<void> {
+    // The .snupkg is downloaded next to the .nupkg (both go to the artifact
+    // provider's download directory), so pushing the .nupkg picks it up
+    // automatically. That way the .snupkg is only sent once the .nupkg push
+    // succeeded.
+    const path = await this.artifactProvider.downloadArtifact(file);
+    const symbolPath = symbolFile
+      ? await this.artifactProvider.downloadArtifact(symbolFile)
+      : undefined;
+    const serverUrl = this.nugetConfig.serverUrl;
+
+    const state = await getRemotePackageState(serverUrl, path);
+
+    if (state.status === 'different') {
+      const shown = state.differences.slice(0, 10).join(', ');
+      const more =
+        state.differences.length > 10
+          ? ` and ${state.differences.length - 10} more`
+          : '';
+      throw new Error(
+        `"${file.filename}" is already published on ${serverUrl} with different contents ` +
+          `(differs in: ${shown}${more}). NuGet versions are immutable, so publish a new version instead.`,
+      );
+    }
+
+    if (state.status === 'identical') {
+      this.logger.info(
+        `"${file.filename}" is already published with identical contents, not pushing it again.`,
+      );
+      if (!symbolFile || !symbolPath) {
+        return;
+      }
+      const symbolsPublished = await isSymbolPackagePublished(
+        serverUrl,
+        state.identity,
+      );
+      if (symbolsPublished) {
+        this.logger.info(
+          `Symbol package "${symbolFile.filename}" is already published, nothing to do.`,
+        );
+        return;
+      }
+      this.logger.info(
+        symbolsPublished === false
+          ? `Symbol package "${symbolFile.filename}" is not published yet, uploading it via "dotnet nuget"`
+          : `Could not check whether symbol package "${symbolFile.filename}" is published, uploading it via "dotnet nuget"`,
+      );
+      await this.push(symbolPath);
+      return;
+    }
+
+    if (state.status === 'unknown') {
+      this.logger.info(
+        `Could not check whether "${file.filename}" is already published (${state.reason}), pushing it.`,
+      );
+    }
+    this.logger.info(
+      `Uploading file "${file.filename}" via "dotnet nuget"` +
+        (symbolFile ? `, including symbol file "${symbolFile.filename}"` : ''),
+    );
+    await this.push(path);
+  }
+
+  /**
    * Publishes a package tarball to the Nuget registry
    */
   public async publish(_version: string, revision: string): Promise<any> {
@@ -390,29 +498,9 @@ export class NugetTarget extends BaseTarget {
 
     await Promise.all(
       packageFiles.map(async (file: RemoteArtifact) => {
-        const path = await this.artifactProvider.downloadArtifact(file);
-
-        // If an artifact containing a .snupkg file exists with the same base
-        // name as the .nupkg file, then download it to the same location.
-        // It will be picked up automatically when pushing the .nupkg.
-
-        // Note, this approach is required vs sending them separately, because
-        // we need to send the .nupkg *first*, and it must succeed before the
-        // .snupkg is sent.
-
         const symbolFileName = file.filename.replace('.nupkg', '.snupkg');
         const symbolFile = symbolFiles.find(f => f.filename === symbolFileName);
-        if (symbolFile) {
-          await this.artifactProvider.downloadArtifact(symbolFile);
-        }
-
-        this.logger.info(
-          `Uploading file "${file.filename}" via "dotnet nuget"` +
-            (symbolFile
-              ? `, including symbol file "${symbolFile.filename}"`
-              : ''),
-        );
-        return this.uploadAsset(path);
+        return this.publishPackage(file, symbolFile);
       }),
     );
 

@@ -5,8 +5,13 @@ import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { RemoteArtifact } from '../../artifact_providers/base';
 import { spawnProcess } from '../../utils/system';
 import { ConfigurationError } from '../../utils/errors';
+import {
+  getRemotePackageState,
+  isSymbolPackagePublished,
+} from '../../utils/nugetRegistry';
 
 vi.mock('../../utils/system');
+vi.mock('../../utils/nugetRegistry');
 
 describe('NugetTarget.expand', () => {
   let discoverDotnetPackagesMock: MockInstance;
@@ -262,17 +267,25 @@ describe('NugetTarget.expand', () => {
 
 describe('NugetTarget.publish', () => {
   const oldEnv = process.env;
+  const identity = { id: 'Sentry', version: '1.0.0' };
 
   beforeEach(() => {
     process.env = { ...oldEnv, NUGET_API_TOKEN: 'test-token' };
     vi.mocked(spawnProcess).mockReset();
+    vi.mocked(getRemotePackageState)
+      .mockReset()
+      .mockResolvedValue({ status: 'missing' });
+    vi.mocked(isSymbolPackagePublished).mockReset();
   });
 
   afterAll(() => {
     process.env = oldEnv;
   });
 
-  it('never pushes .snupkg files on their own', async () => {
+  function setup(filenames = ['Sentry.1.0.0.nupkg', 'Sentry.1.0.0.snupkg']): {
+    target: NugetTarget;
+    downloadArtifact: MockInstance;
+  } {
     const artifactProvider = new NoneArtifactProvider();
     const target = new NugetTarget(
       {
@@ -282,10 +295,9 @@ describe('NugetTarget.publish', () => {
       },
       artifactProvider,
     );
-    const artifacts = [
-      { filename: 'Sentry.1.0.0.nupkg' },
-      { filename: 'Sentry.1.0.0.snupkg' },
-    ] as RemoteArtifact[];
+    const artifacts = filenames.map(filename => ({
+      filename,
+    })) as RemoteArtifact[];
     vi.spyOn(artifactProvider, 'filterArtifactsForRevision').mockImplementation(
       async (_revision, filterOptions) =>
         artifacts.filter(a => filterOptions?.includeNames?.test(a.filename)),
@@ -293,15 +305,138 @@ describe('NugetTarget.publish', () => {
     const downloadArtifact = vi
       .spyOn(artifactProvider, 'downloadArtifact')
       .mockImplementation(async (a: RemoteArtifact) => `/tmp/${a.filename}`);
+    return { target, downloadArtifact };
+  }
 
-    await target.publish('1.0.0', 'abc123');
-
-    const pushedPaths = vi
+  function pushedPaths(): unknown[] {
+    return vi
       .mocked(spawnProcess)
       .mock.calls.filter(([, args]) => args?.[1] === 'push')
       .map(([, args]) => args?.[2]);
-    expect(pushedPaths).toEqual(['/tmp/Sentry.1.0.0.nupkg']);
-    // The symbol package is still downloaded next to the .nupkg
+  }
+
+  it('pushes a new .nupkg with its .snupkg next to it', async () => {
+    const { target, downloadArtifact } = setup();
+
+    await target.publish('1.0.0', 'abc123');
+
+    // The .snupkg is picked up by `dotnet nuget push` from next to the .nupkg
+    expect(pushedPaths()).toEqual(['/tmp/Sentry.1.0.0.nupkg']);
     expect(downloadArtifact).toHaveBeenCalledTimes(2);
+    expect(getRemotePackageState).toHaveBeenCalledWith(
+      'https://api.nuget.org/v3/index.json',
+      '/tmp/Sentry.1.0.0.nupkg',
+    );
+    expect(isSymbolPackagePublished).not.toHaveBeenCalled();
+  });
+
+  it('pushes the .nupkg when the server state is unknown', async () => {
+    vi.mocked(getRemotePackageState).mockResolvedValue({
+      status: 'unknown',
+      reason: 'HTTP 503',
+    });
+    const { target } = setup();
+
+    await target.publish('1.0.0', 'abc123');
+
+    expect(pushedPaths()).toEqual(['/tmp/Sentry.1.0.0.nupkg']);
+  });
+
+  it('skips packages that are already published with both files', async () => {
+    vi.mocked(getRemotePackageState).mockResolvedValue({
+      status: 'identical',
+      identity,
+    });
+    vi.mocked(isSymbolPackagePublished).mockResolvedValue(true);
+    const { target } = setup();
+
+    await target.publish('1.0.0', 'abc123');
+
+    expect(pushedPaths()).toEqual([]);
+    expect(isSymbolPackagePublished).toHaveBeenCalledWith(
+      'https://api.nuget.org/v3/index.json',
+      identity,
+    );
+  });
+
+  it('skips an identical package that has no symbol package', async () => {
+    vi.mocked(getRemotePackageState).mockResolvedValue({
+      status: 'identical',
+      identity,
+    });
+    const { target } = setup(['Sentry.1.0.0.nupkg']);
+
+    await target.publish('1.0.0', 'abc123');
+
+    expect(pushedPaths()).toEqual([]);
+    expect(isSymbolPackagePublished).not.toHaveBeenCalled();
+  });
+
+  it('pushes only the missing .snupkg when the .nupkg is already published', async () => {
+    vi.mocked(getRemotePackageState).mockResolvedValue({
+      status: 'identical',
+      identity,
+    });
+    vi.mocked(isSymbolPackagePublished).mockResolvedValue(false);
+    const { target } = setup();
+
+    await target.publish('1.0.0', 'abc123');
+
+    expect(pushedPaths()).toEqual(['/tmp/Sentry.1.0.0.snupkg']);
+  });
+
+  it('pushes the .snupkg when its state is unknown', async () => {
+    vi.mocked(getRemotePackageState).mockResolvedValue({
+      status: 'identical',
+      identity,
+    });
+    vi.mocked(isSymbolPackagePublished).mockResolvedValue(undefined);
+    const { target } = setup();
+
+    await target.publish('1.0.0', 'abc123');
+
+    expect(pushedPaths()).toEqual(['/tmp/Sentry.1.0.0.snupkg']);
+  });
+
+  it('fails when a different package is published under the same version', async () => {
+    vi.mocked(getRemotePackageState).mockResolvedValue({
+      status: 'different',
+      differences: ['lib/net8.0/Sentry.dll'],
+    });
+    const { target } = setup();
+
+    await expect(target.publish('1.0.0', 'abc123')).rejects.toThrow(
+      /already published .* with different contents \(differs in: lib\/net8\.0\/Sentry\.dll\)/,
+    );
+    expect(pushedPaths()).toEqual([]);
+  });
+
+  it('explains duplicate rejections from the server', async () => {
+    vi.mocked(spawnProcess).mockImplementation(async (_cmd, args) => {
+      if (args?.[1] === 'push') {
+        throw new Error(
+          'Response status code does not indicate success: 409 (Conflict - The feed already contains Sentry 1.0.0)',
+        );
+      }
+      return Buffer.from('');
+    });
+    const { target } = setup();
+
+    await expect(target.publish('1.0.0', 'abc123')).rejects.toThrow(
+      /may still be validating/,
+    );
+  });
+
+  it('passes other push errors through unchanged', async () => {
+    const error = new Error('network down');
+    vi.mocked(spawnProcess).mockImplementation(async (_cmd, args) => {
+      if (args?.[1] === 'push') {
+        throw error;
+      }
+      return Buffer.from('');
+    });
+    const { target } = setup();
+
+    await expect(target.publish('1.0.0', 'abc123')).rejects.toBe(error);
   });
 });
