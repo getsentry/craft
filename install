@@ -83,7 +83,23 @@ if $dry_run; then
 fi
 root=$(mktemp -d "${TMPDIR:-/tmp}/craft-install.XXXXXXXX")
 stage=''
-trap 'rm -rf "$root"; if [[ -n "$stage" ]]; then rm -rf "$stage"; fi' EXIT
+remove_temporary_directory() {
+  local directory=$1 attempt
+  # Windows may briefly retain an executable lock after Craft exits.
+  for attempt in 1 2 3 4 5; do
+    if rm -rf "$directory" 2>/dev/null; then return 0; fi
+    if (( attempt < 5 )); then sleep 1; fi
+  done
+  echo "Craft installer: Could not remove temporary directory: $directory" >&2
+}
+cleanup() {
+  local status=$?
+  trap - EXIT
+  remove_temporary_directory "$root"
+  if [[ -n "$stage" ]]; then remove_temporary_directory "$stage"; fi
+  exit "$status"
+}
+trap cleanup EXIT
 candidate="$root/craft"
 native=true
 base="https://github.com/getsentry/craft/releases/download/$version"
