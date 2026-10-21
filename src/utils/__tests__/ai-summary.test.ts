@@ -62,10 +62,20 @@ function modelResponse(options: SummaryRequest) {
   return {
     summaries: input.nodes.map((node: any) => ({
       id: node.id,
+      ...(input.level === 'release'
+        ? { coveredPartIds: node.parts.map((part: any) => part.id) }
+        : {}),
       summary: `${input.level}: ${node.title} (${node.parts
         .map((part: any) => part.text)
         .join('; ')
-        .slice(0, 700)})`,
+        .slice(
+          0,
+          input.level === 'release'
+            ? 250
+            : input.level === 'category'
+              ? 450
+              : 700,
+        )})`,
       importantChanges: node.parts.flatMap((part: any) => [
         ...(part.importantChanges || []),
         ...(part.important
@@ -112,15 +122,252 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(Object.keys(result!.categories)).toEqual(
       levels.includes('category') ? ['features', 'fixes'] : [],
     );
-    expect(result!.release.map(statement => statement.id)).toEqual(
-      levels.includes('release') ? ['features', 'fixes'] : [],
-    );
+    expect(Boolean(result!.release)).toBe(levels.includes('release'));
   });
+
+  it('synthesizes one release overview from every category digest', async () => {
+    requestMock.mockImplementation(async request => {
+      const input = JSON.parse(request.input);
+      const output = modelResponse(request);
+      if (input.level === 'category')
+        output.summaries.forEach((digest: any, i: number) => {
+          digest.summary = `Category digest: ${input.nodes[i].title}`;
+        });
+      if (input.level === 'release')
+        output.summaries = input.nodes.map((node: any) => ({
+          id: node.id,
+          summary:
+            'New capabilities and reliability improvements across the API.',
+          importantChanges: [],
+          coveredPartIds: node.parts.map((part: any) => part.id),
+        }));
+      return output;
+    });
+    const result = await summarizeChangelog(categories, config);
+    expect(result?.release).toBe(
+      'New capabilities and reliability improvements across the API.',
+    );
+    const releaseRequests = requestMock.mock.calls
+      .map(([request]) => JSON.parse(request.input))
+      .filter(input => input.level === 'release');
+    expect(releaseRequests).toHaveLength(1);
+    expect(releaseRequests[0].nodes).toHaveLength(1);
+    expect(releaseRequests[0].nodes[0].parts).toMatchObject([
+      { id: 'features', title: 'Features', text: 'Category digest: Features' },
+      { id: 'fixes', title: 'Fixes', text: 'Category digest: Fixes' },
+    ]);
+  });
+
+  it('renders model prose without appending a paraphrased critical fact', async () => {
+    requestMock.mockImplementation(async request => {
+      const output = modelResponse(request);
+      output.summaries.forEach((digest: any) => {
+        digest.summary = 'Resolved dependency vulnerabilities.';
+        digest.importantChanges = [
+          { id: 'g:item:0', summary: 'Security: fix dependency CVE-1234.' },
+        ];
+      });
+      return output;
+    });
+    const result = await summarizeChangelog(
+      [
+        {
+          id: 'fix',
+          title: 'Fixes',
+          groups: [
+            {
+              id: 'g',
+              title: 'Dependencies',
+              scope: 'Deps',
+              items: ['Security: fix dependency CVE-1234.'],
+            },
+          ],
+        },
+      ],
+      { ...config, levels: ['scope'], minItems: 0 },
+    );
+    expect(result?.scopes.g).toBe('Resolved dependency vulnerabilities.');
+  });
+
+  it('rejects a release overview without verified category coverage', async () => {
+    requestMock.mockImplementation(async request => {
+      const output = modelResponse(request);
+      output.summaries.forEach((digest: any) => {
+        delete digest.coveredPartIds;
+      });
+      return output;
+    });
+    expect(await summarizeChangelog(categories, config)).toBeNull();
+  });
+
+  it.each(['missing', 'duplicate', 'unknown'])(
+    'rejects %s category coverage in a release synthesis',
+    async mode => {
+      requestMock.mockImplementation(async request => {
+        const input = JSON.parse(request.input);
+        const output = modelResponse(request);
+        if (input.level === 'release') {
+          const digest = output.summaries[0];
+          if (mode === 'missing') digest.coveredPartIds.pop();
+          if (mode === 'duplicate')
+            digest.coveredPartIds[1] = digest.coveredPartIds[0];
+          if (mode === 'unknown') digest.coveredPartIds[0] = 'private-source';
+        }
+        return output;
+      });
+      expect(await summarizeChangelog(categories, config)).toBeNull();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('stage=release; reason=part-coverage'),
+      );
+      expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain(
+        'private-source',
+      );
+    },
+  );
+
+  it('reduces many categories into one bounded overview while checking every child batch', async () => {
+    const input = Array.from({ length: 80 }, (_, i) => ({
+      id: `category-${i}`,
+      title: `Category ${i}`,
+      groups: [{ id: `g${i}`, title: `Group ${i}`, items: [`Change ${i}`] }],
+    }));
+    requestMock.mockImplementation(async request => {
+      const output = modelResponse(request);
+      if (JSON.parse(request.input).level === 'category')
+        output.summaries.forEach((digest: any) => {
+          digest.summary = 'Category theme. '.repeat(35).trim();
+        });
+      return output;
+    });
+    const result = await summarizeChangelog(input, {
+      ...config,
+      minItems: 0,
+      levels: ['release'],
+    });
+    expect(result?.release).toBeTruthy();
+    expect(result?.release.length).toBeLessThanOrEqual(400);
+    expect(result?.categories).toEqual({});
+    expect(result?.scopes).toEqual({});
+    const requests = requestMock.mock.calls.map(([request]) => ({
+      request,
+      input: JSON.parse(request.input),
+    }));
+    const release = requests.filter(({ input }) => input.level === 'release');
+    expect(release.length).toBeGreaterThan(1);
+    const initialParts = release
+      .flatMap(({ input }) => input.nodes.flatMap((node: any) => node.parts))
+      .filter((part: any) => part.id.startsWith('category-'));
+    expect(initialParts.map((part: any) => part.id)).toEqual(
+      input.map(category => category.id),
+    );
+    expect(release.at(-1)!.input.nodes).toHaveLength(1);
+    for (const { request } of requests)
+      expect(Buffer.byteLength(request.input)).toBeLessThanOrEqual(24000);
+    expect(requests.length).toBeLessThanOrEqual(64);
+  });
+
+  it('rejects an overlong overview instead of displaying concatenated category prose', async () => {
+    requestMock.mockImplementation(async request => {
+      const output = modelResponse(request);
+      if (JSON.parse(request.input).level === 'release')
+        output.summaries[0].summary = 'x'.repeat(401);
+      return output;
+    });
+    expect(await summarizeChangelog(categories, config)).toBeNull();
+  });
+
+  it.each([
+    ['scope', 1200],
+    ['category', 600],
+    ['release', 400],
+  ] as const)(
+    'accepts %s prose at its Unicode character limit',
+    async (level, limit) => {
+      const prose = '🚀'.repeat(limit);
+      requestMock.mockImplementation(async request => {
+        const output = modelResponse(request);
+        if (JSON.parse(request.input).level === level)
+          output.summaries.forEach((digest: any) => {
+            digest.summary = prose;
+          });
+        return output;
+      });
+      const result = await summarizeChangelog(categories, {
+        ...config,
+        minItems: 0,
+        levels: [level],
+      });
+      expect(result).not.toBeNull();
+      expect(
+        result!.release || result!.categories.features || result!.scopes.api,
+      ).toBe(prose);
+    },
+  );
+
+  it.each([
+    ['scope', 1200],
+    ['category', 600],
+    ['release', 400],
+  ] as const)(
+    'rejects %s prose exceeding its Unicode character limit',
+    async (level, limit) => {
+      requestMock.mockImplementation(async request => {
+        const output = modelResponse(request);
+        if (JSON.parse(request.input).level === level)
+          output.summaries.forEach((digest: any) => {
+            digest.summary = '🚀'.repeat(limit + 1);
+          });
+        return output;
+      });
+      expect(
+        await summarizeChangelog(categories, {
+          ...config,
+          minItems: 0,
+          levels: [level],
+        }),
+      ).toBeNull();
+    },
+  );
+
+  it.each([1200, 1201])(
+    'validates carried Unicode critical facts at %i characters',
+    async length => {
+      requestMock.mockImplementation(async request => {
+        const output = modelResponse(request);
+        output.summaries.forEach((digest: any) => {
+          digest.importantChanges.forEach((fact: any) => {
+            fact.summary = '🚀'.repeat(length);
+          });
+        });
+        return output;
+      });
+      const result = await summarizeChangelog(
+        [
+          {
+            id: 'fixes',
+            title: 'Fixes',
+            groups: [
+              { id: 'g', title: 'Dependencies', items: ['Security fix.'] },
+            ],
+          },
+        ],
+        { ...config, minItems: 0 },
+      );
+      if (length === 1201) expect(result).toBeNull();
+      else {
+        expect(result).not.toBeNull();
+        const last = JSON.parse(requestMock.mock.calls.at(-1)![0].input);
+        expect(last.nodes[0].parts[0].importantChanges[0].summary).toBe(
+          '🚀'.repeat(1200),
+        );
+      }
+    },
+  );
 
   it('reuses digests and includes small unscoped groups in every parent', async () => {
     const result = await summarizeChangelog(categories, config);
     expect(result!.categories.features).toContain('Small feature');
-    expect(result!.release[0].summary).toContain('Small feature');
+    expect(result!.release).toContain('Small feature');
     const inputs = requestMock.mock.calls.map(([options]) =>
       JSON.parse(options.input),
     );
@@ -133,7 +380,7 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(
       inputs
         .find(input => input.level === 'release')
-        .nodes.map((node: any) => node.parts[0].count),
+        .nodes[0].parts.map((part: any) => part.count),
     ).toEqual([7, 6]);
   });
 
@@ -141,6 +388,9 @@ describe('hierarchical HTTP changelog summaries', () => {
     requestMock.mockImplementation(async request => ({
       summaries: JSON.parse(request.input).nodes.map((node: any) => ({
         id: node.id,
+        ...(JSON.parse(request.input).level === 'release'
+          ? { coveredPartIds: node.parts.map((part: any) => part.id) }
+          : {}),
         summary: 'Added commands.',
         importantChanges: [],
       })),
@@ -168,6 +418,110 @@ describe('hierarchical HTTP changelog summaries', () => {
       expect(request.system).toContain(JSON.stringify(style));
       expect(request.system).toContain('requirements above still apply');
     }
+  });
+
+  it('constrains generated digest IDs and counts to the requested nodes at every level', async () => {
+    expect(await summarizeChangelog(categories, config)).not.toBeNull();
+    for (const [request] of requestMock.mock.calls) {
+      const nodes = JSON.parse(request.input).nodes;
+      const entries = (request.schema as any).properties.summaries;
+      expect(entries.minItems).toBe(nodes.length);
+      expect(entries.maxItems).toBe(nodes.length);
+      expect(
+        entries.items.anyOf.map((branch: any) => branch.properties.id.enum[0]),
+      ).toEqual(nodes.map((node: any) => node.id));
+      for (const part of nodes.flatMap((node: any) => node.parts))
+        expect(
+          entries.items.anyOf.flatMap(
+            (branch: any) => branch.properties.id.enum,
+          ),
+        ).not.toContain(part.id);
+    }
+  });
+
+  it('constrains critical fact IDs and minimum coverage separately for each node', async () => {
+    const input = [
+      {
+        id: 'critical',
+        title: 'Critical',
+        groups: [
+          {
+            id: 'fix',
+            title: 'Fix',
+            items: ['Breaking change: remove legacy API.'],
+          },
+        ],
+      },
+    ];
+    expect(
+      await summarizeChangelog(input, { ...config, minItems: 0 }),
+    ).not.toBeNull();
+    for (const [request] of requestMock.mock.calls) {
+      const nodes = JSON.parse(request.input).nodes;
+      const branches = (request.schema as any).properties.summaries.items.anyOf;
+      expect(Array.isArray(branches)).toBe(true);
+      for (const [index, node] of nodes.entries()) {
+        const allowed = [
+          ...new Set(
+            node.parts.flatMap((part: any) => [
+              ...(part.sourceId ? [part.sourceId] : []),
+              ...(part.importantChanges || []).map((fact: any) => fact.id),
+            ]),
+          ),
+        ];
+        const required = new Set(
+          node.parts.flatMap((part: any) => [
+            ...(part.important && part.sourceId ? [part.sourceId] : []),
+            ...(part.importantChanges || []).map((fact: any) => fact.id),
+          ]),
+        );
+        const facts = branches[index].properties.importantChanges;
+        expect(facts.minItems).toBe(required.size);
+        expect(facts.maxItems).toBe(Math.min(100, allowed.length));
+        expect(facts.items.properties.id.enum).toEqual(allowed);
+      }
+    }
+  });
+
+  it('does not emit an empty fact-ID enum for parents without critical facts', async () => {
+    expect(await summarizeChangelog(categories, config)).not.toBeNull();
+    const parents = requestMock.mock.calls.filter(
+      ([request]) => JSON.parse(request.input).level !== 'scope',
+    );
+    expect(parents.length).toBeGreaterThan(0);
+    for (const [request] of parents) {
+      const branches = (request.schema as any).properties.summaries.items.anyOf;
+      for (const branch of branches) {
+        const facts = branch.properties.importantChanges;
+        expect(facts.minItems).toBe(0);
+        expect(facts.maxItems).toBe(0);
+        expect(facts.items.properties.id).toEqual({ type: 'string' });
+      }
+    }
+  });
+
+  it('preserves fallback without making a request when required facts exceed the response limit', async () => {
+    const result = await summarizeChangelog(
+      [
+        {
+          id: 'critical',
+          title: 'Critical',
+          groups: [
+            {
+              id: 'fix',
+              title: 'Fix',
+              items: Array.from({ length: 101 }, (_, i) => `Security fix ${i}`),
+            },
+          ],
+        },
+      ],
+      { ...config, minItems: 0 },
+    );
+    expect(result).toBeNull();
+    expect(requestMock).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('stage=scope; reason=input-budget'),
+    );
   });
 
   it('keeps strict structured-output and input bounds', async () => {
@@ -201,7 +555,7 @@ describe('hierarchical HTTP changelog summaries', () => {
       ],
       { ...config, minItems: 0 },
     );
-    expect(result!.release).toHaveLength(1);
+    expect(result!.release).toBeTruthy();
     const atoms = requestMock.mock.calls
       .flatMap(([options]) => JSON.parse(options.input).nodes)
       .flatMap(node => node.parts)
@@ -224,7 +578,7 @@ describe('hierarchical HTTP changelog summaries', () => {
       config,
     );
     expect(Object.keys(result!.scopes)).toHaveLength(30);
-    expect(result!.release.map(s => s.id)).toEqual(['large']);
+    expect(result!.release).toBeTruthy();
   });
 
   it('carries source-linked security and breaking facts through reductions', async () => {
@@ -247,7 +601,7 @@ describe('hierarchical HTTP changelog summaries', () => {
       ],
       { ...config, minItems: 1 },
     );
-    expect(result!.release[0].summary).toContain('CVE-1234');
+    expect(result!.release).toContain('CVE-1234');
     const input = JSON.parse(requestMock.mock.calls.at(-1)![0].input);
     expect(
       input.nodes[0].parts[0].importantChanges.map((fact: any) => fact.id),
@@ -276,7 +630,7 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(requestMock).not.toHaveBeenCalled();
   });
 
-  it('renders carried critical facts even when the final prose omits them', async () => {
+  it('carries critical facts internally without appending them to visible prose', async () => {
     requestMock.mockImplementation(async options => {
       const output = modelResponse(options!);
       output.summaries.forEach((digest: any) => {
@@ -294,7 +648,11 @@ describe('hierarchical HTTP changelog summaries', () => {
       ],
       { ...config, minItems: 0 },
     );
-    expect(result!.release[0].summary).toContain('CVE-1234');
+    expect(result!.release).toBe('General maintenance.');
+    const last = JSON.parse(requestMock.mock.calls.at(-1)![0].input);
+    expect(last.nodes[0].parts[0].importantChanges).toEqual([
+      { id: 'g:item:0', summary: 'SECURITY: fix CVE-1234' },
+    ]);
   });
 
   it('preserves different critical facts in separate fragments of one oversized entry', async () => {
@@ -321,8 +679,73 @@ describe('hierarchical HTTP changelog summaries', () => {
       ],
       { ...config, minItems: 0 },
     );
-    expect(result!.release[0].summary).toContain('CVE-A');
-    expect(result!.release[0].summary).toContain('API-B');
+    expect(result!.release).toBe('General maintenance.');
+    const last = JSON.parse(requestMock.mock.calls.at(-1)![0].input);
+    const facts = JSON.stringify(last.nodes[0].parts[0].importantChanges);
+    expect(facts).toContain('CVE-A');
+    expect(facts).toContain('API-B');
+  });
+
+  it.each(['scope', 'category', 'release'] as const)(
+    'rejects a late final %s response before an overdue timer callback runs',
+    async level => {
+      vi.useFakeTimers();
+      requestMock.mockImplementation(async request => {
+        const output = modelResponse(request);
+        if (JSON.parse(request.input).level === level)
+          vi.setSystemTime(Date.now() + 30001);
+        return output;
+      });
+      expect(
+        await summarizeChangelog(
+          [
+            {
+              id: 'fixes',
+              title: 'Fixes',
+              groups: [
+                {
+                  id: 'g',
+                  title: 'Dependencies',
+                  scope: 'Deps',
+                  items: ['Dependency update.'],
+                },
+              ],
+            },
+          ],
+          { ...config, minItems: 0, levels: [level] },
+        ),
+      ).toBeNull();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`stage=${level}; reason=deadline`),
+      );
+    },
+  );
+
+  it('rejects a response past the total deadline without making another model call', async () => {
+    vi.useFakeTimers();
+    requestMock.mockImplementation(async request => {
+      const output = modelResponse(request);
+      vi.setSystemTime(Date.now() + 120001);
+      return output;
+    });
+    expect(
+      await summarizeChangelog(
+        [
+          {
+            id: 'fixes',
+            title: 'Fixes',
+            groups: [
+              { id: 'g', title: 'Dependencies', items: ['Dependency update.'] },
+            ],
+          },
+        ],
+        { ...config, minItems: 0 },
+      ),
+    ).toBeNull();
+    expect(requestMock).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('stage=scope; reason=deadline'),
+    );
   });
 
   it('enforces the total deadline across individually successful requests', async () => {
@@ -379,17 +802,21 @@ describe('hierarchical HTTP changelog summaries', () => {
         minItems: 0,
         levels: [],
       }),
-    ).toMatchObject({ release: [{ id: 'a' }], categories: {}, scopes: {} });
+    ).toMatchObject({
+      release: expect.any(String),
+      categories: {},
+      scopes: {},
+    });
     expect(
       await summarizeChangelog(small, { ...config, minItems: 0 }),
     ).toMatchObject({
-      release: [{ id: 'a' }],
+      release: expect.any(String),
       categories: { a: expect.any(String) },
       scopes: { g: expect.any(String) },
     });
     expect(
       await summarizeChangelog(categories, { ...config, levels: ['category'] }),
-    ).toMatchObject({ release: [] });
+    ).toMatchObject({ release: '' });
     expect(await summarizeChangelog([], { ...config, minItems: 0 })).toBeNull();
   });
 
@@ -419,7 +846,7 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(result).toMatchObject({
       categories: { a: expect.any(String) },
       scopes: {},
-      release: [{ id: 'a' }],
+      release: expect.any(String),
     });
   });
 
@@ -601,7 +1028,7 @@ describe('hierarchical HTTP changelog summaries', () => {
       levels: ['release'],
       minItems: 0,
     });
-    expect(result!.release.map(statement => statement.id)).toEqual(['a']);
+    expect(result!.release).toBeTruthy();
     expect(peak).toBeGreaterThan(1);
     expect(peak).toBeLessThanOrEqual(3);
   });

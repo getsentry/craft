@@ -38,11 +38,19 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
       const messages = responses ? body.input : body.messages;
       assert.ok(messages[0].content.includes('Concise and friendly.'));
       const input = JSON.parse(messages[1].content);
-      const summaries = input.nodes.map((node: { id: string }) => ({
-        id: node.id,
-        summary: 'Fixture changes for this group.',
-        importantChanges: [],
-      }));
+      const summaries = input.nodes.map(
+        (node: { id: string; parts: { id: string }[] }) => ({
+          id: node.id,
+          ...(input.level === 'release'
+            ? { coveredPartIds: node.parts.map(part => part.id) }
+            : {}),
+          summary:
+            input.level === 'release'
+              ? 'Fixture release overview.'
+              : 'Fixture changes for this group.',
+          importantChanges: [],
+        }),
+      );
       response.writeHead(200, { 'content-type': 'application/json' });
       const text = JSON.stringify({ summaries });
       response.end(
@@ -183,9 +191,9 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
       for (let i = 1; i <= 6; i++)
         assert.ok(generated.changelog.includes(`${title} ${i}`));
     const overview = generated.changelog.split('### ')[0].trim();
-    assert.equal(overview.split('\n\n').length, 2);
+    assert.equal(overview, 'Fixture release overview.');
     assert.ok(!overview.includes('**'));
-    assert.ok(overview.includes('Fixture changes for this group.'));
+    assert.ok(!overview.includes('Fixture changes for this group.'));
     const before = calls;
     await run(['--dry-run']);
     assert.equal(calls, before);
