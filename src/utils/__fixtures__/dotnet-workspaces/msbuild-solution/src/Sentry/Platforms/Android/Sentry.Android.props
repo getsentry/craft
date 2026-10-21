@@ -1,0 +1,5 @@
+<Project>
+  <ItemGroup>
+    <ProjectReference Include="..\Sentry.Bindings.Android\Sentry.Bindings.Android.csproj" />
+  </ItemGroup>
+</Project>

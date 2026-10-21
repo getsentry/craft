@@ -1,0 +1,12 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+  </Configurations>
+  <Project Path="src/Sentry.Core/Sentry.Core.csproj" />
+  <Folder Name="/src/">
+    <Project Path="src/Sentry.AspNetCore/Sentry.AspNetCore.csproj" />
+  </Folder>
+  <Folder Name="/docs/">
+    <File Path="README.md" />
+  </Folder>
+</Solution>

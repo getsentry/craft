@@ -188,10 +188,9 @@ export class NpmTarget extends BaseTarget {
     const result = await discoverWorkspaces(rootDir);
 
     if (result.type === 'none' || result.packages.length === 0) {
-      logger.warn(
+      throw new ConfigurationError(
         'npm target has workspaces enabled but no workspace packages were found',
       );
-      return [];
     }
     // Filter packages based on include/exclude patterns
     let includePattern: RegExp | undefined;
@@ -243,8 +242,9 @@ export class NpmTarget extends BaseTarget {
     }
 
     if (publishablePackages.length === 0) {
-      logger.warn('No publishable workspace packages found after filtering');
-      return [];
+      throw new ConfigurationError(
+        'npm target has workspaces enabled but no publishable packages are left after applying "includeWorkspaces"/"excludeWorkspaces" and skipping private packages',
+      );
     }
 
     logger.info(
