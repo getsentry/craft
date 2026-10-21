@@ -276,6 +276,94 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(await summarizeChangelog(categories, config)).toBeNull();
   });
 
+  it.each([
+    ['scope', 1200],
+    ['category', 600],
+    ['release', 400],
+  ] as const)(
+    'accepts %s prose at its Unicode character limit',
+    async (level, limit) => {
+      const prose = '🚀'.repeat(limit);
+      requestMock.mockImplementation(async request => {
+        const output = modelResponse(request);
+        if (JSON.parse(request.input).level === level)
+          output.summaries.forEach((digest: any) => {
+            digest.summary = prose;
+          });
+        return output;
+      });
+      const result = await summarizeChangelog(categories, {
+        ...config,
+        minItems: 0,
+        levels: [level],
+      });
+      expect(result).not.toBeNull();
+      expect(
+        result!.release || result!.categories.features || result!.scopes.api,
+      ).toBe(prose);
+    },
+  );
+
+  it.each([
+    ['scope', 1200],
+    ['category', 600],
+    ['release', 400],
+  ] as const)(
+    'rejects %s prose exceeding its Unicode character limit',
+    async (level, limit) => {
+      requestMock.mockImplementation(async request => {
+        const output = modelResponse(request);
+        if (JSON.parse(request.input).level === level)
+          output.summaries.forEach((digest: any) => {
+            digest.summary = '🚀'.repeat(limit + 1);
+          });
+        return output;
+      });
+      expect(
+        await summarizeChangelog(categories, {
+          ...config,
+          minItems: 0,
+          levels: [level],
+        }),
+      ).toBeNull();
+    },
+  );
+
+  it.each([1200, 1201])(
+    'validates carried Unicode critical facts at %i characters',
+    async length => {
+      requestMock.mockImplementation(async request => {
+        const output = modelResponse(request);
+        output.summaries.forEach((digest: any) => {
+          digest.importantChanges.forEach((fact: any) => {
+            fact.summary = '🚀'.repeat(length);
+          });
+        });
+        return output;
+      });
+      const result = await summarizeChangelog(
+        [
+          {
+            id: 'fixes',
+            title: 'Fixes',
+            groups: [
+              { id: 'g', title: 'Dependencies', items: ['Security fix.'] },
+            ],
+          },
+        ],
+        { ...config, minItems: 0 },
+      );
+      if (length === 1201) expect(result).toBeNull();
+      else {
+        expect(result).not.toBeNull();
+        const last = JSON.parse(requestMock.mock.calls.at(-1)![0].input);
+        expect(last.nodes[0].parts[0].importantChanges[0].summary).toBe(
+          '🚀'.repeat(1200),
+        );
+      }
+    },
+  );
+
   it('reuses digests and includes small unscoped groups in every parent', async () => {
     const result = await summarizeChangelog(categories, config);
     expect(result!.categories.features).toContain('Small feature');
@@ -596,6 +684,33 @@ describe('hierarchical HTTP changelog summaries', () => {
     const facts = JSON.stringify(last.nodes[0].parts[0].importantChanges);
     expect(facts).toContain('CVE-A');
     expect(facts).toContain('API-B');
+  });
+
+  it('reports the total deadline reached between stages without making another model call', async () => {
+    vi.useFakeTimers();
+    requestMock.mockImplementation(async request => {
+      const output = modelResponse(request);
+      vi.setSystemTime(Date.now() + 120001);
+      return output;
+    });
+    expect(
+      await summarizeChangelog(
+        [
+          {
+            id: 'fixes',
+            title: 'Fixes',
+            groups: [
+              { id: 'g', title: 'Dependencies', items: ['Dependency update.'] },
+            ],
+          },
+        ],
+        { ...config, minItems: 0 },
+      ),
+    ).toBeNull();
+    expect(requestMock).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('stage=category; reason=deadline'),
+    );
   });
 
   it('enforces the total deadline across individually successful requests', async () => {
