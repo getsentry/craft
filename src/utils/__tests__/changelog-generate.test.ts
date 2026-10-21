@@ -203,7 +203,13 @@ describe('generateChangesetFromGit', () => {
           summaries: input.nodes
             .map((node: any) => ({
               id: node.id,
-              summary: `${input.level} summary for ${node.title}`,
+              ...(input.level === 'release'
+                ? { coveredPartIds: node.parts.map((part: any) => part.id) }
+                : {}),
+              summary:
+                input.level === 'release'
+                  ? 'One concise overview of release capabilities.'
+                  : `${input.level} summary for ${node.title}`,
               importantChanges: [],
             }))
             .reverse(),
@@ -269,7 +275,9 @@ describe('generateChangesetFromGit', () => {
           input.nodes[0].parts.map((part: any) => part.text).join(''),
         ).toContain(title);
         // Our simulated model omits all critical facts: reject the whole attempt.
-        expect(result.changelog).not.toContain('release summary');
+        expect(result.changelog).not.toContain(
+          'One concise overview of release capabilities.',
+        );
         expect(result.changelog).not.toContain('<details>');
         expect(result.bumpType).toBe(title.includes('!') ? 'major' : 'patch');
       },
@@ -285,7 +293,10 @@ describe('generateChangesetFromGit', () => {
         return {
           summaries: input.nodes.map((node: any) => ({
             id: node.id,
-            summary: 'General maintenance.',
+            ...(input.level === 'release'
+              ? { coveredPartIds: node.parts.map((part: any) => part.id) }
+              : {}),
+            summary: 'Removed the legacy endpoint in a breaking API change.',
             importantChanges: node.parts.flatMap((part: any) => [
               ...(part.importantChanges || []),
               ...(part.important
@@ -321,7 +332,7 @@ describe('generateChangesetFromGit', () => {
       const result = await generateChangesetFromGit(dummyGit, '1.0.0');
       expect(provider).toHaveBeenCalledTimes(3);
       expect(result.changelog.split('### Breaking Changes')[0]).toContain(
-        'Breaking change: legacy endpoint removed.',
+        'Removed the legacy endpoint in a breaking API change.',
       );
       expect(result.changelog).toContain('- Remove legacy endpoint');
       expect(result.changelog).toContain('<details>');
@@ -331,7 +342,9 @@ describe('generateChangesetFromGit', () => {
     it('keeps category and scope prose visible while preserving every original entry and semver', async () => {
       setup(commits, null);
       const result = await generateChangesetFromGit(dummyGit, '1.0.0');
-      expect(result.changelog).toContain('release summary for New Features ✨');
+      expect(result.changelog).toContain(
+        'One concise overview of release capabilities.',
+      );
       expect(result.changelog).toContain(
         '### New Features ✨\n\ncategory summary for New Features ✨\n\n#### Cli',
       );
@@ -368,9 +381,11 @@ describe('generateChangesetFromGit', () => {
       });
       setup(commits, null);
       const result = await generateChangesetFromGit(dummyGit, '1.0.0');
-      expect(result.changelog.includes('release summary')).toBe(
-        levels.includes('release'),
-      );
+      expect(
+        result.changelog.includes(
+          'One concise overview of release capabilities.',
+        ),
+      ).toBe(levels.includes('release'));
       expect(result.changelog.includes('category summary')).toBe(
         levels.includes('category'),
       );
@@ -391,7 +406,7 @@ describe('generateChangesetFromGit', () => {
       }
     });
 
-    it('renders a prose overview of at most three paragraphs covering every category', async () => {
+    it('renders one AI synthesis over all category digests without stitching paragraphs', async () => {
       vi.mocked(config.getChangelogConfig).mockReturnValue({
         ...summaryConfig,
         aiSummary: {
@@ -414,12 +429,18 @@ describe('generateChangesetFromGit', () => {
       );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0');
       const overview = result.changelog.split('### ')[0].trim();
-      expect(overview.split('\n\n')).toHaveLength(3);
+      expect(overview).toBe('One concise overview of release capabilities.');
       expect(overview).not.toMatch(/\*\*|^[-#]/m);
       for (let i = 0; i < 10; i++) {
-        expect(overview).toContain(`release summary for Category ${i}`);
         expect(result.changelog).toContain(`Add capability ${i}`);
       }
+      const releaseInput = provider.mock.calls
+        .map(([request]) => JSON.parse(request.input))
+        .find(input => input.level === 'release');
+      expect(releaseInput.nodes).toHaveLength(1);
+      expect(
+        releaseInput.nodes[0].parts.map((part: any) => part.title),
+      ).toEqual(Array.from({ length: 10 }, (_, i) => `Category ${i}`));
       expect(result.changelog).not.toContain('<details>');
     });
 
@@ -501,7 +522,9 @@ describe('generateChangesetFromGit', () => {
         100,
         true,
       );
-      expect(rendered.changelog).toContain('release summary');
+      expect(rendered.changelog).toContain(
+        'One concise overview of release capabilities.',
+      );
       expect(mockGetChangesSince).toHaveBeenCalledTimes(1);
     });
 

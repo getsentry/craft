@@ -109,6 +109,8 @@ test
           generated.changelog !== original.changelog && Boolean(overview),
           'full summarizer returned fallback instead of summaries',
         ).toBe(true);
+        expect(overview.length).toBeLessThanOrEqual(400);
+        expect(overview.split('\n\n')).toHaveLength(1);
         expect(generated.totalCommits).toBe(3);
         expect(generated.bumpType).toBe('patch');
         expect(generated.bumpType).toBe(original.bumpType);
