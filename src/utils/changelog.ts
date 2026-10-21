@@ -2112,17 +2112,8 @@ async function serializeChangelog(
           formatSummaryText(categorySummary),
         );
     }
-    if (summary.release.length) {
-      // Retain validated coverage for every category without displaying a breakdown.
-      const statements = summary.release.map(statement =>
-        formatSummaryText(statement.summary),
-      );
-      const perParagraph = Math.ceil(statements.length / 3);
-      const paragraphs: string[] = [];
-      for (let i = 0; i < statements.length; i += perParagraph)
-        paragraphs.push(statements.slice(i, i + perParagraph).join(' '));
-      changelogSections.unshift(paragraphs.join('\n\n'));
-    }
+    if (summary.release)
+      changelogSections.unshift(formatSummaryText(summary.release));
   }
   return changelogSections.join('\n\n');
 }

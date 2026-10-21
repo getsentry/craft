@@ -58,7 +58,7 @@ targets:
 - **Auto-discovery**: Detects packages from `package.json` workspaces field (npm/yarn workspaces)
 - **Dependency ordering**: Publishes packages in topological order (dependencies before dependents)
 - **Private package filtering**: Automatically excludes packages marked as `private: true`
-- **Validation**: Errors if public packages depend on private workspace packages
+- **Validation**: Errors if public packages depend on private workspace packages, or if no publishable packages are found
 - **Scoped package warnings**: Warns if scoped packages don't have `publishConfig.access: 'public'`
 
 ### Artifact Naming

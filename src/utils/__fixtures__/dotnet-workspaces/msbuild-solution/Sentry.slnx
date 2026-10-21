@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/Sentry.Samples.Console/Sentry.Samples.Console.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Sentry.Bindings.Android/Sentry.Bindings.Android.csproj" />
+    <Project Path="src/Sentry.Maui/Sentry.Maui.csproj" />
+    <Project Path="src/Sentry/Sentry.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/Sentry.Tests/Sentry.Tests.csproj" />
+  </Folder>
+</Solution>

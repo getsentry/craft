@@ -3,6 +3,7 @@ import { createSummaryProvider } from '../ai-provider';
 import { AiSummaryConfigSchema } from '../../schemas/project_config';
 import { summarizeChangelog } from '../ai-summary';
 import { setGlobals } from '../helpers';
+import { logger } from '../../logger';
 
 const endpoint = 'https://ai.example.com/v1/chat/completions';
 const config = () =>
@@ -33,6 +34,7 @@ beforeEach(() => {
   vi.stubEnv('AI_SUMMARY_TOKEN', 'provider-token');
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   setGlobals({ 'dry-run': false });
@@ -451,3 +453,207 @@ test.each(['ai-endpoint', 'ai-model', 'ai-api-key-env'])(
     expect(fetch).not.toHaveBeenCalled();
   },
 );
+
+test.each(['http', 'coverage', 'schema', 'network'])(
+  'fallback reports a sanitized stage and %s failure reason',
+  async failure => {
+    const sensitive =
+      'provider-token private-source https://secret.invalid/?key=credential';
+    const fetch = vi.fn();
+    if (failure === 'http')
+      fetch.mockResolvedValue(new Response(sensitive, { status: 403 }));
+    else if (failure === 'network')
+      fetch.mockRejectedValue(new Error(sensitive));
+    else
+      fetch.mockResolvedValue(
+        completion(
+          failure === 'schema' ? JSON.stringify({ sensitive }) : undefined,
+        ),
+      );
+    vi.stubGlobal('fetch', fetch);
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    expect(
+      await summarizeChangelog(
+        [
+          {
+            id: 'features',
+            title: 'Features',
+            groups: [{ id: 'cli', title: 'CLI', items: [sensitive] }],
+          },
+        ],
+        config(),
+      ),
+    ).toBeNull();
+    const log = warn.mock.calls.flat().join(' ');
+    expect(log).toContain('keeping original entries');
+    expect(log).toContain('stage=scope');
+    expect(log).toContain(
+      `reason=${failure === 'coverage' ? 'coverage' : failure === 'schema' ? 'response-schema' : failure}`,
+    );
+    if (failure === 'http') expect(log).toContain('HTTP 403');
+    for (const value of sensitive.split(' ')) expect(log).not.toContain(value);
+  },
+);
+
+test.each([
+  ['child-id', ['cli:item:0:part:0']],
+  ['short-id', ['cli']],
+  ['unknown-id', ['private-source-token']],
+  ['duplicate-id', ['cli/r0/b0', 'cli/r0/b0']],
+])(
+  'classifies %s coverage failures without logging returned IDs',
+  async (reason, ids) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        completion(
+          JSON.stringify({
+            summaries: ids.map(id => ({
+              id,
+              summary: 'Digest.',
+              importantChanges: [],
+            })),
+          }),
+        ),
+      ),
+    );
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    expect(
+      await summarizeChangelog(
+        [
+          {
+            id: 'features',
+            title: 'Features',
+            groups: [{ id: 'cli', title: 'CLI', items: ['Add command'] }],
+          },
+        ],
+        config(),
+      ),
+    ).toBeNull();
+    const log = warn.mock.calls.flat().join(' ');
+    expect(log).toContain(`reason=coverage-${reason}`);
+    expect(log).not.toContain('private-source-token');
+    expect(log).not.toContain('cli/');
+  },
+);
+
+test.each(['missing', 'unknown', 'duplicate', 'unsafe'])(
+  'reports %s important-fact failures without exposing facts',
+  async failure => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((_url, options) => {
+        const node = JSON.parse(JSON.parse(options.body).messages[1].content)
+          .nodes[0];
+        const fact = { id: node.parts[0].sourceId, summary: 'Critical fact.' };
+        const importantChanges =
+          failure === 'missing'
+            ? []
+            : failure === 'unknown'
+              ? [{ ...fact, id: 'private-source-token' }]
+              : failure === 'duplicate'
+                ? [fact, fact]
+                : [fact];
+        return Promise.resolve(
+          completion(
+            JSON.stringify({
+              summaries: [
+                {
+                  id: node.id,
+                  summary:
+                    failure === 'unsafe'
+                      ? 'No breaking changes.'
+                      : 'Maintenance.',
+                  importantChanges,
+                },
+              ],
+            }),
+          ),
+        );
+      }),
+    );
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    expect(
+      await summarizeChangelog(
+        [
+          {
+            id: 'features',
+            title: 'Features',
+            groups: [
+              {
+                id: 'cli',
+                title: 'CLI',
+                items: ['Breaking change: private-source removed.'],
+              },
+            ],
+          },
+        ],
+        config(),
+      ),
+    ).toBeNull();
+    const log = warn.mock.calls.flat().join(' ');
+    expect(log).toContain(
+      `reason=${failure === 'unsafe' ? 'unsafe-claim' : `important-${failure}`}`,
+    );
+    expect(log).not.toContain('private-source');
+    expect(log).not.toContain('Critical fact.');
+  },
+);
+
+test('HTTP rejection reports its status even if response cancellation stalls', async () => {
+  const cancel = vi.fn(() => new Promise<void>(() => {}));
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockResolvedValue(
+        new Response(new ReadableStream({ cancel }), { status: 403 }),
+      ),
+  );
+  const provider = createSummaryProvider(config());
+  try {
+    await expect(provider.request(request)).rejects.toThrow(
+      'HTTP summary request failed (403)',
+    );
+    expect(cancel).toHaveBeenCalledOnce();
+  } finally {
+    await provider.close();
+  }
+}, 1000);
+
+test('the full summarizer reports its request deadline without exposing the abort error', async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(
+      (_url, options) =>
+        new Promise((_resolve, reject) => {
+          options.signal.addEventListener(
+            'abort',
+            () => reject(new Error('private-source-token')),
+            { once: true },
+          );
+        }),
+    ),
+  );
+  const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+  try {
+    const result = summarizeChangelog(
+      [
+        {
+          id: 'features',
+          title: 'Features',
+          groups: [{ id: 'cli', title: 'CLI', items: ['Add command'] }],
+        },
+      ],
+      config(),
+    );
+    await vi.advanceTimersByTimeAsync(30001);
+    expect(await result).toBeNull();
+    const log = warn.mock.calls.flat().join(' ');
+    expect(log).toContain('stage=scope; reason=deadline');
+    expect(log).not.toContain('private-source-token');
+  } finally {
+    vi.useRealTimers();
+  }
+});
