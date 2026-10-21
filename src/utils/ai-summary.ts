@@ -252,10 +252,8 @@ class SummaryAttempt {
     const requestController = new AbortController();
     const abort = () => requestController.abort();
     this.controller.signal.addEventListener('abort', abort, { once: true });
-    const timer = setTimeout(
-      abort,
-      Math.min(REQUEST_TIMEOUT, this.deadline - Date.now()),
-    );
+    const deadline = Math.min(Date.now() + REQUEST_TIMEOUT, this.deadline);
+    const timer = setTimeout(abort, Math.max(0, deadline - Date.now()));
     try {
       const input = { level, nodes };
       if (size(input) > MAX_INPUT_BYTES)
@@ -268,6 +266,8 @@ class SummaryAttempt {
           : SUMMARY_INSTRUCTIONS,
         schema: summaryResponseSchema(level, nodes),
       });
+      if (requestController.signal.aborted || Date.now() >= deadline)
+        throw new SummaryFailure('deadline');
       const parsed = (
         level === 'release' ? releaseResponseSchema : responseSchema
       ).safeParse(output);

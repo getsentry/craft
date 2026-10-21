@@ -686,7 +686,42 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(facts).toContain('API-B');
   });
 
-  it('reports the total deadline reached between stages without making another model call', async () => {
+  it.each(['scope', 'category', 'release'] as const)(
+    'rejects a late final %s response before an overdue timer callback runs',
+    async level => {
+      vi.useFakeTimers();
+      requestMock.mockImplementation(async request => {
+        const output = modelResponse(request);
+        if (JSON.parse(request.input).level === level)
+          vi.setSystemTime(Date.now() + 30001);
+        return output;
+      });
+      expect(
+        await summarizeChangelog(
+          [
+            {
+              id: 'fixes',
+              title: 'Fixes',
+              groups: [
+                {
+                  id: 'g',
+                  title: 'Dependencies',
+                  scope: 'Deps',
+                  items: ['Dependency update.'],
+                },
+              ],
+            },
+          ],
+          { ...config, minItems: 0, levels: [level] },
+        ),
+      ).toBeNull();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`stage=${level}; reason=deadline`),
+      );
+    },
+  );
+
+  it('rejects a response past the total deadline without making another model call', async () => {
     vi.useFakeTimers();
     requestMock.mockImplementation(async request => {
       const output = modelResponse(request);
@@ -709,7 +744,7 @@ describe('hierarchical HTTP changelog summaries', () => {
     ).toBeNull();
     expect(requestMock).toHaveBeenCalledTimes(1);
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('stage=category; reason=deadline'),
+      expect.stringContaining('stage=scope; reason=deadline'),
     );
   });
 
