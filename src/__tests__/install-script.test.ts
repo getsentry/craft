@@ -6,6 +6,7 @@ import {
   rmSync,
   chmodSync,
   existsSync,
+  readdirSync,
 } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -57,6 +58,7 @@ function fixture(
   const run = (...args: string[]) =>
     spawnSync('bash', [resolve('install').replace(/\\/g, '/'), ...args], {
       encoding: 'utf8',
+      timeout: 10000,
       env: {
         ...process.env,
         PATH: `${bin}:${process.env.PATH}`,
@@ -237,3 +239,67 @@ test.each(['false', '0', 'no'])(
     expect(existsSync(join(dir, 'setup-called'))).toBe(true);
   },
 );
+
+test.each([
+  { name: 'a temporary lock', failures: 2, version: '9.1.0', status: 0 },
+  { name: 'a persistent lock', failures: 99, version: '9.1.0', status: 0 },
+  {
+    name: 'a persistent lock after failed verification',
+    failures: 99,
+    version: '8.0.0',
+    status: 1,
+  },
+])('cleanup handles $name without changing the install result', scenario => {
+  const environment: NodeJS.ProcessEnv = { CI: 'true' };
+  const { run, dir, destination } = fixture(
+    false,
+    false,
+    environment,
+    scenario.version,
+  );
+  const temporary = join(dir, 'temporary');
+  mkdirSync(temporary);
+  environment.TMPDIR = temporary;
+  const attempts = join(dir, 'cleanup-attempts');
+  const realRm = spawnSync('bash', ['-c', 'command -v rm'], {
+    encoding: 'utf8',
+  }).stdout.trim();
+  const rm = join(dir, 'tools', 'rm');
+  writeFileSync(
+    rm,
+    `#!/bin/bash
+target="\${@: -1}"
+case "$target" in
+  ${quote(temporary)}/craft-install.*)
+    printf '%s\\n' "$target" >> ${quote(attempts)}
+    if (( $(wc -l < ${quote(attempts)}) <= ${scenario.failures} )); then
+      echo 'Device or resource busy' >&2
+      exit 1
+    fi ;;
+esac
+exec ${quote(realRm)} "$@"
+`,
+  );
+  chmodSync(rm, 0o755);
+  const sleep = join(dir, 'tools', 'sleep');
+  writeFileSync(sleep, '#!/bin/bash\nexit 0\n');
+  chmodSync(sleep, 0o755);
+
+  const result = run('--version', '9.1.0');
+  expect(result.error).toBeUndefined();
+  expect(result.status).toBe(scenario.status);
+  if (scenario.failures === 2) {
+    expect(readdirSync(temporary)).toEqual([]);
+    expect(result.stderr).toBe('');
+  } else {
+    expect(result.stderr).toContain('Could not remove temporary directory');
+    expect(readdirSync(temporary)).toHaveLength(1);
+  }
+  if (scenario.status === 0) {
+    expect(readdirSync(destination)).toEqual(['craft']);
+    expect(readFileSync(join(destination, 'craft'), 'utf8')).toContain('9.1.0');
+  } else {
+    expect(result.stderr).toContain('expected 9.1.0');
+    expect(existsSync(destination)).toBe(false);
+  }
+});
