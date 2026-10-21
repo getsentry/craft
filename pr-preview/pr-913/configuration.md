@@ -255,7 +255,7 @@ changelog:
 | `llm.model` | `gpt-5.4-nano` | Model ID supported by the endpoint and credential. |
 | `llm.apiKeyEnv` | `GITHUB_TOKEN` | Name of the environment variable containing the token. Never put the token in configuration or CLI arguments. |
 
-Lower-level digests are reused for parent summaries even when hidden. Release overviews use up to three prose paragraphs and cover every category. Category and scope summaries preserve originals in expandable blocks, including links and nested content. Category prose and scope headings stay expanded; each original entry is folded only once. Scope summaries need an existing scope heading; `scopeGrouping: false` still allows category/release summaries. Unscoped entries contribute to both parent levels.
+Lower-level digests are reused for parent summaries even when hidden. Each parent makes an AI synthesis call over its child digests. The release overview is one or two short sentences covering the themes across every category, rather than joined category summaries. Category summaries describe shared scope themes; scope summaries describe concrete changes. Visible prose is capped at 400 characters for the release, 600 for each category and 1200 for each scope. Source-linked critical facts are carried and validated internally without appending their text to every displayed summary. All original entries remain intact. Category and scope summaries preserve originals in expandable blocks, including links and nested content. Category prose and scope headings stay expanded; each original entry is folded only once. Scope summaries need an existing scope heading; `scopeGrouping: false` still allows category/release summaries. Unscoped entries contribute to both parent levels.
 
 ##### Output examples
 
@@ -264,7 +264,7 @@ These examples use two original entries and `minItems: 0`.
 **`levels: [release]`** adds an overview and leaves originals expanded:
 
 ```markdown
-Added login and logout commands to CLI.
+CLI authentication now supports signing in and out.
 
 
 ### New Features
@@ -280,7 +280,7 @@ Added login and logout commands to CLI.
 ### New Features
 
 
-Added login and logout commands to CLI.
+Expanded CLI authentication workflows.
 
 
 #### CLI
@@ -321,7 +321,7 @@ Added login and logout commands.
 **`levels: [release, scope]`** combines an overview with scope summaries:
 
 ```markdown
-Added login and logout commands to CLI.
+CLI authentication now supports signing in and out.
 
 
 ### New Features
@@ -347,7 +347,7 @@ Added login and logout commands.
 ### New Features
 
 
-Added login and logout commands to CLI.
+Expanded CLI authentication workflows.
 
 
 #### CLI
