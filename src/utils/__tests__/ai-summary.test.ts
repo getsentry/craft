@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { summarizeChangelog, formatSummaryText } from '../ai-summary';
+import {
+  summarizeChangelog,
+  formatSummaryText,
+  summaryDescription,
+} from '../ai-summary';
 import { marked } from 'marked';
 import { setGlobals } from '../helpers';
 import { enableWorktreeMode, disableWorktreeMode } from '../dryRun';
@@ -1072,4 +1076,17 @@ it.each([
 ])('generated prose stays inert when rendered: %s', text => {
   const html = marked.parse(formatSummaryText(text));
   expect(html).not.toContain('<a ');
+});
+
+it('condenses PR descriptions into bounded summary context', () => {
+  expect(summaryDescription(undefined)).toBeUndefined();
+  expect(summaryDescription('<!-- template only -->\n\n')).toBeUndefined();
+  expect(
+    summaryDescription(
+      '<!-- Describe your PR -->\nRemoves the  `foo` option.\n\n```yaml\nfoo: true\n```\nUse `bar` instead.<!-- unterminated',
+    ),
+  ).toBe('Removes the `foo` option. Use `bar` instead.');
+  const long = summaryDescription('🙂'.repeat(700))!;
+  expect(Array.from(long)).toHaveLength(600);
+  expect(long.endsWith('…')).toBe(true);
 });
