@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { marked, type Token, type Tokens } from 'marked';
 import type { AiSummaryConfig } from '../schemas/project_config';
 import { logger } from '../logger';
 import { createSummaryProvider, type SummaryProvider } from './ai-provider';
@@ -568,16 +569,49 @@ export async function summarizeChangelog(
   }
 }
 
+// Markup without prose for the model: code, raw HTML (incl. comments), images.
+const SKIPPED_TOKENS = new Set(['code', 'html', 'image', 'hr', 'space', 'def']);
+const BLOCK_TOKENS = new Set([
+  'heading',
+  'paragraph',
+  'blockquote',
+  'list_item',
+  'table',
+]);
+const EMOJI =
+  /[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}]|\u200d|\ufe0f|\u20e3|(?<=^|\s):[a-z0-9_+-]+:(?=\s|$)/giu;
+
+/** Collect the readable text nodes of parsed Markdown. */
+function plainText(tokens: Token[]): string {
+  return tokens
+    .map(token => {
+      if (SKIPPED_TOKENS.has(token.type)) return '';
+      if (token.type === 'br') return ' ';
+      let text: string;
+      if (token.type === 'list') text = plainText((token as Tokens.List).items);
+      else if (token.type === 'table') {
+        const { header, rows } = token as Tokens.Table;
+        text = [header, ...rows]
+          .flat()
+          .map(cell => plainText(cell.tokens))
+          .join(' ');
+      } else if ('tokens' in token && token.tokens)
+        text = plainText(token.tokens);
+      else text = 'text' in token ? String(token.text) : '';
+      return BLOCK_TOKENS.has(token.type) ? ` ${text} ` : text;
+    })
+    .join('');
+}
+
 /**
- * Condense a PR body into bounded plain context for summaries: drop template
- * comments and code blocks, collapse whitespace and cap the length.
+ * Condense a PR body into bounded plain context for summaries: keep only
+ * Markdown text nodes, drop emoji, collapse whitespace and cap the length.
  */
 export function summaryDescription(
   body: string | null | undefined,
 ): string | undefined {
-  const text = (body || '')
-    .replace(/<!--[\s\S]*?(?:-->|$)/g, ' ')
-    .replace(/^(`{3,}|~{3,})[\s\S]*?(?:^\1|(?![\s\S]))/gm, ' ')
+  const text = plainText(marked.lexer(body || ''))
+    .replace(EMOJI, '')
     .replace(/\s+/g, ' ')
     .trim();
   if (!text) return undefined;

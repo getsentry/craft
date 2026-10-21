@@ -252,9 +252,9 @@ is one or two short sentences covering the themes across every category, rather
 than joined category summaries. Category and scope summaries name the concrete
 features, targets and options that changed, and breaking-change summaries say
 what users must change when the source data states it. Besides each changelog
-entry, the model receives a condensed copy of its PR description (HTML comments
-and code blocks removed, capped at 600 characters) as context only; it is never
-rendered. Visible prose is capped at 400
+entry, the model receives the Markdown text of its PR description (without
+code, HTML, images or emoji, capped at 600 characters) as context only; it is
+never rendered. Visible prose is capped at 400
 characters for the release, 600 for each category and 1200 for each scope.
 Source-linked critical facts are carried and validated internally without
 appending their text to every displayed summary. All original entries remain

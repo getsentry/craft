@@ -1083,10 +1083,30 @@ it('condenses PR descriptions into bounded summary context', () => {
   expect(summaryDescription('<!-- template only -->\n\n')).toBeUndefined();
   expect(
     summaryDescription(
-      '<!-- Describe your PR -->\nRemoves the  `foo` option.\n\n```yaml\nfoo: true\n```\nUse `bar` instead.<!-- unterminated',
+      [
+        '<!-- Describe your PR -->',
+        '## Summary :rocket:',
+        'Removes the  `foo` option 🚀 from [the config](https://example.com) <b>now</b>.',
+        '',
+        '```yaml',
+        'foo: true',
+        '```',
+        '- Use **bar**  ',
+        'instead 👍🏽',
+        '  - nested',
+        '',
+        '| Old | New |',
+        '| --- | --- |',
+        '| foo | bar |',
+        '',
+        '![screenshot](https://example.com/a.png)',
+        '<details><summary>Logs</summary>noise</details>',
+      ].join('\n'),
     ),
-  ).toBe('Removes the `foo` option. Use `bar` instead.');
-  const long = summaryDescription('🙂'.repeat(700))!;
+  ).toBe(
+    'Summary Removes the foo option from the config now. Use bar instead nested Old New foo bar',
+  );
+  const long = summaryDescription('é'.repeat(700))!;
   expect(Array.from(long)).toHaveLength(600);
   expect(long.endsWith('…')).toBe(true);
 });
