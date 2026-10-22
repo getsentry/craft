@@ -597,7 +597,9 @@ function plainText(tokens: Token[]): string {
           .join(' ');
       } else if ('tokens' in token && token.tokens)
         text = plainText(token.tokens);
-      else text = 'text' in token ? String(token.text) : '';
+      else if (token.type === 'codespan') text = token.text;
+      // Emoji are stripped from prose only; code spans keep values like `:memory:`.
+      else text = 'text' in token ? String(token.text).replace(EMOJI, '') : '';
       return BLOCK_TOKENS.has(token.type) ? ` ${text} ` : text;
     })
     .join('');
@@ -605,13 +607,13 @@ function plainText(tokens: Token[]): string {
 
 /**
  * Condense a PR body into bounded plain context for summaries: keep only
- * Markdown text nodes, drop emoji, collapse whitespace and cap the length.
+ * Markdown text nodes, drop emoji from prose, collapse whitespace and cap the
+ * length.
  */
 export function summaryDescription(
   body: string | null | undefined,
 ): string | undefined {
   const text = plainText(marked.lexer(body || ''))
-    .replace(EMOJI, '')
     .replace(/\s+/g, ' ')
     .trim();
   if (!text) return undefined;

@@ -1106,6 +1106,11 @@ it('condenses PR descriptions into bounded summary context', () => {
   ).toBe(
     'Summary Removes the foo option from the config now. Use bar instead nested Old New foo bar',
   );
+  expect(
+    summaryDescription(
+      'Breaking: `:memory:` is now required for isolated database tests :tada:',
+    ),
+  ).toBe('Breaking: :memory: is now required for isolated database tests');
   const long = summaryDescription('é'.repeat(700))!;
   expect(Array.from(long)).toHaveLength(600);
   expect(long.endsWith('…')).toBe(true);
