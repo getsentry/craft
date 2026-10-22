@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { summarizeChangelog, formatSummaryText } from '../ai-summary';
+import {
+  summarizeChangelog,
+  formatSummaryText,
+  summaryDescription,
+} from '../ai-summary';
 import { marked } from 'marked';
 import { setGlobals } from '../helpers';
 import { enableWorktreeMode, disableWorktreeMode } from '../dryRun';
@@ -1072,4 +1076,42 @@ it.each([
 ])('generated prose stays inert when rendered: %s', text => {
   const html = marked.parse(formatSummaryText(text));
   expect(html).not.toContain('<a ');
+});
+
+it('condenses PR descriptions into bounded summary context', () => {
+  expect(summaryDescription(undefined)).toBeUndefined();
+  expect(summaryDescription('<!-- template only -->\n\n')).toBeUndefined();
+  expect(
+    summaryDescription(
+      [
+        '<!-- Describe your PR -->',
+        '## Summary :rocket:',
+        'Removes the  `foo` option 🚀 from [the config](https://example.com) <b>now</b>.',
+        '',
+        '```yaml',
+        'foo: true',
+        '```',
+        '- Use **bar**  ',
+        'instead 👍🏽',
+        '  - nested',
+        '',
+        '| Old | New |',
+        '| --- | --- |',
+        '| foo | bar |',
+        '',
+        '![screenshot](https://example.com/a.png)',
+        '<details><summary>Logs</summary>noise</details>',
+      ].join('\n'),
+    ),
+  ).toBe(
+    'Summary Removes the foo option from the config now. Use bar instead nested Old New foo bar',
+  );
+  expect(
+    summaryDescription(
+      'Breaking: `:memory:` is now required for isolated database tests :tada:',
+    ),
+  ).toBe('Breaking: :memory: is now required for isolated database tests');
+  const long = summaryDescription('é'.repeat(700))!;
+  expect(Array.from(long)).toHaveLength(600);
+  expect(long.endsWith('…')).toBe(true);
 });

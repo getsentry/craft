@@ -283,6 +283,62 @@ describe('generateChangesetFromGit', () => {
       },
     );
 
+    it('gives the model condensed PR descriptions without rendering them', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        aiSummary: {
+          ...summaryConfig.aiSummary,
+          minItems: 0,
+          levels: ['release'],
+        },
+      });
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'feat(nuget): Add workspaces',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                title: 'feat(nuget): Add workspaces',
+                body: '<!-- template -->\nPublishes   projects\nin dependency order.',
+              },
+            },
+          },
+          {
+            hash: 'bcdef12345678901',
+            title: 'fix: Custom entry',
+            body: '',
+            pr: {
+              local: '2',
+              remote: {
+                number: '2',
+                title: 'fix: Custom entry',
+                body: 'Context.\n\n## Changelog Entry\n- Curated fix',
+              },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      const texts = provider.mock.calls
+        .map(([request]) => JSON.parse(request.input))
+        .filter(input => input.level === 'scope')
+        .flatMap(input => input.nodes)
+        .flatMap(node => node.parts.map((part: any) => part.text));
+      expect(texts).toContainEqual(
+        expect.stringMatching(
+          /Add workspaces.*\nPR description: Publishes projects in dependency order\.$/,
+        ),
+      );
+      const custom = texts.find(text => text.includes('Curated fix'));
+      expect(custom).not.toContain('PR description');
+      expect(result.changelog).not.toContain('dependency order');
+    });
+
     it('carries a valid critical digest through every reduction and keeps custom originals', async () => {
       vi.mocked(config.getChangelogConfig).mockReturnValue({
         ...summaryConfig,
