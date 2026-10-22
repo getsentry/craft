@@ -182,6 +182,63 @@ describe('getChangesSince', () => {
     }
   });
 
+  it('adds includePaths to the working directory filter without a workspace', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'craft-changelog-include-paths-'));
+    const previousDirectory = process.cwd();
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-C', dir, ...args], {
+        env: {
+          ...process.env,
+          GIT_CONFIG_GLOBAL: '/dev/null',
+          GIT_CONFIG_NOSYSTEM: '1',
+        },
+      });
+    const commit = (file: string, title: string) => {
+      mkdirSync(join(dir, file, '..'), { recursive: true });
+      writeFileSync(join(dir, file), title);
+      git('add', '--', file);
+      git('-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', title);
+    };
+
+    try {
+      git('init', '--quiet');
+      git('config', 'user.name', 'Craft Test');
+      git('config', 'user.email', 'craft-test@example.com');
+      commit('clients/.craft.yml', 'initial');
+      git('tag', '0.1.0');
+      commit('clients/client.ts', 'client change');
+      commit('types/types.ts', 'types change');
+      commit('types-extra/extra.ts', 'similar prefix change');
+      commit('server/server.ts', 'server change');
+      commit('Cargo.toml', 'root change');
+
+      process.chdir(join(dir, 'clients'));
+      setActiveWorkspace(undefined);
+      const client = createGitClient(join(dir, 'clients'));
+      const titles = async (rev: string) =>
+        (await getChangesSince(client, rev)).map(({ title }) => title);
+
+      writeFileSync(join(dir, 'clients/.craft.yml'), 'minVersion: 2.29.0\n');
+      expect(await titles('0.1.0')).toEqual(['client change']);
+
+      writeFileSync(
+        join(dir, 'clients/.craft.yml'),
+        'minVersion: 2.29.0\nchangelog:\n  includePaths:\n    - types\n',
+      );
+      setActiveWorkspace(undefined);
+      expect(await titles('0.1.0')).toEqual(['types change', 'client change']);
+      expect(await titles('')).toEqual([
+        'types change',
+        'client change',
+        'initial',
+      ]);
+    } finally {
+      setActiveWorkspace(undefined);
+      process.chdir(previousDirectory);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('includes shared and selected workspace changes, with optional related paths', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'craft-changelog-workspaces-'));
     const previousDirectory = process.cwd();

@@ -590,6 +590,22 @@ workspaces:
 
 Most workspaces need no `includePaths` setting.
 
+Without a release workspace, automatic changelogs only include commits that
+change files in the directory containing `.craft.yml`. `includePaths` adds more
+directories to that filter, so a config in a subdirectory can pull in a sibling
+directory without including the rest of the repository:
+
+```yaml
+# clients/.craft.yml
+changelog:
+  policy: auto
+  includePaths:
+    - shared-types
+```
+
+Here, commits that change `clients/` or `shared-types/` are included and all
+other commits are skipped. Paths are still relative to the repository root.
+
 ### Title Stripping (Default Behavior)
 
 By default, conventional commit prefixes are stripped from changelog entries.
@@ -655,7 +671,7 @@ changelog:
 | `changelog.filePath`      | Path to changelog file. Defaults to `<workspace>/CHANGELOG.md` for a directory workspace, otherwise `CHANGELOG.md`. Explicit paths take precedence. |
 | `changelog.policy`        | Mode: `none`, `simple`, or `auto`. Default: `none`                           |
 | `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true`                                 |
-| `changelog.includePaths`  | Extra workspace directories to include in automatic changelogs. Default: `[]` |
+| `changelog.includePaths`  | Extra directories, relative to the repository root, to include in automatic changelogs. Default: `[]` |
 | `changelog.aiSummary` | Opt-in HTTP release, category, and scope summaries. Default: disabled. |
 
 ## Versioning

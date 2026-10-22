@@ -901,7 +901,7 @@ export interface NormalizedChangelogConfig {
   policy: ChangelogPolicy;
   /** Whether to group entries by conventional commit scope */
   scopeGrouping: boolean;
-  /** Additional workspace paths to include in automatic changelogs */
+  /** Additional repository-root-relative paths to include in automatic changelogs */
   includePaths: string[];
   /** Optional summaries; omitted unless configured explicitly. */
   aiSummary?: AiSummaryConfig | false;

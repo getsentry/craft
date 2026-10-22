@@ -110,18 +110,30 @@ export async function getChangesSince(
     file: '.',
   };
 
+  const workspace = getActiveWorkspace();
+  const { includePaths } = getChangelogConfig();
+  // Without a workspace, `includePaths` widens the CWD filter. `:(top)`
+  // anchors each path to the repository root, so a config in a subdirectory
+  // can still include sibling directories.
+  const extraPathspecs = workspace
+    ? []
+    : includePaths.map(directory => `:(top)${directory}`);
+
   // simple-git interprets `to` without `from` as HEAD..HEAD and returns no
   // commits. A first release has no previous tag, so log the full history.
-  const { all: commits } = rev
-    ? await git.log({ ...gitLogArgs, from: rev })
-    : await git.log(['--no-merges', until || 'HEAD', '--', '.']);
+  // simple-git turns `file` into `--follow <path>`, which accepts only one
+  // path, so extra paths need the raw form as well.
+  const range = rev ? `${rev}..${until || 'HEAD'}` : until || 'HEAD';
+  const { all: commits } =
+    rev && extraPathspecs.length === 0
+      ? await git.log({ ...gitLogArgs, from: rev })
+      : await git.log(['--no-merges', range, '--', '.', ...extraPathspecs]);
   const changes = commits.map(commit => ({
     hash: commit.hash,
     title: commit.message,
     body: commit.body,
     pr: commit.message.match(PRExtractor)?.[0] || null,
   }));
-  const workspace = getActiveWorkspace();
   if (!workspace || changes.length === 0) {
     return changes;
   }
@@ -144,7 +156,6 @@ export async function getChangesSince(
   const orderedOwners = [...ownedPaths].sort(
     (left, right) => right.length - left.length,
   );
-  const { includePaths } = getChangelogConfig();
   const contains = (directory: string, file: string) =>
     file === directory || file.startsWith(`${directory}/`);
 
@@ -158,7 +169,7 @@ export async function getChangesSince(
     '--name-only',
     '-z',
     '--end-of-options',
-    rev ? `${rev}..${until || 'HEAD'}` : until || 'HEAD',
+    range,
     '--',
     '.',
   ]);
