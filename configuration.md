@@ -143,6 +143,7 @@ If automatic version bumping fails:
 - **Missing tool**: Craft reports which tool is missing (e.g., “Cannot find ‘npm’ for version bumping”)
 - **Command failure**: Craft shows the error from the failed command
 - **No supported targets**: Craft warns that no targets support automatic bumping
+- **No applicable files**: If targets support bumping but none of them find a version to update (e.g. no `.csproj` with a `<Version>`), `craft prepare` fails instead of releasing with a stale version. Set `preReleaseCommand: ''` if your versions don’t live in project files.
 
 In all error cases, Craft suggests defining a custom `preReleaseCommand` as a fallback.
 
@@ -255,7 +256,7 @@ changelog:
 | `llm.model` | `gpt-5.4-nano` | Model ID supported by the endpoint and credential. |
 | `llm.apiKeyEnv` | `GITHUB_TOKEN` | Name of the environment variable containing the token. Never put the token in configuration or CLI arguments. |
 
-Lower-level digests are reused for parent summaries even when hidden. Release overviews use up to three prose paragraphs and cover every category. Category and scope summaries preserve originals in expandable blocks, including links and nested content. Category prose and scope headings stay expanded; each original entry is folded only once. Scope summaries need an existing scope heading; `scopeGrouping: false` still allows category/release summaries. Unscoped entries contribute to both parent levels.
+Lower-level digests are reused for parent summaries even when hidden. Each parent makes an AI synthesis call over its child digests. The release overview is one or two short sentences covering the themes across every category, rather than joined category summaries. Category and scope summaries name the concrete features, targets and options that changed, and breaking-change summaries say what users must change when the source data states it. Besides each changelog entry, the model receives the Markdown text of its PR description (without code, HTML, images or emoji, capped at 600 characters) as context only; it is never rendered. Visible prose is capped at 400 characters for the release, 600 for each category and 1200 for each scope. Source-linked critical facts are carried and validated internally without appending their text to every displayed summary. All original entries remain intact. Category and scope summaries preserve originals in expandable blocks, including links and nested content. Category prose and scope headings stay expanded; each original entry is folded only once. Scope summaries need an existing scope heading; `scopeGrouping: false` still allows category/release summaries. Unscoped entries contribute to both parent levels.
 
 ##### Output examples
 
@@ -264,7 +265,7 @@ These examples use two original entries and `minItems: 0`.
 **`levels: [release]`** adds an overview and leaves originals expanded:
 
 ```markdown
-Added login and logout commands to CLI.
+CLI authentication now supports signing in and out.
 
 
 ### New Features
@@ -280,7 +281,7 @@ Added login and logout commands to CLI.
 ### New Features
 
 
-Added login and logout commands to CLI.
+Expanded CLI authentication workflows.
 
 
 #### CLI
@@ -321,7 +322,7 @@ Added login and logout commands.
 **`levels: [release, scope]`** combines an overview with scope summaries:
 
 ```markdown
-Added login and logout commands to CLI.
+CLI authentication now supports signing in and out.
 
 
 ### New Features
@@ -347,7 +348,7 @@ Added login and logout commands.
 ### New Features
 
 
-Added login and logout commands to CLI.
+Expanded CLI authentication workflows.
 
 
 #### CLI
@@ -385,7 +386,7 @@ changelog:
 ```
 
 
-Per-field precedence is CLI flags (`--ai-endpoint`, `--ai-model`, `--ai-api-key-env`), `CRAFT_AI_LLM` JSON, scalar environment overrides (`CRAFT_AI_ENDPOINT`, `CRAFT_AI_MODEL`, `CRAFT_AI_API_KEY_ENV`), then effective project/workspace configuration. Workspace changelog objects replace the inherited object. Endpoints ending in `/responses` use Responses; others use Chat Completions. Both require structured JSON output. Invalid settings are rejected; missing tokens and provider errors retain the original output.
+Per-field precedence is CLI flags (`--ai-endpoint`, `--ai-model`, `--ai-api-key-env`), `CRAFT_AI_LLM` JSON, scalar environment overrides (`CRAFT_AI_ENDPOINT`, `CRAFT_AI_MODEL`, `CRAFT_AI_API_KEY_ENV`), then effective project/workspace configuration. Workspace changelog objects replace the inherited object. Endpoints ending in `/responses` use Responses; others use Chat Completions. Both require structured JSON output. Invalid settings are rejected; missing tokens and provider errors retain the original output. Failure warnings identify the generation stage and a fixed reason code, plus HTTP status for rejected requests. Credentials, source content and provider bodies are omitted.
 
 Generation sends changelog content and critical PR titles to the chosen provider. Breaking/security facts retain source IDs. Generated prose is escaped; review it for accuracy. Requests are bounded to 64 calls, 3 concurrent calls, 30 seconds per request, 120 seconds total, 24,000 input bytes and 8,192 output tokens. Any failure preserves the entire original changelog without retries or provider switching. Existing leftover-entry limits still apply.
 
