@@ -82,9 +82,7 @@ RUN : \
   # Pin CocoaPods version to avoid bugs like https://github.com/CocoaPods/CocoaPods/issues/12081
   && gem install cocoapods -v 1.16.2 --no-document \
   # Install https://github.com/getsentry/symbol-collector
-  && symbol_collector_url=$(curl -s https://api.github.com/repos/getsentry/symbol-collector/releases/tags/1.17.0 | \
-  jq -r '.assets[].browser_download_url | select(endswith("symbolcollector-console-linux-x64.zip"))') \
-  && curl -sL $symbol_collector_url -o "/tmp/sym-collector.zip" \
+  && curl -fsSL --retry 3 https://github.com/getsentry/symbol-collector/releases/download/1.17.0/symbolcollector-console-linux-x64.zip -o /tmp/sym-collector.zip \
   && unzip /tmp/sym-collector.zip -d /usr/local/bin/ \
   && rm /tmp/sym-collector.zip \
   && chmod +x /usr/local/bin/SymbolCollector.Console

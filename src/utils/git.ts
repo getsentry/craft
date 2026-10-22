@@ -5,6 +5,7 @@ import {
   type Options,
   type StatusResult,
 } from 'simple-git';
+import GitUrlParse from 'git-url-parse';
 
 import {
   getActiveWorkspace,
@@ -19,6 +20,11 @@ import { logger } from '../logger';
 import { distance as levenshtein } from 'fastest-levenshtein';
 import path from 'node:path';
 import { discoverWorkspaces } from './workspaces';
+
+export interface GitHubInfo {
+  owner: string;
+  repo: string;
+}
 
 export interface GitChange {
   hash: string;
@@ -279,6 +285,40 @@ export function isRepoDirty(repoStatus: StatusResult): boolean {
     repoStatus.renamed.length ||
     repoStatus.staged.length
   );
+}
+
+/**
+ * Extract GitHub owner/repo from git remote.
+ *
+ * Looks for the 'origin' remote first, then falls back to the first available remote.
+ * Returns null if no GitHub remote is found.
+ *
+ * @param git SimpleGit instance for the repository
+ * @returns GitHub owner and repo, or null if not a GitHub repo
+ */
+export async function getGitHubInfoFromRemote(
+  git: SimpleGit,
+): Promise<GitHubInfo | null> {
+  const remotes = await git.getRemotes(true);
+  const defaultRemote =
+    remotes.find(remote => remote.name === 'origin') || remotes[0];
+
+  if (!defaultRemote) {
+    return null;
+  }
+
+  const remoteUrl = GitUrlParse(
+    defaultRemote.refs.push || defaultRemote.refs.fetch,
+  );
+
+  if (remoteUrl?.source === 'github.com') {
+    return {
+      owner: remoteUrl.owner,
+      repo: remoteUrl.name,
+    };
+  }
+
+  return null;
 }
 
 export interface ReleaseBranchSearchResult {
