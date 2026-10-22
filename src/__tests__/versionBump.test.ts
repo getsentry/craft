@@ -1150,6 +1150,30 @@ describe('NugetTarget.bumpVersion', () => {
     );
     expect(updatedContent).toContain('<Version>1.0.0</Version>');
   });
+
+  test('updates VersionPrefix in Directory.Build.props', async () => {
+    const buildPropsContent = `<Project>
+  <PropertyGroup>
+    <VersionPrefix>6.5.0</VersionPrefix>
+    <LangVersion>14.0</LangVersion>
+  </PropertyGroup>
+</Project>`;
+    await writeFile(join(tempDir, 'Directory.Build.props'), buildPropsContent);
+
+    const { spawnProcess } = await import('../utils/system');
+    vi.mocked(spawnProcess).mockRejectedValue(new Error('not installed'));
+
+    const result = await NugetTarget.bumpVersion(tempDir, '6.6.0');
+
+    expect(result).toBe(true);
+
+    const updatedContent = await readFile(
+      join(tempDir, 'Directory.Build.props'),
+      'utf-8',
+    );
+    expect(updatedContent).toContain('<VersionPrefix>6.6.0</VersionPrefix>');
+    expect(updatedContent).toContain('<LangVersion>14.0</LangVersion>');
+  });
 });
 
 describe('CratesTarget.bumpVersion', () => {
