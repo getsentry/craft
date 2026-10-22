@@ -1,5 +1,58 @@
 # Changelog
 
+## 3.0.0
+
+### Breaking Changes 🛠
+
+- (config) Reject changelog path settings without workspaces by @sentry-junior in [#922](https://github.com/getsentry/craft/pull/922)
+- (nuget) Add workspaces support for dependency-ordered publishing by @BYK in [#686](https://github.com/getsentry/craft/pull/686)
+- (prepare) Fail when no target bumps the version, and bump nuget VersionPrefix by @sentry-junior in [#923](https://github.com/getsentry/craft/pull/923)
+
+### New Features ✨
+
+#### Changelog
+
+- Let workspaces own or exclude unowned paths by @sentry-junior in [#921](https://github.com/getsentry/craft/pull/921)
+- Ground AI summaries in PR descriptions by @sentry-junior in [#918](https://github.com/getsentry/craft/pull/918)
+  Category summaries in the 3.0.0 release preview were vague ("Release communication…", "Internal maintenance…"), and the breaking-change summary didn't say why the change was breaking. The model only had PR titles to work with, and the prompt pushed category summaries toward abstract themes.
+
+- Each changelog entry now goes to the model with a condensed copy of its PR description: HTML comments and code blocks are removed, whitespace is collapsed, and it's capped at 600 characters. The description is context only and never shows up in the rendered changelog. Entries that come from a `Changelog Entry` section or `` don't get one, since their curated text is already the entry.
+- The prompt now asks scope and category summaries to name the specific features, targets and options that changed, bans vague umbrella phrases, and asks breaking-change summaries to say what users must change when the data says so. It also tells the model not to guess when the data doesn't say. The top-level release overview instructions are unchanged because that output was already good.
+- `serializeChangelog` now passes each group's source PRs alongside its rendered items. The important-title and description lookups both come from that one list, so there's no more index-offset merging.
+
+I left reasoning level / model settings alone. Whether those need tuning is easier to judge once a real release has run with the richer input.
+
+Closes #917
+
+<!-- junior-request-attribution:start -->
+via **adm**.
+<!-- junior-request-attribution:end -->
+
+<!-- junior-session-footer:start -->
+<!-- junior-conversation-id:slack%3AC09BVUWLN64%3A1792613527.646769 -->
+
+--
+
+[View Junior Session](https://junior-prod.sentry.dev/conversations/slack%3AC09BVUWLN64%3A1792613527.646769) [[Sentry]](https://sentry.sentry.io/explore/conversations/slack%3AC09BVUWLN64%3A1792613527.646769/?project=4510944073809921)
+
+<!-- junior-session-footer:end -->
+
+### Bug Fixes 🐛
+
+#### Changelog
+
+- Skip Other scope header when scope grouping is disabled by @sentry-junior in [#919](https://github.com/getsentry/craft/pull/919)
+- Synthesize concise AI release overviews by @MathurAditya724 in [#913](https://github.com/getsentry/craft/pull/913)
+
+#### Other
+
+- (install) Retry temporary executable cleanup by @MathurAditya724 in [#915](https://github.com/getsentry/craft/pull/915)
+
+### Internal Changes 🔧
+
+- (deps) Bump vite from 8.2.2 to 8.3.4 in /docs by @dependabot in [#914](https://github.com/getsentry/craft/pull/914)
+- (node) Bump Node to 24.22.1 by @sentry-junior in [#916](https://github.com/getsentry/craft/pull/916)
+
 ## 2.35.1
 
 ### Bug Fixes 🐛
