@@ -451,15 +451,27 @@ export const CraftProjectConfigSchema = z
     workspaces: z.record(WorkspaceNameSchema, WorkspaceSchema).optional(),
   })
   .superRefine((config, context) => {
-    if (
-      Object.keys(config.workspaces || {}).length > 0 &&
-      config.github?.projectPath !== undefined
-    ) {
+    const hasWorkspaces = Object.keys(config.workspaces || {}).length > 0;
+    if (hasWorkspaces && config.github?.projectPath !== undefined) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Workspace configurations cannot use github.projectPath.',
         path: ['github', 'projectPath'],
       });
+    }
+    // Path ownership only exists between release workspaces, so these
+    // settings would otherwise be silently ignored.
+    if (!hasWorkspaces && typeof config.changelog === 'object') {
+      for (const field of ['includePaths', 'unownedPaths'] as const) {
+        if (config.changelog[field] !== undefined) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              'Only release workspaces support this setting. Define "workspaces" to use it.',
+            path: ['changelog', field],
+          });
+        }
+      }
     }
   });
 

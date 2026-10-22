@@ -96,6 +96,7 @@ describe('validateConfiguration', () => {
         includePaths: ['apps/cli-docs'],
         unownedPaths: 'own',
       },
+      workspaces: { 'packages/cli': {} },
     };
 
     expect(validateConfiguration(data)).toEqual(data);
@@ -297,14 +298,29 @@ describe('validateConfiguration', () => {
     'apps\\docs',
   ])('rejects unsafe changelog include path %s', includePath => {
     expect(() =>
-      validateConfiguration({ changelog: { includePaths: [includePath] } }),
-    ).toThrow(/changelog/);
+      validateConfiguration({
+        workspaces: { cli: { changelog: { includePaths: [includePath] } } },
+      }),
+    ).toThrow(/Changelog paths must use safe relative ASCII segments/);
   });
 
   test('rejects an unknown unowned paths policy', () => {
     expect(() =>
-      validateConfiguration({ changelog: { unownedPaths: 'shared' } }),
-    ).toThrow(/changelog/);
+      validateConfiguration({
+        workspaces: { cli: { changelog: { unownedPaths: 'shared' } } },
+      }),
+    ).toThrow(/workspaces\.cli\.changelog/);
+  });
+
+  test.each([
+    ['includePaths', ['apps/cli-docs']],
+    ['unownedPaths', 'exclude'],
+  ])('rejects changelog.%s without release workspaces', (field, value) => {
+    expect(() =>
+      validateConfiguration({ changelog: { policy: 'auto', [field]: value } }),
+    ).toThrow(
+      `changelog.${field}: Only release workspaces support this setting.`,
+    );
   });
 
   test('includes unowned paths by default', () => {
