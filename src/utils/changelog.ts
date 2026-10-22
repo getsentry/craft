@@ -1965,9 +1965,11 @@ async function serializeChangelog(
     });
 
     // Check if any scope has multiple entries (would get its own header)
-    const hasScopeHeaders = [...category.scopeGroups.entries()].some(
-      ([s, entries]) => s !== null && entries.length > 1,
-    );
+    const hasScopeHeaders =
+      scopeGroupingEnabled &&
+      [...category.scopeGroups.entries()].some(
+        ([s, entries]) => s !== null && entries.length > 1,
+      );
 
     // Collect entries without headers to combine them into a single section
     const entriesWithoutHeaders: string[] = [];
