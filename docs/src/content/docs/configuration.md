@@ -589,7 +589,9 @@ workspaces:
         - apps/cli-docs
 ```
 
-Most workspaces need no `includePaths` setting.
+Most workspaces need no `includePaths` setting. Craft rejects `includePaths` and
+`unownedPaths` in configurations without `workspaces`, because there is no
+workspace ownership to adjust.
 
 Files outside every workspace, such as root build files or an application that
 lives at the repository root, count as shared by default. Use
@@ -687,8 +689,8 @@ changelog:
 | `changelog.filePath`      | Path to changelog file. Defaults to `<workspace>/CHANGELOG.md` for a directory workspace, otherwise `CHANGELOG.md`. Explicit paths take precedence. |
 | `changelog.policy`        | Mode: `none`, `simple`, or `auto`. Default: `none`                           |
 | `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true`                                 |
-| `changelog.includePaths`  | Extra workspace directories to include in automatic changelogs. Default: `[]` |
-| `changelog.unownedPaths`  | `include`, `exclude`, or `own` files outside every workspace. Default: `include` |
+| `changelog.includePaths`  | Extra workspace directories to include in automatic changelogs. Release workspaces only. Default: `[]` |
+| `changelog.unownedPaths`  | `include`, `exclude`, or `own` files outside every workspace. Release workspaces only. Default: `include` |
 | `changelog.aiSummary` | Opt-in HTTP release, category, and scope summaries. Default: disabled. |
 
 ## Versioning
