@@ -181,6 +181,7 @@ describe('generateChangesetFromGit', () => {
       policy: ChangelogPolicy.Auto,
       scopeGrouping: true,
       includePaths: [],
+      unownedPaths: 'include' as const,
       aiSummary: {
         llm: {
           endpoint: 'https://api.githubcopilot.com/responses',
@@ -1382,6 +1383,7 @@ changelog:
         policy: ChangelogPolicy.Auto,
         scopeGrouping: false,
         includePaths: [],
+        unownedPaths: 'include',
         aiSummary: false,
       });
       setup(

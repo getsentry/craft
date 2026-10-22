@@ -6,10 +6,16 @@ import {
   type StatusResult,
 } from 'simple-git';
 
+import { realpathSync } from 'node:fs';
+import { load } from 'js-yaml';
+
 import {
   getActiveWorkspace,
   getChangelogConfig,
   getConfigFileDir,
+  getConfigFilePath,
+  getUnownedPathsOwner,
+  getWorkspaceConfigKey,
   getWorkspaceNames,
 } from '../config';
 import { ConfigurationError } from './errors';
@@ -110,18 +116,44 @@ export async function getChangesSince(
     file: '.',
   };
 
+  const workspace = getActiveWorkspace();
+  // A workspace's first release has no previous tag. Its history cannot
+  // predate the workspace's Craft configuration, so start there instead of
+  // reading the entire repository history.
+  let since = rev;
+  const introduction =
+    !rev && workspace
+      ? await findWorkspaceIntroduction(git, workspace, until)
+      : undefined;
+  if (introduction && (await hasParent(git, introduction))) {
+    since = `${introduction}^`;
+  }
+
   // simple-git interprets `to` without `from` as HEAD..HEAD and returns no
-  // commits. A first release has no previous tag, so log the full history.
-  const { all: commits } = rev
-    ? await git.log({ ...gitLogArgs, from: rev })
+  // commits. Without a starting point, log the full history.
+  const { all: commits } = since
+    ? await git.log({ ...gitLogArgs, from: since })
     : await git.log(['--no-merges', until || 'HEAD', '--', '.']);
+  if (!rev) {
+    if (since) {
+      logger.info(
+        `No previous release tag found; reading ${commits.length} commits since ` +
+          `workspace "${workspace}" was added to the Craft configuration in ` +
+          `${introduction?.slice(0, 12)}.`,
+      );
+    } else {
+      logger.warn(
+        'No previous release tag found; reading the full history ' +
+          `(${commits.length} commits) for the changelog.`,
+      );
+    }
+  }
   const changes = commits.map(commit => ({
     hash: commit.hash,
     title: commit.message,
     body: commit.body,
     pr: commit.message.match(PRExtractor)?.[0] || null,
   }));
-  const workspace = getActiveWorkspace();
   if (!workspace || changes.length === 0) {
     return changes;
   }
@@ -144,7 +176,13 @@ export async function getChangesSince(
   const orderedOwners = [...ownedPaths].sort(
     (left, right) => right.length - left.length,
   );
-  const { includePaths } = getChangelogConfig();
+  const { includePaths, unownedPaths } = getChangelogConfig();
+  const unownedPathsOwner = getUnownedPathsOwner();
+  // Files outside every workspace belong to the configured owner. Without one,
+  // they are shared unless this workspace excludes them.
+  const includesUnowned = unownedPathsOwner
+    ? unownedPathsOwner === workspace
+    : unownedPaths !== 'exclude';
   const contains = (directory: string, file: string) =>
     file === directory || file.startsWith(`${directory}/`);
 
@@ -158,7 +196,7 @@ export async function getChangesSince(
     '--name-only',
     '-z',
     '--end-of-options',
-    rev ? `${rev}..${until || 'HEAD'}` : until || 'HEAD',
+    since ? `${since}..${until || 'HEAD'}` : until || 'HEAD',
     '--',
     '.',
   ]);
@@ -187,9 +225,86 @@ export async function getChangesSince(
         return true;
       }
       const owner = orderedOwners.find(directory => contains(directory, file));
-      return owner === undefined || owner === workspace;
+      return owner === undefined ? includesUnowned : owner === workspace;
     });
   });
+}
+
+/**
+ * Finds the commit that added a workspace to the Craft configuration file.
+ *
+ * Walks the configuration file's history from `until` backwards and returns
+ * the oldest commit of the latest uninterrupted run that defines the
+ * workspace's key.
+ */
+async function findWorkspaceIntroduction(
+  git: SimpleGit,
+  workspace: string,
+  until?: string,
+): Promise<string | undefined> {
+  const key = getWorkspaceConfigKey(workspace);
+  if (!key) {
+    return undefined;
+  }
+  const top = (await git.revparse(['--show-toplevel'])).trim();
+  const configPath = path
+    .relative(realpathSync(top), realpathSync(getConfigFilePath()))
+    .split(path.sep)
+    .join('/');
+  const hashes = (
+    await git.raw([
+      'log',
+      '--format=%H',
+      '--end-of-options',
+      until || 'HEAD',
+      '--',
+      `:(top)${configPath}`,
+    ])
+  )
+    .split('\n')
+    .filter(Boolean);
+
+  let introduction: string | undefined;
+  for (const hash of hashes) {
+    if (!(await definesWorkspace(git, `${hash}:${configPath}`, key))) {
+      break;
+    }
+    introduction = hash;
+  }
+  return introduction;
+}
+
+async function definesWorkspace(
+  git: SimpleGit,
+  object: string,
+  key: string,
+): Promise<boolean> {
+  try {
+    const config = load(await git.show([object])) as {
+      workspaces?: unknown;
+    } | null;
+    const workspaces = config?.workspaces;
+    return (
+      typeof workspaces === 'object' &&
+      workspaces !== null &&
+      Object.prototype.hasOwnProperty.call(workspaces, key)
+    );
+  } catch {
+    // Unreadable or invalid historical configuration ends the search.
+    return false;
+  }
+}
+
+async function hasParent(git: SimpleGit, commit: string): Promise<boolean> {
+  const parents = await git.raw([
+    'rev-list',
+    '--parents',
+    '-n',
+    '1',
+    '--end-of-options',
+    commit,
+  ]);
+  return parents.trim().split(' ').length > 1;
 }
 
 export function stripRemoteName(

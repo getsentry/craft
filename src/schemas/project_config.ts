@@ -216,6 +216,10 @@ export const AiSummaryConfigSchema = z
 
 export type AiSummaryConfig = z.infer<typeof AiSummaryConfigSchema>;
 
+const UnownedPathsPolicySchema = z.enum(['include', 'exclude', 'own']);
+
+export type UnownedPathsPolicy = z.infer<typeof UnownedPathsPolicySchema>;
+
 /**
  * Changelog configuration
  */
@@ -248,6 +252,13 @@ export const ChangelogConfigSchema = z.union([
           ),
       )
       .optional(),
+    /**
+     * How a workspace changelog treats files outside every workspace:
+     * `include` keeps them as shared (default), `exclude` ignores them, and
+     * `own` claims them for this workspace so every other workspace ignores
+     * them. At most one workspace can use `own`.
+     */
+    unownedPaths: UnownedPathsPolicySchema.optional(),
   }),
 ]);
 

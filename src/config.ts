@@ -19,6 +19,7 @@ import {
   VersioningPolicy,
   Workspace,
   type AiSummaryConfig,
+  type UnownedPathsPolicy,
 } from './schemas/project_config';
 import { ConfigurationError } from './utils/errors';
 import { isCompiledGitHubAction } from './utils/detection';
@@ -622,21 +623,71 @@ export function loadConfigurationFromString(
  * file, allowing external controllers to discover valid release paths.
  */
 export function getWorkspaceNames(): string[] {
+  const { config, directory } = loadUnselectedConfiguration();
+  const workspaceNames = getWorkspaceNamesFromConfig(config, directory);
+  if (workspaceNames.length > 0) {
+    checkWorkspacesMinVersion(config);
+  }
+  return workspaceNames;
+}
+
+/**
+ * Returns the `.craft.yml` key that defines a workspace: the name itself, or
+ * the glob pattern it expands from.
+ */
+export function getWorkspaceConfigKey(
+  workspaceName: string,
+): string | undefined {
+  const { config, directory } = loadUnselectedConfiguration();
+  return Object.keys(config.workspaces || {}).find(key =>
+    workspaceKeyMatches(key, workspaceName, directory),
+  );
+}
+
+/**
+ * Returns the workspace that owns files outside every workspace
+ * (`changelog.unownedPaths: own`), if one is configured.
+ */
+export function getUnownedPathsOwner(): string | undefined {
+  const { config, directory } = loadUnselectedConfiguration();
+  const owners: string[] = [];
+  for (const [key, workspace] of Object.entries(config.workspaces || {})) {
+    // Workspaces without their own changelog block inherit the top-level one.
+    const changelog = workspace.changelog ?? config.changelog;
+    if (typeof changelog !== 'object' || changelog.unownedPaths !== 'own') {
+      continue;
+    }
+    owners.push(
+      ...(isWorkspacePattern(key)
+        ? getWorkspaceGlobMatches(key, directory)
+        : [key]),
+    );
+  }
+  if (owners.length > 1) {
+    throw new ConfigurationError(
+      'Only one workspace can set changelog.unownedPaths to "own". ' +
+        `Found: ${owners.join(', ')}.`,
+    );
+  }
+  return owners[0];
+}
+
+/**
+ * Reads and validates the configuration file without applying the active
+ * workspace selection.
+ */
+function loadUnselectedConfiguration(): {
+  config: CraftProjectConfig;
+  directory: string;
+} {
   const configPath = getConfigFilePath();
   const rawConfig = load(readFileSync(configPath, 'utf-8')) as Record<
     string,
     any
   >;
-  const parsed = validateConfiguration(rawConfig);
-  checkMinimalConfigVersion(parsed);
-  const workspaceNames = getWorkspaceNamesFromConfig(
-    parsed,
-    path.dirname(configPath),
-  );
-  if (workspaceNames.length > 0) {
-    checkWorkspacesMinVersion(parsed);
-  }
-  return workspaceNames;
+  const config = validateConfiguration(rawConfig);
+  checkMinimalConfigVersion(config);
+  return { config, directory: path.dirname(configPath) };
 }
 
 /**
@@ -903,6 +954,8 @@ export interface NormalizedChangelogConfig {
   scopeGrouping: boolean;
   /** Additional workspace paths to include in automatic changelogs */
   includePaths: string[];
+  /** How automatic changelogs treat files outside every workspace */
+  unownedPaths: UnownedPathsPolicy;
   /** Optional summaries; omitted unless configured explicitly. */
   aiSummary?: AiSummaryConfig | false;
 }
@@ -950,6 +1003,7 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
   let policy = ChangelogPolicy.None;
   let scopeGrouping = true;
   let includePaths: string[] = [];
+  let unownedPaths: UnownedPathsPolicy = 'include';
 
   // Handle legacy changelogPolicy (deprecated)
   if (config.changelogPolicy !== undefined) {
@@ -978,6 +1032,9 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
       if (config.changelog.includePaths !== undefined) {
         includePaths = config.changelog.includePaths;
       }
+      if (config.changelog.unownedPaths !== undefined) {
+        unownedPaths = config.changelog.unownedPaths;
+      }
     }
   }
 
@@ -986,6 +1043,7 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
     policy,
     scopeGrouping,
     includePaths,
+    unownedPaths,
     aiSummary:
       typeof config.changelog === 'object'
         ? config.changelog.aiSummary
