@@ -1376,6 +1376,44 @@ changelog:
       expect(result.changelog).toContain('feat(ui): single ui feature');
     });
 
+    it('does not show Other header when scope grouping is disabled', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        filePath: 'CHANGELOG.md',
+        policy: ChangelogPolicy.Auto,
+        scopeGrouping: false,
+        includePaths: [],
+        aiSummary: false,
+      });
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat(api): api feature 1',
+            body: '',
+            pr: {
+              local: '1',
+              remote: { number: '1', author: { login: 'alice' } },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'feat(api): api feature 2',
+            body: '',
+            pr: {
+              local: '2',
+              remote: { number: '2', author: { login: 'bob' } },
+            },
+          },
+        ],
+        SCOPE_CONFIG,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      expect(result.changelog).not.toContain('#### Api');
+      expect(result.changelog).not.toContain('#### Other');
+      expect(result.changelog).toContain('feat(api): api feature 1');
+      expect(result.changelog).toContain('feat(api): api feature 2');
+    });
+
     it('does not show Other header when only scopeless entries exist', async () => {
       setup(
         [
