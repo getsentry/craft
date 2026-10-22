@@ -1,8 +1,15 @@
 import { vi, describe, test, expect, beforeEach, type Mock } from 'vitest';
+import { requiresMinVersion } from '../../config';
 import { spawnProcess } from '../../utils/system';
+import { runAutomaticVersionBumps } from '../../utils/versionBump';
 import { runPreReleaseCommand, checkVersionOrPart } from '../prepare';
 
 vi.mock('../../utils/system');
+vi.mock('../../utils/versionBump');
+vi.mock('../../config', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../config')>()),
+  requiresMinVersion: vi.fn(() => false),
+}));
 
 describe('runPreReleaseCommand', () => {
   const oldVersion = '2.3.3';
@@ -171,6 +178,42 @@ describe('runPreReleaseCommand', () => {
         }
       }
     }
+  });
+});
+
+describe('runPreReleaseCommand with automatic version bumping', () => {
+  const options = {
+    oldVersion: '6.5.0',
+    newVersion: '6.6.0',
+    rootDir: process.cwd(),
+    targets: [{ name: 'nuget' }],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(requiresMinVersion).mockReturnValue(true);
+  });
+
+  test('fails when bumpable targets find nothing to bump', async () => {
+    vi.mocked(runAutomaticVersionBumps).mockResolvedValue({
+      anyBumped: false,
+      bumpableTargets: ['nuget'],
+      skippedTargets: ['nuget'],
+    });
+
+    await expect(runPreReleaseCommand(options)).rejects.toThrow(
+      'Targets [nuget] support version bumping but did not find applicable files',
+    );
+  });
+
+  test('succeeds when no target supports version bumping', async () => {
+    vi.mocked(runAutomaticVersionBumps).mockResolvedValue({
+      anyBumped: false,
+      bumpableTargets: [],
+      skippedTargets: [],
+    });
+
+    await expect(runPreReleaseCommand(options)).resolves.toBe(false);
   });
 });
 
