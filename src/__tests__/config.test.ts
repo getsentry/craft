@@ -94,6 +94,7 @@ describe('validateConfiguration', () => {
         policy: 'auto',
         scopeGrouping: true,
         includePaths: ['apps/cli-docs'],
+        unownedPaths: 'own',
       },
     };
 
@@ -298,6 +299,17 @@ describe('validateConfiguration', () => {
     expect(() =>
       validateConfiguration({ changelog: { includePaths: [includePath] } }),
     ).toThrow(/changelog/);
+  });
+
+  test('rejects an unknown unowned paths policy', () => {
+    expect(() =>
+      validateConfiguration({ changelog: { unownedPaths: 'shared' } }),
+    ).toThrow(/changelog/);
+  });
+
+  test('includes unowned paths by default', () => {
+    loadConfigurationFromString('changelog:\n  policy: auto');
+    expect(getChangelogConfig().unownedPaths).toBe('include');
   });
 });
 

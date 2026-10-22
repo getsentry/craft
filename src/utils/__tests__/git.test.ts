@@ -310,6 +310,140 @@ describe('getChangesSince', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  describe('with workspace fixtures', () => {
+    let dir: string;
+    let previousDirectory: string;
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-C', dir, ...args], {
+        env: {
+          ...process.env,
+          GIT_CONFIG_GLOBAL: '/dev/null',
+          GIT_CONFIG_NOSYSTEM: '1',
+        },
+      });
+    const commit = (title: string, files: Record<string, string>) => {
+      for (const [file, content] of Object.entries(files)) {
+        mkdirSync(join(dir, file, '..'), { recursive: true });
+        writeFileSync(join(dir, file), content);
+        git('add', '--', file);
+      }
+      git('-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', title);
+    };
+    const titles = async (rev: string) =>
+      (await getChangesSince(createGitClient(dir), rev)).map(
+        ({ title }) => title,
+      );
+
+    beforeEach(() => {
+      dir = mkdtempSync(join(tmpdir(), 'craft-changelog-unowned-'));
+      previousDirectory = process.cwd();
+      git('init', '--quiet');
+      git('config', 'user.name', 'Craft Test');
+      git('config', 'user.email', 'craft-test@example.com');
+      process.chdir(dir);
+    });
+
+    afterEach(() => {
+      setActiveWorkspace(undefined);
+      process.chdir(previousDirectory);
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('lets one workspace own unowned paths or a workspace exclude them', async () => {
+      const ownConfig =
+        'minVersion: 2.29.0\nworkspaces:\n  app:\n    changelog:\n      unownedPaths: own\n  packages/cli: {}\n';
+      commit('initial', {
+        '.craft.yml': ownConfig,
+        'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
+        'packages/cli/package.json': '{"name":"cli"}',
+        'packages/mcp/package.json': '{"name":"mcp"}',
+      });
+      git('tag', 'start');
+      commit('cli change', { 'packages/cli/cli.ts': 'cli' });
+      commit('mcp change', { 'packages/mcp/mcp.ts': 'mcp' });
+      commit('root change', { 'src/server.ts': 'server' });
+      commit('root and cli change', {
+        'src/server.ts': 'server 2',
+        'packages/cli/cli.ts': 'cli 2',
+      });
+
+      setActiveWorkspace('app');
+      expect(await titles('start')).toEqual([
+        'root and cli change',
+        'root change',
+      ]);
+      setActiveWorkspace('packages/cli');
+      expect(await titles('start')).toEqual([
+        'root and cli change',
+        'cli change',
+      ]);
+
+      writeFileSync(
+        join(dir, '.craft.yml'),
+        'minVersion: 2.29.0\nworkspaces:\n  packages/cli:\n    changelog:\n      unownedPaths: exclude\n  packages/mcp: {}\n',
+      );
+      setActiveWorkspace('packages/cli');
+      expect(await titles('start')).toEqual([
+        'root and cli change',
+        'cli change',
+      ]);
+      setActiveWorkspace('packages/mcp');
+      expect(await titles('start')).toEqual([
+        'root and cli change',
+        'root change',
+        'mcp change',
+      ]);
+
+      writeFileSync(
+        join(dir, '.craft.yml'),
+        'minVersion: 2.29.0\nchangelog:\n  unownedPaths: own\nworkspaces:\n  app: {}\n  packages/cli: {}\n',
+      );
+      setActiveWorkspace('app');
+      await expect(titles('start')).rejects.toThrow(
+        'Only one workspace can set changelog.unownedPaths to "own". Found: app, packages/cli.',
+      );
+    });
+
+    it('starts a first workspace release where the workspace was configured', async () => {
+      const infoSpy = vi.spyOn(loggerModule.logger, 'info');
+      const config = 'minVersion: 2.29.0\nworkspaces:\n  packages/cli: {}\n';
+      commit('before workspace', {
+        '.craft.yml': 'minVersion: 2.29.0\n',
+        'root.txt': 'root',
+      });
+      commit('unrelated root change', { 'root.txt': 'root 2' });
+      commit('add cli workspace', {
+        '.craft.yml': config,
+        'packages/cli/cli.ts': 'cli',
+      });
+      commit('edit cli workspace', {
+        '.craft.yml': `${config}# comment\n`,
+      });
+      commit('cli change', { 'packages/cli/cli.ts': 'cli 2' });
+
+      setActiveWorkspace('packages/cli');
+      expect(await titles('')).toEqual([
+        'cli change',
+        'edit cli workspace',
+        'add cli workspace',
+      ]);
+      expect(infoSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'reading 3 commits since workspace "packages/cli" was added',
+        ),
+      );
+
+      // Without a workspace there is no configuration boundary.
+      writeFileSync(join(dir, '.craft.yml'), 'minVersion: 2.29.0\n');
+      setActiveWorkspace(undefined);
+      const warnSpy = vi.spyOn(loggerModule.logger, 'warn');
+      expect(await titles('')).toHaveLength(5);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('reading the full history (5 commits)'),
+      );
+    });
+  });
 });
 
 describe('isRepoDirty', () => {

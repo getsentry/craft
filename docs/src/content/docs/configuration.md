@@ -590,6 +590,37 @@ workspaces:
 
 Most workspaces need no `includePaths` setting.
 
+Files outside every workspace, such as root build files or an application that
+lives at the repository root, count as shared by default. Use
+`changelog.unownedPaths` to change that:
+
+- `include` (default): shared files appear in this workspace's changelog.
+- `exclude`: this workspace ignores shared files.
+- `own`: this workspace owns them, and every other workspace ignores them. At
+  most one workspace can use `own`.
+
+For example, when the main application lives at the repository root next to
+independently released packages:
+
+```yaml
+workspaces:
+  app:
+    changelog:
+      policy: auto
+      unownedPaths: own
+  packages/ui:
+    changelog:
+      policy: auto
+```
+
+`app` gets commits to root files, and `packages/ui` gets only commits that touch
+`packages/ui`.
+
+A workspace's first release has no previous tag. Craft then starts its
+changelog at the commit that added the workspace to `.craft.yml` instead of the
+start of the repository history. Push a tag with the workspace's tag prefix to
+start from a different commit.
+
 ### Title Stripping (Default Behavior)
 
 By default, conventional commit prefixes are stripped from changelog entries.
@@ -656,6 +687,7 @@ changelog:
 | `changelog.policy`        | Mode: `none`, `simple`, or `auto`. Default: `none`                           |
 | `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true`                                 |
 | `changelog.includePaths`  | Extra workspace directories to include in automatic changelogs. Default: `[]` |
+| `changelog.unownedPaths`  | `include`, `exclude`, or `own` files outside every workspace. Default: `include` |
 | `changelog.aiSummary` | Opt-in HTTP release, category, and scope summaries. Default: disabled. |
 
 ## Versioning
