@@ -411,10 +411,11 @@ export async function runPreReleaseCommand(
             'Consider adding a preReleaseCommand to bump versions manually.',
         );
       } else {
-        logger.warn(
+        throw new ConfigurationError(
           `Targets [${result.skippedTargets.join(', ')}] support version bumping ` +
             'but did not find applicable files in your project. ' +
-            'Consider adding a preReleaseCommand if you need custom version bumping.',
+            'Define a preReleaseCommand to bump versions manually, or set ' +
+            "preReleaseCommand: '' to skip version bumping.",
         );
       }
     }

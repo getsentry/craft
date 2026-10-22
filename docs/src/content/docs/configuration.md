@@ -133,6 +133,7 @@ If automatic version bumping fails:
 - **Missing tool**: Craft reports which tool is missing (e.g., "Cannot find 'npm' for version bumping")
 - **Command failure**: Craft shows the error from the failed command
 - **No supported targets**: Craft warns that no targets support automatic bumping
+- **No applicable files**: If targets support bumping but none of them find a version to update (e.g. no `.csproj` with a `<Version>`), `craft prepare` fails instead of releasing with a stale version. Set `preReleaseCommand: ''` if your versions don't live in project files.
 
 In all error cases, Craft suggests defining a custom `preReleaseCommand` as a fallback.
 

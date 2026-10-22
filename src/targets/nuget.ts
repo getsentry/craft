@@ -277,9 +277,10 @@ export class NugetTarget extends BaseTarget {
   ): boolean {
     const content = readFileSync(filePath, 'utf-8');
 
-    // Match <Version>x.y.z</Version> or <PackageVersion>x.y.z</PackageVersion>
+    // Match <Version>x.y.z</Version>, <VersionPrefix>x.y.z</VersionPrefix>, etc.
     const versionPatterns = [
       /(<Version>)([^<]+)(<\/Version>)/g,
+      /(<VersionPrefix>)([^<]+)(<\/VersionPrefix>)/g,
       /(<PackageVersion>)([^<]+)(<\/PackageVersion>)/g,
       /(<AssemblyVersion>)([^<]+)(<\/AssemblyVersion>)/g,
       /(<FileVersion>)([^<]+)(<\/FileVersion>)/g,
