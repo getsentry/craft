@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { load } from 'js-yaml';
+import { parse } from 'valibot';
 import { expect, test } from 'vitest';
 import {
   AiSummaryConfigSchema,
@@ -50,10 +51,11 @@ test
       const config = await readFile(join(checkout, '.craft.yml'), 'utf8');
       let connection =
         settings === 'default'
-          ? JSON.stringify(AiSummaryConfigSchema.parse({}).llm)
+          ? JSON.stringify(parse(AiSummaryConfigSchema, {}).llm)
           : '';
       if (settings === 'repository') {
-        const project = CraftProjectConfigSchema.parse(
+        const project = parse(
+          CraftProjectConfigSchema,
           load(await readFile(join(root, '.craft.yml'), 'utf8')),
         );
         const summary =

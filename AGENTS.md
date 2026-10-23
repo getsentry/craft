@@ -38,7 +38,7 @@ src/
 ├── __tests__/          # Test files (*.test.ts)
 ├── artifact_providers/ # Artifact provider implementations
 ├── commands/           # CLI command implementations
-├── schemas/            # Zod schemas and TypeScript types for config
+├── schemas/            # Valibot schemas and TypeScript types for config
 ├── status_providers/   # Status provider implementations
 ├── targets/            # Release target implementations
 ├── types/              # Shared TypeScript types
