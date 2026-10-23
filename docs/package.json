@@ -11,7 +11,7 @@
   "dependencies": {
     "@astrojs/starlight": "^0.41.5",
     "@sentry/starlight-theme": "^0.8.0",
-    "astro": "^7.2.8",
+    "astro": "^7.3.3",
     "sharp": "^0.35.5"
   },
   "pnpm": {
@@ -26,7 +26,8 @@
       "defu": "^6.1.5",
       "vite": "^8.0.0",
       "js-yaml": "^4.3.2",
-      "postcss-nested": "^8.0.1"
+      "postcss-nested": "^8.0.1",
+      "zod": "^4.6.6"
     },
     "patchedDependencies": {
       "http-cache-semantics@4.3.0": "patches/http-cache-semantics@4.3.0.patch"
