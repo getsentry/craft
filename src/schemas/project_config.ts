@@ -1,5 +1,51 @@
-import { z } from 'zod';
+import {
+  any,
+  array,
+  boolean,
+  check,
+  custom,
+  forward,
+  integer,
+  literal,
+  looseObject,
+  maxLength,
+  minLength,
+  minValue,
+  number,
+  object,
+  optional,
+  partial,
+  picklist,
+  pipe,
+  record,
+  regex,
+  strictObject,
+  string,
+  transform,
+  trim,
+  union,
+  unknown,
+  url,
+  type GenericSchema,
+  type InferInput,
+  type InferOutput,
+} from 'valibot';
 import { hasMagic } from 'glob';
+
+/**
+ * Valibot object and record schemas accept arrays and parse them as `{}`, so a
+ * misconfigured block such as `versioning: []` would be silently ignored.
+ * Wrap every object or record schema without required keys in this.
+ */
+export function nonArray<const TSchema extends GenericSchema>(schema: TSchema) {
+  return pipe(
+    custom<InferInput<TSchema>>(
+      input => !Array.isArray(input),
+      'Invalid type: Expected Object but received Array',
+    ),
+    schema,
+  );
+}
 
 /**
  * DEPRECATED: Use changelog.policy instead. Different policies for changelog management
@@ -41,27 +87,26 @@ export const enum VersioningPolicy {
 /**
  * Global (non-target!) GitHub configuration for the project
  */
-export const GitHubGlobalConfigSchema = z.object({
-  owner: z.string(),
-  repo: z.string(),
-  projectPath: z.string().optional(),
+export const GitHubGlobalConfigSchema = object({
+  owner: string(),
+  repo: string(),
+  projectPath: optional(string()),
 });
 
-export type GitHubGlobalConfig = z.infer<typeof GitHubGlobalConfigSchema>;
+export type GitHubGlobalConfig = InferOutput<typeof GitHubGlobalConfigSchema>;
 
 /**
  * Generic target configuration
  */
-export const TargetConfigSchema = z
-  .object({
-    name: z.string(),
-    id: z.string().optional(),
-    includeNames: z.string().optional(),
-    excludeNames: z.string().optional(),
-  })
-  .passthrough(); // Allow additional properties for target-specific config
+// Loose: allow additional properties for target-specific config
+export const TargetConfigSchema = looseObject({
+  name: string(),
+  id: optional(string()),
+  includeNames: optional(string()),
+  excludeNames: optional(string()),
+});
 
-export type TargetConfig = z.infer<typeof TargetConfigSchema>;
+export type TargetConfig = InferOutput<typeof TargetConfigSchema>;
 
 /**
  * Utility type for strongly-typed target configurations.
@@ -80,86 +125,87 @@ export type TypedTargetConfig<T extends Record<string, unknown>> =
 /**
  * Which service should be used for status checks
  */
-export const BaseStatusProviderSchema = z.object({
-  name: z.enum(['github']),
-  config: z.record(z.any()).optional(),
+export const BaseStatusProviderSchema = object({
+  name: picklist(['github']),
+  config: optional(nonArray(record(string(), any()))),
 });
 
-export type BaseStatusProvider = z.infer<typeof BaseStatusProviderSchema>;
+export type BaseStatusProvider = InferOutput<typeof BaseStatusProviderSchema>;
 
 /**
  * Which service should be used for artifact storage
  */
-export const BaseArtifactProviderSchema = z.object({
-  name: z.enum(['gcs', 'github', 'none']),
-  config: z.record(z.any()).optional(),
+export const BaseArtifactProviderSchema = object({
+  name: picklist(['gcs', 'github', 'none']),
+  config: optional(nonArray(record(string(), any()))),
 });
 
-export type BaseArtifactProvider = z.infer<typeof BaseArtifactProviderSchema>;
+export type BaseArtifactProvider = InferOutput<
+  typeof BaseArtifactProviderSchema
+>;
 
 /**
  * Artifact pattern(s) for a single workflow - can be a single string or array of strings
  */
-export const ArtifactPatternsSchema = z.union([
-  z.string(),
-  z.array(z.string()),
-]);
+export const ArtifactPatternsSchema = union([string(), array(string())]);
 
 /**
  * Artifacts config for GitHub artifact provider.
  * Accepts string, array of strings, or object mapping workflow names to artifact patterns.
  */
-export const GitHubArtifactsConfigSchema = z
-  .union([ArtifactPatternsSchema, z.record(z.string(), ArtifactPatternsSchema)])
-  .optional();
+export const GitHubArtifactsConfigSchema = optional(
+  union([ArtifactPatternsSchema, record(string(), ArtifactPatternsSchema)]),
+);
 
-export type GitHubArtifactsConfig = z.infer<typeof GitHubArtifactsConfigSchema>;
+export type GitHubArtifactsConfig = InferOutput<
+  typeof GitHubArtifactsConfigSchema
+>;
 
 /**
  * GitHub-specific artifact provider configuration
  */
-export const GitHubArtifactProviderConfigSchema = z.object({
+export const GitHubArtifactProviderConfigSchema = object({
   artifacts: GitHubArtifactsConfigSchema,
 });
 
-export type GitHubArtifactProviderConfig = z.infer<
+export type GitHubArtifactProviderConfig = InferOutput<
   typeof GitHubArtifactProviderConfigSchema
 >;
 
 /**
  * Calendar versioning configuration
  */
-export const CalVerConfigSchema = z.object({
+export const CalVerConfigSchema = object({
   /**
    * Days to go back for date calculation (default: 14)
    */
-  offset: z.number().optional(),
+  offset: optional(number()),
   /**
    * strftime-like format for date part (default: %y.%-m).
    * Supports: %y (2-digit year), %m (zero-padded month), %-m (month without padding)
    */
-  format: z.string().optional(),
+  format: optional(string()),
 });
 
-export type CalVerConfig = z.infer<typeof CalVerConfigSchema>;
+export type CalVerConfig = InferOutput<typeof CalVerConfigSchema>;
 
 /**
  * Version resolution configuration
  */
-export const VersioningConfigSchema = z.object({
-  policy: z.enum(['auto', 'manual', 'calver']).optional(),
-  calver: CalVerConfigSchema.optional(),
+export const VersioningConfigSchema = object({
+  policy: optional(picklist(['auto', 'manual', 'calver'])),
+  calver: optional(nonArray(CalVerConfigSchema)),
 });
 
-export type VersioningConfig = z.infer<typeof VersioningConfigSchema>;
+export type VersioningConfig = InferOutput<typeof VersioningConfigSchema>;
 
-export const AiSummaryEndpointSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(2048)
-  .url()
-  .refine(value => {
+export const AiSummaryEndpointSchema = pipe(
+  string(),
+  trim(),
+  minLength(1),
+  maxLength(2048),
+  url(),
+  check(value => {
     try {
       const url = new URL(value);
       return (
@@ -173,68 +219,75 @@ export const AiSummaryEndpointSchema = z
     } catch {
       return false;
     }
-  }, 'AI endpoint must use HTTPS (HTTP only for loopback) without URL credentials or fragments');
+  }, 'AI endpoint must use HTTPS (HTTP only for loopback) without URL credentials or fragments'),
+);
 
-export const AiSummaryApiKeyEnvSchema = z
-  .string()
-  .regex(
+export const AiSummaryApiKeyEnvSchema = pipe(
+  string(),
+  regex(
     /^[A-Za-z_][A-Za-z0-9_]{0,127}$/,
     'Invalid AI token environment variable name',
-  );
+  ),
+);
 
 /** Connection settings contain an environment variable name, never a secret. */
-export const AiSummaryLlmSchema = z
-  .object({
-    endpoint: AiSummaryEndpointSchema.default(
-      'https://api.githubcopilot.com/responses',
-    ),
-    model: z.string().trim().min(1).max(200).default('gpt-5.4-nano'),
-    apiKeyEnv: AiSummaryApiKeyEnvSchema.default('GITHUB_TOKEN'),
-  })
-  .strict();
+export const AiSummaryLlmSchema = strictObject({
+  endpoint: optional(
+    AiSummaryEndpointSchema,
+    'https://api.githubcopilot.com/responses',
+  ),
+  model: optional(
+    pipe(string(), trim(), minLength(1), maxLength(200)),
+    'gpt-5.4-nano',
+  ),
+  apiKeyEnv: optional(AiSummaryApiKeyEnvSchema, 'GITHUB_TOKEN'),
+});
+
+type SummaryLevel = 'release' | 'category' | 'scope';
 
 /** Opt-in summaries through a configured HTTP endpoint. */
-export const AiSummaryConfigSchema = z
-  .object({
-    llm: AiSummaryLlmSchema.default({}),
-    minItems: z.number().int().nonnegative().default(5),
-    style: z.string().trim().min(1).max(500).optional(),
-    levels: z
-      .array(z.enum(['release', 'category', 'scope']))
-      .refine(
+export const AiSummaryConfigSchema = strictObject({
+  llm: optional(nonArray(AiSummaryLlmSchema), {}),
+  minItems: optional(pipe(number(), integer(), minValue(0)), 5),
+  style: optional(pipe(string(), trim(), minLength(1), maxLength(500))),
+  levels: optional(
+    pipe(
+      array(picklist(['release', 'category', 'scope'])),
+      check(
         levels => new Set(levels).size === levels.length,
         'Duplicate summary levels',
-      )
-      .default(['release'])
-      .transform(levels =>
-        levels.length
-          ? levels
-          : (['release'] as ('release' | 'category' | 'scope')[]),
       ),
-  })
-  .strict();
+      transform(levels =>
+        levels.length ? levels : (['release'] as SummaryLevel[]),
+      ),
+    ),
+    ['release'],
+  ),
+});
 
-export type AiSummaryConfig = z.infer<typeof AiSummaryConfigSchema>;
+export type AiSummaryConfig = InferOutput<typeof AiSummaryConfigSchema>;
 
-const UnownedPathsPolicySchema = z.enum(['include', 'exclude', 'own']);
+const UnownedPathsPolicySchema = picklist(['include', 'exclude', 'own']);
 
-export type UnownedPathsPolicy = z.infer<typeof UnownedPathsPolicySchema>;
+export type UnownedPathsPolicy = InferOutput<typeof UnownedPathsPolicySchema>;
 
 /**
  * Changelog configuration
  */
-export const ChangelogConfigSchema = z.union([
-  z.string(),
-  z.object({
-    filePath: z.string().optional(),
-    policy: z.enum(['auto', 'simple', 'none']).optional(),
-    scopeGrouping: z.boolean().optional(),
-    aiSummary: z.union([AiSummaryConfigSchema, z.literal(false)]).optional(),
-    includePaths: z
-      .array(
-        z
-          .string()
-          .refine(
+export const ChangelogConfigSchema = union([
+  string(),
+  object({
+    filePath: optional(string()),
+    policy: optional(picklist(['auto', 'simple', 'none'])),
+    scopeGrouping: optional(boolean()),
+    aiSummary: optional(
+      nonArray(union([AiSummaryConfigSchema, literal(false)])),
+    ),
+    includePaths: optional(
+      array(
+        pipe(
+          string(),
+          check(
             name =>
               name
                 .split('/')
@@ -246,19 +299,18 @@ export const ChangelogConfigSchema = z.union([
                     segment !== '__proto__' &&
                     !segment.startsWith('-'),
                 ),
-            {
-              message: 'Changelog paths must use safe relative ASCII segments.',
-            },
+            'Changelog paths must use safe relative ASCII segments.',
           ),
-      )
-      .optional(),
+        ),
+      ),
+    ),
     /**
      * How a workspace changelog treats files outside every workspace:
      * `include` keeps them as shared (default), `exclude` ignores them, and
      * `own` claims them for this workspace so every other workspace ignores
      * them. At most one workspace can use `own`.
      */
-    unownedPaths: UnownedPathsPolicySchema.optional(),
+    unownedPaths: optional(UnownedPathsPolicySchema),
   }),
 ]);
 
@@ -276,22 +328,22 @@ export const ChangelogConfigSchema = z.union([
  * same version. See docs for the disambiguation.
  */
 const releaseUnitFields = {
-  github: GitHubGlobalConfigSchema.optional(),
-  targets: z.array(TargetConfigSchema).optional(),
-  preReleaseCommand: z.string().optional(),
-  postReleaseCommand: z.string().optional(),
-  releaseBranchPrefix: z.string().optional(),
-  changelog: ChangelogConfigSchema.optional(),
-  changelogPolicy: z.enum(['auto', 'simple', 'none']).optional(),
-  requireNames: z.array(z.string()).optional(),
-  statusProvider: BaseStatusProviderSchema.optional(),
-  artifactProvider: BaseArtifactProviderSchema.optional(),
-  versioning: VersioningConfigSchema.optional(),
+  github: optional(GitHubGlobalConfigSchema),
+  targets: optional(array(TargetConfigSchema)),
+  preReleaseCommand: optional(string()),
+  postReleaseCommand: optional(string()),
+  releaseBranchPrefix: optional(string()),
+  changelog: optional(nonArray(ChangelogConfigSchema)),
+  changelogPolicy: optional(picklist(['auto', 'simple', 'none'])),
+  requireNames: optional(array(string())),
+  statusProvider: optional(BaseStatusProviderSchema),
+  artifactProvider: optional(BaseArtifactProviderSchema),
+  versioning: optional(nonArray(VersioningConfigSchema)),
   /**
    * Do not merge the release branch after publishing.
    * Defaults to true for compiled GitHub Actions (Node.js actions with dist/ folder).
    */
-  noMerge: z.boolean().optional(),
+  noMerge: optional(boolean()),
 } as const;
 
 /**
@@ -302,16 +354,22 @@ const releaseUnitFields = {
  * `github` block is *partial* (all fields optional) so a workspace can override
  * `owner` and/or `repo` while inheriting the rest from the top-level `github`.
  */
-export const WorkspaceSchema = z.object({
+export const WorkspaceSchema = object({
   ...releaseUnitFields,
-  github: GitHubGlobalConfigSchema.partial()
-    .refine(github => github.projectPath === undefined, {
-      message: 'Workspace github.projectPath is not supported.',
-    })
-    .optional(),
+  github: optional(
+    nonArray(
+      pipe(
+        partial(GitHubGlobalConfigSchema),
+        check(
+          github => github.projectPath === undefined,
+          'Workspace github.projectPath is not supported.',
+        ),
+      ),
+    ),
+  ),
 });
 
-export type Workspace = z.infer<typeof WorkspaceSchema>;
+export type Workspace = InferOutput<typeof WorkspaceSchema>;
 
 function isSafeWorkspaceGlobSegment(segment: string): boolean {
   if (
@@ -416,63 +474,87 @@ function splitBraceAlternatives(content: string): string[] | undefined {
   return choices.length > 1 ? choices : undefined;
 }
 
-const WorkspaceNameSchema = z
-  .string()
-  // Assigning this key to a regular object mutates its prototype instead of
-  // preserving an own workspace entry.
-  .refine(name => name !== '__proto__', {
-    message: 'Workspace name "__proto__" is not supported.',
-  })
-  .refine(name => name !== '.' && name !== '..', {
-    message: 'Workspace names cannot be "." or "..".',
-  })
-  .refine(isSafeWorkspaceGlob, {
-    message: 'Workspace paths must use safe ASCII segments.',
-  });
+const WorkspaceNameSchema = pipe(
+  string(),
+  check(
+    name => name !== '.' && name !== '..',
+    'Workspace names cannot be "." or "..".',
+  ),
+  check(isSafeWorkspaceGlob, 'Workspace paths must use safe ASCII segments.'),
+);
+
+// Valibot records skip these keys before validating them, so they would be
+// silently dropped instead of reaching WorkspaceNameSchema.
+const PROTOTYPE_KEYS = ['__proto__', 'constructor', 'prototype'];
+
+function findPrototypeKey(input: unknown): string | undefined {
+  return input !== null && typeof input === 'object'
+    ? PROTOTYPE_KEYS.find(key =>
+        Object.prototype.hasOwnProperty.call(input, key),
+      )
+    : undefined;
+}
+
+const WorkspacesSchema = pipe(
+  unknown(),
+  check(
+    input => findPrototypeKey(input) === undefined,
+    issue =>
+      `Workspace name "${findPrototypeKey(issue.input)}" is not supported.`,
+  ),
+  nonArray(record(WorkspaceNameSchema, nonArray(WorkspaceSchema))),
+);
+
+const CraftProjectConfigObjectSchema = object({
+  ...releaseUnitFields,
+  minVersion: optional(pipe(string(), regex(/^\d+\.\d+\.\d+.*$/))),
+  /**
+   * Named, independently-versioned release units within a single repository.
+   *
+   * When present, a release run must select one via `--workspace <name>` (or
+   * `CRAFT_WORKSPACE`). The selected workspace's fields override the top-level
+   * ones. When absent, craft behaves exactly as before (the top-level config is
+   * the single implicit release unit) — fully backward compatible.
+   */
+  workspaces: optional(WorkspacesSchema),
+});
+
+type CraftProjectConfigObject = InferOutput<
+  typeof CraftProjectConfigObjectSchema
+>;
+
+const hasWorkspaces = (config: CraftProjectConfigObject) =>
+  Object.keys(config.workspaces || {}).length > 0;
+
+// Path ownership only exists between release workspaces, so these settings
+// would otherwise be silently ignored.
+const workspaceOnlyChangelogField = (field: 'includePaths' | 'unownedPaths') =>
+  forward(
+    check<CraftProjectConfigObject, string>(
+      config =>
+        hasWorkspaces(config) ||
+        typeof config.changelog !== 'object' ||
+        config.changelog[field] === undefined,
+      'Only release workspaces support this setting. Define "workspaces" to use it.',
+    ),
+    ['changelog', field],
+  );
 
 /**
  * Craft project-specific configuration
  */
-export const CraftProjectConfigSchema = z
-  .object({
-    ...releaseUnitFields,
-    minVersion: z
-      .string()
-      .regex(/^\d+\.\d+\.\d+.*$/)
-      .optional(),
-    /**
-     * Named, independently-versioned release units within a single repository.
-     *
-     * When present, a release run must select one via `--workspace <name>` (or
-     * `CRAFT_WORKSPACE`). The selected workspace's fields override the top-level
-     * ones. When absent, craft behaves exactly as before (the top-level config is
-     * the single implicit release unit) — fully backward compatible.
-     */
-    workspaces: z.record(WorkspaceNameSchema, WorkspaceSchema).optional(),
-  })
-  .superRefine((config, context) => {
-    const hasWorkspaces = Object.keys(config.workspaces || {}).length > 0;
-    if (hasWorkspaces && config.github?.projectPath !== undefined) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Workspace configurations cannot use github.projectPath.',
-        path: ['github', 'projectPath'],
-      });
-    }
-    // Path ownership only exists between release workspaces, so these
-    // settings would otherwise be silently ignored.
-    if (!hasWorkspaces && typeof config.changelog === 'object') {
-      for (const field of ['includePaths', 'unownedPaths'] as const) {
-        if (config.changelog[field] !== undefined) {
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            message:
-              'Only release workspaces support this setting. Define "workspaces" to use it.',
-            path: ['changelog', field],
-          });
-        }
-      }
-    }
-  });
+export const CraftProjectConfigSchema = pipe(
+  nonArray(CraftProjectConfigObjectSchema),
+  forward(
+    check(
+      config =>
+        !hasWorkspaces(config) || config.github?.projectPath === undefined,
+      'Workspace configurations cannot use github.projectPath.',
+    ),
+    ['github', 'projectPath'],
+  ),
+  workspaceOnlyChangelogField('includePaths'),
+  workspaceOnlyChangelogField('unownedPaths'),
+);
 
-export type CraftProjectConfig = z.infer<typeof CraftProjectConfigSchema>;
+export type CraftProjectConfig = InferOutput<typeof CraftProjectConfigSchema>;
