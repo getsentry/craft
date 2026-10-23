@@ -365,6 +365,86 @@ describe('GitHubTarget', () => {
       githubTarget.github.repos.createRelease = createReleaseSpy as any;
     });
 
+    describe('release name', () => {
+      const createPrefixedTarget = () =>
+        new GitHubTarget(
+          { name: 'github', tagPrefix: 'cli@' },
+          new NoneArtifactProvider(),
+          { owner: 'testOwner', repo: 'testRepo' },
+        );
+
+      it('prefixes the changelog version in a release workspace', async () => {
+        const target = createPrefixedTarget();
+        target.github.repos.createRelease = createReleaseSpy as any;
+        setActiveWorkspace('packages/cli');
+
+        await target.createDraftRelease('0.2.0', 'abc123', {
+          name: '0.2.0',
+          body: 'notes',
+        });
+
+        expect(createReleaseSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ name: 'cli@0.2.0', tag_name: 'cli@0.2.0' }),
+        );
+      });
+
+      it('keeps text after the version in a release workspace', async () => {
+        const target = createPrefixedTarget();
+        target.github.repos.createRelease = createReleaseSpy as any;
+        setActiveWorkspace('packages/cli');
+
+        await target.createDraftRelease('0.2.0', 'abc123', {
+          name: '0.2.0 - Hotfix',
+          body: 'notes',
+        });
+
+        expect(createReleaseSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ name: 'cli@0.2.0 - Hotfix' }),
+        );
+      });
+
+      it('keeps headings that do not start with the version', async () => {
+        const target = createPrefixedTarget();
+        target.github.repos.createRelease = createReleaseSpy as any;
+        setActiveWorkspace('packages/cli');
+
+        await target.createDraftRelease('0.2.0', 'abc123', {
+          name: 'Spring Release',
+          body: 'notes',
+        });
+
+        expect(createReleaseSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ name: 'Spring Release' }),
+        );
+      });
+
+      it('keeps the changelog heading outside release workspaces', async () => {
+        const target = createPrefixedTarget();
+        target.github.repos.createRelease = createReleaseSpy as any;
+
+        await target.createDraftRelease('0.2.0', 'abc123', {
+          name: '0.2.0',
+          body: 'notes',
+        });
+
+        expect(createReleaseSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ name: '0.2.0', tag_name: 'cli@0.2.0' }),
+        );
+      });
+
+      it('falls back to the tag without a changeset', async () => {
+        const target = createPrefixedTarget();
+        target.github.repos.createRelease = createReleaseSpy as any;
+        setActiveWorkspace('packages/cli');
+
+        await target.createDraftRelease('0.2.0', 'abc123');
+
+        expect(createReleaseSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ name: 'cli@0.2.0' }),
+        );
+      });
+    });
+
     it('passes short body through unchanged', async () => {
       const changes = { name: '1.0.0', body: 'short body' };
       await githubTarget.createDraftRelease('1.0.0', 'abc123', changes);
