@@ -251,6 +251,7 @@ This is safe because the workflow only reads git metadata and config - no code f
 | `working-directory` | Directory to run Craft in (relative to repo root)                                | `.`      |
 | `craft-version`     | Version of Craft to use (tag or "latest")                                        | `latest` |
 | `comment`           | Post changelog as PR comment (true) or as commit status with job summary (false) | `true`   |
+| `preview-id`        | Keeps this preview separate from others on the same PR (see below)               | `''`     |
 
 ### Output Modes
 
@@ -309,6 +310,26 @@ jobs:
 :::tip
 Craft itself uses status check mode to avoid notification noise. You can see it in action on any PR in the [getsentry/craft repository](https://github.com/getsentry/craft/pulls).
 :::
+
+### Multiple Previews per PR
+
+If one repository releases several packages from separate Craft configs, call the workflow once per package. Without `preview-id`, every call writes the same PR comment and the same commit status, so a PR that touches two packages only shows whichever preview finished last.
+
+Give each call its own `preview-id` (letters, digits, `.`, `_`, `-`). Each preview then gets its own comment and its own status context, and the ID is shown in the heading, e.g. `Semver Impact of This PR (python)`:
+
+```yaml
+jobs:
+  changelog-preview-python:
+    uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
+    with:
+      working-directory: packages/python
+      preview-id: python
+  changelog-preview-rust:
+    uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
+    with:
+      working-directory: packages/rust
+      preview-id: rust
+```
 
 ### Pinning a Specific Version
 
