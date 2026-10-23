@@ -55,7 +55,7 @@ on:
   workflow_call:
     inputs:
       working-directory:
-        description: 'Directory to run Craft in (relative to repo root)'
+        description: 'Directory to run Craft in (relative to repo root). Previews for different directories get separate PR comments and status checks.'
         required: false
         type: string
         default: '.'
@@ -68,11 +68,6 @@ on:
         required: false
         type: boolean
         default: true
-      preview-id:
-        description: 'Identifier that keeps this preview separate from other previews on the same PR (letters, digits, ".", "_", "-"). Set it when calling the workflow more than once, e.g. once per package.'
-        required: false
-        type: string
-        default: ''
       require-conventional-title:
         description: 'Fail the workflow if the PR title does not match a conventional commit type (opt-in enforcement)'
         required: false
@@ -161,7 +156,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CRAFT_LOG_LEVEL: Warn
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          PREVIEW_ID: ${{ inputs.preview-id }}
+          WORKING_DIRECTORY: ${{ inputs.working-directory }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           echo "Running craft changelog --pr $PR_NUMBER --format json..."
@@ -210,15 +205,16 @@ jobs:
             STATUS_CONTEXT="Changelog Preview / Semver Impact"
           fi
 
-          # A preview ID gives each preview its own heading, commit status
-          # context and comment, so several previews on one PR don't overwrite
-          # each other.
+          # Key the preview by working directory, so a PR touching several
+          # packages (one Craft config each) gets one preview per package
+          # instead of each run overwriting the same comment and status.
+          # Previews for the repo root keep the original names.
           COMMENT_MARKER="<!-- craft-changelog-preview -->"
-          if [[ -n "$PREVIEW_ID" ]]; then
-            if [[ ! "$PREVIEW_ID" =~ ^[A-Za-z0-9._-]+$ ]]; then
-              echo "::error::preview-id may only contain letters, digits, '.', '_' and '-'"
-              exit 1
-            fi
+          PREVIEW_ID="${WORKING_DIRECTORY#./}"
+          PREVIEW_ID="${PREVIEW_ID%/}"
+          if [[ -n "$PREVIEW_ID" && "$PREVIEW_ID" != "." ]]; then
+            # Only keep characters that are safe in an HTML comment and a jq string
+            PREVIEW_ID="${PREVIEW_ID//[^A-Za-z0-9._\/-]/-}"
             SECTION_HEADING="${SECTION_HEADING} (${PREVIEW_ID})"
             STATUS_CONTEXT="${STATUS_CONTEXT} (${PREVIEW_ID})"
             COMMENT_MARKER="<!-- craft-changelog-preview:${PREVIEW_ID} -->"
