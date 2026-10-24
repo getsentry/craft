@@ -171,6 +171,7 @@ function shouldCondense(level: SummaryLevel, node: Node): boolean {
 /** Ordinary parents must compress their children, even for a single-child category. */
 function summaryTextLimit(level: SummaryLevel, node: Node): number {
   const limit = SUMMARY_TEXT_LIMITS[level];
+  if (level === 'release') return limit;
   if (!shouldCondense(level, node))
     return level === 'category' ? CRITICAL_CATEGORY_LIMIT : limit;
   const childLength = node.parts.reduce(
@@ -178,8 +179,7 @@ function summaryTextLimit(level: SummaryLevel, node: Node): number {
     0,
   );
   // Very short child digests still need room for a grammatical, useful outcome.
-  const minimum = level === 'release' ? 200 : 80;
-  return Math.min(limit, Math.max(minimum, Math.floor(childLength * 0.55)));
+  return Math.min(limit, Math.max(80, Math.floor(childLength * 0.55)));
 }
 
 function summaryWordLimit(level: SummaryLevel, node: Node): number | undefined {
@@ -434,7 +434,7 @@ class SummaryAttempt {
         const node = byId.get(digest.id)!;
         const parts = node.parts;
         if (characterLength(digest.summary) > summaryTextLimit(level, node))
-          throw new SummaryFailure('response-schema');
+          throw new SummaryFailure('response-length');
         if (
           // eslint-disable-next-line no-control-regex -- Reject control text in generated prose.
           /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u00ad]/.test(
@@ -443,12 +443,12 @@ class SummaryAttempt {
           (level === 'release' &&
             !/[\p{L}\p{N})'’”][.!?。！？]["'’”)]*$/u.test(digest.summary))
         )
-          throw new SummaryFailure('response-schema');
+          throw new SummaryFailure('response-prose');
         if (
           summaryWordLimit(level, node) !== undefined &&
           digest.summary.split(/\s+/).length > summaryWordLimit(level, node)!
         )
-          throw new SummaryFailure('response-schema');
+          throw new SummaryFailure('response-words');
         if (requiredTerms(node).some(term => !digest.summary.includes(term)))
           throw new SummaryFailure('migration-missing');
         if (repeatsChildProse(level, node, digest.summary))
@@ -498,6 +498,9 @@ class SummaryAttempt {
         ![
           'response-json',
           'response-schema',
+          'response-length',
+          'response-words',
+          'response-prose',
           'response-repetition',
           'migration-missing',
           'coverage-missing-id',

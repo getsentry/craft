@@ -756,12 +756,12 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(JSON.parse(request.input).nodes[0].criticalGuidance).toBe(true);
   });
 
-  it('gives a small release room for a complete overview without relaxing its word cap', async () => {
+  it('does not squeeze already brief category digests into an incomplete release overview', async () => {
     expect(await summarizeChangelog(categories, config)).not.toBeNull();
     const request = requestMock.mock.calls.find(
       ([request]) => JSON.parse(request.input).level === 'release',
     )![0];
-    expect(JSON.parse(request.input).nodes[0].maxCharacters).toBe(200);
+    expect(JSON.parse(request.input).nodes[0].maxCharacters).toBe(400);
     expect(request.system).toContain('never exceeding 35 words');
   });
 
@@ -1365,6 +1365,9 @@ describe('hierarchical HTTP changelog summaries', () => {
 
   it.each([
     'response-schema',
+    'response-length',
+    'response-words',
+    'response-prose',
     'response-repetition',
     'response-json',
     'important-missing',
