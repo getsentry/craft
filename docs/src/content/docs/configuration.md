@@ -247,6 +247,10 @@ changelog:
 | `llm.model` | `gpt-5.4-nano` | Model ID supported by the endpoint and credential. |
 | `llm.apiKeyEnv` | `GITHUB_TOKEN` | Name of the environment variable containing the token. Never put the token in configuration or CLI arguments. |
 
+For short changelogs, keep the default `levels: [release]` and `minItems: 5`
+to add an overview while leaving the original entries expanded. Selecting all
+levels with `minItems: 0` explicitly summarizes even one-entry groups.
+
 Lower-level digests are reused for parent summaries even when hidden. Each
 parent makes an AI synthesis call over its child digests. The release overview
 is one or two short sentences covering the themes across every category, rather
@@ -254,10 +258,14 @@ than joined category summaries. Category and scope summaries name the concrete
 features, targets and options that changed, and breaking-change summaries say
 what users must change when the source data states it. Besides each changelog
 entry, the model receives the Markdown text of its PR description (without
-code, HTML, images or emoji, capped at 600 characters) as context only; it is
+code blocks, HTML, images or prose emoji, capped at 1200 characters with
+breaking-change and migration paragraphs prioritized) as context only; it is
 never rendered. Visible prose is capped at 400
 characters for the release, 600 for each category and 1200 for each scope.
-Source-linked critical facts are carried and validated internally without
+Invalid structured model output gets one repair attempt within the same
+64-request and 120-second budgets. Transport and authentication failures do not
+trigger retries or provider switching. Source-linked critical facts are carried
+and validated internally without
 appending their text to every displayed summary. All original entries remain
 intact. Category and scope summaries preserve originals in expandable blocks,
 including links and nested content. Category prose and
@@ -466,6 +474,11 @@ changelog:
 ```
 
 ### Custom Changelog Entries from PR Descriptions
+
+The legacy `#body-in-changelog` opt-in must be a standalone, top-level line in
+the PR or commit body (separated from surrounding paragraphs by blank lines).
+Mentions inside prose, inline or fenced code, blockquotes and HTML comments do
+not opt in. Prefer a curated "Changelog Entry" section to including a full body.
 
 By default, the changelog entry for a PR is generated from its title. However,
 PR authors can override this by adding a "Changelog Entry" section to the PR

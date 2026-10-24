@@ -687,10 +687,10 @@ function createPREntriesFromRaw(
 
   // For default entries, only include body if it contains the magic word
   let body = '';
-  if (raw.prBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
-    body = raw.prBody;
-  } else if (fallbackBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
-    body = fallbackBody;
+  if (bodyWithChangelogDirective(raw.prBody) !== undefined) {
+    body = raw.prBody!;
+  } else if (bodyWithChangelogDirective(fallbackBody) !== undefined) {
+    body = fallbackBody!;
   }
 
   return [
@@ -706,6 +706,22 @@ function createPREntriesFromRaw(
       description: body ? undefined : summaryDescription(raw.prBody),
     },
   ];
+}
+
+/** A body opt-in is an explicit top-level Markdown paragraph, not a code example. */
+function bodyWithChangelogDirective(
+  body: string | null | undefined,
+): string | undefined {
+  if (!body) return undefined;
+  const tokens = marked.lexer(body);
+  const directive = (token: Token) =>
+    token.type === 'paragraph' &&
+    token.raw.trim() === BODY_IN_CHANGELOG_MAGIC_WORD;
+  if (!tokens.some(directive)) return undefined;
+  return tokens
+    .map(token => (directive(token) ? '' : token.raw))
+    .join('')
+    .trim();
 }
 
 interface Commit {
@@ -1424,9 +1440,10 @@ function formatChangelogEntry(
   // Add body content
   // Two cases: 1) legacy magic word behavior, 2) nested content from structured changelog entries
   if (entry.body) {
-    if (entry.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
+    const directiveBody = bodyWithChangelogDirective(entry.body);
+    if (directiveBody !== undefined) {
       // Legacy behavior: extract and format body with magic word
-      const body = entry.body.replace(BODY_IN_CHANGELOG_MAGIC_WORD, '').trim();
+      const body = directiveBody;
       if (body) {
         text += `\n  ${body}`;
       }

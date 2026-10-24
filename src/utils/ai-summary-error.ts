@@ -14,7 +14,6 @@ export type SummaryFailureReason =
   | 'coverage-child-id'
   | 'coverage-short-id'
   | 'coverage-unknown-id'
-  | 'coverage-duplicate-id'
   | 'part-coverage'
   | 'important-missing'
   | 'important-unknown'

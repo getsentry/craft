@@ -52,7 +52,11 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
         }),
       );
       response.writeHead(200, { 'content-type': 'application/json' });
-      const text = JSON.stringify({ summaries });
+      const text = JSON.stringify({
+        summaries: Object.fromEntries(
+          summaries.map(({ id, ...digest }: any) => [id, digest]),
+        ),
+      });
       response.end(
         JSON.stringify(
           responses
