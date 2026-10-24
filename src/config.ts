@@ -5,7 +5,7 @@ import { globSync, hasMagic } from 'glob';
 import { load } from 'js-yaml';
 import GitUrlParse from 'git-url-parse';
 import { createGitClient } from './utils/git';
-import { ZodError } from 'zod';
+import { safeParse, type BaseIssue } from 'valibot';
 
 import { logger } from './logger';
 import {
@@ -553,6 +553,27 @@ export function getConfigFileDir(): string | undefined {
 }
 
 /**
+ * Valibot reports a failed union once at the union's path and keeps each
+ * option's issues, relative to that path, under `issue.issues`. Report the
+ * nested field issues instead so users see which setting is wrong.
+ */
+function formatIssues(
+  issues: readonly BaseIssue<unknown>[],
+  prefix: string[] = [],
+): string[] {
+  return issues.flatMap(issue => {
+    const path = [
+      ...prefix,
+      ...(issue.path ?? []).map(item => String(item.key)),
+    ];
+    const nested = issue.issues?.filter(child => child.path?.length);
+    return nested?.length
+      ? formatIssues(nested, path)
+      : [`${path.join('.')}: ${issue.message}`];
+  });
+}
+
+/**
  * Parses and validate passed configuration object
  *
  * Throw an error is the object cannot be properly parsed as configuration.
@@ -563,19 +584,14 @@ export function validateConfiguration(
   rawConfig: Record<string, any>,
 ): CraftProjectConfig {
   logger.debug('Parsing and validating the configuration file...');
-  try {
-    return CraftProjectConfigSchema.parse(rawConfig);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      const messages = error.errors
-        .map(e => `${e.path.join('.')}: ${e.message}`)
-        .join('\n');
-      throw new ConfigurationError(
-        `Cannot parse configuration file:\n${messages}`,
-      );
-    }
-    throw error;
+  const result = safeParse(CraftProjectConfigSchema, rawConfig);
+  if (!result.success) {
+    const messages = formatIssues(result.issues).join('\n');
+    throw new ConfigurationError(
+      `Cannot parse configuration file:\n${messages}`,
+    );
   }
+  return result.output;
 }
 
 /**

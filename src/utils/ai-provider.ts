@@ -1,5 +1,7 @@
+import { parse, partial } from 'valibot';
 import {
   AiSummaryLlmSchema,
+  nonArray,
   type AiSummaryConfig,
 } from '../schemas/project_config';
 import { safeExec } from './dryRun';
@@ -40,7 +42,7 @@ export function resolveAiSummaryLlm(config: AiSummaryConfig) {
   if (settings && Buffer.byteLength(settings) > 8192)
     throw new Error('AI connection configuration exceeds limit');
   const environment = settings
-    ? AiSummaryLlmSchema.partial().parse(JSON.parse(settings))
+    ? parse(nonArray(partial(AiSummaryLlmSchema)), JSON.parse(settings))
     : {};
   const defined = (
     values: Record<string, string | undefined>,
@@ -51,7 +53,7 @@ export function resolveAiSummaryLlm(config: AiSummaryConfig) {
         ([, value]) => value !== undefined && (!ignoreEmpty || value !== ''),
       ),
     );
-  return AiSummaryLlmSchema.parse({
+  return parse(AiSummaryLlmSchema, {
     ...config.llm,
     ...defined(
       {

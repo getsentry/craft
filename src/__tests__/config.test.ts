@@ -9,6 +9,7 @@ import {
 } from 'fs';
 import { globSync } from 'glob';
 import { load } from 'js-yaml';
+import { safeParse } from 'valibot';
 import { tmpdir } from 'os';
 import { join } from 'path';
 /**
@@ -274,7 +275,26 @@ describe('validateConfiguration', () => {
   test('fails with invalid github config', () => {
     expect(() =>
       validateConfiguration({ github: { owner: 'getsentry' } }),
-    ).toThrow(/repo.*Required/);
+    ).toThrow('github.repo: Invalid key: Expected "repo"');
+  });
+
+  test.each([
+    ['versioning', { versioning: [] }],
+    ['versioning.calver', { versioning: { calver: [] } }],
+    ['changelog', { changelog: [] }],
+    ['changelog.aiSummary', { changelog: { aiSummary: [] } }],
+    ['changelog.aiSummary.llm', { changelog: { aiSummary: { llm: [] } } }],
+    [
+      'statusProvider.config',
+      { statusProvider: { name: 'github', config: [] } },
+    ],
+    ['workspaces', { workspaces: [] }],
+    ['workspaces.cli', { workspaces: { cli: [] } }],
+    ['workspaces.cli.github', { workspaces: { cli: { github: [] } } }],
+  ])('rejects an array for the %s block', (path, data) => {
+    expect(() => validateConfiguration(data)).toThrow(
+      `${path}: Invalid type: Expected Object but received Array`,
+    );
   });
 
   test('fails with invalid minVersion format', () => {
@@ -286,7 +306,7 @@ describe('validateConfiguration', () => {
   test('fails with invalid changelog policy', () => {
     expect(() =>
       validateConfiguration({ changelog: { policy: 'invalid' } }),
-    ).toThrow(/changelog/);
+    ).toThrow(/changelog\.policy: .*received "invalid"/);
   });
 
   test.each([
@@ -336,7 +356,7 @@ describe('CraftProjectConfigSchema', () => {
       minVersion: '2.14.0',
     };
 
-    const result = CraftProjectConfigSchema.safeParse(data);
+    const result = safeParse(CraftProjectConfigSchema, data);
     expect(result.success).toBe(true);
   });
 
@@ -345,7 +365,7 @@ describe('CraftProjectConfigSchema', () => {
       minVersion: 'not-a-version',
     };
 
-    const result = CraftProjectConfigSchema.safeParse(data);
+    const result = safeParse(CraftProjectConfigSchema, data);
     expect(result.success).toBe(false);
   });
 });
@@ -423,6 +443,17 @@ describe('noMerge config', () => {
       ),
     ).toThrow('Workspace name "__proto__" is not supported.');
   });
+
+  test.each(['constructor', 'prototype'])(
+    'rejects the %s workspace key instead of dropping it',
+    name => {
+      expect(() =>
+        validateConfiguration({
+          workspaces: JSON.parse(`{"${name}": {}}`),
+        }),
+      ).toThrow(`Workspace name "${name}" is not supported.`);
+    },
+  );
 
   test('rejects workspace github.projectPath', () => {
     expect(() =>
