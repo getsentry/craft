@@ -71,17 +71,15 @@ function modelResponse(options: SummaryRequest) {
           ...(input.level === 'release'
             ? { coveredPartIds: node.parts.map((part: any) => part.id) }
             : {}),
-          summary: `${input.level}: ${node.title} (${node.parts
-            .map((part: any) => part.text)
-            .join('; ')
-            .slice(
-              0,
-              input.level === 'release'
-                ? 250
-                : input.level === 'category'
-                  ? 450
-                  : 700,
-            )})`,
+          summary:
+            input.level === 'scope'
+              ? `${input.level}: ${node.title} (${node.parts
+                  .map((part: any) => part.text)
+                  .join('; ')
+                  .slice(0, 700)})`
+              : input.level === 'category'
+                ? `Changes to ${node.title}.`
+                : 'Release overview.',
           importantChanges: node.parts.flatMap((part: any) => [
             ...(part.importantChanges || []),
             ...(part.important
@@ -245,6 +243,9 @@ describe('hierarchical HTTP changelog summaries', () => {
     }));
     requestMock.mockImplementation(async request => {
       const output = modelResponse(request);
+      if (JSON.parse(request.input).level === 'scope')
+        for (const digest of Object.values(output.summaries))
+          digest.summary = 'abcdefghij'.repeat(110);
       if (JSON.parse(request.input).level === 'category')
         Object.values(output.summaries).forEach((digest: any) => {
           digest.summary = 'Category theme. '.repeat(35).trim();
@@ -278,6 +279,195 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(requests.length).toBeLessThanOrEqual(64);
   });
 
+  it('keeps explicit upgrade actions in a detailed breaking category', async () => {
+    const prose =
+      'Tag-derived projects must set preReleaseCommand to an empty string when automatic version discovery cannot find a version.';
+    requestMock.mockImplementation(async request => {
+      const output = modelResponse(request);
+      const level = JSON.parse(request.input).level;
+      for (const digest of Object.values(output.summaries))
+        digest.summary =
+          level === 'release'
+            ? 'Version preparation now checks project versions before releasing.'
+            : prose;
+      return output;
+    });
+    const input = [
+      {
+        id: 'breaking',
+        title: 'Breaking',
+        groups: [
+          {
+            id: 'g',
+            title: 'Prepare',
+            scope: 'Prepare',
+            items: [
+              'Breaking change: version preparation requires a version to bump.',
+            ],
+          },
+        ],
+      },
+    ];
+    const result = await summarizeChangelog(input, { ...config, minItems: 0 });
+    expect(result?.categories.breaking).toBe(prose);
+    expect(result?.scopes.g).toBe(prose);
+    expect(requestMock).toHaveBeenCalledTimes(3);
+    const categoryRequest = requestMock.mock.calls[1][0];
+    const node = JSON.parse(categoryRequest.input).nodes[0];
+    expect(
+      (categoryRequest.schema as any).properties.summaries.properties[node.id]
+        .properties.summary.maxLength,
+    ).toBe(600);
+    expect(node.parts[0].importantChanges).toHaveLength(1);
+  });
+
+  it.each(['category', 'release'] as const)(
+    'falls back after one failed repair of copied %s prose',
+    async level => {
+      const scope =
+        'Workspace owners can exclude unrelated paths from their release notes. ' +
+        'Extra source context about package discovery and boundaries. '.repeat(
+          5,
+        );
+      const category =
+        'Teams get clearer release notes while workspace owners gain path controls, alongside concise summaries.';
+      requestMock.mockImplementation(async request => {
+        const output = modelResponse(request);
+        const current = JSON.parse(request.input).level;
+        for (const digest of Object.values(output.summaries))
+          digest.summary =
+            current === 'scope'
+              ? scope
+              : current === 'category'
+                ? level === 'category'
+                  ? 'WORKSPACE owners can exclude unrelated paths from their release notes!'
+                  : category
+                : 'Teams get clearer release notes while workspace owners.';
+        return output;
+      });
+      const input = [
+        {
+          id: 'features',
+          title: 'Features',
+          groups: [
+            {
+              id: 'g',
+              title: 'Changelog',
+              scope: 'Changelog',
+              items: ['Add workspace controls and PR context.'],
+            },
+          ],
+        },
+      ];
+      expect(
+        await summarizeChangelog(input, { ...config, minItems: 0 }),
+      ).toBeNull();
+      expect(
+        requestMock.mock.calls.filter(
+          ([request]) => JSON.parse(request.input).level === level,
+        ),
+      ).toHaveLength(2);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`stage=${level}; reason=response-repetition`),
+      );
+    },
+  );
+
+  it('requires a single-child category to compress its scope digest', async () => {
+    const scope =
+      'Workspaces can include, exclude, or own unowned paths, and first workspace releases inspect configuration history. AI summaries use condensed PR descriptions to explain concrete changes.';
+    const paraphrase =
+      'Workspaces gain include, exclude, and own modes for unowned paths; initial releases inspect configuration history, while AI summaries use PR descriptions for concrete explanations.';
+    requestMock.mockImplementation(async request => {
+      const output = modelResponse(request);
+      const level = JSON.parse(request.input).level;
+      for (const digest of Object.values(output.summaries))
+        digest.summary = level === 'scope' ? scope : paraphrase;
+      return output;
+    });
+    const input = [
+      {
+        id: 'features',
+        title: 'Features',
+        groups: [
+          {
+            id: 'g',
+            title: 'Changelog',
+            scope: 'Changelog',
+            items: ['Add workspace controls and PR context.'],
+          },
+        ],
+      },
+    ];
+    expect(
+      await summarizeChangelog(input, {
+        ...config,
+        minItems: 0,
+        levels: ['category', 'scope'],
+      }),
+    ).toBeNull();
+    const requests = requestMock.mock.calls.filter(
+      ([request]) => JSON.parse(request.input).level === 'category',
+    );
+    expect(requests).toHaveLength(2);
+    for (const [request] of requests) {
+      const node = JSON.parse(request.input).nodes[0];
+      const schema = (request.schema as any).properties.summaries.properties[
+        node.id
+      ];
+      expect(schema.properties.summary.maxLength).toBe(
+        Math.floor(Array.from(scope).length * 0.55),
+      );
+    }
+  });
+
+  it('repairs copied child wording while preserving all selected levels', async () => {
+    const copied =
+      'Workspace owners can exclude unrelated paths from their release notes';
+    const scope =
+      `${copied}. ` +
+      'Additional workspace history and AI description details. '.repeat(8);
+    let categoryCalls = 0;
+    requestMock.mockImplementation(async request => {
+      const output = modelResponse(request);
+      const level = JSON.parse(request.input).level;
+      for (const digest of Object.values(output.summaries))
+        digest.summary =
+          level === 'scope'
+            ? scope
+            : level === 'category'
+              ? ++categoryCalls === 1
+                ? copied + '.'
+                : 'Workspace releases gain focused history and richer change explanations.'
+              : 'Releases provide clearer, more focused change information.';
+      return output;
+    });
+    const input = [
+      {
+        id: 'features',
+        title: 'Features',
+        groups: [
+          {
+            id: 'g',
+            title: 'Changelog',
+            scope: 'Changelog',
+            items: ['Add workspace controls and PR context.'],
+          },
+        ],
+      },
+    ];
+    const result = await summarizeChangelog(input, { ...config, minItems: 0 });
+    expect(categoryCalls).toBe(2);
+    expect(result).toMatchObject({
+      release: expect.any(String),
+      categories: {
+        features:
+          'Workspace releases gain focused history and richer change explanations.',
+      },
+      scopes: { g: scope.trim() },
+    });
+  });
+
   it('rejects an overlong overview instead of displaying concatenated category prose', async () => {
     requestMock.mockImplementation(async request => {
       const output = modelResponse(request);
@@ -298,10 +488,13 @@ describe('hierarchical HTTP changelog summaries', () => {
       const prose = '🚀'.repeat(limit);
       requestMock.mockImplementation(async request => {
         const output = modelResponse(request);
-        if (JSON.parse(request.input).level === level)
-          Object.values(output.summaries).forEach((digest: any) => {
-            digest.summary = prose;
-          });
+        for (const digest of Object.values(output.summaries))
+          digest.summary =
+            JSON.parse(request.input).level === level
+              ? prose
+              : '🚀'.repeat(
+                  JSON.parse(request.input).level === 'scope' ? 1200 : 600,
+                );
         return output;
       });
       const result = await summarizeChangelog(categories, {
@@ -325,10 +518,14 @@ describe('hierarchical HTTP changelog summaries', () => {
     async (level, limit) => {
       requestMock.mockImplementation(async request => {
         const output = modelResponse(request);
-        if (JSON.parse(request.input).level === level)
-          Object.values(output.summaries).forEach((digest: any) => {
-            digest.summary = '🚀'.repeat(limit + 1);
-          });
+        for (const digest of Object.values(output.summaries))
+          digest.summary = '🚀'.repeat(
+            JSON.parse(request.input).level === level
+              ? limit + 1
+              : JSON.parse(request.input).level === 'scope'
+                ? 1200
+                : 600,
+          );
         return output;
       });
       expect(
@@ -378,10 +575,19 @@ describe('hierarchical HTTP changelog summaries', () => {
 
   it('reuses digests and includes small unscoped groups in every parent', async () => {
     const result = await summarizeChangelog(categories, config);
-    expect(result!.categories.features).toContain('Small feature');
-    expect(result!.release).toContain('Small feature');
+    expect(result).not.toBeNull();
     const inputs = requestMock.mock.calls.map(([options]) =>
       JSON.parse(options.input),
+    );
+    expect(
+      inputs.find(input => input.level === 'category').nodes[0].parts,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'small',
+          text: expect.stringContaining('Small feature'),
+        }),
+      ]),
     );
     expect(
       inputs.find(input => input.level === 'category').nodes[0].parts[0].text,
@@ -423,7 +629,8 @@ describe('hierarchical HTTP changelog summaries', () => {
 
   it('applies writing style at every level while retaining the base constraints', async () => {
     await summarizeChangelog(categories, config);
-    const base = requestMock.mock.calls[0][0].system;
+    const base =
+      requestMock.mock.calls[0][0].system.split('\nDisplay role:')[0];
     requestMock.mockClear();
     const style = 'Concise and friendly for developers.';
     expect(
@@ -618,7 +825,7 @@ describe('hierarchical HTTP changelog summaries', () => {
       ],
       { ...config, minItems: 1 },
     );
-    expect(result!.release).toContain('CVE-1234');
+    expect(result!.release).toBeTruthy();
     const input = JSON.parse(requestMock.mock.calls.at(-1)![0].input);
     expect(
       input.nodes[0].parts[0].importantChanges.map((fact: any) => fact.id),
@@ -814,6 +1021,7 @@ describe('hierarchical HTTP changelog summaries', () => {
 
   it.each([
     'response-schema',
+    'response-repetition',
     'response-json',
     'important-missing',
     'important-duplicate',

@@ -155,6 +155,27 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true').each(releases)(
             expect(notes).not.toContain('#body-in-changelog');
           }
           expect(generated.changelog).toContain('#### Changelog');
+          const featureSection = generated.changelog
+            .split('### New Features')[1]
+            .split('### Bug Fixes')[0];
+          const featureParts = featureSection.split('#### Changelog');
+          const categoryProse = featureParts[0]
+            .split('\n')
+            .slice(1)
+            .join('\n')
+            .trim();
+          const scopeProse = featureParts[1].split('<details>')[0].trim();
+          expect(categoryProse).not.toBe('');
+          expect(scopeProse).not.toBe('');
+          // The runtime enforces the 55% character budget before Markdown escaping.
+          // Independently check that the visible sentence is shorter in words.
+          const wordCount = (text: string) => text.split(/\s+/).length;
+          expect(
+            wordCount(categoryProse),
+            'single-scope category must be a shorter outcome, not a paraphrased scope',
+          ).toBeLessThanOrEqual(
+            Math.max(16, Math.floor(wordCount(scopeProse) * 0.7)),
+          );
           const breakingSummary = generated.changelog
             .split('### Breaking Changes')[1]
             .split('<details>')[0];

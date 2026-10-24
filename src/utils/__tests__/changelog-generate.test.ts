@@ -440,7 +440,9 @@ describe('generateChangesetFromGit', () => {
                   ? { coveredPartIds: node.parts.map((part: any) => part.id) }
                   : {}),
                 summary:
-                  'Removed the legacy endpoint in a breaking API change.',
+                  input.level === 'release'
+                    ? 'The API drops an obsolete endpoint.'
+                    : 'Removed the legacy endpoint in a breaking API change.',
                 importantChanges: node.parts.flatMap((part: any) => [
                   ...(part.importantChanges || []),
                   ...(part.important
@@ -478,7 +480,7 @@ describe('generateChangesetFromGit', () => {
       const result = await generateChangesetFromGit(dummyGit, '1.0.0');
       expect(provider).toHaveBeenCalledTimes(3);
       expect(result.changelog.split('### Breaking Changes')[0]).toContain(
-        'Removed the legacy endpoint in a breaking API change.',
+        'The API drops an obsolete endpoint.',
       );
       expect(result.changelog).toContain('- Remove legacy endpoint');
       expect(result.changelog).toContain('<details>');
