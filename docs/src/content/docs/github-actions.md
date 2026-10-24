@@ -310,6 +310,24 @@ jobs:
 Craft itself uses status check mode to avoid notification noise. You can see it in action on any PR in the [getsentry/craft repository](https://github.com/getsentry/craft/pulls).
 :::
 
+### Multiple Previews per PR
+
+If one repository releases several packages from separate Craft configs, call the workflow once per package with its `working-directory`. Each directory gets its own PR comment and its own status context, and the heading names the directory, e.g. `Semver Impact of This PR (packages/python)`. A PR that touches several packages shows one preview per package:
+
+```yaml
+jobs:
+  changelog-preview-python:
+    uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
+    with:
+      working-directory: packages/python
+  changelog-preview-rust:
+    uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
+    with:
+      working-directory: packages/rust
+```
+
+Previews run from the repository root keep the plain `Changelog Preview / Semver Impact` status context.
+
 ### Pinning a Specific Version
 
 ```yaml

@@ -55,7 +55,7 @@ on:
   workflow_call:
     inputs:
       working-directory:
-        description: 'Directory to run Craft in (relative to repo root)'
+        description: 'Directory to run Craft in (relative to repo root). Previews for different directories get separate PR comments and status checks.'
         required: false
         type: string
         default: '.'
@@ -156,6 +156,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CRAFT_LOG_LEVEL: Warn
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          WORKING_DIRECTORY: ${{ inputs.working-directory }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           echo "Running craft changelog --pr $PR_NUMBER --format json..."
@@ -202,6 +203,21 @@ jobs:
 
             SECTION_HEADING="Semver Impact of This PR"
             STATUS_CONTEXT="Changelog Preview / Semver Impact"
+          fi
+
+          # Key the preview by working directory, so a PR touching several
+          # packages (one Craft config each) gets one preview per package
+          # instead of each run overwriting the same comment and status.
+          # Previews for the repo root keep the original names.
+          COMMENT_MARKER="<!-- craft-changelog-preview -->"
+          PREVIEW_ID="${WORKING_DIRECTORY#./}"
+          PREVIEW_ID="${PREVIEW_ID%/}"
+          if [[ -n "$PREVIEW_ID" && "$PREVIEW_ID" != "." ]]; then
+            # Only keep characters that are safe in an HTML comment and a jq string
+            PREVIEW_ID="${PREVIEW_ID//[^A-Za-z0-9._\/-]/-}"
+            SECTION_HEADING="${SECTION_HEADING} (${PREVIEW_ID})"
+            STATUS_CONTEXT="${STATUS_CONTEXT} (${PREVIEW_ID})"
+            COMMENT_MARKER="<!-- craft-changelog-preview:${PREVIEW_ID} -->"
           fi
 
           # Determine mode: use status check mode when comment is false OR when running internally (no input)
@@ -258,7 +274,7 @@ jobs:
             
             COMMENT_FILE=$(mktemp)
             cat > "$COMMENT_FILE" << CRAFT_CHANGELOG_COMMENT_END
-          <!-- craft-changelog-preview -->
+          ${COMMENT_MARKER}
           ## ${SECTION_HEADING}
 
           ${BUMP_BADGE}
@@ -282,7 +298,7 @@ jobs:
 
             COMMENT_ID=$(gh api \
               "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-              --jq '.[] | select(.body | contains("<!-- craft-changelog-preview -->")) | .id' \
+              --jq ".[] | select(.body | contains(\"${COMMENT_MARKER}\")) | .id" \
               | head -1)
 
             if [[ -n "$COMMENT_ID" ]]; then
