@@ -126,16 +126,25 @@ function importantCoverage(parts: Part[]) {
   return { carried, allowed, required };
 }
 
-/** Preserve explicit settings/flags without guessing migration steps from prose. */
+/** Recognize explicit migration settings/flags, not ordinary test setup. */
 function migrationTerms(text: string): string[] {
   const actions =
     /\b(?:must|need(?:s|ed)? to|required to)\s+(?:set|pass|specify|configure)\s+(?:(?:the|an?)\s+)?(?:(--[A-Za-z0-9][A-Za-z0-9-]*)|([A-Za-z_][A-Za-z0-9_.-]*)(?=\s*[:=])(\s*[:=]\s*(?:''|""|true\b|false\b|\d+\b))?)/gi;
   return [
     ...new Set(
-      [...text.matchAll(actions)].map(
-        match =>
-          match[1] || `${match[2]}${(match[3] || '').replace(/\s+/g, ' ')}`,
-      ),
+      text
+        .split(/(?<=[.!?])\s+/)
+        .filter(sentence =>
+          /\b(?:breaking|migrat(?:ion|e|ing)|upgrad(?:e|ing)|opt[ -]out|tag-derived|no longer)\b/i.test(
+            sentence,
+          ),
+        )
+        .flatMap(sentence =>
+          [...sentence.matchAll(actions)].map(
+            match =>
+              match[1] || `${match[2]}${(match[3] || '').replace(/\s+/g, ' ')}`,
+          ),
+        ),
     ),
   ];
 }
@@ -562,7 +571,15 @@ class SummaryAttempt {
         const values = children.get(node.id)!.map(id => digests.get(id)!);
         if (values.length === 1)
           completed.set(node.id, { ...values[0], id: node.id });
-        else remaining.push({ ...node, parts: values.map(digestPart) });
+        else
+          remaining.push({
+            ...node,
+            parts: values.map((digest, index) => ({
+              ...digestPart(digest),
+              // Keep requirements through reduction rounds at this level only.
+              ...(index === 0 ? { requiredTerms: requiredTerms(node) } : {}),
+            })),
+          });
       }
       pending = remaining;
     }

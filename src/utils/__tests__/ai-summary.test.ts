@@ -312,7 +312,7 @@ describe('hierarchical HTTP changelog summaries', () => {
             title: 'Prepare',
             items: ['Breaking change: version discovery changes.'],
             descriptions: {
-              0: "Projects must set settings.alpha: true. Tag-derived projects need to set beta: '' to opt out.",
+              0: "After upgrading, projects must set settings.alpha: true. Tag-derived projects need to set beta: '' to opt out. Tests must set fixture.mode: true.",
             },
           },
         ],
@@ -338,6 +338,7 @@ describe('hierarchical HTTP changelog summaries', () => {
       new RegExp(schema.pattern).test('Set settingsXalpha: true now.'),
     ).toBe(false);
     expect(schema.description).toContain("beta: ''");
+    expect(schema.description).not.toContain('fixture.mode');
   });
 
   it('retains bounded original migration conditions when a child digest omits them', async () => {
@@ -397,6 +398,50 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(releaseRequest.nodes[0].parts).toHaveLength(1);
     expect(JSON.stringify(releaseRequest)).not.toContain('PR description:');
     expect(result).toMatchObject({ categories: {}, scopes: {} });
+  });
+
+  it('retains migration requirements across same-level reduction rounds', async () => {
+    let finalScopeCalls = 0;
+    requestMock.mockImplementation(async request => {
+      const input = JSON.parse(request.input);
+      const output = modelResponse(request);
+      if (
+        input.level === 'scope' &&
+        input.nodes.some((node: any) =>
+          node.parts.every((part: any) => !part.sourceId),
+        ) &&
+        ++finalScopeCalls === 1
+      )
+        for (const digest of Object.values(output.summaries))
+          digest.summary = 'Version discovery requires explicit configuration.';
+      return output;
+    });
+    const result = await summarizeChangelog(
+      [
+        {
+          id: 'breaking',
+          title: 'Breaking',
+          groups: [
+            {
+              id: 'prepare',
+              title: 'Prepare',
+              scope: 'Prepare',
+              items: [
+                "Breaking change: tag-derived projects must set preReleaseCommand: '' to opt out.",
+                ...Array.from(
+                  { length: 30 },
+                  (_, i) => `Change ${i}: ${'Detailed context. '.repeat(100)}`,
+                ),
+              ],
+            },
+          ],
+        },
+      ],
+      { ...config, minItems: 0, levels: ['scope'] },
+    );
+    expect(result?.scopes.prepare).toContain("preReleaseCommand: ''");
+    expect(finalScopeCalls).toBe(2);
+    expect(result?.release).toBe('');
   });
 
   it('batches critical category guidance separately from brief ordinary outcomes', async () => {
