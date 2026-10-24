@@ -155,7 +155,17 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true').each(releases)(
             expect(notes).not.toContain('#body-in-changelog');
           }
           expect(generated.changelog).toContain('#### Changelog');
-          expect(generated.changelog).toContain('preReleaseCommand');
+          const breakingSummary = generated.changelog
+            .split('### Breaking Changes')[1]
+            .split('<details>')[0];
+          expect(breakingSummary).toContain('preReleaseCommand');
+          expect(breakingSummary).toMatch(
+            /tag[- ](?:derived|based)|MinVer|versions?.{0,35}tags?|project files/i,
+          );
+          expect(breakingSummary).toContain('NuGet');
+          expect(breakingSummary).toMatch(
+            /mismatch|identical|different|verif|content/i,
+          );
           for (const title of [
             'Breaking Changes',
             'New Features',
