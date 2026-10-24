@@ -476,7 +476,7 @@ changelog:
 ### Custom Changelog Entries from PR Descriptions
 
 The legacy `#body-in-changelog` opt-in must be a standalone, top-level line in
-the PR or commit body (separated from surrounding paragraphs by blank lines).
+the PR or commit body. Surrounding blank lines are optional.
 Mentions inside prose, inline or fenced code, blockquotes and HTML comments do
 not opt in. Prefer a curated "Changelog Entry" section to including a full body.
 

@@ -151,6 +151,8 @@ describe('generateChangesetFromGit', () => {
   it.each([
     'Mentioning `#body-in-changelog` should not include this private context.',
     'Example:\n\n```markdown\n#body-in-changelog\n```\nPrivate context.',
+    '`Example\n#body-in-changelog\nPrivate context.`',
+    '**Example\n#body-in-changelog\nPrivate context.**',
     '> #body-in-changelog\n\nPrivate context.',
     'A sentence with #body-in-changelog in it. Private context.',
     '<!--\n#body-in-changelog\n-->\nPrivate context.',
@@ -202,6 +204,28 @@ describe('generateChangesetFromGit', () => {
       expect(result.changelog).toContain('Upgrade instructions.');
       expect(result.changelog).toContain('Keep these details.');
       expect(result.changelog).not.toContain('#body-in-changelog');
+    },
+  );
+
+  it.each(['#body-in-changelog', '  #body-in-changelog  '])(
+    'accepts a standalone directive without blank lines (%s)',
+    async directive => {
+      const body = `Example \`#body-in-changelog\`.\n${directive}\nKeep these details.`;
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'fix: Keep the entry',
+            body: '',
+            pr: { local: '918', remote: { number: '918', body } },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog).toContain('Keep these details.');
+      expect(result.changelog).toContain('Example `#body-in-changelog`.');
+      expect(result.changelog.match(/#body-in-changelog/g)).toHaveLength(1);
     },
   );
 
