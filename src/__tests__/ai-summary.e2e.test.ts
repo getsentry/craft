@@ -26,6 +26,13 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
   const binary = join(directory, 'craft');
   const execute = promisify(execFile);
   let calls = 0;
+  let mode: 'valid' | 'repair-once' | 'invalid' | 'http-error' = 'valid';
+  const levels: string[] = [];
+  const prose = {
+    scope: 'Fixture scoped implementation details.',
+    category: 'Fixture category outcome.',
+    release: 'Fixture release overview.',
+  };
   const server = createServer(async (request, response) => {
     try {
       assert.equal(request.headers.authorization, 'Bearer fixture-token');
@@ -34,28 +41,36 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
       const body = JSON.parse(raw);
       assert.equal(body.model, 'fixture-model');
       calls++;
+      if (mode === 'http-error') {
+        response.writeHead(503, { 'content-type': 'application/json' });
+        response.end(JSON.stringify({ error: 'Fixture unavailable' }));
+        return;
+      }
       const responses = request.url?.endsWith('/responses');
       const messages = responses ? body.input : body.messages;
       assert.ok(messages[0].content.includes('Concise and friendly.'));
       const input = JSON.parse(messages[1].content);
+      assert.ok(input.level in prose);
+      levels.push(input.level);
       const summaries = input.nodes.map(
         (node: { id: string; parts: { id: string }[] }) => ({
           id: node.id,
           ...(input.level === 'release'
             ? { coveredPartIds: node.parts.map(part => part.id) }
             : {}),
-          summary:
-            input.level === 'release'
-              ? 'Fixture release overview.'
-              : 'Fixture changes for this group.',
+          summary: prose[input.level as keyof typeof prose],
           importantChanges: [],
         }),
       );
       response.writeHead(200, { 'content-type': 'application/json' });
+      const invalid = mode === 'invalid' || mode === 'repair-once';
+      if (mode === 'repair-once') mode = 'valid';
       const text = JSON.stringify({
-        summaries: Object.fromEntries(
-          summaries.map(({ id, ...digest }: any) => [id, digest]),
-        ),
+        summaries: invalid
+          ? {}
+          : Object.fromEntries(
+              summaries.map(({ id, ...digest }: any) => [id, digest]),
+            ),
       });
       response.end(
         JSON.stringify(
@@ -140,10 +155,27 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
     const hook = join(directory, 'metadata.cjs');
     await writeFile(
       hook,
-      `const original=globalThis.fetch;globalThis.fetch=async(input,options={})=>{const url=typeof input==='string'?input:input.url||String(input);if(url!=='https://api.github.com/graphql')return original(input,options);const repository={};for(const match of JSON.parse(options.body).query.matchAll(/C([a-f0-9]{40}):\\s*object/g))repository['C'+match[1]]={author:{user:{login:'fixture-author'}},associatedPullRequests:{nodes:[]}};return Response.json({data:{repository}});};`,
+      `const original = globalThis.fetch;
+const modelOrigin = ${JSON.stringify(new URL(endpoint).origin)};
+globalThis.fetch = async (input, options = {}) => {
+  const url = typeof input === 'string' ? input : input.url || String(input);
+  if (url === 'https://api.github.com/graphql') {
+    const repository = {};
+    for (const match of JSON.parse(options.body).query.matchAll(/C([a-f0-9]{40}):\\s*object/g)) {
+      repository['C' + match[1]] = {
+        author: { user: { login: 'fixture-author' } },
+        associatedPullRequests: { nodes: [] },
+      };
+    }
+    return Response.json({ data: { repository } });
+  }
+  if (new URL(url).origin === modelOrigin) return original(input, options);
+  throw new Error('External HTTP is disabled in the E2E fixture');
+};`,
     );
     const env = {
       ...process.env,
+      CI: 'true',
       NODE_OPTIONS: '',
       GITHUB_TOKEN: 'source-fixture-token',
       CRAFT_WORKSPACE: '',
@@ -187,17 +219,46 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
     const original = await run(['--dry-run']);
     assert.equal(calls, 0);
     const generated = await run();
-    assert.ok(calls > 0);
+    assert.equal(calls, 3);
+    assert.deepEqual(levels, ['scope', 'category', 'release']);
     assert.equal(generated.bumpType, 'minor');
     assert.equal(original.bumpType, generated.bumpType);
     assert.equal((generated.changelog.match(/<details>/g) || []).length, 2);
-    for (const title of ['Add command', 'Fix endpoint'])
-      for (let i = 1; i <= 6; i++)
-        assert.ok(generated.changelog.includes(`${title} ${i}`));
+    const originals = original.changelog
+      .split('\n')
+      .filter((line: string) => line.startsWith('- '));
+    assert.equal(originals.length, 12);
+    for (const entry of originals)
+      assert.equal(generated.changelog.split(entry).length, 2);
+    assert.equal(generated.totalCommits, original.totalCommits);
+    for (const summary of Object.values(prose))
+      assert.ok(generated.changelog.includes(summary));
     const overview = generated.changelog.split('### ')[0].trim();
-    assert.equal(overview, 'Fixture release overview.');
+    assert.equal(overview, prose.release);
     assert.ok(!overview.includes('**'));
-    assert.ok(!overview.includes('Fixture changes for this group.'));
+    assert.ok(!overview.includes(prose.category));
+    assert.ok(!overview.includes(prose.scope));
+
+    const beforeRepair = calls;
+    mode = 'repair-once';
+    const repaired = await run();
+    assert.equal(repaired.changelog, generated.changelog);
+    assert.equal(calls - beforeRepair, 4);
+
+    const beforeInvalid = calls;
+    mode = 'invalid';
+    const invalid = await run();
+    assert.equal(invalid.changelog, original.changelog);
+    assert.equal(invalid.bumpType, original.bumpType);
+    assert.equal(calls - beforeInvalid, 2);
+
+    const beforeHttpError = calls;
+    mode = 'http-error';
+    const unavailable = await run();
+    assert.equal(unavailable.changelog, original.changelog);
+    assert.equal(unavailable.bumpType, original.bumpType);
+    assert.equal(calls - beforeHttpError, 1);
+    mode = 'valid';
     const before = calls;
     await run(['--dry-run']);
     assert.equal(calls, before);
