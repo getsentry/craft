@@ -1378,6 +1378,26 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(requestMock.mock.calls.at(-1)![0]!.signal!.aborted).toBe(true);
   });
 
+  it.each(['scope', 'release'] as const)(
+    'rejects array-shaped %s summary maps without coercing them to objects',
+    async level => {
+      requestMock.mockImplementation(async request =>
+        JSON.parse(request.input).level === level
+          ? { summaries: [] }
+          : modelResponse(request),
+      );
+      expect(await summarizeChangelog(categories, config)).toBeNull();
+      expect(
+        requestMock.mock.calls.filter(
+          ([request]) => JSON.parse(request.input).level === level,
+        ),
+      ).toHaveLength(2);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`stage=${level}; reason=response-schema`),
+      );
+    },
+  );
+
   it.each([
     null,
     {},

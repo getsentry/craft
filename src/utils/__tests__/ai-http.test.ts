@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { parse } from 'valibot';
 import { createSummaryProvider } from '../ai-provider';
 import { AiSummaryConfigSchema } from '../../schemas/project_config';
 import { summarizeChangelog } from '../ai-summary';
@@ -7,7 +8,7 @@ import { logger } from '../../logger';
 
 const endpoint = 'https://ai.example.com/v1/chat/completions';
 const config = () =>
-  AiSummaryConfigSchema.parse({
+  parse(AiSummaryConfigSchema, {
     minItems: 0,
     llm: { apiKeyEnv: 'AI_SUMMARY_TOKEN' },
   });
@@ -102,7 +103,7 @@ test('reads endpoint and token-env from project configuration', async () => {
   const fetch = vi.fn().mockResolvedValue(completion());
   vi.stubGlobal('fetch', fetch);
   const provider = createSummaryProvider(
-    AiSummaryConfigSchema.parse({
+    parse(AiSummaryConfigSchema, {
       llm: { endpoint, apiKeyEnv: 'TEAM_MODEL_TOKEN', model: 'custom-luna' },
     }),
   );
@@ -137,7 +138,7 @@ test('missing default GitHub credential makes no inference request', async () =>
   const fetch = vi.fn();
   vi.stubGlobal('fetch', fetch);
   vi.stubEnv('GITHUB_TOKEN', '');
-  const provider = createSummaryProvider(AiSummaryConfigSchema.parse({}));
+  const provider = createSummaryProvider(parse(AiSummaryConfigSchema, {}));
   await expect(provider.request(request)).rejects.toThrow();
   await provider.close();
   expect(fetch).not.toHaveBeenCalled();
@@ -298,10 +299,8 @@ test.each(['false', 'true'])(
     vi.stubEnv('CRAFT_AI_ENDPOINT', '');
     const fetch = vi.fn().mockResolvedValue(Response.json(responsesResult()));
     vi.stubGlobal('fetch', fetch);
-    const provider = createSummaryProvider(AiSummaryConfigSchema.parse({}));
-    expect(await provider.request(request)).toEqual({
-      summaries: {},
-    });
+    const provider = createSummaryProvider(parse(AiSummaryConfigSchema, {}));
+    expect(await provider.request(request)).toEqual({ summaries: {} });
     await provider.close();
     expect(fetch.mock.calls[0][0]).toBe(
       'https://api.githubcopilot.com/responses',
@@ -362,7 +361,7 @@ test('structured Action settings override file settings; CLI overrides Action en
     );
   vi.stubGlobal('fetch', fetch);
   const provider = createSummaryProvider(
-    AiSummaryConfigSchema.parse({
+    parse(AiSummaryConfigSchema, {
       llm: { endpoint: 'https://file.example/responses', model: 'file-model' },
     }),
   );
