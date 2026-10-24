@@ -642,6 +642,54 @@ describe('hierarchical HTTP changelog summaries', () => {
     ).toHaveLength(2);
   });
 
+  it('does not let model-inferred facts disable ordinary category compression', async () => {
+    let categoryCalls = 0;
+    const scope =
+      'AI explanations use condensed PR descriptions to name specific changes and required actions, including migration advice when relevant. Workspace controls also narrow release history to relevant changes.';
+    requestMock.mockImplementation(async request => {
+      const input = JSON.parse(request.input);
+      const output = modelResponse(request);
+      if (input.level === 'scope')
+        for (const node of input.nodes) {
+          output.summaries[node.id].summary = scope;
+          output.summaries[node.id].importantChanges = [
+            {
+              id: node.parts[0].sourceId,
+              summary: 'AI explanations include breaking-change guidance.',
+            },
+          ];
+        }
+      if (input.level === 'category' && ++categoryCalls === 1)
+        for (const digest of Object.values(output.summaries))
+          digest.summary = scope;
+      return output;
+    });
+    const result = await summarizeChangelog(
+      [
+        {
+          id: 'features',
+          title: 'Features',
+          groups: [
+            { id: 'g', title: 'AI', items: ['Improve AI explanations.'] },
+          ],
+        },
+      ],
+      { ...config, minItems: 0 },
+    );
+    expect(result).not.toBeNull();
+    expect(categoryCalls).toBe(2);
+    const request = requestMock.mock.calls.find(
+      ([request]) => JSON.parse(request.input).level === 'category',
+    )![0];
+    const node = JSON.parse(request.input).nodes[0];
+    expect(node.parts[0].importantChanges).toHaveLength(1);
+    expect(request.system).toContain('8-18 words');
+    expect(
+      (request.schema as any).properties.summaries.properties[node.id]
+        .properties.summary.maxLength,
+    ).toBe(Math.floor(Array.from(scope).length * 0.55));
+  });
+
   it('repairs copied child wording while preserving all selected levels', async () => {
     const copied =
       'Workspace owners can exclude unrelated paths from their release notes';

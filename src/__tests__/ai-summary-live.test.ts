@@ -197,7 +197,7 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true').each(releases)(
           );
           expect(breakingSummary).toContain('NuGet');
           expect(breakingSummary).not.toMatch(
-            /differ(?:ing|ent) versions?\s+(?:fail|are rejected)/i,
+            /differ(?:ing|ent) versions?\s+(?:fail|are rejected)|fail(?:s)? on different versions?/i,
           );
           expect(breakingSummary).toMatch(
             /mismatch|identical|different|verif|content/i,
