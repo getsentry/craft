@@ -124,6 +124,7 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true').each(releases)(
           'full summarizer returned fallback instead of summaries',
         ).toBe(true);
         expect(Array.from(overview).length).toBeLessThanOrEqual(400);
+        expect(overview.split(/\s+/).length).toBeLessThanOrEqual(35);
         expect(overview.split('\n\n')).toHaveLength(1);
         expect(generated.totalCommits).toBe(total);
         expect(generated.bumpType).toBe(bump);
@@ -182,6 +183,10 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true').each(releases)(
             .split('### Breaking Changes')[1]
             .split('<details>')[0];
           expect(breakingSummary).toContain('preReleaseCommand');
+          expect(breakingSummary).toMatch(/warn/i);
+          expect(breakingSummary).toContain('VersionPrefix');
+          expect(overview).not.toContain('preReleaseCommand');
+          expect(overview).not.toContain('changelog.includePaths');
           expect(breakingSummary).toMatch(
             /tag[- ](?:derived|based)|MinVer|versions?.{0,35}tags?|project files/i,
           );

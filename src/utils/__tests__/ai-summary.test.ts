@@ -522,7 +522,7 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(
       (categoryRequest.schema as any).properties.summaries.properties[node.id]
         .properties.summary.maxLength,
-    ).toBe(600);
+    ).toBe(900);
     expect(node.parts[0].importantChanges).toHaveLength(1);
   });
 
@@ -624,6 +624,22 @@ describe('hierarchical HTTP changelog summaries', () => {
         Math.floor(Array.from(scope).length * 0.55),
       );
     }
+  });
+
+  it('rejects verbose release prose even when it fits the character budget', async () => {
+    requestMock.mockImplementation(async request => {
+      const output = modelResponse(request);
+      if (JSON.parse(request.input).level === 'release')
+        for (const digest of Object.values(output.summaries))
+          digest.summary = 'A change. '.repeat(18).trim();
+      return output;
+    });
+    expect(await summarizeChangelog(categories, config)).toBeNull();
+    expect(
+      requestMock.mock.calls.filter(
+        ([request]) => JSON.parse(request.input).level === 'release',
+      ),
+    ).toHaveLength(2);
   });
 
   it('repairs copied child wording while preserving all selected levels', async () => {
