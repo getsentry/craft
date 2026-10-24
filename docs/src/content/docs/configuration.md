@@ -257,8 +257,9 @@ is one or two short sentences covering the themes across every category, rather
 than joined category summaries. Scopes explain concrete changes and options;
 categories synthesize their useful outcomes in a brief sentence, even when a
 category has only one scope. Ordinary parent prose is limited to 55% of its
-children's combined prose length, with an 80-character floor and the absolute
-limits below. Copying eight consecutive child words triggers a bounded repair.
+children's combined prose length, with an 80-character category floor and a
+200-character release floor, subject to the absolute limits below. Copying eight
+consecutive child words triggers a bounded repair.
 Categories with explicit breaking/security source entries or migration settings
 are generated in separate guidance batches. Model-inferred fact metadata alone
 does not select this display role or disable compression. These guidance categories

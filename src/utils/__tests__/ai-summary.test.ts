@@ -711,6 +711,43 @@ describe('hierarchical HTTP changelog summaries', () => {
     ).toBe(Math.floor(Array.from(scope).length * 0.55));
   });
 
+  it('recognizes disclosure fixes as critical source entries', async () => {
+    expect(
+      await summarizeChangelog(
+        [
+          {
+            id: 'fixes',
+            title: 'Bug Fixes',
+            groups: [
+              {
+                id: 'deps',
+                title: 'Deps',
+                items: [
+                  'Mitigate brace recursion and shared-cache disclosure.',
+                ],
+              },
+            ],
+          },
+        ],
+        { ...config, minItems: 0 },
+      ),
+    ).not.toBeNull();
+    const request = requestMock.mock.calls.find(
+      ([request]) => JSON.parse(request.input).level === 'category',
+    )![0];
+    expect(request.system).toContain('Display role: Detailed upgrade guidance');
+    expect(JSON.parse(request.input).nodes[0].criticalGuidance).toBe(true);
+  });
+
+  it('gives a small release room for a complete overview without relaxing its word cap', async () => {
+    expect(await summarizeChangelog(categories, config)).not.toBeNull();
+    const request = requestMock.mock.calls.find(
+      ([request]) => JSON.parse(request.input).level === 'release',
+    )![0];
+    expect(JSON.parse(request.input).nodes[0].maxCharacters).toBe(200);
+    expect(request.system).toContain('never exceeding 35 words');
+  });
+
   it('repairs copied child wording while preserving all selected levels', async () => {
     const copied =
       'Workspace owners can exclude unrelated paths from their release notes';

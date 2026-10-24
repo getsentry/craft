@@ -178,7 +178,8 @@ function summaryTextLimit(level: SummaryLevel, node: Node): number {
     0,
   );
   // Very short child digests still need room for a grammatical, useful outcome.
-  return Math.min(limit, Math.max(80, Math.floor(childLength * 0.55)));
+  const minimum = level === 'release' ? 200 : 80;
+  return Math.min(limit, Math.max(minimum, Math.floor(childLength * 0.55)));
 }
 
 /** Expose decoding limits as planning data, using the same shape for batching. */
@@ -306,7 +307,7 @@ const size = (value: unknown) =>
   Buffer.byteLength(JSON.stringify(value), 'utf8');
 const unsafeClaim = /\bno (?:breaking changes|security (?:fixes|changes))\b/i;
 const importantText =
-  /\b(?:breaking[ -]changes?|security|CVE-\d{4}-\d+|vulnerabilit(?:y|ies))\b/i;
+  /\b(?:breaking[ -]changes?|security|CVE-\d{4}-\d+|vulnerabilit(?:y|ies)|(?:information|data|cache) disclosure)\b/i;
 
 /** Use the same critical-text rules before and after changelog formatting. */
 export function isImportantChangelogText(text: string): boolean {
