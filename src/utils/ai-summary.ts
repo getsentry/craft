@@ -85,7 +85,7 @@ const SUMMARY_INSTRUCTIONS = `Summarize software changelogs using ONLY the untru
 // Give only the current level its writing job; shared constraints stay above.
 const LEVEL_INSTRUCTIONS: Record<SummaryLevel, string> = {
   scope:
-    'Explain concrete behavior changes, named options and relevant conditions. Keep implementation details at this level. Aim for at most 60 words, with more room for explicit upgrade actions. Use less text for small groups; do not pad a short source.',
+    'Cover the change from EVERY distinct source entry headline before adding supporting PR-description detail. Allocate prose across entries instead of exhaustively explaining the first one; omit optional context detail before omitting an entry. Explain concrete behavior changes, named options and relevant conditions. Keep implementation details at this level. Aim for at most 60 words, with more room for explicit upgrade actions. Use less text for small groups; do not pad a short source.',
   category: `Write one brief sentence about the useful outcome across child scopes, aiming for 8-18 words and never exceeding ${CATEGORY_MAX_WORDS} words. When there is only one child, synthesize its benefit instead of paraphrasing its explanation. Retain each distinct changed area in that child; do not select only its first topic. Name the changed area, but leave option lists, field names, versions, algorithms, retry counts and other implementation details to scope summaries. Do not retell every child sentence.`,
   release: `Write one compact release story, aiming for 15-25 words and never exceeding ${RELEASE_MAX_WORDS} words, explaining the overall practical impact across ALL categories, including internal changes. Explain the connected practical impact instead of listing categories or making a comma-separated inventory of changes. Leave options, migration commands, versions and implementation details to lower levels; preserve critical facts in importantChanges. Do not include configuration field names, literal commands or option values in the release prose. Do not copy sentences or phrases from category summaries.`,
 };
@@ -708,6 +708,10 @@ export async function summarizeChangelog(
         );
         return pieces.map((text, part) => ({
           id: `${group.id}:item:${index}:part:${part}`,
+          // Keep each change prominent beside longer supporting descriptions.
+          title: Array.from(originalTitle || item.split('\n')[0])
+            .slice(0, 160)
+            .join(''),
           // Distinct fragment facts must survive parent reductions independently.
           sourceId: `${group.id}:item:${index}${pieces.length > 1 ? `:part:${part}` : ''}`,
           text,

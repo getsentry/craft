@@ -401,6 +401,39 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(result).toMatchObject({ categories: {}, scopes: {} });
   });
 
+  it('keeps every entry headline prominent beside long supporting descriptions', async () => {
+    const result = await summarizeChangelog(
+      [
+        {
+          id: 'features',
+          title: 'Features',
+          groups: [
+            {
+              id: 'g',
+              title: 'Changelog',
+              scope: 'Changelog',
+              items: [
+                'Add workspace ownership.\nNested details.',
+                'Ground AI explanations.',
+              ],
+              descriptions: { 0: 'Supporting context. '.repeat(50) },
+            },
+          ],
+        },
+      ],
+      { ...config, minItems: 0 },
+    );
+    expect(result).not.toBeNull();
+    const input = JSON.parse(requestMock.mock.calls[0][0].input);
+    expect(input.nodes[0].parts.map((part: any) => part.title)).toEqual([
+      'Add workspace ownership.',
+      'Ground AI explanations.',
+    ]);
+    expect(
+      input.nodes[0].parts.reduce((n: number, part: any) => n + part.count, 0),
+    ).toBe(2);
+  });
+
   it('retains migration requirements across same-level reduction rounds', async () => {
     let finalScopeCalls = 0;
     requestMock.mockImplementation(async request => {
