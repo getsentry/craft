@@ -293,7 +293,9 @@ Breaking/security categories are generated in separate guidance batches and
 are exempt from these compression and phrase-copy limits so migration actions,
 risks and applicability conditions can stay precise. These category calls also
 receive bounded original PR context for critical entries, since a child digest
-can omit migration details. Context excerpts do not increase entry counts.
+can omit migration details. Context excerpts do not increase entry counts. Explicit source-stated settings
+(such as an empty-string opt-out) and required CLI flags must survive in detailed
+guidance; missing operational terms trigger the same bounded repair/fallback.
 Release overviews still condense those categories; critical facts remain in the
 internal ledger. Besides each changelog entry, the model receives the Markdown text of its PR description (without
 code blocks, HTML, images or prose emoji, capped at 1200 characters with
