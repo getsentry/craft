@@ -148,6 +148,87 @@ describe('generateChangesetFromGit', () => {
     }
   }
 
+  it.each([
+    'Mentioning `#body-in-changelog` should not include this private context.',
+    'Example:\n\n```markdown\n#body-in-changelog\n```\nPrivate context.',
+    '`Example\n#body-in-changelog\nPrivate context.`',
+    '**Example\n#body-in-changelog\nPrivate context.**',
+    '> #body-in-changelog\n\nPrivate context.',
+    'A sentence with #body-in-changelog in it. Private context.',
+    '<!--\n#body-in-changelog\n-->\nPrivate context.',
+  ])('does not opt into full PR bodies from references (%s)', async body => {
+    setup(
+      [
+        {
+          hash: 'abcdef1234567890',
+          title: 'fix: Keep the entry',
+          body: '',
+          pr: {
+            local: '918',
+            remote: { number: '918', title: 'fix: Keep the entry', body },
+          },
+        },
+      ],
+      null,
+    );
+    const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+    expect(result.changelog).toContain('Keep the entry');
+    expect(result.changelog).not.toContain('context');
+    expect(result.changelog).not.toContain('#body-in-changelog');
+  });
+
+  it.each(['pr', 'commit'])(
+    'preserves an explicit standalone body directive in a %s',
+    async source => {
+      const body =
+        'Upgrade instructions.\n\n#body-in-changelog\n\nKeep these details.';
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'fix: Keep the entry',
+            body: source === 'commit' ? body : '',
+            pr: {
+              local: '918',
+              remote: {
+                number: '918',
+                title: 'fix: Keep the entry',
+                body: source === 'pr' ? body : '',
+              },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog).toContain('Upgrade instructions.');
+      expect(result.changelog).toContain('Keep these details.');
+      expect(result.changelog).not.toContain('#body-in-changelog');
+    },
+  );
+
+  it.each(['#body-in-changelog', '  #body-in-changelog  '])(
+    'accepts a standalone directive without blank lines (%s)',
+    async directive => {
+      const body = `Example \`#body-in-changelog\`.\n${directive}\nKeep these details.`;
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'fix: Keep the entry',
+            body: '',
+            pr: { local: '918', remote: { number: '918', body } },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog).toContain('Keep these details.');
+      expect(result.changelog).toContain('Example `#body-in-changelog`.');
+      expect(result.changelog.match(/#body-in-changelog/g)).toHaveLength(1);
+    },
+  );
+
   it('keeps cached changelogs separate for each selected workspace', async () => {
     try {
       config.setActiveWorkspace('packages/cli');
@@ -201,19 +282,22 @@ describe('generateChangesetFromGit', () => {
       provider.mockImplementation(async request => {
         const input = JSON.parse(request.input);
         return {
-          summaries: input.nodes
-            .map((node: any) => ({
-              id: node.id,
-              ...(input.level === 'release'
-                ? { coveredPartIds: node.parts.map((part: any) => part.id) }
-                : {}),
-              summary:
-                input.level === 'release'
-                  ? 'One concise overview of release capabilities.'
-                  : `${input.level} summary for ${node.title}`,
-              importantChanges: [],
-            }))
-            .reverse(),
+          summaries: Object.fromEntries(
+            input.nodes
+              .map((node: any) => ({
+                id: node.id,
+                ...(input.level === 'release'
+                  ? { coveredPartIds: node.parts.map((part: any) => part.id) }
+                  : {}),
+                summary:
+                  input.level === 'release'
+                    ? 'One concise overview of release capabilities.'
+                    : `${input.level} summary for ${node.title}`,
+                importantChanges: [],
+              }))
+              .reverse()
+              .map(({ id, ...digest }: any) => [id, digest]),
+          ),
         };
       });
     });
@@ -348,24 +432,31 @@ describe('generateChangesetFromGit', () => {
       provider.mockImplementation(async request => {
         const input = JSON.parse(request.input);
         return {
-          summaries: input.nodes.map((node: any) => ({
-            id: node.id,
-            ...(input.level === 'release'
-              ? { coveredPartIds: node.parts.map((part: any) => part.id) }
-              : {}),
-            summary: 'Removed the legacy endpoint in a breaking API change.',
-            importantChanges: node.parts.flatMap((part: any) => [
-              ...(part.importantChanges || []),
-              ...(part.important
-                ? [
-                    {
-                      id: part.sourceId,
-                      summary: 'Breaking change: legacy endpoint removed.',
-                    },
-                  ]
-                : []),
-            ]),
-          })),
+          summaries: Object.fromEntries(
+            input.nodes
+              .map((node: any) => ({
+                id: node.id,
+                ...(input.level === 'release'
+                  ? { coveredPartIds: node.parts.map((part: any) => part.id) }
+                  : {}),
+                summary:
+                  input.level === 'release'
+                    ? 'The API drops an obsolete endpoint.'
+                    : 'Removed the legacy endpoint in a breaking API change.',
+                importantChanges: node.parts.flatMap((part: any) => [
+                  ...(part.importantChanges || []),
+                  ...(part.important
+                    ? [
+                        {
+                          id: part.sourceId,
+                          summary: 'Breaking change: legacy endpoint removed.',
+                        },
+                      ]
+                    : []),
+                ]),
+              }))
+              .map(({ id, ...digest }: any) => [id, digest]),
+          ),
         };
       });
       setup(
@@ -389,7 +480,7 @@ describe('generateChangesetFromGit', () => {
       const result = await generateChangesetFromGit(dummyGit, '1.0.0');
       expect(provider).toHaveBeenCalledTimes(3);
       expect(result.changelog.split('### Breaking Changes')[0]).toContain(
-        'Removed the legacy endpoint in a breaking API change.',
+        'The API drops an obsolete endpoint.',
       );
       expect(result.changelog).toContain('- Remove legacy endpoint');
       expect(result.changelog).toContain('<details>');
@@ -551,9 +642,11 @@ describe('generateChangesetFromGit', () => {
       setup(commits, null);
       provider
         .mockResolvedValueOnce({
-          summaries: [
-            { id: 'group:0/r0/b0', summary: 'scope', importantChanges: [] },
-          ],
+          summaries: Object.fromEntries(
+            [
+              { id: 'group:0/r0/b0', summary: 'scope', importantChanges: [] },
+            ].map(({ id, ...digest }: any) => [id, digest]),
+          ),
         })
         .mockRejectedValueOnce(new Error('Unavailable'));
       expect(await generateChangesetFromGit(dummyGit, '1.0.0')).toEqual(
