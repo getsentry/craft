@@ -284,10 +284,15 @@ levels with <code dir="auto">minItems: 0</code> explicitly summarizes even one-e
 <p>Lower-level digests are reused for parent summaries even when hidden. Each
 parent makes an AI synthesis call over its child digests. The release overview
 is one or two short sentences covering the themes across every category, rather
-than joined category summaries. Category and scope summaries name the concrete
-features, targets and options that changed, and breaking-change summaries say
-what users must change when the source data states it. Besides each changelog
-entry, the model receives the Markdown text of its PR description (without
+than joined category summaries. Scopes explain concrete changes and options;
+categories synthesize their useful outcomes in a brief sentence, even when a
+category has only one scope. Ordinary parent prose is limited to 55% of its
+children’s combined prose length, with an 80-character floor and the absolute
+limits below. Copying eight consecutive child words triggers a bounded repair.
+Breaking/security categories are exempt from these compression and phrase-copy
+limits so migration actions, risks and applicability conditions can stay precise.
+Release overviews still condense those categories; critical facts remain in the
+internal ledger. Besides each changelog entry, the model receives the Markdown text of its PR description (without
 code blocks, HTML, images or prose emoji, capped at 1200 characters with
 breaking-change and migration paragraphs prioritized) as context only; it is
 never rendered. Visible prose is capped at 400
