@@ -279,6 +279,46 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(requests.length).toBeLessThanOrEqual(64);
   });
 
+  it('batches critical category guidance separately from brief ordinary outcomes', async () => {
+    const input = [
+      ...categories.slice(0, 1),
+      {
+        id: 'breaking',
+        title: 'Breaking',
+        groups: [
+          {
+            id: 'g',
+            title: 'Prepare',
+            items: [
+              'Breaking change: version discovery now requires explicit configuration.',
+            ],
+          },
+        ],
+      },
+      ...categories.slice(1),
+    ];
+    expect(
+      await summarizeChangelog(input, { ...config, minItems: 0 }),
+    ).not.toBeNull();
+    const requests = requestMock.mock.calls
+      .map(([request]) => request)
+      .filter(request => JSON.parse(request.input).level === 'category');
+    expect(requests).toHaveLength(2);
+    for (const request of requests) {
+      const nodes = JSON.parse(request.input).nodes;
+      const critical = nodes.map((node: any) =>
+        node.parts.some((part: any) => part.importantChanges?.length),
+      );
+      expect(new Set(critical).size).toBe(1);
+      if (critical[0]) {
+        expect(request.system).toContain(
+          'Display role: Detailed upgrade guidance',
+        );
+        expect(request.system).not.toContain('8-18 words');
+      } else expect(request.system).toContain('8-18 words');
+    }
+  });
+
   it('keeps explicit upgrade actions in a detailed breaking category', async () => {
     const prose =
       'Tag-derived projects must set preReleaseCommand to an empty string when automatic version discovery cannot find a version.';

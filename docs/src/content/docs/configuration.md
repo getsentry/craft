@@ -259,8 +259,9 @@ categories synthesize their useful outcomes in a brief sentence, even when a
 category has only one scope. Ordinary parent prose is limited to 55% of its
 children's combined prose length, with an 80-character floor and the absolute
 limits below. Copying eight consecutive child words triggers a bounded repair.
-Breaking/security categories are exempt from these compression and phrase-copy
-limits so migration actions, risks and applicability conditions can stay precise.
+Breaking/security categories are generated in separate guidance batches and
+are exempt from these compression and phrase-copy limits so migration actions,
+risks and applicability conditions can stay precise.
 Release overviews still condense those categories; critical facts remain in the
 internal ledger. Besides each changelog entry, the model receives the Markdown text of its PR description (without
 code blocks, HTML, images or prose emoji, capped at 1200 characters with

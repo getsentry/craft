@@ -79,10 +79,13 @@ const LEVEL_INSTRUCTIONS: Record<SummaryLevel, string> = {
   scope:
     'Explain concrete behavior changes, named options and relevant conditions. Keep implementation details at this level. Aim for at most 60 words, with more room for explicit upgrade actions. Use less text for small groups; do not pad a short source.',
   category:
-    'Write one brief sentence about the useful outcome across child scopes, aiming for 8-18 words. When there is only one child, synthesize its benefit instead of paraphrasing its explanation. Name the changed area, but leave option lists, field names, versions, algorithms, retry counts and other implementation details to scope summaries. Do not retell every child sentence. Breaking-change or security categories are the exception: preserve concrete risks, upgrade actions and their conditions within the character limit even if that needs more words. Repeat operational wording only when precision needs it; still omit supporting explanations already present in child scopes.',
+    'Write one brief sentence about the useful outcome across child scopes, aiming for 8-18 words. When there is only one child, synthesize its benefit instead of paraphrasing its explanation. Name the changed area, but leave option lists, field names, versions, algorithms, retry counts and other implementation details to scope summaries. Do not retell every child sentence.',
   release:
     'Write one compact release story, aiming for 15-25 words, explaining the overall practical impact across ALL categories, including internal changes. Synthesize the outcomes instead of listing categories or re-enumerating their changes. Leave options, migration commands, versions and implementation details to lower levels; preserve critical facts in importantChanges. Do not copy sentences or phrases from category summaries.',
 };
+
+const CRITICAL_CATEGORY_INSTRUCTIONS =
+  'Detailed upgrade guidance for breaking changes and security fixes. Every node in this batch contains critical facts. Explain what changes, what breaks or is at risk, and exactly what users must do, including all stated applicability conditions and opt-outs. Use multiple concise sentences when needed, up to the full per-node character allowance. The ordinary category word target and compression/copy limits DO NOT apply to this batch. Preserve exact commands and option values; do not replace migration instructions with a short theme. Omit supporting explanations already present in child scopes, repeating only operational wording needed for precision.';
 
 const FACT_JSON_SCHEMA = {
   type: 'object',
@@ -305,9 +308,18 @@ class SummaryAttempt {
       const input = { level, nodes };
       if (size(input) > MAX_INPUT_BYTES)
         throw new SummaryFailure('input-budget', level);
-      const baseInstructions = `${SUMMARY_INSTRUCTIONS}\nDisplay role: ${LEVEL_INSTRUCTIONS[level]} Noncritical parent prose must compress its children within the per-node schema limit and must not repeat any sequence of ${COPIED_PHRASE_WORDS} or more child words. Coverage is preserved through themes and the fact ledger, not by restating every detail.`;
+      const criticalCategory =
+        level === 'category' &&
+        nodes.every(node => !shouldCondense(level, node));
+      const role = criticalCategory
+        ? CRITICAL_CATEGORY_INSTRUCTIONS
+        : LEVEL_INSTRUCTIONS[level];
+      const compression = criticalCategory
+        ? ''
+        : ` Parent prose must compress its children within the per-node schema limit and must not repeat any sequence of ${COPIED_PHRASE_WORDS} or more child words.`;
+      const baseInstructions = `${SUMMARY_INSTRUCTIONS}\nDisplay role: ${role}${level === 'scope' ? '' : compression} Coverage is preserved through themes and the fact ledger, not by restating every detail.`;
       const instructions = repair
-        ? `${baseInstructions}\nThe previous response failed validation. Rebuild the response from the source data, using every required object key, all required facts and exact part coverage. Each importantChanges source ID must occur at most once; combine multiple facts from one source into a single fact summary. Obey the supplied schema and per-node length limits; replace copied child phrases with a shorter synthesis.`
+        ? `${baseInstructions}\nThe previous response failed validation. Rebuild the response from the source data, using every required object key, all required facts and exact part coverage. Each importantChanges source ID must occur at most once; combine multiple facts from one source into a single fact summary. Obey the supplied schema and per-node length limits. ${criticalCategory ? 'Retain every stated migration action and applicability condition; do not replace upgrade guidance with a short theme.' : 'Replace copied child phrases with a shorter synthesis.'}`
         : baseInstructions;
       const output = await this.provider.request({
         input: JSON.stringify(input),
@@ -431,10 +443,20 @@ class SummaryAttempt {
   ): Promise<Map<string, Digest>> {
     const batches: Node[][] = [];
     let current: Node[] = [];
-    for (const node of nodes) {
+    // A brief ordinary outcome and detailed upgrade guidance are different jobs.
+    const ordered =
+      level === 'category'
+        ? [
+            ...nodes.filter(node => !shouldCondense(level, node)),
+            ...nodes.filter(node => shouldCondense(level, node)),
+          ]
+        : nodes;
+    for (const node of ordered) {
       if (
         current.length &&
-        (current.length >= MAX_NODES ||
+        ((level === 'category' &&
+          shouldCondense(level, current[0]) !== shouldCondense(level, node)) ||
+          current.length >= MAX_NODES ||
           size({ level, nodes: [...current, node] }) > MAX_INPUT_BYTES)
       ) {
         batches.push(current);
