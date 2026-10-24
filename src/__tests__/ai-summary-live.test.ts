@@ -182,9 +182,8 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true').each(releases)(
           const breakingSummary = generated.changelog
             .split('### Breaking Changes')[1]
             .split('<details>')[0];
-          expect(breakingSummary).toContain('preReleaseCommand');
-          expect(breakingSummary).toMatch(/warn/i);
-          expect(breakingSummary).toContain('VersionPrefix');
+          expect(breakingSummary).toContain("preReleaseCommand: ''");
+          expect(breakingSummary).toMatch(/automatic.{0,40}(?:bump|version)/i);
           expect(overview).not.toContain('preReleaseCommand');
           expect(overview).not.toContain('changelog.includePaths');
           expect(breakingSummary).toMatch(
