@@ -261,7 +261,8 @@ describe('hierarchical HTTP changelog summaries', () => {
           digest.summary = 'abcdefghij'.repeat(110);
       if (JSON.parse(request.input).level === 'category')
         Object.values(output.summaries).forEach((digest: any) => {
-          digest.summary = 'Category theme. '.repeat(35).trim();
+          // Large encoded digests still obey the ordinary category word limit.
+          digest.summary = 'categorytheme'.repeat(35) + '.';
         });
       return output;
     });
@@ -639,6 +640,22 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(
       requestMock.mock.calls.filter(
         ([request]) => JSON.parse(request.input).level === 'release',
+      ),
+    ).toHaveLength(2);
+  });
+
+  it('rejects verbose ordinary categories even within the character budget', async () => {
+    requestMock.mockImplementation(async request => {
+      const output = modelResponse(request);
+      if (JSON.parse(request.input).level === 'category')
+        for (const digest of Object.values(output.summaries))
+          digest.summary = 'A '.repeat(22) + 'change.';
+      return output;
+    });
+    expect(await summarizeChangelog(categories, config)).toBeNull();
+    expect(
+      requestMock.mock.calls.filter(
+        ([request]) => JSON.parse(request.input).level === 'category',
       ),
     ).toHaveLength(2);
   });

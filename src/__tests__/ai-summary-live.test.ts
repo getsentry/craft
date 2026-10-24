@@ -168,6 +168,7 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true').each(releases)(
           const scopeProse = featureParts[1].split('<details>')[0].trim();
           expect(categoryProse).not.toBe('');
           expect(scopeProse).not.toBe('');
+          expect(categoryProse.split(/\s+/).length).toBeLessThanOrEqual(22);
           expect(categoryProse).toMatch(/AI|summar|description/i);
           expect(categoryProse).toMatch(/workspace|ownership|path/i);
           // The runtime enforces the 55% character budget before Markdown escaping.
@@ -197,7 +198,7 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true').each(releases)(
           );
           expect(breakingSummary).toContain('NuGet');
           expect(breakingSummary).not.toMatch(
-            /differ(?:ing|ent) versions?\s+(?:fail|are rejected)|fail(?:s)? on different versions?/i,
+            /differ(?:ing|ent) versions?\s+(?:fail|are rejected)|fail(?:s)? on differ(?:ing|ent) versions?/i,
           );
           expect(breakingSummary).toMatch(
             /mismatch|identical|different|verif|content/i,
