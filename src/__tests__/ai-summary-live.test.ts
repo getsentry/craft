@@ -167,6 +167,8 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true').each(releases)(
           const scopeProse = featureParts[1].split('<details>')[0].trim();
           expect(categoryProse).not.toBe('');
           expect(scopeProse).not.toBe('');
+          expect(categoryProse).toMatch(/AI|summar|description/i);
+          expect(categoryProse).toMatch(/workspace|ownership|path/i);
           // The runtime enforces the 55% character budget before Markdown escaping.
           // Independently check that the visible sentence is shorter in words.
           const wordCount = (text: string) => text.split(/\s+/).length;

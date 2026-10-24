@@ -11,6 +11,7 @@ export type SummaryFailureReason =
   | 'response-json'
   | 'response-schema'
   | 'response-repetition'
+  | 'migration-missing'
   | 'coverage-missing-id'
   | 'coverage-child-id'
   | 'coverage-short-id'

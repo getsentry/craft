@@ -72,14 +72,21 @@ function modelResponse(options: SummaryRequest) {
             ? { coveredPartIds: node.parts.map((part: any) => part.id) }
             : {}),
           summary:
-            input.level === 'scope'
+            (input.level === 'scope'
               ? `${input.level}: ${node.title} (${node.parts
                   .map((part: any) => part.text)
                   .join('; ')
                   .slice(0, 700)})`
               : input.level === 'category'
                 ? `Changes to ${node.title}.`
-                : 'Release overview.',
+                : 'Release overview.') +
+            [
+              ...new Set(
+                node.parts.flatMap((part: any) => part.requiredTerms || []),
+              ),
+            ]
+              .map(term => ` ${term}`)
+              .join(''),
           importantChanges: [
             ...new Map(
               node.parts
@@ -285,7 +292,55 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(requests.length).toBeLessThanOrEqual(64);
   });
 
-  it('retains bounded original migration context when a child digest omits it', async () => {
+  it('repairs omitted operational terms even when another required term is present', async () => {
+    let scopeCalls = 0;
+    requestMock.mockImplementation(async request => {
+      const output = modelResponse(request);
+      if (JSON.parse(request.input).level === 'scope' && ++scopeCalls === 1)
+        for (const digest of Object.values(output.summaries))
+          digest.summary =
+            'Set settings.alpha: true for the new version behavior.';
+      return output;
+    });
+    const input = [
+      {
+        id: 'breaking',
+        title: 'Breaking',
+        groups: [
+          {
+            id: 'g',
+            title: 'Prepare',
+            items: ['Breaking change: version discovery changes.'],
+            descriptions: {
+              0: "Projects must set settings.alpha: true. Tag-derived projects need to set beta: '' to opt out.",
+            },
+          },
+        ],
+      },
+    ];
+    expect(
+      await summarizeChangelog(input, { ...config, minItems: 0 }),
+    ).not.toBeNull();
+    expect(scopeCalls).toBe(2);
+    const request = requestMock.mock.calls[0][0];
+    const node = JSON.parse(request.input).nodes[0];
+    expect(node.parts[0].requiredTerms).toEqual([
+      'settings.alpha: true',
+      "beta: ''",
+    ]);
+    const schema = (request.schema as any).properties.summaries.properties[
+      node.id
+    ].properties.summary;
+    expect(
+      new RegExp(schema.pattern).test('Set settings.alpha: true now.'),
+    ).toBe(true);
+    expect(
+      new RegExp(schema.pattern).test('Set settingsXalpha: true now.'),
+    ).toBe(false);
+    expect(schema.description).toContain("beta: ''");
+  });
+
+  it('retains bounded original migration conditions when a child digest omits them', async () => {
     const description =
       "Tag-derived projects must set preReleaseCommand: '' when versions live outside project files.";
     requestMock.mockImplementation(async request => {
@@ -293,7 +348,7 @@ describe('hierarchical HTTP changelog summaries', () => {
       if (JSON.parse(request.input).level === 'scope')
         for (const digest of Object.values(output.summaries)) {
           digest.summary =
-            'Version discovery now fails instead of tagging a stale version.';
+            "Set preReleaseCommand: '' to bypass version discovery.";
           digest.importantChanges = [
             {
               id: 'g:item:0',
