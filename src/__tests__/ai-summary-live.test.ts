@@ -186,6 +186,9 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true').each(releases)(
           expect(breakingSummary).toMatch(/automatic.{0,40}(?:bump|version)/i);
           expect(overview).not.toContain('preReleaseCommand');
           expect(overview).not.toContain('changelog.includePaths');
+          expect(overview).not.toMatch(
+            /(?:secur(?:ed|e)|hardened) documentation|(?:documentation|docs) security/i,
+          );
           expect(breakingSummary).toMatch(
             /tag[- ](?:derived|based)|MinVer|versions?.{0,35}tags?|project files/i,
           );
@@ -193,6 +196,9 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true').each(releases)(
             /fail(?:s)? without (?:a|any) target[,.;]/i,
           );
           expect(breakingSummary).toContain('NuGet');
+          expect(breakingSummary).not.toMatch(
+            /differ(?:ing|ent) versions?\s+(?:fail|are rejected)/i,
+          );
           expect(breakingSummary).toMatch(
             /mismatch|identical|different|verif|content/i,
           );
