@@ -1007,7 +1007,7 @@ describe('hierarchical HTTP changelog summaries', () => {
         new Error(`Provider failure ${status}: private-token`),
       );
       expect(await summarizeChangelog(categories, config)).toBeNull();
-      expect(requestMock.mock.calls.length).toBeLessThanOrEqual(3);
+      expect(requestMock).toHaveBeenCalledTimes(1);
       expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain(
         'private-token',
       );

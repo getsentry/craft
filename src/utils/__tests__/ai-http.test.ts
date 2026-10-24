@@ -490,6 +490,9 @@ test.each(['http', 'coverage', 'schema', 'network'])(
         config(),
       ),
     ).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(
+      ['http', 'network'].includes(failure) ? 1 : 2,
+    );
     const log = warn.mock.calls.flat().join(' ');
     expect(log).toContain('keeping original entries');
     expect(log).toContain('stage=scope');

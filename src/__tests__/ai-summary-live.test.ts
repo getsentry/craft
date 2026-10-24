@@ -131,9 +131,10 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true').each(releases)(
         expect(originals).toHaveLength(total);
         for (const entry of originals)
           expect(generated.changelog.split(entry)).toHaveLength(2);
-        expect((generated.changelog.match(/<details>/g) || []).length)[
-          version === '2.35.1' ? 'toBe' : 'toBeGreaterThanOrEqual'
-        ](2);
+        const detailCount = (generated.changelog.match(/<details>/g) || [])
+          .length;
+        if (version === '2.35.1') expect(detailCount).toBe(2);
+        else expect(detailCount).toBeGreaterThanOrEqual(2);
         expect(generated.changelog).toContain(
           '<summary>Show 2 items</summary>',
         );
