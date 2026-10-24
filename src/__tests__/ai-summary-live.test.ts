@@ -191,7 +191,7 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true').each(releases)(
             /(?:secur(?:ed|e)|hardened) documentation|(?:documentation|docs) security/i,
           );
           expect(breakingSummary).toMatch(
-            /tag[- ](?:derived|based)|MinVer|versions?.{0,35}tags?|project files/i,
+            /tag[- ](?:derived|based)|MinVer|versions?.{0,35}tags?|project files|non[- ]file|externally versioned/i,
           );
           expect(breakingSummary).not.toMatch(
             /fail(?:s)? without (?:a|any) target[,.;]/i,
