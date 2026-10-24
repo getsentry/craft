@@ -162,6 +162,9 @@ test.skipIf(process.env.CRAFT_TEST_LIVE_AI !== 'true').each(releases)(
           expect(breakingSummary).toMatch(
             /tag[- ](?:derived|based)|MinVer|versions?.{0,35}tags?|project files/i,
           );
+          expect(breakingSummary).not.toMatch(
+            /fail(?:s)? without (?:a|any) target[,.;]/i,
+          );
           expect(breakingSummary).toContain('NuGet');
           expect(breakingSummary).toMatch(
             /mismatch|identical|different|verif|content/i,

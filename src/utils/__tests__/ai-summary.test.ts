@@ -812,7 +812,12 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(await summarizeChangelog(categories, config)).toBeNull();
   });
 
-  it.each(['response-schema', 'response-json', 'important-missing'] as const)(
+  it.each([
+    'response-schema',
+    'response-json',
+    'important-missing',
+    'important-duplicate',
+  ] as const)(
     'repairs %s once using the same source and schema',
     async reason => {
       const { SummaryFailure } = await import('../ai-summary-error');
