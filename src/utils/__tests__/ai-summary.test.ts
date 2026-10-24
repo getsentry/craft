@@ -80,12 +80,18 @@ function modelResponse(options: SummaryRequest) {
               : input.level === 'category'
                 ? `Changes to ${node.title}.`
                 : 'Release overview.',
-          importantChanges: node.parts.flatMap((part: any) => [
-            ...(part.importantChanges || []),
-            ...(part.important
-              ? [{ id: part.sourceId, summary: part.text.slice(0, 500) }]
-              : []),
-          ]),
+          importantChanges: [
+            ...new Map(
+              node.parts
+                .flatMap((part: any) => [
+                  ...(part.importantChanges || []),
+                  ...(part.important
+                    ? [{ id: part.sourceId, summary: part.text.slice(0, 500) }]
+                    : []),
+                ])
+                .map((fact: any) => [fact.id, fact]),
+            ).values(),
+          ],
         }))
         .map(({ id, ...digest }: any) => [id, digest]),
     ),
@@ -277,6 +283,65 @@ describe('hierarchical HTTP changelog summaries', () => {
     for (const { request } of requests)
       expect(Buffer.byteLength(request.input)).toBeLessThanOrEqual(24000);
     expect(requests.length).toBeLessThanOrEqual(64);
+  });
+
+  it('retains bounded original migration context when a child digest omits it', async () => {
+    const description =
+      "Tag-derived projects must set preReleaseCommand: '' when versions live outside project files.";
+    requestMock.mockImplementation(async request => {
+      const output = modelResponse(request);
+      if (JSON.parse(request.input).level === 'scope')
+        for (const digest of Object.values(output.summaries)) {
+          digest.summary =
+            'Version discovery now fails instead of tagging a stale version.';
+          digest.importantChanges = [
+            {
+              id: 'g:item:0',
+              summary: 'Version discovery now requires a version to update.',
+            },
+          ];
+        }
+      return output;
+    });
+    const input = [
+      {
+        id: 'breaking',
+        title: 'Breaking',
+        groups: [
+          {
+            id: 'g',
+            title: 'Prepare',
+            items: ['Breaking change: prepare fails when no target bumps.'],
+            descriptions: { 0: description },
+          },
+        ],
+      },
+    ];
+    const result = await summarizeChangelog(input, {
+      ...config,
+      levels: ['release'],
+      minItems: 0,
+    });
+    expect(result).not.toBeNull();
+    const categoryRequest = requestMock.mock.calls
+      .map(([request]) => JSON.parse(request.input))
+      .find(input => input.level === 'category');
+    const context = categoryRequest.nodes[0].parts.find(
+      (part: any) => part.id === 'g:item:0:context',
+    );
+    expect(context).toMatchObject({
+      text: expect.stringContaining(description),
+      count: 0,
+      sourceId: 'g:item:0',
+      important: true,
+    });
+    const releaseRequest = requestMock.mock.calls
+      .map(([request]) => JSON.parse(request.input))
+      .find(input => input.level === 'release');
+    expect(releaseRequest.nodes[0].parts[0].count).toBe(1);
+    expect(releaseRequest.nodes[0].parts).toHaveLength(1);
+    expect(JSON.stringify(releaseRequest)).not.toContain('PR description:');
+    expect(result).toMatchObject({ categories: {}, scopes: {} });
   });
 
   it('batches critical category guidance separately from brief ordinary outcomes', async () => {
