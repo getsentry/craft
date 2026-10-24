@@ -687,10 +687,10 @@ function createPREntriesFromRaw(
 
   // For default entries, only include body if it contains the magic word
   let body = '';
-  if (raw.prBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
-    body = raw.prBody;
-  } else if (fallbackBody?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
-    body = fallbackBody;
+  if (bodyWithChangelogDirective(raw.prBody) !== undefined) {
+    body = raw.prBody!;
+  } else if (bodyWithChangelogDirective(fallbackBody) !== undefined) {
+    body = fallbackBody!;
   }
 
   return [
@@ -706,6 +706,41 @@ function createPREntriesFromRaw(
       description: body ? undefined : summaryDescription(raw.prBody),
     },
   ];
+}
+
+/** A body opt-in is a standalone top-level prose line, never a code example. */
+function bodyWithChangelogDirective(
+  body: string | null | undefined,
+): string | undefined {
+  if (!body?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) return undefined;
+  let found = false;
+  const content = marked
+    .lexer(body)
+    .map(token => {
+      if (token.type !== 'paragraph' || !token.tokens) return token.raw;
+      // Preserve positions while masking inline code and other formatting.
+      const prose = token.tokens
+        .map(inline =>
+          inline.type === 'text'
+            ? inline.raw
+            : inline.raw.replace(/[^\n]/g, ' '),
+        )
+        .join('');
+      const directive = new RegExp(
+        `^ {0,3}${BODY_IN_CHANGELOG_MAGIC_WORD}[ \t]*$`,
+        'gm',
+      );
+      let raw = token.raw;
+      for (const match of [...prose.matchAll(directive)].reverse()) {
+        const start = match.index!;
+        if (raw.slice(start, start + match[0].length) !== match[0]) continue;
+        found = true;
+        raw = raw.slice(0, start) + raw.slice(start + match[0].length);
+      }
+      return raw;
+    })
+    .join('');
+  return found ? content.trim() : undefined;
 }
 
 interface Commit {
@@ -1424,9 +1459,10 @@ function formatChangelogEntry(
   // Add body content
   // Two cases: 1) legacy magic word behavior, 2) nested content from structured changelog entries
   if (entry.body) {
-    if (entry.body.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) {
+    const directiveBody = bodyWithChangelogDirective(entry.body);
+    if (directiveBody !== undefined) {
       // Legacy behavior: extract and format body with magic word
-      const body = entry.body.replace(BODY_IN_CHANGELOG_MAGIC_WORD, '').trim();
+      const body = directiveBody;
       if (body) {
         text += `\n  ${body}`;
       }

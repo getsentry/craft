@@ -36,7 +36,7 @@ jobs:
         run: pnpm build
         env:
           SENTRY_AUTH_TOKEN: ''
-      - name: Replay full 2.35.1 summarizer
+      - name: Replay full 2.35.1 and 3.0.0 summarizers
         run: pnpm test src/__tests__/ai-summary-live.test.ts
         env:
           CRAFT_TEST_LIVE_AI: 'true'

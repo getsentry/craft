@@ -247,18 +247,46 @@ changelog:
 | `llm.model` | `gpt-5.4-nano` | Model ID supported by the endpoint and credential. |
 | `llm.apiKeyEnv` | `GITHUB_TOKEN` | Name of the environment variable containing the token. Never put the token in configuration or CLI arguments. |
 
+For short changelogs, keep the default `levels: [release]` and `minItems: 5`
+to add an overview while leaving the original entries expanded. Selecting all
+levels with `minItems: 0` explicitly summarizes even one-entry groups.
+
 Lower-level digests are reused for parent summaries even when hidden. Each
 parent makes an AI synthesis call over its child digests. The release overview
 is one or two short sentences covering the themes across every category, rather
-than joined category summaries. Category and scope summaries name the concrete
-features, targets and options that changed, and breaking-change summaries say
-what users must change when the source data states it. Besides each changelog
-entry, the model receives the Markdown text of its PR description (without
-code, HTML, images or emoji, capped at 600 characters) as context only; it is
-never rendered. Visible prose is capped at 400
-characters for the release, 600 for each category and 1200 for each scope.
-Source-linked critical facts are carried and validated internally without
-appending their text to every displayed summary. All original entries remain
+than joined category summaries. Scopes explain concrete changes and options;
+categories synthesize their useful outcomes in a brief sentence, even when a
+category has only one scope. Ordinary category prose is limited to 55% of its
+children's combined prose length, with an 80-character floor, subject to the
+absolute limits below. Release overviews use their fixed word/character limits
+so already brief categories do not force incomplete sentences. Copying eight
+consecutive child words triggers a bounded repair.
+Categories with explicit breaking/security source entries or migration settings
+are generated in separate guidance batches. Model-inferred fact metadata alone
+does not select this display role or disable compression. These guidance categories
+are exempt from these compression and phrase-copy limits so migration actions,
+risks and applicability conditions can stay precise. These category calls also
+receive bounded original PR context for critical entries, since a child digest
+can omit migration details. Context excerpts do not increase entry counts.
+Recognized explicit migration settings (such as an empty-string opt-out) and
+required CLI flags must survive in detailed guidance, including intermediate
+reduction rounds; missing operational terms trigger the same bounded
+repair/fallback. Ordinary test-setup instructions do not impose these constraints.
+Release overviews still condense those categories; critical facts remain in the
+internal ledger. Besides each changelog entry, the model receives the Markdown
+text of its PR description (without code blocks, HTML, images or prose emoji,
+capped at 1200 characters with breaking-change and migration paragraphs
+prioritized) as context only; it is never rendered. Visible prose is capped at
+400 characters and 35 words for the release, 600 characters and 22 words for ordinary
+categories, 900 for breaking/security guidance and 1200 for each scope. Critical
+guidance has extra room to preserve complete migration conditions.
+The model also receives each node's character budget as planning context.
+Overviews with an incomplete ending or malformed control text are rejected.
+Invalid structured model output gets one repair attempt within the same
+64-request and 120-second budgets. Transport and authentication failures do not
+trigger retries or provider switching. Source-linked critical facts are carried
+and validated internally without appending their text to every displayed summary.
+All original entries remain
 intact. Category and scope summaries preserve originals in expandable blocks,
 including links and nested content. Category prose and
 scope headings stay expanded; each original entry is folded only once. Scope
@@ -466,6 +494,11 @@ changelog:
 ```
 
 ### Custom Changelog Entries from PR Descriptions
+
+The legacy `#body-in-changelog` opt-in must be a standalone, top-level line in
+the PR or commit body. Surrounding blank lines are optional.
+Mentions inside prose, inline or fenced code, blockquotes and HTML comments do
+not opt in. Prefer a curated "Changelog Entry" section to including a full body.
 
 By default, the changelog entry for a PR is generated from its title. However,
 PR authors can override this by adding a "Changelog Entry" section to the PR
