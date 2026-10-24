@@ -717,7 +717,7 @@ function bodyWithChangelogDirective(
   const content = marked
     .lexer(body)
     .map(token => {
-      if (token.type !== 'paragraph') return token.raw;
+      if (token.type !== 'paragraph' || !token.tokens) return token.raw;
       // Preserve positions while masking inline code and other formatting.
       const prose = token.tokens
         .map(inline =>
