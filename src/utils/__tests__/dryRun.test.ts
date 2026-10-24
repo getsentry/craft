@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { unlinkSync } from 'fs';
 import * as helpers from '../helpers';
 
 // Mock the helpers module to control isDryRun
@@ -424,23 +427,34 @@ describe('dryRun utilities', () => {
         vi.mocked(helpers.isDryRun).mockReturnValue(true);
         enableWorktreeMode();
 
+        // Use os.tmpdir() which respects TMPDIR env var
+        const testFile = join(tmpdir(), 'craft-dryrun-test.txt');
+
         // In worktree mode, safeFs should not block or log
         vi.mocked(logger.info).mockClear();
-        await safeFs.writeFile('/tmp/test.txt', 'content');
+        await safeFs.writeFile(testFile, 'content');
 
         // Should NOT have logged a dry-run message (operation is allowed)
         expect(logger.info).not.toHaveBeenCalledWith(
           expect.stringContaining('[dry-run] Would execute: fs.writeFile'),
         );
+
+        // Clean up the test file
+        try {
+          unlinkSync(testFile);
+        } catch {
+          // Ignore cleanup errors
+        }
       });
 
       it('blocks file operations in strict dry-run mode', async () => {
         vi.mocked(helpers.isDryRun).mockReturnValue(true);
         disableWorktreeMode();
 
-        await safeFs.writeFile('/tmp/test.txt', 'content');
+        const testFile = join(tmpdir(), 'craft-dryrun-test.txt');
+        await safeFs.writeFile(testFile, 'content');
         expect(logger.info).toHaveBeenCalledWith(
-          '[dry-run] Would execute: fs.writeFile(/tmp/test.txt)',
+          `[dry-run] Would execute: fs.writeFile(${testFile})`,
         );
       });
     });

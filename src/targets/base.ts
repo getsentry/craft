@@ -10,6 +10,7 @@ import {
   BaseArtifactProvider,
   RemoteArtifact,
 } from '../artifact_providers/base';
+import { DetectionContext, DetectionResult } from '../utils/detection';
 
 /**
  * Base class for all remote targets
@@ -31,6 +32,19 @@ export class BaseTarget {
       ? `${target.name}[${target.id}]`
       : target.name || '__undefined__';
   }
+
+  /**
+   * Detect if this target applies to the given project.
+   *
+   * This static method is called during `craft init` to automatically
+   * discover which targets should be configured for a project.
+   *
+   * @param _context Detection context with project information
+   * @returns Detection result with config and priority, or null if not applicable
+   */
+  public static detect?(
+    _context: DetectionContext,
+  ): Promise<DetectionResult | null> | DetectionResult | null;
 
   public constructor(
     config: TargetConfig,

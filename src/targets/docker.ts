@@ -8,6 +8,11 @@ import { ConfigurationError } from '../utils/errors';
 import { renderTemplateSafe } from '../utils/strings';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { BaseTarget } from './base';
+import {
+  DetectionContext,
+  DetectionResult,
+  fileExists,
+} from '../utils/detection';
 
 const DEFAULT_DOCKER_BIN = 'docker';
 
@@ -261,6 +266,52 @@ export class DockerTarget extends BaseTarget {
   public readonly name: string = 'docker';
   /** Target options */
   public readonly dockerConfig: DockerTargetOptions;
+
+  /** Priority for ordering in config (storage/CDN targets) */
+  public static readonly priority = 110;
+
+  /**
+   * Detect if this project should use the docker target.
+   *
+   * Checks for Dockerfile in the root directory.
+   */
+  public static detect(context: DetectionContext): DetectionResult | null {
+    const { rootDir, githubOwner, githubRepo } = context;
+
+    // Check for Dockerfile
+    if (!fileExists(rootDir, 'Dockerfile')) {
+      return null;
+    }
+
+    const config: TargetConfig = { name: 'docker' };
+
+    // If we have GitHub info, suggest ghcr.io as source
+    // Otherwise, default to Docker Hub with placeholders
+    if (githubOwner && githubRepo) {
+      config.source = `ghcr.io/${githubOwner}/${githubRepo}`;
+      config.target = `${githubOwner}/${githubRepo}`;
+    } else {
+      // Default to Docker Hub - user must fill in their username/repo
+      config.source = 'YOUR_DOCKERHUB_USERNAME/YOUR_REPO';
+      config.target = 'YOUR_DOCKERHUB_USERNAME/YOUR_REPO';
+    }
+
+    return {
+      config,
+      priority: DockerTarget.priority,
+      // The target is Docker Hub even when the source image is in GHCR.
+      requiredSecrets: [
+        {
+          name: 'DOCKER_USERNAME',
+          description: 'Docker Hub username',
+        },
+        {
+          name: 'DOCKER_PASSWORD',
+          description: 'Docker Hub password or access token',
+        },
+      ],
+    };
+  }
 
   public constructor(
     config: TargetConfig,
