@@ -623,6 +623,7 @@ describe('hierarchical HTTP changelog summaries', () => {
       expect(schema.properties.summary.maxLength).toBe(
         Math.floor(Array.from(scope).length * 0.55),
       );
+      expect(node.maxCharacters).toBe(schema.properties.summary.maxLength);
     }
   });
 
@@ -632,6 +633,26 @@ describe('hierarchical HTTP changelog summaries', () => {
       if (JSON.parse(request.input).level === 'release')
         for (const digest of Object.values(output.summaries))
           digest.summary = 'A change. '.repeat(18).trim();
+      return output;
+    });
+    expect(await summarizeChangelog(categories, config)).toBeNull();
+    expect(
+      requestMock.mock.calls.filter(
+        ([request]) => JSON.parse(request.input).level === 'release',
+      ),
+    ).toHaveLength(2);
+  });
+
+  it.each([
+    'The release improves parsing but also ref',
+    'Verified installation keeps CI and AI-\u00ad?',
+    'Verified installation keeps CI and AI-?',
+  ])('repairs or falls back for an incomplete overview: %s', async prose => {
+    requestMock.mockImplementation(async request => {
+      const output = modelResponse(request);
+      if (JSON.parse(request.input).level === 'release')
+        for (const digest of Object.values(output.summaries))
+          digest.summary = prose;
       return output;
     });
     expect(await summarizeChangelog(categories, config)).toBeNull();
@@ -754,7 +775,7 @@ describe('hierarchical HTTP changelog summaries', () => {
   ] as const)(
     'accepts %s prose at its Unicode character limit',
     async (level, limit) => {
-      const prose = '🚀'.repeat(limit);
+      const prose = '🚀'.repeat(limit - 2) + 'a.';
       requestMock.mockImplementation(async request => {
         const output = modelResponse(request);
         for (const digest of Object.values(output.summaries))

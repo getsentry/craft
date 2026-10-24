@@ -278,6 +278,8 @@ prioritized) as context only; it is never rendered. Visible prose is capped at
 400 characters and 35 words for the release, 600 characters for ordinary
 categories, 900 for breaking/security guidance and 1200 for each scope. Critical
 guidance has extra room to preserve complete migration conditions.
+The model also receives each node's character budget as planning context.
+Overviews with an incomplete ending or malformed control text are rejected.
 Invalid structured model output gets one repair attempt within the same
 64-request and 120-second budgets. Transport and authentication failures do not
 trigger retries or provider switching. Source-linked critical facts are carried

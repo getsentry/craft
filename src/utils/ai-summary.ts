@@ -181,6 +181,17 @@ function summaryTextLimit(level: SummaryLevel, node: Node): number {
   return Math.min(limit, Math.max(80, Math.floor(childLength * 0.55)));
 }
 
+/** Expose decoding limits as planning data, using the same shape for batching. */
+function summaryInput(level: SummaryLevel, nodes: Node[]) {
+  return {
+    level,
+    nodes: nodes.map(node => ({
+      ...node,
+      maxCharacters: summaryTextLimit(level, node),
+    })),
+  };
+}
+
 /** Catch copied phrases; semantic paraphrasing also needs editorial live review. */
 function repeatsChildProse(
   level: SummaryLevel,
@@ -355,7 +366,7 @@ class SummaryAttempt {
     const deadline = Math.min(Date.now() + REQUEST_TIMEOUT, this.deadline);
     const timer = setTimeout(abort, Math.max(0, deadline - Date.now()));
     try {
-      const input = { level, nodes };
+      const input = summaryInput(level, nodes);
       if (size(input) > MAX_INPUT_BYTES)
         throw new SummaryFailure('input-budget', level);
       const criticalCategory =
@@ -367,7 +378,7 @@ class SummaryAttempt {
       const compression = criticalCategory
         ? ''
         : ` Parent prose must compress its children within the per-node schema limit and must not repeat any sequence of ${COPIED_PHRASE_WORDS} or more child words.`;
-      const baseInstructions = `${SUMMARY_INSTRUCTIONS}\nDisplay role: ${role}${level === 'scope' ? '' : compression} Coverage is preserved through themes and the fact ledger, not by restating every detail.`;
+      const baseInstructions = `${SUMMARY_INSTRUCTIONS}\nDisplay role: ${role}${level === 'scope' ? '' : compression} Each node.maxCharacters is a hard prose budget. Plan complete sentences comfortably below it; never truncate a word, add counters, soft hyphens or filler to fit. Coverage is preserved through themes and the fact ledger, not by restating every detail.`;
       const instructions = repair
         ? `${baseInstructions}\nThe previous response failed validation. Rebuild the response from the source data, using every required object key, all required facts and exact part coverage. Each importantChanges source ID must occur at most once; combine multiple facts from one source into a single fact summary. Obey the supplied schema and per-node length limits. Include ALL provided requiredTerms exactly in the visible prose, not just in the fact ledger. ${criticalCategory ? 'Retain every stated migration action and applicability condition; do not replace upgrade guidance with a short theme.' : 'Replace copied child phrases with a shorter synthesis.'}`
         : baseInstructions;
@@ -414,6 +425,15 @@ class SummaryAttempt {
         const node = byId.get(digest.id)!;
         const parts = node.parts;
         if (characterLength(digest.summary) > summaryTextLimit(level, node))
+          throw new SummaryFailure('response-schema');
+        if (
+          // eslint-disable-next-line no-control-regex -- Reject control text in generated prose.
+          /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u00ad]/.test(
+            digest.summary,
+          ) ||
+          (level === 'release' &&
+            !/[\p{L}\p{N})'’”][.!?。！？]["'’”)]*$/u.test(digest.summary))
+        )
           throw new SummaryFailure('response-schema');
         if (
           level === 'release' &&
@@ -515,7 +535,7 @@ class SummaryAttempt {
         ((level === 'category' &&
           shouldCondense(level, current[0]) !== shouldCondense(level, node)) ||
           current.length >= MAX_NODES ||
-          size({ level, nodes: [...current, node] }) > MAX_INPUT_BYTES)
+          size(summaryInput(level, [...current, node])) > MAX_INPUT_BYTES)
       ) {
         batches.push(current);
         current = [];
@@ -563,7 +583,7 @@ class SummaryAttempt {
         for (const part of node.parts) {
           if (
             parts.length &&
-            size({ level, nodes: [{ ...node, parts: [...parts, part] }] }) >
+            size(summaryInput(level, [{ ...node, parts: [...parts, part] }])) >
               MAX_INPUT_BYTES - 1000
           ) {
             chunks.push(parts);
@@ -580,7 +600,7 @@ class SummaryAttempt {
             parts: chunk,
             criticalGuidance: node.criticalGuidance,
           };
-          if (size({ level, nodes: [job] }) > MAX_INPUT_BYTES)
+          if (size(summaryInput(level, [job])) > MAX_INPUT_BYTES)
             throw new SummaryFailure('input-budget', level);
           jobs.push(job);
           return id;
