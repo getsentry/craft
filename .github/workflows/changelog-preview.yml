@@ -215,10 +215,12 @@ jobs:
           if [[ -n "$PREVIEW_DIR" ]]; then
             # Only keep characters that are safe in an HTML comment and a jq
             # string. If that changes the path, append a hash of the original
-            # so that e.g. "foo bar" and "foo-bar" stay apart. "~" is never
-            # kept, so a hashed ID can't match an unchanged path.
+            # so that e.g. "foo bar" and "foo-bar" stay apart. Do the same for
+            # uppercase letters: GitHub compares status contexts
+            # case-insensitively, so "Python" and "python" would collide.
+            # "~" is never kept, so a hashed ID can't match an unchanged path.
             PREVIEW_ID="${PREVIEW_DIR//[^A-Za-z0-9._\/-]/-}"
-            if [[ "$PREVIEW_ID" != "$PREVIEW_DIR" ]]; then
+            if [[ "$PREVIEW_ID" != "$PREVIEW_DIR" || "$PREVIEW_DIR" =~ [[:upper:]] ]]; then
               PREVIEW_HASH=$(printf '%s' "$PREVIEW_DIR" | git hash-object --stdin)
               PREVIEW_ID="${PREVIEW_ID}~${PREVIEW_HASH:0:8}"
             fi

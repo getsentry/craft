@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -127,8 +128,10 @@ field() {
 }
 case "$*" in
   *'/statuses/'*)
+    # Like GitHub, a new status replaces any with the same context, ignoring case
     jq --arg c "$(field context)" --arg d "$(field description)" \
-      '. + [{context: $c, description: $d}]' "$statuses" > "$statuses.tmp"
+      'map(select((.context | ascii_downcase) != ($c | ascii_downcase))) + [{context: $c, description: $d}]' \
+      "$statuses" > "$statuses.tmp"
     mv "$statuses.tmp" "$statuses" ;;
   *'--jq'*)
     jq -r "$(arg_after --jq)" "$comments" ;;
@@ -275,6 +278,26 @@ printf '%s' '{"changelog":"- Entry","bumpType":"minor","prSkipped":false,"versio
     ]);
     expect(summary).toContain('## Semver Impact of This PR (packages/python)');
     expect(comments()).toEqual([]);
+  });
+
+  test('keeps status contexts apart for directories differing only in case', ({
+    skip,
+  }) => {
+    if (existsSync(join(repo, 'packages/PYTHON'))) {
+      skip('needs a case-sensitive file system');
+    }
+    mkdirSync(join(repo, 'packages/Python'));
+    run('packages/python', { comment: false });
+    run('packages/Python', { comment: false });
+    run('packages/Python', { comment: false });
+    const contexts = statuses().map(s => s.context);
+    expect(contexts).toHaveLength(2);
+    expect(contexts[0]).toBe(
+      'Changelog Preview / Semver Impact (packages/python)',
+    );
+    expect(contexts[1]).toMatch(
+      /^Changelog Preview \/ Semver Impact \(packages\/Python~[0-9a-f]{8}\)$/,
+    );
   });
 
   test('keeps directories apart when sanitizing makes their names equal', () => {
