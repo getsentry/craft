@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { parse } from 'valibot';
 import { createSummaryProvider } from '../ai-provider';
 import { AiSummaryConfigSchema } from '../../schemas/project_config';
 import { summarizeChangelog } from '../ai-summary';
@@ -7,7 +8,7 @@ import { logger } from '../../logger';
 
 const endpoint = 'https://ai.example.com/v1/chat/completions';
 const config = () =>
-  AiSummaryConfigSchema.parse({
+  parse(AiSummaryConfigSchema, {
     minItems: 0,
     llm: { apiKeyEnv: 'AI_SUMMARY_TOKEN' },
   });
@@ -17,7 +18,7 @@ const request = {
   schema: { type: 'object' },
   signal: new AbortController().signal,
 };
-const completion = (content = '{"summaries":[]}') =>
+const completion = (content = '{"summaries":{}}') =>
   Response.json({
     choices: [
       { finish_reason: 'stop', message: { role: 'assistant', content } },
@@ -47,7 +48,9 @@ test.each(['false', 'true'])(
     const fetch = vi.fn().mockResolvedValue(completion());
     vi.stubGlobal('fetch', fetch);
     const provider = createSummaryProvider(config());
-    expect(await provider.request(request)).toEqual({ summaries: [] });
+    expect(await provider.request(request)).toEqual({
+      summaries: {},
+    });
     await provider.close();
     expect(fetch.mock.calls[0][0]).toBe(endpoint);
     const options = fetch.mock.calls[0][1];
@@ -100,7 +103,7 @@ test('reads endpoint and token-env from project configuration', async () => {
   const fetch = vi.fn().mockResolvedValue(completion());
   vi.stubGlobal('fetch', fetch);
   const provider = createSummaryProvider(
-    AiSummaryConfigSchema.parse({
+    parse(AiSummaryConfigSchema, {
       llm: { endpoint, apiKeyEnv: 'TEAM_MODEL_TOKEN', model: 'custom-luna' },
     }),
   );
@@ -135,7 +138,7 @@ test('missing default GitHub credential makes no inference request', async () =>
   const fetch = vi.fn();
   vi.stubGlobal('fetch', fetch);
   vi.stubEnv('GITHUB_TOKEN', '');
-  const provider = createSummaryProvider(AiSummaryConfigSchema.parse({}));
+  const provider = createSummaryProvider(parse(AiSummaryConfigSchema, {}));
   await expect(provider.request(request)).rejects.toThrow();
   await provider.close();
   expect(fetch).not.toHaveBeenCalled();
@@ -277,7 +280,7 @@ test('disabled summaries and dry runs make no HTTP or Copilot calls', async () =
   expect(fetch).not.toHaveBeenCalled();
 });
 
-const responsesResult = (content = '{"summaries":[]}') => ({
+const responsesResult = (content = '{"summaries":{}}') => ({
   status: 'completed',
   output: [
     {
@@ -296,8 +299,8 @@ test.each(['false', 'true'])(
     vi.stubEnv('CRAFT_AI_ENDPOINT', '');
     const fetch = vi.fn().mockResolvedValue(Response.json(responsesResult()));
     vi.stubGlobal('fetch', fetch);
-    const provider = createSummaryProvider(AiSummaryConfigSchema.parse({}));
-    expect(await provider.request(request)).toEqual({ summaries: [] });
+    const provider = createSummaryProvider(parse(AiSummaryConfigSchema, {}));
+    expect(await provider.request(request)).toEqual({ summaries: {} });
     await provider.close();
     expect(fetch.mock.calls[0][0]).toBe(
       'https://api.githubcopilot.com/responses',
@@ -358,7 +361,7 @@ test('structured Action settings override file settings; CLI overrides Action en
     );
   vi.stubGlobal('fetch', fetch);
   const provider = createSummaryProvider(
-    AiSummaryConfigSchema.parse({
+    parse(AiSummaryConfigSchema, {
       llm: { endpoint: 'https://file.example/responses', model: 'file-model' },
     }),
   );
@@ -437,7 +440,9 @@ test('Responses reasoning metadata is accepted without exposing reasoning as sum
   output.output.unshift({ type: 'reasoning', summary: [] } as any);
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(output)));
   const provider = createSummaryProvider(config());
-  expect(await provider.request(request)).toEqual({ summaries: [] });
+  expect(await provider.request(request)).toEqual({
+    summaries: {},
+  });
   await provider.close();
 });
 
@@ -465,7 +470,7 @@ test.each(['http', 'coverage', 'schema', 'network'])(
     else if (failure === 'network')
       fetch.mockRejectedValue(new Error(sensitive));
     else
-      fetch.mockResolvedValue(
+      fetch.mockImplementation(() =>
         completion(
           failure === 'schema' ? JSON.stringify({ sensitive }) : undefined,
         ),
@@ -484,6 +489,9 @@ test.each(['http', 'coverage', 'schema', 'network'])(
         config(),
       ),
     ).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(
+      ['http', 'network'].includes(failure) ? 1 : 2,
+    );
     const log = warn.mock.calls.flat().join(' ');
     expect(log).toContain('keeping original entries');
     expect(log).toContain('stage=scope');
@@ -499,20 +507,24 @@ test.each([
   ['child-id', ['cli:item:0:part:0']],
   ['short-id', ['cli']],
   ['unknown-id', ['private-source-token']],
-  ['duplicate-id', ['cli/r0/b0', 'cli/r0/b0']],
+  ['missing-id', []],
 ])(
   'classifies %s coverage failures without logging returned IDs',
   async (reason, ids) => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
+      vi.fn().mockImplementation(() =>
         completion(
           JSON.stringify({
-            summaries: ids.map(id => ({
-              id,
-              summary: 'Digest.',
-              importantChanges: [],
-            })),
+            summaries: Object.fromEntries(
+              ids
+                .map(id => ({
+                  id,
+                  summary: 'Digest.',
+                  importantChanges: [],
+                }))
+                .map(({ id, ...digest }: any) => [id, digest]),
+            ),
           }),
         ),
       ),
@@ -557,16 +569,15 @@ test.each(['missing', 'unknown', 'duplicate', 'unsafe'])(
         return Promise.resolve(
           completion(
             JSON.stringify({
-              summaries: [
-                {
-                  id: node.id,
+              summaries: {
+                [node.id]: {
                   summary:
                     failure === 'unsafe'
                       ? 'No breaking changes.'
                       : 'Maintenance.',
                   importantChanges,
                 },
-              ],
+              },
             }),
           ),
         );

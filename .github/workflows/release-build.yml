@@ -36,6 +36,12 @@ jobs:
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
+      # "Build Docs" is not a required check, so a docs lockfile that drifts
+      # from docs/package.json (e.g. Dependabot dropping pnpm.overrides) could
+      # still auto-merge. Verify it here, in a required job.
+      - name: Verify docs lockfile
+        working-directory: docs
+        run: pnpm install --frozen-lockfile --lockfile-only
       - name: Test
         run: pnpm test
 

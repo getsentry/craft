@@ -69,10 +69,10 @@
     "tslib": "^2.8.1",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.2",
-    "vite": "^7.3.5",
-    "vitest": "^4.1.0",
-    "yargs": "^18",
-    "zod": "^3.24.1"
+    "valibot": "^1.5.0",
+    "vite": "^7.3.7",
+    "vitest": "^4.1.12",
+    "yargs": "^18"
   },
   "scripts": {
     "build:fat": "tsc -p tsconfig.build.json",
@@ -120,7 +120,7 @@
       "@tootallnate/once": "^2.0.1",
       "form-data@>=4": "^4.0.6",
       "form-data@<3": "^2.5.6",
-      "vite": "^7.3.5",
+      "vite": "^7.3.7",
       "@babel/core": "^7.29.6",
       "js-yaml": "^4.3.1",
       "baseline-browser-mapping": "^2.11.0",
@@ -139,7 +139,8 @@
       "@opentelemetry/instrumentation-mysql": "^0.67.0",
       "@opentelemetry/instrumentation-mongoose": "^0.67.0",
       "@opentelemetry/instrumentation-tedious": "^0.40.0",
-      "esbuild@<0.28.1": "^0.28.1"
+      "esbuild@<0.28.1": "^0.28.1",
+      "follow-redirects": "^1.16.1"
     },
     "patchedDependencies": {
       "braces@3.0.3": "patches/braces@3.0.3.patch"

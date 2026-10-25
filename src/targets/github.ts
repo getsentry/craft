@@ -2,7 +2,11 @@ import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
 import { createReadStream, promises, statSync } from 'fs';
 import { basename } from 'path';
 
-import { getChangelogConfig, getConfiguration } from '../config';
+import {
+  getActiveWorkspace,
+  getChangelogConfig,
+  getConfiguration,
+} from '../config';
 import {
   ChangelogPolicy,
   GitHubGlobalConfig,
@@ -174,7 +178,8 @@ export class GitHubTarget extends BaseTarget {
    *
    * The release name and description body is brought in from `changes`
    * respective tag, if present. Otherwise, the release name defaults to the
-   * tag and the body to the commit it points to.
+   * tag and the body to the commit it points to. See `getReleaseName` for how
+   * release workspaces namespace the name.
    *
    * @param version The version to release
    * @param revision Git commit SHA to be published
@@ -208,7 +213,7 @@ export class GitHubTarget extends BaseTarget {
 
     const { data } = await this.github.repos.createRelease({
       draft: true,
-      name: changes?.name || tag,
+      name: this.getReleaseName(version, tag, changes),
       owner: this.githubConfig.owner,
       prerelease: isPreview,
       repo: this.githubConfig.repo,
@@ -218,6 +223,31 @@ export class GitHubTarget extends BaseTarget {
     });
 
     return data;
+  }
+
+  /**
+   * Returns the display name for the GitHub release of `version`.
+   *
+   * Without a changeset, the release is named after its tag. When a release
+   * workspace is selected and the changelog heading starts with the bare
+   * version, that version is replaced with the prefixed tag (e.g. `0.2.0`
+   * becomes `cli@0.2.0`), so releases of different products in the same
+   * repository remain distinguishable. Other changelog headings, and all
+   * releases outside workspaces, keep the heading as-is.
+   */
+  private getReleaseName(
+    version: string,
+    tag: string,
+    changes?: Changeset,
+  ): string {
+    const name = changes?.name;
+    if (!name) {
+      return tag;
+    }
+    if (getActiveWorkspace() !== undefined && name.startsWith(version)) {
+      return `${tag}${name.slice(version.length)}`;
+    }
+    return name;
   }
 
   /**
