@@ -300,7 +300,7 @@ jobs:
 ```
 
 
-Previews run from the repository root keep the plain `Changelog Preview / Semver Impact` status context. In directory names, characters other than letters, digits, `.`, `_`, `/` and `-` are replaced with `-`, and a short hash is appended so that, for example, `foo bar` and `foo-bar` still get separate previews.
+Previews run from the repository root keep the plain `Changelog Preview / Semver Impact` status context. In directory names, characters other than letters, digits, `.`, `_`, `/` and `-` are replaced with `-`, and a short hash is appended so that, for example, `foo bar` and `foo-bar` still get separate previews. Directory names with uppercase letters also get the hash, because GitHub compares status contexts case-insensitively.
 
 ### Pinning a Specific Version
 
