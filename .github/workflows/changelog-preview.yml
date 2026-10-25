@@ -156,7 +156,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CRAFT_LOG_LEVEL: Warn
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          WORKING_DIRECTORY: ${{ inputs.working-directory }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           echo "Running craft changelog --pr $PR_NUMBER --format json..."
@@ -210,11 +209,19 @@ jobs:
           # instead of each run overwriting the same comment and status.
           # Previews for the repo root keep the original names.
           COMMENT_MARKER="<!-- craft-changelog-preview -->"
-          PREVIEW_ID="${WORKING_DIRECTORY#./}"
-          PREVIEW_ID="${PREVIEW_ID%/}"
-          if [[ -n "$PREVIEW_ID" && "$PREVIEW_ID" != "." ]]; then
-            # Only keep characters that are safe in an HTML comment and a jq string
-            PREVIEW_ID="${PREVIEW_ID//[^A-Za-z0-9._\/-]/-}"
+          # Repo-relative path of the working directory, normalized by git
+          PREVIEW_DIR=$(git rev-parse --show-prefix)
+          PREVIEW_DIR="${PREVIEW_DIR%/}"
+          if [[ -n "$PREVIEW_DIR" ]]; then
+            # Only keep characters that are safe in an HTML comment and a jq
+            # string. If that changes the path, append a hash of the original
+            # so that e.g. "foo bar" and "foo-bar" stay apart. "~" is never
+            # kept, so a hashed ID can't match an unchanged path.
+            PREVIEW_ID="${PREVIEW_DIR//[^A-Za-z0-9._\/-]/-}"
+            if [[ "$PREVIEW_ID" != "$PREVIEW_DIR" ]]; then
+              PREVIEW_HASH=$(printf '%s' "$PREVIEW_DIR" | git hash-object --stdin)
+              PREVIEW_ID="${PREVIEW_ID}~${PREVIEW_HASH:0:8}"
+            fi
             SECTION_HEADING="${SECTION_HEADING} (${PREVIEW_ID})"
             STATUS_CONTEXT="${STATUS_CONTEXT} (${PREVIEW_ID})"
             COMMENT_MARKER="<!-- craft-changelog-preview:${PREVIEW_ID} -->"
