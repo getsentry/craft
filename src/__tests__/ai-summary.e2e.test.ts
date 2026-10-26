@@ -26,7 +26,13 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
   const binary = join(directory, 'craft');
   const execute = promisify(execFile);
   let calls = 0;
-  let mode: 'valid' | 'repair-once' | 'invalid' | 'http-error' = 'valid';
+  let mode:
+    | 'valid'
+    | 'repair-once'
+    | 'invalid'
+    | 'http-error'
+    | 'unfinished-category'
+    | 'unfinished-category-once' = 'valid';
   const levels: string[] = [];
   const prose = {
     scope: 'Fixture scoped implementation details.',
@@ -62,6 +68,15 @@ test('standalone CLI and Action settings preserve summaries, originals and fallb
           importantChanges: [],
         }),
       );
+      if (
+        input.level === 'category' &&
+        (mode === 'unfinished-category' || mode === 'unfinished-category-once')
+      ) {
+        for (const digest of summaries)
+          digest.summary =
+            'Configuration validation now rejects empty arrays and prototype-named workspace keys, while docs use a more';
+        if (mode === 'unfinished-category-once') mode = 'valid';
+      }
       response.writeHead(200, { 'content-type': 'application/json' });
       const invalid = mode === 'invalid' || mode === 'repair-once';
       if (mode === 'repair-once') mode = 'valid';
@@ -223,7 +238,7 @@ globalThis.fetch = async (input, options = {}) => {
     assert.deepEqual(levels, ['scope', 'category', 'release']);
     assert.equal(generated.bumpType, 'minor');
     assert.equal(original.bumpType, generated.bumpType);
-    assert.equal((generated.changelog.match(/<details>/g) || []).length, 2);
+    assert.ok(!generated.changelog.includes('<details>'));
     const originals = original.changelog
       .split('\n')
       .filter((line: string) => line.startsWith('- '));
@@ -244,6 +259,19 @@ globalThis.fetch = async (input, options = {}) => {
     const repaired = await run();
     assert.equal(repaired.changelog, generated.changelog);
     assert.equal(calls - beforeRepair, 4);
+
+    const beforeUnfinished = calls;
+    mode = 'unfinished-category-once';
+    const complete = await run();
+    assert.equal(complete.changelog, generated.changelog);
+    assert.equal(calls - beforeUnfinished, 4);
+
+    const beforePersistentFragment = calls;
+    mode = 'unfinished-category';
+    const fragmentFallback = await run();
+    assert.equal(fragmentFallback.changelog, original.changelog);
+    assert.equal(fragmentFallback.bumpType, original.bumpType);
+    assert.equal(calls - beforePersistentFragment, 3);
 
     const beforeInvalid = calls;
     mode = 'invalid';

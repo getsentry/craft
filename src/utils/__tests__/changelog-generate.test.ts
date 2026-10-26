@@ -292,7 +292,7 @@ describe('generateChangesetFromGit', () => {
                 summary:
                   input.level === 'release'
                     ? 'One concise overview of release capabilities.'
-                    : `${input.level} summary for ${node.title}`,
+                    : `${input.level} summary for ${node.title} changes.`,
                 importantChanges: [],
               }))
               .reverse()
@@ -483,7 +483,7 @@ describe('generateChangesetFromGit', () => {
         'The API drops an obsolete endpoint.',
       );
       expect(result.changelog).toContain('- Remove legacy endpoint');
-      expect(result.changelog).toContain('<details>');
+      expect(result.changelog).not.toContain('<details>');
       expect(result.bumpType).toBe('major');
     });
 
@@ -494,13 +494,13 @@ describe('generateChangesetFromGit', () => {
         'One concise overview of release capabilities.',
       );
       expect(result.changelog).toContain(
-        '### New Features ✨\n\ncategory summary for New Features ✨\n\n#### Cli',
+        '### New Features ✨\n\ncategory summary for New Features ✨ changes.\n\n#### Cli',
       );
       expect(result.changelog).toContain(
-        '#### Cli\n\nscope summary for New Features ✨ / Cli\n\n<details>',
+        '#### Cli\n\nscope summary for New Features ✨ / Cli changes.\n\n- Add command 1',
       );
-      expect(result.changelog.match(/<details>/g)).toHaveLength(1);
-      expect(result.changelog.match(/Show 6 items/g)).toHaveLength(1);
+      expect(result.changelog).not.toContain('<details>');
+      expect(result.changelog).not.toContain('<summary>Show');
       for (let i = 1; i <= 6; i++)
         expect(
           result.changelog.match(
@@ -540,18 +540,10 @@ describe('generateChangesetFromGit', () => {
       expect(result.changelog.includes('scope summary')).toBe(
         levels.includes('scope'),
       );
-      // Every displayed scope remains outside any collapsed original entries.
       expect(result.changelog).toContain('#### Cli');
-      expect(result.changelog.indexOf('#### Cli')).toBeLessThan(
-        result.changelog.indexOf('<details>') === -1
-          ? Infinity
-          : result.changelog.indexOf('<details>'),
-      );
-      if (levels.length === 1 && levels[0] === 'release') {
-        expect(result.changelog).not.toContain('<details>');
-        for (let i = 1; i <= 6; i++)
-          expect(result.changelog).toContain(`- Add command ${i}`);
-      }
+      expect(result.changelog).not.toContain('<details>');
+      for (let i = 1; i <= 6; i++)
+        expect(result.changelog).toContain(`- Add command ${i}`);
     });
 
     it('renders one AI synthesis over all category digests without stitching paragraphs', async () => {
@@ -592,7 +584,7 @@ describe('generateChangesetFromGit', () => {
       expect(result.changelog).not.toContain('<details>');
     });
 
-    it('folds unsummarized scopes and unscoped entries once beneath visible category prose', async () => {
+    it('keeps unsummarized scopes and unscoped entries expanded beneath category prose', async () => {
       setup(
         [
           ...commits,
@@ -604,22 +596,15 @@ describe('generateChangesetFromGit', () => {
       );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0');
       expect(result.changelog).toContain(
-        'category summary for New Features ✨\n\n#### Api\n\n<details>',
+        'category summary for New Features ✨ changes.\n\n#### Api\n\n- Add endpoint 1',
       );
       expect(result.changelog).toContain(
-        '#### Cli\n\nscope summary for New Features ✨ / Cli\n\n<details>',
+        '#### Cli\n\nscope summary for New Features ✨ / Cli changes.\n\n- Add command 1',
       );
       expect(result.changelog).not.toContain(
         'scope summary for New Features ✨ / Api',
       );
-      expect(result.changelog.match(/<details>/g)).toHaveLength(3);
-      let depth = 0;
-      for (const [tag] of result.changelog.matchAll(/<details>|<\/details>/g)) {
-        depth += tag === '<details>' ? 1 : -1;
-        expect(depth).toBeGreaterThanOrEqual(0);
-        expect(depth).toBeLessThanOrEqual(1);
-      }
-      expect(depth).toBe(0);
+      expect(result.changelog).not.toContain('<details>');
       for (const title of [
         'Add endpoint 1',
         'Add endpoint 2',
@@ -628,6 +613,37 @@ describe('generateChangesetFromGit', () => {
         expect(result.changelog.split(title)).toHaveLength(2);
       expect(result.totalCommits).toBe(9);
       expect(result.bumpType).toBe('minor');
+    });
+
+    it('preserves author-provided details without adding AI accordion wrappers', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        ...summaryConfig,
+        aiSummary: { ...summaryConfig.aiSummary, minItems: 0 },
+      });
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'feat(cli): Add command',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                title: 'feat(cli): Add command',
+                body: '#body-in-changelog\n\n<details>\n<summary>Author notes</summary>\n\nKeep this original text.\n\n</details>',
+              },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog.match(/<details>/g)).toHaveLength(1);
+      expect(result.changelog).toContain('<summary>Author notes</summary>');
+      expect(result.changelog).toContain('Keep this original text.');
+      expect(result.changelog).not.toContain('<summary>Show');
+      expect(result.changelog).toContain('category summary');
     });
 
     it('keeps byte-for-byte original output when a later generation stage fails', async () => {
@@ -644,7 +660,7 @@ describe('generateChangesetFromGit', () => {
         .mockResolvedValueOnce({
           summaries: Object.fromEntries(
             [
-              { id: 'group:0/r0/b0', summary: 'scope', importantChanges: [] },
+              { id: 'group:0/r0/b0', summary: 'scope.', importantChanges: [] },
             ].map(({ id, ...digest }: any) => [id, digest]),
           ),
         })
@@ -706,7 +722,7 @@ describe('generateChangesetFromGit', () => {
       expect(result.changelog).toContain('category summary');
       expect(result.changelog).not.toContain('#### Cli');
       expect(result.changelog).not.toContain('scope summary');
-      expect(result.changelog.match(/<details>/g)).toHaveLength(1);
+      expect(result.changelog).not.toContain('<details>');
     });
 
     it('leaves highlighted PR previews expanded and makes no model request', async () => {
