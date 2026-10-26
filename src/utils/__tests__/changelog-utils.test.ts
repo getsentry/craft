@@ -23,7 +23,6 @@ import {
   getNormalizedReleaseConfig,
   clearReleaseConfigCache,
   SKIP_CHANGELOG_MAGIC_WORD,
-  BODY_IN_CHANGELOG_MAGIC_WORD,
   type CurrentPRInfo,
 } from '../changelog';
 
@@ -183,11 +182,6 @@ describe('magic word constants', () => {
   it('SKIP_CHANGELOG_MAGIC_WORD is defined', () => {
     expect(SKIP_CHANGELOG_MAGIC_WORD).toBeDefined();
     expect(typeof SKIP_CHANGELOG_MAGIC_WORD).toBe('string');
-  });
-
-  it('BODY_IN_CHANGELOG_MAGIC_WORD is defined', () => {
-    expect(BODY_IN_CHANGELOG_MAGIC_WORD).toBeDefined();
-    expect(typeof BODY_IN_CHANGELOG_MAGIC_WORD).toBe('string');
   });
 });
 

@@ -100,7 +100,6 @@ export const DEFAULT_CHANGELOG_PATH = 'CHANGELOG.md';
 
 export const DEFAULT_UNRELEASED_TITLE = 'Unreleased';
 export const SKIP_CHANGELOG_MAGIC_WORD = '#skip-changelog';
-export const BODY_IN_CHANGELOG_MAGIC_WORD = '#body-in-changelog';
 const DEFAULT_CHANGESET_BODY = '- No documented changes.';
 const VERSION_HEADER_LEVEL = 2;
 const SUBSECTION_HEADER_LEVEL = VERSION_HEADER_LEVEL + 1;
@@ -651,7 +650,6 @@ interface PullRequest {
  *
  * @param raw Raw commit/PR info
  * @param defaultTitle The default title to use if no custom entries (usually PR title)
- * @param fallbackBody Optional fallback body to check for magic word (used for leftovers)
  * @returns Array of PullRequest entries
  */
 function createPREntriesFromRaw(
@@ -663,7 +661,6 @@ function createPREntriesFromRaw(
     highlight?: boolean;
   },
   defaultTitle: string,
-  fallbackBody?: string,
   important = false,
 ): PullRequest[] {
   const importantTitle =
@@ -684,62 +681,18 @@ function createPREntriesFromRaw(
     }));
   }
 
-  // For default entries, only include body if it contains the magic word
-  let body = '';
-  if (bodyWithChangelogDirective(raw.prBody) !== undefined) {
-    body = raw.prBody!;
-  } else if (bodyWithChangelogDirective(fallbackBody) !== undefined) {
-    body = fallbackBody!;
-  }
-
   return [
     {
       author: raw.author,
       number: raw.pr ?? '',
       hash: raw.hash,
-      body,
+      body: '',
       title: defaultTitle,
       highlight: raw.highlight,
       importantTitle,
-      // Rendered bodies are already part of the entry text.
-      description: body ? undefined : summaryDescription(raw.prBody),
+      description: summaryDescription(raw.prBody),
     },
   ];
-}
-
-/** A body opt-in is a standalone top-level prose line, never a code example. */
-function bodyWithChangelogDirective(
-  body: string | null | undefined,
-): string | undefined {
-  if (!body?.includes(BODY_IN_CHANGELOG_MAGIC_WORD)) return undefined;
-  let found = false;
-  const content = marked
-    .lexer(body)
-    .map(token => {
-      if (token.type !== 'paragraph' || !token.tokens) return token.raw;
-      // Preserve positions while masking inline code and other formatting.
-      const prose = token.tokens
-        .map(inline =>
-          inline.type === 'text'
-            ? inline.raw
-            : inline.raw.replace(/[^\n]/g, ' '),
-        )
-        .join('');
-      const directive = new RegExp(
-        `^ {0,3}${BODY_IN_CHANGELOG_MAGIC_WORD}[ \t]*$`,
-        'gm',
-      );
-      let raw = token.raw;
-      for (const match of [...prose.matchAll(directive)].reverse()) {
-        const start = match.index!;
-        if (raw.slice(start, start + match[0].length) !== match[0]) continue;
-        found = true;
-        raw = raw.slice(0, start) + raw.slice(start + match[0].length);
-      }
-      return raw;
-    })
-    .join('');
-  return found ? content.trim() : undefined;
 }
 
 interface Commit {
@@ -1455,25 +1408,10 @@ function formatChangelogEntry(
     }
   }
 
-  // Add body content
-  // Two cases: 1) legacy magic word behavior, 2) nested content from structured changelog entries
-  if (entry.body) {
-    const directiveBody = bodyWithChangelogDirective(entry.body);
-    if (directiveBody !== undefined) {
-      // Legacy behavior: extract and format body with magic word
-      const body = directiveBody;
-      if (body) {
-        text += `\n  ${body}`;
-      }
-    } else if (entry.body.trim()) {
-      // New behavior: nested content from parsed changelog entries
-      // Don't trim() before splitting to preserve indentation on all lines
-      const lines = entry.body.split('\n');
-      for (const line of lines) {
-        // Each line already has the proper indentation from parsing
-        text += `\n${line}`;
-      }
-    }
+  // Only curated changelog entries carry nested body content.
+  if (entry.body?.trim()) {
+    // Preserve indentation from the structured entry parser.
+    for (const line of entry.body.split('\n')) text += `\n${line}`;
   }
 
   // Apply blockquote highlighting if requested
@@ -1847,7 +1785,6 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
       const prEntries = createPREntriesFromRaw(
         raw,
         prTitle,
-        raw.body,
         matchedCategory?.semver === 'major' ||
           /\bsecurity\b/i.test(categoryTitle),
       );
@@ -2098,7 +2035,6 @@ async function serializeChangelog(
           highlight: commit.highlight,
         },
         (commit.prTitle ?? commit.title).trim(),
-        commit.body, // fallback for magic word check
       );
 
       for (const pr of prEntries) {

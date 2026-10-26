@@ -473,10 +473,11 @@ changelog:
 
 ### Custom Changelog Entries from PR Descriptions
 
-The legacy `#body-in-changelog` opt-in must be a standalone, top-level line in
-the PR or commit body. Surrounding blank lines are optional.
-Mentions inside prose, inline or fenced code, blockquotes and HTML comments do
-not opt in. Prefer a curated "Changelog Entry" section to including a full body.
+The legacy `#body-in-changelog` directive is no longer supported. Remove it from
+PR templates and move the text intended for release notes into a "Changelog Entry"
+section, as shown below. Without that section, Craft uses the PR title and does
+not copy the PR or commit body into the changelog. The old directive has no
+special meaning inside an explicitly curated entry either.
 
 By default, the changelog entry for a PR is generated from its title. However,
 PR authors can override this by adding a "Changelog Entry" section to the PR

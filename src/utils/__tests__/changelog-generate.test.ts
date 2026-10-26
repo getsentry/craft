@@ -177,8 +177,8 @@ describe('generateChangesetFromGit', () => {
     expect(result.changelog).not.toContain('#body-in-changelog');
   });
 
-  it.each(['pr', 'commit'])(
-    'preserves an explicit standalone body directive in a %s',
+  it.each(['pr', 'commit', 'leftover'])(
+    'ignores the retired standalone body directive in a %s',
     async source => {
       const body =
         'Upgrade instructions.\n\n#body-in-changelog\n\nKeep these details.';
@@ -186,13 +186,17 @@ describe('generateChangesetFromGit', () => {
         [
           {
             hash: 'abcdef1234567890',
-            title: 'fix: Keep the entry',
-            body: source === 'commit' ? body : '',
+            title:
+              source === 'leftover' ? 'Keep the entry' : 'fix: Keep the entry',
+            body: source !== 'pr' ? body : '',
             pr: {
               local: '918',
               remote: {
                 number: '918',
-                title: 'fix: Keep the entry',
+                title:
+                  source === 'leftover'
+                    ? 'Keep the entry'
+                    : 'fix: Keep the entry',
                 body: source === 'pr' ? body : '',
               },
             },
@@ -201,14 +205,15 @@ describe('generateChangesetFromGit', () => {
         null,
       );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0');
-      expect(result.changelog).toContain('Upgrade instructions.');
-      expect(result.changelog).toContain('Keep these details.');
+      expect(result.changelog).toContain('Keep the entry');
+      expect(result.changelog).not.toContain('Upgrade instructions.');
+      expect(result.changelog).not.toContain('Keep these details.');
       expect(result.changelog).not.toContain('#body-in-changelog');
     },
   );
 
   it.each(['#body-in-changelog', '  #body-in-changelog  '])(
-    'accepts a standalone directive without blank lines (%s)',
+    'does not treat a standalone directive as an opt-in (%s)',
     async directive => {
       const body = `Example \`#body-in-changelog\`.\n${directive}\nKeep these details.`;
       setup(
@@ -223,9 +228,8 @@ describe('generateChangesetFromGit', () => {
         null,
       );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0');
-      expect(result.changelog).toContain('Keep these details.');
-      expect(result.changelog).toContain('Example `#body-in-changelog`.');
-      expect(result.changelog.match(/#body-in-changelog/g)).toHaveLength(1);
+      expect(result.changelog).not.toContain('Keep these details.');
+      expect(result.changelog).not.toContain('#body-in-changelog');
     },
   );
 
@@ -631,7 +635,7 @@ describe('generateChangesetFromGit', () => {
               remote: {
                 number: '1',
                 title: 'feat(cli): Add command',
-                body: '#body-in-changelog\n\n<details>\n<summary>Author notes</summary>\n\nKeep this original text.\n\n</details>',
+                body: '## Changelog Entry\n\n- Add command\n\n<details>\n<summary>Author notes</summary>\n\nKeep this original text.\n\n</details>',
               },
             },
           },
@@ -1617,6 +1621,34 @@ changelog:
       );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toMatchSnapshot();
+    });
+
+    it('uses curated entries without copying a legacy-marked PR body', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: Original title',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                body: '#body-in-changelog\n\nPrivate implementation notes.\n\n## Changelog Entry\n\n- Curated public change\n\n```markdown\n#body-in-changelog\n```\n\n## Testing\n\nPrivate test notes.',
+              },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+      expect(result.changelog).toContain('Curated public change');
+      expect(result.changelog).toContain(
+        '```markdown\n  #body-in-changelog\n  ```',
+      );
+      expect(result.changelog).not.toContain('Private implementation notes.');
+      expect(result.changelog).not.toContain('Private test notes.');
+      expect(result.bumpType).toBe('minor');
     });
 
     it('handles multiple bullets in changelog entry', async () => {
