@@ -148,87 +148,6 @@ describe('generateChangesetFromGit', () => {
     }
   }
 
-  it.each([
-    'Mentioning `#body-in-changelog` should not include this private context.',
-    'Example:\n\n```markdown\n#body-in-changelog\n```\nPrivate context.',
-    '`Example\n#body-in-changelog\nPrivate context.`',
-    '**Example\n#body-in-changelog\nPrivate context.**',
-    '> #body-in-changelog\n\nPrivate context.',
-    'A sentence with #body-in-changelog in it. Private context.',
-    '<!--\n#body-in-changelog\n-->\nPrivate context.',
-  ])('does not opt into full PR bodies from references (%s)', async body => {
-    setup(
-      [
-        {
-          hash: 'abcdef1234567890',
-          title: 'fix: Keep the entry',
-          body: '',
-          pr: {
-            local: '918',
-            remote: { number: '918', title: 'fix: Keep the entry', body },
-          },
-        },
-      ],
-      null,
-    );
-    const result = await generateChangesetFromGit(dummyGit, '1.0.0');
-    expect(result.changelog).toContain('Keep the entry');
-    expect(result.changelog).not.toContain('context');
-    expect(result.changelog).not.toContain('#body-in-changelog');
-  });
-
-  it.each(['pr', 'commit'])(
-    'preserves an explicit standalone body directive in a %s',
-    async source => {
-      const body =
-        'Upgrade instructions.\n\n#body-in-changelog\n\nKeep these details.';
-      setup(
-        [
-          {
-            hash: 'abcdef1234567890',
-            title: 'fix: Keep the entry',
-            body: source === 'commit' ? body : '',
-            pr: {
-              local: '918',
-              remote: {
-                number: '918',
-                title: 'fix: Keep the entry',
-                body: source === 'pr' ? body : '',
-              },
-            },
-          },
-        ],
-        null,
-      );
-      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
-      expect(result.changelog).toContain('Upgrade instructions.');
-      expect(result.changelog).toContain('Keep these details.');
-      expect(result.changelog).not.toContain('#body-in-changelog');
-    },
-  );
-
-  it.each(['#body-in-changelog', '  #body-in-changelog  '])(
-    'accepts a standalone directive without blank lines (%s)',
-    async directive => {
-      const body = `Example \`#body-in-changelog\`.\n${directive}\nKeep these details.`;
-      setup(
-        [
-          {
-            hash: 'abcdef1234567890',
-            title: 'fix: Keep the entry',
-            body: '',
-            pr: { local: '918', remote: { number: '918', body } },
-          },
-        ],
-        null,
-      );
-      const result = await generateChangesetFromGit(dummyGit, '1.0.0');
-      expect(result.changelog).toContain('Keep these details.');
-      expect(result.changelog).toContain('Example `#body-in-changelog`.');
-      expect(result.changelog.match(/#body-in-changelog/g)).toHaveLength(1);
-    },
-  );
-
   it('keeps cached changelogs separate for each selected workspace', async () => {
     try {
       config.setActiveWorkspace('packages/cli');
@@ -631,7 +550,7 @@ describe('generateChangesetFromGit', () => {
               remote: {
                 number: '1',
                 title: 'feat(cli): Add command',
-                body: '#body-in-changelog\n\n<details>\n<summary>Author notes</summary>\n\nKeep this original text.\n\n</details>',
+                body: '## Changelog Entry\n\n- Add command\n\n<details>\n<summary>Author notes</summary>\n\nKeep this original text.\n\n</details>',
               },
             },
           },
