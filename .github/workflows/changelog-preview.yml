@@ -157,6 +157,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          MERGE_CHECKOUT: ${{ steps.checkout-merge.outcome }}
           WORKING_DIRECTORIES: ${{ inputs.working-directory }}
         run: |
           # Runs Craft in directory $1 and sets CHANGELOG, BUMP_TYPE, PR_SKIPPED,
@@ -239,8 +241,18 @@ jobs:
             OUT_PR_SKIPPED=true
             OUT_VERSIONING_POLICY=auto
             OUT_STATUS_CONTEXT="Changelog Preview / Semver Impact"
+            # Compare against the base branch tip the PR merges into. The
+            # event's base SHA can lag behind it (e.g. on `edited` reruns), so
+            # packages changed only on the base branch would count as changed
+            # here. The merge ref's first parent is that tip; without a merge
+            # ref, use the fetched base branch.
+            if [[ "$MERGE_CHECKOUT" == "success" ]]; then
+              DIFF_BASE=HEAD^1
+            else
+              DIFF_BASE=$(git rev-parse -q --verify "refs/remotes/origin/${BASE_REF}" || echo "$BASE_SHA")
+            fi
             for DIR in "${DIRECTORIES[@]}"; do
-              if git diff --quiet "${BASE_SHA}...HEAD" -- "$DIR"; then
+              if git diff --quiet "${DIFF_BASE}...HEAD" -- "$DIR"; then
                 continue
               fi
               preview_directory "$DIR"

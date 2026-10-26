@@ -123,7 +123,7 @@ describe('Generate Changelog Preview', () => {
     root = mkdtempSync(join(tmpdir(), 'craft-preview-'));
     repo = join(root, 'repo');
     mkdirSync(repo);
-    git('init', '-q');
+    git('init', '-q', '-b', 'main');
     git('config', 'user.name', 'Test');
     git('config', 'user.email', 'test@example.com');
     for (const dir of ['packages/python', 'packages/rust', 'server']) {
@@ -185,7 +185,10 @@ esac
     git('commit', '-qam', 'change');
   }
 
-  function run(directories: string, { comment = true } = {}) {
+  function run(
+    directories: string,
+    { comment = true, env = {} as Record<string, string> } = {},
+  ) {
     const summary = join(root, 'summary.md');
     const output = join(root, 'output');
     writeFileSync(summary, '');
@@ -214,6 +217,7 @@ esac
           GITHUB_RUN_ID: '1',
           GITHUB_OUTPUT: output,
           GITHUB_STEP_SUMMARY: summary,
+          ...env,
         },
       },
     );
@@ -294,5 +298,37 @@ esac
     expect(summary).toContain('<code>packages/python</code> · 🔴 Major');
     expect(summary).toContain('<code>packages/rust</code> · 🟡 Minor');
     expect(comments()).toEqual([]);
+  });
+
+  /**
+   * Moves `main` past the event's base SHA with a change to packages/python,
+   * then branches the PR off the old base with a change to packages/rust
+   */
+  function advanceBaseAndBranch() {
+    change('packages/python');
+    git('checkout', '-qb', 'pr', baseSha);
+    change('packages/rust');
+  }
+
+  test('ignores base-branch changes after the event base SHA in the merge ref', () => {
+    advanceBaseAndBranch();
+    git('checkout', '-q', 'main');
+    git('merge', '-q', '--no-ff', '-m', 'merge', 'pr');
+    run('packages/python\npackages/rust', {
+      env: { MERGE_CHECKOUT: 'success', BASE_REF: 'main' },
+    });
+    expect(comments()[0]).toContain('<code>packages/rust</code>');
+    expect(comments()[0]).not.toContain('packages/python');
+  });
+
+  test('ignores base-branch changes merged into the PR head without a merge ref', () => {
+    advanceBaseAndBranch();
+    git('merge', '-q', '--no-ff', '-m', 'merge main', 'main');
+    git('update-ref', 'refs/remotes/origin/main', 'main');
+    run('packages/python\npackages/rust', {
+      env: { MERGE_CHECKOUT: 'failure', BASE_REF: 'main' },
+    });
+    expect(comments()[0]).toContain('<code>packages/rust</code>');
+    expect(comments()[0]).not.toContain('packages/python');
   });
 });
