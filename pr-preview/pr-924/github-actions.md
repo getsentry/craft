@@ -219,7 +219,7 @@ This is safe because the workflow only reads git metadata and config - no code f
 
 | Input | Description | Default |
 | --- | --- | --- |
-| `working-directory` | Directory to run Craft in (relative to repo root) | `.` |
+| `working-directory` | Directory to run Craft in (relative to repo root), or several, one per line | `.` |
 | `craft-version` | Version of Craft to use (tag or “latest”) | `latest` |
 | `comment` | Post changelog as PR comment (true) or as commit status with job summary (false) | `true` |
 
@@ -283,24 +283,22 @@ Tip
 
 Craft itself uses status check mode to avoid notification noise. You can see it in action on any PR in the [getsentry/craft repository](https://github.com/getsentry/craft/pulls).
 
-### Multiple Previews per PR
+### Multiple Packages
 
-If one repository releases several packages from separate Craft configs, call the workflow once per package with its `working-directory`. Each directory gets its own PR comment and its own status context, and the heading names the directory, e.g. `Semver Impact of This PR (packages/python)`. A PR that touches several packages shows one preview per package:
+If one repository releases several packages from separate Craft configs, list their directories in `working-directory`, one per line:
 
 ```yaml
 jobs:
-  changelog-preview-python:
+  changelog-preview:
     uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
     with:
-      working-directory: packages/python
-  changelog-preview-rust:
-    uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
-    with:
-      working-directory: packages/rust
+      working-directory: |
+        packages/python
+        packages/rust
 ```
 
 
-Previews run from the repository root keep the plain `Changelog Preview / Semver Impact` status context. In directory names, characters other than letters, digits, `.`, `_`, `/` and `-` are replaced with `-`, and a short hash is appended so that, for example, `foo bar` and `foo-bar` still get separate previews. Directory names with uppercase letters also get the hash, because GitHub compares status contexts case-insensitively.
+The PR still gets one comment (or one status and job summary), with a collapsed section per package that the PR changes, e.g. `packages/python · 🟡 Minor (new features)`. Packages the PR doesn’t touch are left out. The status description lists each package’s bump.
 
 ### Pinning a Specific Version
 
