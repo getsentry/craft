@@ -76,7 +76,7 @@ function modelResponse(options: SummaryRequest) {
               ? `${input.level}: ${node.title} (${node.parts
                   .map((part: any) => part.text)
                   .join('; ')
-                  .slice(0, 700)})`
+                  .slice(0, 700)}).`
               : input.level === 'category'
                 ? `Changes to ${node.title}.`
                 : 'Release overview.') +
@@ -85,7 +85,7 @@ function modelResponse(options: SummaryRequest) {
                 node.parts.flatMap((part: any) => part.requiredTerms || []),
               ),
             ]
-              .map(term => ` ${term}`)
+              .map(term => ` ${term}.`)
               .join(''),
           importantChanges: [
             ...new Map(
@@ -150,7 +150,7 @@ describe('hierarchical HTTP changelog summaries', () => {
       const output = modelResponse(request);
       if (input.level === 'category')
         Object.values(output.summaries).forEach((digest: any, i: number) => {
-          digest.summary = `Category digest: ${input.nodes[i].title}`;
+          digest.summary = `Category digest: ${input.nodes[i].title}.`;
         });
       if (input.level === 'release')
         output.summaries = Object.fromEntries(
@@ -176,8 +176,8 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(releaseRequests).toHaveLength(1);
     expect(releaseRequests[0].nodes).toHaveLength(1);
     expect(releaseRequests[0].nodes[0].parts).toMatchObject([
-      { id: 'features', title: 'Features', text: 'Category digest: Features' },
-      { id: 'fixes', title: 'Fixes', text: 'Category digest: Fixes' },
+      { id: 'features', title: 'Features', text: 'Category digest: Features.' },
+      { id: 'fixes', title: 'Fixes', text: 'Category digest: Fixes.' },
     ]);
   });
 
@@ -258,7 +258,7 @@ describe('hierarchical HTTP changelog summaries', () => {
       const output = modelResponse(request);
       if (JSON.parse(request.input).level === 'scope')
         for (const digest of Object.values(output.summaries))
-          digest.summary = 'abcdefghij'.repeat(110);
+          digest.summary = 'abcdefghij'.repeat(110) + '.';
       if (JSON.parse(request.input).level === 'category')
         Object.values(output.summaries).forEach((digest: any) => {
           // Large encoded digests still obey the ordinary category word limit.
@@ -612,7 +612,7 @@ describe('hierarchical HTTP changelog summaries', () => {
     },
   );
 
-  it('requires a single-child category to compress its scope digest', async () => {
+  it('keeps single-child categories concise with a fixed character budget', async () => {
     const scope =
       'Workspaces can include, exclude, or own unowned paths, and first workspace releases inspect configuration history. AI summaries use condensed PR descriptions to explain concrete changes.';
     const paraphrase =
@@ -654,11 +654,46 @@ describe('hierarchical HTTP changelog summaries', () => {
       const schema = (request.schema as any).properties.summaries.properties[
         node.id
       ];
-      expect(schema.properties.summary.maxLength).toBe(
-        Math.floor(Array.from(scope).length * 0.55),
-      );
+      expect(schema.properties.summary.maxLength).toBe(600);
       expect(node.maxCharacters).toBe(schema.properties.summary.maxLength);
     }
+  });
+
+  it('allows a complete category sentence when its child digest is already brief', async () => {
+    const category =
+      'Configuration validation moves to Valibot, and the docs HTTP dependency is updated.';
+    expect(category.length).toBeGreaterThan(80);
+    requestMock.mockImplementation(async request => {
+      const output = modelResponse(request);
+      for (const digest of Object.values(output.summaries))
+        digest.summary =
+          JSON.parse(request.input).level === 'scope'
+            ? 'Valibot validation and docs updates.'
+            : category;
+      return output;
+    });
+    const result = await summarizeChangelog(
+      [
+        {
+          id: 'internal',
+          title: 'Internal Changes',
+          groups: [
+            {
+              id: 'config',
+              title: 'Config',
+              scope: 'Config',
+              items: [
+                'Replace Zod with Valibot.',
+                'Update the docs HTTP dependency.',
+              ],
+            },
+          ],
+        },
+      ],
+      { ...config, minItems: 0, levels: ['category'] },
+    );
+    expect(result?.categories.internal).toBe(category);
+    expect(requestMock).toHaveBeenCalledTimes(2);
   });
 
   it('rejects verbose release prose even when it fits the character budget', async () => {
@@ -713,6 +748,53 @@ describe('hierarchical HTTP changelog summaries', () => {
     ).toHaveLength(2);
   });
 
+  it.each(['scope', 'category', 'release'] as const)(
+    'rejects unfinished %s prose after one repair, including hidden digests',
+    async level => {
+      const fragment =
+        'Configuration validation now rejects empty arrays and prototype-named workspace keys, while docs use a more';
+      requestMock.mockImplementation(async request => {
+        const output = modelResponse(request);
+        if (JSON.parse(request.input).level === level)
+          for (const digest of Object.values(output.summaries))
+            digest.summary = fragment;
+        return output;
+      });
+      expect(
+        await summarizeChangelog(categories, {
+          ...config,
+          levels: ['release'],
+        }),
+      ).toBeNull();
+      expect(
+        requestMock.mock.calls.filter(
+          ([request]) => JSON.parse(request.input).level === level,
+        ),
+      ).toHaveLength(2);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`stage=${level}; reason=response-prose`),
+      );
+    },
+  );
+
+  it.each(['scope', 'category', 'release'] as const)(
+    'repairs unfinished %s prose without adding a new retry budget',
+    async level => {
+      let attempts = 0;
+      requestMock.mockImplementation(async request => {
+        const output = modelResponse(request);
+        if (JSON.parse(request.input).level === level && ++attempts === 1)
+          for (const digest of Object.values(output.summaries))
+            digest.summary =
+              'Configuration validation improves while docs use a more';
+        return output;
+      });
+      expect(await summarizeChangelog(categories, config)).not.toBeNull();
+      expect(attempts).toBe(2);
+      expect(requestMock).toHaveBeenCalledTimes(4);
+    },
+  );
+
   it('does not let model-inferred facts disable ordinary category compression', async () => {
     let categoryCalls = 0;
     const scope =
@@ -758,7 +840,7 @@ describe('hierarchical HTTP changelog summaries', () => {
     expect(
       (request.schema as any).properties.summaries.properties[node.id]
         .properties.summary.maxLength,
-    ).toBe(Math.floor(Array.from(scope).length * 0.55));
+    ).toBe(600);
   });
 
   it('recognizes disclosure fixes as critical source entries', async () => {
@@ -870,8 +952,8 @@ describe('hierarchical HTTP changelog summaries', () => {
             JSON.parse(request.input).level === level
               ? prose
               : '🚀'.repeat(
-                  JSON.parse(request.input).level === 'scope' ? 1200 : 600,
-                );
+                  JSON.parse(request.input).level === 'scope' ? 1198 : 598,
+                ) + 'a.';
         return output;
       });
       const result = await summarizeChangelog(categories, {
@@ -896,13 +978,14 @@ describe('hierarchical HTTP changelog summaries', () => {
       requestMock.mockImplementation(async request => {
         const output = modelResponse(request);
         for (const digest of Object.values(output.summaries))
-          digest.summary = '🚀'.repeat(
-            JSON.parse(request.input).level === level
-              ? limit + 1
-              : JSON.parse(request.input).level === 'scope'
-                ? 1200
-                : 600,
-          );
+          digest.summary =
+            '🚀'.repeat(
+              JSON.parse(request.input).level === level
+                ? limit - 1
+                : JSON.parse(request.input).level === 'scope'
+                  ? 1198
+                  : 598,
+            ) + 'a.';
         return output;
       });
       expect(

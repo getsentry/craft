@@ -256,11 +256,9 @@ parent makes an AI synthesis call over its child digests. The release overview
 is one or two short sentences covering the themes across every category, rather
 than joined category summaries. Scopes explain concrete changes and options;
 categories synthesize their useful outcomes in a brief sentence, even when a
-category has only one scope. Ordinary category prose is limited to 55% of its
-children's combined prose length, with an 80-character floor, subject to the
-absolute limits below. Release overviews use their fixed word/character limits
-so already brief categories do not force incomplete sentences. Copying eight
-consecutive child words triggers a bounded repair.
+category has only one scope. Category and release prose use fixed word/character
+limits so already brief child digests do not force incomplete sentences. Copying
+eight consecutive child words triggers a bounded repair.
 Categories with explicit breaking/security source entries or migration settings
 are generated in separate guidance batches. Model-inferred fact metadata alone
 does not select this display role or disable compression. These guidance categories
@@ -281,16 +279,16 @@ prioritized) as context only; it is never rendered. Visible prose is capped at
 categories, 900 for breaking/security guidance and 1200 for each scope. Critical
 guidance has extra room to preserve complete migration conditions.
 The model also receives each node's character budget as planning context.
-Overviews with an incomplete ending or malformed control text are rejected.
+At every level, summaries without a complete sentence ending or with malformed
+control text are rejected and get the same bounded repair attempt.
 Invalid structured model output gets one repair attempt within the same
 64-request and 120-second budgets. Transport and authentication failures do not
 trigger retries or provider switching. Source-linked critical facts are carried
 and validated internally without appending their text to every displayed summary.
-All original entries remain
-intact. Category and scope summaries preserve originals in expandable blocks,
-including links and nested content. Category prose and
-scope headings stay expanded; each original entry is folded only once. Scope
-summaries need an existing scope heading; `scopeGrouping: false` still allows
+All original entries remain expanded beneath their summaries, including links
+and nested content. Craft does not add accordion wrappers; any expandable
+content supplied by the original entry author is preserved. Scope summaries
+need an existing scope heading; `scopeGrouping: false` still allows
 category/release summaries. Unscoped entries contribute to both parent levels.
 
 ##### Output examples
@@ -308,7 +306,7 @@ CLI authentication now supports signing in and out.
 - Add logout command
 ```
 
-**`levels: [category]`** keeps scope headings visible and folds original entries:
+**`levels: [category]`** adds category prose above the expanded original entries:
 
 ```markdown
 ### New Features
@@ -317,13 +315,8 @@ Expanded CLI authentication workflows.
 
 #### CLI
 
-<details>
-<summary>Show 2 items</summary>
-
 - Add login command
 - Add logout command
-
-</details>
 ```
 
 **`levels: [scope]`** summarizes each eligible scope:
@@ -333,13 +326,8 @@ Expanded CLI authentication workflows.
 #### CLI
 Added login and logout commands.
 
-<details>
-<summary>Show 2 items</summary>
-
 - Add login command
 - Add logout command
-
-</details>
 ```
 
 **`levels: [release, scope]`** combines an overview with scope summaries:
@@ -351,13 +339,8 @@ CLI authentication now supports signing in and out.
 #### CLI
 Added login and logout commands.
 
-<details>
-<summary>Show 2 items</summary>
-
 - Add login command
 - Add logout command
-
-</details>
 ```
 
 **`levels: [category, scope]`** keeps both summaries visible:
@@ -371,13 +354,8 @@ Expanded CLI authentication workflows.
 
 Added login and logout commands.
 
-<details>
-<summary>Show 2 items</summary>
-
 - Add login command
 - Add logout command
-
-</details>
 ```
 
 Selecting all three levels also adds the release overview. Excluding `release`

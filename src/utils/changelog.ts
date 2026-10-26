@@ -21,7 +21,6 @@ import {
   isImportantChangelogText,
   summaryDescription,
   formatSummaryText,
-  formatSummaryWithDetails,
   type SummaryCategory,
 } from './ai-summary';
 
@@ -2143,11 +2142,11 @@ async function serializeChangelog(
       const categorySummary = summary.categories[category.id];
       for (const group of category.groups) {
         const scopeSummary = summary.scopes[group.id];
-        if (scopeSummary || categorySummary)
+        if (scopeSummary)
           changelogSections[summaryPositions.get(group.id)!] =
-            formatSummaryWithDetails(scopeSummary || '', group.items);
+            `${formatSummaryText(scopeSummary)}\n\n${group.items.join('\n')}`;
       }
-      // Keep scope headings and prose visible instead of nesting details blocks.
+      // Summaries supplement the original entries without hiding their content.
       if (categorySummary)
         changelogSections.splice(
           categoryPositions.get(category.id)!,

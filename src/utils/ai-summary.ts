@@ -187,18 +187,11 @@ function shouldCondense(level: SummaryLevel, node: Node): boolean {
   );
 }
 
-/** Ordinary parents must compress their children, even for a single-child category. */
+/** Fixed prose budgets leave room for complete sentences even with short children. */
 function summaryTextLimit(level: SummaryLevel, node: Node): number {
-  const limit = SUMMARY_TEXT_LIMITS[level];
-  if (level === 'release') return limit;
-  if (!shouldCondense(level, node))
-    return level === 'category' ? CRITICAL_CATEGORY_LIMIT : limit;
-  const childLength = node.parts.reduce(
-    (total, part) => total + characterLength(part.text),
-    0,
-  );
-  // Very short child digests still need room for a grammatical, useful outcome.
-  return Math.min(limit, Math.max(80, Math.floor(childLength * 0.55)));
+  return level === 'category' && !shouldCondense(level, node)
+    ? CRITICAL_CATEGORY_LIMIT
+    : SUMMARY_TEXT_LIMITS[level];
 }
 
 function summaryWordLimit(level: SummaryLevel, node: Node): number | undefined {
@@ -406,9 +399,9 @@ class SummaryAttempt {
       const compression = criticalCategory
         ? ''
         : ` Parent prose must compress its children within the per-node schema limit and must not repeat any sequence of ${COPIED_PHRASE_WORDS} or more child words.`;
-      const baseInstructions = `${SUMMARY_INSTRUCTIONS}\nDisplay role: ${role}${level === 'scope' ? '' : compression} Each node.maxCharacters and node.maxWords (when present) is a hard prose budget. Plan complete sentences comfortably below it; never truncate a word, add counters, soft hyphens or filler to fit. Coverage is preserved through themes and the fact ledger, not by restating every detail.`;
+      const baseInstructions = `${SUMMARY_INSTRUCTIONS}\nDisplay role: ${role}${level === 'scope' ? '' : compression} Each node.maxCharacters and node.maxWords (when present) is a hard prose budget. At every level, write complete sentences ending in terminal punctuation comfortably below this budget. Rewrite to fit; never leave an unfinished clause, truncate a word, add counters, soft hyphens or filler. Coverage is preserved through themes and the fact ledger, not by restating every detail.`;
       const instructions = repair
-        ? `${baseInstructions}\nThe previous response failed validation. Rebuild the response from the source data, using every required object key, all required facts and exact part coverage. Each importantChanges source ID must occur at most once; combine multiple facts from one source into a single fact summary. Obey the supplied schema and per-node length limits. Include ALL provided requiredTerms exactly in the visible prose, not just in the fact ledger. ${criticalCategory ? 'Retain every stated migration action and applicability condition; do not replace upgrade guidance with a short theme.' : 'Replace copied child phrases with a shorter synthesis.'}`
+        ? `${baseInstructions}\nThe previous response failed validation. Rewrite any unfinished sentence as a complete thought with terminal punctuation; do not just append punctuation to a fragment. Rebuild the response from the source data, using every required object key, all required facts and exact part coverage. Each importantChanges source ID must occur at most once; combine multiple facts from one source into a single fact summary. Obey the supplied schema and per-node length limits. Include ALL provided requiredTerms exactly in the visible prose, not just in the fact ledger. ${criticalCategory ? 'Retain every stated migration action and applicability condition; do not replace upgrade guidance with a short theme.' : 'Replace copied child phrases with a shorter synthesis.'}`
         : baseInstructions;
       const output = await this.provider.request({
         input: JSON.stringify(input),
@@ -460,8 +453,7 @@ class SummaryAttempt {
           /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u00ad]/.test(
             digest.summary,
           ) ||
-          (level === 'release' &&
-            !/[\p{L}\p{N})'’”][.!?。！？]["'’”)]*$/u.test(digest.summary))
+          !/[\p{L}\p{N})'’”][.!?。！？]["'’”)]*$/u.test(digest.summary)
         )
           throw new SummaryFailure('response-prose');
         if (
@@ -914,13 +906,4 @@ export function formatSummaryText(summary: string): string {
     .replace(/[a-z][a-z0-9+.-]*:\/\/|www\./gi, prefix =>
       prefix.replace(':', '&#58;').replace('.', '&#46;'),
     );
-}
-
-export function formatSummaryWithDetails(
-  summary: string,
-  items: string[],
-): string {
-  const count = items.length;
-  const prose = summary ? `${formatSummaryText(summary)}\n\n` : '';
-  return `${prose}<details>\n<summary>Show ${count} item${count === 1 ? '' : 's'}</summary>\n\n${items.join('\n')}\n\n</details>`;
 }
