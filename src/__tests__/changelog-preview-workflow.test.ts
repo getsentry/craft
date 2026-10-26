@@ -1,7 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
-  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -109,83 +108,88 @@ printf '#!/usr/bin/env bash\\nprintf "2.35.0\\\\n"\\n' > "$3"
 );
 
 describe('Generate Changelog Preview', () => {
-  // Fake `gh` backed by JSON files, so the step's real jq lookup filter runs
-  // against stored comments and the stored bodies are what the step wrote.
-  const fakeGh = `#!/usr/bin/env bash
+  let root: string;
+  let repo: string;
+  let baseSha: string;
+
+  const git = (...args: string[]) =>
+    spawnSync('git', args, { cwd: repo, encoding: 'utf8' }).stdout.trim();
+  const write = (path: string, body: string) => {
+    mkdirSync(join(path, '..'), { recursive: true });
+    writeFileSync(path, body);
+  };
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'craft-preview-'));
+    repo = join(root, 'repo');
+    mkdirSync(repo);
+    git('init', '-q');
+    git('config', 'user.name', 'Test');
+    git('config', 'user.email', 'test@example.com');
+    for (const dir of ['packages/python', 'packages/rust', 'server']) {
+      write(join(repo, dir, 'file'), 'base\n');
+    }
+    git('add', '.');
+    git('commit', '-qm', 'base');
+    baseSha = git('rev-parse', 'HEAD');
+
+    // Stub `craft` reports the bump stored in each package directory
+    write(
+      join(root, 'bin', 'craft'),
+      `#!/usr/bin/env bash
+printf '{"changelog":"- Entry in %s","bumpType":"%s"}' "\${PWD##*/}" "$(cat bump 2>/dev/null || echo minor)"
+`,
+    );
+    // Fake \`gh\` that records statuses and stores comments, looking them up
+    // with the step's own --jq filter
+    write(
+      join(root, 'bin', 'gh'),
+      `#!/usr/bin/env bash
 set -euo pipefail
-comments="$STATE/comments.json"
-statuses="$STATE/statuses.json"
 args=("$@")
-arg_after() {
-  for ((i = 0; i < \${#args[@]}; i++)); do
-    if [[ "\${args[$i]}" == "$1" ]]; then printf '%s' "\${args[$((i + 1))]}"; return; fi
-  done
-}
 field() {
   for a in "\${args[@]}"; do
     if [[ "$a" == "$1="* ]]; then printf '%s' "\${a#"$1="}"; return; fi
   done
 }
 case "$*" in
-  *'/statuses/'*)
-    # Like GitHub, a new status replaces any with the same context, ignoring case
-    jq --arg c "$(field context)" --arg d "$(field description)" \
-      'map(select((.context | ascii_downcase) != ($c | ascii_downcase))) + [{context: $c, description: $d}]' \
-      "$statuses" > "$statuses.tmp"
-    mv "$statuses.tmp" "$statuses" ;;
-  *'--jq'*)
-    jq -r "$(arg_after --jq)" "$comments" ;;
+  *'/statuses/'*) printf '%s|%s\\n' "$(field context)" "$(field description)" >> "$STATE/statuses" ;;
+  *'--jq'*) jq -r "\${args[3]}" "$STATE/comments.json" ;;
   *'-X PATCH'*)
-    id="\${args[3]##*/}"
-    jq --argjson id "$id" --rawfile b "$(field body | cut -c2-)" \
-      'map(if .id == $id then .body = $b else . end)' "$comments" > "$comments.tmp"
-    mv "$comments.tmp" "$comments" ;;
+    jq --argjson id "\${args[3]##*/}" --rawfile b "$(field body | cut -c2-)" \\
+      'map(if .id == $id then .body = $b else . end)' "$STATE/comments.json" > "$STATE/tmp"
+    mv "$STATE/tmp" "$STATE/comments.json" ;;
   *'-X POST'*)
-    jq --rawfile b "$(field body | cut -c2-)" \
-      '. + [{id: (length + 1), body: $b}]' "$comments" > "$comments.tmp"
-    mv "$comments.tmp" "$comments" ;;
+    jq --rawfile b "$(field body | cut -c2-)" '. + [{id: (length + 1), body: $b}]' \\
+      "$STATE/comments.json" > "$STATE/tmp"
+    mv "$STATE/tmp" "$STATE/comments.json" ;;
   *) exit 99 ;;
 esac
-`;
-
-  let root: string;
-  let repo: string;
-
-  beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), 'craft-preview-'));
-    repo = join(root, 'repo');
-    for (const dir of [
-      'packages/python',
-      'packages/rust',
-      'packages/foo bar',
-      'packages/foo-bar',
-    ]) {
-      mkdirSync(join(repo, dir), { recursive: true });
-    }
-    spawnSync('git', ['init', '-q', repo]);
-    mkdirSync(join(root, 'bin'));
-    const executable = (name: string, body: string) => {
-      writeFileSync(join(root, 'bin', name), body);
-      chmodSync(join(root, 'bin', name), 0o755);
-    };
-    executable('gh', fakeGh);
-    executable(
-      'craft',
-      `#!/usr/bin/env bash
-printf '%s' '{"changelog":"- Entry","bumpType":"minor","prSkipped":false,"versioningPolicy":"auto"}'
 `,
     );
+    chmodSync(join(root, 'bin', 'craft'), 0o755);
+    chmodSync(join(root, 'bin', 'gh'), 0o755);
     writeFileSync(join(root, 'comments.json'), '[]');
-    writeFileSync(join(root, 'statuses.json'), '[]');
+    writeFileSync(join(root, 'statuses'), '');
   });
 
   afterEach(() => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  function run(dir: string, { comment = true } = {}): string {
+  /** Commits a PR change touching the given directories */
+  function change(...dirs: string[]) {
+    for (const dir of dirs) {
+      write(join(repo, dir, 'file'), 'changed\n');
+    }
+    git('commit', '-qam', 'change');
+  }
+
+  function run(directories: string, { comment = true } = {}) {
     const summary = join(root, 'summary.md');
+    const output = join(root, 'output');
     writeFileSync(summary, '');
+    writeFileSync(output, '');
     const result = spawnSync(
       'bash',
       [
@@ -195,7 +199,7 @@ printf '%s' '{"changelog":"- Entry","bumpType":"minor","prSkipped":false,"versio
         preview.run!.replace('${{ inputs.comment }}', String(comment)),
       ],
       {
-        cwd: join(repo, dir),
+        cwd: repo,
         encoding: 'utf8',
         env: {
           ...process.env,
@@ -203,114 +207,92 @@ printf '%s' '{"changelog":"- Entry","bumpType":"minor","prSkipped":false,"versio
           STATE: root,
           PR_NUMBER: '7',
           HEAD_SHA: 'abc123',
+          BASE_SHA: baseSha,
+          WORKING_DIRECTORIES: directories,
           GITHUB_REPOSITORY: 'owner/repo',
           GITHUB_SERVER_URL: 'https://github.com',
           GITHUB_RUN_ID: '1',
-          GITHUB_OUTPUT: join(root, 'output'),
+          GITHUB_OUTPUT: output,
           GITHUB_STEP_SUMMARY: summary,
         },
       },
     );
     expect(result.stderr).toBe('');
     expect(result.status).toBe(0);
-    return readFileSync(summary, 'utf8');
+    return {
+      summary: readFileSync(summary, 'utf8'),
+      output: readFileSync(output, 'utf8'),
+    };
   }
 
   const comments = () =>
-    JSON.parse(readFileSync(join(root, 'comments.json'), 'utf8')) as {
-      id: number;
-      body: string;
-    }[];
+    (
+      JSON.parse(readFileSync(join(root, 'comments.json'), 'utf8')) as {
+        body: string;
+      }[]
+    ).map(c => c.body);
   const statuses = () =>
-    JSON.parse(readFileSync(join(root, 'statuses.json'), 'utf8')) as {
-      context: string;
-      description: string;
-    }[];
-  const firstLines = (body: string) => body.split('\n').slice(0, 2);
+    readFileSync(join(root, 'statuses'), 'utf8').trim().split('\n');
 
-  test('keeps the original comment identity for the repo root', () => {
-    writeFileSync(
-      join(root, 'comments.json'),
-      JSON.stringify([
-        { id: 1, body: '<!-- craft-changelog-preview -->\nold' },
-      ]),
-    );
-    run('.');
+  test.each(['', '.', 'packages/python'])(
+    'keeps the single-package layout for working-directory %j',
+    directory => {
+      change('server');
+      run(directory);
+      run(directory);
+      expect(comments()).toHaveLength(1);
+      expect(comments()[0]).toMatch(
+        /^<!-- craft-changelog-preview -->\n## Semver Impact of This PR\n\n🟡 \*\*Minor\*\* \(new features\)\n\n<details>\n<summary>📋 Changelog Preview<\/summary>\n/,
+      );
+    },
+  );
+
+  test('shows one collapsed section per changed package in a single comment', () => {
+    write(join(repo, 'packages/rust/bump'), 'patch');
+    change('packages/python', 'packages/rust');
+    const directories = 'packages/python\n./packages/rust/\n';
+    run(directories);
+    const { output } = run(directories);
+
     expect(comments()).toHaveLength(1);
-    expect(firstLines(comments()[0].body)).toEqual([
-      '<!-- craft-changelog-preview -->',
-      '## Semver Impact of This PR',
-    ]);
+    const body = comments()[0];
+    expect(body).toContain(
+      '<!-- craft-changelog-preview -->\n## Changelog Preview\n',
+    );
+    expect(body).toContain(
+      '<details>\n<summary><code>packages/python</code> · 🟡 Minor (new features)</summary>\n\n- Entry in python\n\n</details>\n\n' +
+        '<details>\n<summary><code>packages/rust</code> · 🟢 Patch (bug fixes)</summary>\n\n- Entry in rust\n\n</details>',
+    );
+    expect(output).toContain('bump_type=minor\n');
   });
 
-  test('gives each package directory its own comment', () => {
-    run('.');
-    run('packages/python');
-    run('packages/rust');
-    run('packages/python');
-    expect(comments().map(c => firstLines(c.body))).toEqual([
-      ['<!-- craft-changelog-preview -->', '## Semver Impact of This PR'],
-      [
-        '<!-- craft-changelog-preview:packages/python -->',
-        '## Semver Impact of This PR (packages/python)',
-      ],
-      [
-        '<!-- craft-changelog-preview:packages/rust -->',
-        '## Semver Impact of This PR (packages/rust)',
-      ],
-    ]);
+  test('leaves out packages the PR does not change', () => {
+    change('packages/rust', 'server');
+    run('packages/python\npackages/rust');
+    expect(comments()[0]).toContain('<code>packages/rust</code>');
+    expect(comments()[0]).not.toContain('packages/python');
   });
 
-  test('uses a separate status context per directory', () => {
-    const summary = run('packages/python', { comment: false });
-    run('packages/rust', { comment: false });
-    run('.', { comment: false });
+  test('says so when the PR changes none of the packages', () => {
+    change('server');
+    const { output } = run('packages/python\npackages/rust');
+    expect(comments()[0]).toContain(
+      '_This PR changes none of the previewed packages._',
+    );
+    expect(output).toContain('pr_skipped=true\n');
+  });
+
+  test('posts one status for all packages in status mode', () => {
+    write(join(repo, 'packages/python/bump'), 'major');
+    change('packages/python', 'packages/rust');
+    const { summary } = run('packages/python\npackages/rust', {
+      comment: false,
+    });
     expect(statuses()).toEqual([
-      {
-        context: 'Changelog Preview / Semver Impact (packages/python)',
-        description: 'Minor',
-      },
-      {
-        context: 'Changelog Preview / Semver Impact (packages/rust)',
-        description: 'Minor',
-      },
-      { context: 'Changelog Preview / Semver Impact', description: 'Minor' },
+      'Changelog Preview / Semver Impact|packages/python: Major, packages/rust: Minor',
     ]);
-    expect(summary).toContain('## Semver Impact of This PR (packages/python)');
+    expect(summary).toContain('<code>packages/python</code> · 🔴 Major');
+    expect(summary).toContain('<code>packages/rust</code> · 🟡 Minor');
     expect(comments()).toEqual([]);
-  });
-
-  test('keeps status contexts apart for directories differing only in case', ({
-    skip,
-  }) => {
-    if (existsSync(join(repo, 'packages/PYTHON'))) {
-      skip('needs a case-sensitive file system');
-    }
-    mkdirSync(join(repo, 'packages/Python'));
-    run('packages/python', { comment: false });
-    run('packages/Python', { comment: false });
-    run('packages/Python', { comment: false });
-    const contexts = statuses().map(s => s.context);
-    expect(contexts).toHaveLength(2);
-    expect(contexts[0]).toBe(
-      'Changelog Preview / Semver Impact (packages/python)',
-    );
-    expect(contexts[1]).toMatch(
-      /^Changelog Preview \/ Semver Impact \(packages\/Python~[0-9a-f]{8}\)$/,
-    );
-  });
-
-  test('keeps directories apart when sanitizing makes their names equal', () => {
-    run('packages/foo-bar');
-    run('packages/foo bar');
-    run('packages/foo bar');
-    const markers = comments().map(c => c.body.split('\n')[0]);
-    expect(markers).toHaveLength(2);
-    expect(markers[0]).toBe(
-      '<!-- craft-changelog-preview:packages/foo-bar -->',
-    );
-    expect(markers[1]).toMatch(
-      /^<!-- craft-changelog-preview:packages\/foo-bar~[0-9a-f]{8} -->$/,
-    );
   });
 });

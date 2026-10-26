@@ -55,7 +55,7 @@ on:
   workflow_call:
     inputs:
       working-directory:
-        description: 'Directory to run Craft in (relative to repo root). Previews for different directories get separate PR comments and status checks.'
+        description: 'Directory to run Craft in (relative to repo root). List one directory per line to preview several packages in one comment.'
         required: false
         type: string
         default: '.'
@@ -150,21 +150,144 @@ jobs:
       - name: Generate Changelog Preview
         id: preview
         shell: bash
-        working-directory: ${{ inputs.working-directory }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CRAFT_LOG_LEVEL: Warn
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          WORKING_DIRECTORIES: ${{ inputs.working-directory }}
         run: |
-          echo "Running craft changelog --pr $PR_NUMBER --format json..."
-          RESULT=$(craft changelog --pr "$PR_NUMBER" --format json 2>/dev/null || echo '{"changelog":"","bumpType":null}')
+          # Runs Craft in directory $1 and sets CHANGELOG, BUMP_TYPE, PR_SKIPPED,
+          # VERSIONING_POLICY, BUMP_BADGE, BUMP_SHORT, SECTION_HEADING and
+          # STATUS_CONTEXT from its result
+          preview_directory() {
+            echo "Running craft changelog --pr $PR_NUMBER --format json in $1..."
+            RESULT=$(cd "$1" && craft changelog --pr "$PR_NUMBER" --format json 2>/dev/null || echo '{"changelog":"","bumpType":null}')
 
-          CHANGELOG=$(echo "$RESULT" | jq -r '.changelog // ""')
-          BUMP_TYPE=$(echo "$RESULT" | jq -r '.bumpType // "none"')
-          PR_SKIPPED=$(echo "$RESULT" | jq -r '.prSkipped // false')
-          VERSIONING_POLICY=$(echo "$RESULT" | jq -r '.versioningPolicy // "auto"')
+            CHANGELOG=$(echo "$RESULT" | jq -r '.changelog // ""')
+            BUMP_TYPE=$(echo "$RESULT" | jq -r '.bumpType // "none"')
+            PR_SKIPPED=$(echo "$RESULT" | jq -r '.prSkipped // false')
+            VERSIONING_POLICY=$(echo "$RESULT" | jq -r '.versioningPolicy // "auto"')
+
+            if [[ "$PR_SKIPPED" == "true" ]]; then
+              CHANGELOG="_This PR will not appear in the changelog._"
+            elif [[ -z "$CHANGELOG" ]]; then
+              CHANGELOG="_No changelog entries will be generated from this PR._"
+            fi
+
+            # CalVer projects don't use semver bumps — skip the impact badge
+            if [[ "$VERSIONING_POLICY" == "calver" ]]; then
+              BUMP_BADGE=""
+              BUMP_SHORT="CalVer"
+              SECTION_HEADING="Changelog Preview"
+              STATUS_CONTEXT="Changelog Preview"
+            else
+              case "$BUMP_TYPE" in
+                major) BUMP_BADGE="🔴 **Major** (breaking changes)" ;;
+                minor) BUMP_BADGE="🟡 **Minor** (new features)" ;;
+                patch) BUMP_BADGE="🟢 **Patch** (bug fixes)" ;;
+                *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
+              esac
+
+              case "$BUMP_TYPE" in
+                major) BUMP_SHORT="Major" ;;
+                minor) BUMP_SHORT="Minor" ;;
+                patch) BUMP_SHORT="Patch" ;;
+                *) BUMP_SHORT="None" ;;
+              esac
+
+              SECTION_HEADING="Semver Impact of This PR"
+              STATUS_CONTEXT="Changelog Preview / Semver Impact"
+            fi
+          }
+
+          # One directory per line, each with its own Craft config
+          mapfile -t DIRECTORIES < <(printf '%s\n' "$WORKING_DIRECTORIES" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d')
+
+          if [[ ${#DIRECTORIES[@]} -le 1 ]]; then
+            preview_directory "${DIRECTORIES[0]:-.}"
+            STATUS_DESCRIPTION="$BUMP_SHORT"
+            PREVIEW_BODY="## ${SECTION_HEADING}
+
+          ${BUMP_BADGE}
+
+          <details>
+          <summary>📋 Changelog Preview</summary>
+
+          This is how your changes will appear in the changelog.
+          Entries from this PR are highlighted with a left border (blockquote style).
+
+          ---
+
+          ${CHANGELOG}
+
+          ---
+
+          </details>"
+          else
+            # Several packages share one comment (or job summary) and one
+            # status, with a collapsed section per package. `craft changelog
+            # --pr` adds the PR to every changelog it renders, so only show the
+            # packages this PR changes. Export the values of the package with
+            # the biggest bump for the steps below.
+            SECTIONS=""
+            STATUS_DESCRIPTION=""
+            BEST_RANK=-1
+            OUT_BUMP_TYPE=none
+            OUT_PR_SKIPPED=true
+            OUT_VERSIONING_POLICY=auto
+            OUT_STATUS_CONTEXT="Changelog Preview / Semver Impact"
+            for DIR in "${DIRECTORIES[@]}"; do
+              if git diff --quiet "${BASE_SHA}...HEAD" -- "$DIR"; then
+                continue
+              fi
+              preview_directory "$DIR"
+
+              case "$BUMP_TYPE" in
+                major) RANK=3 ;;
+                minor) RANK=2 ;;
+                patch) RANK=1 ;;
+                *) RANK=0 ;;
+              esac
+              if (( RANK > BEST_RANK )); then
+                BEST_RANK=$RANK
+                OUT_BUMP_TYPE=$BUMP_TYPE
+                OUT_PR_SKIPPED=$PR_SKIPPED
+                OUT_VERSIONING_POLICY=$VERSIONING_POLICY
+                OUT_STATUS_CONTEXT=$STATUS_CONTEXT
+              fi
+
+              LABEL="${DIR#./}"
+              LABEL="${LABEL%/}"
+              LABEL="${LABEL//&/&amp;}"
+              LABEL="${LABEL//</&lt;}"
+              LABEL="${LABEL//>/&gt;}"
+              SUMMARY="<code>${LABEL}</code>${BUMP_BADGE:+ · ${BUMP_BADGE//\*\*/}}"
+              SECTIONS+="${SECTIONS:+$'\n\n'}<details>
+          <summary>${SUMMARY}</summary>
+
+          ${CHANGELOG}
+
+          </details>"
+              STATUS_DESCRIPTION+="${STATUS_DESCRIPTION:+, }${LABEL}: ${BUMP_SHORT}"
+            done
+
+            BUMP_TYPE=$OUT_BUMP_TYPE
+            PR_SKIPPED=$OUT_PR_SKIPPED
+            VERSIONING_POLICY=$OUT_VERSIONING_POLICY
+            STATUS_CONTEXT=$OUT_STATUS_CONTEXT
+            # GitHub rejects status descriptions over 140 characters
+            STATUS_DESCRIPTION="${STATUS_DESCRIPTION:-None}"
+            STATUS_DESCRIPTION="${STATUS_DESCRIPTION:0:140}"
+            PREVIEW_BODY="## Changelog Preview
+
+          This is how your changes will appear in each package's changelog.
+          Entries from this PR are highlighted with a left border (blockquote style).
+
+          ${SECTIONS:-_This PR changes none of the previewed packages._}"
+          fi
 
           # Export for downstream steps (e.g., title enforcement)
           {
@@ -172,62 +295,6 @@ jobs:
             echo "pr_skipped=${PR_SKIPPED}"
             echo "versioning_policy=${VERSIONING_POLICY}"
           } >> "$GITHUB_OUTPUT"
-
-          if [[ "$PR_SKIPPED" == "true" ]]; then
-            CHANGELOG="_This PR will not appear in the changelog._"
-          elif [[ -z "$CHANGELOG" ]]; then
-            CHANGELOG="_No changelog entries will be generated from this PR._"
-          fi
-
-          # CalVer projects don't use semver bumps — skip the impact badge
-          if [[ "$VERSIONING_POLICY" == "calver" ]]; then
-            BUMP_BADGE=""
-            BUMP_SHORT="CalVer"
-            SECTION_HEADING="Changelog Preview"
-            STATUS_CONTEXT="Changelog Preview"
-          else
-            case "$BUMP_TYPE" in
-              major) BUMP_BADGE="🔴 **Major** (breaking changes)" ;;
-              minor) BUMP_BADGE="🟡 **Minor** (new features)" ;;
-              patch) BUMP_BADGE="🟢 **Patch** (bug fixes)" ;;
-              *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
-            esac
-
-            case "$BUMP_TYPE" in
-              major) BUMP_SHORT="Major" ;;
-              minor) BUMP_SHORT="Minor" ;;
-              patch) BUMP_SHORT="Patch" ;;
-              *) BUMP_SHORT="None" ;;
-            esac
-
-            SECTION_HEADING="Semver Impact of This PR"
-            STATUS_CONTEXT="Changelog Preview / Semver Impact"
-          fi
-
-          # Key the preview by working directory, so a PR touching several
-          # packages (one Craft config each) gets one preview per package
-          # instead of each run overwriting the same comment and status.
-          # Previews for the repo root keep the original names.
-          COMMENT_MARKER="<!-- craft-changelog-preview -->"
-          # Repo-relative path of the working directory, normalized by git
-          PREVIEW_DIR=$(git rev-parse --show-prefix)
-          PREVIEW_DIR="${PREVIEW_DIR%/}"
-          if [[ -n "$PREVIEW_DIR" ]]; then
-            # Only keep characters that are safe in an HTML comment and a jq
-            # string. If that changes the path, append a hash of the original
-            # so that e.g. "foo bar" and "foo-bar" stay apart. Do the same for
-            # uppercase letters: GitHub compares status contexts
-            # case-insensitively, so "Python" and "python" would collide.
-            # "~" is never kept, so a hashed ID can't match an unchanged path.
-            PREVIEW_ID="${PREVIEW_DIR//[^A-Za-z0-9._\/-]/-}"
-            if [[ "$PREVIEW_ID" != "$PREVIEW_DIR" || "$PREVIEW_DIR" =~ [[:upper:]] ]]; then
-              PREVIEW_HASH=$(printf '%s' "$PREVIEW_DIR" | git hash-object --stdin)
-              PREVIEW_ID="${PREVIEW_ID}~${PREVIEW_HASH:0:8}"
-            fi
-            SECTION_HEADING="${SECTION_HEADING} (${PREVIEW_ID})"
-            STATUS_CONTEXT="${STATUS_CONTEXT} (${PREVIEW_ID})"
-            COMMENT_MARKER="<!-- craft-changelog-preview:${PREVIEW_ID} -->"
-          fi
 
           # Determine mode: use status check mode when comment is false OR when running internally (no input)
           USE_COMMENT_MODE="${{ inputs.comment }}"
@@ -246,7 +313,7 @@ jobs:
               "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
               -f state="success" \
               -f context="$STATUS_CONTEXT" \
-              -f description="$BUMP_SHORT" \
+              -f description="$STATUS_DESCRIPTION" \
               -f target_url="$TARGET_URL"
             
             echo "✓ Commit status created"
@@ -257,23 +324,7 @@ jobs:
 
           [→ View PR #${PR_NUMBER}](${PR_URL})
 
-          ## ${SECTION_HEADING}
-
-          ${BUMP_BADGE}
-
-          <details>
-          <summary>📋 Changelog Preview</summary>
-
-          This is how your changes will appear in the changelog.
-          Entries from this PR are highlighted with a left border (blockquote style).
-
-          ---
-
-          ${CHANGELOG}
-
-          ---
-
-          </details>
+          ${PREVIEW_BODY}
           CRAFT_CHANGELOG_SUMMARY_END
             
             echo "✓ Job summary written"
@@ -283,31 +334,15 @@ jobs:
             
             COMMENT_FILE=$(mktemp)
             cat > "$COMMENT_FILE" << CRAFT_CHANGELOG_COMMENT_END
-          ${COMMENT_MARKER}
-          ## ${SECTION_HEADING}
-
-          ${BUMP_BADGE}
-
-          <details>
-          <summary>📋 Changelog Preview</summary>
-
-          This is how your changes will appear in the changelog.
-          Entries from this PR are highlighted with a left border (blockquote style).
-
-          ---
-
-          ${CHANGELOG}
-
-          ---
-
-          </details>
+          <!-- craft-changelog-preview -->
+          ${PREVIEW_BODY}
 
           <sub>🤖 This preview updates automatically when you update the PR.</sub>
           CRAFT_CHANGELOG_COMMENT_END
 
             COMMENT_ID=$(gh api \
               "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-              --jq ".[] | select(.body | contains(\"${COMMENT_MARKER}\")) | .id" \
+              --jq '.[] | select(.body | contains("<!-- craft-changelog-preview -->")) | .id' \
               | head -1)
 
             if [[ -n "$COMMENT_ID" ]]; then
