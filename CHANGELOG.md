@@ -1,5 +1,38 @@
 # Changelog
 
+## 3.1.0
+
+Workspace-aware release labeling, clearer AI summaries, safer dependency handling, and stricter configuration validation improve changelog clarity and upgrade safety.
+
+### New Features ✨
+
+GitHub release titles now reflect workspace tag prefixes for versioned changelog headings, while other release titles remain unchanged.
+
+- (github) Prefix release titles with the workspace tag prefix by @sentry-junior in [#926](https://github.com/getsentry/craft/pull/926)
+
+### Bug Fixes 🐛
+
+AI summaries are repaired for completeness and concision, while dependency advisories and lockfile drift receive safer handling.
+
+#### Changelog
+
+AI changelog summaries now stay complete, concise, and distinct across scopes, categories, and releases. Original entries remain fully expanded, with headings, links, nested content, and author-provided expanders preserved. Duplicate or unfinished model output is repaired or replaced with the original changelog.
+
+- Keep AI summaries complete and entries expanded by @MathurAditya724 in [#931](https://github.com/getsentry/craft/pull/931)
+- Keep AI summaries concise, distinct, and complete by @MathurAditya724 in [#929](https://github.com/getsentry/craft/pull/929)
+
+#### Other
+
+- (deps) Remediate follow-redirects, vite, vitest, astro, and zod advisories by @sentry-junior in [#925](https://github.com/getsentry/craft/pull/925)
+- (docs) Restore pnpm overrides and patch in docs lockfile by @sentry-junior in [#928](https://github.com/getsentry/craft/pull/928)
+
+### Internal Changes 🔧
+
+Configuration validation now rejects unsafe workspace keys, and documentation dependencies receive a targeted upgrade.
+
+- (config) Replace Zod with Valibot by @sentry-junior in [#930](https://github.com/getsentry/craft/pull/930)
+- (deps) Bump undici from 8.10.2 to 8.12.3 in /docs by @dependabot in [#927](https://github.com/getsentry/craft/pull/927)
+
 ## 3.0.0
 
 ### Breaking Changes 🛠
