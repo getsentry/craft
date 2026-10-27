@@ -767,6 +767,97 @@ describe('workspaces', () => {
     expect(getConfiguration(true).releaseBranchPrefix).toBe('release/package');
   });
 
+  test('expands workspace placeholders for each glob match', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    for (const name of ['scraps', 'icons']) {
+      mkdirSync(join(directory, 'packages', name), { recursive: true });
+      writeFileSync(
+        join(directory, 'packages', name, 'package.json'),
+        JSON.stringify({ name: `@sentry/${name}` }),
+      );
+    }
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'github:',
+        '  owner: getsentry',
+        '  repo: sentry',
+        // Inherited top-level settings expand too.
+        "releaseBranchPrefix: '{{workspaceName}}/release'",
+        'workspaces:',
+        '  packages/*:',
+        '    statusProvider:',
+        '      name: github',
+        '      config:',
+        "        contexts: ['{{workspaceName}}-package-pack']",
+        '    artifactProvider:',
+        '      name: github',
+        '      config:',
+        '        artifacts:',
+        "          Package: ['{{packageSimpleName}}-tarball']",
+        '    targets:',
+        '      - name: github',
+        "        tagPrefix: '{{workspaceName}}@'",
+        '      - name: npm',
+        "        id: '{{packageName}} in {{workspace}}'",
+        // Target-level templates keep their own markers.
+        "        artifactTemplate: '{{simpleName}}-{{version}}.tgz'",
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    setActiveWorkspace('packages/scraps');
+    const scraps = getConfiguration(true);
+    expect(scraps.releaseBranchPrefix).toBe('scraps/release');
+    expect(scraps.statusProvider?.config?.contexts).toEqual([
+      'scraps-package-pack',
+    ]);
+    expect(scraps.artifactProvider?.config?.artifacts).toEqual({
+      Package: ['sentry-scraps-tarball'],
+    });
+    expect(scraps.targets).toEqual([
+      { name: 'github', tagPrefix: 'scraps@' },
+      {
+        name: 'npm',
+        id: '@sentry/scraps in packages/scraps',
+        artifactTemplate: '{{simpleName}}-{{version}}.tgz',
+      },
+    ]);
+    expect(getGitTagPrefix()).toBe('scraps@');
+
+    setActiveWorkspace('packages/icons');
+    expect(getConfiguration(true).releaseBranchPrefix).toBe('icons/release');
+    expect(getGitTagPrefix()).toBe('icons@');
+  });
+
+  test('rejects package placeholders without a package name', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      [
+        `minVersion: ${WORKSPACES_MIN_VERSION}`,
+        'workspaces:',
+        '  packages/*:',
+        "    releaseBranchPrefix: '{{packageName}}/release'",
+      ].join('\n'),
+    );
+    process.chdir(directory);
+
+    setActiveWorkspace('packages/cli');
+    expect(() => getConfiguration(true)).toThrow(
+      'Workspace "packages/cli" uses {{packageName}}, but packages/cli/package.json could not be read',
+    );
+
+    writeFileSync(join(directory, 'packages', 'cli', 'package.json'), '{}');
+    expect(() => getConfiguration(true)).toThrow(
+      'packages/cli/package.json has no "name"',
+    );
+  });
+
   test('expands remote configuration globs from the repository root', () => {
     const directory = mkdtempSync(join(tmpdir(), 'craft-workspaces-'));
     temporaryDirectories.push(directory);
