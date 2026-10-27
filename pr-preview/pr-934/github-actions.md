@@ -55,8 +55,13 @@ jobs:
 | `publish_repo` | Repository for publish issues (owner/repo format). Use `"self"` to create issues in the source repository itself. | `{owner}/publish` |
 | `git_user_name` | Git committer name. | GitHub actor |
 | `git_user_email` | Git committer email. | Actor’s noreply email |
-| `path` | The path that Craft will run inside. | `.` |
+| `path` | The path that Craft will run inside. Cannot be combined with `workspace`. | `.` |
+| `workspace` | [Release workspace](https://craft.sentry.dev/pr-preview/pr-934/workspaces.md) to prepare and publish. |  |
 | `craft_config_from_merge_target` | Use the craft config from the merge target branch. | `false` |
+| `craft_version` | Craft version to install: a release tag, `latest`, `nightly`, or `nightly-<full commit SHA>`. See [Test a Craft nightly](#test-a-craft-nightly). | Matches the workflow ref |
+| `llm` | JSON object with AI summary `endpoint`, `model`, and `apiKeyEnv`. See [AI summary authentication](#ai-summary-authentication). | `vars.CRAFT_AI_LLM` |
+
+The workflow also accepts an optional `llm_api_key` secret for AI summaries.
 
 #### Workflow Outputs
 
@@ -66,7 +71,7 @@ jobs:
 | `branch` | The release branch name |
 | `sha` | The commit SHA on the release branch |
 | `previous_tag` | The tag before this release (for diff links) |
-| `changelog` | The changelog for this release |
+| `changelog` | The changelog for this release (may be truncated for large repos) |
 
 ### Option 2: Composite Action
 
@@ -109,7 +114,12 @@ jobs:
 ```
 
 
-The action accepts the same inputs and produces the same outputs as the reusable workflow.
+The action accepts the same inputs as the reusable workflow, with `llm_api_key` as a regular input instead of a secret. Besides the workflow outputs, it also returns:
+
+| Output | Description |
+| --- | --- |
+| `changelog_file` | Path to the full changelog file, useful when `changelog` is truncated |
+| `issue_url` | URL of the created publish request issue |
 
 ### Native executable selection
 
@@ -139,7 +149,7 @@ For built-in-token Copilot access, callers (including reusable workflow callers)
 
 Map `${{ github.token }}` to `GITHUB_TOKEN`, or pass it as `llm_api_key` when release operations use a different token. See [GitHub’s workflow-token guide](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions). Personal Copilot credentials require Copilot access; fine-grained PATs need **Copilot Requests: write**. Custom provider credentials need no Copilot permission.
 
-Copilot’s direct HTTP backend is outside GitHub’s public REST API contract. Missing credentials or failed requests preserve the original changelog without switching providers. See [AI summary configuration](https://craft.sentry.dev/pr-preview/pr-934/configuration.md#ai-summaries) for precedence, limits and output examples.
+Copilot’s direct HTTP backend is outside GitHub’s public REST API contract. Missing credentials or failed requests preserve the original changelog without switching providers. See [AI summary configuration](https://craft.sentry.dev/pr-preview/pr-934/ai-summaries.md) for precedence, limits and output examples.
 
 The **AI summary integration** workflow makes one live request using public fixture facts when the AI connection/release wiring changes in an internal pull request. Fork pull requests skip that credentialed check. Regular AI unit, HTTP-fixture, and CLI/Action integration tests still run in the Node 22/24 CI suites. A green release with fallback warnings alone does not prove live AI summaries worked.
 
@@ -181,7 +191,7 @@ jobs:
 ```
 
 
-## Changelog Preview (Reusable Workflow)
+## Changelog Preview
 
 The changelog preview workflow posts a comment on pull requests showing how they will appear in the changelog. This helps contributors understand the impact of their changes.
 
@@ -318,7 +328,7 @@ jobs:
 
 Note
 
-The version bump suggestion requires categories in your `.github/release.yml` to have `semver` fields defined. Without them, the suggested bump will show as “None”. See [Auto Mode configuration](/configuration/#auto-mode) for details.
+The version bump suggestion requires categories in your `.github/release.yml` to have `semver` fields defined. Without them, the suggested bump will show as “None”. See [Changelogs → Categories](https://craft.sentry.dev/pr-preview/pr-934/changelogs.md#categories) for details.
 
 ### Example Comment
 
@@ -403,40 +413,15 @@ All permissions are required
 
 GitHub Actions reusable workflows use permission intersection - the final permissions are the intersection of what the caller grants and what the workflow declares. The changelog-preview workflow declares both `pull-requests: write` and `statuses: write`, so **your caller workflow must grant both permissions** regardless of which mode you use. If either permission is missing, GitHub will refuse to run the workflow.
 
-## Skipping Changelog Entries
-
-### Using Magic Words
-
-Use `#skip-changelog` in your commit message or PR body to exclude a commit from the changelog:
-
-```plaintext
-chore: Update dependencies
-
-
-#skip-changelog
-```
-
-
-### Using Labels
-
-You can configure labels to exclude PRs from the changelog. In your `.craft.yml`:
-
-```yaml
-changelog:
-  categories:
-    - title: 'New Features ✨'
-      labels: ['feature', 'enhancement']
-    - title: 'Bug Fixes 🐛'
-      labels: ['bug', 'fix']
-  exclude:
-    labels: ['skip-changelog', 'dependencies']
-    authors: ['dependabot[bot]', 'renovate[bot]']
-```
-
-
-PRs with the `skip-changelog` label or from excluded authors will not appear in the changelog.
-
 ## Tips
+
+### Skipping changelog entries
+
+Add `#skip-changelog` to a PR body or the `skip-changelog` label to leave a change out of the changelog and its preview. See [Changelogs → Skipping entries](https://craft.sentry.dev/pr-preview/pr-934/changelogs.md#skipping-entries) for all options.
+
+### Monorepos
+
+Pass the `workspace` input to release one [release workspace](https://craft.sentry.dev/pr-preview/pr-934/workspaces.md#github-actions) at a time.
 
 ### Combining Both Workflows
 
@@ -489,5 +474,5 @@ jobs:
 ## Navigation
 
 - [Docs home](https://craft.sentry.dev/pr-preview/pr-934/index.md)
-- [Previous: Configuration](https://craft.sentry.dev/pr-preview/pr-934/configuration.md)
-- [Next: Contributing](https://craft.sentry.dev/pr-preview/pr-934/contributing.md)
+- [Previous: Monorepos & Release Workspaces](https://craft.sentry.dev/pr-preview/pr-934/workspaces.md)
+- [Next: Configuration](https://craft.sentry.dev/pr-preview/pr-934/configuration.md)

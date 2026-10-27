@@ -9,20 +9,28 @@ url: "https://craft.sentry.dev/pr-preview/pr-934/"
 ## Features
 
 <CardGrid stagger>
-  <Card title="Automated Releases" icon="rocket">
-    Prepare and publish releases with a single command. Craft handles version bumping, changelog management, and artifact publishing.
+  <Card title="Two-step releases" icon="rocket">
+    `craft prepare` cuts a release branch with bumped versions and a changelog.
+    `craft publish` ships the CI-built artifacts everywhere.
   </Card>
-  <Card title="Auto Versioning" icon="star">
-    Automatically determine version bumps from conventional commits. Just run `craft prepare auto` and let Craft figure out the rest.
+  <Card title="Automatic versioning" icon="star">
+    Let Craft pick the next version from your conventional commits with
+    `craft prepare auto`, or use semver bumps and CalVer.
   </Card>
-  <Card title="Multiple Targets" icon="list-format">
-    Publish to GitHub, NPM, PyPI, Docker, NuGet, Crates.io, and many more registries from a single configuration.
+  <Card title="Changelogs" icon="document">
+    Generate changelogs from pull requests, preview them on every PR, and add
+    optional AI summaries.
   </Card>
-  <Card title="Changelog Management" icon="document">
-    Automatic changelog generation using conventional commits or manual changelog policies.
+  <Card title="20+ targets" icon="list-format">
+    Publish to GitHub, npm, PyPI, crates.io, NuGet, Docker, Maven, Homebrew,
+    and many more from one configuration.
   </Card>
-  <Card title="CI/CD Integration" icon="setting">
-    Works seamlessly with GitHub Actions and other CI systems. Fetch artifacts and publish them to your targets.
+  <Card title="Monorepos" icon="seti:folder">
+    Release independently versioned products from one repository with
+    release workspaces.
+  </Card>
+  <Card title="GitHub Actions" icon="github">
+    Drop-in reusable workflows for releases and changelog previews.
   </Card>
 </CardGrid>
 
@@ -42,22 +50,26 @@ craft prepare 1.2.3
 craft publish 1.2.3
 ```
 
-## Why Craft?
+## Explore the docs
 
-Craft enforces a specific workflow for managing release branches, changelogs, and artifact publishing. It:
-
-- Creates release branches automatically
-- Validates changelog entries
-- Runs version-bumping scripts
-- Waits for CI to complete
-- Downloads build artifacts
-- Publishes to configured targets
-- Merges release branches back to main
+<CardGrid>
+  <LinkCard title="Quick Start" href="getting-started/" description="Set up a project and ship your first release." />
+  <LinkCard title="Release Workflow" href="release-workflow/" description="What prepare and publish do, step by step." />
+  <LinkCard title="Monorepos & Release Workspaces" href="workspaces/" description="Release several products from one repository." />
+  <LinkCard title="Configuration Reference" href="configuration/" description="Every .craft.yml setting at a glance." />
+</CardGrid>
 
 ## Pages in this section
 
-- [Installation](https://craft.sentry.dev/pr-preview/pr-934/getting-started.md)
-- [Configuration](https://craft.sentry.dev/pr-preview/pr-934/configuration.md)
+- [Installation](https://craft.sentry.dev/pr-preview/pr-934/installation.md)
+- [Quick Start](https://craft.sentry.dev/pr-preview/pr-934/getting-started.md)
+- [Release Workflow](https://craft.sentry.dev/pr-preview/pr-934/release-workflow.md)
+- [Versioning](https://craft.sentry.dev/pr-preview/pr-934/versioning.md)
+- [Changelogs](https://craft.sentry.dev/pr-preview/pr-934/changelogs.md)
+- [AI Changelog Summaries](https://craft.sentry.dev/pr-preview/pr-934/ai-summaries.md)
+- [Monorepos & Release Workspaces](https://craft.sentry.dev/pr-preview/pr-934/workspaces.md)
 - [GitHub Actions](https://craft.sentry.dev/pr-preview/pr-934/github-actions.md)
+- [Configuration](https://craft.sentry.dev/pr-preview/pr-934/configuration.md)
+- [CLI](https://craft.sentry.dev/pr-preview/pr-934/cli.md)
 - [Contributing](https://craft.sentry.dev/pr-preview/pr-934/contributing.md)
 - [Targets Overview](https://craft.sentry.dev/pr-preview/pr-934/targets.md)

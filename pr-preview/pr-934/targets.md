@@ -10,30 +10,48 @@ Targets define where Craft publishes your release artifacts. Configure them in `
 
 ## Available Targets
 
+### Source control
+
 | Target | Description |
 | --- | --- |
 | [GitHub](https://craft.sentry.dev/pr-preview/pr-934/targets/github.md) | Create GitHub releases and tags |
+| [Commit on Git Repository](https://craft.sentry.dev/pr-preview/pr-934/targets/commit-on-git-repository.md) | Push to a git repository |
+
+### Package registries
+
+| Target | Description |
+| --- | --- |
 | [NPM](https://craft.sentry.dev/pr-preview/pr-934/targets/npm.md) | Publish to NPM registry |
 | [PyPI](https://craft.sentry.dev/pr-preview/pr-934/targets/pypi.md) | Publish to Python Package Index |
 | [Crates](https://craft.sentry.dev/pr-preview/pr-934/targets/crates.md) | Publish Rust crates |
 | [NuGet](https://craft.sentry.dev/pr-preview/pr-934/targets/nuget.md) | Publish .NET packages |
-| [Docker](https://craft.sentry.dev/pr-preview/pr-934/targets/docker.md) | Tag and push Docker images |
-| [Homebrew](https://craft.sentry.dev/pr-preview/pr-934/targets/brew.md) | Update Homebrew formulas |
-| [GCS](https://craft.sentry.dev/pr-preview/pr-934/targets/gcs.md) | Upload to Google Cloud Storage |
-| [GitHub Pages](https://craft.sentry.dev/pr-preview/pr-934/targets/gh-pages.md) | Deploy static sites |
-| [Cloudflare](https://craft.sentry.dev/pr-preview/pr-934/targets/cloudflare.md) | Deploy static sites or Workers to Cloudflare |
-| [Vercel](https://craft.sentry.dev/pr-preview/pr-934/targets/vercel.md) | Deploy a prebuilt static site to Vercel |
-| [CocoaPods](https://craft.sentry.dev/pr-preview/pr-934/targets/cocoapods.md) | Publish iOS/macOS pods |
 | [Ruby Gems](https://craft.sentry.dev/pr-preview/pr-934/targets/gem.md) | Publish Ruby gems |
 | [Maven](https://craft.sentry.dev/pr-preview/pr-934/targets/maven.md) | Publish to Maven Central |
 | [Hex](https://craft.sentry.dev/pr-preview/pr-934/targets/hex.md) | Publish Elixir packages |
 | [pub.dev](https://craft.sentry.dev/pr-preview/pr-934/targets/pub-dev.md) | Publish Dart/Flutter packages |
-| [AWS Lambda Layer](https://craft.sentry.dev/pr-preview/pr-934/targets/aws-lambda-layer.md) | Publish Lambda layers |
-| [Registry](https://craft.sentry.dev/pr-preview/pr-934/targets/registry.md) | Update Sentry release registry |
-| [UPM](https://craft.sentry.dev/pr-preview/pr-934/targets/upm.md) | Publish Unity packages |
-| [Symbol Collector](https://craft.sentry.dev/pr-preview/pr-934/targets/symbol-collector.md) | Upload native symbols |
+| [CocoaPods](https://craft.sentry.dev/pr-preview/pr-934/targets/cocoapods.md) | Publish iOS/macOS pods |
 | [PowerShell](https://craft.sentry.dev/pr-preview/pr-934/targets/powershell.md) | Publish PowerShell modules |
-| [Commit on Git Repository](https://craft.sentry.dev/pr-preview/pr-934/targets/commit-on-git-repository.md) | Push to a git repository |
+| [UPM](https://craft.sentry.dev/pr-preview/pr-934/targets/upm.md) | Publish Unity packages |
+| [Homebrew](https://craft.sentry.dev/pr-preview/pr-934/targets/brew.md) | Update Homebrew formulas |
+
+### Containers, cloud, and hosting
+
+| Target | Description |
+| --- | --- |
+| [Docker](https://craft.sentry.dev/pr-preview/pr-934/targets/docker.md) | Tag and push Docker images |
+| [AWS Lambda Layer](https://craft.sentry.dev/pr-preview/pr-934/targets/aws-lambda-layer.md) | Publish Lambda layers |
+| [GCS](https://craft.sentry.dev/pr-preview/pr-934/targets/gcs.md) | Upload to Google Cloud Storage |
+| [GitHub Pages](https://craft.sentry.dev/pr-preview/pr-934/targets/gh-pages.md) | Deploy static sites |
+| [Cloudflare](https://craft.sentry.dev/pr-preview/pr-934/targets/cloudflare.md) | Deploy static sites or Workers to Cloudflare |
+| [Vercel](https://craft.sentry.dev/pr-preview/pr-934/targets/vercel.md) | Deploy a prebuilt static site to Vercel |
+
+### Sentry-specific
+
+| Target | Description |
+| --- | --- |
+| [Registry](https://craft.sentry.dev/pr-preview/pr-934/targets/registry.md) | Update Sentry release registry |
+| [Symbol Collector](https://craft.sentry.dev/pr-preview/pr-934/targets/symbol-collector.md) | Upload native symbols |
+| [Sentry PyPI](https://craft.sentry.dev/pr-preview/pr-934/targets/pypi.md#sentry-internal-pypi) (`sentry-pypi`) | Import a package into Sentry’s internal PyPI |
 
 ## Basic Configuration
 
@@ -53,7 +71,6 @@ These options can be applied to any target:
 | `includeNames` | Regex pattern: only matched files are processed |
 | `excludeNames` | Regex pattern: matched files are skipped |
 | `id` | Unique ID to reference this target with `-t target[id]` |
-| `onlyIfPresent` | Only run if a file matching this pattern exists |
 
 Example:
 
@@ -64,9 +81,10 @@ targets:
     excludeNames: /^test.exe$/
   - name: registry
     id: browser
-    onlyIfPresent: /^sentry-browser-.*\.tgz$/
 ```
 
+
+Targets run in the order they are listed.
 
 ## Running Specific Targets
 

@@ -94,7 +94,7 @@ pnpm test:watch
 3. Register the target in `src/targets/index.ts`
 4. Add configuration schema in `src/schemas/`
 5. Write tests in `src/__tests__/`
-6. Document the target in the docs
+6. Document the target in `docs/src/content/docs/targets/` and list it in the [targets overview](https://craft.sentry.dev/pr-preview/pr-934/targets.md)
 
 ## Pull Requests
 
@@ -103,36 +103,6 @@ pnpm test:watch
 3. Make your changes
 4. Run tests and linting
 5. Submit a pull request
-
-## Pre-release Script Conventions
-
-The pre-release script (`scripts/bump-version.sh`) should:
-
-- Accept old and new version as the last two arguments
-- Replace version occurrences in project files
-- **Not** commit changes
-- **Not** change git state
-
-Example:
-
-```bash
-#!/bin/bash
-set -eux
-OLD_VERSION="${1}"
-NEW_VERSION="${2}"
-
-
-export npm_config_git_tag_version=false
-npm version "${NEW_VERSION}"
-```
-
-
-## Post-release Script Conventions
-
-The post-release script (`scripts/post-release.sh`) runs after successful publish and should:
-
-- Accept old and new version as arguments
-- Handle its own git operations (commit, push)
 
 ## Questions?
 
@@ -148,5 +118,5 @@ Executables are written to `dist-bin/`, with gzip archives for Unix, `.exe` file
 ## Navigation
 
 - [Docs home](https://craft.sentry.dev/pr-preview/pr-934/index.md)
-- [Previous: GitHub Actions](https://craft.sentry.dev/pr-preview/pr-934/github-actions.md)
+- [Previous: CLI](https://craft.sentry.dev/pr-preview/pr-934/cli.md)
 - [Next: Targets Overview](https://craft.sentry.dev/pr-preview/pr-934/targets.md)
