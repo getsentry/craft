@@ -47,6 +47,21 @@ The opposite mistake fails silently: a real package that discovery skips (becaus
 
 If `workspaces: true` is set but discovery finds no packages, or the filters exclude all of them, Craft fails with a configuration error instead of skipping the target.
 
+### Release Workspaces
+
+When a [release workspace](../../workspaces/) is selected, Craft still reads the solution from the repository root, so `solutionPath` keeps pointing at the same file. It then keeps only the projects inside the selected workspace's directory, before applying `includeWorkspaces` and `excludeWorkspaces`. For example, with one root `Sentry.slnx`, releasing the `src/Sentry.Maui` workspace publishes only `Sentry.Maui`:
+
+```yaml
+targets:
+  - name: nuget
+    workspaces: true
+    solutionPath: Sentry.slnx
+workspaces:
+  src/Sentry.Maui: {}
+```
+
+Craft fails if no packable project in the solution is inside the workspace. Workspaces that are not directories expand every project in the solution.
+
 ## Retrying a Partial Publish
 
 Craft does not pass `--skip-duplicate` to `dotnet nuget push`: pushing a version that already exists fails, because Craft can't otherwise tell whether the existing package is the one it's trying to publish.

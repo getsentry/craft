@@ -1116,8 +1116,9 @@ function getActiveWorkspaceDirectory(): string | undefined {
  * when no directory workspace is selected.
  *
  * Automatic version bumps read project files (e.g. `package.json`,
- * `pnpm-workspace.yaml`) from here, so a workspace release only bumps that
- * workspace's packages.
+ * `pnpm-workspace.yaml`) from here, and NuGet workspace expansion keeps only
+ * projects inside it, so a workspace release only touches that workspace's
+ * packages.
  */
 export function getReleaseUnitDir(): string {
   const root = getConfigFileDir() || process.cwd();
@@ -1253,7 +1254,11 @@ export function getNoMergeConfig(): NoMergeConfig {
  * Type for target classes that support expansion
  */
 interface ExpandableTargetClass {
-  expand(config: TargetConfig, rootDir: string): Promise<TargetConfig[]>;
+  expand(
+    config: TargetConfig,
+    rootDir: string,
+    releaseUnitDir: string,
+  ): Promise<TargetConfig[]>;
 }
 
 /**
@@ -1287,13 +1292,18 @@ export async function expandWorkspaceTargets(
   const { getTargetByName } = require('./targets');
 
   const rootDir = getConfigFileDir() || process.cwd();
+  const releaseUnitDir = getReleaseUnitDir();
   const expandedTargets: TargetConfig[] = [];
 
   for (const target of targets) {
     const targetClass = getTargetByName(target.name);
 
     if (targetClass && isExpandableTarget(targetClass)) {
-      const expanded = await targetClass.expand(target, rootDir);
+      const expanded = await targetClass.expand(
+        target,
+        rootDir,
+        releaseUnitDir,
+      );
       expandedTargets.push(...expanded);
     } else {
       expandedTargets.push(target);
