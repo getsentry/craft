@@ -80,11 +80,49 @@ workspaces:
 
 Caution
 
-Every directory matched by a pattern gets the **same** settings, including the same `tagPrefix` and `releaseBranchPrefix`. Give each product a literal key when it needs its own tags and release branches.
+Every directory matched by a pattern gets the **same** settings, including the same `tagPrefix` and `releaseBranchPrefix`. Use [placeholders](#placeholders) to give each match its own tags and release branches, or give it a literal key.
 
 Workspace paths use nonempty ASCII path segments containing letters, digits, periods, underscores, and hyphens. Segments cannot be `.`, `..`, `__proto__`, or start with `-`. Craft rejects overlapping workspace keys, so each concrete path belongs to exactly one key.
 
 A configuration with `workspaces` cannot use `github.projectPath`.
+
+### Placeholders
+
+String settings can use placeholders that expand for the selected workspace. They work in workspace settings and in the top-level settings a workspace inherits:
+
+| Placeholder | Value for `static/packages/scraps` |
+| --- | --- |
+| `{{workspace}}` | `static/packages/scraps` |
+| `{{workspaceName}}` | `scraps` |
+| `{{packageName}}` | `@sentry/scraps` |
+| `{{packageSimpleName}}` | `sentry-scraps` |
+
+`{{packageName}}` and `{{packageSimpleName}}` read `name` from the workspace’s `package.json`; Craft fails if the file or its `name` is missing. Other `{{...}}` markers, such as the npm target’s `{{name}}`, `{{simpleName}}`, and `{{version}}` [artifact templates](https://craft.sentry.dev/targets/npm.md#artifact-naming), are left alone.
+
+One pattern can then cover independently released packages:
+
+```yaml
+workspaces:
+  static/packages/*:
+    releaseBranchPrefix: '{{workspaceName}}/release'
+    statusProvider:
+      name: github
+      config:
+        contexts: ['{{workspaceName}}-package-pack']
+    artifactProvider:
+      name: github
+      config:
+        artifacts:
+          Package: ['{{workspaceName}}-tarball']
+    targets:
+      - name: github
+        tagPrefix: '{{workspaceName}}@'
+      - name: npm
+        access: public
+```
+
+
+Releasing `static/packages/scraps` at `1.2.3` uses the branch `scraps/release/1.2.3` and the tag `scraps@1.2.3`.
 
 ## Select a workspace
 
@@ -166,6 +204,14 @@ workspaces:
 `app` gets commits to root files, and `packages/ui` gets only commits that touch `packages/ui`.
 
 A workspace’s first release has no previous tag. Craft then starts its changelog at the commit that added the workspace to `.craft.yml` instead of the start of the repository history. Push a tag with the workspace’s tag prefix to start from a different commit.
+
+## Version bumps
+
+Without a `preReleaseCommand`, [automatic version bumping](https://craft.sentry.dev/versioning.md#automatic-version-bumping) runs in the selected workspace’s directory, so releasing `packages/cli` bumps only the project files in `packages/cli`. An npm target there bumps that package and any package workspaces it defines itself, not the rest of a repository-wide pnpm, npm, or Yarn workspace. Workspaces that are not directories bump from the directory that contains `.craft.yml`.
+
+A custom `preReleaseCommand` still runs from the directory that contains `.craft.yml`.
+
+Publishing follows the workspace too: a NuGet target with `workspaces: true` publishes only the projects inside the selected workspace, while `solutionPath` stays relative to the repository root. See [NuGet → Release Workspaces](https://craft.sentry.dev/targets/nuget.md#release-workspaces).
 
 ## GitHub Actions
 
