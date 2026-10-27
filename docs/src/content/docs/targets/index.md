@@ -7,30 +7,48 @@ Targets define where Craft publishes your release artifacts. Configure them in `
 
 ## Available Targets
 
+### Source control
+
 | Target | Description |
 |--------|-------------|
 | [GitHub](./github/) | Create GitHub releases and tags |
+| [Commit on Git Repository](./commit-on-git-repository/) | Push to a git repository |
+
+### Package registries
+
+| Target | Description |
+|--------|-------------|
 | [NPM](./npm/) | Publish to NPM registry |
 | [PyPI](./pypi/) | Publish to Python Package Index |
 | [Crates](./crates/) | Publish Rust crates |
 | [NuGet](./nuget/) | Publish .NET packages |
-| [Docker](./docker/) | Tag and push Docker images |
-| [Homebrew](./brew/) | Update Homebrew formulas |
-| [GCS](./gcs/) | Upload to Google Cloud Storage |
-| [GitHub Pages](./gh-pages/) | Deploy static sites |
-| [Cloudflare](./cloudflare/) | Deploy static sites or Workers to Cloudflare |
-| [Vercel](./vercel/) | Deploy a prebuilt static site to Vercel |
-| [CocoaPods](./cocoapods/) | Publish iOS/macOS pods |
 | [Ruby Gems](./gem/) | Publish Ruby gems |
 | [Maven](./maven/) | Publish to Maven Central |
 | [Hex](./hex/) | Publish Elixir packages |
 | [pub.dev](./pub-dev/) | Publish Dart/Flutter packages |
-| [AWS Lambda Layer](./aws-lambda-layer/) | Publish Lambda layers |
-| [Registry](./registry/) | Update Sentry release registry |
-| [UPM](./upm/) | Publish Unity packages |
-| [Symbol Collector](./symbol-collector/) | Upload native symbols |
+| [CocoaPods](./cocoapods/) | Publish iOS/macOS pods |
 | [PowerShell](./powershell/) | Publish PowerShell modules |
-| [Commit on Git Repository](./commit-on-git-repository/) | Push to a git repository |
+| [UPM](./upm/) | Publish Unity packages |
+| [Homebrew](./brew/) | Update Homebrew formulas |
+
+### Containers, cloud, and hosting
+
+| Target | Description |
+|--------|-------------|
+| [Docker](./docker/) | Tag and push Docker images |
+| [AWS Lambda Layer](./aws-lambda-layer/) | Publish Lambda layers |
+| [GCS](./gcs/) | Upload to Google Cloud Storage |
+| [GitHub Pages](./gh-pages/) | Deploy static sites |
+| [Cloudflare](./cloudflare/) | Deploy static sites or Workers to Cloudflare |
+| [Vercel](./vercel/) | Deploy a prebuilt static site to Vercel |
+
+### Sentry-specific
+
+| Target | Description |
+|--------|-------------|
+| [Registry](./registry/) | Update Sentry release registry |
+| [Symbol Collector](./symbol-collector/) | Upload native symbols |
+| [Sentry PyPI](./pypi/#sentry-internal-pypi) (`sentry-pypi`) | Import a package into Sentry's internal PyPI |
 
 ## Basic Configuration
 
@@ -49,7 +67,6 @@ These options can be applied to any target:
 | `includeNames` | Regex pattern: only matched files are processed |
 | `excludeNames` | Regex pattern: matched files are skipped |
 | `id` | Unique ID to reference this target with `-t target[id]` |
-| `onlyIfPresent` | Only run if a file matching this pattern exists |
 
 Example:
 
@@ -60,8 +77,9 @@ targets:
     excludeNames: /^test.exe$/
   - name: registry
     id: browser
-    onlyIfPresent: /^sentry-browser-.*\.tgz$/
 ```
+
+Targets run in the order they are listed.
 
 ## Running Specific Targets
 
