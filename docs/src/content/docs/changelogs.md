@@ -281,6 +281,20 @@ changelog:
       - renovate[bot]
 ```
 
+## Author credits
+
+Entries credit the PR author and any co-authors from `Co-authored-by` commit
+trailers that GitHub links to an account, for example `by @alice, @bob and 2
+others`. Bots are credited after people, as in `by @alice with @some-bot`. To
+keep a PR in the changelog without crediting an author, list it in
+`hide_authors` in `.github/release.yml`:
+
+```yaml
+changelog:
+  hide_authors:
+    - my-bot[bot]
+```
+
 ## Previewing a changelog
 
 Generate a changelog from git history without preparing a release. This is useful for previewing what would be included in a release or for CI integrations.
