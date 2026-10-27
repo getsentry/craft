@@ -737,7 +737,8 @@ function creditAuthors(
   authorIsBot = false,
   coAuthors: string[] = [],
 ): Credits {
-  const hidden = getNormalizedReleaseConfig()?.changelog.hideAuthors;
+  const hidden =
+    getNormalizedReleaseConfig()?.changelog.hideAuthors ?? new Set<string>();
   const seen = new Set<string>();
   const credits: Credits = { people: [], bots: [] };
   for (const login of [author, ...coAuthors]) {
@@ -745,7 +746,7 @@ function creditAuthors(
       continue;
     }
     const key = authorKey(login);
-    if (seen.has(key) || hidden?.has(key)) {
+    if (seen.has(key) || hidden.has(key)) {
       continue;
     }
     seen.add(key);
@@ -1491,7 +1492,8 @@ export function stripTitle(
  * Formats a single changelog entry with consistent full markdown link format.
  * Format: `- Title by @author in [#123](pr-url)` or `- Title in [abcdef12](commit-url)`
  * Several authors render as `@a and @b`, `@a, @b and @c`, or `@a, @b and 2 others`.
- * Bots follow people, as in `@a with @some-bot`.
+ * Bots follow people, as in `@a with @some-bot`. A bot that is the only
+ * credited author renders on its own, as in `by @dependabot`.
  * When highlight is true, the entry is prefixed with `> ` (blockquote).
  * When disableMentions is true, uses `**author**` instead of `@author` to avoid pinging.
  * When disablePRLinks is true, uses plain `#123` instead of markdown links to avoid cross-references.
@@ -2310,6 +2312,7 @@ interface CommitInfo {
       title: string;
       body: string;
       author?: {
+        /** GraphQL type of the author; `Bot` for GitHub App accounts */
         __typename?: string;
         login: string;
       };
@@ -2381,6 +2384,7 @@ export async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
       associatedPullRequests(first: 1) {
         nodes {
           author {
+            # Identifies bots, whose PR author login lacks the [bot] suffix
             __typename
             login
           }

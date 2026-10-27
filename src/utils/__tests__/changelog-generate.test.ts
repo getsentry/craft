@@ -928,11 +928,26 @@ describe('generateChangesetFromGit', () => {
       );
     });
 
-    it('credits a bot alone when no person is credited', async () => {
-      setup([junior([])], null);
+    it('credits a bot alone when it is the sole author', async () => {
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'Bumped the kernel',
+            body: '',
+            pr: {
+              remote: {
+                number: '123',
+                author: { login: 'dependabot', __typename: 'Bot' },
+              },
+            },
+          },
+        ],
+        null,
+      );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toContain(
-        'Upgraded the kernel by @sentry-junior in [#123]',
+        'Bumped the kernel by @dependabot in [#123]',
       );
     });
 
