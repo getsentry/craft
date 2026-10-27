@@ -1817,20 +1817,25 @@ async function fetchRawCommitInfo(
   // 1. Rebase-merge workflows where multiple commits share the same PR number
   // 2. Already-merged PRs that appear in git history when generating previews
   // Note: PR body magic word check is handled by shouldExcludePR in categorizeCommits
-  const seenPRs = new Set<string>();
+  const seenPRs = new Map<string, RawCommitInfo>();
   const result: RawCommitInfo[] = [];
 
   for (const gitCommit of gitCommits) {
     const githubCommit = githubCommits[gitCommit.hash];
     const pr = githubCommit?.pr ?? gitCommit.pr ?? undefined;
 
-    // Deduplicate by PR number, but keep all commits without PR association
-    if (pr) {
-      if (seenPRs.has(pr)) continue;
-      seenPRs.add(pr);
+    // Deduplicate by PR number, but keep all commits without PR association.
+    // Co-authors of every commit in the PR are credited on the kept entry.
+    const seen = pr ? seenPRs.get(pr) : undefined;
+    if (seen) {
+      seen.coAuthors = [
+        ...(seen.coAuthors ?? []),
+        ...(githubCommit?.coAuthors ?? []),
+      ];
+      continue;
     }
 
-    result.push({
+    const commit: RawCommitInfo = {
       hash: gitCommit.hash,
       title: gitCommit.title,
       body: gitCommit.body,
@@ -1841,7 +1846,11 @@ async function fetchRawCommitInfo(
       prTitle: githubCommit?.prTitle ?? undefined,
       prBody: githubCommit?.prBody ?? undefined,
       labels: githubCommit?.labels ?? [],
-    });
+    };
+    if (pr) {
+      seenPRs.set(pr, commit);
+    }
+    result.push(commit);
   }
 
   return result;

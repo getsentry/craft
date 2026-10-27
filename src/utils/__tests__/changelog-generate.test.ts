@@ -856,6 +856,32 @@ describe('generateChangesetFromGit', () => {
       );
     });
 
+    it('credits co-authors from every commit of a rebase-merged PR', async () => {
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'Upgraded the kernel',
+            body: '',
+            coAuthors: ['bob'],
+            pr: { remote: { number: '123', author: { login: 'alice' } } },
+          },
+          {
+            hash: 'bcdef1234567890a',
+            title: 'Prepared the kernel',
+            body: '',
+            coAuthors: ['carol'],
+            pr: { remote: { number: '123', author: { login: 'alice' } } },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(result.changelog).toContain(
+        'Upgraded the kernel by @alice, @bob and @carol in [#123]',
+      );
+    });
+
     it('collapses long author lists', async () => {
       setup(
         [
