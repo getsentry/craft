@@ -207,6 +207,13 @@ jobs:
 
           # One directory per line, each with its own Craft config
           mapfile -t DIRECTORIES < <(printf '%s\n' "$WORKING_DIRECTORIES" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d')
+          # Fail on a mistyped directory instead of previewing nothing
+          for DIR in "${DIRECTORIES[@]}"; do
+            if [[ ! -d "$DIR" ]]; then
+              echo "::error::working-directory '$DIR' does not exist"
+              exit 1
+            fi
+          done
 
           if [[ ${#DIRECTORIES[@]} -le 1 ]]; then
             preview_directory "${DIRECTORIES[0]:-.}"

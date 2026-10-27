@@ -185,7 +185,8 @@ esac
     git('commit', '-qam', 'change');
   }
 
-  function run(
+  /** Runs the preview step against `repo` */
+  function execute(
     directories: string,
     { comment = true, env = {} as Record<string, string> } = {},
   ) {
@@ -221,12 +222,19 @@ esac
         },
       },
     );
-    expect(result.stderr).toBe('');
-    expect(result.status).toBe(0);
     return {
+      ...result,
       summary: readFileSync(summary, 'utf8'),
       output: readFileSync(output, 'utf8'),
     };
+  }
+
+  /** Runs the preview step and expects it to succeed */
+  function run(...args: Parameters<typeof execute>) {
+    const result = execute(...args);
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+    return result;
   }
 
   const comments = () =>
@@ -248,6 +256,19 @@ esac
       expect(comments()[0]).toMatch(
         /^<!-- craft-changelog-preview -->\n## Semver Impact of This PR\n\n🟡 \*\*Minor\*\* \(new features\)\n\n<details>\n<summary>📋 Changelog Preview<\/summary>\n/,
       );
+    },
+  );
+
+  test.each(['packages/typo', 'packages/python\npackages/typo'])(
+    'fails for a missing working-directory in %j',
+    directories => {
+      change('packages/python');
+      const { status, stdout } = execute(directories);
+      expect(status).toBe(1);
+      expect(stdout).toContain(
+        "::error::working-directory 'packages/typo' does not exist",
+      );
+      expect(comments()).toEqual([]);
     },
   );
 
