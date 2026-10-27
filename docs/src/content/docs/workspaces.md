@@ -88,8 +88,9 @@ workspaces:
 
 :::caution
 Every directory matched by a pattern gets the **same** settings, including the
-same `tagPrefix` and `releaseBranchPrefix`. Give each product a literal key
-when it needs its own tags and release branches.
+same `tagPrefix` and `releaseBranchPrefix`. Use
+[placeholders](#placeholders) to give each match its own tags and release
+branches, or give it a literal key.
 :::
 
 Workspace paths use nonempty ASCII path segments containing letters, digits,
@@ -98,6 +99,49 @@ or start with `-`. Craft rejects overlapping workspace keys, so each concrete
 path belongs to exactly one key.
 
 A configuration with `workspaces` cannot use `github.projectPath`.
+
+### Placeholders
+
+String settings can use placeholders that expand for the selected workspace.
+They work in workspace settings and in the top-level settings a workspace
+inherits:
+
+| Placeholder             | Value for `static/packages/scraps` |
+| ----------------------- | ---------------------------------- |
+| `{{workspace}}`         | `static/packages/scraps`           |
+| `{{workspaceName}}`     | `scraps`                           |
+| `{{packageName}}`       | `@sentry/scraps`                   |
+| `{{packageSimpleName}}` | `sentry-scraps`                    |
+
+`{{packageName}}` and `{{packageSimpleName}}` read `name` from the workspace's
+`package.json`; Craft fails if the file or its `name` is missing. Other
+`{{...}}` markers, such as the npm target's `{{name}}`, `{{simpleName}}`, and
+`{{version}}` [artifact templates](../targets/npm/#artifact-naming), are left alone.
+
+One pattern can then cover independently released packages:
+
+```yaml
+workspaces:
+  static/packages/*:
+    releaseBranchPrefix: '{{workspaceName}}/release'
+    statusProvider:
+      name: github
+      config:
+        contexts: ['{{workspaceName}}-package-pack']
+    artifactProvider:
+      name: github
+      config:
+        artifacts:
+          Package: ['{{workspaceName}}-tarball']
+    targets:
+      - name: github
+        tagPrefix: '{{workspaceName}}@'
+      - name: npm
+        access: public
+```
+
+Releasing `static/packages/scraps` at `1.2.3` uses the branch
+`scraps/release/1.2.3` and the tag `scraps@1.2.3`.
 
 ## Select a workspace
 

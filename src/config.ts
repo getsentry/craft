@@ -110,6 +110,9 @@ export function getActiveWorkspace(): string | undefined {
  * - `github` is shallow-merged (owner/repo) so a workspace can override either
  *   value while inheriting the other.
  * - `minVersion` and `workspaces` themselves are stripped from the result.
+ * - Workspace placeholders (see `WORKSPACE_PLACEHOLDERS`) in any string
+ *   setting expand for the selected workspace, so one glob key can give each
+ *   matched directory its own tags, branches, and artifact names.
  */
 function resolveWorkspaceConfig(
   base: CraftProjectConfig,
@@ -164,7 +167,104 @@ function resolveWorkspaceConfig(
     }
   }
 
-  return resolved;
+  return expandWorkspacePlaceholders(
+    resolved,
+    getWorkspacePlaceholderResolver(workspaceName, workspaceDirectory),
+  );
+}
+
+/**
+ * Placeholders that expand to the selected workspace in its settings. Other
+ * `{{...}}` markers, such as the npm target's `{{name}}`, `{{simpleName}}`,
+ * and `{{version}}` artifact template fields, stay untouched.
+ */
+const WORKSPACE_PLACEHOLDERS = [
+  'workspace',
+  'workspaceName',
+  'packageName',
+  'packageSimpleName',
+] as const;
+
+type WorkspacePlaceholder = (typeof WORKSPACE_PLACEHOLDERS)[number];
+
+const WORKSPACE_PLACEHOLDER_REGEX = new RegExp(
+  `\\{\\{(${WORKSPACE_PLACEHOLDERS.join('|')})\\}\\}`,
+  'g',
+);
+
+function getWorkspacePlaceholderResolver(
+  workspaceName: string,
+  workspaceDirectory: string,
+): (placeholder: WorkspacePlaceholder) => string {
+  let packageName: string | undefined;
+  const readPackageName = (placeholder: WorkspacePlaceholder): string => {
+    if (packageName !== undefined) {
+      return packageName;
+    }
+    const packageJsonPath = path.posix.join(workspaceName, 'package.json');
+    let name: unknown;
+    try {
+      name = JSON.parse(
+        readFileSync(path.join(workspaceDirectory, packageJsonPath), 'utf-8'),
+      )?.name;
+    } catch (error) {
+      throw new ConfigurationError(
+        `Workspace "${workspaceName}" uses {{${placeholder}}}, but ` +
+          `${packageJsonPath} could not be read: ${(error as Error).message}`,
+      );
+    }
+    if (typeof name !== 'string' || name === '') {
+      throw new ConfigurationError(
+        `Workspace "${workspaceName}" uses {{${placeholder}}}, but ` +
+          `${packageJsonPath} has no "name".`,
+      );
+    }
+    packageName = name;
+    return name;
+  };
+
+  return placeholder => {
+    switch (placeholder) {
+      case 'workspace':
+        return workspaceName;
+      case 'workspaceName':
+        return path.posix.basename(workspaceName);
+      case 'packageName':
+        return readPackageName(placeholder);
+      case 'packageSimpleName':
+        return readPackageName(placeholder)
+          .replace(/^@/, '')
+          .replace(/\//g, '-');
+    }
+  };
+}
+
+function expandWorkspacePlaceholders<T>(
+  value: T,
+  resolve: (placeholder: WorkspacePlaceholder) => string,
+): T {
+  if (typeof value === 'string') {
+    return value.replace(WORKSPACE_PLACEHOLDER_REGEX, (_match, placeholder) =>
+      resolve(placeholder as WorkspacePlaceholder),
+    ) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map(item => expandWorkspacePlaceholders(item, resolve)) as T;
+  }
+  // Only plain objects: YAML may also produce values such as Dates.
+  if (
+    value !== null &&
+    typeof value === 'object' &&
+    Object.getPrototypeOf(value) === Object.prototype
+  ) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        expandWorkspacePlaceholders(item, resolve),
+      ]),
+    ) as T;
+  }
+  return value;
 }
 
 function getWorkspaceConfig(
