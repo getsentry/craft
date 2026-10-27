@@ -204,6 +204,19 @@ changelog at the commit that added the workspace to `.craft.yml` instead of the
 start of the repository history. Push a tag with the workspace's tag prefix to
 start from a different commit.
 
+## Version bumps
+
+Without a `preReleaseCommand`,
+[automatic version bumping](../versioning/#automatic-version-bumping) runs in
+the selected workspace's directory, so releasing `packages/cli` bumps only the
+project files in `packages/cli`. An npm target there bumps that package and any
+package workspaces it defines itself, not the rest of a repository-wide pnpm,
+npm, or Yarn workspace. Workspaces that are not directories bump from the
+directory that contains `.craft.yml`.
+
+A custom `preReleaseCommand` still runs from the directory that contains
+`.craft.yml`.
+
 ## GitHub Actions
 
 The [Craft Action and reusable release workflow](../github-actions/) accept a

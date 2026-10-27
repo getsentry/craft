@@ -25,6 +25,7 @@ import {
   setActiveWorkspace,
   getActiveWorkspace,
   getConfiguration,
+  getReleaseUnitDir,
   getVersioningPolicy,
   getWorkspaceNames,
   WORKSPACES_MIN_VERSION,
@@ -707,6 +708,26 @@ describe('workspaces', () => {
     expect(() => getChangelogConfig()).toThrow(
       'Workspace directory escapes the repository',
     );
+  });
+
+  test('scopes the release unit directory to the selected workspace', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'craft-workspace-dir-'));
+    temporaryDirectories.push(directory);
+    mkdirSync(join(directory, 'packages', 'cli'), { recursive: true });
+    writeFileSync(
+      join(directory, '.craft.yml'),
+      `minVersion: ${WORKSPACES_MIN_VERSION}\nworkspaces:\n  packages/cli: {}\n  cli: {}\n`,
+    );
+    process.chdir(directory);
+    const root = process.cwd();
+
+    setActiveWorkspace(undefined);
+    expect(getReleaseUnitDir()).toBe(root);
+    setActiveWorkspace('packages/cli');
+    expect(getReleaseUnitDir()).toBe(join(root, 'packages', 'cli'));
+    // Aliases that are not directories keep the configuration directory.
+    setActiveWorkspace('cli');
+    expect(getReleaseUnitDir()).toBe(root);
   });
 
   test('a different workspace resolves independently', () => {

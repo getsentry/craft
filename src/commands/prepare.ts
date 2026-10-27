@@ -10,10 +10,10 @@ import {
   CONFIG_FILE_NAME,
   DEFAULT_RELEASE_BRANCH_NAME,
   getChangelogConfig,
-  getConfigFileDir,
   getConfiguration,
   getGitTagPrefix,
   getGlobalGitHubConfig,
+  getReleaseUnitDir,
   getVersioningPolicy,
   loadConfigurationFromString,
   requiresMinVersion,
@@ -929,14 +929,15 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       await git.add(resolvedChangelogPath);
     }
 
-    // Run a pre-release script (e.g. for version bumping)
-    const rootDir = getConfigFileDir() || process.cwd();
+    // Run a pre-release script (e.g. for version bumping). Automatic bumps
+    // run in the selected workspace's directory so other workspaces keep
+    // their own versions.
     const preReleaseCommandRan = await runPreReleaseCommand({
       oldVersion,
       newVersion,
       preReleaseCommand: config.preReleaseCommand,
       targets: config.targets,
-      rootDir,
+      rootDir: getReleaseUnitDir(),
     });
 
     // Commit staged changelog and/or version bump changes

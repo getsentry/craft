@@ -978,10 +978,15 @@ export interface NormalizedChangelogConfig {
 
 const DEFAULT_CHANGELOG_FILE_PATH = 'CHANGELOG.md';
 
-function getDefaultChangelogFilePath(): string {
+/**
+ * Returns the selected workspace's path relative to the configuration file,
+ * or undefined when no workspace is selected or the workspace is not a
+ * directory (an alias such as `cli`).
+ */
+function getActiveWorkspaceDirectory(): string | undefined {
   const workspace = getActiveWorkspace();
   if (!workspace) {
-    return DEFAULT_CHANGELOG_FILE_PATH;
+    return undefined;
   }
 
   if (!isSafeWorkspacePath(workspace)) {
@@ -991,7 +996,7 @@ function getDefaultChangelogFilePath(): string {
   const root = getConfigFileDir() || process.cwd();
   const directory = path.resolve(root, workspace);
   if (!existsSync(directory) || !lstatSync(directory).isDirectory()) {
-    return DEFAULT_CHANGELOG_FILE_PATH;
+    return undefined;
   }
 
   const realRoot = realpathSync(root);
@@ -1002,7 +1007,29 @@ function getDefaultChangelogFilePath(): string {
     );
   }
 
-  return path.posix.join(workspace, DEFAULT_CHANGELOG_FILE_PATH);
+  return workspace;
+}
+
+/**
+ * Returns the directory that holds the selected release unit's project files:
+ * the selected workspace's directory, or the configuration file's directory
+ * when no directory workspace is selected.
+ *
+ * Automatic version bumps read project files (e.g. `package.json`,
+ * `pnpm-workspace.yaml`) from here, so a workspace release only bumps that
+ * workspace's packages.
+ */
+export function getReleaseUnitDir(): string {
+  const root = getConfigFileDir() || process.cwd();
+  const workspaceDirectory = getActiveWorkspaceDirectory();
+  return workspaceDirectory ? path.resolve(root, workspaceDirectory) : root;
+}
+
+function getDefaultChangelogFilePath(): string {
+  const workspaceDirectory = getActiveWorkspaceDirectory();
+  return workspaceDirectory
+    ? path.posix.join(workspaceDirectory, DEFAULT_CHANGELOG_FILE_PATH)
+    : DEFAULT_CHANGELOG_FILE_PATH;
 }
 
 /**
