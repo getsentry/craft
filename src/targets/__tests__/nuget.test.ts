@@ -1,4 +1,5 @@
 import { vi, type MockInstance } from 'vitest';
+import { resolve } from 'path';
 import { NugetTarget } from '../nuget';
 import * as dotnetWorkspaces from '../../utils/dotnetWorkspaces';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
@@ -262,6 +263,63 @@ describe('NugetTarget.expand', () => {
       '/root',
       'src/Sentry.sln',
     );
+  });
+
+  describe('with a selected release workspace', () => {
+    // Mirrors getsentry/sentry-dotnet: one Sentry.slnx at the repository root
+    // lists src/Sentry, src/Sentry.Maui, samples, and tests.
+    const rootDir = resolve(
+      __dirname,
+      '../../utils/__fixtures__/dotnet-workspaces/msbuild-solution',
+    );
+    const config = {
+      name: 'nuget',
+      workspaces: true,
+      solutionPath: 'Sentry.slnx',
+    };
+
+    it('keeps solutionPath at the repository root and only expands workspace projects', async () => {
+      discoverDotnetPackagesMock = vi.spyOn(
+        dotnetWorkspaces,
+        'discoverDotnetPackages',
+      );
+
+      const result = await NugetTarget.expand(
+        config,
+        rootDir,
+        resolve(rootDir, 'src/Sentry.Maui'),
+      );
+
+      expect(discoverDotnetPackagesMock).toHaveBeenCalledWith(
+        rootDir,
+        'Sentry.slnx',
+      );
+      expect(result.map(r => r.id)).toEqual(['Sentry.Maui']);
+    });
+
+    it('does not match sibling projects that share a path prefix', async () => {
+      const result = await NugetTarget.expand(
+        config,
+        rootDir,
+        resolve(rootDir, 'src/Sentry'),
+      );
+
+      expect(result.map(r => r.id)).toEqual(['Sentry']);
+    });
+
+    it('expands every project when the workspace is the repository root', async () => {
+      const all = await NugetTarget.expand(config, rootDir);
+      const scoped = await NugetTarget.expand(config, rootDir, rootDir);
+
+      expect(scoped).toEqual(all);
+      expect(all.length).toBeGreaterThan(1);
+    });
+
+    it('throws when no packable project is inside the workspace', async () => {
+      await expect(
+        NugetTarget.expand(config, rootDir, resolve(rootDir, 'test')),
+      ).rejects.toThrow(/inside the selected workspace "test"/);
+    });
   });
 });
 

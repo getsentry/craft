@@ -5,7 +5,7 @@ import {
   renameSync,
   writeFileSync,
 } from 'fs';
-import { join } from 'path';
+import { isAbsolute, join, relative, sep } from 'path';
 import { randomUUID } from 'crypto';
 
 import { TargetConfig, TypedTargetConfig } from '../schemas/project_config';
@@ -99,10 +99,15 @@ export class NugetTarget extends BaseTarget {
 
   /**
    * Expand a nuget target config into multiple targets if workspaces is enabled.
+   *
+   * The solution is always resolved from `rootDir` (the repository root), so
+   * `solutionPath` keeps its meaning. When a release workspace is selected,
+   * `releaseUnitDir` is its directory and only projects inside it are kept.
    */
   public static async expand(
     config: NugetTargetConfig,
     rootDir: string,
+    releaseUnitDir = rootDir,
   ): Promise<TargetConfig[]> {
     if (!config.workspaces) {
       return [config];
@@ -118,7 +123,26 @@ export class NugetTarget extends BaseTarget {
       );
     }
 
-    const workspacePackages = result.packages.map(pkg => ({
+    const releaseUnitPath = relative(rootDir, releaseUnitDir);
+    const discoveredPackages = releaseUnitPath
+      ? result.packages.filter(pkg => {
+          const projectPath = relative(releaseUnitDir, pkg.projectPath);
+          return (
+            projectPath !== '..' &&
+            !projectPath.startsWith(`..${sep}`) &&
+            !isAbsolute(projectPath)
+          );
+        })
+      : result.packages;
+
+    if (discoveredPackages.length === 0) {
+      throw new ConfigurationError(
+        `nuget target has workspaces enabled but none of the packable projects in ${result.solutionPath} ` +
+          `are inside the selected workspace "${releaseUnitPath}".`,
+      );
+    }
+
+    const workspacePackages = discoveredPackages.map(pkg => ({
       name: pkg.packageId,
       location: pkg.projectPath,
       private: !pkg.isPackable,
@@ -149,7 +173,7 @@ export class NugetTarget extends BaseTarget {
     }
 
     const filteredNames = new Set(filteredWorkspacePackages.map(p => p.name));
-    const filteredPackages = result.packages.filter(p =>
+    const filteredPackages = discoveredPackages.filter(p =>
       filteredNames.has(p.packageId),
     );
 

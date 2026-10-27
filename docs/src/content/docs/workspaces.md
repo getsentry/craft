@@ -261,6 +261,11 @@ directory that contains `.craft.yml`.
 A custom `preReleaseCommand` still runs from the directory that contains
 `.craft.yml`.
 
+Publishing follows the workspace too: a NuGet target with `workspaces: true`
+publishes only the projects inside the selected workspace, while `solutionPath`
+stays relative to the repository root. See
+[NuGet → Release Workspaces](../targets/nuget/#release-workspaces).
+
 ## GitHub Actions
 
 The [Craft Action and reusable release workflow](../github-actions/) accept a
