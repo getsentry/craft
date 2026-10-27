@@ -62,7 +62,7 @@ export interface TestCommit {
   pr?: {
     local?: string;
     remote?: {
-      author?: { login: string };
+      author?: { login: string; __typename?: string };
       number: string;
       title?: string;
       body?: string;

@@ -691,8 +691,9 @@ changelog:
 
 Entries credit the PR author and any co-authors from `Co-authored-by` commit
 trailers that GitHub links to an account, for example `by @alice, @bob and 2
-others`. To keep a PR in the changelog without crediting an author, such as a
-bot that opens PRs on someone's behalf, list it in `hide_authors`:
+others`. Bots are credited after people, as in `by @alice with @some-bot`. To
+keep a PR in the changelog without crediting an author, list it in
+`hide_authors`:
 
 ```yaml
 changelog:

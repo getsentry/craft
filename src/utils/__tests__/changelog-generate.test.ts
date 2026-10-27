@@ -829,7 +829,10 @@ describe('generateChangesetFromGit', () => {
         body: '',
         coAuthors,
         pr: {
-          remote: { number: '123', author: { login: 'sentry-junior' } },
+          remote: {
+            number: '123',
+            author: { login: 'sentry-junior', __typename: 'Bot' },
+          },
         },
       };
     }
@@ -869,6 +872,41 @@ describe('generateChangesetFromGit', () => {
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toContain(
         'Upgraded the kernel by @alice, @bob and 2 others in [#123]',
+      );
+    });
+
+    it('credits people before bots', async () => {
+      setup([junior(['sentry-junior[bot]', 'jan-auer'])], null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(result.changelog).toContain(
+        'Upgraded the kernel by @jan-auer with @sentry-junior in [#123]',
+      );
+    });
+
+    it('credits bot co-authors after people', async () => {
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'Upgraded the kernel',
+            body: '',
+            coAuthors: ['some-bot[bot]'],
+            pr: { remote: { number: '123', author: { login: 'alice' } } },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(result.changelog).toContain(
+        'Upgraded the kernel by @alice with @some-bot in [#123]',
+      );
+    });
+
+    it('credits a bot alone when no person is credited', async () => {
+      setup([junior([])], null);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(result.changelog).toContain(
+        'Upgraded the kernel by @sentry-junior in [#123]',
       );
     });
 
