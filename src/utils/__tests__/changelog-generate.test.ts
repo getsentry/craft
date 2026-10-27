@@ -47,6 +47,13 @@ import {
 } from '../changelog';
 import { type TestCommit } from './fixtures/changelog';
 
+/** Mocks `Commit.authors`: the git author first, then `Co-authored-by` logins. */
+function commitAuthors(coAuthors: string[] = []) {
+  return {
+    nodes: [{ user: null }, ...coAuthors.map(login => ({ user: { login } }))],
+  };
+}
+
 const getConfigFileDirMock = config.getConfigFileDir as MockedFunction<
   typeof config.getConfigFileDir
 >;
@@ -97,10 +104,11 @@ describe('generateChangesetFromGit', () => {
 
     mockClient.mockResolvedValueOnce({
       repository: Object.fromEntries(
-        commits.map(({ hash, author, title, pr }: TestCommit) => [
+        commits.map(({ hash, author, coAuthors, title, pr }: TestCommit) => [
           `C${hash}`,
           {
             author: { user: author },
+            authors: commitAuthors(coAuthors),
             associatedPullRequests: {
               nodes: pr?.remote
                 ? [
@@ -726,29 +734,6 @@ describe('generateChangesetFromGit', () => {
       expect(result.changelog).toMatchSnapshot();
     });
 
-    it('credits the requester of a PR opened by Junior', async () => {
-      setup(
-        [
-          {
-            hash: 'abcdef1234567890',
-            title: 'Upgraded the kernel',
-            body: '',
-            pr: {
-              remote: {
-                number: '123',
-                author: { login: 'sentry-junior' },
-                body: 'Upgrades the kernel.\n\n<!-- junior-request-attribution:start -->\nvia @alice.\n<!-- junior-request-attribution:end -->',
-              },
-            },
-          },
-        ],
-        null,
-      );
-      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
-      expect(result.changelog).toContain('by @alice in [#123]');
-      expect(result.changelog).not.toContain('sentry-junior');
-    });
-
     it('handles null PR author gracefully', async () => {
       setup(
         [
@@ -833,6 +818,87 @@ describe('generateChangesetFromGit', () => {
       );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
       expect(result.changelog).toMatchSnapshot();
+    });
+  });
+
+  describe('author credits', () => {
+    function junior(coAuthors: string[]): TestCommit {
+      return {
+        hash: 'abcdef1234567890',
+        title: 'Upgraded the kernel',
+        body: '',
+        coAuthors,
+        pr: {
+          remote: { number: '123', author: { login: 'sentry-junior' } },
+        },
+      };
+    }
+
+    it('credits co-authors after the PR author without duplicates', async () => {
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'Upgraded the kernel',
+            body: '',
+            coAuthors: ['bob', 'Alice', 'carol'],
+            pr: { remote: { number: '123', author: { login: 'alice' } } },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(result.changelog).toContain(
+        'Upgraded the kernel by @alice, @bob and @carol in [#123]',
+      );
+    });
+
+    it('collapses long author lists', async () => {
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'Upgraded the kernel',
+            body: '',
+            coAuthors: ['bob', 'carol', 'dave'],
+            pr: { remote: { number: '123', author: { login: 'alice' } } },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(result.changelog).toContain(
+        'Upgraded the kernel by @alice, @bob and 2 others in [#123]',
+      );
+    });
+
+    it('hides authors listed in hide_authors but keeps their PRs', async () => {
+      setup(
+        [junior(['sentry-junior[bot]', 'jan-auer'])],
+        `
+changelog:
+  hide_authors:
+    - sentry-junior[bot]
+`,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(result.changelog).toContain(
+        'Upgraded the kernel by @jan-auer in [#123]',
+      );
+      expect(result.changelog).not.toContain('sentry-junior');
+    });
+
+    it('omits the credit when every author is hidden', async () => {
+      setup(
+        [junior([])],
+        `
+changelog:
+  hide_authors:
+    - sentry-junior
+`,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(result.changelog).toContain('- Upgraded the kernel in [#123]');
     });
   });
 
@@ -2213,29 +2279,32 @@ describe('generateChangelogWithHighlight', () => {
     // Mock GraphQL for commit info
     mockGraphqlClient.mockResolvedValueOnce({
       repository: Object.fromEntries(
-        existingCommits.map(({ hash, author, title, pr }: TestCommit) => [
-          `C${hash}`,
-          {
-            author: { user: author },
-            associatedPullRequests: {
-              nodes: pr?.remote
-                ? [
-                    {
-                      author: pr.remote.author,
-                      number: pr.remote.number,
-                      title: pr.remote.title ?? title,
-                      body: pr.remote.body || '',
-                      labels: {
-                        nodes: (pr.remote.labels || []).map(label => ({
-                          name: label,
-                        })),
+        existingCommits.map(
+          ({ hash, author, coAuthors, title, pr }: TestCommit) => [
+            `C${hash}`,
+            {
+              author: { user: author },
+              authors: commitAuthors(coAuthors),
+              associatedPullRequests: {
+                nodes: pr?.remote
+                  ? [
+                      {
+                        author: pr.remote.author,
+                        number: pr.remote.number,
+                        title: pr.remote.title ?? title,
+                        body: pr.remote.body || '',
+                        labels: {
+                          nodes: (pr.remote.labels || []).map(label => ({
+                            name: label,
+                          })),
+                        },
                       },
-                    },
-                  ]
-                : [],
+                    ]
+                  : [],
+              },
             },
-          },
-        ]),
+          ],
+        ),
       ),
     });
 
@@ -2258,6 +2327,31 @@ describe('generateChangelogWithHighlight', () => {
       }
     }
   }
+
+  it('credits co-authors of the current PR', async () => {
+    setup({
+      currentPR: { number: 7, title: 'feat: Add thing', author: 'alice' },
+      existingCommits: [{ hash: 'abc123', title: 'fix: Older fix', body: '' }],
+    });
+    mockGraphqlClient.mockResolvedValueOnce({
+      repository: {
+        pullRequest: {
+          commits: {
+            nodes: [
+              { commit: { authors: commitAuthors(['bob']) } },
+              { commit: { authors: commitAuthors(['carol']) } },
+            ],
+          },
+        },
+      },
+    });
+
+    const result = await generateChangelogWithHighlight(dummyGit, '1.0.0', 7);
+
+    expect(result.changelog).toContain(
+      'Add thing by **alice**, **bob** and **carol** in',
+    );
+  });
 
   describe('revert handling in PR preview', () => {
     it('cancels out revert PR with its target commit', async () => {

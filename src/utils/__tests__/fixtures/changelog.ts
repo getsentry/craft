@@ -54,6 +54,8 @@ export const SAMPLE_CHANGESET_WITH_SUBHEADING = {
 
 export interface TestCommit {
   author?: string;
+  /** GitHub logins from `Co-authored-by` trailers */
+  coAuthors?: string[];
   hash: string;
   title: string;
   body: string;

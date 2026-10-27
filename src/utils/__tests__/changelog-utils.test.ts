@@ -20,7 +20,6 @@ import {
   extractRevertedTitle,
   extractRevertedSha,
   processReverts,
-  resolveChangelogAuthor,
   getNormalizedReleaseConfig,
   clearReleaseConfigCache,
   SKIP_CHANGELOG_MAGIC_WORD,
@@ -77,60 +76,6 @@ describe('shouldExcludePR', () => {
 
   it('returns false when config is null', () => {
     expect(shouldExcludePR(new Set(['bug']), 'alice', null, '')).toBe(false);
-  });
-});
-
-describe('resolveChangelogAuthor', () => {
-  const attribution = (labels: string) =>
-    `Body\n\n<!-- junior-request-attribution:start -->\n${labels}\n<!-- junior-request-attribution:end -->`;
-
-  it.each(['sentry-junior', 'sentry-junior[bot]'])(
-    'credits the requester of a PR opened by %s',
-    login => {
-      expect(resolveChangelogAuthor(login, attribution('via @alice.'))).toBe(
-        'alice',
-      );
-    },
-  );
-
-  it('credits the first requester with a linked GitHub login', () => {
-    expect(
-      resolveChangelogAuthor(
-        'sentry-junior[bot]',
-        attribution('via **Jane Doe**, @bob_corp, @carol.'),
-      ),
-    ).toBe('bob_corp');
-  });
-
-  it('supports the legacy "Requested by" wording', () => {
-    expect(
-      resolveChangelogAuthor(
-        'sentry-junior[bot]',
-        attribution('Requested by @alice.'),
-      ),
-    ).toBe('alice');
-  });
-
-  it('keeps the bot author when no requester has a GitHub login', () => {
-    expect(
-      resolveChangelogAuthor(
-        'sentry-junior[bot]',
-        attribution('via **Jane @home**.'),
-      ),
-    ).toBe('sentry-junior[bot]');
-    expect(resolveChangelogAuthor('sentry-junior[bot]', 'Thanks @alice!')).toBe(
-      'sentry-junior[bot]',
-    );
-    expect(resolveChangelogAuthor('sentry-junior', null)).toBe('sentry-junior');
-  });
-
-  it('ignores attribution on PRs from other authors', () => {
-    expect(resolveChangelogAuthor('bob', attribution('via @alice.'))).toBe(
-      'bob',
-    );
-    expect(resolveChangelogAuthor(undefined, attribution('via @alice.'))).toBe(
-      undefined,
-    );
   });
 });
 
