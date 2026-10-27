@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.3.0
+
+Workspace settings expose more package detail, while scoped packing and version bumps prevent unrelated package changes in monorepos.
+
+### New Features ✨
+
+Workspace settings now expand package details, while NuGet packing stays scoped to the selected workspace.
+
+- (config) Expand workspace placeholders in release workspace settings by @BYK with @sentry-junior in [#939](https://github.com/getsentry/craft/pull/939)
+- (nuget) Scope workspace expansion to the selected release workspace by @BYK with @sentry-junior in [#940](https://github.com/getsentry/craft/pull/940)
+
+### Bug Fixes 🐛
+
+Version bumps now target selected release workspaces, preventing unrelated package changes in monorepos.
+
+- (prepare) Run automatic version bumps in the selected workspace by @BYK with @sentry-junior in [#938](https://github.com/getsentry/craft/pull/938)
+
 ## 3.2.0
 
 Contributor attribution now recognizes co-authors and bot assistance while preserving merge-credit rules, and documentation clarifies Craft usage, targets, and GitHub Actions settings.
