@@ -17,6 +17,7 @@ import { Changeset, findChangeset } from '../utils/changelog';
 import { getGitHubClient } from '../utils/githubApi';
 import { isDryRun } from '../utils/helpers';
 import { safeExec } from '../utils/dryRun';
+import { ConfigurationError } from '../utils/errors';
 import {
   isPreviewRelease,
   parseVersion,
@@ -47,7 +48,12 @@ interface GitHubConfigFields extends Record<string, unknown> {
   tagOnly?: boolean;
   previewReleases?: boolean;
   floatingTags?: string[];
+  releaseName?: string;
 }
+
+/** Sources for the GitHub release title, see `GitHubTargetConfig.releaseName`. */
+const RELEASE_NAME_SOURCES = ['changelog', 'tag'] as const;
+type ReleaseNameSource = (typeof RELEASE_NAME_SOURCES)[number];
 
 /**
  * Configuration options for the GitHub target.
@@ -67,6 +73,13 @@ export interface GitHubTargetConfig extends GitHubGlobalConfig {
    * Example: "v{major}" creates a "v2" tag for version "2.15.0"
    */
   floatingTags: string[];
+  /**
+   * Where the GitHub release title comes from: `changelog` uses the changelog
+   * heading as-is, `tag` replaces the bare version at its start with the
+   * prefixed tag (e.g. `0.3.0` becomes `py-client@0.3.0`). Defaults to `tag`
+   * in a release workspace and `changelog` otherwise.
+   */
+  releaseName?: ReleaseNameSource;
 }
 
 /**
@@ -111,6 +124,16 @@ export class GitHubTarget extends BaseTarget {
     const owner = typedConfig.owner || githubRepo.owner;
     const repo = typedConfig.repo || githubRepo.repo;
     const changelog = getChangelogConfig().filePath;
+    const releaseName = typedConfig.releaseName;
+    if (
+      releaseName !== undefined &&
+      !RELEASE_NAME_SOURCES.includes(releaseName as ReleaseNameSource)
+    ) {
+      throw new ConfigurationError(
+        `Invalid "releaseName" for the github target: "${releaseName}". ` +
+          `Expected one of: ${RELEASE_NAME_SOURCES.join(', ')}.`,
+      );
+    }
 
     this.githubConfig = {
       owner,
@@ -122,6 +145,7 @@ export class GitHubTarget extends BaseTarget {
       tagPrefix: typedConfig.tagPrefix || '',
       tagOnly: !!typedConfig.tagOnly,
       floatingTags: typedConfig.floatingTags || [],
+      releaseName: releaseName as ReleaseNameSource | undefined,
     };
     this.github = getGitHubClient();
   }
@@ -228,12 +252,12 @@ export class GitHubTarget extends BaseTarget {
   /**
    * Returns the display name for the GitHub release of `version`.
    *
-   * Without a changeset, the release is named after its tag. When a release
-   * workspace is selected and the changelog heading starts with the bare
-   * version, that version is replaced with the prefixed tag (e.g. `0.2.0`
-   * becomes `cli@0.2.0`), so releases of different products in the same
-   * repository remain distinguishable. Other changelog headings, and all
-   * releases outside workspaces, keep the heading as-is.
+   * Without a changeset, the release is named after its tag. With
+   * `releaseName: tag` (the default in a release workspace) and a changelog
+   * heading that starts with the bare version, that version is replaced with
+   * the prefixed tag (e.g. `0.2.0` becomes `cli@0.2.0`), so releases of
+   * different products in the same repository remain distinguishable. Other
+   * changelog headings, and `releaseName: changelog`, keep the heading as-is.
    */
   private getReleaseName(
     version: string,
@@ -244,7 +268,10 @@ export class GitHubTarget extends BaseTarget {
     if (!name) {
       return tag;
     }
-    if (getActiveWorkspace() !== undefined && name.startsWith(version)) {
+    const source =
+      this.githubConfig.releaseName ??
+      (getActiveWorkspace() === undefined ? 'changelog' : 'tag');
+    if (source === 'tag' && name.startsWith(version)) {
       return `${tag}${name.slice(version.length)}`;
     }
     return name;

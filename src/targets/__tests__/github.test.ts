@@ -432,6 +432,57 @@ describe('GitHubTarget', () => {
         );
       });
 
+      it('uses the prefixed tag outside workspaces with releaseName: tag', async () => {
+        const target = new GitHubTarget(
+          { name: 'github', tagPrefix: 'py-client@', releaseName: 'tag' },
+          new NoneArtifactProvider(),
+          { owner: 'testOwner', repo: 'testRepo' },
+        );
+        target.github.repos.createRelease = createReleaseSpy as any;
+
+        await target.createDraftRelease('0.3.0', 'abc123', {
+          name: '0.3.0',
+          body: 'notes',
+        });
+
+        expect(createReleaseSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: 'py-client@0.3.0',
+            tag_name: 'py-client@0.3.0',
+          }),
+        );
+      });
+
+      it('keeps the changelog heading in a workspace with releaseName: changelog', async () => {
+        const target = new GitHubTarget(
+          { name: 'github', tagPrefix: 'cli@', releaseName: 'changelog' },
+          new NoneArtifactProvider(),
+          { owner: 'testOwner', repo: 'testRepo' },
+        );
+        target.github.repos.createRelease = createReleaseSpy as any;
+        setActiveWorkspace('packages/cli');
+
+        await target.createDraftRelease('0.2.0', 'abc123', {
+          name: '0.2.0',
+          body: 'notes',
+        });
+
+        expect(createReleaseSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ name: '0.2.0', tag_name: 'cli@0.2.0' }),
+        );
+      });
+
+      it('rejects an unknown releaseName', () => {
+        expect(
+          () =>
+            new GitHubTarget(
+              { name: 'github', releaseName: 'title' },
+              new NoneArtifactProvider(),
+              { owner: 'testOwner', repo: 'testRepo' },
+            ),
+        ).toThrow('Invalid "releaseName" for the github target: "title"');
+      });
+
       it('falls back to the tag without a changeset', async () => {
         const target = createPrefixedTarget();
         target.github.repos.createRelease = createReleaseSpy as any;

@@ -13,6 +13,7 @@ Creates a release on GitHub. If a Markdown changelog is present, this target rea
 | `previewReleases` | Automatically detect and create preview releases. Default: `true` |
 | `tagOnly` | Only create a tag (without a GitHub release). Default: `false` |
 | `floatingTags` | List of floating tags to create/update. Supports `{major}`, `{minor}`, `{patch}` placeholders. |
+| `releaseName` | Source of the GitHub release title: `changelog` (the changelog heading) or `tag` (the heading with its version replaced by the prefixed tag). Default: `tag` in a [release workspace](#release-workspaces), `changelog` otherwise. |
 
 ## Environment Variables
 
@@ -73,6 +74,15 @@ targets:
 
 Releasing `1.2.3` for each product then produces the tags `cli@1.2.3` / `mcp@1.2.3` on release branches `release/cli/1.2.3` / `release/mcp/1.2.3` — no collisions.
 
+By default both GitHub releases are titled with the changelog heading, `1.2.3`. Set `releaseName: tag` on each `github` target to title them with the prefixed tag instead (`cli@1.2.3` / `mcp@1.2.3`), so they're easy to tell apart on the releases page:
+
+```yaml
+targets:
+  - name: github
+    tagPrefix: "cli@"
+    releaseName: tag
+```
+
 ## Release Workspaces
 
 Use top-level `workspaces:` to define independently versioned release units in
@@ -108,7 +118,8 @@ overlapping workspace keys. A workspace cannot use
 workspace. This keeps each publish request unambiguous.
 
 When a workspace's `github` target has a `tagPrefix`, Craft also uses the
-prefixed tag in the GitHub release title. A changelog heading of `0.2.0` in the
+prefixed tag in the GitHub release title (`releaseName: tag` is the default in
+workspaces; set `releaseName: changelog` to opt out). A changelog heading of `0.2.0` in the
 `cli@` workspace produces a release titled `cli@0.2.0`, so releases of
 different products stay distinguishable. Text after the version in the heading
 is kept, and headings that do not start with the version are used unchanged.
