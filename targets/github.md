@@ -105,6 +105,8 @@ workspaces:
 
 Selected workspace paths use nonempty ASCII path segments containing letters, digits, periods, underscores, and hyphens. Segments cannot be `.`, `..`, `__proto__`, or start with `-`. They are release units, not npm package workspaces. Craft ignores files matched by a configured glob and rejects overlapping workspace keys. A workspace cannot use `github.projectPath`, and a workflow cannot provide both a `path` and a workspace. This keeps each publish request unambiguous.
 
+When a workspace’s `github` target has a `tagPrefix`, Craft also uses the prefixed tag in the GitHub release title. A changelog heading of `0.2.0` in the `cli@` workspace produces a release titled `cli@0.2.0`, so releases of different products stay distinguishable. Text after the version in the heading is kept, and headings that do not start with the version are used unchanged. Craft still looks up the changelog entry by the bare version.
+
 The `craft workspace list` command prints the concrete workspace paths as a JSON array for automation. Action publish titles always carry the full concrete path.
 
 Caution
