@@ -11,38 +11,19 @@
 
 Craft is a command line tool that helps automate and pipeline package releases. It enforces a specific workflow for managing release branches, changelogs, and artifact publishing.
 
-📚 **[Full Documentation](https://getsentry.github.io/craft/)**
+📚 **[Full Documentation](https://craft.sentry.dev/)**
 
 ## Quick Start
 
 ### Installation
 
-Download a standalone executable for your OS and architecture from the
-[latest release](https://github.com/getsentry/craft/releases/latest), or install
-the portable JavaScript package via npm. Standalone executables embed Node;
-npm installation requires Node. The legacy `craft` asset remains a JavaScript bundle.
-
-```shell
-npm install -g @sentry/craft
-```
-
-Homebrew installation will be available after the first stable release publishing
-these binaries and its formula:
-
-```shell
-brew install getsentry/tools/craft
-```
-
-Once the first native release and installer website are published:
-
 ```shell
 curl -fsSL https://craft.sentry.dev/install | bash
 ```
 
-The Bash installer supports macOS/Linux and Windows x64 through Git Bash. It
-verifies the download and installs to a user bin directory; add the printed
-path to PATH. Use `--version`, `--install-dir`, or `--dry-run` by downloading
-and running the script locally.
+Homebrew (`brew install getsentry/tools/craft`), standalone binaries, and npm
+(`npm install -g @sentry/craft`) are also available. See
+[Installation](https://craft.sentry.dev/installation/).
 
 ### Usage
 
@@ -57,22 +38,24 @@ craft prepare 1.2.3
 craft publish 1.2.3
 ```
 
+See the [Quick Start](https://craft.sentry.dev/getting-started/) to set up a project.
+
 ## Features
 
-- **Auto Versioning** - Automatically determine version bumps from conventional commits
-- **Multiple Targets** - Publish to GitHub, NPM, PyPI, Docker, Crates.io, NuGet, and more
-- **Changelog Management** - Auto-generate changelogs from commits or validate manual entries
-- **AI Changelog Summaries** - Choose release, category, and scope summaries through a shared HTTP client, defaulting to Copilot Responses, with bounded requests and expandable original entries ([configuration](https://craft.sentry.dev/configuration/#ai-summaries))
-- **Workspace Support** - Handle monorepos with NPM/Yarn workspaces
-- **CI Integration** - Wait for CI to pass, download artifacts, and publish
-- **GitHub Actions** - Built-in actions for release preparation and changelog previews
+- **[Auto Versioning](https://craft.sentry.dev/versioning/)** - Determine version bumps from conventional commits, or use CalVer
+- **[Multiple Targets](https://craft.sentry.dev/targets/)** - Publish to GitHub, npm, PyPI, Docker, crates.io, NuGet, and more
+- **[Changelog Management](https://craft.sentry.dev/changelogs/)** - Auto-generate changelogs from pull requests or validate manual entries
+- **[AI Changelog Summaries](https://craft.sentry.dev/ai-summaries/)** - Optional release, category, and scope summaries on top of generated changelogs
+- **[Monorepo Support](https://craft.sentry.dev/workspaces/)** - Release independently versioned products from one repository with release workspaces
+- **[CI Integration](https://craft.sentry.dev/release-workflow/)** - Wait for CI to pass, download artifacts, and publish
+- **[GitHub Actions](https://craft.sentry.dev/github-actions/)** - Reusable workflows for releases and changelog previews
 
 ## Configuration
 
 Create a `.craft.yml` in your project root:
 
 ```yaml
-minVersion: '2.0.0'
+minVersion: '2.21.0'
 changelog:
   policy: auto
 targets:
@@ -81,38 +64,9 @@ targets:
     access: public
 ```
 
-See the [configuration reference](https://getsentry.github.io/craft/configuration/) for all options.
-
-## Supported Targets
-
-| Target             | Description                           |
-| ------------------ | ------------------------------------- |
-| `github`           | GitHub releases and tags              |
-| `npm`              | NPM registry (with workspace support) |
-| `pypi`             | Python Package Index                  |
-| `crates`           | Rust crates.io                        |
-| `nuget`            | .NET NuGet                            |
-| `docker`           | Docker registries                     |
-| `brew`             | Homebrew formulas                     |
-| `gcs`              | Google Cloud Storage                  |
-| `gh-pages`         | GitHub Pages                          |
-| `cocoapods`        | CocoaPods                             |
-| `gem`              | RubyGems                              |
-| `maven`            | Maven Central                         |
-| `hex`              | Elixir Hex                            |
-| `pub-dev`          | Dart/Flutter pub.dev                  |
-| `aws-lambda-layer` | AWS Lambda layers                     |
-| `powershell`       | PowerShell Gallery                    |
-
-See the [targets documentation](https://getsentry.github.io/craft/targets/) for configuration details.
+See the [configuration reference](https://craft.sentry.dev/configuration/) for all options.
 
 ## GitHub Actions
-
-Craft provides GitHub Actions for automating releases and previewing changelog entries.
-
-### Prepare Release Action
-
-Automates the `craft prepare` workflow in GitHub Actions:
 
 ```yaml
 name: Release
@@ -125,59 +79,16 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: getsentry/craft@v2
-        with:
-          version: ${{ github.event.inputs.version }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-**Inputs:**
-
-| Input           | Description                                                                                   | Default                              |
-| --------------- | --------------------------------------------------------------------------------------------- | ------------------------------------ |
-| `version`       | Version to release (semver, "auto", "major", "minor", "patch")                                | Uses `versioning.policy` from config |
-| `merge_target`  | Target branch to merge into                                                                   | Default branch                       |
-| `force`         | Force release even with blockers                                                              | `false`                              |
-| `blocker_label` | Label that blocks releases                                                                    | `release-blocker`                    |
-| `publish_repo`  | Repository for publish issues. Use `"self"` to create issues in the source repository itself. | `{owner}/publish`                    |
-
-**Outputs:**
-
-| Output      | Description                          |
-| ----------- | ------------------------------------ |
-| `version`   | The resolved version being released  |
-| `branch`    | The release branch name              |
-| `sha`       | The commit SHA on the release branch |
-| `changelog` | The changelog for this release       |
-
-### Changelog Preview (Reusable Workflow)
-
-Posts a preview comment on PRs showing how they'll appear in the changelog:
-
-```yaml
-name: Changelog Preview
-on:
-  pull_request:
-    types: [opened, synchronize, reopened, edited, labeled]
-
-jobs:
-  changelog-preview:
-    uses: getsentry/craft/.github/workflows/changelog-preview.yml@v2
+    permissions:
+      contents: write
+    uses: getsentry/craft/.github/workflows/release.yml@v2
+    with:
+      version: ${{ inputs.version }}
     secrets: inherit
 ```
 
-The workflow will:
-
-- Generate the upcoming changelog including the PR's changes
-- Highlight entries from the PR using blockquote style (left border)
-- Post a comment on the PR with the preview
-- Automatically update when you update the PR (push, edit title/description, or change labels)
+See [GitHub Actions](https://craft.sentry.dev/github-actions/) for all inputs,
+the composite action, and the changelog preview workflow.
 
 ## Contributing
 

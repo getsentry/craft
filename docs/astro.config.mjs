@@ -26,17 +26,34 @@ export default defineConfig({
       ],
       sidebar: [
         {
-          label: 'Getting Started',
+          label: 'Start Here',
           items: [
             { label: 'Introduction', slug: 'index' },
-            { label: 'Installation', slug: 'getting-started' },
-            { label: 'Configuration', slug: 'configuration' },
+            { label: 'Installation', slug: 'installation' },
+            { label: 'Quick Start', slug: 'getting-started' },
+          ],
+        },
+        {
+          label: 'Guides',
+          items: [
+            { label: 'Release Workflow', slug: 'release-workflow' },
+            { label: 'Versioning', slug: 'versioning' },
+            { label: 'Changelogs', slug: 'changelogs' },
+            { label: 'AI Changelog Summaries', slug: 'ai-summaries' },
+            { label: 'Monorepos & Release Workspaces', slug: 'workspaces' },
             { label: 'GitHub Actions', slug: 'github-actions' },
           ],
         },
         {
           label: 'Targets',
           items: [{ autogenerate: { directory: 'targets' } }],
+        },
+        {
+          label: 'Reference',
+          items: [
+            { label: 'Configuration', slug: 'configuration' },
+            { label: 'CLI', slug: 'cli' },
+          ],
         },
         {
           label: 'Resources',

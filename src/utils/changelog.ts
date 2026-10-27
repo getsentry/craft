@@ -1248,7 +1248,7 @@ export function getNormalizedReleaseConfig(): NormalizedReleaseConfig | null {
       logger.warn(
         `The following changelog categories have no 'semver' field and won't contribute to ` +
           `version bump detection: ${categoriesWithoutSemver.map(t => `"${t}"`).join(', ')}. ` +
-          `See: https://getsentry.github.io/craft/configuration/#auto-mode`,
+          `See: https://craft.sentry.dev/changelogs/#categories`,
       );
     }
   }

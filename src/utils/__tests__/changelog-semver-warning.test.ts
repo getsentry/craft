@@ -188,7 +188,7 @@ changelog:
 
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining(
-        'https://getsentry.github.io/craft/configuration/#auto-mode',
+        'https://craft.sentry.dev/changelogs/#categories',
       ),
     );
   });
