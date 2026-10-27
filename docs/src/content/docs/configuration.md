@@ -572,6 +572,14 @@ Example output with scope grouping:
 - General improvement by @dave in [#4](https://github.com/...)
 ```
 
+### Junior pull requests
+
+Pull requests opened by Sentry's Junior bot (`sentry-junior[bot]`) credit the
+person who requested them instead of the bot. Craft reads the first GitHub
+`@login` from Junior's request attribution block in the PR body and falls back
+to the bot when the requester has no linked GitHub account. Author exclusions
+still match the bot login.
+
 ### Workspace-aware changelogs
 
 When you select a Craft release workspace, automatic changelogs include commits

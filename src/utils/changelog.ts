@@ -644,6 +644,42 @@ interface PullRequest {
 }
 
 /**
+ * GitHub logins of the Junior bot. REST returns `sentry-junior[bot]`, while
+ * GraphQL returns the bare `sentry-junior` login for bot authors.
+ */
+const JUNIOR_BOT_LOGINS = new Set(['sentry-junior', 'sentry-junior[bot]']);
+
+/** Junior's runtime-owned requester block, e.g. `via @octocat, **Jane**.` */
+const JUNIOR_REQUEST_ATTRIBUTION_REGEX =
+  /<!-- junior-request-attribution:start -->([\s\S]*?)<!-- junior-request-attribution:end -->/;
+
+/** A requester label that is a GitHub `@login` mention, not a display name. */
+const JUNIOR_REQUESTER_LOGIN_REGEX =
+  /(?:\b(?:via|by) |, )@([A-Za-z0-9][A-Za-z0-9_-]*)(?=[,.\s]|$)/;
+
+/**
+ * Resolves the author to credit in the changelog.
+ *
+ * PRs opened by Junior on someone's behalf credit the first requester with a
+ * linked GitHub login from Junior's attribution block. Falls back to the PR
+ * author when there is no such requester.
+ *
+ * @param author The PR author login
+ * @param prBody The PR description/body text
+ * @returns The login to credit in the changelog
+ */
+export function resolveChangelogAuthor(
+  author: string | undefined,
+  prBody: string | null | undefined,
+): string | undefined {
+  if (!author || !prBody || !JUNIOR_BOT_LOGINS.has(author)) {
+    return author;
+  }
+  const attribution = prBody.match(JUNIOR_REQUEST_ATTRIBUTION_REGEX)?.[1];
+  return attribution?.match(JUNIOR_REQUESTER_LOGIN_REGEX)?.[1] ?? author;
+}
+
+/**
  * Creates PullRequest entries from raw commit info, handling custom changelog entries.
  * If the PR body contains a "Changelog Entry" section, each entry becomes a separate PR entry.
  * Otherwise, a single entry is created using the PR title.
@@ -668,10 +704,11 @@ function createPREntriesFromRaw(
       ? defaultTitle
       : undefined;
   const customEntries = extractChangelogEntry(raw.prBody);
+  const author = resolveChangelogAuthor(raw.author, raw.prBody);
 
   if (customEntries) {
     return customEntries.map(entry => ({
-      author: raw.author,
+      author,
       number: raw.pr ?? '',
       hash: raw.hash,
       body: entry.nestedContent ?? '',
@@ -683,7 +720,7 @@ function createPREntriesFromRaw(
 
   return [
     {
-      author: raw.author,
+      author,
       number: raw.pr ?? '',
       hash: raw.hash,
       body: '',

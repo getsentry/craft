@@ -726,6 +726,29 @@ describe('generateChangesetFromGit', () => {
       expect(result.changelog).toMatchSnapshot();
     });
 
+    it('credits the requester of a PR opened by Junior', async () => {
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'Upgraded the kernel',
+            body: '',
+            pr: {
+              remote: {
+                number: '123',
+                author: { login: 'sentry-junior' },
+                body: 'Upgrades the kernel.\n\n<!-- junior-request-attribution:start -->\nvia @alice.\n<!-- junior-request-attribution:end -->',
+              },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(result.changelog).toContain('by @alice in [#123]');
+      expect(result.changelog).not.toContain('sentry-junior');
+    });
+
     it('handles null PR author gracefully', async () => {
       setup(
         [
