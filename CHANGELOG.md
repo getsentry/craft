@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.2.0
+
+Contributor attribution now recognizes co-authors and bot assistance while preserving merge-credit rules, and documentation clarifies Craft usage, targets, and GitHub Actions settings.
+
+### New Features ✨
+
+Changelog credit now includes co-authors and bot-assisted contributions, while preserving author-only credit for merge commits without co-author trailers.
+
+- (changelog) Credit commit co-authors and add hide_authors by @jan-auer and @BYK with @sentry-junior in [#934](https://github.com/getsentry/craft/pull/934)
+
+### Documentation 📚
+
+Documentation now separates Craft installation, workflows, configuration, and CLI guidance while clarifying target options and previously missing GitHub Actions settings.
+
+- Restructure docs around Craft concepts instead of targets by @BYK with @sentry-junior in [#935](https://github.com/getsentry/craft/pull/935)
+
 ## 3.1.0
 
 Workspace-aware release labeling, clearer AI summaries, safer dependency handling, and stricter configuration validation improve changelog clarity and upgrade safety.
