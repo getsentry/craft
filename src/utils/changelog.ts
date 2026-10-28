@@ -12,7 +12,7 @@ import {
   getGlobalGitHubConfig,
   getChangelogConfig,
 } from '../config';
-import { getChangesSince } from './git';
+import { getChangesSince, getWorkspaceChangeFilter } from './git';
 import { getGitHubClient } from './githubApi';
 import { getVersion } from './version';
 import type { AiSummaryConfig } from '../schemas/project_config';
@@ -72,6 +72,35 @@ async function fetchPRInfo(prNumber: number): Promise<CurrentPRInfo> {
     baseRef: pr.base.ref,
     headSha: pr.head.sha,
   };
+}
+
+/**
+ * Lists the files a PR changes, including the previous path of renamed files,
+ * so a move between workspaces counts for both sides.
+ */
+async function fetchPRFiles(prNumber: number): Promise<string[]> {
+  const { repo, owner } = await getGlobalGitHubConfig();
+  const github = getGitHubClient();
+  const perPage = 100;
+  const files: string[] = [];
+  for (let page = 1; ; page++) {
+    const { data } = await github.pulls.listFiles({
+      owner,
+      repo,
+      pull_number: prNumber,
+      per_page: perPage,
+      page,
+    });
+    for (const file of data) {
+      files.push(file.filename);
+      if (file.previous_filename) {
+        files.push(file.previous_filename);
+      }
+    }
+    if (data.length < perPage) {
+      return files;
+    }
+  }
 }
 
 interface CommitAuthors {
@@ -1592,6 +1621,17 @@ export interface ChangelogResult {
   matchedCommitsWithSemver: number;
   /** Whether the current PR was skipped (only set when using --pr flag) */
   prSkipped?: boolean;
+  /**
+   * Whether the current PR changes no files in the active workspace, so it
+   * won't be listed in that workspace's changelog (only set when using --pr
+   * flag with a workspace selected)
+   */
+  prOutsideWorkspace?: boolean;
+  /**
+   * The current PR's own entry, rendered without the rest of the changelog
+   * (only set when using --pr flag)
+   */
+  prEntry?: string;
 }
 
 /**
@@ -1712,7 +1752,25 @@ export async function generateChangelogWithHighlight(
   // Step 2: Calculate bump type for this specific PR (used for both skipped and non-skipped PRs)
   const prBumpType = getBumpTypeForPR(prInfo);
 
-  // Step 3: Check if PR should be skipped - bypass changelog generation but still return bump type
+  // Step 3: With a workspace selected, apply the same path rules as the
+  // workspace's release changelog. A PR outside the workspace neither appears
+  // in its changelog nor bumps its version.
+  const belongsToWorkspace = await getWorkspaceChangeFilter();
+  if (
+    belongsToWorkspace &&
+    !belongsToWorkspace(await fetchPRFiles(currentPRNumber))
+  ) {
+    return {
+      changelog: '',
+      bumpType: null,
+      totalCommits: 0,
+      matchedCommitsWithSemver: 0,
+      prSkipped: false,
+      prOutsideWorkspace: true,
+    };
+  }
+
+  // Step 3b: Check if PR should be skipped - bypass changelog generation but still return bump type
   if (shouldSkipCurrentPR(prInfo)) {
     return {
       changelog: '',
@@ -1774,6 +1832,17 @@ export async function generateChangelogWithHighlight(
     true,
   );
 
+  // The PR's entry on its own, for previews that span several changelogs
+  const prEntry = currentPRSurvived
+    ? await serializeChangelog(
+        categorizeCommits(filteredCommits.filter(c => c.highlight)).data,
+        MAX_LEFTOVERS,
+        true,
+        true,
+        false,
+      )
+    : '';
+
   // Determine bump type:
   // - If current PR survived revert processing, use its specific bump type (PR 676 fix)
   //   This shows "what is this PR's contribution to the version bump"
@@ -1784,6 +1853,7 @@ export async function generateChangelogWithHighlight(
   return {
     changelog,
     prSkipped: false,
+    prEntry,
     bumpType,
     totalCommits: stats.totalCommits,
     matchedCommitsWithSemver: stats.matchedCommitsWithSemver,

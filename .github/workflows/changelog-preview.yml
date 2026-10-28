@@ -165,19 +165,43 @@ jobs:
           BUMP_TYPE=$(echo "$RESULT" | jq -r '.bumpType // "none"')
           PR_SKIPPED=$(echo "$RESULT" | jq -r '.prSkipped // false')
           VERSIONING_POLICY=$(echo "$RESULT" | jq -r '.versioningPolicy // "auto"')
+          # Only set when .craft.yml defines release workspaces: one entry per
+          # workspace whose changelog lists this PR
+          WORKSPACES=$(echo "$RESULT" | jq -r 'if .workspaces then .workspaces | length else "" end')
 
           # Export for downstream steps (e.g., title enforcement)
           {
             echo "bump_type=${BUMP_TYPE}"
             echo "pr_skipped=${PR_SKIPPED}"
             echo "versioning_policy=${VERSIONING_POLICY}"
+            echo "workspace_count=${WORKSPACES}"
           } >> "$GITHUB_OUTPUT"
 
-          if [[ "$PR_SKIPPED" == "true" ]]; then
+          if [[ "$WORKSPACES" == "0" ]]; then
+            CHANGELOG="_This PR does not change any workspace, so it will not appear in any changelog._"
+          elif [[ "$PR_SKIPPED" == "true" ]]; then
             CHANGELOG="_This PR will not appear in the changelog._"
           elif [[ -z "$CHANGELOG" ]]; then
             CHANGELOG="_No changelog entries will be generated from this PR._"
           fi
+
+          bump_badge() {
+            case "$1" in
+              major) echo "🔴 **Major** (breaking changes)" ;;
+              minor) echo "🟡 **Minor** (new features)" ;;
+              patch) echo "🟢 **Patch** (bug fixes)" ;;
+              *) echo "⚪ **None** (no version bump detected)" ;;
+            esac
+          }
+
+          bump_short() {
+            case "$1" in
+              major) echo "Major" ;;
+              minor) echo "Minor" ;;
+              patch) echo "Patch" ;;
+              *) echo "None" ;;
+            esac
+          }
 
           # CalVer projects don't use semver bumps — skip the impact badge
           if [[ "$VERSIONING_POLICY" == "calver" ]]; then
@@ -186,22 +210,34 @@ jobs:
             SECTION_HEADING="Changelog Preview"
             STATUS_CONTEXT="Changelog Preview"
           else
-            case "$BUMP_TYPE" in
-              major) BUMP_BADGE="🔴 **Major** (breaking changes)" ;;
-              minor) BUMP_BADGE="🟡 **Minor** (new features)" ;;
-              patch) BUMP_BADGE="🟢 **Patch** (bug fixes)" ;;
-              *) BUMP_BADGE="⚪ **None** (no version bump detected)" ;;
-            esac
-
-            case "$BUMP_TYPE" in
-              major) BUMP_SHORT="Major" ;;
-              minor) BUMP_SHORT="Minor" ;;
-              patch) BUMP_SHORT="Patch" ;;
-              *) BUMP_SHORT="None" ;;
-            esac
-
+            BUMP_BADGE=$(bump_badge "$BUMP_TYPE")
+            BUMP_SHORT=$(bump_short "$BUMP_TYPE")
             SECTION_HEADING="Semver Impact of This PR"
             STATUS_CONTEXT="Changelog Preview / Semver Impact"
+          fi
+
+          # With workspaces, list each workspace the PR lands in with its own bump
+          if [[ "$WORKSPACES" == "0" ]]; then
+            BUMP_BADGE="⚪ **None** (no workspace changed)"
+            BUMP_SHORT="No workspace changed"
+          elif [[ -n "$WORKSPACES" ]]; then
+            BUMP_BADGE="This PR lands in these workspaces:"$'\n'
+            BUMP_SHORT=""
+            while IFS=$'\t' read -r WS_NAME WS_BUMP WS_POLICY; do
+              if [[ "$WS_POLICY" == "calver" ]]; then
+                WS_BADGE="CalVer"
+                WS_SHORT="CalVer"
+              else
+                WS_BADGE=$(bump_badge "$WS_BUMP")
+                WS_SHORT=$(bump_short "$WS_BUMP")
+              fi
+              BUMP_BADGE+=$'\n'"- \`${WS_NAME}\`: ${WS_BADGE}"
+              BUMP_SHORT+="${BUMP_SHORT:+, }${WS_NAME}: ${WS_SHORT}"
+            done < <(echo "$RESULT" | jq -r '.workspaces[] | [.name, (.bumpType // "none"), (.versioningPolicy // "auto")] | @tsv')
+            # GitHub rejects commit status descriptions over 140 characters
+            if (( ${#BUMP_SHORT} > 140 )); then
+              BUMP_SHORT="${BUMP_SHORT:0:139}…"
+            fi
           fi
 
           # Determine mode: use status check mode when comment is false OR when running internally (no input)
@@ -308,9 +344,15 @@ jobs:
           BUMP_TYPE: ${{ steps.preview.outputs.bump_type }}
           PR_SKIPPED: ${{ steps.preview.outputs.pr_skipped }}
           VERSIONING_POLICY: ${{ steps.preview.outputs.versioning_policy }}
+          WORKSPACE_COUNT: ${{ steps.preview.outputs.workspace_count }}
         run: |
           if [[ "$PR_SKIPPED" == "true" ]]; then
             echo "PR is skip-changelog — skipping title enforcement"
+            exit 0
+          fi
+
+          if [[ "$WORKSPACE_COUNT" == "0" ]]; then
+            echo "PR does not change any workspace — skipping title enforcement"
             exit 0
           fi
 

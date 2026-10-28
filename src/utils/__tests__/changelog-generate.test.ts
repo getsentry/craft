@@ -7,7 +7,7 @@ import { vi, type Mock, type MockedFunction } from 'vitest';
 vi.mock('../githubApi.ts');
 import { getGitHubClient } from '../githubApi';
 vi.mock('../git');
-import { getChangesSince } from '../git';
+import { getChangesSince, getWorkspaceChangeFilter } from '../git';
 vi.mock('fs', async importOriginal => {
   const actual = await importOriginal<typeof import('fs')>();
   return {
@@ -2277,7 +2277,7 @@ See incident report: https://example.com/incident/123`,
 describe('generateChangelogWithHighlight', () => {
   let mockGraphqlClient: Mock;
   let mockRestClient: {
-    pulls: { get: Mock };
+    pulls: { get: Mock; listFiles: Mock };
     issues: { listLabelsOnIssue: Mock };
   };
   const mockGetChangesSince = getChangesSince as MockedFunction<
@@ -2293,7 +2293,7 @@ describe('generateChangelogWithHighlight', () => {
     clearReleaseConfigCache();
     mockGraphqlClient = vi.fn();
     mockRestClient = {
-      pulls: { get: vi.fn() },
+      pulls: { get: vi.fn(), listFiles: vi.fn() },
       issues: { listLabelsOnIssue: vi.fn() },
     };
     (getGitHubClient as MockedFunction<typeof getGitHubClient>).mockReturnValue(
@@ -2800,6 +2800,76 @@ describe('generateChangelogWithHighlight', () => {
       expect(result.changelog).toBe('');
       expect(result.prSkipped).toBe(true);
       expect(result.bumpType).toBe('patch');
+    });
+  });
+
+  describe('with a workspace selected', () => {
+    const mockFilter = getWorkspaceChangeFilter as MockedFunction<
+      typeof getWorkspaceChangeFilter
+    >;
+
+    it('leaves out a PR that changes no workspace files', async () => {
+      setup({
+        currentPR: { number: 5, title: 'feat(server): Add endpoint' },
+        existingCommits: [],
+      });
+      const belongsToWorkspace = vi.fn(() => false);
+      mockFilter.mockResolvedValue(belongsToWorkspace);
+      mockRestClient.pulls.listFiles.mockResolvedValueOnce({
+        data: [{ filename: 'server/src/main.rs' }],
+      });
+
+      const result = await generateChangelogWithHighlight(dummyGit, '1.0.0', 5);
+
+      expect(result).toMatchObject({
+        changelog: '',
+        bumpType: null,
+        prOutsideWorkspace: true,
+      });
+      expect(belongsToWorkspace).toHaveBeenCalledWith(['server/src/main.rs']);
+      expect(dummyGit.fetch).not.toHaveBeenCalled();
+    });
+
+    it('checks every page of changed files, including renamed paths', async () => {
+      setup({
+        currentPR: { number: 5, title: 'feat(py): Add client option' },
+        existingCommits: [
+          { hash: 'abc123', title: 'fix(py): Older fix (#4)', body: '' },
+        ],
+      });
+      const belongsToWorkspace = vi.fn(() => true);
+      mockFilter.mockResolvedValue(belongsToWorkspace);
+      const firstPage = Array.from({ length: 100 }, (_, i) => ({
+        filename: `docs/${i}.md`,
+      }));
+      mockRestClient.pulls.listFiles
+        .mockResolvedValueOnce({ data: firstPage })
+        .mockResolvedValueOnce({
+          data: [
+            {
+              filename: 'clients/python/new.py',
+              previous_filename: 'clients/rust/old.rs',
+            },
+          ],
+        });
+
+      const result = await generateChangelogWithHighlight(dummyGit, '1.0.0', 5);
+
+      expect(mockRestClient.pulls.listFiles).toHaveBeenCalledTimes(2);
+      expect(mockRestClient.pulls.listFiles).toHaveBeenLastCalledWith(
+        expect.objectContaining({ pull_number: 5, page: 2 }),
+      );
+      expect(belongsToWorkspace).toHaveBeenCalledWith([
+        ...firstPage.map(({ filename }) => filename),
+        'clients/python/new.py',
+        'clients/rust/old.rs',
+      ]);
+      expect(result.prOutsideWorkspace).toBeUndefined();
+      expect(result.bumpType).toBe('minor');
+      expect(result.changelog).toContain('Older fix');
+      // The PR's own entry leaves out the rest of the changelog
+      expect(result.prEntry).toContain('Add client option');
+      expect(result.prEntry).not.toContain('Older fix');
     });
   });
 });

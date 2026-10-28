@@ -154,37 +154,13 @@ export async function getChangesSince(
     body: commit.body,
     pr: commit.message.match(PRExtractor)?.[0] || null,
   }));
-  if (!workspace || changes.length === 0) {
+  if (changes.length === 0) {
     return changes;
   }
-
-  const root = getConfigFileDir() || process.cwd();
-  const discovered = await discoverWorkspaces(root);
-  const ownedPaths = new Set(getWorkspaceNames());
-  for (const pkg of discovered.packages) {
-    const relative = path
-      .relative(root, pkg.location)
-      .split(path.sep)
-      .join('/');
-    if (relative === '' || relative === '..' || relative.startsWith('../')) {
-      throw new ConfigurationError(
-        `Workspace package is outside the repository: ${pkg.name}`,
-      );
-    }
-    ownedPaths.add(relative);
+  const belongsToWorkspace = await getWorkspaceChangeFilter();
+  if (!belongsToWorkspace) {
+    return changes;
   }
-  const orderedOwners = [...ownedPaths].sort(
-    (left, right) => right.length - left.length,
-  );
-  const { includePaths, unownedPaths } = getChangelogConfig();
-  const unownedPathsOwner = getUnownedPathsOwner();
-  // Files outside every workspace belong to the configured owner. Without one,
-  // they are shared unless this workspace excludes them.
-  const includesUnowned = unownedPathsOwner
-    ? unownedPathsOwner === workspace
-    : unownedPaths !== 'exclude';
-  const contains = (directory: string, file: string) =>
-    file === directory || file.startsWith(`${directory}/`);
 
   // NUL-delimited filenames remain unambiguous even when they contain spaces
   // or newlines. Disabling renames includes both sides of a moved file.
@@ -220,14 +196,64 @@ export async function getChangesSince(
     if (!files) {
       throw new Error(`Missing changelog paths for commit ${commit.hash}`);
     }
-    return files.some(file => {
+    return belongsToWorkspace(files);
+  });
+}
+
+/**
+ * Returns a predicate that tells whether a change touching the given
+ * repository-relative files belongs in the active workspace's changelog, or
+ * `undefined` when no workspace is selected.
+ *
+ * A file belongs to the workspace when it is under one of the workspace's
+ * `changelog.includePaths`, when the workspace is its closest owner (a
+ * workspace or discovered package directory), or when no workspace owns it
+ * and the `changelog.unownedPaths` rules give unowned files to this workspace.
+ */
+export async function getWorkspaceChangeFilter(): Promise<
+  ((files: string[]) => boolean) | undefined
+> {
+  const workspace = getActiveWorkspace();
+  if (!workspace) {
+    return undefined;
+  }
+
+  const root = getConfigFileDir() || process.cwd();
+  const discovered = await discoverWorkspaces(root);
+  const ownedPaths = new Set(getWorkspaceNames());
+  for (const pkg of discovered.packages) {
+    const relative = path
+      .relative(root, pkg.location)
+      .split(path.sep)
+      .join('/');
+    if (relative === '' || relative === '..' || relative.startsWith('../')) {
+      throw new ConfigurationError(
+        `Workspace package is outside the repository: ${pkg.name}`,
+      );
+    }
+    ownedPaths.add(relative);
+  }
+  const orderedOwners = [...ownedPaths].sort(
+    (left, right) => right.length - left.length,
+  );
+  const { includePaths, unownedPaths } = getChangelogConfig();
+  const unownedPathsOwner = getUnownedPathsOwner();
+  // Files outside every workspace belong to the configured owner. Without one,
+  // they are shared unless this workspace excludes them.
+  const includesUnowned = unownedPathsOwner
+    ? unownedPathsOwner === workspace
+    : unownedPaths !== 'exclude';
+  const contains = (directory: string, file: string) =>
+    file === directory || file.startsWith(`${directory}/`);
+
+  return files =>
+    files.some(file => {
       if (includePaths.some(directory => contains(directory, file))) {
         return true;
       }
       const owner = orderedOwners.find(directory => contains(directory, file));
       return owner === undefined ? includesUnowned : owner === workspace;
     });
-  });
 }
 
 /**
