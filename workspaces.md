@@ -232,13 +232,13 @@ jobs:
 
 Publish request titles include the full workspace path, for example `publish: getsentry/toolkit/packages/cli@1.2.3`. A workflow cannot set both `path` and `workspace`.
 
+The [changelog preview workflow](https://craft.sentry.dev/github-actions.md#changelog-preview) needs no `workspace` input. It previews each pull request in every workspace whose changelog would list it, using the same path rules as the release changelog, and posts a single comment or status that names each of those workspaces with its version bump. Running `craft changelog --pr <number>` without a workspace does the same.
+
 ## Known limitations
 
 - GitHub tracks a single “Latest” release per repository, so the badge can move
   between products. See the
   [GitHub target](https://craft.sentry.dev/targets/github.md#the-latest-badge-in-monorepos).
-- The [changelog preview workflow](https://craft.sentry.dev/github-actions.md#changelog-preview) has no
-  `workspace` input yet.
 
 ## Alternative: one config per product
 

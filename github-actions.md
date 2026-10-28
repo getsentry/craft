@@ -423,6 +423,22 @@ Add `#skip-changelog` to a PR body or the `skip-changelog` label to leave a chan
 
 Pass the `workspace` input to release one [release workspace](https://craft.sentry.dev/workspaces.md#github-actions) at a time.
 
+The changelog preview needs no extra input for release workspaces. It lists each workspace the pull request lands in, together with its version bump, and shows the pull request’s entry once:
+
+```markdown
+## Semver Impact of This PR
+
+
+This PR lands in these workspaces:
+
+
+- `clients/python`: 🟡 **Minor** (new features)
+- `clients/rust`: 🟡 **Minor** (new features)
+```
+
+
+A pull request lands in a workspace when its [workspace-aware changelog](https://craft.sentry.dev/workspaces.md#workspace-aware-changelogs) would list it.
+
 ### Combining Both Workflows
 
 You can use both the changelog preview and release workflows together for a complete release flow:
