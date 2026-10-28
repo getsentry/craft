@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.4.0
+
+Preview release workflows now handle workspace paths precisely, report version policies, and emit structured JSON for developers.
+
+### New Features ✨
+
+Preview release PRs across workspaces with scoped path handling, version-policy reporting, and structured JSON output.
+
+- (changelog) Preview PRs in every release workspace they land in by @BYK with @sentry-junior in [#942](https://github.com/getsentry/craft/pull/942)
+
 ## 3.3.0
 
 Workspace settings expose more package detail, while scoped packing and version bumps prevent unrelated package changes in monorepos.
