@@ -198,6 +198,7 @@ function runActionStep(
   environment: ReturnType<typeof createActionEnvironment>,
   pathInput = '.',
   locale = 'C',
+  extraEnv: Record<string, string> = {},
 ) {
   return spawnSync('bash', ['-e', '-c', getActionStep(stepName).run!], {
     cwd: environment.directory,
@@ -213,6 +214,7 @@ function runActionStep(
       PATH_INPUT: pathInput,
       VERSION: '',
       WORKSPACE: workspace,
+      ...extraEnv,
     },
   });
 }
@@ -961,48 +963,32 @@ test('clears an inherited workspace before root Craft commands', () => {
   );
 });
 
-test('reads targets from the release commit, not the branch prepare switched back to', () => {
+test('uses the targets craft prepare listed from the release branch', () => {
   const environment = createActionEnvironment();
-  rmSync(join(environment.binDirectory, 'git'));
-  const repo = join(environment.directory, 'repo');
-  mkdirSync(repo);
-  const git = (...args: string[]) =>
-    spawnSync('git', args, { cwd: repo, encoding: 'utf8' }).stdout.trim();
-  git('init', '--quiet', '--initial-branch=main');
-  git('config', 'user.email', 'craft@example.com');
-  git('config', 'user.name', 'Craft');
-  writeFileSync(join(repo, 'targets.json'), '["github"]');
-  git('add', 'targets.json');
-  git('commit', '--quiet', '-m', 'main');
-  git('checkout', '--quiet', '-b', 'release/2.0.0');
-  writeFileSync(join(repo, 'targets.json'), '["npm[hosting]","github"]');
-  git('commit', '--quiet', '-am', 'release');
-  const releaseSha = git('rev-parse', 'HEAD');
-  git('checkout', '--quiet', 'main');
-  writeFileSync(
-    join(environment.binDirectory, 'craft'),
-    '#!/usr/bin/env bash\ncat targets.json\n',
-  );
 
-  const result = spawnSync(
-    'bash',
-    ['-e', '-o', 'pipefail', '-c', getActionStep('Read Craft Targets').run!],
-    {
-      cwd: repo,
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        GITHUB_OUTPUT: environment.output,
-        PATH: `${environment.binDirectory}:${process.env.PATH}`,
-        RELEASE_SHA: releaseSha,
-        WORKSPACE: '',
-      },
-    },
-  );
+  expect(
+    runActionStep('Read Craft Targets', 'packages/cli', environment, '.', 'C', {
+      PREPARED_TARGETS: '["npm[@sentry/hosting]","github"]',
+    }).status,
+  ).toBe(0);
 
-  expect(result.status).toBe(0);
+  expect(readFileSync(environment.craftCalls, 'utf8')).toBe('');
   expect(readFileSync(environment.output, 'utf8')).toBe(
-    'targets<<EOF\n - [ ] npm[hosting]\n - [ ] github\nEOF\n',
+    'targets<<EOF\n - [ ] npm[@sentry/hosting]\n - [ ] github\nEOF\n',
   );
-  expect(git('symbolic-ref', '--short', 'HEAD')).toBe('main');
+});
+
+test('lists targets itself when craft prepare did not', () => {
+  const environment = createActionEnvironment();
+
+  expect(
+    runActionStep('Read Craft Targets', 'packages/cli', environment).status,
+  ).toBe(0);
+
+  expect(readFileSync(environment.craftCalls, 'utf8')).toBe(
+    'targets --workspace=packages/cli\n',
+  );
+  expect(readFileSync(environment.output, 'utf8')).toBe(
+    'targets<<EOF\n - [ ] github\nEOF\n',
+  );
 });

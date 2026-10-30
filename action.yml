@@ -212,26 +212,23 @@ runs:
       working-directory: ${{ inputs.path }}
       env:
         CRAFT_LOG_LEVEL: Warn
-        RELEASE_SHA: ${{ steps.craft.outputs.sha }}
+        PREPARED_TARGETS: ${{ steps.craft.outputs.targets }}
         WORKSPACE: ${{ inputs.workspace }}
       run: |
         unset CRAFT_WORKSPACE
-        CRAFT_ARGS=()
-        if [[ -n "$WORKSPACE" ]]; then
-          CRAFT_ARGS=("--workspace=$WORKSPACE")
+        # `craft prepare` lists the targets from the release branch before it
+        # switches back to the default branch. Craft versions that don't emit
+        # them fall back to listing the targets of the current checkout.
+        if [[ -n "$PREPARED_TARGETS" ]]; then
+          targets_json="$PREPARED_TARGETS"
+        else
+          CRAFT_ARGS=()
+          if [[ -n "$WORKSPACE" ]]; then
+            CRAFT_ARGS=("--workspace=$WORKSPACE")
+          fi
+          targets_json=$(craft targets "${CRAFT_ARGS[@]}")
         fi
-
-        # `craft prepare` switches back to the default branch when it finishes,
-        # so list the targets from the release commit instead: the default
-        # branch can define different targets than a release cut from another
-        # merge target.
-        if [[ -n "$RELEASE_SHA" ]]; then
-          original_ref=$(git symbolic-ref --quiet --short HEAD || git rev-parse HEAD)
-          git checkout --quiet --detach "$RELEASE_SHA"
-          trap 'git checkout --quiet "$original_ref"' EXIT
-        fi
-
-        targets=$(craft targets "${CRAFT_ARGS[@]}" | jq -r '.[]|" - [ ] \(.)"')
+        targets=$(jq -r '.[]|" - [ ] \(.)"' <<< "$targets_json")
 
         # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#multiline-strings
         echo "targets<<EOF" >> "$GITHUB_OUTPUT"

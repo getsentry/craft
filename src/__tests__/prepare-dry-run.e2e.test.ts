@@ -490,6 +490,35 @@ describe('prepare --dry-run e2e', () => {
     );
   }, 60000);
 
+  test('emits the release branch targets, not the default branch ones', async () => {
+    tempDir = await createTestRepo();
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const git = simpleGit(tempDir);
+    const outputPath = join(tempDir, 'github-output');
+
+    await git.checkoutLocalBranch('version2');
+    const craftConfig = await readFile(join(tempDir, '.craft.yml'), 'utf8');
+    await writeFile(
+      join(tempDir, '.craft.yml'),
+      craftConfig.replace('targets: []', 'targets:\n  - name: github'),
+    );
+    await git.commit('meta: Add the github target', ['.craft.yml']);
+    await git.push('origin', 'version2', ['--set-upstream']);
+
+    await execFileAsync(
+      CLI_BIN,
+      ['prepare', '1.0.1', '--dry-run', '--no-input'],
+      {
+        cwd: tempDir,
+        env: { ...CLI_ENV, GITHUB_OUTPUT: outputPath },
+      },
+    );
+
+    expect(await readFile(outputPath, 'utf8')).toContain(
+      'targets=["github"]\n',
+    );
+  }, 60000);
+
   test('executes pre-release command and shows diff of changes', async () => {
     tempDir = await createTestRepo();
     // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
