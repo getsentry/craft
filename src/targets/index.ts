@@ -16,6 +16,7 @@ import { RegistryTarget } from './registry';
 import { AwsLambdaLayerTarget } from './awsLambdaLayer';
 import { UpmTarget } from './upm';
 import { MavenTarget } from './maven';
+import { McpRegistryTarget } from './mcpRegistry';
 import { SymbolCollector } from './symbolCollector';
 import { PubDevTarget } from './pubDev';
 import { HexTarget } from './hex';
@@ -41,6 +42,7 @@ export const TARGET_MAP: { [key: string]: typeof BaseTarget } = {
   'aws-lambda-layer': AwsLambdaLayerTarget,
   upm: UpmTarget,
   maven: MavenTarget,
+  'mcp-registry': McpRegistryTarget,
   'symbol-collector': SymbolCollector,
   'pub-dev': PubDevTarget,
   hex: HexTarget,

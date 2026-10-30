@@ -30,6 +30,7 @@ Targets define where Craft publishes your release artifacts. Configure them in `
 | [PowerShell](./powershell/) | Publish PowerShell modules |
 | [UPM](./upm/) | Publish Unity packages |
 | [Homebrew](./brew/) | Update Homebrew formulas |
+| [MCP Registry](./mcp-registry/) | Publish MCP servers to the official MCP Registry |
 
 ### Containers, cloud, and hosting
 
