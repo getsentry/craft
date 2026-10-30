@@ -68,6 +68,7 @@ import { getVersion, isValidVersion } from '../utils/version';
 import { runAutomaticVersionBumps } from '../utils/versionBump';
 
 import { type PublishOptions, handler as publishMainHandler } from './publish';
+import { getTargetIds } from './targets';
 
 export const command = ['prepare [NEW-VERSION]'];
 export const aliases = ['p', 'prerelease', 'prepublish', 'prepare', 'release'];
@@ -946,6 +947,11 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     // Show diff preview (no-op in non-dry-run mode)
     await isolation.showDiff();
 
+    // List the targets while the release branch is still checked out: we
+    // switch back to the default branch at the end, which can define
+    // different targets than a release cut from another merge target.
+    const targetIds = await getTargetIds();
+
     // Push the release branch (blocked in dry-run mode)
     await pushReleaseBranch(git, branchName, argv.remote, !argv.noPush);
 
@@ -954,6 +960,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     setGitHubActionsOutput('branch', branchName);
     setGitHubActionsOutput('sha', releaseSha);
     setGitHubActionsOutput('previous_tag', oldVersion || '');
+    setGitHubActionsOutput('targets', JSON.stringify(targetIds));
     if (changelogBody) {
       // For CalVer releases, replace @-mentions with bold formatting in the
       // changelog destined for publish issues, to avoid pinging many

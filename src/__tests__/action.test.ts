@@ -198,6 +198,7 @@ function runActionStep(
   environment: ReturnType<typeof createActionEnvironment>,
   pathInput = '.',
   locale = 'C',
+  extraEnv: Record<string, string> = {},
 ) {
   return spawnSync('bash', ['-e', '-c', getActionStep(stepName).run!], {
     cwd: environment.directory,
@@ -213,6 +214,7 @@ function runActionStep(
       PATH_INPUT: pathInput,
       VERSION: '',
       WORKSPACE: workspace,
+      ...extraEnv,
     },
   });
 }
@@ -958,5 +960,35 @@ test('clears an inherited workspace before root Craft commands', () => {
 
   expect(readFileSync(environment.craftCalls, 'utf8')).toBe(
     'prepare\ntargets\n',
+  );
+});
+
+test('uses the targets craft prepare listed from the release branch', () => {
+  const environment = createActionEnvironment();
+
+  expect(
+    runActionStep('Read Craft Targets', 'packages/cli', environment, '.', 'C', {
+      PREPARED_TARGETS: '["npm[@sentry/hosting]","github"]',
+    }).status,
+  ).toBe(0);
+
+  expect(readFileSync(environment.craftCalls, 'utf8')).toBe('');
+  expect(readFileSync(environment.output, 'utf8')).toBe(
+    'targets<<EOF\n - [ ] npm[@sentry/hosting]\n - [ ] github\nEOF\n',
+  );
+});
+
+test('lists targets itself when craft prepare did not', () => {
+  const environment = createActionEnvironment();
+
+  expect(
+    runActionStep('Read Craft Targets', 'packages/cli', environment).status,
+  ).toBe(0);
+
+  expect(readFileSync(environment.craftCalls, 'utf8')).toBe(
+    'targets --workspace=packages/cli\n',
+  );
+  expect(readFileSync(environment.output, 'utf8')).toBe(
+    'targets<<EOF\n - [ ] github\nEOF\n',
   );
 });
