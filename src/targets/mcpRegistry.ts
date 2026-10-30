@@ -216,7 +216,12 @@ export class McpRegistryTarget extends BaseTarget {
         /\/+$/,
         '',
       );
-      const url = `${baseUrl}/${pkg.identifier.replace('/', '%2F')}/${encodeURIComponent(version)}`;
+      // Same escaping as npm: `@scope%2Fname`.
+      const escapedName = encodeURIComponent(pkg.identifier).replace(
+        /^%40/,
+        '@',
+      );
+      const url = `${baseUrl}/${escapedName}/${encodeURIComponent(version)}`;
       const label = `${pkg.identifier}@${version}`;
 
       // In dry-run mode the npm target did not publish, so don't wait.

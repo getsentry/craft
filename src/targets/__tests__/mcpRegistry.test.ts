@@ -78,9 +78,10 @@ type Route = Response | (() => Response);
 function mockFetch(routes: Record<string, Route | Route[]>) {
   const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
-    const key = url.startsWith(OIDC_ORIGIN)
-      ? 'GET oidc'
-      : `${init?.method ?? 'GET'} ${url}`;
+    const key =
+      new URL(url).origin === OIDC_ORIGIN
+        ? 'GET oidc'
+        : `${init?.method ?? 'GET'} ${url}`;
     const route = routes[key];
     const next = Array.isArray(route) ? route.shift() : route;
     if (!next) {
