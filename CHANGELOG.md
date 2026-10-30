@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.4.1
+
+### Bug Fixes 🐛
+
+- (prepare) Emit the release branch targets for the publish request by @ric-oliv with @sentry-junior in [#943](https://github.com/getsentry/craft/pull/943)
+
 ## 3.4.0
 
 Preview release workflows now handle workspace paths precisely, report version policies, and emit structured JSON for developers.
