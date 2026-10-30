@@ -212,6 +212,7 @@ runs:
       working-directory: ${{ inputs.path }}
       env:
         CRAFT_LOG_LEVEL: Warn
+        RELEASE_SHA: ${{ steps.craft.outputs.sha }}
         WORKSPACE: ${{ inputs.workspace }}
       run: |
         unset CRAFT_WORKSPACE
@@ -219,6 +220,17 @@ runs:
         if [[ -n "$WORKSPACE" ]]; then
           CRAFT_ARGS=("--workspace=$WORKSPACE")
         fi
+
+        # `craft prepare` switches back to the default branch when it finishes,
+        # so list the targets from the release commit instead: the default
+        # branch can define different targets than a release cut from another
+        # merge target.
+        if [[ -n "$RELEASE_SHA" ]]; then
+          original_ref=$(git symbolic-ref --quiet --short HEAD || git rev-parse HEAD)
+          git checkout --quiet --detach "$RELEASE_SHA"
+          trap 'git checkout --quiet "$original_ref"' EXIT
+        fi
+
         targets=$(craft targets "${CRAFT_ARGS[@]}" | jq -r '.[]|" - [ ] \(.)"')
 
         # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#multiline-strings
