@@ -34,15 +34,16 @@ Without OIDC, the target exchanges a GitHub token for a registry token instead:
 For the release version, the target:
 
 1. Reads the manifest and sets `version` and every `packages[].version` to the release version. The file in the repository is not changed.
-2. For each `npm` package in the manifest, waits briefly for npm to serve that exact version, then checks that its `mcpName` equals the manifest `name`. The registry rejects npm packages without a matching `mcpName`.
-3. Looks up that version in the registry. Registry versions are immutable:
+2. Looks up that version in the registry. Registry versions are immutable:
 
    - If it is already listed and matches the manifest, the target does nothing. Re-running a release is safe.
    - If it is listed but differs from the manifest, the target fails. Release a new version instead.
-4. Authenticates and publishes the manifest.
-5. Checks that the new listing matches the manifest (ignoring `$schema`) and is `active`.
+3. Authenticates and publishes the manifest.
+4. Checks that the new listing matches the manifest (ignoring `$schema`) and is `active`.
 
-In dry-run mode, the target still runs the read-only checks, but does not wait for npm, authenticate, or publish.
+The registry validates each package when you publish. For npm packages, it checks that the version exists on npm and that its `mcpName` equals the manifest `name`. If npm doesn’t serve the new version yet, the registry rejects the publish and says so. Run the publish again once the version appears on npm; targets that already finished are skipped.
+
+In dry-run mode, the target still looks up the listing, but does not authenticate or publish.
 
 ## Example
 
