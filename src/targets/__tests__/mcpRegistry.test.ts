@@ -21,7 +21,6 @@ vi.mock('../../utils/async', () => ({ sleep: vi.fn(async () => undefined) }));
 const VERSION = '1.2.3';
 const SERVER_NAME = 'io.github.getsentry/sentry-mcp';
 const NPM_PACKAGE = '@sentry/mcp-server';
-const NPM_URL = `https://registry.npmjs.org/@sentry%2Fmcp-server/${VERSION}`;
 const LISTING_URL = `${DEFAULT_REGISTRY_URL}/v0.1/servers/io.github.getsentry%2Fsentry-mcp/versions/${VERSION}`;
 const OIDC_ORIGIN = 'https://token.actions.example';
 const OIDC_REQUEST_URL = `${OIDC_ORIGIN}/token?api-version=2.0`;
@@ -48,8 +47,6 @@ const EXPECTED_SERVER = {
   version: VERSION,
   packages: [{ ...MANIFEST.packages[0], version: VERSION }],
 };
-
-const NPM_INFO = { name: NPM_PACKAGE, version: VERSION, mcpName: SERVER_NAME };
 
 function listing(server: Record<string, unknown> = EXPECTED_SERVER) {
   return {
@@ -122,7 +119,6 @@ function createTarget(config: Record<string, unknown> = {}) {
 /** Routes for a version that is not listed yet and publishes successfully */
 function publishRoutes(): Record<string, Route | Route[]> {
   return {
-    [`GET ${NPM_URL}`]: json(NPM_INFO),
     [`GET ${LISTING_URL}`]: [json({}, 404), json(listing())],
     [`POST ${DEFAULT_REGISTRY_URL}/v0/publish`]: json(
       { server: EXPECTED_SERVER },
@@ -227,9 +223,8 @@ describe('publish', () => {
     });
     expect(JSON.parse(String(publish?.init?.body))).toEqual(EXPECTED_SERVER);
 
-    // Order: npm check, existing listing, auth, publish, verification.
+    // Order: existing listing, auth, publish, verification.
     expect(requests(fetchMock).map(request => request.key)).toEqual([
-      `GET ${NPM_URL}`,
       `GET ${LISTING_URL}`,
       expect.stringMatching(new RegExp(`^GET ${OIDC_ORIGIN}/`)),
       `POST ${DEFAULT_REGISTRY_URL}/v0/auth/github-oidc`,
@@ -242,7 +237,6 @@ describe('publish', () => {
     const registryUrl = 'https://registry.example.com';
     const listingUrl = `${registryUrl}/v0.1/servers/io.github.getsentry%2Fsentry-mcp/versions/${VERSION}`;
     const fetchMock = mockFetch({
-      [`GET ${NPM_URL}`]: json(NPM_INFO),
       [`GET ${listingUrl}`]: [json({}, 404), json(listing())],
       'GET oidc': json({ value: 'github-oidc-token' }),
       [`POST ${registryUrl}/v0/auth/github-oidc`]: json({
@@ -292,7 +286,6 @@ describe('publish', () => {
     delete process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
     delete process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
     const fetchMock = mockFetch({
-      [`GET ${NPM_URL}`]: json(NPM_INFO),
       [`GET ${LISTING_URL}`]: json({}, 404),
     });
 
@@ -306,7 +299,6 @@ describe('publish', () => {
 
   test('reports a failed token exchange', async () => {
     mockFetch({
-      [`GET ${NPM_URL}`]: json(NPM_INFO),
       [`GET ${LISTING_URL}`]: json({}, 404),
       'GET oidc': json({ value: 'github-oidc-token' }),
       [`POST ${DEFAULT_REGISTRY_URL}/v0/auth/github-oidc`]: new Response(
@@ -320,22 +312,37 @@ describe('publish', () => {
     );
   });
 
+  test('waits for the published listing to appear', async () => {
+    mockFetch({
+      ...publishRoutes(),
+      [`GET ${LISTING_URL}`]: [json({}, 404), json({}, 404), json(listing())],
+      'GET oidc': json({ value: 'github-oidc-token' }),
+      [`POST ${DEFAULT_REGISTRY_URL}/v0/auth/github-oidc`]: json({
+        registry_token: 'registry-token',
+      }),
+    });
+
+    await createTarget().publish(VERSION, 'sha');
+
+    expect(sleep).toHaveBeenCalledTimes(1);
+  });
+
   test('reports a rejected publish', async () => {
     mockFetch({
-      [`GET ${NPM_URL}`]: json(NPM_INFO),
       [`GET ${LISTING_URL}`]: json({}, 404),
       'GET oidc': json({ value: 'github-oidc-token' }),
       [`POST ${DEFAULT_REGISTRY_URL}/v0/auth/github-oidc`]: json({
         registry_token: 'registry-token',
       }),
+      // The registry checks npm packages itself and explains failures.
       [`POST ${DEFAULT_REGISTRY_URL}/v0/publish`]: new Response(
-        'validation failed',
-        { status: 422 },
+        "NPM package '@sentry/mcp-server' exists, but version '1.2.3' was not found",
+        { status: 400 },
       ),
     });
 
     await expect(createTarget().publish(VERSION, 'sha')).rejects.toThrow(
-      /publish failed: HTTP 422: validation failed/,
+      /publish failed: HTTP 400: NPM package '@sentry\/mcp-server' exists, but version '1\.2\.3' was not found/,
     );
   });
 
@@ -361,21 +368,18 @@ describe('publish', () => {
 describe('existing listing', () => {
   test('skips publishing when the listed version matches', async () => {
     const fetchMock = mockFetch({
-      [`GET ${NPM_URL}`]: json(NPM_INFO),
       [`GET ${LISTING_URL}`]: json(listing()),
     });
 
     await createTarget().publish(VERSION, 'sha');
 
     expect(requests(fetchMock).map(request => request.key)).toEqual([
-      `GET ${NPM_URL}`,
       `GET ${LISTING_URL}`,
     ]);
   });
 
   test('fails when the listed version differs from the manifest', async () => {
     const fetchMock = mockFetch({
-      [`GET ${NPM_URL}`]: json(NPM_INFO),
       [`GET ${LISTING_URL}`]: json(
         listing({ ...EXPECTED_SERVER, description: 'Something else' }),
       ),
@@ -384,12 +388,11 @@ describe('existing listing', () => {
     await expect(createTarget().publish(VERSION, 'sha')).rejects.toThrow(
       /already lists io\.github\.getsentry\/sentry-mcp@1\.2\.3, but the listing differs/,
     );
-    expect(requests(fetchMock)).toHaveLength(2);
+    expect(requests(fetchMock)).toHaveLength(1);
   });
 
   test('fails on an unexpected registry lookup response', async () => {
     mockFetch({
-      [`GET ${NPM_URL}`]: json(NPM_INFO),
       [`GET ${LISTING_URL}`]: json({}, 500),
     });
 
@@ -399,94 +402,25 @@ describe('existing listing', () => {
   });
 });
 
-describe('npm check', () => {
-  test('fails when npm mcpName does not match the manifest name', async () => {
-    const fetchMock = mockFetch({
-      [`GET ${NPM_URL}`]: json({ ...NPM_INFO, mcpName: 'io.github.other/mcp' }),
-    });
-
-    await expect(createTarget().publish(VERSION, 'sha')).rejects.toThrow(
-      /has mcpName "io\.github\.other\/mcp" on npm, but the manifest name is "io\.github\.getsentry\/sentry-mcp"/,
-    );
-    expect(requests(fetchMock)).toHaveLength(1);
-  });
-
-  test('waits for npm to serve the version', async () => {
-    mockFetch({
-      ...publishRoutes(),
-      [`GET ${NPM_URL}`]: [json({}, 404), json({}, 503), json(NPM_INFO)],
-      [`GET ${LISTING_URL}`]: json(listing()),
-    });
-
-    await createTarget().publish(VERSION, 'sha');
-
-    expect(sleep).toHaveBeenCalledTimes(2);
-  });
-
-  test('gives up after a bounded number of attempts', async () => {
-    const fetchMock = mockFetch({
-      [`GET ${NPM_URL}`]: () => json({}, 404),
-    });
-
-    await expect(createTarget().publish(VERSION, 'sha')).rejects.toThrow(
-      /@sentry\/mcp-server@1\.2\.3 is not available on npm/,
-    );
-    expect(fetchMock).toHaveBeenCalledTimes(12);
-    expect(sleep).toHaveBeenCalledTimes(11);
-  });
-
-  test('skips packages from other registries', async () => {
-    writeManifest({
-      ...MANIFEST,
-      packages: [{ registryType: 'oci', identifier: 'ghcr.io/example/mcp' }],
-    });
-    const fetchMock = mockFetch({
-      [`GET ${LISTING_URL}`]: json(
-        listing({
-          ...EXPECTED_SERVER,
-          packages: [
-            {
-              registryType: 'oci',
-              identifier: 'ghcr.io/example/mcp',
-              version: VERSION,
-            },
-          ],
-        }),
-      ),
-    });
-
-    await createTarget().publish(VERSION, 'sha');
-
-    expect(requests(fetchMock).map(request => request.key)).toEqual([
-      `GET ${LISTING_URL}`,
-    ]);
-  });
-});
-
 describe('dry run', () => {
   beforeEach(() => {
     vi.mocked(isDryRun).mockReturnValue(true);
   });
 
-  test('checks state without waiting, authenticating, or publishing', async () => {
+  test('checks the listing without authenticating or publishing', async () => {
     const fetchMock = mockFetch({
-      // The npm target did not publish in dry-run mode.
-      [`GET ${NPM_URL}`]: json({}, 404),
       [`GET ${LISTING_URL}`]: json({}, 404),
     });
 
     await createTarget().publish(VERSION, 'sha');
 
     expect(requests(fetchMock).map(request => request.key)).toEqual([
-      `GET ${NPM_URL}`,
       `GET ${LISTING_URL}`,
     ]);
-    expect(sleep).not.toHaveBeenCalled();
   });
 
   test('still reports a mismatched existing listing', async () => {
     mockFetch({
-      [`GET ${NPM_URL}`]: json(NPM_INFO),
       [`GET ${LISTING_URL}`]: json(
         listing({ ...EXPECTED_SERVER, description: 'Something else' }),
       ),

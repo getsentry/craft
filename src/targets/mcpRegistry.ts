@@ -19,7 +19,6 @@ import { BaseArtifactProvider } from '../artifact_providers/base';
 export const DEFAULT_REGISTRY_URL = 'https://registry.modelcontextprotocol.io';
 
 const DEFAULT_MANIFEST = 'server.json';
-const DEFAULT_NPM_REGISTRY_URL = 'https://registry.npmjs.org';
 
 /**
  * Optional GitHub token, used when GitHub Actions OIDC is not available. Same
@@ -31,14 +30,6 @@ export const GITHUB_TOKEN_ENV_VAR = 'MCP_GITHUB_TOKEN';
 const OFFICIAL_META_KEY = 'io.modelcontextprotocol.registry/official';
 
 const REQUEST_TIMEOUT_MS = 30_000;
-
-/**
- * npm can lag a few seconds behind a publish. When this target runs after
- * `npm` the version is usually there already, so this is a short readiness
- * check, not a long wait.
- */
-const NPM_ATTEMPTS = 12;
-const NPM_RETRY_DELAY_MS = 10_000;
 
 /** Bounded wait for a fresh listing to become readable after publishing */
 const LISTING_ATTEMPTS = 6;
@@ -52,9 +43,6 @@ interface ServerManifest extends Record<string, unknown> {
 }
 
 interface ServerPackage extends Record<string, unknown> {
-  registryType?: string;
-  registryBaseUrl?: string;
-  identifier?: string;
   version?: string;
 }
 
@@ -84,6 +72,10 @@ export interface McpRegistryTargetConfig {
  * `mcp-publisher` uses), so no binary is downloaded. Registry versions are
  * immutable: a version that is already listed and matches the manifest is
  * skipped, and one that differs is an error.
+ *
+ * The registry checks each package itself when publishing (for npm: that the
+ * version exists and its `mcpName` matches the server name) and returns a
+ * descriptive error, so this target does not duplicate those checks.
  */
 export class McpRegistryTarget extends BaseTarget {
   /** Target name */
@@ -140,8 +132,6 @@ export class McpRegistryTarget extends BaseTarget {
     const manifest = this.loadManifest(version);
     const label = `${manifest.name}@${version}`;
 
-    await this.checkNpmPackages(manifest, version);
-
     const existing = await this.getListing(manifest.name, version);
     if (existing) {
       this.verifyListing(
@@ -197,63 +187,6 @@ export class McpRegistryTarget extends BaseTarget {
       pkg.version = version;
     }
     return manifest;
-  }
-
-  /**
-   * Waits for each npm package in the manifest to be available at `version`,
-   * then checks its `mcpName`. The registry rejects npm packages whose
-   * `mcpName` does not match the server name.
-   */
-  private async checkNpmPackages(
-    manifest: ServerManifest,
-    version: string,
-  ): Promise<void> {
-    for (const pkg of manifest.packages ?? []) {
-      if (pkg.registryType !== 'npm' || !pkg.identifier) {
-        continue;
-      }
-      const baseUrl = (pkg.registryBaseUrl || DEFAULT_NPM_REGISTRY_URL).replace(
-        /\/+$/,
-        '',
-      );
-      // Same escaping as npm: `@scope%2Fname`.
-      const escapedName = encodeURIComponent(pkg.identifier).replace(
-        /^%40/,
-        '@',
-      );
-      const url = `${baseUrl}/${escapedName}/${encodeURIComponent(version)}`;
-      const label = `${pkg.identifier}@${version}`;
-
-      // In dry-run mode the npm target did not publish, so don't wait.
-      const info = (await this.pollJson(
-        url,
-        label,
-        isDryRun() ? 1 : NPM_ATTEMPTS,
-        NPM_RETRY_DELAY_MS,
-      )) as { name?: string; version?: string; mcpName?: string } | undefined;
-      if (!info) {
-        if (isDryRun()) {
-          this.logger.warn(`[dry-run] ${label} is not on npm yet`);
-          continue;
-        }
-        throw new Error(
-          `${label} is not available on npm. List the npm target before ` +
-            'mcp-registry so the package is published first.',
-        );
-      }
-      if (info.name !== pkg.identifier || info.version !== version) {
-        throw new Error(
-          `npm returned ${info.name}@${info.version} for ${label}`,
-        );
-      }
-      if (info.mcpName !== manifest.name) {
-        throw new Error(
-          `${label} has mcpName "${info.mcpName ?? ''}" on npm, but the ` +
-            `manifest name is "${manifest.name}". Set "mcpName" in its ` +
-            'package.json to the manifest name.',
-        );
-      }
-    }
   }
 
   private listingUrl(name: string, version: string): string {
