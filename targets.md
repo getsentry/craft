@@ -33,6 +33,7 @@ Targets define where Craft publishes your release artifacts. Configure them in `
 | [PowerShell](https://craft.sentry.dev/targets/powershell.md) | Publish PowerShell modules |
 | [UPM](https://craft.sentry.dev/targets/upm.md) | Publish Unity packages |
 | [Homebrew](https://craft.sentry.dev/targets/brew.md) | Update Homebrew formulas |
+| [MCP Registry](https://craft.sentry.dev/targets/mcp-registry.md) | Publish MCP servers to the official MCP Registry |
 
 ### Containers, cloud, and hosting
 
@@ -127,6 +128,7 @@ craft publish 1.2.3 -t none
 - [GitHub](https://craft.sentry.dev/targets/github.md)
 - [Hex](https://craft.sentry.dev/targets/hex.md)
 - [Maven](https://craft.sentry.dev/targets/maven.md)
+- [MCP Registry](https://craft.sentry.dev/targets/mcp-registry.md)
 - [NPM](https://craft.sentry.dev/targets/npm.md)
 - [NuGet](https://craft.sentry.dev/targets/nuget.md)
 - [PowerShell](https://craft.sentry.dev/targets/powershell.md)

@@ -141,5 +141,5 @@ The `npm info` command used by `checkPackageName` does not support OIDC — it r
 
 - [Docs home](https://craft.sentry.dev/index.md)
 - [Parent: Targets Overview](https://craft.sentry.dev/targets.md)
-- [Previous: Maven](https://craft.sentry.dev/targets/maven.md)
+- [Previous: MCP Registry](https://craft.sentry.dev/targets/mcp-registry.md)
 - [Next: NuGet](https://craft.sentry.dev/targets/nuget.md)

@@ -83,4 +83,4 @@ targets:
 - [Docs home](https://craft.sentry.dev/index.md)
 - [Parent: Targets Overview](https://craft.sentry.dev/targets.md)
 - [Previous: Hex](https://craft.sentry.dev/targets/hex.md)
-- [Next: NPM](https://craft.sentry.dev/targets/npm.md)
+- [Next: MCP Registry](https://craft.sentry.dev/targets/mcp-registry.md)
