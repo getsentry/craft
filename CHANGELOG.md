@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.5.0
+
+### New Features ✨
+
+- (targets) Add mcp-registry target for the official MCP Registry by @BYK with @sentry-junior in [#945](https://github.com/getsentry/craft/pull/945)
+
 ## 3.4.1
 
 ### Bug Fixes 🐛
