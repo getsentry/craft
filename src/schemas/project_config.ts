@@ -315,6 +315,25 @@ export const ChangelogConfigSchema = union([
 ]);
 
 /**
+ * Opt-in bump to the next development version after a successful publish.
+ */
+const PostReleaseBumpSchema = strictObject({
+  bump: optional(picklist(['prepatch', 'preminor', 'premajor']), 'preminor'),
+  preid: optional(
+    pipe(
+      string(),
+      regex(
+        /^[0-9A-Za-z-]+$/,
+        'Use only ASCII letters, digits, and hyphens in preid.',
+      ),
+    ),
+    'dev',
+  ),
+});
+
+export type PostReleaseBumpConfig = InferOutput<typeof PostReleaseBumpSchema>;
+
+/**
  * Fields that describe how a single release unit is built and published.
  *
  * These are shared between the top-level config (the implicit/default release
@@ -332,6 +351,9 @@ const releaseUnitFields = {
   targets: optional(array(TargetConfigSchema)),
   preReleaseCommand: optional(string()),
   postReleaseCommand: optional(string()),
+  postReleaseBump: optional(
+    nonArray(union([PostReleaseBumpSchema, literal(false)])),
+  ),
   releaseBranchPrefix: optional(string()),
   changelog: optional(nonArray(ChangelogConfigSchema)),
   changelogPolicy: optional(picklist(['auto', 'simple', 'none'])),

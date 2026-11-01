@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync } from 'fs';
 
 import { safeFs } from '../utils/dryRun';
 import { dirname, join } from 'path';
+import * as semver from 'semver';
 import * as shellQuote from 'shell-quote';
 import stringLength from 'string-length';
 
@@ -16,10 +17,12 @@ import {
   expandWorkspaceTargets,
   getNoMergeConfig,
   getActiveWorkspace,
+  getReleaseUnitDir,
 } from '../config';
 import { formatTable, logger } from '../logger';
 import {
   type GitHubGlobalConfig,
+  type PostReleaseBumpConfig,
   TargetConfig,
 } from '../schemas/project_config';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
@@ -31,7 +34,7 @@ import {
 } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
-import { promptConfirmation } from '../utils/helpers';
+import { isDryRun, promptConfirmation } from '../utils/helpers';
 import { formatArtifactConfigForError, formatSize } from '../utils/strings';
 import {
   catchKeyboardInterrupt,
@@ -52,6 +55,7 @@ import {
 import { withTracing } from '../utils/tracing';
 import { buildReleaseCommandEnv } from '../utils/releaseCommandEnv';
 import { getPublishStatePath } from '../utils/publishState';
+import { runAutomaticVersionBumps } from '../utils/versionBump';
 
 /** Default path to post-release script, relative to project root */
 const DEFAULT_POST_RELEASE_SCRIPT_PATH = join('scripts', 'post-release.sh');
@@ -491,18 +495,7 @@ export async function handleReleaseBranch(
   logger.debug(`Checking out merge target branch:`, mergeTarget);
   await git.checkout(mergeTarget);
 
-  logger.debug(`Pulling latest changes from ${remoteName}/${mergeTarget}`);
-  try {
-    await git.pull(remoteName, mergeTarget, ['--rebase']);
-  } catch (pullError) {
-    // Pull --rebase failure can leave the repo in an active rebase state
-    try {
-      await git.raw(['rebase', '--abort']);
-    } catch {
-      logger.trace('git rebase --abort failed (may be no rebase in progress)');
-    }
-    throw pullError;
-  }
+  await pullWithRebase(git, remoteName, mergeTarget);
 
   // Stage 1: Merge — if this fails, it's a merge conflict
   logger.debug(`Merging ${mergeSource} into: ${mergeTarget}`);
@@ -605,6 +598,105 @@ export async function handleReleaseBranch(
       );
     }
   }
+}
+
+/**
+ * Pull with `--rebase`, aborting the rebase if the pull fails so the
+ * repository isn't left mid-rebase.
+ */
+async function pullWithRebase(
+  git: SimpleGit,
+  remoteName: string,
+  branch: string,
+): Promise<void> {
+  logger.debug(`Pulling latest changes from ${remoteName}/${branch}`);
+  try {
+    await git.pull(remoteName, branch, ['--rebase']);
+  } catch (pullError) {
+    try {
+      await git.raw(['rebase', '--abort']);
+    } catch {
+      logger.trace('git rebase --abort failed (may be no rebase in progress)');
+    }
+    throw pullError;
+  }
+}
+
+/**
+ * Bump the release unit to the next development version on the merge target,
+ * then commit and push the change.
+ *
+ * Uses the same target logic as the automatic pre-release bump, so it only
+ * touches the selected release unit's project files.
+ *
+ * @param git Git client, with the merge target checked out
+ * @param remoteName The git remote to push to
+ * @param mergeTarget Branch the release was merged into
+ * @param releasedVersion Version that was just published
+ * @param bumpConfig The `postReleaseBump` configuration
+ * @param targets Target configs of the release unit
+ */
+async function runPostReleaseBump(
+  git: SimpleGit,
+  remoteName: string,
+  mergeTarget: string,
+  releasedVersion: string,
+  bumpConfig: PostReleaseBumpConfig,
+  targets: TargetConfig[],
+): Promise<void> {
+  if (semver.prerelease(releasedVersion)) {
+    // A development version derived from a pre-release would sort above the
+    // stable release that hasn't shipped yet.
+    logger.info(
+      `Not bumping the development version after pre-release ${releasedVersion}.`,
+    );
+    return;
+  }
+  const devVersion = semver.inc(
+    releasedVersion,
+    bumpConfig.bump,
+    bumpConfig.preid,
+  );
+  if (!devVersion) {
+    throw new Error(
+      `Cannot derive a development version from "${releasedVersion}".`,
+    );
+  }
+
+  if (isDryRun()) {
+    logger.info(
+      `[dry-run] Would bump the development version to ${devVersion} and push it to ${remoteName}/${mergeTarget}.`,
+    );
+    return;
+  }
+
+  logger.info(`Bumping the development version to ${devVersion}...`);
+  const result = await runAutomaticVersionBumps(
+    targets,
+    getReleaseUnitDir(),
+    devVersion,
+  );
+  if (!result.anyBumped) {
+    logger.warn(
+      'Not bumping the development version: none of the configured targets ' +
+        'found a version to bump.',
+    );
+    return;
+  }
+
+  const repoStatus = await git.status();
+  if (repoStatus.files.length === 0) {
+    logger.info(`The development version is already ${devVersion}.`);
+    return;
+  }
+  await git.commit('meta: Bump new development version\n\n#skip-changelog', [
+    '--all',
+  ]);
+  await pullWithRebase(git, remoteName, mergeTarget);
+  await git.push(remoteName, mergeTarget);
+  logger.info(
+    `Pushed development version ${devVersion} to ${remoteName}/${mergeTarget}.`,
+  );
 }
 
 /**
@@ -868,6 +960,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     );
   }
 
+  let mergedInto: string | undefined;
   if (noMerge) {
     const source = argv.noMerge
       ? 'CLI option'
@@ -881,21 +974,28 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
     earlierStateExists
   ) {
     // Publishing done, MERGE DAT BRANCH!
+    let mergeTarget = argv.mergeTarget;
     try {
+      mergeTarget ||= await getDefaultBranch(git, argv.remote);
       await handleReleaseBranch(
         git,
         argv.remote,
         branchName,
         revision,
-        argv.mergeTarget,
+        mergeTarget,
         argv.keepBranch,
         rev ? revision : branchName,
       );
+      mergedInto = mergeTarget;
     } catch (mergeError) {
       // The merge is a housekeeping step — it must not block the success
       // signal for a fully-published release. Report to Sentry for
       // observability but don't fail the command.
       captureException(mergeError);
+      if (mergeError instanceof BranchCleanupError) {
+        // The merge itself was pushed; only the branch cleanup failed.
+        mergedInto = mergeTarget;
+      }
 
       const lines: string[] = [];
       if (mergeError instanceof BranchCleanupError) {
@@ -993,6 +1093,37 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       `  $ craft publish ${newVersion} --target none\n`,
     ];
     logger.warn(msg.join('\n'));
+  }
+
+  if (config.postReleaseBump) {
+    if (mergedInto) {
+      try {
+        await runPostReleaseBump(
+          git,
+          argv.remote,
+          mergedInto,
+          newVersion,
+          config.postReleaseBump,
+          config.targets || [],
+        );
+      } catch (bumpError) {
+        // Like the merge, the bump runs after every target has published, so
+        // it must not fail the release.
+        captureException(bumpError);
+        logger.warn(
+          [
+            `Failed to bump the development version after ${newVersion}.`,
+            `All publish targets completed successfully — bump the version on ${mergedInto} manually.`,
+            ``,
+            `Error: ${bumpError instanceof Error ? bumpError.message : String(bumpError)}`,
+          ].join('\n'),
+        );
+      }
+    } else {
+      logger.info(
+        'Not bumping the development version: the release branch was not merged.',
+      );
+    }
   }
 
   // Run the post-release script

@@ -27,6 +27,7 @@ import { getTargetByName } from '../../targets';
 import { BaseTarget } from '../../targets/base';
 import { safeFs } from '../../utils/dryRun';
 import { promptConfirmation } from '../../utils/helpers';
+import { runAutomaticVersionBumps } from '../../utils/versionBump';
 import { getPublishStatePath } from '../../utils/publishState';
 import {
   findReleaseBranches,
@@ -66,6 +67,9 @@ vi.mock('../../utils/helpers', async importOriginal => ({
   ...(await importOriginal<typeof import('../../utils/helpers')>()),
   promptConfirmation: vi.fn(),
 }));
+vi.mock('../../utils/versionBump', () => ({
+  runAutomaticVersionBumps: vi.fn(),
+}));
 vi.mock('../../utils/publishState', async importOriginal => ({
   ...(await importOriginal<typeof import('../../utils/publishState')>()),
   getPublishStatePath: vi.fn(),
@@ -76,6 +80,7 @@ function createMockGit(revision: string): SimpleGit {
     branch: vi.fn().mockResolvedValue(undefined),
     branchLocal: vi.fn().mockResolvedValue({ all: [] }),
     checkout: vi.fn().mockResolvedValue(undefined),
+    commit: vi.fn().mockResolvedValue(undefined),
     merge: vi.fn().mockResolvedValue(undefined),
     pull: vi.fn().mockResolvedValue(undefined),
     push: vi.fn().mockResolvedValue(undefined),
@@ -233,5 +238,118 @@ describe('publishMain release branch handling', () => {
     expect(warn).not.toHaveBeenCalledWith(
       expect.stringContaining('Failed to merge release branch'),
     );
+  });
+});
+
+describe('publishMain post-release bump', () => {
+  const revision = 'd'.repeat(40);
+  let git: SimpleGit;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    testState.directory = await mkdtemp(
+      pathJoin(tmpdir(), 'craft-publish-bump-'),
+    );
+    vi.mocked(getPublishStatePath).mockReturnValue(
+      pathJoin(testState.directory, 'publish-state.json'),
+    );
+    vi.mocked(getConfiguration).mockReturnValue({
+      targets: [{ name: 'test' }],
+      postReleaseCommand: '',
+      postReleaseBump: { bump: 'preminor', preid: 'dev' },
+    });
+    vi.mocked(getStatusProviderFromConfig).mockResolvedValue({} as never);
+    vi.mocked(getArtifactProviderFromConfig).mockResolvedValue({
+      listArtifactsForRevision: vi.fn().mockResolvedValue([]),
+      setDownloadDirectory: vi.fn(),
+    } as never);
+    vi.mocked(getGlobalGitHubConfig).mockResolvedValue({
+      owner: 'getsentry',
+      repo: 'craft',
+    });
+    vi.mocked(expandWorkspaceTargets).mockResolvedValue([{ name: 'test' }]);
+    vi.mocked(getTargetByName).mockReturnValue(TestTarget);
+    vi.mocked(promptConfirmation).mockResolvedValue(undefined);
+    vi.mocked(getNoMergeConfig).mockReturnValue({
+      noMerge: false,
+      source: 'config',
+    });
+    vi.mocked(getActiveWorkspace).mockReturnValue(undefined);
+    vi.mocked(getDefaultBranch).mockResolvedValue('main');
+    vi.mocked(runAutomaticVersionBumps).mockResolvedValue({
+      anyBumped: true,
+      bumpableTargets: ['npm'],
+      skippedTargets: [],
+    });
+    vi.spyOn(safeFs, 'unlink').mockResolvedValue(undefined);
+    vi.spyOn(safeFs, 'writeFileSync').mockImplementation(() => undefined);
+
+    git = createMockGit(revision);
+    vi.mocked(git.status).mockResolvedValue({
+      files: [{ path: 'package.json' }],
+    } as never);
+    vi.mocked(getGitClient).mockResolvedValue(git);
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await rm(testState.directory, { recursive: true, force: true });
+  });
+
+  test('bumps, commits, and pushes the development version after merging', async () => {
+    await publishMain({ ...defaultOptions, mergeTarget: undefined });
+
+    expect(runAutomaticVersionBumps).toHaveBeenCalledWith(
+      [{ name: 'test' }],
+      expect.any(String),
+      '1.3.0-dev.0',
+    );
+    expect(git.commit).toHaveBeenCalledWith(
+      'meta: Bump new development version\n\n#skip-changelog',
+      ['--all'],
+    );
+    expect(git.pull).toHaveBeenLastCalledWith('origin', 'main', ['--rebase']);
+    expect(git.push).toHaveBeenLastCalledWith('origin', 'main');
+  });
+
+  test('skips the bump when the release branch is not merged', async () => {
+    await publishMain({ ...defaultOptions, noMerge: true });
+
+    expect(runAutomaticVersionBumps).not.toHaveBeenCalled();
+    expect(git.commit).not.toHaveBeenCalled();
+  });
+
+  test('skips the bump after a pre-release', async () => {
+    await publishMain({ ...defaultOptions, newVersion: '2.0.0-beta.1' });
+
+    expect(runAutomaticVersionBumps).not.toHaveBeenCalled();
+    expect(git.commit).not.toHaveBeenCalled();
+  });
+
+  test('does not commit when no target bumped a version', async () => {
+    vi.mocked(runAutomaticVersionBumps).mockResolvedValue({
+      anyBumped: false,
+      bumpableTargets: [],
+      skippedTargets: [],
+    });
+
+    await publishMain(defaultOptions);
+
+    expect(git.commit).not.toHaveBeenCalled();
+  });
+
+  test('warns instead of failing the release when the bump fails', async () => {
+    vi.mocked(runAutomaticVersionBumps).mockRejectedValue(
+      new Error('npm exploded'),
+    );
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+
+    await publishMain(defaultOptions);
+
+    expect(captureException).toHaveBeenCalledWith(expect.any(Error));
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to bump the development version'),
+    );
+    expect(git.commit).not.toHaveBeenCalled();
   });
 });

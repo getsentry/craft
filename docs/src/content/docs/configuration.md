@@ -32,6 +32,7 @@ targets:
 | `versioning` | How the next version is chosen: `auto`, `manual`, or `calver`. | [Versioning](../versioning/#versioning-policies) |
 | `preReleaseCommand` | Command that bumps versions during `craft prepare`. | [Release Workflow](../release-workflow/#pre-release-command) |
 | `postReleaseCommand` | Command that runs after `craft publish`. | [Release Workflow](../release-workflow/#post-release-command) |
+| `postReleaseBump` | Bump to the next development version after `craft publish`. | [Release Workflow](../release-workflow/#post-release-development-version-bump) |
 | `releaseBranchPrefix` | Release branch prefix. Default: `release`. | [Release Workflow](../release-workflow/#release-branch-name) |
 | `statusProvider` | How Craft checks that CI passed. | [Release Workflow](../release-workflow/#status-provider) |
 | `artifactProvider` | Where Craft downloads build artifacts from. | [Release Workflow](../release-workflow/#artifact-provider) |

@@ -227,6 +227,34 @@ branch; override it with `--merge-target`.
   automatically for compiled Node.js GitHub Actions (repositories with a
   `dist/` folder), unless `noMerge` is set explicitly.
 
+### Post-release development version bump
+
+Many projects set the manifest to the next development version after a
+release, so builds from the default branch, such as nightlies, sort above the
+release. `postReleaseBump` makes Craft do this:
+
+```yaml
+minVersion: '3.7.0'
+postReleaseBump:
+  bump: preminor # or prepatch, premajor. Default: preminor
+  preid: dev # Default: dev
+```
+
+After it merges the release branch, Craft sets the release unit's version to
+the next development version, for example `1.2.3` to `1.3.0-dev.0`, with the
+same target logic as the
+[automatic version bump](../versioning/#automatic-version-bumping). It commits the change
+as `meta: Bump new development version` with `#skip-changelog`, then pulls
+with rebase and pushes to the merge target.
+
+- Craft skips the bump when the release branch isn't merged (`--no-merge`,
+  `noMerge`, or a publish to only some targets) and after a pre-release
+  version.
+- A failed bump doesn't fail the release. Craft logs a warning and the
+  version must be bumped by hand.
+- The bump runs before the [post-release command](#post-release-command).
+  Remove any version bump from that command when you turn this on.
+
 ### Post-release command
 
 This command runs after a successful `craft publish`. Default: `bash scripts/post-release.sh`.
