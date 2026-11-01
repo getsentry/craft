@@ -1,6 +1,7 @@
-import { existsSync, promises as fsPromises } from 'fs';
+import { existsSync, promises as fsPromises, readFileSync } from 'fs';
 import { join, relative } from 'path';
 
+import * as semver from 'semver';
 import * as shellQuote from 'shell-quote';
 import type { SimpleGit, StatusResult } from 'simple-git';
 import type { Arguments, Argv, CommandBuilder } from 'yargs';
@@ -727,6 +728,33 @@ interface ResolveVersionOptions {
 }
 
 /**
+ * Returns the `version` from the release unit's package.json, or undefined
+ * when the file is missing or the version is not a valid semver above
+ * `0.0.0`. Placeholders such as `0.0.0-development` are ignored because any
+ * bump of them yields `0.0.0`.
+ */
+function getManifestVersion(): string | undefined {
+  const packageJsonPath = join(getReleaseUnitDir(), 'package.json');
+  let version: unknown;
+  try {
+    version = JSON.parse(readFileSync(packageJsonPath, 'utf-8'))?.version;
+  } catch {
+    return undefined;
+  }
+  if (
+    typeof version !== 'string' ||
+    !semver.valid(version) ||
+    !semver.gt(version, '0.0.0')
+  ) {
+    return undefined;
+  }
+  logger.info(
+    `No previous release tag found, using version ${version} from ${relative('', packageJsonPath)}`,
+  );
+  return version;
+}
+
+/**
  * Resolves the final semver version string from various input types.
  *
  * Handles:
@@ -734,6 +762,9 @@ interface ResolveVersionOptions {
  * - 'calver': calculates calendar version
  * - 'auto': analyzes commits to determine bump type
  * - 'major'/'minor'/'patch': applies bump to latest tag
+ *
+ * Before the first tag, 'auto' and bump types start from the release unit's
+ * package.json version.
  * - Explicit semver: returns as-is
  *
  * @param git Local git client
@@ -814,8 +845,11 @@ async function resolveVersion(
       bumpType = version as BumpType;
     }
 
-    // Calculate new version from latest tag
-    const currentVersion = (latestTag && getVersion(latestTag)) || '0.0.0';
+    // Calculate new version from the latest tag. Before the first tag, start
+    // from the release unit's package.json version, so a workspace at
+    // `1.0.0-dev.0` releases `1.0.0` instead of a bump of `0.0.0`.
+    const currentVersion =
+      (latestTag && getVersion(latestTag)) || getManifestVersion() || '0.0.0';
 
     const newVersion = calculateNextVersion(currentVersion, bumpType);
     logger.info(

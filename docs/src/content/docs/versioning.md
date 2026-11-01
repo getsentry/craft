@@ -56,6 +56,10 @@ Pass the version to `craft prepare` in one of these forms:
 | `calver` | Compute a [calendar version](#calendar-versioning-calver). |
 | *(omitted)* | Use `versioning.policy`. |
 
+Before the first tag, bump types and `auto` increment the `version` in the
+release unit's `package.json` instead, so `1.0.0-dev.0` becomes `1.0.0`.
+Without a usable `package.json` version, they increment `0.0.0`.
+
 Bump types, `auto`, and `calver` require `minVersion: '2.14.0'` or later.
 
 ### Versioning policies
