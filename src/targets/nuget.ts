@@ -90,6 +90,11 @@ interface NugetYamlConfig extends Record<string, unknown> {
   serverUrl?: string;
 }
 
+/** Returns the trimmed text of the first `<tag>...</tag>` in an XML file */
+function readXmlTag(content: string, tag: string): string | undefined {
+  return new RegExp(`<${tag}>([^<]+)</${tag}>`).exec(content)?.[1].trim();
+}
+
 /**
  * Target responsible for publishing releases on Nuget
  */
@@ -209,6 +214,41 @@ export class NugetTarget extends BaseTarget {
   }
 
   /**
+   * Read the package version from Directory.Build.props, or from the first
+   * .csproj that declares one, in the same order bumpVersion() edits them.
+   *
+   * @param rootDir - Project root directory
+   * @returns The `<PackageVersion>`, `<Version>`, or `<VersionPrefix>` with
+   * its `<VersionSuffix>`, or undefined if no .NET project file declares one
+   */
+  public static async readVersion(
+    rootDir: string,
+  ): Promise<string | undefined> {
+    const projectFiles = [
+      'Directory.Build.props',
+      ...readdirSync(rootDir).filter(f => f.endsWith('.csproj')),
+    ]
+      .map(file => join(rootDir, file))
+      .filter(file => existsSync(file));
+
+    for (const file of projectFiles) {
+      const content = readFileSync(file, 'utf-8');
+      const version =
+        readXmlTag(content, 'PackageVersion') ?? readXmlTag(content, 'Version');
+      if (version) {
+        return version;
+      }
+      // Without <Version>, MSBuild builds it as <VersionPrefix>-<VersionSuffix>
+      const prefix = readXmlTag(content, 'VersionPrefix');
+      if (prefix) {
+        const suffix = readXmlTag(content, 'VersionSuffix');
+        return suffix ? `${prefix}-${suffix}` : prefix;
+      }
+    }
+    return undefined;
+  }
+
+  /**
    * Bump version in .NET project files (.csproj, Directory.Build.props).
    *
    * Tries dotnet-setversion first if available, otherwise edits XML directly.
@@ -324,6 +364,15 @@ export class NugetTarget extends BaseTarget {
 
     if (!updated) {
       return false;
+    }
+
+    // MSBuild appends <VersionSuffix> to <VersionPrefix>, so clear it to keep
+    // the package version equal to the full new version written above.
+    if (/<VersionPrefix>/.test(newContent)) {
+      newContent = newContent.replace(
+        /(<VersionSuffix>)[^<]*(<\/VersionSuffix>)/g,
+        '$1$2',
+      );
     }
 
     if (newContent === content) {

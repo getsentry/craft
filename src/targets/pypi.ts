@@ -22,6 +22,9 @@ const DEFAULT_TWINE_BIN = 'twine';
  */
 const TWINE_BIN = process.env.TWINE_BIN || DEFAULT_TWINE_BIN;
 
+/** Matches `version = "1.0.0"` in pyproject.toml */
+const PYPROJECT_VERSION_REGEX = /^(\s*version\s*=\s*["'])([^"']+)(["'])/m;
+
 /**
  * RegExp for Python packages
  */
@@ -43,6 +46,27 @@ export class PypiTarget extends BaseTarget {
   public readonly name: string = 'pypi';
   /** Target options */
   public readonly pypiConfig: PypiTargetOptions;
+
+  /**
+   * Read the static version from pyproject.toml.
+   *
+   * @param rootDir - Project root directory
+   * @returns The version, or undefined if there is no pyproject.toml, the
+   * version is dynamic, or setuptools_scm derives it from git tags
+   */
+  public static async readVersion(
+    rootDir: string,
+  ): Promise<string | undefined> {
+    const pyprojectPath = join(rootDir, 'pyproject.toml');
+    if (!existsSync(pyprojectPath)) {
+      return undefined;
+    }
+    const content = readFileSync(pyprojectPath, 'utf-8');
+    if (content.includes('[tool.setuptools_scm]')) {
+      return undefined;
+    }
+    return PYPROJECT_VERSION_REGEX.exec(content)?.[2];
+  }
 
   /**
    * Bump version in Python project files.
@@ -141,17 +165,17 @@ export class PypiTarget extends BaseTarget {
     newVersion: string,
   ): boolean {
     // Match version in [project] section
-    // This regex handles: version = "1.0.0" or version = '1.0.0'
-    const versionRegex = /^(\s*version\s*=\s*["'])([^"']+)(["'])/m;
-
-    if (!versionRegex.test(content)) {
+    if (!PYPROJECT_VERSION_REGEX.test(content)) {
       logger.debug(
         'pyproject.toml has [project] section but no version field found',
       );
       return false;
     }
 
-    const newContent = content.replace(versionRegex, `$1${newVersion}$3`);
+    const newContent = content.replace(
+      PYPROJECT_VERSION_REGEX,
+      `$1${newVersion}$3`,
+    );
 
     if (newContent === content) {
       logger.debug('Version already set to target value');

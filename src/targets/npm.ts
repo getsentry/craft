@@ -303,6 +303,18 @@ export class NpmTarget extends BaseTarget {
   }
 
   /**
+   * Read the version from package.json.
+   *
+   * @param rootDir - Project root directory
+   * @returns The version, or undefined if there is no readable package.json
+   */
+  public static async readVersion(
+    rootDir: string,
+  ): Promise<string | undefined> {
+    return NpmTarget.readPackageJsonVersion(join(rootDir, 'package.json'));
+  }
+
+  /**
    * Bump version in package.json using npm or yarn.
    * Supports workspaces - bumps root and all workspace packages.
    *

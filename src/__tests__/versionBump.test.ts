@@ -4,7 +4,10 @@ import { mkdtemp, rm, writeFile, mkdir, readFile, stat } from 'fs/promises';
 import { writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 
-import { runAutomaticVersionBumps } from '../utils/versionBump';
+import {
+  readProjectVersion,
+  runAutomaticVersionBumps,
+} from '../utils/versionBump';
 import { NpmTarget } from '../targets/npm';
 import { PypiTarget } from '../targets/pypi';
 import { CratesTarget } from '../targets/crates';
@@ -1174,6 +1177,31 @@ describe('NugetTarget.bumpVersion', () => {
     expect(updatedContent).toContain('<VersionPrefix>6.6.0</VersionPrefix>');
     expect(updatedContent).toContain('<LangVersion>14.0</LangVersion>');
   });
+
+  test('clears VersionSuffix when it updates VersionPrefix', async () => {
+    await writeFile(
+      join(tempDir, 'Directory.Build.props'),
+      `<Project>
+  <PropertyGroup>
+    <VersionPrefix>1.0.0</VersionPrefix>
+    <VersionSuffix>dev</VersionSuffix>
+  </PropertyGroup>
+</Project>`,
+    );
+
+    const { spawnProcess } = await import('../utils/system');
+    vi.mocked(spawnProcess).mockRejectedValue(new Error('not installed'));
+
+    expect(await NugetTarget.bumpVersion(tempDir, '1.0.0')).toBe(true);
+
+    const updatedContent = await readFile(
+      join(tempDir, 'Directory.Build.props'),
+      'utf-8',
+    );
+    expect(updatedContent).toContain('<VersionPrefix>1.0.0</VersionPrefix>');
+    expect(updatedContent).toContain('<VersionSuffix></VersionSuffix>');
+    expect(await NugetTarget.readVersion(tempDir)).toBe('1.0.0');
+  });
 });
 
 describe('CratesTarget.bumpVersion', () => {
@@ -1211,5 +1239,148 @@ describe('CratesTarget.bumpVersion', () => {
       ['set-version', '1.0.0'],
       expect.objectContaining({ cwd: tempDir }),
     );
+  });
+});
+
+describe('readProjectVersion', () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'craft-read-version-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  async function readWith(
+    target: string,
+    files: Record<string, string>,
+  ): Promise<string | undefined> {
+    for (const [file, content] of Object.entries(files)) {
+      await mkdir(join(tempDir, file, '..'), { recursive: true });
+      await writeFile(join(tempDir, file), content);
+    }
+    return readProjectVersion([{ name: target }], tempDir);
+  }
+
+  test('reads package.json for npm', async () => {
+    expect(
+      await readWith('npm', {
+        'package.json': JSON.stringify({ version: '1.0.0-dev.0' }),
+      }),
+    ).toBe('1.0.0-dev.0');
+  });
+
+  test('reads pyproject.toml for pypi', async () => {
+    expect(
+      await readWith('pypi', {
+        'pyproject.toml': '[project]\nname = "pkg"\nversion = "2.1.0"\n',
+      }),
+    ).toBe('2.1.0');
+  });
+
+  test('ignores pyproject.toml versions derived by setuptools_scm', async () => {
+    expect(
+      await readWith('pypi', {
+        'pyproject.toml':
+          '[project]\nversion = "2.1.0"\n[tool.setuptools_scm]\n',
+      }),
+    ).toBeUndefined();
+  });
+
+  test('reads Cargo.toml for crates', async () => {
+    expect(
+      await readWith('crates', {
+        'Cargo.toml': '[package]\nname = "pkg"\nversion = "0.3.0"\n',
+      }),
+    ).toBe('0.3.0');
+  });
+
+  test('reads a literal gemspec version for gem', async () => {
+    expect(
+      await readWith('gem', {
+        'pkg.gemspec':
+          'Gem::Specification.new do |s|\n  s.version = "1.2.0"\nend\n',
+      }),
+    ).toBe('1.2.0');
+  });
+
+  test('reads version.rb when the gemspec uses a constant', async () => {
+    expect(
+      await readWith('gem', {
+        'pkg.gemspec':
+          'Gem::Specification.new do |s|\n  s.version = Pkg::VERSION\nend\n',
+        'lib/pkg/version.rb': 'module Pkg\n  VERSION = "1.3.0"\nend\n',
+      }),
+    ).toBe('1.3.0');
+  });
+
+  test('reads pubspec.yaml for pub-dev', async () => {
+    expect(
+      await readWith('pub-dev', {
+        'pubspec.yaml': 'name: pkg\nversion: 4.0.0\n',
+      }),
+    ).toBe('4.0.0');
+  });
+
+  test('reads mix.exs for hex', async () => {
+    expect(
+      await readWith('hex', {
+        'mix.exs': 'defmodule Pkg.MixProject do\n  @version "0.5.0"\nend\n',
+      }),
+    ).toBe('0.5.0');
+  });
+
+  test('reads Directory.Build.props for nuget', async () => {
+    expect(
+      await readWith('nuget', {
+        'Directory.Build.props':
+          '<Project><PropertyGroup><Version>3.1.0</Version></PropertyGroup></Project>',
+      }),
+    ).toBe('3.1.0');
+  });
+
+  test('appends VersionSuffix to VersionPrefix for nuget', async () => {
+    expect(
+      await readWith('nuget', {
+        'Pkg.csproj':
+          '<Project><PropertyGroup><VersionPrefix>1.0.0</VersionPrefix>' +
+          '<VersionSuffix>dev</VersionSuffix></PropertyGroup></Project>',
+      }),
+    ).toBe('1.0.0-dev');
+  });
+
+  test('uses the first target in config order that reads a version', async () => {
+    await writeFile(
+      join(tempDir, 'package.json'),
+      JSON.stringify({ version: '1.0.0' }),
+    );
+    await writeFile(join(tempDir, 'pubspec.yaml'), 'version: 2.0.0\n');
+
+    expect(
+      await readProjectVersion(
+        [{ name: 'github' }, { name: 'pub-dev' }, { name: 'npm' }],
+        tempDir,
+      ),
+    ).toBe('2.0.0');
+  });
+
+  test('skips placeholder versions that every bump turns into 0.0.0', async () => {
+    await writeFile(
+      join(tempDir, 'package.json'),
+      JSON.stringify({ version: '0.0.0-development' }),
+    );
+    await writeFile(join(tempDir, 'pubspec.yaml'), 'version: 1.0.0\n');
+
+    expect(
+      await readProjectVersion([{ name: 'npm' }, { name: 'pub-dev' }], tempDir),
+    ).toBe('1.0.0');
+  });
+
+  test('returns undefined when no target declares a version', async () => {
+    expect(
+      await readProjectVersion([{ name: 'github' }, { name: 'npm' }], tempDir),
+    ).toBeUndefined();
   });
 });

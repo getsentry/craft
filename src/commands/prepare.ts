@@ -65,7 +65,10 @@ import { spawnProcess } from '../utils/system';
 import { buildReleaseCommandEnv } from '../utils/releaseCommandEnv';
 import { withTracing } from '../utils/tracing';
 import { getVersion, isValidVersion } from '../utils/version';
-import { runAutomaticVersionBumps } from '../utils/versionBump';
+import {
+  readProjectVersion,
+  runAutomaticVersionBumps,
+} from '../utils/versionBump';
 
 import { type PublishOptions, handler as publishMainHandler } from './publish';
 import { getTargetIds } from './targets';
@@ -736,6 +739,9 @@ interface ResolveVersionOptions {
  * - 'major'/'minor'/'patch': applies bump to latest tag
  * - Explicit semver: returns as-is
  *
+ * Before the first tag, 'auto' and bump types start from the version in the
+ * release unit's project files, read by its targets (see readProjectVersion).
+ *
  * @param git Local git client
  * @param options Version resolution options
  * @returns The resolved semver version string
@@ -814,8 +820,13 @@ async function resolveVersion(
       bumpType = version as BumpType;
     }
 
-    // Calculate new version from latest tag
-    const currentVersion = (latestTag && getVersion(latestTag)) || '0.0.0';
+    // Calculate new version from the latest tag. Before the first tag, start
+    // from the version in the release unit's project files, so a workspace at
+    // `1.0.0-dev.0` releases `1.0.0` instead of a bump of `0.0.0`.
+    const currentVersion =
+      (latestTag && getVersion(latestTag)) ||
+      (await readProjectVersion(config.targets || [], getReleaseUnitDir())) ||
+      '0.0.0';
 
     const newVersion = calculateNextVersion(currentVersion, bumpType);
     logger.info(

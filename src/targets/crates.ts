@@ -123,6 +123,25 @@ export class CratesTarget extends BaseTarget {
   public readonly githubRepo: GitHubGlobalConfig;
 
   /**
+   * Read the version from Cargo.toml: the first top-level `version` key,
+   * which is `[package]` or `[workspace.package]` in a typical manifest.
+   *
+   * @param rootDir - Project root directory
+   * @returns The version, or undefined if there is no Cargo.toml or it has no
+   * literal version (e.g. `version.workspace = true`)
+   */
+  public static async readVersion(
+    rootDir: string,
+  ): Promise<string | undefined> {
+    const cargoTomlPath = path.join(rootDir, 'Cargo.toml');
+    if (!fs.existsSync(cargoTomlPath)) {
+      return undefined;
+    }
+    const content = fs.readFileSync(cargoTomlPath, 'utf-8');
+    return /^\s*version\s*=\s*"([^"]+)"/m.exec(content)?.[1];
+  }
+
+  /**
    * Bump version in Cargo.toml using cargo set-version (from cargo-edit).
    *
    * @param rootDir - Project root directory

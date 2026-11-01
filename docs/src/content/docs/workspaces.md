@@ -176,6 +176,11 @@ tag lookup (latest tag, changelog base, CalVer scans) to that prefix, so
 products never pick up each other's version history. See
 [GitHub target → Tag Prefixes](../targets/github/#tag-prefixes).
 
+Until a workspace has a tag with its prefix, bump types and `auto` start from
+the version in the workspace's project files, such as its `package.json`, so a
+workspace at `1.0.0-dev.0` releases `1.0.0`. See
+[Choosing the next version](../versioning/#choosing-the-next-version).
+
 Inside a workspace, GitHub release titles also carry the tag prefix (for
 example `cli@0.2.0`), so releases of different products stay distinguishable.
 See [GitHub target → Release Workspaces](../targets/github/#release-workspaces).

@@ -19,6 +19,12 @@ const DEFAULT_GEM_BIN = 'gem';
  */
 const GEM_BIN = process.env.GEM_BIN || DEFAULT_GEM_BIN;
 
+/** Matches `s.version = "1.0.0"` in a gemspec */
+const GEMSPEC_VERSION_REGEX = /^(\s*\w+\.version\s*=\s*["'])([^"']+)(["'])/m;
+
+/** Matches `VERSION = "1.0.0"` in a version.rb file */
+const VERSION_RB_REGEX = /^(\s*VERSION\s*=\s*["'])([^"']+)(["'])/m;
+
 /**
  * RegExp for gems
  */
@@ -30,6 +36,56 @@ const DEFAULT_GEM_REGEX = /^.*(\.gem)$/;
 export class GemTarget extends BaseTarget {
   /** Target name */
   public readonly name: string = 'gem';
+
+  /**
+   * Read the version from the first gemspec that bumpVersion() would update,
+   * or from a lib/.../version.rb next to it when the gemspec references a
+   * constant such as `MyGem::VERSION`.
+   *
+   * @param rootDir - Project root directory
+   * @returns The version, or undefined if no gemspec declares a literal one
+   */
+  public static async readVersion(
+    rootDir: string,
+  ): Promise<string | undefined> {
+    const gemspecFiles = await findFiles(rootDir, {
+      maxDepth: 2,
+      fileFilter: name => name.endsWith('.gemspec'),
+    });
+
+    for (const gemspecPath of gemspecFiles) {
+      const content = await readFile(gemspecPath, 'utf-8');
+      const version =
+        GEMSPEC_VERSION_REGEX.exec(content)?.[2] ??
+        (await GemTarget.readVersionRb(join(dirname(gemspecPath), 'lib')));
+      if (version) {
+        return version;
+      }
+    }
+    return undefined;
+  }
+
+  private static async readVersionRb(dir: string): Promise<string | undefined> {
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return undefined;
+    }
+
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name);
+      const version = entry.isDirectory()
+        ? await GemTarget.readVersionRb(fullPath)
+        : entry.name === 'version.rb'
+          ? VERSION_RB_REGEX.exec(await readFile(fullPath, 'utf-8'))?.[2]
+          : undefined;
+      if (version) {
+        return version;
+      }
+    }
+    return undefined;
+  }
 
   /**
    * Bump version in Ruby gem project files.
@@ -60,11 +116,11 @@ export class GemTarget extends BaseTarget {
     for (const gemspecPath of gemspecFiles) {
       const content = await readFile(gemspecPath, 'utf-8');
 
-      // Match: s.version = "1.0.0" or spec.version = '1.0.0'
-      const versionRegex = /^(\s*\w+\.version\s*=\s*["'])([^"']+)(["'])/m;
-
-      if (versionRegex.test(content)) {
-        const newContent = content.replace(versionRegex, `$1${newVersion}$3`);
+      if (GEMSPEC_VERSION_REGEX.test(content)) {
+        const newContent = content.replace(
+          GEMSPEC_VERSION_REGEX,
+          `$1${newVersion}$3`,
+        );
         if (newContent !== content) {
           logger.debug(`Updating version in ${gemspecPath} to ${newVersion}`);
           await writeFile(gemspecPath, newContent);
@@ -112,10 +168,11 @@ export class GemTarget extends BaseTarget {
         updated = subUpdated || updated;
       } else if (entry.name === 'version.rb') {
         const content = await readFile(fullPath, 'utf-8');
-        const versionRegex = /^(\s*VERSION\s*=\s*["'])([^"']+)(["'])/m;
-
-        if (versionRegex.test(content)) {
-          const newContent = content.replace(versionRegex, `$1${newVersion}$3`);
+        if (VERSION_RB_REGEX.test(content)) {
+          const newContent = content.replace(
+            VERSION_RB_REGEX,
+            `$1${newVersion}$3`,
+          );
           if (newContent !== content) {
             logger.debug(`Updating VERSION in ${fullPath} to ${newVersion}`);
             await writeFile(fullPath, newContent);

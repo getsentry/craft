@@ -743,6 +743,55 @@ workspaces:
     );
   }, 60000);
 
+  test('bumps an untagged workspace from its package.json version', async () => {
+    tempDir = await createTestRepo();
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const git = simpleGit(tempDir);
+    await mkdir(join(tempDir, 'packages', 'cli'), { recursive: true });
+    await writeFile(
+      join(tempDir, '.craft.yml'),
+      `minVersion: "2.29.0"
+github:
+  owner: test-owner
+  repo: test-repo
+changelog:
+  policy: none
+preReleaseCommand: ""
+workspaces:
+  packages/cli:
+    releaseBranchPrefix: release/cli
+    targets:
+      - name: npm
+      - name: github
+        tagPrefix: "cli@"
+`,
+    );
+    await writeFile(
+      join(tempDir, 'packages', 'cli', 'package.json'),
+      JSON.stringify({ name: 'cli', version: '1.0.0-dev.0' }, null, 2),
+    );
+    await git.add('.');
+    await git.commit('chore: Configure CLI workspace');
+    await git.push('origin', (await git.status()).current!);
+
+    const { stdout, stderr } = await execFileAsync(
+      CLI_BIN,
+      [
+        'prepare',
+        'minor',
+        '--workspace=packages/cli',
+        '--dry-run',
+        '--no-input',
+      ],
+      { cwd: tempDir, env: { ...CLI_ENV, GITHUB_TOKEN: '' } },
+    );
+
+    // The root's `1.0.0` tag does not match the `cli@` prefix, so the bump
+    // starts from packages/cli/package.json rather than 0.0.0.
+    expect(stdout + stderr).toContain('Version bump: 1.0.0-dev.0 -> 1.0.0');
+    expect(stdout + stderr).toContain('release/cli/1.0.0');
+  }, 60000);
+
   test('auto changelog policy creates CHANGELOG.md if it does not exist', async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'craft-e2e-'));
     // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
