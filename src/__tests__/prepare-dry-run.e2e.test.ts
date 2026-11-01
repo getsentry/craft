@@ -761,6 +761,7 @@ workspaces:
   packages/cli:
     releaseBranchPrefix: release/cli
     targets:
+      - name: npm
       - name: github
         tagPrefix: "cli@"
 `,

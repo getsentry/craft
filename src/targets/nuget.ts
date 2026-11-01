@@ -209,6 +209,38 @@ export class NugetTarget extends BaseTarget {
   }
 
   /**
+   * Read the package version from Directory.Build.props, or from the first
+   * .csproj that declares one, in the same order bumpVersion() edits them.
+   *
+   * @param rootDir - Project root directory
+   * @returns The `<PackageVersion>`, `<Version>`, or `<VersionPrefix>`, or
+   * undefined if no .NET project file declares one
+   */
+  public static async readVersion(
+    rootDir: string,
+  ): Promise<string | undefined> {
+    const projectFiles = [
+      'Directory.Build.props',
+      ...readdirSync(rootDir).filter(f => f.endsWith('.csproj')),
+    ]
+      .map(file => join(rootDir, file))
+      .filter(file => existsSync(file));
+
+    for (const file of projectFiles) {
+      const content = readFileSync(file, 'utf-8');
+      for (const tag of ['PackageVersion', 'Version', 'VersionPrefix']) {
+        const version = new RegExp(`<${tag}>([^<]+)</${tag}>`).exec(
+          content,
+        )?.[1];
+        if (version) {
+          return version.trim();
+        }
+      }
+    }
+    return undefined;
+  }
+
+  /**
    * Bump version in .NET project files (.csproj, Directory.Build.props).
    *
    * Tries dotnet-setversion first if available, otherwise edits XML directly.

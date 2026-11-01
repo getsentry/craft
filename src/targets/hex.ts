@@ -18,6 +18,12 @@ const DEFAULT_MIX_BIN = 'mix';
  */
 const MIX_BIN = process.env.MIX_BIN || DEFAULT_MIX_BIN;
 
+/** Match `version: "1.0.0"` and `@version "1.0.0"` in mix.exs */
+const MIX_VERSION_PATTERNS = [
+  /^(\s*version:\s*["'])([^"']+)(["'])/m,
+  /^(\s*@version\s+["'])([^"']+)(["'])/m,
+];
+
 /**
  * Target responsible for publishing releases to Hex, the Elixir/Erlang package manager.
  * https://hex.pm
@@ -33,6 +39,30 @@ export class HexTarget extends BaseTarget {
   public readonly name: string = 'hex';
   /** GitHub repo configuration */
   public readonly githubRepo: GitHubGlobalConfig;
+
+  /**
+   * Read the version from mix.exs.
+   *
+   * @param rootDir - Project root directory
+   * @returns The version, or undefined if there is no mix.exs or it has no
+   * literal `version:` or `@version`
+   */
+  public static async readVersion(
+    rootDir: string,
+  ): Promise<string | undefined> {
+    const mixExsPath = join(rootDir, 'mix.exs');
+    if (!existsSync(mixExsPath)) {
+      return undefined;
+    }
+    const content = readFileSync(mixExsPath, 'utf-8');
+    for (const pattern of MIX_VERSION_PATTERNS) {
+      const version = pattern.exec(content)?.[2];
+      if (version) {
+        return version;
+      }
+    }
+    return undefined;
+  }
 
   /**
    * Bump version in mix.exs for Elixir projects.
@@ -52,15 +82,10 @@ export class HexTarget extends BaseTarget {
     }
 
     const content = readFileSync(mixExsPath, 'utf-8');
-    const versionPatterns = [
-      /^(\s*version:\s*["'])([^"']+)(["'])/m,
-      /^(\s*@version\s+["'])([^"']+)(["'])/m,
-    ];
-
     let newContent = content;
     let updated = false;
 
-    for (const pattern of versionPatterns) {
+    for (const pattern of MIX_VERSION_PATTERNS) {
       if (pattern.test(newContent)) {
         newContent = newContent.replace(pattern, `$1${newVersion}$3`);
         updated = true;

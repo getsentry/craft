@@ -1,3 +1,5 @@
+import * as semver from 'semver';
+
 import { TargetConfig } from '../schemas/project_config';
 import { TARGET_MAP } from '../targets';
 import { logger } from '../logger';
@@ -16,6 +18,15 @@ export interface VersionBumpableTarget {
    * @throws Error if bumping fails (missing tool, command error, file write error, etc.)
    */
   bumpVersion(rootDir: string, newVersion: string): Promise<boolean>;
+
+  /**
+   * Read the current version from this target's project files.
+   *
+   * @param rootDir - Project root directory
+   * @returns The version, or undefined if the target doesn't apply to this
+   * project or the version isn't declared in a file it can read
+   */
+  readVersion?(rootDir: string): Promise<string | undefined>;
 }
 
 /**
@@ -29,6 +40,57 @@ function hasVersionBump(
     'bumpVersion' in targetClass &&
     typeof (targetClass as any).bumpVersion === 'function'
   );
+}
+
+/**
+ * Check if a target class has the readVersion static method
+ */
+function hasReadVersion(targetClass: unknown): targetClass is {
+  readVersion: NonNullable<VersionBumpableTarget['readVersion']>;
+} {
+  return (
+    typeof targetClass === 'function' &&
+    'readVersion' in targetClass &&
+    typeof (targetClass as any).readVersion === 'function'
+  );
+}
+
+/**
+ * Read the release unit's current version from its project files.
+ *
+ * Calls readVersion() on each unique target class in config order and returns
+ * the first valid semver above `0.0.0`. Placeholders such as
+ * `0.0.0-development` are skipped because any bump of them yields `0.0.0`.
+ *
+ * @param targets - Target configs from .craft.yml
+ * @param rootDir - Project root directory
+ * @returns The version, or undefined if no target can read one
+ */
+export async function readProjectVersion(
+  targets: TargetConfig[],
+  rootDir: string,
+): Promise<string | undefined> {
+  const targetNames = new Set(targets.map(target => target.name));
+  for (const targetName of targetNames) {
+    const targetClass = TARGET_MAP[targetName];
+    if (!hasReadVersion(targetClass)) {
+      continue;
+    }
+    const version = await targetClass.readVersion(rootDir);
+    if (version && semver.valid(version) && semver.gt(version, '0.0.0')) {
+      logger.info(
+        `No previous release tag found, using version ${version} read by ` +
+          `the "${targetName}" target`,
+      );
+      return version;
+    }
+    if (version) {
+      logger.debug(
+        `Ignoring version "${version}" read by "${targetName}" target`,
+      );
+    }
+  }
+  return undefined;
 }
 
 /**
