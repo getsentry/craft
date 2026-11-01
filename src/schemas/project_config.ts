@@ -318,17 +318,10 @@ export const ChangelogConfigSchema = union([
  * Opt-in bump to the next development version after a successful publish.
  */
 const PostReleaseBumpSchema = strictObject({
-  bump: optional(picklist(['prepatch', 'preminor', 'premajor']), 'preminor'),
-  preid: optional(
-    pipe(
-      string(),
-      regex(
-        /^[0-9A-Za-z-]+$/,
-        'Use only ASCII letters, digits, and hyphens in preid.',
-      ),
-    ),
-    'dev',
-  ),
+  /** How to get the next version. Default: `calver` for CalVer, else `minor`. */
+  bump: optional(picklist(['patch', 'minor', 'major', 'calver'])),
+  /** Development version template. Default: `{{version}}-dev.0`. */
+  version: optional(pipe(string(), trim(), minLength(1))),
 });
 
 export type PostReleaseBumpConfig = InferOutput<typeof PostReleaseBumpSchema>;
@@ -352,7 +345,7 @@ const releaseUnitFields = {
   preReleaseCommand: optional(string()),
   postReleaseCommand: optional(string()),
   postReleaseBump: optional(
-    nonArray(union([PostReleaseBumpSchema, literal(false)])),
+    nonArray(union([PostReleaseBumpSchema, boolean()])),
   ),
   releaseBranchPrefix: optional(string()),
   changelog: optional(nonArray(ChangelogConfigSchema)),

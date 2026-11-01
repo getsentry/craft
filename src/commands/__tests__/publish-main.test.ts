@@ -27,7 +27,7 @@ import { getTargetByName } from '../../targets';
 import { BaseTarget } from '../../targets/base';
 import { safeFs } from '../../utils/dryRun';
 import { promptConfirmation } from '../../utils/helpers';
-import { runAutomaticVersionBumps } from '../../utils/versionBump';
+import { runPreReleaseCommand } from '../../utils/preReleaseCommand';
 import { getPublishStatePath } from '../../utils/publishState';
 import {
   findReleaseBranches,
@@ -67,8 +67,8 @@ vi.mock('../../utils/helpers', async importOriginal => ({
   ...(await importOriginal<typeof import('../../utils/helpers')>()),
   promptConfirmation: vi.fn(),
 }));
-vi.mock('../../utils/versionBump', () => ({
-  runAutomaticVersionBumps: vi.fn(),
+vi.mock('../../utils/preReleaseCommand', () => ({
+  runPreReleaseCommand: vi.fn(),
 }));
 vi.mock('../../utils/publishState', async importOriginal => ({
   ...(await importOriginal<typeof import('../../utils/publishState')>()),
@@ -245,6 +245,14 @@ describe('publishMain post-release bump', () => {
   const revision = 'd'.repeat(40);
   let git: SimpleGit;
 
+  function mockConfig(config: Record<string, unknown>): void {
+    vi.mocked(getConfiguration).mockReturnValue({
+      targets: [{ name: 'test' }],
+      postReleaseCommand: '',
+      ...config,
+    });
+  }
+
   beforeEach(async () => {
     vi.clearAllMocks();
     testState.directory = await mkdtemp(
@@ -253,11 +261,7 @@ describe('publishMain post-release bump', () => {
     vi.mocked(getPublishStatePath).mockReturnValue(
       pathJoin(testState.directory, 'publish-state.json'),
     );
-    vi.mocked(getConfiguration).mockReturnValue({
-      targets: [{ name: 'test' }],
-      postReleaseCommand: '',
-      postReleaseBump: { bump: 'preminor', preid: 'dev' },
-    });
+    mockConfig({ postReleaseBump: true });
     vi.mocked(getStatusProviderFromConfig).mockResolvedValue({} as never);
     vi.mocked(getArtifactProviderFromConfig).mockResolvedValue({
       listArtifactsForRevision: vi.fn().mockResolvedValue([]),
@@ -276,11 +280,7 @@ describe('publishMain post-release bump', () => {
     });
     vi.mocked(getActiveWorkspace).mockReturnValue(undefined);
     vi.mocked(getDefaultBranch).mockResolvedValue('main');
-    vi.mocked(runAutomaticVersionBumps).mockResolvedValue({
-      anyBumped: true,
-      bumpableTargets: ['npm'],
-      skippedTargets: [],
-    });
+    vi.mocked(runPreReleaseCommand).mockResolvedValue(true);
     vi.spyOn(safeFs, 'unlink').mockResolvedValue(undefined);
     vi.spyOn(safeFs, 'writeFileSync').mockImplementation(() => undefined);
 
@@ -296,14 +296,21 @@ describe('publishMain post-release bump', () => {
     await rm(testState.directory, { recursive: true, force: true });
   });
 
-  test('bumps, commits, and pushes the development version after merging', async () => {
+  test('writes the development version with the pre-release bump, then commits and pushes', async () => {
+    mockConfig({
+      postReleaseBump: true,
+      preReleaseCommand: 'bash scripts/bump-version.sh',
+    });
+
     await publishMain({ ...defaultOptions, mergeTarget: undefined });
 
-    expect(runAutomaticVersionBumps).toHaveBeenCalledWith(
-      [{ name: 'test' }],
-      expect.any(String),
-      '1.3.0-dev.0',
-    );
+    expect(runPreReleaseCommand).toHaveBeenCalledWith({
+      oldVersion: '1.2.3',
+      newVersion: '1.3.0-dev.0',
+      preReleaseCommand: 'bash scripts/bump-version.sh',
+      targets: [{ name: 'test' }],
+      rootDir: expect.any(String),
+    });
     expect(git.commit).toHaveBeenCalledWith(
       'meta: Bump new development version\n\n#skip-changelog',
       ['--all'],
@@ -312,26 +319,70 @@ describe('publishMain post-release bump', () => {
     expect(git.push).toHaveBeenLastCalledWith('origin', 'main');
   });
 
+  test.each([
+    ['patch bump', '1.2.3', {}, { bump: 'patch' }, '1.2.4-dev.0'],
+    ['major bump', '1.2.3', {}, { bump: 'major' }, '2.0.0-dev.0'],
+    [
+      'custom template',
+      '1.2.3',
+      {},
+      { version: '{{version}}-SNAPSHOT' },
+      '1.3.0-SNAPSHOT',
+    ],
+    ['literal version', '26.10.1', {}, { version: 'nightly' }, 'nightly'],
+    [
+      'CalVer policy',
+      '26.10.1',
+      { policy: 'calver' },
+      { version: '{{version}}.dev0' },
+      '26.11.0.dev0',
+    ],
+    [
+      'CalVer year rollover',
+      '26.12.3',
+      { policy: 'calver' },
+      {},
+      '27.1.0-dev.0',
+    ],
+    [
+      'custom CalVer format',
+      '2026.10.31.0',
+      { policy: 'calver', calver: { format: '%Y.%m.%d' } },
+      {},
+      '2026.11.01.0-dev.0',
+    ],
+  ])(
+    'derives the development version for a %s',
+    async (_name, newVersion, versioning, postReleaseBump, expected) => {
+      mockConfig({ versioning, postReleaseBump });
+
+      await publishMain({ ...defaultOptions, newVersion });
+
+      expect(runPreReleaseCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          oldVersion: newVersion,
+          newVersion: expected,
+        }),
+      );
+    },
+  );
+
   test('skips the bump when the release branch is not merged', async () => {
     await publishMain({ ...defaultOptions, noMerge: true });
 
-    expect(runAutomaticVersionBumps).not.toHaveBeenCalled();
+    expect(runPreReleaseCommand).not.toHaveBeenCalled();
     expect(git.commit).not.toHaveBeenCalled();
   });
 
   test('skips the bump after a pre-release', async () => {
     await publishMain({ ...defaultOptions, newVersion: '2.0.0-beta.1' });
 
-    expect(runAutomaticVersionBumps).not.toHaveBeenCalled();
+    expect(runPreReleaseCommand).not.toHaveBeenCalled();
     expect(git.commit).not.toHaveBeenCalled();
   });
 
-  test('does not commit when no target bumped a version', async () => {
-    vi.mocked(runAutomaticVersionBumps).mockResolvedValue({
-      anyBumped: false,
-      bumpableTargets: [],
-      skippedTargets: [],
-    });
+  test('does not commit when nothing wrote a version', async () => {
+    vi.mocked(runPreReleaseCommand).mockResolvedValue(false);
 
     await publishMain(defaultOptions);
 
@@ -339,8 +390,8 @@ describe('publishMain post-release bump', () => {
   });
 
   test('warns instead of failing the release when the bump fails', async () => {
-    vi.mocked(runAutomaticVersionBumps).mockRejectedValue(
-      new Error('npm exploded'),
+    vi.mocked(runPreReleaseCommand).mockRejectedValue(
+      new Error('bump script exploded'),
     );
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
 

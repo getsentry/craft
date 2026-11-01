@@ -21,9 +21,11 @@ import {
 } from '../config';
 import { formatTable, logger } from '../logger';
 import {
+  type CraftProjectConfig,
   type GitHubGlobalConfig,
   type PostReleaseBumpConfig,
   TargetConfig,
+  VersioningPolicy,
 } from '../schemas/project_config';
 import { getAllTargetNames, getTargetByName, SpecialTarget } from '../targets';
 import { BaseTarget } from '../targets/base';
@@ -35,7 +37,11 @@ import {
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
 import { isDryRun, promptConfirmation } from '../utils/helpers';
-import { formatArtifactConfigForError, formatSize } from '../utils/strings';
+import {
+  formatArtifactConfigForError,
+  formatSize,
+  renderTemplateSafe,
+} from '../utils/strings';
 import {
   catchKeyboardInterrupt,
   hasExecutable,
@@ -55,7 +61,8 @@ import {
 import { withTracing } from '../utils/tracing';
 import { buildReleaseCommandEnv } from '../utils/releaseCommandEnv';
 import { getPublishStatePath } from '../utils/publishState';
-import { runAutomaticVersionBumps } from '../utils/versionBump';
+import { DEFAULT_CALVER_CONFIG, getNextCalVerPeriod } from '../utils/calver';
+import { runPreReleaseCommand } from '../utils/preReleaseCommand';
 
 /** Default path to post-release script, relative to project root */
 const DEFAULT_POST_RELEASE_SCRIPT_PATH = join('scripts', 'post-release.sh');
@@ -622,19 +629,22 @@ async function pullWithRebase(
   }
 }
 
+/** Default `postReleaseBump.version` template */
+const DEFAULT_DEVELOPMENT_VERSION_TEMPLATE = '{{version}}-dev.0';
+
 /**
  * Bump the release unit to the next development version on the merge target,
  * then commit and push the change.
  *
- * Uses the same target logic as the automatic pre-release bump, so it only
- * touches the selected release unit's project files.
+ * The version is written by the same step `craft prepare` uses: the
+ * `preReleaseCommand`, or the automatic target bumps when there is none.
  *
  * @param git Git client, with the merge target checked out
  * @param remoteName The git remote to push to
  * @param mergeTarget Branch the release was merged into
  * @param releasedVersion Version that was just published
  * @param bumpConfig The `postReleaseBump` configuration
- * @param targets Target configs of the release unit
+ * @param config The release unit's configuration
  */
 async function runPostReleaseBump(
   git: SimpleGit,
@@ -642,7 +652,7 @@ async function runPostReleaseBump(
   mergeTarget: string,
   releasedVersion: string,
   bumpConfig: PostReleaseBumpConfig,
-  targets: TargetConfig[],
+  config: CraftProjectConfig,
 ): Promise<void> {
   if (semver.prerelease(releasedVersion)) {
     // A development version derived from a pre-release would sort above the
@@ -652,16 +662,27 @@ async function runPostReleaseBump(
     );
     return;
   }
-  const devVersion = semver.inc(
-    releasedVersion,
-    bumpConfig.bump,
-    bumpConfig.preid,
-  );
-  if (!devVersion) {
+  const bump =
+    bumpConfig.bump ??
+    (config.versioning?.policy === VersioningPolicy.CalVer
+      ? 'calver'
+      : 'minor');
+  const nextVersion =
+    bump === 'calver'
+      ? getNextCalVerPeriod(
+          releasedVersion,
+          config.versioning?.calver?.format ?? DEFAULT_CALVER_CONFIG.format,
+        )
+      : semver.inc(releasedVersion, bump);
+  if (!nextVersion) {
     throw new Error(
-      `Cannot derive a development version from "${releasedVersion}".`,
+      `Cannot derive the next ${bump} version from "${releasedVersion}".`,
     );
   }
+  const devVersion = renderTemplateSafe(
+    bumpConfig.version ?? DEFAULT_DEVELOPMENT_VERSION_TEMPLATE,
+    { version: nextVersion },
+  );
 
   if (isDryRun()) {
     logger.info(
@@ -671,15 +692,16 @@ async function runPostReleaseBump(
   }
 
   logger.info(`Bumping the development version to ${devVersion}...`);
-  const result = await runAutomaticVersionBumps(
-    targets,
-    getReleaseUnitDir(),
-    devVersion,
-  );
-  if (!result.anyBumped) {
+  const bumped = await runPreReleaseCommand({
+    oldVersion: releasedVersion,
+    newVersion: devVersion,
+    preReleaseCommand: config.preReleaseCommand,
+    targets: config.targets,
+    rootDir: getReleaseUnitDir(),
+  });
+  if (!bumped) {
     logger.warn(
-      'Not bumping the development version: none of the configured targets ' +
-        'found a version to bump.',
+      'Not bumping the development version: nothing wrote a version.',
     );
     return;
   }
@@ -1103,8 +1125,8 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
           argv.remote,
           mergedInto,
           newVersion,
-          config.postReleaseBump,
-          config.targets || [],
+          config.postReleaseBump === true ? {} : config.postReleaseBump,
+          config,
         );
       } catch (bumpError) {
         // Like the merge, the bump runs after every target has published, so

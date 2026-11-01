@@ -112,33 +112,34 @@ describe('validateConfiguration', () => {
     expect(validateConfiguration(data)).toEqual(data);
   });
 
-  test('fills postReleaseBump defaults', () => {
-    expect(validateConfiguration({ postReleaseBump: {} })).toEqual({
-      postReleaseBump: { bump: 'preminor', preid: 'dev' },
+  test.each([
+    true,
+    {},
+    { bump: 'calver', version: '{{version}}.dev0' },
+    { version: 'nightly' },
+  ])('accepts postReleaseBump %j', postReleaseBump => {
+    expect(validateConfiguration({ postReleaseBump })).toEqual({
+      postReleaseBump,
     });
   });
 
   test('lets a workspace opt out of an inherited postReleaseBump', () => {
     const data = {
-      postReleaseBump: { bump: 'prepatch', preid: 'alpha' },
+      postReleaseBump: { bump: 'patch' },
       workspaces: { 'packages/cli': { postReleaseBump: false } },
     };
 
     expect(validateConfiguration(data)).toEqual(data);
   });
 
-  test.each([
-    { bump: 'minor' },
-    { preid: '' },
-    { preid: 'dev.1' },
-    { unknown: true },
-    [],
-    true,
-  ])('rejects invalid postReleaseBump %j', postReleaseBump => {
-    expect(() => validateConfiguration({ postReleaseBump })).toThrow(
-      /postReleaseBump/,
-    );
-  });
+  test.each([{ bump: 'preminor' }, { version: '  ' }, { preid: 'dev' }, []])(
+    'rejects invalid postReleaseBump %j',
+    postReleaseBump => {
+      expect(() => validateConfiguration({ postReleaseBump })).toThrow(
+        /postReleaseBump/,
+      );
+    },
+  );
 
   test('normalizes opt-in AI summary settings from the active schema', () => {
     loadConfigurationFromString('changelog:\n  policy: auto\n  aiSummary: {}');

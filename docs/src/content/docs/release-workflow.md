@@ -229,23 +229,35 @@ branch; override it with `--merge-target`.
 
 ### Post-release development version bump
 
-Many projects set the manifest to the next development version after a
+Many projects set their version to the next development version after a
 release, so builds from the default branch, such as nightlies, sort above the
 release. `postReleaseBump` makes Craft do this:
 
 ```yaml
 minVersion: '3.7.0'
-postReleaseBump:
-  bump: preminor # or prepatch, premajor. Default: preminor
-  preid: dev # Default: dev
+postReleaseBump: true
 ```
 
-After it merges the release branch, Craft sets the release unit's version to
-the next development version, for example `1.2.3` to `1.3.0-dev.0`, with the
-same target logic as the
-[automatic version bump](../versioning/#automatic-version-bumping). It commits the change
-as `meta: Bump new development version` with `#skip-changelog`, then pulls
-with rebase and pushes to the merge target.
+After it merges the release branch, Craft writes the development version with
+the same step `craft prepare` uses to write the release version: the
+[pre-release command](#pre-release-command) if you set one, otherwise the
+[automatic version bump](../versioning/#automatic-version-bumping). Then it
+commits the change as `meta: Bump new development version` with
+`#skip-changelog`, pulls with rebase, and pushes to the merge target.
+
+Two settings shape the development version:
+
+| Setting | Description | Default |
+| --- | --- | --- |
+| `bump` | How to get the next version: `patch`, `minor`, `major`, or `calver` (the first version of the next CalVer period). | `calver` with the `calver` policy, else `minor` |
+| `version` | Template for the development version. `{{version}}` is the next version. A value without it, such as `nightly`, is used as is. | `{{version}}-dev.0` |
+
+| Released | Configuration | Development version |
+| --- | --- | --- |
+| `1.2.3` | `postReleaseBump: true` | `1.3.0-dev.0` |
+| `1.2.3` | `bump: patch` | `1.2.4-dev.0` |
+| `26.10.1` | `version: '{{version}}.dev0'` with the `calver` policy | `26.11.0.dev0` |
+| `26.10.1` | `version: nightly` | `nightly` |
 
 - Craft skips the bump when the release branch isn't merged (`--no-merge`,
   `noMerge`, or a publish to only some targets) and after a pre-release
