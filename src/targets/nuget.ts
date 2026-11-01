@@ -90,6 +90,11 @@ interface NugetYamlConfig extends Record<string, unknown> {
   serverUrl?: string;
 }
 
+/** Returns the trimmed text of the first `<tag>...</tag>` in an XML file */
+function readXmlTag(content: string, tag: string): string | undefined {
+  return new RegExp(`<${tag}>([^<]+)</${tag}>`).exec(content)?.[1].trim();
+}
+
 /**
  * Target responsible for publishing releases on Nuget
  */
@@ -213,8 +218,8 @@ export class NugetTarget extends BaseTarget {
    * .csproj that declares one, in the same order bumpVersion() edits them.
    *
    * @param rootDir - Project root directory
-   * @returns The `<PackageVersion>`, `<Version>`, or `<VersionPrefix>`, or
-   * undefined if no .NET project file declares one
+   * @returns The `<PackageVersion>`, `<Version>`, or `<VersionPrefix>` with
+   * its `<VersionSuffix>`, or undefined if no .NET project file declares one
    */
   public static async readVersion(
     rootDir: string,
@@ -228,13 +233,16 @@ export class NugetTarget extends BaseTarget {
 
     for (const file of projectFiles) {
       const content = readFileSync(file, 'utf-8');
-      for (const tag of ['PackageVersion', 'Version', 'VersionPrefix']) {
-        const version = new RegExp(`<${tag}>([^<]+)</${tag}>`).exec(
-          content,
-        )?.[1];
-        if (version) {
-          return version.trim();
-        }
+      const version =
+        readXmlTag(content, 'PackageVersion') ?? readXmlTag(content, 'Version');
+      if (version) {
+        return version;
+      }
+      // Without <Version>, MSBuild builds it as <VersionPrefix>-<VersionSuffix>
+      const prefix = readXmlTag(content, 'VersionPrefix');
+      if (prefix) {
+        const suffix = readXmlTag(content, 'VersionSuffix');
+        return suffix ? `${prefix}-${suffix}` : prefix;
       }
     }
     return undefined;

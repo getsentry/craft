@@ -1316,6 +1316,16 @@ describe('readProjectVersion', () => {
     ).toBe('3.1.0');
   });
 
+  test('appends VersionSuffix to VersionPrefix for nuget', async () => {
+    expect(
+      await readWith('nuget', {
+        'Pkg.csproj':
+          '<Project><PropertyGroup><VersionPrefix>1.0.0</VersionPrefix>' +
+          '<VersionSuffix>dev</VersionSuffix></PropertyGroup></Project>',
+      }),
+    ).toBe('1.0.0-dev');
+  });
+
   test('uses the first target in config order that reads a version', async () => {
     await writeFile(
       join(tempDir, 'package.json'),
