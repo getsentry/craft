@@ -180,16 +180,69 @@ automatically for compiled Node.js GitHub Actions (repositories with a
 <code dir="auto">dist/</code> folder), unless <code dir="auto">noMerge</code> is set explicitly.</li>
 </ul>
 <div class="sl-heading-wrapper level-h3"><h3 id="post-release-development-version-bump">Post-release development version bump</h3><a class="sl-anchor-link" href="#post-release-development-version-bump"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Post-release development version bump”</span></a></div>
-<p>Many projects set the manifest to the next development version after a
+<p>Many projects set their version to the next development version after a
 release, so builds from the default branch, such as nightlies, sort above the
 release. <code dir="auto">postReleaseBump</code> makes Craft do this:</p>
-<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="yaml"><code><div class="ec-line"><div class="code"><span style="--0:#FFFFFF">minVersion</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#CFCFCF">'</span><span style="--0:#FFD166">3.7.0</span><span style="--0:#CFCFCF">'</span></div></div><div class="ec-line"><div class="code"><span style="--0:#FFFFFF">postReleaseBump</span><span style="--0:#CFCFCF">:</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#FFFFFF">bump</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">preminor</span><span style="--0:#F5F5F5"> </span><span style="--0:#9E9E9E;--0fs:italic"># or prepatch, premajor. Default: preminor</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#FFFFFF">preid</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFD166">dev</span><span style="--0:#F5F5F5"> </span><span style="--0:#9E9E9E;--0fs:italic"># Default: dev</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="minVersion: &#x27;3.7.0&#x27;postReleaseBump:  bump: preminor # or prepatch, premajor. Default: preminor  preid: dev # Default: dev"><div></div></button></div></figure></div>
-<p>After it merges the release branch, Craft sets the release unit’s version to
-the next development version, for example <code dir="auto">1.2.3</code> to <code dir="auto">1.3.0-dev.0</code>, with the
-same target logic as the
-<a href="../versioning/#automatic-version-bumping">automatic version bump</a>. It commits the change
-as <code dir="auto">meta: Bump new development version</code> with <code dir="auto">#skip-changelog</code>, then pulls
-with rebase and pushes to the merge target.</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="yaml"><code><div class="ec-line"><div class="code"><span style="--0:#FFFFFF">minVersion</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#CFCFCF">'</span><span style="--0:#FFD166">3.7.0</span><span style="--0:#CFCFCF">'</span></div></div><div class="ec-line"><div class="code"><span style="--0:#FFFFFF">postReleaseBump</span><span style="--0:#CFCFCF">:</span><span style="--0:#F5F5F5"> </span><span style="--0:#FFFFFF;--0fw:bold">true</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="minVersion: &#x27;3.7.0&#x27;postReleaseBump: true"><div></div></button></div></figure></div>
+<p>After it merges the release branch, Craft writes the development version with
+the same step <code dir="auto">craft prepare</code> uses to write the release version: the
+<a href="#pre-release-command">pre-release command</a> if you set one, otherwise the
+<a href="../versioning/#automatic-version-bumping">automatic version bump</a>. Then it
+commits the change as <code dir="auto">meta: Bump new development version</code> with
+<code dir="auto">#skip-changelog</code>, pulls with rebase, and pushes to the merge target.</p>
+<p>Two settings shape the development version:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code dir="auto">bump</code></td>
+<td>How to get the next version: <code dir="auto">patch</code>, <code dir="auto">minor</code>, <code dir="auto">major</code>, or <code dir="auto">calver</code> (the first version of the next CalVer period).</td>
+<td><code dir="auto">calver</code> with the <code dir="auto">calver</code> policy, else <code dir="auto">minor</code></td>
+</tr>
+<tr>
+<td><code dir="auto">version</code></td>
+<td>Template for the development version. <code dir="auto">{{version}}</code> is the next version. A value without it, such as <code dir="auto">nightly</code>, is used as is.</td>
+<td><code dir="auto">{{version}}-dev.0</code></td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Released</th>
+<th>Configuration</th>
+<th>Development version</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code dir="auto">1.2.3</code></td>
+<td><code dir="auto">postReleaseBump: true</code></td>
+<td><code dir="auto">1.3.0-dev.0</code></td>
+</tr>
+<tr>
+<td><code dir="auto">1.2.3</code></td>
+<td><code dir="auto">bump: patch</code></td>
+<td><code dir="auto">1.2.4-dev.0</code></td>
+</tr>
+<tr>
+<td><code dir="auto">26.10.1</code></td>
+<td><code dir="auto">version: '{{version}}.dev0'</code> with the <code dir="auto">calver</code> policy</td>
+<td><code dir="auto">26.11.0.dev0</code></td>
+</tr>
+<tr>
+<td><code dir="auto">26.10.1</code></td>
+<td><code dir="auto">version: nightly</code></td>
+<td><code dir="auto">nightly</code></td>
+</tr>
+</tbody>
+</table>
 <ul>
 <li>Craft skips the bump when the release branch isn’t merged (<code dir="auto">--no-merge</code>,
 <code dir="auto">noMerge</code>, or a publish to only some targets) and after a pre-release
