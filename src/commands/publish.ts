@@ -37,11 +37,7 @@ import {
 import { withTempDir } from '../utils/files';
 import { stringToRegexp } from '../utils/filters';
 import { isDryRun, promptConfirmation } from '../utils/helpers';
-import {
-  formatArtifactConfigForError,
-  formatSize,
-  renderTemplateSafe,
-} from '../utils/strings';
+import { formatArtifactConfigForError, formatSize } from '../utils/strings';
 import {
   catchKeyboardInterrupt,
   hasExecutable,
@@ -679,10 +675,9 @@ async function runPostReleaseBump(
       `Cannot derive the next ${bump} version from "${releasedVersion}".`,
     );
   }
-  const devVersion = renderTemplateSafe(
-    bumpConfig.version ?? DEFAULT_DEVELOPMENT_VERSION_TEMPLATE,
-    { version: nextVersion },
-  );
+  const devVersion = (
+    bumpConfig.version ?? DEFAULT_DEVELOPMENT_VERSION_TEMPLATE
+  ).replaceAll('{{version}}', nextVersion);
 
   if (isDryRun()) {
     logger.info(

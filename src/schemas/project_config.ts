@@ -327,8 +327,20 @@ const PostReleaseBumpTypeSchema = picklist([
 const PostReleaseBumpObjectSchema = strictObject({
   /** How to get the next version. Default: `calver` for CalVer, else `minor`. */
   bump: optional(PostReleaseBumpTypeSchema),
-  /** Development version template. Default: `{{version}}-dev.0`. */
-  version: optional(pipe(string(), trim(), minLength(1))),
+  /**
+   * Development version template. Default: `{{version}}-dev.0`. Only version
+   * characters are allowed: the value reaches spawned commands as an argument,
+   * where `${VAR}` would be expanded from the environment.
+   */
+  version: optional(
+    pipe(
+      string(),
+      regex(
+        /^(?:[0-9A-Za-z._+-]|\{\{version\}\})+$/,
+        'Use only letters, digits, ".", "_", "+", "-", and {{version}}.',
+      ),
+    ),
+  ),
 });
 
 /**

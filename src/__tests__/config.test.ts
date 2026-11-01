@@ -141,6 +141,9 @@ describe('validateConfiguration', () => {
   test.each([
     { bump: 'preminor' },
     { version: '  ' },
+    { version: '${NPM_TOKEN}' },
+    { version: '{{{version}}}' },
+    { version: '$(id)' },
     { preid: 'dev' },
     'preminor',
     [],
