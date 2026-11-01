@@ -154,7 +154,7 @@ $ craft workspace list
 
 Give each workspace’s `github` target its own `tagPrefix`. Craft scopes every tag lookup (latest tag, changelog base, CalVer scans) to that prefix, so products never pick up each other’s version history. See [GitHub target → Tag Prefixes](https://craft.sentry.dev/pr-preview/pr-947/targets/github.md#tag-prefixes).
 
-Until a workspace has a tag with its prefix, bump types and `auto` start from the `version` in the workspace’s `package.json`, so a workspace at `1.0.0-dev.0` releases `1.0.0`. See [Choosing the next version](https://craft.sentry.dev/pr-preview/pr-947/versioning.md#choosing-the-next-version).
+Until a workspace has a tag with its prefix, bump types and `auto` start from the version in the workspace’s project files, such as its `package.json`, so a workspace at `1.0.0-dev.0` releases `1.0.0`. See [Choosing the next version](https://craft.sentry.dev/pr-preview/pr-947/versioning.md#choosing-the-next-version).
 
 Inside a workspace, GitHub release titles also carry the tag prefix (for example `cli@0.2.0`), so releases of different products stay distinguishable. See [GitHub target → Release Workspaces](https://craft.sentry.dev/pr-preview/pr-947/targets/github.md#release-workspaces).
 
