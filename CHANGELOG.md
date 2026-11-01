@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.6.0
+
+When matching tags are unavailable, Prepare now derives release-unit versions from project files, enabling versioned releases without those tags.
+
+### New Features ✨
+
+Prepare derives release-unit versions from project files when matching tags are unavailable.
+
+- (prepare) Bump untagged release units from their project files' version by @BYK with @sentry-junior in [#947](https://github.com/getsentry/craft/pull/947)
+
 ## 3.5.0
 
 ### New Features ✨
