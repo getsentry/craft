@@ -2,10 +2,14 @@ import { vi, describe, test, expect, beforeEach, type Mock } from 'vitest';
 import { requiresMinVersion } from '../../config';
 import { spawnProcess } from '../../utils/system';
 import { runAutomaticVersionBumps } from '../../utils/versionBump';
+import { updateVersionFiles } from '../../utils/versionFiles';
 import { runPreReleaseCommand, checkVersionOrPart } from '../prepare';
 
 vi.mock('../../utils/system');
 vi.mock('../../utils/versionBump');
+vi.mock('../../utils/versionFiles', () => ({
+  updateVersionFiles: vi.fn(() => []),
+}));
 vi.mock('../../config', async importOriginal => ({
   ...(await importOriginal<typeof import('../../config')>()),
   requiresMinVersion: vi.fn(() => false),
@@ -214,6 +218,50 @@ describe('runPreReleaseCommand with automatic version bumping', () => {
     });
 
     await expect(runPreReleaseCommand(options)).resolves.toBe(false);
+  });
+
+  test('updates version files relative to the repository root', async () => {
+    const versionFiles = [{ path: 'packages/mcp/package.json' }];
+    vi.mocked(runAutomaticVersionBumps).mockResolvedValue({
+      anyBumped: false,
+      bumpableTargets: [],
+      skippedTargets: [],
+    });
+    vi.mocked(updateVersionFiles).mockReturnValue([
+      'packages/mcp/package.json',
+    ]);
+
+    await expect(
+      runPreReleaseCommand({
+        ...options,
+        targets: [],
+        versionFiles,
+        repoRoot: '/repo',
+      }),
+    ).resolves.toBe(true);
+    expect(updateVersionFiles).toHaveBeenCalledWith(
+      versionFiles,
+      '/repo',
+      '6.6.0',
+    );
+    expect(spawnProcess).not.toHaveBeenCalled();
+  });
+
+  test('does not fail when only version files were updated', async () => {
+    vi.mocked(runAutomaticVersionBumps).mockResolvedValue({
+      anyBumped: false,
+      bumpableTargets: ['nuget'],
+      skippedTargets: ['nuget'],
+    });
+    vi.mocked(updateVersionFiles).mockReturnValue(['plugin.json']);
+
+    await expect(
+      runPreReleaseCommand({
+        ...options,
+        versionFiles: [{ path: 'plugin.json' }],
+        repoRoot: '/repo',
+      }),
+    ).resolves.toBe(true);
   });
 });
 

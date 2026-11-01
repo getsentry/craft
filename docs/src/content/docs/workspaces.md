@@ -263,6 +263,12 @@ package workspaces it defines itself, not the rest of a repository-wide pnpm,
 npm, or Yarn workspace. Workspaces that are not directories bump from the
 directory that contains `.craft.yml`.
 
+To update files outside the workspace directory, such as a sibling package that
+ships with every release, list them in
+[`versioning.files`](../versioning/#extra-version-files). Those paths are
+relative to the repository root, not the workspace. A workspace that declares
+`versioning` replaces the top-level `versioning` block, including its `files`.
+
 A custom `preReleaseCommand` still runs from the directory that contains
 `.craft.yml`.
 

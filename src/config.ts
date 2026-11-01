@@ -69,6 +69,9 @@ let _configCache: CraftProjectConfig;
  */
 export const WORKSPACES_MIN_VERSION = '2.29.0';
 
+/** Minimum craft version required for `versioning.files`. */
+export const VERSION_FILES_MIN_VERSION = '3.7.0';
+
 /**
  * The name of the currently-selected workspace, or undefined for the default
  * (single implicit release unit). Set once via `setActiveWorkspace` from the
@@ -534,6 +537,39 @@ function checkWorkspacesMinVersion(config: CraftProjectConfig): void {
 }
 
 /**
+ * Validates `versioning.files` on the config of the selected release unit,
+ * after workspace inheritance, so a workspace cannot pick up files and a
+ * `preReleaseCommand` from different levels.
+ */
+function checkVersionFiles(config: CraftProjectConfig): void {
+  const files = config.versioning?.files;
+  if (!files?.length) {
+    return;
+  }
+  if (config.preReleaseCommand !== undefined) {
+    throw new ConfigurationError(
+      '"versioning.files" cannot be combined with "preReleaseCommand": the ' +
+        'files are only updated by automatic version bumping, which a ' +
+        'pre-release command replaces. Remove one of them.',
+    );
+  }
+  if (!isVersionGteMinVersion(config.minVersion, VERSION_FILES_MIN_VERSION)) {
+    throw new ConfigurationError(
+      `Using "versioning.files" requires minVersion >= ` +
+        `${VERSION_FILES_MIN_VERSION} in the configuration file.`,
+    );
+  }
+  for (const file of files) {
+    if (!isSafeWorkspaceGlob(file.path)) {
+      throw new ConfigurationError(
+        `versioning.files path "${file.path}" must be relative to the ` +
+          'repository root and use safe ASCII segments, without "..".',
+      );
+    }
+  }
+}
+
+/**
  * SemVer build metadata does not affect precedence, but the comparison helper
  * intentionally rejects versions carrying it. Strip it before compatibility
  * checks so config values such as `2.29.0+linux` remain valid.
@@ -710,7 +746,9 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
   >;
   const parsed = validateConfiguration(rawConfig);
   checkMinimalConfigVersion(parsed);
-  _configCache = applyWorkspaceSelection(parsed, path.dirname(configPath));
+  const resolved = applyWorkspaceSelection(parsed, path.dirname(configPath));
+  checkVersionFiles(resolved);
+  _configCache = resolved;
   return _configCache;
 }
 
@@ -729,7 +767,9 @@ export function loadConfigurationFromString(
   const rawConfig = load(configContent) as Record<string, any>;
   const parsed = validateConfiguration(rawConfig);
   checkMinimalConfigVersion(parsed);
-  _configCache = applyWorkspaceSelection(parsed, workspaceDirectory);
+  const resolved = applyWorkspaceSelection(parsed, workspaceDirectory);
+  checkVersionFiles(resolved);
+  _configCache = resolved;
   return _configCache;
 }
 

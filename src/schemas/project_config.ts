@@ -32,6 +32,8 @@ import {
 } from 'valibot';
 import { hasMagic } from 'glob';
 
+import { stringToRegexp } from '../utils/filters';
+
 /**
  * Valibot object and record schemas accept arrays and parse them as `{}`, so a
  * misconfigured block such as `versioning: []` would be silently ignored.
@@ -189,12 +191,113 @@ export const CalVerConfigSchema = object({
 
 export type CalVerConfig = InferOutput<typeof CalVerConfigSchema>;
 
+const VERSION_FILE_FORMATS = ['json', 'frontmatter', 'regex'] as const;
+
+export type VersionFileFormat = (typeof VERSION_FILE_FORMATS)[number];
+
+/**
+ * Returns the format of a `versioning.files` entry: the explicit `format`, or
+ * one inferred from the path's extension (`.json` → `json`, `.md`/`.mdx` →
+ * `frontmatter`). Returns undefined when neither applies.
+ */
+export function getVersionFileFormat(file: {
+  path: string;
+  format?: VersionFileFormat;
+}): VersionFileFormat | undefined {
+  if (file.format) {
+    return file.format;
+  }
+  if (/\.json$/i.test(file.path)) {
+    return 'json';
+  }
+  if (/\.mdx?$/i.test(file.path)) {
+    return 'frontmatter';
+  }
+  return undefined;
+}
+
+/**
+ * Returns whether `pattern` is a `/source/flags` regex string with exactly
+ * one capturing group, which is the part a `regex` version file replaces.
+ */
+function isSingleGroupRegexString(pattern: string): boolean {
+  try {
+    const { source, flags } = stringToRegexp(pattern);
+    // An alternation with the empty string always matches, so the result
+    // length reveals the number of capturing groups.
+    return new RegExp(`${source}|`, flags).exec('')?.length === 2;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A file that receives the release version during automatic version bumping.
+ */
+export const VersionFileConfigSchema = pipe(
+  strictObject({
+    /** Path or glob, relative to the repository root. */
+    path: pipe(string(), minLength(1)),
+    /** How to update the file; inferred from the extension when omitted. */
+    format: optional(picklist(VERSION_FILE_FORMATS)),
+    /**
+     * Key to update (default: `version`). A dotted path for `json`, a
+     * top-level key for `frontmatter`.
+     */
+    field: optional(pipe(string(), minLength(1))),
+    /** `/source/flags` regex whose single capturing group is the version. */
+    pattern: optional(
+      pipe(
+        string(),
+        check(
+          isSingleGroupRegexString,
+          'Version file patterns must be "/source/flags" regexes with exactly one capturing group.',
+        ),
+      ),
+    ),
+    /** Write `major.minor.patch` only, without prerelease or build metadata. */
+    stripPrerelease: optional(boolean()),
+  }),
+  forward(
+    check(
+      file => getVersionFileFormat(file) !== undefined,
+      'Cannot infer the format from the path. Set "format" to json, frontmatter, or regex.',
+    ),
+    ['format'],
+  ),
+  forward(
+    check(
+      file =>
+        (getVersionFileFormat(file) === 'regex') ===
+        (file.pattern !== undefined),
+      'Set "pattern" for, and only for, format: regex.',
+    ),
+    ['pattern'],
+  ),
+  forward(
+    check(
+      file =>
+        getVersionFileFormat(file) !== 'regex' || file.field === undefined,
+      'format: regex uses "pattern" instead of "field".',
+    ),
+    ['field'],
+  ),
+);
+
+export type VersionFileConfig = InferOutput<typeof VersionFileConfigSchema>;
+
 /**
  * Version resolution configuration
  */
 export const VersioningConfigSchema = object({
   policy: optional(picklist(['auto', 'manual', 'calver'])),
   calver: optional(nonArray(CalVerConfigSchema)),
+  /**
+   * Extra files that automatic version bumping updates with the new version,
+   * in addition to the targets' own manifests. Cannot be combined with
+   * `preReleaseCommand`.
+   */
+  files: optional(array(VersionFileConfigSchema)),
 });
 
 export type VersioningConfig = InferOutput<typeof VersioningConfigSchema>;

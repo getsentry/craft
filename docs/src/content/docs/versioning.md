@@ -147,6 +147,47 @@ For Python projects, Craft detects the build tool and uses the appropriate metho
 3. **setuptools-scm** - If `[tool.setuptools_scm]` section exists → No-op (version derived from git tags)
 4. **Direct edit** - If `[project]` section with `version` field exists → Edit `pyproject.toml` directly
 
+### Extra Version Files
+
+A release unit often stores its version in more files than the manifests its
+targets bump. List them under `versioning.files` and Craft writes the new
+version into each one during the automatic bump:
+
+```yaml
+minVersion: '3.7.0'
+versioning:
+  files:
+    # JSON: updates the `version` field
+    - path: packages/mcp-server/package.json
+    # Writes 1.2.0 for a 1.2.0-dev.0 release
+    - path: plugins/cli/.claude-plugin/plugin.json
+      stripPrerelease: true
+    # Markdown: updates the `version:` key in the YAML frontmatter
+    - path: plugins/cli/skills/**/*.md
+    # Anything else: replaces the capturing group of every match
+    - path: src/sdk/_version.py
+      format: regex
+      pattern: '/__version__ = "([^"]+)"/'
+```
+
+| Option | Description |
+| --- | --- |
+| `path` | File or glob, relative to the repository root. Paths can't contain `..`, and matches that resolve outside the repository are ignored. |
+| `format` | `json`, `frontmatter`, or `regex`. Defaults to `json` for `.json` files and `frontmatter` for `.md` and `.mdx` files. |
+| `field` | Key to update. Default: `version`. A dotted path such as `expo.version` for `json`, a top-level key for `frontmatter`. |
+| `pattern` | For `regex` only: a `/source/flags` regular expression with exactly one capturing group, which Craft replaces with the version. |
+| `stripPrerelease` | Write only `major.minor.patch`, without prerelease or build metadata. Default: `false`. |
+
+Craft only changes the version value and leaves the rest of each file as it
+is. `craft prepare` fails before writing anything when a path matches no files,
+or when a matched file has nothing to update: no such JSON field, no single
+top-level frontmatter key, or no match for the pattern.
+
+`versioning.files` needs `minVersion: '3.7.0'` or higher and is part of
+automatic version bumping, so it can't be combined with `preReleaseCommand`.
+Craft rejects a configuration that sets both, including a workspace that
+inherits one of them from the top level.
+
 ### Enabling Automatic Version Bumping
 
 To enable automatic version bumping, ensure your `.craft.yml` has:
