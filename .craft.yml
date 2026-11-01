@@ -20,9 +20,7 @@ preReleaseCommand: >-
     const {execSync} = require('child_process');
     execSync('npm --no-git-tag-version version ' + process.env.CRAFT_NEW_VERSION).toString();
   "
-postReleaseBump:
-  bump: preminor
-  preid: dev
+postReleaseBump: true
 requireNames:
   - /^sentry-craft.*\.tgz$/
   - /^craft$/
