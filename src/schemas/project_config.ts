@@ -317,14 +317,41 @@ export const ChangelogConfigSchema = union([
 /**
  * Opt-in bump to the next development version after a successful publish.
  */
-const PostReleaseBumpSchema = strictObject({
+const PostReleaseBumpTypeSchema = picklist([
+  'patch',
+  'minor',
+  'major',
+  'calver',
+]);
+
+const PostReleaseBumpObjectSchema = strictObject({
   /** How to get the next version. Default: `calver` for CalVer, else `minor`. */
-  bump: optional(picklist(['patch', 'minor', 'major', 'calver'])),
+  bump: optional(PostReleaseBumpTypeSchema),
   /** Development version template. Default: `{{version}}-dev.0`. */
   version: optional(pipe(string(), trim(), minLength(1))),
 });
 
-export type PostReleaseBumpConfig = InferOutput<typeof PostReleaseBumpSchema>;
+/**
+ * `true` turns the bump on with the defaults, a bump type such as `patch` is
+ * shorthand for `{ bump: patch }`, and `false` turns it off. Both shorthands
+ * are normalized to the object form.
+ */
+const PostReleaseBumpSchema = union([
+  PostReleaseBumpObjectSchema,
+  pipe(
+    PostReleaseBumpTypeSchema,
+    transform(bump => ({ bump })),
+  ),
+  pipe(
+    literal(true),
+    transform(() => ({})),
+  ),
+  literal(false),
+]);
+
+export type PostReleaseBumpConfig = InferOutput<
+  typeof PostReleaseBumpObjectSchema
+>;
 
 /**
  * Fields that describe how a single release unit is built and published.
@@ -344,9 +371,7 @@ const releaseUnitFields = {
   targets: optional(array(TargetConfigSchema)),
   preReleaseCommand: optional(string()),
   postReleaseCommand: optional(string()),
-  postReleaseBump: optional(
-    nonArray(union([PostReleaseBumpSchema, boolean()])),
-  ),
+  postReleaseBump: optional(nonArray(PostReleaseBumpSchema)),
   releaseBranchPrefix: optional(string()),
   changelog: optional(nonArray(ChangelogConfigSchema)),
   changelogPolicy: optional(picklist(['auto', 'simple', 'none'])),

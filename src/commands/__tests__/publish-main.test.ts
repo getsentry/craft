@@ -261,7 +261,7 @@ describe('publishMain post-release bump', () => {
     vi.mocked(getPublishStatePath).mockReturnValue(
       pathJoin(testState.directory, 'publish-state.json'),
     );
-    mockConfig({ postReleaseBump: true });
+    mockConfig({ postReleaseBump: {} });
     vi.mocked(getStatusProviderFromConfig).mockResolvedValue({} as never);
     vi.mocked(getArtifactProviderFromConfig).mockResolvedValue({
       listArtifactsForRevision: vi.fn().mockResolvedValue([]),
@@ -298,7 +298,7 @@ describe('publishMain post-release bump', () => {
 
   test('writes the development version with the pre-release bump, then commits and pushes', async () => {
     mockConfig({
-      postReleaseBump: true,
+      postReleaseBump: {},
       preReleaseCommand: 'bash scripts/bump-version.sh',
     });
 

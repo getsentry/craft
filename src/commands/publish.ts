@@ -1125,7 +1125,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
           argv.remote,
           mergedInto,
           newVersion,
-          config.postReleaseBump === true ? {} : config.postReleaseBump,
+          config.postReleaseBump,
           config,
         );
       } catch (bumpError) {
