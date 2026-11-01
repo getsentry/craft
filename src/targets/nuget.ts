@@ -366,6 +366,15 @@ export class NugetTarget extends BaseTarget {
       return false;
     }
 
+    // MSBuild appends <VersionSuffix> to <VersionPrefix>, so clear it to keep
+    // the package version equal to the full new version written above.
+    if (/<VersionPrefix>/.test(newContent)) {
+      newContent = newContent.replace(
+        /(<VersionSuffix>)[^<]*(<\/VersionSuffix>)/g,
+        '$1$2',
+      );
+    }
+
     if (newContent === content) {
       return true; // Already at target version
     }
