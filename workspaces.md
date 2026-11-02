@@ -212,6 +212,8 @@ A workspace’s first release has no previous tag. Craft then starts its changel
 
 Without a `preReleaseCommand`, [automatic version bumping](https://craft.sentry.dev/versioning.md#automatic-version-bumping) runs in the selected workspace’s directory, so releasing `packages/cli` bumps only the project files in `packages/cli`. An npm target there bumps that package and any package workspaces it defines itself, not the rest of a repository-wide pnpm, npm, or Yarn workspace. Workspaces that are not directories bump from the directory that contains `.craft.yml`.
 
+To update files outside the workspace directory, such as a sibling package that ships with every release, list them in [`versioning.files`](https://craft.sentry.dev/versioning.md#extra-version-files). Those paths are relative to the repository root, not the workspace. A workspace that declares `versioning` replaces the top-level `versioning` block, including its `files`.
+
 A custom `preReleaseCommand` still runs from the directory that contains `.craft.yml`.
 
 Publishing follows the workspace too: a NuGet target with `workspaces: true` publishes only the projects inside the selected workspace, while `solutionPath` stays relative to the repository root. See [NuGet → Release Workspaces](https://craft.sentry.dev/targets/nuget.md#release-workspaces).

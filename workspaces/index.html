@@ -228,6 +228,11 @@ project files in <code dir="auto">packages/cli</code>. An npm target there bumps
 package workspaces it defines itself, not the rest of a repository-wide pnpm,
 npm, or Yarn workspace. Workspaces that are not directories bump from the
 directory that contains <code dir="auto">.craft.yml</code>.</p>
+<p>To update files outside the workspace directory, such as a sibling package that
+ships with every release, list them in
+<a href="../versioning/#extra-version-files"><code dir="auto">versioning.files</code></a>. Those paths are
+relative to the repository root, not the workspace. A workspace that declares
+<code dir="auto">versioning</code> replaces the top-level <code dir="auto">versioning</code> block, including its <code dir="auto">files</code>.</p>
 <p>A custom <code dir="auto">preReleaseCommand</code> still runs from the directory that contains
 <code dir="auto">.craft.yml</code>.</p>
 <p>Publishing follows the workspace too: a NuGet target with <code dir="auto">workspaces: true</code>

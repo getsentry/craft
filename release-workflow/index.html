@@ -187,7 +187,8 @@ release. <code dir="auto">postReleaseBump</code> makes Craft do this:</p>
 <p>After it merges the release branch, Craft writes the development version with
 the same step <code dir="auto">craft prepare</code> uses to write the release version: the
 <a href="#pre-release-command">pre-release command</a> if you set one, otherwise the
-<a href="../versioning/#automatic-version-bumping">automatic version bump</a>. Then it
+<a href="../versioning/#automatic-version-bumping">automatic version bump</a>, including
+<a href="../versioning/#extra-version-files"><code dir="auto">versioning.files</code></a>. Then it
 commits the change as <code dir="auto">meta: Bump new development version</code> with
 <code dir="auto">#skip-changelog</code>, pulls with rebase, and pushes to the merge target.</p>
 <p><code dir="auto">postReleaseBump: true</code> uses the defaults below. A bump type is shorthand for

@@ -61,6 +61,7 @@ Several features only turn on at or above a given `minVersion`, so older project
 | `2.14.0` | Bump types, `auto`, and `calver` versions; `versioning.policy` defaults to `auto`. |
 | `2.21.0` | [Automatic version bumping](https://craft.sentry.dev/versioning.md#automatic-version-bumping) when no `preReleaseCommand` is set. |
 | `2.29.0` | [Release workspaces](https://craft.sentry.dev/workspaces.md). |
+| `3.8.0` | [Extra version files](https://craft.sentry.dev/versioning.md#extra-version-files) with `versioning.files`. |
 
 ## github
 
