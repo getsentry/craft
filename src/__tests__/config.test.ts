@@ -1235,7 +1235,7 @@ describe('versioning.files', () => {
   test('accepts json, frontmatter, and regex entries', () => {
     const config = loadConfigurationFromString(
       withFiles(
-        '    - path: packages/mcp/package.json',
+        '    - path: packages/@sentry/mcp/package.json',
         '    - path: plugin/plugin.json',
         '      stripPrerelease: true',
         '    - path: skills/**/*.md',
@@ -1293,6 +1293,11 @@ describe('versioning.files', () => {
     [
       'an absolute path',
       ['    - path: /etc/package.json'],
+      /must be relative to the repository root/,
+    ],
+    [
+      'a brace alternative outside the repository',
+      ['    - path: "{packages,..}/package.json"'],
       /must be relative to the repository root/,
     ],
   ])('rejects %s', (_name, lines, message) => {

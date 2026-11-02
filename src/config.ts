@@ -414,6 +414,29 @@ function isSafeWorkspaceGlob(name: string): boolean {
   );
 }
 
+/**
+ * Checks that a `versioning.files` path or glob stays inside the repository.
+ * Unlike workspace paths, segments may use any character, such as the `@` in
+ * `packages/@scope/pkg/package.json`, since these paths are only matched
+ * against files.
+ */
+function isSafeVersionFilePath(name: string): boolean {
+  const alternatives = expandBraceAlternatives(name);
+  return (
+    !path.isAbsolute(name) &&
+    !name.includes('\\') &&
+    alternatives !== undefined &&
+    alternatives.length > 0 &&
+    alternatives.every(expanded =>
+      expanded
+        .split('/')
+        .every(
+          segment => segment !== '' && segment !== '.' && segment !== '..',
+        ),
+    )
+  );
+}
+
 function isSafeWorkspaceGlobSegment(segment: string): boolean {
   if (
     segment === '' ||
@@ -563,10 +586,10 @@ function checkVersionFiles(config: CraftProjectConfig): void {
     );
   }
   for (const file of files) {
-    if (!isSafeWorkspaceGlob(file.path)) {
+    if (!isSafeVersionFilePath(file.path)) {
       throw new ConfigurationError(
         `versioning.files path "${file.path}" must be relative to the ` +
-          'repository root and use safe ASCII segments, without "..".',
+          'repository root, without "." or ".." segments.',
       );
     }
   }
