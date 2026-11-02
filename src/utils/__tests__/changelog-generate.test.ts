@@ -174,6 +174,35 @@ describe('generateChangesetFromGit', () => {
     }
   });
 
+  it('counts a commit that only quotes the skip magic word in code', async () => {
+    // Squash-merged feature commit that documents the magic word, wrapped
+    // across lines as git does, next to a real skipped bump commit.
+    setup(
+      [
+        {
+          hash: 'abcdef1234567890',
+          title: 'feat(publish): Add development version bump',
+          body:
+            'It then commits `meta: Bump new\n' +
+            'development version` + `#skip-changelog` with `--all`.',
+        },
+        {
+          hash: 'bcdef1234567890a',
+          title: 'meta: Bump new development version',
+          body: '#skip-changelog',
+        },
+      ],
+      null,
+    );
+
+    const result = await generateChangesetFromGit(dummyGit, '1.0.0');
+
+    expect(result.totalCommits).toBe(1);
+    expect(result.bumpType).toBe('minor');
+    expect(result.changelog).toContain('Add development version bump');
+    expect(result.changelog).not.toContain('Bump new development version');
+  });
+
   // ============================================================================
   // Basic output formatting tests - use snapshots
   // ============================================================================

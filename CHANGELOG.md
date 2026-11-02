@@ -1,5 +1,37 @@
 # Changelog
 
+## 3.7.1
+
+Dry-run versioning is more repeatable, while built-in development bumps preserve output and avoid redundant post-release bumps after pre-releases.
+
+### Bug Fixes 🐛
+
+Dry-run version bumps stay isolated and repeat consistently without checkout changes or temporary branch failures.
+
+- (prepare) Keep dry-run version bumps in the worktree by @BYK with @sentry-junior in [#954](https://github.com/getsentry/craft/pull/954)
+
+### Internal Changes 🔧
+
+Release configuration now uses built-in development bumps, preserves version output, and skips redundant bumps after pre-releases.
+
+- Use built-in postReleaseBump for the development version by @BYK with @sentry-junior in [#951](https://github.com/getsentry/craft/pull/951)
+
+## 3.7.0
+
+Publishing now automates development-version updates, while changelog filtering keeps meaningful entries and omits generated bump commits.
+
+### New Features ✨
+
+Publishing can automatically create, commit, rebase, and push a development-version bump using configured versioning rules.
+
+- (publish) Add built-in development version bump after release by @BYK with @sentry-junior in [#950](https://github.com/getsentry/craft/pull/950)
+
+### Bug Fixes 🐛
+
+Changelog filtering preserves real entries by ignoring skip markers in code while excluding Craft’s development-version bump commits.
+
+- (changelog) Ignore #skip-changelog inside Markdown code by @BYK with @sentry-junior in [#952](https://github.com/getsentry/craft/pull/952)
+
 ## 3.6.0
 
 When matching tags are unavailable, Prepare now derives release-unit versions from project files, enabling versioned releases without those tags.

@@ -3,6 +3,7 @@ import {
   formatCalVerDate,
   calculateCalVer,
   DEFAULT_CALVER_CONFIG,
+  getNextCalVerPeriod,
 } from '../calver';
 
 // Mock the config module to control tagPrefix
@@ -204,5 +205,25 @@ describe('calculateCalVer', () => {
     // Should only find v24.12.0 and v24.12.1, increment to 24.12.2
     // The non-prefixed '24.12.5' should be ignored
     expect(version).toBe('24.12.2');
+  });
+});
+
+describe('getNextCalVerPeriod', () => {
+  test.each([
+    ['26.10.1', '%y.%-m', '26.11.0'],
+    ['26.12.3', '%y.%-m', '27.1.0'],
+    ['2026.09.0', '%Y.%m', '2026.10.0'],
+    ['2026.02.28.4', '%Y.%m.%d', '2026.03.01.0'],
+    ['2026.0', '%Y', '2027.0'],
+  ])('%s with %s gives %s', (version, format, expected) => {
+    expect(getNextCalVerPeriod(version, format)).toBe(expected);
+  });
+
+  test.each([
+    ['1.2.3-beta.1', '%y.%-m'],
+    ['26.10', '%y.%-m'],
+    ['26.10.1', 'static'],
+  ])('returns undefined for %s with %s', (version, format) => {
+    expect(getNextCalVerPeriod(version, format)).toBeUndefined();
   });
 });

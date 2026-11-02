@@ -206,6 +206,34 @@ const MAX_LEFTOVERS = 24;
 if (SUBSECTION_HEADER_LEVEL <= VERSION_HEADER_LEVEL) {
   throw new Error('Subsection headers should nest under version headers!');
 }
+
+/**
+ * Checks whether a commit message or PR body opts out of the changelog with
+ * the {@link SKIP_CHANGELOG_MAGIC_WORD}.
+ *
+ * Mentions inside Markdown code are ignored, so a message that only quotes the
+ * magic word (e.g. documents it as `` `#skip-changelog` ``) is not skipped.
+ */
+export function hasSkipChangelogMagicWord(text: string | undefined): boolean {
+  if (!text?.includes(SKIP_CHANGELOG_MAGIC_WORD)) {
+    return false;
+  }
+  // Check only tokens that hold prose or HTML (e.g. a hidden `<!-- -->`
+  // comment) directly. Containers like lists and tables repeat their
+  // children's source in `raw`, and code tokens are never prose.
+  let found = false;
+  marked.walkTokens(marked.lexer(text), token => {
+    if (
+      (token.type === 'text' || token.type === 'html') &&
+      !('tokens' in token && token.tokens?.length) &&
+      token.raw.includes(SKIP_CHANGELOG_MAGIC_WORD)
+    ) {
+      found = true;
+    }
+  });
+  return found;
+}
+
 /**
  * A single changeset with name and description
  */
@@ -1305,7 +1333,7 @@ export function shouldExcludePR(
   body?: string,
 ): boolean {
   // Check for magic word in body
-  if (body?.includes(SKIP_CHANGELOG_MAGIC_WORD)) {
+  if (hasSkipChangelogMagicWord(body)) {
     return true;
   }
 
@@ -1876,7 +1904,7 @@ async function fetchRawCommitInfo(
 ): Promise<RawCommitInfo[]> {
   // Early filter: skip commits with magic word in commit body (optimization to avoid GitHub API calls)
   const gitCommits = (await getChangesSince(git, rev, until)).filter(
-    ({ body }) => !body.includes(SKIP_CHANGELOG_MAGIC_WORD),
+    ({ body }) => !hasSkipChangelogMagicWord(body),
   );
 
   const githubCommits = await getPRAndLabelsFromCommit(

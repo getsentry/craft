@@ -51,9 +51,12 @@ export const CONFIG_FILE_NAME = '.craft.yml';
 export const DEFAULT_RELEASE_BRANCH_NAME = 'release';
 
 /**
- * Cached path to the configuration file
+ * Cached path to the configuration file, and the working directory it was
+ * found from. A dry run moves into a temporary worktree, which must resolve
+ * its own configuration file rather than the original checkout's.
  */
 let _configPathCache: string;
+let _configPathCacheCwd: string | undefined;
 
 /**
  * Cached configuration
@@ -70,7 +73,7 @@ let _configCache: CraftProjectConfig;
 export const WORKSPACES_MIN_VERSION = '2.29.0';
 
 /** Minimum craft version required for `versioning.files`. */
-export const VERSION_FILES_MIN_VERSION = '3.7.0';
+export const VERSION_FILES_MIN_VERSION = '3.8.0';
 
 /**
  * The name of the currently-selected workspace, or undefined for the default
@@ -633,12 +636,17 @@ function applyWorkspaceSelection(
  * Returns "undefined" if no file was found.
  */
 export function findConfigFile(): string | undefined {
-  if (_configPathCache && existsSync(_configPathCache)) {
+  const cwd = process.cwd();
+  if (
+    _configPathCache &&
+    _configPathCacheCwd === cwd &&
+    existsSync(_configPathCache)
+  ) {
     return _configPathCache;
   }
   _configPathCache = undefined as unknown as string;
+  _configPathCacheCwd = cwd;
 
-  const cwd = process.cwd();
   const MAX_DEPTH = 1024;
   let depth = 0;
   let currentDir = cwd;

@@ -3,7 +3,8 @@ import { requiresMinVersion } from '../../config';
 import { spawnProcess } from '../../utils/system';
 import { runAutomaticVersionBumps } from '../../utils/versionBump';
 import { updateVersionFiles } from '../../utils/versionFiles';
-import { runPreReleaseCommand, checkVersionOrPart } from '../prepare';
+import { runPreReleaseCommand } from '../../utils/preReleaseCommand';
+import { checkVersionOrPart } from '../prepare';
 
 vi.mock('../../utils/system');
 vi.mock('../../utils/versionBump');

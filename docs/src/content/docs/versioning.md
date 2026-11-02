@@ -154,7 +154,7 @@ targets bump. List them under `versioning.files` and Craft writes the new
 version into each one during the automatic bump:
 
 ```yaml
-minVersion: '3.7.0'
+minVersion: '3.8.0'
 versioning:
   files:
     # Updates the `version` field
@@ -202,7 +202,7 @@ skips TOML arrays of tables and YAML sequences and block scalars. `craft prepare
 fails before writing anything when a path matches no files, or when a matched
 file has nothing to update.
 
-`versioning.files` needs `minVersion: '3.7.0'` or higher and is part of
+`versioning.files` needs `minVersion: '3.8.0'` or higher and is part of
 automatic version bumping, so it can't be combined with `preReleaseCommand`.
 Craft rejects a configuration that sets both, including a workspace that
 inherits one of them from the top level.

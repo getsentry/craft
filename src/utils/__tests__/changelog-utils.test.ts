@@ -23,11 +23,58 @@ import {
   getNormalizedReleaseConfig,
   clearReleaseConfigCache,
   SKIP_CHANGELOG_MAGIC_WORD,
+  hasSkipChangelogMagicWord,
   type CurrentPRInfo,
 } from '../changelog';
 
 // Mock the logger to capture warnings
 vi.mock('../../logger');
+
+describe('hasSkipChangelogMagicWord', () => {
+  it.each([
+    ['on its own line', 'chore: Update deps\n\n#skip-changelog'],
+    ['inline in prose', 'Internal cleanup, #skip-changelog please'],
+    ['with CRLF line endings', 'Internal.\r\n\r\n#skip-changelog\r\n'],
+    ['after an unmatched backtick', 'A stray ` here\n#skip-changelog'],
+    [
+      'after a closed fenced block',
+      '```yaml\nlabels: [a]\n```\n#skip-changelog',
+    ],
+    ['in emphasis', 'Internal only. **#skip-changelog**'],
+    ['in a list item', '- Internal refactor\n- #skip-changelog'],
+    ['in an HTML comment', 'Description\n\n<!-- #skip-changelog -->'],
+    [
+      'outside a code span on another paragraph',
+      'Run `craft\n\nprepare` #skip-changelog',
+    ],
+  ])('detects the magic word %s', (_, text) => {
+    expect(hasSkipChangelogMagicWord(text)).toBe(true);
+  });
+
+  it.each([
+    ['when absent', 'feat: Add a thing'],
+    ['for an empty body', ''],
+    ['for an undefined body', undefined],
+    ['in an inline code span', 'Commits `#skip-changelog` after release'],
+    ['in a double-backtick span', 'Uses `` `#skip-changelog` `` verbatim'],
+    [
+      'in a code span wrapped across lines',
+      'commits `meta: Bump new\ndevelopment version` + `#skip-changelog` with `--all`',
+    ],
+    [
+      'in a fenced code block',
+      'Example:\n\n```\nchore: x\n\n#skip-changelog\n```\n',
+    ],
+    ['in a tilde fenced block', '~~~\n#skip-changelog\n~~~'],
+    ['in a code span in a list item', '- Commits `#skip-changelog` on bump'],
+    [
+      'in a code span in a table',
+      '| Word | Effect |\n| --- | --- |\n| `#skip-changelog` | Skips |',
+    ],
+  ])('ignores the magic word %s', (_, text) => {
+    expect(hasSkipChangelogMagicWord(text)).toBe(false);
+  });
+});
 
 describe('shouldExcludePR', () => {
   // Config must match NormalizedReleaseConfig structure

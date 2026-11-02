@@ -15,9 +15,9 @@
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { join, relative } from 'path';
 import { randomBytes } from 'crypto';
-import { existsSync, symlinkSync, lstatSync } from 'fs';
+import { existsSync, symlinkSync, lstatSync, realpathSync } from 'fs';
 import { rm } from 'fs/promises';
 
 import { simpleGit, type SimpleGit } from 'simple-git';
@@ -25,6 +25,7 @@ import type { Octokit } from '@octokit/rest';
 
 import { logger } from '../logger';
 import { isDryRun } from './helpers';
+import { ConfigurationError } from './errors';
 import { GIT_IDENTITY_ENV } from './gitIdentityEnv';
 
 // ============================================================================
@@ -197,6 +198,18 @@ function symlinkDependencyDirs(
 }
 
 /**
+ * Lists the full ref names of local branches.
+ */
+async function listLocalBranches(git: SimpleGit): Promise<string[]> {
+  const refs = await git.raw([
+    'for-each-ref',
+    '--format=%(refname)',
+    'refs/heads/',
+  ]);
+  return refs.split('\n').filter(Boolean);
+}
+
+/**
  * Creates an isolated dry-run environment using a git worktree.
  *
  * This function:
@@ -253,22 +266,20 @@ export async function createDryRunIsolation(
   // Create the worktree using raw git (bypassing dry-run proxy)
   // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
   const rawGit = simpleGit(originalCwd);
-  await rawGit.raw(['worktree', 'add', '--detach', worktreePath, revision]);
+  // Remember the local branches: the worktree shares refs with the checkout,
+  // so branches created during the dry run must be removed on cleanup.
+  const originalBranches = new Set(await listLocalBranches(rawGit));
 
-  // Symlink large directories
-  symlinkDependencyDirs(originalCwd, worktreePath);
-
-  // Create git client for worktree
-  const worktreeGit = createDryRunGit(
-    // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
-    simpleGit(worktreePath, { allowEnvironment: GIT_IDENTITY_ENV }),
+  // Work from the worktree directory that matches the original working
+  // directory, so paths resolved from it (such as the configuration file and
+  // the release unit directory) point into the worktree.
+  const repositoryRoot = (await rawGit.revparse(['--show-toplevel'])).trim();
+  const worktreeCwd = join(
+    worktreePath,
+    relative(realpathSync(repositoryRoot), realpathSync(originalCwd)),
   );
 
-  // Enable worktree mode so local operations are allowed
-  enableWorktreeMode();
-
-  // Change to worktree directory
-  process.chdir(worktreePath);
+  await rawGit.raw(['worktree', 'add', '--detach', worktreePath, revision]);
 
   const cleanup = async (): Promise<void> => {
     logger.debug(`[dry-run] Cleaning up temporary worktree at ${worktreePath}`);
@@ -293,10 +304,47 @@ export async function createDryRunIsolation(
         logger.warn(`[dry-run] Failed to clean up worktree: ${rmErr}`);
       }
     }
+
+    try {
+      for (const branch of await listLocalBranches(rawGit)) {
+        if (!originalBranches.has(branch)) {
+          await rawGit.raw(['update-ref', '-d', branch]);
+          logger.debug(`[dry-run] Deleted temporary branch ${branch}`);
+        }
+      }
+    } catch (err) {
+      logger.warn(`[dry-run] Failed to clean up temporary branches: ${err}`);
+    }
   };
 
   // Register signal handlers for cleanup on Ctrl+C
   registerCleanupHandlers(cleanup);
+
+  try {
+    if (!existsSync(worktreeCwd)) {
+      throw new ConfigurationError(
+        `Cannot run the dry run from "${originalCwd}": it does not exist at revision "${revision}".`,
+      );
+    }
+
+    // Symlink large directories
+    symlinkDependencyDirs(originalCwd, worktreeCwd);
+
+    // Enable worktree mode so local operations are allowed
+    enableWorktreeMode();
+
+    // Change to worktree directory
+    process.chdir(worktreeCwd);
+  } catch (err) {
+    await cleanup();
+    throw err;
+  }
+
+  // Create git client for worktree
+  const worktreeGit = createDryRunGit(
+    // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
+    simpleGit(worktreePath, { allowEnvironment: GIT_IDENTITY_ENV }),
+  );
 
   const showDiff = async (): Promise<void> => {
     // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module

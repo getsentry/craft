@@ -32,6 +32,7 @@ targets:
 | `versioning` | How the next version is chosen: `auto`, `manual`, or `calver`. | [Versioning](../versioning/#versioning-policies) |
 | `preReleaseCommand` | Command that bumps versions during `craft prepare`. | [Release Workflow](../release-workflow/#pre-release-command) |
 | `postReleaseCommand` | Command that runs after `craft publish`. | [Release Workflow](../release-workflow/#post-release-command) |
+| `postReleaseBump` | Bump to the next development version after `craft publish`. | [Release Workflow](../release-workflow/#post-release-development-version-bump) |
 | `releaseBranchPrefix` | Release branch prefix. Default: `release`. | [Release Workflow](../release-workflow/#release-branch-name) |
 | `statusProvider` | How Craft checks that CI passed. | [Release Workflow](../release-workflow/#status-provider) |
 | `artifactProvider` | Where Craft downloads build artifacts from. | [Release Workflow](../release-workflow/#artifact-provider) |
@@ -59,7 +60,7 @@ projects keep their behavior when Craft is upgraded:
 | `2.14.0` | Bump types, `auto`, and `calver` versions; `versioning.policy` defaults to `auto`. |
 | `2.21.0` | [Automatic version bumping](../versioning/#automatic-version-bumping) when no `preReleaseCommand` is set. |
 | `2.29.0` | [Release workspaces](../workspaces/). |
-| `3.7.0` | [Extra version files](../versioning/#extra-version-files) with `versioning.files`. |
+| `3.8.0` | [Extra version files](../versioning/#extra-version-files) with `versioning.files`. |
 
 ## github
 
