@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.7.1
+
+Dry-run versioning is more repeatable, while built-in development bumps preserve output and avoid redundant post-release bumps after pre-releases.
+
+### Bug Fixes 🐛
+
+Dry-run version bumps stay isolated and repeat consistently without checkout changes or temporary branch failures.
+
+- (prepare) Keep dry-run version bumps in the worktree by @BYK with @sentry-junior in [#954](https://github.com/getsentry/craft/pull/954)
+
+### Internal Changes 🔧
+
+Release configuration now uses built-in development bumps, preserves version output, and skips redundant bumps after pre-releases.
+
+- Use built-in postReleaseBump for the development version by @BYK with @sentry-junior in [#951](https://github.com/getsentry/craft/pull/951)
+
 ## 3.7.0
 
 Publishing now automates development-version updates, while changelog filtering keeps meaningful entries and omits generated bump commits.
