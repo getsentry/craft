@@ -32,6 +32,8 @@ import {
 } from 'valibot';
 import { hasMagic } from 'glob';
 
+import { stringToRegexp } from '../utils/filters';
+
 /**
  * Valibot object and record schemas accept arrays and parse them as `{}`, so a
  * misconfigured block such as `versioning: []` would be silently ignored.
@@ -189,12 +191,140 @@ export const CalVerConfigSchema = object({
 
 export type CalVerConfig = InferOutput<typeof CalVerConfigSchema>;
 
+const VERSION_FILE_FORMATS = [
+  'json',
+  'toml',
+  'yaml',
+  'frontmatter',
+  'msbuild',
+  'gem',
+  'mix',
+  'regex',
+] as const;
+
+export type VersionFileFormat = (typeof VERSION_FILE_FORMATS)[number];
+
+/** Formats that locate the version with a `field` key path */
+const FIELD_VERSION_FILE_FORMATS: readonly VersionFileFormat[] = [
+  'json',
+  'toml',
+  'yaml',
+  'frontmatter',
+];
+
+/** Format inferred from a path: the files Craft's version-bumping targets edit */
+const VERSION_FILE_FORMAT_BY_PATH: [RegExp, VersionFileFormat][] = [
+  [/\.json$/i, 'json'],
+  [/\.toml$/i, 'toml'],
+  [/\.ya?ml$/i, 'yaml'],
+  [/\.mdx?$/i, 'frontmatter'],
+  [/\.(?:csproj|fsproj|vbproj|props|targets)$/i, 'msbuild'],
+  [/(?:\.gemspec|(?:^|\/)version\.rb)$/i, 'gem'],
+  [/(?:^|\/)mix\.exs$/i, 'mix'],
+];
+
+/**
+ * Returns the format of a `versioning.files` entry: the explicit `format`, or
+ * one inferred from the path. Returns undefined when neither applies.
+ */
+export function getVersionFileFormat(file: {
+  path: string;
+  format?: VersionFileFormat;
+}): VersionFileFormat | undefined {
+  return (
+    file.format ??
+    VERSION_FILE_FORMAT_BY_PATH.find(([regex]) => regex.test(file.path))?.[1]
+  );
+}
+
+/**
+ * Returns whether `pattern` is a `/source/flags` regex string with exactly
+ * one capturing group, which is the part a `regex` version file replaces.
+ */
+function isSingleGroupRegexString(pattern: string): boolean {
+  try {
+    const { source, flags } = stringToRegexp(pattern);
+    // An alternation with the empty string always matches, so the result
+    // length reveals the number of capturing groups.
+    return new RegExp(`${source}|`, flags).exec('')?.length === 2;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A file that receives the release version during automatic version bumping.
+ */
+export const VersionFileConfigSchema = pipe(
+  strictObject({
+    /** Path or glob, relative to the repository root. */
+    path: pipe(string(), minLength(1)),
+    /** How to update the file; inferred from the extension when omitted. */
+    format: optional(picklist(VERSION_FILE_FORMATS)),
+    /**
+     * Dotted key path to update for `json`, `toml`, `yaml`, and `frontmatter`
+     * files. Default: `version`, or `package.version` in `Cargo.toml` and
+     * `project.version` in `pyproject.toml`.
+     */
+    field: optional(pipe(string(), minLength(1))),
+    /** `/source/flags` regex whose single capturing group is the version. */
+    pattern: optional(
+      pipe(
+        string(),
+        check(
+          isSingleGroupRegexString,
+          'Version file patterns must be "/source/flags" regexes with exactly one capturing group.',
+        ),
+      ),
+    ),
+    /** Write `major.minor.patch` only, without prerelease or build metadata. */
+    stripPrerelease: optional(boolean()),
+  }),
+  forward(
+    check(
+      file => getVersionFileFormat(file) !== undefined,
+      `Cannot infer the format from the path. Set "format" to one of: ${VERSION_FILE_FORMATS.join(', ')}.`,
+    ),
+    ['format'],
+  ),
+  forward(
+    check(
+      file =>
+        (getVersionFileFormat(file) === 'regex') ===
+        (file.pattern !== undefined),
+      'Set "pattern" for, and only for, format: regex.',
+    ),
+    ['pattern'],
+  ),
+  forward(
+    check(
+      file => {
+        const format = getVersionFileFormat(file);
+        return (
+          file.field === undefined ||
+          (format !== undefined && FIELD_VERSION_FILE_FORMATS.includes(format))
+        );
+      },
+      `Only ${FIELD_VERSION_FILE_FORMATS.join(', ')} files support "field".`,
+    ),
+    ['field'],
+  ),
+);
+
+export type VersionFileConfig = InferOutput<typeof VersionFileConfigSchema>;
+
 /**
  * Version resolution configuration
  */
 export const VersioningConfigSchema = object({
   policy: optional(picklist(['auto', 'manual', 'calver'])),
   calver: optional(nonArray(CalVerConfigSchema)),
+  /**
+   * Extra files that automatic version bumping updates with the new version,
+   * in addition to the targets' own manifests. Cannot be combined with
+   * `preReleaseCommand`.
+   */
+  files: optional(array(VersionFileConfigSchema)),
 });
 
 export type VersioningConfig = InferOutput<typeof VersioningConfigSchema>;

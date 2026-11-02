@@ -22,6 +22,7 @@ import { withTempDir } from '../utils/files';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
 import { isDryRun } from '../utils/helpers';
 import { logDryRun } from '../utils/dryRun';
+import { setYamlVersion } from '../utils/versionPatterns';
 import { logger } from '../logger';
 
 export const targetSecrets = [
@@ -109,6 +110,16 @@ export class PubDevTarget extends BaseTarget {
     }
 
     const content = readFileSync(pubspecPath, 'utf-8');
+
+    logger.debug(`Updating version in ${pubspecPath} to ${newVersion}`);
+    // Edit the version in place so comments and formatting survive.
+    const updated = setYamlVersion(content, 'version', newVersion);
+    if (updated !== undefined) {
+      writeFileSync(pubspecPath, updated);
+      return true;
+    }
+
+    // No single top-level version to edit, so set it and re-dump the file.
     const pubspec = load(content) as Record<string, any>;
 
     if (!pubspec || typeof pubspec !== 'object') {
@@ -117,8 +128,6 @@ export class PubDevTarget extends BaseTarget {
     }
 
     pubspec.version = newVersion;
-
-    logger.debug(`Updating version in ${pubspecPath} to ${newVersion}`);
     writeFileSync(pubspecPath, dump(pubspec));
 
     return true;

@@ -3,11 +3,15 @@ import * as shellQuote from 'shell-quote';
 
 import { requiresMinVersion } from '../config';
 import { logger } from '../logger';
-import { type TargetConfig } from '../schemas/project_config';
+import {
+  type TargetConfig,
+  type VersionFileConfig,
+} from '../schemas/project_config';
 import { ConfigurationError } from './errors';
 import { buildReleaseCommandEnv } from './releaseCommandEnv';
 import { spawnProcess } from './system';
 import { runAutomaticVersionBumps } from './versionBump';
+import { updateVersionFiles } from './versionFiles';
 
 /** Default path to bump-version script, relative to project root */
 const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
@@ -20,7 +24,12 @@ interface PreReleaseOptions {
   newVersion: string;
   preReleaseCommand?: string;
   targets?: TargetConfig[];
+  /** Release unit directory that target bumps run in */
   rootDir: string;
+  /** Extra files from `versioning.files`, relative to `repoRoot` */
+  versionFiles?: VersionFileConfig[];
+  /** Repository root, required when `versionFiles` is set */
+  repoRoot?: string;
 }
 
 /**
@@ -31,8 +40,15 @@ interface PreReleaseOptions {
 export async function runPreReleaseCommand(
   options: PreReleaseOptions,
 ): Promise<boolean> {
-  const { oldVersion, newVersion, preReleaseCommand, targets, rootDir } =
-    options;
+  const {
+    oldVersion,
+    newVersion,
+    preReleaseCommand,
+    targets = [],
+    rootDir,
+    versionFiles = [],
+    repoRoot = rootDir,
+  } = options;
 
   if (preReleaseCommand !== undefined && preReleaseCommand.length === 0) {
     logger.warn('Not running the pre-release command: no command specified');
@@ -49,13 +65,17 @@ export async function runPreReleaseCommand(
 
   if (
     requiresMinVersion(AUTO_BUMP_MIN_VERSION) &&
-    targets &&
-    targets.length > 0
+    (targets.length > 0 || versionFiles.length > 0)
   ) {
-    logger.info('Running automatic version bumping from targets...');
+    logger.info('Running automatic version bumping...');
     const result = await runAutomaticVersionBumps(targets, rootDir, newVersion);
+    const versionFilePaths = updateVersionFiles(
+      versionFiles,
+      repoRoot,
+      newVersion,
+    );
 
-    if (!result.anyBumped) {
+    if (!result.anyBumped && versionFilePaths.length === 0) {
       if (result.bumpableTargets.length === 0) {
         logger.warn(
           'None of your configured targets support automatic version bumping. ' +
@@ -71,7 +91,7 @@ export async function runPreReleaseCommand(
       }
     }
 
-    return result.anyBumped;
+    return result.anyBumped || versionFilePaths.length > 0;
   }
 
   return runCustomPreReleaseCommand(oldVersion, newVersion, undefined);

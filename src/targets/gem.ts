@@ -8,6 +8,10 @@ import {
 import { reportError } from '../utils/errors';
 import { findFiles } from '../utils/files';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
+import {
+  GEMSPEC_VERSION_REGEX,
+  VERSION_RB_REGEX,
+} from '../utils/versionPatterns';
 import { BaseTarget } from './base';
 import { TargetConfig } from '../schemas/project_config';
 import { logger } from '../logger';
@@ -18,12 +22,6 @@ const DEFAULT_GEM_BIN = 'gem';
  * Command to launch gem
  */
 const GEM_BIN = process.env.GEM_BIN || DEFAULT_GEM_BIN;
-
-/** Matches `s.version = "1.0.0"` in a gemspec */
-const GEMSPEC_VERSION_REGEX = /^(\s*\w+\.version\s*=\s*["'])([^"']+)(["'])/m;
-
-/** Matches `VERSION = "1.0.0"` in a version.rb file */
-const VERSION_RB_REGEX = /^(\s*VERSION\s*=\s*["'])([^"']+)(["'])/m;
 
 /**
  * RegExp for gems

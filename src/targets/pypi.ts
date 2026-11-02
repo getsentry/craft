@@ -12,6 +12,7 @@ import {
   runWithExecutable,
   spawnProcess,
 } from '../utils/system';
+import { setTomlVersion } from '../utils/versionPatterns';
 import { BaseTarget } from './base';
 import { logger } from '../logger';
 
@@ -164,18 +165,13 @@ export class PypiTarget extends BaseTarget {
     content: string,
     newVersion: string,
   ): boolean {
-    // Match version in [project] section
-    if (!PYPROJECT_VERSION_REGEX.test(content)) {
+    const newContent = setTomlVersion(content, 'project.version', newVersion);
+    if (newContent === undefined) {
       logger.debug(
         'pyproject.toml has [project] section but no version field found',
       );
       return false;
     }
-
-    const newContent = content.replace(
-      PYPROJECT_VERSION_REGEX,
-      `$1${newVersion}$3`,
-    );
 
     if (newContent === content) {
       logger.debug('Version already set to target value');

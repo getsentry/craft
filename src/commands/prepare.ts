@@ -830,6 +830,8 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
       preReleaseCommand: config.preReleaseCommand,
       targets: config.targets,
       rootDir: getReleaseUnitDir(),
+      versionFiles: config.versioning?.files,
+      repoRoot: await git.revparse(['--show-toplevel']),
     });
 
     // Commit staged changelog and/or version bump changes

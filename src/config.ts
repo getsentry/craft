@@ -72,6 +72,9 @@ let _configCache: CraftProjectConfig;
  */
 export const WORKSPACES_MIN_VERSION = '2.29.0';
 
+/** Minimum craft version required for `versioning.files`. */
+export const VERSION_FILES_MIN_VERSION = '3.8.0';
+
 /**
  * The name of the currently-selected workspace, or undefined for the default
  * (single implicit release unit). Set once via `setActiveWorkspace` from the
@@ -411,6 +414,29 @@ function isSafeWorkspaceGlob(name: string): boolean {
   );
 }
 
+/**
+ * Checks that a `versioning.files` path or glob stays inside the repository.
+ * Unlike workspace paths, segments may use any character, such as the `@` in
+ * `packages/@scope/pkg/package.json`, since these paths are only matched
+ * against files.
+ */
+function isSafeVersionFilePath(name: string): boolean {
+  const alternatives = expandBraceAlternatives(name);
+  return (
+    !path.isAbsolute(name) &&
+    !name.includes('\\') &&
+    alternatives !== undefined &&
+    alternatives.length > 0 &&
+    alternatives.every(expanded =>
+      expanded
+        .split('/')
+        .every(
+          segment => segment !== '' && segment !== '.' && segment !== '..',
+        ),
+    )
+  );
+}
+
 function isSafeWorkspaceGlobSegment(segment: string): boolean {
   if (
     segment === '' ||
@@ -533,6 +559,39 @@ function checkWorkspacesMinVersion(config: CraftProjectConfig): void {
       `Using "workspaces" requires minVersion >= ${WORKSPACES_MIN_VERSION} ` +
         'in the configuration file.',
     );
+  }
+}
+
+/**
+ * Validates `versioning.files` on the config of the selected release unit,
+ * after workspace inheritance, so a workspace cannot pick up files and a
+ * `preReleaseCommand` from different levels.
+ */
+function checkVersionFiles(config: CraftProjectConfig): void {
+  const files = config.versioning?.files;
+  if (!files?.length) {
+    return;
+  }
+  if (config.preReleaseCommand !== undefined) {
+    throw new ConfigurationError(
+      '"versioning.files" cannot be combined with "preReleaseCommand": the ' +
+        'files are only updated by automatic version bumping, which a ' +
+        'pre-release command replaces. Remove one of them.',
+    );
+  }
+  if (!isVersionGteMinVersion(config.minVersion, VERSION_FILES_MIN_VERSION)) {
+    throw new ConfigurationError(
+      `Using "versioning.files" requires minVersion >= ` +
+        `${VERSION_FILES_MIN_VERSION} in the configuration file.`,
+    );
+  }
+  for (const file of files) {
+    if (!isSafeVersionFilePath(file.path)) {
+      throw new ConfigurationError(
+        `versioning.files path "${file.path}" must be relative to the ` +
+          'repository root, without "." or ".." segments.',
+      );
+    }
   }
 }
 
@@ -718,7 +777,9 @@ export function getConfiguration(clearCache = false): CraftProjectConfig {
   >;
   const parsed = validateConfiguration(rawConfig);
   checkMinimalConfigVersion(parsed);
-  _configCache = applyWorkspaceSelection(parsed, path.dirname(configPath));
+  const resolved = applyWorkspaceSelection(parsed, path.dirname(configPath));
+  checkVersionFiles(resolved);
+  _configCache = resolved;
   return _configCache;
 }
 
@@ -737,7 +798,9 @@ export function loadConfigurationFromString(
   const rawConfig = load(configContent) as Record<string, any>;
   const parsed = validateConfiguration(rawConfig);
   checkMinimalConfigVersion(parsed);
-  _configCache = applyWorkspaceSelection(parsed, workspaceDirectory);
+  const resolved = applyWorkspaceSelection(parsed, workspaceDirectory);
+  checkVersionFiles(resolved);
+  _configCache = resolved;
   return _configCache;
 }
 

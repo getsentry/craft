@@ -310,6 +310,7 @@ describe('publishMain post-release bump', () => {
       preReleaseCommand: 'bash scripts/bump-version.sh',
       targets: [{ name: 'test' }],
       rootDir: expect.any(String),
+      repoRoot: revision,
     });
     expect(git.commit).toHaveBeenCalledWith(
       'meta: Bump new development version\n\n#skip-changelog',
@@ -317,6 +318,20 @@ describe('publishMain post-release bump', () => {
     );
     expect(git.pull).toHaveBeenLastCalledWith('origin', 'main', ['--rebase']);
     expect(git.push).toHaveBeenLastCalledWith('origin', 'main');
+  });
+
+  test('writes the development version into versioning.files too', async () => {
+    const files = [{ path: 'plugin.json', stripPrerelease: true }];
+    mockConfig({ postReleaseBump: {}, versioning: { files } });
+
+    await publishMain({ ...defaultOptions, mergeTarget: undefined });
+
+    expect(runPreReleaseCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        newVersion: '1.3.0-dev.0',
+        versionFiles: files,
+      }),
+    );
   });
 
   test.each([

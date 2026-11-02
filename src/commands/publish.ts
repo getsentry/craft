@@ -693,6 +693,8 @@ async function runPostReleaseBump(
     preReleaseCommand: config.preReleaseCommand,
     targets: config.targets,
     rootDir: getReleaseUnitDir(),
+    versionFiles: config.versioning?.files,
+    repoRoot: await git.revparse(['--show-toplevel']),
   });
   if (!bumped) {
     logger.warn(

@@ -241,7 +241,8 @@ postReleaseBump: true
 After it merges the release branch, Craft writes the development version with
 the same step `craft prepare` uses to write the release version: the
 [pre-release command](#pre-release-command) if you set one, otherwise the
-[automatic version bump](../versioning/#automatic-version-bumping). Then it
+[automatic version bump](../versioning/#automatic-version-bumping), including
+[`versioning.files`](../versioning/#extra-version-files). Then it
 commits the change as `meta: Bump new development version` with
 `#skip-changelog`, pulls with rebase, and pushes to the merge target.
 

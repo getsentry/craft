@@ -60,6 +60,7 @@ projects keep their behavior when Craft is upgraded:
 | `2.14.0` | Bump types, `auto`, and `calver` versions; `versioning.policy` defaults to `auto`. |
 | `2.21.0` | [Automatic version bumping](../versioning/#automatic-version-bumping) when no `preReleaseCommand` is set. |
 | `2.29.0` | [Release workspaces](../workspaces/). |
+| `3.8.0` | [Extra version files](../versioning/#extra-version-files) with `versioning.files`. |
 
 ## github
 

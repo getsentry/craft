@@ -28,9 +28,13 @@ import {
   getReleaseUnitDir,
   getVersioningPolicy,
   getWorkspaceNames,
+  VERSION_FILES_MIN_VERSION,
   WORKSPACES_MIN_VERSION,
 } from '../config';
-import { CraftProjectConfigSchema } from '../schemas/project_config';
+import {
+  CraftProjectConfigSchema,
+  getVersionFileFormat,
+} from '../schemas/project_config';
 import { logger } from '../logger';
 import { GitHubTarget } from '../targets/github';
 import { NoneArtifactProvider } from '../artifact_providers/none';
@@ -1212,5 +1216,153 @@ describe('workspaces', () => {
       owner: 'getsentry',
       repo: 'toolkit',
     });
+  });
+});
+
+describe('versioning.files', () => {
+  afterEach(() => {
+    setActiveWorkspace(undefined);
+  });
+
+  const withFiles = (...lines: string[]) =>
+    [
+      `minVersion: ${VERSION_FILES_MIN_VERSION}`,
+      'versioning:',
+      '  files:',
+      ...lines,
+    ].join('\n');
+
+  test('accepts json, frontmatter, and regex entries', () => {
+    const config = loadConfigurationFromString(
+      withFiles(
+        '    - path: packages/@sentry/mcp/package.json',
+        '    - path: plugin/plugin.json',
+        '      stripPrerelease: true',
+        '    - path: skills/**/*.md',
+        '    - path: sdk/_version.py',
+        '      format: regex',
+        `      pattern: '/__version__ = "([^"]+)"/'`,
+      ),
+    );
+
+    expect(config.versioning?.files).toHaveLength(4);
+  });
+
+  test.each([
+    ['an unknown format', ['    - path: VERSION'], /Cannot infer the format/],
+    [
+      'a regex without a pattern',
+      ['    - path: v.txt', '      format: regex'],
+      /Set "pattern" for, and only for, format: regex/,
+    ],
+    [
+      'a pattern without format: regex',
+      ['    - path: a.json', "      pattern: '/(x)/'"],
+      /Set "pattern" for, and only for, format: regex/,
+    ],
+    [
+      'a pattern without a capturing group',
+      ['    - path: v.txt', '      format: regex', "      pattern: '/x/'"],
+      /exactly one capturing group/,
+    ],
+    [
+      'a pattern with two capturing groups',
+      ['    - path: v.txt', '      format: regex', "      pattern: '/(x)(y)/'"],
+      /exactly one capturing group/,
+    ],
+    [
+      'a regex with a field',
+      [
+        '    - path: v.txt',
+        '      format: regex',
+        "      pattern: '/(x)/'",
+        '      field: version',
+      ],
+      /Only json, toml, yaml, frontmatter files support "field"/,
+    ],
+    [
+      'an unknown key',
+      ['    - path: a.json', '      strip_prerelease: true'],
+      /strip_prerelease/,
+    ],
+    [
+      'a path outside the repository',
+      ['    - path: ../mcp/package.json'],
+      /must be relative to the repository root/,
+    ],
+    [
+      'an absolute path',
+      ['    - path: /etc/package.json'],
+      /must be relative to the repository root/,
+    ],
+    [
+      'a brace alternative outside the repository',
+      ['    - path: "{packages,..}/package.json"'],
+      /must be relative to the repository root/,
+    ],
+  ])('rejects %s', (_name, lines, message) => {
+    expect(() => loadConfigurationFromString(withFiles(...lines))).toThrow(
+      message,
+    );
+  });
+
+  test.each([
+    ['package.json', 'json'],
+    ['Cargo.toml', 'toml'],
+    ['pubspec.yml', 'yaml'],
+    ['docs/SKILL.md', 'frontmatter'],
+    ['src/Sdk.csproj', 'msbuild'],
+    ['Directory.Build.props', 'msbuild'],
+    ['sdk.gemspec', 'gem'],
+    ['lib/sdk/version.rb', 'gem'],
+    ['mix.exs', 'mix'],
+  ])('infers the format of %s', (path, format) => {
+    expect(getVersionFileFormat({ path })).toBe(format);
+  });
+
+  test('requires a minVersion that supports it', () => {
+    expect(() =>
+      loadConfigurationFromString(
+        'minVersion: 3.6.0\nversioning:\n  files:\n    - path: a.json',
+      ),
+    ).toThrow(
+      `"versioning.files" requires minVersion >= ${VERSION_FILES_MIN_VERSION}`,
+    );
+  });
+
+  test.each([
+    ['a custom command', 'preReleaseCommand: bash bump.sh'],
+    ['a disabled command', "preReleaseCommand: ''"],
+  ])('cannot be combined with %s', (_name, preReleaseCommand) => {
+    expect(() =>
+      loadConfigurationFromString(
+        `${preReleaseCommand}\n${withFiles('    - path: a.json')}`,
+      ),
+    ).toThrow('"versioning.files" cannot be combined with "preReleaseCommand"');
+  });
+
+  test('rejects a workspace that inherits a preReleaseCommand', () => {
+    setActiveWorkspace('packages/cli');
+    expect(() =>
+      loadConfigurationFromString(
+        [
+          `minVersion: ${VERSION_FILES_MIN_VERSION}`,
+          'preReleaseCommand: bash bump.sh',
+          'workspaces:',
+          '  packages/cli:',
+          '    versioning:',
+          '      files:',
+          '        - path: packages/mcp/package.json',
+        ].join('\n'),
+      ),
+    ).toThrow('"versioning.files" cannot be combined with "preReleaseCommand"');
+  });
+
+  test('allows an empty list next to a preReleaseCommand', () => {
+    const config = loadConfigurationFromString(
+      'preReleaseCommand: bash bump.sh\nversioning:\n  files: []',
+    );
+
+    expect(config.versioning?.files).toEqual([]);
   });
 });
