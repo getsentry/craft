@@ -259,9 +259,9 @@ describe('prepare --dry-run e2e', () => {
     const worktreeLines = worktrees.trim().split('\n');
     expect(worktreeLines.length).toBe(1); // Only the main worktree
 
-    // Note: The release branch may still exist in refs because git worktrees
-    // share the same object store. What matters is that the working directory
-    // is unchanged and the worktree is cleaned up.
+    // The worktree shares refs with the checkout, so the release branch it
+    // created must be removed as well.
+    expect((await git.branchLocal()).all).not.toContain('release/1.0.1');
   }, 60000);
 
   test('produces consistent output format', async () => {
@@ -790,6 +790,62 @@ workspaces:
     // starts from packages/cli/package.json rather than 0.0.0.
     expect(stdout + stderr).toContain('Version bump: 1.0.0-dev.0 -> 1.0.0');
     expect(stdout + stderr).toContain('release/cli/1.0.0');
+  }, 60000);
+
+  test('keeps automatic workspace bumps out of the checkout', async () => {
+    tempDir = await createTestRepo();
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const git = simpleGit(tempDir);
+    await mkdir(join(tempDir, 'packages', 'cli'), { recursive: true });
+    // No preReleaseCommand, so the npm target bumps the version itself.
+    await writeFile(
+      join(tempDir, '.craft.yml'),
+      `minVersion: "2.29.0"
+github:
+  owner: test-owner
+  repo: test-repo
+changelog:
+  policy: none
+workspaces:
+  packages/cli:
+    releaseBranchPrefix: release/cli
+    targets:
+      - name: npm
+      - name: github
+        tagPrefix: "cli@"
+`,
+    );
+    const packageJsonPath = join(tempDir, 'packages', 'cli', 'package.json');
+    const packageJson = JSON.stringify(
+      { name: 'cli', version: '1.0.0-dev.0' },
+      null,
+      2,
+    );
+    await writeFile(packageJsonPath, packageJson);
+    await git.add('.');
+    await git.commit('chore: Configure CLI workspace');
+    await git.push('origin', (await git.status()).current!);
+
+    for (let run = 0; run < 2; run++) {
+      const { stdout, stderr } = await execFileAsync(
+        CLI_BIN,
+        [
+          'prepare',
+          'minor',
+          '--workspace=packages/cli',
+          '--dry-run',
+          '--no-input',
+        ],
+        { cwd: tempDir, env: { ...CLI_ENV, GITHUB_TOKEN: '' } },
+      );
+
+      expect(stdout + stderr).toContain('Version bump: 1.0.0-dev.0 -> 1.0.0');
+      expect(stdout + stderr).toContain('Version bumped by "npm" target');
+      expect(stdout + stderr).toContain('packages/cli/package.json');
+      expect(await readFile(packageJsonPath, 'utf8')).toBe(packageJson);
+      expect((await git.status()).isClean()).toBe(true);
+      expect((await git.branchLocal()).all).not.toContain('release/cli/1.0.0');
+    }
   }, 60000);
 
   test('auto changelog policy creates CHANGELOG.md if it does not exist', async () => {
