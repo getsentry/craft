@@ -206,6 +206,59 @@ const MAX_LEFTOVERS = 24;
 if (SUBSECTION_HEADER_LEVEL <= VERSION_HEADER_LEVEL) {
   throw new Error('Subsection headers should nest under version headers!');
 }
+
+/** Opening line of a Markdown fenced code block: up to 3 spaces, then ``` or ~~~. */
+const CODE_FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
+/**
+ * A Markdown inline code span: a backtick run, then content, then a run of
+ * the same length. Spans may wrap lines (squash-merge commit messages are
+ * hard-wrapped), but never cross a blank line.
+ */
+const INLINE_CODE_SPAN = /(?<!`)(`+)(?!`)(?:(?!\n\s*\n)[\s\S])+?(?<!`)\1(?!`)/g;
+
+/**
+ * Removes Markdown code (fenced blocks and inline spans) from `text`.
+ */
+function stripMarkdownCode(text: string): string {
+  const prose: string[] = [];
+  let fence: string | null = null;
+  for (const line of text.split('\n')) {
+    if (fence) {
+      const close = line.match(CODE_FENCE_OPEN);
+      if (
+        close &&
+        close[1][0] === fence[0] &&
+        close[1].length >= fence.length &&
+        line.trim() === close[1]
+      ) {
+        fence = null;
+      }
+      continue;
+    }
+    const open = line.match(CODE_FENCE_OPEN);
+    if (open) {
+      fence = open[1];
+      continue;
+    }
+    prose.push(line);
+  }
+  return prose.join('\n').replace(INLINE_CODE_SPAN, '');
+}
+
+/**
+ * Checks whether a commit message or PR body opts out of the changelog with
+ * the {@link SKIP_CHANGELOG_MAGIC_WORD}.
+ *
+ * Mentions inside Markdown code are ignored, so a message that only quotes the
+ * magic word (e.g. documents it as `` `#skip-changelog` ``) is not skipped.
+ */
+export function hasSkipChangelogMagicWord(text: string | undefined): boolean {
+  if (!text?.includes(SKIP_CHANGELOG_MAGIC_WORD)) {
+    return false;
+  }
+  return stripMarkdownCode(text).includes(SKIP_CHANGELOG_MAGIC_WORD);
+}
+
 /**
  * A single changeset with name and description
  */
@@ -1305,7 +1358,7 @@ export function shouldExcludePR(
   body?: string,
 ): boolean {
   // Check for magic word in body
-  if (body?.includes(SKIP_CHANGELOG_MAGIC_WORD)) {
+  if (hasSkipChangelogMagicWord(body)) {
     return true;
   }
 
@@ -1876,7 +1929,7 @@ async function fetchRawCommitInfo(
 ): Promise<RawCommitInfo[]> {
   // Early filter: skip commits with magic word in commit body (optimization to avoid GitHub API calls)
   const gitCommits = (await getChangesSince(git, rev, until)).filter(
-    ({ body }) => !body.includes(SKIP_CHANGELOG_MAGIC_WORD),
+    ({ body }) => !hasSkipChangelogMagicWord(body),
   );
 
   const githubCommits = await getPRAndLabelsFromCommit(
