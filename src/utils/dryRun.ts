@@ -15,9 +15,9 @@
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { join, relative } from 'path';
 import { randomBytes } from 'crypto';
-import { existsSync, symlinkSync, lstatSync } from 'fs';
+import { existsSync, symlinkSync, lstatSync, realpathSync } from 'fs';
 import { rm } from 'fs/promises';
 
 import { simpleGit, type SimpleGit } from 'simple-git';
@@ -197,6 +197,18 @@ function symlinkDependencyDirs(
 }
 
 /**
+ * Lists the full ref names of local branches.
+ */
+async function listLocalBranches(git: SimpleGit): Promise<string[]> {
+  const refs = await git.raw([
+    'for-each-ref',
+    '--format=%(refname)',
+    'refs/heads/',
+  ]);
+  return refs.split('\n').filter(Boolean);
+}
+
+/**
  * Creates an isolated dry-run environment using a git worktree.
  *
  * This function:
@@ -253,10 +265,22 @@ export async function createDryRunIsolation(
   // Create the worktree using raw git (bypassing dry-run proxy)
   // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
   const rawGit = simpleGit(originalCwd);
+  // Remember the local branches: the worktree shares refs with the checkout,
+  // so branches created during the dry run must be removed on cleanup.
+  const originalBranches = new Set(await listLocalBranches(rawGit));
   await rawGit.raw(['worktree', 'add', '--detach', worktreePath, revision]);
 
+  // Work from the worktree directory that matches the original working
+  // directory, so paths resolved from it (such as the configuration file and
+  // the release unit directory) point into the worktree.
+  const repositoryRoot = (await rawGit.revparse(['--show-toplevel'])).trim();
+  const worktreeCwd = join(
+    worktreePath,
+    relative(realpathSync(repositoryRoot), realpathSync(originalCwd)),
+  );
+
   // Symlink large directories
-  symlinkDependencyDirs(originalCwd, worktreePath);
+  symlinkDependencyDirs(originalCwd, worktreeCwd);
 
   // Create git client for worktree
   const worktreeGit = createDryRunGit(
@@ -268,7 +292,7 @@ export async function createDryRunIsolation(
   enableWorktreeMode();
 
   // Change to worktree directory
-  process.chdir(worktreePath);
+  process.chdir(worktreeCwd);
 
   const cleanup = async (): Promise<void> => {
     logger.debug(`[dry-run] Cleaning up temporary worktree at ${worktreePath}`);
@@ -292,6 +316,17 @@ export async function createDryRunIsolation(
       } catch (rmErr) {
         logger.warn(`[dry-run] Failed to clean up worktree: ${rmErr}`);
       }
+    }
+
+    try {
+      for (const branch of await listLocalBranches(rawGit)) {
+        if (!originalBranches.has(branch)) {
+          await rawGit.raw(['update-ref', '-d', branch]);
+          logger.debug(`[dry-run] Deleted temporary branch ${branch}`);
+        }
+      }
+    } catch (err) {
+      logger.warn(`[dry-run] Failed to clean up temporary branches: ${err}`);
     }
   };
 
