@@ -207,44 +207,6 @@ if (SUBSECTION_HEADER_LEVEL <= VERSION_HEADER_LEVEL) {
   throw new Error('Subsection headers should nest under version headers!');
 }
 
-/** Opening line of a Markdown fenced code block: up to 3 spaces, then ``` or ~~~. */
-const CODE_FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
-/**
- * A Markdown inline code span: a backtick run, then content, then a run of
- * the same length. Spans may wrap lines (squash-merge commit messages are
- * hard-wrapped), but never cross a blank line.
- */
-const INLINE_CODE_SPAN = /(?<!`)(`+)(?!`)(?:(?!\n\s*\n)[\s\S])+?(?<!`)\1(?!`)/g;
-
-/**
- * Removes Markdown code (fenced blocks and inline spans) from `text`.
- */
-function stripMarkdownCode(text: string): string {
-  const prose: string[] = [];
-  let fence: string | null = null;
-  for (const line of text.split('\n')) {
-    if (fence) {
-      const close = line.match(CODE_FENCE_OPEN);
-      if (
-        close &&
-        close[1][0] === fence[0] &&
-        close[1].length >= fence.length &&
-        line.trim() === close[1]
-      ) {
-        fence = null;
-      }
-      continue;
-    }
-    const open = line.match(CODE_FENCE_OPEN);
-    if (open) {
-      fence = open[1];
-      continue;
-    }
-    prose.push(line);
-  }
-  return prose.join('\n').replace(INLINE_CODE_SPAN, '');
-}
-
 /**
  * Checks whether a commit message or PR body opts out of the changelog with
  * the {@link SKIP_CHANGELOG_MAGIC_WORD}.
@@ -256,7 +218,20 @@ export function hasSkipChangelogMagicWord(text: string | undefined): boolean {
   if (!text?.includes(SKIP_CHANGELOG_MAGIC_WORD)) {
     return false;
   }
-  return stripMarkdownCode(text).includes(SKIP_CHANGELOG_MAGIC_WORD);
+  // Check only tokens that hold prose or HTML (e.g. a hidden `<!-- -->`
+  // comment) directly. Containers like lists and tables repeat their
+  // children's source in `raw`, and code tokens are never prose.
+  let found = false;
+  marked.walkTokens(marked.lexer(text), token => {
+    if (
+      (token.type === 'text' || token.type === 'html') &&
+      !('tokens' in token && token.tokens?.length) &&
+      token.raw.includes(SKIP_CHANGELOG_MAGIC_WORD)
+    ) {
+      found = true;
+    }
+  });
+  return found;
 }
 
 /**

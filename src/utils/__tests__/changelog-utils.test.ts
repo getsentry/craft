@@ -40,6 +40,9 @@ describe('hasSkipChangelogMagicWord', () => {
       'after a closed fenced block',
       '```yaml\nlabels: [a]\n```\n#skip-changelog',
     ],
+    ['in emphasis', 'Internal only. **#skip-changelog**'],
+    ['in a list item', '- Internal refactor\n- #skip-changelog'],
+    ['in an HTML comment', 'Description\n\n<!-- #skip-changelog -->'],
     [
       'outside a code span on another paragraph',
       'Run `craft\n\nprepare` #skip-changelog',
@@ -63,6 +66,11 @@ describe('hasSkipChangelogMagicWord', () => {
       'Example:\n\n```\nchore: x\n\n#skip-changelog\n```\n',
     ],
     ['in a tilde fenced block', '~~~\n#skip-changelog\n~~~'],
+    ['in a code span in a list item', '- Commits `#skip-changelog` on bump'],
+    [
+      'in a code span in a table',
+      '| Word | Effect |\n| --- | --- |\n| `#skip-changelog` | Skips |',
+    ],
   ])('ignores the magic word %s', (_, text) => {
     expect(hasSkipChangelogMagicWord(text)).toBe(false);
   });
