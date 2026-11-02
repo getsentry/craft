@@ -96,8 +96,9 @@ setting by declaring it:</p>
 <ul>
 <li>These fields can be set per workspace: <code dir="auto">targets</code>, <code dir="auto">changelog</code>,
 <code dir="auto">versioning</code>, <code dir="auto">releaseBranchPrefix</code>, <code dir="auto">preReleaseCommand</code>,
-<code dir="auto">postReleaseCommand</code>, <code dir="auto">requireNames</code>, <code dir="auto">statusProvider</code>, <code dir="auto">artifactProvider</code>,
-<code dir="auto">noMerge</code>, and <code dir="auto">github</code>.</li>
+<code dir="auto">postReleaseCommand</code>, <code dir="auto">postReleaseBump</code>, <code dir="auto">requireNames</code>, <code dir="auto">statusProvider</code>,
+<code dir="auto">artifactProvider</code>, <code dir="auto">noMerge</code>, and <code dir="auto">github</code>. Set <code dir="auto">postReleaseBump: false</code>
+to turn off an inherited development version bump.</li>
 <li>A declared field <strong>replaces</strong> the inherited value. For example, a
 workspace’s <code dir="auto">targets</code> list replaces the top-level list, and a workspace
 <code dir="auto">changelog</code> object replaces the top-level object.</li>

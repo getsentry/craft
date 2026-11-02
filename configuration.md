@@ -34,6 +34,7 @@ targets:
 | `versioning` | How the next version is chosen: `auto`, `manual`, or `calver`. | [Versioning](https://craft.sentry.dev/versioning.md#versioning-policies) |
 | `preReleaseCommand` | Command that bumps versions during `craft prepare`. | [Release Workflow](https://craft.sentry.dev/release-workflow.md#pre-release-command) |
 | `postReleaseCommand` | Command that runs after `craft publish`. | [Release Workflow](https://craft.sentry.dev/release-workflow.md#post-release-command) |
+| `postReleaseBump` | Bump to the next development version after `craft publish`. | [Release Workflow](https://craft.sentry.dev/release-workflow.md#post-release-development-version-bump) |
 | `releaseBranchPrefix` | Release branch prefix. Default: `release`. | [Release Workflow](https://craft.sentry.dev/release-workflow.md#release-branch-name) |
 | `statusProvider` | How Craft checks that CI passed. | [Release Workflow](https://craft.sentry.dev/release-workflow.md#status-provider) |
 | `artifactProvider` | Where Craft downloads build artifacts from. | [Release Workflow](https://craft.sentry.dev/release-workflow.md#artifact-provider) |

@@ -56,8 +56,9 @@ Top-level settings are defaults for every workspace. A workspace overrides a set
 
 - These fields can be set per workspace: `targets`, `changelog`,
   `versioning`, `releaseBranchPrefix`, `preReleaseCommand`,
-  `postReleaseCommand`, `requireNames`, `statusProvider`, `artifactProvider`,
-  `noMerge`, and `github`.
+  `postReleaseCommand`, `postReleaseBump`, `requireNames`, `statusProvider`,
+  `artifactProvider`, `noMerge`, and `github`. Set `postReleaseBump: false`
+  to turn off an inherited development version bump.
 - A declared field **replaces** the inherited value. For example, a
   workspace’s `targets` list replaces the top-level list, and a workspace
   `changelog` object replaces the top-level object.
