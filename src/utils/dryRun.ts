@@ -25,6 +25,7 @@ import type { Octokit } from '@octokit/rest';
 
 import { logger } from '../logger';
 import { isDryRun } from './helpers';
+import { ConfigurationError } from './errors';
 import { GIT_IDENTITY_ENV } from './gitIdentityEnv';
 
 // ============================================================================
@@ -268,7 +269,6 @@ export async function createDryRunIsolation(
   // Remember the local branches: the worktree shares refs with the checkout,
   // so branches created during the dry run must be removed on cleanup.
   const originalBranches = new Set(await listLocalBranches(rawGit));
-  await rawGit.raw(['worktree', 'add', '--detach', worktreePath, revision]);
 
   // Work from the worktree directory that matches the original working
   // directory, so paths resolved from it (such as the configuration file and
@@ -279,20 +279,7 @@ export async function createDryRunIsolation(
     relative(realpathSync(repositoryRoot), realpathSync(originalCwd)),
   );
 
-  // Symlink large directories
-  symlinkDependencyDirs(originalCwd, worktreeCwd);
-
-  // Create git client for worktree
-  const worktreeGit = createDryRunGit(
-    // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
-    simpleGit(worktreePath, { allowEnvironment: GIT_IDENTITY_ENV }),
-  );
-
-  // Enable worktree mode so local operations are allowed
-  enableWorktreeMode();
-
-  // Change to worktree directory
-  process.chdir(worktreeCwd);
+  await rawGit.raw(['worktree', 'add', '--detach', worktreePath, revision]);
 
   const cleanup = async (): Promise<void> => {
     logger.debug(`[dry-run] Cleaning up temporary worktree at ${worktreePath}`);
@@ -332,6 +319,32 @@ export async function createDryRunIsolation(
 
   // Register signal handlers for cleanup on Ctrl+C
   registerCleanupHandlers(cleanup);
+
+  try {
+    if (!existsSync(worktreeCwd)) {
+      throw new ConfigurationError(
+        `Cannot run the dry run from "${originalCwd}": it does not exist at revision "${revision}".`,
+      );
+    }
+
+    // Symlink large directories
+    symlinkDependencyDirs(originalCwd, worktreeCwd);
+
+    // Enable worktree mode so local operations are allowed
+    enableWorktreeMode();
+
+    // Change to worktree directory
+    process.chdir(worktreeCwd);
+  } catch (err) {
+    await cleanup();
+    throw err;
+  }
+
+  // Create git client for worktree
+  const worktreeGit = createDryRunGit(
+    // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
+    simpleGit(worktreePath, { allowEnvironment: GIT_IDENTITY_ENV }),
+  );
 
   const showDiff = async (): Promise<void> => {
     // eslint-disable-next-line no-restricted-syntax -- This is the wrapper module
