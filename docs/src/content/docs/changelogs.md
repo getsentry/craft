@@ -262,6 +262,9 @@ chore: Update dependencies
 #skip-changelog
 ```
 
+Mentions inside Markdown code (inline code spans or fenced blocks) are
+ignored, so you can write about the magic word without skipping the change.
+
 ### Skip label
 
 PRs with the `skip-changelog` label are automatically excluded.
