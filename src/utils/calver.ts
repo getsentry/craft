@@ -101,3 +101,65 @@ export async function calculateCalVer(
 
   return version;
 }
+
+const CALVER_TOKEN_PATTERNS: Record<string, string> = {
+  Y: '(\\d{4})',
+  y: '(\\d{2})',
+  m: '(\\d{2})',
+  '-m': '(\\d{1,2})',
+  d: '(\\d{2})',
+  '-d': '(\\d{1,2})',
+};
+
+/**
+ * Returns the first version of the CalVer period after the one `version`
+ * belongs to. The period is the smallest unit in `format`: with `%y.%-m`,
+ * `26.10.1` gives `26.11.0` and `26.12.3` gives `27.1.0`.
+ *
+ * @param version A CalVer version in the `{datePart}.{patch}` form
+ * @param format The strftime-like format of the date part
+ * @returns The next period's first version, or undefined if `version` doesn't
+ * match `format`
+ */
+export function getNextCalVerPeriod(
+  version: string,
+  format: string,
+): string | undefined {
+  const tokens: string[] = [];
+  const datePattern = format
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/%(Y|y|-m|m|-d|d)/g, (_match, token: string) => {
+      tokens.push(token);
+      return CALVER_TOKEN_PATTERNS[token];
+    });
+  const match = new RegExp(`^${datePattern}\\.\\d+$`).exec(version);
+  if (!match || tokens.length === 0) {
+    return undefined;
+  }
+
+  let year = 0;
+  let month = 1;
+  let day = 1;
+  tokens.forEach((token, index) => {
+    const value = Number(match[index + 1]);
+    if (token === 'Y') {
+      year = value;
+    } else if (token === 'y') {
+      year = 2000 + value;
+    } else if (token.endsWith('m')) {
+      month = value;
+    } else {
+      day = value;
+    }
+  });
+
+  const date = new Date(year, month - 1, day);
+  if (tokens.some(token => token.endsWith('d'))) {
+    date.setDate(date.getDate() + 1);
+  } else if (tokens.some(token => token.endsWith('m'))) {
+    date.setMonth(date.getMonth() + 1);
+  } else {
+    date.setFullYear(date.getFullYear() + 1);
+  }
+  return `${formatCalVerDate(date, format)}.0`;
+}

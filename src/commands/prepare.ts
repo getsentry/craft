@@ -1,7 +1,6 @@
 import { existsSync, promises as fsPromises } from 'fs';
-import { join, relative } from 'path';
+import { relative } from 'path';
 
-import * as shellQuote from 'shell-quote';
 import type { SimpleGit, StatusResult } from 'simple-git';
 import type { Arguments, Argv, CommandBuilder } from 'yargs';
 import { createDryRunIsolation, safeFs } from '../utils/dryRun';
@@ -19,11 +18,7 @@ import {
   requiresMinVersion,
 } from '../config';
 import { logger } from '../logger';
-import {
-  ChangelogPolicy,
-  type TargetConfig,
-  VersioningPolicy,
-} from '../schemas/project_config';
+import { ChangelogPolicy, VersioningPolicy } from '../schemas/project_config';
 import { sleep } from '../utils/async';
 import {
   type BumpType,
@@ -61,14 +56,10 @@ import {
   writeGitHubActionsFile,
 } from '../utils/helpers';
 import { formatJson } from '../utils/strings';
-import { spawnProcess } from '../utils/system';
-import { buildReleaseCommandEnv } from '../utils/releaseCommandEnv';
+import { runPreReleaseCommand } from '../utils/preReleaseCommand';
 import { withTracing } from '../utils/tracing';
 import { getVersion, isValidVersion } from '../utils/version';
-import {
-  readProjectVersion,
-  runAutomaticVersionBumps,
-} from '../utils/versionBump';
+import { readProjectVersion } from '../utils/versionBump';
 
 import { type PublishOptions, handler as publishMainHandler } from './publish';
 import { getTargetIds } from './targets';
@@ -77,14 +68,8 @@ export const command = ['prepare [NEW-VERSION]'];
 export const aliases = ['p', 'prerelease', 'prepublish', 'prepare', 'release'];
 export const description = '🚢 Prepare a new release branch';
 
-/** Default path to bump-version script, relative to project root */
-const DEFAULT_BUMP_VERSION_PATH = join('scripts', 'bump-version.sh');
-
 /** Minimum craft version required for auto-versioning */
 const AUTO_VERSION_MIN_VERSION = '2.14.0';
-
-/** Minimum craft version required for automatic version bumping from targets */
-const AUTO_BUMP_MIN_VERSION = '2.21.0';
 
 export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
@@ -366,111 +351,6 @@ async function commitChanges(
   logger.debug('Committing the release changes...');
   logger.trace(`Commit message: "${message}"`);
   await git.commit(message);
-}
-
-interface PreReleaseOptions {
-  oldVersion: string;
-  newVersion: string;
-  preReleaseCommand?: string;
-  targets?: TargetConfig[];
-  rootDir: string;
-}
-
-/**
- * Run pre-release command or automatic version bumping.
- *
- * Priority: custom command > automatic bumping (minVersion >= 2.21.0) > default script
- */
-export async function runPreReleaseCommand(
-  options: PreReleaseOptions,
-): Promise<boolean> {
-  const { oldVersion, newVersion, preReleaseCommand, targets, rootDir } =
-    options;
-
-  if (preReleaseCommand !== undefined && preReleaseCommand.length === 0) {
-    logger.warn('Not running the pre-release command: no command specified');
-    return false;
-  }
-
-  if (preReleaseCommand) {
-    return runCustomPreReleaseCommand(
-      oldVersion,
-      newVersion,
-      preReleaseCommand,
-    );
-  }
-
-  if (
-    requiresMinVersion(AUTO_BUMP_MIN_VERSION) &&
-    targets &&
-    targets.length > 0
-  ) {
-    logger.info('Running automatic version bumping from targets...');
-    const result = await runAutomaticVersionBumps(targets, rootDir, newVersion);
-
-    if (!result.anyBumped) {
-      if (result.bumpableTargets.length === 0) {
-        logger.warn(
-          'None of your configured targets support automatic version bumping. ' +
-            'Consider adding a preReleaseCommand to bump versions manually.',
-        );
-      } else {
-        throw new ConfigurationError(
-          `Targets [${result.skippedTargets.join(', ')}] support version bumping ` +
-            'but did not find applicable files in your project. ' +
-            'Define a preReleaseCommand to bump versions manually, or set ' +
-            "preReleaseCommand: '' to skip version bumping.",
-        );
-      }
-    }
-
-    return result.anyBumped;
-  }
-
-  return runCustomPreReleaseCommand(oldVersion, newVersion, undefined);
-}
-
-/**
- * Run a custom pre-release command (or the default bump-version.sh script)
- */
-async function runCustomPreReleaseCommand(
-  oldVersion: string,
-  newVersion: string,
-  preReleaseCommand?: string,
-): Promise<boolean> {
-  let sysCommand: string;
-  let args: string[];
-
-  // This is a workaround for the case when the old version is empty, which
-  // should only happen when the project is new and has no version yet.
-  // Instead of using an empty string, we use "0.0.0" as the old version to
-  // avoid breaking the pre-release command as most scripts expect a non-empty
-  // version string.
-  const nonEmptyOldVersion = oldVersion || '0.0.0';
-
-  if (preReleaseCommand) {
-    [sysCommand, ...args] = shellQuote.parse(preReleaseCommand) as string[];
-  } else {
-    sysCommand = '/bin/bash';
-    args = [DEFAULT_BUMP_VERSION_PATH];
-  }
-
-  args = [...args, nonEmptyOldVersion, newVersion];
-  logger.info('Running the pre-release command...');
-
-  // The pre-release command comes from .craft.yml, which is
-  // attacker-influenceable via untrusted PRs. We forward only an
-  // allowlisted env plus the CRAFT_* version vars to avoid leaking
-  // secrets into a potentially malicious command. See
-  // src/utils/releaseCommandEnv.ts for the exact allowlist and rationale.
-  await spawnProcess(sysCommand, args, {
-    env: buildReleaseCommandEnv({
-      CRAFT_NEW_VERSION: newVersion,
-      CRAFT_OLD_VERSION: nonEmptyOldVersion,
-    }),
-  });
-
-  return true;
 }
 
 /**

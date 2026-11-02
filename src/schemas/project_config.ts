@@ -315,6 +315,57 @@ export const ChangelogConfigSchema = union([
 ]);
 
 /**
+ * Opt-in bump to the next development version after a successful publish.
+ */
+const PostReleaseBumpTypeSchema = picklist([
+  'patch',
+  'minor',
+  'major',
+  'calver',
+]);
+
+const PostReleaseBumpObjectSchema = strictObject({
+  /** How to get the next version. Default: `calver` for CalVer, else `minor`. */
+  bump: optional(PostReleaseBumpTypeSchema),
+  /**
+   * Development version template. Default: `{{version}}-dev.0`. Only version
+   * characters are allowed: the value reaches spawned commands as an argument,
+   * where `${VAR}` would be expanded from the environment.
+   */
+  version: optional(
+    pipe(
+      string(),
+      regex(
+        /^(?:[0-9A-Za-z._+-]|\{\{version\}\})+$/,
+        'Use only letters, digits, ".", "_", "+", "-", and {{version}}.',
+      ),
+    ),
+  ),
+});
+
+/**
+ * `true` turns the bump on with the defaults, a bump type such as `patch` is
+ * shorthand for `{ bump: patch }`, and `false` turns it off. Both shorthands
+ * are normalized to the object form.
+ */
+const PostReleaseBumpSchema = union([
+  PostReleaseBumpObjectSchema,
+  pipe(
+    PostReleaseBumpTypeSchema,
+    transform(bump => ({ bump })),
+  ),
+  pipe(
+    literal(true),
+    transform(() => ({})),
+  ),
+  literal(false),
+]);
+
+export type PostReleaseBumpConfig = InferOutput<
+  typeof PostReleaseBumpObjectSchema
+>;
+
+/**
  * Fields that describe how a single release unit is built and published.
  *
  * These are shared between the top-level config (the implicit/default release
@@ -332,6 +383,7 @@ const releaseUnitFields = {
   targets: optional(array(TargetConfigSchema)),
   preReleaseCommand: optional(string()),
   postReleaseCommand: optional(string()),
+  postReleaseBump: optional(nonArray(PostReleaseBumpSchema)),
   releaseBranchPrefix: optional(string()),
   changelog: optional(nonArray(ChangelogConfigSchema)),
   changelogPolicy: optional(picklist(['auto', 'simple', 'none'])),

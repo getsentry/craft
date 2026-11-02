@@ -112,6 +112,47 @@ describe('validateConfiguration', () => {
     expect(validateConfiguration(data)).toEqual(data);
   });
 
+  test.each([
+    [{}, {}],
+    [
+      { bump: 'calver', version: '{{version}}.dev0' },
+      { bump: 'calver', version: '{{version}}.dev0' },
+    ],
+    [{ version: 'nightly' }, { version: 'nightly' }],
+    [true, {}],
+    ['patch', { bump: 'patch' }],
+    ['calver', { bump: 'calver' }],
+    [false, false],
+  ])('accepts postReleaseBump %j', (postReleaseBump, expected) => {
+    expect(validateConfiguration({ postReleaseBump })).toEqual({
+      postReleaseBump: expected,
+    });
+  });
+
+  test('lets a workspace opt out of an inherited postReleaseBump', () => {
+    const data = {
+      postReleaseBump: { bump: 'patch' },
+      workspaces: { 'packages/cli': { postReleaseBump: false } },
+    };
+
+    expect(validateConfiguration(data)).toEqual(data);
+  });
+
+  test.each([
+    { bump: 'preminor' },
+    { version: '  ' },
+    { version: '${NPM_TOKEN}' },
+    { version: '{{{version}}}' },
+    { version: '$(id)' },
+    { preid: 'dev' },
+    'preminor',
+    [],
+  ])('rejects invalid postReleaseBump %j', postReleaseBump => {
+    expect(() => validateConfiguration({ postReleaseBump })).toThrow(
+      /postReleaseBump/,
+    );
+  });
+
   test('normalizes opt-in AI summary settings from the active schema', () => {
     loadConfigurationFromString('changelog:\n  policy: auto\n  aiSummary: {}');
     expect(getChangelogConfig().aiSummary).toEqual({
