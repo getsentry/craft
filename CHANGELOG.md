@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.8.0
+
+Version bumps now update repository files more safely through workspace-aware validation, preventing invalid paths and no-op preparations from writing changes.
+
+### New Features ✨
+
+Automatic version bumps now update repository files safely, with workspace-aware configuration and strict validation before writes.
+
+- (versioning) Update extra version files during automatic bumps by @BYK with @sentry-junior in [#955](https://github.com/getsentry/craft/pull/955)
+
 ## 3.7.1
 
 Dry-run versioning is more repeatable, while built-in development bumps preserve output and avoid redundant post-release bumps after pre-releases.
