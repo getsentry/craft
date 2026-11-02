@@ -823,6 +823,29 @@ describe('PypiTarget.bumpVersion', () => {
     );
     expect(updatedContent).toContain('version = "1.0.0"');
   });
+
+  test('only edits the version in the [project] table', async () => {
+    const originalContent =
+      '[tool.example]\nversion = "9.9.9"\n\n[project]\nname = "test"\n' +
+      "version = '0.0.1' # bumped by craft\n";
+    await writeFile(join(tempDir, 'pyproject.toml'), originalContent);
+
+    const result = await PypiTarget.bumpVersion(tempDir, '1.0.0');
+
+    expect(result).toBe(true);
+    expect(await readFile(join(tempDir, 'pyproject.toml'), 'utf-8')).toBe(
+      originalContent.replace("'0.0.1'", "'1.0.0'"),
+    );
+  });
+
+  test('returns false when [project] has no version', async () => {
+    await writeFile(
+      join(tempDir, 'pyproject.toml'),
+      '[project]\nname = "test"\ndynamic = ["version"]\n',
+    );
+
+    expect(await PypiTarget.bumpVersion(tempDir, '1.0.0')).toBe(false);
+  });
 });
 
 describe('GemTarget.bumpVersion', () => {
@@ -1024,6 +1047,27 @@ describe('PubDevTarget.bumpVersion', () => {
       'utf-8',
     );
     expect(updatedContent).toContain('version: 1.0.0');
+  });
+
+  test('keeps comments and formatting in pubspec.yaml', async () => {
+    const originalContent =
+      '# Package manifest\nname: test\nversion: 0.0.1+1 # bumped by craft\n' +
+      "environment:\n  sdk: '>=3.0.0 <4.0.0'\n";
+    await writeFile(join(tempDir, 'pubspec.yaml'), originalContent);
+
+    expect(await PubDevTarget.bumpVersion(tempDir, '1.0.0')).toBe(true);
+    expect(await readFile(join(tempDir, 'pubspec.yaml'), 'utf-8')).toBe(
+      originalContent.replace('0.0.1+1', '1.0.0'),
+    );
+  });
+
+  test('adds a version when pubspec.yaml has none', async () => {
+    await writeFile(join(tempDir, 'pubspec.yaml'), 'name: test\n');
+
+    expect(await PubDevTarget.bumpVersion(tempDir, '1.0.0')).toBe(true);
+    expect(await readFile(join(tempDir, 'pubspec.yaml'), 'utf-8')).toBe(
+      'name: test\nversion: 1.0.0\n',
+    );
   });
 });
 

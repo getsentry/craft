@@ -2,7 +2,6 @@ import { readFileSync, realpathSync } from 'fs';
 import path from 'path';
 import { globSync } from 'glob';
 import { findNodeAtLocation, parseTree, type ParseError } from 'jsonc-parser';
-import { load } from 'js-yaml';
 import * as semver from 'semver';
 
 import { logger } from '../logger';
@@ -16,7 +15,10 @@ import { stringToRegexp } from './filters';
 import {
   GEMSPEC_VERSION_REGEX,
   MIX_VERSION_PATTERNS,
+  replaceRanges,
   setMsBuildVersion,
+  setTomlVersion,
+  setYamlVersion,
   VERSION_RB_REGEX,
 } from './versionPatterns';
 
@@ -27,15 +29,6 @@ const DEFAULT_TOML_FIELDS: Record<string, string> = {
   'Cargo.toml': 'package.version',
   'pyproject.toml': 'project.version',
 };
-
-/** A YAML key line: indentation, plain or quoted key, and the rest */
-const YAML_KEY_LINE = /^( *)(?:([\w$-]+)|"([^"]*)"|'([^']*)'):(?=[ \t]|$)(.*)$/;
-
-/** A YAML scalar value: optional quote, value, closing quote, comment */
-const YAML_SCALAR = /^([ \t]*)(["']?)([^"'#\r\n]*?)\2[ \t]*(?:#.*)?$/;
-
-/** A TOML `key = "value"` line */
-const TOML_STRING_LINE = /^(\s*)([\w.\-"' ]+?)(\s*=\s*)(["'])([^"'\r\n]*)\4/;
 
 /** Opening `---` line, frontmatter body, closing `---` line. */
 const FRONTMATTER_REGEX = /^(---\r?\n)([\s\S]*?\r?\n)?---(?:\r?\n|$)/;
@@ -132,17 +125,20 @@ function setFileVersion(
   switch (getVersionFileFormat(file)) {
     case 'json':
       return setJsonVersion(content, field, version, filePath);
-    case 'toml':
-      return setTomlVersion(
-        content,
+    case 'toml': {
+      const tomlField =
         file.field ??
-          DEFAULT_TOML_FIELDS[path.posix.basename(filePath)] ??
-          field,
-        version,
-        filePath,
+        DEFAULT_TOML_FIELDS[path.posix.basename(filePath)] ??
+        field;
+      return (
+        setTomlVersion(content, tomlField, version) ??
+        noFieldFound(filePath, tomlField)
       );
+    }
     case 'yaml':
-      return setYamlVersion(content, field, version, filePath);
+      return (
+        setYamlVersion(content, field, version) ?? noFieldFound(filePath, field)
+      );
     case 'frontmatter':
       return setFrontmatterVersion(content, field, version, filePath);
     case 'msbuild':
@@ -175,31 +171,11 @@ function noVersionFound(filePath: string): never {
   throw new ConfigurationError(`${filePath} has no version to update.`);
 }
 
-/** Replaces `[start, end)` ranges of `content` with `version`. */
-function replaceRanges(
-  content: string,
-  ranges: [number, number][],
-  version: string,
-): string {
-  let updated = content;
-  for (const [start, end] of [...ranges].sort((a, b) => b[0] - a[0])) {
-    updated = updated.slice(0, start) + version + updated.slice(end);
-  }
-  return updated;
-}
-
-/** Throws unless exactly one key matched. */
-function requireOneMatch(
-  ranges: [number, number][],
-  field: string,
-  filePath: string,
-): void {
-  if (ranges.length !== 1) {
-    throw new ConfigurationError(
-      `${filePath} must have exactly one "${field}" string value, found ` +
-        `${ranges.length}.`,
-    );
-  }
+function noFieldFound(filePath: string, field: string): never {
+  throw new ConfigurationError(
+    `${filePath} has no single "${field}" value to update. ` +
+      'Use format: regex for this file.',
+  );
 }
 
 /**
@@ -233,153 +209,6 @@ function setJsonVersion(
   );
 }
 
-/**
- * Replaces the string at a dotted `field` path in a TOML file, keeping its
- * quotes and the rest of the file. Arrays of tables can't be addressed.
- */
-function setTomlVersion(
-  content: string,
-  field: string,
-  version: string,
-  filePath: string,
-): string {
-  const target = splitKey(field).join('.');
-  const ranges: [number, number][] = [];
-  let table: string[] | undefined = [];
-  let offset = 0;
-  for (const line of content.split('\n')) {
-    const lineStart = offset;
-    offset += line.length + 1;
-    const trimmed = line.trim();
-    if (trimmed.startsWith('[[')) {
-      table = undefined;
-      continue;
-    }
-    const header = /^\[([^\]]+)\]\s*(?:#.*)?$/.exec(trimmed);
-    if (header) {
-      table = splitKey(header[1]);
-      continue;
-    }
-    const entry = TOML_STRING_LINE.exec(line);
-    if (
-      entry &&
-      table &&
-      [...table, ...splitKey(entry[2])].join('.') === target
-    ) {
-      const start = lineStart + entry[0].length - entry[5].length - 1;
-      ranges.push([start, start + entry[5].length]);
-    }
-  }
-  requireOneMatch(ranges, field, filePath);
-  return replaceRanges(content, ranges, version);
-}
-
-/** Splits a dotted TOML key, dropping quotes around its parts. */
-function splitKey(key: string): string[] {
-  return key
-    .split('.')
-    .map(part => part.trim().replace(/^(["'])(.*)\1$/, '$2'));
-}
-
-/**
- * Finds the scalar values at a dotted key path in YAML block mappings.
- * Values inside sequences and block scalars are never matched.
- */
-function findYamlValues(text: string, field: string): [number, number][] {
-  const target = field.split('.');
-  const ranges: [number, number][] = [];
-  const parents: { indent: number; key?: string }[] = [];
-  let blockScalarIndent = -1;
-  let offset = 0;
-  for (const rawLine of text.split('\n')) {
-    const lineStart = offset;
-    offset += rawLine.length + 1;
-    const line = rawLine.replace(/\r$/, '');
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) {
-      continue;
-    }
-    const indent = line.length - line.trimStart().length;
-    if (blockScalarIndent >= 0 && indent > blockScalarIndent) {
-      continue;
-    }
-    blockScalarIndent = -1;
-    while (parents.length && parents[parents.length - 1].indent >= indent) {
-      parents.pop();
-    }
-    if (trimmed === '-' || trimmed.startsWith('- ')) {
-      // Keys inside sequence items have no addressable path.
-      parents.push({ indent });
-      continue;
-    }
-    const entry = YAML_KEY_LINE.exec(line);
-    if (!entry) {
-      continue;
-    }
-    const key = entry[2] ?? entry[3] ?? entry[4];
-    const rest = entry[5];
-    const value = rest.trim();
-    if (!value || value.startsWith('#')) {
-      parents.push({ indent, key });
-      continue;
-    }
-    if (/^[|>]/.test(value)) {
-      blockScalarIndent = indent;
-      continue;
-    }
-    const keys = [...parents.map(parent => parent.key), key];
-    const scalar = YAML_SCALAR.exec(rest);
-    if (
-      scalar &&
-      keys.length === target.length &&
-      keys.every((part, index) => part === target[index])
-    ) {
-      const start =
-        lineStart +
-        line.length -
-        rest.length +
-        scalar[1].length +
-        scalar[2].length;
-      ranges.push([start, start + scalar[3].length]);
-    }
-  }
-  return ranges;
-}
-
-/**
- * Replaces the scalar at a dotted `field` path in YAML, keeping its quotes
- * and comments, then checks that a YAML parser reads the new version there.
- */
-function setYamlVersion(
-  content: string,
-  field: string,
-  version: string,
-  filePath: string,
-): string {
-  const ranges = findYamlValues(content, field);
-  requireOneMatch(ranges, field, filePath);
-  const updated = replaceRanges(content, ranges, version);
-  let parsed: unknown;
-  try {
-    parsed = load(updated);
-  } catch {
-    throw new ConfigurationError(`${filePath} is not valid YAML.`);
-  }
-  const value = field
-    .split('.')
-    .reduce<unknown>(
-      (node, key) => (node as Record<string, unknown> | undefined)?.[key],
-      parsed,
-    );
-  if (String(value) !== version) {
-    throw new ConfigurationError(
-      `Could not update "${field}" in ${filePath} without changing its YAML ` +
-        'structure. Use format: regex for this file.',
-    );
-  }
-  return updated;
-}
-
 /** Updates a YAML `field` in Markdown frontmatter. */
 function setFrontmatterVersion(
   content: string,
@@ -394,7 +223,7 @@ function setFrontmatterVersion(
   const [, opening, body = ''] = frontmatter;
   return (
     opening +
-    setYamlVersion(body, field, version, filePath) +
+    (setYamlVersion(body, field, version) ?? noFieldFound(filePath, field)) +
     content.slice(opening.length + body.length)
   );
 }

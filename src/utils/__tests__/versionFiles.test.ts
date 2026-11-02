@@ -133,10 +133,10 @@ describe('updateVersionFiles', () => {
 
       expect(() =>
         updateVersionFiles([{ path: 'none.md' }], repoRoot, '1.0.0'),
-      ).toThrow('found 0');
+      ).toThrow('none.md has no single "version" value to update.');
       expect(() =>
         updateVersionFiles([{ path: 'twice.md' }], repoRoot, '1.0.0'),
-      ).toThrow('found 2');
+      ).toThrow('twice.md has no single "version" value to update.');
       expect(() =>
         updateVersionFiles([{ path: 'plain.md' }], repoRoot, '1.0.0'),
       ).toThrow('plain.md has no YAML frontmatter.');
@@ -185,9 +185,7 @@ describe('updateVersionFiles', () => {
 
       expect(() =>
         updateVersionFiles([{ path: 'Cargo.toml' }], repoRoot, '1.0.0'),
-      ).toThrow(
-        'Cargo.toml must have exactly one "package.version" string value, found 0.',
-      );
+      ).toThrow('Cargo.toml has no single "package.version" value to update.');
     });
   });
 
