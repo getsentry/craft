@@ -31,7 +31,10 @@ import {
   VERSION_FILES_MIN_VERSION,
   WORKSPACES_MIN_VERSION,
 } from '../config';
-import { CraftProjectConfigSchema } from '../schemas/project_config';
+import {
+  CraftProjectConfigSchema,
+  getVersionFileFormat,
+} from '../schemas/project_config';
 import { logger } from '../logger';
 import { GitHubTarget } from '../targets/github';
 import { NoneArtifactProvider } from '../artifact_providers/none';
@@ -1205,11 +1208,7 @@ describe('versioning.files', () => {
   });
 
   test.each([
-    [
-      'an unknown format',
-      ['    - path: Cargo.toml'],
-      /Cannot infer the format/,
-    ],
+    ['an unknown format', ['    - path: VERSION'], /Cannot infer the format/],
     [
       'a regex without a pattern',
       ['    - path: v.txt', '      format: regex'],
@@ -1238,7 +1237,7 @@ describe('versioning.files', () => {
         "      pattern: '/(x)/'",
         '      field: version',
       ],
-      /format: regex uses "pattern" instead of "field"/,
+      /Only json, toml, yaml, frontmatter files support "field"/,
     ],
     [
       'an unknown key',
@@ -1259,6 +1258,20 @@ describe('versioning.files', () => {
     expect(() => loadConfigurationFromString(withFiles(...lines))).toThrow(
       message,
     );
+  });
+
+  test.each([
+    ['package.json', 'json'],
+    ['Cargo.toml', 'toml'],
+    ['pubspec.yml', 'yaml'],
+    ['docs/SKILL.md', 'frontmatter'],
+    ['src/Sdk.csproj', 'msbuild'],
+    ['Directory.Build.props', 'msbuild'],
+    ['sdk.gemspec', 'gem'],
+    ['lib/sdk/version.rb', 'gem'],
+    ['mix.exs', 'mix'],
+  ])('infers the format of %s', (path, format) => {
+    expect(getVersionFileFormat({ path })).toBe(format);
   });
 
   test('requires a minVersion that supports it', () => {

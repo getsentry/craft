@@ -32,6 +32,7 @@ import {
   isSymbolPackagePublished,
 } from '../utils/nugetRegistry';
 import { logger } from '../logger';
+import { setMsBuildVersion } from '../utils/versionPatterns';
 
 /** Command to launch dotnet tools */
 export const NUGET_DOTNET_BIN = process.env.NUGET_DOTNET_BIN || 'dotnet';
@@ -340,39 +341,9 @@ export class NugetTarget extends BaseTarget {
     newVersion: string,
   ): boolean {
     const content = readFileSync(filePath, 'utf-8');
-
-    // Match <Version>x.y.z</Version>, <VersionPrefix>x.y.z</VersionPrefix>, etc.
-    const versionPatterns = [
-      /(<Version>)([^<]+)(<\/Version>)/g,
-      /(<VersionPrefix>)([^<]+)(<\/VersionPrefix>)/g,
-      /(<PackageVersion>)([^<]+)(<\/PackageVersion>)/g,
-      /(<AssemblyVersion>)([^<]+)(<\/AssemblyVersion>)/g,
-      /(<FileVersion>)([^<]+)(<\/FileVersion>)/g,
-    ];
-
-    let newContent = content;
-    let updated = false;
-
-    for (const pattern of versionPatterns) {
-      if (pattern.test(newContent)) {
-        // Reset lastIndex for global regex
-        pattern.lastIndex = 0;
-        newContent = newContent.replace(pattern, `$1${newVersion}$3`);
-        updated = true;
-      }
-    }
-
-    if (!updated) {
+    const newContent = setMsBuildVersion(content, newVersion);
+    if (newContent === undefined) {
       return false;
-    }
-
-    // MSBuild appends <VersionSuffix> to <VersionPrefix>, so clear it to keep
-    // the package version equal to the full new version written above.
-    if (/<VersionPrefix>/.test(newContent)) {
-      newContent = newContent.replace(
-        /(<VersionSuffix>)[^<]*(<\/VersionSuffix>)/g,
-        '$1$2',
-      );
     }
 
     if (newContent === content) {

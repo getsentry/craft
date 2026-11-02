@@ -127,7 +127,7 @@ describe('updateVersionFiles', () => {
     });
 
     test('fails without exactly one top-level key', () => {
-      write('none.md', '---\nname: x\n  version: 1\n---\n');
+      write('none.md', '---\nmetadata:\n  version: 1\n---\n');
       write('twice.md', '---\nversion: 1\nversion: 2\n---\n');
       write('plain.md', '# No frontmatter\nversion: 1\n');
 
@@ -140,6 +140,139 @@ describe('updateVersionFiles', () => {
       expect(() =>
         updateVersionFiles([{ path: 'plain.md' }], repoRoot, '1.0.0'),
       ).toThrow('plain.md has no YAML frontmatter.');
+    });
+  });
+
+  describe('toml', () => {
+    test('updates the manifest key the target would bump', () => {
+      const cargo =
+        '[package]\nname = "cli"\nversion = "1.0.0" # bumped\n\n[dependencies]\nserde = { version = "1.0.0" }\n';
+      const pyproject =
+        "[build-system]\nrequires = ['hatchling']\n\n[project]\nname = 'sdk'\nversion = '1.0.0'\n";
+      write('crates/cli/Cargo.toml', cargo);
+      write('python/pyproject.toml', pyproject);
+
+      updateVersionFiles(
+        [{ path: 'crates/*/Cargo.toml' }, { path: 'python/pyproject.toml' }],
+        repoRoot,
+        '1.1.0',
+      );
+
+      expect(read('crates/cli/Cargo.toml')).toBe(
+        cargo.replace('version = "1.0.0" #', 'version = "1.1.0" #'),
+      );
+      expect(read('python/pyproject.toml')).toBe(
+        pyproject.replace("version = '1.0.0'", "version = '1.1.0'"),
+      );
+    });
+
+    test('updates a dotted field and ignores arrays of tables', () => {
+      const content =
+        '[[bin]]\nversion = "x"\n\n[tool.poetry]\nversion = "1.0.0"\n';
+      write('pyproject.toml', content);
+
+      updateVersionFiles(
+        [{ path: 'pyproject.toml', field: 'tool.poetry.version' }],
+        repoRoot,
+        '2.0.0',
+      );
+
+      expect(read('pyproject.toml')).toBe(content.replace('1.0.0', '2.0.0'));
+    });
+
+    test('fails when the key is not a string', () => {
+      write('Cargo.toml', '[package]\nversion.workspace = true\n');
+
+      expect(() =>
+        updateVersionFiles([{ path: 'Cargo.toml' }], repoRoot, '1.0.0'),
+      ).toThrow(
+        'Cargo.toml must have exactly one "package.version" string value, found 0.',
+      );
+    });
+  });
+
+  describe('yaml', () => {
+    test('updates a nested key and keeps comments', () => {
+      const content = [
+        'name: app',
+        'version: 1.0.0+1 # pub version',
+        'description: |',
+        '  version: not this',
+        'dependencies:',
+        '  - version: not this either',
+        'app:',
+        '  version: "1.0.0"',
+        '',
+      ].join('\n');
+      write('pubspec.yaml', content);
+
+      updateVersionFiles(
+        [
+          { path: 'pubspec.yaml' },
+          { path: 'pubspec.yaml', field: 'app.version' },
+        ],
+        repoRoot,
+        '1.1.0',
+      );
+
+      expect(read('pubspec.yaml')).toBe(
+        content.replace('1.0.0+1 #', '1.1.0 #').replace('"1.0.0"', '"1.1.0"'),
+      );
+    });
+  });
+
+  describe('target formats', () => {
+    test('msbuild updates version properties like the nuget target', () => {
+      write(
+        'src/Sdk/Sdk.csproj',
+        '<Project>\n  <PropertyGroup>\n    <VersionPrefix>1.0.0</VersionPrefix>\n    <VersionSuffix>dev</VersionSuffix>\n  </PropertyGroup>\n</Project>\n',
+      );
+
+      updateVersionFiles([{ path: 'src/**/*.csproj' }], repoRoot, '1.1.0');
+
+      expect(read('src/Sdk/Sdk.csproj')).toBe(
+        '<Project>\n  <PropertyGroup>\n    <VersionPrefix>1.1.0</VersionPrefix>\n    <VersionSuffix></VersionSuffix>\n  </PropertyGroup>\n</Project>\n',
+      );
+    });
+
+    test('gem updates gemspecs and version.rb like the gem target', () => {
+      write(
+        'sdk.gemspec',
+        'Gem::Specification.new do |s|\n  s.version = "1.0.0"\nend\n',
+      );
+      write('lib/sdk/version.rb', "module Sdk\n  VERSION = '1.0.0'\nend\n");
+
+      updateVersionFiles(
+        [{ path: '*.gemspec' }, { path: 'lib/**/version.rb' }],
+        repoRoot,
+        '1.1.0',
+      );
+
+      expect(read('sdk.gemspec')).toContain('s.version = "1.1.0"');
+      expect(read('lib/sdk/version.rb')).toContain("VERSION = '1.1.0'");
+    });
+
+    test('mix updates mix.exs like the hex target', () => {
+      write(
+        'mix.exs',
+        'defmodule Sdk.MixProject do\n  @version "1.0.0"\n  def project, do: [version: @version]\nend\n',
+      );
+
+      updateVersionFiles([{ path: 'mix.exs' }], repoRoot, '1.1.0');
+
+      expect(read('mix.exs')).toContain('@version "1.1.0"');
+    });
+
+    test('fails when a target format finds no version', () => {
+      write('Directory.Build.props', '<Project />');
+
+      expect(() =>
+        updateVersionFiles(
+          [{ path: 'Directory.Build.props' }],
+          repoRoot,
+          '1.0.0',
+        ),
+      ).toThrow('Directory.Build.props has no version to update.');
     });
   });
 

@@ -191,29 +191,50 @@ export const CalVerConfigSchema = object({
 
 export type CalVerConfig = InferOutput<typeof CalVerConfigSchema>;
 
-const VERSION_FILE_FORMATS = ['json', 'frontmatter', 'regex'] as const;
+const VERSION_FILE_FORMATS = [
+  'json',
+  'toml',
+  'yaml',
+  'frontmatter',
+  'msbuild',
+  'gem',
+  'mix',
+  'regex',
+] as const;
 
 export type VersionFileFormat = (typeof VERSION_FILE_FORMATS)[number];
 
+/** Formats that locate the version with a `field` key path */
+const FIELD_VERSION_FILE_FORMATS: readonly VersionFileFormat[] = [
+  'json',
+  'toml',
+  'yaml',
+  'frontmatter',
+];
+
+/** Format inferred from a path: the files Craft's version-bumping targets edit */
+const VERSION_FILE_FORMAT_BY_PATH: [RegExp, VersionFileFormat][] = [
+  [/\.json$/i, 'json'],
+  [/\.toml$/i, 'toml'],
+  [/\.ya?ml$/i, 'yaml'],
+  [/\.mdx?$/i, 'frontmatter'],
+  [/\.(?:csproj|fsproj|vbproj|props|targets)$/i, 'msbuild'],
+  [/(?:\.gemspec|(?:^|\/)version\.rb)$/i, 'gem'],
+  [/(?:^|\/)mix\.exs$/i, 'mix'],
+];
+
 /**
  * Returns the format of a `versioning.files` entry: the explicit `format`, or
- * one inferred from the path's extension (`.json` → `json`, `.md`/`.mdx` →
- * `frontmatter`). Returns undefined when neither applies.
+ * one inferred from the path. Returns undefined when neither applies.
  */
 export function getVersionFileFormat(file: {
   path: string;
   format?: VersionFileFormat;
 }): VersionFileFormat | undefined {
-  if (file.format) {
-    return file.format;
-  }
-  if (/\.json$/i.test(file.path)) {
-    return 'json';
-  }
-  if (/\.mdx?$/i.test(file.path)) {
-    return 'frontmatter';
-  }
-  return undefined;
+  return (
+    file.format ??
+    VERSION_FILE_FORMAT_BY_PATH.find(([regex]) => regex.test(file.path))?.[1]
+  );
 }
 
 /**
@@ -241,8 +262,9 @@ export const VersionFileConfigSchema = pipe(
     /** How to update the file; inferred from the extension when omitted. */
     format: optional(picklist(VERSION_FILE_FORMATS)),
     /**
-     * Key to update (default: `version`). A dotted path for `json`, a
-     * top-level key for `frontmatter`.
+     * Dotted key path to update for `json`, `toml`, `yaml`, and `frontmatter`
+     * files. Default: `version`, or `package.version` in `Cargo.toml` and
+     * `project.version` in `pyproject.toml`.
      */
     field: optional(pipe(string(), minLength(1))),
     /** `/source/flags` regex whose single capturing group is the version. */
@@ -261,7 +283,7 @@ export const VersionFileConfigSchema = pipe(
   forward(
     check(
       file => getVersionFileFormat(file) !== undefined,
-      'Cannot infer the format from the path. Set "format" to json, frontmatter, or regex.',
+      `Cannot infer the format from the path. Set "format" to one of: ${VERSION_FILE_FORMATS.join(', ')}.`,
     ),
     ['format'],
   ),
@@ -276,9 +298,14 @@ export const VersionFileConfigSchema = pipe(
   ),
   forward(
     check(
-      file =>
-        getVersionFileFormat(file) !== 'regex' || file.field === undefined,
-      'format: regex uses "pattern" instead of "field".',
+      file => {
+        const format = getVersionFileFormat(file);
+        return (
+          file.field === undefined ||
+          (format !== undefined && FIELD_VERSION_FILE_FORMATS.includes(format))
+        );
+      },
+      `Only ${FIELD_VERSION_FILE_FORMATS.join(', ')} files support "field".`,
     ),
     ['field'],
   ),

@@ -6,6 +6,7 @@ import { createGitClient } from '../utils/git';
 import { BaseTarget } from './base';
 import { withTempDir } from '../utils/files';
 import { checkExecutableIsPresent, spawnProcess } from '../utils/system';
+import { MIX_VERSION_PATTERNS } from '../utils/versionPatterns';
 import { GitHubGlobalConfig, TargetConfig } from '../schemas/project_config';
 import { BaseArtifactProvider } from '../artifact_providers/base';
 import { reportError } from '../utils/errors';
@@ -17,12 +18,6 @@ const DEFAULT_MIX_BIN = 'mix';
  * Command to launch mix
  */
 const MIX_BIN = process.env.MIX_BIN || DEFAULT_MIX_BIN;
-
-/** Match `version: "1.0.0"` and `@version "1.0.0"` in mix.exs */
-const MIX_VERSION_PATTERNS = [
-  /^(\s*version:\s*["'])([^"']+)(["'])/m,
-  /^(\s*@version\s+["'])([^"']+)(["'])/m,
-];
 
 /**
  * Target responsible for publishing releases to Hex, the Elixir/Erlang package manager.

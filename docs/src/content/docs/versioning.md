@@ -157,12 +157,14 @@ version into each one during the automatic bump:
 minVersion: '3.7.0'
 versioning:
   files:
-    # JSON: updates the `version` field
+    # Updates the `version` field
     - path: packages/mcp-server/package.json
     # Writes 1.2.0 for a 1.2.0-dev.0 release
     - path: plugins/cli/.claude-plugin/plugin.json
       stripPrerelease: true
-    # Markdown: updates the `version:` key in the YAML frontmatter
+    # Updates `package.version`
+    - path: crates/*/Cargo.toml
+    # Updates the `version:` key in the YAML frontmatter
     - path: plugins/cli/skills/**/*.md
     # Anything else: replaces the capturing group of every match
     - path: src/sdk/_version.py
@@ -170,18 +172,35 @@ versioning:
       pattern: '/__version__ = "([^"]+)"/'
 ```
 
+Craft picks the format from the file name, so it can update every kind of
+file its version-bumping targets update:
+
+| `format` | Inferred for | Updates |
+| --- | --- | --- |
+| `json` | `*.json` | The string at `field`. Default: `version`. |
+| `toml` | `*.toml` | The string at `field`. Default: `package.version` in `Cargo.toml`, `project.version` in `pyproject.toml`, otherwise `version`. |
+| `yaml` | `*.yaml`, `*.yml` | The value at `field`. Default: `version`. |
+| `frontmatter` | `*.md`, `*.mdx` | The value at `field` in the YAML frontmatter. Default: `version`. |
+| `msbuild` | `*.csproj`, `*.fsproj`, `*.vbproj`, `*.props`, `*.targets` | `<Version>`, `<VersionPrefix>`, `<PackageVersion>`, `<AssemblyVersion>`, and `<FileVersion>`, like the `nuget` target. Clears `<VersionSuffix>` when there's a `<VersionPrefix>`. |
+| `gem` | `*.gemspec`, `version.rb` | `spec.version = "…"` and `VERSION = "…"`, like the `gem` target. |
+| `mix` | `mix.exs` | `version: "…"` and `@version "…"`, like the `hex` target. |
+| `regex` | Never inferred | The capturing group of every match of `pattern`. |
+
+Each entry accepts:
+
 | Option | Description |
 | --- | --- |
 | `path` | File or glob, relative to the repository root. Paths can't contain `..`, and matches that resolve outside the repository are ignored. |
-| `format` | `json`, `frontmatter`, or `regex`. Defaults to `json` for `.json` files and `frontmatter` for `.md` and `.mdx` files. |
-| `field` | Key to update. Default: `version`. A dotted path such as `expo.version` for `json`, a top-level key for `frontmatter`. |
+| `format` | One of the formats above. Required when Craft can't infer it from the path. |
+| `field` | For `json`, `toml`, `yaml`, and `frontmatter`: the dotted key path to update, such as `expo.version` or `tool.poetry.version`. |
 | `pattern` | For `regex` only: a `/source/flags` regular expression with exactly one capturing group, which Craft replaces with the version. |
 | `stripPrerelease` | Write only `major.minor.patch`, without prerelease or build metadata. Default: `false`. |
 
 Craft only changes the version value and leaves the rest of each file as it
-is. `craft prepare` fails before writing anything when a path matches no files,
-or when a matched file has nothing to update: no such JSON field, no single
-top-level frontmatter key, or no match for the pattern.
+is. In TOML and YAML files, it needs exactly one value at `field`, and it
+skips TOML arrays of tables and YAML sequences and block scalars. `craft prepare`
+fails before writing anything when a path matches no files, or when a matched
+file has nothing to update.
 
 `versioning.files` needs `minVersion: '3.7.0'` or higher and is part of
 automatic version bumping, so it can't be combined with `preReleaseCommand`.
