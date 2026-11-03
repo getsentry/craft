@@ -79,79 +79,78 @@ describe('getLatestTag', () => {
   });
 });
 
-describe('getLatestStableTag', () => {
-  it('returns the latest tag when it is stable', async () => {
-    const git = { raw: vi.fn().mockResolvedValue('1.0.0\n') } as any;
+describe('release base tags', () => {
+  let dir: string;
+  let client: ReturnType<typeof createGitClient>;
 
-    expect(await getLatestStableTag(git)).toBe('1.0.0');
-    expect(git.raw).toHaveBeenCalledTimes(1);
-  });
-
-  it('skips prerelease tags until it reaches a stable one', async () => {
-    const git = {
-      raw: vi
-        .fn()
-        .mockResolvedValueOnce('cli@2.0.0-alpha.2')
-        .mockResolvedValueOnce('cli@2.0.0-alpha.1')
-        .mockResolvedValueOnce('cli@1.9.0'),
-    } as any;
-
-    expect(await getLatestStableTag(git, 'cli@')).toBe('cli@1.9.0');
-    expect(git.raw).toHaveBeenLastCalledWith([
-      'describe',
-      '--tags',
-      '--abbrev=0',
-      '--match',
-      'cli@*',
-      '--exclude',
-      'cli@2.0.0-alpha.2',
-      '--exclude',
-      'cli@2.0.0-alpha.1',
-    ]);
-  });
-
-  it('returns an empty string when only prerelease tags are reachable', async () => {
-    const git = {
-      raw: vi
-        .fn()
-        .mockResolvedValueOnce('1.0.0-rc.1')
-        .mockRejectedValueOnce(
-          new Error("fatal: No tags can describe 'abc123'."),
-        ),
-    } as any;
-
-    expect(await getLatestStableTag(git)).toBe('');
-  });
-});
-
-describe('getChangelogBaseTag', () => {
-  function describeTags(...tags: string[]) {
-    const raw = vi.fn();
-    for (const tag of tags) {
-      raw.mockResolvedValueOnce(tag);
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), 'craft-release-tags-'));
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-C', dir, ...args], {
+        env: {
+          ...process.env,
+          GIT_CONFIG_GLOBAL: '/dev/null',
+          GIT_CONFIG_NOSYSTEM: '1',
+        },
+      });
+    git('init', '--quiet');
+    git('config', 'user.name', 'Craft Test');
+    git('config', 'user.email', 'craft-test@example.com');
+    // Each release gets its own commit, so the tags form a linear history.
+    // Unprefixed lookups match every tag, so the prefixed workspace tags come
+    // before the unprefixed ones.
+    for (const tag of [
+      'cli@1.0.0',
+      'cli@1.1.0-alpha.0',
+      'mcp@1.0.0-alpha.0',
+      '1.9.0',
+      '2.0.0-alpha.0',
+      '2.0.0-alpha.1',
+      '',
+    ]) {
+      git(
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '--quiet',
+        '--allow-empty',
+        '-m',
+        tag ? `release: ${tag}` : 'Unreleased change',
+      );
+      if (tag) {
+        git('tag', tag);
+      }
     }
-    return { raw } as any;
-  }
-
-  it('follows the latest stable tag for a stable release', async () => {
-    const git = describeTags('2.0.0-alpha.1', '1.1.0-alpha.0', '1.0.0');
-
-    expect(await getChangelogBaseTag(git, '2.0.0')).toBe('1.0.0');
+    client = createGitClient(dir);
   });
 
-  it('follows the previous prerelease of the same series', async () => {
-    const git = describeTags('2.0.0-alpha.4', '1.9.0');
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
 
-    expect(await getChangelogBaseTag(git, '2.0.0-alpha.5')).toBe(
-      '2.0.0-alpha.4',
+  it('finds the latest stable tag past newer prereleases', async () => {
+    expect(await getLatestStableTag(client)).toBe('1.9.0');
+    expect(await getLatestStableTag(client, 'cli@')).toBe('cli@1.0.0');
+  });
+
+  it('finds no stable tag when only prereleases match the prefix', async () => {
+    expect(await getLatestStableTag(client, 'mcp@')).toBe('');
+  });
+
+  it('bases a stable release on the latest stable tag', async () => {
+    expect(await getChangelogBaseTag(client, '2.0.0')).toBe('1.9.0');
+  });
+
+  it('bases a prerelease on the previous prerelease of its version', async () => {
+    expect(await getChangelogBaseTag(client, '2.0.0-alpha.2')).toBe(
+      '2.0.0-alpha.1',
     );
   });
 
-  it('follows the latest stable tag for a new prerelease series', async () => {
-    const git = describeTags('cli@2.0.0-alpha.3', 'cli@1.9.0');
-
-    expect(await getChangelogBaseTag(git, '2.1.0-alpha.0', 'cli@')).toBe(
-      'cli@1.9.0',
+  it('bases the first prerelease of a version on the latest stable tag', async () => {
+    expect(await getChangelogBaseTag(client, '2.1.0-alpha.0')).toBe('1.9.0');
+    expect(await getChangelogBaseTag(client, '1.2.0-alpha.0', 'cli@')).toBe(
+      'cli@1.0.0',
     );
   });
 });

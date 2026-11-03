@@ -64,7 +64,7 @@ Craft reads it from the files of the first configured target that
 above `0.0.0`. Without one, they increment `0.0.0`.
 
 After a prerelease, bump types and `auto` promote it to a stable release:
-`2.0.0-alpha.3` becomes `2.0.0`, or a higher version when the bump needs one.
+`2.1.0-alpha.3` becomes `2.1.0`, or a higher version when the bump needs one.
 To be safe, `auto` doesn't promote a prerelease to a major release: after
 `2.0.0-alpha.3` it cuts `2.0.0-alpha.4`. Pass `2.0.0` or `major` to release
 `2.0.0`.
@@ -75,7 +75,8 @@ After `1.9.0`, it cuts `1.9.1-alpha.0` when `auto` picks a patch bump,
 the latest tag is already a prerelease of that version, `pre` cuts the next one
 instead: `1.10.0-alpha.1` after `1.10.0-alpha.0`.
 
-Bump types, `auto`, `pre`, and `calver` require `minVersion: '2.14.0'` or later.
+Bump types, `auto`, and `calver` require `minVersion: '2.14.0'` or later, and
+`pre` requires `minVersion: '3.9.0'` or later.
 
 ### Changelog base
 

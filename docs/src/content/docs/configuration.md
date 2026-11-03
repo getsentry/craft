@@ -61,6 +61,7 @@ projects keep their behavior when Craft is upgraded:
 | `2.21.0` | [Automatic version bumping](../versioning/#automatic-version-bumping) when no `preReleaseCommand` is set. |
 | `2.29.0` | [Release workspaces](../workspaces/). |
 | `3.8.0` | [Extra version files](../versioning/#extra-version-files) with `versioning.files`. |
+| `3.9.0` | The [`pre` version](../versioning/#choosing-the-next-version) for the next prerelease. |
 
 ## github
 

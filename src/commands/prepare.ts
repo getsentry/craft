@@ -75,6 +75,9 @@ export const description = '🚢 Prepare a new release branch';
 /** Minimum craft version required for auto-versioning */
 const AUTO_VERSION_MIN_VERSION = '2.14.0';
 
+/** Minimum craft version required for the `pre` version */
+const PRERELEASE_VERSION_MIN_VERSION = '3.9.0';
+
 export const builder: CommandBuilder = (yargs: Argv) =>
   yargs
     .positional('NEW-VERSION', {
@@ -696,6 +699,16 @@ async function resolveVersion(
         : 'Auto-versioning';
       throw new ConfigurationError(
         `${featureName} requires minVersion >= ${AUTO_VERSION_MIN_VERSION} in .craft.yml. ` +
+          'Please update your configuration or specify the version explicitly.',
+      );
+    }
+
+    if (
+      version === 'pre' &&
+      !requiresMinVersion(PRERELEASE_VERSION_MIN_VERSION)
+    ) {
+      throw new ConfigurationError(
+        `The "pre" version requires minVersion >= ${PRERELEASE_VERSION_MIN_VERSION} in .craft.yml. ` +
           'Please update your configuration or specify the version explicitly.',
       );
     }
