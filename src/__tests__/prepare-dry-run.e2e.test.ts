@@ -701,6 +701,44 @@ targets: []
     expect(combinedOutput).toContain('release/1.1.0');
   }, 60000);
 
+  test('promotes the latest prerelease with changes since the last stable release', async () => {
+    tempDir = await createTestRepo();
+    // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+    const git = simpleGit(tempDir);
+    await writeFile(
+      join(tempDir, '.craft.yml'),
+      `minVersion: "2.14.0"
+github:
+  owner: test-owner
+  repo: test-repo
+versioning:
+  policy: auto
+changelog:
+  policy: auto
+preReleaseCommand: ""
+targets: []
+`,
+    );
+    await git.add('.');
+    await git.commit('feat: Enable automatic versioning');
+    await git.addTag('1.1.0-alpha.1');
+    await git.push('origin', (await git.status()).current!);
+
+    // No commits since the prerelease, so only the changes since the last
+    // stable release can determine the version.
+    const { stdout, stderr } = await execFileAsync(
+      CLI_BIN,
+      ['prepare', '--dry-run', '--no-input'],
+      { cwd: tempDir, env: { ...CLI_ENV, GITHUB_TOKEN: '' } },
+    );
+
+    const output = stdout + stderr;
+    expect(output).toContain('Analyzing commits since 1.0.0');
+    expect(output).toContain('Version bump: 1.1.0-alpha.1 -> 1.1.0');
+    expect(output).toContain('## 1.1.0');
+    expect(output).toContain('Add foo feature');
+  }, 60000);
+
   test('prepares a workspace changelog without changing the root changelog', async () => {
     tempDir = await createTestRepo();
     // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access

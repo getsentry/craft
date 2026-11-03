@@ -62,6 +62,12 @@ Craft reads it from the files of the first configured target that
 [supports version bumping](#supported-targets) and declares a semver version
 above `0.0.0`. Without one, they increment `0.0.0`.
 
+After a prerelease, bump types and `auto` promote it to a stable release:
+`2.0.0-alpha.3` becomes `2.0.0`, or a higher version when the bump needs one.
+`auto` picks the bump from the commits since the latest *stable* tag, and the
+changelog of a stable release lists the changes since that tag, including those
+already shipped in prereleases.
+
 Bump types, `auto`, and `calver` require `minVersion: '2.14.0'` or later.
 
 ### Versioning policies

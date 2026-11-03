@@ -7,6 +7,7 @@ import {
   createGitClient,
   getGitClient,
   getChangesSince,
+  getLatestStableTag,
   getLatestTag,
   isRepoDirty,
   findReleaseBranches,
@@ -74,6 +75,51 @@ describe('getLatestTag', () => {
 
     const latestTag = await getLatestTag(git, 'mcp@');
     expect(latestTag).toBe('');
+  });
+});
+
+describe('getLatestStableTag', () => {
+  it('returns the latest tag when it is stable', async () => {
+    const git = { raw: vi.fn().mockResolvedValue('1.0.0\n') } as any;
+
+    expect(await getLatestStableTag(git)).toBe('1.0.0');
+    expect(git.raw).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips prerelease tags until it reaches a stable one', async () => {
+    const git = {
+      raw: vi
+        .fn()
+        .mockResolvedValueOnce('cli@2.0.0-alpha.2')
+        .mockResolvedValueOnce('cli@2.0.0-alpha.1')
+        .mockResolvedValueOnce('cli@1.9.0'),
+    } as any;
+
+    expect(await getLatestStableTag(git, 'cli@')).toBe('cli@1.9.0');
+    expect(git.raw).toHaveBeenLastCalledWith([
+      'describe',
+      '--tags',
+      '--abbrev=0',
+      '--match',
+      'cli@*',
+      '--exclude',
+      'cli@2.0.0-alpha.2',
+      '--exclude',
+      'cli@2.0.0-alpha.1',
+    ]);
+  });
+
+  it('returns an empty string when only prerelease tags are reachable', async () => {
+    const git = {
+      raw: vi
+        .fn()
+        .mockResolvedValueOnce('1.0.0-rc.1')
+        .mockRejectedValueOnce(
+          new Error("fatal: No tags can describe 'abc123'."),
+        ),
+    } as any;
+
+    expect(await getLatestStableTag(git)).toBe('');
   });
 });
 

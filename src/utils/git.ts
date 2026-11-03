@@ -25,6 +25,7 @@ import { logger } from '../logger';
 import { distance as levenshtein } from 'fastest-levenshtein';
 import path from 'node:path';
 import { discoverWorkspaces } from './workspaces';
+import { parseVersion } from './version';
 
 export interface GitChange {
   hash: string;
@@ -71,6 +72,37 @@ export async function getLatestTag(
   git: SimpleGit,
   tagPrefix = '',
 ): Promise<string> {
+  return describeLatestTag(git, tagPrefix, []);
+}
+
+/**
+ * Returns the latest tag whose version is not a prerelease, or an empty string
+ * when there is none.
+ *
+ * A stable release that follows prereleases (e.g. `2.0.0` after
+ * `2.0.0-alpha.3`) contains every change since the previous stable release,
+ * so that release, not the latest prerelease, is the base for its version
+ * bump and changelog.
+ */
+export async function getLatestStableTag(
+  git: SimpleGit,
+  tagPrefix = '',
+): Promise<string> {
+  const prereleaseTags: string[] = [];
+  for (;;) {
+    const tag = await describeLatestTag(git, tagPrefix, prereleaseTags);
+    if (!tag || !parseVersion(tag.slice(tagPrefix.length))?.pre) {
+      return tag;
+    }
+    prereleaseTags.push(tag);
+  }
+}
+
+async function describeLatestTag(
+  git: SimpleGit,
+  tagPrefix: string,
+  excludedTags: string[],
+): Promise<string> {
   try {
     // This part is courtesy of https://stackoverflow.com/a/7261049/90297
     const args = ['describe', '--tags', '--abbrev=0'];
@@ -81,12 +113,16 @@ export async function getLatestTag(
       // is resolved per-product instead of picking whatever is newest overall.
       args.push('--match', `${tagPrefix}*`);
     }
+    for (const tag of excludedTags) {
+      args.push('--exclude', tag);
+    }
     return (await git.raw(args)).trim();
   } catch (err) {
     // If there are no tags, return an empty string
     if (
       err instanceof Error &&
       (err.message.startsWith('fatal: No names found') ||
+        err.message.startsWith('fatal: No tags can describe') ||
         err.message.startsWith('Nothing to describe'))
     ) {
       return '';

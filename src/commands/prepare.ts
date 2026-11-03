@@ -44,6 +44,7 @@ import {
 import {
   getDefaultBranch,
   getGitClient,
+  getLatestStableTag,
   getLatestTag,
   isRepoDirty,
 } from '../utils/git';
@@ -58,7 +59,7 @@ import {
 import { formatJson } from '../utils/strings';
 import { runPreReleaseCommand } from '../utils/preReleaseCommand';
 import { withTracing } from '../utils/tracing';
-import { getVersion, isValidVersion } from '../utils/version';
+import { getVersion, isValidVersion, parseVersion } from '../utils/version';
 import { readProjectVersion } from '../utils/versionBump';
 
 import { type PublishOptions, handler as publishMainHandler } from './publish';
@@ -693,7 +694,12 @@ async function resolveVersion(
     // Determine bump type - either from arg or from commit analysis
     let bumpType: BumpType;
     if (version === 'auto') {
-      const changelogResult = await getChangelogWithBumpType(git, latestTag);
+      // Bumps always produce a stable version, which ships every change since
+      // the last stable release, including those already in prereleases.
+      const changelogResult = await getChangelogWithBumpType(
+        git,
+        await getLatestStableTag(git, getGitTagPrefix()),
+      );
       validateBumpType(changelogResult);
       bumpType = changelogResult.bumpType;
     } else {
@@ -702,7 +708,8 @@ async function resolveVersion(
 
     // Calculate new version from the latest tag. Before the first tag, start
     // from the version in the release unit's project files, so a workspace at
-    // `1.0.0-dev.0` releases `1.0.0` instead of a bump of `0.0.0`.
+    // `1.0.0-dev.0` releases `1.0.0` instead of a bump of `0.0.0`. Bumping a
+    // prerelease promotes it, so `2.0.0-alpha.3` releases `2.0.0`.
     const currentVersion =
       (latestTag && getVersion(latestTag)) ||
       (await readProjectVersion(config.targets || [], getReleaseUnitDir())) ||
@@ -802,13 +809,18 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     // TL;DR - WARNING:
     // The order matters here, do not move this command above createReleaseBranch!
     const oldVersion = await getLatestTag(git, getGitTagPrefix());
+    // A stable release lists every change since the last stable release, so
+    // its changelog covers the prereleases before it as well.
+    const changelogBase = parseVersion(newVersion)?.pre
+      ? oldVersion
+      : await getLatestStableTag(git, getGitTagPrefix());
 
     // Check & update the changelog with the selected workspace's default path.
     const { filePath: changelogPath, policy: changelogPolicy } =
       getChangelogConfig();
     const changelogBody = await prepareChangelog(
       git,
-      oldVersion,
+      changelogBase,
       newVersion,
       argv.noChangelog ? ChangelogPolicy.None : changelogPolicy,
       changelogPath,
@@ -852,7 +864,7 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     const releaseSha = await git.revparse(['HEAD']);
     setGitHubActionsOutput('branch', branchName);
     setGitHubActionsOutput('sha', releaseSha);
-    setGitHubActionsOutput('previous_tag', oldVersion || '');
+    setGitHubActionsOutput('previous_tag', changelogBase || '');
     setGitHubActionsOutput('targets', JSON.stringify(targetIds));
     if (changelogBody) {
       // For CalVer releases, replace @-mentions with bold formatting in the
