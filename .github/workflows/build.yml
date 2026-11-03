@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    environment: ${{ github.ref == 'refs/heads/master' && 'production' }}
+    environment: ${{ github.ref == 'refs/heads/master' && 'production' || '' }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
