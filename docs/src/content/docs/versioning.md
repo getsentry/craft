@@ -52,7 +52,8 @@ Pass the version to `craft prepare` in one of these forms:
 | --- | --- |
 | `1.2.3` | Release exactly this version. |
 | `major`, `minor`, `patch` | Increment the latest tag. |
-| `auto` | Pick the bump from the commits since the latest tag, using the `semver` field of each [changelog category](../changelogs/#craft-extensions-to-releaseyml). |
+| `auto` | Pick the bump from the commits since the latest stable tag, using the `semver` field of each [changelog category](../changelogs/#craft-extensions-to-releaseyml). |
+| `pre` | Cut the next prerelease for the bump `auto` would pick. |
 | `calver` | Compute a [calendar version](#calendar-versioning-calver). |
 | *(omitted)* | Use `versioning.policy`. |
 
@@ -64,11 +65,26 @@ above `0.0.0`. Without one, they increment `0.0.0`.
 
 After a prerelease, bump types and `auto` promote it to a stable release:
 `2.0.0-alpha.3` becomes `2.0.0`, or a higher version when the bump needs one.
-`auto` picks the bump from the commits since the latest *stable* tag, and the
-changelog of a stable release lists the changes since that tag, including those
-already shipped in prereleases.
+To be safe, `auto` doesn't promote a prerelease to a major release: after
+`2.0.0-alpha.3` it cuts `2.0.0-alpha.4`. Pass `2.0.0` or `major` to release
+`2.0.0`.
 
-Bump types, `auto`, and `calver` require `minVersion: '2.14.0'` or later.
+`pre` continues the latest prerelease series when the bump stays in it
+(`2.0.0-alpha.3` becomes `2.0.0-alpha.4`) and starts a new one otherwise
+(`1.9.0` with a major bump becomes `2.0.0-alpha.0`).
+
+Bump types, `auto`, `pre`, and `calver` require `minVersion: '2.14.0'` or later.
+
+### Changelog base
+
+The changelog of a release lists the changes since:
+
+- **Stable release**: the latest stable tag, including the changes already in
+  the prereleases since then. `2.0.0` lists the changes since `1.9.0`.
+- **Prerelease**: the previous prerelease of the same `major.minor.patch`, or
+  the latest stable tag when there is none. `2.0.0-alpha.4` lists the changes
+  since `2.0.0-alpha.3`, and `2.1.0-alpha.0` lists the changes since `2.0.4`,
+  not since `2.0.0-alpha.3`.
 
 ### Versioning policies
 

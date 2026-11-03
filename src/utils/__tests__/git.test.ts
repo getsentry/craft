@@ -7,6 +7,7 @@ import {
   createGitClient,
   getGitClient,
   getChangesSince,
+  getChangelogBaseTag,
   getLatestStableTag,
   getLatestTag,
   isRepoDirty,
@@ -120,6 +121,38 @@ describe('getLatestStableTag', () => {
     } as any;
 
     expect(await getLatestStableTag(git)).toBe('');
+  });
+});
+
+describe('getChangelogBaseTag', () => {
+  function describeTags(...tags: string[]) {
+    const raw = vi.fn();
+    for (const tag of tags) {
+      raw.mockResolvedValueOnce(tag);
+    }
+    return { raw } as any;
+  }
+
+  it('follows the latest stable tag for a stable release', async () => {
+    const git = describeTags('2.0.0-alpha.1', '1.1.0-alpha.0', '1.0.0');
+
+    expect(await getChangelogBaseTag(git, '2.0.0')).toBe('1.0.0');
+  });
+
+  it('follows the previous prerelease of the same series', async () => {
+    const git = describeTags('2.0.0-alpha.4', '1.9.0');
+
+    expect(await getChangelogBaseTag(git, '2.0.0-alpha.5')).toBe(
+      '2.0.0-alpha.4',
+    );
+  });
+
+  it('follows the latest stable tag for a new prerelease series', async () => {
+    const git = describeTags('cli@2.0.0-alpha.3', 'cli@1.9.0');
+
+    expect(await getChangelogBaseTag(git, '2.1.0-alpha.0', 'cli@')).toBe(
+      'cli@1.9.0',
+    );
   });
 });
 

@@ -1,6 +1,7 @@
 import { existsSync, promises as fsPromises } from 'fs';
 import { relative } from 'path';
 
+import * as semver from 'semver';
 import type { SimpleGit, StatusResult } from 'simple-git';
 import type { Arguments, Argv, CommandBuilder } from 'yargs';
 import { createDryRunIsolation, safeFs } from '../utils/dryRun';
@@ -22,6 +23,7 @@ import { ChangelogPolicy, VersioningPolicy } from '../schemas/project_config';
 import { sleep } from '../utils/async';
 import {
   type BumpType,
+  calculateNextPrerelease,
   calculateNextVersion,
   getChangelogWithBumpType,
   isBumpType,
@@ -44,6 +46,7 @@ import {
 import {
   getDefaultBranch,
   getGitClient,
+  getChangelogBaseTag,
   getLatestStableTag,
   getLatestTag,
   isRepoDirty,
@@ -78,7 +81,8 @@ export const builder: CommandBuilder = (yargs: Argv) =>
       description:
         'The new version to release. Can be: a semver string (e.g., "1.2.3"), ' +
         'a bump type ("major", "minor", or "patch"), "auto" to determine automatically ' +
-        'from conventional commits, or "calver" for calendar versioning. ' +
+        'from conventional commits, "pre" for the next prerelease, or "calver" ' +
+        'for calendar versioning. ' +
         'If omitted, uses the versioning.policy from .craft.yml',
       type: 'string',
     })
@@ -157,7 +161,8 @@ const SLEEP_BEFORE_PUBLISH_SECONDS = 30;
  * Checks the provided version argument for validity
  *
  * We check that the argument is either a valid version string, 'auto' for
- * automatic version detection, 'calver' for calendar versioning, a version
+ * automatic version detection, 'pre' for the next prerelease, 'calver' for
+ * calendar versioning, a version
  * bump type (major/minor/patch), or a valid semantic version.
  * Empty/undefined is also allowed (will use versioning.policy from config).
  *
@@ -174,6 +179,11 @@ export function checkVersionOrPart(argv: Arguments<any>, _opt: any): boolean {
 
   // Allow 'auto' for automatic version detection
   if (version === 'auto') {
+    return true;
+  }
+
+  // Allow 'pre' for the next prerelease
+  if (version === 'pre') {
     return true;
   }
 
@@ -604,7 +614,7 @@ async function switchToDefaultBranch(
 }
 
 interface ResolveVersionOptions {
-  /** The raw version input from CLI (may be undefined, 'auto', 'calver', bump type, or semver) */
+  /** The raw version input from CLI (may be undefined, 'auto', 'pre', 'calver', bump type, or semver) */
   versionArg?: string;
   /** Override for CalVer offset (days to go back) */
   calverOffset?: number;
@@ -617,10 +627,11 @@ interface ResolveVersionOptions {
  * - No input: uses versioning.policy from config
  * - 'calver': calculates calendar version
  * - 'auto': analyzes commits to determine bump type
+ * - 'pre': analyzes commits to determine the next prerelease
  * - 'major'/'minor'/'patch': applies bump to latest tag
  * - Explicit semver: returns as-is
  *
- * Before the first tag, 'auto' and bump types start from the version in the
+ * Before the first tag, 'auto', 'pre', and bump types start from the version in the
  * release unit's project files, read by its targets (see readProjectVersion).
  *
  * @param git Local git client
@@ -678,7 +689,7 @@ async function resolveVersion(
   }
 
   // Handle automatic version detection or version bump types
-  if (version === 'auto' || isBumpType(version)) {
+  if (version === 'auto' || version === 'pre' || isBumpType(version)) {
     if (!requiresMinVersion(AUTO_VERSION_MIN_VERSION)) {
       const featureName = isBumpType(version)
         ? 'Version bump types'
@@ -693,9 +704,9 @@ async function resolveVersion(
 
     // Determine bump type - either from arg or from commit analysis
     let bumpType: BumpType;
-    if (version === 'auto') {
-      // Bumps always produce a stable version, which ships every change since
-      // the last stable release, including those already in prereleases.
+    if (version === 'auto' || version === 'pre') {
+      // The next release ships every change since the last stable release,
+      // including those already in prereleases.
       const changelogResult = await getChangelogWithBumpType(
         git,
         await getLatestStableTag(git, getGitTagPrefix()),
@@ -715,7 +726,26 @@ async function resolveVersion(
       (await readProjectVersion(config.targets || [], getReleaseUnitDir())) ||
       '0.0.0';
 
-    const newVersion = calculateNextVersion(currentVersion, bumpType);
+    let newVersion = calculateNextVersion(currentVersion, bumpType);
+    if (version === 'pre') {
+      newVersion = calculateNextPrerelease(currentVersion, bumpType);
+    } else if (
+      version === 'auto' &&
+      latestTag &&
+      parseVersion(currentVersion)?.pre &&
+      semver.minor(newVersion) === 0 &&
+      semver.patch(newVersion) === 0
+    ) {
+      // A major release after prereleases is cut explicitly, so `auto` keeps
+      // cutting prereleases until someone asks for the stable release.
+      const prerelease = calculateNextPrerelease(currentVersion, bumpType);
+      logger.info(
+        `The latest release ${currentVersion} is a prerelease and ${newVersion} ` +
+          `is a major release, so releasing ${prerelease} instead. ` +
+          `Run "craft prepare ${newVersion}" to release ${newVersion}.`,
+      );
+      newVersion = prerelease;
+    }
     logger.info(
       `Version bump: ${currentVersion} -> ${newVersion} (${bumpType} bump)`,
     );
@@ -809,11 +839,11 @@ export async function prepareMain(argv: PrepareOptions): Promise<any> {
     // TL;DR - WARNING:
     // The order matters here, do not move this command above createReleaseBranch!
     const oldVersion = await getLatestTag(git, getGitTagPrefix());
-    // A stable release lists every change since the last stable release, so
-    // its changelog covers the prereleases before it as well.
-    const changelogBase = parseVersion(newVersion)?.pre
-      ? oldVersion
-      : await getLatestStableTag(git, getGitTagPrefix());
+    const changelogBase = await getChangelogBaseTag(
+      git,
+      newVersion,
+      getGitTagPrefix(),
+    );
 
     // Check & update the changelog with the selected workspace's default path.
     const { filePath: changelogPath, policy: changelogPolicy } =

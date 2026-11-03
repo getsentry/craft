@@ -25,7 +25,7 @@ import { logger } from '../logger';
 import { distance as levenshtein } from 'fastest-levenshtein';
 import path from 'node:path';
 import { discoverWorkspaces } from './workspaces';
-import { parseVersion } from './version';
+import { parseVersion, type SemVer } from './version';
 
 export interface GitChange {
   hash: string;
@@ -79,22 +79,57 @@ export async function getLatestTag(
  * Returns the latest tag whose version is not a prerelease, or an empty string
  * when there is none.
  *
- * A stable release that follows prereleases (e.g. `2.0.0` after
- * `2.0.0-alpha.3`) contains every change since the previous stable release,
- * so that release, not the latest prerelease, is the base for its version
- * bump and changelog.
+ * The next release contains every change since the latest stable release,
+ * including those already in prereleases, so that release is the base for
+ * picking its version bump.
  */
 export async function getLatestStableTag(
   git: SimpleGit,
   tagPrefix = '',
 ): Promise<string> {
-  const prereleaseTags: string[] = [];
+  return findLatestTag(git, tagPrefix, tagVersion => !tagVersion?.pre);
+}
+
+/**
+ * Returns the tag whose changes a release of `version` follows, or an empty
+ * string when there is none.
+ *
+ * A stable release follows the latest stable tag. A prerelease follows the
+ * latest prerelease of the same `major.minor.patch` (`2.0.0-alpha.3` follows
+ * `2.0.0-alpha.2`), or the latest stable tag when it starts a new series
+ * (`2.1.0-alpha.0` follows `2.0.4`, not `2.0.0-alpha.3`).
+ */
+export async function getChangelogBaseTag(
+  git: SimpleGit,
+  version: string,
+  tagPrefix = '',
+): Promise<string> {
+  const release = parseVersion(version);
+  return findLatestTag(
+    git,
+    tagPrefix,
+    tagVersion =>
+      !tagVersion?.pre ||
+      (!!release?.pre &&
+        tagVersion.major === release.major &&
+        tagVersion.minor === release.minor &&
+        tagVersion.patch === release.patch),
+  );
+}
+
+/** Returns the latest tag whose version `accept` accepts. */
+async function findLatestTag(
+  git: SimpleGit,
+  tagPrefix: string,
+  accept: (tagVersion: SemVer | null) => boolean,
+): Promise<string> {
+  const skippedTags: string[] = [];
   for (;;) {
-    const tag = await describeLatestTag(git, tagPrefix, prereleaseTags);
-    if (!tag || !parseVersion(tag.slice(tagPrefix.length))?.pre) {
+    const tag = await describeLatestTag(git, tagPrefix, skippedTags);
+    if (!tag || accept(parseVersion(tag.slice(tagPrefix.length)))) {
       return tag;
     }
-    prereleaseTags.push(tag);
+    skippedTags.push(tag);
   }
 }
 

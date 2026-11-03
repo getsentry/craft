@@ -292,6 +292,10 @@ describe('checkVersionOrPart', () => {
     ).toBe(true);
   });
 
+  test('return true for pre version', () => {
+    expect(checkVersionOrPart({ newVersion: 'pre' }, null)).toBe(true);
+  });
+
   test('return true for version bump types', () => {
     const bumpTypes = ['major', 'minor', 'patch'];
     for (const bumpType of bumpTypes) {

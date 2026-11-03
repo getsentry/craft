@@ -39,6 +39,41 @@ export function calculateNextVersion(
   return newVersion;
 }
 
+/** Prerelease identifier for a new prerelease series, e.g. `2.0.0-alpha.0`. */
+const NEW_PRERELEASE_ID = 'alpha';
+
+/**
+ * Calculates the next prerelease for the given bump.
+ *
+ * Continues the current prerelease series when the bumped release belongs to
+ * it (`2.0.0-alpha.3` -> `2.0.0-alpha.4`), and starts a new series otherwise
+ * (`1.9.0` with a major bump -> `2.0.0-alpha.0`).
+ *
+ * @param currentVersion The current version string (e.g., "2.0.0-alpha.3")
+ * @param bumpType The type of bump the changes need
+ * @returns The new prerelease version string
+ */
+export function calculateNextPrerelease(
+  currentVersion: string,
+  bumpType: BumpType,
+): string {
+  const release = calculateNextVersion(currentVersion, bumpType);
+  const current = semver.parse(currentVersion);
+  if (
+    current?.prerelease.length &&
+    release === `${current.major}.${current.minor}.${current.patch}`
+  ) {
+    const newVersion = semver.inc(current, 'prerelease');
+    if (!newVersion) {
+      throw new Error(
+        `Failed to increment prerelease version "${currentVersion}"`,
+      );
+    }
+    return newVersion;
+  }
+  return `${release}-${NEW_PRERELEASE_ID}.0`;
+}
+
 /**
  * Generates changelog and determines version bump type from commits.
  * This is a convenience wrapper around generateChangesetFromGit that logs progress.
