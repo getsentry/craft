@@ -425,7 +425,7 @@ test('native and npm builds share Sentry instrumentation and optional release au
     );
     const build = workflow.jobs.build;
     expect(build.environment).toBe(
-      "${{ github.ref == 'refs/heads/master' && 'production' }}",
+      "${{ github.ref == 'refs/heads/master' && 'production' || '' }}",
     );
     expect(build.steps?.find(step => step.name === 'Build')).toMatchObject({
       run: 'pnpm build:binary',
