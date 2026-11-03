@@ -114,9 +114,17 @@ runs:
         FORCE_INPUT: ${{ inputs.force }}
         BLOCKER_LABEL_INPUT: ${{ inputs.blocker_label }}
       run: |
-        if [[ "$FORCE_INPUT" != 'true' ]] && gh issue list -l "$BLOCKER_LABEL_INPUT" -s open | grep -q '^[0-9]\+[[:space:]]'; then
+        if [[ "$FORCE_INPUT" == 'true' ]]; then
+          exit 0
+        fi
+        # Fail closed: if the lookup fails, `set -e` stops the release.
+        blocker_count=$(gh issue list -R "$GITHUB_REPOSITORY" -l "$BLOCKER_LABEL_INPUT" -s open --json number --jq length)
+        if [[ "$blocker_count" != '0' ]]; then
           echo "::error::Open release-blocking issues found (label: $BLOCKER_LABEL_INPUT), cancelling release..."
-          gh api -X POST repos/:owner/:repo/actions/runs/$GITHUB_RUN_ID/cancel
+          # Run cancellation is asynchronous and does not stop the remaining
+          # steps of this composite action in time, so fail the step as well.
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/cancel" || true
+          exit 1
         fi
 
     - name: Set git user
