@@ -52,7 +52,8 @@ Pass the version to `craft prepare` in one of these forms:
 | --- | --- |
 | `1.2.3` | Release exactly this version. |
 | `major`, `minor`, `patch` | Increment the latest tag. |
-| `auto` | Pick the bump from the commits since the latest tag, using the `semver` field of each [changelog category](../changelogs/#craft-extensions-to-releaseyml). |
+| `auto` | Pick the bump from the commits since the latest stable tag, using the `semver` field of each [changelog category](../changelogs/#craft-extensions-to-releaseyml). |
+| `pre` | Cut a prerelease of the version `auto` would release. |
 | `calver` | Compute a [calendar version](#calendar-versioning-calver). |
 | *(omitted)* | Use `versioning.policy`. |
 
@@ -62,7 +63,31 @@ Craft reads it from the files of the first configured target that
 [supports version bumping](#supported-targets) and declares a semver version
 above `0.0.0`. Without one, they increment `0.0.0`.
 
-Bump types, `auto`, and `calver` require `minVersion: '2.14.0'` or later.
+After a prerelease, bump types and `auto` promote it to a stable release:
+`2.1.0-alpha.3` becomes `2.1.0`, or a higher version when the bump needs one.
+To be safe, `auto` doesn't promote a prerelease to a major release: after
+`2.0.0-alpha.3` it cuts `2.0.0-alpha.4`. Pass `2.0.0` or `major` to release
+`2.0.0`.
+
+`pre` takes the version `auto` would release and cuts a prerelease of it.
+After `1.9.0`, it cuts `1.9.1-alpha.0` when `auto` picks a patch bump,
+`1.10.0-alpha.0` for a minor bump, and `2.0.0-alpha.0` for a major bump. When
+the latest tag is already a prerelease of that version, `pre` cuts the next one
+instead: `1.10.0-alpha.1` after `1.10.0-alpha.0`.
+
+Bump types, `auto`, and `calver` require `minVersion: '2.14.0'` or later, and
+`pre` requires `minVersion: '3.9.0'` or later.
+
+### Changelog base
+
+The changelog of a release lists the changes since:
+
+- **Stable release**: the latest stable tag, including the changes already in
+  the prereleases since then. `2.0.0` lists the changes since `1.9.0`.
+- **Prerelease**: the previous prerelease of the same `major.minor.patch`, or
+  the latest stable tag when there is none. `2.0.0-alpha.4` lists the changes
+  since `2.0.0-alpha.3`, and `2.1.0-alpha.0` lists the changes since `2.0.4`,
+  not since `2.0.0-alpha.3`.
 
 ### Versioning policies
 

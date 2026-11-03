@@ -25,6 +25,7 @@ import { logger } from '../logger';
 import { distance as levenshtein } from 'fastest-levenshtein';
 import path from 'node:path';
 import { discoverWorkspaces } from './workspaces';
+import { parseVersion, type SemVer } from './version';
 
 export interface GitChange {
   hash: string;
@@ -71,6 +72,72 @@ export async function getLatestTag(
   git: SimpleGit,
   tagPrefix = '',
 ): Promise<string> {
+  return describeLatestTag(git, tagPrefix, []);
+}
+
+/**
+ * Returns the latest tag whose version is not a prerelease, or an empty string
+ * when there is none.
+ *
+ * The next release contains every change since the latest stable release,
+ * including those already in prereleases, so that release is the base for
+ * picking its version bump.
+ */
+export async function getLatestStableTag(
+  git: SimpleGit,
+  tagPrefix = '',
+): Promise<string> {
+  return findLatestTag(git, tagPrefix, tagVersion => !tagVersion?.pre);
+}
+
+/**
+ * Returns the tag whose changes a release of `version` follows, or an empty
+ * string when there is none.
+ *
+ * A stable release follows the latest stable tag. A prerelease follows the
+ * latest prerelease of the same `major.minor.patch` (`2.0.0-alpha.3` follows
+ * `2.0.0-alpha.2`), or the latest stable tag when it starts a new series
+ * (`2.1.0-alpha.0` follows `2.0.4`, not `2.0.0-alpha.3`).
+ */
+export async function getChangelogBaseTag(
+  git: SimpleGit,
+  version: string,
+  tagPrefix = '',
+): Promise<string> {
+  const release = parseVersion(version);
+  return findLatestTag(
+    git,
+    tagPrefix,
+    tagVersion =>
+      !tagVersion?.pre ||
+      (!!release?.pre &&
+        tagVersion.major === release.major &&
+        tagVersion.minor === release.minor &&
+        tagVersion.patch === release.patch),
+  );
+}
+
+/** Returns the latest tag whose version `accept` accepts. */
+async function findLatestTag(
+  git: SimpleGit,
+  tagPrefix: string,
+  accept: (tagVersion: SemVer | null) => boolean,
+): Promise<string> {
+  const skippedTags: string[] = [];
+  for (;;) {
+    const tag = await describeLatestTag(git, tagPrefix, skippedTags);
+    if (!tag || accept(parseVersion(tag.slice(tagPrefix.length)))) {
+      return tag;
+    }
+    skippedTags.push(tag);
+  }
+}
+
+async function describeLatestTag(
+  git: SimpleGit,
+  tagPrefix: string,
+  excludedTags: string[],
+): Promise<string> {
   try {
     // This part is courtesy of https://stackoverflow.com/a/7261049/90297
     const args = ['describe', '--tags', '--abbrev=0'];
@@ -81,12 +148,16 @@ export async function getLatestTag(
       // is resolved per-product instead of picking whatever is newest overall.
       args.push('--match', `${tagPrefix}*`);
     }
+    for (const tag of excludedTags) {
+      args.push('--exclude', tag);
+    }
     return (await git.raw(args)).trim();
   } catch (err) {
     // If there are no tags, return an empty string
     if (
       err instanceof Error &&
       (err.message.startsWith('fatal: No names found') ||
+        err.message.startsWith('fatal: No tags can describe') ||
         err.message.startsWith('Nothing to describe'))
     ) {
       return '';

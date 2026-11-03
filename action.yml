@@ -5,7 +5,8 @@ inputs:
   version:
     description: >
       Version to release. Can be a semver string (e.g., "1.2.3"),
-      a bump type ("major", "minor", "patch"), or "auto" for automatic detection.
+      a bump type ("major", "minor", "patch"), "auto" for automatic detection,
+      or "pre" for the next prerelease.
     required: false
   merge_target:
     description: Target branch to merge into. Uses the default branch as a fallback.

@@ -7,6 +7,8 @@ import {
   createGitClient,
   getGitClient,
   getChangesSince,
+  getChangelogBaseTag,
+  getLatestStableTag,
   getLatestTag,
   isRepoDirty,
   findReleaseBranches,
@@ -74,6 +76,82 @@ describe('getLatestTag', () => {
 
     const latestTag = await getLatestTag(git, 'mcp@');
     expect(latestTag).toBe('');
+  });
+});
+
+describe('release base tags', () => {
+  let dir: string;
+  let client: ReturnType<typeof createGitClient>;
+
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), 'craft-release-tags-'));
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-C', dir, ...args], {
+        env: {
+          ...process.env,
+          GIT_CONFIG_GLOBAL: '/dev/null',
+          GIT_CONFIG_NOSYSTEM: '1',
+        },
+      });
+    git('init', '--quiet');
+    git('config', 'user.name', 'Craft Test');
+    git('config', 'user.email', 'craft-test@example.com');
+    // Each release gets its own commit, so the tags form a linear history.
+    // Unprefixed lookups match every tag, so the prefixed workspace tags come
+    // before the unprefixed ones.
+    for (const tag of [
+      'cli@1.0.0',
+      'cli@1.1.0-alpha.0',
+      'mcp@1.0.0-alpha.0',
+      '1.9.0',
+      '2.0.0-alpha.0',
+      '2.0.0-alpha.1',
+      '',
+    ]) {
+      git(
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '--quiet',
+        '--allow-empty',
+        '-m',
+        tag ? `release: ${tag}` : 'Unreleased change',
+      );
+      if (tag) {
+        git('tag', tag);
+      }
+    }
+    client = createGitClient(dir);
+  });
+
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('finds the latest stable tag past newer prereleases', async () => {
+    expect(await getLatestStableTag(client)).toBe('1.9.0');
+    expect(await getLatestStableTag(client, 'cli@')).toBe('cli@1.0.0');
+  });
+
+  it('finds no stable tag when only prereleases match the prefix', async () => {
+    expect(await getLatestStableTag(client, 'mcp@')).toBe('');
+  });
+
+  it('bases a stable release on the latest stable tag', async () => {
+    expect(await getChangelogBaseTag(client, '2.0.0')).toBe('1.9.0');
+  });
+
+  it('bases a prerelease on the previous prerelease of its version', async () => {
+    expect(await getChangelogBaseTag(client, '2.0.0-alpha.2')).toBe(
+      '2.0.0-alpha.1',
+    );
+  });
+
+  it('bases the first prerelease of a version on the latest stable tag', async () => {
+    expect(await getChangelogBaseTag(client, '2.1.0-alpha.0')).toBe('1.9.0');
+    expect(await getChangelogBaseTag(client, '1.2.0-alpha.0', 'cli@')).toBe(
+      'cli@1.0.0',
+    );
   });
 });
 

@@ -25,6 +25,7 @@ import * as config from '../../config';
 import { getChangesSince } from '../git';
 import { getGitHubClient } from '../githubApi';
 import {
+  calculatePrerelease,
   calculateNextVersion,
   getChangelogWithBumpType,
   validateBumpType,
@@ -67,6 +68,23 @@ describe('calculateNextVersion', () => {
     expect(calculateNextVersion('1.2.3-beta.1', 'patch')).toBe('1.2.3');
     // Minor bump on prerelease increments minor and removes prerelease
     expect(calculateNextVersion('1.2.3-rc.0', 'minor')).toBe('1.3.0');
+  });
+});
+
+describe('calculatePrerelease', () => {
+  test('cuts the first prerelease of the version after a stable release', () => {
+    expect(calculatePrerelease('1.9.1', '1.9.0')).toBe('1.9.1-alpha.0');
+    expect(calculatePrerelease('1.10.0', '1.9.0')).toBe('1.10.0-alpha.0');
+    expect(calculatePrerelease('2.0.0', '1.9.0')).toBe('2.0.0-alpha.0');
+  });
+
+  test('cuts the next prerelease after a prerelease of the same version', () => {
+    expect(calculatePrerelease('2.0.0', '2.0.0-alpha.3')).toBe('2.0.0-alpha.4');
+    expect(calculatePrerelease('2.0.0', '2.0.0-rc.1')).toBe('2.0.0-rc.2');
+  });
+
+  test('cuts the first prerelease of the version after a prerelease of another version', () => {
+    expect(calculatePrerelease('3.0.0', '2.1.0-alpha.0')).toBe('3.0.0-alpha.0');
   });
 });
 
