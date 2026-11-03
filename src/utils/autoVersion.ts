@@ -43,25 +43,24 @@ export function calculateNextVersion(
 const NEW_PRERELEASE_ID = 'alpha';
 
 /**
- * Calculates the next prerelease for the given bump.
+ * Returns the next prerelease of `version`.
  *
- * Continues the current prerelease series when the bumped release belongs to
- * it (`2.0.0-alpha.3` -> `2.0.0-alpha.4`), and starts a new series otherwise
- * (`1.9.0` with a major bump -> `2.0.0-alpha.0`).
+ * Starts at `<version>-alpha.0` (`1.10.0` -> `1.10.0-alpha.0`). When the
+ * current version is already a prerelease of `version`, continues its series
+ * instead (`1.10.0` after `1.10.0-alpha.0` -> `1.10.0-alpha.1`).
  *
- * @param currentVersion The current version string (e.g., "2.0.0-alpha.3")
- * @param bumpType The type of bump the changes need
+ * @param version The stable version to cut a prerelease of (e.g., "1.10.0")
+ * @param currentVersion The current version string (e.g., "1.10.0-alpha.0")
  * @returns The new prerelease version string
  */
-export function calculateNextPrerelease(
+export function calculatePrerelease(
+  version: string,
   currentVersion: string,
-  bumpType: BumpType,
 ): string {
-  const release = calculateNextVersion(currentVersion, bumpType);
   const current = semver.parse(currentVersion);
   if (
     current?.prerelease.length &&
-    release === `${current.major}.${current.minor}.${current.patch}`
+    version === `${current.major}.${current.minor}.${current.patch}`
   ) {
     const newVersion = semver.inc(current, 'prerelease');
     if (!newVersion) {
@@ -71,7 +70,7 @@ export function calculateNextPrerelease(
     }
     return newVersion;
   }
-  return `${release}-${NEW_PRERELEASE_ID}.0`;
+  return `${version}-${NEW_PRERELEASE_ID}.0`;
 }
 
 /**

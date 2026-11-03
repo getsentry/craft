@@ -25,7 +25,7 @@ import * as config from '../../config';
 import { getChangesSince } from '../git';
 import { getGitHubClient } from '../githubApi';
 import {
-  calculateNextPrerelease,
+  calculatePrerelease,
   calculateNextVersion,
   getChangelogWithBumpType,
   validateBumpType,
@@ -71,23 +71,20 @@ describe('calculateNextVersion', () => {
   });
 });
 
-describe('calculateNextPrerelease', () => {
-  test('continues the prerelease series the bump stays in', () => {
-    expect(calculateNextPrerelease('2.0.0-alpha.3', 'minor')).toBe(
-      '2.0.0-alpha.4',
-    );
-    expect(calculateNextPrerelease('2.0.0-rc.1', 'major')).toBe('2.0.0-rc.2');
+describe('calculatePrerelease', () => {
+  test('cuts the first prerelease of the version after a stable release', () => {
+    expect(calculatePrerelease('1.9.1', '1.9.0')).toBe('1.9.1-alpha.0');
+    expect(calculatePrerelease('1.10.0', '1.9.0')).toBe('1.10.0-alpha.0');
+    expect(calculatePrerelease('2.0.0', '1.9.0')).toBe('2.0.0-alpha.0');
   });
 
-  test('starts a new series when the bump leaves the current one', () => {
-    expect(calculateNextPrerelease('2.1.0-alpha.0', 'major')).toBe(
-      '3.0.0-alpha.0',
-    );
+  test('cuts the next prerelease after a prerelease of the same version', () => {
+    expect(calculatePrerelease('2.0.0', '2.0.0-alpha.3')).toBe('2.0.0-alpha.4');
+    expect(calculatePrerelease('2.0.0', '2.0.0-rc.1')).toBe('2.0.0-rc.2');
   });
 
-  test('starts a new series after a stable release', () => {
-    expect(calculateNextPrerelease('1.9.0', 'major')).toBe('2.0.0-alpha.0');
-    expect(calculateNextPrerelease('1.9.0', 'patch')).toBe('1.9.1-alpha.0');
+  test('cuts the first prerelease of the version after a prerelease of another version', () => {
+    expect(calculatePrerelease('3.0.0', '2.1.0-alpha.0')).toBe('3.0.0-alpha.0');
   });
 });
 

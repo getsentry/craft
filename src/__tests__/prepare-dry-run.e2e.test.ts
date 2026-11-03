@@ -701,7 +701,7 @@ targets: []
     expect(combinedOutput).toContain('release/1.1.0');
   }, 60000);
 
-  test('promotes the latest prerelease with changes since the last stable release', async () => {
+  test('auto releases 1.1.0 after 1.1.0-alpha.1 with the changes since 1.0.0', async () => {
     tempDir = await createTestRepo();
     // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
     const git = simpleGit(tempDir);
@@ -739,7 +739,7 @@ targets: []
     expect(output).toContain('Add foo feature in');
   }, 60000);
 
-  test('cuts a prerelease when a major release follows a prerelease', async () => {
+  test('auto releases 2.0.0-alpha.1 instead of 2.0.0 after 2.0.0-alpha.0', async () => {
     tempDir = await createTestRepo();
     // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
     const git = simpleGit(tempDir);

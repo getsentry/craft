@@ -23,7 +23,7 @@ import { ChangelogPolicy, VersioningPolicy } from '../schemas/project_config';
 import { sleep } from '../utils/async';
 import {
   type BumpType,
-  calculateNextPrerelease,
+  calculatePrerelease,
   calculateNextVersion,
   getChangelogWithBumpType,
   isBumpType,
@@ -728,7 +728,8 @@ async function resolveVersion(
 
     let newVersion = calculateNextVersion(currentVersion, bumpType);
     if (version === 'pre') {
-      newVersion = calculateNextPrerelease(currentVersion, bumpType);
+      // `pre` cuts a prerelease of the version `auto` would release.
+      newVersion = calculatePrerelease(newVersion, currentVersion);
     } else if (
       version === 'auto' &&
       latestTag &&
@@ -738,7 +739,7 @@ async function resolveVersion(
     ) {
       // A major release after prereleases is cut explicitly, so `auto` keeps
       // cutting prereleases until someone asks for the stable release.
-      const prerelease = calculateNextPrerelease(currentVersion, bumpType);
+      const prerelease = calculatePrerelease(newVersion, currentVersion);
       logger.info(
         `The latest release ${currentVersion} is a prerelease and ${newVersion} ` +
           `is a major release, so releasing ${prerelease} instead. ` +

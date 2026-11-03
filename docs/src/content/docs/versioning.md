@@ -53,7 +53,7 @@ Pass the version to `craft prepare` in one of these forms:
 | `1.2.3` | Release exactly this version. |
 | `major`, `minor`, `patch` | Increment the latest tag. |
 | `auto` | Pick the bump from the commits since the latest stable tag, using the `semver` field of each [changelog category](../changelogs/#craft-extensions-to-releaseyml). |
-| `pre` | Cut the next prerelease for the bump `auto` would pick. |
+| `pre` | Cut a prerelease of the version `auto` would release. |
 | `calver` | Compute a [calendar version](#calendar-versioning-calver). |
 | *(omitted)* | Use `versioning.policy`. |
 
@@ -69,9 +69,11 @@ To be safe, `auto` doesn't promote a prerelease to a major release: after
 `2.0.0-alpha.3` it cuts `2.0.0-alpha.4`. Pass `2.0.0` or `major` to release
 `2.0.0`.
 
-`pre` continues the latest prerelease series when the bump stays in it
-(`2.0.0-alpha.3` becomes `2.0.0-alpha.4`) and starts a new one otherwise
-(`1.9.0` with a major bump becomes `2.0.0-alpha.0`).
+`pre` takes the version `auto` would release and cuts a prerelease of it.
+After `1.9.0`, it cuts `1.9.1-alpha.0` when `auto` picks a patch bump,
+`1.10.0-alpha.0` for a minor bump, and `2.0.0-alpha.0` for a major bump. When
+the latest tag is already a prerelease of that version, `pre` cuts the next one
+instead: `1.10.0-alpha.1` after `1.10.0-alpha.0`.
 
 Bump types, `auto`, `pre`, and `calver` require `minVersion: '2.14.0'` or later.
 
