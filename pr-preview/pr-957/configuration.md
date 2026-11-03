@@ -62,6 +62,7 @@ Several features only turn on at or above a given `minVersion`, so older project
 | `2.21.0` | [Automatic version bumping](https://craft.sentry.dev/pr-preview/pr-957/versioning.md#automatic-version-bumping) when no `preReleaseCommand` is set. |
 | `2.29.0` | [Release workspaces](https://craft.sentry.dev/pr-preview/pr-957/workspaces.md). |
 | `3.8.0` | [Extra version files](https://craft.sentry.dev/pr-preview/pr-957/versioning.md#extra-version-files) with `versioning.files`. |
+| `3.9.0` | The [`pre` version](https://craft.sentry.dev/pr-preview/pr-957/versioning.md#choosing-the-next-version) for the next prerelease. |
 
 ## github
 
