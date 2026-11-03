@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.9.0
+
+Prerelease promotion and commit-driven versions expand release flow; blocking responds faster, deployment environments are classified correctly, and stale history can be removed.
+
+### New Features ✨
+
+Prerelease versioning now supports promotion to stable releases and successive versions driven by commit changes.
+
+- (prepare) Handle prereleases in auto-versioning and add `pre` version by @BYK with @sentry-junior in [#957](https://github.com/getsentry/craft/pull/957)
+
+### Bug Fixes 🐛
+
+Release blocking now halts immediately for open blockers while handling lookup failures and repository targeting reliably.
+
+- (action) Stop the release when release-blocker issues are open by @BYK with @sentry-junior in [#956](https://github.com/getsentry/craft/pull/956)
+
+### Internal Changes 🔧
+
+Non-master builds avoid false environments, while master deployments remain production-bound and administrators can remove stale history.
+
+- Don't create a 'false' deployment on non-master builds by @BYK with @sentry-junior in [#958](https://github.com/getsentry/craft/pull/958)
+
 ## 3.8.0
 
 Version bumps now update repository files more safely through workspace-aware validation, preventing invalid paths and no-op preparations from writing changes.
