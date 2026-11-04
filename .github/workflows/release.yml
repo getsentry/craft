@@ -158,7 +158,7 @@ jobs:
       - name: Prepare release
         if: github.repository != 'getsentry/craft'
         id: craft-action
-        uses: getsentry/craft@v2
+        uses: getsentry/craft@v3
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
