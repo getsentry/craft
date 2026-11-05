@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.10.0
+
+Deployments now wait for builds and expose failures, while release tooling supports Craft 3 and prevents accidental pre-1.0 major version jumps.
+
+### New Features ✨
+
+GitHub Pages deployments now wait for builds and report failures with deployment details.
+
+- (gh-pages) Wait for the Pages build and retry when it fails by @BYK with @sentry-junior in [#961](https://github.com/getsentry/craft/pull/961)
+
+### Bug Fixes 🐛
+
+The reusable release workflow now uses the Craft v3 action, enabling Craft 3 configuration and current release-blocker handling. For versions below 1.0.0, craft prepare auto and craft prepare pre convert commit-selected major bumps to minor versions. Use craft prepare major or an explicit exact version to release 1.0.0. JSON changelog output and PR previews still show the raw major bump type.
+
+- (release) Use craft v3 action in reusable release workflow by @BYK with @sentry-junior in [#959](https://github.com/getsentry/craft/pull/959)
+- (version) Keep auto and pre below 1.0.0 on breaking changes by @sentry-junior in [#962](https://github.com/getsentry/craft/pull/962)
+
 ## 3.9.0
 
 Prerelease promotion and commit-driven versions expand release flow; blocking responds faster, deployment environments are classified correctly, and stale history can be removed.
