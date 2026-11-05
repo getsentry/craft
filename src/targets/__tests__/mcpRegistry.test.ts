@@ -21,6 +21,7 @@ vi.mock('../../utils/async', () => ({ sleep: vi.fn(async () => undefined) }));
 const VERSION = '1.2.3';
 const SERVER_NAME = 'io.github.getsentry/sentry-mcp';
 const NPM_PACKAGE = '@sentry/mcp-server';
+const NPM_URL = `https://registry.npmjs.org/@sentry%2Fmcp-server/${VERSION}`;
 const LISTING_URL = `${DEFAULT_REGISTRY_URL}/v0.1/servers/io.github.getsentry%2Fsentry-mcp/versions/${VERSION}`;
 const OIDC_ORIGIN = 'https://token.actions.example';
 const OIDC_REQUEST_URL = `${OIDC_ORIGIN}/token?api-version=2.0`;
@@ -47,6 +48,8 @@ const EXPECTED_SERVER = {
   version: VERSION,
   packages: [{ ...MANIFEST.packages[0], version: VERSION }],
 };
+
+const NPM_INFO = { name: NPM_PACKAGE, version: VERSION, mcpName: SERVER_NAME };
 
 function listing(server: Record<string, unknown> = EXPECTED_SERVER) {
   return {
@@ -119,6 +122,7 @@ function createTarget(config: Record<string, unknown> = {}) {
 /** Routes for a version that is not listed yet and publishes successfully */
 function publishRoutes(): Record<string, Route | Route[]> {
   return {
+    [`GET ${NPM_URL}`]: json(NPM_INFO),
     [`GET ${LISTING_URL}`]: [json({}, 404), json(listing())],
     [`POST ${DEFAULT_REGISTRY_URL}/v0/publish`]: json(
       { server: EXPECTED_SERVER },
@@ -223,9 +227,10 @@ describe('publish', () => {
     });
     expect(JSON.parse(String(publish?.init?.body))).toEqual(EXPECTED_SERVER);
 
-    // Order: existing listing, auth, publish, verification.
+    // Order: existing listing, npm wait, auth, publish, verification.
     expect(requests(fetchMock).map(request => request.key)).toEqual([
       `GET ${LISTING_URL}`,
+      `GET ${NPM_URL}`,
       expect.stringMatching(new RegExp(`^GET ${OIDC_ORIGIN}/`)),
       `POST ${DEFAULT_REGISTRY_URL}/v0/auth/github-oidc`,
       `POST ${DEFAULT_REGISTRY_URL}/v0/publish`,
@@ -237,6 +242,7 @@ describe('publish', () => {
     const registryUrl = 'https://registry.example.com';
     const listingUrl = `${registryUrl}/v0.1/servers/io.github.getsentry%2Fsentry-mcp/versions/${VERSION}`;
     const fetchMock = mockFetch({
+      [`GET ${NPM_URL}`]: json(NPM_INFO),
       [`GET ${listingUrl}`]: [json({}, 404), json(listing())],
       'GET oidc': json({ value: 'github-oidc-token' }),
       [`POST ${registryUrl}/v0/auth/github-oidc`]: json({
@@ -286,6 +292,7 @@ describe('publish', () => {
     delete process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
     delete process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
     const fetchMock = mockFetch({
+      [`GET ${NPM_URL}`]: json(NPM_INFO),
       [`GET ${LISTING_URL}`]: json({}, 404),
     });
 
@@ -299,6 +306,7 @@ describe('publish', () => {
 
   test('reports a failed token exchange', async () => {
     mockFetch({
+      [`GET ${NPM_URL}`]: json(NPM_INFO),
       [`GET ${LISTING_URL}`]: json({}, 404),
       'GET oidc': json({ value: 'github-oidc-token' }),
       [`POST ${DEFAULT_REGISTRY_URL}/v0/auth/github-oidc`]: new Response(
@@ -329,6 +337,7 @@ describe('publish', () => {
 
   test('reports a rejected publish', async () => {
     mockFetch({
+      [`GET ${NPM_URL}`]: json(NPM_INFO),
       [`GET ${LISTING_URL}`]: json({}, 404),
       'GET oidc': json({ value: 'github-oidc-token' }),
       [`POST ${DEFAULT_REGISTRY_URL}/v0/auth/github-oidc`]: json({
@@ -362,6 +371,76 @@ describe('publish', () => {
     await expect(createTarget().publish(VERSION, 'sha')).rejects.toThrow(
       /status "deprecated", expected "active"/,
     );
+  });
+});
+
+describe('npm wait', () => {
+  test('waits for npm to serve the version before publishing', async () => {
+    const fetchMock = mockFetch({
+      ...publishRoutes(),
+      [`GET ${NPM_URL}`]: [
+        json({}, 404),
+        json({}, 429),
+        json({}, 503),
+        json(NPM_INFO),
+      ],
+      'GET oidc': json({ value: 'github-oidc-token' }),
+      [`POST ${DEFAULT_REGISTRY_URL}/v0/auth/github-oidc`]: json({
+        registry_token: 'registry-token',
+      }),
+    });
+
+    await createTarget().publish(VERSION, 'sha');
+
+    expect(sleep).toHaveBeenCalledTimes(3);
+    const keys = requests(fetchMock).map(request => request.key);
+    expect(keys.lastIndexOf(`GET ${NPM_URL}`)).toBeLessThan(
+      keys.indexOf(`POST ${DEFAULT_REGISTRY_URL}/v0/publish`),
+    );
+  });
+
+  test('gives up after a bounded number of attempts', async () => {
+    const fetchMock = mockFetch({
+      [`GET ${LISTING_URL}`]: json({}, 404),
+      [`GET ${NPM_URL}`]: () => json({}, 404),
+    });
+
+    await expect(createTarget().publish(VERSION, 'sha')).rejects.toThrow(
+      /@sentry\/mcp-server@1\.2\.3 is still not available on npm/,
+    );
+    expect(
+      requests(fetchMock).filter(request => request.key === `GET ${NPM_URL}`),
+    ).toHaveLength(30);
+    expect(sleep).toHaveBeenCalledTimes(29);
+    expect(
+      findRequest(fetchMock, `POST ${DEFAULT_REGISTRY_URL}/v0/publish`),
+    ).toBeUndefined();
+  });
+
+  test('skips packages from other registries', async () => {
+    const ociPackage = {
+      registryType: 'oci',
+      identifier: 'ghcr.io/example/mcp',
+      version: '0.0.0',
+    };
+    writeManifest({ ...MANIFEST, packages: [ociPackage] });
+    const server = {
+      ...EXPECTED_SERVER,
+      packages: [{ ...ociPackage, version: VERSION }],
+    };
+    const fetchMock = mockFetch({
+      ...publishRoutes(),
+      [`GET ${NPM_URL}`]: [],
+      [`GET ${LISTING_URL}`]: [json({}, 404), json(listing(server))],
+      'GET oidc': json({ value: 'github-oidc-token' }),
+      [`POST ${DEFAULT_REGISTRY_URL}/v0/auth/github-oidc`]: json({
+        registry_token: 'registry-token',
+      }),
+    });
+
+    await createTarget().publish(VERSION, 'sha');
+
+    expect(findRequest(fetchMock, `GET ${NPM_URL}`)).toBeUndefined();
   });
 });
 
