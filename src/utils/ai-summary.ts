@@ -320,7 +320,6 @@ function summaryResponseSchema(level: SummaryLevel, nodes: Node[]) {
 const MAX_INPUT_BYTES = 24000;
 const MAX_NODES = 8;
 const MAX_REQUESTS = 64;
-const TOTAL_TIMEOUT = 120000;
 const REQUEST_TIMEOUT = 30000;
 const CONCURRENCY = 3;
 const size = (value: unknown) =>
@@ -357,13 +356,17 @@ function fragments(text: string): string[] {
 class SummaryAttempt {
   private requests = 0;
   private controller = new AbortController();
-  private deadline = Date.now() + TOTAL_TIMEOUT;
-  private timer = setTimeout(() => this.controller.abort(), TOTAL_TIMEOUT);
+  private deadline: number;
+  private timer: ReturnType<typeof setTimeout>;
 
   constructor(
     private provider: SummaryProvider,
+    timeout: number,
     private style?: string,
-  ) {}
+  ) {
+    this.deadline = Date.now() + timeout;
+    this.timer = setTimeout(() => this.controller.abort(), timeout);
+  }
 
   async close(): Promise<void> {
     clearTimeout(this.timer);
@@ -384,8 +387,14 @@ class SummaryAttempt {
     const requestController = new AbortController();
     const abort = () => requestController.abort();
     this.controller.signal.addEventListener('abort', abort, { once: true });
-    const deadline = Math.min(Date.now() + REQUEST_TIMEOUT, this.deadline);
-    const timer = setTimeout(abort, Math.max(0, deadline - Date.now()));
+    const started = Date.now();
+    const deadline = Math.min(started + REQUEST_TIMEOUT, this.deadline);
+    const timer = setTimeout(abort, Math.max(0, deadline - started));
+    // Tell a slow single call apart from running out of the total budget.
+    const expired = () =>
+      this.controller.signal.aborted || Date.now() >= this.deadline
+        ? 'deadline'
+        : 'request-timeout';
     try {
       const input = summaryInput(level, nodes);
       if (size(input) > MAX_INPUT_BYTES)
@@ -411,8 +420,11 @@ class SummaryAttempt {
           : instructions,
         schema: summaryResponseSchema(level, nodes),
       });
+      logger.debug(
+        `AI ${level} summary request ${this.requests} (${nodes.length} nodes${repair ? ', repair' : ''}) took ${Date.now() - started}ms.`,
+      );
       if (requestController.signal.aborted || Date.now() >= deadline)
-        throw new SummaryFailure('deadline');
+        throw new SummaryFailure(expired());
       const parsed = safeParse(
         level === 'release' ? releaseResponseSchema : responseSchema,
         output,
@@ -502,6 +514,12 @@ class SummaryAttempt {
           .parts.reduce((n, part) => n + part.count, 0),
       }));
     } catch (error) {
+      if (
+        error instanceof SummaryFailure &&
+        error.reason === 'deadline' &&
+        requestController.signal.aborted
+      )
+        throw new SummaryFailure(expired(), level);
       // Retry malformed model output once, never transport/auth failures. The
       // retry consumes the same global request/deadline budgets as any call.
       if (
@@ -696,6 +714,7 @@ export async function summarizeChangelog(
     return null;
   const attempt = new SummaryAttempt(
     createSummaryProvider(config),
+    config.timeout * 1000,
     config.style,
   );
   try {

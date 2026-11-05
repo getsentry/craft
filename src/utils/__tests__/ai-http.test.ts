@@ -632,7 +632,7 @@ test('HTTP rejection reports its status even if response cancellation stalls', a
   }
 }, 1000);
 
-test('the full summarizer reports its request deadline without exposing the abort error', async () => {
+test('the full summarizer reports its request timeout without exposing the abort error', async () => {
   vi.useFakeTimers();
   vi.stubGlobal(
     'fetch',
@@ -662,7 +662,7 @@ test('the full summarizer reports its request deadline without exposing the abor
     await vi.advanceTimersByTimeAsync(30001);
     expect(await result).toBeNull();
     const log = warn.mock.calls.flat().join(' ');
-    expect(log).toContain('stage=scope; reason=deadline');
+    expect(log).toContain('stage=scope; reason=request-timeout');
     expect(log).not.toContain('private-source-token');
   } finally {
     vi.useRealTimers();

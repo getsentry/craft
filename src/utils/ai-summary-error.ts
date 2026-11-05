@@ -5,6 +5,7 @@ export type SummaryFailureReason =
   | 'http'
   | 'network'
   | 'deadline'
+  | 'request-timeout'
   | 'response-size'
   | 'response-body'
   | 'response-envelope'

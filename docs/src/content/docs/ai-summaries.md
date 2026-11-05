@@ -25,6 +25,7 @@ changelog:
 | --- | --- | --- |
 | `levels` | `[release]` | Select visible summaries; omitted or empty arrays use `[release]`. |
 | `minItems` | `5` | Strict entry-count threshold. `0` includes every nonempty selected group. Category counts include descendants; release counts include the whole changelog. |
+| `timeout` | `120` | Total generation budget in seconds (30–1800). Raise it for long changelogs, especially with `scope` and `category` levels; a run that runs out reports `reason=deadline` and keeps the original entries. |
 | `style` | Neutral | Optional writing guidance (1–500 characters), applied at every level. Facts, coverage, length and plain-text safeguards still apply. |
 | `llm.endpoint` | `https://api.githubcopilot.com/responses` | Full POST URL; HTTPS required except loopback HTTP. |
 | `llm.model` | `gpt-5.4-nano` | Model ID supported by the endpoint and credential. |
@@ -129,7 +130,10 @@ inherited object. Endpoints ending in `/responses` use Responses; others use
 Chat Completions. Both require structured JSON output. Invalid settings are
 rejected; missing tokens and provider errors retain the original output. Failure
 warnings identify the generation stage and a fixed reason code, plus HTTP status
-for rejected requests. Credentials, source content and provider bodies are omitted.
+for rejected requests. `reason=request-timeout` means one call took longer than
+30 seconds; `reason=deadline` means the whole run used up its `timeout`. Debug
+logs (`CRAFT_LOG_LEVEL=Debug`) show the duration of each model call.
+Credentials, source content and provider bodies are omitted.
 
 ## How summaries are generated
 
@@ -164,8 +168,8 @@ The model also receives each node's character budget as planning context.
 At every level, summaries without a complete sentence ending or with malformed
 control text are rejected and get the same bounded repair attempt.
 Invalid structured model output gets one repair attempt within the same
-64-request and 120-second budgets. Transport and authentication failures do not
-trigger retries or provider switching. Source-linked critical facts are carried
+64-request and total `timeout` budgets. Transport and authentication failures do
+not trigger retries or provider switching. Source-linked critical facts are carried
 and validated internally without appending their text to every displayed summary.
 All original entries remain expanded beneath their summaries, including links
 and nested content. Craft does not add accordion wrappers; any expandable
@@ -178,8 +182,8 @@ category/release summaries. Unscoped entries contribute to both parent levels.
 Generation sends changelog content and critical PR titles to the chosen
 provider. Breaking/security facts retain source IDs. Generated prose is escaped;
 review it for accuracy. Requests are bounded to 64 calls, 3 concurrent calls,
-30 seconds per request, 120 seconds total, 24,000 input bytes and 8,192 output
-tokens. Any failure preserves the entire original changelog without retries or
+30 seconds per request, `timeout` seconds total (120 by default), 24,000 input
+bytes and 8,192 output tokens. Any failure preserves the entire original changelog without retries or
 provider switching. Existing leftover-entry limits still apply.
 
 Dry runs, highlighted PR previews, `prepare --no-changelog` and version analysis

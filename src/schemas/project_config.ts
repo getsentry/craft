@@ -9,6 +9,7 @@ import {
   literal,
   looseObject,
   maxLength,
+  maxValue,
   minLength,
   minValue,
   number,
@@ -379,6 +380,11 @@ type SummaryLevel = 'release' | 'category' | 'scope';
 export const AiSummaryConfigSchema = strictObject({
   llm: optional(nonArray(AiSummaryLlmSchema), {}),
   minItems: optional(pipe(number(), integer(), minValue(0)), 5),
+  /** Total generation budget in seconds; large changelogs need more time. */
+  timeout: optional(
+    pipe(number(), integer(), minValue(30), maxValue(1800)),
+    120,
+  ),
   style: optional(pipe(string(), trim(), minLength(1), maxLength(500))),
   levels: optional(
     pipe(
