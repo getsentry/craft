@@ -222,6 +222,10 @@ After publishing, Craft merges the release branch into the merge target and
 deletes the branch. The merge target defaults to the repository's default
 branch; override it with `--merge-target`.
 
+- If the merge target changed lines next to the version strings the release
+  branch bumped, Craft resolves those conflicts itself: it keeps the merge
+  target's lines and applies the version bump to them. Any other conflict
+  aborts the merge and leaves it to you; the release is still published.
 - `--no-merge` skips the merge. `--keep-branch` merges but keeps the branch.
 - Set `noMerge: true` in `.craft.yml` to never merge. Craft turns this on
   automatically for compiled Node.js GitHub Actions (repositories with a

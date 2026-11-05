@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { vi, describe, test, expect, beforeEach, type Mock } from 'vitest';
 import { join as pathJoin } from 'path';
@@ -700,6 +700,113 @@ describe('handleReleaseBranch', () => {
 
     expect(git.branchLocal).not.toHaveBeenCalled();
     expect(git.branch).not.toHaveBeenCalled();
+  });
+
+  describe('with a version bump conflict', () => {
+    const skill = (version: string, description: string) =>
+      `---\nname: cli-init\nversion: ${version}\ndescription: ${description}\nrequires: sentry\n---\n`;
+
+    /**
+     * Builds the situation from a real release: the release branch bumps a
+     * version in a file whose neighbouring line changed on the target branch.
+     */
+    async function createConflictingRepository(releaseSkill: string) {
+      const directory = await mkdtemp(
+        pathJoin(tmpdir(), 'craft-publish-conflict-'),
+      );
+      const repository = pathJoin(directory, 'repository');
+      const remote = pathJoin(directory, 'remote.git');
+      const branch = 'release/0.48.0';
+
+      await createGitClient(directory).raw('init', '--bare', remote);
+      await mkdir(repository);
+      const git = createGitClient(repository);
+      await git.raw('init', '-b', 'main');
+      await git.addConfig('user.name', 'Craft Test');
+      await git.addConfig('user.email', 'craft@example.com');
+      await git.addConfig('commit.gpgsign', 'false');
+      await git.addRemote('origin', remote);
+
+      const skillPath = pathJoin(repository, 'SKILL.md');
+      await writeFile(skillPath, skill('0.48.0-dev.0', 'Old description'));
+      await git.add('SKILL.md');
+      await git.commit('initial');
+
+      await git.checkoutLocalBranch(branch);
+      await writeFile(skillPath, releaseSkill);
+      await git.commit('release: 0.48.0', ['--all']);
+      const releaseRevision = (await git.revparse('HEAD')).trim();
+
+      await git.checkout('main');
+      await writeFile(skillPath, skill('0.48.0-dev.0', 'New description'));
+      await git.commit('docs: Update description', ['--all']);
+      await git.raw('push', 'origin', 'main', branch);
+
+      return { directory, git, branch, releaseRevision, skillPath };
+    }
+
+    test('resolves and pushes the merge when only the version conflicts', async () => {
+      const { directory, git, branch, releaseRevision, skillPath } =
+        await createConflictingRepository(skill('0.48.0', 'Old description'));
+
+      try {
+        await handleReleaseBranch(
+          git,
+          'origin',
+          branch,
+          releaseRevision,
+          'main',
+          false,
+          branch,
+          '0.48.0',
+        );
+
+        expect(await readFile(skillPath, 'utf-8')).toBe(
+          skill('0.48.0', 'New description'),
+        );
+        const pushed = (await git.revparse('origin/main')).trim();
+        expect(pushed).toBe((await git.revparse('HEAD')).trim());
+        expect(
+          (await git.raw('rev-list', '--parents', '-n', '1', pushed))
+            .trim()
+            .split(' '),
+        ).toContain(releaseRevision);
+        expect(await git.raw('ls-remote', '--heads', 'origin', branch)).toBe(
+          '',
+        );
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    });
+
+    test('aborts the merge when the release changed more than the version', async () => {
+      const { directory, git, branch, releaseRevision, skillPath } =
+        await createConflictingRepository(skill('0.48.0', 'Hotfix'));
+
+      try {
+        const error = await handleReleaseBranch(
+          git,
+          'origin',
+          branch,
+          releaseRevision,
+          'main',
+          false,
+          branch,
+          '0.48.0',
+        ).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(MergeConflictError);
+        expect((error as MergeConflictError).conflictedFiles).toEqual([
+          'SKILL.md',
+        ]);
+        expect(await readFile(skillPath, 'utf-8')).toBe(
+          skill('0.48.0-dev.0', 'New description'),
+        );
+        expect((await git.status()).conflicted).toEqual([]);
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    });
   });
 
   test('resolves default branch when mergeTarget is not provided', async () => {
