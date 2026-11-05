@@ -26,6 +26,7 @@ const config = {
     apiKeyEnv: 'AI_SUMMARY_TOKEN',
   },
   minItems: 5,
+  timeout: 120,
   levels: ['release', 'category', 'scope'] as (
     | 'release'
     | 'category'
@@ -1400,7 +1401,7 @@ describe('hierarchical HTTP changelog summaries', () => {
         ),
       ).toBeNull();
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(`stage=${level}; reason=deadline`),
+        expect.stringContaining(`stage=${level}; reason=request-timeout`),
       );
     },
   );
@@ -1459,6 +1460,37 @@ describe('hierarchical HTTP changelog summaries', () => {
     await vi.advanceTimersByTimeAsync(120000);
     expect(await pending).toBeNull();
     expect(requestMock.mock.calls.at(-1)![0]!.signal!.aborted).toBe(true);
+  });
+
+  it('uses the configured total timeout for long-running changelogs', async () => {
+    vi.useFakeTimers();
+    requestMock.mockImplementation(
+      async options =>
+        new Promise((resolve, reject) => {
+          const timer = setTimeout(
+            () => resolve(modelResponse(options)),
+            25000,
+          );
+          options!.signal!.addEventListener('abort', () => {
+            clearTimeout(timer);
+            reject(new Error('aborted'));
+          });
+        }),
+    );
+    const groups = Array.from({ length: 50 }, (_, i) => ({
+      id: `g${i}`,
+      title: 'G',
+      items: ['entry'],
+    }));
+    // Five sequential waves of 25-second calls outlast the default 120 seconds.
+    const pending = summarizeChangelog([{ id: 'a', title: 'A', groups }], {
+      ...config,
+      minItems: 0,
+      timeout: 600,
+    });
+    await vi.advanceTimersByTimeAsync(200000);
+    expect((await pending)?.release).toBeTruthy();
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it.each(['scope', 'release'] as const)(

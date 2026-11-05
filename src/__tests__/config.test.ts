@@ -166,9 +166,26 @@ describe('validateConfiguration', () => {
         apiKeyEnv: 'GITHUB_TOKEN',
       },
       minItems: 5,
+      timeout: 120,
       levels: ['release'],
     });
   });
+
+  test('accepts a longer AI summary timeout', () => {
+    loadConfigurationFromString(
+      'changelog:\n  policy: auto\n  aiSummary:\n    timeout: 600',
+    );
+    expect(getChangelogConfig().aiSummary).toMatchObject({ timeout: 600 });
+  });
+
+  test.each([29, 1801, 1.5, '600'])(
+    'rejects invalid AI summary timeout %j',
+    timeout => {
+      expect(() =>
+        validateConfiguration({ changelog: { aiSummary: { timeout } } }),
+      ).toThrow(/changelog/);
+    },
+  );
 
   test('normalizes optional AI writing style', () => {
     loadConfigurationFromString(

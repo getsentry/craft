@@ -226,6 +226,7 @@ describe('generateChangesetFromGit', () => {
           apiKeyEnv: 'AI_SUMMARY_TOKEN',
         },
         minItems: 5,
+        timeout: 120,
         levels: ['release', 'category', 'scope'] as (
           | 'release'
           | 'category'
