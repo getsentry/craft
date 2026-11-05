@@ -778,6 +778,47 @@ targets: []
     expect(output).not.toContain('Add foo feature in');
   }, 60000);
 
+  test.each([
+    ['auto', '0.6.0'],
+    ['pre', '0.6.0-alpha.0'],
+    ['major', '1.0.0'],
+  ])(
+    'a breaking change before 1.0.0 with %s releases %s',
+    async (versionArg, expected) => {
+      tempDir = await createTestRepo();
+      // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access
+      const git = simpleGit(tempDir);
+      await writeFile(
+        join(tempDir, '.craft.yml'),
+        `minVersion: "3.9.0"
+github:
+  owner: test-owner
+  repo: test-repo
+changelog:
+  policy: auto
+preReleaseCommand: ""
+targets: []
+`,
+      );
+      await git.add('.');
+      await git.commit('chore: Enable automatic versioning');
+      await git.addTag('0.5.0');
+      await writeFile(join(tempDir, 'baz.ts'), 'export const baz = 3;');
+      await git.add('.');
+      await git.commit('feat!: Remove the old baz API');
+      await git.push('origin', (await git.status()).current!);
+
+      const { stdout, stderr } = await execFileAsync(
+        CLI_BIN,
+        ['prepare', versionArg, '--dry-run', '--no-input'],
+        { cwd: tempDir, env: { ...CLI_ENV, GITHUB_TOKEN: '' } },
+      );
+
+      expect(stdout + stderr).toContain(`Version bump: 0.5.0 -> ${expected}`);
+    },
+    60000,
+  );
+
   test('prepares a workspace changelog without changing the root changelog', async () => {
     tempDir = await createTestRepo();
     // eslint-disable-next-line no-restricted-syntax -- Test setup needs direct git access

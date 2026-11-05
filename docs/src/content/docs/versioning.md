@@ -63,6 +63,9 @@ Craft reads it from the files of the first configured target that
 [supports version bumping](#supported-targets) and declares a semver version
 above `0.0.0`. Without one, they increment `0.0.0`.
 
+Before `1.0.0`, `auto` and `pre` treat breaking changes as a minor bump, so
+`0.5.0` becomes `0.6.0`. Pass `1.0.0` or `major` to release `1.0.0`.
+
 After a prerelease, bump types and `auto` promote it to a stable release:
 `2.1.0-alpha.3` becomes `2.1.0`, or a higher version when the bump needs one.
 To be safe, `auto` doesn't promote a prerelease to a major release: after

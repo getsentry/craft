@@ -715,6 +715,15 @@ async function resolveVersion(
 
     const latestTag = await getLatestTag(git, getGitTagPrefix());
 
+    // Calculate new version from the latest tag. Before the first tag, start
+    // from the version in the release unit's project files, so a workspace at
+    // `1.0.0-dev.0` releases `1.0.0` instead of a bump of `0.0.0`. Bumping a
+    // prerelease promotes it, so `2.0.0-alpha.3` releases `2.0.0`.
+    const currentVersion =
+      (latestTag && getVersion(latestTag)) ||
+      (await readProjectVersion(config.targets || [], getReleaseUnitDir())) ||
+      '0.0.0';
+
     // Determine bump type - either from arg or from commit analysis
     let bumpType: BumpType;
     if (version === 'auto' || version === 'pre') {
@@ -726,18 +735,18 @@ async function resolveVersion(
       );
       validateBumpType(changelogResult);
       bumpType = changelogResult.bumpType;
+      if (bumpType === 'major' && semver.major(currentVersion) === 0) {
+        // Before 1.0.0, breaking changes bump the minor version. Releasing
+        // 1.0.0 is a decision, so it takes an explicit `major` or version.
+        logger.info(
+          `${currentVersion} is below 1.0.0, so the breaking changes bump ` +
+            'the minor version. Pass "major" to release 1.0.0.',
+        );
+        bumpType = 'minor';
+      }
     } else {
       bumpType = version as BumpType;
     }
-
-    // Calculate new version from the latest tag. Before the first tag, start
-    // from the version in the release unit's project files, so a workspace at
-    // `1.0.0-dev.0` releases `1.0.0` instead of a bump of `0.0.0`. Bumping a
-    // prerelease promotes it, so `2.0.0-alpha.3` releases `2.0.0`.
-    const currentVersion =
-      (latestTag && getVersion(latestTag)) ||
-      (await readProjectVersion(config.targets || [], getReleaseUnitDir())) ||
-      '0.0.0';
 
     let newVersion = calculateNextVersion(currentVersion, bumpType);
     if (version === 'pre') {
