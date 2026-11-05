@@ -59,6 +59,7 @@ import { buildReleaseCommandEnv } from '../utils/releaseCommandEnv';
 import { getPublishStatePath } from '../utils/publishState';
 import { DEFAULT_CALVER_CONFIG, getNextCalVerPeriod } from '../utils/calver';
 import { runPreReleaseCommand } from '../utils/preReleaseCommand';
+import { resolveVersionBumpMergeConflicts } from '../utils/versionConflicts';
 
 /** Default path to post-release script, relative to project root */
 const DEFAULT_POST_RELEASE_SCRIPT_PATH = join('scripts', 'post-release.sh');
@@ -482,6 +483,8 @@ export class BranchCleanupError extends Error {
  * @param [mergeTarget] Branch name to merge the release branch into
  * @param keepBranch If set to "true", the branch will not be deleted
  * @param mergeSource Revision to merge, defaults to the release branch
+ * @param releaseVersion Released version, used to resolve conflicts that
+ *   only come from the release branch's version bump
  */
 export async function handleReleaseBranch(
   git: SimpleGit,
@@ -491,6 +494,7 @@ export async function handleReleaseBranch(
   mergeTarget?: string,
   keepBranch = false,
   mergeSource = branch,
+  releaseVersion?: string,
 ): Promise<void> {
   if (!mergeTarget) {
     mergeTarget = await getDefaultBranch(git, remoteName);
@@ -519,7 +523,16 @@ export async function handleReleaseBranch(
     // Retry with the resolve strategy which handles criss-cross ambiguities
     // differently and often succeeds where ort fails on files like CHANGELOG.md
     try {
-      await git.merge(['-s', 'resolve', '--no-ff', '--no-edit', mergeSource]);
+      try {
+        await git.merge(['-s', 'resolve', '--no-ff', '--no-edit', mergeSource]);
+      } catch (resolveError) {
+        // The target branch may have changed lines next to the version
+        // strings the release branch bumped. Those conflicts have an obvious
+        // resolution.
+        if (!(await tryResolveVersionBumpConflicts(git, releaseVersion))) {
+          throw resolveError;
+        }
+      }
     } catch (resolveError) {
       // Resolve also failed — capture conflict details before aborting
       let conflictedFiles: string[] = [];
@@ -600,6 +613,40 @@ export async function handleReleaseBranch(
         true,
       );
     }
+  }
+}
+
+/**
+ * Commits the merge resolution when every conflict of the in-progress merge
+ * only comes from the release version bump.
+ *
+ * @returns Whether the merge was resolved and committed
+ */
+async function tryResolveVersionBumpConflicts(
+  git: SimpleGit,
+  releaseVersion: string | undefined,
+): Promise<boolean> {
+  if (!releaseVersion) {
+    return false;
+  }
+  try {
+    const resolvedFiles = await resolveVersionBumpMergeConflicts(
+      git,
+      releaseVersion,
+    );
+    if (!resolvedFiles) {
+      return false;
+    }
+    logger.info(
+      `Resolved conflicts caused only by the ${releaseVersion} version bump in: ${resolvedFiles.join(', ')}`,
+    );
+    return true;
+  } catch (resolutionError) {
+    logger.debug(
+      'Could not auto-resolve the version bump conflicts:',
+      resolutionError,
+    );
+    return false;
   }
 }
 
@@ -1004,6 +1051,7 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
         mergeTarget,
         argv.keepBranch,
         rev ? revision : branchName,
+        newVersion,
       );
       mergedInto = mergeTarget;
     } catch (mergeError) {
