@@ -471,6 +471,70 @@ export class BranchCleanupError extends Error {
 }
 
 /**
+ * Error thrown when every target published but the release branch could not
+ * be merged into the merge target. Retrying the publish skips the published
+ * targets and only merges.
+ */
+export class ReleaseBranchMergeError extends Error {
+  public __proto__: Error;
+
+  public constructor(message: string, options?: ErrorOptions) {
+    const trueProto = new.target.prototype;
+    super(message, options);
+    this.__proto__ = trueProto;
+  }
+}
+
+/**
+ * Explains why the release branch merge failed and how to recover.
+ */
+function describeMergeFailure(
+  mergeError: unknown,
+  branchName: string,
+  remoteName: string,
+): string {
+  const lines = [
+    `Failed to merge release branch "${branchName}" into the target branch.`,
+    `All publish targets completed successfully. Retrying the publish skips them and only merges the release branch.`,
+  ];
+  if (mergeError instanceof MergeConflictError) {
+    lines.push(`Merge conflict — both ort and resolve strategies failed.`);
+    if (mergeError.conflictedFiles.length > 0) {
+      lines.push(``, `Conflicting files:`);
+      for (const file of mergeError.conflictedFiles) {
+        lines.push(`  - ${file}`);
+      }
+    }
+    if (mergeError.diff) {
+      lines.push(``, `Diff:`, mergeError.diff);
+    }
+    lines.push(
+      ``,
+      `To recover, do one of these, then retry the publish:`,
+      `  - Merge the target branch into "${branchName}", resolve the conflicts, and push it. The retry merges the new release branch head.`,
+      `  - Merge "${branchName}" into the target branch yourself with a merge commit (not a squash), resolving the conflicts.`,
+    );
+  } else if (mergeError instanceof PushError) {
+    lines.push(
+      `The merge succeeded locally but pushing to the remote failed.`,
+      `This is likely due to an expired authentication token (common for long-running publishes > 1 hour).`,
+      ``,
+      `Retry the publish with valid credentials.`,
+    );
+  } else {
+    lines.push(
+      ``,
+      `Fix the cause below and retry the publish, or merge the release branch into the target branch and delete it yourself: git push ${remoteName} --delete ${branchName}`,
+    );
+  }
+  lines.push(
+    ``,
+    `Error: ${mergeError instanceof Error ? mergeError.message : String(mergeError)}`,
+  );
+  return lines.join('\n');
+}
+
+/**
  * Deals with the release branch after publishing is done
  *
  * Leave the release branch unmerged, or merge it but preserve it if the
@@ -1055,89 +1119,39 @@ export async function publishMain(argv: PublishOptions): Promise<any> {
       );
       mergedInto = mergeTarget;
     } catch (mergeError) {
-      // The merge is a housekeeping step — it must not block the success
-      // signal for a fully-published release. Report to Sentry for
-      // observability but don't fail the command.
-      captureException(mergeError);
-      if (mergeError instanceof BranchCleanupError) {
-        // The merge itself was pushed; only the branch cleanup failed.
-        mergedInto = mergeTarget;
+      if (!(mergeError instanceof BranchCleanupError)) {
+        // Every target published, but the release didn't make it back into
+        // the merge target, which also skips the post-release steps. Fail
+        // loudly so the release can be fixed and retried. The publish state
+        // file stays, so the retry skips the published targets.
+        throw new ReleaseBranchMergeError(
+          describeMergeFailure(mergeError, branchName, argv.remote),
+          { cause: mergeError },
+        );
       }
 
-      const lines: string[] = [];
-      if (mergeError instanceof BranchCleanupError) {
+      // The merge itself was pushed; only the branch cleanup failed.
+      captureException(mergeError);
+      mergedInto = mergeTarget;
+      const lines = [
+        `Failed to clean up release branch "${branchName}" after merging it into the target branch.`,
+      ];
+      if (mergeError.remoteDeleted) {
         lines.push(
-          `Failed to clean up release branch "${branchName}" after merging it into the target branch.`,
-        );
-        if (mergeError.remoteDeleted) {
-          lines.push(
-            `The merge was pushed and the remote release branch was deleted, but deleting the local branch failed.`,
-            `Inspect the local branch before deleting it.`,
-            ``,
-            `To retry safely: git branch -d -- ${branchName}`,
-          );
-        } else {
-          lines.push(
-            `The merge was pushed, but deleting the remote release branch failed.`,
-            `The branch may have advanced beyond the expected release revision ${revision}. Inspect it before cleanup.`,
-            ``,
-            `To retry safely: git push --force-with-lease=refs/heads/${branchName}:${revision} ${argv.remote} :refs/heads/${branchName}`,
-          );
-        }
-      } else if (mergeError instanceof MergeConflictError) {
-        lines.push(
-          `Failed to merge release branch "${branchName}" into the target branch.`,
-        );
-        lines.push(`Merge conflict — both ort and resolve strategies failed.`);
-        if (mergeError.conflictedFiles.length > 0) {
-          lines.push(``);
-          lines.push(`Conflicting files:`);
-          for (const file of mergeError.conflictedFiles) {
-            lines.push(`  - ${file}`);
-          }
-        }
-        if (mergeError.diff) {
-          lines.push(``, `Diff:`, mergeError.diff);
-        }
-        lines.push(
+          `The merge was pushed and the remote release branch was deleted, but deleting the local branch failed.`,
+          `Inspect the local branch before deleting it.`,
           ``,
-          `All publish targets completed successfully — only the post-publish merge failed.`,
-          ``,
-          `To resolve manually:`,
-          `  1. Merge the release branch into the target branch, resolving conflicts`,
-          `  2. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
-        );
-      } else if (mergeError instanceof PushError) {
-        lines.push(
-          `Failed to merge release branch "${branchName}" into the target branch.`,
-        );
-        lines.push(
-          `The merge succeeded locally but pushing to the remote failed.`,
-          `This is likely due to an expired authentication token (common for long-running publishes > 1 hour).`,
-          ``,
-          `All publish targets completed successfully — only the post-publish push failed.`,
-          ``,
-          `To resolve manually:`,
-          `  1. Re-authenticate (e.g., generate a fresh token)`,
-          `  2. Merge the release branch into the target branch`,
-          `  3. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
+          `To retry safely: git branch -d -- ${branchName}`,
         );
       } else {
         lines.push(
-          `Failed to merge release branch "${branchName}" into the target branch.`,
-        );
-        lines.push(
-          `All publish targets completed successfully — only the post-publish merge failed.`,
+          `The merge was pushed, but deleting the remote release branch failed.`,
+          `The branch may have advanced beyond the expected release revision ${revision}. Inspect it before cleanup.`,
           ``,
-          `To resolve manually:`,
-          `  1. Merge the release branch into the target branch`,
-          `  2. Delete the release branch: git push ${argv.remote} --delete ${branchName}`,
+          `To retry safely: git push --force-with-lease=refs/heads/${branchName}:${revision} ${argv.remote} :refs/heads/${branchName}`,
         );
       }
-      lines.push(
-        ``,
-        `Error: ${mergeError instanceof Error ? mergeError.message : String(mergeError)}`,
-      );
+      lines.push(``, `Error: ${mergeError.message}`);
       logger.warn(lines.join('\n'));
     }
 

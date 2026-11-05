@@ -35,7 +35,11 @@ import {
   getGitClient,
   isRepoDirty,
 } from '../../utils/git';
-import { BranchCleanupError, publishMain } from '../publish';
+import {
+  BranchCleanupError,
+  publishMain,
+  ReleaseBranchMergeError,
+} from '../publish';
 
 vi.mock('@sentry/node', () => ({
   captureException: vi.fn(),
@@ -210,6 +214,45 @@ describe('publishMain release branch handling', () => {
       ':refs/heads/stable/1.2.3',
       [`--force-with-lease=refs/heads/stable/1.2.3:${revision}`],
     );
+  });
+
+  test('fails the release and keeps the publish state when the merge conflicts', async () => {
+    const git = createMockGit('e'.repeat(40));
+    (git.merge as Mock).mockImplementation((args: string[]) =>
+      args[0] === '--abort'
+        ? Promise.resolve()
+        : Promise.reject(new Error('CONFLICT (content)')),
+    );
+    vi.mocked(git.status).mockResolvedValue({
+      files: [],
+      conflicted: ['CHANGELOG.md'],
+    } as never);
+    vi.mocked(getGitClient).mockResolvedValue(git);
+
+    const error = await publishMain(defaultOptions).catch((e: unknown) => e);
+
+    expect(publishTarget).toHaveBeenCalledOnce();
+    expect(error).toBeInstanceOf(ReleaseBranchMergeError);
+    const message = (error as Error).message;
+    expect(message).toContain('Failed to merge release branch "stable/1.2.3"');
+    expect(message).toContain('  - CHANGELOG.md');
+    expect(message).toContain('Retrying the publish skips them');
+    expect(safeFs.unlink).not.toHaveBeenCalled();
+    expect(git.push).not.toHaveBeenCalled();
+  });
+
+  test('fails the release when pushing the merge fails', async () => {
+    const git = createMockGit('f'.repeat(40));
+    vi.mocked(git.push).mockRejectedValueOnce(new Error('403 Forbidden'));
+    vi.mocked(getGitClient).mockResolvedValue(git);
+
+    const error = await publishMain(defaultOptions).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ReleaseBranchMergeError);
+    expect((error as Error).message).toContain(
+      'Retry the publish with valid credentials.',
+    );
+    expect(safeFs.unlink).not.toHaveBeenCalled();
   });
 
   test('reports remote deletion failures as cleanup failures', async () => {
@@ -401,6 +444,17 @@ describe('publishMain post-release bump', () => {
 
     await publishMain(defaultOptions);
 
+    expect(git.commit).not.toHaveBeenCalled();
+  });
+
+  test('skips the bump when the merge fails', async () => {
+    vi.mocked(git.push).mockRejectedValueOnce(new Error('403 Forbidden'));
+
+    await expect(publishMain(defaultOptions)).rejects.toBeInstanceOf(
+      ReleaseBranchMergeError,
+    );
+
+    expect(runPreReleaseCommand).not.toHaveBeenCalled();
     expect(git.commit).not.toHaveBeenCalled();
   });
 
