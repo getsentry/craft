@@ -356,16 +356,19 @@ function fragments(text: string): string[] {
 class SummaryAttempt {
   private requests = 0;
   private controller = new AbortController();
-  private deadline: number;
-  private timer: ReturnType<typeof setTimeout>;
+  private deadline = Infinity;
+  private timer?: ReturnType<typeof setTimeout>;
 
+  /** A zero timeout leaves only the per-request and request-count limits. */
   constructor(
     private provider: SummaryProvider,
     timeout: number,
     private style?: string,
   ) {
-    this.deadline = Date.now() + timeout;
-    this.timer = setTimeout(() => this.controller.abort(), timeout);
+    if (timeout > 0) {
+      this.deadline = Date.now() + timeout;
+      this.timer = setTimeout(() => this.controller.abort(), timeout);
+    }
   }
 
   async close(): Promise<void> {
