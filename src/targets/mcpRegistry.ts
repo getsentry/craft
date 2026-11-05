@@ -19,6 +19,7 @@ import { BaseArtifactProvider } from '../artifact_providers/base';
 export const DEFAULT_REGISTRY_URL = 'https://registry.modelcontextprotocol.io';
 
 const DEFAULT_MANIFEST = 'server.json';
+const DEFAULT_NPM_REGISTRY_URL = 'https://registry.npmjs.org';
 
 /**
  * Optional GitHub token, used when GitHub Actions OIDC is not available. Same
@@ -30,6 +31,14 @@ export const GITHUB_TOKEN_ENV_VAR = 'MCP_GITHUB_TOKEN';
 const OFFICIAL_META_KEY = 'io.modelcontextprotocol.registry/official';
 
 const REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * npm can take a while to serve a version it just accepted, and the registry
+ * rejects a publish whose npm package version it cannot fetch yet. Wait up to
+ * about five minutes for each npm package before publishing.
+ */
+const NPM_ATTEMPTS = 30;
+const NPM_RETRY_DELAY_MS = 10_000;
 
 /** Bounded wait for a fresh listing to become readable after publishing */
 const LISTING_ATTEMPTS = 6;
@@ -43,6 +52,9 @@ interface ServerManifest extends Record<string, unknown> {
 }
 
 interface ServerPackage extends Record<string, unknown> {
+  registryType?: string;
+  registryBaseUrl?: string;
+  identifier?: string;
   version?: string;
 }
 
@@ -74,8 +86,9 @@ export interface McpRegistryTargetConfig {
  * skipped, and one that differs is an error.
  *
  * The registry checks each package itself when publishing (for npm: that the
- * version exists and its `mcpName` matches the server name) and returns a
- * descriptive error, so this target does not duplicate those checks.
+ * version exists and its `mcpName` matches the server name). Because npm can
+ * lag behind a fresh publish, the target first waits until npm serves each
+ * npm package version, and leaves the remaining checks to the registry.
  */
 export class McpRegistryTarget extends BaseTarget {
   /** Target name */
@@ -150,6 +163,8 @@ export class McpRegistryTarget extends BaseTarget {
       return;
     }
 
+    await this.waitForNpmPackages(manifest, version);
+
     const token = await this.getRegistryToken();
     this.logger.info(`Publishing ${label} to the MCP Registry...`);
     await this.publishManifest(manifest, token);
@@ -187,6 +202,43 @@ export class McpRegistryTarget extends BaseTarget {
       pkg.version = version;
     }
     return manifest;
+  }
+
+  /**
+   * Waits until npm serves `version` of each npm package in the manifest, at
+   * the same URL the registry fetches when it validates the package.
+   */
+  private async waitForNpmPackages(
+    manifest: ServerManifest,
+    version: string,
+  ): Promise<void> {
+    for (const pkg of manifest.packages ?? []) {
+      if (pkg.registryType !== 'npm' || !pkg.identifier) {
+        continue;
+      }
+      const baseUrl = (pkg.registryBaseUrl || DEFAULT_NPM_REGISTRY_URL).replace(
+        /\/+$/,
+        '',
+      );
+      // Same escaping as npm and the registry: `@scope%2Fname`.
+      const escapedName = encodeURIComponent(pkg.identifier).replace(
+        /^%40/,
+        '@',
+      );
+      const label = `npm package ${pkg.identifier}@${version}`;
+      const info = await this.pollJson(
+        `${baseUrl}/${escapedName}/${encodeURIComponent(version)}`,
+        label,
+        NPM_ATTEMPTS,
+        NPM_RETRY_DELAY_MS,
+      );
+      if (!info) {
+        throw new Error(
+          `${label} is still not available on npm. List the npm target ` +
+            'before mcp-registry, and re-run the publish once npm serves it.',
+        );
+      }
+    }
   }
 
   private listingUrl(name: string, version: string): string {
@@ -264,7 +316,7 @@ export class McpRegistryTarget extends BaseTarget {
   }
 
   /**
-   * GETs `url` until it returns JSON. Retries 404, 5xx and network errors up
+   * GETs `url` until it returns JSON. Retries 404, 429, 5xx and network errors up
    * to `attempts` times and returns undefined if they never resolve. Other
    * HTTP errors throw immediately.
    */
@@ -289,7 +341,12 @@ export class McpRegistryTarget extends BaseTarget {
       if (response?.ok) {
         return response.json();
       }
-      if (response && response.status !== 404 && response.status < 500) {
+      if (
+        response &&
+        response.status !== 404 &&
+        response.status !== 429 &&
+        response.status < 500
+      ) {
         throw new Error(`Fetching ${label} failed: ${reason}`);
       }
       if (attempt >= attempts) {

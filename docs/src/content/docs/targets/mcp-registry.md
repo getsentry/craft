@@ -34,12 +34,13 @@ For the release version, the target:
 2. Looks up that version in the registry. Registry versions are immutable:
    - If it is already listed and matches the manifest, the target does nothing. Re-running a release is safe.
    - If it is listed but differs from the manifest, the target fails. Release a new version instead.
-3. Authenticates and publishes the manifest.
-4. Checks that the new listing matches the manifest (ignoring `$schema`) and is `active`.
+3. For each `npm` package in the manifest, waits up to about five minutes for npm to serve that exact version. npm can lag behind a fresh publish, and the registry rejects a package version it cannot fetch yet.
+4. Authenticates and publishes the manifest.
+5. Checks that the new listing matches the manifest (ignoring `$schema`) and is `active`.
 
-The registry validates each package when you publish. For npm packages, it checks that the version exists on npm and that its `mcpName` equals the manifest `name`. If npm doesn't serve the new version yet, the registry rejects the publish and says so. Run the publish again once the version appears on npm; targets that already finished are skipped.
+The registry validates each package when you publish. For npm packages, it checks that the version exists on npm and that its `mcpName` equals the manifest `name`. If npm still doesn't serve the new version after the wait, the target fails. Run the publish again once the version appears on npm; targets that already finished are skipped.
 
-In dry-run mode, the target still looks up the listing, but does not authenticate or publish.
+In dry-run mode, the target still looks up the listing, but does not wait for npm, authenticate, or publish.
 
 ## Example
 
