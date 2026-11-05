@@ -27,6 +27,15 @@ By default, this target:
 1. Looks for an artifact named `gh-pages.zip`
 2. Extracts its contents
 3. Commits to the `gh-pages` branch
+4. Waits for GitHub Pages to build the pushed commit
+
+## Build Verification
+
+When GitHub Pages builds from the target branch, Craft waits up to 15 minutes for the build of the pushed commit. If the build fails or times out, Craft requests a rebuild, at most 2 times. If the last rebuild also fails, the target fails.
+
+Craft skips the wait and logs a warning when the token cannot read the Pages settings (HTTP 403 or 404). This happens when Pages is not enabled, or when the token has no Pages permission. Craft also skips the wait when Pages builds from a GitHub Actions workflow or from a different branch.
+
+To wait for builds, give the token read and write access to Pages.
 
 ## Example
 

@@ -133,6 +133,8 @@ the release unit’s project files instead, so <code dir="auto">1.0.0-dev.0</cod
 Craft reads it from the files of the first configured target that
 <a href="#supported-targets">supports version bumping</a> and declares a semver version
 above <code dir="auto">0.0.0</code>. Without one, they increment <code dir="auto">0.0.0</code>.</p>
+<p>Before <code dir="auto">1.0.0</code>, <code dir="auto">auto</code> and <code dir="auto">pre</code> treat breaking changes as a minor bump, so
+<code dir="auto">0.5.0</code> becomes <code dir="auto">0.6.0</code>. Pass <code dir="auto">1.0.0</code> or <code dir="auto">major</code> to release <code dir="auto">1.0.0</code>.</p>
 <p>After a prerelease, bump types and <code dir="auto">auto</code> promote it to a stable release:
 <code dir="auto">2.1.0-alpha.3</code> becomes <code dir="auto">2.1.0</code>, or a higher version when the bump needs one.
 To be safe, <code dir="auto">auto</code> doesn’t promote a prerelease to a major release: after
