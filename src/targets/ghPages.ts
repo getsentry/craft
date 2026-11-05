@@ -7,6 +7,7 @@ import {
   TargetConfig,
   TypedTargetConfig,
 } from '../schemas/project_config';
+import { sleep } from '../utils/async';
 import { ConfigurationError, reportError } from '../utils/errors';
 import { withTempDir } from '../utils/files';
 import {
@@ -15,6 +16,7 @@ import {
   GitHubRemote,
 } from '../utils/githubApi';
 import { cloneRepo } from '../utils/git';
+import { isDryRun } from '../utils/helpers';
 import { extractZipArchiveWithFlattening } from '../utils/system';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
@@ -32,6 +34,26 @@ interface GhPagesConfigFields extends Record<string, unknown> {
 const DEFAULT_DEPLOY_ARCHIVE_REGEX = /^(?:.+-)?gh-pages\.zip$/;
 
 const DEFAULT_DEPLOY_BRANCH = 'gh-pages';
+
+/** Delay between reads of the latest GitHub Pages build */
+const PAGES_BUILD_POLL_INTERVAL_MS = 10 * 1000;
+
+/**
+ * Reads per build attempt: 15 minutes. GitHub's deploy job alone can take
+ * up to 10 minutes before actions/deploy-pages gives up.
+ */
+const PAGES_BUILD_MAX_POLLS = 90;
+
+/** Rebuilds to request after the first GitHub Pages build fails */
+const PAGES_MAX_REBUILDS = 2;
+
+/** Subset of a GitHub Pages build that the target reads */
+interface PagesBuild {
+  url: string;
+  status: string;
+  commit: string;
+  error: { message: string | null };
+}
 
 /** Target options for "gh-pages" */
 export interface GhPagesConfig {
@@ -131,6 +153,7 @@ export class GhPagesTarget extends BaseTarget {
    * @param branch Branch to push
    * @param archivePath Path to the archive
    * @param version Version to deploy
+   * @returns SHA of the pushed commit
    */
   public async commitArchiveToBranch(
     directory: string,
@@ -138,7 +161,7 @@ export class GhPagesTarget extends BaseTarget {
     branch: string,
     archivePath: string,
     version: string,
-  ): Promise<void> {
+  ): Promise<string> {
     this.logger.info(
       `Cloning "${remote.getRemoteString()}" to "${directory}"...`,
     );
@@ -176,6 +199,93 @@ export class GhPagesTarget extends BaseTarget {
 
     this.logger.info(`Pushing branch "${branch}"...`);
     await git.push('origin', branch, ['--set-upstream']);
+    return (await git.revparse(['HEAD'])).trim();
+  }
+
+  /**
+   * Waits until GitHub Pages builds the pushed commit, and requests a
+   * rebuild when the build fails.
+   *
+   * A push to the branch only starts the build. GitHub can fail the build
+   * later, for example when its deploy job times out (getsentry/craft#960).
+   * Skips the wait when the token cannot read Pages, or when Pages does not
+   * build from the configured branch.
+   *
+   * @param sha SHA of the pushed commit
+   */
+  public async waitForPagesBuild(sha: string): Promise<void> {
+    const { githubOwner: owner, githubRepo: repo, branch } = this.ghPagesConfig;
+
+    let pages;
+    try {
+      pages = (await this.github.repos.getPages({ owner, repo })).data;
+    } catch (e) {
+      if (e.status === 403 || e.status === 404) {
+        this.logger.warn(
+          `Cannot read GitHub Pages settings of ${owner}/${repo} (HTTP ${e.status}), not waiting for the Pages build.`,
+        );
+        return;
+      }
+      throw e;
+    }
+    if (pages.build_type !== 'legacy' || pages.source?.branch !== branch) {
+      this.logger.info(
+        `GitHub Pages of ${owner}/${repo} does not build from branch "${branch}", not waiting for the Pages build.`,
+      );
+      return;
+    }
+
+    let failedBuild: PagesBuild | undefined;
+    for (let attempt = 0; attempt <= PAGES_MAX_REBUILDS; attempt++) {
+      if (attempt > 0) {
+        this.logger.warn(
+          `GitHub Pages build failed (${describePagesBuild(failedBuild)}), requesting rebuild ${attempt}/${PAGES_MAX_REBUILDS}...`,
+        );
+        await this.github.repos.requestPagesBuild({ owner, repo });
+      }
+      const build = await this.pollPagesBuild(sha, failedBuild?.url);
+      if (build?.status === 'built') {
+        this.logger.info(`GitHub Pages build for ${sha} is complete.`);
+        return;
+      }
+      failedBuild = build ?? failedBuild;
+    }
+
+    reportError(
+      `GitHub Pages build for ${sha} failed after ${PAGES_MAX_REBUILDS} rebuilds (${describePagesBuild(failedBuild)}). ` +
+        `See https://github.com/${owner}/${repo}/deployments/github-pages`,
+    );
+  }
+
+  /**
+   * Reads the latest GitHub Pages build until the build for `sha` finishes
+   *
+   * @param sha SHA of the pushed commit
+   * @param ignoreUrl URL of an earlier failed build of the same commit
+   * @returns The finished build, or undefined when the wait timed out
+   */
+  private async pollPagesBuild(
+    sha: string,
+    ignoreUrl?: string,
+  ): Promise<PagesBuild | undefined> {
+    const { githubOwner: owner, githubRepo: repo } = this.ghPagesConfig;
+    for (let poll = 0; poll < PAGES_BUILD_MAX_POLLS; poll++) {
+      await sleep(PAGES_BUILD_POLL_INTERVAL_MS);
+      const build: PagesBuild = (
+        await this.github.repos.getLatestPagesBuild({ owner, repo })
+      ).data;
+      if (
+        build.commit === sha &&
+        build.url !== ignoreUrl &&
+        (build.status === 'built' || build.status === 'errored')
+      ) {
+        return build;
+      }
+      this.logger.debug(
+        `Latest GitHub Pages build: ${build.status} for ${build.commit}`,
+      );
+    }
+    return undefined;
   }
 
   /**
@@ -209,7 +319,7 @@ export class GhPagesTarget extends BaseTarget {
       getGitHubApiToken(),
     );
 
-    await withTempDir(
+    const sha = await withTempDir(
       async directory =>
         this.commitArchiveToBranch(
           directory,
@@ -222,6 +332,23 @@ export class GhPagesTarget extends BaseTarget {
       'craft-gh-pages-',
     );
 
+    // The push did not happen, so there is no build to wait for. This also
+    // keeps requestPagesBuild out of dry-run: the dry-run GitHub client does
+    // not treat "request*" methods as mutating.
+    if (isDryRun()) {
+      this.logger.info('[dry-run] Not waiting for the GitHub Pages build.');
+    } else {
+      await this.waitForPagesBuild(sha);
+    }
+
     this.logger.info('GitHub pages release complete');
   }
+}
+
+/** Describes a failed Pages build for logs and errors */
+function describePagesBuild(build: PagesBuild | undefined): string {
+  if (!build) {
+    return 'timed out';
+  }
+  return build.error.message || build.status;
 }
