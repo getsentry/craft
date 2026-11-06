@@ -174,6 +174,16 @@ Storage, or <code dir="auto">none</code> when your targets don’t need artifact
 deletes the branch. The merge target defaults to the repository’s default
 branch; override it with <code dir="auto">--merge-target</code>.</p>
 <ul>
+<li>If the merge target changed lines next to the version strings the release
+branch bumped, Craft resolves those conflicts itself: it keeps the merge
+target’s lines and applies the version bump to them.</li>
+<li>If the merge still fails, for example on another conflict or a rejected
+push, <code dir="auto">craft publish</code> fails after every target has published. It keeps the
+publish state and skips the post-release bump and command. Fix the cause and
+run the same <code dir="auto">craft publish</code> again: it skips the published targets and only
+merges. To fix a conflict, merge the merge target into the release branch
+and push it, or merge the release branch into the merge target yourself
+with a merge commit.</li>
 <li><code dir="auto">--no-merge</code> skips the merge. <code dir="auto">--keep-branch</code> merges but keeps the branch.</li>
 <li>Set <code dir="auto">noMerge: true</code> in <code dir="auto">.craft.yml</code> to never merge. Craft turns this on
 automatically for compiled Node.js GitHub Actions (repositories with a

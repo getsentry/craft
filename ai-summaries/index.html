@@ -95,6 +95,11 @@ or use <code dir="auto">aiSummary: false</code> to disable generation.</p>
 <td>Strict entry-count threshold. <code dir="auto">0</code> includes every nonempty selected group. Category counts include descendants; release counts include the whole changelog.</td>
 </tr>
 <tr>
+<td><code dir="auto">timeout</code></td>
+<td><code dir="auto">120</code></td>
+<td>Total generation budget in seconds: <code dir="auto">0</code> for no total limit, otherwise at least <code dir="auto">30</code>. Raise it for long changelogs, especially with <code dir="auto">scope</code> and <code dir="auto">category</code> levels; a run that runs out reports <code dir="auto">reason=deadline</code> and keeps the original entries.</td>
+</tr>
+<tr>
 <td><code dir="auto">style</code></td>
 <td>Neutral</td>
 <td>Optional writing guidance (1–500 characters), applied at every level. Facts, coverage, length and plain-text safeguards still apply.</td>
@@ -158,7 +163,10 @@ inherited object. Endpoints ending in <code dir="auto">/responses</code> use Res
 Chat Completions. Both require structured JSON output. Invalid settings are
 rejected; missing tokens and provider errors retain the original output. Failure
 warnings identify the generation stage and a fixed reason code, plus HTTP status
-for rejected requests. Credentials, source content and provider bodies are omitted.</p>
+for rejected requests. <code dir="auto">reason=request-timeout</code> means one call took longer than
+30 seconds; <code dir="auto">reason=deadline</code> means the whole run used up its <code dir="auto">timeout</code>. Debug
+logs (<code dir="auto">CRAFT_LOG_LEVEL=Debug</code>) show the duration of each model call.
+Credentials, source content and provider bodies are omitted.</p>
 <div class="sl-heading-wrapper level-h2"><h2 id="how-summaries-are-generated">How summaries are generated</h2><a class="sl-anchor-link" href="#how-summaries-are-generated"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “How summaries are generated”</span></a></div>
 <p>Lower-level digests are reused for parent summaries even when hidden. Each
 parent makes an AI synthesis call over its child digests. The release overview
@@ -191,8 +199,8 @@ The model also receives each node’s character budget as planning context.
 At every level, summaries without a complete sentence ending or with malformed
 control text are rejected and get the same bounded repair attempt.
 Invalid structured model output gets one repair attempt within the same
-64-request and 120-second budgets. Transport and authentication failures do not
-trigger retries or provider switching. Source-linked critical facts are carried
+64-request and total <code dir="auto">timeout</code> budgets. Transport and authentication failures do
+not trigger retries or provider switching. Source-linked critical facts are carried
 and validated internally without appending their text to every displayed summary.
 All original entries remain expanded beneath their summaries, including links
 and nested content. Craft does not add accordion wrappers; any expandable
@@ -203,8 +211,9 @@ category/release summaries. Unscoped entries contribute to both parent levels.</
 <p>Generation sends changelog content and critical PR titles to the chosen
 provider. Breaking/security facts retain source IDs. Generated prose is escaped;
 review it for accuracy. Requests are bounded to 64 calls, 3 concurrent calls,
-30 seconds per request, 120 seconds total, 24,000 input bytes and 8,192 output
-tokens. Any failure preserves the entire original changelog without retries or
+30 seconds per request, <code dir="auto">timeout</code> seconds total (120 by default; <code dir="auto">0</code> for no
+total limit), 24,000 input
+bytes and 8,192 output tokens. Any failure preserves the entire original changelog without retries or
 provider switching. Existing leftover-entry limits still apply.</p>
 <p>Dry runs, highlighted PR previews, <code dir="auto">prepare --no-changelog</code> and version analysis
 make zero model calls. See <a href="../github-actions/#ai-summary-authentication">AI summary authentication</a>
