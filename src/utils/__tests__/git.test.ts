@@ -155,6 +155,53 @@ describe('release base tags', () => {
   });
 });
 
+describe('release base tags with floating tags', () => {
+  let dir: string;
+  let client: ReturnType<typeof createGitClient>;
+
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), 'craft-floating-tags-'));
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-C', dir, ...args], {
+        env: {
+          ...process.env,
+          GIT_CONFIG_GLOBAL: '/dev/null',
+          GIT_CONFIG_NOSYSTEM: '1',
+        },
+      });
+    git('init', '--quiet');
+    git('config', 'user.name', 'Craft Test');
+    git('config', 'user.email', 'craft-test@example.com');
+    for (const tags of [['v0.52.0'], ['v0.53.0', 'v0', 'latest'], []]) {
+      git(
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '--quiet',
+        '--allow-empty',
+        '-m',
+        tags.length ? `release: ${tags[0]}` : 'Unreleased change',
+      );
+      for (const tag of tags) {
+        git('tag', tag);
+      }
+    }
+    client = createGitClient(dir);
+  });
+
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('skips floating tags on the latest release commit', async () => {
+    // `git describe` alone picks `v0`, which sorts before `v0.53.0`.
+    expect(await getLatestTag(client, 'v')).toBe('v0.53.0');
+    expect(await getLatestTag(client)).toBe('v0.53.0');
+    expect(await getLatestStableTag(client, 'v')).toBe('v0.53.0');
+    expect(await getChangelogBaseTag(client, '0.54.0', 'v')).toBe('v0.53.0');
+  });
+});
+
 describe('getGitClient', () => {
   it('preserves Git identity environment variables for commits', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'craft-git-identity-'));

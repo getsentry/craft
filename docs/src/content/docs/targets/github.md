@@ -58,6 +58,13 @@ targets:
 
 This is useful for users who want to pin to a major version while automatically receiving updates.
 
+Prereleases (versions with a prerelease identifier, such as `2.16.0-alpha.0`)
+do not move floating tags, so users pinned to `v2` only get stable releases.
+
+When Craft looks up the previous release, it skips tags that are not a full
+version after the tag prefix, such as `v2`, `v2.15`, or `latest`. A floating
+tag on the same commit as a release tag therefore does not hide that release.
+
 ## Preview Releases
 
 If `previewReleases` is `true` (default), releases containing pre-release identifiers like `alpha`, `beta`, `rc`, etc. are marked as pre-releases on GitHub. See [Versioning](../../versioning/#preview-releases) for the identifiers Craft recognizes.
