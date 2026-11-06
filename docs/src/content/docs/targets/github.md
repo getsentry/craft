@@ -61,9 +61,12 @@ This is useful for users who want to pin to a major version while automatically 
 Prereleases (versions with a prerelease identifier, such as `2.16.0-alpha.0`)
 do not move floating tags, so users pinned to `v2` only get stable releases.
 
-When Craft looks up the previous release, it skips tags that are not a full
-version after the tag prefix, such as `v2`, `v2.15`, or `latest`. A floating
-tag on the same commit as a release tag therefore does not hide that release.
+When Craft looks up the previous release, it ignores tags that have no
+`major.minor.patch` version after the tag prefix, such as `v2`, `v2.15`, or
+`latest`. A floating tag on the same commit as a release tag therefore does not
+hide that release. Prerelease tags still count as releases: a prerelease builds
+on the previous prerelease of its version, and a stable release on the latest
+stable tag (see [Changelog base](../../versioning/#changelog-base)).
 
 ## Preview Releases
 
