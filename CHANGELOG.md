@@ -1,5 +1,35 @@
 # Changelog
 
+## 3.11.0
+
+Larger changelogs gain bounded AI summarization, while publishing surfaces merge failures, handles narrow version conflicts, and waits for npm availability.
+
+### New Features ✨
+
+Configurable AI summary budgets and clearer timeout diagnostics accommodate larger changelogs without changing request limits.
+
+#### Changelog
+
+AI summary timing is now configurable through aiSummary.timeout. The default total budget remains 120 seconds; integer values from 30 to 1800 are accepted. Set aiSummary.timeout to 0 to remove the total budget, while the 30-second per-request limit and 64-request cap still apply. Warnings now distinguish request-timeout from total-budget deadline failures.
+
+- Allow disabling the AI summary total timeout by @sentry-junior in [#968](https://github.com/getsentry/craft/pull/968)
+- Make the AI summary timeout configurable by @BYK with @sentry-junior in [#967](https://github.com/getsentry/craft/pull/967)
+
+### Bug Fixes 🐛
+
+Publishing exposes merge failures, safely retries completed targets, resolves limited version conflicts, and waits for npm availability.
+
+#### Publish
+
+Publishing now fails when merging the release branch back fails, instead of reporting success after targets ship. The retained publish state allows retries to skip completed targets. Version-bump-only conflicts can be resolved automatically when every conflicted file matches the supported version-token pattern; other conflicts continue to the existing conflict handling.
+
+- Fail the publish when the release branch merge fails by @BYK with @sentry-junior in [#965](https://github.com/getsentry/craft/pull/965)
+- Resolve merge conflicts caused only by the version bump by @BYK with @sentry-junior in [#964](https://github.com/getsentry/craft/pull/964)
+
+#### Other
+
+- (targets) Wait for npm before publishing to the MCP Registry by @BYK with @sentry-junior in [#963](https://github.com/getsentry/craft/pull/963)
+
 ## 3.10.0
 
 Deployments now wait for builds and expose failures, while release tooling supports Craft 3 and prevents accidental pre-1.0 major version jumps.
