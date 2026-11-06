@@ -9,7 +9,6 @@ import {
   literal,
   looseObject,
   maxLength,
-  maxValue,
   minLength,
   minValue,
   number,
@@ -380,9 +379,16 @@ type SummaryLevel = 'release' | 'category' | 'scope';
 export const AiSummaryConfigSchema = strictObject({
   llm: optional(nonArray(AiSummaryLlmSchema), {}),
   minItems: optional(pipe(number(), integer(), minValue(0)), 5),
-  /** Total generation budget in seconds; large changelogs need more time. */
+  /** Total generation budget in seconds; `0` removes the total limit. */
   timeout: optional(
-    pipe(number(), integer(), minValue(30), maxValue(1800)),
+    pipe(
+      number(),
+      integer(),
+      check(
+        timeout => timeout === 0 || timeout >= 30,
+        'AI summary timeout must be 0 (no limit) or at least 30 seconds',
+      ),
+    ),
     120,
   ),
   style: optional(pipe(string(), trim(), minLength(1), maxLength(500))),

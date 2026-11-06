@@ -171,14 +171,14 @@ describe('validateConfiguration', () => {
     });
   });
 
-  test('accepts a longer AI summary timeout', () => {
+  test.each([0, 30, 600, 3600])('accepts AI summary timeout %s', timeout => {
     loadConfigurationFromString(
-      'changelog:\n  policy: auto\n  aiSummary:\n    timeout: 600',
+      `changelog:\n  policy: auto\n  aiSummary:\n    timeout: ${timeout}`,
     );
-    expect(getChangelogConfig().aiSummary).toMatchObject({ timeout: 600 });
+    expect(getChangelogConfig().aiSummary).toMatchObject({ timeout });
   });
 
-  test.each([29, 1801, 1.5, '600'])(
+  test.each([-1, 29, 1.5, '600'])(
     'rejects invalid AI summary timeout %j',
     timeout => {
       expect(() =>

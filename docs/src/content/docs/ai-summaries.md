@@ -25,7 +25,7 @@ changelog:
 | --- | --- | --- |
 | `levels` | `[release]` | Select visible summaries; omitted or empty arrays use `[release]`. |
 | `minItems` | `5` | Strict entry-count threshold. `0` includes every nonempty selected group. Category counts include descendants; release counts include the whole changelog. |
-| `timeout` | `120` | Total generation budget in seconds (30–1800). Raise it for long changelogs, especially with `scope` and `category` levels; a run that runs out reports `reason=deadline` and keeps the original entries. |
+| `timeout` | `120` | Total generation budget in seconds: `0` for no total limit, otherwise at least `30`. Raise it for long changelogs, especially with `scope` and `category` levels; a run that runs out reports `reason=deadline` and keeps the original entries. |
 | `style` | Neutral | Optional writing guidance (1–500 characters), applied at every level. Facts, coverage, length and plain-text safeguards still apply. |
 | `llm.endpoint` | `https://api.githubcopilot.com/responses` | Full POST URL; HTTPS required except loopback HTTP. |
 | `llm.model` | `gpt-5.4-nano` | Model ID supported by the endpoint and credential. |
@@ -182,7 +182,8 @@ category/release summaries. Unscoped entries contribute to both parent levels.
 Generation sends changelog content and critical PR titles to the chosen
 provider. Breaking/security facts retain source IDs. Generated prose is escaped;
 review it for accuracy. Requests are bounded to 64 calls, 3 concurrent calls,
-30 seconds per request, `timeout` seconds total (120 by default), 24,000 input
+30 seconds per request, `timeout` seconds total (120 by default; `0` for no
+total limit), 24,000 input
 bytes and 8,192 output tokens. Any failure preserves the entire original changelog without retries or
 provider switching. Existing leftover-entry limits still apply.
 
