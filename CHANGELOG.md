@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.11.1
+
+Floating GitHub tags now resolve to valid stable releases across preparation, versioning, and changelog operations.
+
+### Bug Fixes 🐛
+
+GitHub version lookups select valid stable releases for floating tags across prepare, versioning, and changelog operations.
+
+- (github) Skip prereleases and ignore floating tags in version lookup by @BYK with @sentry-junior in [#969](https://github.com/getsentry/craft/pull/969)
+
 ## 3.11.0
 
 Larger changelogs gain bounded AI summarization, while publishing surfaces merge failures, handles narrow version conflicts, and waits for npm availability.
