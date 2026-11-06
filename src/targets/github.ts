@@ -666,7 +666,8 @@ export class GitHubTarget extends BaseTarget {
    * Creates or updates floating tags for the release.
    *
    * Floating tags (like "v2") point to the latest release in a major version line.
-   * They are force-updated if they already exist.
+   * They are force-updated if they already exist. Prereleases leave them
+   * unchanged, so users pinned to a floating tag only get stable releases.
    *
    * @param version The version being released
    * @param revision Git commit SHA to point the tags to
@@ -684,6 +685,13 @@ export class GitHubTarget extends BaseTarget {
     if (!parsedVersion) {
       this.logger.warn(
         `Cannot parse version "${version}" for floating tags, skipping`,
+      );
+      return;
+    }
+
+    if (parsedVersion.pre) {
+      this.logger.info(
+        `Not updating floating tags because "${version}" is a prerelease.`,
       );
       return;
     }

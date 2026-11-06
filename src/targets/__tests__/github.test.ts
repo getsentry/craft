@@ -278,6 +278,41 @@ describe('GitHubTarget', () => {
     });
   });
 
+  describe('updateFloatingTags', () => {
+    let updateRef: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      githubTarget = new GitHubTarget(
+        { name: 'github', floatingTags: ['v{major}', 'v{major}.{minor}'] },
+        new NoneArtifactProvider(),
+        { owner: 'testOwner', repo: 'testRepo' },
+      );
+      updateRef = vi.fn().mockResolvedValue({});
+      githubTarget.github.rest.git.updateRef = updateRef as any;
+    });
+
+    it('moves floating tags to a stable release', async () => {
+      await (githubTarget as any).updateFloatingTags('0.53.0', 'abc123');
+
+      expect(updateRef).toHaveBeenCalledTimes(2);
+      expect(updateRef).toHaveBeenCalledWith(
+        expect.objectContaining({ ref: 'tags/v0', sha: 'abc123', force: true }),
+      );
+      expect(updateRef).toHaveBeenCalledWith(
+        expect.objectContaining({ ref: 'tags/v0.53', sha: 'abc123' }),
+      );
+    });
+
+    it('leaves floating tags alone for a prerelease', async () => {
+      await (githubTarget as any).updateFloatingTags(
+        '0.54.0-alpha.0',
+        'abc123',
+      );
+
+      expect(updateRef).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getRelease', () => {
     it('returns release data on success', async () => {
       const mockRelease = {

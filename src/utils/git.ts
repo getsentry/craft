@@ -72,7 +72,7 @@ export async function getLatestTag(
   git: SimpleGit,
   tagPrefix = '',
 ): Promise<string> {
-  return describeLatestTag(git, tagPrefix, []);
+  return findLatestTag(git, tagPrefix, () => true);
 }
 
 /**
@@ -87,7 +87,7 @@ export async function getLatestStableTag(
   git: SimpleGit,
   tagPrefix = '',
 ): Promise<string> {
-  return findLatestTag(git, tagPrefix, tagVersion => !tagVersion?.pre);
+  return findLatestTag(git, tagPrefix, tagVersion => !tagVersion.pre);
 }
 
 /**
@@ -109,7 +109,7 @@ export async function getChangelogBaseTag(
     git,
     tagPrefix,
     tagVersion =>
-      !tagVersion?.pre ||
+      !tagVersion.pre ||
       (!!release?.pre &&
         tagVersion.major === release.major &&
         tagVersion.minor === release.minor &&
@@ -117,16 +117,25 @@ export async function getChangelogBaseTag(
   );
 }
 
-/** Returns the latest tag whose version `accept` accepts. */
+/**
+ * Returns the latest tag whose version `accept` accepts.
+ *
+ * Tags without a version after the prefix, such as floating tags (`v2`) or
+ * `latest`, are never release tags, so they are skipped.
+ */
 async function findLatestTag(
   git: SimpleGit,
   tagPrefix: string,
-  accept: (tagVersion: SemVer | null) => boolean,
+  accept: (tagVersion: SemVer) => boolean,
 ): Promise<string> {
   const skippedTags: string[] = [];
   for (;;) {
     const tag = await describeLatestTag(git, tagPrefix, skippedTags);
-    if (!tag || accept(parseVersion(tag.slice(tagPrefix.length)))) {
+    if (!tag) {
+      return tag;
+    }
+    const tagVersion = parseVersion(tag.slice(tagPrefix.length));
+    if (tagVersion && accept(tagVersion)) {
       return tag;
     }
     skippedTags.push(tag);
