@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.11.2
+
+Changelog credits retain co-author attribution after squash merges, while batched GraphQL lookups reduce requests and tolerate partial results.
+
+### Bug Fixes 🐛
+
+Changelog crediting now preserves co-author attribution after squash merges, while batching GraphQL lookups reduces requests and accepts partial results.
+
+- (changelog) Credit PR commit co-authors when the merge commit has none by @BYK with @sentry-junior in [#970](https://github.com/getsentry/craft/pull/970)
+
 ## 3.11.1
 
 Floating GitHub tags now resolve to valid stable releases across preparation, versioning, and changelog operations.
