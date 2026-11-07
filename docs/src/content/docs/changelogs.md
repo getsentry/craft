@@ -288,7 +288,8 @@ changelog:
 
 Entries credit the PR author and any co-authors from `Co-authored-by` commit
 trailers that GitHub links to an account, for example `by @alice, @bob and 2
-others`. Bots are credited after people, as in `by @alice with @some-bot`. To
+others`. When the merged commit has no co-authors, for example because a squash
+merge cleared its message, Craft reads them from the commits of the PR. Bots are credited after people, as in `by @alice with @some-bot`. To
 keep a PR in the changelog without crediting an author, list it in
 `hide_authors` in `.github/release.yml`:
 

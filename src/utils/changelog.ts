@@ -107,6 +107,14 @@ interface CommitAuthors {
   nodes: Array<{ user: { login: string } | null }>;
 }
 
+/** PRs keyed by `P<number>` aliases, `null` for numbers that are not PRs */
+interface PRCommitAuthorsResult {
+  repository?: Record<
+    string,
+    { commits: { nodes: Array<{ commit: { authors: CommitAuthors } }> } } | null
+  >;
+}
+
 /** Returns the GitHub logins of commit authors that GitHub matched to a user. */
 function authorLogins(nodes: CommitAuthors['nodes'] = []): string[] {
   return nodes
@@ -116,20 +124,24 @@ function authorLogins(nodes: CommitAuthors['nodes'] = []): string[] {
 
 /**
  * Fetches the GitHub logins of everyone who authored or co-authored a commit
- * in the given PR. Co-authors come from `Co-authored-by` commit trailers.
+ * in the given PRs. Co-authors come from `Co-authored-by` commit trailers.
  *
- * Co-authors only add credit, so failures return an empty list.
+ * Co-authors only add credit, so PRs that fail to load are left out.
  *
- * @param prNumber The PR number to fetch
- * @returns Logins in commit order, possibly with duplicates
+ * @param prNumbers The PR numbers to fetch
+ * @returns Logins per PR number in commit order, possibly with duplicates
  */
-async function fetchPRCoAuthors(prNumber: number): Promise<string[]> {
+async function fetchPRCoAuthors(
+  prNumbers: string[],
+): Promise<Record<string, string[]>> {
   const { repo, owner } = await getGlobalGitHubConfig();
-  try {
-    const response = (await getGitHubClient().graphql(
-      `query($owner: String!, $repo: String!, $number: Int!) {
-        repository(owner: $owner, name: $repo) {
-          pullRequest(number: $number) {
+  const coAuthors: Record<string, string[]> = {};
+  for (let start = 0; start < prNumbers.length; start += MAX_PRS_PER_QUERY) {
+    const subset = prNumbers.slice(start, start + MAX_PRS_PER_QUERY);
+    const prsQuery = subset
+      // Aliases cannot start with a number, so prefix them with `P`
+      .map(
+        number => `P${number}: pullRequest(number: ${Number(number)}) {
             commits(first: ${MAX_PR_COMMITS}) {
               nodes {
                 commit {
@@ -137,26 +149,36 @@ async function fetchPRCoAuthors(prNumber: number): Promise<string[]> {
                 }
               }
             }
+          }`,
+      )
+      .join('\n');
+    let response: PRCommitAuthorsResult | undefined;
+    try {
+      response = (await getGitHubClient().graphql(
+        `query($owner: String!, $repo: String!) {
+          repository(owner: $owner, name: $repo) {
+            ${prsQuery}
           }
-        }
-      }`,
-      { owner, repo, number: prNumber },
-    )) as {
-      repository?: {
-        pullRequest?: {
-          commits: { nodes: Array<{ commit: { authors: CommitAuthors } }> };
-        };
-      };
-    };
-    return (response?.repository?.pullRequest?.commits.nodes ?? []).flatMap(
-      node => authorLogins(node.commit.authors.nodes),
-    );
-  } catch (error: any) {
-    logger.warn(
-      `Failed to fetch co-authors for PR #${prNumber}: ${error.message || error}`,
-    );
-    return [];
+        }`,
+        { owner, repo },
+      )) as PRCommitAuthorsResult;
+    } catch (error: any) {
+      logger.warn(
+        `Failed to fetch co-authors for PRs ${subset.map(n => `#${n}`).join(', ')}: ${error.message || error}`,
+      );
+      // A number that is not a PR fails the query but keeps the other PRs
+      response = error.data;
+    }
+    for (const number of subset) {
+      const pr = response?.repository?.[`P${number}`];
+      if (pr) {
+        coAuthors[number] = pr.commits.nodes.flatMap(node =>
+          authorLogins(node.commit.authors.nodes),
+        );
+      }
+    }
   }
+  return coAuthors;
 }
 
 /**
@@ -193,8 +215,10 @@ const VERSION_HEADER_LEVEL = 2;
 const SUBSECTION_HEADER_LEVEL = VERSION_HEADER_LEVEL + 1;
 const SCOPE_HEADER_LEVEL = SUBSECTION_HEADER_LEVEL + 1;
 const MAX_COMMITS_PER_QUERY = 50;
-/** Commits read from the current PR when previewing its changelog entry */
+/** Commits read from a PR to find its co-authors */
 const MAX_PR_COMMITS = 100;
+/** PRs per co-author query; each reads up to {@link MAX_PR_COMMITS} commits */
+const MAX_PRS_PER_QUERY = 25;
 /** Authors read per commit: the git author plus `Co-authored-by` trailers */
 const MAX_COMMIT_AUTHORS = 10;
 /** Authors shown per changelog entry before collapsing into "N others" */
@@ -1829,7 +1853,7 @@ export async function generateChangelogWithHighlight(
       body: prInfo.body,
       author: prInfo.author,
       authorIsBot: prInfo.authorIsBot,
-      coAuthors: await fetchPRCoAuthors(currentPRNumber),
+      coAuthors: (await fetchPRCoAuthors([currentPRStr]))[currentPRStr],
       pr: currentPRStr,
       prTitle: prInfo.title,
       prBody: prInfo.body,
@@ -1951,6 +1975,16 @@ async function fetchRawCommitInfo(
       seenPRs.set(pr, commit);
     }
     result.push(commit);
+  }
+
+  // A squash merge can drop the `Co-authored-by` trailers of the PR commits,
+  // for example when the merge message is cleared. Read them from the PR.
+  const prsWithoutCoAuthors = [...seenPRs]
+    .filter(([, commit]) => !commit.coAuthors?.length)
+    .map(([pr]) => pr);
+  const prCoAuthors = await fetchPRCoAuthors(prsWithoutCoAuthors);
+  for (const [pr, coAuthors] of Object.entries(prCoAuthors)) {
+    seenPRs.get(pr)!.coAuthors = coAuthors;
   }
 
   return result;
