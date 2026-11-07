@@ -912,6 +912,72 @@ describe('generateChangesetFromGit', () => {
       );
     });
 
+    it('credits PR commit co-authors when the merged commit has none', async () => {
+      const commit = junior([]);
+      // GraphQL returns PR numbers as numbers
+      commit.pr!.remote!.number = 123 as unknown as string;
+      setup([commit], null);
+      mockClient.mockResolvedValueOnce({
+        repository: {
+          P123: {
+            commits: {
+              nodes: [
+                {
+                  commit: {
+                    authors: commitAuthors(['sentry-junior[bot]', 'BYK']),
+                  },
+                },
+                { commit: { authors: commitAuthors(['thomasjiangcy']) } },
+              ],
+            },
+          },
+        },
+      });
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(result.changelog).toContain(
+        'Upgraded the kernel by @BYK and @thomasjiangcy with @sentry-junior in [#123]',
+      );
+    });
+
+    it('keeps PR co-authors that load when another PR number fails', async () => {
+      setup(
+        [
+          junior([]),
+          {
+            hash: 'bcdef1234567890a',
+            title: 'Fixed the kernel',
+            body: '',
+            pr: { local: '999' },
+          },
+        ],
+        null,
+      );
+      mockClient.mockRejectedValueOnce(
+        Object.assign(new Error('Could not resolve to a PullRequest'), {
+          data: {
+            repository: {
+              P123: {
+                commits: {
+                  nodes: [{ commit: { authors: commitAuthors(['BYK']) } }],
+                },
+              },
+              P999: null,
+            },
+          },
+        }),
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(result.changelog).toContain(
+        'Upgraded the kernel by @BYK with @sentry-junior in [#123]',
+      );
+    });
+
+    it('does not read the PR when the merged commit has co-authors', async () => {
+      setup([junior(['jan-auer'])], null);
+      await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(mockClient).toHaveBeenCalledTimes(1);
+    });
+
     it('collapses long author lists', async () => {
       setup(
         [
@@ -2444,7 +2510,7 @@ describe('generateChangelogWithHighlight', () => {
     });
     mockGraphqlClient.mockResolvedValueOnce({
       repository: {
-        pullRequest: {
+        P7: {
           commits: {
             nodes: [
               { commit: { authors: commitAuthors(['bob']) } },
