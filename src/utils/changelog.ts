@@ -1979,12 +1979,16 @@ async function fetchRawCommitInfo(
 
   // A squash merge can drop the `Co-authored-by` trailers of the PR commits,
   // for example when the merge message is cleared. Read them from the PR.
-  const prsWithoutCoAuthors = [...seenPRs]
-    .filter(([, commit]) => !commit.coAuthors?.length)
-    .map(([pr]) => pr);
-  const prCoAuthors = await fetchPRCoAuthors(prsWithoutCoAuthors);
-  for (const [pr, coAuthors] of Object.entries(prCoAuthors)) {
-    seenPRs.get(pr)!.coAuthors = coAuthors;
+  // GraphQL returns PR numbers as numbers despite the `string` type, so
+  // compare them as strings.
+  const withoutCoAuthors = [...seenPRs.values()].filter(
+    commit => !commit.coAuthors?.length,
+  );
+  const prCoAuthors = await fetchPRCoAuthors(
+    withoutCoAuthors.map(commit => String(commit.pr)),
+  );
+  for (const commit of withoutCoAuthors) {
+    commit.coAuthors = prCoAuthors[String(commit.pr)] ?? commit.coAuthors;
   }
 
   return result;

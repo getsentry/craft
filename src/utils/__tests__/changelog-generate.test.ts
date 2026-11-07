@@ -913,7 +913,10 @@ describe('generateChangesetFromGit', () => {
     });
 
     it('credits PR commit co-authors when the merged commit has none', async () => {
-      setup([junior([])], null);
+      const commit = junior([]);
+      // GraphQL returns PR numbers as numbers
+      commit.pr!.remote!.number = 123 as unknown as string;
+      setup([commit], null);
       mockClient.mockResolvedValueOnce({
         repository: {
           P123: {
