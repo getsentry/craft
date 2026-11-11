@@ -27,6 +27,7 @@ import {
   packageIdToNugetArtifactPattern,
 } from '../utils/dotnetWorkspaces';
 import { filterWorkspacePackages } from '../utils/workspaces';
+import { getGitHubOidcRequest, getGitHubOidcToken } from '../utils/githubOidc';
 import {
   getRemotePackageState,
   isSymbolPackagePublished,
@@ -39,6 +40,26 @@ export const NUGET_DOTNET_BIN = process.env.NUGET_DOTNET_BIN || 'dotnet';
 
 /** Default Nuget registry URL */
 export const DEFAULT_NUGET_SERVER_URL = 'https://api.nuget.org/v3/index.json';
+
+/**
+ * nuget.org user for trusted publishing. When set, Craft exchanges a GitHub
+ * Actions OIDC token for a temporary API key instead of using NUGET_API_TOKEN.
+ */
+const NUGET_USER_ENV_VAR = 'NUGET_USER';
+
+/** nuget.org endpoint that exchanges an OIDC token for a temporary API key */
+export const NUGET_TOKEN_SERVICE_URL = 'https://www.nuget.org/api/v2/token';
+
+/** OIDC audience that nuget.org accepts */
+const NUGET_OIDC_AUDIENCE = 'https://www.nuget.org';
+
+/**
+ * nuget.org's temporary API keys are valid for 1 hour. Get a new one well
+ * before that, so a key never expires in the middle of a push.
+ */
+const TEMPORARY_API_KEY_MAX_AGE_MS = 45 * 60 * 1000;
+
+const REQUEST_TIMEOUT_MS = 30_000;
 
 /** A regular expression used to find the package tarball */
 const DEFAULT_NUGET_REGEX = /^.*\d\.\d.*\.nupkg$/;
@@ -76,12 +97,20 @@ export interface NugetTargetConfig extends TargetConfig {
   excludeWorkspaces?: string;
   /** NuGet server URL */
   serverUrl?: string;
+  /**
+   * nuget.org user who created the trusted publishing policy. When set (here
+   * or via NUGET_USER), Craft publishes with trusted publishing instead of
+   * NUGET_API_TOKEN.
+   */
+  trustedPublishingUser?: string;
 }
 
 /** Nuget target configuration options */
 export interface NugetTargetOptions {
-  /** Nuget API token */
-  apiToken: string;
+  /** Long-lived Nuget API token, used when trusted publishing is off */
+  apiToken?: string;
+  /** nuget.org user to get temporary API keys for, with trusted publishing */
+  trustedPublishingUser?: string;
   /** Nuget server URL */
   serverUrl: string;
 }
@@ -89,6 +118,7 @@ export interface NugetTargetOptions {
 /** Config fields for nuget target from .craft.yml */
 interface NugetYamlConfig extends Record<string, unknown> {
   serverUrl?: string;
+  trustedPublishingUser?: string;
 }
 
 /** Returns the trimmed text of the first `<tag>...</tag>` in an XML file */
@@ -102,6 +132,8 @@ function readXmlTag(content: string, tag: string): string | undefined {
 export class NugetTarget extends BaseTarget {
   public readonly name: string = 'nuget';
   public readonly nugetConfig: NugetTargetOptions;
+  /** Temporary API key from trusted publishing, shared by parallel pushes */
+  private temporaryApiKey?: { value: Promise<string>; expiresAt: number };
 
   /**
    * Expand a nuget target config into multiple targets if workspaces is enabled.
@@ -208,6 +240,9 @@ export class NugetTarget extends BaseTarget {
       }
       if (config.serverUrl) {
         expandedTarget.serverUrl = config.serverUrl;
+      }
+      if (config.trustedPublishingUser) {
+        expandedTarget.trustedPublishingUser = config.trustedPublishingUser;
       }
 
       return expandedTarget;
@@ -369,43 +404,137 @@ export class NugetTarget extends BaseTarget {
    * Extracts Nuget target options from the raw configuration
    */
   protected getNugetConfig(): NugetTargetOptions {
+    const config = this.config as TypedTargetConfig<NugetYamlConfig>;
+    const serverUrl = config.serverUrl || DEFAULT_NUGET_SERVER_URL;
+
+    const trustedPublishingUser =
+      config.trustedPublishingUser || process.env[NUGET_USER_ENV_VAR];
+    if (trustedPublishingUser) {
+      if (!getGitHubOidcRequest()) {
+        throw new ConfigurationError(
+          'Cannot perform Nuget release: trusted publishing is enabled ' +
+            `("trustedPublishingUser" or ${NUGET_USER_ENV_VAR}), but GitHub Actions OIDC is not ` +
+            'available. Run in GitHub Actions with the "id-token: write" permission.',
+        );
+      }
+      // The temporary key is for nuget.org only; never send it to another feed.
+      if (serverUrl !== DEFAULT_NUGET_SERVER_URL) {
+        throw new ConfigurationError(
+          `Cannot perform Nuget release: trusted publishing only works with ` +
+            `${DEFAULT_NUGET_SERVER_URL}, but serverUrl is ${serverUrl}.`,
+        );
+      }
+      return { trustedPublishingUser, serverUrl };
+    }
+
     if (!process.env.NUGET_API_TOKEN) {
       throw new ConfigurationError(
         `Cannot perform Nuget release: missing credentials.
-         Please use NUGET_API_TOKEN environment variable.`,
+         Please set "trustedPublishingUser" or ${NUGET_USER_ENV_VAR} (trusted publishing), or NUGET_API_TOKEN.`,
       );
     }
-    const config = this.config as TypedTargetConfig<NugetYamlConfig>;
-    return {
-      apiToken: process.env.NUGET_API_TOKEN,
-      serverUrl: config.serverUrl || DEFAULT_NUGET_SERVER_URL,
-    };
+    return { apiToken: process.env.NUGET_API_TOKEN, serverUrl };
+  }
+
+  /**
+   * Returns the API key to push with: NUGET_API_TOKEN, or with trusted
+   * publishing, a temporary key that is renewed before it expires.
+   */
+  private getApiKey(): Promise<string> {
+    const { apiToken, trustedPublishingUser } = this.nugetConfig;
+    if (!trustedPublishingUser) {
+      return Promise.resolve(apiToken ?? '');
+    }
+    if (!this.temporaryApiKey || Date.now() >= this.temporaryApiKey.expiresAt) {
+      this.temporaryApiKey = {
+        value: this.requestTemporaryApiKey(trustedPublishingUser),
+        expiresAt: Date.now() + TEMPORARY_API_KEY_MAX_AGE_MS,
+      };
+    }
+    return this.temporaryApiKey.value;
+  }
+
+  /**
+   * Exchanges a GitHub Actions OIDC token for a temporary nuget.org API key,
+   * as described in https://learn.microsoft.com/nuget/nuget-org/trusted-publishing
+   */
+  private async requestTemporaryApiKey(user: string): Promise<string> {
+    const oidcRequest = getGitHubOidcRequest();
+    if (!oidcRequest) {
+      throw new Error('GitHub Actions OIDC is no longer available');
+    }
+    const oidcToken = await getGitHubOidcToken(
+      oidcRequest,
+      NUGET_OIDC_AUDIENCE,
+    );
+
+    this.logger.info(
+      `Requesting a temporary NuGet API key for "${user}" with trusted publishing`,
+    );
+    const response = await fetch(NUGET_TOKEN_SERVICE_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${oidcToken}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'getsentry/craft',
+      },
+      body: JSON.stringify({ username: user, tokenType: 'ApiKey' }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      const details = (await response.text().catch(() => '')).slice(0, 500);
+      throw new Error(
+        `NuGet trusted publishing token exchange failed: HTTP ${response.status}` +
+          (details ? `: ${details}` : '') +
+          '\n\nCheck that a trusted publishing policy on nuget.org matches this repository, ' +
+          `workflow file and environment, and that "${user}" is the nuget.org user ` +
+          'who created the policy, not the organization that owns it.',
+      );
+    }
+    const { apiKey } = (await response.json()) as { apiKey?: string };
+    if (!apiKey) {
+      throw new Error(
+        'NuGet trusted publishing token exchange returned no API key',
+      );
+    }
+    if (process.env.GITHUB_ACTIONS === 'true') {
+      // Keep the key out of the workflow logs, like NuGet/login does.
+      process.stdout.write(`::add-mask::${apiKey}\n`);
+    }
+    return apiKey;
   }
 
   /**
    * Uploads an archive to Nuget using "dotnet nuget"
+   *
+   * The key is passed as a `${...}` placeholder that spawnProcess fills in,
+   * so it never shows up in the logged command line.
    */
-  public async uploadAsset(path: string): Promise<any> {
+  public async uploadAsset(path: string, apiKey: string): Promise<any> {
     const args = [
       'nuget',
       'push',
       path,
       '--api-key',
-      '${NUGET_API_TOKEN}',
+      '${NUGET_API_KEY}',
       '--source',
       this.nugetConfig.serverUrl,
       '--timeout',
       '1800',
     ];
-    return spawnProcess(NUGET_DOTNET_BIN, args, DOTNET_SPAWN_OPTIONS);
+    return spawnProcess(NUGET_DOTNET_BIN, args, {
+      ...DOTNET_SPAWN_OPTIONS,
+      env: { ...process.env, NUGET_API_KEY: apiKey },
+    });
   }
 
   /**
    * Pushes a file, adding a hint when NuGet rejects it as a duplicate.
    */
   private async push(path: string): Promise<void> {
+    const apiKey = await this.getApiKey();
     try {
-      await this.uploadAsset(path);
+      await this.uploadAsset(path, apiKey);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (/\b409\b|already (contains|exists)/i.test(message)) {

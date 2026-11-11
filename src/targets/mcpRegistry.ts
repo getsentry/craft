@@ -11,6 +11,7 @@ import {
 import { sleep } from '../utils/async';
 import { logDryRun } from '../utils/dryRun';
 import { ConfigurationError } from '../utils/errors';
+import { getGitHubOidcRequest, getGitHubOidcToken } from '../utils/githubOidc';
 import { isDryRun } from '../utils/helpers';
 import { BaseTarget } from './base';
 import { BaseArtifactProvider } from '../artifact_providers/base';
@@ -365,11 +366,15 @@ export class McpRegistryTarget extends BaseTarget {
    * `id-token: write`, otherwise exchanges `MCP_GITHUB_TOKEN`.
    */
   private async getRegistryToken(): Promise<string> {
-    const requestUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
-    const requestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
-    if (requestUrl && requestToken) {
+    const oidcRequest = getGitHubOidcRequest();
+    if (oidcRequest) {
       this.logger.debug('Authenticating with GitHub Actions OIDC');
-      const oidcToken = await this.getGitHubOidcToken(requestUrl, requestToken);
+      // The registry checks that the audience is its origin (same as
+      // `mcp-publisher login github-oidc`).
+      const oidcToken = await getGitHubOidcToken(
+        oidcRequest,
+        new URL(this.mcpRegistryConfig.registryUrl).origin,
+      );
       return this.exchangeToken('github-oidc', { oidc_token: oidcToken });
     }
 
@@ -383,38 +388,6 @@ export class McpRegistryTarget extends BaseTarget {
       '[mcp-registry] No credentials: run in GitHub Actions with ' +
         `"id-token: write" permission, or set ${GITHUB_TOKEN_ENV_VAR}`,
     );
-  }
-
-  /**
-   * Requests a GitHub Actions OIDC token. Its audience is the registry origin,
-   * which the registry checks (same as `mcp-publisher login github-oidc`).
-   */
-  private async getGitHubOidcToken(
-    requestUrl: string,
-    requestToken: string,
-  ): Promise<string> {
-    const url = new URL(requestUrl);
-    url.searchParams.set(
-      'audience',
-      new URL(this.mcpRegistryConfig.registryUrl).origin,
-    );
-    const response = await fetch(url, {
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${requestToken}`,
-      },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-    if (!response.ok) {
-      throw new Error(
-        `GitHub OIDC token request failed: HTTP ${response.status}`,
-      );
-    }
-    const { value } = (await response.json()) as { value?: string };
-    if (!value) {
-      throw new Error('GitHub OIDC token response has no token');
-    }
-    return value;
   }
 
   /** Exchanges a GitHub credential for a short-lived registry token */
