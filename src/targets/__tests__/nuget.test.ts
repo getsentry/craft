@@ -1,6 +1,6 @@
 import { vi, type MockInstance } from 'vitest';
 import { resolve } from 'path';
-import { NugetTarget } from '../nuget';
+import { NugetTarget, NUGET_TOKEN_SERVICE_URL } from '../nuget';
 import * as dotnetWorkspaces from '../../utils/dotnetWorkspaces';
 import { NoneArtifactProvider } from '../../artifact_providers/none';
 import { RemoteArtifact } from '../../artifact_providers/base';
@@ -496,5 +496,210 @@ describe('NugetTarget.publish', () => {
     const { target } = setup();
 
     await expect(target.publish('1.0.0', 'abc123')).rejects.toBe(error);
+  });
+});
+
+describe('NugetTarget authentication', () => {
+  const oldEnv = process.env;
+  const OIDC_REQUEST_URL =
+    'https://token.actions.example/token?api-version=2.0';
+  let fetchMock: MockInstance;
+
+  beforeEach(() => {
+    process.env = { ...oldEnv };
+    delete process.env.NUGET_API_TOKEN;
+    delete process.env.NUGET_USER;
+    delete process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+    delete process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+    delete process.env.GITHUB_ACTIONS;
+    vi.mocked(spawnProcess).mockReset();
+    vi.mocked(getRemotePackageState)
+      .mockReset()
+      .mockResolvedValue({ status: 'missing' });
+    fetchMock = vi.fn(async (url: string | URL) =>
+      String(url).startsWith('https://token.actions.example/')
+        ? Response.json({ value: 'github-oidc-token' })
+        : Response.json({ apiKey: 'temporary-api-key' }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  afterAll(() => {
+    process.env = oldEnv;
+  });
+
+  function enableTrustedPublishing(): void {
+    process.env.NUGET_USER = 'sentry-bot';
+    process.env.ACTIONS_ID_TOKEN_REQUEST_URL = OIDC_REQUEST_URL;
+    process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN = 'actions-request-token';
+  }
+
+  function createTarget(
+    filenames = ['Sentry.1.0.0.nupkg'],
+    config: Record<string, unknown> = {},
+  ): NugetTarget {
+    const artifactProvider = new NoneArtifactProvider();
+    const target = new NugetTarget(
+      { name: 'nuget', ...config },
+      artifactProvider,
+    );
+    const artifacts = filenames.map(filename => ({
+      filename,
+    })) as RemoteArtifact[];
+    vi.spyOn(artifactProvider, 'filterArtifactsForRevision').mockImplementation(
+      async (_revision, filterOptions) =>
+        artifacts.filter(a => filterOptions?.includeNames?.test(a.filename)),
+    );
+    vi.spyOn(artifactProvider, 'downloadArtifact').mockImplementation(
+      async (a: RemoteArtifact) => `/tmp/${a.filename}`,
+    );
+    return target;
+  }
+
+  function pushes(): { args: string[]; apiKey: unknown }[] {
+    return vi
+      .mocked(spawnProcess)
+      .mock.calls.filter(([, args]) => args?.[1] === 'push')
+      .map(([, args, options]) => ({
+        args: args ?? [],
+        apiKey: options?.env?.NUGET_API_KEY,
+      }));
+  }
+
+  function exchanges(): Request[] {
+    return fetchMock.mock.calls
+      .filter(([url]) => String(url) === NUGET_TOKEN_SERVICE_URL)
+      .map(([url, init]) => new Request(url, init));
+  }
+
+  it('fails without any credentials', () => {
+    expect(() => createTarget()).toThrow(/NUGET_USER .* or NUGET_API_TOKEN/);
+  });
+
+  it('pushes with NUGET_API_TOKEN without putting it on the logged command line', async () => {
+    process.env.NUGET_API_TOKEN = 'long-lived-token';
+    const target = createTarget();
+
+    await target.publish('1.0.0', 'abc123');
+
+    expect(pushes()).toEqual([
+      {
+        args: expect.arrayContaining(['--api-key', '${NUGET_API_KEY}']),
+        apiKey: 'long-lived-token',
+      },
+    ]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('requires GitHub Actions OIDC when NUGET_USER is set', () => {
+    process.env.NUGET_USER = 'sentry-bot';
+    process.env.NUGET_API_TOKEN = 'long-lived-token';
+
+    expect(() => createTarget()).toThrow(/OIDC is not available/);
+  });
+
+  it('refuses trusted publishing to a feed other than nuget.org', () => {
+    enableTrustedPublishing();
+
+    expect(() =>
+      createTarget(undefined, {
+        serverUrl: 'https://nuget.example/v3/index.json',
+      }),
+    ).toThrow(/only works with https:\/\/api\.nuget\.org/);
+  });
+
+  it('pushes with a temporary key from trusted publishing, even if NUGET_API_TOKEN is set', async () => {
+    enableTrustedPublishing();
+    process.env.NUGET_API_TOKEN = 'long-lived-token';
+    const target = createTarget();
+
+    await target.publish('1.0.0', 'abc123');
+
+    const [oidcUrl, oidcInit] = fetchMock.mock.calls[0];
+    expect(new URL(oidcUrl).searchParams.get('audience')).toBe(
+      'https://www.nuget.org',
+    );
+    expect(oidcInit.headers).toMatchObject({
+      Authorization: 'Bearer actions-request-token',
+    });
+
+    const [exchange] = exchanges();
+    expect(exchange.method).toBe('POST');
+    expect(exchange.headers.get('Authorization')).toBe(
+      'Bearer github-oidc-token',
+    );
+    expect(await exchange.json()).toEqual({
+      username: 'sentry-bot',
+      tokenType: 'ApiKey',
+    });
+
+    expect(pushes().map(p => p.apiKey)).toEqual(['temporary-api-key']);
+  });
+
+  it('shares one temporary key between the packages of a target', async () => {
+    enableTrustedPublishing();
+    const target = createTarget([
+      'Sentry.1.0.0.nupkg',
+      'Sentry.Maui.1.0.0.nupkg',
+    ]);
+
+    await target.publish('1.0.0', 'abc123');
+
+    expect(pushes()).toHaveLength(2);
+    expect(exchanges()).toHaveLength(1);
+  });
+
+  it('gets a new temporary key before the old one expires', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    enableTrustedPublishing();
+    const target = createTarget();
+
+    await target.publish('1.0.0', 'abc123');
+    vi.setSystemTime(Date.now() + 30 * 60 * 1000);
+    await target.publish('1.0.0', 'abc123');
+    expect(exchanges()).toHaveLength(1);
+
+    vi.setSystemTime(Date.now() + 16 * 60 * 1000);
+    await target.publish('1.0.0', 'abc123');
+    expect(exchanges()).toHaveLength(2);
+  });
+
+  it('masks the temporary key in GitHub Actions logs', async () => {
+    enableTrustedPublishing();
+    process.env.GITHUB_ACTIONS = 'true';
+    const write = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation(() => true);
+    const target = createTarget();
+
+    let writes: unknown[][];
+    try {
+      await target.publish('1.0.0', 'abc123');
+    } finally {
+      writes = [...write.mock.calls];
+      write.mockRestore();
+    }
+
+    expect(writes).toContainEqual(['::add-mask::temporary-api-key\n']);
+  });
+
+  it('explains a rejected token exchange', async () => {
+    enableTrustedPublishing();
+    fetchMock.mockImplementation(async (url: string | URL) =>
+      String(url).startsWith('https://token.actions.example/')
+        ? Response.json({ value: 'github-oidc-token' })
+        : Response.json({ error: 'No matching trust policy' }, { status: 401 }),
+    );
+    const target = createTarget();
+
+    await expect(target.publish('1.0.0', 'abc123')).rejects.toThrow(
+      /HTTP 401: \{"error":"No matching trust policy"\}[\s\S]*user who created the policy/,
+    );
+    expect(pushes()).toEqual([]);
   });
 });
