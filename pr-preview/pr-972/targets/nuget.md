@@ -17,6 +17,7 @@ Uploads packages to [NuGet](https://www.nuget.org/) via .NET Core.
 | `includeWorkspaces` | `string` | Regex pattern to filter which packages to include. Example: `'/^Sentry\\./'` |
 | `excludeWorkspaces` | `string` | Regex pattern to filter which packages to exclude. Example: `'/\\.Tests$/'` |
 | `serverUrl` | `string` | NuGet server URL. Default: `https://api.nuget.org/v3/index.json` |
+| `trustedPublishingUser` | `string` | nuget.org user who created the [trusted publishing](#trusted-publishing) policy. When set, Craft doesn’t use `NUGET_API_TOKEN` |
 
 ## Workspace Support
 
@@ -89,34 +90,30 @@ NuGet.org validates new packages before serving them, which usually takes a few 
 
 | Name | Description |
 | --- | --- |
-| `NUGET_USER` | nuget.org user for [trusted publishing](#trusted-publishing). When set, Craft doesn’t use `NUGET_API_TOKEN` |
-| `NUGET_API_TOKEN` | NuGet [API token](https://www.nuget.org/account/apikeys). Required unless `NUGET_USER` is set |
+| `NUGET_USER` | nuget.org user for [trusted publishing](#trusted-publishing), used when `trustedPublishingUser` isn’t set in the config |
+| `NUGET_API_TOKEN` | NuGet [API token](https://www.nuget.org/account/apikeys). Required unless trusted publishing is enabled |
 | `NUGET_DOTNET_BIN` | Path to .NET Core. Default: `dotnet` |
 
 ## Trusted Publishing
 
 With [trusted publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing), Craft publishes to nuget.org from GitHub Actions without a long-lived API key, so there is no key to rotate or let expire.
 
-When `NUGET_USER` is set, Craft requests a GitHub Actions OIDC token for each `nuget` target and exchanges it at nuget.org for a temporary API key, which it then pushes with. Temporary keys are valid for 1 hour, so Craft gets a new one after 45 minutes.
+When `trustedPublishingUser` (or the `NUGET_USER` environment variable) is set, Craft requests a GitHub Actions OIDC token for each `nuget` target and exchanges it at nuget.org for a temporary API key, which it then pushes with. Temporary keys are valid for 1 hour, so Craft gets a new one after 45 minutes.
 
 To set it up:
 
 1. On nuget.org, open **Trusted Publishing** from your account menu and add a policy for the repository and workflow that run `craft publish`. Enter the workflow file name only (for example `publish.yml`), and the GitHub Actions environment if the job uses one. Pick the user or organization that owns the packages as the policy owner: the policy covers all of its packages.
 2. Give the publishing job the `id-token: write` permission.
-3. Set `NUGET_USER` to the nuget.org user who **created** the policy (their profile name, not their email address). For a policy owned by an organization, this is still the member who created it, not the organization. If that member leaves the organization, the policy stops working.
+3. Set `trustedPublishingUser` to the nuget.org user who **created** the policy (their profile name, not their email address). For a policy owned by an organization, this is still the member who created it, not the organization. If that member leaves the organization, the policy stops working.
 
 ```yaml
-jobs:
-  publish:
-    permissions:
-      id-token: write
-    steps:
-      # ...
-      - run: craft publish ${{ inputs.version }}
-        env:
-          NUGET_USER: ${{ vars.NUGET_USER }}
+targets:
+  - name: nuget
+    trustedPublishingUser: sentry-bot
 ```
 
+
+Alternatively, set the `NUGET_USER` environment variable in the publishing workflow; `trustedPublishingUser` takes precedence over it.
 
 Trusted publishing only works with nuget.org: Craft fails if it’s enabled with a custom `serverUrl`.
 
