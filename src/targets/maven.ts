@@ -6,7 +6,7 @@ import {
 import { BaseTarget } from './base';
 import { basename, extname, join, parse } from 'path';
 import { promises as fsPromises } from 'fs';
-import fetch from 'node-fetch';
+import fetch, { Response } from 'node-fetch';
 import { checkExecutableIsPresent, extractZipArchive } from '../utils/system';
 import { retrySpawnProcess, sleep } from '../utils/async';
 import { withTempDir } from '../utils/files';
@@ -26,6 +26,31 @@ export const CENTRAL_API_BASE_URL = 'https://central.sonatype.com/api/v1';
 const NEXUS_RETRY_DELAY = 10 * 1000; // 10s
 const SONATYPE_RETRY_DEADLINE = 120 * 60 * 1000; // 2h
 const CENTRAL_RETRY_DELAY = 60 * 1000; // 1min
+const MAX_ERROR_BODY_LENGTH = 1000;
+
+/**
+ * Builds an error message for a failed Sonatype API response. It includes the
+ * response body, because Sonatype often puts the reason for a 4xx there.
+ */
+async function describeFailedResponse(
+  prefix: string,
+  response: Response,
+): Promise<string> {
+  const message = `${prefix}: ${response.status}, ${response.statusText}`;
+  let body = '';
+  try {
+    body = (await response.text()).trim();
+  } catch {
+    // The status line is still useful without the body.
+  }
+  if (!body) {
+    return message;
+  }
+  if (body.length > MAX_ERROR_BODY_LENGTH) {
+    body = `${body.slice(0, MAX_ERROR_BODY_LENGTH)}…`;
+  }
+  return `${message}: ${body}`;
+}
 
 export type NexusRepository = {
   repositoryId: string;
@@ -744,7 +769,7 @@ export class MavenTarget extends BaseTarget {
 
     if (!response.ok) {
       throw new Error(
-        `Unable to fetch repositories: ${response.status}, ${response.statusText}`,
+        await describeFailedResponse('Unable to fetch repositories', response),
       );
     }
 
@@ -794,7 +819,10 @@ export class MavenTarget extends BaseTarget {
 
     if (!response.ok) {
       throw new Error(
-        `Unable to close repository ${repositoryId}: ${response.status}, ${response.statusText}`,
+        await describeFailedResponse(
+          `Unable to close repository ${repositoryId}`,
+          response,
+        ),
       );
     }
 
@@ -844,7 +872,10 @@ export class MavenTarget extends BaseTarget {
 
     if (!response.ok) {
       throw new Error(
-        `Unable to release repository ${repositoryId}: ${response.status}, ${response.statusText}`,
+        await describeFailedResponse(
+          `Unable to release repository ${repositoryId}`,
+          response,
+        ),
       );
     }
 
