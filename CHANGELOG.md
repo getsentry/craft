@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.12.0
+
+NuGet publishing now supports GitHub OIDC trusted publishing while retaining token-based fallback, giving developers a configurable alternative for package authentication.
+
+### New Features ✨
+
+NuGet publishing can use GitHub OIDC trusted publishing, with configurable identity and unchanged token-based fallback.
+
+- (nuget) Support nuget.org trusted publishing with GitHub OIDC by @ric-oliv with @sentry-junior in [#972](https://github.com/getsentry/craft/pull/972)
+
 ## 3.11.2
 
 Changelog credits retain co-author attribution after squash merges, while batched GraphQL lookups reduce requests and tolerate partial results.
