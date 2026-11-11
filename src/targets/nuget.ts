@@ -457,7 +457,7 @@ export class NugetTarget extends BaseTarget {
       NUGET_OIDC_AUDIENCE,
     );
 
-    this.logger.debug(
+    this.logger.info(
       `Requesting a temporary NuGet API key for "${user}" with trusted publishing`,
     );
     const response = await fetch(NUGET_TOKEN_SERVICE_URL, {
