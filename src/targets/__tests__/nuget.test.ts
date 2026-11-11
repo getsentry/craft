@@ -169,7 +169,7 @@ describe('NugetTarget.expand', () => {
     expect(result[0].id).toBe('Sentry.Core');
   });
 
-  it('propagates serverUrl to expanded targets', async () => {
+  it('propagates serverUrl and trustedPublishingUser to expanded targets', async () => {
     discoverDotnetPackagesMock = vi
       .spyOn(dotnetWorkspaces, 'discoverDotnetPackages')
       .mockResolvedValue({
@@ -188,6 +188,7 @@ describe('NugetTarget.expand', () => {
       name: 'nuget',
       workspaces: true,
       serverUrl: 'https://custom.nuget.server/v3/index.json',
+      trustedPublishingUser: 'sentry-bot',
     };
     const result = await NugetTarget.expand(config, '/root');
 
@@ -195,6 +196,7 @@ describe('NugetTarget.expand', () => {
     expect(result[0].serverUrl).toBe(
       'https://custom.nuget.server/v3/index.json',
     );
+    expect(result[0].trustedPublishingUser).toBe('sentry-bot');
   });
 
   it('sorts packages topologically by dependencies', async () => {
@@ -638,6 +640,21 @@ describe('NugetTarget authentication', () => {
       tokenType: 'ApiKey',
     });
 
+    expect(pushes().map(p => p.apiKey)).toEqual(['temporary-api-key']);
+  });
+
+  it('enables trusted publishing from the target config', async () => {
+    process.env.ACTIONS_ID_TOKEN_REQUEST_URL = OIDC_REQUEST_URL;
+    process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN = 'actions-request-token';
+    process.env.NUGET_USER = 'env-user';
+    const target = createTarget(undefined, {
+      trustedPublishingUser: 'config-user',
+    });
+
+    await target.publish('1.0.0', 'abc123');
+
+    const [exchange] = exchanges();
+    expect(await exchange.json()).toMatchObject({ username: 'config-user' });
     expect(pushes().map(p => p.apiKey)).toEqual(['temporary-api-key']);
   });
 

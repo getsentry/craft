@@ -97,6 +97,12 @@ export interface NugetTargetConfig extends TargetConfig {
   excludeWorkspaces?: string;
   /** NuGet server URL */
   serverUrl?: string;
+  /**
+   * nuget.org user who created the trusted publishing policy. When set (here
+   * or via NUGET_USER), Craft publishes with trusted publishing instead of
+   * NUGET_API_TOKEN.
+   */
+  trustedPublishingUser?: string;
 }
 
 /** Nuget target configuration options */
@@ -112,6 +118,7 @@ export interface NugetTargetOptions {
 /** Config fields for nuget target from .craft.yml */
 interface NugetYamlConfig extends Record<string, unknown> {
   serverUrl?: string;
+  trustedPublishingUser?: string;
 }
 
 /** Returns the trimmed text of the first `<tag>...</tag>` in an XML file */
@@ -233,6 +240,9 @@ export class NugetTarget extends BaseTarget {
       }
       if (config.serverUrl) {
         expandedTarget.serverUrl = config.serverUrl;
+      }
+      if (config.trustedPublishingUser) {
+        expandedTarget.trustedPublishingUser = config.trustedPublishingUser;
       }
 
       return expandedTarget;
@@ -397,19 +407,20 @@ export class NugetTarget extends BaseTarget {
     const config = this.config as TypedTargetConfig<NugetYamlConfig>;
     const serverUrl = config.serverUrl || DEFAULT_NUGET_SERVER_URL;
 
-    const trustedPublishingUser = process.env[NUGET_USER_ENV_VAR];
+    const trustedPublishingUser =
+      config.trustedPublishingUser || process.env[NUGET_USER_ENV_VAR];
     if (trustedPublishingUser) {
       if (!getGitHubOidcRequest()) {
         throw new ConfigurationError(
-          `Cannot perform Nuget release: ${NUGET_USER_ENV_VAR} is set, so Craft uses trusted publishing, ` +
-            'but GitHub Actions OIDC is not available. Run in GitHub Actions with the ' +
-            `"id-token: write" permission, or unset ${NUGET_USER_ENV_VAR} to use NUGET_API_TOKEN.`,
+          'Cannot perform Nuget release: trusted publishing is enabled ' +
+            `("trustedPublishingUser" or ${NUGET_USER_ENV_VAR}), but GitHub Actions OIDC is not ` +
+            'available. Run in GitHub Actions with the "id-token: write" permission.',
         );
       }
       // The temporary key is for nuget.org only; never send it to another feed.
       if (serverUrl !== DEFAULT_NUGET_SERVER_URL) {
         throw new ConfigurationError(
-          `Cannot perform Nuget release: trusted publishing (${NUGET_USER_ENV_VAR}) only works with ` +
+          `Cannot perform Nuget release: trusted publishing only works with ` +
             `${DEFAULT_NUGET_SERVER_URL}, but serverUrl is ${serverUrl}.`,
         );
       }
@@ -419,7 +430,7 @@ export class NugetTarget extends BaseTarget {
     if (!process.env.NUGET_API_TOKEN) {
       throw new ConfigurationError(
         `Cannot perform Nuget release: missing credentials.
-         Please set ${NUGET_USER_ENV_VAR} (trusted publishing) or NUGET_API_TOKEN.`,
+         Please set "trustedPublishingUser" or ${NUGET_USER_ENV_VAR} (trusted publishing), or NUGET_API_TOKEN.`,
       );
     }
     return { apiToken: process.env.NUGET_API_TOKEN, serverUrl };
@@ -476,7 +487,7 @@ export class NugetTarget extends BaseTarget {
         `NuGet trusted publishing token exchange failed: HTTP ${response.status}` +
           (details ? `: ${details}` : '') +
           '\n\nCheck that a trusted publishing policy on nuget.org matches this repository, ' +
-          `workflow file and environment, and that ${NUGET_USER_ENV_VAR} is the nuget.org user ` +
+          `workflow file and environment, and that "${user}" is the nuget.org user ` +
           'who created the policy, not the organization that owns it.',
       );
     }
