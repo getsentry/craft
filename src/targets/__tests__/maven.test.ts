@@ -798,6 +798,19 @@ describe('closeRepository', () => {
     );
   });
 
+  test('should include the response body in the error', async () => {
+    nock(url.origin)
+      .post('/service/local/staging/bulk/close')
+      .reply(400, '  Deployment rejected: reason from Sonatype\n');
+
+    const mvnTarget = createMavenTarget();
+    await expect(mvnTarget.closeRepository(repositoryId)).rejects.toThrow(
+      new Error(
+        'Unable to close repository sentry-java: 400, Bad Request: Deployment rejected: reason from Sonatype',
+      ),
+    );
+  });
+
   test('should wait for the status of repository to be changed', async () => {
     nock(url.origin)
       .post('/service/local/staging/bulk/close', {
