@@ -45,10 +45,10 @@
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-formatter-github-annotations": "^0.1.0",
-    "fast-xml-parser": "^5.8.0",
+    "fast-xml-parser": "^5.12.0",
     "fossilize": "0.11.0",
     "git-url-parse": "^16.1.0",
-    "glob": "^11.0.0",
+    "glob": "^14.0.2",
     "is-ci": "^2.0.0",
     "js-yaml": "4.3.2",
     "jsonc-parser": "^3.3.1",
@@ -108,8 +108,8 @@
   },
   "pnpm": {
     "overrides": {
-      "fast-xml-parser": "^5.8.0",
-      "minimatch": "^10.2.6",
+      "fast-xml-parser": "^5.12.0",
+      "minimatch": "^11.0.1",
       "brace-expansion": "^5.0.12",
       "source-map-js": "^1.2.2",
       "ajv@<6.14.0": "^6.14.0",
@@ -126,7 +126,7 @@
       "js-yaml": "^4.3.1",
       "baseline-browser-mapping": "^2.11.0",
       "browserslist": "^4.28.7",
-      "fast-uri": "^3.1.6",
+      "fast-uri": "^3.1.9",
       "@humanfs/node": "^0.16.8",
       "nanoid": "^3.3.18",
       "path-to-regexp@<6.3.0": "^6.3.0",
@@ -141,7 +141,8 @@
       "@opentelemetry/instrumentation-mongoose": "^0.67.0",
       "@opentelemetry/instrumentation-tedious": "^0.40.0",
       "esbuild@<0.28.1": "^0.28.1",
-      "follow-redirects": "^1.16.1"
+      "follow-redirects": "^1.16.2",
+      "glob@>=9": "^14.0.2"
     },
     "patchedDependencies": {
       "braces@3.0.3": "patches/braces@3.0.3.patch"
