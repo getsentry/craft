@@ -25,7 +25,7 @@ import { logger } from '../logger';
 import { distance as levenshtein } from 'fastest-levenshtein';
 import path from 'node:path';
 import { discoverWorkspaces } from './workspaces';
-import { parseVersion, type SemVer } from './version';
+import { isValidVersion, parseVersion, type SemVer } from './version';
 
 export interface GitChange {
   hash: string;
@@ -121,7 +121,9 @@ export async function getChangelogBaseTag(
  * Returns the latest tag whose version `accept` accepts.
  *
  * Tags without a version after the prefix, such as floating tags (`v2`) or
- * `latest`, are never release tags, so they are skipped.
+ * `latest`, are never release tags, so they are skipped. So are tags with more
+ * than a version after the prefix: with an empty prefix, `git describe` also
+ * returns other workspaces' tags, such as `api@2.5.0`.
  */
 async function findLatestTag(
   git: SimpleGit,
@@ -134,7 +136,10 @@ async function findLatestTag(
     if (!tag) {
       return tag;
     }
-    const tagVersion = parseVersion(tag.slice(tagPrefix.length));
+    const tagVersionText = tag.slice(tagPrefix.length).replace(/^v/i, '');
+    const tagVersion = isValidVersion(tagVersionText)
+      ? parseVersion(tagVersionText)
+      : null;
     if (tagVersion && accept(tagVersion)) {
       return tag;
     }

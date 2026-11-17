@@ -97,8 +97,6 @@ describe('release base tags', () => {
     git('config', 'user.name', 'Craft Test');
     git('config', 'user.email', 'craft-test@example.com');
     // Each release gets its own commit, so the tags form a linear history.
-    // Unprefixed lookups match every tag, so the prefixed workspace tags come
-    // before the unprefixed ones.
     for (const tag of [
       'cli@1.0.0',
       'cli@1.1.0-alpha.0',
@@ -152,6 +150,57 @@ describe('release base tags', () => {
     expect(await getChangelogBaseTag(client, '1.2.0-alpha.0', 'cli@')).toBe(
       'cli@1.0.0',
     );
+  });
+});
+
+describe('release base tags with newer workspace tags', () => {
+  let dir: string;
+  let client: ReturnType<typeof createGitClient>;
+
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), 'craft-workspace-tags-'));
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-C', dir, ...args], {
+        env: {
+          ...process.env,
+          GIT_CONFIG_GLOBAL: '/dev/null',
+          GIT_CONFIG_NOSYSTEM: '1',
+        },
+      });
+    git('init', '--quiet');
+    git('config', 'user.name', 'Craft Test');
+    git('config', 'user.email', 'craft-test@example.com');
+    // The root release unit has no tag prefix and a workspace released after
+    // it, so `git describe` without --match returns the workspace's tags first.
+    for (const tag of ['26.10.1', 'api@2.4.0', 'api@2.5.0', '']) {
+      git(
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '--quiet',
+        '--allow-empty',
+        '-m',
+        tag ? `release: ${tag}` : 'Unreleased change',
+      );
+      if (tag) {
+        git('tag', tag);
+      }
+    }
+    client = createGitClient(dir);
+  });
+
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("skips other workspaces' tags for an empty prefix", async () => {
+    expect(await getLatestTag(client)).toBe('26.10.1');
+    expect(await getLatestStableTag(client)).toBe('26.10.1');
+    expect(await getChangelogBaseTag(client, '26.11.0')).toBe('26.10.1');
+  });
+
+  it("still finds the workspace's own tags by prefix", async () => {
+    expect(await getLatestTag(client, 'api@')).toBe('api@2.5.0');
   });
 });
 
