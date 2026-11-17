@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.12.2
+
+Large GitHub commit lookup queries now recover more changelog metadata after timeouts, giving developers more complete results when processing extensive histories.
+
+### Bug Fixes 🐛
+
+GitHub commit lookups now recover more changelog metadata when large queries hit time limits.
+
+- (changelog) Retry failed GitHub commit lookups in smaller chunks by @sentry-junior in [#977](https://github.com/getsentry/craft/pull/977)
+
 ## 3.12.1
 
 Security coverage expands across dependencies while one advisory remains unresolved, compatibility is preserved for Craft, and the documentation workspace receives a tooling update.
