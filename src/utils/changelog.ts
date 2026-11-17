@@ -2490,20 +2490,21 @@ export async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
   // Make query in chunks where each chunk has 50 commit hashes
   // Otherwise GitHub keeps timing out
   const commitInfo: CommitInfoMap = {};
-  const chunkCount = Math.ceil(hashes.length / MAX_COMMITS_PER_QUERY);
-  for (let chunk = 0; chunk < chunkCount; chunk += 1) {
-    const subset = hashes.slice(
-      chunk * MAX_COMMITS_PER_QUERY,
-      (chunk + 1) * MAX_COMMITS_PER_QUERY,
-    );
-
+  const { repo, owner } = await getGlobalGitHubConfig();
+  const chunks: string[][] = [];
+  for (let start = 0; start < hashes.length; start += MAX_COMMITS_PER_QUERY) {
+    chunks.push(hashes.slice(start, start + MAX_COMMITS_PER_QUERY));
+  }
+  // A chunk that fails, such as when GitHub times out on PRs with long bodies,
+  // is retried as two halves. Only a single commit that still fails is skipped.
+  while (chunks.length > 0) {
+    const subset = chunks.shift()!;
     const commitsQuery = subset
       // We need to prefix the hash value (with `C` here) when using it as an
       // alias as aliases cannot start with a number but hashes can.
       .map(hash => `C${hash}: object(oid: "${hash}") {...PRFragment}`)
       .join('\n');
 
-    const { repo, owner } = await getGlobalGitHubConfig();
     const graphqlQuery = `{
       repository(name: "${repo}", owner: "${owner}") {
         ${commitsQuery}
@@ -2548,15 +2549,20 @@ export async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
       Object.assign(commitInfo, typedResponse.repository);
       logger.trace('Query result:', commitInfo);
     } catch (error: any) {
+      if (subset.length > 1) {
+        const half = Math.ceil(subset.length / 2);
+        logger.debug(
+          `Failed to fetch PR info for ${subset.length} commits: ` +
+            `${error.message || error}. Retrying in chunks of ${half}.`,
+        );
+        chunks.unshift(subset.slice(0, half), subset.slice(half));
+        continue;
+      }
+
       // Capture to Sentry with context for tracking GraphQL failures
       withScope(scope => {
         scope.setTag('error_type', 'graphql_changelog_failure');
-        scope.setTag('chunk_number', `${chunk + 1}`);
-        scope.setTag('total_chunks', `${chunkCount}`);
         scope.setContext('graphql_chunk', {
-          chunkIndex: chunk + 1,
-          totalChunks: chunkCount,
-          commitsInChunk: subset.length,
           totalHashes: hashes.length,
           httpStatus: error.status || error.response?.status,
           errorName: error.name,
@@ -2566,14 +2572,12 @@ export async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
       });
 
       logger.warn(
-        `Failed to fetch PR info for chunk ${chunk + 1}/${chunkCount} ` +
-          `(${subset.length} commits): ${error.message || error}. ` +
-          `Skipping this chunk and continuing with remaining commits.`,
+        `Failed to fetch PR info for commit ${subset[0]}: ` +
+          `${error.message || error}. ` +
+          `Skipping this commit and continuing with remaining commits.`,
       );
 
-      for (const hash of subset) {
-        commitInfo[`C${hash}`] = null;
-      }
+      commitInfo[`C${subset[0]}`] = null;
     }
   }
 

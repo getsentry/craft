@@ -2368,6 +2368,76 @@ See incident report: https://example.com/incident/123`,
       expect(result.changelog).toContain('Fix typo');
     });
   });
+
+  describe('GitHub lookup failures', () => {
+    const commits: TestCommit[] = [
+      {
+        hash: 'abcdef1234567890',
+        title: 'feat: Add the button',
+        body: '',
+        coAuthors: ['bob'],
+        pr: { remote: { number: '1', author: { login: 'alice' } } },
+      },
+      {
+        hash: 'bcdef1234567890a',
+        title: 'fix: Fix the button',
+        body: '',
+        coAuthors: ['bob'],
+        pr: { remote: { number: '2', author: { login: 'carol' } } },
+      },
+    ];
+
+    /** Answers a commit lookup for the commits it names, or fails it. */
+    function lookup(fails: (hashes: string[]) => boolean) {
+      setup(commits, null);
+      mockClient.mockReset();
+      mockClient.mockImplementation(async (query: string) => {
+        const requested = commits.filter(({ hash }) =>
+          query.includes(`C${hash}:`),
+        );
+        if (fails(requested.map(({ hash }) => hash))) {
+          throw Object.assign(new Error('Bad Gateway'), { status: 502 });
+        }
+        return {
+          repository: Object.fromEntries(
+            requested.map(({ hash, coAuthors, title, pr }) => [
+              `C${hash}`,
+              {
+                author: { user: null },
+                authors: commitAuthors(coAuthors),
+                associatedPullRequests: {
+                  nodes: [
+                    {
+                      author: pr!.remote!.author,
+                      number: pr!.remote!.number,
+                      title,
+                      body: '',
+                      labels: { nodes: [] },
+                    },
+                  ],
+                },
+              },
+            ]),
+          ),
+        };
+      });
+    }
+
+    it('retries a failed chunk in smaller chunks', async () => {
+      lookup(hashes => hashes.length > 1);
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      expect(result.changelog).toContain('Add the button by @alice and @bob');
+      expect(result.changelog).toContain('Fix the button by @carol and @bob');
+      expect(mockClient).toHaveBeenCalledTimes(3);
+    });
+
+    it('skips only the commit whose lookup keeps failing', async () => {
+      lookup(hashes => hashes.includes('abcdef1234567890'));
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      expect(result.changelog).not.toContain('by @alice');
+      expect(result.changelog).toContain('Fix the button by @carol and @bob');
+    });
+  });
 });
 
 describe('generateChangelogWithHighlight', () => {
