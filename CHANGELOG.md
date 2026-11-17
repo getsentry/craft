@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.12.1
+
+Security coverage expands across dependencies while one advisory remains unresolved, compatibility is preserved for Craft, and the documentation workspace receives a tooling update.
+
+### Bug Fixes 🐛
+
+Security updates raise glob, minimatch, fast-uri, follow-redirects, and fast-xml-parser, addressing 10 of 11 root-lockfile advisories; zod 3.22.4 remains unfixed and docs/ is unaffected. glob 14 is a forced major upgrade but retains Craft’s CJS/ESM APIs; projects using minimatch 11 require Node 20 || &gt;=22. Release-tag lookup ignores other-workspace tags unless their suffix is a valid version.
+
+- (deps) Bump glob, minimatch, fast-uri, follow-redirects and fast-xml-parser for security advisories by @BYK with @sentry-junior in [#976](https://github.com/getsentry/craft/pull/976)
+- (git) Skip other workspaces' tags when finding the latest release tag by @BYK with @sentry-junior in [#975](https://github.com/getsentry/craft/pull/975)
+
+### Internal Changes 🔧
+
+The docs workspace now uses Astro 7.4.7 instead of 7.4.2.
+
+- (deps) Bump astro from 7.4.2 to 7.4.7 in /docs by @BYK with @dependabot and @sentry-junior in [#974](https://github.com/getsentry/craft/pull/974)
+
 ## 3.12.0
 
 NuGet publishing now supports GitHub OIDC trusted publishing while retaining token-based fallback, giving developers a configurable alternative for package authentication.
