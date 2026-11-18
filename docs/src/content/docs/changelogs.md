@@ -347,6 +347,7 @@ that touch the selected workspace. See
 | `changelog.policy`        | Mode: `none`, `simple`, or `auto`. Default: `none`                           |
 | `changelog.scopeGrouping` | Enable scope-based grouping. Default: `true`                                 |
 | `changelog.includePaths`  | Extra workspace directories to include in automatic changelogs. [Release workspaces](../workspaces/#workspace-aware-changelogs) only. Default: `[]` |
+| `changelog.includeLabels` | PR labels whose changes are included in automatic changelogs wherever their files are. [Release workspaces](../workspaces/#workspace-aware-changelogs) only. Default: `[]` |
 | `changelog.unownedPaths`  | `include`, `exclude`, or `own` files outside every workspace. [Release workspaces](../workspaces/#workspace-aware-changelogs) only. Default: `include` |
 | `changelog.aiSummary` | Opt-in release, category, and scope [AI summaries](../ai-summaries/). Default: disabled. |
 

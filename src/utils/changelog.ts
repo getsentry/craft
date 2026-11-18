@@ -1816,7 +1816,8 @@ export async function generateChangelogWithHighlight(
   const belongsToWorkspace = await getWorkspaceChangeFilter();
   if (
     belongsToWorkspace &&
-    !belongsToWorkspace(await fetchPRFiles(currentPRNumber))
+    !belongsToWorkspace(await fetchPRFiles(currentPRNumber)) &&
+    !hasIncludedLabel(prInfo.labels, getChangelogConfig().includeLabels)
   ) {
     return {
       changelog: '',
@@ -1918,6 +1919,11 @@ export async function generateChangelogWithHighlight(
   };
 }
 
+/** Whether a PR has one of the workspace's `changelog.includeLabels` */
+function hasIncludedLabel(labels: string[], includeLabels: string[]): boolean {
+  return labels.some(label => includeLabels.includes(label));
+}
+
 /**
  * Fetches raw commit/PR info from git history and GitHub.
  * This is the first step - just gathering data, no categorization.
@@ -1952,6 +1958,15 @@ async function fetchRawCommitInfo(
 
   for (const gitCommit of gitCommits) {
     const githubCommit = githubCommits[gitCommit.hash];
+    if (
+      gitCommit.outsideWorkspace &&
+      !hasIncludedLabel(
+        githubCommit?.labels ?? [],
+        getChangelogConfig().includeLabels,
+      )
+    ) {
+      continue;
+    }
     const pr = githubCommit?.pr ?? gitCommit.pr ?? undefined;
 
     // Deduplicate by PR number, but keep all commits without PR association.

@@ -454,6 +454,24 @@ describe('getChangesSince', () => {
         'cli change',
       ]);
 
+      // Included labels are read from PRs later, so commits outside the
+      // workspace are only marked here.
+      writeFileSync(
+        join(dir, '.craft.yml'),
+        "minVersion: 2.29.0\nworkspaces:\n  packages/cli:\n    changelog:\n      policy: auto\n      includeLabels:\n        - 'changelog: cli'\n  packages/mcp: {}\n",
+      );
+      setActiveWorkspace('packages/cli');
+      expect(
+        (await getChangesSince(client, 'cli@0.1.0'))
+          .filter(change => change.outsideWorkspace)
+          .map(({ title }) => title),
+      ).toEqual(['other docs change', 'cli docs change', 'mcp change']);
+      writeFileSync(
+        join(dir, '.craft.yml'),
+        'minVersion: 2.29.0\nworkspaces:\n  packages/cli:\n    changelog:\n      policy: auto\n      includePaths:\n        - apps/cli-docs\n  packages/mcp: {}\n',
+      );
+      setActiveWorkspace('packages/cli');
+
       git('mv', 'packages/cli/cli.ts', 'packages/mcp/moved.ts');
       git(
         '-c',

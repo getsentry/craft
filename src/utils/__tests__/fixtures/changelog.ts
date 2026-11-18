@@ -59,6 +59,8 @@ export interface TestCommit {
   hash: string;
   title: string;
   body: string;
+  /** Marks a commit whose paths are outside the selected workspace */
+  outsideWorkspace?: boolean;
   pr?: {
     local?: string;
     remote?: {

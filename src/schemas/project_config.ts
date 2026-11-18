@@ -447,6 +447,12 @@ export const ChangelogConfigSchema = union([
       ),
     ),
     /**
+     * PR labels that put a change in this workspace's changelog even when it
+     * touches no file the workspace owns, such as a backend change to a spec
+     * that a package is generated from.
+     */
+    includeLabels: optional(array(pipe(string(), minLength(1)))),
+    /**
      * How a workspace changelog treats files outside every workspace:
      * `include` keeps them as shared (default), `exclude` ignores them, and
      * `own` claims them for this workspace so every other workspace ignores
@@ -722,7 +728,9 @@ const hasWorkspaces = (config: CraftProjectConfigObject) =>
 
 // Path ownership only exists between release workspaces, so these settings
 // would otherwise be silently ignored.
-const workspaceOnlyChangelogField = (field: 'includePaths' | 'unownedPaths') =>
+const workspaceOnlyChangelogField = (
+  field: 'includePaths' | 'includeLabels' | 'unownedPaths',
+) =>
   forward(
     check<CraftProjectConfigObject, string>(
       config =>
@@ -748,6 +756,7 @@ export const CraftProjectConfigSchema = pipe(
     ['github', 'projectPath'],
   ),
   workspaceOnlyChangelogField('includePaths'),
+  workspaceOnlyChangelogField('includeLabels'),
   workspaceOnlyChangelogField('unownedPaths'),
 );
 

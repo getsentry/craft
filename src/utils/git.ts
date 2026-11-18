@@ -32,6 +32,11 @@ export interface GitChange {
   title: string;
   body: string;
   pr: string | null;
+  /**
+   * Set when the commit's paths are outside the selected workspace. Such a
+   * commit stays only if its PR has one of `changelog.includeLabels`.
+   */
+  outsideWorkspace?: boolean;
 }
 
 // This regex relies on the default GitHub behavior where it appends the PR
@@ -276,12 +281,18 @@ export async function getChangesSince(
     pathsByHash.set(hash, names.slice(0, -1).split('\0'));
   }
 
-  return changes.filter(commit => {
+  // Labels are only known after the PR lookup, so with included labels the
+  // commits outside the workspace are marked instead of dropped.
+  const keepOutside = getChangelogConfig().includeLabels.length > 0;
+  return changes.flatMap(commit => {
     const files = pathsByHash.get(commit.hash);
     if (!files) {
       throw new Error(`Missing changelog paths for commit ${commit.hash}`);
     }
-    return belongsToWorkspace(files);
+    if (belongsToWorkspace(files)) {
+      return [commit];
+    }
+    return keepOutside ? [{ ...commit, outsideWorkspace: true }] : [];
   });
 }
 

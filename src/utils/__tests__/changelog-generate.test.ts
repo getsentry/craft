@@ -99,6 +99,7 @@ describe('generateChangesetFromGit', () => {
         title: commit.title,
         body: commit.body,
         pr: commit.pr?.local || null,
+        outsideWorkspace: commit.outsideWorkspace,
       })),
     );
 
@@ -218,6 +219,7 @@ describe('generateChangesetFromGit', () => {
       policy: ChangelogPolicy.Auto,
       scopeGrouping: true,
       includePaths: [],
+      includeLabels: [],
       unownedPaths: 'include' as const,
       aiSummary: {
         llm: {
@@ -1675,6 +1677,7 @@ changelog:
         policy: ChangelogPolicy.Auto,
         scopeGrouping: false,
         includePaths: [],
+        includeLabels: [],
         unownedPaths: 'include',
         aiSummary: false,
       });
@@ -2369,6 +2372,58 @@ See incident report: https://example.com/incident/123`,
     });
   });
 
+  describe('included labels', () => {
+    it('keeps commits outside the workspace only when their PR has an included label', async () => {
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        filePath: 'CHANGELOG.md',
+        policy: ChangelogPolicy.Auto,
+        scopeGrouping: true,
+        includePaths: [],
+        includeLabels: ['changelog: @sentry/api'],
+        unownedPaths: 'include',
+      });
+      const pr = (number: string, labels: string[] = []) => ({
+        local: number,
+        remote: { number, author: { login: 'alice' }, labels },
+      });
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat(api): Add a client option (#1)',
+            body: '',
+            pr: pr('1'),
+          },
+          {
+            hash: 'def456',
+            title: 'feat(issues): Add an endpoint field (#2)',
+            body: '',
+            outsideWorkspace: true,
+            pr: pr('2', ['changelog: @sentry/api']),
+          },
+          {
+            hash: 'ghi789',
+            title: 'fix(ui): Fix a button (#3)',
+            body: '',
+            outsideWorkspace: true,
+            pr: pr('3', ['changelog: @sentry/other']),
+          },
+        ],
+        null,
+      );
+
+      const { changelog } = await generateChangesetFromGit(
+        dummyGit,
+        '1.0.0',
+        10,
+      );
+
+      expect(changelog).toContain('Add a client option');
+      expect(changelog).toContain('Add an endpoint field');
+      expect(changelog).not.toContain('Fix a button');
+    });
+  });
+
   describe('GitHub lookup failures', () => {
     const commits: TestCommit[] = [
       {
@@ -2985,9 +3040,24 @@ describe('generateChangelogWithHighlight', () => {
       typeof getWorkspaceChangeFilter
     >;
 
+    const labelConfig = (includeLabels: string[]) =>
+      vi.mocked(config.getChangelogConfig).mockReturnValue({
+        filePath: 'CHANGELOG.md',
+        policy: ChangelogPolicy.Auto,
+        scopeGrouping: true,
+        includePaths: [],
+        includeLabels,
+        unownedPaths: 'include',
+      });
+
     it('leaves out a PR that changes no workspace files', async () => {
+      labelConfig(['changelog: @sentry/api']);
       setup({
-        currentPR: { number: 5, title: 'feat(server): Add endpoint' },
+        currentPR: {
+          number: 5,
+          title: 'feat(server): Add endpoint',
+          labels: ['changelog: @sentry/other'],
+        },
         existingCommits: [],
       });
       const belongsToWorkspace = vi.fn(() => false);
@@ -3005,6 +3075,27 @@ describe('generateChangelogWithHighlight', () => {
       });
       expect(belongsToWorkspace).toHaveBeenCalledWith(['server/src/main.rs']);
       expect(dummyGit.fetch).not.toHaveBeenCalled();
+    });
+
+    it('keeps a PR outside the workspace that has an included label', async () => {
+      labelConfig(['changelog: @sentry/api']);
+      setup({
+        currentPR: {
+          number: 5,
+          title: 'feat(server): Add endpoint',
+          labels: ['changelog: @sentry/api'],
+        },
+        existingCommits: [],
+      });
+      mockFilter.mockResolvedValue(vi.fn(() => false));
+      mockRestClient.pulls.listFiles.mockResolvedValueOnce({
+        data: [{ filename: 'server/src/main.rs' }],
+      });
+
+      const result = await generateChangelogWithHighlight(dummyGit, '1.0.0', 5);
+
+      expect(result.prOutsideWorkspace).toBeUndefined();
+      expect(result.changelog).toContain('Add endpoint');
     });
 
     it('checks every page of changed files, including renamed paths', async () => {
