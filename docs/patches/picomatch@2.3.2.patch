@@ -1,8 +1,8 @@
 diff --git a/lib/parse.js b/lib/parse.js
-index caa2b86aa5a567df33cef4bda3c7a97794f439f8..b5e0a33480897aef82fe9c6dfb6e8ee2b56afd63 100644
+index caa2b86aa5a567df33cef4bda3c7a97794f439f8..a34abd76c4ef079277c93e33917ceeda634b3ec6 100644
 --- a/lib/parse.js
 +++ b/lib/parse.js
-@@ -280,7 +280,36 @@ const repeatedExtglobRecursion = pattern => {
+@@ -280,7 +280,51 @@ const repeatedExtglobRecursion = pattern => {
    return depth;
  };
  
@@ -36,11 +36,26 @@ index caa2b86aa5a567df33cef4bda3c7a97794f439f8..b5e0a33480897aef82fe9c6dfb6e8ee2
 +  });
 +};
 +
++// A repeated body with a slash, such as `+(src/*/)`, backtracks only when one
++// path segment holds two `*`s. The last segment of a repeat and the first
++// segment of the next share one path segment, so they count together. A
++// globstar crosses `/`, so `+(**/a)` never qualifies, and neither does `+(*/*)`.
++const hasUnambiguousSegments = bodyTokens => {
++  const stars = [0];
++  for (const tok of bodyTokens) {
++    if (tok.type === 'globstar') return false;
++    if (tok.type === 'slash') stars.push(0);
++    if (tok.type === 'star' && tok.value !== '') stars[stars.length - 1]++;
++  }
++  if (stars.length < 2) return false;
++  return stars[0] + stars[stars.length - 1] <= 1 && stars.slice(1, -1).every(n => n <= 1);
++};
++
 +const analyzeRepeatedExtglob = (body, options, bodyTokens = []) => {
    if (options.maxExtglobRecursion === false) {
      return { risky: false };
    }
-@@ -292,6 +321,24 @@ const analyzeRepeatedExtglob = (body, options) => {
+@@ -292,6 +336,23 @@ const analyzeRepeatedExtglob = (body, options) => {
  
    const branches = splitTopLevel(body).map(branch => branch.trim());
  
@@ -55,9 +70,8 @@ index caa2b86aa5a567df33cef4bda3c7a97794f439f8..b5e0a33480897aef82fe9c6dfb6e8ee2
 +    }
 +
 +    // A literal slash fixes where each repeat starts, since `*` cannot cross
-+    // it outside bash mode, so the repeat cannot backtrack.
-+    const hasSlash = bodyTokens.some(tok => tok.type === 'slash');
-+    if (options.bash === true || !hasSlash) {
++    // it outside bash mode, unless the slash-separated parts split ambiguously.
++    if (options.bash === true || !hasUnambiguousSegments(bodyTokens)) {
 +      return { risky: true };
 +    }
 +  }
@@ -65,7 +79,7 @@ index caa2b86aa5a567df33cef4bda3c7a97794f439f8..b5e0a33480897aef82fe9c6dfb6e8ee2
    if (branches.length > 1) {
      if (
        branches.some(branch => branch === '') ||
-@@ -510,7 +557,7 @@ const parse = (input, options) => {
+@@ -510,7 +571,7 @@ const parse = (input, options) => {
    const extglobClose = token => {
      const literal = input.slice(token.startIndex, state.index + 1);
      const body = input.slice(token.startIndex + 2, state.index);
@@ -74,7 +88,7 @@ index caa2b86aa5a567df33cef4bda3c7a97794f439f8..b5e0a33480897aef82fe9c6dfb6e8ee2
  
      if ((token.type === 'plus' || token.type === 'star') && analysis.risky) {
        const safeOutput = analysis.safeOutput
-@@ -536,6 +583,10 @@ const parse = (input, options) => {
+@@ -536,6 +597,10 @@ const parse = (input, options) => {
        return;
      }
  
