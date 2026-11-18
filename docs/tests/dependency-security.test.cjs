@@ -157,3 +157,37 @@ test('stale-if-error retains matching Vary variants and valid HEAD reuse', () =>
     assert.equal(cache.revalidatedPolicy({ ...same, method }, { status: 503, headers: {} }).policy, cache);
   }
 });
+
+// GHSA-fc5q-39xc-vjpf: single-branch repeated extglobs nest an unbounded quantifier.
+const { spawnSync } = require('node:child_process');
+const unstorageRequire = createRequire(astroRequire.resolve('unstorage'));
+const picomatchCopies = {
+  '4.0.7 (astro, @astrojs/internal-helpers)': astroRequire.resolve('picomatch'),
+  '2.3.2 (astro > unstorage > anymatch)': createRequire(unstorageRequire.resolve('anymatch')).resolve('picomatch'),
+};
+const picomatchRedos = require.resolve('./fixtures/picomatch-redos.cjs');
+
+for (const [name, picomatchPath] of Object.entries(picomatchCopies)) {
+  test(`GHSA-fc5q-39xc-vjpf: picomatch ${name} rejects crafted input without backtracking`, () => {
+    const result = spawnSync(process.execPath, [picomatchRedos, picomatchPath], { encoding: 'utf8', timeout: 10_000 });
+    assert.equal(result.error, undefined);
+    assert.equal(result.stderr, '');
+    assert.equal(result.status, 0);
+  });
+
+  test(`picomatch ${name} keeps extglob matching`, () => {
+    const picomatch = require(picomatchPath);
+    assert.equal(picomatch.makeRe('+(*a)').source, '^(?:(?=.)(?:[^/]*?a))$');
+    assert.equal(picomatch.isMatch('xaa', '+(*a)'), true);
+    assert.equal(picomatch.isMatch('ab', '+(*a)'), false);
+    assert.equal(picomatch.isMatch('a/a', '+(*a)'), false);
+    assert.equal(picomatch.isMatch('abab', '+(a*b)'), true);
+    assert.equal(picomatch.isMatch('x.jsy.js', '+(*.js)'), true);
+    assert.equal(picomatch.isMatch('x.jsy.ts', '+(*.js)'), false);
+    assert.equal(picomatch.isMatch('abab', '+(a|b)'), true);
+    assert.equal(picomatch.isMatch('src/a/src/b/', '+(src/*/)'), true);
+    assert.equal(picomatch.isMatch('foo.ts', '!(*.d).ts'), true);
+    assert.equal(picomatch.isMatch('foo.d.ts', '!(*.d).ts'), false);
+    assert.equal(picomatch.isMatch('src/a/b.md', 'src/**/*.@(md|mdx)'), true);
+  });
+}
