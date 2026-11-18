@@ -420,6 +420,8 @@ export interface ChangelogEntryItem {
  * - Multiple top-level bullets (-, *, +) become separate changelog entries
  * - Plain text (no bullets) becomes a single entry
  * - Nested bullets are preserved as nested content under their parent entry
+ * - GitHub alerts (`> [!NOTE]` etc.) are release notes, not entries; see
+ *   {@link extractReleaseNotes}
  * - Only content within the "Changelog Entry" section is included
  *
  * @param prBody The PR description/body text
@@ -428,6 +430,42 @@ export interface ChangelogEntryItem {
 export function extractChangelogEntry(
   prBody: string | null | undefined,
 ): ChangelogEntryItem[] | null {
+  const contentTokens = getChangelogEntryTokens(prBody);
+  return contentTokens ? parseTokensToEntries(contentTokens) : null;
+}
+
+/** Matches the first line of a GitHub alert blockquote, such as `[!NOTE]` */
+const GITHUB_ALERT_PATTERN =
+  /^\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*(?:\n|$)/i;
+
+/**
+ * Extracts the release notes from the "Changelog Entry" section of a PR
+ * description. A release note is a top-level GitHub alert blockquote, such as
+ * `> [!IMPORTANT]`. It belongs to the whole release, so it is placed under the
+ * version heading as-is instead of as a list item: GitHub does not render
+ * alerts inside lists.
+ *
+ * @param prBody The PR description/body text
+ * @returns The markdown of each alert in order, possibly empty
+ */
+export function extractReleaseNotes(
+  prBody: string | null | undefined,
+): string[] {
+  return (getChangelogEntryTokens(prBody) ?? [])
+    .filter(
+      (token): token is Tokens.Blockquote =>
+        token.type === 'blockquote' && GITHUB_ALERT_PATTERN.test(token.text),
+    )
+    .map(token => token.raw.trim());
+}
+
+/**
+ * Returns the tokens of the "Changelog Entry" section of a PR description, or
+ * null if there is no such section or it is empty.
+ */
+function getChangelogEntryTokens(
+  prBody: string | null | undefined,
+): Token[] | null {
   if (!prBody) {
     return null;
   }
@@ -463,13 +501,7 @@ export function extractChangelogEntry(
     contentTokens.push(token);
   }
 
-  // If no content tokens, return null
-  if (contentTokens.length === 0) {
-    return null;
-  }
-
-  // Process the content tokens into changelog entries
-  return parseTokensToEntries(contentTokens);
+  return contentTokens.length > 0 ? contentTokens : null;
 }
 
 /**
@@ -1702,6 +1734,8 @@ export interface RawChangelogData {
   categories: Map<string, CategoryWithPRs>;
   /** Commits that didn't match any category */
   leftovers: Commit[];
+  /** GitHub alerts from PR descriptions, placed above every category */
+  releaseNotes: string[];
   /** Release config for serialization */
   releaseConfig: NormalizedReleaseConfig | null;
 }
@@ -2036,6 +2070,7 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
 
   const categories = new Map<string, CategoryWithPRs>();
   const leftovers: Commit[] = [];
+  const releaseNotes: string[] = [];
   const missing: RawCommitInfo[] = [];
 
   // Track bump type for auto-versioning (lower priority value = higher bump)
@@ -2050,6 +2085,7 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
     if (shouldExcludePR(labels, raw.author, releaseConfig, bodyToCheck)) {
       continue;
     }
+    releaseNotes.push(...extractReleaseNotes(raw.prBody));
 
     // Use PR title if available, otherwise use commit title for pattern matching
     const titleForMatching = (raw.prTitle ?? raw.title).trim();
@@ -2151,6 +2187,7 @@ function categorizeCommits(rawCommits: RawCommitInfo[]): RawChangelogResult {
     data: {
       categories,
       leftovers,
+      releaseNotes,
       releaseConfig,
     },
     stats: {
@@ -2198,7 +2235,7 @@ async function serializeChangelog(
   disablePRLinks = false,
   summarize = true,
 ): Promise<string> {
-  const { categories, leftovers, releaseConfig } = rawData;
+  const { categories, leftovers, releaseNotes, releaseConfig } = rawData;
 
   const changelogSections: string[] = [];
   const summaryCategories: SummaryCategory[] = [];
@@ -2428,6 +2465,9 @@ async function serializeChangelog(
     if (summary.release)
       changelogSections.unshift(formatSummaryText(summary.release));
   }
+  // Release notes go right under the version heading, as GitHub alerts only
+  // render outside lists.
+  changelogSections.unshift(...releaseNotes);
   return changelogSections.join('\n\n');
 }
 

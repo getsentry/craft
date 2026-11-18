@@ -194,6 +194,37 @@ of the PR title. If no such section is present, the PR title is used as usual.
    included in the changelog. Other sections (Description, Issues, etc.) are
    ignored.
 
+5. **Release Notes**: A [GitHub alert](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts)
+   (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, or `> [!CAUTION]`)
+   in the "Changelog Entry" section is a note for the whole release, not an entry.
+   Craft places it as-is right under the version heading, above the categories,
+   so it also appears in the GitHub release and the changelog preview:
+
+   ```markdown
+   ### Changelog Entry
+
+   > [!IMPORTANT]
+   > This release bundles Sentry CLI v3. Self-hosted users need Sentry 24.11.1 or newer.
+
+   - Bump Sentry CLI to v3
+   ```
+
+   This will generate:
+
+   ```markdown
+   ## 3.6.0
+
+   > [!IMPORTANT]
+   > This release bundles Sentry CLI v3. Self-hosted users need Sentry 24.11.1 or newer.
+
+   ### New Features
+
+   - Bump Sentry CLI to v3 by @user in [#123](url)
+   ```
+
+   Notes from several PRs are all kept, newest PR first. Without bullets or
+   text next to the alert, the PR title is used as the entry.
+
 ## Scope grouping
 
 Changes are automatically grouped by scope (e.g., `feat(api):` groups under "Api"):
