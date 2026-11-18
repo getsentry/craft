@@ -397,6 +397,7 @@ describe('validateConfiguration', () => {
 
   test.each([
     ['includePaths', ['apps/cli-docs']],
+    ['includeLabels', ['changelog: cli']],
     ['unownedPaths', 'exclude'],
   ])('rejects changelog.%s without release workspaces', (field, value) => {
     expect(() =>

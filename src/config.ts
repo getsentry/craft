@@ -1141,6 +1141,8 @@ export interface NormalizedChangelogConfig {
   scopeGrouping: boolean;
   /** Additional workspace paths to include in automatic changelogs */
   includePaths: string[];
+  /** PR labels that include a change in automatic changelogs, wherever it is */
+  includeLabels: string[];
   /** How automatic changelogs treat files outside every workspace */
   unownedPaths: UnownedPathsPolicy;
   /** Optional summaries; omitted unless configured explicitly. */
@@ -1218,6 +1220,7 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
   let policy = ChangelogPolicy.None;
   let scopeGrouping = true;
   let includePaths: string[] = [];
+  let includeLabels: string[] = [];
   let unownedPaths: UnownedPathsPolicy = 'include';
 
   // Handle legacy changelogPolicy (deprecated)
@@ -1247,6 +1250,9 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
       if (config.changelog.includePaths !== undefined) {
         includePaths = config.changelog.includePaths;
       }
+      if (config.changelog.includeLabels !== undefined) {
+        includeLabels = config.changelog.includeLabels;
+      }
       if (config.changelog.unownedPaths !== undefined) {
         unownedPaths = config.changelog.unownedPaths;
       }
@@ -1258,6 +1264,7 @@ export function getChangelogConfig(): NormalizedChangelogConfig {
     policy,
     scopeGrouping,
     includePaths,
+    includeLabels,
     unownedPaths,
     aiSummary:
       typeof config.changelog === 'object'
