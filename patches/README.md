@@ -28,7 +28,10 @@ repetition, so `+(P)` compiles as `(P)` and `*(P)` as `(P)?`, with the same
 matches. Unlike upstream, the patch checks each compiled bracket class, because
 a range such as `[+-0]` includes `/`. Other single-branch wildcard bodies are
 literalized, like the existing risky-extglob guard. A branch with a literal `/`
-keeps its repetition, because the slash fixes where each repeat starts. In root they
+keeps its repetition only when no path segment can hold two `*`s, counting the
+last segment of one repeat with the first segment of the next. So `+(src/*/)`
+keeps working, while `+(*/*)` and `+(**/a)` (a globstar crosses `/`) are
+literalized. In root they
 cover the CLI globbing (`micromatch`), `typescript-eslint`, and build-time
 watcher paths. Docs keeps identical copies under `../docs/patches/` for Astro. Run
 `pnpm test src/__tests__/dependency-security.test.ts` and `pnpm --dir docs test`.
