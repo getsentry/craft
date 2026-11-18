@@ -1,5 +1,35 @@
 # Changelog
 
+## 3.13.0
+
+Release workflows gain past-range history and optional labelled pull-request context within local-checkout limits, while dependency vulnerabilities and lookup hangs are addressed without changing single-commit retries.
+
+### New Features ✨
+
+Past-range changelog generation and optional labelled-PR inclusion broaden release workflows with clear local-checkout constraints.
+
+#### Changelog
+
+Changelog generation can target a past range with --until (-u), which requires --since, cannot be combined with --pr, and runs in a local checkout. Release workspaces can also use changelog.includeLabels to include labelled PRs outside workspace files; without it, behavior is unchanged, and enabling it adds GitHub lookups.
+
+- Add --until to generate a changelog for a past range by @BYK with @sentry-junior in [#981](https://github.com/getsentry/craft/pull/981)
+- Include labelled PRs from outside a workspace by @BYK with @sentry-junior in [#980](https://github.com/getsentry/craft/pull/980)
+
+### Bug Fixes 🐛
+
+Security updates harden dependency patterns, while bounded multi-commit lookups prevent hangs and preserve retry behavior for single commits.
+
+#### Deps
+
+Dependency updates address picomatch ReDoS risks in the root and docs lockfiles and remove a vulnerable zod dependency through an @​vercel/client update. Risky ambiguous slash extglobs are literalized, while supported patterns such as +(src/\*/) retain their matching behavior.
+
+- Treat ambiguous slash extglobs as risky in picomatch patch by @sentry-junior in [#983](https://github.com/getsentry/craft/pull/983)
+- Bump @vercel/client and patch picomatch ReDoS by @BYK with @sentry-junior in [#982](https://github.com/getsentry/craft/pull/982)
+
+#### Other
+
+- (changelog) Time out commit lookup chunks after 30s by @BYK with @sentry-junior in [#979](https://github.com/getsentry/craft/pull/979)
+
 ## 3.12.2
 
 Large GitHub commit lookup queries now recover more changelog metadata after timeouts, giving developers more complete results when processing extensive histories.
