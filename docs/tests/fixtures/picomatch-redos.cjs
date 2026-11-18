@@ -3,8 +3,22 @@
 // quantifier. Runs in a child process because a backtracking regex blocks
 // its own event loop. Usage: node picomatch-redos.cjs <path to picomatch>
 const picomatch = require(process.argv[2]);
-const globs = ['+(*)', '+(*a)', '*(*a)', '+(a*)b', '+(*[a])', '+(@(*a))'];
-const inputs = ['a'.repeat(50000) + '!', 'a'.repeat(50000) + '/'];
+const globs = [
+  '+(*)',
+  '+(*a)',
+  '*(*a)',
+  '+(a*)b',
+  '+(*[a])',
+  '+(@(*a))',
+  '+(*/*)',
+  '+(**/a)',
+];
+const inputs = [
+  'a'.repeat(50000) + '!',
+  'a'.repeat(50000) + '/',
+  'aa/'.repeat(3000) + '.x',
+  'a/'.repeat(5000) + '!',
+];
 for (const glob of globs) {
   for (const input of inputs) {
     picomatch(glob)(input);
