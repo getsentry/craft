@@ -2431,6 +2431,17 @@ See incident report: https://example.com/incident/123`,
       expect(mockClient).toHaveBeenCalledTimes(3);
     });
 
+    it('times out chunk lookups and leaves single commits to the client', async () => {
+      lookup(hashes => hashes.length > 1);
+      await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      const [chunkOptions, ...commitOptions] = mockClient.mock.calls.map(
+        ([, options]) => options,
+      );
+      expect(chunkOptions.request.retries).toBe(0);
+      expect(chunkOptions.request.signal).toBeInstanceOf(AbortSignal);
+      expect(commitOptions).toEqual([{}, {}]);
+    });
+
     it('skips only the commit whose lookup keeps failing', async () => {
       lookup(hashes => hashes.includes('abcdef1234567890'));
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
