@@ -99,7 +99,7 @@
     "pnpm": "10.27.0"
   },
   "dependencies": {
-    "@vercel/client": "^18.2.5",
+    "@vercel/client": "^18.12.3",
     "fastest-levenshtein": "^1.0.16",
     "ignore": "^7.0.5",
     "marked": "^17.0.1",
@@ -145,7 +145,9 @@
       "glob@>=9": "^14.0.2"
     },
     "patchedDependencies": {
-      "braces@3.0.3": "patches/braces@3.0.3.patch"
+      "braces@3.0.3": "patches/braces@3.0.3.patch",
+      "picomatch@4.0.7": "patches/picomatch@4.0.7.patch",
+      "picomatch@2.3.2": "patches/picomatch@2.3.2.patch"
     }
   }
 }

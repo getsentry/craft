@@ -18,6 +18,22 @@ the URL, host, method, and `Vary` variant to match the cached request. Normally 
 responses retain their stale fallback behavior. Run `pnpm --dir docs test`;
 the docs build runs these tests too.
 
+`picomatch@4.0.7.patch` and `picomatch@2.3.2.patch` mitigate
+[GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf). Both
+versions compile a repeated extglob with one wildcard branch, such as `+(*a)`,
+to a nested quantifier that backtracks exponentially. The patch backports the
+open upstream fix (micromatch/picomatch#267 and #268 for 2.x). A branch made only
+of literals, `?`, `*`, and bracket classes that cannot match `/` absorbs its own
+repetition, so `+(P)` compiles as `(P)` and `*(P)` as `(P)?`, with the same
+matches. Unlike upstream, the patch checks each compiled bracket class, because
+a range such as `[+-0]` includes `/`. Other single-branch wildcard bodies are
+literalized, like the existing risky-extglob guard. A branch with a literal `/`
+keeps its repetition, because the slash fixes where each repeat starts. In root they
+cover the CLI globbing (`micromatch`), `typescript-eslint`, and build-time
+watcher paths. Docs keeps identical copies under `../docs/patches/` for Astro. Run
+`pnpm test src/__tests__/dependency-security.test.ts` and `pnpm --dir docs test`.
+
 Keep the patches until upstream releases pass these regressions without them.
 Version-based scanners can still report locally patched dependencies, especially
-`braces`, which has no upstream fixed release. Neither advisory is suppressed.
+`braces` and `picomatch`, which have no upstream fixed release. No advisory is
+suppressed.
