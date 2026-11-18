@@ -30,6 +30,8 @@ type OutputFormat = 'text' | 'json';
 interface ChangelogOptions {
   /** Base revision to generate changelog from (defaults to latest tag) */
   since?: string;
+  /** End revision to generate changelog up to (defaults to HEAD) */
+  until?: string;
   /** PR number for the current (unmerged) PR */
   pr?: number;
   /** Output format: text (default) or json */
@@ -43,6 +45,14 @@ export const builder: CommandBuilder = (yargs: Argv) =>
       description:
         'Base revision (tag or SHA) to generate changelog from. Defaults to latest tag.',
       type: 'string',
+    })
+    .option('until', {
+      alias: 'u',
+      description:
+        'End revision (tag or SHA) to generate changelog up to. Defaults to HEAD. Requires --since.',
+      type: 'string',
+      implies: 'since',
+      conflicts: 'pr',
     })
     .option('pr', {
       description:
@@ -88,7 +98,13 @@ export async function changelogMain(argv: ChangelogOptions): Promise<void> {
   // Generate changelog - use different function depending on whether PR is specified
   const result = argv.pr
     ? await generateChangelogWithHighlight(git, since, argv.pr)
-    : await generateChangesetFromGit(git, since);
+    : await generateChangesetFromGit(
+        git,
+        since,
+        undefined,
+        undefined,
+        argv.until,
+      );
 
   // Output based on format
   if (argv.format === 'json') {

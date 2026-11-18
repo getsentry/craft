@@ -105,6 +105,7 @@ Prints the changelog for unreleased changes without preparing a release. See
 | Option | Description |
 | --- | --- |
 | `-s`, `--since` | Base revision (tag or SHA). Defaults to the latest tag. |
+| `-u`, `--until` | End revision (tag or SHA). Defaults to `HEAD`. Requires `--since`; can't be combined with `--pr`. |
 | `--pr` | Include this unmerged pull request, highlighted. |
 | `-f`, `--format` | `text` (default) or `json`. JSON includes the suggested bump type and commit stats. |
 
