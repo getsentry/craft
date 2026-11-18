@@ -181,7 +181,21 @@ workspaces:
 ```
 
 
-Most workspaces need no `includePaths` setting. Craft rejects `includePaths` and `unownedPaths` in configurations without `workspaces`, because there is no workspace ownership to adjust.
+When a release depends on changes that no path describes, such as a package generated from an API spec that any backend change can alter, label those PRs and list the labels in `includeLabels`. A commit whose PR has one of them is in the changelog wherever its files are. Workspace placeholders expand here, so a glob key can give each package its own label:
+
+```yaml
+workspaces:
+  packages/*:
+    changelog:
+      policy: auto
+      includeLabels:
+        - 'changelog: {{packageName}}'
+```
+
+
+With `includeLabels` set, Craft looks up the PRs of every commit in the release range, not only the workspace’s own, so it can read their labels.
+
+Most workspaces need neither setting. Craft rejects `includePaths`, `includeLabels`, and `unownedPaths` in configurations without `workspaces`, because there is no workspace ownership to adjust.
 
 Files outside every workspace, such as root build files or an application that lives at the repository root, count as shared by default. Use `changelog.unownedPaths` to change that:
 
