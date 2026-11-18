@@ -310,6 +310,7 @@ Generate changelog from git history
 
 Options:
   --since, -s    Base revision (tag or SHA) to generate from. Defaults to latest tag.
+  --until, -u    End revision (tag or SHA) to generate up to. Defaults to HEAD. Requires --since.
   --pr           PR number for the current (unmerged) PR to include with highlighting.
   --format, -f   Output format: text (default) or json
 ```
@@ -322,6 +323,10 @@ craft changelog
 
 # Generate changelog since specific commit
 craft changelog --since 2b58d3c
+
+# Regenerate the notes of a past release, such as one whose release text came
+# out wrong
+craft changelog --since 1.2.0 --until 1.3.0
 
 # Get detailed JSON output including bump type and commit stats
 craft changelog --format json

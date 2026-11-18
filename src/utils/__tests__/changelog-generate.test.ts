@@ -174,6 +174,28 @@ describe('generateChangesetFromGit', () => {
     }
   });
 
+  it('generates a changelog up to an end revision', async () => {
+    setup([{ hash: 'abcdef1234567890', title: 'fix: Old', body: '' }], null);
+    const old = await generateChangesetFromGit(
+      dummyGit,
+      '1.0.0',
+      undefined,
+      undefined,
+      '1.1.0',
+    );
+    setup([{ hash: 'bcdef1234567890a', title: 'fix: New', body: '' }], null);
+    const latest = await generateChangesetFromGit(dummyGit, '1.0.0');
+
+    expect(mockGetChangesSince).toHaveBeenNthCalledWith(
+      1,
+      dummyGit,
+      '1.0.0',
+      '1.1.0',
+    );
+    expect(old.changelog).toContain('Old');
+    expect(latest.changelog).toContain('New');
+  });
+
   it('counts a commit that only quotes the skip magic word in code', async () => {
     // Squash-merged feature commit that documents the magic word, wrapped
     // across lines as git does, next to a real skipped bump commit.
