@@ -1741,8 +1741,15 @@ function getChangesetCacheKey(
   rev: string,
   maxLeftovers: number,
   summarize: boolean,
+  until: string | undefined,
 ): string {
-  return JSON.stringify([getActiveWorkspace(), rev, maxLeftovers, summarize]);
+  return JSON.stringify([
+    getActiveWorkspace(),
+    rev,
+    maxLeftovers,
+    summarize,
+    until,
+  ]);
 }
 
 /**
@@ -1759,8 +1766,9 @@ export async function generateChangesetFromGit(
   rev: string,
   maxLeftovers: number = MAX_LEFTOVERS,
   summarize = true,
+  until?: string,
 ): Promise<ChangelogResult> {
-  const cacheKey = getChangesetCacheKey(rev, maxLeftovers, summarize);
+  const cacheKey = getChangesetCacheKey(rev, maxLeftovers, summarize, until);
   let cache = changesetCache.get(git);
   if (!cache) {
     cache = new Map();
@@ -1779,6 +1787,7 @@ export async function generateChangesetFromGit(
     rev,
     maxLeftovers,
     summarize,
+    until,
   );
   cache.set(cacheKey, promise);
 
@@ -2431,16 +2440,17 @@ async function generateChangesetFromGitImpl(
   rev: string,
   maxLeftovers: number,
   summarize: boolean,
+  until: string | undefined,
 ): Promise<ChangelogResult> {
   let cache = rawChangesetCache.get(git);
   if (!cache) {
     cache = new Map();
     rawChangesetCache.set(git, cache);
   }
-  const key = JSON.stringify([getActiveWorkspace(), rev]);
+  const key = JSON.stringify([getActiveWorkspace(), rev, until]);
   let promise = cache.get(key);
   if (!promise) {
-    promise = generateRawChangelog(git, rev);
+    promise = generateRawChangelog(git, rev, until);
     cache.set(key, promise);
   }
   const { data: rawData, stats } = await promise;
