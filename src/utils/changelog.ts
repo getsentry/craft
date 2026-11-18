@@ -215,6 +215,12 @@ const VERSION_HEADER_LEVEL = 2;
 const SUBSECTION_HEADER_LEVEL = VERSION_HEADER_LEVEL + 1;
 const SCOPE_HEADER_LEVEL = SUBSECTION_HEADER_LEVEL + 1;
 const MAX_COMMITS_PER_QUERY = 50;
+/**
+ * Time a commit lookup with more than one commit gets before it is split.
+ * GitHub fails GraphQL queries after about 10s, but a hung request otherwise
+ * waits for Node's 300s headers timeout.
+ */
+const COMMIT_QUERY_TIMEOUT_MS = 30_000;
 /** Commits read from a PR to find its co-authors */
 const MAX_PR_COMMITS = 100;
 /** PRs per co-author query; each reads up to {@link MAX_PR_COMMITS} commits */
@@ -2539,7 +2545,19 @@ export async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
     logger.trace('Running graphql query:', graphqlQuery);
 
     try {
-      const response = await getGitHubClient().graphql(graphqlQuery);
+      // Splitting a failed chunk is its retry, so only a single commit gets
+      // the client's own retries and its default timeout.
+      const response = await getGitHubClient().graphql(
+        graphqlQuery,
+        subset.length > 1
+          ? {
+              request: {
+                retries: 0,
+                signal: AbortSignal.timeout(COMMIT_QUERY_TIMEOUT_MS),
+              },
+            }
+          : {},
+      );
       const typedResponse = response as CommitInfoResult;
 
       if (!typedResponse?.repository) {
