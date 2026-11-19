@@ -457,6 +457,31 @@ describe('existing listing', () => {
     ]);
   });
 
+  test('ignores empty values that the registry drops', async () => {
+    const pkg = {
+      ...MANIFEST.packages[0],
+      environmentVariables: [
+        { name: 'TOKEN', isRequired: false, isSecret: true, value: '' },
+      ],
+      packageArguments: [],
+    };
+    writeManifest({ ...MANIFEST, packages: [pkg] });
+    const listedPackage = {
+      ...MANIFEST.packages[0],
+      version: VERSION,
+      environmentVariables: [{ name: 'TOKEN', isSecret: true }],
+    };
+    const fetchMock = mockFetch({
+      [`GET ${LISTING_URL}`]: json(
+        listing({ ...EXPECTED_SERVER, packages: [listedPackage] }),
+      ),
+    });
+
+    await createTarget().publish(VERSION, 'sha');
+
+    expect(requests(fetchMock)).toHaveLength(1);
+  });
+
   test('fails when the listed version differs from the manifest', async () => {
     const fetchMock = mockFetch({
       [`GET ${LISTING_URL}`]: json(

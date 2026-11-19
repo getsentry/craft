@@ -291,8 +291,9 @@ export class McpRegistryTarget extends BaseTarget {
   }
 
   /**
-   * Checks that the listing equals the manifest (ignoring `$schema`) and is
-   * active. Throws `mismatchMessage` when the content differs.
+   * Checks that the listing equals the manifest (ignoring `$schema` and the
+   * empty values the registry drops) and is active. Throws `mismatchMessage`
+   * when the content differs.
    */
   private verifyListing(
     listing: RegistryListing,
@@ -301,8 +302,8 @@ export class McpRegistryTarget extends BaseTarget {
   ): void {
     if (
       !isDeepStrictEqual(
-        withoutSchema(listing.server ?? {}),
-        withoutSchema(manifest),
+        normalizeServer(listing.server ?? {}),
+        normalizeServer(manifest),
       )
     ) {
       throw new Error(mismatchMessage);
@@ -448,12 +449,44 @@ export class McpRegistryTarget extends BaseTarget {
   }
 }
 
-function withoutSchema(
+/**
+ * Returns the server data the registry stores for `server`, for comparison:
+ * without `$schema`, and without the empty values (`false`, `""`, `null`,
+ * `[]`, `{}`) that the registry drops from its listings (Go `omitempty`).
+ */
+function normalizeServer(
   server: Record<string, unknown>,
 ): Record<string, unknown> {
   const copy = { ...server };
   delete copy.$schema;
-  return copy;
+  return withoutEmptyValues(copy) as Record<string, unknown>;
+}
+
+function withoutEmptyValues(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(withoutEmptyValues);
+  }
+  if (value === null || typeof value !== 'object') {
+    return value;
+  }
+  const result: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    const normalized = withoutEmptyValues(item);
+    if (!isEmptyValue(normalized)) {
+      result[key] = normalized;
+    }
+  }
+  return result;
+}
+
+function isEmptyValue(value: unknown): boolean {
+  if (value === undefined || value === null || value === false) {
+    return true;
+  }
+  if (typeof value === 'string' || Array.isArray(value)) {
+    return value.length === 0;
+  }
+  return typeof value === 'object' && Object.keys(value).length === 0;
 }
 
 function errorMessage(err: unknown): string {
