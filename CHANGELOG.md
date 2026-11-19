@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.14.0
+
+Release notes now order GitHub alerts and exclude unsupported or skipped changes, while Maven and registry diagnostics distinguish real repository differences.
+
+### New Features ✨
+
+GitHub alerts now appear as ordered release notes, while unsupported alert placements and skipped or reverted PRs remain excluded.
+
+- (changelog) Use GitHub alerts in changelog entries as release notes by @BYK with @sentry-junior in [#985](https://github.com/getsentry/craft/pull/985)
+
+### Bug Fixes 🐛
+
+Maven errors now expose repository response details, while registry verification ignores omitted falsey values but still detects genuine differences.
+
+- (maven) Include Sonatype's response body in API errors by @0xadam-brown with @sentry-junior in [#973](https://github.com/getsentry/craft/pull/973)
+- (mcp-registry) Ignore empty values the registry drops when verifying a listing by @sentry-junior in [#971](https://github.com/getsentry/craft/pull/971)
+
 ## 3.13.0
 
 Release workflows gain past-range history and optional labelled pull-request context within local-checkout limits, while dependency vulnerabilities and lookup hangs are addressed without changing single-commit retries.
