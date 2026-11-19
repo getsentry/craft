@@ -3,12 +3,14 @@
  * - extractScope: Extracts scope from conventional commit titles
  * - formatScopeTitle: Formats scope for display
  * - extractChangelogEntry: Extracts custom changelog entries from PR bodies
+ * - extractReleaseNotes: Extracts GitHub alerts from PR bodies
  */
 
 import {
   extractScope,
   formatScopeTitle,
   extractChangelogEntry,
+  extractReleaseNotes,
 } from '../changelog';
 
 describe('extractScope', () => {
@@ -425,5 +427,79 @@ Some hidden content here.
       '  <summary>Click to expand</summary>',
     );
     expect(result![0].nestedContent).toContain('  </details>');
+  });
+});
+
+describe('extractReleaseNotes', () => {
+  it('extracts GitHub alerts from the changelog entry section', () => {
+    const prBody = `### Description
+
+> [!NOTE]
+> Not in the changelog entry section.
+
+### Changelog Entry
+
+> [!IMPORTANT]
+> This release bundles Sentry CLI v3.
+> Self-hosted users need Sentry 24.11.1 or newer.
+
+- Bump Sentry CLI to v3
+
+> [!warning]
+> Second note.
+
+### Issues`;
+
+    expect(extractReleaseNotes(prBody)).toEqual([
+      '> [!IMPORTANT]\n> This release bundles Sentry CLI v3.\n> Self-hosted users need Sentry 24.11.1 or newer.',
+      '> [!warning]\n> Second note.',
+    ]);
+  });
+
+  it('keeps alerts out of changelog entries', () => {
+    const prBody = `### Changelog Entry
+
+> [!CAUTION]
+> Breaking change.
+
+- Bump Sentry CLI to v3`;
+
+    expect(extractChangelogEntry(prBody)).toEqual([
+      { text: 'Bump Sentry CLI to v3' },
+    ]);
+  });
+
+  it('returns no entries when the section only has an alert', () => {
+    const prBody = `### Changelog Entry
+
+> [!TIP]
+> Try the new option.`;
+
+    expect(extractChangelogEntry(prBody)).toBeNull();
+    expect(extractReleaseNotes(prBody)).toEqual([
+      '> [!TIP]\n> Try the new option.',
+    ]);
+  });
+
+  it('ignores blockquotes that are not GitHub alerts', () => {
+    const prBody = `### Changelog Entry
+
+> Just a quote.
+
+> [!NOTE] with text on the marker line
+
+- Entry`;
+
+    expect(extractReleaseNotes(prBody)).toEqual([]);
+  });
+
+  it('handles CRLF line endings', () => {
+    const prBody = '### Changelog Entry\r\n\r\n> [!NOTE]\r\n> Hi\r\n';
+    expect(extractReleaseNotes(prBody)).toEqual(['> [!NOTE]\n> Hi']);
+  });
+
+  it('returns an empty list without a changelog entry section', () => {
+    expect(extractReleaseNotes(null)).toEqual([]);
+    expect(extractReleaseNotes('> [!NOTE]\n> Hi')).toEqual([]);
   });
 });

@@ -1874,6 +1874,67 @@ changelog:
     });
   });
 
+  describe('release notes', () => {
+    it('places GitHub alerts above the categories', async () => {
+      setup(
+        [
+          {
+            hash: 'abc123',
+            title: 'feat: Bump Sentry CLI to v3',
+            body: '',
+            pr: {
+              local: '1',
+              remote: {
+                number: '1',
+                author: { login: 'alice' },
+                body: '## Changelog Entry\n\n> [!IMPORTANT]\n> Self-hosted users need Sentry 24.11.1 or newer.\n\n- Bump Sentry CLI to v3',
+              },
+            },
+          },
+          {
+            hash: 'def456',
+            title: 'fix: Handle empty config',
+            body: '',
+            pr: {
+              local: '2',
+              remote: {
+                number: '2',
+                author: { login: 'bob' },
+                body: '## Changelog Entry\n\n> [!NOTE]\n> Configs are validated now.',
+              },
+            },
+          },
+          {
+            hash: 'ghi789',
+            title: 'chore: Internal cleanup',
+            body: '',
+            pr: {
+              local: '3',
+              remote: {
+                number: '3',
+                author: { login: 'carol' },
+                body: '## Changelog Entry\n\n> [!WARNING]\n> Skipped PRs add no notes.',
+                labels: ['skip-changelog'],
+              },
+            },
+          },
+        ],
+        null,
+      );
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
+      expect(result.changelog).toBe(
+        [
+          '> [!IMPORTANT]\n> Self-hosted users need Sentry 24.11.1 or newer.',
+          '> [!NOTE]\n> Configs are validated now.',
+          '### New Features ✨',
+          '- Bump Sentry CLI to v3 by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)',
+          '### Bug Fixes 🐛',
+          '- Handle empty config by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)',
+        ].join('\n\n'),
+      );
+    });
+  });
+
   // ============================================================================
   // Revert commit handling tests
   // ============================================================================
@@ -2683,6 +2744,30 @@ describe('generateChangelogWithHighlight', () => {
 
     expect(result.changelog).toContain(
       'Add thing by **alice**, **bob** and **carol** in',
+    );
+  });
+
+  it('shows release notes of the current PR without highlighting them', async () => {
+    setup({
+      currentPR: {
+        number: 7,
+        title: 'feat: Bump Sentry CLI to v3',
+        body: '## Changelog Entry\n\n> [!IMPORTANT]\n> Self-hosted users need Sentry 24.11.1 or newer.',
+        author: 'alice',
+      },
+      existingCommits: [{ hash: 'abc123', title: 'fix: Older fix', body: '' }],
+    });
+
+    const result = await generateChangelogWithHighlight(dummyGit, '1.0.0', 7);
+
+    const note =
+      '> [!IMPORTANT]\n> Self-hosted users need Sentry 24.11.1 or newer.';
+    expect(result.changelog.startsWith(`${note}\n\n`)).toBe(true);
+    expect(result.changelog).toContain(
+      '> - Bump Sentry CLI to v3 by **alice**',
+    );
+    expect(result.prEntry).toBe(
+      `${note}\n\n### New Features ✨\n\n> - Bump Sentry CLI to v3 by **alice** in \`#7\``,
     );
   });
 
