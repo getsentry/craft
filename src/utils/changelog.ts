@@ -432,13 +432,13 @@ const SCOPE_WORD_CASING = new Map<string, string>([
  */
 export function formatScopeTitle(scope: string): string {
   return scope
-    .replace(/[-_]/g, ' ')
-    .replace(
-      /\b\w+/g,
+    .split(/[-_\s]+/)
+    .map(
       word =>
         SCOPE_WORD_CASING.get(word.toLowerCase()) ??
         word.charAt(0).toUpperCase() + word.slice(1),
-    );
+    )
+    .join(' ');
 }
 
 /**
