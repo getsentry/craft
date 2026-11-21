@@ -53,6 +53,7 @@ describe('formatScopeTitle', () => {
     ['macos', 'macOS'],
     ['github', 'GitHub'],
     ['ios-sdk', 'iOS SDK'],
+    ['constructor', 'Constructor'],
     ['cache-warming', 'Cache Warming'],
     ['my-component', 'My Component'],
     ['my_component', 'My Component'],

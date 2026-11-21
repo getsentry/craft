@@ -392,37 +392,37 @@ export function extractScope(title: string): string | null {
  * lowercase form. Scopes are lowercased by `extractScope`, so title case alone
  * would turn `ios` into "Ios" and `api` into "Api".
  */
-const SCOPE_WORD_CASING: Record<string, string> = {
-  ai: 'AI',
-  api: 'API',
-  aws: 'AWS',
-  ci: 'CI',
-  cli: 'CLI',
-  css: 'CSS',
-  db: 'DB',
-  gcp: 'GCP',
-  github: 'GitHub',
-  gitlab: 'GitLab',
-  graphql: 'GraphQL',
-  html: 'HTML',
-  http: 'HTTP',
-  ios: 'iOS',
-  ipados: 'iPadOS',
-  javascript: 'JavaScript',
-  json: 'JSON',
-  macos: 'macOS',
-  mcp: 'MCP',
-  npm: 'npm',
-  oauth: 'OAuth',
-  sdk: 'SDK',
-  sql: 'SQL',
-  tvos: 'tvOS',
-  typescript: 'TypeScript',
-  ui: 'UI',
-  url: 'URL',
-  visionos: 'visionOS',
-  watchos: 'watchOS',
-};
+const SCOPE_WORD_CASING = new Map<string, string>([
+  ['ai', 'AI'],
+  ['api', 'API'],
+  ['aws', 'AWS'],
+  ['ci', 'CI'],
+  ['cli', 'CLI'],
+  ['css', 'CSS'],
+  ['db', 'DB'],
+  ['gcp', 'GCP'],
+  ['github', 'GitHub'],
+  ['gitlab', 'GitLab'],
+  ['graphql', 'GraphQL'],
+  ['html', 'HTML'],
+  ['http', 'HTTP'],
+  ['ios', 'iOS'],
+  ['ipados', 'iPadOS'],
+  ['javascript', 'JavaScript'],
+  ['json', 'JSON'],
+  ['macos', 'macOS'],
+  ['mcp', 'MCP'],
+  ['npm', 'npm'],
+  ['oauth', 'OAuth'],
+  ['sdk', 'SDK'],
+  ['sql', 'SQL'],
+  ['tvos', 'tvOS'],
+  ['typescript', 'TypeScript'],
+  ['ui', 'UI'],
+  ['url', 'URL'],
+  ['visionos', 'visionOS'],
+  ['watchos', 'watchOS'],
+]);
 
 /**
  * Formats a scope name to title case for display.
@@ -436,7 +436,7 @@ export function formatScopeTitle(scope: string): string {
     .replace(
       /\b\w+/g,
       word =>
-        SCOPE_WORD_CASING[word.toLowerCase()] ??
+        SCOPE_WORD_CASING.get(word.toLowerCase()) ??
         word.charAt(0).toUpperCase() + word.slice(1),
     );
 }
