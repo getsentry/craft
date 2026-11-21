@@ -105,7 +105,7 @@ exports[`generateChangesetFromGit > output formatting > uses PR title from GitHu
 exports[`generateChangesetFromGit > scope grouping > groups PRs by scope when multiple entries exist 1`] = `
 "### Features
 
-#### Api
+#### API
 
 - feat(api): add endpoint 1 by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)
 - feat(api): add endpoint 2 by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)
@@ -118,7 +118,7 @@ exports[`generateChangesetFromGit > scope grouping > groups PRs by scope when mu
 exports[`generateChangesetFromGit > scope grouping > places scopeless entries at bottom 1`] = `
 "### Features
 
-#### Api
+#### API
 
 - feat(api): scoped feature 1 by @alice in [#1](https://github.com/test-owner/test-repo/pull/1)
 - feat(api): scoped feature 2 by @bob in [#2](https://github.com/test-owner/test-repo/pull/2)

@@ -227,7 +227,7 @@ of the PR title. If no such section is present, the PR title is used as usual.
 
 ## Scope grouping
 
-Changes are automatically grouped by scope (e.g., `feat(api):` groups under "Api"):
+Changes are automatically grouped by scope (e.g., `feat(api):` groups under "API"):
 
 ```yaml
 changelog:
@@ -243,12 +243,12 @@ Example output with scope grouping:
 ```text
 ### New Features
 
-#### Api
+#### API
 
 - Add user endpoint by @alice in [#1](https://github.com/...)
 - Add auth endpoint by @bob in [#2](https://github.com/...)
 
-#### Ui
+#### UI
 
 - Add dashboard by @charlie in [#3](https://github.com/...)
 

@@ -475,10 +475,10 @@ describe('generateChangesetFromGit', () => {
         'One concise overview of release capabilities.',
       );
       expect(result.changelog).toContain(
-        '### New Features ✨\n\ncategory summary for New Features ✨ changes.\n\n#### Cli',
+        '### New Features ✨\n\ncategory summary for New Features ✨ changes.\n\n#### CLI',
       );
       expect(result.changelog).toContain(
-        '#### Cli\n\nscope summary for New Features ✨ / Cli changes.\n\n- Add command 1',
+        '#### CLI\n\nscope summary for New Features ✨ / CLI changes.\n\n- Add command 1',
       );
       expect(result.changelog).not.toContain('<details>');
       expect(result.changelog).not.toContain('<summary>Show');
@@ -521,7 +521,7 @@ describe('generateChangesetFromGit', () => {
       expect(result.changelog.includes('scope summary')).toBe(
         levels.includes('scope'),
       );
-      expect(result.changelog).toContain('#### Cli');
+      expect(result.changelog).toContain('#### CLI');
       expect(result.changelog).not.toContain('<details>');
       for (let i = 1; i <= 6; i++)
         expect(result.changelog).toContain(`- Add command ${i}`);
@@ -577,13 +577,13 @@ describe('generateChangesetFromGit', () => {
       );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0');
       expect(result.changelog).toContain(
-        'category summary for New Features ✨ changes.\n\n#### Api\n\n- Add endpoint 1',
+        'category summary for New Features ✨ changes.\n\n#### API\n\n- Add endpoint 1',
       );
       expect(result.changelog).toContain(
-        '#### Cli\n\nscope summary for New Features ✨ / Cli changes.\n\n- Add command 1',
+        '#### CLI\n\nscope summary for New Features ✨ / CLI changes.\n\n- Add command 1',
       );
       expect(result.changelog).not.toContain(
-        'scope summary for New Features ✨ / Api',
+        'scope summary for New Features ✨ / API',
       );
       expect(result.changelog).not.toContain('<details>');
       for (const title of [
@@ -701,7 +701,7 @@ describe('generateChangesetFromGit', () => {
       setup(commits, null);
       const result = await generateChangesetFromGit(dummyGit, '1.0.0');
       expect(result.changelog).toContain('category summary');
-      expect(result.changelog).not.toContain('#### Cli');
+      expect(result.changelog).not.toContain('#### CLI');
       expect(result.changelog).not.toContain('scope summary');
       expect(result.changelog).not.toContain('<details>');
     });
@@ -1688,7 +1688,7 @@ changelog:
       );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // Single-scope entry should be under "Other" header
-      expect(result.changelog).toContain('#### Api');
+      expect(result.changelog).toContain('#### API');
       expect(result.changelog).toContain('#### Other');
       expect(result.changelog).toContain('feat(ui): single ui feature');
     });
@@ -1727,7 +1727,7 @@ changelog:
         SCOPE_CONFIG,
       );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
-      expect(result.changelog).not.toContain('#### Api');
+      expect(result.changelog).not.toContain('#### API');
       expect(result.changelog).not.toContain('#### Other');
       expect(result.changelog).toContain('feat(api): api feature 1');
       expect(result.changelog).toContain('feat(api): api feature 2');
@@ -1759,7 +1759,7 @@ changelog:
       );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // No scope headers, so no "Other" header needed
-      expect(result.changelog).not.toContain('#### Api');
+      expect(result.changelog).not.toContain('#### API');
       expect(result.changelog).not.toContain('#### Other');
       expect(result.changelog).toContain('feat: feature 1');
       expect(result.changelog).toContain('feat: feature 2');
@@ -1791,8 +1791,8 @@ changelog:
       );
       const result = await generateChangesetFromGit(dummyGit, '1.0.0', 10);
       // No scope gets 2+ entries, so no headers at all
-      expect(result.changelog).not.toContain('#### Api');
-      expect(result.changelog).not.toContain('#### Ui');
+      expect(result.changelog).not.toContain('#### API');
+      expect(result.changelog).not.toContain('#### UI');
       expect(result.changelog).not.toContain('#### Other');
       expect(result.changelog).toContain('feat(api): single api feature');
       expect(result.changelog).toContain('feat(ui): single ui feature');
