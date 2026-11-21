@@ -1,5 +1,23 @@
 # Changelog
 
+## 3.14.0
+
+The release broadens eligible GitHub PR alert integration while making names clearer and diagnostics and MCP verification more informative.
+
+### New Features ✨
+
+Release notes can incorporate qualifying GitHub PR alerts, preserving placement and ordering while excluding unsupported or ineligible alert forms.
+
+- (changelog) Use GitHub alerts in changelog entries as release notes by @BYK with @sentry-junior in [#985](https://github.com/getsentry/craft/pull/985)
+
+### Bug Fixes 🐛
+
+Scope casing improves acronym and brand readability; Maven errors expose response details; MCP verification ignores empty values while detecting real differences.
+
+- (changelog) Keep conventional casing of known words in scope headers by @armcknight with @sentry-junior in [#986](https://github.com/getsentry/craft/pull/986)
+- (maven) Include Sonatype's response body in API errors by @0xadam-brown with @sentry-junior in [#973](https://github.com/getsentry/craft/pull/973)
+- (mcp-registry) Ignore empty values the registry drops when verifying a listing by @sentry-junior in [#971](https://github.com/getsentry/craft/pull/971)
+
 ## 3.13.0
 
 Release workflows gain past-range history and optional labelled pull-request context within local-checkout limits, while dependency vulnerabilities and lookup hangs are addressed without changing single-commit retries.
