@@ -46,8 +46,15 @@ describe('extractScope', () => {
 
 describe('formatScopeTitle', () => {
   it.each([
-    ['api', 'Api'],
-    ['ui', 'Ui'],
+    ['core', 'Core'],
+    ['api', 'API'],
+    ['ui', 'UI'],
+    ['ios', 'iOS'],
+    ['macos', 'macOS'],
+    ['github', 'GitHub'],
+    ['ios-sdk', 'iOS SDK'],
+    ['constructor', 'Constructor'],
+    ['cache-warming', 'Cache Warming'],
     ['my-component', 'My Component'],
     ['my_component', 'My Component'],
     ['multi-word-scope', 'Multi Word Scope'],
