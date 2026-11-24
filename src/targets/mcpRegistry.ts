@@ -34,11 +34,11 @@ const OFFICIAL_META_KEY = 'io.modelcontextprotocol.registry/official';
 const REQUEST_TIMEOUT_MS = 30_000;
 
 /**
- * npm can take a while to serve a version it just accepted, and the registry
- * rejects a publish whose npm package version it cannot fetch yet. Wait up to
- * about five minutes for each npm package before publishing.
+ * npm can take several minutes to serve a version it just accepted, and the
+ * registry rejects a publish whose npm package version it cannot fetch yet.
+ * By default, wait up to 20 minutes for each npm package before publishing.
  */
-const NPM_ATTEMPTS = 30;
+const DEFAULT_NPM_TIMEOUT_SECONDS = 20 * 60;
 const NPM_RETRY_DELAY_MS = 10_000;
 
 /** Bounded wait for a fresh listing to become readable after publishing */
@@ -68,6 +68,7 @@ interface RegistryListing {
 interface McpRegistryConfigFields extends Record<string, unknown> {
   manifest?: string;
   registryUrl?: string;
+  npmTimeout?: unknown;
 }
 
 /** Target options for "mcp-registry" */
@@ -76,6 +77,8 @@ export interface McpRegistryTargetConfig {
   manifestPath: string;
   /** Registry base URL, without a trailing slash */
   registryUrl: string;
+  /** How long to wait for npm to serve each npm package, in seconds */
+  npmTimeoutSeconds: number;
 }
 
 /**
@@ -127,12 +130,24 @@ export class McpRegistryTarget extends BaseTarget {
       );
     }
 
+    const npmTimeoutSeconds = config.npmTimeout ?? DEFAULT_NPM_TIMEOUT_SECONDS;
+    if (
+      typeof npmTimeoutSeconds !== 'number' ||
+      !Number.isFinite(npmTimeoutSeconds) ||
+      npmTimeoutSeconds <= 0
+    ) {
+      throw new ConfigurationError(
+        `[mcp-registry] npmTimeout must be a positive number of seconds (got "${String(npmTimeoutSeconds)}")`,
+      );
+    }
+
     // Like other repository paths in .craft.yml, the manifest path is
     // relative to the repository root, also inside a workspace.
     const root = getConfigFileDir() || process.cwd();
     return {
       manifestPath: resolve(root, config.manifest ?? DEFAULT_MANIFEST),
       registryUrl: registryUrl.replace(/\/+$/, ''),
+      npmTimeoutSeconds,
     };
   }
 
@@ -213,6 +228,9 @@ export class McpRegistryTarget extends BaseTarget {
     manifest: ServerManifest,
     version: string,
   ): Promise<void> {
+    const attempts = Math.ceil(
+      (this.mcpRegistryConfig.npmTimeoutSeconds * 1000) / NPM_RETRY_DELAY_MS,
+    );
     for (const pkg of manifest.packages ?? []) {
       if (pkg.registryType !== 'npm' || !pkg.identifier) {
         continue;
@@ -230,7 +248,7 @@ export class McpRegistryTarget extends BaseTarget {
       const info = await this.pollJson(
         `${baseUrl}/${escapedName}/${encodeURIComponent(version)}`,
         label,
-        NPM_ATTEMPTS,
+        attempts,
         NPM_RETRY_DELAY_MS,
       );
       if (!info) {

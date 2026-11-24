@@ -156,19 +156,29 @@ describe('config', () => {
     expect(target.mcpRegistryConfig).toEqual({
       manifestPath: join(rootDir, 'server.json'),
       registryUrl: DEFAULT_REGISTRY_URL,
+      npmTimeoutSeconds: 1200,
     });
   });
 
-  test('accepts a manifest path and registry URL', () => {
+  test('accepts a manifest path, registry URL and npm timeout', () => {
     const target = createTarget({
       manifest: 'packages/mcp/server.json',
       registryUrl: 'https://registry.example.com/',
+      npmTimeout: 600,
     });
     expect(target.mcpRegistryConfig).toEqual({
       manifestPath: join(rootDir, 'packages/mcp/server.json'),
       registryUrl: 'https://registry.example.com',
+      npmTimeoutSeconds: 600,
     });
   });
+
+  test.each([0, -1, '600', Infinity])(
+    'rejects an invalid npm timeout (%s)',
+    npmTimeout => {
+      expect(() => createTarget({ npmTimeout })).toThrow(ConfigurationError);
+    },
+  );
 
   test('rejects an invalid registry URL', () => {
     expect(() => createTarget({ registryUrl: 'not a url' })).toThrow(
@@ -399,7 +409,7 @@ describe('npm wait', () => {
     );
   });
 
-  test('gives up after a bounded number of attempts', async () => {
+  test('gives up after 20 minutes by default', async () => {
     const fetchMock = mockFetch({
       [`GET ${LISTING_URL}`]: json({}, 404),
       [`GET ${NPM_URL}`]: () => json({}, 404),
@@ -410,8 +420,27 @@ describe('npm wait', () => {
     );
     expect(
       requests(fetchMock).filter(request => request.key === `GET ${NPM_URL}`),
-    ).toHaveLength(30);
-    expect(sleep).toHaveBeenCalledTimes(29);
+    ).toHaveLength(120);
+    expect(sleep).toHaveBeenCalledTimes(119);
+    expect(sleep).toHaveBeenCalledWith(10_000);
+    expect(
+      findRequest(fetchMock, `POST ${DEFAULT_REGISTRY_URL}/v0/publish`),
+    ).toBeUndefined();
+  });
+
+  test('gives up after the configured npm timeout', async () => {
+    const fetchMock = mockFetch({
+      [`GET ${LISTING_URL}`]: json({}, 404),
+      [`GET ${NPM_URL}`]: () => json({}, 404),
+    });
+
+    await expect(
+      createTarget({ npmTimeout: 60 }).publish(VERSION, 'sha'),
+    ).rejects.toThrow(/is still not available on npm/);
+    expect(
+      requests(fetchMock).filter(request => request.key === `GET ${NPM_URL}`),
+    ).toHaveLength(6);
+    expect(sleep).toHaveBeenCalledTimes(5);
     expect(
       findRequest(fetchMock, `POST ${DEFAULT_REGISTRY_URL}/v0/publish`),
     ).toBeUndefined();
