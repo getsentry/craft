@@ -4,6 +4,7 @@ const repos = {
   getPages: vi.fn(),
   getLatestPagesBuild: vi.fn(),
   requestPagesBuild: vi.fn(),
+  getBranch: vi.fn(),
   listDeployments: vi.fn(),
   listDeploymentStatuses: vi.fn(),
 };
@@ -61,6 +62,7 @@ describe('GhPagesTarget', () => {
     repos.getPages.mockResolvedValue({
       data: { build_type: 'legacy', source: { branch: 'gh-pages' } },
     });
+    repos.getBranch.mockResolvedValue({ data: { commit: { sha: SHA } } });
     repos.listDeployments.mockResolvedValue({ data: [] });
     target = new GhPagesTarget(
       { name: 'gh-pages' },
@@ -226,6 +228,26 @@ describe('GhPagesTarget', () => {
         /failed after 2 rebuilds \(Page build failed\.\).*o\/r\/deployments\/github-pages/,
       );
       expect(repos.requestPagesBuild).toHaveBeenCalledTimes(2);
+    });
+
+    it('fails without a rebuild when another push replaced the commit', async () => {
+      repos.getLatestPagesBuild
+        .mockResolvedValueOnce(build(1, 'built', 'previous-sha'))
+        .mockResolvedValueOnce(build(3, 'building', 'next-sha'));
+      repos.getBranch
+        .mockResolvedValueOnce({ data: { commit: { sha: SHA } } })
+        .mockResolvedValueOnce({ data: { commit: { sha: 'next-sha' } } });
+
+      await expect(target.waitForPagesBuild(SHA)).rejects.toThrow(
+        `Branch "gh-pages" of o/r moved from ${SHA} to next-sha before GitHub Pages built it.`,
+      );
+      expect(repos.getBranch).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        branch: 'gh-pages',
+      });
+      expect(repos.getLatestPagesBuild).toHaveBeenCalledTimes(2);
+      expect(repos.requestPagesBuild).not.toHaveBeenCalled();
     });
 
     it('treats a build that never finishes as failed', async () => {
