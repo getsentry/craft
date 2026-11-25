@@ -268,7 +268,7 @@ export class GhPagesTarget extends BaseTarget {
     sha: string,
     ignoreUrl?: string,
   ): Promise<PagesBuild | undefined> {
-    const { githubOwner: owner, githubRepo: repo } = this.ghPagesConfig;
+    const { githubOwner: owner, githubRepo: repo, branch } = this.ghPagesConfig;
     for (let poll = 0; poll < PAGES_BUILD_MAX_POLLS; poll++) {
       await sleep(PAGES_BUILD_POLL_INTERVAL_MS);
       const build: PagesBuild = (
@@ -280,6 +280,19 @@ export class GhPagesTarget extends BaseTarget {
         (build.status === 'built' || build.status === 'errored')
       ) {
         return build;
+      }
+      if (build.commit !== sha) {
+        // Pages only builds the branch head, so once another push moves it,
+        // the latest build never becomes the build of this commit.
+        const head = (
+          await this.github.repos.getBranch({ owner, repo, branch })
+        ).data.commit.sha;
+        if (head !== sha) {
+          throw new Error(
+            `Branch "${branch}" of ${owner}/${repo} moved from ${sha} to ${head} before GitHub Pages built it. ` +
+              'Another push replaced these docs, so they are not live.',
+          );
+        }
       }
       this.logger.debug(
         `Latest GitHub Pages build: ${build.status} for ${build.commit}`,
