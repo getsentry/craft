@@ -54,8 +54,9 @@ const PAGES_MAX_REBUILDS = 2;
 const PAGES_DEPLOYMENT_APPEAR_POLLS = 6;
 
 /**
- * Final states of a `github-pages` deployment other than `success`. GitHub
- * sets `inactive` once a newer deployment succeeds.
+ * Final states of a `github-pages` deployment that did not deploy. GitHub
+ * also sets `inactive` on a successful deployment once a newer one succeeds,
+ * so an earlier `success` status takes precedence.
  */
 const PAGES_DEPLOYMENT_FAILED_STATES = new Set([
   'failure',
@@ -367,17 +368,17 @@ export class GhPagesTarget extends BaseTarget {
         }
         if (deploymentId) {
           // Statuses are returned newest first.
-          const [status] = (
+          const statuses = (
             await this.github.repos.listDeploymentStatuses({
               owner,
               repo,
               deployment_id: deploymentId,
-              per_page: 1,
             })
           ).data;
-          if (status?.state === 'success') {
+          if (statuses.some(({ state }) => state === 'success')) {
             return true;
           }
+          const [status] = statuses;
           if (status && PAGES_DEPLOYMENT_FAILED_STATES.has(status.state)) {
             return false;
           }

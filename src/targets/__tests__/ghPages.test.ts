@@ -123,8 +123,19 @@ describe('GhPagesTarget', () => {
         owner: 'o',
         repo: 'r',
         deployment_id: 7,
-        per_page: 1,
       });
+      expect(repos.requestPagesBuild).not.toHaveBeenCalled();
+    });
+
+    it('accepts a deployment that succeeded before a newer one replaced it', async () => {
+      repos.getLatestPagesBuild.mockResolvedValueOnce(build(2, 'errored'));
+      repos.listDeployments.mockResolvedValue({ data: [{ id: 7 }] });
+      repos.listDeploymentStatuses.mockResolvedValue({
+        data: [{ state: 'inactive' }, { state: 'success' }],
+      });
+
+      await target.waitForPagesBuild(SHA);
+
       expect(repos.requestPagesBuild).not.toHaveBeenCalled();
     });
 
