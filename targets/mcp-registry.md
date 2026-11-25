@@ -16,6 +16,7 @@ The target calls the registry’s HTTP API directly (the same endpoints [`mcp-pu
 | --- | --- |
 | `manifest` | Path to the `server.json` manifest, relative to the repository root (also inside a workspace). Default: `server.json` |
 | `registryUrl` | Registry base URL. Default: `https://registry.modelcontextprotocol.io` |
+| `npmTimeout` | How long to wait for npm to serve each npm package version before publishing, in seconds. Default: `1200` (20 minutes) |
 
 The server name comes from the manifest’s `name`.
 
@@ -38,7 +39,7 @@ For the release version, the target:
 
    - If it is already listed and matches the manifest, the target does nothing. Re-running a release is safe.
    - If it is listed but differs from the manifest, the target fails. Release a new version instead.
-3. For each `npm` package in the manifest, waits up to about five minutes for npm to serve that exact version. npm can lag behind a fresh publish, and the registry rejects a package version it cannot fetch yet.
+3. For each `npm` package in the manifest, waits up to `npmTimeout` (20 minutes by default) for npm to serve that exact version, checking every 10 seconds. npm can take several minutes to serve a fresh publish, and the registry rejects a package version it cannot fetch yet.
 4. Authenticates and publishes the manifest.
 5. Checks that the new listing matches the manifest (ignoring `$schema`) and is `active`.
 

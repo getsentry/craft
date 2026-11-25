@@ -87,6 +87,10 @@
 <td><code dir="auto">registryUrl</code></td>
 <td>Registry base URL. Default: <code dir="auto">https://registry.modelcontextprotocol.io</code></td>
 </tr>
+<tr>
+<td><code dir="auto">npmTimeout</code></td>
+<td>How long to wait for npm to serve each npm package version before publishing, in seconds. Default: <code dir="auto">1200</code> (20 minutes)</td>
+</tr>
 </tbody>
 </table>
 <p>The server name comes from the manifest’s <code dir="auto">name</code>.</p>
@@ -119,7 +123,7 @@
 <li>If it is listed but differs from the manifest, the target fails. Release a new version instead.</li>
 </ul>
 </li>
-<li>For each <code dir="auto">npm</code> package in the manifest, waits up to about five minutes for npm to serve that exact version. npm can lag behind a fresh publish, and the registry rejects a package version it cannot fetch yet.</li>
+<li>For each <code dir="auto">npm</code> package in the manifest, waits up to <code dir="auto">npmTimeout</code> (20 minutes by default) for npm to serve that exact version, checking every 10 seconds. npm can take several minutes to serve a fresh publish, and the registry rejects a package version it cannot fetch yet.</li>
 <li>Authenticates and publishes the manifest.</li>
 <li>Checks that the new listing matches the manifest (ignoring <code dir="auto">$schema</code>) and is <code dir="auto">active</code>.</li>
 </ol>
