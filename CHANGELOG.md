@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.14.1
+
+### Bug Fixes 🐛
+
+#### Gh Pages
+
+- Stop waiting once another push replaces the commit by @BYK with @sentry-junior in [#989](https://github.com/getsentry/craft/pull/989)
+- Accept a Pages build that errored but still deployed by @sentry-junior in [#988](https://github.com/getsentry/craft/pull/988)
+
+#### Other
+
+- (mcp-registry) Wait up to 20 minutes for npm by default by @BYK with @sentry-junior in [#987](https://github.com/getsentry/craft/pull/987)
+
 ## 3.14.0
 
 The release broadens eligible GitHub PR alert integration while making names clearer and diagnostics and MCP verification more informative.
