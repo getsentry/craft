@@ -66,6 +66,7 @@
     "split": "1.0.1",
     "string-length": "3.1.0",
     "tar": "7.5.21",
+    "textlint-rule-terminology": "^5.2.16",
     "tmp": "^0.2.6",
     "tslib": "^2.8.1",
     "typescript": "^5.7.2",
@@ -147,7 +148,8 @@
     "patchedDependencies": {
       "braces@3.0.3": "patches/braces@3.0.3.patch",
       "picomatch@4.0.7": "patches/picomatch@4.0.7.patch",
-      "picomatch@2.3.2": "patches/picomatch@2.3.2.patch"
+      "picomatch@2.3.2": "patches/picomatch@2.3.2.patch",
+      "textlint-rule-terminology@5.2.16": "patches/textlint-rule-terminology@5.2.16.patch"
     }
   }
 }

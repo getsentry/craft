@@ -1,0 +1,16 @@
+diff --git a/package.json b/package.json
+index 1968238a7cd79a8d36ca1ca27d87a130074773d4..994a273579e398f8932c99f351da80aa60dd97e2 100644
+--- a/package.json
++++ b/package.json
+@@ -13,7 +13,10 @@
+     "node": ">=20"
+   },
+   "type": "module",
+-  "exports": "./out/index.js",
++  "exports": {
++    ".": "./out/index.js",
++    "./terms.jsonc": "./terms.jsonc"
++  },
+   "files": [
+     "out/*.js",
+     "terms.jsonc"

@@ -238,6 +238,12 @@ changelog:
 Scope headers are only shown for scopes with more than one entry. Entries without
 a scope are listed at the bottom of each category section without a sub-header.
 
+Scope headers are title-cased, and known terms keep their usual spelling, so
+`ios-sdk` becomes "iOS SDK" and `node-js` becomes "Node.js". The terms come from
+[`textlint-rule-terminology`](https://github.com/sapegin/textlint-rule-terminology)
+plus a few of Craft's own, such as "GH", "CLI", and "MCP". Craft only uses its
+rules that change casing or separators, so `repo` stays "Repo".
+
 Example output with scope grouping:
 
 ```text

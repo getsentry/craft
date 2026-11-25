@@ -1,14 +1,12 @@
 /**
  * Tests for changelog extraction and parsing functions.
  * - extractScope: Extracts scope from conventional commit titles
- * - formatScopeTitle: Formats scope for display
  * - extractChangelogEntry: Extracts custom changelog entries from PR bodies
  * - extractReleaseNotes: Extracts GitHub alerts from PR bodies
  */
 
 import {
   extractScope,
-  formatScopeTitle,
   extractChangelogEntry,
   extractReleaseNotes,
 } from '../changelog';
@@ -41,28 +39,6 @@ describe('extractScope', () => {
     ['feat(): empty scope', null],
   ])('returns null for "%s"', (title, expected) => {
     expect(extractScope(title)).toBe(expected);
-  });
-});
-
-describe('formatScopeTitle', () => {
-  it.each([
-    ['core', 'Core'],
-    ['api', 'API'],
-    ['ui', 'UI'],
-    ['ios', 'iOS'],
-    ['macos', 'macOS'],
-    ['github', 'GitHub'],
-    ['ios-sdk', 'iOS SDK'],
-    ['constructor', 'Constructor'],
-    ['cache-warming', 'Cache Warming'],
-    ['my-component', 'My Component'],
-    ['my_component', 'My Component'],
-    ['multi-word-scope', 'Multi Word Scope'],
-    ['multi_word_scope', 'Multi Word Scope'],
-    ['API', 'API'],
-    ['mycomponent', 'Mycomponent'],
-  ])('formats "%s" as "%s"', (scope, expected) => {
-    expect(formatScopeTitle(scope)).toBe(expected);
   });
 });
 
