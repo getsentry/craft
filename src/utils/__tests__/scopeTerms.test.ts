@@ -34,6 +34,7 @@ describe('formatScopeTitle', () => {
     ['cli', 'CLI'],
     ['mcp', 'MCP'],
     ['http', 'HTTP'],
+    ['https', 'HTTPS'],
     ['npm', 'npm'],
     ['npm-target', 'npm Target'],
     ['visionos', 'visionOS'],

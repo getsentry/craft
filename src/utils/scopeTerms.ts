@@ -21,9 +21,10 @@ const CRAFT_TERMS: Term[] = [
   'E2E',
   'GCP',
   'GH',
-  // Upstream writes this rule as "\bHTTP(?!:)" in JSON, so its pattern starts
-  // with a backspace character and never matches.
+  // Upstream writes these rules as "\bHTTP(?!:)" in JSON, so their patterns
+  // start with a backspace character and never match.
   'HTTP',
+  'HTTPS',
   'MCP',
   // Upstream only keeps "npm" lowercase in the middle of a sentence.
   'npm',
