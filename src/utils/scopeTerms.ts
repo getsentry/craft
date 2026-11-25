@@ -18,6 +18,7 @@ const CRAFT_TERMS: Term[] = [
   'CI',
   'CLI',
   'DB',
+  'E2E',
   'GCP',
   'GH',
   // Upstream writes this rule as "\bHTTP(?!:)" in JSON, so its pattern starts
@@ -29,6 +30,7 @@ const CRAFT_TERMS: Term[] = [
   'OAuth',
   'UI',
   'visionOS',
+  'VSCode',
 ];
 
 interface PatternRule {

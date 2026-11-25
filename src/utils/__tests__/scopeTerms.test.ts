@@ -37,6 +37,9 @@ describe('formatScopeTitle', () => {
     ['npm', 'npm'],
     ['npm-target', 'npm Target'],
     ['visionos', 'visionOS'],
+    // Upstream renames these to "end-to-end" and "Visual Studio Code"
+    ['e2e', 'E2E'],
+    ['vscode', 'VSCode'],
   ])('uses the Craft spelling of "%s": "%s"', (scope, expected) => {
     expect(formatScopeTitle(scope)).toBe(expected);
   });
@@ -59,8 +62,6 @@ describe('formatScopeTitle', () => {
     // Rules that rename a term
     ['repo', 'Repo'],
     ['golang', 'Golang'],
-    ['e2e', 'E2e'],
-    ['vscode', 'Vscode'],
     // Rules with an all-lowercase replacement
     ['readme', 'Readme'],
     ['built-in', 'Built In'],
