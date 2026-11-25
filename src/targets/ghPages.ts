@@ -252,6 +252,7 @@ export class GhPagesTarget extends BaseTarget {
     }
 
     let failedBuild: PagesBuild | undefined;
+    const checkedDeployments = new Set<number>();
     for (let attempt = 0; attempt <= PAGES_MAX_REBUILDS; attempt++) {
       if (attempt > 0) {
         this.logger.warn(
@@ -274,7 +275,10 @@ export class GhPagesTarget extends BaseTarget {
         this.logger.info(`GitHub Pages build for ${sha} is complete.`);
         return;
       }
-      if (build && (await this.isPagesDeploymentLive(sha))) {
+      if (
+        build &&
+        (await this.isPagesDeploymentLive(sha, checkedDeployments))
+      ) {
         this.logger.info(
           `GitHub Pages build for ${sha} reported "${describePagesBuild(build)}", but its github-pages deployment succeeded.`,
         );
@@ -329,49 +333,68 @@ export class GhPagesTarget extends BaseTarget {
    * The deployment is what actually serves the site.
    *
    * @param sha SHA of the pushed commit
+   * @param checkedDeployments IDs of deployments that earlier calls already
+   *   read. They are skipped, and the deployment read here is added.
    * @returns Whether the deployment of `sha` succeeded. False when it failed,
-   *   did not show up, or did not finish in time.
+   *   did not show up, did not finish in time, or the token cannot read
+   *   deployments.
    */
-  private async isPagesDeploymentLive(sha: string): Promise<boolean> {
+  private async isPagesDeploymentLive(
+    sha: string,
+    checkedDeployments: Set<number>,
+  ): Promise<boolean> {
     const { githubOwner: owner, githubRepo: repo } = this.ghPagesConfig;
     let deploymentId: number | undefined;
-    for (let poll = 0; poll < PAGES_BUILD_MAX_POLLS; poll++) {
-      if (!deploymentId) {
-        if (poll >= PAGES_DEPLOYMENT_APPEAR_POLLS) {
-          return false;
+    try {
+      for (let poll = 0; poll < PAGES_BUILD_MAX_POLLS; poll++) {
+        if (!deploymentId) {
+          if (poll >= PAGES_DEPLOYMENT_APPEAR_POLLS) {
+            return false;
+          }
+          const [deployment] = (
+            await this.github.repos.listDeployments({
+              owner,
+              repo,
+              sha,
+              environment: 'github-pages',
+              per_page: 1,
+            })
+          ).data;
+          if (deployment && !checkedDeployments.has(deployment.id)) {
+            deploymentId = deployment.id;
+            checkedDeployments.add(deploymentId);
+          }
         }
-        const deployments = (
-          await this.github.repos.listDeployments({
-            owner,
-            repo,
-            sha,
-            environment: 'github-pages',
-            per_page: 1,
-          })
-        ).data;
-        deploymentId = deployments[0]?.id;
+        if (deploymentId) {
+          // Statuses are returned newest first.
+          const [status] = (
+            await this.github.repos.listDeploymentStatuses({
+              owner,
+              repo,
+              deployment_id: deploymentId,
+              per_page: 1,
+            })
+          ).data;
+          if (status?.state === 'success') {
+            return true;
+          }
+          if (status && PAGES_DEPLOYMENT_FAILED_STATES.has(status.state)) {
+            return false;
+          }
+          this.logger.debug(
+            `GitHub Pages deployment of ${sha}: ${status?.state ?? 'no status yet'}`,
+          );
+        }
+        await sleep(PAGES_BUILD_POLL_INTERVAL_MS);
       }
-      if (deploymentId) {
-        // Statuses are returned newest first.
-        const [status] = (
-          await this.github.repos.listDeploymentStatuses({
-            owner,
-            repo,
-            deployment_id: deploymentId,
-            per_page: 1,
-          })
-        ).data;
-        if (status?.state === 'success') {
-          return true;
-        }
-        if (status && PAGES_DEPLOYMENT_FAILED_STATES.has(status.state)) {
-          return false;
-        }
-        this.logger.debug(
-          `GitHub Pages deployment of ${sha}: ${status?.state ?? 'no status yet'}`,
+    } catch (e) {
+      if (e.status === 403 || e.status === 404) {
+        this.logger.warn(
+          `Cannot read GitHub Pages deployments of ${owner}/${repo} (HTTP ${e.status}), not checking the deployment of ${sha}.`,
         );
+        return false;
       }
-      await sleep(PAGES_BUILD_POLL_INTERVAL_MS);
+      throw e;
     }
     return false;
   }

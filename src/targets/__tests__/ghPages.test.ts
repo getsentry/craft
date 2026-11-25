@@ -155,6 +155,45 @@ describe('GhPagesTarget', () => {
       expect(repos.requestPagesBuild).toHaveBeenCalledTimes(1);
     });
 
+    it('waits for the deployment of a rebuild, not the failed one before it', async () => {
+      repos.getLatestPagesBuild
+        .mockResolvedValueOnce(build(2, 'errored'))
+        .mockResolvedValueOnce(build(3, 'errored'));
+      repos.listDeployments
+        .mockResolvedValueOnce({ data: [{ id: 7 }] })
+        // The rebuild's deployment does not exist yet.
+        .mockResolvedValueOnce({ data: [{ id: 7 }] })
+        .mockResolvedValueOnce({ data: [{ id: 8 }] });
+      repos.listDeploymentStatuses
+        .mockResolvedValueOnce(deploymentStatus('error'))
+        .mockResolvedValueOnce(deploymentStatus('success'));
+
+      await target.waitForPagesBuild(SHA);
+
+      expect(repos.requestPagesBuild).toHaveBeenCalledTimes(1);
+      expect(repos.listDeploymentStatuses).toHaveBeenLastCalledWith(
+        expect.objectContaining({ deployment_id: 8 }),
+      );
+    });
+
+    it.each([403, 404])(
+      'requests a rebuild when deployments return %i',
+      async status => {
+        repos.getLatestPagesBuild
+          .mockResolvedValueOnce(build(2, 'errored'))
+          .mockResolvedValueOnce(build(3, 'built'));
+        repos.listDeployments.mockRejectedValueOnce(httpError(status));
+        const warn = vi.spyOn(target['logger'], 'warn');
+
+        await target.waitForPagesBuild(SHA);
+
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining(`deployments of o/r (HTTP ${status})`),
+        );
+        expect(repos.requestPagesBuild).toHaveBeenCalledTimes(1);
+      },
+    );
+
     it('names the missing permission when the rebuild request is rejected', async () => {
       repos.getLatestPagesBuild.mockResolvedValueOnce(
         build(2, 'errored', SHA, 'Page build failed.'),
