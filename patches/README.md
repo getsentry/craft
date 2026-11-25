@@ -1,4 +1,4 @@
-# Dependency security patches
+# Dependency patches
 
 `braces@3.0.3.patch` mitigates [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
 It rejects AST nesting beyond 100 levels with a `SyntaxError`, before the recursive
@@ -40,3 +40,8 @@ Keep the patches until upstream releases pass these regressions without them.
 Version-based scanners can still report locally patched dependencies, especially
 `braces` and `picomatch`, which have no upstream fixed release. No advisory is
 suppressed.
+
+`textlint-rule-terminology@5.2.16.patch` adds `./terms.jsonc` to the package's
+`exports`, so Craft can import its terms list for changelog scope headers
+(`src/utils/scopeTerms.ts`). Without it, the `exports` map hides the file from
+esbuild and Vite. Drop the patch once upstream exports the file.

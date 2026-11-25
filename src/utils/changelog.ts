@@ -23,6 +23,7 @@ import {
   formatSummaryText,
   type SummaryCategory,
 } from './ai-summary';
+import { formatScopeTitle } from './scopeTerms';
 
 /** Information about the current (unmerged) PR to inject into changelog */
 export interface CurrentPRInfo {
@@ -385,60 +386,6 @@ export function extractScope(title: string): string | null {
     return match[1].toLowerCase().replace(/[-_]/g, '-');
   }
   return null;
-}
-
-/**
- * Words whose conventional casing title case would get wrong, keyed by their
- * lowercase form. Scopes are lowercased by `extractScope`, so title case alone
- * would turn `ios` into "Ios" and `api` into "Api".
- */
-const SCOPE_WORD_CASING = new Map<string, string>([
-  ['ai', 'AI'],
-  ['api', 'API'],
-  ['aws', 'AWS'],
-  ['ci', 'CI'],
-  ['cli', 'CLI'],
-  ['css', 'CSS'],
-  ['db', 'DB'],
-  ['gcp', 'GCP'],
-  ['github', 'GitHub'],
-  ['gitlab', 'GitLab'],
-  ['graphql', 'GraphQL'],
-  ['html', 'HTML'],
-  ['http', 'HTTP'],
-  ['ios', 'iOS'],
-  ['ipados', 'iPadOS'],
-  ['javascript', 'JavaScript'],
-  ['json', 'JSON'],
-  ['macos', 'macOS'],
-  ['mcp', 'MCP'],
-  ['npm', 'npm'],
-  ['oauth', 'OAuth'],
-  ['sdk', 'SDK'],
-  ['sql', 'SQL'],
-  ['tvos', 'tvOS'],
-  ['typescript', 'TypeScript'],
-  ['ui', 'UI'],
-  ['url', 'URL'],
-  ['visionos', 'visionOS'],
-  ['watchos', 'watchOS'],
-]);
-
-/**
- * Formats a scope name to title case for display.
- * Converts dashes and underscores to spaces, capitalizes first letter of each word,
- * and keeps the conventional casing of known words such as "iOS" or "API".
- * For example: "my-component" becomes "My Component", "ios" becomes "iOS"
- */
-export function formatScopeTitle(scope: string): string {
-  return scope
-    .split(/[-_\s]+/)
-    .map(
-      word =>
-        SCOPE_WORD_CASING.get(word.toLowerCase()) ??
-        word.charAt(0).toUpperCase() + word.slice(1),
-    )
-    .join(' ');
 }
 
 /**
