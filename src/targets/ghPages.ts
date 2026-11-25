@@ -47,6 +47,22 @@ const PAGES_BUILD_MAX_POLLS = 90;
 /** Rebuilds to request after the first GitHub Pages build fails */
 const PAGES_MAX_REBUILDS = 2;
 
+/**
+ * Reads to wait for the `github-pages` deployment of a commit to show up
+ * after its build record errored: 1 minute.
+ */
+const PAGES_DEPLOYMENT_APPEAR_POLLS = 6;
+
+/**
+ * Final states of a `github-pages` deployment other than `success`. GitHub
+ * sets `inactive` once a newer deployment succeeds.
+ */
+const PAGES_DEPLOYMENT_FAILED_STATES = new Set([
+  'failure',
+  'error',
+  'inactive',
+]);
+
 /** Subset of a GitHub Pages build that the target reads */
 interface PagesBuild {
   url: string;
@@ -241,11 +257,27 @@ export class GhPagesTarget extends BaseTarget {
         this.logger.warn(
           `GitHub Pages build failed (${describePagesBuild(failedBuild)}), requesting rebuild ${attempt}/${PAGES_MAX_REBUILDS}...`,
         );
-        await this.github.repos.requestPagesBuild({ owner, repo });
+        try {
+          await this.github.repos.requestPagesBuild({ owner, repo });
+        } catch (e) {
+          if (e.status === 403) {
+            reportError(
+              `Cannot request a GitHub Pages rebuild of ${owner}/${repo} (HTTP 403): the token needs Pages write permission. ` +
+                `See https://github.com/${owner}/${repo}/deployments/github-pages`,
+            );
+          }
+          throw e;
+        }
       }
       const build = await this.pollPagesBuild(sha, failedBuild?.url);
       if (build?.status === 'built') {
         this.logger.info(`GitHub Pages build for ${sha} is complete.`);
+        return;
+      }
+      if (build && (await this.isPagesDeploymentLive(sha))) {
+        this.logger.info(
+          `GitHub Pages build for ${sha} reported "${describePagesBuild(build)}", but its github-pages deployment succeeded.`,
+        );
         return;
       }
       failedBuild = build ?? failedBuild;
@@ -286,6 +318,62 @@ export class GhPagesTarget extends BaseTarget {
       );
     }
     return undefined;
+  }
+
+  /**
+   * Reads the `github-pages` deployment of `sha` until it finishes
+   *
+   * GitHub can mark the Pages build of a commit as errored while the
+   * `pages-build-deployment` workflow still deploys that commit, for example
+   * when a push lands while the deploy of an earlier push is still running.
+   * The deployment is what actually serves the site.
+   *
+   * @param sha SHA of the pushed commit
+   * @returns Whether the deployment of `sha` succeeded. False when it failed,
+   *   did not show up, or did not finish in time.
+   */
+  private async isPagesDeploymentLive(sha: string): Promise<boolean> {
+    const { githubOwner: owner, githubRepo: repo } = this.ghPagesConfig;
+    let deploymentId: number | undefined;
+    for (let poll = 0; poll < PAGES_BUILD_MAX_POLLS; poll++) {
+      if (!deploymentId) {
+        if (poll >= PAGES_DEPLOYMENT_APPEAR_POLLS) {
+          return false;
+        }
+        const deployments = (
+          await this.github.repos.listDeployments({
+            owner,
+            repo,
+            sha,
+            environment: 'github-pages',
+            per_page: 1,
+          })
+        ).data;
+        deploymentId = deployments[0]?.id;
+      }
+      if (deploymentId) {
+        // Statuses are returned newest first.
+        const [status] = (
+          await this.github.repos.listDeploymentStatuses({
+            owner,
+            repo,
+            deployment_id: deploymentId,
+            per_page: 1,
+          })
+        ).data;
+        if (status?.state === 'success') {
+          return true;
+        }
+        if (status && PAGES_DEPLOYMENT_FAILED_STATES.has(status.state)) {
+          return false;
+        }
+        this.logger.debug(
+          `GitHub Pages deployment of ${sha}: ${status?.state ?? 'no status yet'}`,
+        );
+      }
+      await sleep(PAGES_BUILD_POLL_INTERVAL_MS);
+    }
+    return false;
   }
 
   /**
