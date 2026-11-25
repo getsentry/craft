@@ -5,6 +5,8 @@ const repos = {
   getLatestPagesBuild: vi.fn(),
   requestPagesBuild: vi.fn(),
   getBranch: vi.fn(),
+  listDeployments: vi.fn(),
+  listDeploymentStatuses: vi.fn(),
 };
 
 vi.mock('../../utils/githubApi', async () => {
@@ -42,6 +44,10 @@ function build(id: number, status: string, commit = SHA, message?: string) {
   };
 }
 
+function deploymentStatus(state: string) {
+  return { data: [{ state }] };
+}
+
 function httpError(status: number) {
   return Object.assign(new Error(`HTTP ${status}`), { status });
 }
@@ -57,6 +63,7 @@ describe('GhPagesTarget', () => {
       data: { build_type: 'legacy', source: { branch: 'gh-pages' } },
     });
     repos.getBranch.mockResolvedValue({ data: { commit: { sha: SHA } } });
+    repos.listDeployments.mockResolvedValue({ data: [] });
     target = new GhPagesTarget(
       { name: 'gh-pages' },
       new NoneArtifactProvider(),
@@ -91,6 +98,124 @@ describe('GhPagesTarget', () => {
         owner: 'o',
         repo: 'r',
       });
+    });
+
+    it('does not rebuild when the errored build was still deployed', async () => {
+      repos.getLatestPagesBuild.mockResolvedValueOnce(
+        build(2, 'errored', SHA, 'Page build failed.'),
+      );
+      repos.listDeployments
+        .mockResolvedValueOnce({ data: [] })
+        .mockResolvedValueOnce({ data: [{ id: 7 }] });
+      repos.listDeploymentStatuses
+        .mockResolvedValueOnce(deploymentStatus('queued'))
+        .mockResolvedValueOnce(deploymentStatus('in_progress'))
+        .mockResolvedValueOnce(deploymentStatus('success'));
+
+      await target.waitForPagesBuild(SHA);
+
+      expect(repos.listDeployments).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        sha: SHA,
+        environment: 'github-pages',
+        per_page: 1,
+      });
+      expect(repos.listDeploymentStatuses).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        deployment_id: 7,
+      });
+      expect(repos.requestPagesBuild).not.toHaveBeenCalled();
+    });
+
+    it('accepts a deployment that succeeded before a newer one replaced it', async () => {
+      repos.getLatestPagesBuild.mockResolvedValueOnce(build(2, 'errored'));
+      repos.listDeployments.mockResolvedValue({ data: [{ id: 7 }] });
+      repos.listDeploymentStatuses.mockResolvedValue({
+        data: [{ state: 'inactive' }, { state: 'success' }],
+      });
+
+      await target.waitForPagesBuild(SHA);
+
+      expect(repos.requestPagesBuild).not.toHaveBeenCalled();
+    });
+
+    it.each(['error', 'failure', 'inactive'])(
+      'requests a rebuild when the deployment ends as %s',
+      async state => {
+        repos.getLatestPagesBuild
+          .mockResolvedValueOnce(build(2, 'errored', SHA, 'Page build failed.'))
+          .mockResolvedValueOnce(build(3, 'built'));
+        repos.listDeployments.mockResolvedValue({ data: [{ id: 7 }] });
+        repos.listDeploymentStatuses.mockResolvedValue(deploymentStatus(state));
+
+        await target.waitForPagesBuild(SHA);
+
+        expect(repos.listDeploymentStatuses).toHaveBeenCalledTimes(1);
+        expect(repos.requestPagesBuild).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it('stops looking for a deployment that does not show up', async () => {
+      repos.getLatestPagesBuild
+        .mockResolvedValueOnce(build(2, 'errored'))
+        .mockResolvedValueOnce(build(3, 'built'));
+
+      await target.waitForPagesBuild(SHA);
+
+      expect(repos.listDeployments).toHaveBeenCalledTimes(6);
+      expect(repos.requestPagesBuild).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits for the deployment of a rebuild, not the failed one before it', async () => {
+      repos.getLatestPagesBuild
+        .mockResolvedValueOnce(build(2, 'errored'))
+        .mockResolvedValueOnce(build(3, 'errored'));
+      repos.listDeployments
+        .mockResolvedValueOnce({ data: [{ id: 7 }] })
+        // The rebuild's deployment does not exist yet.
+        .mockResolvedValueOnce({ data: [{ id: 7 }] })
+        .mockResolvedValueOnce({ data: [{ id: 8 }] });
+      repos.listDeploymentStatuses
+        .mockResolvedValueOnce(deploymentStatus('error'))
+        .mockResolvedValueOnce(deploymentStatus('success'));
+
+      await target.waitForPagesBuild(SHA);
+
+      expect(repos.requestPagesBuild).toHaveBeenCalledTimes(1);
+      expect(repos.listDeploymentStatuses).toHaveBeenLastCalledWith(
+        expect.objectContaining({ deployment_id: 8 }),
+      );
+    });
+
+    it.each([403, 404])(
+      'requests a rebuild when deployments return %i',
+      async status => {
+        repos.getLatestPagesBuild
+          .mockResolvedValueOnce(build(2, 'errored'))
+          .mockResolvedValueOnce(build(3, 'built'));
+        repos.listDeployments.mockRejectedValueOnce(httpError(status));
+        const warn = vi.spyOn(target['logger'], 'warn');
+
+        await target.waitForPagesBuild(SHA);
+
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining(`deployments of o/r (HTTP ${status})`),
+        );
+        expect(repos.requestPagesBuild).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it('names the missing permission when the rebuild request is rejected', async () => {
+      repos.getLatestPagesBuild.mockResolvedValueOnce(
+        build(2, 'errored', SHA, 'Page build failed.'),
+      );
+      repos.requestPagesBuild.mockRejectedValueOnce(httpError(403));
+
+      await expect(target.waitForPagesBuild(SHA)).rejects.toThrow(
+        /Cannot request a GitHub Pages rebuild of o\/r \(HTTP 403\): the token needs Pages write permission/,
+      );
     });
 
     it('fails after the rebuilds also error', async () => {
