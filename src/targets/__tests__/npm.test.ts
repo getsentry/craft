@@ -585,6 +585,94 @@ describe('NpmTarget OIDC configuration', () => {
     },
   );
 
+  it('passes a matching .sigstore artifact as --provenance-file', async () => {
+    vi.stubEnv('NPM_TOKEN', 'my-token');
+    vi.stubEnv('USE_YARN', '');
+    const spawnProcessMock = vi
+      .spyOn(system, 'spawnProcess')
+      .mockResolvedValue(Buffer.from(''));
+    const provider = {
+      filterArtifactsForRevision: vi
+        .fn()
+        .mockImplementation(async (_revision, { includeNames }) =>
+          [
+            { filename: 'sentry-browser-1.0.0.tgz' },
+            { filename: 'sentry-core-1.0.0.tgz' },
+            { filename: 'sentry-browser-1.0.0.tgz.sigstore' },
+          ].filter(file => includeNames.test(file.filename)),
+        ),
+      downloadArtifact: vi
+        .fn()
+        .mockImplementation(async file => `/tmp/${file.filename}`),
+    } as unknown as BaseArtifactProvider;
+
+    try {
+      const target = new TestNpmTarget({ name: 'npm' }, provider);
+      await target.publish('1.0.0', 'release-sha');
+
+      const publishArgs = spawnProcessMock.mock.calls.map(call => call[1]);
+      expect(publishArgs).toHaveLength(2);
+      expect(publishArgs).toContainEqual([
+        'publish',
+        '--ignore-scripts',
+        '--provenance-file=/tmp/sentry-browser-1.0.0.tgz.sigstore',
+        '/tmp/sentry-browser-1.0.0.tgz',
+      ]);
+      expect(publishArgs).toContainEqual([
+        'publish',
+        '--ignore-scripts',
+        '/tmp/sentry-core-1.0.0.tgz',
+      ]);
+    } finally {
+      spawnProcessMock.mockRestore();
+    }
+  });
+
+  it.each([
+    [{ major: 11, minor: 19, patch: 0 }, true],
+    [{ major: 12, minor: 0, patch: 0 }, true],
+    [{ major: 11, minor: 20, patch: 0 }, false],
+    [{ major: 12, minor: 1, patch: 0 }, false],
+  ])(
+    'with OIDC and npm %o, rejects provenance bundles: %s',
+    async (npmVersion, rejects) => {
+      TestNpmTarget.mockVersion = npmVersion;
+      vi.stubEnv('NPM_TOKEN', '');
+      const spawnProcessMock = vi
+        .spyOn(system, 'spawnProcess')
+        .mockResolvedValue(Buffer.from(''));
+      const provider = {
+        filterArtifactsForRevision: vi
+          .fn()
+          .mockImplementation(async (_revision, { includeNames }) =>
+            [
+              { filename: 'sentry-browser-1.0.0.tgz' },
+              { filename: 'sentry-browser-1.0.0.tgz.sigstore' },
+            ].filter(file => includeNames.test(file.filename)),
+          ),
+        downloadArtifact: vi
+          .fn()
+          .mockImplementation(async file => `/tmp/${file.filename}`),
+      } as unknown as BaseArtifactProvider;
+
+      try {
+        const target = new TestNpmTarget({ name: 'npm', oidc: true }, provider);
+        const publish = target.publish('1.0.0', 'release-sha');
+        if (rejects) {
+          await expect(publish).rejects.toThrow(/ignores provenance bundles/);
+          expect(spawnProcessMock).not.toHaveBeenCalled();
+        } else {
+          await publish;
+          expect(spawnProcessMock.mock.calls[0][1]).toContain(
+            '--provenance-file=/tmp/sentry-browser-1.0.0.tgz.sigstore',
+          );
+        }
+      } finally {
+        spawnProcessMock.mockRestore();
+      }
+    },
+  );
+
   it('throws when oidc: true and npm version is too old', () => {
     TestNpmTarget.mockVersion = { major: 5, minor: 6, patch: 0 };
 

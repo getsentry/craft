@@ -121,6 +121,38 @@ steps:
 
 The `npm info` command used by `checkPackageName` does not support OIDC — it requires traditional auth. For **public** packages this works without a token. For **private** packages, provide a read-only `NPM_TOKEN`; if absent, Craft will warn and skip the version check (defaulting to the `latest` tag).
 
+## Build-Time Provenance
+
+To publish with [npm provenance](https://docs.npmjs.com/generating-provenance-statements) that points at the repository and workflow that built the package, sign each tarball in your build workflow and upload the Sigstore bundle as an artifact named `<tarball>.sigstore` (for example `sentry-browser-1.0.0.tgz.sigstore`). When Craft finds a matching bundle, it passes it to `npm publish --provenance-file`. Packages without one publish as before.
+
+npm accepts a bundle only when:
+
+- it has exactly one subject, named after the package's purl (`pkg:npm/%40sentry/browser@1.0.0`)
+- the subject's `sha512` digest matches the published tarball
+- the `repository` in the package's `package.json` points at the repository that signed it, as with npm's own provenance
+
+For example, with [`actions/attest-build-provenance`](https://github.com/actions/attest-build-provenance), run once per tarball:
+
+```yaml
+permissions:
+  id-token: write
+  attestations: write
+
+steps:
+  - id: digest
+    run: echo "sha512=$(sha512sum sentry-browser-1.0.0.tgz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+  - id: attest
+    uses: actions/attest-build-provenance@v4
+    with:
+      subject-name: pkg:npm/%40sentry/browser@1.0.0
+      subject-digest: sha512:${{ steps.digest.outputs.sha512 }}
+  - env:
+      BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+    run: cp "$BUNDLE_PATH" sentry-browser-1.0.0.tgz.sigstore
+```
+
+Provenance bundles are not supported when Craft falls back to `yarn publish`. With OIDC trusted publishing, they need npm >= 11.20.0 (or >= 12.1.0 on npm 12): older versions ignore the bundle and upload provenance generated in the publish environment, so Craft stops with an error instead.
+
 ## Notes
 
 - The `npm` utility must be installed on the system
