@@ -54,6 +54,16 @@ const NPM_MIN_MINOR = 6;
 /** Minimum npm version required for OIDC trusted publishing support */
 const NPM_OIDC_MIN_VERSION: SemVer = { major: 11, minor: 5, patch: 1 };
 
+/**
+ * Older npm versions ignore --provenance-file under OIDC and upload provenance
+ * generated in the publish environment instead (npm/cli#9882, backported to 11.20.0).
+ */
+function honorsProvenanceFileWithOidc({ major, minor }: SemVer): boolean {
+  return (
+    major > 12 || (major === 12 && minor >= 1) || (major === 11 && minor >= 20)
+  );
+}
+
 const NPM_TOKEN_ENV_VAR = 'NPM_TOKEN';
 
 /**
@@ -942,6 +952,20 @@ export class NpmTarget extends BaseTarget {
         })
       ).map(bundle => [bundle.filename, bundle]),
     );
+    if (
+      this.npmConfig.useOidc &&
+      packageFiles.some(file =>
+        provenanceBundles.has(file.filename + PROVENANCE_BUNDLE_SUFFIX),
+      ) &&
+      this.npmVersion &&
+      !honorsProvenanceFileWithOidc(this.npmVersion)
+    ) {
+      const { major, minor, patch } = this.npmVersion;
+      throw new ConfigurationError(
+        `npm ${major}.${minor}.${patch} ignores provenance bundles under OIDC trusted publishing. ` +
+          'Use npm >= 11.20.0 (or >= 12.1.0 on npm 12).',
+      );
+    }
 
     await Promise.all(
       packageFiles.map(async (file: RemoteArtifact) => {
