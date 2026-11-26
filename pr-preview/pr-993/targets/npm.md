@@ -162,7 +162,7 @@ steps:
 ```
 
 
-Provenance bundles are not supported when Craft falls back to `yarn publish`.
+Provenance bundles are not supported when Craft falls back to `yarn publish`. With OIDC trusted publishing, they need npm >= 11.20.0 (or >= 12.1.0 on npm 12): older versions ignore the bundle and upload provenance generated in the publish environment, so Craft stops with an error instead.
 
 ## Notes
 
