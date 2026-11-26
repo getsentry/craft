@@ -585,6 +585,49 @@ describe('NpmTarget OIDC configuration', () => {
     },
   );
 
+  it('passes a matching .sigstore artifact as --provenance-file', async () => {
+    vi.stubEnv('NPM_TOKEN', 'my-token');
+    vi.stubEnv('USE_YARN', '');
+    const spawnProcessMock = vi
+      .spyOn(system, 'spawnProcess')
+      .mockResolvedValue(Buffer.from(''));
+    const provider = {
+      filterArtifactsForRevision: vi
+        .fn()
+        .mockImplementation(async (_revision, { includeNames }) =>
+          [
+            { filename: 'sentry-browser-1.0.0.tgz' },
+            { filename: 'sentry-core-1.0.0.tgz' },
+            { filename: 'sentry-browser-1.0.0.tgz.sigstore' },
+          ].filter(file => includeNames.test(file.filename)),
+        ),
+      downloadArtifact: vi
+        .fn()
+        .mockImplementation(async file => `/tmp/${file.filename}`),
+    } as unknown as BaseArtifactProvider;
+
+    try {
+      const target = new TestNpmTarget({ name: 'npm' }, provider);
+      await target.publish('1.0.0', 'release-sha');
+
+      const publishArgs = spawnProcessMock.mock.calls.map(call => call[1]);
+      expect(publishArgs).toHaveLength(2);
+      expect(publishArgs).toContainEqual([
+        'publish',
+        '--ignore-scripts',
+        '--provenance-file=/tmp/sentry-browser-1.0.0.tgz.sigstore',
+        '/tmp/sentry-browser-1.0.0.tgz',
+      ]);
+      expect(publishArgs).toContainEqual([
+        'publish',
+        '--ignore-scripts',
+        '/tmp/sentry-core-1.0.0.tgz',
+      ]);
+    } finally {
+      spawnProcessMock.mockRestore();
+    }
+  });
+
   it('throws when oidc: true and npm version is too old', () => {
     TestNpmTarget.mockVersion = { major: 5, minor: 6, patch: 0 };
 

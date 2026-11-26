@@ -75,6 +75,10 @@ function isOidcEnvironment(): boolean {
 /** A regular expression used to find the package tarball */
 const DEFAULT_PACKAGE_REGEX = /^.*\d\.\d.*\.tgz$/;
 
+/** Sigstore provenance bundles are named after their tarball: `<tarball>.sigstore` */
+const PROVENANCE_BUNDLE_SUFFIX = '.sigstore';
+const PROVENANCE_BUNDLE_REGEX = /\.tgz\.sigstore$/;
+
 /** Access specifiers for NPM packages. See npm-publish doc for more info */
 export enum NpmPackageAccess {
   /** Public access: anyone can see the package */
@@ -155,6 +159,8 @@ interface NpmPublishOptions {
   version: string;
   /** A tag to use for the publish. If not set, defaults to "latest" */
   tag?: string;
+  /** Path to a pre-built Sigstore provenance bundle for this package */
+  provenanceFile?: string;
 }
 
 /**
@@ -846,6 +852,10 @@ export class NpmTarget extends BaseTarget {
       args.push(`--tag=${options.tag}`);
     }
 
+    if (options.provenanceFile) {
+      args.push(`--provenance-file=${options.provenanceFile}`);
+    }
+
     // The path has to be pushed always as the last arg
     args.push(path);
 
@@ -923,11 +933,36 @@ export class NpmTarget extends BaseTarget {
       publishOptions.tag = tag;
     }
 
+    // Not filtered through this target's include/exclude options: those
+    // match tarball names and would drop the bundles.
+    const provenanceBundles = new Map(
+      (
+        await this.artifactProvider.filterArtifactsForRevision(revision, {
+          includeNames: PROVENANCE_BUNDLE_REGEX,
+        })
+      ).map(bundle => [bundle.filename, bundle]),
+    );
+
     await Promise.all(
       packageFiles.map(async (file: RemoteArtifact) => {
         const path = await this.artifactProvider.downloadArtifact(file);
-        this.logger.info(`Releasing ${file.filename} to NPM`);
-        return this.publishPackage(path, publishOptions);
+        const bundle = provenanceBundles.get(
+          file.filename + PROVENANCE_BUNDLE_SUFFIX,
+        );
+        let provenanceFile: string | undefined;
+        if (bundle && this.npmConfig.useYarn) {
+          this.logger.warn(
+            `Ignoring ${bundle.filename}: yarn cannot attach provenance bundles`,
+          );
+        } else if (bundle) {
+          provenanceFile = await this.artifactProvider.downloadArtifact(bundle);
+        }
+        this.logger.info(
+          `Releasing ${file.filename} to NPM${
+            provenanceFile ? ' with provenance' : ''
+          }`,
+        );
+        return this.publishPackage(path, { ...publishOptions, provenanceFile });
       }),
     );
 
