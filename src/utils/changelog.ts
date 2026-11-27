@@ -105,7 +105,26 @@ async function fetchPRFiles(prNumber: number): Promise<string[]> {
 }
 
 interface CommitAuthors {
-  nodes: Array<{ user: { login: string } | null }>;
+  nodes: Array<{ email?: string | null; user: { login: string } | null }>;
+}
+
+/**
+ * Commit emails of AI coding agents that add themselves as co-authors. Some,
+ * like `noreply@anthropic.com`, resolve to a regular GitHub user (`claude`)
+ * instead of a bot account, so their login alone does not identify them.
+ */
+const AI_AGENT_EMAILS = new Set([
+  'noreply@anthropic.com',
+  'claude@anthropic.com',
+  'noreply@openai.com',
+  'codex@openai.com',
+  'cursoragent@cursor.com',
+  'devin@cognition.ai',
+  '175728472+copilot@users.noreply.github.com',
+]);
+
+function isAIAgentEmail(email: string | null | undefined): boolean {
+  return Boolean(email && AI_AGENT_EMAILS.has(email.toLowerCase()));
 }
 
 /** PRs keyed by `P<number>` aliases, `null` for numbers that are not PRs */
@@ -116,11 +135,19 @@ interface PRCommitAuthorsResult {
   >;
 }
 
-/** Returns the GitHub logins of commit authors that GitHub matched to a user. */
+/**
+ * Returns the GitHub logins of commit authors that GitHub matched to a user.
+ * AI agents get a `[bot]` suffix, so that they are credited as bots.
+ */
 function authorLogins(nodes: CommitAuthors['nodes'] = []): string[] {
-  return nodes
-    .map(node => node.user?.login)
-    .filter((login): login is string => Boolean(login));
+  return nodes.flatMap(({ email, user }) => {
+    if (!user?.login) {
+      return [];
+    }
+    return isAIAgentEmail(email) && !/\[bot\]$/i.test(user.login)
+      ? [`${user.login}[bot]`]
+      : [user.login];
+  });
 }
 
 /**
@@ -146,7 +173,7 @@ async function fetchPRCoAuthors(
             commits(first: ${MAX_PR_COMMITS}) {
               nodes {
                 commit {
-                  authors(first: ${MAX_COMMIT_AUTHORS}) { nodes { user { login } } }
+                  authors(first: ${MAX_COMMIT_AUTHORS}) { nodes { email user { login } } }
                 }
               }
             }
@@ -859,7 +886,7 @@ function creditAuthors(
       continue;
     }
     seen.add(key);
-    // Co-authors only identify bots by their `[bot]` login suffix
+    // Co-authors identify bots and AI agents by their `[bot]` login suffix
     if ((login === author && authorIsBot) || /\[bot\]$/i.test(login)) {
       credits.bots.push(login.replace(/\[bot\]$/i, ''));
     } else {
@@ -2500,6 +2527,7 @@ async function generateChangesetFromGitImpl(
 
 interface CommitInfo {
   author: {
+    email?: string | null;
     user?: { login: string };
   };
   authors?: CommitAuthors;
@@ -2574,10 +2602,11 @@ export async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
 
     fragment PRFragment on Commit {
       author {
+        email
         user { login }
       }
       authors(first: ${MAX_COMMIT_AUTHORS}) {
-        nodes { user { login } }
+        nodes { email user { login } }
       }
       associatedPullRequests(first: 1) {
         nodes {
@@ -2674,6 +2703,7 @@ export async function getPRAndLabelsFromCommit(hashes: string[]): Promise<
             }
           : {
               author: commit?.author.user?.login,
+              authorIsBot: isAIAgentEmail(commit?.author.email),
               coAuthors,
               pr: null,
               prTitle: null,
