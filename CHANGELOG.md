@@ -1,5 +1,28 @@
 # Changelog
 
+## 3.15.0
+
+Publishing gains provenance metadata while scope language, contributor attribution, and the release-validation environment become more consistent.
+
+### New Features ✨
+
+Scope headers adopt terminology rules; npm publishing attaches matching Sigstore provenance bundles, while tarballs publish normally and Yarn warns without provenance.
+
+- (changelog) Use textlint-rule-terminology for scope header casing by @BYK with @sentry-junior in [#990](https://github.com/getsentry/craft/pull/990)
+- (npm) Attach build-time provenance bundles when publishing by @BYK with @sentry-junior in [#993](https://github.com/getsentry/craft/pull/993)
+
+### Bug Fixes 🐛
+
+Changelog credits now classify recognized AI agents as bots across pull requests and standalone commits, using known author email addresses.
+
+- (changelog) Credit AI agents as bots by their commit email by @jan-auer with @sentry-junior in [#994](https://github.com/getsentry/craft/pull/994)
+
+### Internal Changes 🔧
+
+The Craft Docker image upgrades Flutter and Dart, enabling newer package validation; publishing uses it after release pushes it to Docker Hub.
+
+- (docker) Bump Flutter to 3.50.1 by @buenaflor with @sentry-junior in [#992](https://github.com/getsentry/craft/pull/992)
+
 ## 3.14.1
 
 ### Bug Fixes 🐛
