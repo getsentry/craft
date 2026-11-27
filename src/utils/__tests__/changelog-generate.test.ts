@@ -963,6 +963,83 @@ describe('generateChangesetFromGit', () => {
       );
     });
 
+    it('credits AI agents as bots by their commit email', async () => {
+      setup(
+        [
+          {
+            hash: 'abcdef1234567890',
+            title: 'Allowed sentry-sdk 3.x',
+            body: '',
+            pr: { remote: { number: '123', author: { login: 'alice' } } },
+          },
+        ],
+        null,
+      );
+      mockClient.mockResolvedValueOnce({
+        repository: {
+          P123: {
+            commits: {
+              nodes: [
+                {
+                  commit: {
+                    authors: {
+                      nodes: [
+                        {
+                          email: 'alice@example.com',
+                          user: { login: 'alice' },
+                        },
+                        // Resolves to a regular GitHub user, not a bot account
+                        {
+                          email: 'noreply@anthropic.com',
+                          user: { login: 'claude' },
+                        },
+                      ],
+                    },
+                  },
+                },
+                {
+                  commit: {
+                    authors: commitAuthors(['sentry-junior[bot]', 'bob']),
+                  },
+                },
+              ],
+            },
+          },
+        },
+      });
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(result.changelog).toContain(
+        'Allowed sentry-sdk 3.x by @alice and @bob with @claude and @sentry-junior in [#123]',
+      );
+    });
+
+    it('credits an AI agent that authored a commit without a PR as a bot', async () => {
+      mockGetChangesSince.mockResolvedValueOnce([
+        {
+          hash: 'abcdef1234567890',
+          title: 'Fixed the kernel',
+          body: '',
+          pr: null,
+        },
+      ]);
+      mockClient.mockResolvedValueOnce({
+        repository: {
+          Cabcdef1234567890: {
+            author: {
+              email: 'noreply@anthropic.com',
+              user: { login: 'claude' },
+            },
+            authors: commitAuthors(['bob']),
+            associatedPullRequests: { nodes: [] },
+          },
+        },
+      });
+      const result = await generateChangesetFromGit(dummyGit, '1.0.0', 3);
+      expect(result.changelog).toContain(
+        'Fixed the kernel by @bob with @claude in',
+      );
+    });
+
     it('keeps PR co-authors that load when another PR number fails', async () => {
       setup(
         [
